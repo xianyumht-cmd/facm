@@ -9,7 +9,8 @@ namespace FACM.Services
 {
     internal static class ToolRunner
     {
-        private const string ResourceName = "FACM.Resources.FixLcu.GzipBase64";
+        private const int ResourcePartCount = 4;
+        private const string ResourcePrefix = "FACM.Resources.FixLcu.GzipPart";
         private const string ExpectedSha256 = "A30E8ABD86AF01746EC63E2B51F80B83703965D5F1001768236F8BE3B5A3B935";
 
         public static void RunFixLcu(int mode)
@@ -33,12 +34,18 @@ namespace FACM.Services
             var path = Path.Combine(directory, "Fix-LCU-Window.exe");
             if (File.Exists(path) && string.Equals(ComputeSha256(path), ExpectedSha256, StringComparison.OrdinalIgnoreCase)) return path;
 
-            byte[] gzipBytes;
-            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName))
+            var encoded = new System.Text.StringBuilder(16000);
+            var assembly = Assembly.GetExecutingAssembly();
+            for (var index = 0; index < ResourcePartCount; index++)
             {
-                if (stream == null) throw new InvalidOperationException("内置修复工具资源缺失。");
-                using (var reader = new StreamReader(stream)) gzipBytes = Convert.FromBase64String(reader.ReadToEnd());
+                var resourceName = ResourcePrefix + index.ToString("00");
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) throw new InvalidOperationException("内置修复工具资源缺失：" + resourceName);
+                    using (var reader = new StreamReader(stream)) encoded.Append(reader.ReadToEnd());
+                }
             }
+            var gzipBytes = Convert.FromBase64String(encoded.ToString());
 
             using (var compressed = new MemoryStream(gzipBytes, false))
             using (var gzip = new GZipStream(compressed, CompressionMode.Decompress))
