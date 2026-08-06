@@ -76,12 +76,16 @@ try {
     $verifyOutput = & $signtool.FullName verify /pa /all /v $ExePath 2>&1
     $verifyExitCode = $LASTEXITCODE
     $verifyText = ($verifyOutput | Out-String)
+    $normalizedVerifyText = [regex]::Replace($verifyText, '\s+', ' ').Trim()
     $verifyOutput | ForEach-Object { Write-Host $_ }
 
     if ($verifyExitCode -ne 0) {
+        # SignTool splits this message across multiple lines. Normalize whitespace before
+        # matching so the expected self-signed trust warning is not mistaken for a bad
+        # Authenticode digest.
         $expectedUntrustedRoot = $isSelfSigned -and
-            $verifyText -match 'certificate chain processed.*root.*not trusted' -and
-            $verifyText -notmatch '(?i)(no signature found|file digest|hash mismatch|bad digest|invalid signature)'
+            $normalizedVerifyText -match '(?i)certificate chain processed.*terminated in a root certificate which is not trusted by the trust provider' -and
+            $normalizedVerifyText -notmatch '(?i)(no signature found|hash mismatch|bad digest|invalid signature)'
 
         if (-not $expectedUntrustedRoot) {
             throw "signtool verify failed with exit code $verifyExitCode"
