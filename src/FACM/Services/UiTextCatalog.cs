@@ -21,6 +21,7 @@ namespace FACM.Services
         public string Mode4 { get; private set; } = "模式 4";
         public string CheckUpdate { get; private set; } = "检查更新";
         public string OpenLog { get; private set; } = "操作日志";
+        internal string About { get; private set; } = "程序信息";
         public string EditText { get; private set; } = "界面文字";
         public string Exit { get; private set; } = "退出程序";
 
