@@ -13,8 +13,9 @@ namespace FACM
 {
     internal sealed class MainForm : Form
     {
-        private const int BallSize = 68;
+        private const int BallSize = 62;
         private readonly AppSettings _settings = AppSettings.Load();
+        private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly System.Windows.Forms.Timer _animationTimer;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
@@ -28,7 +29,6 @@ namespace FACM
         private Point _dragCursor;
         private Point _dragWindow;
         private float _hoverProgress;
-        private float _pulse;
 
         public MainForm(bool startCleanup = false)
         {
@@ -42,10 +42,10 @@ namespace FACM
             StartPosition = FormStartPosition.Manual;
             ClientSize = new Size(BallSize, BallSize);
             MinimumSize = MaximumSize = Size;
-            BackColor = Color.Magenta;
-            TransparencyKey = Color.Magenta;
+            BackColor = Color.FromArgb(25, 42, 82);
             DoubleBuffered = true;
             Font = new Font("Microsoft YaHei UI", 9F);
+            ApplyBallRegion();
 
             _tray = new NotifyIcon
             {
@@ -66,6 +66,7 @@ namespace FACM
             MouseMove += ContinueDrag;
             MouseUp += EndDrag;
             Shown += HandleShown;
+            SizeChanged += delegate { ApplyBallRegion(); };
             FormClosed += delegate
             {
                 _animationTimer.Stop();
@@ -90,55 +91,40 @@ namespace FACM
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            var inset = 5f - 2.3f * _hoverProgress;
+            var inset = 2.5f - 0.7f * _hoverProgress;
             var bounds = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
-            using (var shadow = new SolidBrush(Color.FromArgb(75, 0, 0, 0)))
+            var topColor = Blend(Color.FromArgb(74, 151, 255), Color.FromArgb(99, 180, 255), _hoverProgress);
+            var bottomColor = Blend(Color.FromArgb(48, 79, 207), Color.FromArgb(54, 103, 232), _hoverProgress);
+
+            using (var brush = new LinearGradientBrush(bounds, topColor, bottomColor, 115F))
             {
-                e.Graphics.FillEllipse(shadow, bounds.X + 2, bounds.Y + 5, bounds.Width, bounds.Height);
+                e.Graphics.FillEllipse(brush, bounds);
+            }
+            using (var border = new Pen(Color.FromArgb(210, 114, 191, 255), 1.6f + _hoverProgress * 0.5f))
+            {
+                e.Graphics.DrawEllipse(border, bounds);
+            }
+            using (var highlight = new Pen(Color.FromArgb(70, 255, 255, 255), 1f))
+            {
+                e.Graphics.DrawArc(highlight, bounds.X + 4, bounds.Y + 4, bounds.Width - 8, bounds.Height - 8, 205, 125);
             }
 
-            using (var path = new GraphicsPath())
-            {
-                path.AddEllipse(bounds);
-                using (var brush = new PathGradientBrush(path))
-                {
-                    brush.CenterPoint = new PointF(bounds.X + bounds.Width * 0.35f, bounds.Y + bounds.Height * 0.28f);
-                    brush.CenterColor = Color.FromArgb(91, 205, 255);
-                    brush.SurroundColors = new[] { Color.FromArgb(45, 79, 219) };
-                    e.Graphics.FillPath(brush, path);
-                }
-            }
-
-            var glowAlpha = 42 + (int)(45 * _hoverProgress) + (int)(9 * Math.Sin(_pulse));
-            using (var glow = new Pen(Color.FromArgb(Math.Max(0, Math.Min(110, glowAlpha)), 137, 219, 255), 2.3f))
-            {
-                e.Graphics.DrawEllipse(glow, bounds);
-            }
-
-            using (var inner = new Pen(Color.FromArgb(55, 255, 255, 255), 1f))
-            {
-                e.Graphics.DrawEllipse(inner, bounds.X + 5, bounds.Y + 5, bounds.Width - 10, bounds.Height - 10);
-            }
-
-            using (var font = new Font("Segoe UI", 21F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var textBrush = new SolidBrush(Color.White))
             {
                 const string text = "F";
                 var size = e.Graphics.MeasureString(text, font);
-                e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f - 1f, (Height - size.Height) / 2f - 3f);
+                e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f - 1f, (Height - size.Height) / 2f - 1f);
             }
 
-            using (var versionFont = new Font("Segoe UI", 6.6F, FontStyle.Bold, GraphicsUnit.Point))
-            using (var versionBrush = new SolidBrush(Color.FromArgb(210, 235, 255)))
-            {
-                e.Graphics.DrawString("3.1", versionFont, versionBrush, 26f, 45f);
-            }
-
-            using (var dot = new SolidBrush(ElevationService.IsAdministrator
+            var statusColor = ElevationService.IsAdministrator
                 ? Color.FromArgb(92, 224, 166)
-                : Color.FromArgb(255, 191, 89)))
+                : Color.FromArgb(255, 191, 89);
+            using (var dotBorder = new SolidBrush(Color.FromArgb(235, 17, 28, 51)))
+            using (var dot = new SolidBrush(statusColor))
             {
-                e.Graphics.FillEllipse(dot, Width - 18, 9, 8, 8);
+                e.Graphics.FillEllipse(dotBorder, Width - 17, 7, 10, 10);
+                e.Graphics.FillEllipse(dot, Width - 15, 9, 6, 6);
             }
         }
 
@@ -154,6 +140,53 @@ namespace FACM
         {
             CloseMenu();
             Close();
+        }
+
+        public void RunToolA()
+        {
+            try
+            {
+                ToolRunner.RunStandaloneToolA();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Built-in tool A failed", exception);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        public void RunToolMode(int mode)
+        {
+            try
+            {
+                ToolRunner.RunFixLcu(mode);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Built-in mode failed", exception);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        public async void OpenUpdateCenter()
+        {
+            await OpenOnlineCenterAsync();
+        }
+
+        public void OpenLogFile()
+        {
+            try
+            {
+                var path = AppLog.CurrentLogPath;
+                var directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                if (!File.Exists(path)) File.WriteAllText(path, string.Empty);
+                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show("无法打开日志：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void HandleShown(object sender, EventArgs e)
@@ -179,31 +212,23 @@ namespace FACM
 
         private ContextMenuStrip BuildTrayMenu()
         {
-            var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9F) };
-            menu.Items.Add("打开控制中心", null, delegate { Show(); ToggleMenu(); });
-            menu.Items.Add("清理环境", null, delegate
+            var menu = new ContextMenuStrip
+            {
+                Font = new Font("Microsoft YaHei UI", 9F),
+                ShowImageMargin = false
+            };
+            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { Show(); ToggleMenu(); });
+            menu.Items.Add(_ui.Cleanup, null, delegate
             {
                 Show();
                 if (_menu == null) ToggleMenu();
                 if (_menu != null && !_menu.IsDisposed) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
-
-            var tools = new ToolStripMenuItem("内置工具");
-            tools.DropDownItems.Add("运行工具 A", null, delegate { RunStandaloneToolA(); });
-            tools.DropDownItems.Add(new ToolStripSeparator());
-            for (var mode = 1; mode <= 4; mode++)
-            {
-                var capturedMode = mode;
-                tools.DropDownItems.Add("运行模式 " + capturedMode, null, delegate { RunMode(capturedMode); });
-            }
-            menu.Items.Add(tools);
-
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("在线中心", null, async delegate { await OpenOnlineCenterAsync(false); });
-            menu.Items.Add("检查更新", null, async delegate { await OpenOnlineCenterAsync(true); });
-            menu.Items.Add("打开日志", null, delegate { OpenLog(); });
+            menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
+            menu.Items.Add(_ui.OpenLog, null, delegate { OpenLogFile(); });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("退出", null, delegate { ExitApplication(); });
+            menu.Items.Add(_ui.Exit, null, delegate { ExitApplication(); });
             return menu;
         }
 
@@ -249,7 +274,7 @@ namespace FACM
 
                 if (snapshot.UpdateAvailable)
                 {
-                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可从在线中心手动更新。", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“" + _ui.CheckUpdate + "”处理。", ToolTipIcon.Info);
                 }
                 else if (announcement != null && announcement.Enabled &&
                          !string.IsNullOrWhiteSpace(announcement.Id) &&
@@ -270,19 +295,19 @@ namespace FACM
             }
         }
 
-        private async Task OpenOnlineCenterAsync(bool updateOnly)
+        private async Task OpenOnlineCenterAsync()
         {
             if (_onlineCenterOpen || IsDisposed) return;
             try
             {
-                _tray.ShowBalloonTip(2000, "FACM", "正在读取在线配置...", ToolTipIcon.Info);
+                _tray.ShowBalloonTip(1800, "FACM", "正在读取更新与公告...", ToolTipIcon.Info);
                 var snapshot = await OnlineService.FetchSnapshotAsync(CancellationToken.None);
-                await ShowOnlineCenterAsync(snapshot, snapshot.ForceUpdateRequired, updateOnly && snapshot.UpdateAvailable);
+                await ShowOnlineCenterAsync(snapshot, snapshot.ForceUpdateRequired, false);
             }
             catch (Exception exception)
             {
-                AppLog.Error("Open online center failed", exception);
-                MessageBox.Show("在线中心打开失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AppLog.Error("Open update center failed", exception);
+                MessageBox.Show("检查更新失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -309,37 +334,10 @@ namespace FACM
             return Task.CompletedTask;
         }
 
-        private static void RunStandaloneToolA()
-        {
-            try
-            {
-                ToolRunner.RunStandaloneToolA();
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Built-in tool A failed", exception);
-                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private static void RunMode(int mode)
-        {
-            try
-            {
-                ToolRunner.RunFixLcu(mode);
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Built-in mode failed", exception);
-                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
         private void Animate(object sender, EventArgs e)
         {
             var target = _hovered || _menu != null ? 1f : 0f;
             _hoverProgress += (target - _hoverProgress) * 0.22f;
-            _pulse += 0.08f;
             Invalidate();
         }
 
@@ -384,7 +382,7 @@ namespace FACM
                 return;
             }
 
-            _menu = new CompactMenuForm(this, _settings);
+            _menu = new CompactMenuForm(this, _settings, _ui);
             _menu.FormClosed += delegate { _menu = null; Invalidate(); };
             PositionMenu(_menu);
             _menu.Show(this);
@@ -395,7 +393,7 @@ namespace FACM
         {
             var area = Screen.FromControl(this).WorkingArea;
             var openLeft = Left > area.Left + area.Width / 2;
-            var x = openLeft ? Left - menu.Width - 14 : Right + 14;
+            var x = openLeft ? Left - menu.Width - 12 : Right + 12;
             var y = Math.Max(area.Top + 8, Math.Min(Top + Height / 2 - menu.Height / 2, area.Bottom - menu.Height - 8));
             x = Math.Max(area.Left + 8, Math.Min(x, area.Right - menu.Width - 8));
             menu.Location = new Point(x, y);
@@ -432,26 +430,30 @@ namespace FACM
             _settings.Save();
         }
 
+        private void ApplyBallRegion()
+        {
+            if (Width <= 0 || Height <= 0) return;
+            using (var path = new GraphicsPath())
+            {
+                path.AddEllipse(new Rectangle(0, 0, Width, Height));
+                Region = new Region(path);
+            }
+        }
+
+        private static Color Blend(Color first, Color second, float amount)
+        {
+            amount = Math.Max(0f, Math.Min(1f, amount));
+            return Color.FromArgb(
+                (int)(first.A + (second.A - first.A) * amount),
+                (int)(first.R + (second.R - first.R) * amount),
+                (int)(first.G + (second.G - first.G) * amount),
+                (int)(first.B + (second.B - first.B) * amount));
+        }
+
         private static string TrimBalloonText(string value)
         {
             var text = (value ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
             return text.Length <= 240 ? text : text.Substring(0, 237) + "...";
-        }
-
-        private static void OpenLog()
-        {
-            try
-            {
-                var path = AppLog.CurrentLogPath;
-                var directory = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                if (!File.Exists(path)) File.WriteAllText(path, string.Empty);
-                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
-            }
-            catch (Exception exception)
-            {
-                MessageBox.Show("无法打开日志：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
     }
 }
