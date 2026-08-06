@@ -13,23 +13,26 @@ namespace FACM.Configuration
         public const string ProgramDataFolderName = "AntiCheatExpert";
 
         // 用于确认/定位安装根目录的标记文件夹名。用户选择其上级目录或更高层目录均可。
-        public const string GameRootMarkerFolderName = "REPLACE_GAME_ROOT_MARKER_FOLDER";
+        public const string GameRootMarkerFolderName = "Game";
 
         // 以下路径均相对于解析出的安装根目录，可填写多级相对路径，例如 @"A\\B"。
-        public const string CleanupContainerRelativePath = @"REPLACE_CLEANUP_CONTAINER_RELATIVE_PATH";
+        public const string CleanupContainerRelativePath = @"Game";
         public const string PreservedChildFolderName = "DATA";
-        public const string ExtraFolderRelativePath1 = @"REPLACE_EXTRA_FOLDER_RELATIVE_PATH_1";
-        public const string ExtraFolderRelativePath2 = @"REPLACE_EXTRA_FOLDER_RELATIVE_PATH_2";
-        public const string LogFolderRelativePath = @"REPLACE_LOG_FOLDER_RELATIVE_PATH";
+        public const string ExtraFolderRelativePath1 = @"\Launcher\AntiCheatExpert";
+        public const string ExtraFolderRelativePath2 = @"\LeagueClient\AntiCheatExpert";
+        public const string LogFolderRelativePath = @"LeagueClient";
         public const string LogSearchPattern = "*.log";
 
         // 自动定位：卸载项显示名称关键词，以及需要阻止清理的进程名（不带 .exe）。
-        public const string RegistryDisplayNameKeyword = "REPLACE_REGISTRY_DISPLAY_NAME_KEYWORD";
+        public const string RegistryDisplayNameKeyword = "英雄联盟";
         public static readonly string[] RelatedProcessNames =
         {
-            "REPLACE_PROCESS_NAME_1",
-            "REPLACE_PROCESS_NAME_2"
-        };
+    "LeagueClient",
+    "LeagueClientUx",
+    "LeagueClientUxRender",
+    "League of Legends",
+    "RiotClientServices"
+};
 
         public const int MaxMarkerSearchDepth = 5;
         // ===== 开发者配置结束 =====
