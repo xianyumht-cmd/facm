@@ -1,27 +1,31 @@
-# FACM 2.0 清理规格
+# FACM 2.1 安全清理规格
 
-## 固定目标
+## 可清理目标
 
-- `%ProgramFiles%\AntiCheatExpert`
-- `%ProgramData%\AntiCheatExpert`
+FACM 2.1 仅清理以下低风险文件：
 
-## 用户选择游戏目录后的附加目标
+- `<游戏根目录>\LeagueClient\*.log`，仅限 `LeagueClient` 顶层日志文件
+- `%LocalAppData%\FACM\Temp` 顶层临时文件
 
-- `<selected>\AntiCheatExpert`
-- `<selected>\Game\AntiCheatExpert`
+不会递归删除 `Game`、`Launcher` 或 `LeagueClient` 中的其他文件夹与组件。
 
-不会进行包含关键字的全盘模糊搜索，也不会删除名称类似但不完全匹配的目录。
+## 游戏目录
 
-## 安全约束
+游戏根目录必须直接包含：
 
-- 用户选择的路径不能是盘符根目录、Windows、Program Files、Program Files (x86) 或 ProgramData 根目录。
-- 动态生成的目标必须保持在用户选择目录之内。
-- 最终叶子目录必须精确等于 `AntiCheatExpert`。
-- 遇到 reparse point、junction 或 symbolic link 时停止并标记为跳过。
-- 检测到相关游戏/组件进程运行时，整个删除流程不启动。
-- 不停止服务、不结束进程、不修改注册表中的第三方项目。
-- 删除是永久删除，确认框必须展示所有完整路径。
+- `Game` 文件夹
+- `LeagueClient` 或 `Launcher` 文件夹之一
+
+目录可由用户通过系统文件夹选择器指定，也可从正在运行的客户端及常见卸载/WeGame 注册表位置识别。注册表仅用于读取安装路径，不写入第三方项目。
+
+## 执行约束
+
+- 游戏或客户端进程运行时拒绝清理。
+- 先统计文件数量和大小，再显示确认框。
+- 不停止服务、不结束进程、不执行隐藏命令。
+- 不删除驱动、安全组件或反作弊目录。
+- 每个成功或失败的删除操作写入本地日志。
 
 ## 日志
 
-日志只记录：启动/退出、签名状态、扫描目标及结果、删除结果与异常。不会上传日志。
+FACM 日志位于 `%LocalAppData%\FACM\Logs`，不会上传。
