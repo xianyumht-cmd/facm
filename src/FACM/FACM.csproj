@@ -34,11 +34,26 @@
     <None Include="Resources\FACM-Canva.png" />
   </ItemGroup>
 
-  <Target Name="EmbedToolBundle" BeforeTargets="PrepareResources" DependsOnTargets="ResolveProjectReferences">
+  <!--
+    ResolveProjectReferences 会先构建 FACM.ToolBundle。将二进制资源放到
+    CoreCompile 前加入，保证第一次干净构建时 DLL 已存在，并且 C# 编译器
+    能把它以固定 LogicalName 写进最终 FACM.exe。
+  -->
+  <Target Name="EmbedToolBundle" BeforeTargets="CoreCompile" DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup>
+      <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(ToolBundleAssembly)')"
+           Text="FACM.ToolBundle.dll was not built: $(ToolBundleAssembly)" />
+
     <ItemGroup>
-      <EmbeddedResource Include="..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll">
+      <EmbeddedResource Include="$(ToolBundleAssembly)">
         <LogicalName>FACM.Resources.FACM.ToolBundle.dll</LogicalName>
       </EmbeddedResource>
     </ItemGroup>
+
+    <Message Importance="High"
+             Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
 </Project>
