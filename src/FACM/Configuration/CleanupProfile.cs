@@ -18,8 +18,8 @@ namespace FACM.Configuration
         // 以下路径均相对于解析出的安装根目录，可填写多级相对路径，例如 @"A\\B"。
         public const string CleanupContainerRelativePath = @"Game";
         public const string PreservedChildFolderName = "DATA";
-        public const string ExtraFolderRelativePath1 = @"\Launcher\AntiCheatExpert";
-        public const string ExtraFolderRelativePath2 = @"\LeagueClient\AntiCheatExpert";
+        public const string ExtraFolderRelativePath1 = @"Launcher\AntiCheatExpert";
+        public const string ExtraFolderRelativePath2 = @"LeagueClient\AntiCheatExpert";
         public const string LogFolderRelativePath = @"LeagueClient";
         public const string LogSearchPattern = "*.log";
 
