@@ -3,12 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace FACM.Services
 {
     internal static class ToolRunner
     {
-        private const string ResourceName = "FACM.Resources.Fix-LCU-Window.exe.b64";
+        private const int ResourcePartCount = 9;
+        private const string ResourcePrefix = "FACM.Resources.FixLcu.Part";
         private const string ExpectedSha256 = "A30E8ABD86AF01746EC63E2B51F80B83703965D5F1001768236F8BE3B5A3B935";
 
         public static void RunFixLcu(int mode)
@@ -32,16 +34,19 @@ namespace FACM.Services
             var path = Path.Combine(directory, "Fix-LCU-Window.exe");
             if (File.Exists(path) && string.Equals(ComputeSha256(path), ExpectedSha256, StringComparison.OrdinalIgnoreCase)) return path;
 
-            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName))
+            var encoded = new StringBuilder(34000);
+            var assembly = Assembly.GetExecutingAssembly();
+            for (var index = 0; index < ResourcePartCount; index++)
             {
-                if (stream == null) throw new InvalidOperationException("内置修复工具资源缺失。");
-                using (var reader = new StreamReader(stream))
+                var resourceName = ResourcePrefix + index.ToString("00");
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    var encoded = reader.ReadToEnd();
-                    File.WriteAllBytes(path, Convert.FromBase64String(encoded));
+                    if (stream == null) throw new InvalidOperationException("内置修复工具资源缺失：" + resourceName);
+                    using (var reader = new StreamReader(stream)) encoded.Append(reader.ReadToEnd());
                 }
             }
 
+            File.WriteAllBytes(path, Convert.FromBase64String(encoded.ToString()));
             var actual = ComputeSha256(path);
             if (!string.Equals(actual, ExpectedSha256, StringComparison.OrdinalIgnoreCase))
             {
