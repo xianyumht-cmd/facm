@@ -14,7 +14,7 @@ env:
   OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
@@ -32,90 +32,78 @@ jobs:
             throw "Build output not found: $env:OUTPUT_EXE"
           }
 
-      - name: Sign executable
-        shell: powershell
-        env:
-          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
-          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+      - name: Upload unsigned build for signing job
+        uses: actions/upload-artifact@v4
+        with:
+          name: facm-unsigned-${{ github.run_id }}
+          path: ${{ env.OUTPUT_EXE }}
+          if-no-files-found: error
+
+  sign-linux:
+    needs: build-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout metadata
+        uses: actions/checkout@v4
+
+      - name: Download unsigned build
+        uses: actions/download-artifact@v4
+        with:
+          name: facm-unsigned-${{ github.run_id }}
+          path: input
+
+      - name: Install Authenticode signer
+        shell: bash
         run: |
-          $ErrorActionPreference = "Stop"
-          $artifactDir = Join-Path $PWD "artifacts"
-          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
-          $expectedThumbprint = $null
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osslsigncode
 
-          if (-not [string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
-            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (-not $signtool) { throw "signtool.exe not found" }
-
-            $pfxPath = Join-Path $env:RUNNER_TEMP "facm-signing.pfx"
-            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:FACM_PFX_BASE64))
-            try {
-              & $signtool.FullName sign /fd SHA256 /td SHA256 /tr https://timestamp.digicert.com /f $pfxPath /p $env:FACM_PFX_PASSWORD $env:OUTPUT_EXE
-              if ($LASTEXITCODE -ne 0) { throw "trusted certificate signing failed: $LASTEXITCODE" }
-              "Trusted repository certificate" | Set-Content (Join-Path $artifactDir "SIGNING-MODE.txt") -Encoding UTF8
-            }
-            finally {
-              Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
-            }
-          }
-          else {
-            $cert = New-SelfSignedCertificate `
-              -Type CodeSigningCert `
-              -Subject "CN=FACM Self-Signed Test Publisher" `
-              -FriendlyName "FACM Self-Signed Test Publisher" `
-              -CertStoreLocation "Cert:\CurrentUser\My" `
-              -HashAlgorithm SHA256 `
-              -KeyAlgorithm RSA `
-              -KeyLength 2048 `
-              -NotAfter (Get-Date).AddYears(3)
-
-            $expectedThumbprint = $cert.Thumbprint
-            $cerPath = Join-Path $artifactDir "FACM-Self-Signed-Test-Publisher.cer"
-            Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-            Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
-
-            $signed = Set-AuthenticodeSignature `
-              -FilePath $env:OUTPUT_EXE `
-              -Certificate $cert `
-              -HashAlgorithm SHA256
-
-            if (-not $signed.SignerCertificate) {
-              throw "Set-AuthenticodeSignature did not embed a signer certificate"
-            }
-
-            @(
-              "Self-signed Authenticode test certificate"
-              "Publisher: FACM Self-Signed Test Publisher"
-              "This certificate is not trusted by Windows by default and does not establish SmartScreen reputation."
-            ) | Set-Content (Join-Path $artifactDir "SIGNING-MODE.txt") -Encoding UTF8
-          }
-
-          $signature = Get-AuthenticodeSignature $env:OUTPUT_EXE
-          if (-not $signature.SignerCertificate) {
-            throw "EXE has no embedded Authenticode signer certificate"
-          }
-          if ($expectedThumbprint -and $signature.SignerCertificate.Thumbprint -ne $expectedThumbprint) {
-            throw "Signer thumbprint mismatch"
-          }
-          if ($signature.Status -ne "Valid") {
-            throw "Offline Authenticode verification failed: $($signature.Status) $($signature.StatusMessage)"
-          }
-          Write-Host "Signature valid: $($signature.SignerCertificate.Subject) [$($signature.SignerCertificate.Thumbprint)]"
-
-      - name: Verify metadata and create package
-        shell: pwsh
+      - name: Create self-signed certificate and sign
+        shell: bash
         run: |
-          $artifactDir = Join-Path $PWD "artifacts"
-          Copy-Item $env:OUTPUT_EXE (Join-Path $artifactDir "FACM.exe") -Force
-          $hash = Get-FileHash (Join-Path $artifactDir "FACM.exe") -Algorithm SHA256
-          "SHA256  $($hash.Hash)  FACM.exe" | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
-          Get-AuthenticodeSignature (Join-Path $artifactDir "FACM.exe") | Format-List * | Out-File (Join-Path $artifactDir "SIGNATURE.txt") -Encoding utf8
-          Copy-Item README.md (Join-Path $artifactDir "README.md")
-          Compress-Archive -Path "$artifactDir\*" -DestinationPath "FACM-2.0-self-signed-test.zip" -Force
+          set -euo pipefail
+          mkdir -p artifacts signing
 
-      - name: Upload artifact
+          openssl req -x509 -newkey rsa:3072 -sha256 -days 1095 -nodes \
+            -subj "/CN=FACM Self-Signed Test Publisher/O=FACM Development/" \
+            -addext "keyUsage=digitalSignature" \
+            -addext "extendedKeyUsage=codeSigning" \
+            -keyout signing/FACM-Self-Signed.key \
+            -out signing/FACM-Self-Signed-Test-Publisher.cer
+
+          openssl pkcs12 -export \
+            -inkey signing/FACM-Self-Signed.key \
+            -in signing/FACM-Self-Signed-Test-Publisher.cer \
+            -out signing/FACM-Self-Signed.pfx \
+            -passout pass:facm-ci-self-signed
+
+          osslsigncode sign \
+            -pkcs12 signing/FACM-Self-Signed.pfx \
+            -pass facm-ci-self-signed \
+            -h sha256 \
+            -n "FACM 2.0" \
+            -i "https://github.com/xianyumht-cmd/facm" \
+            -in input/FACM.exe \
+            -out artifacts/FACM.exe
+
+          osslsigncode verify -in artifacts/FACM.exe | tee artifacts/SIGNATURE.txt
+          grep -q "Succeeded" artifacts/SIGNATURE.txt
+
+          sha256sum artifacts/FACM.exe | awk '{print "SHA256  " toupper($1) "  FACM.exe"}' > artifacts/SHA256.txt
+          cp signing/FACM-Self-Signed-Test-Publisher.cer artifacts/
+          cp README.md artifacts/
+          cat > artifacts/SIGNING-MODE.txt <<'EOF'
+          Self-signed Authenticode test certificate
+          Publisher: FACM Self-Signed Test Publisher
+          This certificate is not trusted by Windows by default and does not establish SmartScreen reputation.
+          The private signing key is generated only inside the temporary CI runner and is not included in this package.
+          EOF
+
+          (cd artifacts && zip -9 ../FACM-2.0-self-signed-test.zip ./*)
+
+      - name: Upload signed package
         uses: actions/upload-artifact@v4
         with:
           name: FACM-2.0-self-signed-test
