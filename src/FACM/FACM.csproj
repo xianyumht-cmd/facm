@@ -16,6 +16,7 @@
     <DebugSymbols>true</DebugSymbols>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,29 +33,22 @@
   <ItemGroup>
     <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
     <None Include="Resources\FACM-Canva.png" />
+
+    <!--
+      EmbeddedResource 必须在项目加载阶段进入资源项列表。FACM.ToolBundle
+      会由上面的 ProjectReference 先构建，随后以固定资源名写入 FACM.exe。
+    -->
+    <EmbeddedResource Include="$(ToolBundleAssembly)"
+                      LogicalName="FACM.Resources.FACM.ToolBundle.dll"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
 
-  <!--
-    ResolveProjectReferences 会先构建 FACM.ToolBundle。将二进制资源放到
-    CoreCompile 前加入，保证第一次干净构建时 DLL 已存在，并且 C# 编译器
-    能把它以固定 LogicalName 写进最终 FACM.exe。
-  -->
-  <Target Name="EmbedToolBundle" BeforeTargets="CoreCompile" DependsOnTargets="ResolveProjectReferences">
-    <PropertyGroup>
-      <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
-    </PropertyGroup>
-
+  <Target Name="VerifyToolBundleBeforeCompile"
+          BeforeTargets="PrepareResourceNames"
+          DependsOnTargets="ResolveProjectReferences">
     <Error Condition="!Exists('$(ToolBundleAssembly)')"
            Text="FACM.ToolBundle.dll was not built: $(ToolBundleAssembly)" />
-
-    <ItemGroup>
-      <EmbeddedResource Include="$(ToolBundleAssembly)">
-        <LogicalName>FACM.Resources.FACM.ToolBundle.dll</LogicalName>
-        <Type>Non-Resx</Type>
-        <WithCulture>false</WithCulture>
-      </EmbeddedResource>
-    </ItemGroup>
-
     <Message Importance="High"
              Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
