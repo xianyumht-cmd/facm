@@ -85,12 +85,10 @@ namespace FACM.Configuration
             NormalizeRelativePath(ExtraFolderRelativePath2, nameof(ExtraFolderRelativePath2));
             NormalizeRelativePath(LogFolderRelativePath, nameof(LogFolderRelativePath));
 
-            if (string.IsNullOrWhiteSpace(LogSearchPattern) || IsPlaceholder(LogSearchPattern) ||
-                LogSearchPattern.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-                LogSearchPattern.IndexOf(Path.DirectorySeparatorChar) >= 0 ||
-                LogSearchPattern.IndexOf(Path.AltDirectorySeparatorChar) >= 0)
+            // 当前清理规格只允许顶层 .log，避免开发者误填过宽的通配符。
+            if (!string.Equals(LogSearchPattern, "*.log", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException("LogSearchPattern 配置无效。");
+                throw new InvalidOperationException("LogSearchPattern 必须保持为 *.log。");
             }
 
             if (string.IsNullOrWhiteSpace(RegistryDisplayNameKeyword) || IsPlaceholder(RegistryDisplayNameKeyword))
