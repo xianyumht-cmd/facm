@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.Serialization.Json;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
@@ -45,11 +44,11 @@ namespace FACM.Online
                     TryParseVersion(snapshot.Update.Version, out latest))
                 {
                     snapshot.LatestVersion = latest;
-                    snapshot.UpdateAvailable = latest > snapshot.CurrentVersion;
+                    snapshot.UpdateAvailable = latest.CompareTo(snapshot.CurrentVersion) > 0;
 
                     Version minimum;
                     var belowMinimum = TryParseVersion(snapshot.Update.MinimumVersion, out minimum) &&
-                                       snapshot.CurrentVersion < minimum;
+                                       snapshot.CurrentVersion.CompareTo(minimum) < 0;
                     snapshot.ForceUpdateRequired = snapshot.UpdateAvailable &&
                                                    (snapshot.Update.ForceUpdate || belowMinimum);
                 }
