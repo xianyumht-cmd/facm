@@ -50,6 +50,12 @@ New-Item -ItemType Directory -Path $artifactDir | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "构建失败，退出码 $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "构建完成但未找到 $outputExe" }
 
+$assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom((Resolve-Path $outputExe).Path)
+if ($assembly.GetManifestResourceNames() -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
+    throw "FACM.exe 中没有嵌入 FACM.ToolBundle.dll"
+}
+Write-Host "已校验嵌入工具资源 DLL"
+
 $artifactExe = Join-Path $artifactDir "FACM.exe"
 Copy-Item $outputExe $artifactExe -Force
 $hash = Get-FileHash $artifactExe -Algorithm SHA256
@@ -64,6 +70,7 @@ $buildInfo = [ordered]@{
     product_version = $version.ProductVersion
     sha256 = $hash.Hash
     signature_status = [string](Get-AuthenticodeSignature $artifactExe).Status
+    tool_bundle = "embedded FACM.ToolBundle.dll"
     built_at_utc = [DateTime]::UtcNow.ToString("o")
 }
 $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir "BUILD-INFO.json") -Encoding utf8
@@ -71,6 +78,9 @@ $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir "BUILD-INFO.js
 Copy-Item (Join-Path $repoRoot "README.md") (Join-Path $artifactDir "README.md") -Force
 Copy-Item (Join-Path $repoRoot "docs\DEVELOPER-CLEANUP-CONFIG.md") (Join-Path $artifactDir "DEVELOPER-CLEANUP-CONFIG.md") -Force
 Copy-Item (Join-Path $repoRoot "docs\SIGNING.md") (Join-Path $artifactDir "SIGNING.md") -Force
+if (Test-Path (Join-Path $repoRoot "docs\ONLINE-MANAGEMENT.md")) {
+    Copy-Item (Join-Path $repoRoot "docs\ONLINE-MANAGEMENT.md") (Join-Path $artifactDir "ONLINE-MANAGEMENT.md") -Force
+}
 
 if (Test-Path $packagePath) { Remove-Item $packagePath -Force }
 Compress-Archive -Path "$artifactDir\*" -DestinationPath $packagePath -Force
