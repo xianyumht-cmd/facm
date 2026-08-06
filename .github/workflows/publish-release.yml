@@ -1,0 +1,202 @@
+name: FACM Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本，例如 3.1.1'
+        required: true
+        type: string
+      minimum_version:
+        description: '允许继续运行的最低版本'
+        required: true
+        type: string
+        default: '3.0.0'
+      force_update:
+        description: '强制低版本更新'
+        required: true
+        type: boolean
+        default: false
+      prerelease:
+        description: '标记为预发布版本'
+        required: true
+        type: boolean
+        default: false
+      release_notes:
+        description: '更新说明'
+        required: true
+        type: string
+        default: '稳定性与功能更新。'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: facm-publish-release
+  cancel-in-progress: false
+
+env:
+  SOLUTION: FACM.sln
+  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      MINIMUM_VERSION: ${{ inputs.minimum_version }}
+      FORCE_UPDATE: ${{ inputs.force_update }}
+      PRERELEASE: ${{ inputs.prerelease }}
+      RELEASE_NOTES: ${{ inputs.release_notes }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Validate release inputs
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'version must use major.minor.patch format.'
+          }
+          if ($env:MINIMUM_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'minimum_version must use major.minor.patch format.'
+          }
+          if ([Version]$env:MINIMUM_VERSION -gt [Version]$env:RELEASE_VERSION) {
+            throw 'minimum_version cannot be greater than version.'
+          }
+          gh release view ("v" + $env:RELEASE_VERSION) --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release v$($env:RELEASE_VERSION) already exists."
+          }
+          $global:LASTEXITCODE = 0
+
+      - name: Apply release version
+        shell: pwsh
+        run: |
+          $path = 'src/FACM/Properties/AssemblyInfo.cs'
+          $content = Get-Content $path -Raw -Encoding utf8
+          $assemblyVersion = $env:RELEASE_VERSION + '.0'
+          $content = [regex]::Replace($content, 'AssemblyVersion\("[^"]+"\)', 'AssemblyVersion("' + $assemblyVersion + '")')
+          $content = [regex]::Replace($content, 'AssemblyFileVersion\("[^"]+"\)', 'AssemblyFileVersion("' + $assemblyVersion + '")')
+          $content = [regex]::Replace($content, 'AssemblyInformationalVersion\("[^"]+"\)', 'AssemblyInformationalVersion("' + $env:RELEASE_VERSION + '")')
+          Set-Content $path $content -Encoding utf8
+
+      - name: Verify tool inputs
+        shell: pwsh
+        run: |
+          $manifest = Get-Content tools/EXTRACTED-TOOLS.json -Raw -Encoding utf8 | ConvertFrom-Json
+          foreach ($entry in $manifest.files) {
+            $path = Join-Path $PWD ('tools/' + [string]$entry.name)
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Missing tool input: $($entry.name)"
+            }
+            if ((Get-Item -LiteralPath $path).Length -ne [long]$entry.size) {
+              throw "Tool size mismatch: $($entry.name)"
+            }
+            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne [string]$entry.sha256) {
+              throw "Tool SHA-256 mismatch: $($entry.name)"
+            }
+          }
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
+            throw "Build output not found: $env:OUTPUT_EXE"
+          }
+
+      - name: Verify embedded tool bundle
+        shell: pwsh
+        run: |
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom((Resolve-Path $env:OUTPUT_EXE).Path)
+          $resources = $assembly.GetManifestResourceNames()
+          if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
+            throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
+          }
+          Write-Host 'Verified embedded FACM.ToolBundle.dll resource.'
+
+      - name: Sign release executable
+        shell: pwsh
+        env:
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            throw 'FACM_PFX_BASE64 is required for publishing a release.'
+          }
+          & .\scripts\sign-ci.ps1 `
+            -ExePath $env:OUTPUT_EXE `
+            -PfxBase64 $env:FACM_PFX_BASE64 `
+            -PfxPassword $env:FACM_PFX_PASSWORD
+
+      - name: Prepare release and online manifest
+        id: prepare
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item $env:OUTPUT_EXE release/FACM.exe -Force
+          $hash = (Get-FileHash release/FACM.exe -Algorithm SHA256).Hash
+          $signature = Get-AuthenticodeSignature release/FACM.exe
+          if ($signature.SignerCertificate -eq $null) {
+            throw 'Release executable has no Authenticode signer.'
+          }
+
+          $notesPath = Join-Path $PWD 'release/RELEASE-NOTES.txt'
+          Set-Content $notesPath $env:RELEASE_NOTES -Encoding utf8
+
+          $manifest = [ordered]@{
+            enabled = $true
+            version = $env:RELEASE_VERSION
+            minimum_version = $env:MINIMUM_VERSION
+            force_update = [bool]::Parse($env:FORCE_UPDATE)
+            download_url = "https://github.com/${{ github.repository }}/releases/download/v$($env:RELEASE_VERSION)/FACM.exe"
+            sha256 = $hash
+            release_notes = $env:RELEASE_NOTES
+            published_at = [DateTimeOffset]::UtcNow.ToString('o')
+          }
+          New-Item -ItemType Directory -Path online -Force | Out-Null
+          $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Create GitHub release
+        shell: pwsh
+        run: |
+          $arguments = @(
+            'release', 'create', ("v" + $env:RELEASE_VERSION),
+            'release/FACM.exe',
+            '--repo', '${{ github.repository }}',
+            '--title', ("FACM " + $env:RELEASE_VERSION),
+            '--notes-file', 'release/RELEASE-NOTES.txt'
+          )
+          if ([bool]::Parse($env:PRERELEASE)) {
+            $arguments += '--prerelease'
+          }
+          else {
+            $arguments += '--latest'
+          }
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "gh release create failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Commit version metadata
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
+          git commit -m "发布 FACM $env:RELEASE_VERSION"
+          git push origin main
