@@ -8,6 +8,13 @@ on:
       - tools/FACM.exe
       - scripts/extract_embedded_tools.py
       - .github/workflows/extract-embedded-tools.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - tools/FACM.exe
+      - scripts/extract_embedded_tools.py
+      - .github/workflows/extract-embedded-tools.yml
   workflow_dispatch:
 
 permissions:
