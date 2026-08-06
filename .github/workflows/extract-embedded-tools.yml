@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
+
 jobs:
   extract:
     runs-on: windows-latest
@@ -39,14 +43,16 @@ jobs:
       - name: Extract embedded files without execution
         shell: pwsh
         run: |
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
           python scripts/extract_embedded_tools.py tools/FACM.exe extracted-facm-tools
           if ($LASTEXITCODE -ne 0) { throw "Extractor returned $LASTEXITCODE" }
 
       - name: Display extraction report
         shell: pwsh
         run: |
-          Get-Content extracted-facm-tools/REPORT.md
-          Get-Content extracted-facm-tools/manifest.json
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+          Get-Content extracted-facm-tools/REPORT.md -Encoding utf8
+          Get-Content extracted-facm-tools/manifest.json -Encoding utf8
 
       - name: Upload extracted files
         uses: actions/upload-artifact@v4
