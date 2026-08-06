@@ -23,4 +23,9 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Security" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64">
+      <LogicalName>FACM.Resources.Fix-LCU-Window.exe.b64</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>
