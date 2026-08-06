@@ -1,0 +1,42 @@
+{
+  "source": "tools/FACM.exe",
+  "source_sha256": "C5D068A2706E8DD5CF3E1EA702012E77B5102C06494C0F1D8983E4E1FB517E60",
+  "extraction_method": "PE resource extraction; files were never executed",
+  "files": [
+    {
+      "name": "clean driver.exe",
+      "size": 315829,
+      "sha256": "4180BAE46BED95661D63DC8D08DD458AE866CC107AB0F00AFC647B9BEB8B4ECA"
+    },
+    {
+      "name": "clean game file.exe",
+      "size": 13783040,
+      "sha256": "C5DF3F9D1D8043D702E760761C9283A9226BAA196918613EDF26D71E83B8DDB8"
+    },
+    {
+      "name": "Fix-LCU-Window.exe",
+      "size": 25088,
+      "sha256": "A30E8ABD86AF01746EC63E2B51F80B83703965D5F1001768236F8BE3B5A3B935"
+    },
+    {
+      "name": "fix-mode-4.bat",
+      "size": 29,
+      "sha256": "48F6ED8E06B3F96CF4791AF4FE9105327FC230267801A1DEC731784D0CA859E1"
+    },
+    {
+      "name": "fix-mode-1.bat",
+      "size": 29,
+      "sha256": "6AA4FD59A1BDD9D262123ABA1673A6C255E98AE2BC0BBC0ECFC1A839936A8535"
+    },
+    {
+      "name": "fix-mode-2.bat",
+      "size": 29,
+      "sha256": "5574C930E21604C660FA52B294A974D184BC07561F19CF6548186F66A7E4B51C"
+    },
+    {
+      "name": "fix-mode-3.bat",
+      "size": 29,
+      "sha256": "35DE4B643CBCCF867F2533D257754A55877B414EA7D341B208AF8F7B3D9D4447"
+    }
+  ]
+}
