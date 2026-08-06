@@ -10,6 +10,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources\FACM.ico</ApplicationIcon>
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
@@ -30,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
+    <None Include="Resources\FACM-Canva.png" />
   </ItemGroup>
 
   <Target Name="EmbedToolBundle" BeforeTargets="PrepareResources" DependsOnTargets="ResolveProjectReferences">
