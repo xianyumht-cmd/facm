@@ -1,17 +1,11 @@
 {
-  "source": "tools/FACM.exe",
-  "source_sha256": "C5D068A2706E8DD5CF3E1EA702012E77B5102C06494C0F1D8983E4E1FB517E60",
-  "extraction_method": "PE resource extraction; files were never executed",
+  "bundle_version": 1,
+  "description": "Files currently packaged into FACM.ToolBundle.dll",
   "files": [
     {
       "name": "clean driver.exe",
       "size": 315829,
       "sha256": "4180BAE46BED95661D63DC8D08DD458AE866CC107AB0F00AFC647B9BEB8B4ECA"
-    },
-    {
-      "name": "clean game file.exe",
-      "size": 13783040,
-      "sha256": "C5DF3F9D1D8043D702E760761C9283A9226BAA196918613EDF26D71E83B8DDB8"
     },
     {
       "name": "Fix-LCU-Window.exe",
