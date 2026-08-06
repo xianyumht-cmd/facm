@@ -44,11 +44,31 @@ src/FACM/Configuration/CleanupProfile.cs
 
 ## 内置工具
 
-当前仓库中已有的内置可执行资源和四个模式脚本继续保留。资源释放到固定的本地目录，运行前校验固定 SHA-256；校验失败时停止执行。
+从旧版 `tools/FACM.exe` 中恢复出的原始资源保存在 `tools/`，并由 `tools/EXTRACTED-TOOLS.json` 记录文件大小和 SHA-256。自动构建与本地构建都会先校验这些文件，任何缺失或字节变化都会使构建失败。
 
-其他未出现在仓库中的原始二进制无法凭空恢复。后续加入额外内置工具时，应先确认发布权、单独签名，再采用固定资源名和固定哈希嵌入。
+资源不会在构建校验阶段执行。
 
-## 构建
+## 自动构建 EXE
+
+修改 `CleanupProfile.cs` 或其他源码并提交到 `main` 后，GitHub Actions 会自动：
+
+1. 校验 `tools/` 中恢复出的文件完整性。
+2. 检查清理配置是否仍包含 `REPLACE_...` 占位符；存在占位符时只警告，不阻止构建。
+3. 使用 Windows Runner 和 .NET Framework 4.8 编译 Release 版本。
+4. 检查生成文件的 PE 头、产品名称和版本信息。
+5. 在配置证书 Secrets 时执行 Authenticode 签名。
+6. 生成 EXE、ZIP、SHA-256、签名状态和构建信息。
+
+下载方法：
+
+1. 打开仓库的 **Actions** 页面。
+2. 进入最新成功的 **FACM Windows Build**。
+3. 在页面底部下载 `FACM-Windows-x64-运行编号`。
+4. 压缩包内可直接找到 `FACM.exe`。
+
+也可以在 Actions 页面手动运行 `FACM Windows Build`，无需再次修改代码。
+
+## 本地构建
 
 系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，并安装 .NET Framework 4.8 targeting pack。
 
@@ -60,6 +80,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 
 ```text
 artifacts\FACM.exe
+FACM-Windows-x64.zip
 ```
 
 ## 代码签名
@@ -73,15 +94,21 @@ powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
   -PfxPassword "你的PFX密码"
 ```
 
+GitHub Actions 自动签名使用以下仓库 Secrets：
+
+- `FACM_PFX_BASE64`：PFX 文件的 Base64 内容。
+- `FACM_PFX_PASSWORD`：PFX 密码；无密码时可留空。
+
 自签名证书可验证签名流程，但通常不能消除 SmartScreen 的“未知发布者”，也不能保证不被安全软件告警。完整说明见 `docs/SIGNING.md`。
 
 ## 构建产物
 
-GitHub Actions 会生成：
+每次成功构建都会上传：
 
-- `FACM-3.0-windows-x64.zip`
+- `FACM-Windows-x64.zip`
 - `FACM.exe`
 - `SHA256.txt`
 - `SIGNATURE.txt`
+- `BUILD-INFO.json`
 
-当仓库配置正式证书 Secrets 后，流水线会在打包前签名并验证主程序。
+Actions 构建产物保留 90 天。
