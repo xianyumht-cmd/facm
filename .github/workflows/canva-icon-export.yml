@@ -16,10 +16,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: facm-canva-icon-export
+  cancel-in-progress: true
+
 jobs:
   export-icon:
     if: github.event_name != 'pull_request' || github.head_ref == 'codex/facm-online-toolbundle-20260807'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
       - name: Checkout branch
