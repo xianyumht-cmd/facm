@@ -11,6 +11,22 @@ namespace FACM.Models
         Failed
     }
 
+    internal enum CleanupItemKind
+    {
+        Directory,
+        File
+    }
+
+    internal enum CleanupRule
+    {
+        FixedProgramFilesDirectory,
+        FixedProgramDataDirectory,
+        LauncherNamedDirectory,
+        LeagueClientNamedDirectory,
+        GameImmediateChild,
+        LeagueClientLogFile
+    }
+
     internal sealed class CleanupItem
     {
         public string DisplayName { get; set; }
@@ -19,6 +35,9 @@ namespace FACM.Models
         public CleanupItemState State { get; set; }
         public string Detail { get; set; }
         public bool IsGameDirectoryItem { get; set; }
+        public CleanupItemKind Kind { get; set; }
+        public CleanupRule Rule { get; set; }
+        public string GameRoot { get; set; }
 
         public string SizeText
         {
