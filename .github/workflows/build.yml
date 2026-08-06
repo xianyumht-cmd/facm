@@ -33,22 +33,22 @@ jobs:
           }
 
       - name: Sign executable
-        shell: pwsh
+        shell: powershell
         env:
           FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
           FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
         run: |
+          $ErrorActionPreference = "Stop"
           $artifactDir = Join-Path $PWD "artifacts"
           New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
-
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $signtool) { throw "signtool.exe not found" }
-
           $expectedThumbprint = $null
 
           if (-not [string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) { throw "signtool.exe not found" }
+
             $pfxPath = Join-Path $env:RUNNER_TEMP "facm-signing.pfx"
             [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:FACM_PFX_BASE64))
             try {
@@ -76,8 +76,14 @@ jobs:
             Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
             Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
 
-            & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /s My $env:OUTPUT_EXE
-            if ($LASTEXITCODE -ne 0) { throw "self-signing failed: $LASTEXITCODE" }
+            $signed = Set-AuthenticodeSignature `
+              -FilePath $env:OUTPUT_EXE `
+              -Certificate $cert `
+              -HashAlgorithm SHA256
+
+            if (-not $signed.SignerCertificate) {
+              throw "Set-AuthenticodeSignature did not embed a signer certificate"
+            }
 
             @(
               "Self-signed Authenticode test certificate"
