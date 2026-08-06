@@ -7,18 +7,12 @@ namespace FACM.Services
 {
     internal static class ProcessGuard
     {
-        private static readonly string[] BlockedProcessNames =
+        private static readonly string[] RelatedClientProcessNames =
         {
             "LeagueClient",
             "LeagueClientUx",
             "LeagueClientUxRender",
-            "League of Legends",
-            "SGuard32",
-            "SGuard64",
-            "SGuardSvc32",
-            "SGuardSvc64",
-            "ACE-Helper",
-            "ACE-Tray"
+            "League of Legends"
         };
 
         public static IReadOnlyList<string> GetRunningRelatedProcesses()
@@ -29,7 +23,7 @@ namespace FACM.Services
                 try
                 {
                     var name = process.ProcessName;
-                    if (BlockedProcessNames.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
+                    if (RelatedClientProcessNames.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
                     {
                         running.Add(name);
                     }
