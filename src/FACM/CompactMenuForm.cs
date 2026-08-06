@@ -11,83 +11,90 @@ namespace FACM
 {
     internal sealed class CompactMenuForm : Form
     {
-        private static readonly Color Background = Color.FromArgb(12, 17, 27);
+        private static readonly Color Background = Color.FromArgb(11, 16, 25);
         private static readonly Color Surface = Color.FromArgb(22, 29, 43);
         private static readonly Color SurfaceHover = Color.FromArgb(29, 39, 57);
         private static readonly Color Border = Color.FromArgb(48, 61, 84);
         private static readonly Color TextPrimary = Color.FromArgb(244, 247, 255);
         private static readonly Color TextMuted = Color.FromArgb(151, 165, 190);
-        private static readonly Color Accent = Color.FromArgb(80, 126, 255);
-        private static readonly Color AccentBright = Color.FromArgb(91, 205, 255);
+        private static readonly Color Accent = Color.FromArgb(76, 126, 255);
+        private static readonly Color AccentHover = Color.FromArgb(88, 142, 255);
         private static readonly Color Success = Color.FromArgb(92, 224, 166);
 
         private readonly MainForm _ownerBall;
         private readonly AppSettings _settings;
+        private readonly UiTextCatalog _ui;
         private readonly Label _pathValue;
         private readonly Label _status;
-        private readonly Label _adminBadge;
         private bool _dialogOpen;
 
-        public CompactMenuForm(MainForm ownerBall, AppSettings settings)
+        public CompactMenuForm(MainForm ownerBall, AppSettings settings, UiTextCatalog ui)
         {
             _ownerBall = ownerBall;
             _settings = settings;
+            _ui = ui ?? UiTextCatalog.Load();
+
             Text = "FACM";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(408, 594);
+            ClientSize = new Size(420, 680);
             BackColor = Background;
             ForeColor = TextPrimary;
             Font = new Font("Microsoft YaHei UI", 9F);
             DoubleBuffered = true;
 
-            var header = new Panel { Location = new Point(0, 0), Size = new Size(408, 91), BackColor = Color.Transparent };
+            var header = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(420, 72),
+                BackColor = Color.Transparent
+            };
             var logo = new Label
             {
                 Text = "F",
-                Location = new Point(20, 18),
-                Size = new Size(48, 48),
+                Location = new Point(18, 14),
+                Size = new Size(44, 44),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.White,
                 BackColor = Accent,
-                Font = new Font("Segoe UI", 19F, FontStyle.Bold)
+                Font = new Font("Segoe UI", 18F, FontStyle.Bold)
             };
-            MakeRound(logo, 15);
+            MakeRound(logo, 13);
             var brand = new Label
             {
                 Text = "FACM",
                 AutoSize = true,
-                Location = new Point(81, 17),
+                Location = new Point(76, 12),
                 ForeColor = TextPrimary,
-                Font = new Font("Segoe UI", 17F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 16F, FontStyle.Bold),
                 BackColor = Color.Transparent
             };
             var version = new Label
             {
-                Text = "3.0  CONTROL CENTER",
+                Text = "3.1  " + _ui.ControlCenter.ToUpperInvariant(),
                 AutoSize = true,
-                Location = new Point(83, 51),
+                Location = new Point(77, 43),
                 ForeColor = TextMuted,
-                Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
                 BackColor = Color.Transparent
             };
-            _adminBadge = new Label
+            var adminBadge = new Label
             {
                 Text = ElevationService.IsAdministrator ? "管理员" : "标准模式",
-                Location = new Point(277, 24),
-                Size = new Size(82, 28),
+                Location = new Point(282, 20),
+                Size = new Size(84, 28),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = ElevationService.IsAdministrator ? Success : TextMuted,
                 BackColor = Color.FromArgb(25, 34, 50),
                 Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold)
             };
-            MakeRound(_adminBadge, 14);
+            MakeRound(adminBadge, 14);
             var close = new Label
             {
                 Text = "×",
-                Location = new Point(366, 16),
+                Location = new Point(374, 14),
                 Size = new Size(32, 32),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = TextMuted,
@@ -101,49 +108,41 @@ namespace FACM
             header.Controls.Add(logo);
             header.Controls.Add(brand);
             header.Controls.Add(version);
-            header.Controls.Add(_adminBadge);
+            header.Controls.Add(adminBadge);
             header.Controls.Add(close);
 
             var pathCard = new RoundedPanel
             {
-                Location = new Point(16, 91),
-                Size = new Size(376, 108),
-                Radius = 18,
+                Location = new Point(16, 80),
+                Size = new Size(388, 96),
+                Radius = 17,
                 FillColor = Surface,
                 BorderColor = Border
             };
-            var pathTitle = new Label
-            {
-                Text = "工作目录",
-                AutoSize = true,
-                Location = new Point(16, 13),
-                ForeColor = TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
-            };
+            var pathTitle = CreateCaption("工作目录", new Point(15, 11), 100);
             _pathValue = new Label
             {
-                Location = new Point(16, 36),
-                Size = new Size(344, 26),
+                Location = new Point(15, 32),
+                Size = new Size(358, 25),
                 AutoEllipsis = true,
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = TextPrimary,
                 BackColor = Color.Transparent,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
-            var detect = CreateSmallButton("自动识别", new Point(16, 70), 102);
+            var detect = CreateSmallButton("自动识别", new Point(15, 62), 96);
             detect.Click += DetectGamePath;
-            var choose = CreateSmallButton("选择目录", new Point(126, 70), 102);
+            var choose = CreateSmallButton("选择目录", new Point(119, 62), 96);
             choose.Click += SelectGamePath;
             var config = new Label
             {
-                Text = CleanupProfile.IsConfigured ? "●  清理规则已配置" : "●  等待开发者配置",
-                Location = new Point(242, 72),
-                Size = new Size(118, 24),
+                Text = CleanupProfile.IsConfigured ? "● 规则已配置" : "● 等待配置",
+                Location = new Point(234, 63),
+                Size = new Size(140, 23),
                 TextAlign = ContentAlignment.MiddleRight,
                 ForeColor = CleanupProfile.IsConfigured ? Success : Color.FromArgb(255, 180, 92),
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 7.8F, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold)
             };
             pathCard.Controls.Add(pathTitle);
             pathCard.Controls.Add(_pathValue);
@@ -152,72 +151,156 @@ namespace FACM
             pathCard.Controls.Add(config);
             RefreshPathLabel();
 
-            var cleanupCard = CreateActionCard(
-                new Point(16, 211),
-                new Size(376, 112),
-                "清理环境",
-                "扫描固定目录与已选择安装目录，预览后再执行",
-                "CLEAN",
-                true,
-                CleanEnvironment);
+            var cleanup = new RoundedPanel
+            {
+                Location = new Point(16, 188),
+                Size = new Size(388, 82),
+                Radius = 18,
+                FillColor = Color.FromArgb(43, 78, 171),
+                HoverColor = Color.FromArgb(50, 91, 197),
+                BorderColor = Color.FromArgb(99, 151, 255),
+                Cursor = Cursors.Hand
+            };
+            var cleanupIcon = CreateIcon("↻", new Point(15, 17), true);
+            var cleanupTitle = new Label
+            {
+                Text = _ui.Cleanup,
+                Location = new Point(74, 13),
+                Size = new Size(210, 29),
+                ForeColor = TextPrimary,
+                BackColor = Color.Transparent,
+                Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            var cleanupHint = new Label
+            {
+                Text = "先预览路径，再确认执行",
+                Location = new Point(75, 44),
+                Size = new Size(230, 22),
+                ForeColor = Color.FromArgb(215, 228, 255),
+                BackColor = Color.Transparent,
+                Font = new Font("Microsoft YaHei UI", 8.2F),
+                Cursor = Cursors.Hand
+            };
             var cleanupTag = new Label
             {
-                Text = "精确路径  ·  保留目录保护  ·  操作日志",
-                Location = new Point(76, 78),
-                Size = new Size(270, 20),
-                ForeColor = Color.FromArgb(205, 222, 255),
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 7.8F)
+                Text = "CLEAN",
+                Location = new Point(311, 28),
+                Size = new Size(58, 24),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(48, 255, 255, 255),
+                Font = new Font("Segoe UI", 7F, FontStyle.Bold),
+                Cursor = Cursors.Hand
             };
-            cleanupCard.Controls.Add(cleanupTag);
-            cleanupTag.Click += CleanEnvironment;
+            MakeRound(cleanupTag, 11);
+            cleanup.Controls.Add(cleanupIcon);
+            cleanup.Controls.Add(cleanupTitle);
+            cleanup.Controls.Add(cleanupHint);
+            cleanup.Controls.Add(cleanupTag);
+            WireClick(cleanup, CleanEnvironment);
 
-            var toolCard = CreateActionCard(
-                new Point(16, 335),
-                new Size(376, 74),
-                "内置工具箱",
-                "保留现有校验后释放与选择执行方式",
-                "TOOLS",
-                false,
-                ShowFixMenu);
+            var toolsCard = new RoundedPanel
+            {
+                Location = new Point(16, 282),
+                Size = new Size(388, 184),
+                Radius = 17,
+                FillColor = Surface,
+                BorderColor = Border
+            };
+            toolsCard.Controls.Add(CreateCaption(_ui.ToolGroup, new Point(15, 11), 180));
+            var toolA = CreateToolButton(_ui.ToolA, new Point(15, 38), 358, true);
+            toolA.Click += delegate { RunToolA(); };
+            toolsCard.Controls.Add(toolA);
+            for (var mode = 1; mode <= 4; mode++)
+            {
+                var captured = mode;
+                var column = (mode - 1) % 2;
+                var row = (mode - 1) / 2;
+                var button = CreateToolButton(
+                    _ui.ModeName(mode),
+                    new Point(15 + column * 181, 84 + row * 43),
+                    177,
+                    false);
+                button.Click += delegate { RunFixMode(captured); };
+                toolsCard.Controls.Add(button);
+            }
 
-            var logCard = CreateMiniCard(new Point(16, 421), "操作日志", "查看每次扫描与删除结果", OpenLog);
-            var aboutCard = CreateMiniCard(new Point(208, 421), "程序信息", "签名状态、版本与安全说明", ShowAbout);
+            var onlineCard = new RoundedPanel
+            {
+                Location = new Point(16, 478),
+                Size = new Size(388, 88),
+                Radius = 17,
+                FillColor = Surface,
+                BorderColor = Border
+            };
+            onlineCard.Controls.Add(CreateCaption("更新与公告", new Point(15, 11), 160));
+            var autoUpdate = new CheckBox
+            {
+                Text = "启动时自动检查",
+                Location = new Point(15, 43),
+                Size = new Size(160, 28),
+                Checked = _settings.AutoUpdateEnabled,
+                ForeColor = TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font("Microsoft YaHei UI", 8.3F)
+            };
+            autoUpdate.CheckedChanged += delegate
+            {
+                _settings.AutoUpdateEnabled = autoUpdate.Checked;
+                _settings.Save();
+            };
+            var update = CreateToolButton(_ui.CheckUpdate, new Point(242, 35), 131, true);
+            update.Click += delegate { _ownerBall.OpenUpdateCenter(); };
+            onlineCard.Controls.Add(autoUpdate);
+            onlineCard.Controls.Add(update);
+
+            var logButton = CreateBottomButton(_ui.OpenLog, new Point(16, 578));
+            logButton.Click += OpenLog;
+            var aboutButton = CreateBottomButton(_ui.About, new Point(114, 578));
+            aboutButton.Click += ShowAbout;
+            var textButton = CreateBottomButton(_ui.EditText, new Point(212, 578));
+            textButton.Click += OpenTextConfig;
+            var exitButton = CreateBottomButton(_ui.Exit, new Point(310, 578));
+            exitButton.Click += delegate { _ownerBall.ExitApplication(); };
 
             var footer = new Panel
             {
-                Location = new Point(0, 519),
-                Size = new Size(408, 75),
-                BackColor = Color.FromArgb(9, 13, 21)
+                Location = new Point(0, 630),
+                Size = new Size(420, 50),
+                BackColor = Color.FromArgb(8, 12, 19)
             };
             _status = new Label
             {
                 Text = "准备就绪",
-                Location = new Point(18, 13),
-                Size = new Size(370, 24),
+                Location = new Point(17, 8),
+                Size = new Size(386, 19),
                 AutoEllipsis = true,
                 ForeColor = TextPrimary,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.7F, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
             };
             var footerHint = new Label
             {
-                Text = "点击悬浮球收起  ·  右键悬浮球打开系统菜单",
-                Location = new Point(18, 39),
-                Size = new Size(370, 20),
+                Text = "单击悬浮球收起  ·  拖动悬浮球调整位置",
+                Location = new Point(17, 28),
+                Size = new Size(386, 17),
                 ForeColor = TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 7.8F)
+                Font = new Font("Microsoft YaHei UI", 7.5F)
             };
             footer.Controls.Add(_status);
             footer.Controls.Add(footerHint);
 
             Controls.Add(header);
             Controls.Add(pathCard);
-            Controls.Add(cleanupCard);
-            Controls.Add(toolCard);
-            Controls.Add(logCard);
-            Controls.Add(aboutCard);
+            Controls.Add(cleanup);
+            Controls.Add(toolsCard);
+            Controls.Add(onlineCard);
+            Controls.Add(logButton);
+            Controls.Add(aboutButton);
+            Controls.Add(textButton);
+            Controls.Add(exitButton);
             Controls.Add(footer);
 
             Deactivate += delegate { if (!_dialogOpen) Close(); };
@@ -237,10 +320,6 @@ namespace FACM
             {
                 e.Graphics.FillRectangle(brush, ClientRectangle);
             }
-            using (var glow = new SolidBrush(Color.FromArgb(18, AccentBright)))
-            {
-                e.Graphics.FillEllipse(glow, -90, -150, 330, 300);
-            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -249,22 +328,25 @@ namespace FACM
             using (var pen = new Pen(Border)) e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
         }
 
-        private RoundedPanel CreateActionCard(Point location, Size size, string title, string description, string tag, bool primary, EventHandler click)
+        private static Label CreateCaption(string text, Point location, int width)
         {
-            var card = new RoundedPanel
+            return new Label
             {
+                Text = text,
                 Location = location,
-                Size = size,
-                Radius = 18,
-                FillColor = primary ? Color.FromArgb(43, 78, 171) : Surface,
-                HoverColor = primary ? Color.FromArgb(50, 91, 197) : SurfaceHover,
-                BorderColor = primary ? Color.FromArgb(99, 151, 255) : Border,
-                Cursor = Cursors.Hand
+                Size = new Size(width, 23),
+                ForeColor = TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
             };
+        }
+
+        private static Label CreateIcon(string text, Point location, bool primary)
+        {
             var icon = new Label
             {
-                Text = primary ? "↻" : "▦",
-                Location = new Point(16, 16),
+                Text = text,
+                Location = location,
                 Size = new Size(46, 46),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.White,
@@ -273,84 +355,7 @@ namespace FACM
                 Cursor = Cursors.Hand
             };
             MakeRound(icon, 14);
-            var titleLabel = new Label
-            {
-                Text = title,
-                AutoSize = true,
-                Location = new Point(76, 15),
-                ForeColor = TextPrimary,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", primary ? 13F : 11F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            var descriptionLabel = new Label
-            {
-                Text = description,
-                Location = new Point(77, primary ? 47 : 42),
-                Size = new Size(260, 24),
-                AutoEllipsis = true,
-                ForeColor = primary ? Color.FromArgb(211, 224, 255) : TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.2F),
-                Cursor = Cursors.Hand
-            };
-            var tagLabel = new Label
-            {
-                Text = tag,
-                Location = new Point(306, 16),
-                Size = new Size(52, 22),
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = primary ? Color.White : AccentBright,
-                BackColor = primary ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(30, 44, 68),
-                Font = new Font("Segoe UI", 7F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            MakeRound(tagLabel, 10);
-
-            card.Controls.Add(icon);
-            card.Controls.Add(titleLabel);
-            card.Controls.Add(descriptionLabel);
-            card.Controls.Add(tagLabel);
-            WireClick(card, click);
-            return card;
-        }
-
-        private RoundedPanel CreateMiniCard(Point location, string title, string description, EventHandler click)
-        {
-            var card = new RoundedPanel
-            {
-                Location = location,
-                Size = new Size(184, 86),
-                Radius = 16,
-                FillColor = Surface,
-                HoverColor = SurfaceHover,
-                BorderColor = Border,
-                Cursor = Cursors.Hand
-            };
-            var titleLabel = new Label
-            {
-                Text = title,
-                Location = new Point(14, 13),
-                Size = new Size(150, 24),
-                ForeColor = TextPrimary,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            var descriptionLabel = new Label
-            {
-                Text = description,
-                Location = new Point(14, 42),
-                Size = new Size(155, 34),
-                ForeColor = TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 7.7F),
-                Cursor = Cursors.Hand
-            };
-            card.Controls.Add(titleLabel);
-            card.Controls.Add(descriptionLabel);
-            WireClick(card, click);
-            return card;
+            return icon;
         }
 
         private static Button CreateSmallButton(string text, Point location, int width)
@@ -359,7 +364,7 @@ namespace FACM
             {
                 Text = text,
                 Location = location,
-                Size = new Size(width, 27),
+                Size = new Size(width, 26),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(35, 46, 66),
                 ForeColor = TextPrimary,
@@ -372,10 +377,55 @@ namespace FACM
             return button;
         }
 
+        private static Button CreateToolButton(string text, Point location, int width, bool primary)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Location = location,
+                Size = new Size(width, 36),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = primary ? Accent : Color.FromArgb(35, 46, 66),
+                ForeColor = TextPrimary,
+                Font = new Font("Microsoft YaHei UI", 8.8F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            button.FlatAppearance.BorderColor = primary ? Color.FromArgb(104, 153, 255) : Color.FromArgb(57, 72, 98);
+            button.FlatAppearance.MouseOverBackColor = primary ? AccentHover : Color.FromArgb(44, 58, 82);
+            return button;
+        }
+
+        private static Button CreateBottomButton(string text, Point location)
+        {
+            var button = CreateToolButton(text, location, 94, false);
+            button.Size = new Size(94, 40);
+            button.Font = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Bold);
+            return button;
+        }
+
         private static void WireClick(Control parent, EventHandler click)
         {
             parent.Click += click;
             foreach (Control child in parent.Controls) child.Click += click;
+        }
+
+        private void RunToolA()
+        {
+            RunDialogAction(delegate
+            {
+                _ownerBall.RunToolA();
+                SetStatus("已启动：" + _ui.ToolA);
+            });
+        }
+
+        private void RunFixMode(int mode)
+        {
+            RunDialogAction(delegate
+            {
+                _ownerBall.RunToolMode(mode);
+                SetStatus("已启动：" + _ui.ModeName(mode));
+            });
         }
 
         private void CleanEnvironment(object sender, EventArgs e)
@@ -511,71 +561,22 @@ namespace FACM
             });
         }
 
-        private void ShowFixMenu(object sender, EventArgs e)
-        {
-            var menu = new ContextMenuStrip
-            {
-                Font = new Font("Microsoft YaHei UI", 9F),
-                ShowImageMargin = false,
-                BackColor = Color.FromArgb(28, 36, 52),
-                ForeColor = TextPrimary
-            };
-            menu.Items.Add("运行模式 1", null, delegate { RunFixMode(1); });
-            menu.Items.Add("运行模式 2", null, delegate { RunFixMode(2); });
-            menu.Items.Add("运行模式 3", null, delegate { RunFixMode(3); });
-            menu.Items.Add("运行模式 4", null, delegate { RunFixMode(4); });
-            _dialogOpen = true;
-            menu.Closed += delegate
-            {
-                _dialogOpen = false;
-
-                // ContextMenuStrip is still finishing its close/click message here.
-                // Disposing it synchronously causes ObjectDisposedException inside
-                // ToolStripManager. Dispose it on the next UI message instead.
-                if (!IsHandleCreated || IsDisposed || Disposing) return;
-                BeginInvoke(new Action(delegate
-                {
-                    if (!menu.IsDisposed) menu.Dispose();
-                    if (!IsDisposed && !Disposing) Activate();
-                }));
-            };
-            menu.Show(Cursor.Position);
-        }
-
-        private void RunFixMode(int mode)
-        {
-            RunDialogAction(delegate
-            {
-                try
-                {
-                    ToolRunner.RunFixLcu(mode);
-                    SetStatus("已启动内置工具模式 " + mode);
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Error("Built-in tool launch failed", exception);
-                    MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            });
-        }
-
         private void OpenLog(object sender, EventArgs e)
         {
+            _ownerBall.OpenLogFile();
+            SetStatus("已打开操作日志");
+        }
+
+        private void OpenTextConfig(object sender, EventArgs e)
+        {
             RunDialogAction(delegate
             {
-                try
-                {
-                    var path = AppLog.CurrentLogPath;
-                    var directory = Path.GetDirectoryName(path);
-                    if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                    if (!File.Exists(path)) File.WriteAllText(path, string.Empty);
-                    Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
-                    SetStatus("已打开操作日志");
-                }
-                catch (Exception exception)
-                {
-                    MessageBox.Show("无法打开日志：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                UiTextCatalog.OpenConfig();
+                MessageBox.Show(
+                    "修改等号右侧文字并保存，然后重新启动 FACM。\r\n\r\n配置文件：\r\n" + UiTextCatalog.ConfigPath,
+                    "界面文字",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             });
         }
 
@@ -584,12 +585,12 @@ namespace FACM
             RunDialogAction(delegate
             {
                 MessageBox.Show(
-                    "FACM 3.0\r\n\r\n" +
+                    "FACM 3.1\r\n\r\n" +
                     "签名状态：" + SignatureInspector.GetCurrentExecutableSignatureStatus() + "\r\n" +
                     "运行权限：" + (ElevationService.IsAdministrator ? "管理员" : "标准用户") + "\r\n" +
                     "清理配置：" + (CleanupProfile.IsConfigured ? "已配置" : "尚未配置") + "\r\n" +
-                    "内置工具：固定版本资源，释放前校验 SHA-256\r\n\r\n" +
-                    "程序不联网；清理前展示完整路径并要求确认。",
+                    "工具资源：已嵌入 FACM.exe，运行时校验后按需释放\r\n" +
+                    "更新与公告：支持手动检查、自动提示和强制更新",
                     "关于 FACM",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
@@ -652,7 +653,7 @@ namespace FACM
 
         private void ApplyRoundedRegion()
         {
-            using (var path = RoundedRectangle(new Rectangle(0, 0, Width, Height), 24))
+            using (var path = RoundedRectangle(new Rectangle(0, 0, Width, Height), 22))
             {
                 Region = new Region(path);
             }
