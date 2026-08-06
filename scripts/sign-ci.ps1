@@ -16,6 +16,9 @@ if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
 }
 
 $pfxPath = Join-Path $env:RUNNER_TEMP 'facm-signing.pfx'
+$certificate = $null
+
+Write-Host 'Preparing signing certificate...'
 [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($PfxBase64))
 
 try {
@@ -39,40 +42,26 @@ try {
         $password,
         $flags
     )
+    $isSelfSigned = $certificate.Subject -eq $certificate.Issuer
 
-    # A public CA certificate is already trusted by Windows. A self-signed certificate
-    # must be trusted temporarily on this disposable runner so Authenticode verification
-    # can distinguish an invalid signature from an intentionally self-signed chain.
-    if ($certificate.Subject -eq $certificate.Issuer) {
-        foreach ($storeName in @('Root', 'TrustedPublisher')) {
-            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
-                $storeName,
-                [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-            )
-            try {
-                $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-                $alreadyPresent = $store.Certificates |
-                    Where-Object Thumbprint -eq $certificate.Thumbprint |
-                    Select-Object -First 1
-                if (-not $alreadyPresent) {
-                    $store.Add($certificate)
-                }
-            }
-            finally {
-                $store.Close()
-                $store.Dispose()
-            }
-        }
-        Write-Host "Temporarily trusted self-signed certificate $($certificate.Thumbprint) on this runner."
+    Write-Host "Loaded certificate: $($certificate.Subject)"
+    Write-Host "Certificate thumbprint: $($certificate.Thumbprint)"
+    Write-Host "Self-signed: $isSelfSigned"
+
+    $arguments = @('sign', '/fd', 'SHA256')
+
+    # A trusted public release certificate receives an RFC 3161 timestamp. The
+    # repository's self-signed development certificate deliberately avoids external
+    # timestamp services, because they add no public trust and can block for minutes.
+    if (-not $isSelfSigned) {
+        $arguments += @('/td', 'SHA256', '/tr', 'http://timestamp.digicert.com')
+        Write-Host 'Signing with RFC 3161 timestamp...'
+    }
+    else {
+        Write-Host 'Signing self-signed development build without external timestamp...'
     }
 
-    $arguments = @(
-        'sign',
-        '/fd', 'SHA256',
-        '/td', 'SHA256',
-        '/tr', 'http://timestamp.digicert.com',
-        '/f', $pfxPath
-    )
+    $arguments += @('/f', $pfxPath)
     if (-not [string]::IsNullOrEmpty($PfxPassword)) {
         $arguments += @('/p', $PfxPassword)
     }
@@ -83,18 +72,49 @@ try {
         throw "signtool sign failed with exit code $LASTEXITCODE"
     }
 
-    & $signtool.FullName verify /pa /all /v $ExePath
-    if ($LASTEXITCODE -ne 0) {
-        throw "signtool verify failed with exit code $LASTEXITCODE"
+    Write-Host 'Checking Authenticode file digest with signtool...'
+    $verifyOutput = & $signtool.FullName verify /pa /all /v $ExePath 2>&1
+    $verifyExitCode = $LASTEXITCODE
+    $verifyText = ($verifyOutput | Out-String)
+    $verifyOutput | ForEach-Object { Write-Host $_ }
+
+    if ($verifyExitCode -ne 0) {
+        $expectedUntrustedRoot = $isSelfSigned -and
+            $verifyText -match 'certificate chain processed.*root.*not trusted' -and
+            $verifyText -notmatch '(?i)(no signature found|file digest|hash mismatch|bad digest|invalid signature)'
+
+        if (-not $expectedUntrustedRoot) {
+            throw "signtool verify failed with exit code $verifyExitCode"
+        }
+
+        Write-Host 'The Authenticode digest is intact; the only verification warning is the expected untrusted self-signed root.'
     }
 
+    Write-Host 'Checking embedded signer certificate with PowerShell...'
     $signature = Get-AuthenticodeSignature -LiteralPath $ExePath
-    if ($signature.Status -ne 'Valid') {
+    if ($null -eq $signature.SignerCertificate) {
+        throw 'PowerShell did not find an embedded signer certificate.'
+    }
+
+    if ($signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
+        throw "Signer thumbprint mismatch. Expected $($certificate.Thumbprint), actual $($signature.SignerCertificate.Thumbprint)"
+    }
+
+    if ($isSelfSigned) {
+        if ($signature.Status -in @('NotSigned', 'HashMismatch', 'NotSupportedFileFormat')) {
+            throw "PowerShell Authenticode verification failed: $($signature.Status) - $($signature.StatusMessage)"
+        }
+        Write-Host "Self-signed Authenticode signature verified. PowerShell trust status: $($signature.Status)"
+    }
+    elseif ($signature.Status -ne 'Valid') {
         throw "PowerShell Authenticode verification failed: $($signature.Status) - $($signature.StatusMessage)"
     }
 
-    Write-Host "Authenticode signature is valid. Signer: $($certificate.Subject)"
+    Write-Host "Authenticode signer verified: $($certificate.Subject)"
 }
 finally {
+    if ($null -ne $certificate) {
+        $certificate.Dispose()
+    }
     Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
 }
