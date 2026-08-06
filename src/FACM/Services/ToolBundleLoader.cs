@@ -12,6 +12,11 @@ namespace FACM.Services
         private static readonly object SyncRoot = new object();
         private static MethodInfo _extractMethod;
 
+        public static void Prepare()
+        {
+            EnsureLoaded();
+        }
+
         public static string Extract(string toolId)
         {
             EnsureLoaded();
@@ -33,6 +38,7 @@ namespace FACM.Services
             {
                 if (_extractMethod != null) return;
 
+                RuntimePaths.Initialize();
                 var hostAssembly = Assembly.GetExecutingAssembly();
                 byte[] bundleBytes;
                 using (var resource = hostAssembly.GetManifestResourceStream(BundleResourceName))
@@ -49,38 +55,12 @@ namespace FACM.Services
                     }
                 }
 
-                var hash = ComputeSha256(bundleBytes);
-                var directory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FACM",
-                    "Runtime");
-                Directory.CreateDirectory(directory);
-
-                var bundlePath = Path.Combine(directory, "FACM.ToolBundle." + hash.Substring(0, 16) + ".dll");
-                if (!File.Exists(bundlePath) || !string.Equals(ComputeSha256(bundlePath), hash, StringComparison.OrdinalIgnoreCase))
+                var expectedHash = ComputeSha256(bundleBytes);
+                var bundlePath = RuntimePaths.ToolBundlePath;
+                if (!File.Exists(bundlePath) ||
+                    !string.Equals(ComputeSha256(bundlePath), expectedHash, StringComparison.OrdinalIgnoreCase))
                 {
-                    var temporaryPath = bundlePath + ".tmp-" + Guid.NewGuid().ToString("N");
-                    try
-                    {
-                        File.WriteAllBytes(temporaryPath, bundleBytes);
-                        if (!string.Equals(ComputeSha256(temporaryPath), hash, StringComparison.OrdinalIgnoreCase))
-                        {
-                            throw new InvalidDataException("内置工具资源 DLL 写入校验失败。");
-                        }
-
-                        if (File.Exists(bundlePath)) File.Delete(bundlePath);
-                        File.Move(temporaryPath, bundlePath);
-                    }
-                    finally
-                    {
-                        try
-                        {
-                            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    WriteAtomically(bundlePath, bundleBytes, expectedHash);
                 }
 
                 var bundleAssembly = Assembly.LoadFile(bundlePath);
@@ -91,7 +71,33 @@ namespace FACM.Services
                     throw new MissingMethodException(StoreTypeName, "Extract");
                 }
 
-                AppLog.Info("Loaded embedded tool bundle: " + Path.GetFileName(bundlePath));
+                AppLog.Info("Loaded tool bundle beside FACM.exe: " + Path.GetFileName(bundlePath));
+            }
+        }
+
+        private static void WriteAtomically(string destination, byte[] bytes, string expectedHash)
+        {
+            var temporaryPath = destination + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.WriteAllBytes(temporaryPath, bytes);
+                if (!string.Equals(ComputeSha256(temporaryPath), expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException("内置工具资源 DLL 写入校验失败。");
+                }
+
+                if (File.Exists(destination)) File.Delete(destination);
+                File.Move(temporaryPath, destination);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                catch
+                {
+                }
             }
         }
 
@@ -106,7 +112,7 @@ namespace FACM.Services
         private static string ComputeSha256(string path)
         {
             using (var algorithm = SHA256.Create())
-            using (var stream = File.OpenRead(path))
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", string.Empty);
             }
