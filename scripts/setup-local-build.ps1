@@ -69,14 +69,14 @@ function Download-File {
     )
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Write-Host "正在下载：$Url"
+    Write-Host "Downloading: $Url"
     Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination
 
     if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
-        throw "下载完成后没有找到文件：$Destination"
+        throw "Downloaded file was not found: $Destination"
     }
     if ((Get-Item -LiteralPath $Destination).Length -lt 100KB) {
-        throw "下载文件异常，大小不足 100 KB：$Destination"
+        throw "Downloaded file is unexpectedly small: $Destination"
     }
 }
 
@@ -101,103 +101,102 @@ function Install-BuildTools {
         '--nocache'
     ) -join ' '
 
-    Write-Host "正在安装或补齐 Visual Studio 2022 Build Tools。"
-    Write-Host "安装窗口可能持续十几分钟，请不要关闭。"
+    Write-Host "Installing or repairing Visual Studio 2022 Build Tools."
+    Write-Host "Do not close the installer window."
     $process = Start-Process -FilePath $bootstrapper -ArgumentList $arguments -Wait -PassThru
 
     if ($process.ExitCode -eq 3010) {
         $script:rebootRequired = $true
-        Write-Warning "安装成功，但 Windows 提示需要重启。"
+        Write-Warning "Installation completed and Windows requested a restart."
     }
     elseif ($process.ExitCode -ne 0) {
-        throw "Visual Studio Build Tools 安装失败，退出码：$($process.ExitCode)"
+        throw "Visual Studio Build Tools installation failed. Exit code: $($process.ExitCode)"
     }
 }
 
 if ($env:OS -ne 'Windows_NT') {
-    throw "此脚本只能在 Windows 上运行。"
+    throw "This script can only run on Windows."
 }
 if (-not (Test-Administrator)) {
-    throw "当前没有管理员权限。请双击仓库根目录的 FACM-本地一键配置并构建.bat。"
+    throw "Administrator rights are required. Run the BAT file from the repository root."
 }
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'FACM.sln') -PathType Leaf)) {
-    throw "没有找到 FACM.sln。请把脚本放在完整 FACM 仓库的 scripts 目录中运行。"
+    throw "FACM.sln was not found. Keep this script inside the repository scripts directory."
 }
 
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 Start-Transcript -Path $logPath -Force | Out-Null
 
 try {
-    Write-Stage "检查本地构建环境"
-    Write-Host "仓库目录：$repoRoot"
-    Write-Host "日志文件：$logPath"
+    Write-Stage "Check local build environment"
+    Write-Host "Repository: $repoRoot"
+    Write-Host "Log file: $logPath"
 
     $msbuild = Find-MSBuild
     $net48Ready = Test-Net48TargetingPack
     $signTool = Find-SignTool
 
-    Write-Host ("MSBuild：" + $(if ($msbuild) { $msbuild } else { "缺失" }))
-    Write-Host (".NET Framework 4.8 目标包：" + $(if ($net48Ready) { "已安装" } else { "缺失" }))
-    Write-Host ("Windows SDK SignTool：" + $(if ($signTool) { $signTool } else { "缺失" }))
+    Write-Host ("MSBuild: " + $(if ($msbuild) { $msbuild } else { "missing" }))
+    Write-Host (".NET Framework 4.8 targeting pack: " + $(if ($net48Ready) { "installed" } else { "missing" }))
+    Write-Host ("Windows SDK SignTool: " + $(if ($signTool) { $signTool } else { "missing" }))
 
     if (-not $msbuild -or -not $net48Ready -or -not $signTool) {
-        Write-Stage "安装缺失组件"
+        Write-Stage "Install missing components"
         Install-BuildTools
     }
     else {
-        Write-Host "构建环境已完整，无需重复安装。" -ForegroundColor Green
+        Write-Host "Build environment is ready." -ForegroundColor Green
     }
 
-    Write-Stage "验证安装结果"
+    Write-Stage "Verify installed components"
     $msbuild = Find-MSBuild
     $net48Ready = Test-Net48TargetingPack
     $signTool = Find-SignTool
 
-    if (-not $msbuild) { throw "安装后仍未找到 MSBuild.exe。" }
-    if (-not $net48Ready) { throw "安装后仍未找到 .NET Framework 4.8 targeting pack。" }
-    if (-not $signTool) { throw "安装后仍未找到 Windows SDK signtool.exe。" }
+    if (-not $msbuild) { throw "MSBuild.exe is still missing after installation." }
+    if (-not $net48Ready) { throw ".NET Framework 4.8 targeting pack is still missing." }
+    if (-not $signTool) { throw "Windows SDK signtool.exe is still missing." }
 
-    Write-Host "MSBuild：$msbuild" -ForegroundColor Green
-    Write-Host ".NET Framework 4.8：正常" -ForegroundColor Green
-    Write-Host "SignTool：$signTool" -ForegroundColor Green
+    Write-Host "MSBuild: $msbuild" -ForegroundColor Green
+    Write-Host ".NET Framework 4.8: ready" -ForegroundColor Green
+    Write-Host "SignTool: $signTool" -ForegroundColor Green
 
     if ($rebootRequired) {
-        Write-Warning "系统要求重启。建议先重启电脑，再重新双击 BAT 构建。"
+        Write-Warning "Restart Windows, then run the BAT file again."
     }
 
     if ($SetupOnly) {
-        Write-Stage "环境配置完成"
-        Write-Host "已按要求只配置环境，没有执行构建。" -ForegroundColor Green
+        Write-Stage "Environment setup completed"
         exit 0
     }
 
-    Write-Stage "构建 FACM"
+    Write-Stage "Build FACM"
     $buildScript = Join-Path $PSScriptRoot "build-release.ps1"
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $buildScript -Configuration $Configuration
     if ($LASTEXITCODE -ne 0) {
-        throw "FACM 构建脚本返回退出码：$LASTEXITCODE"
+        throw "FACM build script failed. Exit code: $LASTEXITCODE"
     }
 
     $artifactExe = Join-Path $repoRoot "artifacts\FACM.exe"
     $package = Join-Path $repoRoot "FACM-Windows-x64.zip"
     if (-not (Test-Path -LiteralPath $artifactExe -PathType Leaf)) {
-        throw "构建结束但没有找到：$artifactExe"
+        throw "Build finished but FACM.exe was not found: $artifactExe"
     }
     if (-not (Test-Path -LiteralPath $package -PathType Leaf)) {
-        throw "构建结束但没有找到：$package"
+        throw "Build finished but package was not found: $package"
     }
 
-    Write-Stage "全部完成"
-    Write-Host "EXE：$artifactExe" -ForegroundColor Green
-    Write-Host "压缩包：$package" -ForegroundColor Green
-    Write-Host "日志：$logPath"
+    Write-Stage "Completed"
+    Write-Host "EXE: $artifactExe" -ForegroundColor Green
+    Write-Host "Package: $package" -ForegroundColor Green
+    Write-Host "Log: $logPath"
 
     Start-Process explorer.exe -ArgumentList ('"' + (Join-Path $repoRoot 'artifacts') + '"')
 }
 catch {
     Write-Host ""
-    Write-Host "执行失败：$($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "完整日志：$logPath" -ForegroundColor Yellow
+    Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Log: $logPath" -ForegroundColor Yellow
     exit 1
 }
 finally {
