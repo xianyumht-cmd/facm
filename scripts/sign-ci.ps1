@@ -16,6 +16,10 @@ if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
 }
 
 $pfxPath = Join-Path $env:RUNNER_TEMP 'facm-signing.pfx'
+$certificate = $null
+$temporarilyAddedStores = New-Object System.Collections.Generic.List[string]
+
+Write-Host 'Preparing signing certificate...'
 [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($PfxBase64))
 
 try {
@@ -39,11 +43,13 @@ try {
         $password,
         $flags
     )
+    $isSelfSigned = $certificate.Subject -eq $certificate.Issuer
+    Write-Host "Loaded certificate: $($certificate.Subject)"
+    Write-Host "Self-signed: $isSelfSigned"
 
-    # A public CA certificate is already trusted by Windows. A self-signed certificate
-    # must be trusted temporarily on this disposable runner so Authenticode verification
-    # can distinguish an invalid signature from an intentionally self-signed chain.
-    if ($certificate.Subject -eq $certificate.Issuer) {
+    # Public CA certificates are already trusted by Windows. A self-signed certificate
+    # is trusted only on this disposable runner so validation can verify the signature.
+    if ($isSelfSigned) {
         foreach ($storeName in @('Root', 'TrustedPublisher')) {
             $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
                 $storeName,
@@ -56,6 +62,7 @@ try {
                     Select-Object -First 1
                 if (-not $alreadyPresent) {
                     $store.Add($certificate)
+                    $temporarilyAddedStores.Add($storeName)
                 }
             }
             finally {
@@ -66,13 +73,20 @@ try {
         Write-Host "Temporarily trusted self-signed certificate $($certificate.Thumbprint) on this runner."
     }
 
-    $arguments = @(
-        'sign',
-        '/fd', 'SHA256',
-        '/td', 'SHA256',
-        '/tr', 'http://timestamp.digicert.com',
-        '/f', $pfxPath
-    )
+    $arguments = @('sign', '/fd', 'SHA256')
+
+    # A public CA release certificate benefits from an RFC 3161 timestamp. For the
+    # repository's self-signed development certificate, avoid an external timestamp
+    # request because it adds no public trust and can block for several minutes.
+    if (-not $isSelfSigned) {
+        $arguments += @('/td', 'SHA256', '/tr', 'http://timestamp.digicert.com')
+        Write-Host 'Signing with RFC 3161 timestamp...'
+    }
+    else {
+        Write-Host 'Signing self-signed development build without external timestamp...'
+    }
+
+    $arguments += @('/f', $pfxPath)
     if (-not [string]::IsNullOrEmpty($PfxPassword)) {
         $arguments += @('/p', $PfxPassword)
     }
@@ -83,11 +97,13 @@ try {
         throw "signtool sign failed with exit code $LASTEXITCODE"
     }
 
+    Write-Host 'Verifying Authenticode signature with signtool...'
     & $signtool.FullName verify /pa /all /v $ExePath
     if ($LASTEXITCODE -ne 0) {
         throw "signtool verify failed with exit code $LASTEXITCODE"
     }
 
+    Write-Host 'Verifying Authenticode signature with PowerShell...'
     $signature = Get-AuthenticodeSignature -LiteralPath $ExePath
     if ($signature.Status -ne 'Valid') {
         throw "PowerShell Authenticode verification failed: $($signature.Status) - $($signature.StatusMessage)"
@@ -96,5 +112,30 @@ try {
     Write-Host "Authenticode signature is valid. Signer: $($certificate.Subject)"
 }
 finally {
+    if ($null -ne $certificate) {
+        foreach ($storeName in $temporarilyAddedStores) {
+            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+                $storeName,
+                [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+            )
+            try {
+                $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+                $matches = $store.Certificates.Find(
+                    [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+                    $certificate.Thumbprint,
+                    $false
+                )
+                foreach ($match in $matches) {
+                    $store.Remove($match)
+                }
+            }
+            finally {
+                $store.Close()
+                $store.Dispose()
+            }
+        }
+        $certificate.Dispose()
+    }
+
     Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
 }
