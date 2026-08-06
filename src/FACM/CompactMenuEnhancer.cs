@@ -24,11 +24,13 @@ namespace FACM
             {
                 var menu = form as CompactMenuForm;
                 if (menu == null || menu.IsDisposed || !menu.IsHandleCreated) continue;
-                if (AppliedHandles.Contains(menu.Handle)) continue;
+
+                var handle = menu.Handle;
+                if (AppliedHandles.Contains(handle)) continue;
 
                 Apply(menu);
-                AppliedHandles.Add(menu.Handle);
-                menu.FormClosed += delegate { AppliedHandles.Remove(menu.Handle); };
+                AppliedHandles.Add(handle);
+                menu.FormClosed += delegate { AppliedHandles.Remove(handle); };
             }
         }
 
