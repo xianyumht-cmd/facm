@@ -4,8 +4,8 @@
 
 - Canva 设计 ID：`DAHRiP1MbaM`
 - 设计标题：`Refined Application Icon with Subtle Energy`
-- 编辑地址：https://www.canva.com/d/8zfbv4P7y5RgJG_
-- 查看地址：https://www.canva.com/d/aJicJIq9VAnK98u
+- 编辑地址：https://www.canva.com/d/eJfpxH0volA-bhI
+- 查看地址：https://www.canva.com/d/QzD1cMFVzy67JHW
 - 源设计尺寸：2000 × 2000
 
 仓库中的最终文件：
