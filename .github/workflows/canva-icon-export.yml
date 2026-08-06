@@ -6,12 +6,19 @@ on:
       - codex/facm-online-toolbundle-20260807
     paths:
       - '.github/workflows/canva-icon-export.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/canva-icon-export.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   export-icon:
+    if: github.event_name != 'pull_request' || github.head_ref == 'codex/facm-online-toolbundle-20260807'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,7 +28,19 @@ jobs:
           ref: codex/facm-online-toolbundle-20260807
           fetch-depth: 0
 
+      - name: Stop when icon already exists
+        id: existing
+        shell: bash
+        run: |
+          if [ -f src/FACM/Resources/FACM.ico ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Selected icon already exists."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download selected Canva design preview
+        if: steps.existing.outputs.exists != 'true'
         shell: bash
         env:
           CANVA_PREVIEW_URL: "https://media.canva.com/v2/document-image/hash:906486508/height:447/id:DAHRiP1MbaM/type:B/width:447?brand=BAHNFhwwco4&csig=AAAAAAAAAAAAAAAAAAAAAJa3LhUE-_GSt-jUv99wikfxE63eJ2wAhxIVxTnXUiT1&disableexport=T&exp=1786038579&fallback=https%3A%2F%2Fs3.amazonaws.com%2Fdocument-export-us1.canva.com%2F1MbaM%2FDAHRiP1MbaM%2F1%2Fthumbnail%2F0001.png%3FX-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3DAKIAQYCGKMUHXB3PK6CC%252F20260805%252Fus-east-1%252Fs3%252Faws4_request%26X-Amz-Date%3D20260805T220541Z%26X-Amz-Expires%3D71038%26X-Amz-Signature%3D086bea3b09696b61fb99ddf2fcba78ef1c3d68b6705696acc68a62a218920e8d%26X-Amz-SignedHeaders%3Dhost%26response-expires%3DThu%252C%252006%2520Aug%25202026%252017%253A49%253A39%2520GMT&osig=AAAAAAAAAAAAAAAAAAAAAMZjqFQQ3mRxoR0tBAqMELamuKXt1Di2TXDqf89IrYbE&page=1&signed=brand%2Cdisableexport%2Cfallback%2Cpage%2Cversion&signer=document-rpc&version=1"
@@ -31,6 +50,7 @@ jobs:
           file src/FACM/Resources/FACM-Canva.png
 
       - name: Convert Canva image to multi-size ICO
+        if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check pillow
@@ -53,6 +73,7 @@ jobs:
           PY
 
       - name: Commit selected icon
+        if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
