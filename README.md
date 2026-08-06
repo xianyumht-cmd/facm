@@ -1,44 +1,39 @@
-# FACM 2.0
+# FACM 2.1 悬浮球版
 
-FACM 是一个透明、可审计的 Windows 残留清理工具。本次重写不复用旧版二进制代码，也不捆绑任何第三方可执行文件。
+FACM 是一个轻量 Windows 桌面悬浮球。程序启动后只显示约 64×64 的悬浮球，不打开传统大窗口。
 
-## 当前功能
+## 交互
 
-- 扫描并清理以下固定目录：
-  - `C:\Program Files\AntiCheatExpert`
-  - `C:\ProgramData\AntiCheatExpert`
-- 用户可选择游戏安装目录，FACM 仅追加扫描：
-  - `<游戏目录>\AntiCheatExpert`
-  - `<游戏目录>\Game\AntiCheatExpert`
-- 扫描与删除分离：先列出路径、文件数和估算大小，再由用户二次确认。
-- 相关游戏或组件进程运行时拒绝清理，不强制结束进程。
-- 拒绝递归进入目录链接、符号链接与其他重解析点。
-- 操作日志保存在 `%LocalAppData%\FACM\Logs`。
+- 单击悬浮球：展开紧凑功能菜单
+- 拖动悬浮球：移动位置；松手后自动贴近屏幕左右边缘
+- 右击悬浮球：展开、打开日志或退出
+- 双击托盘图标：重新显示悬浮球
+- 位置与游戏目录保存在 `%LocalAppData%\FACM\settings.ini`
 
-## 明确不包含
+## 功能
 
-- 网络请求、自动更新、远程配置或遥测
-- 下载并执行文件
-- 驱动安装、服务创建或服务删除
-- 进程注入、进程内存修改或强制结束进程
-- 开机自启、计划任务或隐藏命令行
-- 捆绑第三方 EXE/DLL
+- 从正在运行的客户端和常见卸载/WeGame 注册表位置识别游戏目录
+- 也可以通过系统文件夹选择器手动选择游戏根目录
+- 安全清理 `LeagueClient` 顶层 `.log` 文件和 FACM 自身临时文件
+- 内置原 FACM 使用的 `Fix-LCU-Window.exe` 1.1.2，并提供四种运行模式
+- 内置工具释放前固定校验 SHA-256，校验失败不会执行
+- 本地日志保存在 `%LocalAppData%\FACM\Logs`
 
-## 构建
+## 安全边界
 
-系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，安装 .NET Framework 4.8 targeting pack。
+本版本不包含或执行删除驱动、安全程序、反作弊组件的工具，也不批量删除 `Game` 目录。此类行为既容易破坏安装，也会显著提高安全软件告警概率。
+
+FACM 不联网、不注入进程、不创建服务、不设置开机启动，不隐藏执行命令。
+
+## 构建与签名
+
+Windows 10/11，Visual Studio 2022 Build Tools 或 Visual Studio 2022，安装 .NET Framework 4.8 targeting pack：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 ```
 
-输出：`artifacts\FACM.exe`。
-
-## 数字签名
-
-没有受信任的证书时，构建结果保持未签名。不要把自签名证书误认为 SmartScreen 信誉。
-
-使用正式代码签名证书：
+正式发布应使用受信任机构颁发的代码签名证书：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
@@ -46,13 +41,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
   -PfxPath C:\secure\facm-signing.pfx
 ```
 
-GitHub Actions 也支持以下仓库 Secrets：
-
-- `FACM_PFX_BASE64`：PFX 文件的 Base64 内容
-- `FACM_PFX_PASSWORD`：PFX 密码
-
-私钥和 PFX 文件不得提交到仓库。
-
-## 安全说明
-
-该功能定位为卸载或修复后的残留清理。清理后，游戏可能在下次启动时重新下载相关组件。FACM 不用于绕过运行中的保护程序。
+自签名证书通常不会消除 SmartScreen 的“未知发布者”提示，也不能保证安全软件不报毒。
