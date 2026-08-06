@@ -12,6 +12,7 @@ permissions:
 env:
   SOLUTION: FACM.sln
   OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  PACKAGE_NAME: FACM-3.0-windows-x64
 
 jobs:
   build:
@@ -31,6 +32,15 @@ jobs:
           if (-not (Test-Path $env:OUTPUT_EXE)) {
             throw "Build output not found: $env:OUTPUT_EXE"
           }
+
+      - name: Verify executable metadata
+        shell: pwsh
+        run: |
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $env:OUTPUT_EXE))
+          if ($version.FileVersion -notlike "3.0.0.0*") {
+            throw "Unexpected FACM version: $($version.FileVersion)"
+          }
+          Write-Host "FACM version: $($version.FileVersion)"
 
       - name: Sign when certificate secrets exist
         shell: pwsh
@@ -69,14 +79,16 @@ jobs:
           "SHA256  $($hash.Hash)  FACM.exe" | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
           Get-AuthenticodeSignature (Join-Path $artifactDir "FACM.exe") | Format-List * | Out-File (Join-Path $artifactDir "SIGNATURE.txt") -Encoding utf8
           Copy-Item README.md (Join-Path $artifactDir "README.md")
-          Compress-Archive -Path "$artifactDir\*" -DestinationPath "FACM-2.0-windows-x64.zip" -Force
+          Copy-Item docs\DEVELOPER-CLEANUP-CONFIG.md (Join-Path $artifactDir "DEVELOPER-CLEANUP-CONFIG.md")
+          Copy-Item docs\SIGNING.md (Join-Path $artifactDir "SIGNING.md")
+          Compress-Archive -Path "$artifactDir\*" -DestinationPath "$env:PACKAGE_NAME.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FACM-2.0-windows-x64
+          name: ${{ env.PACKAGE_NAME }}
           path: |
-            FACM-2.0-windows-x64.zip
+            FACM-3.0-windows-x64.zip
             artifacts/FACM.exe
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
