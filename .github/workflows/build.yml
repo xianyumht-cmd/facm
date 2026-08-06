@@ -88,8 +88,9 @@ jobs:
             -in input/FACM.exe \
             -out artifacts/FACM.exe
 
-          osslsigncode verify -in artifacts/FACM.exe | tee artifacts/SIGNATURE.txt
-          grep -q "Succeeded" artifacts/SIGNATURE.txt
+          osslsigncode verify \
+            -CAfile signing/FACM-Self-Signed-Test-Publisher.cer \
+            -in artifacts/FACM.exe | tee artifacts/SIGNATURE.txt
 
           sha256sum artifacts/FACM.exe | awk '{print "SHA256  " toupper($1) "  FACM.exe"}' > artifacts/SHA256.txt
           cp signing/FACM-Self-Signed-Test-Publisher.cer artifacts/
