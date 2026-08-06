@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using FACM.Services;
 
@@ -10,22 +9,27 @@ namespace FACM
 {
     internal sealed class MainForm : Form
     {
-        private const int BallSize = 64;
+        private const int BallSize = 68;
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly Timer _animationTimer;
         private readonly NotifyIcon _tray;
+        private readonly Icon _appIcon;
         private CompactMenuForm _menu;
         private bool _hovered;
         private bool _dragging;
         private bool _moved;
+        private bool _startCleanup;
         private Point _dragCursor;
         private Point _dragWindow;
         private float _hoverProgress;
         private float _pulse;
 
-        public MainForm()
+        public MainForm(bool startCleanup = false)
         {
+            _startCleanup = startCleanup;
+            _appIcon = BrandIcon.Create();
             Text = "FACM";
+            Icon = _appIcon;
             ShowInTaskbar = false;
             TopMost = true;
             FormBorderStyle = FormBorderStyle.None;
@@ -39,12 +43,12 @@ namespace FACM
 
             _tray = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
-                Text = "FACM 悬浮球",
+                Icon = _appIcon,
+                Text = "FACM 3.0",
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
-            _tray.DoubleClick += delegate { Show(); Activate(); };
+            _tray.DoubleClick += delegate { Show(); Activate(); ToggleMenu(); };
 
             _animationTimer = new Timer { Interval = 25 };
             _animationTimer.Tick += Animate;
@@ -55,28 +59,33 @@ namespace FACM
             MouseDown += BeginDrag;
             MouseMove += ContinueDrag;
             MouseUp += EndDrag;
-            Shown += delegate { RestorePosition(); };
+            Shown += HandleShown;
             FormClosed += delegate
             {
                 _animationTimer.Stop();
                 _tray.Visible = false;
                 _tray.Dispose();
                 if (_menu != null) _menu.Dispose();
+                _appIcon.Dispose();
             };
         }
 
-        protected override bool ShowWithoutActivation { get { return true; } }
+        protected override bool ShowWithoutActivation
+        {
+            get { return true; }
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            var hoverInset = 4f - 2f * _hoverProgress;
-            var bounds = new RectangleF(hoverInset, hoverInset, Width - hoverInset * 2 - 1, Height - hoverInset * 2 - 1);
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
+            var inset = 5f - 2.3f * _hoverProgress;
+            var bounds = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
             using (var shadow = new SolidBrush(Color.FromArgb(75, 0, 0, 0)))
             {
-                e.Graphics.FillEllipse(shadow, bounds.X + 2, bounds.Y + 4, bounds.Width, bounds.Height);
+                e.Graphics.FillEllipse(shadow, bounds.X + 2, bounds.Y + 5, bounds.Width, bounds.Height);
             }
 
             using (var path = new GraphicsPath())
@@ -84,29 +93,43 @@ namespace FACM
                 path.AddEllipse(bounds);
                 using (var brush = new PathGradientBrush(path))
                 {
-                    brush.CenterColor = Color.FromArgb(70 + (int)(25 * _hoverProgress), 190, 255);
-                    brush.SurroundColors = new[] { Color.FromArgb(31, 93, 239) };
+                    brush.CenterPoint = new PointF(bounds.X + bounds.Width * 0.35f, bounds.Y + bounds.Height * 0.28f);
+                    brush.CenterColor = Color.FromArgb(91, 205, 255);
+                    brush.SurroundColors = new[] { Color.FromArgb(45, 79, 219) };
                     e.Graphics.FillPath(brush, path);
                 }
             }
 
-            var glowAlpha = 32 + (int)(35 * _hoverProgress) + (int)(10 * Math.Sin(_pulse));
-            using (var glow = new Pen(Color.FromArgb(Math.Max(0, Math.Min(100, glowAlpha)), 167, 224, 255), 2f))
+            var glowAlpha = 42 + (int)(45 * _hoverProgress) + (int)(9 * Math.Sin(_pulse));
+            using (var glow = new Pen(Color.FromArgb(Math.Max(0, Math.Min(110, glowAlpha)), 137, 219, 255), 2.3f))
             {
                 e.Graphics.DrawEllipse(glow, bounds);
             }
 
-            using (var font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var textBrush = new SolidBrush(Color.White))
+            using (var inner = new Pen(Color.FromArgb(55, 255, 255, 255), 1f))
             {
-                var text = "F";
-                var size = e.Graphics.MeasureString(text, font);
-                e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f, (Height - size.Height) / 2f - 1f);
+                e.Graphics.DrawEllipse(inner, bounds.X + 5, bounds.Y + 5, bounds.Width - 10, bounds.Height - 10);
             }
 
-            using (var dot = new SolidBrush(Color.FromArgb(72, 224, 158)))
+            using (var font = new Font("Segoe UI", 21F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var textBrush = new SolidBrush(Color.White))
             {
-                e.Graphics.FillEllipse(dot, Width - 17, 8, 8, 8);
+                const string text = "F";
+                var size = e.Graphics.MeasureString(text, font);
+                e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f - 1f, (Height - size.Height) / 2f - 3f);
+            }
+
+            using (var versionFont = new Font("Segoe UI", 6.6F, FontStyle.Bold, GraphicsUnit.Point))
+            using (var versionBrush = new SolidBrush(Color.FromArgb(210, 235, 255)))
+            {
+                e.Graphics.DrawString("3.0", versionFont, versionBrush, 26f, 45f);
+            }
+
+            using (var dot = new SolidBrush(ElevationService.IsAdministrator
+                ? Color.FromArgb(92, 224, 166)
+                : Color.FromArgb(255, 191, 89)))
+            {
+                e.Graphics.FillEllipse(dot, Width - 18, 9, 8, 8);
             }
         }
 
@@ -124,10 +147,33 @@ namespace FACM
             Close();
         }
 
+        private void HandleShown(object sender, EventArgs e)
+        {
+            RestorePosition();
+            if (!_startCleanup) return;
+
+            BeginInvoke(new Action(delegate
+            {
+                if (IsDisposed) return;
+                if (_menu == null) ToggleMenu();
+                if (_menu != null && !_menu.IsDisposed)
+                {
+                    _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                }
+                _startCleanup = false;
+            }));
+        }
+
         private ContextMenuStrip BuildTrayMenu()
         {
-            var menu = new ContextMenuStrip();
-            menu.Items.Add("展开 FACM", null, delegate { Show(); ToggleMenu(); });
+            var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9F) };
+            menu.Items.Add("打开控制中心", null, delegate { Show(); ToggleMenu(); });
+            menu.Items.Add("清理环境", null, delegate
+            {
+                Show();
+                if (_menu == null) ToggleMenu();
+                if (_menu != null) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+            });
             menu.Items.Add("打开日志", null, delegate { OpenLog(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { ExitApplication(); });
@@ -194,7 +240,7 @@ namespace FACM
         {
             var area = Screen.FromControl(this).WorkingArea;
             var openLeft = Left > area.Left + area.Width / 2;
-            var x = openLeft ? Left - menu.Width - 12 : Right + 12;
+            var x = openLeft ? Left - menu.Width - 14 : Right + 14;
             var y = Math.Max(area.Top + 8, Math.Min(Top + Height / 2 - menu.Height / 2, area.Bottom - menu.Height - 8));
             x = Math.Max(area.Left + 8, Math.Min(x, area.Right - menu.Width - 8));
             menu.Location = new Point(x, y);

@@ -1,44 +1,87 @@
-# FACM 2.1 悬浮球版
+# FACM 3.0
 
-FACM 是一个轻量 Windows 桌面悬浮球。程序启动后只显示约 64×64 的悬浮球，不打开传统大窗口。
+FACM 3.0 是一个 Windows 桌面悬浮控制中心。本次版本保留轻量悬浮入口与现有内置工具执行能力，重新设计了控制中心、清理预览和状态反馈，并新增开发者可配置的环境清理规则。
 
-## 交互
+## 新界面
 
-- 单击悬浮球：展开紧凑功能菜单
-- 拖动悬浮球：移动位置；松手后自动贴近屏幕左右边缘
-- 右击悬浮球：展开、打开日志或退出
-- 双击托盘图标：重新显示悬浮球
-- 位置与游戏目录保存在 `%LocalAppData%\FACM\settings.ini`
+- 68×68 桌面悬浮入口，支持拖动、边缘吸附和托盘恢复。
+- 重新设计的深色控制中心，统一圆角、层级、状态与交互反馈。
+- 工作目录卡片支持自动识别和手动选择。
+- 清理前显示独立预览窗口，列出完整路径、类别、状态和估算大小。
+- 普通模式与管理员模式在界面中明确显示。
 
-## 功能
+## 清理环境
 
-- 从正在运行的客户端和常见卸载/WeGame 注册表位置识别游戏目录
-- 也可以通过系统文件夹选择器手动选择游戏根目录
-- 安全清理 `LeagueClient` 顶层 `.log` 文件和 FACM 自身临时文件
-- 内置原 FACM 使用的 `Fix-LCU-Window.exe` 1.1.2，并提供四种运行模式
-- 内置工具释放前固定校验 SHA-256，校验失败不会执行
-- 本地日志保存在 `%LocalAppData%\FACM\Logs`
+清理规则不会由最终用户在界面中填写。开发者在编译前修改：
 
-## 安全边界
+```text
+src/FACM/Configuration/CleanupProfile.cs
+```
 
-本版本不包含或执行删除驱动、安全程序、反作弊组件的工具，也不批量删除 `Game` 目录。此类行为既容易破坏安装，也会显著提高安全软件告警概率。
+未替换任何一个 `REPLACE_...` 占位值时，清理功能保持禁用，不会删除文件。
 
-FACM 不联网、不注入进程、不创建服务、不设置开机启动，不隐藏执行命令。
+完成配置后，用户主动点击“清理环境”时，程序会：
 
-## 构建与签名
+1. 检查相关程序是否仍在运行。
+2. 自动从当前进程和 Windows 卸载项读取安装位置；识别失败时打开系统文件夹选择器。
+3. 扫描两个固定系统目录和开发者配置的安装目录规则。
+4. 永久保留配置的保留文件夹，默认名称为 `DATA`。
+5. 只匹配配置日志目录顶层的 `*.log`。
+6. 展示所有精确路径并要求再次确认。
+7. 重新校验路径后执行删除，并写入本地日志。
 
-Windows 10/11，Visual Studio 2022 Build Tools 或 Visual Studio 2022，安装 .NET Framework 4.8 targeting pack：
+详细字段说明见 `docs/DEVELOPER-CLEANUP-CONFIG.md`。
+
+## 路径与删除保护
+
+- 不进行整盘关键词搜索。
+- 动态路径必须保持在识别出的安装根目录内。
+- 不进入 junction、符号链接或其他重解析点。
+- 预览后、删除前再次核验每个目标所属规则。
+- 相关进程未退出时拒绝清理。
+- 系统目录只在用户主动确认后按需请求管理员权限。
+- 日志保存在 `%LocalAppData%\FACM\Logs`。
+
+## 内置工具
+
+当前仓库中已有的内置可执行资源和四个模式脚本继续保留。资源释放到固定的本地目录，运行前校验固定 SHA-256；校验失败时停止执行。
+
+其他未出现在仓库中的原始二进制无法凭空恢复。后续加入额外内置工具时，应先确认发布权、单独签名，再采用固定资源名和固定哈希嵌入。
+
+## 构建
+
+系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，并安装 .NET Framework 4.8 targeting pack。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 ```
 
-正式发布应使用受信任机构颁发的代码签名证书：
+输出：
+
+```text
+artifacts\FACM.exe
+```
+
+## 代码签名
+
+正式发布建议使用受信任机构签发的 Authenticode 代码签名证书：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
   -ExePath .\artifacts\FACM.exe `
-  -PfxPath C:\secure\facm-signing.pfx
+  -PfxPath C:\secure\facm-signing.pfx `
+  -PfxPassword "你的PFX密码"
 ```
 
-自签名证书通常不会消除 SmartScreen 的“未知发布者”提示，也不能保证安全软件不报毒。
+自签名证书可验证签名流程，但通常不能消除 SmartScreen 的“未知发布者”，也不能保证不被安全软件告警。完整说明见 `docs/SIGNING.md`。
+
+## 构建产物
+
+GitHub Actions 会生成：
+
+- `FACM-3.0-windows-x64.zip`
+- `FACM.exe`
+- `SHA256.txt`
+- `SIGNATURE.txt`
+
+当仓库配置正式证书 Secrets 后，流水线会在打包前签名并验证主程序。

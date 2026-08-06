@@ -2,31 +2,24 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using FACM.Configuration;
 
 namespace FACM.Services
 {
     internal static class ProcessGuard
     {
-        private static readonly string[] RelatedClientProcessNames =
-        {
-            "LeagueClient",
-            "LeagueClientUx",
-            "LeagueClientUxRender",
-            "League of Legends"
-        };
-
         public static IReadOnlyList<string> GetRunningRelatedProcesses()
         {
+            if (!CleanupProfile.IsConfigured) return new string[0];
+
+            var configured = new HashSet<string>(CleanupProfile.NormalizedProcessNames, StringComparer.OrdinalIgnoreCase);
             var running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var process in Process.GetProcesses())
             {
                 try
                 {
                     var name = process.ProcessName;
-                    if (RelatedClientProcessNames.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        running.Add(name);
-                    }
+                    if (configured.Contains(name)) running.Add(name);
                 }
                 catch
                 {
@@ -37,6 +30,7 @@ namespace FACM.Services
                     process.Dispose();
                 }
             }
+
             return running.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToArray();
         }
     }
