@@ -21,7 +21,6 @@ namespace FACM.Services
         public string Mode4 { get; private set; } = "模式 4";
         public string CheckUpdate { get; private set; } = "检查更新";
         public string OpenLog { get; private set; } = "操作日志";
-        public string About { get; private set; } = "程序信息";
         public string EditText { get; private set; } = "界面文字";
         public string Exit { get; private set; } = "退出程序";
 
@@ -90,7 +89,6 @@ namespace FACM.Services
                     "Mode4=模式 4",
                     "CheckUpdate=检查更新",
                     "OpenLog=操作日志",
-                    "About=程序信息",
                     "EditText=界面文字",
                     "Exit=退出程序"
                 });
@@ -113,7 +111,6 @@ namespace FACM.Services
             else if (key.Equals("Mode4", StringComparison.OrdinalIgnoreCase)) Mode4 = value;
             else if (key.Equals("CheckUpdate", StringComparison.OrdinalIgnoreCase)) CheckUpdate = value;
             else if (key.Equals("OpenLog", StringComparison.OrdinalIgnoreCase)) OpenLog = value;
-            else if (key.Equals("About", StringComparison.OrdinalIgnoreCase)) About = value;
             else if (key.Equals("EditText", StringComparison.OrdinalIgnoreCase)) EditText = value;
             else if (key.Equals("Exit", StringComparison.OrdinalIgnoreCase)) Exit = value;
         }
