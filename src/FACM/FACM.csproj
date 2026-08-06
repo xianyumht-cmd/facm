@@ -50,6 +50,8 @@
     <ItemGroup>
       <EmbeddedResource Include="$(ToolBundleAssembly)">
         <LogicalName>FACM.Resources.FACM.ToolBundle.dll</LogicalName>
+        <Type>Non-Resx</Type>
+        <WithCulture>false</WithCulture>
       </EmbeddedResource>
     </ItemGroup>
 
