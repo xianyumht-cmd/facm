@@ -10,7 +10,7 @@ FACM 的 Windows 桌面重写版，目标是：
 
 ## 当前分支范围
 
-当前代码提供可编译的新版骨架、现代 UI、工具释放/校验/执行框架、应用自身缓存清理、构建脚本和签名脚本。
+当前代码提供新版骨架、现代 UI、工具释放/校验/执行框架、应用自身缓存清理、构建脚本和签名脚本。
 
 环境维护功能只处理 FACM 自身创建的缓存、日志和临时目录，不删除或停用第三方保护/安全组件，也不会对外部程序目录执行大范围删除。
 
@@ -37,10 +37,10 @@ src/FACM.App/Payloads/payloads.manifest.json
 - `arguments`：固定启动参数；
 - `requiresElevation`：是否需要按需提权。
 
-生成哈希：
+签名内置 EXE 后，可一键刷新清单哈希：
 
 ```powershell
-Get-FileHash .\src\FACM.App\Payloads\文件名.exe -Algorithm SHA256
+.\scripts\update-payload-hashes.ps1
 ```
 
 ## 本地构建
@@ -61,23 +61,25 @@ artifacts\win-x64\
 
 ## 代码签名
 
-安装 Windows SDK，并准备正式代码签名证书。然后运行：
+安装 Windows SDK，把正式代码签名证书安装到 Windows 证书存储区，然后运行：
 
 ```powershell
 .\scripts\sign-release.ps1 `
   -InputDirectory .\artifacts\win-x64 `
-  -PfxPath C:\secure\facm-signing.pfx
+  -CertificateThumbprint "你的证书指纹" `
+  -TimestampUrl "证书机构提供的 RFC 3161 地址"
 ```
 
-证书密码通过安全提示输入，不写入仓库。脚本使用 SHA-256 文件摘要和 RFC 3161 时间戳，并在签名后执行验证。
+脚本不会读取或提交 PFX 密码，而是通过证书指纹使用证书存储区中的私钥。它使用 SHA-256 文件摘要、RFC 3161 时间戳，并在签名后执行完整验证。
 
 ## 项目结构
 
 ```text
-src/FACM.App/                  WPF 主程序
-src/FACM.App/Payloads/         待嵌入的原有工具
-src/FACM.App/Services/         工具释放、执行和安全维护逻辑
-scripts/build-release.ps1      一键构建
-scripts/sign-release.ps1       一键签名与验证
-docs/SIGNING.md                签名与误报治理说明
+src/FACM.App/                       WPF 主程序
+src/FACM.App/Payloads/              待嵌入的原有工具
+src/FACM.App/Services/              工具释放、执行和安全维护逻辑
+scripts/build-release.ps1           一键构建
+scripts/update-payload-hashes.ps1   更新内置文件哈希
+scripts/sign-release.ps1            一键签名与验证
+docs/SIGNING.md                     签名与误报治理说明
 ```
