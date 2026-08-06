@@ -22,16 +22,11 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Security" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part00"><LogicalName>FACM.Resources.FixLcu.Part00</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part01"><LogicalName>FACM.Resources.FixLcu.Part01</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part02"><LogicalName>FACM.Resources.FixLcu.Part02</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part03"><LogicalName>FACM.Resources.FixLcu.Part03</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part04"><LogicalName>FACM.Resources.FixLcu.Part04</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part05"><LogicalName>FACM.Resources.FixLcu.Part05</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part06"><LogicalName>FACM.Resources.FixLcu.Part06</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part07"><LogicalName>FACM.Resources.FixLcu.Part07</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.b64.part08"><LogicalName>FACM.Resources.FixLcu.Part08</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64">
+      <LogicalName>FACM.Resources.FixLcu.GzipBase64</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>
