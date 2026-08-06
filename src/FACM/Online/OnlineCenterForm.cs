@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Configuration;
 using FACM.Services;
 
 namespace FACM.Online
@@ -21,8 +22,10 @@ namespace FACM.Online
         private readonly bool _forceMode;
         private readonly Label _versionValue;
         private readonly Label _updateStatus;
+        private readonly Label _programInfo;
         private readonly Label _announcementTitle;
         private readonly TextBox _announcementBody;
+        private readonly Button _refreshButton;
         private readonly Button _updateButton;
         private readonly Button _linkButton;
         private readonly Button _closeButton;
@@ -39,14 +42,14 @@ namespace FACM.Online
             _snapshot = snapshot ?? new OnlineSnapshot();
             _forceMode = forceMode;
 
-            Text = forceMode ? "FACM 必须更新" : "FACM 在线中心";
+            Text = forceMode ? "FACM 必须更新" : "FACM 检查更新";
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
             TopMost = forceMode;
-            ClientSize = new Size(540, 610);
+            ClientSize = new Size(560, 690);
             BackColor = Background;
             ForeColor = TextPrimary;
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -54,9 +57,9 @@ namespace FACM.Online
 
             var header = new Label
             {
-                Text = forceMode ? "检测到必须安装的新版本" : "在线版本与公告",
+                Text = forceMode ? "检测到必须安装的新版本" : "检查更新与公告",
                 Location = new Point(24, 18),
-                Size = new Size(490, 34),
+                Size = new Size(510, 34),
                 Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold),
                 ForeColor = TextPrimary
             };
@@ -64,32 +67,41 @@ namespace FACM.Online
             {
                 Text = forceMode
                     ? "当前版本已低于允许范围，请完成更新后继续。"
-                    : "可手动检查，也可在启动时自动检查并提示。",
+                    : "版本、签名、权限和公告统一在这里查看。",
                 Location = new Point(26, 55),
-                Size = new Size(486, 24),
+                Size = new Size(508, 24),
                 ForeColor = TextMuted
             };
 
-            var versionPanel = CreatePanel(new Point(20, 92), new Size(500, 156));
-            var versionTitle = CreateSectionTitle("版本控制", new Point(16, 13));
+            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 229));
+            var versionTitle = CreateSectionTitle("版本与程序状态", new Point(16, 13));
             _versionValue = new Label
             {
-                Location = new Point(16, 45),
-                Size = new Size(464, 25),
+                Location = new Point(16, 43),
+                Size = new Size(486, 25),
                 ForeColor = TextPrimary,
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
             };
             _updateStatus = new Label
             {
-                Location = new Point(16, 73),
-                Size = new Size(464, 23),
+                Location = new Point(16, 70),
+                Size = new Size(486, 40),
+                AutoEllipsis = true,
                 ForeColor = TextMuted
+            };
+            _programInfo = new Label
+            {
+                Location = new Point(16, 111),
+                Size = new Size(486, 58),
+                AutoEllipsis = true,
+                ForeColor = Color.FromArgb(193, 205, 225),
+                Font = new Font("Microsoft YaHei UI", 8.2F)
             };
             _autoUpdate = new CheckBox
             {
                 Text = "启动时自动检查并提示更新",
-                Location = new Point(16, 105),
-                Size = new Size(230, 28),
+                Location = new Point(16, 181),
+                Size = new Size(240, 28),
                 Checked = _settings.AutoUpdateEnabled,
                 ForeColor = TextPrimary,
                 BackColor = Color.Transparent
@@ -99,30 +111,32 @@ namespace FACM.Online
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            var refreshButton = CreateButton("立即检查", new Point(260, 103), 100, false);
-            refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton("立即更新", new Point(370, 103), 110, true);
+            _refreshButton = CreateButton("立即检查", new Point(282, 179), 100, false);
+            _refreshButton.Click += async delegate { await RefreshAsync(); };
+            _updateButton = CreateButton("立即更新", new Point(392, 179), 110, true);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
+
             versionPanel.Controls.Add(versionTitle);
             versionPanel.Controls.Add(_versionValue);
             versionPanel.Controls.Add(_updateStatus);
+            versionPanel.Controls.Add(_programInfo);
             versionPanel.Controls.Add(_autoUpdate);
-            versionPanel.Controls.Add(refreshButton);
+            versionPanel.Controls.Add(_refreshButton);
             versionPanel.Controls.Add(_updateButton);
 
-            var announcementPanel = CreatePanel(new Point(20, 264), new Size(500, 264));
+            var announcementPanel = CreatePanel(new Point(20, 335), new Size(520, 274));
             var announcementSection = CreateSectionTitle("联网公告", new Point(16, 13));
             _announcementTitle = new Label
             {
-                Location = new Point(16, 45),
-                Size = new Size(462, 28),
+                Location = new Point(16, 43),
+                Size = new Size(486, 28),
                 ForeColor = TextPrimary,
                 Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Bold)
             };
             _announcementBody = new TextBox
             {
-                Location = new Point(16, 79),
-                Size = new Size(464, 130),
+                Location = new Point(16, 77),
+                Size = new Size(486, 142),
                 ReadOnly = true,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -130,7 +144,7 @@ namespace FACM.Online
                 BackColor = Color.FromArgb(18, 24, 36),
                 ForeColor = TextPrimary
             };
-            _linkButton = CreateButton("打开公告链接", new Point(16, 219), 120, false);
+            _linkButton = CreateButton("打开公告链接", new Point(16, 229), 120, false);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -139,13 +153,13 @@ namespace FACM.Online
 
             _progress = new ProgressBar
             {
-                Location = new Point(20, 545),
-                Size = new Size(500, 14),
+                Location = new Point(20, 623),
+                Size = new Size(520, 14),
                 Minimum = 0,
                 Maximum = 100,
                 Visible = false
             };
-            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(400, 570), 120, false);
+            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(420, 648), 120, false);
             _closeButton.Click += delegate
             {
                 if (_updateStarted) return;
@@ -161,6 +175,7 @@ namespace FACM.Online
             Controls.Add(_closeButton);
 
             FormClosing += HandleFormClosing;
+            ApplyProgramInfo();
             ApplySnapshot();
         }
 
@@ -191,8 +206,10 @@ namespace FACM.Online
             SetBusy(true, "正在读取在线配置...");
             try
             {
+                if (_cancellation != null) _cancellation.Dispose();
                 _cancellation = new CancellationTokenSource();
                 _snapshot = await OnlineService.FetchSnapshotAsync(_cancellation.Token);
+                ApplyProgramInfo();
                 ApplySnapshot();
             }
             finally
@@ -211,6 +228,7 @@ namespace FACM.Online
             _progress.Value = 0;
             try
             {
+                if (_cancellation != null) _cancellation.Dispose();
                 _cancellation = new CancellationTokenSource();
                 var progress = new Progress<int>(value =>
                 {
@@ -245,6 +263,15 @@ namespace FACM.Online
                     SetBusy(false, null);
                 }
             }
+        }
+
+        private void ApplyProgramInfo()
+        {
+            _programInfo.Text =
+                "签名状态：" + SignatureInspector.GetCurrentExecutableSignatureStatus() + "\r\n" +
+                "运行权限：" + (ElevationService.IsAdministrator ? "管理员" : "标准用户") +
+                "    清理配置：" + (CleanupProfile.IsConfigured ? "已配置" : "尚未配置") + "\r\n" +
+                "工具资源：FACM.ToolBundle.dll + runtime，释放和运行前校验 SHA-256";
         }
 
         private void ApplySnapshot()
@@ -293,6 +320,7 @@ namespace FACM.Online
 
         private void SetBusy(bool busy, string status)
         {
+            _refreshButton.Enabled = !busy;
             _updateButton.Enabled = !busy && _snapshot != null && _snapshot.UpdateAvailable;
             _autoUpdate.Enabled = !busy;
             _closeButton.Enabled = !busy || !_forceMode;
@@ -341,7 +369,7 @@ namespace FACM.Online
             {
                 Text = text,
                 Location = location,
-                Size = new Size(460, 25),
+                Size = new Size(486, 25),
                 ForeColor = TextMuted,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
@@ -357,9 +385,13 @@ namespace FACM.Online
                 FlatStyle = FlatStyle.Flat,
                 BackColor = primary ? Accent : Color.FromArgb(38, 49, 68),
                 ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                TabStop = false
             };
             button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(65, 80, 105);
+            button.FlatAppearance.MouseOverBackColor = primary
+                ? Color.FromArgb(88, 144, 255)
+                : Color.FromArgb(48, 61, 82);
             return button;
         }
 
