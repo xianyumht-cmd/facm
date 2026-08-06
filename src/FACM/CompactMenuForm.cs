@@ -6,24 +6,21 @@ using System.IO;
 using System.Windows.Forms;
 using FACM.Configuration;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM
 {
     internal sealed class CompactMenuForm : Form
     {
-        private static readonly Color Background = Color.FromArgb(11, 16, 25);
-        private static readonly Color Surface = Color.FromArgb(22, 29, 43);
-        private static readonly Color SurfaceHover = Color.FromArgb(29, 39, 57);
-        private static readonly Color Border = Color.FromArgb(48, 61, 84);
-        private static readonly Color TextPrimary = Color.FromArgb(244, 247, 255);
-        private static readonly Color TextMuted = Color.FromArgb(151, 165, 190);
-        private static readonly Color Accent = Color.FromArgb(76, 126, 255);
-        private static readonly Color AccentHover = Color.FromArgb(88, 142, 255);
-        private static readonly Color Success = Color.FromArgb(92, 224, 166);
+        private const int BaseWidth = 420;
+        private const int BaseHeight = 680;
 
         private readonly MainForm _ownerBall;
         private readonly AppSettings _settings;
         private readonly UiTextCatalog _ui;
+        private readonly ThemeDefinition _theme;
+        private readonly float _scaleX;
+        private readonly float _scaleY;
         private readonly Label _pathValue;
         private readonly Label _status;
         private bool _dialogOpen;
@@ -33,183 +30,177 @@ namespace FACM
             _ownerBall = ownerBall;
             _settings = settings;
             _ui = ui ?? UiTextCatalog.Load();
+            _theme = ThemeCatalog.Get(_settings.ThemeId);
+            _scaleX = _theme.WindowSize.Width / (float)BaseWidth;
+            _scaleY = _theme.WindowSize.Height / (float)BaseHeight;
 
             Text = "FACM";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(420, 680);
-            BackColor = Background;
-            ForeColor = TextPrimary;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            ClientSize = _theme.WindowSize;
+            BackColor = _theme.Background;
+            ForeColor = _theme.TextPrimary;
+            Font = new Font(_theme.FontName, 9F);
             DoubleBuffered = true;
 
             var header = new Panel
             {
-                Location = new Point(0, 0),
-                Size = new Size(420, 72),
+                Location = Point.Empty,
+                Size = ScaleSize(BaseWidth, 72),
                 BackColor = Color.Transparent
             };
+
             var logo = new Label
             {
                 Text = "F",
-                Location = new Point(18, 14),
-                Size = new Size(44, 44),
+                Location = ScalePoint(18, 14),
+                Size = ScaleSize(44, 44),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.White,
-                BackColor = Accent,
-                Font = new Font("Segoe UI", 18F, FontStyle.Bold)
+                BackColor = _theme.Accent,
+                Font = new Font("Segoe UI", ScaleFont(18F), FontStyle.Bold),
+                Cursor = Cursors.Hand
             };
-            MakeRound(logo, 13);
+            ApplyShape(logo, _theme.ButtonRadius + 3, _theme.UsesAngularCorners);
+            logo.Click += OpenThemePicker;
+
             var brand = new Label
             {
                 Text = "FACM",
                 AutoSize = true,
-                Location = new Point(76, 12),
-                ForeColor = TextPrimary,
-                Font = new Font("Segoe UI", 16F, FontStyle.Bold),
+                Location = ScalePoint(76, 10),
+                ForeColor = _theme.TextPrimary,
+                Font = new Font("Segoe UI", ScaleFont(16F), _theme.HeaderFontStyle),
                 BackColor = Color.Transparent
             };
             var version = new Label
             {
-                Text = "3.1  " + _ui.ControlCenter.ToUpperInvariant(),
+                Text = "3.1  " + _ui.ControlCenter,
                 AutoSize = true,
-                Location = new Point(77, 43),
-                ForeColor = TextMuted,
-                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
+                Location = ScalePoint(77, 42),
+                ForeColor = _theme.TextMuted,
+                Font = new Font(_theme.FontName, ScaleFont(8F), FontStyle.Bold),
                 BackColor = Color.Transparent
             };
-            var adminBadge = new Label
-            {
-                Text = ElevationService.IsAdministrator ? "管理员" : "标准模式",
-                Location = new Point(282, 20),
-                Size = new Size(84, 28),
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = ElevationService.IsAdministrator ? Success : TextMuted,
-                BackColor = Color.FromArgb(25, 34, 50),
-                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold)
-            };
-            MakeRound(adminBadge, 14);
+
+            var adminBadge = CreateButton(
+                ElevationService.IsAdministrator ? "管理员" : "标准模式",
+                new Rectangle(282, 20, 84, 28),
+                false);
+            adminBadge.ForeColor = ElevationService.IsAdministrator ? _theme.Success : _theme.TextMuted;
+            adminBadge.Enabled = false;
+
             var close = new Label
             {
                 Text = "×",
-                Location = new Point(374, 14),
-                Size = new Size(32, 32),
+                Location = ScalePoint(374, 14),
+                Size = ScaleSize(32, 32),
                 TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = TextMuted,
+                ForeColor = _theme.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 18F),
+                Font = new Font("Segoe UI", ScaleFont(18F)),
                 Cursor = Cursors.Hand
             };
             close.Click += delegate { Close(); };
-            close.MouseEnter += delegate { close.ForeColor = TextPrimary; };
-            close.MouseLeave += delegate { close.ForeColor = TextMuted; };
+            close.MouseEnter += delegate { close.ForeColor = _theme.TextPrimary; };
+            close.MouseLeave += delegate { close.ForeColor = _theme.TextMuted; };
+
             header.Controls.Add(logo);
             header.Controls.Add(brand);
             header.Controls.Add(version);
             header.Controls.Add(adminBadge);
             header.Controls.Add(close);
 
-            var pathCard = new RoundedPanel
-            {
-                Location = new Point(16, 80),
-                Size = new Size(388, 96),
-                Radius = 17,
-                FillColor = Surface,
-                BorderColor = Border
-            };
-            var pathTitle = CreateCaption("工作目录", new Point(15, 11), 100);
+            var pathCard = CreatePanel(new Rectangle(16, 80, 388, 96), false);
+            pathCard.Controls.Add(CreateCaption("工作目录", new Point(15, 9), 120));
             _pathValue = new Label
             {
-                Location = new Point(15, 32),
-                Size = new Size(358, 25),
+                Location = ScaleChildPoint(15, 31),
+                Size = ScaleChildSize(358, 25),
                 AutoEllipsis = true,
                 TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = TextPrimary,
+                ForeColor = _theme.TextPrimary,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                Font = new Font(_theme.FontName, ScaleFont(9F), FontStyle.Bold)
             };
-            var detect = CreateSmallButton("自动识别", new Point(15, 62), 96);
+            var detect = CreateButton("自动识别", new Rectangle(15, 62, 96, 26), false);
+            detect.Location = ScaleChildPoint(15, 62);
+            detect.Size = ScaleChildSize(96, 26);
             detect.Click += DetectGamePath;
-            var choose = CreateSmallButton("选择目录", new Point(119, 62), 96);
+            var choose = CreateButton("选择目录", new Rectangle(119, 62, 96, 26), false);
+            choose.Location = ScaleChildPoint(119, 62);
+            choose.Size = ScaleChildSize(96, 26);
             choose.Click += SelectGamePath;
             var config = new Label
             {
                 Text = CleanupProfile.IsConfigured ? "● 规则已配置" : "● 等待配置",
-                Location = new Point(234, 63),
-                Size = new Size(140, 23),
+                Location = ScaleChildPoint(224, 63),
+                Size = ScaleChildSize(150, 23),
                 TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = CleanupProfile.IsConfigured ? Success : Color.FromArgb(255, 180, 92),
+                ForeColor = CleanupProfile.IsConfigured ? _theme.Success : _theme.Warning,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold)
+                Font = new Font(_theme.FontName, ScaleFont(8F), FontStyle.Bold)
             };
-            pathCard.Controls.Add(pathTitle);
             pathCard.Controls.Add(_pathValue);
             pathCard.Controls.Add(detect);
             pathCard.Controls.Add(choose);
             pathCard.Controls.Add(config);
             RefreshPathLabel();
 
-            var cleanup = new RoundedPanel
+            var cleanup = CreatePanel(new Rectangle(16, 188, 388, 82), true);
+            cleanup.Cursor = Cursors.Hand;
+            var cleanupIcon = new Label
             {
-                Location = new Point(16, 188),
-                Size = new Size(388, 82),
-                Radius = 18,
-                FillColor = Color.FromArgb(43, 78, 171),
-                HoverColor = Color.FromArgb(50, 91, 197),
-                BorderColor = Color.FromArgb(99, 151, 255),
+                Text = _theme.Style == ThemeStyle.Luxury ? "✦" : "↻",
+                Location = ScaleChildPoint(15, 17),
+                Size = ScaleChildSize(46, 46),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.White,
+                BackColor = Blend(_theme.Accent, Color.White, 0.12F),
+                Font = new Font("Segoe UI Symbol", ScaleFont(17F), FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            var cleanupIcon = CreateIcon("↻", new Point(15, 17), true);
+            ApplyShape(cleanupIcon, _theme.ButtonRadius + 2, _theme.UsesAngularCorners);
             var cleanupTitle = new Label
             {
                 Text = _ui.Cleanup,
-                Location = new Point(74, 13),
-                Size = new Size(210, 29),
-                ForeColor = TextPrimary,
+                Location = ScaleChildPoint(74, 12),
+                Size = ScaleChildSize(205, 29),
+                ForeColor = Color.White,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
+                Font = new Font(_theme.FontName, ScaleFont(13F), FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             var cleanupHint = new Label
             {
                 Text = "先预览路径，再确认执行",
-                Location = new Point(75, 44),
-                Size = new Size(230, 22),
-                ForeColor = Color.FromArgb(215, 228, 255),
+                Location = ScaleChildPoint(75, 43),
+                Size = ScaleChildSize(225, 22),
+                ForeColor = Blend(Color.White, _theme.TextMuted, 0.35F),
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.2F),
+                Font = new Font(_theme.FontName, ScaleFont(8.2F)),
                 Cursor = Cursors.Hand
             };
-            var cleanupTag = new Label
-            {
-                Text = "CLEAN",
-                Location = new Point(311, 28),
-                Size = new Size(58, 24),
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(48, 255, 255, 255),
-                Font = new Font("Segoe UI", 7F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            MakeRound(cleanupTag, 11);
+            var cleanupTag = CreateButton(
+                _theme.Style == ThemeStyle.Luxury ? "开始清理" : "CLEAN",
+                new Rectangle(306, 25, 67, 31),
+                true);
+            cleanupTag.Location = ScaleChildPoint(306, 25);
+            cleanupTag.Size = ScaleChildSize(67, 31);
+            cleanupTag.Font = new Font(_theme.FontName, ScaleFont(7.4F), FontStyle.Bold);
             cleanup.Controls.Add(cleanupIcon);
             cleanup.Controls.Add(cleanupTitle);
             cleanup.Controls.Add(cleanupHint);
             cleanup.Controls.Add(cleanupTag);
             WireClick(cleanup, CleanEnvironment);
 
-            var toolsCard = new RoundedPanel
-            {
-                Location = new Point(16, 282),
-                Size = new Size(388, 184),
-                Radius = 17,
-                FillColor = Surface,
-                BorderColor = Border
-            };
-            toolsCard.Controls.Add(CreateCaption(_ui.ToolGroup, new Point(15, 11), 180));
-            var toolA = CreateToolButton(_ui.ToolA, new Point(15, 38), 358, true);
+            var toolsCard = CreatePanel(new Rectangle(16, 282, 388, 184), false);
+            toolsCard.Controls.Add(CreateCaption(_ui.ToolGroup, new Point(15, 9), 180));
+            var toolA = CreateButton(_ui.ToolA, new Rectangle(15, 38, 358, 36), true);
+            toolA.Location = ScaleChildPoint(15, 38);
+            toolA.Size = ScaleChildSize(358, 36);
             toolA.Click += delegate { RunToolA(); };
             toolsCard.Controls.Add(toolA);
             for (var mode = 1; mode <= 4; mode++)
@@ -217,77 +208,75 @@ namespace FACM
                 var captured = mode;
                 var column = (mode - 1) % 2;
                 var row = (mode - 1) / 2;
-                var button = CreateToolButton(
+                var button = CreateButton(
                     _ui.ModeName(mode),
-                    new Point(15 + column * 181, 84 + row * 43),
-                    177,
+                    new Rectangle(15 + column * 181, 84 + row * 43, 177, 36),
                     false);
+                button.Location = ScaleChildPoint(15 + column * 181, 84 + row * 43);
+                button.Size = ScaleChildSize(177, 36);
                 button.Click += delegate { RunFixMode(captured); };
                 toolsCard.Controls.Add(button);
             }
 
-            var onlineCard = new RoundedPanel
-            {
-                Location = new Point(16, 478),
-                Size = new Size(388, 88),
-                Radius = 17,
-                FillColor = Surface,
-                BorderColor = Border
-            };
-            onlineCard.Controls.Add(CreateCaption("更新与公告", new Point(15, 11), 160));
+            var onlineCard = CreatePanel(new Rectangle(16, 478, 388, 88), false);
+            onlineCard.Controls.Add(CreateCaption("更新与公告", new Point(15, 9), 160));
             var autoUpdate = new CheckBox
             {
                 Text = "启动时自动检查",
-                Location = new Point(15, 43),
-                Size = new Size(160, 28),
+                Location = ScaleChildPoint(15, 42),
+                Size = ScaleChildSize(178, 28),
                 Checked = _settings.AutoUpdateEnabled,
-                ForeColor = TextMuted,
+                ForeColor = _theme.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.3F)
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(_theme.FontName, ScaleFont(8.3F))
             };
             autoUpdate.CheckedChanged += delegate
             {
                 _settings.AutoUpdateEnabled = autoUpdate.Checked;
                 _settings.Save();
             };
-            var update = CreateToolButton(_ui.CheckUpdate, new Point(242, 35), 131, true);
+            var update = CreateButton(_ui.CheckUpdate, new Rectangle(242, 35, 131, 36), true);
+            update.Location = ScaleChildPoint(242, 35);
+            update.Size = ScaleChildSize(131, 36);
             update.Click += delegate { _ownerBall.OpenUpdateCenter(); };
             onlineCard.Controls.Add(autoUpdate);
             onlineCard.Controls.Add(update);
 
-            var logButton = CreateBottomButton(_ui.OpenLog, new Point(16, 578));
+            var bottomWidth = 120;
+            var bottomGap = 14;
+            var bottomX = 16;
+            var logButton = CreateButton(_ui.OpenLog, new Rectangle(bottomX, 578, bottomWidth, 40), false);
             logButton.Click += OpenLog;
-            var aboutButton = CreateBottomButton(_ui.About, new Point(114, 578));
-            aboutButton.Click += ShowAbout;
-            var textButton = CreateBottomButton(_ui.EditText, new Point(212, 578));
-            textButton.Click += OpenTextConfig;
-            var exitButton = CreateBottomButton(_ui.Exit, new Point(310, 578));
+            var themeButton = CreateButton("主题设置", new Rectangle(bottomX + bottomWidth + bottomGap, 578, bottomWidth, 40), false);
+            themeButton.Click += OpenThemePicker;
+            var exitButton = CreateButton(_ui.Exit, new Rectangle(bottomX + (bottomWidth + bottomGap) * 2, 578, bottomWidth, 40), false);
             exitButton.Click += delegate { _ownerBall.ExitApplication(); };
 
             var footer = new Panel
             {
-                Location = new Point(0, 630),
-                Size = new Size(420, 50),
-                BackColor = Color.FromArgb(8, 12, 19)
+                Location = ScalePoint(0, 630),
+                Size = ScaleSize(BaseWidth, 50),
+                BackColor = Blend(_theme.Background, Color.Black, _theme.IsLight ? 0.04F : 0.22F)
             };
             _status = new Label
             {
-                Text = "准备就绪",
-                Location = new Point(17, 8),
-                Size = new Size(386, 19),
+                Text = "准备就绪 · " + _theme.Name,
+                Location = ScaleChildPoint(17, 7),
+                Size = ScaleChildSize(386, 19),
                 AutoEllipsis = true,
-                ForeColor = TextPrimary,
+                ForeColor = _theme.Style == ThemeStyle.Synthwave ? _theme.AccentSecondary : _theme.TextPrimary,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+                Font = new Font(_theme.FontName, ScaleFont(8.5F), FontStyle.Bold)
             };
             var footerHint = new Label
             {
                 Text = "单击悬浮球收起  ·  拖动悬浮球调整位置",
-                Location = new Point(17, 28),
-                Size = new Size(386, 17),
-                ForeColor = TextMuted,
+                Location = ScaleChildPoint(17, 27),
+                Size = ScaleChildSize(386, 17),
+                ForeColor = _theme.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 7.5F)
+                Font = new Font(_theme.FontName, ScaleFont(7.5F))
             };
             footer.Controls.Add(_status);
             footer.Controls.Add(footerHint);
@@ -298,14 +287,13 @@ namespace FACM
             Controls.Add(toolsCard);
             Controls.Add(onlineCard);
             Controls.Add(logButton);
-            Controls.Add(aboutButton);
-            Controls.Add(textButton);
+            Controls.Add(themeButton);
             Controls.Add(exitButton);
             Controls.Add(footer);
 
             Deactivate += delegate { if (!_dialogOpen) Close(); };
-            Shown += delegate { ApplyRoundedRegion(); };
-            Resize += delegate { ApplyRoundedRegion(); };
+            Shown += delegate { ApplyWindowRegion(); };
+            Resize += delegate { ApplyWindowRegion(); };
         }
 
         public void StartEnvironmentCleanup()
@@ -316,92 +304,100 @@ namespace FACM
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var brush = new LinearGradientBrush(ClientRectangle, Color.FromArgb(15, 22, 36), Background, 125F))
+            using (var brush = new LinearGradientBrush(ClientRectangle, _theme.BackgroundSecondary, _theme.Background, 125F))
             {
                 e.Graphics.FillRectangle(brush, ClientRectangle);
             }
+
+            DrawThemeDecoration(e.Graphics);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            using (var pen = new Pen(Border)) e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            using (var pen = new Pen(_theme.Border, Math.Max(1F, _theme.BorderWidth)))
+            {
+                e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            }
         }
 
-        private static Label CreateCaption(string text, Point location, int width)
+        private void DrawThemeDecoration(Graphics graphics)
         {
+            if (_theme.Style == ThemeStyle.Cyber || _theme.Style == ThemeStyle.Rgb || _theme.Style == ThemeStyle.Synthwave)
+            {
+                using (var pen = new Pen(Color.FromArgb(35, _theme.AccentSecondary), 1F))
+                {
+                    for (var y = 74; y < Height; y += Math.Max(22, ScaleY(28)))
+                    {
+                        graphics.DrawLine(pen, 0, y, Width, y);
+                    }
+                    for (var x = -Height; x < Width; x += Math.Max(40, ScaleX(56)))
+                    {
+                        graphics.DrawLine(pen, x, Height, x + Height, 0);
+                    }
+                }
+            }
+            else if (_theme.Style == ThemeStyle.Aurora || _theme.Style == ThemeStyle.Holographic || _theme.Style == ThemeStyle.Glass)
+            {
+                using (var first = new SolidBrush(Color.FromArgb(25, _theme.Accent)))
+                using (var second = new SolidBrush(Color.FromArgb(22, _theme.AccentSecondary)))
+                {
+                    graphics.FillEllipse(first, Width / 2, -Height / 6, Width, Height / 2);
+                    graphics.FillEllipse(second, -Width / 3, Height / 2, Width, Height / 2);
+                }
+            }
+            else if (_theme.Style == ThemeStyle.Brutalist)
+            {
+                using (var brush = new SolidBrush(_theme.AccentSecondary))
+                {
+                    graphics.FillRectangle(Width - ScaleX(104), 0, ScaleX(104), ScaleY(12));
+                    graphics.FillRectangle(0, Height - ScaleY(12), ScaleX(150), ScaleY(12));
+                }
+            }
+            else if (_theme.Style == ThemeStyle.Luxury)
+            {
+                using (var pen = new Pen(Color.FromArgb(115, _theme.AccentSecondary), 1F))
+                {
+                    graphics.DrawLine(pen, ScaleX(14), ScaleY(68), Width - ScaleX(14), ScaleY(68));
+                    graphics.DrawLine(pen, ScaleX(14), Height - ScaleY(52), Width - ScaleX(14), Height - ScaleY(52));
+                }
+            }
+        }
+
+        private ThemedPanel CreatePanel(Rectangle bounds, bool primary)
+        {
+            return new ThemedPanel(_theme, primary)
+            {
+                Location = ScalePoint(bounds.X, bounds.Y),
+                Size = ScaleSize(bounds.Width, bounds.Height)
+            };
+        }
+
+        private ThemedButton CreateButton(string text, Rectangle bounds, bool primary)
+        {
+            return new ThemedButton(_theme, primary)
+            {
+                Text = text,
+                Location = ScalePoint(bounds.X, bounds.Y),
+                Size = ScaleSize(bounds.Width, bounds.Height),
+                Font = new Font(_theme.FontName, ScaleFont(primary ? 8.8F : 8.2F), FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+        }
+
+        private Label CreateCaption(string text, Point location, int width)
+        {
+            var color = _theme.Style == ThemeStyle.Brutalist ? _theme.TextPrimary : _theme.TextMuted;
             return new Label
             {
                 Text = text,
-                Location = location,
-                Size = new Size(width, 23),
-                ForeColor = TextMuted,
+                Location = ScaleChildPoint(location.X, location.Y),
+                Size = ScaleChildSize(width, 23),
+                ForeColor = color,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+                Font = new Font(_theme.FontName, ScaleFont(8.5F), FontStyle.Bold)
             };
-        }
-
-        private static Label CreateIcon(string text, Point location, bool primary)
-        {
-            var icon = new Label
-            {
-                Text = text,
-                Location = location,
-                Size = new Size(46, 46),
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.White,
-                BackColor = primary ? Color.FromArgb(55, 255, 255, 255) : Color.FromArgb(39, 52, 75),
-                Font = new Font("Segoe UI Symbol", 17F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            MakeRound(icon, 14);
-            return icon;
-        }
-
-        private static Button CreateSmallButton(string text, Point location, int width)
-        {
-            var button = new Button
-            {
-                Text = text,
-                Location = location,
-                Size = new Size(width, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(35, 46, 66),
-                ForeColor = TextPrimary,
-                Font = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            button.FlatAppearance.BorderColor = Color.FromArgb(57, 72, 98);
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 58, 82);
-            return button;
-        }
-
-        private static Button CreateToolButton(string text, Point location, int width, bool primary)
-        {
-            var button = new Button
-            {
-                Text = text,
-                Location = location,
-                Size = new Size(width, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = primary ? Accent : Color.FromArgb(35, 46, 66),
-                ForeColor = TextPrimary,
-                Font = new Font("Microsoft YaHei UI", 8.8F, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            button.FlatAppearance.BorderColor = primary ? Color.FromArgb(104, 153, 255) : Color.FromArgb(57, 72, 98);
-            button.FlatAppearance.MouseOverBackColor = primary ? AccentHover : Color.FromArgb(44, 58, 82);
-            return button;
-        }
-
-        private static Button CreateBottomButton(string text, Point location)
-        {
-            var button = CreateToolButton(text, location, 94, false);
-            button.Size = new Size(94, 40);
-            button.Font = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Bold);
-            return button;
         }
 
         private static void WireClick(Control parent, EventHandler click)
@@ -567,33 +563,19 @@ namespace FACM
             SetStatus("已打开操作日志");
         }
 
-        private void OpenTextConfig(object sender, EventArgs e)
+        private void OpenThemePicker(object sender, EventArgs e)
         {
             RunDialogAction(delegate
             {
-                UiTextCatalog.OpenConfig();
-                MessageBox.Show(
-                    "修改等号右侧文字并保存，然后重新启动 FACM。\r\n\r\n配置文件：\r\n" + UiTextCatalog.ConfigPath,
-                    "界面文字",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            });
-        }
-
-        private void ShowAbout(object sender, EventArgs e)
-        {
-            RunDialogAction(delegate
-            {
-                MessageBox.Show(
-                    "FACM 3.1\r\n\r\n" +
-                    "签名状态：" + SignatureInspector.GetCurrentExecutableSignatureStatus() + "\r\n" +
-                    "运行权限：" + (ElevationService.IsAdministrator ? "管理员" : "标准用户") + "\r\n" +
-                    "清理配置：" + (CleanupProfile.IsConfigured ? "已配置" : "尚未配置") + "\r\n" +
-                    "工具资源：已嵌入 FACM.exe，运行时校验后按需释放\r\n" +
-                    "更新与公告：支持手动检查、自动提示和强制更新",
-                    "关于 FACM",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                using (var picker = new ThemePickerForm(_settings.ThemeId))
+                {
+                    if (picker.ShowDialog(this) != DialogResult.OK) return;
+                    if (string.Equals(_settings.ThemeId, picker.SelectedThemeId, StringComparison.OrdinalIgnoreCase)) return;
+                    _settings.ThemeId = picker.SelectedThemeId;
+                    _settings.Save();
+                    AppLog.Info("Theme changed to " + picker.SelectedThemeId);
+                    _ownerBall.BeginInvoke(new Action(_ownerBall.ApplyThemeSelection));
+                }
             });
         }
 
@@ -651,20 +633,21 @@ namespace FACM
             }
         }
 
-        private void ApplyRoundedRegion()
+        private void ApplyWindowRegion()
         {
-            using (var path = RoundedRectangle(new Rectangle(0, 0, Width, Height), 22))
+            if (_theme.Style == ThemeStyle.Brutalist) return;
+            using (var path = CreateShapePath(new Rectangle(0, 0, Width, Height), _theme.Radius, _theme.UsesAngularCorners))
             {
                 Region = new Region(path);
             }
         }
 
-        private static void MakeRound(Control control, int radius)
+        private void ApplyShape(Control control, int radius, bool angular)
         {
             Action apply = delegate
             {
                 if (control.Width <= 0 || control.Height <= 0) return;
-                using (var path = RoundedRectangle(new Rectangle(0, 0, control.Width, control.Height), radius))
+                using (var path = CreateShapePath(new Rectangle(0, 0, control.Width, control.Height), radius, angular))
                 {
                     control.Region = new Region(path);
                 }
@@ -673,10 +656,87 @@ namespace FACM
             apply();
         }
 
-        private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
+        private Point ScalePoint(int x, int y)
+        {
+            return new Point(ScaleX(x), ScaleY(y));
+        }
+
+        private Size ScaleSize(int width, int height)
+        {
+            return new Size(ScaleX(width), ScaleY(height));
+        }
+
+        private Point ScaleChildPoint(int x, int y)
+        {
+            return ScalePoint(x, y);
+        }
+
+        private Size ScaleChildSize(int width, int height)
+        {
+            return ScaleSize(width, height);
+        }
+
+        private int ScaleX(int value)
+        {
+            return Math.Max(1, (int)Math.Round(value * _scaleX));
+        }
+
+        private int ScaleY(int value)
+        {
+            return Math.Max(1, (int)Math.Round(value * _scaleY));
+        }
+
+        private float ScaleFont(float value)
+        {
+            var scale = Math.Min(_scaleX, _scaleY);
+            return Math.Max(6F, value * (0.92F + (scale - 1F) * 0.45F));
+        }
+
+        private static Color Blend(Color first, Color second, float amount)
+        {
+            amount = Math.Max(0F, Math.Min(1F, amount));
+            return Color.FromArgb(
+                (int)(first.A + (second.A - first.A) * amount),
+                (int)(first.R + (second.R - first.R) * amount),
+                (int)(first.G + (second.G - first.G) * amount),
+                (int)(first.B + (second.B - first.B) * amount));
+        }
+
+        private static GraphicsPath CreateShapePath(Rectangle bounds, int radius, bool angular)
         {
             var path = new GraphicsPath();
-            var diameter = Math.Max(2, radius * 2);
+            if (bounds.Width <= 1 || bounds.Height <= 1)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+
+            if (angular)
+            {
+                var cut = Math.Max(4, Math.Min(16, radius + 7));
+                path.AddPolygon(new[]
+                {
+                    new Point(bounds.Left + cut, bounds.Top),
+                    new Point(bounds.Right - cut, bounds.Top),
+                    new Point(bounds.Right, bounds.Top + cut),
+                    new Point(bounds.Right, bounds.Bottom - cut),
+                    new Point(bounds.Right - cut, bounds.Bottom),
+                    new Point(bounds.Left + cut, bounds.Bottom),
+                    new Point(bounds.Left, bounds.Bottom - cut),
+                    new Point(bounds.Left, bounds.Top + cut)
+                });
+                path.CloseFigure();
+                return path;
+            }
+
+            if (radius <= 0)
+            {
+                path.AddRectangle(bounds);
+                path.CloseFigure();
+                return path;
+            }
+
+            var diameter = Math.Max(2, Math.Min(Math.Min(bounds.Width, bounds.Height), radius * 2));
             path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
             path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
             path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
@@ -685,17 +745,16 @@ namespace FACM
             return path;
         }
 
-        private sealed class RoundedPanel : Panel
+        private sealed class ThemedPanel : Panel
         {
+            private readonly ThemeDefinition _theme;
+            private readonly bool _primary;
             private bool _hovered;
 
-            public int Radius { get; set; } = 16;
-            public Color FillColor { get; set; } = Surface;
-            public Color HoverColor { get; set; } = SurfaceHover;
-            public Color BorderColor { get; set; } = Border;
-
-            public RoundedPanel()
+            public ThemedPanel(ThemeDefinition theme, bool primary)
             {
+                _theme = theme;
+                _primary = primary;
                 DoubleBuffered = true;
                 BackColor = Color.Transparent;
                 MouseEnter += delegate { _hovered = true; Invalidate(); };
@@ -706,12 +765,35 @@ namespace FACM
             protected override void OnPaintBackground(PaintEventArgs e)
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var path = RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), Radius))
-                using (var brush = new SolidBrush(_hovered ? HoverColor : FillColor))
-                using (var pen = new Pen(BorderColor))
+                var bounds = new Rectangle(1, 1, Width - 3, Height - 3);
+                using (var path = CreateShapePath(bounds, _theme.Radius, _theme.UsesAngularCorners))
                 {
-                    e.Graphics.FillPath(brush, path);
-                    e.Graphics.DrawPath(pen, path);
+                    var first = _primary ? _theme.Accent : _theme.Surface;
+                    var second = _primary ? _theme.AccentSecondary : _theme.SurfaceSecondary;
+                    if (_hovered)
+                    {
+                        first = Blend(first, Color.White, _theme.IsLight ? 0.04F : 0.08F);
+                        second = Blend(second, Color.White, _theme.IsLight ? 0.03F : 0.06F);
+                    }
+                    if (_theme.Style == ThemeStyle.Minimal && !_primary) second = first;
+                    if (_theme.Style == ThemeStyle.Brutalist && !_primary) second = first;
+
+                    using (var brush = new LinearGradientBrush(bounds, first, second, _theme.Style == ThemeStyle.Synthwave ? 0F : 18F))
+                    using (var border = new Pen(_primary ? Blend(_theme.Border, Color.White, 0.2F) : _theme.Border, _theme.BorderWidth))
+                    {
+                        e.Graphics.FillPath(brush, path);
+                        e.Graphics.DrawPath(border, path);
+                    }
+
+                    if (_theme.Style == ThemeStyle.Luxury)
+                    {
+                        var inner = Rectangle.Inflate(bounds, -4, -4);
+                        using (var innerPath = CreateShapePath(inner, Math.Max(0, _theme.Radius - 3), false))
+                        using (var innerPen = new Pen(Color.FromArgb(95, _theme.AccentSecondary), 1F))
+                        {
+                            e.Graphics.DrawPath(innerPen, innerPath);
+                        }
+                    }
                 }
             }
 
@@ -725,10 +807,119 @@ namespace FACM
             private void ApplyRegion()
             {
                 if (Width <= 0 || Height <= 0) return;
-                using (var path = RoundedRectangle(new Rectangle(0, 0, Width, Height), Radius))
+                using (var path = CreateShapePath(new Rectangle(0, 0, Width, Height), _theme.Radius, _theme.UsesAngularCorners))
                 {
                     Region = new Region(path);
                 }
+            }
+        }
+
+        private sealed class ThemedButton : Control
+        {
+            private readonly ThemeDefinition _theme;
+            private readonly bool _primary;
+            private bool _hovered;
+            private bool _pressed;
+
+            public ThemedButton(ThemeDefinition theme, bool primary)
+            {
+                _theme = theme;
+                _primary = primary;
+                DoubleBuffered = true;
+                SetStyle(ControlStyles.Selectable, true);
+                MouseEnter += delegate { _hovered = true; Invalidate(); };
+                MouseLeave += delegate { _hovered = false; _pressed = false; Invalidate(); };
+                MouseDown += delegate(object sender, MouseEventArgs e)
+                {
+                    if (e.Button != MouseButtons.Left || !Enabled) return;
+                    _pressed = true;
+                    Invalidate();
+                };
+                MouseUp += delegate { _pressed = false; Invalidate(); };
+            }
+
+            protected override void OnEnabledChanged(EventArgs e)
+            {
+                base.OnEnabledChanged(e);
+                Invalidate();
+            }
+
+            protected override void OnKeyDown(KeyEventArgs e)
+            {
+                base.OnKeyDown(e);
+                if (!Enabled) return;
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+                {
+                    OnClick(EventArgs.Empty);
+                    e.Handled = true;
+                }
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var offset = _pressed ? 1 : 0;
+                var bounds = new Rectangle(1 + offset, 1 + offset, Width - 3, Height - 3);
+                using (var path = CreateShapePath(bounds, _theme.ButtonRadius, _theme.UsesAngularCorners))
+                {
+                    var first = _primary ? _theme.Accent : _theme.SurfaceSecondary;
+                    var second = _primary ? _theme.AccentSecondary : _theme.Surface;
+                    if (_theme.Style == ThemeStyle.Brutalist)
+                    {
+                        first = _primary ? _theme.AccentSecondary : _theme.Surface;
+                        second = first;
+                    }
+                    else if (_theme.Style == ThemeStyle.Minimal && !_primary)
+                    {
+                        first = _theme.Surface;
+                        second = first;
+                    }
+                    if (_hovered && Enabled)
+                    {
+                        first = Blend(first, Color.White, _theme.IsLight ? 0.06F : 0.12F);
+                        second = Blend(second, Color.White, _theme.IsLight ? 0.04F : 0.09F);
+                    }
+                    if (!Enabled)
+                    {
+                        first = Blend(first, _theme.Background, 0.45F);
+                        second = Blend(second, _theme.Background, 0.45F);
+                    }
+
+                    using (var brush = new LinearGradientBrush(bounds, first, second, _theme.Style == ThemeStyle.Synthwave ? 0F : 12F))
+                    using (var border = new Pen(_primary ? Blend(_theme.Border, Color.White, 0.18F) : _theme.Border, _theme.BorderWidth))
+                    {
+                        e.Graphics.FillPath(brush, path);
+                        e.Graphics.DrawPath(border, path);
+                    }
+
+                    if (_theme.Style == ThemeStyle.Luxury)
+                    {
+                        var inner = Rectangle.Inflate(bounds, -3, -3);
+                        using (var innerPath = CreateShapePath(inner, Math.Max(0, _theme.ButtonRadius - 2), false))
+                        using (var pen = new Pen(Color.FromArgb(105, _theme.AccentSecondary), 1F))
+                        {
+                            e.Graphics.DrawPath(pen, innerPath);
+                        }
+                    }
+                    else if (_theme.Style == ThemeStyle.Cyber || _theme.Style == ThemeStyle.Rgb)
+                    {
+                        using (var accentPen = new Pen(_theme.AccentSecondary, 1.4F))
+                        {
+                            e.Graphics.DrawLine(accentPen, bounds.Left + 8, bounds.Bottom - 2, bounds.Left + Math.Min(54, bounds.Width / 3), bounds.Bottom - 2);
+                        }
+                    }
+                }
+
+                var textColor = Enabled
+                    ? (_primary || !_theme.IsLight ? Color.White : _theme.TextPrimary)
+                    : _theme.TextMuted;
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    Text,
+                    Font,
+                    bounds,
+                    textColor,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
         }
     }
