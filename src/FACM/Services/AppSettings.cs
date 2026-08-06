@@ -6,7 +6,7 @@ namespace FACM.Services
 {
     internal sealed class AppSettings
     {
-        private static readonly string SettingsPath = Path.Combine(
+        private static readonly string LegacySettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "FACM",
             "settings.ini");
@@ -22,8 +22,14 @@ namespace FACM.Services
             var result = new AppSettings();
             try
             {
-                if (!File.Exists(SettingsPath)) return result;
-                foreach (var line in File.ReadAllLines(SettingsPath))
+                MigrateLegacySettings();
+                if (!File.Exists(RuntimePaths.SettingsPath))
+                {
+                    result.Save();
+                    return result;
+                }
+
+                foreach (var line in File.ReadAllLines(RuntimePaths.SettingsPath))
                 {
                     var separator = line.IndexOf('=');
                     if (separator <= 0) continue;
@@ -49,8 +55,7 @@ namespace FACM.Services
         {
             try
             {
-                var directory = Path.GetDirectoryName(SettingsPath);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                RuntimePaths.Initialize();
                 var lines = new[]
                 {
                     "BallX=" + BallX.ToString(CultureInfo.InvariantCulture),
@@ -59,12 +64,18 @@ namespace FACM.Services
                     "AutoUpdateEnabled=" + AutoUpdateEnabled,
                     "LastAnnouncementId=" + Sanitize(LastAnnouncementId)
                 };
-                File.WriteAllLines(SettingsPath, lines);
+                File.WriteAllLines(RuntimePaths.SettingsPath, lines);
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to save settings", exception);
             }
+        }
+
+        private static void MigrateLegacySettings()
+        {
+            if (File.Exists(RuntimePaths.SettingsPath) || !File.Exists(LegacySettingsPath)) return;
+            File.Copy(LegacySettingsPath, RuntimePaths.SettingsPath, false);
         }
 
         private static string Sanitize(string value)
