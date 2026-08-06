@@ -23,7 +23,7 @@ concurrency:
 jobs:
   export-icon:
     if: github.event_name != 'pull_request' || github.head_ref == 'codex/facm-online-toolbundle-20260807'
-    runs-on: macos-13
+    runs-on: macos-latest
     timeout-minutes: 10
     steps:
       - name: Checkout branch
@@ -47,7 +47,7 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         shell: bash
         env:
-          CANVA_PREVIEW_URL: "https://media.canva.com/v2/document-image/hash:906486508/height:447/id:DAHRiP1MbaM/type:B/width:447?brand=BAHNFhwwco4&csig=AAAAAAAAAAAAAAAAAAAAAJa3LhUE-_GSt-jUv99wikfxE63eJ2wAhxIVxTnXUiT1&disableexport=T&exp=1786038579&fallback=https%3A%2F%2Fs3.amazonaws.com%2Fdocument-export-us1.canva.com%2F1MbaM%2FDAHRiP1MbaM%2F1%2Fthumbnail%2F0001.png%3FX-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3DAKIAQYCGKMUHXB3PK6CC%252F20260805%252Fus-east-1%252Fs3%252Faws4_request%26X-Amz-Date%3D20260805T220541Z%26X-Amz-Expires%3D71038%26X-Amz-Signature%3D086bea3b09696b61fb99ddf2fcba78ef1c3d68b6705696acc68a62a218920e8d%26X-Amz-SignedHeaders%3Dhost%26response-expires%3DThu%252C%252006%2520Aug%25202026%252017%253A49%253A39%2520GMT&osig=AAAAAAAAAAAAAAAAAAAAAMZjqFQQ3mRxoR0tBAqMELamuKXt1Di2TXDqf89IrYbE&page=1&signed=brand%2Cdisableexport%2Cfallback%2Cpage%2Cversion&signer=document-rpc&version=1"
+          CANVA_PREVIEW_URL: "https://media.canva.com/v2/document-image/hash:906486508/height:447/id:DAHRiP1MbaM/type:B/width:447?brand=BAHNFhwwco4&csig=AAAAAAAAAAAAAAAAAAAAAFUCNYKASwKce_S4_ZQOODpK06RgexxncoKRnpiiT5Yk&disableexport=T&exp=1786039235&fallback=https%3A%2F%2Fs3.amazonaws.com%2Fdocument-export-us1.canva.com%2F1MbaM%2FDAHRiP1MbaM%2F1%2Fthumbnail%2F0001.png%3FX-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3DAKIAQYCGKMUHXB3PK6CC%252F20260805%252Fus-east-1%252Fs3%252Faws4_request%26X-Amz-Date%3D20260805T220541Z%26X-Amz-Expires%3D71694%26X-Amz-Signature%3D0f082b4ef626502b00d9f61671667e352c6daad4352c14e0fc06fb4fe357994f%26X-Amz-SignedHeaders%3Dhost%26response-expires%3DThu%252C%252006%2520Aug%25202026%252018%253A00%253A35%2520GMT&osig=AAAAAAAAAAAAAAAAAAAAAPnbujy52WaClqqWSKt05qHNhzrMULs8MmDQWPj_78F1&page=1&signed=brand%2Cdisableexport%2Cfallback%2Cpage%2Cversion&signer=document-rpc&version=1"
         run: |
           mkdir -p src/FACM/Resources
           curl --fail --location --retry 3 --retry-all-errors "$CANVA_PREVIEW_URL" --output src/FACM/Resources/FACM-Canva.png
