@@ -141,34 +141,10 @@ jobs:
             exit 0
           }
 
-          $pfxPath = Join-Path $env:RUNNER_TEMP 'facm-signing.pfx'
-          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:FACM_PFX_BASE64))
-          try {
-            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (-not $signtool) {
-              throw 'signtool.exe was not found on the runner.'
-            }
-
-            $arguments = @('sign', '/fd', 'SHA256', '/td', 'SHA256', '/tr', 'http://timestamp.digicert.com', '/f', $pfxPath)
-            if (-not [string]::IsNullOrEmpty($env:FACM_PFX_PASSWORD)) {
-              $arguments += @('/p', $env:FACM_PFX_PASSWORD)
-            }
-            $arguments += $env:OUTPUT_EXE
-
-            & $signtool.FullName @arguments
-            if ($LASTEXITCODE -ne 0) {
-              throw "signtool sign failed with exit code $LASTEXITCODE"
-            }
-            & $signtool.FullName verify /pa /all $env:OUTPUT_EXE
-            if ($LASTEXITCODE -ne 0) {
-              throw "signtool verify failed with exit code $LASTEXITCODE"
-            }
-          }
-          finally {
-            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
-          }
+          & .\scripts\sign-ci.ps1 `
+            -ExePath $env:OUTPUT_EXE `
+            -PfxBase64 $env:FACM_PFX_BASE64 `
+            -PfxPassword $env:FACM_PFX_PASSWORD
 
       - name: Create downloadable package
         shell: pwsh
