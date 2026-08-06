@@ -13,6 +13,7 @@ namespace FACM
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly Timer _animationTimer;
         private readonly NotifyIcon _tray;
+        private readonly Icon _appIcon;
         private CompactMenuForm _menu;
         private bool _hovered;
         private bool _dragging;
@@ -26,7 +27,9 @@ namespace FACM
         public MainForm(bool startCleanup = false)
         {
             _startCleanup = startCleanup;
+            _appIcon = BrandIcon.Create();
             Text = "FACM";
+            Icon = _appIcon;
             ShowInTaskbar = false;
             TopMost = true;
             FormBorderStyle = FormBorderStyle.None;
@@ -40,7 +43,7 @@ namespace FACM
 
             _tray = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = _appIcon,
                 Text = "FACM 3.0",
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
@@ -63,6 +66,7 @@ namespace FACM
                 _tray.Visible = false;
                 _tray.Dispose();
                 if (_menu != null) _menu.Dispose();
+                _appIcon.Dispose();
             };
         }
 
