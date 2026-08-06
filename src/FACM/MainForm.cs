@@ -15,7 +15,7 @@ namespace FACM
     {
         private const int BallSize = 68;
         private readonly AppSettings _settings = AppSettings.Load();
-        private readonly Timer _animationTimer;
+        private readonly System.Windows.Forms.Timer _animationTimer;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private CompactMenuForm _menu;
@@ -56,7 +56,7 @@ namespace FACM
             };
             _tray.DoubleClick += delegate { Show(); Activate(); ToggleMenu(); };
 
-            _animationTimer = new Timer { Interval = 25 };
+            _animationTimer = new System.Windows.Forms.Timer { Interval = 25 };
             _animationTimer.Tick += Animate;
             _animationTimer.Start();
 
@@ -257,7 +257,11 @@ namespace FACM
                 {
                     _settings.LastAnnouncementId = announcement.Id;
                     _settings.Save();
-                    _tray.ShowBalloonTip(6000, announcement.Title ?? "FACM 公告", announcement.Body ?? string.Empty, ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(
+                        6000,
+                        string.IsNullOrWhiteSpace(announcement.Title) ? "FACM 公告" : announcement.Title,
+                        TrimBalloonText(announcement.Body),
+                        ToolTipIcon.Info);
                 }
             }
             catch (Exception exception)
@@ -269,7 +273,6 @@ namespace FACM
         private async Task OpenOnlineCenterAsync(bool updateOnly)
         {
             if (_onlineCenterOpen || IsDisposed) return;
-            _onlineCenterOpen = true;
             try
             {
                 _tray.ShowBalloonTip(2000, "FACM", "正在读取在线配置...", ToolTipIcon.Info);
@@ -281,15 +284,11 @@ namespace FACM
                 AppLog.Error("Open online center failed", exception);
                 MessageBox.Show("在线中心打开失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally
-            {
-                _onlineCenterOpen = false;
-            }
         }
 
-        private async Task ShowOnlineCenterAsync(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
+        private Task ShowOnlineCenterAsync(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
         {
-            if (_onlineCenterOpen && !forceMode) return;
+            if (_onlineCenterOpen || IsDisposed) return Task.CompletedTask;
             _onlineCenterOpen = true;
             try
             {
@@ -307,6 +306,7 @@ namespace FACM
             {
                 _onlineCenterOpen = false;
             }
+            return Task.CompletedTask;
         }
 
         private static void RunStandaloneToolA()
@@ -430,6 +430,12 @@ namespace FACM
             _settings.BallX = Left;
             _settings.BallY = Top;
             _settings.Save();
+        }
+
+        private static string TrimBalloonText(string value)
+        {
+            var text = (value ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+            return text.Length <= 240 ? text : text.Substring(0, 237) + "...";
         }
 
         private static void OpenLog()
