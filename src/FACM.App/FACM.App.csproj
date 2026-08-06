@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FACM</AssemblyName>
+    <RootNamespace>FACM.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="Exists('Assets\\FACM.ico')">Assets\FACM.ico</ApplicationIcon>
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <DebugType>embedded</DebugType>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Payloads\payloads.manifest.json" />
+    <EmbeddedResource Include="Payloads\*.exe" Condition="Exists('%(FullPath)')" />
+    <EmbeddedResource Include="Payloads\*.bat" Condition="Exists('%(FullPath)')" />
+    <EmbeddedResource Include="Payloads\*.cmd" Condition="Exists('%(FullPath)')" />
+  </ItemGroup>
+</Project>
