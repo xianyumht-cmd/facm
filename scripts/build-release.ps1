@@ -46,7 +46,8 @@ if (-not $msbuildPath) {
 if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
 New-Item -ItemType Directory -Path $artifactDir | Out-Null
 
-& $msbuildPath $solution /restore /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+# 使用 Rebuild，避免旧 bin/obj 让资源嵌入验证读取到上一次的 FACM.exe。
+& $msbuildPath $solution /restore /t:Rebuild /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "构建失败，退出码 $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "构建完成但未找到 $outputExe" }
 
@@ -74,8 +75,11 @@ else {
     $resources = @($assembly.GetManifestResourceNames())
 }
 
+Write-Host "FACM.exe 内嵌资源："
+$resources | Sort-Object | ForEach-Object { Write-Host ("  - " + $_) }
+
 if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
-    throw "FACM.exe 中没有嵌入 FACM.ToolBundle.dll"
+    throw "FACM.exe 中没有嵌入 FACM.ToolBundle.dll；上方已列出实际资源名。"
 }
 Write-Host "已校验嵌入工具资源 DLL"
 
