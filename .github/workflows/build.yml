@@ -46,6 +46,8 @@ jobs:
             Select-Object -First 1
           if (-not $signtool) { throw "signtool.exe not found" }
 
+          $expectedThumbprint = $null
+
           if (-not [string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
             $pfxPath = Join-Path $env:RUNNER_TEMP "facm-signing.pfx"
             [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:FACM_PFX_BASE64))
@@ -66,9 +68,10 @@ jobs:
               -CertStoreLocation "Cert:\CurrentUser\My" `
               -HashAlgorithm SHA256 `
               -KeyAlgorithm RSA `
-              -KeyLength 3072 `
+              -KeyLength 2048 `
               -NotAfter (Get-Date).AddYears(3)
 
+            $expectedThumbprint = $cert.Thumbprint
             $cerPath = Join-Path $artifactDir "FACM-Self-Signed-Test-Publisher.cer"
             Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
             Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
@@ -83,8 +86,17 @@ jobs:
             ) | Set-Content (Join-Path $artifactDir "SIGNING-MODE.txt") -Encoding UTF8
           }
 
-          & $signtool.FullName verify /pa /all /v $env:OUTPUT_EXE
-          if ($LASTEXITCODE -ne 0) { throw "signature verification failed: $LASTEXITCODE" }
+          $signature = Get-AuthenticodeSignature $env:OUTPUT_EXE
+          if (-not $signature.SignerCertificate) {
+            throw "EXE has no embedded Authenticode signer certificate"
+          }
+          if ($expectedThumbprint -and $signature.SignerCertificate.Thumbprint -ne $expectedThumbprint) {
+            throw "Signer thumbprint mismatch"
+          }
+          if ($signature.Status -ne "Valid") {
+            throw "Offline Authenticode verification failed: $($signature.Status) $($signature.StatusMessage)"
+          }
+          Write-Host "Signature valid: $($signature.SignerCertificate.Subject) [$($signature.SignerCertificate.Thumbprint)]"
 
       - name: Verify metadata and create package
         shell: pwsh
