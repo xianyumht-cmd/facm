@@ -14,6 +14,8 @@ namespace FACM.Services
         public int BallX { get; set; } = int.MinValue;
         public int BallY { get; set; } = int.MinValue;
         public string GamePath { get; set; } = string.Empty;
+        public bool AutoUpdateEnabled { get; set; } = true;
+        public string LastAnnouncementId { get; set; } = string.Empty;
 
         public static AppSettings Load()
         {
@@ -28,9 +30,12 @@ namespace FACM.Services
                     var key = line.Substring(0, separator).Trim();
                     var value = line.Substring(separator + 1).Trim();
                     int number;
+                    bool flag;
                     if (key.Equals("BallX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallX = number;
                     else if (key.Equals("BallY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallY = number;
                     else if (key.Equals("GamePath", StringComparison.OrdinalIgnoreCase)) result.GamePath = value;
+                    else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoUpdateEnabled = flag;
+                    else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
                 }
             }
             catch (Exception exception)
@@ -50,7 +55,9 @@ namespace FACM.Services
                 {
                     "BallX=" + BallX.ToString(CultureInfo.InvariantCulture),
                     "BallY=" + BallY.ToString(CultureInfo.InvariantCulture),
-                    "GamePath=" + (GamePath ?? string.Empty).Replace("\r", string.Empty).Replace("\n", string.Empty)
+                    "GamePath=" + Sanitize(GamePath),
+                    "AutoUpdateEnabled=" + AutoUpdateEnabled,
+                    "LastAnnouncementId=" + Sanitize(LastAnnouncementId)
                 };
                 File.WriteAllLines(SettingsPath, lines);
             }
@@ -58,6 +65,11 @@ namespace FACM.Services
             {
                 AppLog.Error("Failed to save settings", exception);
             }
+        }
+
+        private static string Sanitize(string value)
+        {
+            return (value ?? string.Empty).Replace("\r", string.Empty).Replace("\n", string.Empty);
         }
     }
 }
