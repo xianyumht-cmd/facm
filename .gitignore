@@ -1,0 +1,24 @@
+# Build output
+bin/
+obj/
+artifacts/
+release/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Signing material — never commit
+*.pfx
+*.p12
+*.cer
+*.snk
+signing.local.ps1
+
+# Embedded payload binaries are supplied separately
+src/FACM.App/Payloads/*.exe
+src/FACM.App/Payloads/*.bat
+src/FACM.App/Payloads/*.cmd
+!src/FACM.App/Payloads/README.md
+!src/FACM.App/Payloads/payloads.manifest.json
