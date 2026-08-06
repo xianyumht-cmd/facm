@@ -126,8 +126,30 @@ jobs:
             throw "Unexpected product name: $($version.ProductName)"
           }
 
-          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($exe)
-          $resources = $assembly.GetManifestResourceNames()
+          # pwsh runs on modern .NET, where ReflectionOnlyLoadFrom is unsupported.
+          # Use the inbox Windows PowerShell 5.1 process so the net48 assembly can
+          # be inspected without executing FACM.exe or loading its dependencies.
+          $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-facm-resources.ps1'
+          @'
+          param([Parameter(Mandatory=$true)][string]$ExePath)
+          $ErrorActionPreference = 'Stop'
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($ExePath)
+          $assembly.GetManifestResourceNames()
+          '@ | Set-Content -LiteralPath $resourceVerifier -Encoding utf8
+
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $resources = @(
+            & $windowsPowerShell `
+              -NoLogo `
+              -NoProfile `
+              -NonInteractive `
+              -ExecutionPolicy Bypass `
+              -File $resourceVerifier `
+              -ExePath $exe
+          )
+          if ($LASTEXITCODE -ne 0) {
+            throw "Resource verification failed with exit code $LASTEXITCODE"
+          }
           if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
             throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
           }
