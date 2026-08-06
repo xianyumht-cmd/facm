@@ -27,6 +27,24 @@ namespace FACM
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+
+                try
+                {
+                    RuntimePaths.Initialize();
+                    ToolBundleLoader.Prepare();
+                }
+                catch (Exception exception)
+                {
+                    MessageBox.Show(
+                        "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
+                        "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
+                        exception.Message,
+                        "FACM 启动失败",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    return;
+                }
+
                 Application.ThreadException += (sender, eventArgs) =>
                 {
                     AppLog.Error("UI thread exception", eventArgs.Exception);
