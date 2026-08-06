@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: facm-windows-build-${{ github.ref }}
+  group: facm-windows-build-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -126,9 +126,6 @@ jobs:
             throw "Unexpected product name: $($version.ProductName)"
           }
 
-          # pwsh runs on modern .NET, where ReflectionOnlyLoadFrom is unsupported.
-          # Use the inbox Windows PowerShell 5.1 process so the net48 assembly can
-          # be inspected without executing FACM.exe or loading its dependencies.
           $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-facm-resources.ps1'
           @'
           param([Parameter(Mandatory=$true)][string]$ExePath)
