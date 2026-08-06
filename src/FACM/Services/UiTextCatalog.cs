@@ -6,7 +6,7 @@ namespace FACM.Services
 {
     internal sealed class UiTextCatalog
     {
-        private static readonly string ConfigPathValue = Path.Combine(
+        private static readonly string LegacyConfigPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "FACM",
             "ui-text.ini");
@@ -27,7 +27,7 @@ namespace FACM.Services
 
         public static string ConfigPath
         {
-            get { return ConfigPathValue; }
+            get { return RuntimePaths.UiTextPath; }
         }
 
         public static UiTextCatalog Load()
@@ -36,7 +36,7 @@ namespace FACM.Services
             var result = new UiTextCatalog();
             try
             {
-                foreach (var line in File.ReadAllLines(ConfigPathValue))
+                foreach (var line in File.ReadAllLines(RuntimePaths.UiTextPath))
                 {
                     var trimmed = (line ?? string.Empty).Trim();
                     if (trimmed.Length == 0 || trimmed.StartsWith("#", StringComparison.Ordinal) || trimmed.StartsWith(";", StringComparison.Ordinal)) continue;
@@ -60,7 +60,7 @@ namespace FACM.Services
             EnsureTemplate();
             Process.Start(new ProcessStartInfo
             {
-                FileName = ConfigPathValue,
+                FileName = RuntimePaths.UiTextPath,
                 UseShellExecute = true
             });
         }
@@ -69,10 +69,15 @@ namespace FACM.Services
         {
             try
             {
-                if (File.Exists(ConfigPathValue)) return;
-                var directory = Path.GetDirectoryName(ConfigPathValue);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                File.WriteAllLines(ConfigPathValue, new[]
+                RuntimePaths.Initialize();
+                if (File.Exists(RuntimePaths.UiTextPath)) return;
+                if (File.Exists(LegacyConfigPath))
+                {
+                    File.Copy(LegacyConfigPath, RuntimePaths.UiTextPath, false);
+                    return;
+                }
+
+                File.WriteAllLines(RuntimePaths.UiTextPath, new[]
                 {
                     "# 修改等号右侧文字并重启 FACM 即可生效。",
                     "ControlCenter=控制中心",
