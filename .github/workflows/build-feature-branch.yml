@@ -1,0 +1,153 @@
+name: FACM Feature Branch Build
+
+on:
+  push:
+    branches:
+      - codex/facm-online-toolbundle-20260807
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facm-feature-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLUTION: FACM.sln
+  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  PACKAGE_NAME: FACM-Windows-x64
+
+jobs:
+  build:
+    name: Build FACM.exe
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Verify tool inputs
+        shell: pwsh
+        run: |
+          $manifestPath = Join-Path $PWD 'tools/EXTRACTED-TOOLS.json'
+          if (-not (Test-Path $manifestPath -PathType Leaf)) {
+            throw "Missing tool manifest: $manifestPath"
+          }
+
+          $manifest = Get-Content $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+          foreach ($entry in $manifest.files) {
+            $path = Join-Path $PWD ('tools/' + [string]$entry.name)
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Missing tool input: $($entry.name)"
+            }
+            if ((Get-Item -LiteralPath $path).Length -ne [long]$entry.size) {
+              throw "Tool size mismatch: $($entry.name)"
+            }
+            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne [string]$entry.sha256) {
+              throw "Tool SHA-256 mismatch: $($entry.name)"
+            }
+            Write-Host "Verified $($entry.name)"
+          }
+
+      - name: Restore and build Release
+        shell: pwsh
+        run: |
+          msbuild $env:SOLUTION /restore /t:Rebuild /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
+            throw "Build output not found: $env:OUTPUT_EXE"
+          }
+
+      - name: Verify embedded tool bundle
+        shell: powershell
+        run: |
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($exe)
+          $resources = @($assembly.GetManifestResourceNames())
+          $resources | Sort-Object | ForEach-Object { Write-Host ("Resource: " + $_) }
+          if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
+            throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
+          }
+
+      - name: Sign when certificate secrets exist
+        shell: pwsh
+        env:
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            Write-Host 'Signing secret is not configured; continuing with an unsigned build.'
+            exit 0
+          }
+          & .\scripts\sign-ci.ps1 `
+            -ExePath $env:OUTPUT_EXE `
+            -PfxBase64 $env:FACM_PFX_BASE64 `
+            -PfxPassword $env:FACM_PFX_PASSWORD
+
+      - name: Create downloadable package
+        shell: pwsh
+        run: |
+          $artifactDir = Join-Path $PWD 'artifacts'
+          if (Test-Path $artifactDir) {
+            Remove-Item $artifactDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $artifactDir | Out-Null
+
+          $output = Join-Path $artifactDir 'FACM.exe'
+          Copy-Item $env:OUTPUT_EXE $output -Force
+
+          $hash = Get-FileHash $output -Algorithm SHA256
+          "$($hash.Hash) *FACM.exe" | Set-Content (Join-Path $artifactDir 'SHA256.txt') -Encoding ascii
+
+          $signature = Get-AuthenticodeSignature $output
+          $signature | Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
+            Out-File (Join-Path $artifactDir 'SIGNATURE.txt') -Encoding utf8
+
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($output)
+          [ordered]@{
+            repository = '${{ github.repository }}'
+            commit = '${{ github.sha }}'
+            ref = '${{ github.ref }}'
+            run_number = '${{ github.run_number }}'
+            file_version = $version.FileVersion
+            product_version = $version.ProductVersion
+            sha256 = $hash.Hash
+            signature_status = [string]$signature.Status
+            tool_bundle = 'embedded FACM.ToolBundle.dll'
+            layout = 'portable application directory'
+            built_at_utc = [DateTime]::UtcNow.ToString('o')
+          } | ConvertTo-Json | Set-Content (Join-Path $artifactDir 'BUILD-INFO.json') -Encoding utf8
+
+          Copy-Item README.md (Join-Path $artifactDir 'README.md')
+          if (Test-Path docs\PORTABLE-LAYOUT.md) {
+            Copy-Item docs\PORTABLE-LAYOUT.md (Join-Path $artifactDir 'PORTABLE-LAYOUT.md')
+          }
+          if (Test-Path docs\ONLINE-MANAGEMENT.md) {
+            Copy-Item docs\ONLINE-MANAGEMENT.md (Join-Path $artifactDir 'ONLINE-MANAGEMENT.md')
+          }
+
+          $zip = Join-Path $PWD ($env:PACKAGE_NAME + '.zip')
+          if (Test-Path $zip) {
+            Remove-Item $zip -Force
+          }
+          Compress-Archive -Path "$artifactDir\*" -DestinationPath $zip -Force
+
+      - name: Upload FACM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: FACM-Windows-x64-feature-${{ github.run_number }}
+          path: |
+            FACM-Windows-x64.zip
+            artifacts/FACM.exe
+            artifacts/SHA256.txt
+            artifacts/SIGNATURE.txt
+            artifacts/BUILD-INFO.json
+          if-no-files-found: error
+          retention-days: 90
