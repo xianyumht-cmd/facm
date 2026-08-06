@@ -16,6 +16,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
+
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -23,11 +24,19 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Security" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
   </ItemGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part00"><LogicalName>FACM.Resources.FixLcu.GzipPart00</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part01"><LogicalName>FACM.Resources.FixLcu.GzipPart01</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part02"><LogicalName>FACM.Resources.FixLcu.GzipPart02</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part03"><LogicalName>FACM.Resources.FixLcu.GzipPart03</LogicalName></EmbeddedResource>
+    <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="EmbedToolBundle" BeforeTargets="PrepareResources" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <EmbeddedResource Include="..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll">
+        <LogicalName>FACM.Resources.FACM.ToolBundle.dll</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
 </Project>
