@@ -1,8 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Online;
 using FACM.Services;
 
 namespace FACM
@@ -19,6 +23,8 @@ namespace FACM
         private bool _dragging;
         private bool _moved;
         private bool _startCleanup;
+        private bool _onlineCheckStarted;
+        private bool _onlineCenterOpen;
         private Point _dragCursor;
         private Point _dragWindow;
         private float _hoverProgress;
@@ -44,7 +50,7 @@ namespace FACM
             _tray = new NotifyIcon
             {
                 Icon = _appIcon,
-                Text = "FACM 3.0",
+                Text = "FACM 3.1",
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
@@ -64,7 +70,10 @@ namespace FACM
             {
                 _animationTimer.Stop();
                 _tray.Visible = false;
+                var trayMenu = _tray.ContextMenuStrip;
+                _tray.ContextMenuStrip = null;
                 _tray.Dispose();
+                if (trayMenu != null) trayMenu.Dispose();
                 if (_menu != null) _menu.Dispose();
                 _appIcon.Dispose();
             };
@@ -122,7 +131,7 @@ namespace FACM
             using (var versionFont = new Font("Segoe UI", 6.6F, FontStyle.Bold, GraphicsUnit.Point))
             using (var versionBrush = new SolidBrush(Color.FromArgb(210, 235, 255)))
             {
-                e.Graphics.DrawString("3.0", versionFont, versionBrush, 26f, 45f);
+                e.Graphics.DrawString("3.1", versionFont, versionBrush, 26f, 45f);
             }
 
             using (var dot = new SolidBrush(ElevationService.IsAdministrator
@@ -150,18 +159,22 @@ namespace FACM
         private void HandleShown(object sender, EventArgs e)
         {
             RestorePosition();
-            if (!_startCleanup) return;
-
-            BeginInvoke(new Action(delegate
+            if (_startCleanup)
             {
-                if (IsDisposed) return;
-                if (_menu == null) ToggleMenu();
-                if (_menu != null && !_menu.IsDisposed)
+                BeginInvoke(new Action(delegate
                 {
-                    _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
-                }
-                _startCleanup = false;
-            }));
+                    if (IsDisposed) return;
+                    if (_menu == null) ToggleMenu();
+                    if (_menu != null && !_menu.IsDisposed)
+                    {
+                        _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                    }
+                    _startCleanup = false;
+                }));
+                return;
+            }
+
+            BeginInvoke(new Action(StartOnlineCheck));
         }
 
         private ContextMenuStrip BuildTrayMenu()
@@ -172,12 +185,154 @@ namespace FACM
             {
                 Show();
                 if (_menu == null) ToggleMenu();
-                if (_menu != null) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                if (_menu != null && !_menu.IsDisposed) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
+
+            var tools = new ToolStripMenuItem("内置工具");
+            tools.DropDownItems.Add("运行工具 A", null, delegate { RunStandaloneToolA(); });
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            for (var mode = 1; mode <= 4; mode++)
+            {
+                var capturedMode = mode;
+                tools.DropDownItems.Add("运行模式 " + capturedMode, null, delegate { RunMode(capturedMode); });
+            }
+            menu.Items.Add(tools);
+
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("在线中心", null, async delegate { await OpenOnlineCenterAsync(false); });
+            menu.Items.Add("检查更新", null, async delegate { await OpenOnlineCenterAsync(true); });
             menu.Items.Add("打开日志", null, delegate { OpenLog(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { ExitApplication(); });
             return menu;
+        }
+
+        private async void StartOnlineCheck()
+        {
+            if (_onlineCheckStarted || IsDisposed) return;
+            _onlineCheckStarted = true;
+
+            try
+            {
+                await Task.Delay(900);
+                if (IsDisposed) return;
+
+                var snapshot = await OnlineService.FetchSnapshotAsync(CancellationToken.None);
+                if (IsDisposed || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage)) return;
+
+                var announcement = snapshot.Announcement;
+                var newPopupAnnouncement = announcement != null &&
+                                           announcement.Enabled &&
+                                           announcement.Popup &&
+                                           !string.IsNullOrWhiteSpace(announcement.Id) &&
+                                           !string.Equals(announcement.Id, _settings.LastAnnouncementId, StringComparison.Ordinal);
+
+                if (snapshot.ForceUpdateRequired)
+                {
+                    await ShowOnlineCenterAsync(snapshot, true, false);
+                    return;
+                }
+
+                if (snapshot.UpdateAvailable && _settings.AutoUpdateEnabled)
+                {
+                    await ShowOnlineCenterAsync(snapshot, false, true);
+                    return;
+                }
+
+                if (newPopupAnnouncement)
+                {
+                    _settings.LastAnnouncementId = announcement.Id;
+                    _settings.Save();
+                    await ShowOnlineCenterAsync(snapshot, false, false);
+                    return;
+                }
+
+                if (snapshot.UpdateAvailable)
+                {
+                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可从在线中心手动更新。", ToolTipIcon.Info);
+                }
+                else if (announcement != null && announcement.Enabled &&
+                         !string.IsNullOrWhiteSpace(announcement.Id) &&
+                         !string.Equals(announcement.Id, _settings.LastAnnouncementId, StringComparison.Ordinal))
+                {
+                    _settings.LastAnnouncementId = announcement.Id;
+                    _settings.Save();
+                    _tray.ShowBalloonTip(6000, announcement.Title ?? "FACM 公告", announcement.Body ?? string.Empty, ToolTipIcon.Info);
+                }
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Startup online check failed", exception);
+            }
+        }
+
+        private async Task OpenOnlineCenterAsync(bool updateOnly)
+        {
+            if (_onlineCenterOpen || IsDisposed) return;
+            _onlineCenterOpen = true;
+            try
+            {
+                _tray.ShowBalloonTip(2000, "FACM", "正在读取在线配置...", ToolTipIcon.Info);
+                var snapshot = await OnlineService.FetchSnapshotAsync(CancellationToken.None);
+                await ShowOnlineCenterAsync(snapshot, snapshot.ForceUpdateRequired, updateOnly && snapshot.UpdateAvailable);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Open online center failed", exception);
+                MessageBox.Show("在线中心打开失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _onlineCenterOpen = false;
+            }
+        }
+
+        private async Task ShowOnlineCenterAsync(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
+        {
+            if (_onlineCenterOpen && !forceMode) return;
+            _onlineCenterOpen = true;
+            try
+            {
+                CloseMenu();
+                using (var form = new OnlineCenterForm(this, _settings, snapshot, forceMode))
+                {
+                    if (automaticPrompt)
+                    {
+                        form.Shown += async delegate { await form.BeginAutomaticUpdateAsync(); };
+                    }
+                    form.ShowDialog(this);
+                }
+            }
+            finally
+            {
+                _onlineCenterOpen = false;
+            }
+        }
+
+        private static void RunStandaloneToolA()
+        {
+            try
+            {
+                ToolRunner.RunStandaloneToolA();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Built-in tool A failed", exception);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static void RunMode(int mode)
+        {
+            try
+            {
+                ToolRunner.RunFixLcu(mode);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Built-in mode failed", exception);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void Animate(object sender, EventArgs e)
@@ -285,7 +440,7 @@ namespace FACM
                 var directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
                 if (!File.Exists(path)) File.WriteAllText(path, string.Empty);
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
+                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
             }
             catch (Exception exception)
             {
