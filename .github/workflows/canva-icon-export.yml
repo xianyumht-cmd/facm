@@ -23,7 +23,7 @@ concurrency:
 jobs:
   export-icon:
     if: github.event_name != 'pull_request' || github.head_ref == 'codex/facm-online-toolbundle-20260807'
-    runs-on: ubuntu-22.04
+    runs-on: macos-13
     timeout-minutes: 10
     steps:
       - name: Checkout branch
@@ -57,8 +57,8 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
-          python -m pip install --disable-pip-version-check pillow
-          python - <<'PY'
+          python3 -m pip install --user --disable-pip-version-check pillow
+          python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
 
