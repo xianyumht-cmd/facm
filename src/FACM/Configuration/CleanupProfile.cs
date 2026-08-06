@@ -9,8 +9,8 @@ namespace FACM.Configuration
     {
         // ===== 开发者只需要修改这一段 =====
         // 这里只填写单级文件夹名。
-        public const string ProgramFilesFolderName = "REPLACE_PROGRAM_FILES_FOLDER";
-        public const string ProgramDataFolderName = "REPLACE_PROGRAM_DATA_FOLDER";
+        public const string ProgramFilesFolderName = "AntiCheatExpert";
+        public const string ProgramDataFolderName = "AntiCheatExpert";
 
         // 用于确认/定位安装根目录的标记文件夹名。用户选择其上级目录或更高层目录均可。
         public const string GameRootMarkerFolderName = "REPLACE_GAME_ROOT_MARKER_FOLDER";
