@@ -1,0 +1,50 @@
+name: extract-facm-embedded-tools
+
+on:
+  push:
+    branches:
+      - codex/extract-facm-tools-20260806
+    paths:
+      - tools/FACM.exe
+      - scripts/extract_embedded_tools.py
+      - .github/workflows/extract-embedded-tools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install extractor dependency
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check pefile==2024.8.26
+
+      - name: Extract embedded files without execution
+        shell: pwsh
+        run: |
+          python scripts/extract_embedded_tools.py tools/FACM.exe extracted-facm-tools
+          if ($LASTEXITCODE -ne 0) { throw "Extractor returned $LASTEXITCODE" }
+
+      - name: Display extraction report
+        shell: pwsh
+        run: |
+          Get-Content extracted-facm-tools/REPORT.md
+          Get-Content extracted-facm-tools/manifest.json
+
+      - name: Upload extracted files
+        uses: actions/upload-artifact@v4
+        with:
+          name: facm-embedded-tools
+          path: extracted-facm-tools/
+          if-no-files-found: error
+          retention-days: 30
