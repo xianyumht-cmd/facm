@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Online;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM
 {
@@ -91,20 +92,21 @@ namespace FACM
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
+            var theme = ThemeCatalog.Get(_settings.ThemeId);
             var inset = 2.5f - 0.7f * _hoverProgress;
             var bounds = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
-            var topColor = Blend(Color.FromArgb(74, 151, 255), Color.FromArgb(99, 180, 255), _hoverProgress);
-            var bottomColor = Blend(Color.FromArgb(48, 79, 207), Color.FromArgb(54, 103, 232), _hoverProgress);
+            var topColor = Blend(theme.Accent, theme.AccentSecondary, 0.18F + _hoverProgress * 0.18F);
+            var bottomColor = Blend(theme.AccentSecondary, theme.BackgroundSecondary, 0.38F - _hoverProgress * 0.12F);
 
             using (var brush = new LinearGradientBrush(bounds, topColor, bottomColor, 115F))
             {
                 e.Graphics.FillEllipse(brush, bounds);
             }
-            using (var border = new Pen(Color.FromArgb(210, 114, 191, 255), 1.6f + _hoverProgress * 0.5f))
+            using (var border = new Pen(Blend(theme.Border, theme.AccentSecondary, _hoverProgress * 0.55F), 1.6f + _hoverProgress * 0.5f))
             {
                 e.Graphics.DrawEllipse(border, bounds);
             }
-            using (var highlight = new Pen(Color.FromArgb(70, 255, 255, 255), 1f))
+            using (var highlight = new Pen(Color.FromArgb(theme.IsLight ? 120 : 70, Color.White), 1f))
             {
                 e.Graphics.DrawArc(highlight, bounds.X + 4, bounds.Y + 4, bounds.Width - 8, bounds.Height - 8, 205, 125);
             }
@@ -117,10 +119,8 @@ namespace FACM
                 e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f - 1f, (Height - size.Height) / 2f - 1f);
             }
 
-            var statusColor = ElevationService.IsAdministrator
-                ? Color.FromArgb(92, 224, 166)
-                : Color.FromArgb(255, 191, 89);
-            using (var dotBorder = new SolidBrush(Color.FromArgb(235, 17, 28, 51)))
+            var statusColor = ElevationService.IsAdministrator ? theme.Success : theme.Warning;
+            using (var dotBorder = new SolidBrush(Color.FromArgb(235, theme.Background)))
             using (var dot = new SolidBrush(statusColor))
             {
                 e.Graphics.FillEllipse(dotBorder, Width - 17, 7, 10, 10);
@@ -140,6 +140,17 @@ namespace FACM
         {
             CloseMenu();
             Close();
+        }
+
+        public void ApplyThemeSelection()
+        {
+            CloseMenu();
+            Invalidate();
+            BeginInvoke(new Action(delegate
+            {
+                if (IsDisposed || _menu != null) return;
+                ToggleMenu();
+            }));
         }
 
         public void RunToolA()
@@ -223,6 +234,11 @@ namespace FACM
                 Show();
                 if (_menu == null) ToggleMenu();
                 if (_menu != null && !_menu.IsDisposed) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+            });
+            menu.Items.Add("主题设置", null, delegate
+            {
+                Show();
+                if (_menu == null) ToggleMenu();
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
