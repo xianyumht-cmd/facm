@@ -115,6 +115,10 @@ try {
     }
 
     Write-Host "Authenticode signer verified: $($certificate.Subject)"
+
+    # A successfully handled self-signed trust warning leaves signtool's native exit code
+    # at 1. Reset it so GitHub Actions does not mark the completed signing step as failed.
+    $global:LASTEXITCODE = 0
 }
 finally {
     if ($null -ne $certificate) {
