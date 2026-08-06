@@ -2,7 +2,7 @@
 chcp 65001 >nul
 setlocal
 
-net session >nul 2>&1
+powershell.exe -NoLogo -NoProfile -Command "$p=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){exit 0}else{exit 1}"
 if not "%errorlevel%"=="0" (
     echo 正在申请管理员权限...
     powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
