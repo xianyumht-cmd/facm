@@ -1,1 +1,0 @@
-This file triggers the pull-request validation build for the self-signed Authenticode workflow.
