@@ -525,7 +525,20 @@ namespace FACM
             menu.Items.Add("运行模式 3", null, delegate { RunFixMode(3); });
             menu.Items.Add("运行模式 4", null, delegate { RunFixMode(4); });
             _dialogOpen = true;
-            menu.Closed += delegate { _dialogOpen = false; Activate(); menu.Dispose(); };
+            menu.Closed += delegate
+            {
+                _dialogOpen = false;
+
+                // ContextMenuStrip is still finishing its close/click message here.
+                // Disposing it synchronously causes ObjectDisposedException inside
+                // ToolStripManager. Dispose it on the next UI message instead.
+                if (!IsHandleCreated || IsDisposed || Disposing) return;
+                BeginInvoke(new Action(delegate
+                {
+                    if (!menu.IsDisposed) menu.Dispose();
+                    if (!IsDisposed && !Disposing) Activate();
+                }));
+            };
             menu.Show(Cursor.Position);
         }
 
