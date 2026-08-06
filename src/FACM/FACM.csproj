@@ -25,8 +25,9 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64">
-      <LogicalName>FACM.Resources.FixLcu.GzipBase64</LogicalName>
-    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part00"><LogicalName>FACM.Resources.FixLcu.GzipPart00</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part01"><LogicalName>FACM.Resources.FixLcu.GzipPart01</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part02"><LogicalName>FACM.Resources.FixLcu.GzipPart02</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part03"><LogicalName>FACM.Resources.FixLcu.GzipPart03</LogicalName></EmbeddedResource>
   </ItemGroup>
 </Project>
