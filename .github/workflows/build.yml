@@ -3,6 +3,7 @@ name: build-facm-self-signed-test
 on:
   push:
     branches: ["codex/facm-self-signed-build-20260806"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
