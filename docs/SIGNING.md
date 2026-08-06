@@ -12,11 +12,35 @@
 - 清理目标来自编译期白名单，先预览、再确认、最后重新校验。
 - 发布包附带 SHA-256 与签名状态报告。
 
+## 仓库是否保存证书
+
+仓库不会保存 `.pfx`、`.cer`、密码或 PFX 的 Base64 文本；`.gitignore` 已明确排除这些文件。私钥不应提交到公开仓库。
+
+仓库提供自签名证书生成脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\create-self-signed-certificate.ps1
+```
+
+默认输出到：
+
+```text
+local-signing\
+```
+
+生成内容包括：
+
+- `FACM-SelfSigned-CodeSigning.pfx`
+- `FACM-SelfSigned-CodeSigning.cer`
+- `FACM_PFX_BASE64.txt`
+- `FACM_PFX_PASSWORD.txt`
+- `README.txt`
+
+自签名证书仅适合开发、内部测试和验证签名流程，通常不能建立 SmartScreen 信誉。
+
 ## 正式发布签名
 
-应使用受信任代码签名机构签发的 Authenticode 证书。自签名证书可用于内部测试与确认签名流程，但通常不能建立 SmartScreen 信誉。
-
-构建后运行：
+应使用受信任代码签名机构签发的 Authenticode 证书。构建后运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
@@ -29,19 +53,44 @@ powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
 
 ## GitHub Actions 自动签名
 
-仓库工作流支持两个 Secrets：
+仓库工作流支持两个 Repository Secrets：
 
 - `FACM_PFX_BASE64`：PFX 文件转换后的 Base64 文本
 - `FACM_PFX_PASSWORD`：PFX 密码
 
-生成 Base64：
+使用生成脚本后，直接复制以下两个文件的完整内容：
+
+```text
+local-signing\FACM_PFX_BASE64.txt
+local-signing\FACM_PFX_PASSWORD.txt
+```
+
+在 GitHub 仓库中依次进入：
+
+```text
+Settings → Secrets and variables → Actions → New repository secret
+```
+
+分别创建上面的两个 Secret。不要把 PFX、密码或 Base64 文件提交到仓库。
+
+也可以手动生成 Base64：
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\secure\facm-signing.pfx")) |
   Set-Content .\FACM_PFX_BASE64.txt -NoNewline
 ```
 
-把文本内容写入 GitHub Secret，不要把 PFX、密码或 Base64 文件提交到仓库。
+## 手动触发构建
+
+仓库的 `.github/workflows/build.yml` 已配置 `workflow_dispatch`。在 GitHub 网页中：
+
+1. 打开仓库的 `Actions` 页面。
+2. 左侧选择 `FACM Windows Build`。
+3. 点击右侧的 `Run workflow`。
+4. 分支选择 `main`。
+5. 再点击绿色的 `Run workflow`。
+
+完成后打开对应运行记录，在页面底部的 `Artifacts` 下载 `FACM-Windows-x64-运行编号`。
 
 ## 内置工具
 
@@ -62,4 +111,4 @@ Get-AuthenticodeSignature .\artifacts\FACM.exe | Format-List *
 Get-FileHash .\artifacts\FACM.exe -Algorithm SHA256
 ```
 
-签名状态应为 `Valid`；发布网站同时展示 SHA-256，便于用户核对文件完整性。
+使用受信任证书时，签名状态应为 `Valid`；发布网站同时展示 SHA-256，便于用户核对文件完整性。使用自签名证书时，未安装对应公钥证书的电脑可能显示证书链不受信任，这是自签名证书的正常限制。
