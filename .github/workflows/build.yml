@@ -1,0 +1,83 @@
+name: build-facm
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOLUTION: FACM.sln
+  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore and build
+        shell: pwsh
+        run: |
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /v:minimal
+          if (-not (Test-Path $env:OUTPUT_EXE)) {
+            throw "Build output not found: $env:OUTPUT_EXE"
+          }
+
+      - name: Sign when certificate secrets exist
+        shell: pwsh
+        env:
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            Write-Host "Signing secret is not configured; keeping an unsigned CI build."
+            exit 0
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "facm-signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:FACM_PFX_BASE64))
+          try {
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) { throw "signtool.exe not found" }
+            & $signtool.FullName sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p $env:FACM_PFX_PASSWORD $env:OUTPUT_EXE
+            if ($LASTEXITCODE -ne 0) { throw "signtool sign failed: $LASTEXITCODE" }
+            & $signtool.FullName verify /pa /all $env:OUTPUT_EXE
+            if ($LASTEXITCODE -ne 0) { throw "signtool verify failed: $LASTEXITCODE" }
+          }
+          finally {
+            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Verify metadata and create package
+        shell: pwsh
+        run: |
+          $artifactDir = Join-Path $PWD "artifacts"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          Copy-Item $env:OUTPUT_EXE (Join-Path $artifactDir "FACM.exe") -Force
+          $hash = Get-FileHash (Join-Path $artifactDir "FACM.exe") -Algorithm SHA256
+          "SHA256  $($hash.Hash)  FACM.exe" | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
+          Get-AuthenticodeSignature (Join-Path $artifactDir "FACM.exe") | Format-List * | Out-File (Join-Path $artifactDir "SIGNATURE.txt") -Encoding utf8
+          Copy-Item README.md (Join-Path $artifactDir "README.md")
+          Compress-Archive -Path "$artifactDir\*" -DestinationPath "FACM-2.0-windows-x64.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FACM-2.0-windows-x64
+          path: |
+            FACM-2.0-windows-x64.zip
+            artifacts/FACM.exe
+            artifacts/SHA256.txt
+            artifacts/SIGNATURE.txt
+          if-no-files-found: error
