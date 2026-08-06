@@ -36,7 +36,7 @@ $msbuild = Get-Command msbuild.exe -ErrorAction SilentlyContinue
 if (-not $msbuild) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) {
-        throw "未找到 MSBuild。请安装 Visual Studio 2022 Build Tools 与 .NET Framework 4.8 targeting pack。"
+        throw "未找到 MSBuild。请先运行仓库根目录的 FACM-本地一键配置并构建.bat。"
     }
     $msbuildPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
     if (-not $msbuildPath) { throw "未找到 MSBuild.exe。" }
@@ -50,8 +50,31 @@ New-Item -ItemType Directory -Path $artifactDir | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "构建失败，退出码 $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "构建完成但未找到 $outputExe" }
 
-$assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom((Resolve-Path $outputExe).Path)
-if ($assembly.GetManifestResourceNames() -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
+$resolvedOutputExe = (Resolve-Path $outputExe).Path
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    $resourceVerifier = Join-Path $env:TEMP "facm-local-resource-verifier.ps1"
+    @'
+param([Parameter(Mandatory=$true)][string]$ExePath)
+$ErrorActionPreference = 'Stop'
+$assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($ExePath)
+$assembly.GetManifestResourceNames()
+'@ | Set-Content -LiteralPath $resourceVerifier -Encoding utf8
+
+    $windowsPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $resources = @(
+        & $windowsPowerShell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+            -File $resourceVerifier -ExePath $resolvedOutputExe
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "FACM.exe 资源验证失败，退出码 $LASTEXITCODE"
+    }
+}
+else {
+    $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($resolvedOutputExe)
+    $resources = @($assembly.GetManifestResourceNames())
+}
+
+if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
     throw "FACM.exe 中没有嵌入 FACM.ToolBundle.dll"
 }
 Write-Host "已校验嵌入工具资源 DLL"
