@@ -55,6 +55,7 @@ namespace FACM
                     AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
                 };
 
+                CompactMenuEnhancer.Install();
                 AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
                 Application.Run(new MainForm(startCleanup));
             }
