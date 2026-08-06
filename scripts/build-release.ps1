@@ -32,21 +32,21 @@ foreach ($entry in $toolManifest.files) {
     Write-Host "已校验：$($entry.name)"
 }
 
-$msbuild = Get-Command msbuild.exe -ErrorAction SilentlyContinue
-if (-not $msbuild) {
+$msbuildCommand = Get-Command msbuild.exe -ErrorAction SilentlyContinue
+$msbuildPath = if ($msbuildCommand) { $msbuildCommand.Source } else { $null }
+if (-not $msbuildPath) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) {
         throw "未找到 MSBuild。请先运行仓库根目录的 FACM-本地一键配置并构建.bat。"
     }
     $msbuildPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
     if (-not $msbuildPath) { throw "未找到 MSBuild.exe。" }
-    $msbuild = Get-Item $msbuildPath
 }
 
 if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
 New-Item -ItemType Directory -Path $artifactDir | Out-Null
 
-& $msbuild.Source $solution /restore /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+& $msbuildPath $solution /restore /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "构建失败，退出码 $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "构建完成但未找到 $outputExe" }
 
