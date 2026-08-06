@@ -20,11 +20,9 @@ namespace FACM.Online
         {
             ValidateManifest(manifest);
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            RuntimePaths.Initialize();
 
-            var directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "FACM",
-                "Updates");
+            var directory = RuntimePaths.UpdatesDirectory;
             Directory.CreateDirectory(directory);
 
             var version = SanitizeFileName(manifest.Version ?? "latest");
@@ -76,7 +74,7 @@ namespace FACM.Online
                 var actualHash = ComputeSha256(temporary);
                 if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidDataException("更新文件 SHA-256 校验失败。已停止安装。" );
+                    throw new InvalidDataException("更新文件 SHA-256 校验失败。已停止安装。");
                 }
 
                 if (File.Exists(destination)) File.Delete(destination);
@@ -104,11 +102,9 @@ namespace FACM.Online
                 throw new FileNotFoundException("已下载的更新文件不存在。", downloadedExecutable);
             }
 
+            RuntimePaths.Initialize();
             var currentExecutable = Process.GetCurrentProcess().MainModule.FileName;
-            var directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "FACM",
-                "Updates");
+            var directory = RuntimePaths.UpdatesDirectory;
             Directory.CreateDirectory(directory);
 
             var scriptPath = Path.Combine(directory, "apply-" + Guid.NewGuid().ToString("N") + ".ps1");
@@ -142,14 +138,14 @@ namespace FACM.Online
             Uri uri;
             if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out uri) || uri.Scheme != Uri.UriSchemeHttps)
             {
-                throw new InvalidDataException("更新下载地址必须是有效的 HTTPS 地址。" );
+                throw new InvalidDataException("更新下载地址必须是有效的 HTTPS 地址。");
             }
 
             if (string.IsNullOrWhiteSpace(manifest.Sha256) ||
                 manifest.Sha256.Length != 64 ||
                 !IsHex(manifest.Sha256))
             {
-                throw new InvalidDataException("更新清单缺少有效的 SHA-256。" );
+                throw new InvalidDataException("更新清单缺少有效的 SHA-256。");
             }
         }
 
