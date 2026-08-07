@@ -17,6 +17,7 @@ namespace FACM.Mayhem
         public string ChampionName { get; set; }
         public string ChampionSlug { get; set; }
         public string Patch { get; set; }
+        public string RankingPatch { get; set; }
         public int? Rank { get; set; }
         public string Tier { get; set; }
         public double? WinRate { get; set; }
@@ -27,6 +28,7 @@ namespace FACM.Mayhem
         public List<string> Augments { get; set; } = new List<string>();
         public List<MayhemTopChampion> TopTen { get; set; } = new List<MayhemTopChampion>();
         public string SourceUrl { get; set; }
+        public string RankingSourceUrl { get; set; }
         public string SourceNote { get; set; }
         public string ErrorMessage { get; set; }
     }
