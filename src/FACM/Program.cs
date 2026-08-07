@@ -15,9 +15,9 @@ namespace FACM
         private static void Main(string[] args)
         {
             var startCleanup = HasArgument(args, "--cleanup");
-            var petSmokeTest = HasArgument(args, "--pet-smoke-test");
-            var instanceMutex = petSmokeTest
-                ? MutexName + "-PetSmokeTest"
+            var petCatalogTest = HasArgument(args, "--pet-catalog-test");
+            var instanceMutex = petCatalogTest
+                ? MutexName + "-PetCatalogTest"
                 : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName);
 
             bool createdNew;
@@ -25,9 +25,15 @@ namespace FACM
             {
                 if (!createdNew)
                 {
-                    if (!petSmokeTest)
+                    if (!petCatalogTest)
                         MessageBox.Show("FACM 已经在运行。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
+                    return;
+                }
+
+                if (petCatalogTest)
+                {
+                    Environment.ExitCode = RunPetCatalogTest();
                     return;
                 }
 
@@ -42,23 +48,14 @@ namespace FACM
                 catch (Exception exception)
                 {
                     AppLog.Error("FACM startup preparation failed", exception);
-                    if (!petSmokeTest)
-                    {
-                        MessageBox.Show(
-                            "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
-                            "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
-                            exception.Message,
-                            "FACM 启动失败",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error);
-                    }
+                    MessageBox.Show(
+                        "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
+                        "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
+                        exception.Message,
+                        "FACM 启动失败",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                     Environment.ExitCode = 3;
-                    return;
-                }
-
-                if (petSmokeTest)
-                {
-                    Environment.ExitCode = RunPetSmokeTest();
                     return;
                 }
 
@@ -78,29 +75,16 @@ namespace FACM
             }
         }
 
-        private static int RunPetSmokeTest()
+        private static int RunPetCatalogTest()
         {
             try
             {
-                foreach (var pet in PetCatalog.All)
-                {
-                    var model = Pet3DModelFactory.Create(pet);
-                    if (model == null || model.Model == null || model.Model.Children.Count < 2)
-                        throw new InvalidOperationException("3D pet model is empty: " + pet.Id);
-
-                    using (var scene = new Pet3DScene(pet))
-                    {
-                        scene.Measure(new System.Windows.Size(pet.Size.Width, pet.Size.Height));
-                        scene.Arrange(new System.Windows.Rect(0, 0, pet.Size.Width, pet.Size.Height));
-                        scene.UpdateLayout();
-                    }
-                    AppLog.Info("3D pet smoke test passed: " + pet.Id);
-                }
+                PetCatalogSmokeTest.Validate();
                 return 0;
             }
             catch (Exception exception)
             {
-                AppLog.Error("3D pet smoke test failed", exception);
+                Console.Error.WriteLine(exception);
                 return 4;
             }
         }
