@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM", "src\FACM\FACM.cspro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM.ToolBundle", "src\FACM.ToolBundle\FACM.ToolBundle.csproj", "{B2D2C3F0-8E42-4A7A-B0C2-6D6A0EE06E13}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM.PetHost", "src\FACM.PetHost\FACM.PetHost.csproj", "{61C11E6A-3F06-4D96-92F4-5E6E6B9578E1}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|Any CPU = Debug|Any CPU
@@ -20,5 +22,9 @@ Global
         {B2D2C3F0-8E42-4A7A-B0C2-6D6A0EE06E13}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {B2D2C3F0-8E42-4A7A-B0C2-6D6A0EE06E13}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {B2D2C3F0-8E42-4A7A-B0C2-6D6A0EE06E13}.Release|Any CPU.Build.0 = Release|Any CPU
+        {61C11E6A-3F06-4D96-92F4-5E6E6B9578E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {61C11E6A-3F06-4D96-92F4-5E6E6B9578E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {61C11E6A-3F06-4D96-92F4-5E6E6B9578E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {61C11E6A-3F06-4D96-92F4-5E6E6B9578E1}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal
