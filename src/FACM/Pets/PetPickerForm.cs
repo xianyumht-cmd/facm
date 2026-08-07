@@ -283,18 +283,36 @@ namespace FACM.Pets
             _operationCancellation = new CancellationTokenSource();
             var progress = new Progress<PetSetupProgress>(value =>
             {
-                _status.Text = FriendlyProgress(value.Percent);
+                _status.Text = string.IsNullOrWhiteSpace(value.Message) ? FriendlyProgress(value.Percent) : value.Message;
                 _status.ForeColor = Color.FromArgb(112, 165, 255);
                 _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value.Percent));
             });
 
             try
             {
+                if (NvidiaDesktopPetCompatibility.IsNvidiaDriverPresent())
+                {
+                    Environment.SetEnvironmentVariable(
+                        "FACM_DESKTOP_PET_WGPU_BACKEND",
+                        "vulkan",
+                        EnvironmentVariableTarget.Process);
+                    var compatibilityApplied = await NvidiaDesktopPetCompatibility.EnsurePreferNativeAsync(
+                        DesktopHomunculusManager.FindInstalledEngine(),
+                        progress,
+                        _operationCancellation.Token);
+                    if (!compatibilityApplied)
+                    {
+                        Services.AppLog.Info("NVIDIA native-present compatibility was not applied; desktop pet startup will still be attempted.");
+                        _status.Text = "NVIDIA 透明显示兼容设置未能自动完成，正在继续尝试...";
+                        _status.ForeColor = Color.FromArgb(230, 177, 103);
+                    }
+                }
+
                 var result = await DesktopHomunculusManager.ActivateAsync(pet, progress, _operationCancellation.Token);
                 if (!result.Success)
                 {
                     Services.AppLog.Info("Pet activation failed: " + result.ErrorMessage);
-                    _status.Text = "桌宠应用失败，请稍后重试。";
+                    _status.Text = "桌宠应用失败，默认悬浮球已保留。";
                     _status.ForeColor = Color.FromArgb(255, 145, 121);
                     return;
                 }
