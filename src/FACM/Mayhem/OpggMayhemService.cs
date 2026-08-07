@@ -12,7 +12,8 @@ namespace FACM.Mayhem
 {
     internal static class OpggMayhemService
     {
-        private const string BaseUrl = "https://op.gg/zh-cn/lol/modes/aram-mayhem";
+        private const string OpggBaseUrl = "https://op.gg/zh-cn/lol/modes/aram-mayhem";
+        private const string RankingBaseUrl = "https://arammayhem.com";
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, CacheEntry> Cache = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
         private static readonly HttpClient Client = CreateClient();
@@ -46,18 +47,17 @@ namespace FACM.Mayhem
             var result = new MayhemChampionResult { Query = query };
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(9));
+                timeout.CancelAfter(TimeSpan.FromSeconds(7));
                 var requestToken = timeout.Token;
 
                 try
                 {
                     Report(progress, "正在识别英雄...");
                     string slug;
-                    string mainHtml = null;
                     if (!ChampionAliases.TryResolve(query, out slug))
                     {
-                        mainHtml = await GetSafeAsync(BaseUrl, requestToken).ConfigureAwait(false);
-                        slug = ResolveSlug(mainHtml, query);
+                        var indexHtml = await GetSafeAsync(OpggBaseUrl, requestToken).ConfigureAwait(false);
+                        slug = ResolveSlug(indexHtml, query);
                     }
 
                     if (string.IsNullOrWhiteSpace(slug))
@@ -67,38 +67,31 @@ namespace FACM.Mayhem
                     }
 
                     result.ChampionSlug = slug;
-                    result.SourceUrl = BaseUrl + "/" + slug + "/build";
-                    Report(progress, "正在并行读取出装、技能、强化与排行榜...");
+                    result.SourceUrl = OpggBaseUrl + "/" + slug + "/build";
+                    result.RankingSourceUrl = RankingBaseUrl + "/build/" + slug + "/";
 
-                    var buildTask = GetSafeAsync(BaseUrl + "/" + slug + "/build", requestToken);
-                    var skillsTask = GetSafeAsync(BaseUrl + "/" + slug + "/skills", requestToken);
-                    var augmentsTask = GetSafeAsync(BaseUrl + "/" + slug + "/augments", requestToken);
-                    var itemsTask = GetSafeAsync(BaseUrl + "/" + slug + "/items", requestToken);
-                    var leaderboardTask = mainHtml == null
-                        ? GetSafeAsync(BaseUrl, requestToken)
-                        : Task.FromResult(mainHtml);
+                    Report(progress, "正在并行读取 OP.GG 构建数据与胜率排行...");
+                    var opggTask = GetSafeAsync(result.SourceUrl, requestToken);
+                    var championRankTask = GetSafeAsync(result.RankingSourceUrl, requestToken);
+                    var topTenTask = GetSafeAsync(RankingBaseUrl + "/", requestToken);
+                    await Task.WhenAll(opggTask, championRankTask, topTenTask).ConfigureAwait(false);
 
-                    await Task.WhenAll(buildTask, skillsTask, augmentsTask, itemsTask, leaderboardTask).ConfigureAwait(false);
+                    var opggHtml = opggTask.Result;
+                    var rankingHtml = championRankTask.Result;
+                    var topTenHtml = topTenTask.Result;
 
-                    var buildHtml = buildTask.Result;
-                    var skillsHtml = skillsTask.Result;
-                    var augmentsHtml = augmentsTask.Result;
-                    var itemsHtml = itemsTask.Result;
-                    mainHtml = leaderboardTask.Result;
-
-                    if (string.IsNullOrWhiteSpace(buildHtml) &&
-                        string.IsNullOrWhiteSpace(skillsHtml) &&
-                        string.IsNullOrWhiteSpace(itemsHtml))
+                    if (string.IsNullOrWhiteSpace(opggHtml) && string.IsNullOrWhiteSpace(rankingHtml))
                     {
                         result.ErrorMessage = token.IsCancellationRequested
                             ? "查询已取消。"
-                            : "OP.GG 在 9 秒内没有返回可用数据，请稍后重试。";
+                            : "数据源在 7 秒内没有返回可用数据，请稍后重试。";
                         return result;
                     }
 
-                    Report(progress, "正在解析 OP.GG 返回内容...");
-                    ParseChampion(buildHtml, skillsHtml, augmentsHtml, itemsHtml, result);
-                    result.TopTen = ParseTopTen(mainHtml);
+                    Report(progress, "正在解析英雄、技能、装备、强化和排行...");
+                    ParseOpggChampion(opggHtml, result);
+                    ParseRankingChampion(rankingHtml, result);
+                    result.TopTen = ParseTopTen(topTenHtml);
 
                     var current = result.TopTen.FirstOrDefault(item =>
                         string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase) ||
@@ -112,11 +105,15 @@ namespace FACM.Mayhem
 
                     if (string.IsNullOrWhiteSpace(result.ChampionName)) result.ChampionName = Title(slug);
                     if (string.IsNullOrWhiteSpace(result.BalanceSummary))
-                        result.BalanceSummary = "OP.GG 当前 Mayhem 页面未公开该英雄的独立 buff / debuff 数值。";
+                        result.BalanceSummary = "当前数据源未公开该英雄的独立 Mayhem buff / debuff 数值。";
                     if (string.IsNullOrWhiteSpace(result.SkillOrder))
                         result.SkillOrder = "OP.GG 当前页面未返回可解析的技能加点顺序。";
+                    if (result.CoreItems.Count == 0)
+                        result.CoreItems.Add("OP.GG 当前页面未返回可解析的核心出装");
+                    if (result.Augments.Count == 0)
+                        result.Augments.Add("当前页面未返回可解析的强化符文");
 
-                    result.SourceNote = "数据源：OP.GG ARAM: Mayhem；并行请求，最长等待 9 秒";
+                    result.SourceNote = "构建：OP.GG；胜率/名次/前十：ARAMMayhem.com；并行读取，最长等待 7 秒";
                     lock (Sync)
                     {
                         Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
@@ -128,13 +125,13 @@ namespace FACM.Mayhem
                 {
                     result.ErrorMessage = token.IsCancellationRequested
                         ? "查询已取消。"
-                        : "OP.GG 查询超过 9 秒，已自动停止。";
+                        : "查询超过 7 秒，已自动停止。";
                     return result;
                 }
                 catch (Exception exception)
                 {
-                    Services.AppLog.Error("OP.GG Mayhem query failed", exception);
-                    result.ErrorMessage = "读取 OP.GG 数据失败：" + exception.Message;
+                    Services.AppLog.Error("Mayhem query failed", exception);
+                    result.ErrorMessage = "读取数据失败：" + exception.Message;
                     return result;
                 }
             }
@@ -146,12 +143,9 @@ namespace FACM.Mayhem
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
             };
-            var client = new HttpClient(handler)
-            {
-                Timeout = Timeout.InfiniteTimeSpan
-            };
+            var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/151.0 FACM/3.1");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.6");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7");
             client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.7");
             return client;
         }
@@ -165,7 +159,7 @@ namespace FACM.Mayhem
                 {
                     if (!response.IsSuccessStatusCode)
                     {
-                        Services.AppLog.Info("OP.GG page returned HTTP " + (int)response.StatusCode + ": " + url);
+                        Services.AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url);
                         return null;
                     }
                     return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -177,259 +171,261 @@ namespace FACM.Mayhem
             }
             catch (Exception exception)
             {
-                Services.AppLog.Info("OP.GG page request failed: " + url + "; " + exception.Message);
+                Services.AppLog.Info("Mayhem source request failed: " + url + "; " + exception.Message);
                 return null;
             }
         }
 
-        private static string ResolveSlug(string html, string query)
+        private static void ParseOpggChampion(string html, MayhemChampionResult result)
         {
-            var target = ChampionAliases.Normalize(query);
-            foreach (Match match in Regex.Matches(html ?? string.Empty, "/aram-mayhem/(?<slug>[^/\"'?]+)/build", RegexOptions.IgnoreCase))
-            {
-                var slug = match.Groups["slug"].Value;
-                var windowStart = Math.Max(0, match.Index - 260);
-                var windowLength = Math.Min((html ?? string.Empty).Length - windowStart, 620);
-                var window = string.IsNullOrEmpty(html) ? string.Empty : html.Substring(windowStart, windowLength);
-                if (ChampionAliases.Normalize(slug) == target || ChampionAliases.Normalize(CleanText(window)).Contains(target)) return slug;
-            }
-            return null;
-        }
+            if (string.IsNullOrWhiteSpace(html)) return;
+            var normalized = NormalizeEscapedHtml(html);
+            var text = CleanText(normalized);
+            var h1 = Match(normalized, "<h1[^>]*>(?<v>.*?)</h1>", true);
 
-        private static void ParseChampion(string buildHtml, string skillsHtml, string augmentsHtml, string itemsHtml, MayhemChampionResult result)
-        {
-            var combined = string.Join(Environment.NewLine, new[] { buildHtml, skillsHtml, augmentsHtml, itemsHtml }.Where(value => !string.IsNullOrWhiteSpace(value)));
-            var buildText = CleanText(buildHtml);
-            var skillsText = CleanText(skillsHtml);
-
-            result.ChampionName = CleanName(First(
-                Match(buildHtml, "<h1[^>]*>(?<v>.*?)</h1>", true),
-                JsonText(combined, "champion_name"),
-                JsonText(combined, "name")));
+            result.ChampionName = First(CleanName(h1), result.ChampionName);
             result.Patch = First(
-                Match(buildText, "(?:版本|Patch)\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
-                JsonText(combined, "patch"),
-                JsonText(combined, "version"));
+                Match(text, "(?:在|Patch\\s*)?(?<v>\\d{1,2}\\.\\d{1,2})\\s*(?:版本|Patch)", false),
+                Match(text, "(?:版本|Patch)\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
+                result.Patch);
             result.Tier = First(
-                JsonText(combined, "tier"),
-                Match(buildText, "(?<v>[1-5SABCDF][+0-9]?)\\s*(?:段位|Tier|梯队)", false));
-            result.WinRate = Rate(First(
-                Match(buildText, "(?:胜率|Win\\s*rate)\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
-                JsonNumber(combined, "win_rate")));
-            result.PickRate = Rate(First(
-                Match(buildText, "(?:选用率|选取率|选择率|Pick\\s*rate)\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
-                JsonNumber(combined, "pick_rate")));
+                Match(text, "(?<v>[1-5SABCDF](?:\\+)?)\\s*(?:段位|Tier|梯队)", false),
+                result.Tier);
+            result.SkillOrder = First(ExtractSkillOrder(text), result.SkillOrder);
 
-            result.SkillOrder = First(
-                SkillSequence(skillsText),
-                JsonText(combined, "skill_order"),
-                JsonText(combined, "skills_order"));
-            result.CoreItems = ExtractSectionNames(
-                string.IsNullOrWhiteSpace(itemsHtml) ? buildHtml : itemsHtml,
-                new[] { "核心装备", "核心出装", "Core builds", "Core Items" },
-                12);
-            result.Augments = ExtractSectionNames(
-                string.IsNullOrWhiteSpace(augmentsHtml) ? buildHtml : augmentsHtml,
-                new[] { "增幅装置", "强化符文", "Augments" },
-                12);
-            result.BalanceSummary = Balance(CleanText(combined), combined);
+            result.CoreItems = ExtractAltSection(
+                normalized,
+                new[] { "核心装备", "核心出装", "Builds Table", "Core builds", "Core Items" },
+                new[] { "广告", "增幅装置", "Augments", "召唤师技能", "Summoner" },
+                4);
+            result.Augments = ExtractAltSection(
+                normalized,
+                new[] { " 增幅装置", "增幅装置", "强化符文", "Augments" },
+                new[] { "召唤师技能", "Summoner", "技能加点", "Skills" },
+                8);
         }
 
-        private static List<MayhemTopChampion> ParseTopTen(string raw)
+        private static void ParseRankingChampion(string html, MayhemChampionResult result)
+        {
+            if (string.IsNullOrWhiteSpace(html)) return;
+            var text = CleanText(NormalizeEscapedHtml(html));
+
+            result.RankingPatch = First(
+                Match(text, "Patch\\s*:\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
+                Match(text, "patch\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
+                result.RankingPatch);
+            result.Tier = First(
+                Match(text, "\\b(?<v>S\\+|S|A|B|C|D|F)\\s+Tier\\s+ARAM", false),
+                result.Tier);
+            result.WinRate = FirstRate(
+                Match(text, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*WR", false),
+                Match(text, "win rate\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
+                result.WinRate);
+            result.PickRate = FirstRate(
+                Match(text, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*PR", false),
+                Match(text, "pick rate\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
+                result.PickRate);
+
+            int rank;
+            var rankText = Match(text, "Rank\\s*:\\s*(?<v>\\d{1,3})", false);
+            if (int.TryParse(rankText, NumberStyles.Integer, CultureInfo.InvariantCulture, out rank)) result.Rank = rank;
+
+            result.BalanceSummary = First(ParseBalanceAdjustments(text), result.BalanceSummary);
+            if (result.Augments.Count == 0) result.Augments = ParseRankingAugments(text, 8);
+        }
+
+        private static List<MayhemTopChampion> ParseTopTen(string html)
         {
             var output = new List<MayhemTopChampion>();
-            if (string.IsNullOrWhiteSpace(raw)) return output;
+            if (string.IsNullOrWhiteSpace(html)) return output;
+            var text = CleanText(NormalizeEscapedHtml(html));
+            var marker = text.IndexOf("TOP 10 Highest Win Rate Champions", StringComparison.OrdinalIgnoreCase);
+            if (marker < 0) marker = text.IndexOf("TOP 10", StringComparison.OrdinalIgnoreCase);
+            var section = marker < 0 ? text : text.Substring(marker, Math.Min(1800, text.Length - marker));
 
-            var normalized = raw.Replace("\\\"", "\"");
-            foreach (Match rankMatch in Regex.Matches(normalized, "\"rank\"\\s*:\\s*(?<r>\\d{1,3})", RegexOptions.IgnoreCase))
+            foreach (Match match in Regex.Matches(
+                section,
+                "(?<!\\d)(?<r>10|[1-9])\\s+(?<n>[A-Za-z][A-Za-z0-9' .-]{1,30}?)\\s+(?<w>\\d{1,2}\\.\\d{1,2})%",
+                RegexOptions.IgnoreCase))
             {
                 int rank;
-                if (!int.TryParse(rankMatch.Groups["r"].Value, out rank) || rank < 1 || rank > 200) continue;
-
-                var start = Math.Max(0, rankMatch.Index - 1100);
-                var length = Math.Min(normalized.Length - start, 2500);
-                var window = normalized.Substring(start, length);
-                var name = First(
-                    LastJsonText(window, "champion_name", rankMatch.Index - start),
-                    LastJsonText(window, "name", rankMatch.Index - start),
-                    JsonText(window, "champion_name"),
-                    JsonText(window, "name"));
-                var slug = First(
-                    LastJsonText(window, "key", rankMatch.Index - start),
-                    LastJsonText(window, "slug", rankMatch.Index - start),
-                    JsonText(window, "key"),
-                    JsonText(window, "slug"));
-                var winRate = Rate(First(
-                    LastJsonNumber(window, "win_rate", rankMatch.Index - start),
-                    JsonNumber(window, "win_rate")));
-                var tier = First(
-                    LastJsonText(window, "tier", rankMatch.Index - start),
-                    JsonText(window, "tier"));
-
-                if (string.IsNullOrWhiteSpace(name) || !winRate.HasValue) continue;
-                if (string.IsNullOrWhiteSpace(slug)) slug = ChampionAliases.Slugify(name);
-                if (output.Any(item => item.Rank == rank || string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase))) continue;
-
+                if (!int.TryParse(match.Groups["r"].Value, out rank)) continue;
+                var name = match.Groups["n"].Value.Trim();
+                var win = Rate(match.Groups["w"].Value);
+                if (!win.HasValue || output.Any(item => item.Rank == rank)) continue;
                 output.Add(new MayhemTopChampion
                 {
                     Rank = rank,
-                    Name = WebUtility.HtmlDecode(name),
-                    Slug = slug,
-                    WinRate = winRate,
-                    Tier = tier
+                    Name = name,
+                    Slug = ChampionAliases.Slugify(name),
+                    WinRate = win,
+                    Tier = rank <= 7 ? "S+" : "S"
                 });
-            }
-
-            if (output.Count < 10)
-            {
-                var objectPattern = "\\{[^{}]{0,1800}?\"(?:champion_name|name)\"\\s*:\\s*\"(?<n>[^\"\\\\]+)\"[^{}]{0,1800}?\"win_rate\"\\s*:\\s*\"?(?<w>0?\\.\\d+|\\d{1,2}(?:\\.\\d+)?)\"?[^{}]{0,1800}?\"rank\"\\s*:\\s*(?<r>\\d{1,3})[^{}]{0,1800}?\\}";
-                foreach (Match match in Regex.Matches(normalized, objectPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline))
-                {
-                    int rank;
-                    if (!int.TryParse(match.Groups["r"].Value, out rank) || rank < 1 || rank > 200) continue;
-                    var winRate = Rate(match.Groups["w"].Value);
-                    if (!winRate.HasValue || output.Any(item => item.Rank == rank)) continue;
-                    var name = WebUtility.HtmlDecode(match.Groups["n"].Value);
-                    output.Add(new MayhemTopChampion
-                    {
-                        Rank = rank,
-                        Name = name,
-                        Slug = ChampionAliases.Slugify(name),
-                        WinRate = winRate,
-                        Tier = null
-                    });
-                }
             }
 
             return output.OrderBy(item => item.Rank).Take(10).ToList();
         }
 
-        private static string Balance(string text, string raw)
+        private static string ResolveSlug(string html, string query)
         {
-            var fields = new[]
+            var target = ChampionAliases.Normalize(query);
+            var normalized = NormalizeEscapedHtml(html ?? string.Empty);
+            foreach (Match match in Regex.Matches(normalized, "/aram-mayhem/(?<slug>[^/\"'?]+)/build", RegexOptions.IgnoreCase))
             {
-                BalanceField(text, "造成伤害", "Damage dealt"),
-                BalanceField(text, "承受伤害", "Damage taken"),
-                BalanceField(text, "攻击速度", "Attack speed"),
-                BalanceField(text, "技能急速", "Cooldown reduction"),
-                BalanceField(text, "治疗", "Healing"),
-                BalanceField(text, "护盾", "Shielding")
-            }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
-            return fields.Length > 0
-                ? string.Join("  ·  ", fields)
-                : First(JsonText(raw, "aram_balance"), JsonText(raw, "balance_summary"));
+                var slug = match.Groups["slug"].Value;
+                var start = Math.Max(0, match.Index - 300);
+                var length = Math.Min(normalized.Length - start, 700);
+                var window = normalized.Substring(start, length);
+                if (ChampionAliases.Normalize(slug) == target || ChampionAliases.Normalize(CleanText(window)).Contains(target)) return slug;
+            }
+            return null;
         }
 
-        private static string BalanceField(string text, string cn, string en)
-        {
-            var match = Regex.Match(text ?? string.Empty, "(?:" + Regex.Escape(cn) + "|" + Regex.Escape(en) + ")\\s*(?<v>[+-]?\\d+(?:\\.\\d+)?%|-)", RegexOptions.IgnoreCase);
-            return match.Success ? cn + " " + match.Groups["v"].Value : null;
-        }
-
-        private static string SkillSequence(string text)
+        private static string ExtractSkillOrder(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return null;
-            var match = Regex.Match(text, "(?<v>(?:\\d{1,2}\\s*[QWER]\\s*){8,18})", RegexOptions.IgnoreCase);
+            var start = IndexOfAny(text, new[] { "技能加点", "Skill order", "SkillOrder Table" }, 0);
+            var section = start < 0 ? text : text.Substring(start, Math.Min(700, text.Length - start));
+            var match = Regex.Match(section, "(?<v>(?:\\b[QWER]\\b[\\s>→·,/|-]*){10,18})", RegexOptions.IgnoreCase);
             if (!match.Success) return null;
             var letters = Regex.Matches(match.Groups["v"].Value.ToUpperInvariant(), "[QWER]")
                 .Cast<Match>()
                 .Select(item => item.Value)
+                .Take(18)
                 .ToArray();
-            return letters.Length == 0 ? null : string.Join(" → ", letters);
+            return letters.Length < 8 ? null : string.Join(" → ", letters);
         }
 
-        private static List<string> ExtractSectionNames(string html, string[] markers, int max)
+        private static List<string> ExtractAltSection(string html, string[] startMarkers, string[] endMarkers, int max)
         {
-            var section = Slice(html, markers, 22000);
-            var list = new List<string>();
-            foreach (Match match in Regex.Matches(section ?? string.Empty, "alt\\s*=\\s*[\"'](?<v>[^\"']+)[\"']", RegexOptions.IgnoreCase))
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(html)) return result;
+            var start = IndexOfAny(html, startMarkers, 0);
+            if (start < 0) return result;
+            var end = IndexOfAny(html, endMarkers, start + 2);
+            if (end < 0 || end <= start) end = Math.Min(html.Length, start + 18000);
+            var section = html.Substring(start, Math.Min(end - start, 18000));
+
+            foreach (Match match in Regex.Matches(
+                section,
+                "(?:alt\\s*=\\s*[\"']|\"alt\"\\s*:\\s*\")(?<v>[^\"']{1,100})[\"']",
+                RegexOptions.IgnoreCase))
             {
                 var value = WebUtility.HtmlDecode(match.Groups["v"].Value).Trim();
-                var lower = value.ToLowerInvariant();
-                if (value.Length < 2 ||
-                    lower.Contains("logo") ||
-                    lower.Contains("advert") ||
-                    lower.Contains("op.gg") ||
-                    lower == "image" ||
-                    Regex.IsMatch(value, "^(技能|装备|出装|强化|增幅|表格|table)$", RegexOptions.IgnoreCase)) continue;
-                if (!list.Any(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase))) list.Add(value);
-                if (list.Count >= max) break;
+                if (!IsUsefulName(value)) continue;
+                if (result.Any(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase))) continue;
+                result.Add(value);
+                if (result.Count >= max) break;
             }
-            return list;
+            return result;
         }
 
-        private static string Slice(string text, string[] markers, int length)
+        private static bool IsUsefulName(string value)
         {
-            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-            var start = markers
-                .Select(marker => text.IndexOf(marker, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(value) || value.Length < 2) return false;
+            var lower = value.ToLowerInvariant();
+            if (lower.Contains("logo") || lower.Contains("advert") || lower.Contains("op.gg") || lower == "image") return false;
+            if (Regex.IsMatch(value, "^(技能|装备|出装|强化|增幅|表格|table|闪现|标记)$", RegexOptions.IgnoreCase)) return false;
+            if (Regex.IsMatch(value, "^[QWER]$", RegexOptions.IgnoreCase)) return false;
+            return true;
+        }
+
+        private static List<string> ParseRankingAugments(string text, int max)
+        {
+            var output = new List<string>();
+            var start = text.IndexOf("Best Augments for", StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return output;
+            var end = text.IndexOf("Augment Combos", start, StringComparison.OrdinalIgnoreCase);
+            if (end < 0) end = Math.Min(text.Length, start + 1200);
+            var section = text.Substring(start, Math.Min(end - start, 1200));
+            foreach (Match match in Regex.Matches(section, "(?<n>[A-Za-z][A-Za-z' :+-]{2,44}?)(?:\\d{1,2}(?:\\.\\d+)?)%"))
+            {
+                var name = Regex.Replace(match.Groups["n"].Value, "^Best Augments for\\s+[A-Za-z' .-]+", string.Empty, RegexOptions.IgnoreCase).Trim();
+                if (name.Length < 2 || output.Contains(name)) continue;
+                output.Add(name);
+                if (output.Count >= max) break;
+            }
+            return output;
+        }
+
+        private static string ParseBalanceAdjustments(string text)
+        {
+            var values = new List<string>();
+            foreach (Match match in Regex.Matches(text ?? string.Empty, "(?<dir>[↑↓])(?<name>[A-Za-z ]{3,28})(?<v>[+-]\\d+(?:\\.\\d+)?%)"))
+            {
+                var name = match.Groups["name"].Value.Trim();
+                var translated = TranslateBalanceName(name);
+                var item = translated + " " + match.Groups["v"].Value;
+                if (!values.Contains(item)) values.Add(item);
+                if (values.Count >= 8) break;
+            }
+            return values.Count == 0 ? null : string.Join("  ·  ", values);
+        }
+
+        private static string TranslateBalanceName(string value)
+        {
+            switch ((value ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "attack speed": return "攻击速度";
+                case "damage dealt": return "造成伤害";
+                case "damage taken": return "承受伤害";
+                case "cooldown reduction": return "技能急速";
+                case "healing": return "治疗";
+                case "shielding": return "护盾";
+                case "tenacity": return "韧性";
+                default: return value.Trim();
+            }
+        }
+
+        private static string NormalizeEscapedHtml(string value)
+        {
+            return (value ?? string.Empty)
+                .Replace("\\u003c", "<")
+                .Replace("\\u003e", ">")
+                .Replace("\\u0026", "&")
+                .Replace("\\\"", "\"")
+                .Replace("\\/", "/");
+        }
+
+        private static int IndexOfAny(string text, IEnumerable<string> markers, int startIndex)
+        {
+            var indexes = markers
+                .Where(marker => !string.IsNullOrWhiteSpace(marker))
+                .Select(marker => text.IndexOf(marker, Math.Max(0, startIndex), StringComparison.OrdinalIgnoreCase))
                 .Where(index => index >= 0)
-                .DefaultIfEmpty(-1)
-                .Min();
-            return start < 0 ? string.Empty : text.Substring(start, Math.Min(length, text.Length - start));
+                .ToArray();
+            return indexes.Length == 0 ? -1 : indexes.Min();
         }
 
         private static string Match(string source, string pattern, bool strip)
         {
             var match = Regex.Match(source ?? string.Empty, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
             if (!match.Success) return null;
-            return strip
-                ? CleanText(match.Groups["v"].Value)
-                : WebUtility.HtmlDecode(match.Groups["v"].Value).Trim();
-        }
-
-        private static string JsonText(string raw, string key)
-        {
-            var match = Regex.Match(raw ?? string.Empty, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"(?<v>[^\"\\\\]+)\"", RegexOptions.IgnoreCase);
-            return match.Success ? WebUtility.HtmlDecode(match.Groups["v"].Value).Trim() : null;
-        }
-
-        private static string LastJsonText(string raw, string key, int beforeIndex)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            string result = null;
-            foreach (Match match in Regex.Matches(raw, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"(?<v>[^\"\\\\]+)\"", RegexOptions.IgnoreCase))
-            {
-                if (match.Index > beforeIndex) break;
-                result = WebUtility.HtmlDecode(match.Groups["v"].Value).Trim();
-            }
-            return result;
-        }
-
-        private static string JsonNumber(string raw, string key)
-        {
-            var match = Regex.Match(raw ?? string.Empty, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"?(?<v>-?\\d+(?:\\.\\d+)?)", RegexOptions.IgnoreCase);
-            return match.Success ? match.Groups["v"].Value : null;
-        }
-
-        private static string LastJsonNumber(string raw, string key, int beforeIndex)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            string result = null;
-            foreach (Match match in Regex.Matches(raw, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"?(?<v>-?\\d+(?:\\.\\d+)?)", RegexOptions.IgnoreCase))
-            {
-                if (match.Index > beforeIndex) break;
-                result = match.Groups["v"].Value;
-            }
-            return result;
+            return strip ? CleanText(match.Groups["v"].Value) : WebUtility.HtmlDecode(match.Groups["v"].Value).Trim();
         }
 
         private static string CleanText(string html)
         {
             var text = Regex.Replace(html ?? string.Empty, "<(script|style)[^>]*>.*?</\\1>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            return Regex.Replace(WebUtility.HtmlDecode(Regex.Replace(text, "<[^>]+>", " ")), "\\s+", " ").Trim();
+            text = Regex.Replace(text, "<[^>]+>", " ");
+            return Regex.Replace(WebUtility.HtmlDecode(text), "\\s+", " ").Trim();
         }
 
         private static string CleanName(string value)
         {
-            return string.IsNullOrWhiteSpace(value)
-                ? value
-                : Regex.Replace(value, "\\s*(ARAM|极地大乱斗|Build|构建|出装).*$", string.Empty, RegexOptions.IgnoreCase).Trim();
+            if (string.IsNullOrWhiteSpace(value)) return value;
+            var name = Regex.Replace(value, "\\s*(极地大乱斗|ARAM|Build|构建|出装).*$", string.Empty, RegexOptions.IgnoreCase).Trim();
+            return Regex.Replace(name, "^(Image:|图片:)\\s*", string.Empty, RegexOptions.IgnoreCase).Trim();
         }
 
         private static string First(params string[] values)
         {
             return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        }
+
+        private static double? FirstRate(string first, string second, double? fallback)
+        {
+            return Rate(first) ?? Rate(second) ?? fallback;
         }
 
         private static double? Rate(string value)
