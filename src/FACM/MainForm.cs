@@ -17,24 +17,18 @@ namespace FACM
     {
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
-        private readonly System.Windows.Forms.Timer _animationTimer;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private PetDefinition _pet;
+        private Pet3DWindow _petWindow;
         private CompactMenuForm _menu;
-        private bool _hovered;
-        private bool _dragging;
-        private bool _moved;
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
         private bool _petPickerOpen;
         private bool _themePickerOpen;
         private bool _mayhemOpen;
-        private Point _dragCursor;
-        private Point _dragWindow;
-        private float _hoverProgress;
-        private float _animationPhase;
+        private bool _exiting;
 
         public MainForm(bool startCleanup = false)
         {
@@ -45,16 +39,12 @@ namespace FACM
             Text = "FACM";
             Icon = _appIcon;
             ShowInTaskbar = false;
-            TopMost = true;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
-            ClientSize = _pet.Size;
-            MinimumSize = MaximumSize = _pet.Size;
-            BackColor = Color.Fuchsia;
-            TransparencyKey = Color.Fuchsia;
-            DoubleBuffered = true;
-            Font = new Font("Microsoft YaHei UI", 9F);
-            ApplyPetRegion();
+            ClientSize = new Size(1, 1);
+            MinimumSize = MaximumSize = ClientSize;
+            Opacity = 0;
+            Location = new Point(-32000, -32000);
 
             _tray = new NotifyIcon
             {
@@ -63,46 +53,14 @@ namespace FACM
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
-            _tray.DoubleClick += delegate { Show(); Activate(); ToggleMenu(); };
-
-            _animationTimer = new System.Windows.Forms.Timer { Interval = 32 };
-            _animationTimer.Tick += Animate;
-            _animationTimer.Start();
-
-            MouseEnter += delegate { _hovered = true; };
-            MouseLeave += delegate { _hovered = false; };
-            MouseDown += BeginDrag;
-            MouseMove += ContinueDrag;
-            MouseUp += EndDrag;
-            Shown += HandleShown;
-            SizeChanged += delegate { ApplyPetRegion(); };
-            FormClosed += delegate
+            _tray.DoubleClick += delegate
             {
-                _animationTimer.Stop();
-                _tray.Visible = false;
-                var trayMenu = _tray.ContextMenuStrip;
-                _tray.ContextMenuStrip = null;
-                _tray.Dispose();
-                if (trayMenu != null) trayMenu.Dispose();
-                if (_menu != null) _menu.Dispose();
-                _appIcon.Dispose();
+                EnsurePetWindow();
+                ToggleMenu();
             };
-        }
 
-        protected override bool ShowWithoutActivation
-        {
-            get { return true; }
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs e)
-        {
-            e.Graphics.Clear(TransparencyKey);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            PetRenderer.Draw(e.Graphics, _pet, _animationPhase, _hoverProgress, ElevationService.IsAdministrator);
+            Shown += HandleShown;
+            FormClosed += HandleClosed;
         }
 
         public void CloseMenu()
@@ -115,13 +73,22 @@ namespace FACM
 
         public void ExitApplication()
         {
+            if (_exiting) return;
+            _exiting = true;
             CloseMenu();
+            if (_petWindow != null)
+            {
+                var window = _petWindow;
+                _petWindow = null;
+                window.Close();
+                window.Dispose();
+            }
             Close();
         }
 
         public void ApplyThemeSelection()
         {
-            // 控制面板主题与桌宠外观完全独立。
+            // 主题只重建控制面板，不接触 3D 桌宠场景。
             CloseMenu();
             BeginInvoke(new Action(delegate
             {
@@ -140,7 +107,7 @@ namespace FACM
                 using (var picker = new ThemePickerForm(_settings.ThemeId))
                 {
                     picker.TopMost = true;
-                    if (picker.ShowDialog(this) != DialogResult.OK) return;
+                    if (picker.ShowDialog() != DialogResult.OK) return;
                     _settings.ThemeId = picker.SelectedThemeId;
                     _settings.Save();
                 }
@@ -162,7 +129,7 @@ namespace FACM
                 using (var picker = new PetPickerForm(_settings.PetStyleId))
                 {
                     picker.TopMost = true;
-                    if (picker.ShowDialog(this) != DialogResult.OK) return;
+                    if (picker.ShowDialog() != DialogResult.OK) return;
                     _settings.PetStyleId = picker.SelectedPetId;
                     _settings.Save();
                 }
@@ -184,7 +151,7 @@ namespace FACM
                 using (var form = new MayhemLookupForm())
                 {
                     form.TopMost = true;
-                    form.ShowDialog(this);
+                    form.ShowDialog();
                 }
             }
             finally
@@ -242,7 +209,9 @@ namespace FACM
 
         private void HandleShown(object sender, EventArgs e)
         {
-            RestorePosition();
+            Hide();
+            EnsurePetWindow();
+
             if (_startCleanup)
             {
                 BeginInvoke(new Action(delegate
@@ -259,6 +228,50 @@ namespace FACM
             BeginInvoke(new Action(StartOnlineCheck));
         }
 
+        private void HandleClosed(object sender, FormClosedEventArgs e)
+        {
+            _tray.Visible = false;
+            var trayMenu = _tray.ContextMenuStrip;
+            _tray.ContextMenuStrip = null;
+            _tray.Dispose();
+            if (trayMenu != null) trayMenu.Dispose();
+            if (_menu != null) _menu.Dispose();
+            if (_petWindow != null)
+            {
+                var window = _petWindow;
+                _petWindow = null;
+                window.Close();
+                window.Dispose();
+            }
+            _appIcon.Dispose();
+        }
+
+        private void EnsurePetWindow()
+        {
+            if (_petWindow != null) return;
+
+            _petWindow = new Pet3DWindow(_pet);
+            RestorePetPosition(_petWindow);
+            _petWindow.Clicked += delegate { BeginInvoke(new Action(ToggleMenu)); };
+            _petWindow.DragStarted += delegate { BeginInvoke(new Action(CloseMenu)); };
+            _petWindow.DragFinished += delegate
+            {
+                _settings.BallX = (int)Math.Round(_petWindow.Left);
+                _settings.BallY = (int)Math.Round(_petWindow.Top);
+                _settings.Save();
+            };
+            _petWindow.ContextMenuRequested += delegate
+            {
+                var menu = _tray.ContextMenuStrip;
+                if (menu != null) menu.Show(Cursor.Position);
+            };
+            _petWindow.Closed += delegate
+            {
+                if (!_exiting) _petWindow = null;
+            };
+            _petWindow.Show();
+        }
+
         private ContextMenuStrip BuildTrayMenu()
         {
             var menu = new ContextMenuStrip
@@ -266,17 +279,17 @@ namespace FACM
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ShowImageMargin = false
             };
-            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { Show(); ToggleMenu(); });
+            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { EnsurePetWindow(); ToggleMenu(); });
             menu.Items.Add(_ui.Cleanup, null, delegate
             {
-                Show();
+                EnsurePetWindow();
                 if (_menu == null) ToggleMenu();
                 if (_menu != null && !_menu.IsDisposed)
                     _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
-            menu.Items.Add("桌面宠物", null, delegate { OpenPetSelector(); });
+            menu.Items.Add("3D 桌面宠物", null, delegate { OpenPetSelector(); });
             menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
@@ -376,7 +389,7 @@ namespace FACM
                 {
                     if (automaticPrompt)
                         form.Shown += async delegate { await form.BeginAutomaticUpdateAsync(); };
-                    form.ShowDialog(this);
+                    form.ShowDialog();
                 }
             }
             finally
@@ -384,55 +397,6 @@ namespace FACM
                 _onlineCenterOpen = false;
             }
             return Task.CompletedTask;
-        }
-
-        private void Animate(object sender, EventArgs e)
-        {
-            var target = _hovered || _menu != null ? 1F : 0F;
-            _hoverProgress += (target - _hoverProgress) * 0.22F;
-            _animationPhase += 0.08F;
-            if (_animationPhase > 10000F) _animationPhase = 0F;
-            Invalidate();
-        }
-
-        private void BeginDrag(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                _tray.ContextMenuStrip.Show(Cursor.Position);
-                return;
-            }
-            if (e.Button != MouseButtons.Left) return;
-            _dragging = true;
-            _moved = false;
-            _dragCursor = Cursor.Position;
-            _dragWindow = Location;
-            Capture = true;
-        }
-
-        private void ContinueDrag(object sender, MouseEventArgs e)
-        {
-            if (!_dragging) return;
-            var delta = new Size(Cursor.Position.X - _dragCursor.X, Cursor.Position.Y - _dragCursor.Y);
-            if (Math.Abs(delta.Width) + Math.Abs(delta.Height) > 4) _moved = true;
-            Location = _dragWindow + delta;
-            CloseMenu();
-        }
-
-        private void EndDrag(object sender, MouseEventArgs e)
-        {
-            if (!_dragging || e.Button != MouseButtons.Left) return;
-            _dragging = false;
-            Capture = false;
-            if (_moved)
-            {
-                // 保存用户拖放的准确桌面坐标，不再吸附左右边缘。
-                SavePosition();
-            }
-            else
-            {
-                ToggleMenu();
-            }
         }
 
         private void ToggleMenu()
@@ -443,87 +407,79 @@ namespace FACM
                 return;
             }
 
+            EnsurePetWindow();
             _menu = new CompactMenuForm(this, _settings, _ui);
-            _menu.FormClosed += delegate { _menu = null; Invalidate(); };
+            _menu.FormClosed += delegate { _menu = null; };
             PositionMenu(_menu);
-            _menu.Show(this);
+            _menu.Show();
             _menu.Activate();
         }
 
         private void PositionMenu(Form menu)
         {
-            var area = Screen.FromControl(this).WorkingArea;
-            var openLeft = Left > area.Left + area.Width / 2;
-            var x = openLeft ? Left - menu.Width - 12 : Right + 12;
-            var y = Math.Max(area.Top + 8, Math.Min(Top + Height / 2 - menu.Height / 2, area.Bottom - menu.Height - 8));
+            EnsurePetWindow();
+            var petBounds = new Rectangle(
+                (int)Math.Round(_petWindow.Left),
+                (int)Math.Round(_petWindow.Top),
+                Math.Max(1, (int)Math.Round(_petWindow.Width)),
+                Math.Max(1, (int)Math.Round(_petWindow.Height)));
+            var area = Screen.FromRectangle(petBounds).WorkingArea;
+            var openLeft = petBounds.Left > area.Left + area.Width / 2;
+            var x = openLeft ? petBounds.Left - menu.Width - 12 : petBounds.Right + 12;
+            var y = Math.Max(area.Top + 8, Math.Min(petBounds.Top + petBounds.Height / 2 - menu.Height / 2, area.Bottom - menu.Height - 8));
             x = Math.Max(area.Left + 8, Math.Min(x, area.Right - menu.Width - 8));
             menu.Location = new Point(x, y);
         }
 
-        private void RestorePosition()
+        private void RestorePetPosition(Pet3DWindow window)
         {
             var primary = Screen.PrimaryScreen.WorkingArea;
             if (_settings.BallX == int.MinValue || _settings.BallY == int.MinValue)
             {
-                Location = new Point(primary.Right - Width - 20, primary.Top + (primary.Height - Height) / 2);
+                window.SetScreenPosition(primary.Right - window.Width - 24, primary.Top + (primary.Height - window.Height) / 2.0);
                 return;
             }
 
-            var saved = new Rectangle(_settings.BallX, _settings.BallY, Width, Height);
-            var visible = false;
+            var saved = new Rectangle(
+                _settings.BallX,
+                _settings.BallY,
+                Math.Max(1, (int)Math.Round(window.Width)),
+                Math.Max(1, (int)Math.Round(window.Height)));
             foreach (var screen in Screen.AllScreens)
             {
                 if (!screen.WorkingArea.IntersectsWith(saved)) continue;
-                visible = true;
-                break;
+                window.SetScreenPosition(saved.Left, saved.Top);
+                return;
             }
 
-            Location = visible
-                ? saved.Location
-                : new Point(primary.Right - Width - 20, primary.Top + (primary.Height - Height) / 2);
+            window.SetScreenPosition(primary.Right - window.Width - 24, primary.Top + (primary.Height - window.Height) / 2.0);
         }
 
         private void ApplyPetSelection()
         {
-            var center = new Point(Left + Width / 2, Top + Height / 2);
             _pet = PetCatalog.Get(_settings.PetStyleId);
-            ClientSize = _pet.Size;
-            MinimumSize = MaximumSize = _pet.Size;
-            Location = new Point(center.X - Width / 2, center.Y - Height / 2);
-            EnsurePetRemainsVisible();
-            ApplyPetRegion();
-            SavePosition();
-            Invalidate();
+            EnsurePetWindow();
+            _petWindow.SetPet(_pet);
+            EnsurePetVisible();
+            _settings.BallX = (int)Math.Round(_petWindow.Left);
+            _settings.BallY = (int)Math.Round(_petWindow.Top);
+            _settings.Save();
         }
 
-        private void EnsurePetRemainsVisible()
+        private void EnsurePetVisible()
         {
-            var bounds = new Rectangle(Location, Size);
+            var bounds = new Rectangle(
+                (int)Math.Round(_petWindow.Left),
+                (int)Math.Round(_petWindow.Top),
+                Math.Max(1, (int)Math.Round(_petWindow.Width)),
+                Math.Max(1, (int)Math.Round(_petWindow.Height)));
             foreach (var screen in Screen.AllScreens)
             {
                 if (screen.WorkingArea.IntersectsWith(bounds)) return;
             }
 
             var area = Screen.PrimaryScreen.WorkingArea;
-            Location = new Point(area.Right - Width - 20, area.Top + (area.Height - Height) / 2);
-        }
-
-        private void SavePosition()
-        {
-            _settings.BallX = Left;
-            _settings.BallY = Top;
-            _settings.Save();
-        }
-
-        private void ApplyPetRegion()
-        {
-            if (Width <= 0 || Height <= 0 || _pet == null) return;
-            using (var path = PetRenderer.CreateRegionPath(_pet, ClientSize))
-            {
-                var old = Region;
-                Region = new Region(path);
-                if (old != null) old.Dispose();
-            }
+            _petWindow.SetScreenPosition(area.Right - _petWindow.Width - 24, area.Top + (area.Height - _petWindow.Height) / 2.0);
         }
 
         private static string TrimBalloonText(string value)
