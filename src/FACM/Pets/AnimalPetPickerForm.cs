@@ -33,7 +33,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "动画桌面宠物",
+                Text = "桌面宠物运行层",
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -41,9 +41,9 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "全部使用免登录公开下载的 CC0 动画素材；首次加载后会缓存在本地。",
+                Text = "优先测试 VPet Core 高精度运行层；旧 CC0 Sprite 仅保留为回退/对照。VPet 首次启用会联网缓存官方最小动作集。",
                 Location = new Point(28, 58),
-                Size = new Size(730, 26),
+                Size = new Size(730, 30),
                 ForeColor = Color.FromArgb(160, 174, 198)
             };
 
@@ -159,12 +159,7 @@ namespace FACM.Pets
             {
                 _previewTimer.Stop();
                 _previewTimer.Dispose();
-                if (_assetCancellation != null)
-                {
-                    _assetCancellation.Cancel();
-                    _assetCancellation.Dispose();
-                    _assetCancellation = null;
-                }
+                CancelAssetRequest();
                 var image = _preview.Image;
                 _preview.Image = null;
                 if (image != null) image.Dispose();
@@ -185,12 +180,19 @@ namespace FACM.Pets
             _name.Text = pet.Name;
             _description.Text = pet.Description + "\r\n来源：" + pet.AssetAuthor + " · " + pet.AssetLicense + "；拖动可放置，托盘可复位。";
             _animationSeconds = 0;
+            CancelAssetRequest();
 
-            if (_assetCancellation != null)
+            if (pet.Runtime == AnimalPetRuntime.VPetCore)
             {
-                _assetCancellation.Cancel();
-                _assetCancellation.Dispose();
+                if (_sheet != null)
+                {
+                    _sheet.Dispose();
+                    _sheet = null;
+                }
+                RenderVPetPreview(pet);
+                return;
             }
+
             _assetCancellation = new CancellationTokenSource();
             var token = _assetCancellation.Token;
             var expectedId = pet.Id;
@@ -223,6 +225,7 @@ namespace FACM.Pets
             var old = _sheet;
             _sheet = loaded;
             if (old != null) old.Dispose();
+            _preview.Tag = null;
             UpdatePreviewOnly();
         }
 
@@ -230,6 +233,12 @@ namespace FACM.Pets
         {
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null || IsDisposed) return;
+            if (pet.Runtime == AnimalPetRuntime.VPetCore)
+            {
+                if (!string.Equals(_preview.Tag as string, pet.Id, StringComparison.Ordinal)) RenderVPetPreview(pet);
+                return;
+            }
+
             var frameCount = Math.Max(1, pet.FrameCount);
             var frame = (int)(_animationSeconds * Math.Max(1f, pet.FramesPerSecond)) % frameCount;
             var direction = pet.DirectionalRows ? 0 : pet.AnimationRow;
@@ -247,10 +256,49 @@ namespace FACM.Pets
                     var y = (_preview.Height - side) / 2;
                     graphics.DrawImage(rendered, new Rectangle(x, y, side, side));
                 }
-                var old = _preview.Image;
-                _preview.Image = canvas;
-                if (old != null) old.Dispose();
+                ReplacePreview(canvas, null);
             }
+        }
+
+        private void RenderVPetPreview(AnimalPetDefinition pet)
+        {
+            var canvas = new Bitmap(_preview.Width, _preview.Height);
+            using (var graphics = Graphics.FromImage(canvas))
+            using (var titleFont = new Font("Microsoft YaHei UI", 21F, FontStyle.Bold))
+            using (var bodyFont = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular))
+            using (var titleBrush = new SolidBrush(Color.FromArgb(232, 240, 255)))
+            using (var bodyBrush = new SolidBrush(Color.FromArgb(162, 184, 219)))
+            using (var linePen = new Pen(Color.FromArgb(82, 118, 224), 2F))
+            {
+                graphics.Clear(_preview.BackColor);
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 38, _preview.Width - 24, 52), format);
+                graphics.DrawLine(linePen, 76, 103, _preview.Width - 76, 103);
+                graphics.DrawString(
+                    "成熟动作状态机\r\nIdle · Move · Raised · Touch\r\n\r\n应用后直接在桌面实时验收",
+                    bodyFont,
+                    bodyBrush,
+                    new RectangleF(18, 112, _preview.Width - 36, 124),
+                    format);
+            }
+            ReplacePreview(canvas, pet.Id);
+        }
+
+        private void ReplacePreview(Image image, string tag)
+        {
+            var old = _preview.Image;
+            _preview.Image = image;
+            _preview.Tag = tag;
+            if (old != null) old.Dispose();
+        }
+
+        private void CancelAssetRequest()
+        {
+            if (_assetCancellation == null) return;
+            _assetCancellation.Cancel();
+            _assetCancellation.Dispose();
+            _assetCancellation = null;
         }
     }
 }
