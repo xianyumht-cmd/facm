@@ -54,10 +54,12 @@
              Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
 
-  <Target Name="ValidateOpenSourcePetCatalogAfterCiBuild"
+  <Target Name="ValidateRuntimeSourcesAfterCiBuild"
           AfterTargets="Build"
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Message Importance="High" Text="Validating FACM open-source VRM pet catalog." />
     <Exec Command="&quot;$(TargetPath)&quot; --pet-catalog-test" />
+    <Message Importance="High" Text="Validating live Mayhem build and ranking sources." />
+    <Exec Command="&quot;$(TargetPath)&quot; --mayhem-source-test" />
   </Target>
 </Project>
