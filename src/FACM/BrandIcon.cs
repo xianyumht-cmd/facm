@@ -1,6 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace FACM
@@ -8,6 +10,26 @@ namespace FACM
     internal static class BrandIcon
     {
         public static Icon Create()
+        {
+            try
+            {
+                var executable = Process.GetCurrentProcess().MainModule.FileName;
+                if (!string.IsNullOrWhiteSpace(executable) && File.Exists(executable))
+                {
+                    var icon = Icon.ExtractAssociatedIcon(executable);
+                    if (icon != null) return icon;
+                }
+            }
+            catch
+            {
+                // Use the generated fallback below when the executable icon
+                // cannot be read in the current Windows environment.
+            }
+
+            return CreateFallback();
+        }
+
+        private static Icon CreateFallback()
         {
             using (var bitmap = new Bitmap(32, 32))
             using (var graphics = Graphics.FromImage(bitmap))

@@ -7,14 +7,10 @@ namespace FACM.Services
     internal static class AppLog
     {
         private static readonly object Sync = new object();
-        private static readonly string LogDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FACM",
-            "Logs");
 
         public static string CurrentLogPath
         {
-            get { return Path.Combine(LogDirectory, "facm-" + DateTime.Now.ToString("yyyyMMdd") + ".log"); }
+            get { return Path.Combine(RuntimePaths.LogsDirectory, "facm-" + DateTime.Now.ToString("yyyyMMdd") + ".log"); }
         }
 
         public static void Info(string message)
@@ -38,7 +34,7 @@ namespace FACM.Services
             {
                 lock (Sync)
                 {
-                    Directory.CreateDirectory(LogDirectory);
+                    RuntimePaths.Initialize();
                     var builder = new StringBuilder();
                     builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                     builder.Append(" [").Append(level).Append("] ").Append(message ?? string.Empty);
@@ -53,7 +49,6 @@ namespace FACM.Services
             }
             catch
             {
-                // Logging must never crash the cleanup application.
             }
         }
     }

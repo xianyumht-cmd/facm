@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "version": "3.1.0",
+  "minimum_version": "3.0.0",
+  "force_update": false,
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/latest/download/FACM.exe",
+  "sha256": "",
+  "release_notes": "当前已是最新版本。",
+  "published_at": "2026-08-07T00:00:00+08:00"
+}

@@ -1,0 +1,116 @@
+name: FACM Online Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      enabled:
+        description: '启用公告'
+        required: true
+        type: boolean
+        default: true
+      popup:
+        description: '新公告启动时弹出'
+        required: true
+        type: boolean
+        default: true
+      title:
+        description: '公告标题'
+        required: true
+        type: string
+        default: 'FACM 公告'
+      body:
+        description: '公告正文'
+        required: true
+        type: string
+        default: '请在这里填写公告内容。'
+      level:
+        description: '公告级别'
+        required: true
+        type: choice
+        options:
+          - info
+          - warning
+          - critical
+        default: info
+      link_url:
+        description: '可选 HTTPS 链接'
+        required: false
+        type: string
+      announcement_id:
+        description: '可选公告 ID；留空时自动生成'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: facm-online-management
+  cancel-in-progress: false
+
+jobs:
+  publish-announcement:
+    runs-on: ubuntu-latest
+    env:
+      INPUT_ENABLED: ${{ inputs.enabled }}
+      INPUT_POPUP: ${{ inputs.popup }}
+      INPUT_TITLE: ${{ inputs.title }}
+      INPUT_BODY: ${{ inputs.body }}
+      INPUT_LEVEL: ${{ inputs.level }}
+      INPUT_LINK_URL: ${{ inputs.link_url }}
+      INPUT_ANNOUNCEMENT_ID: ${{ inputs.announcement_id }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate and write announcement
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:INPUT_TITLE)) {
+            throw 'Announcement title cannot be empty.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:INPUT_BODY)) {
+            throw 'Announcement body cannot be empty.'
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_LINK_URL)) {
+            $uri = $null
+            if (-not [Uri]::TryCreate($env:INPUT_LINK_URL, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') {
+              throw 'Announcement link must be an HTTPS URL.'
+            }
+          }
+
+          $announcementId = $env:INPUT_ANNOUNCEMENT_ID
+          if ([string]::IsNullOrWhiteSpace($announcementId)) {
+            $announcementId = 'announcement-' + [DateTimeOffset]::UtcNow.ToString('yyyyMMddHHmmss')
+          }
+
+          $data = [ordered]@{
+            enabled = [bool]::Parse($env:INPUT_ENABLED)
+            id = $announcementId
+            title = $env:INPUT_TITLE
+            body = $env:INPUT_BODY
+            level = $env:INPUT_LEVEL
+            popup = [bool]::Parse($env:INPUT_POPUP)
+            updated_at = [DateTimeOffset]::UtcNow.ToString('o')
+            link_url = $env:INPUT_LINK_URL
+          }
+
+          New-Item -ItemType Directory -Path online -Force | Out-Null
+          $data | ConvertTo-Json | Set-Content online/announcement.json -Encoding utf8
+          Get-Content online/announcement.json
+
+      - name: Commit announcement
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add online/announcement.json
+          if git diff --cached --quiet; then
+            echo "Announcement did not change."
+            exit 0
+          fi
+          git commit -m "更新 FACM 联网公告"
+          git push origin main

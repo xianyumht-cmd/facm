@@ -1,109 +1,143 @@
-# FACM 3.0
+# FACM 3.1
 
-FACM 3.0 是一个 Windows 桌面悬浮控制中心。本次版本保留轻量悬浮入口与现有内置工具执行能力，重新设计了控制中心、清理预览和状态反馈，并新增开发者可配置的环境清理规则。
+FACM 3.1 是 Windows 桌面悬浮控制中心，包含开发者配置的清理流程、经过完整性校验的内置工具资源、联网版本更新和公告管理。
 
-## 新界面
+## 界面与运行
 
 - 68×68 桌面悬浮入口，支持拖动、边缘吸附和托盘恢复。
-- 重新设计的深色控制中心，统一圆角、层级、状态与交互反馈。
-- 工作目录卡片支持自动识别和手动选择。
-- 清理前显示独立预览窗口，列出完整路径、类别、状态和估算大小。
-- 普通模式与管理员模式在界面中明确显示。
+- 深色控制中心，包含工作目录、清理预览、内置工具和操作日志。
+- 悬浮球右键菜单提供完整工具入口、在线中心、检查更新和退出。
+- 普通模式与管理员模式分离，只在需要时请求管理员权限。
 
-## 清理环境
+## 清理配置
 
-清理规则不会由最终用户在界面中填写。开发者在编译前修改：
+开发者在编译前修改：
 
 ```text
 src/FACM/Configuration/CleanupProfile.cs
 ```
 
-未替换任何一个 `REPLACE_...` 占位值时，清理功能保持禁用，不会删除文件。
+未替换任意 `REPLACE_...` 占位值时，清理功能保持禁用。详细字段说明见：
 
-完成配置后，用户主动点击“清理环境”时，程序会：
+```text
+docs/DEVELOPER-CLEANUP-CONFIG.md
+```
 
-1. 检查相关程序是否仍在运行。
-2. 自动从当前进程和 Windows 卸载项读取安装位置；识别失败时打开系统文件夹选择器。
-3. 扫描两个固定系统目录和开发者配置的安装目录规则。
-4. 永久保留配置的保留文件夹，默认名称为 `DATA`。
-5. 只匹配配置日志目录顶层的 `*.log`。
-6. 展示所有精确路径并要求再次确认。
-7. 重新校验路径后执行删除，并写入本地日志。
+## 内置工具资源 DLL
 
-详细字段说明见 `docs/DEVELOPER-CLEANUP-CONFIG.md`。
+当前 `tools/` 中的工具输入会在构建时写入：
 
-## 路径与删除保护
+```text
+FACM.ToolBundle.dll
+```
 
-- 不进行整盘关键词搜索。
-- 动态路径必须保持在识别出的安装根目录内。
-- 不进入 junction、符号链接或其他重解析点。
-- 预览后、删除前再次核验每个目标所属规则。
-- 相关进程未退出时拒绝清理。
-- 系统目录只在用户主动确认后按需请求管理员权限。
-- 日志保存在 `%LocalAppData%\FACM\Logs`。
+随后该 DLL 作为资源嵌入最终的单文件 `FACM.exe`。运行时 FACM 会：
 
-## 内置工具
+1. 从自身资源中释放版本化的 `FACM.ToolBundle.dll`。
+2. 校验释放前后 DLL 的 SHA-256 一致。
+3. 动态加载资源 DLL。
+4. 按用户选择释放对应工具文件。
+5. 对每个工具再次校验固定 SHA-256 后再启动。
 
-从旧版 `tools/FACM.exe` 中恢复出的原始资源保存在 `tools/`，并由 `tools/EXTRACTED-TOOLS.json` 记录文件大小和 SHA-256。自动构建与本地构建都会先校验这些文件，任何缺失或字节变化都会使构建失败。
+构建不会执行 `tools/` 中的任何文件。输入文件清单位于：
 
-资源不会在构建校验阶段执行。
+```text
+tools/EXTRACTED-TOOLS.json
+```
+
+## 在线版本更新
+
+程序读取：
+
+```text
+online/version.json
+```
+
+支持：
+
+- 启动时自动检查并提示更新。
+- 在线中心手动检查和手动更新。
+- 下载进度显示。
+- 更新文件 SHA-256 校验。
+- 退出当前进程后替换 EXE 并重新启动。
+- 最低版本限制和强制更新。
+
+发布新版本使用：
+
+```text
+Actions → FACM Publish Release → Run workflow
+```
+
+发布工作流会编译、签名、创建 GitHub Release、上传 `FACM.exe`，并自动更新在线版本清单。
+
+## 联网公告
+
+公告配置位于：
+
+```text
+online/announcement.json
+```
+
+后台修改入口：
+
+```text
+Actions → FACM Online Management → Run workflow
+```
+
+可修改公告开关、标题、正文、级别、是否启动时弹出和可选 HTTPS 链接。完整操作说明见：
+
+```text
+docs/ONLINE-MANAGEMENT.md
+```
 
 ## 自动构建 EXE
 
-修改 `CleanupProfile.cs` 或其他源码并提交到 `main` 后，GitHub Actions 会自动：
+源码提交到 `main` 后，GitHub Actions 会自动：
 
-1. 校验 `tools/` 中恢复出的文件完整性。
-2. 检查清理配置是否仍包含 `REPLACE_...` 占位符；存在占位符时只警告，不阻止构建。
-3. 使用 Windows Runner 和 .NET Framework 4.8 编译 Release 版本。
-4. 检查生成文件的 PE 头、产品名称和版本信息。
-5. 在配置证书 Secrets 时执行 Authenticode 签名。
-6. 生成 EXE、ZIP、SHA-256、签名状态和构建信息。
+1. 校验 `tools/` 输入文件大小和 SHA-256。
+2. 编译 `FACM.ToolBundle.dll` 并嵌入 `FACM.exe`。
+3. 检查清理配置状态。
+4. 使用 Windows Runner 和 .NET Framework 4.8 编译 Release。
+5. 检查 PE、版本信息和工具 DLL 资源。
+6. 在配置证书 Secrets 时执行 Authenticode 签名。
+7. 生成 EXE、ZIP、SHA-256、签名状态和构建信息。
 
-下载方法：
+手动构建：
 
-1. 打开仓库的 **Actions** 页面。
-2. 进入最新成功的 **FACM Windows Build**。
-3. 在页面底部下载 `FACM-Windows-x64-运行编号`。
-4. 压缩包内可直接找到 `FACM.exe`。
+```text
+Actions → FACM Windows Build → Run workflow → main
+```
 
-也可以在 Actions 页面手动运行 `FACM Windows Build`，无需再次修改代码。
+成功后在运行页面底部下载：
+
+```text
+FACM-Windows-x64-运行编号
+```
 
 ## 本地构建
 
-系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，并安装 .NET Framework 4.8 targeting pack。
+系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，以及 .NET Framework 4.8 targeting pack。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 ```
 
-输出：
-
-```text
-artifacts\FACM.exe
-FACM-Windows-x64.zip
-```
-
 ## 代码签名
 
-正式发布建议使用受信任机构签发的 Authenticode 代码签名证书：
+GitHub Actions 自动签名使用：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\sign-release.ps1 `
-  -ExePath .\artifacts\FACM.exe `
-  -PfxPath C:\secure\facm-signing.pfx `
-  -PfxPassword "你的PFX密码"
+- `FACM_PFX_BASE64`
+- `FACM_PFX_PASSWORD`
+
+证书与签名说明见：
+
+```text
+docs/SIGNING.md
 ```
-
-GitHub Actions 自动签名使用以下仓库 Secrets：
-
-- `FACM_PFX_BASE64`：PFX 文件的 Base64 内容。
-- `FACM_PFX_PASSWORD`：PFX 密码；无密码时可留空。
-
-自签名证书可验证签名流程，但通常不能消除 SmartScreen 的“未知发布者”，也不能保证不被安全软件告警。完整说明见 `docs/SIGNING.md`。
 
 ## 构建产物
 
-每次成功构建都会上传：
+每次成功构建上传：
 
 - `FACM-Windows-x64.zip`
 - `FACM.exe`
@@ -111,4 +145,4 @@ GitHub Actions 自动签名使用以下仓库 Secrets：
 - `SIGNATURE.txt`
 - `BUILD-INFO.json`
 
-Actions 构建产物保留 90 天。
+构建产物默认保留 90 天。

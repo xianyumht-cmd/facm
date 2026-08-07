@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>FACM.ToolBundle</RootNamespace>
+    <AssemblyName>FACM.ToolBundle</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Deterministic>true</Deterministic>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\tools\clean driver.exe">
+      <LogicalName>FACM.ToolBundle.Resources.ToolA</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\tools\Fix-LCU-Window.exe">
+      <LogicalName>FACM.ToolBundle.Resources.ModeTool</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\tools\fix-mode-1.bat">
+      <LogicalName>FACM.ToolBundle.Resources.ModeScript1</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\tools\fix-mode-2.bat">
+      <LogicalName>FACM.ToolBundle.Resources.ModeScript2</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\tools\fix-mode-3.bat">
+      <LogicalName>FACM.ToolBundle.Resources.ModeScript3</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\tools\fix-mode-4.bat">
+      <LogicalName>FACM.ToolBundle.Resources.ModeScript4</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

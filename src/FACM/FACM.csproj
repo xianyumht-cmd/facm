@@ -10,12 +10,15 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources\FACM.ico</ApplicationIcon>
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
   </PropertyGroup>
+
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -23,11 +26,42 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Security" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Web.Extensions" />
   </ItemGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part00"><LogicalName>FACM.Resources.FixLcu.GzipPart00</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part01"><LogicalName>FACM.Resources.FixLcu.GzipPart01</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part02"><LogicalName>FACM.Resources.FixLcu.GzipPart02</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="Resources\Fix-LCU-Window.exe.gz.b64.part03"><LogicalName>FACM.Resources.FixLcu.GzipPart03</LogicalName></EmbeddedResource>
+    <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
+    <None Include="Resources\FACM-Canva.png" />
+
+    <!--
+      EmbeddedResource 必须在项目加载阶段进入资源项列表。FACM.ToolBundle
+      会由上面的 ProjectReference 先构建，随后以固定资源名写入 FACM.exe。
+    -->
+    <EmbeddedResource Include="$(ToolBundleAssembly)"
+                      LogicalName="FACM.Resources.FACM.ToolBundle.dll"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
+
+  <Target Name="VerifyToolBundleBeforeCompile"
+          BeforeTargets="PrepareResourceNames"
+          DependsOnTargets="ResolveProjectReferences">
+    <Error Condition="!Exists('$(ToolBundleAssembly)')"
+           Text="FACM.ToolBundle.dll was not built: $(ToolBundleAssembly)" />
+    <Message Importance="High"
+             Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
+  </Target>
+
+  <Target Name="ValidateRuntimeSourcesAfterCiBuild"
+          AfterTargets="Build"
+          Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
+    <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
+    <Message Importance="High" Text="Validating FACM built-in roaming animal pets and reset behavior." />
+    <Exec Command="&quot;$(TargetPath)&quot; --animal-pet-test" />
+    <Message Importance="High" Text="Validating live Mayhem build, ranking and image-card sources." />
+    <Exec Command="&quot;$(TargetPath)&quot; --mayhem-source-test" />
+  </Target>
 </Project>
