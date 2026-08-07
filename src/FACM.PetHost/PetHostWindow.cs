@@ -8,6 +8,11 @@ using LinePutScript;
 using VPet_Simulator.Core;
 using FormsControl = System.Windows.Forms.Control;
 using VPetMain = VPet_Simulator.Core.Main;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
+using WpfFontFamily = System.Windows.Media.FontFamily;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace FACM.PetHost;
 
@@ -58,19 +63,19 @@ internal sealed class PetHostWindow : Window
         {
             Width = Width,
             Height = Height,
-            Background = Brushes.Transparent
+            Background = WpfBrushes.Transparent
         };
 
         _statusText = new TextBlock
         {
             Text = "正在启动高精度桌宠…",
-            Foreground = Brushes.White,
-            FontFamily = new FontFamily("Microsoft YaHei UI"),
+            Foreground = WpfBrushes.White,
+            FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
             FontSize = 13,
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = WpfVerticalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Center,
             Margin = new Thickness(18, 10, 18, 10)
         };
 
@@ -79,12 +84,12 @@ internal sealed class PetHostWindow : Window
             Width = 278,
             MinHeight = 92,
             Padding = new Thickness(8),
-            Background = new SolidColorBrush(Color.FromArgb(222, 12, 17, 28)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 121, 155, 255)),
+            Background = new SolidColorBrush(WpfColor.FromArgb(222, 12, 17, 28)),
+            BorderBrush = new SolidColorBrush(WpfColor.FromArgb(120, 121, 155, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = WpfVerticalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Center,
             Child = _statusText
         };
         _root.Children.Add(_statusCard);
@@ -92,9 +97,9 @@ internal sealed class PetHostWindow : Window
 
         Loaded += OnLoaded;
         Closed += OnClosed;
-        AddHandler(Mouse.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(OnPreviewLeftButtonDown), true);
-        AddHandler(Mouse.PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler(OnPreviewLeftButtonUp), true);
-        AddHandler(Mouse.PreviewMouseRightButtonDownEvent, new MouseButtonEventHandler(OnPreviewRightButtonDown), true);
+        PreviewMouseLeftButtonDown += OnPreviewLeftButtonDown;
+        PreviewMouseLeftButtonUp += OnPreviewLeftButtonUp;
+        PreviewMouseRightButtonDown += OnPreviewRightButtonDown;
 
         _ipc.Start(HandleCommand);
     }
@@ -130,8 +135,8 @@ internal sealed class PetHostWindow : Window
 
             _main = new VPetMain(_core)
             {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+                VerticalAlignment = WpfVerticalAlignment.Stretch,
                 Opacity = 0
             };
 
