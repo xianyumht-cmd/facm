@@ -15,18 +15,23 @@ namespace FACM.Pets
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                if (AnimalPetCatalog.All.Count < 8)
-                    throw new InvalidOperationException("Animated pet catalog is unexpectedly small.");
+                if (AnimalPetCatalog.All.Count < 9)
+                    throw new InvalidOperationException("Pet catalog is unexpectedly small.");
+                if (AnimalPetCatalog.Get("vpet").Runtime != AnimalPetRuntime.VPetCore)
+                    throw new InvalidOperationException("VPet Core runtime is missing from the pet catalog.");
 
                 var signatures = new HashSet<int>();
+                var spriteCount = 0;
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(55)))
                 {
                     foreach (var pet in AnimalPetCatalog.All)
                     {
+                        if (pet.Runtime != AnimalPetRuntime.Sprite) continue;
+                        spriteCount++;
                         if (!string.Equals(pet.AssetLicense, "CC0", StringComparison.OrdinalIgnoreCase))
-                            throw new InvalidOperationException("Non-CC0 pet asset entered the built-in catalog: " + pet.Id);
+                            throw new InvalidOperationException("Non-CC0 asset entered the legacy sprite fallback catalog: " + pet.Id);
                         if (pet.FrameCount < 2)
-                            throw new InvalidOperationException("Built-in pet is not truly animated: " + pet.Id);
+                            throw new InvalidOperationException("Legacy sprite fallback is not truly animated: " + pet.Id);
 
                         using (var sheet = SpritePetAssetService.LoadAsync(pet, cancellation.Token).GetAwaiter().GetResult())
                         {
@@ -61,8 +66,10 @@ namespace FACM.Pets
                     }
                 }
 
-                if (signatures.Count < AnimalPetCatalog.All.Count * 2 - 2)
-                    throw new InvalidOperationException("Animated pet renders are not visually distinct enough.");
+                if (spriteCount < 8)
+                    throw new InvalidOperationException("Legacy sprite fallback count dropped unexpectedly.");
+                if (signatures.Count < spriteCount * 2 - 2)
+                    throw new InvalidOperationException("Animated fallback renders are not visually distinct enough.");
 
                 using (var window = new SpritePetWindow(AnimalPetCatalog.Get("spider")))
                 {
