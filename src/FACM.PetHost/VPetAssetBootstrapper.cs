@@ -9,7 +9,15 @@ internal static class PetHostPaths
     internal const string UpstreamCommit = "ac77ba144ed39f61624d93542c008b38be4d85aa";
     internal const string UpstreamShortCommit = "ac77ba14";
 
-    internal static string RootDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FACM", "PetHost");
+    private static readonly string DefaultRootDirectory = Path.Combine(AppContext.BaseDirectory, "runtime", "pethost");
+    private static string _rootDirectory = Path.GetFullPath(DefaultRootDirectory);
+
+    internal static string LegacyRootDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "FACM",
+        "PetHost");
+
+    internal static string RootDirectory => _rootDirectory;
     internal static string AssetsDirectory => Path.Combine(RootDirectory, "Assets");
     internal static string AssetVersionDirectory => Path.Combine(AssetsDirectory, "vpet-" + UpstreamShortCommit);
     internal static string AssetStagingDirectory => Path.Combine(AssetsDirectory, ".vpet-" + UpstreamShortCommit + ".partial");
@@ -18,6 +26,13 @@ internal static class PetHostPaths
     internal static string PetConfigPath => Path.Combine(PetDirectory, "vup.lps");
     internal static string CacheDirectory => Path.Combine(RootDirectory, "Cache");
     internal static string CompletionMarker => Path.Combine(AssetVersionDirectory, ".facm-complete.json");
+    internal static string LegacyMigrationMarker => Path.Combine(RootDirectory, ".legacy-localappdata-migrated-v1");
+
+    internal static void ConfigureDataRoot(string? dataRoot)
+    {
+        var requested = string.IsNullOrWhiteSpace(dataRoot) ? DefaultRootDirectory : dataRoot;
+        _rootDirectory = Path.GetFullPath(requested!);
+    }
 }
 
 internal sealed class VPetAssetBootstrapper
@@ -38,6 +53,8 @@ internal sealed class VPetAssetBootstrapper
         Directory.CreateDirectory(PetHostPaths.RootDirectory);
         Directory.CreateDirectory(PetHostPaths.AssetsDirectory);
         Directory.CreateDirectory(PetHostPaths.CacheDirectory);
+
+        TryMigrateLegacyData(progress, cancellationToken);
 
         if (IsComplete())
         {
@@ -143,6 +160,70 @@ internal sealed class VPetAssetBootstrapper
             return marker.Contains(PetHostPaths.UpstreamCommit, StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }
+    }
+
+    private static void TryMigrateLegacyData(IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var source = Path.GetFullPath(PetHostPaths.LegacyRootDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var destination = Path.GetFullPath(PetHostPaths.RootDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase)) return;
+            if (!Directory.Exists(source) || File.Exists(PetHostPaths.LegacyMigrationMarker)) return;
+
+            progress?.Report("正在把旧桌宠数据迁移到 FACM 目录…");
+            CopyDirectoryVerified(source, destination, cancellationToken);
+            File.WriteAllText(
+                PetHostPaths.LegacyMigrationMarker,
+                "Migrated from " + source + Environment.NewLine + DateTimeOffset.UtcNow.ToString("O"),
+                Encoding.UTF8);
+
+            try { Directory.Delete(source, true); } catch { }
+            progress?.Report("旧桌宠数据已迁移到 FACM\\runtime\\pethost");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Migration is an optimization. Never make the desktop pet unusable just because an old
+            // LocalAppData cache cannot be copied; the normal download/cache path can rebuild safely.
+            progress?.Report("旧桌宠缓存迁移未完成，将在 FACM 目录重新准备：" + TrimMigrationError(exception.Message));
+        }
+    }
+
+    private static void CopyDirectoryVerified(string sourceRoot, string destinationRoot, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(destinationRoot);
+        foreach (var sourceDirectory in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relative = Path.GetRelativePath(sourceRoot, sourceDirectory);
+            Directory.CreateDirectory(Path.Combine(destinationRoot, relative));
+        }
+
+        foreach (var sourceFile in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relative = Path.GetRelativePath(sourceRoot, sourceFile);
+            var destinationFile = Path.Combine(destinationRoot, relative);
+            var parent = Path.GetDirectoryName(destinationFile);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+
+            var sourceLength = new FileInfo(sourceFile).Length;
+            if (!File.Exists(destinationFile) || new FileInfo(destinationFile).Length != sourceLength)
+                File.Copy(sourceFile, destinationFile, true);
+
+            if (!File.Exists(destinationFile) || new FileInfo(destinationFile).Length != sourceLength)
+                throw new IOException("迁移后文件校验失败：" + relative);
+        }
+    }
+
+    private static string TrimMigrationError(string value)
+    {
+        value = (value ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return value.Length <= 90 ? value : value.Substring(0, 89) + "…";
     }
 
     private static void RecoverInterruptedStage()
