@@ -6,7 +6,7 @@ namespace FACM.Pets
 {
     internal static class AnimalPetManager
     {
-        private static AnimalPetWindow _window;
+        private static SpritePetWindow _window;
         private static Action _clicked;
         private static Action _rightClicked;
 
@@ -29,20 +29,20 @@ namespace FACM.Pets
 
             if (_window == null || _window.IsDisposed)
             {
-                _window = new AnimalPetWindow(definition);
+                _window = new SpritePetWindow(definition);
                 _window.PetClicked += HandleClicked;
                 _window.PetRightClicked += HandleRightClicked;
                 _window.FormClosed += HandleClosed;
                 _window.Show();
                 _window.ResetToPrimaryScreen();
-                AppLog.Info("Built-in animal pet started: " + definition.Id);
+                AppLog.Info("Animated sprite pet started: " + definition.Id);
                 return;
             }
 
             _window.SetPet(definition);
             if (!_window.Visible) _window.Show();
             _window.TopMost = true;
-            AppLog.Info("Built-in animal pet changed: " + definition.Id);
+            AppLog.Info("Animated sprite pet changed: " + definition.Id);
         }
 
         public static void ResetToPrimaryScreen()
@@ -50,7 +50,7 @@ namespace FACM.Pets
             EnsureUiThread();
             if (_window == null || _window.IsDisposed) return;
             _window.ResetToPrimaryScreen();
-            AppLog.Info("Built-in animal pet reset to primary screen.");
+            AppLog.Info("Animated sprite pet reset to primary screen.");
         }
 
         public static void Stop()
@@ -69,7 +69,7 @@ namespace FACM.Pets
             }
             catch (Exception exception)
             {
-                AppLog.Info("Built-in animal pet stop skipped: " + exception.Message);
+                AppLog.Info("Animated sprite pet stop skipped: " + exception.Message);
             }
             finally
             {
