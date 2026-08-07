@@ -227,8 +227,29 @@ internal sealed class PetHostWindow : Window
         var now = FormsControl.MousePosition;
         var distance = Math.Abs(now.X - _leftDownPoint.X) + Math.Abs(now.Y - _leftDownPoint.Y);
         var elapsedMs = (Stopwatch.GetTimestamp() - _leftDownTicks) * 1000d / Stopwatch.Frequency;
-        if (distance <= 7 && elapsedMs <= 650)
+        if (distance <= 7 && elapsedMs <= 650 && IsFacmOpenHit(e))
             _ = _ipc.SendEventAsync("click");
+    }
+
+    private bool IsFacmOpenHit(MouseButtonEventArgs e)
+    {
+        // FACM's open-panel bridge must not turn the whole transparent 330x330 host into a hit target.
+        // Reuse VPet's own configured head/body rectangles, but do not handle the routed event; VPet keeps
+        // receiving exactly the same touch/press interactions as before.
+        if (_main == null || _core?.Graph?.GraphConfig == null) return false;
+        var width = Math.Max(1d, _main.ActualWidth);
+        var height = Math.Max(1d, _main.ActualHeight);
+        var point = e.GetPosition(_main);
+        var petX = point.X * 500d / width;
+        var petY = point.Y * 500d / height;
+        var config = _core.Graph.GraphConfig;
+        return Contains(config.TouchHeadLocate, config.TouchHeadSize, petX, petY) ||
+               Contains(config.TouchBodyLocate, config.TouchBodySize, petX, petY);
+    }
+
+    private static bool Contains(System.Windows.Point locate, System.Windows.Size size, double x, double y)
+    {
+        return x >= locate.X && x <= locate.X + size.Width && y >= locate.Y && y <= locate.Y + size.Height;
     }
 
     private void OnPreviewRightButtonDown(object sender, MouseButtonEventArgs e)
