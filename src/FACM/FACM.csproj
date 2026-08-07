@@ -3,7 +3,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <UseWPF>true</UseWPF>
     <RootNamespace>FACM</RootNamespace>
     <AssemblyName>FACM</AssemblyName>
     <Platforms>AnyCPU</Platforms>
@@ -30,11 +29,6 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
 
   <ItemGroup>
@@ -60,10 +54,10 @@
              Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
 
-  <Target Name="SmokeTest3DPetsAfterCiBuild"
+  <Target Name="ValidateOpenSourcePetCatalogAfterCiBuild"
           AfterTargets="Build"
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
-    <Message Importance="High" Text="Running FACM 3D pet smoke test for all built-in models." />
-    <Exec Command="&quot;$(TargetPath)&quot; --pet-smoke-test" />
+    <Message Importance="High" Text="Validating FACM open-source VRM pet catalog." />
+    <Exec Command="&quot;$(TargetPath)&quot; --pet-catalog-test" />
   </Target>
 </Project>
