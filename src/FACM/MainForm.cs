@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,10 +20,8 @@ namespace FACM
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
-        private readonly System.Windows.Forms.Timer _ballAnimation;
+        private readonly LayeredFloatingBall _layeredBall;
         private CompactMenuForm _menu;
-        private CancellationTokenSource _petEventsCancellation;
-        private CancellationTokenSource _petHealthCancellation;
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -32,15 +29,11 @@ namespace FACM
         private bool _themePickerOpen;
         private bool _mayhemOpen;
         private bool _exiting;
-        private bool _externalPetActive;
-        private bool _hovered;
+        private bool _animalPetActive;
         private bool _dragging;
         private bool _moved;
         private Point _dragCursor;
         private Point _dragWindow;
-        private float _hoverProgress;
-        private float _pulse;
-        private float _orbit;
 
         public MainForm(bool startCleanup = false)
         {
@@ -55,16 +48,11 @@ namespace FACM
             StartPosition = FormStartPosition.Manual;
             ClientSize = new Size(BallSize, BallSize);
             MinimumSize = MaximumSize = Size;
-            BackColor = Color.FromArgb(6, 13, 28);
+            BackColor = Color.Black;
             TransparencyKey = Color.Empty;
-            DoubleBuffered = true;
+            DoubleBuffered = false;
             Font = new Font("Microsoft YaHei UI", 9F);
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
-            using (var shape = new GraphicsPath())
-            {
-                shape.AddEllipse(1, 1, BallSize - 2, BallSize - 2);
-                Region = new Region(shape);
-            }
+            Region = null;
 
             _tray = new NotifyIcon
             {
@@ -75,12 +63,8 @@ namespace FACM
             };
             _tray.DoubleClick += delegate { ToggleMenu(); };
 
-            _ballAnimation = new System.Windows.Forms.Timer { Interval = 24 };
-            _ballAnimation.Tick += AnimateBall;
-            _ballAnimation.Start();
+            _layeredBall = LayeredFloatingBall.Attach(this);
 
-            MouseEnter += delegate { _hovered = true; };
-            MouseLeave += delegate { _hovered = false; };
             MouseDown += BeginBallDrag;
             MouseMove += ContinueBallDrag;
             MouseUp += EndBallDrag;
@@ -95,117 +79,12 @@ namespace FACM
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            e.Graphics.Clear(Color.FromArgb(6, 13, 28));
+            // Per-pixel alpha content is supplied by LayeredFloatingBall.
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            e.Graphics.CompositingQuality = CompositingQuality.HighQuality;
-
-            var hoverLift = 1.4f * _hoverProgress;
-            var inset = 4.2f - hoverLift;
-            var sphere = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
-
-            using (var haloPath = new GraphicsPath())
-            {
-                haloPath.AddEllipse(sphere.X - 1.2f, sphere.Y - 1.2f, sphere.Width + 2.4f, sphere.Height + 2.4f);
-                using (var halo = new PathGradientBrush(haloPath))
-                {
-                    halo.CenterColor = Color.FromArgb(28, 82, 183, 255);
-                    halo.SurroundColors = new[] { Color.FromArgb(0, 82, 183, 255) };
-                    e.Graphics.FillPath(halo, haloPath);
-                }
-            }
-
-            using (var spherePath = new GraphicsPath())
-            {
-                spherePath.AddEllipse(sphere);
-                using (var body = new PathGradientBrush(spherePath))
-                {
-                    body.CenterPoint = new PointF(sphere.Left + sphere.Width * 0.30f, sphere.Top + sphere.Height * 0.23f);
-                    body.CenterColor = Color.FromArgb(192, 241, 255);
-                    body.SurroundColors = new[] { Color.FromArgb(9, 27, 78) };
-                    e.Graphics.FillPath(body, spherePath);
-                }
-            }
-
-            using (var depthPath = new GraphicsPath())
-            {
-                depthPath.AddEllipse(
-                    sphere.Left + sphere.Width * 0.08f,
-                    sphere.Top + sphere.Height * 0.43f,
-                    sphere.Width * 0.84f,
-                    sphere.Height * 0.50f);
-                using (var depth = new PathGradientBrush(depthPath))
-                {
-                    depth.CenterColor = Color.FromArgb(92, 21, 65, 154);
-                    depth.SurroundColors = new[] { Color.FromArgb(0, 8, 27, 72) };
-                    e.Graphics.FillPath(depth, depthPath);
-                }
-            }
-
-            var glow = 54 + (int)(44 * _hoverProgress) + (int)(10 * (0.5 + 0.5 * Math.Sin(_pulse)));
-            using (var outer = new Pen(Color.FromArgb(Math.Max(0, Math.Min(125, glow)), 88, 195, 255), 2.0f))
-                e.Graphics.DrawEllipse(outer, sphere);
-            using (var rim = new Pen(Color.FromArgb(165, 199, 234, 255), 1.15f))
-                e.Graphics.DrawEllipse(rim, sphere.X + 3.5f, sphere.Y + 3.5f, sphere.Width - 7, sphere.Height - 7);
-
-            var orbitBounds = new RectangleF(sphere.X + 8, sphere.Y + sphere.Height * 0.35f, sphere.Width - 16, sphere.Height * 0.30f);
-            using (var orbitPen = new Pen(Color.FromArgb(105, 118, 208, 255), 1.15f))
-            {
-                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit, 116f);
-                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit + 182f, 76f);
-            }
-
-            using (var glassPath = new GraphicsPath())
-            {
-                glassPath.AddEllipse(
-                    sphere.X + sphere.Width * 0.12f,
-                    sphere.Y + sphere.Height * 0.08f,
-                    sphere.Width * 0.50f,
-                    sphere.Height * 0.34f);
-                using (var glass = new PathGradientBrush(glassPath))
-                {
-                    glass.CenterColor = Color.FromArgb(100, 255, 255, 255);
-                    glass.SurroundColors = new[] { Color.FromArgb(0, 255, 255, 255) };
-                    e.Graphics.FillPath(glass, glassPath);
-                }
-            }
-
-            using (var shine = new SolidBrush(Color.FromArgb(196, 255, 255, 255)))
-                e.Graphics.FillEllipse(shine, sphere.X + sphere.Width * 0.20f, sphere.Y + sphere.Height * 0.15f, sphere.Width * 0.23f, sphere.Height * 0.105f);
-
-            var coreSize = 35f + 2.2f * _hoverProgress;
-            var core = new RectangleF((Width - coreSize) / 2f, (Height - coreSize) / 2f, coreSize, coreSize);
-            using (var corePath = new GraphicsPath())
-            {
-                corePath.AddEllipse(core);
-                using (var coreBrush = new PathGradientBrush(corePath))
-                {
-                    coreBrush.CenterPoint = new PointF(core.Left + core.Width * 0.34f, core.Top + core.Height * 0.27f);
-                    coreBrush.CenterColor = Color.FromArgb(255, 250, 253, 255);
-                    coreBrush.SurroundColors = new[] { Color.FromArgb(130, 77, 152, 236) };
-                    e.Graphics.FillPath(coreBrush, corePath);
-                }
-            }
-            using (var corePen = new Pen(Color.FromArgb(210, 211, 240, 255), 1.2f))
-                e.Graphics.DrawEllipse(corePen, core);
-
-            using (var font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var textBrush = new SolidBrush(Color.FromArgb(17, 52, 112)))
-            {
-                const string logo = "F";
-                var size = e.Graphics.MeasureString(logo, font);
-                e.Graphics.DrawString(logo, font, textBrush, (Width - size.Width) / 2f - 0.5f, (Height - size.Height) / 2f - 2.5f);
-            }
-
-            var lightX = sphere.X + sphere.Width * (0.50f + 0.35f * (float)Math.Cos(_orbit * Math.PI / 180D));
-            var lightY = sphere.Y + sphere.Height * (0.50f + 0.16f * (float)Math.Sin(_orbit * Math.PI / 180D));
-            using (var light = new SolidBrush(Color.FromArgb(215, 215, 249, 255)))
-                e.Graphics.FillEllipse(light, lightX - 2.2f, lightY - 2.2f, 4.4f, 4.4f);
+            // Per-pixel alpha content is supplied by LayeredFloatingBall.
         }
 
         public void CloseMenu()
@@ -221,8 +100,7 @@ namespace FACM
             if (_exiting) return;
             _exiting = true;
             CloseMenu();
-            StopPetEventSubscription();
-            StopPetHealthWatch();
+            try { AnimalPetManager.Stop(); } catch { }
             Close();
         }
 
@@ -265,37 +143,65 @@ namespace FACM
             try
             {
                 CloseMenu();
-                StopPetHealthWatch();
-                ShowBuiltInBall();
-                using (var picker = new PetPickerForm(_settings.PetStyleId))
+                using (var picker = new AnimalPetPickerForm(_settings.PetStyleId))
                 {
                     picker.TopMost = true;
-                    if (picker.ShowDialog() != DialogResult.OK)
-                    {
-                        ShowBuiltInBall();
-                        return;
-                    }
-                    _settings.PetStyleId = picker.SelectedPetId;
+                    if (picker.ShowDialog() != DialogResult.OK) return;
+                    _settings.PetStyleId = AnimalPetCatalog.Get(picker.SelectedPetId).Id;
+                    _settings.AnimalPetEnabled = true;
                     _settings.Save();
-                    StartPetEventSubscription(
-                        string.IsNullOrWhiteSpace(picker.ActivatedPersonaId)
-                            ? PetCatalog.Get(_settings.PetStyleId).PersonaId
-                            : picker.ActivatedPersonaId);
-                    StartPetHealthWatch();
-                    _externalPetActive = true;
-                    HideBuiltInBall();
+                    ActivateAnimalPet();
                 }
             }
             catch (Exception exception)
             {
-                AppLog.Error("Pet selector failed", exception);
+                AppLog.Error("Animal pet selector failed", exception);
+                _settings.AnimalPetEnabled = false;
+                _settings.Save();
+                _animalPetActive = false;
                 ShowBuiltInBall();
-                MessageBox.Show("桌宠暂时无法启用，已保留默认悬浮球。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("桌宠暂时无法启用，已保留默认悬浮入口。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             finally
             {
                 _petPickerOpen = false;
             }
+        }
+
+        public void ResetAnimalPet()
+        {
+            try
+            {
+                if (AnimalPetManager.IsActive)
+                {
+                    AnimalPetManager.ResetToPrimaryScreen();
+                    return;
+                }
+
+                if (_settings.AnimalPetEnabled)
+                {
+                    ActivateAnimalPet();
+                    AnimalPetManager.ResetToPrimaryScreen();
+                    return;
+                }
+
+                RestoreBallPosition();
+                ShowBuiltInBall();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Animal pet reset skipped: " + exception.Message);
+                ShowBuiltInBall();
+            }
+        }
+
+        public void RestoreDefaultBall()
+        {
+            try { AnimalPetManager.Stop(); } catch { }
+            _settings.AnimalPetEnabled = false;
+            _settings.Save();
+            _animalPetActive = false;
+            ShowBuiltInBall();
         }
 
         public void OpenMayhemLookup()
@@ -368,7 +274,9 @@ namespace FACM
         {
             RestoreBallPosition();
             ShowBuiltInBall();
-            BeginInvoke(new Action(StartPetRestore));
+
+            if (_settings.AnimalPetEnabled)
+                BeginInvoke(new Action(ActivateAnimalPet));
 
             if (_startCleanup)
             {
@@ -388,17 +296,14 @@ namespace FACM
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
         {
-            StopPetEventSubscription();
-            StopPetHealthWatch();
-            _ballAnimation.Stop();
-            _ballAnimation.Dispose();
+            try { AnimalPetManager.Stop(); } catch { }
+            if (_layeredBall != null) _layeredBall.Dispose();
             _tray.Visible = false;
             var trayMenu = _tray.ContextMenuStrip;
             _tray.ContextMenuStrip = null;
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
-            if (Region != null) Region.Dispose();
             _appIcon.Dispose();
         }
 
@@ -418,7 +323,9 @@ namespace FACM
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
-            menu.Items.Add("3D 桌面宠物", null, delegate { OpenPetSelector(); });
+            menu.Items.Add("桌面宠物", null, delegate { OpenPetSelector(); });
+            menu.Items.Add("宠物复位", null, delegate { ResetAnimalPet(); });
+            menu.Items.Add("恢复默认悬浮球", null, delegate { RestoreDefaultBall(); });
             menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
@@ -428,46 +335,13 @@ namespace FACM
             return menu;
         }
 
-        private async void StartPetRestore()
+        private void ActivateAnimalPet()
         {
+            if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
             try
             {
-                var pet = PetCatalog.Get(_settings.PetStyleId);
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
-                {
-                    var result = await DesktopHomunculusManager.TryRestoreAsync(pet, cancellation.Token);
-                    if (IsDisposed) return;
-                    if (result.Success)
-                    {
-                        _externalPetActive = true;
-                        StartPetEventSubscription(result.PersonaId);
-                        StartPetHealthWatch();
-                        HideBuiltInBall();
-                        return;
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Pet restore unavailable: " + exception.Message);
-            }
-
-            if (!IsDisposed)
-            {
-                _externalPetActive = false;
-                ShowBuiltInBall();
-            }
-        }
-
-        private void StartPetEventSubscription(string personaId)
-        {
-            StopPetEventSubscription();
-            _petEventsCancellation = new CancellationTokenSource();
-            var token = _petEventsCancellation.Token;
-            Task.Run(async delegate
-            {
-                await DesktopHomunculusManager.SubscribeClicksAsync(
-                    personaId,
+                AnimalPetManager.Activate(
+                    _settings.PetStyleId,
                     delegate
                     {
                         if (IsDisposed || _exiting) return;
@@ -478,83 +352,32 @@ namespace FACM
                                 if (!_exiting && !IsDisposed) ToggleMenu();
                             }));
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     },
-                    token);
-            }, token);
-        }
-
-        private void StopPetEventSubscription()
-        {
-            if (_petEventsCancellation == null) return;
-            _petEventsCancellation.Cancel();
-            _petEventsCancellation.Dispose();
-            _petEventsCancellation = null;
-        }
-
-        private void StartPetHealthWatch()
-        {
-            StopPetHealthWatch();
-            _petHealthCancellation = new CancellationTokenSource();
-            var token = _petHealthCancellation.Token;
-            Task.Run(async delegate
-            {
-                try
-                {
-                    await Task.Delay(2200, token).ConfigureAwait(false);
-                    var failures = 0;
-                    while (!token.IsCancellationRequested)
+                    delegate
                     {
-                        var ready = await DesktopHomunculusManager.IsReadyAsync(token).ConfigureAwait(false);
-                        failures = ready ? 0 : failures + 1;
-                        if (failures >= 2)
+                        if (IsDisposed || _exiting) return;
+                        try
                         {
-                            DesktopHomunculusManager.CleanupFailedEngineProcesses();
-                            if (!IsDisposed && !_exiting)
+                            BeginInvoke(new Action(delegate
                             {
-                                BeginInvoke(new Action(delegate
-                                {
-                                    if (IsDisposed || _exiting) return;
-                                    _externalPetActive = false;
-                                    StopPetEventSubscription();
-                                    ShowBuiltInBall();
-                                    _tray.ShowBalloonTip(4500, "FACM", "桌宠已停止，已自动恢复默认悬浮球。", ToolTipIcon.Info);
-                                }));
-                            }
-                            return;
+                                if (_tray.ContextMenuStrip != null)
+                                    _tray.ContextMenuStrip.Show(Cursor.Position);
+                            }));
                         }
-                        await Task.Delay(1400, token).ConfigureAwait(false);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Info("Desktop pet health watch stopped: " + exception.Message);
-                }
-            }, token);
-        }
-
-        private void StopPetHealthWatch()
-        {
-            if (_petHealthCancellation == null) return;
-            _petHealthCancellation.Cancel();
-            _petHealthCancellation.Dispose();
-            _petHealthCancellation = null;
-        }
-
-        private void AnimateBall(object sender, EventArgs e)
-        {
-            if (!Visible || _externalPetActive) return;
-            var target = _hovered || _menu != null ? 1f : 0f;
-            _hoverProgress += (target - _hoverProgress) * 0.20f;
-            _pulse += 0.10f;
-            _orbit += 1.8f;
-            if (_orbit >= 360f) _orbit -= 360f;
-            Invalidate();
+                        catch { }
+                    });
+                _animalPetActive = true;
+                HideBuiltInBall();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Built-in animal pet activation failed", exception);
+                _settings.AnimalPetEnabled = false;
+                _settings.Save();
+                _animalPetActive = false;
+                ShowBuiltInBall();
+            }
         }
 
         private void BeginBallDrag(object sender, MouseEventArgs e)
@@ -621,11 +444,10 @@ namespace FACM
         private void ShowBuiltInBall()
         {
             if (IsDisposed || _exiting) return;
-            _externalPetActive = false;
+            _animalPetActive = false;
             RestoreBallPosition();
             if (!Visible) Show();
             TopMost = true;
-            Invalidate();
         }
 
         private void HideBuiltInBall()
@@ -744,7 +566,7 @@ namespace FACM
             }
 
             _menu = new CompactMenuForm(this, _settings, _ui);
-            _menu.FormClosed += delegate { _menu = null; Invalidate(); };
+            _menu.FormClosed += delegate { _menu = null; };
             PositionMenu(_menu);
             _menu.Show();
             _menu.Activate();
@@ -752,7 +574,7 @@ namespace FACM
 
         private void PositionMenu(Form menu)
         {
-            if (Visible && !_externalPetActive)
+            if (Visible && !_animalPetActive)
             {
                 var area = Screen.FromControl(this).WorkingArea;
                 var openLeft = Left > area.Left + area.Width / 2;
