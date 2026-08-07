@@ -252,7 +252,7 @@ jobs:
             tool_bundle = 'embedded FACM.ToolBundle.dll'
             pet_host = 'self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
             pet_host_sha256 = $petHostHash.Hash
-            vpet_assets = 'downloaded on first use; pinned upstream commit 6a6da4089e0706d8f0c61714f3c071fb2a2c268f'
+            vpet_assets = 'downloaded on first use; Core-1.1.0.66-era upstream commit ac77ba144ed39f61624d93542c008b38be4d85aa'
             built_at_utc = [DateTime]::UtcNow.ToString('o')
           }
           $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir 'BUILD-INFO.json') -Encoding utf8
