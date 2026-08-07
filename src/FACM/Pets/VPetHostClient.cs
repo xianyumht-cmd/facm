@@ -77,7 +77,8 @@ namespace FACM.Pets
                 {
                     FileName = executable,
                     Arguments = "--pipe \"" + pipeName + "\" --parent-pid " + Process.GetCurrentProcess().Id +
-                                " --data-root \"" + RuntimePaths.PetHostDataDirectory + "\"",
+                                " --data-root \"" + RuntimePaths.PetHostDataDirectory + "\"" +
+                                " --ui-text \"" + RuntimePaths.UiTextPath + "\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     WorkingDirectory = Path.GetDirectoryName(executable) ?? AppDomain.CurrentDomain.BaseDirectory
