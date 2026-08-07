@@ -12,7 +12,7 @@ namespace FACM.Mayhem
         {
             try
             {
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
                 {
                     var result = OpggMayhemService.QueryAsync("yasuo", cancellation.Token).GetAwaiter().GetResult();
                     if (result == null) throw new InvalidOperationException("Mayhem query returned null.");
@@ -26,18 +26,28 @@ namespace FACM.Mayhem
                         throw new InvalidOperationException("Skill order is missing.");
                     if (result.CoreItems == null || result.CoreItems.Count < 3)
                         throw new InvalidOperationException("Core items are incomplete.");
-                    if (result.Augments == null || result.Augments.Count < 3)
-                        throw new InvalidOperationException("Augments are incomplete.");
                     if (result.TopTen == null || result.TopTen.Count < 10)
                         throw new InvalidOperationException("Top-ten ranking is incomplete.");
 
                     RiotGameDataService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
+                    MayhemRankedAugmentService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
+
                     if (string.IsNullOrWhiteSpace(result.ChampionIconUrl))
                         throw new InvalidOperationException("Champion image URL is missing.");
                     if (result.SkillIconUrls == null || result.SkillIconUrls.Count < 4 || !new[] { "Q", "W", "E", "R" }.All(result.SkillIconUrls.ContainsKey))
                         throw new InvalidOperationException("Skill image URLs are incomplete.");
                     if (result.TopTen.Count(item => !string.IsNullOrWhiteSpace(item.IconUrl)) < 8)
                         throw new InvalidOperationException("Top-ten champion image URLs are incomplete.");
+                    if (result.Augments == null || result.Augments.Count < 5 || result.Augments.Any(value => !value.StartsWith("#", StringComparison.Ordinal)))
+                        throw new InvalidOperationException("Ranked augment queue is incomplete.");
+                    if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
+                        throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
+
+                    using (var augmentImage = MayhemImageCache.GetAsync(result.AugmentIconUrls[0], cancellation.Token).GetAwaiter().GetResult())
+                    {
+                        if (augmentImage == null || augmentImage.Width < 24 || augmentImage.Height < 24)
+                            throw new InvalidOperationException("Ranked augment image could not be downloaded.");
+                    }
 
                     using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
                     {
