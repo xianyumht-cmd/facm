@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Services;
 
 namespace FACM.Mayhem
 {
@@ -134,19 +135,19 @@ namespace FACM.Mayhem
 
         private static string GetDiskPath(string reference, bool createDirectory)
         {
-            string directory;
             try
             {
-                directory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "mayhem-images");
+                var directory = Path.Combine(RuntimePaths.CacheDirectory, "mayhem-images");
                 if (createDirectory && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
+                if (!Directory.Exists(directory) && !createDirectory) return null;
+                return Path.Combine(directory, Hash(reference) + ".img");
             }
             catch
             {
-                directory = Path.Combine(Path.GetTempPath(), "FACM", "mayhem-images");
-                if (createDirectory && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
+                // FACM is intentionally portable. If its own directory is not writable, skip disk caching
+                // instead of silently spilling data into the system TEMP/profile directories.
+                return null;
             }
-            if (!Directory.Exists(directory) && !createDirectory) return null;
-            return Path.Combine(directory, Hash(reference) + ".img");
         }
 
         private static string Hash(string value)
