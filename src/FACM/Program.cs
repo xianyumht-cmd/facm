@@ -11,14 +11,10 @@ namespace FACM
     internal static class Program
     {
         private const string MutexName = @"Local\FACM-2C429A53-6710-48BC-A57C-32BEA688B25D";
-        private const string DesktopPetBackendEnvironment = "FACM_DESKTOP_PET_WGPU_BACKEND";
 
         [STAThread]
         private static void Main(string[] args)
         {
-            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DesktopPetBackendEnvironment)))
-                Environment.SetEnvironmentVariable(DesktopPetBackendEnvironment, "vulkan", EnvironmentVariableTarget.Process);
-
             var startCleanup = HasArgument(args, "--cleanup");
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
@@ -101,7 +97,9 @@ namespace FACM
 
                 CompactMenuEnhancer.Install();
                 AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
-                Application.Run(new MainForm(startCleanup));
+                using (var mainForm = new MainForm(startCleanup))
+                using (var layeredBall = LayeredFloatingBall.Attach(mainForm))
+                    Application.Run(mainForm);
             }
         }
 
