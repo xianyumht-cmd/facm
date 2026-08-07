@@ -22,17 +22,25 @@ namespace FACM.Pets
                 WriteFakeExecutable(expected);
                 WriteFakeExecutable(unwanted);
 
-                var found = DesktopHomunculusLocator.Find();
-                if (string.IsNullOrWhiteSpace(found))
-                    throw new InvalidOperationException("Desktop pet executable discovery returned no result.");
-                if (Path.GetFileName(found).IndexOf("uninstall", StringComparison.OrdinalIgnoreCase) >= 0)
-                    throw new InvalidOperationException("Desktop pet executable discovery selected an uninstaller.");
+                if (DesktopPetLaunchGate.ExplicitUseAllowed)
+                    throw new InvalidOperationException("Desktop pet launch gate must be closed by default.");
+                if (DesktopHomunculusLocator.Find() != null)
+                    throw new InvalidOperationException("Desktop pet executable discovery must stay disabled without explicit user action.");
 
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                using (DesktopPetLaunchGate.BeginExplicitUse())
                 {
-                    var waited = DesktopHomunculusLocator.WaitForInstalledExecutable(DateTime.UtcNow.AddMinutes(-1), TimeSpan.FromSeconds(2), cancellation.Token);
-                    if (string.IsNullOrWhiteSpace(waited))
-                        throw new InvalidOperationException("Post-install executable discovery did not stabilize.");
+                    var found = DesktopHomunculusLocator.Find();
+                    if (string.IsNullOrWhiteSpace(found))
+                        throw new InvalidOperationException("Desktop pet executable discovery returned no result during explicit use.");
+                    if (Path.GetFileName(found).IndexOf("uninstall", StringComparison.OrdinalIgnoreCase) >= 0)
+                        throw new InvalidOperationException("Desktop pet executable discovery selected an uninstaller.");
+
+                    using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                    {
+                        var waited = DesktopHomunculusLocator.WaitForInstalledExecutable(DateTime.UtcNow.AddMinutes(-1), TimeSpan.FromSeconds(2), cancellation.Token);
+                        if (string.IsNullOrWhiteSpace(waited))
+                            throw new InvalidOperationException("Post-install executable discovery did not stabilize.");
+                    }
                 }
 
                 ValidateNvidiaCompatibilityProfile();
