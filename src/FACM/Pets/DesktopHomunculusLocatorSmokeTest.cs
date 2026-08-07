@@ -32,6 +32,8 @@ namespace FACM.Pets
                     if (string.IsNullOrWhiteSpace(waited))
                         throw new InvalidOperationException("Post-install executable discovery did not stabilize.");
                 }
+
+                ValidateNvidiaCompatibilityProfile();
                 return 0;
             }
             catch (Exception exception)
@@ -49,6 +51,24 @@ namespace FACM.Pets
                 {
                 }
             }
+        }
+
+        private static void ValidateNvidiaCompatibilityProfile()
+        {
+            var preferNative = NvidiaDesktopPetCompatibility.BuildProfileXmlForSmokeTest(0);
+            if (string.IsNullOrWhiteSpace(preferNative))
+                throw new InvalidOperationException("NVIDIA compatibility profile XML is empty.");
+            if (preferNative.IndexOf("<SettingID>550932728</SettingID>", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("NVIDIA Vulkan/OpenGL present-method setting ID is incorrect.");
+            if (preferNative.IndexOf("<SettingValue>0</SettingValue>", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("NVIDIA Prefer Native setting value is incorrect.");
+            if (preferNative.IndexOf("desktop_homunculus.exe", StringComparison.OrdinalIgnoreCase) < 0 ||
+                preferNative.IndexOf("desktop-homunculus.exe", StringComparison.OrdinalIgnoreCase) < 0)
+                throw new InvalidOperationException("Desktop pet executable aliases are missing from NVIDIA profile.");
+
+            var restore = NvidiaDesktopPetCompatibility.BuildProfileXmlForSmokeTest(2);
+            if (restore.IndexOf("<SettingValue>2</SettingValue>", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("NVIDIA restore-to-Auto profile value is incorrect.");
         }
 
         private static void WriteFakeExecutable(string path)
