@@ -9,6 +9,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        PetHostPaths.ConfigureDataRoot(ReadArgument(args, "--data-root"));
+
         if (args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return PetHostSelfTest.Run();
 
@@ -87,6 +89,8 @@ internal static class PetHostSelfTest
 
             Directory.CreateDirectory(PetHostPaths.RootDirectory);
             Directory.CreateDirectory(PetHostPaths.CacheDirectory);
+            var root = Path.GetFullPath(PetHostPaths.RootDirectory);
+            if (string.IsNullOrWhiteSpace(root)) throw new InvalidOperationException("PetHost 数据目录无效。");
             return 0;
         }
         catch (Exception exception)
