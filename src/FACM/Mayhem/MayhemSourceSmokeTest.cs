@@ -29,13 +29,28 @@ namespace FACM.Mayhem
                     if (result.TopTen == null || result.TopTen.Count < 10)
                         throw new InvalidOperationException("Top-ten ranking is incomplete.");
 
-                    RiotGameDataService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
+                    for (var attempt = 0; attempt < 3; attempt++)
+                    {
+                        RiotGameDataService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
+                        var skillsReady = result.SkillIconUrls != null &&
+                                          result.SkillIconUrls.Count >= 4 &&
+                                          new[] { "Q", "W", "E", "R" }.All(key =>
+                                              result.SkillIconUrls.ContainsKey(key) &&
+                                              !string.IsNullOrWhiteSpace(result.SkillIconUrls[key]));
+                        if (skillsReady) break;
+                        if (attempt < 2) Thread.Sleep(450);
+                    }
+
                     MayhemRankedAugmentService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
 
                     if (string.IsNullOrWhiteSpace(result.ChampionIconUrl))
                         throw new InvalidOperationException("Champion image URL is missing.");
-                    if (result.SkillIconUrls == null || result.SkillIconUrls.Count < 4 || !new[] { "Q", "W", "E", "R" }.All(result.SkillIconUrls.ContainsKey))
-                        throw new InvalidOperationException("Skill image URLs are incomplete.");
+                    if (result.SkillIconUrls == null ||
+                        result.SkillIconUrls.Count < 4 ||
+                        !new[] { "Q", "W", "E", "R" }.All(key =>
+                            result.SkillIconUrls.ContainsKey(key) &&
+                            !string.IsNullOrWhiteSpace(result.SkillIconUrls[key])))
+                        throw new InvalidOperationException("Skill image URLs are incomplete after retries.");
                     if (result.TopTen.Count(item => !string.IsNullOrWhiteSpace(item.IconUrl)) < 8)
                         throw new InvalidOperationException("Top-ten champion image URLs are incomplete.");
                     if (result.Augments == null || result.Augments.Count < 5 || result.Augments.Any(value => !value.StartsWith("#", StringComparison.Ordinal)))
