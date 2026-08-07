@@ -13,6 +13,8 @@ namespace FACM.Mayhem
     {
         private readonly TextBox _query;
         private readonly Button _search;
+        private readonly Button _cancel;
+        private readonly ProgressBar _progress;
         private readonly Label _status;
         private readonly Label _headline;
         private readonly Label _metrics;
@@ -22,14 +24,18 @@ namespace FACM.Mayhem
         private readonly TextBox _augments;
         private readonly DataGridView _topTen;
         private readonly LinkLabel _source;
+        private readonly Timer _elapsedTimer;
         private CancellationTokenSource _queryCancellation;
+        private DateTime _queryStartedAt;
+        private string _stageText = "准备查询";
+        private bool _busy;
 
         public MayhemLookupForm()
         {
             Text = "海斗排行榜查询 · OP.GG";
-            StartPosition = FormStartPosition.CenterParent;
-            MinimumSize = new Size(900, 680);
-            ClientSize = new Size(980, 720);
+            StartPosition = FormStartPosition.CenterScreen;
+            MinimumSize = new Size(900, 700);
+            ClientSize = new Size(980, 742);
             BackColor = Color.FromArgb(11, 16, 26);
             ForeColor = Color.FromArgb(240, 245, 255);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -44,16 +50,16 @@ namespace FACM.Mayhem
             };
             var hint = new Label
             {
-                Text = "输入英雄中文名、英文名或常用别名。数据来自 OP.GG ARAM: Mayhem。",
+                Text = "输入英雄中文名、英文名或常用别名。多个 OP.GG 页面并行读取，最长等待 9 秒。",
                 Location = new Point(26, 56),
-                Size = new Size(750, 24),
+                Size = new Size(800, 24),
                 ForeColor = Color.FromArgb(150, 166, 196)
             };
 
             _query = new TextBox
             {
                 Location = new Point(24, 92),
-                Size = new Size(530, 36),
+                Size = new Size(500, 36),
                 Font = new Font("Microsoft YaHei UI", 11F),
                 BackColor = Color.FromArgb(28, 37, 56),
                 ForeColor = Color.White,
@@ -64,8 +70,8 @@ namespace FACM.Mayhem
             _search = new Button
             {
                 Text = "查询",
-                Location = new Point(566, 90),
-                Size = new Size(112, 40),
+                Location = new Point(536, 90),
+                Size = new Size(104, 40),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(69, 112, 255),
                 ForeColor = Color.White,
@@ -75,25 +81,49 @@ namespace FACM.Mayhem
             _search.FlatAppearance.BorderColor = Color.FromArgb(114, 151, 255);
             _search.Click += async delegate { await SearchAsync(); };
 
+            _cancel = new Button
+            {
+                Text = "取消查询",
+                Location = new Point(650, 90),
+                Size = new Size(104, 40),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(53, 62, 82),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            _cancel.FlatAppearance.BorderColor = Color.FromArgb(91, 105, 134);
+            _cancel.Click += delegate { CancelCurrentQuery(); };
+
             var examples = new Label
             {
                 Text = "示例：寒冰 / 艾希 / Ashe / 琴女 / Sona / 火男",
-                Location = new Point(696, 99),
-                Size = new Size(250, 24),
+                Location = new Point(768, 99),
+                Size = new Size(190, 30),
                 ForeColor = Color.FromArgb(126, 144, 177)
+            };
+
+            _progress = new ProgressBar
+            {
+                Location = new Point(24, 140),
+                Size = new Size(930, 5),
+                Style = ProgressBarStyle.Blocks,
+                Minimum = 0,
+                Maximum = 100,
+                Value = 0
             };
 
             _status = new Label
             {
                 Text = "准备查询",
-                Location = new Point(24, 140),
+                Location = new Point(24, 151),
                 Size = new Size(930, 26),
                 ForeColor = Color.FromArgb(99, 205, 166),
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
 
-            var leftPanel = CreatePanel(new Rectangle(24, 174, 560, 502));
-            var rightPanel = CreatePanel(new Rectangle(600, 174, 356, 502));
+            var leftPanel = CreatePanel(new Rectangle(24, 184, 560, 526));
+            var rightPanel = CreatePanel(new Rectangle(600, 184, 356, 526));
 
             _headline = new Label
             {
@@ -113,18 +143,18 @@ namespace FACM.Mayhem
             };
 
             var balanceLabel = CreateSectionLabel("当前版本 buff / debuff", 18, 88);
-            _balance = CreateReadOnlyBox(new Rectangle(18, 112, 522, 56));
-            var skillsLabel = CreateSectionLabel("技能加点", 18, 178);
-            _skills = CreateReadOnlyBox(new Rectangle(18, 202, 522, 54));
-            var itemsLabel = CreateSectionLabel("推荐出装", 18, 266);
-            _items = CreateReadOnlyBox(new Rectangle(18, 290, 522, 76));
-            var augmentsLabel = CreateSectionLabel("推荐强化符文", 18, 376);
-            _augments = CreateReadOnlyBox(new Rectangle(18, 400, 522, 58));
+            _balance = CreateReadOnlyBox(new Rectangle(18, 112, 522, 62));
+            var skillsLabel = CreateSectionLabel("技能加点", 18, 184);
+            _skills = CreateReadOnlyBox(new Rectangle(18, 208, 522, 58));
+            var itemsLabel = CreateSectionLabel("推荐出装", 18, 278);
+            _items = CreateReadOnlyBox(new Rectangle(18, 302, 522, 78));
+            var augmentsLabel = CreateSectionLabel("推荐强化符文", 18, 392);
+            _augments = CreateReadOnlyBox(new Rectangle(18, 416, 522, 62));
 
             _source = new LinkLabel
             {
                 Text = "打开 OP.GG 原始页面",
-                Location = new Point(18, 468),
+                Location = new Point(18, 492),
                 Size = new Size(220, 24),
                 LinkColor = Color.FromArgb(108, 163, 255),
                 ActiveLinkColor = Color.FromArgb(151, 190, 255),
@@ -155,7 +185,7 @@ namespace FACM.Mayhem
             };
             var rankHint = new Label
             {
-                Text = "按 OP.GG 返回的当前 Mayhem 排行展示",
+                Text = "只展示 OP.GG 实际返回的排行榜数据",
                 Location = new Point(17, 45),
                 Size = new Size(320, 22),
                 ForeColor = Color.FromArgb(132, 151, 184)
@@ -164,7 +194,7 @@ namespace FACM.Mayhem
             _topTen = new DataGridView
             {
                 Location = new Point(14, 78),
-                Size = new Size(328, 408),
+                Size = new Size(328, 432),
                 BackgroundColor = Color.FromArgb(15, 22, 35),
                 BorderStyle = BorderStyle.None,
                 ReadOnly = true,
@@ -203,16 +233,23 @@ namespace FACM.Mayhem
             Controls.Add(hint);
             Controls.Add(_query);
             Controls.Add(_search);
+            Controls.Add(_cancel);
             Controls.Add(examples);
+            Controls.Add(_progress);
             Controls.Add(_status);
             Controls.Add(leftPanel);
             Controls.Add(rightPanel);
 
+            _elapsedTimer = new Timer { Interval = 250 };
+            _elapsedTimer.Tick += UpdateElapsed;
+
             AcceptButton = _search;
+            FormClosing += delegate { CancelCurrentQuery(); };
             FormClosed += delegate
             {
+                _elapsedTimer.Stop();
+                _elapsedTimer.Dispose();
                 if (_queryCancellation == null) return;
-                _queryCancellation.Cancel();
                 _queryCancellation.Dispose();
                 _queryCancellation = null;
             };
@@ -220,6 +257,7 @@ namespace FACM.Mayhem
 
         private async Task SearchAsync()
         {
+            if (_busy) return;
             var text = _query.Text.Trim();
             if (text.Length == 0)
             {
@@ -230,20 +268,29 @@ namespace FACM.Mayhem
 
             if (_queryCancellation != null)
             {
-                _queryCancellation.Cancel();
                 _queryCancellation.Dispose();
+                _queryCancellation = null;
             }
             _queryCancellation = new CancellationTokenSource();
+            _queryStartedAt = DateTime.UtcNow;
+            _stageText = "正在开始查询";
+            SetBusy(true);
 
-            SetBusy(true, "正在连接 OP.GG 并读取当前版本数据...");
+            var progress = new Progress<string>(message =>
+            {
+                _stageText = message;
+                UpdateStatusText();
+            });
+
             try
             {
-                var result = await OpggMayhemService.QueryAsync(text, _queryCancellation.Token);
+                var result = await OpggMayhemService.QueryAsync(text, progress, _queryCancellation.Token);
                 if (IsDisposed) return;
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    _status.Text = result.ErrorMessage;
+                    _stageText = result.ErrorMessage;
                     _status.ForeColor = Color.FromArgb(255, 155, 120);
+                    UpdateStatusText(false);
                     return;
                 }
                 RenderResult(result);
@@ -252,21 +299,23 @@ namespace FACM.Mayhem
             {
                 if (!IsDisposed)
                 {
-                    _status.Text = "查询已取消";
+                    _stageText = "查询已取消";
                     _status.ForeColor = Color.FromArgb(170, 180, 200);
+                    UpdateStatusText(false);
                 }
             }
             catch (Exception exception)
             {
                 if (!IsDisposed)
                 {
-                    _status.Text = "查询失败：" + exception.Message;
+                    _stageText = "查询失败：" + exception.Message;
                     _status.ForeColor = Color.FromArgb(255, 155, 120);
+                    UpdateStatusText(false);
                 }
             }
             finally
             {
-                if (!IsDisposed) SetBusy(false, _status.Text);
+                if (!IsDisposed) SetBusy(false);
             }
         }
 
@@ -276,10 +325,10 @@ namespace FACM.Mayhem
             var metrics = new[]
             {
                 string.IsNullOrWhiteSpace(result.Patch) ? "版本未知" : "版本 " + result.Patch,
-                result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行待返回",
-                result.WinRate.HasValue ? "胜率 " + result.WinRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "胜率待返回",
+                result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行未返回",
+                result.WinRate.HasValue ? "胜率 " + result.WinRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "胜率未返回",
                 string.IsNullOrWhiteSpace(result.Tier) ? null : result.Tier + " 梯队",
-                result.PickRate.HasValue ? "选择率 " + result.PickRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : null
+                result.PickRate.HasValue ? "选用率 " + result.PickRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : null
             }.Where(value => !string.IsNullOrWhiteSpace(value));
             _metrics.Text = string.Join("  ·  ", metrics);
             _balance.Text = string.IsNullOrWhiteSpace(result.BalanceSummary) ? "OP.GG 当前页面未返回该项。" : result.BalanceSummary;
@@ -296,29 +345,78 @@ namespace FACM.Mayhem
                     champion.WinRate.HasValue ? champion.WinRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "—",
                     string.IsNullOrWhiteSpace(champion.Tier) ? "—" : champion.Tier);
             }
-            if (result.TopTen.Count == 0) _topTen.Rows.Add("—", "OP.GG 暂未返回排行榜", "—", "—");
+            if (result.TopTen.Count == 0)
+                _topTen.Rows.Add("—", "OP.GG 本次未返回排行", "—", "—");
 
             _source.Tag = result.SourceUrl;
             _source.Enabled = !string.IsNullOrWhiteSpace(result.SourceUrl);
-            _status.Text = (result.SourceNote ?? "查询完成") + "  ·  本地缓存 10 分钟";
+            _stageText = (result.SourceNote ?? "查询完成") + "  ·  本地缓存 10 分钟";
             _status.ForeColor = Color.FromArgb(99, 205, 166);
+            UpdateStatusText(false);
         }
 
-        private void SetBusy(bool busy, string status)
+        private void SetBusy(bool busy)
         {
+            _busy = busy;
             _search.Enabled = !busy;
             _query.Enabled = !busy;
+            _cancel.Enabled = busy;
             _search.Text = busy ? "查询中..." : "查询";
-            if (!string.IsNullOrWhiteSpace(status)) _status.Text = status;
-            if (busy) _status.ForeColor = Color.FromArgb(112, 165, 255);
-            UseWaitCursor = busy;
+            _progress.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
+            _progress.MarqueeAnimationSpeed = busy ? 24 : 0;
+            if (!busy) _progress.Value = 0;
+            UseWaitCursor = false;
+
+            if (busy)
+            {
+                _status.ForeColor = Color.FromArgb(112, 165, 255);
+                _elapsedTimer.Start();
+            }
+            else
+            {
+                _elapsedTimer.Stop();
+                if (_queryCancellation != null)
+                {
+                    _queryCancellation.Dispose();
+                    _queryCancellation = null;
+                }
+            }
+            UpdateStatusText(busy);
+        }
+
+        private void CancelCurrentQuery()
+        {
+            if (_queryCancellation == null || _queryCancellation.IsCancellationRequested) return;
+            _stageText = "正在取消查询...";
+            _queryCancellation.Cancel();
+            _cancel.Enabled = false;
+            UpdateStatusText();
+        }
+
+        private void UpdateElapsed(object sender, EventArgs e)
+        {
+            UpdateStatusText();
+        }
+
+        private void UpdateStatusText(bool includeElapsed = true)
+        {
+            if (IsDisposed) return;
+            if (includeElapsed && _busy)
+            {
+                var elapsed = DateTime.UtcNow - _queryStartedAt;
+                _status.Text = _stageText + "  ·  " + elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " 秒";
+            }
+            else
+            {
+                _status.Text = _stageText;
+            }
         }
 
         private void QueryKeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode != Keys.Enter) return;
             e.SuppressKeyPress = true;
-            _ = SearchAsync();
+            if (!_busy) _ = SearchAsync();
         }
 
         private void OpenSource(object sender, LinkLabelLinkClickedEventArgs e)
