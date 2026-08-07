@@ -194,6 +194,10 @@ namespace FACM.Mayhem
                 _stageText = "正在整理英雄图片和推荐内容";
                 UpdateStatusText();
                 await RiotGameDataService.EnrichAsync(result, token);
+
+                _stageText = "正在整理强化排行图片";
+                UpdateStatusText();
+                await MayhemRankedAugmentService.EnrichAsync(result, token);
                 SanitizeResult(result);
 
                 _stageText = "正在生成图片卡片";
