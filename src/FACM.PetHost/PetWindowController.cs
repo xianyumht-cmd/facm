@@ -28,7 +28,16 @@ internal sealed class PetWindowController : IController
     public int PressLength => 450;
     public bool EnableFunction => false;
     public int InteractionCycle => 10;
-    public bool RePositionActive { get; set; } = true;
+
+    // VPet-Simulator.Core 1.1.0.66 exposes the historical misspelling RePostionActive.
+    // Keep the corrected alias too so this host remains source-compatible with newer VPet Core builds.
+    public bool RePostionActive { get; set; } = true;
+    public bool RePositionActive
+    {
+        get { return RePostionActive; }
+        set { RePostionActive = value; }
+    }
+
     public bool AutoChangeWindow => false;
 
     public void MoveWindows(double x, double y)
