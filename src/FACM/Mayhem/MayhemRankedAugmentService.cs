@@ -4,17 +4,21 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using FACM.Services;
 
 namespace FACM.Mayhem
 {
     internal static class MayhemRankedAugmentService
     {
-        private const string SiteBaseUrl = "https://arammayhem.com";
+        private const string ArenaDataUrl = "https://raw.communitydragon.org/latest/cdragon/arena/en_us.json";
+        private const string ArenaAssetBase = "https://raw.communitydragon.org/latest/game/";
         private static readonly HttpClient Client = CreateClient();
+        private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
 
         private sealed class RankedAugment
         {
@@ -28,12 +32,19 @@ namespace FACM.Mayhem
             if (result == null || string.IsNullOrWhiteSpace(result.RankingSourceUrl)) return;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(2.5));
+                timeout.CancelAfter(TimeSpan.FromSeconds(3));
                 try
                 {
-                    var html = await ReadAsync(result.RankingSourceUrl, timeout.Token).ConfigureAwait(false);
+                    var htmlTask = ReadAsync(result.RankingSourceUrl, timeout.Token);
+                    var arenaTask = ReadAsync(ArenaDataUrl, timeout.Token);
+                    await Task.WhenAll(htmlTask, arenaTask).ConfigureAwait(false);
+                    var html = htmlTask.Result;
                     if (string.IsNullOrWhiteSpace(html)) return;
-                    ApplyFromHtml(result, html);
+
+                    var picks = ParseRankedPicks(html).Take(5).ToList();
+                    if (picks.Count == 0) return;
+                    ResolveArenaIcons(picks, arenaTask.Result);
+                    Apply(result, picks);
                 }
                 catch (OperationCanceledException)
                 {
@@ -49,26 +60,32 @@ namespace FACM.Mayhem
 
         internal static int ApplyFromHtmlForSmokeTest(MayhemChampionResult result, string html)
         {
-            return ApplyFromHtml(result, html);
+            var picks = ParseRankedPicks(html).Take(5).ToList();
+            Apply(result, picks);
+            return picks.Count;
         }
 
-        private static int ApplyFromHtml(MayhemChampionResult result, string html)
+        private static IEnumerable<RankedAugment> ParseRankedPicks(string html)
         {
-            if (result == null || string.IsNullOrWhiteSpace(html)) return 0;
+            if (string.IsNullOrWhiteSpace(html)) return Enumerable.Empty<RankedAugment>();
             var normalized = NormalizeEscapedHtml(html);
             var start = normalized.IndexOf("Best Augments for", StringComparison.OrdinalIgnoreCase);
-            if (start < 0) return 0;
+            if (start < 0) return Enumerable.Empty<RankedAugment>();
             var end = normalized.IndexOf("Augment Combos", start, StringComparison.OrdinalIgnoreCase);
             if (end < 0 || end <= start) end = Math.Min(normalized.Length, start + 18000);
             var section = normalized.Substring(start, Math.Min(end - start, 18000));
 
-            var picks = ParseAnchorPicks(section).Take(5).ToList();
-            if (picks.Count == 0) picks = ParseTextPicks(CleanText(section)).Take(5).ToList();
-            if (picks.Count == 0) return 0;
+            var anchors = ParseAnchorPicks(section).ToList();
+            if (anchors.Count > 0) return anchors;
+            return ParseTextPicks(CleanText(section)).ToList();
+        }
 
+        private static void Apply(MayhemChampionResult result, IList<RankedAugment> picks)
+        {
+            if (result == null || picks == null || picks.Count == 0) return;
             result.Augments.Clear();
             result.AugmentIconUrls.Clear();
-            for (var i = 0; i < picks.Count; i++)
+            for (var i = 0; i < picks.Count && i < 5; i++)
             {
                 var pick = picks[i];
                 var label = "#" + (i + 1).ToString(CultureInfo.InvariantCulture);
@@ -77,7 +94,41 @@ namespace FACM.Mayhem
                 result.Augments.Add(label);
                 result.AugmentIconUrls.Add(pick.IconUrl);
             }
-            return picks.Count;
+        }
+
+        private static void ResolveArenaIcons(IList<RankedAugment> picks, string json)
+        {
+            if (picks == null || picks.Count == 0 || string.IsNullOrWhiteSpace(json)) return;
+            Dictionary<string, object> root;
+            try
+            {
+                root = Json.DeserializeObject(json) as Dictionary<string, object>;
+            }
+            catch
+            {
+                return;
+            }
+            if (root == null) return;
+            object raw;
+            if (!root.TryGetValue("augments", out raw)) return;
+            var rows = raw as object[];
+            if (rows == null) return;
+
+            var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows.OfType<Dictionary<string, object>>())
+            {
+                var name = ReadString(row, "name");
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                var icon = First(ReadString(row, "iconLarge"), ReadString(row, "iconSmall"));
+                if (string.IsNullOrWhiteSpace(icon)) continue;
+                lookup[NormalizeName(name)] = ToArenaAssetUrl(icon);
+            }
+
+            foreach (var pick in picks)
+            {
+                string icon;
+                if (lookup.TryGetValue(NormalizeName(pick.Name), out icon)) pick.IconUrl = icon;
+            }
         }
 
         private static IEnumerable<RankedAugment> ParseAnchorPicks(string section)
@@ -104,10 +155,7 @@ namespace FACM.Mayhem
                 double? winRate = rateMatch.Success && double.TryParse(rateMatch.Groups["w"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out rate)
                     ? rate
                     : (double?)null;
-                var source = MatchAttribute(body, "src");
-                if (string.IsNullOrWhiteSpace(source)) source = MatchAttribute(body, "data-src");
-                var icon = MakeAbsoluteImageUrl(source, name);
-                yield return new RankedAugment { Name = name, WinRate = winRate, IconUrl = icon };
+                yield return new RankedAugment { Name = name, WinRate = winRate };
             }
         }
 
@@ -118,18 +166,13 @@ namespace FACM.Mayhem
             foreach (Match match in Regex.Matches(text, "(?<n>[A-Za-z][A-Za-z0-9' !:,+.\\-]{1,48}?)(?<w>\\d{1,2}(?:\\.\\d+)?)%"))
             {
                 var name = match.Groups["n"].Value.Trim();
-                if (name.StartsWith("Best Augments for", StringComparison.OrdinalIgnoreCase)) continue;
-                if (!seen.Add(name)) continue;
+                name = Regex.Replace(name, "^Best Augments for\\s+[A-Za-z' .-]+", string.Empty, RegexOptions.IgnoreCase).Trim();
+                if (name.Length < 2 || !seen.Add(name)) continue;
                 double rate;
                 double? winRate = double.TryParse(match.Groups["w"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out rate)
                     ? rate
                     : (double?)null;
-                yield return new RankedAugment
-                {
-                    Name = name,
-                    WinRate = winRate,
-                    IconUrl = MakeAbsoluteImageUrl(null, name)
-                };
+                yield return new RankedAugment { Name = name, WinRate = winRate };
             }
         }
 
@@ -142,20 +185,34 @@ namespace FACM.Mayhem
             return match.Success ? WebUtility.HtmlDecode(match.Groups["v"].Value).Trim() : null;
         }
 
-        private static string MakeAbsoluteImageUrl(string source, string name)
+        private static string NormalizeName(string value)
         {
-            if (!string.IsNullOrWhiteSpace(source))
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var builder = new StringBuilder(value.Length);
+            foreach (var c in WebUtility.HtmlDecode(value).ToLowerInvariant())
             {
-                if (source.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                    return source;
-                if (source.StartsWith("//", StringComparison.Ordinal)) return "https:" + source;
-                if (source.StartsWith("/", StringComparison.Ordinal)) return SiteBaseUrl + source;
-                return SiteBaseUrl + "/" + source.TrimStart('/');
+                if (char.IsLetterOrDigit(c)) builder.Append(c);
             }
+            return builder.ToString();
+        }
 
-            if (string.IsNullOrWhiteSpace(name)) return null;
-            var fileName = Uri.EscapeDataString(name.Replace(' ', '_')) + "_mayhem_augment.webp";
-            return SiteBaseUrl + "/augments/" + fileName;
+        private static string ToArenaAssetUrl(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            if (path.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                return path;
+            return ArenaAssetBase + path.TrimStart('/').ToLowerInvariant();
+        }
+
+        private static string ReadString(Dictionary<string, object> source, string key)
+        {
+            object value;
+            return source != null && source.TryGetValue(key, out value) && value != null ? Convert.ToString(value) : null;
+        }
+
+        private static string First(params string[] values)
+        {
+            return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         }
 
         private static async Task<string> ReadAsync(string url, CancellationToken token)
