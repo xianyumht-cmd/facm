@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -19,6 +19,8 @@ namespace FACM.Services
             new ConditionalWeakTable<DataGridViewColumn, TextState>();
         private static readonly ConditionalWeakTable<ColumnHeader, TextState> ListColumnStates =
             new ConditionalWeakTable<ColumnHeader, TextState>();
+        private static readonly ConditionalWeakTable<ListControl, FormatMarker> ListControlStates =
+            new ConditionalWeakTable<ListControl, FormatMarker>();
 
         private static UiTextCatalog _catalog;
         private static Timer _timer;
@@ -104,6 +106,9 @@ namespace FACM.Services
             if (ShouldTranslateControlText(control))
                 ApplyManagedText(control, ControlStates, delegate { return control.Text; }, delegate(string value) { control.Text = value; });
 
+            var listControl = control as ListControl;
+            if (listControl != null) ApplyListFormatting(listControl);
+
             var toolStrip = control as ToolStrip;
             if (toolStrip != null) ApplyToolStripItems(toolStrip.Items);
             if (control.ContextMenuStrip != null) ApplyToolStripItems(control.ContextMenuStrip.Items);
@@ -145,6 +150,47 @@ namespace FACM.Services
                    control is GroupBox ||
                    control is TabPage ||
                    control is LinkLabel;
+        }
+
+        private static void ApplyListFormatting(ListControl list)
+        {
+            if (list == null || list.IsDisposed || string.IsNullOrWhiteSpace(list.DisplayMember)) return;
+            FormatMarker marker;
+            if (!ListControlStates.TryGetValue(list, out marker))
+            {
+                marker = new FormatMarker();
+                ListControlStates.Add(list, marker);
+                list.FormattingEnabled = true;
+                list.Format += HandleListFormat;
+            }
+            if (marker.Revision != _revision)
+            {
+                marker.Revision = _revision;
+                list.Refresh();
+            }
+        }
+
+        private static void HandleListFormat(object sender, ListControlConvertEventArgs e)
+        {
+            if (_catalog == null || e == null) return;
+            var list = sender as ListControl;
+            if (list == null) return;
+
+            string text = null;
+            if (e.Value is string) text = (string)e.Value;
+            if (text == null && e.ListItem != null && !string.IsNullOrWhiteSpace(list.DisplayMember))
+            {
+                try
+                {
+                    var property = TypeDescriptor.GetProperties(e.ListItem)[list.DisplayMember];
+                    if (property != null) text = Convert.ToString(property.GetValue(e.ListItem));
+                }
+                catch
+                {
+                }
+            }
+            if (string.IsNullOrEmpty(text)) return;
+            e.Value = _catalog.Translate(_catalog.Canonicalize(text));
         }
 
         private static void ApplyToolStripItems(ToolStripItemCollection items)
@@ -281,6 +327,11 @@ namespace FACM.Services
             public string Source;
             public string LastApplied;
             public int Revision;
+        }
+
+        private sealed class FormatMarker
+        {
+            public int Revision = -1;
         }
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
