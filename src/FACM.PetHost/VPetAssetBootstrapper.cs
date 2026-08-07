@@ -6,8 +6,10 @@ namespace FACM.PetHost;
 
 internal static class PetHostPaths
 {
-    internal const string UpstreamCommit = "6a6da4089e0706d8f0c61714f3c071fb2a2c268f";
-    internal const string UpstreamShortCommit = "6a6da408";
+    // Keep animation definitions on the same upstream generation as VPet-Simulator.Core 1.1.0.66.
+    // This is the final VPet commit from the 1.1.0.66 publication day that updates the default animation set.
+    internal const string UpstreamCommit = "ac77ba144ed39f61624d93542c008b38be4d85aa";
+    internal const string UpstreamShortCommit = "ac77ba14";
 
     internal static string RootDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -60,6 +62,11 @@ internal sealed class VPetAssetBootstrapper
         if (entries.Count < 20)
             throw new InvalidOperationException("VPet 最小动作集异常偏少，已拒绝继续启动以避免残缺桌宠。");
 
+        var totalBytes = entries.Sum(x => Math.Max(0L, x.Size));
+        if (totalBytes <= 0 || totalBytes > 700L * 1024L * 1024L)
+            throw new InvalidOperationException("VPet 最小动作集大小异常，已拒绝自动下载。");
+        progress?.Report($"官方动作集 {entries.Count} 个文件 · 约 {totalBytes / 1024d / 1024d:0.0} MB");
+
         var stageDirectory = Path.Combine(
             PetHostPaths.AssetsDirectory,
             ".vpet-" + PetHostPaths.UpstreamShortCommit + ".partial-" + Guid.NewGuid().ToString("N"));
@@ -108,6 +115,7 @@ internal sealed class VPetAssetBootstrapper
                 source = "https://github.com/LorisYounger/VPet",
                 commit = PetHostPaths.UpstreamCommit,
                 files = entries.Count,
+                bytes = totalBytes,
                 cached_at_utc = DateTimeOffset.UtcNow
             }, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(Path.Combine(stageDirectory, ".facm-complete.json"), marker, Encoding.UTF8, cancellationToken)
