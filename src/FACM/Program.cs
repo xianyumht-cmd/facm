@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
+using FACM.Mayhem;
 using FACM.Pets;
 using FACM.Services;
 
@@ -16,16 +17,20 @@ namespace FACM
         {
             var startCleanup = HasArgument(args, "--cleanup");
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
+            var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
+            var testMode = petCatalogTest || mayhemSourceTest;
             var instanceMutex = petCatalogTest
                 ? MutexName + "-PetCatalogTest"
-                : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName);
+                : (mayhemSourceTest
+                    ? MutexName + "-MayhemSourceTest"
+                    : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName));
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
             {
                 if (!createdNew)
                 {
-                    if (!petCatalogTest)
+                    if (!testMode)
                         MessageBox.Show("FACM 已经在运行。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
                     return;
@@ -34,6 +39,11 @@ namespace FACM
                 if (petCatalogTest)
                 {
                     Environment.ExitCode = RunPetCatalogTest();
+                    return;
+                }
+                if (mayhemSourceTest)
+                {
+                    Environment.ExitCode = MayhemSourceSmokeTest.Run();
                     return;
                 }
 
