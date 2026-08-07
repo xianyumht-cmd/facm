@@ -112,20 +112,31 @@ internal sealed class PetHostWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _controller.ResetToPrimaryScreen();
-        var progress = new Progress<string>(message => _statusText.Text = message + "\n动画来源：VPet / VUP-Simulator（非商用授权）");
+        var progress = new Progress<string>(message => SetStatus(message));
+        var started = Stopwatch.StartNew();
 
         try
         {
             var bootstrapper = new VPetAssetBootstrapper();
             await bootstrapper.EnsureAsync(progress, _lifetime.Token);
-            _statusText.Text = "正在建立动作状态机…\nIdle · Move · Raised · Touch";
 
+            SetStatus("正在解析动作配置…");
             GraphCore.CachePath = PetHostPaths.CacheDirectory;
             Directory.CreateDirectory(GraphCore.CachePath);
+
+            // Match VPet-Simulator.Windows startup behavior. Core's default 2000 MB limit can stall
+            // first-run graph generation when hundreds of high-resolution frames are being merged.
+            var baselineMemoryMb = (int)Math.Ceiling(Function.MemoryUsage());
+            var availableMemoryMb = Math.Max(0, (int)Math.Floor(Function.MemoryAvailable()));
+            var additionalBudgetMb = Math.Max(512, availableMemoryMb / 2);
+            PNGAnimation.MaxLoadMemory = baselineMemoryMb + additionalBudgetMb;
+            await _ipc.SendEventAsync("status", $"graph-memory-limit={PNGAnimation.MaxLoadMemory}MB");
 
             var lps = new LpsDocument(await File.ReadAllTextAsync(PetHostPaths.PetConfigPath, _lifetime.Token));
             var loader = new PetLoader(lps, new DirectoryInfo(PetHostPaths.PetDirectory));
             var graph = loader.Graph(1000, Dispatcher);
+            var graphCount = graph.GraphsList.Values.Sum(byAnimation => byAnimation.Values.Sum(items => items.Count));
+
             _core = new GameCore
             {
                 Controller = _controller,
@@ -140,20 +151,42 @@ internal sealed class PetHostWindow : Window
                 Opacity = 0
             };
 
-            _root.Children.Clear();
-            _root.Children.Add(_main);
-            _main.LoadALL();
+            // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
+            _root.Children.Insert(0, _main);
+            SetStatus($"正在生成动作缓存 0/{graphCount}\n首次启动会比之后慢");
+
+            var lastReported = 0;
+            await Task.Run(() =>
+            {
+                _main.LoadALL(readyCount =>
+                {
+                    if (readyCount <= Volatile.Read(ref lastReported)) return;
+                    Volatile.Write(ref lastReported, readyCount);
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        SetStatus($"正在生成动作缓存 {Math.Min(readyCount, graphCount)}/{graphCount}\n首次启动会比之后慢");
+                    }));
+                });
+            }, _lifetime.Token);
+
+            if (_lifetime.IsCancellationRequested) return;
+            _root.Children.Remove(_statusCard);
             _main.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
-            await _ipc.SendEventAsync("ready", "vpet-core-1.1.0.66");
+            await _ipc.SendEventAsync("ready", $"vpet-core-1.1.0.66;graphs={graphCount};startup-ms={started.ElapsedMilliseconds}");
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception exception)
         {
-            _statusText.Text = "高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单";
+            SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单", includeNotice: false);
             await _ipc.SendEventAsync("error", exception.GetType().Name + ": " + exception.Message);
         }
+    }
+
+    private void SetStatus(string message, bool includeNotice = true)
+    {
+        _statusText.Text = includeNotice ? message + "\n动画来源：VPet / VUP-Simulator（非商用授权）" : message;
     }
 
     private void HandleCommand(string line)
