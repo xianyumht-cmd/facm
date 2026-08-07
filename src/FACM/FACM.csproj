@@ -59,6 +59,8 @@
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Message Importance="High" Text="Validating FACM built-in floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
+    <Message Importance="High" Text="Validating desktop pet executable discovery." />
+    <Exec Command="&quot;$(TargetPath)&quot; --pet-locator-test" />
     <Message Importance="High" Text="Validating FACM open-source VRM pet catalog." />
     <Exec Command="&quot;$(TargetPath)&quot; --pet-catalog-test" />
     <Message Importance="High" Text="Validating live Mayhem build, ranking and image-card sources." />
