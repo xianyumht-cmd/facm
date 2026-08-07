@@ -254,6 +254,7 @@ internal sealed class PetHostWindow : Window
 
     private void OnPreviewRightButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (!IsFacmOpenHit(e)) return;
         e.Handled = true;
         _ = _ipc.SendEventAsync("right-click");
     }
