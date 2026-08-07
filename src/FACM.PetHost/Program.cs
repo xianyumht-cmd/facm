@@ -16,7 +16,7 @@ internal static class Program
         var parentPidText = ReadArgument(args, "--parent-pid");
         _ = int.TryParse(parentPidText, out var parentPid);
 
-        var application = new Application
+        var application = new System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnMainWindowClose
         };
