@@ -27,7 +27,7 @@ namespace FACM.Pets
         {
             _selectedPetId = PetCatalog.Get(currentPetId).Id;
 
-            Text = "FACM · 开源 3D 桌面宠物";
+            Text = "FACM · 3D 桌面宠物";
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -40,7 +40,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "开源 VRM 桌面宠物",
+                Text = "3D 桌面宠物",
                 Location = new Point(24, 18),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -48,7 +48,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "底层使用 Desktop Homunculus 开源引擎。首次使用会下载约 200 MB 官方安装包和所选 VRM 模型。",
+                Text = "选择喜欢的桌宠。首次使用会自动下载所需资源，完成后即可直接使用。",
                 Location = new Point(26, 54),
                 Size = new Size(760, 24),
                 ForeColor = Color.FromArgb(155, 169, 196)
@@ -102,7 +102,7 @@ namespace FACM.Pets
             };
             _status = new Label
             {
-                Text = "请选择一个角色。安装完成后，点击角色会打开 FACM 控制面板。",
+                Text = "请选择一个桌宠。应用后可在桌面使用，点击桌宠打开 FACM 控制面板。",
                 Location = new Point(22, 572),
                 Size = new Size(772, 28),
                 ForeColor = Color.FromArgb(115, 207, 174)
@@ -110,7 +110,7 @@ namespace FACM.Pets
 
             var engine = new Button
             {
-                Text = "打开引擎",
+                Text = "桌宠管理",
                 Location = new Point(342, 604),
                 Size = new Size(108, 36),
                 FlatStyle = FlatStyle.Flat,
@@ -203,7 +203,7 @@ namespace FACM.Pets
             CancelButton = close;
             FormClosing += delegate
             {
-                if (!_busy) return;
+                if (!_busy || _operationCancellation == null) return;
                 _operationCancellation.Cancel();
             };
             FormClosed += delegate
@@ -228,10 +228,7 @@ namespace FACM.Pets
             var pet = _list.SelectedItem as PetDefinition;
             if (pet == null) return;
             _selectedPetId = pet.Id;
-            _selectedLabel.Text =
-                pet.Name + "（" + pet.OriginalName + "）" + Environment.NewLine +
-                pet.Description + Environment.NewLine +
-                "模型授权：" + pet.License + "  ·  引擎：Desktop Homunculus（MIT / Apache-2.0）";
+            _selectedLabel.Text = pet.Name + Environment.NewLine + pet.Description;
 
             if (_thumbnailCancellation != null)
             {
@@ -265,9 +262,9 @@ namespace FACM.Pets
             catch (OperationCanceledException)
             {
             }
-            catch (Exception exception)
+            catch (Exception)
             {
-                _status.Text = "缩略图加载失败，但仍可下载并运行模型：" + exception.Message;
+                _status.Text = "预览加载失败，仍可继续应用。";
                 _status.ForeColor = Color.FromArgb(230, 177, 103);
             }
         }
@@ -303,7 +300,7 @@ namespace FACM.Pets
                 _selectedPetId = pet.Id;
                 ActivatedPersonaId = result.PersonaId;
                 _progress.Value = 100;
-                _status.Text = "已启动 " + pet.Name + "。点击桌宠会打开 FACM 控制面板。";
+                _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 FACM 控制面板。";
                 _status.ForeColor = Color.FromArgb(99, 219, 158);
                 DialogResult = DialogResult.OK;
                 Close();
