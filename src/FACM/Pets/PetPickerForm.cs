@@ -123,7 +123,8 @@ namespace FACM.Pets
             {
                 try
                 {
-                    DesktopHomunculusManager.OpenEngine();
+                    using (DesktopPetLaunchGate.BeginExplicitUse())
+                        DesktopHomunculusManager.OpenEngine();
                 }
                 catch (Exception exception)
                 {
@@ -290,40 +291,43 @@ namespace FACM.Pets
 
             try
             {
-                if (NvidiaDesktopPetCompatibility.IsNvidiaDriverPresent())
+                using (DesktopPetLaunchGate.BeginExplicitUse())
                 {
-                    Environment.SetEnvironmentVariable(
-                        "FACM_DESKTOP_PET_WGPU_BACKEND",
-                        "vulkan",
-                        EnvironmentVariableTarget.Process);
-                    var compatibilityApplied = await NvidiaDesktopPetCompatibility.EnsurePreferNativeAsync(
-                        DesktopHomunculusManager.FindInstalledEngine(),
-                        progress,
-                        _operationCancellation.Token);
-                    if (!compatibilityApplied)
+                    if (NvidiaDesktopPetCompatibility.IsNvidiaDriverPresent())
                     {
-                        Services.AppLog.Info("NVIDIA native-present compatibility was not applied; desktop pet startup will still be attempted.");
-                        _status.Text = "NVIDIA 透明显示兼容设置未能自动完成，正在继续尝试...";
-                        _status.ForeColor = Color.FromArgb(230, 177, 103);
+                        Environment.SetEnvironmentVariable(
+                            "FACM_DESKTOP_PET_WGPU_BACKEND",
+                            "vulkan",
+                            EnvironmentVariableTarget.Process);
+                        var compatibilityApplied = await NvidiaDesktopPetCompatibility.EnsurePreferNativeAsync(
+                            DesktopHomunculusManager.FindInstalledEngine(),
+                            progress,
+                            _operationCancellation.Token);
+                        if (!compatibilityApplied)
+                        {
+                            Services.AppLog.Info("NVIDIA native-present compatibility was not applied; desktop pet startup will still be attempted.");
+                            _status.Text = "NVIDIA 透明显示兼容设置未能自动完成，正在继续尝试...";
+                            _status.ForeColor = Color.FromArgb(230, 177, 103);
+                        }
                     }
-                }
 
-                var result = await DesktopHomunculusManager.ActivateAsync(pet, progress, _operationCancellation.Token);
-                if (!result.Success)
-                {
-                    Services.AppLog.Info("Pet activation failed: " + result.ErrorMessage);
-                    _status.Text = "桌宠应用失败，默认悬浮球已保留。";
-                    _status.ForeColor = Color.FromArgb(255, 145, 121);
-                    return;
-                }
+                    var result = await DesktopHomunculusManager.ActivateAsync(pet, progress, _operationCancellation.Token);
+                    if (!result.Success)
+                    {
+                        Services.AppLog.Info("Pet activation failed: " + result.ErrorMessage);
+                        _status.Text = "桌宠应用失败，默认悬浮球已保留。";
+                        _status.ForeColor = Color.FromArgb(255, 145, 121);
+                        return;
+                    }
 
-                _selectedPetId = pet.Id;
-                ActivatedPersonaId = result.PersonaId;
-                _progress.Value = 100;
-                _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 FACM 控制面板。";
-                _status.ForeColor = Color.FromArgb(99, 219, 158);
-                DialogResult = DialogResult.OK;
-                Close();
+                    _selectedPetId = pet.Id;
+                    ActivatedPersonaId = result.PersonaId;
+                    _progress.Value = 100;
+                    _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 FACM 控制面板。";
+                    _status.ForeColor = Color.FromArgb(99, 219, 158);
+                    DialogResult = DialogResult.OK;
+                    Close();
+                }
             }
             finally
             {
