@@ -19,7 +19,8 @@ namespace FACM.Services
         public bool AutoUpdateEnabled { get; set; } = true;
         public string LastAnnouncementId { get; set; } = string.Empty;
         public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
-        public string PetStyleId { get; set; } = PetCatalog.DefaultPetId;
+        public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
+        public bool AnimalPetEnabled { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -47,7 +48,8 @@ namespace FACM.Services
                     else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoUpdateEnabled = flag;
                     else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
                     else if (key.Equals("ThemeId", StringComparison.OrdinalIgnoreCase)) result.ThemeId = ThemeCatalog.Get(value).Id;
-                    else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = PetCatalog.Get(value).Id;
+                    else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
+                    else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
                 }
             }
             catch (Exception exception)
@@ -56,7 +58,7 @@ namespace FACM.Services
             }
 
             result.ThemeId = ThemeCatalog.Get(result.ThemeId).Id;
-            result.PetStyleId = PetCatalog.Get(result.PetStyleId).Id;
+            result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             return result;
         }
 
@@ -73,7 +75,8 @@ namespace FACM.Services
                     "AutoUpdateEnabled=" + AutoUpdateEnabled,
                     "LastAnnouncementId=" + Sanitize(LastAnnouncementId),
                     "ThemeId=" + ThemeCatalog.Get(ThemeId).Id,
-                    "PetStyleId=" + PetCatalog.Get(PetStyleId).Id
+                    "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
+                    "AnimalPetEnabled=" + AnimalPetEnabled
                 };
                 File.WriteAllLines(RuntimePaths.SettingsPath, lines);
             }
