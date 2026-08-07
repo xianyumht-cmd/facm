@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("FACM")]
-[assembly: AssemblyDescription("FACM desktop control center with configurable cleanup, verified tool bundle, online updates and announcements")]
+[assembly: AssemblyDescription("")]
 [assembly: AssemblyCompany("FACM")]
 [assembly: AssemblyProduct("FACM")]
 [assembly: AssemblyCopyright("Copyright © 2026 FACM")]
