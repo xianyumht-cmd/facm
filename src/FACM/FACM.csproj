@@ -59,4 +59,11 @@
     <Message Importance="High"
              Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
+
+  <Target Name="SmokeTest3DPetsAfterCiBuild"
+          AfterTargets="Build"
+          Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Message Importance="High" Text="Running FACM 3D pet smoke test for all built-in models." />
+    <Exec Command="&quot;$(TargetPath)&quot; --pet-smoke-test" />
+  </Target>
 </Project>
