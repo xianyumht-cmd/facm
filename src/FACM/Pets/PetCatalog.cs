@@ -1,164 +1,43 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 
 namespace FACM.Pets
 {
-    internal enum PetKind
-    {
-        Jelly,
-        Cat,
-        Fox,
-        Robot,
-        Ghost,
-        Chick,
-        Dragon,
-        Star,
-        PixelBot,
-        CloudBunny
-    }
-
     internal sealed class PetDefinition
     {
         public string Id { get; set; }
         public string Name { get; set; }
+        public string OriginalName { get; set; }
         public string Description { get; set; }
-        public PetKind Kind { get; set; }
-        public Size Size { get; set; }
-        public Color Primary { get; set; }
-        public Color Secondary { get; set; }
-        public Color Accent { get; set; }
-        public Color Outline { get; set; }
-        public bool Pixelated { get; set; }
+        public string ModelUrl { get; set; }
+        public string ThumbnailUrl { get; set; }
+        public string License { get; set; }
+        public string AssetId
+        {
+            get { return "vrm:facm:" + Id; }
+        }
+        public string PersonaId
+        {
+            get { return "facm-" + Id; }
+        }
     }
 
     internal static class PetCatalog
     {
-        public const string DefaultPetId = "jelly-blue";
+        public const string DefaultPetId = "rabbit";
 
         private static readonly IReadOnlyList<PetDefinition> Pets = new List<PetDefinition>
         {
-            new PetDefinition
-            {
-                Id = "jelly-blue",
-                Name = "蓝莓啵啵",
-                Description = "透明果冻 3D 模型，呼吸与视线跟随",
-                Kind = PetKind.Jelly,
-                Size = new Size(154, 146),
-                Primary = Color.FromArgb(82, 150, 255),
-                Secondary = Color.FromArgb(87, 83, 230),
-                Accent = Color.FromArgb(181, 224, 255),
-                Outline = Color.FromArgb(42, 75, 167)
-            },
-            new PetDefinition
-            {
-                Id = "cream-cat",
-                Name = "奶油猫",
-                Description = "圆脸猫咪 3D 模型，立体耳朵和尾巴",
-                Kind = PetKind.Cat,
-                Size = new Size(166, 154),
-                Primary = Color.FromArgb(255, 225, 178),
-                Secondary = Color.FromArgb(226, 166, 112),
-                Accent = Color.FromArgb(255, 147, 169),
-                Outline = Color.FromArgb(117, 78, 55)
-            },
-            new PetDefinition
-            {
-                Id = "sunset-fox",
-                Name = "落日狐",
-                Description = "橙红狐狸 3D 模型，长尾与立体尖耳",
-                Kind = PetKind.Fox,
-                Size = new Size(178, 158),
-                Primary = Color.FromArgb(255, 137, 63),
-                Secondary = Color.FromArgb(204, 64, 57),
-                Accent = Color.FromArgb(255, 239, 195),
-                Outline = Color.FromArgb(102, 43, 46)
-            },
-            new PetDefinition
-            {
-                Id = "mint-robot",
-                Name = "薄荷机器人",
-                Description = "机械 3D 模型，发光面板与天线",
-                Kind = PetKind.Robot,
-                Size = new Size(160, 150),
-                Primary = Color.FromArgb(72, 222, 189),
-                Secondary = Color.FromArgb(44, 122, 159),
-                Accent = Color.FromArgb(226, 255, 248),
-                Outline = Color.FromArgb(30, 77, 91)
-            },
-            new PetDefinition
-            {
-                Id = "violet-ghost",
-                Name = "紫雾幽灵",
-                Description = "半透明 3D 幽灵，漂浮与眨眼",
-                Kind = PetKind.Ghost,
-                Size = new Size(156, 162),
-                Primary = Color.FromArgb(166, 106, 255),
-                Secondary = Color.FromArgb(88, 58, 190),
-                Accent = Color.FromArgb(240, 221, 255),
-                Outline = Color.FromArgb(65, 43, 130)
-            },
-            new PetDefinition
-            {
-                Id = "lemon-chick",
-                Name = "柠檬团子",
-                Description = "黄色小鸟 3D 模型，立体翅膀和鸟喙",
-                Kind = PetKind.Chick,
-                Size = new Size(154, 148),
-                Primary = Color.FromArgb(255, 216, 79),
-                Secondary = Color.FromArgb(243, 159, 49),
-                Accent = Color.FromArgb(255, 245, 206),
-                Outline = Color.FromArgb(139, 89, 39)
-            },
-            new PetDefinition
-            {
-                Id = "ruby-dragon",
-                Name = "赤焰幼龙",
-                Description = "幼龙 3D 模型，立体双翼、角和尾巴",
-                Kind = PetKind.Dragon,
-                Size = new Size(188, 166),
-                Primary = Color.FromArgb(239, 76, 83),
-                Secondary = Color.FromArgb(141, 42, 74),
-                Accent = Color.FromArgb(255, 194, 102),
-                Outline = Color.FromArgb(82, 29, 55)
-            },
-            new PetDefinition
-            {
-                Id = "cosmic-star",
-                Name = "星愿精灵",
-                Description = "立体星形精灵，轨道光点与缓慢旋转",
-                Kind = PetKind.Star,
-                Size = new Size(166, 166),
-                Primary = Color.FromArgb(113, 100, 255),
-                Secondary = Color.FromArgb(244, 96, 209),
-                Accent = Color.FromArgb(255, 238, 134),
-                Outline = Color.FromArgb(52, 45, 132)
-            },
-            new PetDefinition
-            {
-                Id = "pixel-bot",
-                Name = "像素机兵",
-                Description = "方块化 3D 机兵，硬边机械造型",
-                Kind = PetKind.PixelBot,
-                Size = new Size(150, 150),
-                Primary = Color.FromArgb(54, 215, 247),
-                Secondary = Color.FromArgb(50, 74, 158),
-                Accent = Color.FromArgb(241, 255, 132),
-                Outline = Color.FromArgb(20, 31, 70),
-                Pixelated = true
-            },
-            new PetDefinition
-            {
-                Id = "cloud-bunny",
-                Name = "云朵兔",
-                Description = "柔白兔子 3D 模型，长耳和球形尾巴",
-                Kind = PetKind.CloudBunny,
-                Size = new Size(172, 168),
-                Primary = Color.FromArgb(239, 247, 255),
-                Secondary = Color.FromArgb(164, 205, 255),
-                Accent = Color.FromArgb(255, 160, 198),
-                Outline = Color.FromArgb(92, 128, 177)
-            }
+            Pet("rabbit", "兔兔", "Rabbit", "带兔耳的完整 VRM 角色", "https://arweave.net/RymRtrmhHx_f9ZDvtvIQb1noTHvILdjoTg5G7L2DR-8", "https://arweave.net/wBqJHzcXuHV0NpFcbtcBB4O2kHqdVN0Zv2QO0jHNkdI"),
+            Pet("teddy", "泰迪", "Teddy", "布偶风完整 VRM 角色", "https://arweave.net/KbaYR3YmtjweLgEcJAWekeh3MNAlF9ZWOYJkbNfi8MM", "https://arweave.net/RshgOJaFyAdcmupiH7pUl9-WdC-flIEM0NrPqZEtyfU"),
+            Pet("cappy", "蘑菇帽", "Cappy", "轻松可爱的卡通 VRM 角色", "https://arweave.net/nj5MQRsykjZVzRifNkrrbYz5i8rdmYLPDy70NjFuaco", "https://arweave.net/P8A6sgpEOhH8RpjxNYeHzWE9R52x0wVpY9vDT_7y5J8"),
+            Pet("dinokid", "恐龙少年", "DinoKid", "恐龙主题完整 VRM 角色", "https://arweave.net/T1gkB95XKXAZl_VmU1ozg5Txm--o9nY0Nge3s8zNoBs", "https://arweave.net/qRNTQjqGS9WiZUr-_dpKOBPyM9a6ucbBpRq_5yiz9lY"),
+            Pet("coolalien", "酷外星人", "CoolAlien", "科幻外星人 VRM 角色", "https://arweave.net/FB3g343NrNmQrr4V0191V93pbzOVwTiQWF3PEcL4MNg", "https://arweave.net/wOVOC-UMUDiRkoOI3gPq8CRMIFrC1-cxKRqi5wOEUTE"),
+            Pet("witch", "女巫", "Witch", "暗色女巫主题 VRM 角色", "https://arweave.net/0YLwWzDkvVWn9ttv2RAdc8bvWcCBjvYPpu7fpjpHYU0", "https://arweave.net/ZxofC0CRXIB40r26MqyHK7tVAjoYs1a6SYBaxeqruwM"),
+            Pet("ghost", "幽灵", "Ghost", "幽灵主题完整 VRM 角色", "https://arweave.net/fSy4hx9L9SqiQIKzjhRLhXzDZpQEJA5izCcDej_WJi8", "https://arweave.net/Q2FpwQkrMJTlpbM8ZoB-vgRni9VIXMW2CZfnSqtdJlw"),
+            Pet("polybot", "机甲伙伴", "Polybot", "机器人主题完整 VRM 角色", "https://arweave.net/DUR8v-IugXppdMBxPdE1rDO2dZCJJ7ZgBTXSRgPJFNo", "https://arweave.net/PJ-ovenhR5xdQPv_Z1NkujIpPWjfD_7XENdf7yzHZ_0"),
+            Pet("astronaut", "宇航员", "Astronaut", "宇航员主题完整 VRM 角色", "https://arweave.net/T0c0z_XEPQHy3vyXz31XB22s_6JTqHdnau8exq_I8tI", "https://arweave.net/Qo512sj7GqyM2wvlubg4aPyA-Hl_VTxRGYiDZ0A4Wx4"),
+            Pet("milk", "牛奶人", "Milk", "白色卡通风完整 VRM 角色", "https://arweave.net/X3NJlq8p9AsiUIqZhsmByDssKQGYeAZxnFNI0fSULMI", "https://arweave.net/C5r_C82cPUwxHxPCL2_ZQC6Gr3owsvbQ2Um3Pkb5_sk")
         };
 
         public static IReadOnlyList<PetDefinition> All
@@ -173,6 +52,20 @@ namespace FACM.Pets
                 if (string.Equals(pet.Id, id, StringComparison.OrdinalIgnoreCase)) return pet;
             }
             return Pets[0];
+        }
+
+        private static PetDefinition Pet(string id, string name, string originalName, string description, string modelUrl, string thumbnailUrl)
+        {
+            return new PetDefinition
+            {
+                Id = id,
+                Name = name,
+                OriginalName = originalName,
+                Description = description,
+                ModelUrl = modelUrl,
+                ThumbnailUrl = thumbnailUrl,
+                License = "CC0 1.0（100Avatars R1）"
+            };
         }
     }
 }
