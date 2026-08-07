@@ -1,16 +1,15 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using FACM.Services;
-using Microsoft.Win32;
 
 namespace FACM.Pets
 {
@@ -47,24 +46,21 @@ namespace FACM.Pets
                 Directory.CreateDirectory(EngineDirectory);
                 Directory.CreateDirectory(ModelsDirectory);
 
-                Report(progress, "正在检查开源桌宠引擎...", 2);
+                Report(progress, "正在检查桌宠组件...", 2);
                 var enginePath = await EnsureEngineReadyAsync(progress, token).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(enginePath))
-                    return Failure("无法启动 Desktop Homunculus 开源桌宠引擎。");
-
-                Report(progress, "正在准备 " + pet.Name + " 的 VRM 模型...", 58);
+                Report(progress, "正在准备 " + pet.Name + "...", 58);
                 var modelPath = await EnsureModelAsync(pet, progress, token).ConfigureAwait(false);
 
-                Report(progress, "正在导入 VRM 模型...", 88);
+                Report(progress, "正在加载桌宠...", 88);
                 using (var client = new DesktopHomunculusClient())
                 {
                     await client.ImportVrmAsync(modelPath, pet, token).ConfigureAwait(false);
-                    Report(progress, "正在切换并启动桌宠...", 94);
+                    Report(progress, "正在启动桌宠...", 94);
                     await client.ActivatePersonaAsync(pet, token).ConfigureAwait(false);
                 }
 
-                Report(progress, "桌宠已启动；点击角色可打开 FACM 控制面板", 100);
-                AppLog.Info("Desktop Homunculus persona activated: " + pet.PersonaId + "; model=" + modelPath);
+                Report(progress, "桌宠已启动", 100);
+                AppLog.Info("Desktop pet activated: " + pet.PersonaId + "; engine=" + enginePath + "; model=" + modelPath);
                 return new PetActivationResult
                 {
                     Success = true,
@@ -80,7 +76,7 @@ namespace FACM.Pets
             catch (Exception exception)
             {
                 AppLog.Error("Open-source 3D pet activation failed", exception);
-                return Failure(exception.Message);
+                return Failure("桌宠启动失败，请稍后重试。");
             }
             finally
             {
@@ -92,37 +88,42 @@ namespace FACM.Pets
         {
             try
             {
+                var enginePath = FindInstalledEngine();
                 using (var client = new DesktopHomunculusClient())
                 {
                     if (!await client.IsReadyAsync(token).ConfigureAwait(false))
                     {
-                        var enginePath = FindInstalledEngine();
-                        if (string.IsNullOrWhiteSpace(enginePath)) return Failure("引擎尚未安装。 ");
+                        if (string.IsNullOrWhiteSpace(enginePath)) return Failure("桌宠组件尚未安装。");
                         StartEngine(enginePath);
                         if (!await WaitForApiAsync(TimeSpan.FromSeconds(25), token).ConfigureAwait(false))
-                            return Failure("引擎启动后 API 未就绪。");
+                            return Failure("桌宠组件未能正常启动。");
                     }
                 }
 
                 var modelPath = GetModelPath(pet);
-                if (!File.Exists(modelPath)) return Failure("模型尚未下载。");
+                if (!File.Exists(modelPath)) return Failure("桌宠资源尚未下载。");
                 using (var client = new DesktopHomunculusClient())
                 {
                     await client.ImportVrmAsync(modelPath, pet, token).ConfigureAwait(false);
                     await client.ActivatePersonaAsync(pet, token).ConfigureAwait(false);
                 }
+
                 return new PetActivationResult
                 {
                     Success = true,
                     PersonaId = pet.PersonaId,
-                    EnginePath = FindInstalledEngine(),
+                    EnginePath = enginePath ?? FindInstalledEngine(),
                     ModelPath = modelPath
                 };
             }
+            catch (OperationCanceledException)
+            {
+                return Failure("恢复已取消。");
+            }
             catch (Exception exception)
             {
-                AppLog.Info("Open-source pet restore skipped: " + exception.Message);
-                return Failure(exception.Message);
+                AppLog.Info("Desktop pet restore skipped: " + exception.Message);
+                return Failure("桌宠暂时无法恢复。");
             }
         }
 
@@ -157,48 +158,14 @@ namespace FACM.Pets
 
         public static string FindInstalledEngine()
         {
-            var candidates = new List<string>();
-            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-
-            AddCandidate(candidates, Path.Combine(local, "Programs", "desktop-homunculus", "desktop-homunculus.exe"));
-            AddCandidate(candidates, Path.Combine(local, "desktop-homunculus", "desktop-homunculus.exe"));
-            AddCandidate(candidates, Path.Combine(programFiles, "desktop-homunculus", "desktop-homunculus.exe"));
-            AddCandidate(candidates, Path.Combine(programFiles, "Desktop Homunculus", "desktop-homunculus.exe"));
-            AddCandidate(candidates, Path.Combine(programFilesX86, "desktop-homunculus", "desktop-homunculus.exe"));
-
-            foreach (var path in ReadInstallLocations())
-            {
-                AddCandidate(candidates, Path.Combine(path, "desktop-homunculus.exe"));
-                AddCandidate(candidates, Path.Combine(path, "desktop_homunculus.exe"));
-                AddCandidate(candidates, Path.Combine(path, "homunculus.exe"));
-            }
-
-            foreach (var candidate in candidates)
-            {
-                if (File.Exists(candidate)) return candidate;
-            }
-
-            var roots = new[]
-            {
-                Path.Combine(local, "Programs"),
-                Path.Combine(programFiles, "desktop-homunculus"),
-                Path.Combine(programFiles, "Desktop Homunculus")
-            };
-            foreach (var root in roots)
-            {
-                var found = FindExecutableUnder(root);
-                if (!string.IsNullOrWhiteSpace(found)) return found;
-            }
-            return null;
+            return DesktopHomunculusLocator.Find();
         }
 
         public static void OpenEngine()
         {
             var path = FindInstalledEngine();
             if (string.IsNullOrWhiteSpace(path))
-                throw new FileNotFoundException("Desktop Homunculus 尚未安装，请先选择并应用一个桌宠模型。");
+                throw new FileNotFoundException("桌宠组件尚未安装，请先选择并应用一个桌宠。 ");
             StartEngine(path);
         }
 
@@ -208,7 +175,7 @@ namespace FACM.Pets
             {
                 if (await client.IsReadyAsync(token).ConfigureAwait(false))
                 {
-                    Report(progress, "已连接正在运行的 Desktop Homunculus", 18);
+                    Report(progress, "桌宠组件已就绪", 18);
                     return FindInstalledEngine() ?? "running";
                 }
             }
@@ -216,55 +183,95 @@ namespace FACM.Pets
             var installed = FindInstalledEngine();
             if (!string.IsNullOrWhiteSpace(installed))
             {
-                Report(progress, "正在启动已安装的开源桌宠引擎...", 20);
+                Report(progress, "正在启动已安装的桌宠组件...", 20);
                 StartEngine(installed);
                 if (await WaitForApiAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false)) return installed;
-                throw new InvalidOperationException("Desktop Homunculus 已启动，但本地 API 在 30 秒内没有就绪。请检查显卡设置或引擎窗口提示。");
+                AppLog.Info("Installed desktop pet executable did not expose API after launch: " + installed);
             }
 
-            Report(progress, "首次使用：正在获取 Desktop Homunculus 官方安装包信息...", 4);
+            Report(progress, "首次使用：正在获取桌宠组件...", 4);
             var installer = await DownloadInstallerAsync(progress, token).ConfigureAwait(false);
-            Report(progress, "正在安装开源桌宠引擎（约 200 MB）...", 42);
+            var installStartedUtc = DateTime.UtcNow;
+            Report(progress, "正在安装桌宠组件...", 42);
             InstallMsi(installer, token);
 
-            installed = FindInstalledEngine();
+            Report(progress, "正在确认安装结果...", 48);
+            installed = DesktopHomunculusLocator.WaitForInstalledExecutable(installStartedUtc, TimeSpan.FromSeconds(18), token);
             if (string.IsNullOrWhiteSpace(installed))
-                throw new FileNotFoundException("安装完成，但没有找到 desktop-homunculus.exe。请查看安装程序是否被安全软件拦截。", installer);
+            {
+                AppLog.Info("MSI completed successfully but executable discovery returned no result. Installer=" + installer);
+                throw new FileNotFoundException("桌宠组件安装后未能定位启动程序。", installer);
+            }
 
-            Report(progress, "正在首次启动开源桌宠引擎...", 52);
+            Report(progress, "正在首次启动桌宠组件...", 52);
             StartEngine(installed);
             if (!await WaitForApiAsync(TimeSpan.FromSeconds(45), token).ConfigureAwait(false))
-                throw new InvalidOperationException("Desktop Homunculus 安装成功，但本地 API 没有就绪。NVIDIA 显卡需将 Vulkan/OpenGL present method 设为 Prefer native。 ");
+            {
+                var rediscovered = FindInstalledEngine();
+                if (!string.IsNullOrWhiteSpace(rediscovered) && !string.Equals(rediscovered, installed, StringComparison.OrdinalIgnoreCase))
+                {
+                    AppLog.Info("Retrying desktop pet engine with rediscovered path: " + rediscovered);
+                    StartEngine(rediscovered);
+                    if (await WaitForApiAsync(TimeSpan.FromSeconds(20), token).ConfigureAwait(false)) return rediscovered;
+                }
+                throw new InvalidOperationException("桌宠组件已安装，但启动服务没有就绪。");
+            }
             return installed;
         }
 
         private static async Task<string> DownloadInstallerAsync(IProgress<PetSetupProgress> progress, CancellationToken token)
         {
             Directory.CreateDirectory(EngineDirectory);
-            var release = await ReadJsonAsync(ReleaseApi, token).ConfigureAwait(false);
-            if (release == null) release = FirstRelease(await ReadJsonAsync(ReleasesApi, token).ConfigureAwait(false));
-            if (release == null) throw new InvalidOperationException("GitHub 没有返回 Desktop Homunculus 发布信息。 ");
+            var release = await ReadReleaseAsync(token).ConfigureAwait(false);
+            if (release == null) throw new InvalidOperationException("暂时无法获取桌宠组件下载信息。");
 
             var asset = FindWindowsInstaller(release);
-            if (asset == null) throw new InvalidOperationException("最新发布中没有找到 Windows x64 MSI 安装包。 ");
-
+            if (asset == null) throw new InvalidOperationException("当前发布版本没有可用的 Windows 安装包。");
             var url = ReadString(asset, "browser_download_url");
             var name = ReadString(asset, "name");
+            var expectedSize = ReadLong(asset, "size");
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(name))
-                throw new InvalidOperationException("发布信息中的安装包地址无效。 ");
+                throw new InvalidOperationException("桌宠组件下载信息不完整。");
 
             var target = Path.Combine(EngineDirectory, SanitizeFileName(name));
-            var expectedSize = ReadLong(asset, "size");
             if (File.Exists(target) && (expectedSize <= 0 || new FileInfo(target).Length == expectedSize)) return target;
 
             var temporary = target + ".download";
-            if (File.Exists(temporary)) File.Delete(temporary);
-            await DownloadFileAsync(url, temporary, 6, 40, progress, "正在下载开源桌宠引擎", token).ConfigureAwait(false);
-            if (new FileInfo(temporary).Length < 50L * 1024L * 1024L)
-                throw new InvalidDataException("下载到的引擎安装包体积异常。 ");
-            if (File.Exists(target)) File.Delete(target);
+            TryDelete(temporary);
+            await DownloadFileAsync(url, temporary, 6, 40, progress, "正在下载桌宠组件", token).ConfigureAwait(false);
+            var length = new FileInfo(temporary).Length;
+            if (length < 1024L * 1024L) throw new InvalidDataException("桌宠组件下载文件体积异常。");
+            if (expectedSize > 0 && length != expectedSize)
+                throw new InvalidDataException("桌宠组件下载未完成，请重试。");
+            TryDelete(target);
             File.Move(temporary, target);
             return target;
+        }
+
+        private static async Task<Dictionary<string, object>> ReadReleaseAsync(CancellationToken token)
+        {
+            var latest = await ReadJsonAsync(ReleaseApi, token).ConfigureAwait(false) as Dictionary<string, object>;
+            if (latest != null) return latest;
+            var releases = await ReadJsonAsync(ReleasesApi, token).ConfigureAwait(false) as object[];
+            if (releases == null) return null;
+            return releases.OfType<Dictionary<string, object>>().FirstOrDefault(item => FindWindowsInstaller(item) != null);
+        }
+
+        private static Dictionary<string, object> FindWindowsInstaller(Dictionary<string, object> release)
+        {
+            if (release == null) return null;
+            object value;
+            if (!release.TryGetValue("assets", out value)) return null;
+            var assets = value as object[];
+            if (assets == null) return null;
+            return assets
+                .OfType<Dictionary<string, object>>()
+                .Select(item => new { Item = item, Name = ReadString(item, "name") ?? string.Empty })
+                .Where(item => item.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(item => item.Name.IndexOf("x64", StringComparison.OrdinalIgnoreCase) >= 0 || item.Name.IndexOf("amd64", StringComparison.OrdinalIgnoreCase) >= 0)
+                .ThenByDescending(item => item.Name.IndexOf("windows", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(item => item.Item)
+                .FirstOrDefault();
         }
 
         private static async Task<string> EnsureModelAsync(PetDefinition pet, IProgress<PetSetupProgress> progress, CancellationToken token)
@@ -274,16 +281,15 @@ namespace FACM.Pets
             if (IsValidVrm(path)) return path;
 
             var temporary = path + ".download";
-            if (File.Exists(temporary)) File.Delete(temporary);
-            await DownloadFileAsync(pet.ModelUrl, temporary, 60, 87, progress, "正在下载 " + pet.Name + " VRM 模型", token).ConfigureAwait(false);
-            if (!IsValidVrm(temporary))
-                throw new InvalidDataException("下载的 VRM 模型格式无效：" + pet.Name);
-            if (File.Exists(path)) File.Delete(path);
+            TryDelete(temporary);
+            await DownloadFileAsync(pet.ModelUrl, temporary, 60, 87, progress, "正在下载 " + pet.Name, token).ConfigureAwait(false);
+            if (!IsValidVrm(temporary)) throw new InvalidDataException("下载的桌宠资源格式无效。");
+            TryDelete(path);
             File.Move(temporary, path);
 
             using (var sha = SHA256.Create())
             using (var stream = File.OpenRead(path))
-                AppLog.Info("Downloaded CC0 VRM " + pet.OriginalName + "; sha256=" + BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", string.Empty));
+                AppLog.Info("Downloaded pet model " + pet.OriginalName + "; sha256=" + BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", string.Empty));
             return path;
         }
 
@@ -296,7 +302,7 @@ namespace FACM.Pets
         {
             try
             {
-                if (!File.Exists(path) || new FileInfo(path).Length < 1024 * 512) return false;
+                if (!File.Exists(path) || new FileInfo(path).Length < 512L * 1024L) return false;
                 var bytes = new byte[4];
                 using (var stream = File.OpenRead(path))
                 {
@@ -320,31 +326,43 @@ namespace FACM.Pets
                 {
                     if (await client.IsReadyAsync(token).ConfigureAwait(false)) return true;
                 }
-                await Task.Delay(750, token).ConfigureAwait(false);
+                await Task.Delay(700, token).ConfigureAwait(false);
             }
             return false;
         }
 
         private static void StartEngine(string path)
         {
-            if (Process.GetProcesses().Any(process =>
+            if (string.IsNullOrWhiteSpace(path) || string.Equals(path, "running", StringComparison.OrdinalIgnoreCase)) return;
+            if (!File.Exists(path)) throw new FileNotFoundException("桌宠启动程序不存在。", path);
+
+            foreach (var process in Process.GetProcesses())
             {
                 try
                 {
-                    return process.ProcessName.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) >= 0;
+                    var name = process.ProcessName ?? string.Empty;
+                    if (name.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) >= 0) return;
                 }
                 catch
                 {
-                    return false;
                 }
-            })) return;
+                finally
+                {
+                    process.Dispose();
+                }
+            }
 
-            Process.Start(new ProcessStartInfo
+            var started = Process.Start(new ProcessStartInfo
             {
                 FileName = path,
                 WorkingDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory,
                 UseShellExecute = true
             });
+            if (started != null)
+            {
+                try { AppLog.Info("Desktop pet engine process started: pid=" + started.Id + "; path=" + path); }
+                finally { started.Dispose(); }
+            }
         }
 
         private static void InstallMsi(string installer, CancellationToken token)
@@ -357,10 +375,11 @@ namespace FACM.Pets
                 Verb = "runas"
             }))
             {
-                if (process == null) throw new InvalidOperationException("无法启动 MSI 安装程序。 ");
+                if (process == null) throw new InvalidOperationException("无法启动桌宠安装程序。");
                 while (!process.WaitForExit(500)) token.ThrowIfCancellationRequested();
-                if (process.ExitCode != 0 && process.ExitCode != 3010)
-                    throw new InvalidOperationException("Desktop Homunculus 安装失败，MSI 返回 " + process.ExitCode + "。 ");
+                if (process.ExitCode != 0 && process.ExitCode != 3010 && process.ExitCode != 1641)
+                    throw new InvalidOperationException("桌宠组件安装失败，代码 " + process.ExitCode + "。");
+                AppLog.Info("Desktop pet MSI completed with exit code " + process.ExitCode + "; installer=" + installer);
             }
         }
 
@@ -371,51 +390,27 @@ namespace FACM.Pets
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                 using (var response = await DownloadClient.SendAsync(request, token).ConfigureAwait(false))
                 {
-                    if (!response.IsSuccessStatusCode) return null;
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        AppLog.Info("Desktop pet release endpoint returned HTTP " + (int)response.StatusCode + ": " + url);
+                        return null;
+                    }
                     var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                     return new JavaScriptSerializer { MaxJsonLength = int.MaxValue }.DeserializeObject(text);
                 }
             }
-            catch
+            catch (OperationCanceledException)
             {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Desktop pet release lookup failed: " + exception.Message);
                 return null;
             }
         }
 
-        private static Dictionary<string, object> FirstRelease(object value)
-        {
-            var array = value as object[];
-            if (array == null || array.Length == 0) return null;
-            return array[0] as Dictionary<string, object>;
-        }
-
-        private static Dictionary<string, object> FindWindowsInstaller(object releaseObject)
-        {
-            var release = releaseObject as Dictionary<string, object>;
-            if (release == null) return null;
-            object value;
-            if (!release.TryGetValue("assets", out value)) return null;
-            var assets = value as object[];
-            if (assets == null) return null;
-
-            return assets
-                .OfType<Dictionary<string, object>>()
-                .Select(item => new { Item = item, Name = ReadString(item, "name") ?? string.Empty })
-                .Where(item => item.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(item => item.Name.IndexOf("x64", StringComparison.OrdinalIgnoreCase) >= 0)
-                .ThenByDescending(item => item.Name.IndexOf("windows", StringComparison.OrdinalIgnoreCase) >= 0)
-                .Select(item => item.Item)
-                .FirstOrDefault();
-        }
-
-        private static async Task DownloadFileAsync(
-            string url,
-            string target,
-            int startPercent,
-            int endPercent,
-            IProgress<PetSetupProgress> progress,
-            string message,
-            CancellationToken token)
+        private static async Task DownloadFileAsync(string url, string target, int startPercent, int endPercent, IProgress<PetSetupProgress> progress, string message, CancellationToken token)
         {
             using (var request = new HttpRequestMessage(HttpMethod.Get, url))
             using (var response = await DownloadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
@@ -442,61 +437,6 @@ namespace FACM.Pets
             }
         }
 
-        private static IEnumerable<string> ReadInstallLocations()
-        {
-            var output = new List<string>();
-            var roots = new[]
-            {
-                Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
-                Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
-                Registry.LocalMachine.OpenSubKey(@"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
-            };
-            foreach (var root in roots)
-            {
-                using (root)
-                {
-                    if (root == null) continue;
-                    foreach (var subName in root.GetSubKeyNames())
-                    {
-                        using (var sub = root.OpenSubKey(subName))
-                        {
-                            var display = Convert.ToString(sub == null ? null : sub.GetValue("DisplayName"));
-                            if (display.IndexOf("desktop", StringComparison.OrdinalIgnoreCase) < 0 ||
-                                display.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                            var location = Convert.ToString(sub.GetValue("InstallLocation"));
-                            if (!string.IsNullOrWhiteSpace(location)) output.Add(location.Trim(' ', '"'));
-                        }
-                    }
-                }
-            }
-            return output;
-        }
-
-        private static string FindExecutableUnder(string root)
-        {
-            try
-            {
-                if (!Directory.Exists(root)) return null;
-                return Directory.GetFiles(root, "*homunculus*.exe", SearchOption.AllDirectories)
-                    .FirstOrDefault(path => Path.GetFileName(path).IndexOf("uninstall", StringComparison.OrdinalIgnoreCase) < 0);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static void AddCandidate(ICollection<string> list, string path)
-        {
-            if (!string.IsNullOrWhiteSpace(path) && !list.Contains(path)) list.Add(path);
-        }
-
-        private static string SanitizeFileName(string value)
-        {
-            foreach (var invalid in Path.GetInvalidFileNameChars()) value = value.Replace(invalid, '_');
-            return value;
-        }
-
         private static string ReadString(Dictionary<string, object> source, string key)
         {
             object value;
@@ -511,9 +451,30 @@ namespace FACM.Pets
             return long.TryParse(Convert.ToString(value), out number) ? number : 0;
         }
 
+        private static string SanitizeFileName(string value)
+        {
+            foreach (var invalid in Path.GetInvalidFileNameChars()) value = value.Replace(invalid, '_');
+            return value;
+        }
+
+        private static void TryDelete(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch
+            {
+            }
+        }
+
         private static HttpClient CreateDownloadClient()
         {
-            var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+            var handler = new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+            var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM/3.1 (+https://github.com/xianyumht-cmd/facm)");
             client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github+json,application/octet-stream;q=0.9,*/*;q=0.5");
             return client;
