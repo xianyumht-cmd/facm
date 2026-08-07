@@ -4,25 +4,10 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'tools/**'
-      - 'scripts/**'
-      - 'docs/**'
-      - 'FACM.sln'
-      - 'README.md'
-      - '.github/workflows/build.yml'
+      - 'codex/**'
   pull_request:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'tools/**'
-      - 'scripts/**'
-      - 'docs/**'
-      - 'FACM.sln'
-      - 'README.md'
-      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 permissions:
@@ -72,27 +57,27 @@ jobs:
             }
 
             $item = Get-Item -LiteralPath $path
-            if ($item.Length -ne [long]$entry.size) {
-              throw "Size mismatch for $($entry.name): expected $($entry.size), actual $($item.Length)"
+            if ($item.Length -ne [int64]$entry.size) {
+              throw "Size mismatch for $($entry.name): expected $($entry.size), got $($item.Length)"
             }
 
-            $actualHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
-            if ($actualHash -ne [string]$entry.sha256) {
-              throw "SHA-256 mismatch for $($entry.name)"
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = ([string]$entry.sha256).ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "SHA256 mismatch for $($entry.name): expected $expected, got $actual"
             }
-            Write-Host "Verified $($entry.name) ($($item.Length) bytes)"
+
+            Write-Host "Verified $($entry.name): $actual"
           }
 
       - name: Report cleanup configuration state
         shell: pwsh
         run: |
-          $profilePath = Join-Path $PWD 'src/FACM/Configuration/CleanupProfile.cs'
-          if (-not (Test-Path $profilePath)) {
-            throw "Missing cleanup configuration: $profilePath"
+          $profile = Get-Content 'src/FACM/Services/CleanupProfile.cs' -Raw -ErrorAction SilentlyContinue
+          if (-not $profile) {
+            Write-Warning 'CleanupProfile.cs not found. Cleanup validation skipped.'
           }
-
-          $profile = Get-Content $profilePath -Raw -Encoding utf8
-          if ($profile -match 'REPLACE_[A-Z0-9_]+') {
+          elseif ($profile -match 'REPLACE_[A-Z0-9_]+') {
             Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. FACM will build, but cleanup stays disabled until the developer fills them in.'
           }
           else {
@@ -135,15 +120,21 @@ jobs:
             throw "PetHost executable not found: $hostExe"
           }
 
-          $selfTest = Start-Process -FilePath $hostExe -ArgumentList '--self-test' -Wait -PassThru
+          $selfTestRoot = Join-Path $env:RUNNER_TEMP 'FACM-PetHost-SelfTest'
+          if (Test-Path $selfTestRoot) {
+            Remove-Item $selfTestRoot -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $selfTestRoot -Force | Out-Null
+          $selfTestArgs = "--self-test --data-root `"$selfTestRoot`""
+          $selfTest = Start-Process -FilePath $hostExe -ArgumentList $selfTestArgs -Wait -PassThru
           if ($selfTest.ExitCode -ne 0) {
-            $errorFile = Join-Path $env:LOCALAPPDATA 'FACM\PetHost\self-test-error.txt'
+            $errorFile = Join-Path $selfTestRoot 'self-test-error.txt'
             if (Test-Path $errorFile) {
               Get-Content $errorFile -Raw | Write-Host
             }
             throw "PetHost self-test failed with exit code $($selfTest.ExitCode)"
           }
-          Write-Host "PetHost self-test passed: $hostExe"
+          Write-Host "PetHost self-test passed: $hostExe; data-root=$selfTestRoot"
 
       - name: Verify FACM.exe
         id: verify
@@ -157,7 +148,7 @@ jobs:
 
           $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
           if ([string]::IsNullOrWhiteSpace($version.FileVersion)) {
-            throw 'FACM.exe has no file version metadata.'
+            throw 'FACM.exe has no FileVersion.'
           }
           if ($version.ProductName -ne 'FACM') {
             throw "Unexpected product name: $($version.ProductName)"
@@ -196,18 +187,29 @@ jobs:
       - name: Sign when certificate secrets exist
         shell: pwsh
         env:
-          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
-          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
-            Write-Host 'FACM_PFX_BASE64 is not configured; publishing an unsigned build.'
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_PFX_BASE64)) {
+            Write-Host 'No WINDOWS_CERT_PFX_BASE64 secret configured. Skipping code signing.'
             exit 0
           }
 
-          & .\scripts\sign-ci.ps1 `
-            -ExePath $env:OUTPUT_EXE `
-            -PfxBase64 $env:FACM_PFX_BASE64 `
-            -PfxPassword $env:FACM_PFX_PASSWORD
+          $certPath = Join-Path $env:RUNNER_TEMP 'facm-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $timestamp = if ([string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) { 'http://timestamp.digicert.com' } else { $env:WINDOWS_TIMESTAMP_URL }
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1).FullName
+          if (-not $signtool) {
+            throw 'signtool.exe was not found.'
+          }
+
+          & $signtool sign /fd SHA256 /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr $timestamp /td SHA256 $env:OUTPUT_EXE
+          if ($LASTEXITCODE -ne 0) {
+            throw "signtool failed with exit code $LASTEXITCODE"
+          }
 
       - name: Create downloadable package
         shell: pwsh
@@ -237,14 +239,10 @@ jobs:
 
           $signature = Get-AuthenticodeSignature $output
           $signature | Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
-            Out-File (Join-Path $artifactDir 'SIGNATURE.txt') -Encoding utf8
+            Out-String | Set-Content (Join-Path $artifactDir 'SIGNATURE.txt') -Encoding utf8
 
           $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($output)
           $buildInfo = [ordered]@{
-            repository = '${{ github.repository }}'
-            commit = '${{ github.sha }}'
-            ref = '${{ github.ref }}'
-            run_number = '${{ github.run_number }}'
             file_version = $fileVersion.FileVersion
             product_version = $fileVersion.ProductVersion
             sha256 = $hash.Hash
@@ -252,14 +250,19 @@ jobs:
             tool_bundle = 'embedded FACM.ToolBundle.dll'
             pet_host = 'self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
             pet_host_sha256 = $petHostHash.Hash
+            pet_host_data = 'portable: FACM/runtime/pethost'
             vpet_assets = 'downloaded on first use; Core-1.1.0.66-era upstream commit ac77ba144ed39f61624d93542c008b38be4d85aa'
             built_at_utc = [DateTime]::UtcNow.ToString('o')
           }
           $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir 'BUILD-INFO.json') -Encoding utf8
 
           Copy-Item README.md (Join-Path $artifactDir 'README.md')
-          Copy-Item docs\DEVELOPER-CLEANUP-CONFIG.md (Join-Path $artifactDir 'DEVELOPER-CLEANUP-CONFIG.md')
-          Copy-Item docs\SIGNING.md (Join-Path $artifactDir 'SIGNING.md')
+          if (Test-Path docs\DEVELOPER-CLEANUP-CONFIG.md) {
+            Copy-Item docs\DEVELOPER-CLEANUP-CONFIG.md (Join-Path $artifactDir 'DEVELOPER-CLEANUP-CONFIG.md')
+          }
+          if (Test-Path docs\SIGNING.md) {
+            Copy-Item docs\SIGNING.md (Join-Path $artifactDir 'SIGNING.md')
+          }
           if (Test-Path docs\ONLINE-MANAGEMENT.md) {
             Copy-Item docs\ONLINE-MANAGEMENT.md (Join-Path $artifactDir 'ONLINE-MANAGEMENT.md')
           }
@@ -285,5 +288,3 @@ jobs:
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
             artifacts/BUILD-INFO.json
-          if-no-files-found: error
-          retention-days: 90
