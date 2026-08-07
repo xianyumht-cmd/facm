@@ -78,7 +78,7 @@ jobs:
             Write-Warning 'CleanupProfile.cs not found. Cleanup validation skipped.'
           }
           elseif ($profile -match 'REPLACE_[A-Z0-9_]+') {
-            Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. FACM will build, but cleanup stays disabled until the developer fills them in.'
+            Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. FACM will build, but cleanup stays disabled until configured.'
           }
           else {
             Write-Host 'CleanupProfile.cs contains no REPLACE_ placeholders.'
@@ -241,35 +241,6 @@ jobs:
           $signature | Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
             Out-String | Set-Content (Join-Path $artifactDir 'SIGNATURE.txt') -Encoding utf8
 
-          $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($output)
-          $buildInfo = [ordered]@{
-            file_version = $fileVersion.FileVersion
-            product_version = $fileVersion.ProductVersion
-            sha256 = $hash.Hash
-            signature_status = [string]$signature.Status
-            tool_bundle = 'embedded FACM.ToolBundle.dll'
-            pet_host = 'self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
-            pet_host_sha256 = $petHostHash.Hash
-            pet_host_data = 'portable: FACM/runtime/pethost'
-            vpet_assets = 'downloaded on first use; Core-1.1.0.66-era upstream commit ac77ba144ed39f61624d93542c008b38be4d85aa'
-            built_at_utc = [DateTime]::UtcNow.ToString('o')
-          }
-          $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir 'BUILD-INFO.json') -Encoding utf8
-
-          Copy-Item README.md (Join-Path $artifactDir 'README.md')
-          if (Test-Path docs\DEVELOPER-CLEANUP-CONFIG.md) {
-            Copy-Item docs\DEVELOPER-CLEANUP-CONFIG.md (Join-Path $artifactDir 'DEVELOPER-CLEANUP-CONFIG.md')
-          }
-          if (Test-Path docs\SIGNING.md) {
-            Copy-Item docs\SIGNING.md (Join-Path $artifactDir 'SIGNING.md')
-          }
-          if (Test-Path docs\ONLINE-MANAGEMENT.md) {
-            Copy-Item docs\ONLINE-MANAGEMENT.md (Join-Path $artifactDir 'ONLINE-MANAGEMENT.md')
-          }
-          if (Test-Path docs\VPET-PETHOST.md) {
-            Copy-Item docs\VPET-PETHOST.md (Join-Path $artifactDir 'VPET-PETHOST.md')
-          }
-
           $zip = Join-Path $PWD ($env:PACKAGE_NAME + '.zip')
           if (Test-Path $zip) {
             Remove-Item $zip -Force
@@ -287,4 +258,3 @@ jobs:
             artifacts/PetHost/FACM.PetHost.exe
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
-            artifacts/BUILD-INFO.json
