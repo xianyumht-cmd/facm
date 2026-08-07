@@ -12,6 +12,7 @@ namespace FACM.Pets
         private readonly Pet3DScene _scene;
         private readonly ElementHost _previewHost;
         private string _selectedPetId;
+        private bool _initialized;
 
         public PetPickerForm(string currentPetId)
         {
@@ -38,7 +39,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "右侧是实时 3D 场景预览：透视相机、灯光、材质、网格和动画均实际运行。",
+                Text = "当前内置预览即将替换为开源 VRM 桌宠引擎；此窗口仅用于兼容旧设置。",
                 Location = new Point(26, 54),
                 Size = new Size(700, 24),
                 ForeColor = Color.FromArgb(155, 169, 196)
@@ -57,23 +58,12 @@ namespace FACM.Pets
                 DisplayMember = "Name"
             };
             foreach (var pet in PetCatalog.All) _list.Items.Add(pet);
-            _list.SelectedIndexChanged += SelectPet;
-            _list.DoubleClick += delegate { ApplySelection(); };
-
-            var selectedIndex = 0;
-            for (var index = 0; index < PetCatalog.All.Count; index++)
-            {
-                if (!string.Equals(PetCatalog.All[index].Id, _selectedPetId, StringComparison.OrdinalIgnoreCase)) continue;
-                selectedIndex = index;
-                break;
-            }
-            _list.SelectedIndex = selectedIndex;
 
             var current = PetCatalog.Get(_selectedPetId);
             _scene = new Pet3DScene(current);
             _previewHost = new ElementHost
             {
-                Location = new Point(320, 88),
+                Location = new Point(4, 4),
                 Size = new Size(418, 330),
                 BackColor = Color.FromArgb(8, 12, 21),
                 Child = _scene
@@ -86,7 +76,6 @@ namespace FACM.Pets
                 BackColor = Color.FromArgb(48, 62, 91)
             };
             previewBorder.Controls.Add(_previewHost);
-            _previewHost.Location = new Point(4, 4);
 
             _selectedLabel = new Label
             {
@@ -99,7 +88,7 @@ namespace FACM.Pets
 
             var technology = new Label
             {
-                Text = "渲染：WPF Viewport3D · MeshGeometry3D · PerspectiveCamera · 动态灯光材质",
+                Text = "兼容预览：WPF Viewport3D；正式桌宠将使用开源 VRM 引擎运行时",
                 Location = new Point(320, 510),
                 Size = new Size(418, 24),
                 ForeColor = Color.FromArgb(118, 142, 183),
@@ -122,7 +111,7 @@ namespace FACM.Pets
 
             var apply = new Button
             {
-                Text = "应用 3D 桌宠",
+                Text = "应用",
                 Location = new Point(638, 540),
                 Size = new Size(100, 38),
                 FlatStyle = FlatStyle.Flat,
@@ -143,10 +132,24 @@ namespace FACM.Pets
             Controls.Add(cancel);
             Controls.Add(apply);
 
+            var selectedIndex = 0;
+            for (var index = 0; index < PetCatalog.All.Count; index++)
+            {
+                if (!string.Equals(PetCatalog.All[index].Id, _selectedPetId, StringComparison.OrdinalIgnoreCase)) continue;
+                selectedIndex = index;
+                break;
+            }
+
+            _list.SelectedIndexChanged += SelectPet;
+            _list.DoubleClick += delegate { ApplySelection(); };
+            _initialized = true;
+            _list.SelectedIndex = selectedIndex;
+
             AcceptButton = apply;
             CancelButton = cancel;
             FormClosed += delegate
             {
+                _initialized = false;
                 _previewHost.Child = null;
                 _scene.Dispose();
             };
@@ -159,6 +162,7 @@ namespace FACM.Pets
 
         private void SelectPet(object sender, EventArgs e)
         {
+            if (!_initialized || _scene == null || _selectedLabel == null) return;
             var pet = _list.SelectedItem as PetDefinition;
             if (pet == null) return;
             _selectedPetId = pet.Id;
