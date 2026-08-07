@@ -17,19 +17,22 @@ namespace FACM
         {
             var startCleanup = HasArgument(args, "--cleanup");
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
+            var animalPetTest = HasArgument(args, "--animal-pet-test");
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
             var floatingBallTest = HasArgument(args, "--floating-ball-test");
             var petLocatorTest = HasArgument(args, "--pet-locator-test");
-            var testMode = petCatalogTest || mayhemSourceTest || floatingBallTest || petLocatorTest;
+            var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || floatingBallTest || petLocatorTest;
             var instanceMutex = petCatalogTest
                 ? MutexName + "-PetCatalogTest"
-                : (mayhemSourceTest
-                    ? MutexName + "-MayhemSourceTest"
-                    : (floatingBallTest
-                        ? MutexName + "-FloatingBallTest"
-                        : (petLocatorTest
-                            ? MutexName + "-PetLocatorTest"
-                            : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName))));
+                : (animalPetTest
+                    ? MutexName + "-AnimalPetTest"
+                    : (mayhemSourceTest
+                        ? MutexName + "-MayhemSourceTest"
+                        : (floatingBallTest
+                            ? MutexName + "-FloatingBallTest"
+                            : (petLocatorTest
+                                ? MutexName + "-PetLocatorTest"
+                                : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName)))));
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -45,6 +48,11 @@ namespace FACM
                 if (petCatalogTest)
                 {
                     Environment.ExitCode = RunPetCatalogTest();
+                    return;
+                }
+                if (animalPetTest)
+                {
+                    Environment.ExitCode = AnimalPetSmokeTest.Run();
                     return;
                 }
                 if (mayhemSourceTest)
@@ -97,9 +105,7 @@ namespace FACM
 
                 CompactMenuEnhancer.Install();
                 AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
-                using (var mainForm = new MainForm(startCleanup))
-                using (var layeredBall = LayeredFloatingBall.Attach(mainForm))
-                    Application.Run(mainForm);
+                Application.Run(new MainForm(startCleanup));
             }
         }
 
