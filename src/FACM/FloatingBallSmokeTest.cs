@@ -16,7 +16,6 @@ namespace FACM
                 Application.SetCompatibleTextRenderingDefault(false);
 
                 using (var form = new MainForm(false))
-                using (var layeredBall = LayeredFloatingBall.Attach(form))
                 {
                     if (form.Width < 80 || form.Height < 80)
                         throw new InvalidOperationException("Built-in floating ball window is unexpectedly small.");
