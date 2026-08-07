@@ -24,6 +24,7 @@ namespace FACM
         private readonly System.Windows.Forms.Timer _ballAnimation;
         private CompactMenuForm _menu;
         private CancellationTokenSource _petEventsCancellation;
+        private CancellationTokenSource _petHealthCancellation;
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -54,10 +55,16 @@ namespace FACM
             StartPosition = FormStartPosition.Manual;
             ClientSize = new Size(BallSize, BallSize);
             MinimumSize = MaximumSize = Size;
-            BackColor = Color.Magenta;
-            TransparencyKey = Color.Magenta;
+            BackColor = Color.FromArgb(6, 13, 28);
+            TransparencyKey = Color.Empty;
             DoubleBuffered = true;
             Font = new Font("Microsoft YaHei UI", 9F);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            using (var shape = new GraphicsPath())
+            {
+                shape.AddEllipse(1, 1, BallSize - 2, BallSize - 2);
+                Region = new Region(shape);
+            }
 
             _tray = new NotifyIcon
             {
@@ -86,6 +93,11 @@ namespace FACM
             get { return true; }
         }
 
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.Clear(Color.FromArgb(6, 13, 28));
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -93,18 +105,18 @@ namespace FACM
             e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
             e.Graphics.CompositingQuality = CompositingQuality.HighQuality;
 
-            var hoverLift = 2.2f * _hoverProgress;
-            var inset = 7f - hoverLift;
+            var hoverLift = 1.4f * _hoverProgress;
+            var inset = 4.2f - hoverLift;
             var sphere = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
 
-            using (var shadowPath = new GraphicsPath())
+            using (var haloPath = new GraphicsPath())
             {
-                shadowPath.AddEllipse(sphere.X + 3, sphere.Y + 7, sphere.Width - 1, sphere.Height - 1);
-                using (var shadow = new PathGradientBrush(shadowPath))
+                haloPath.AddEllipse(sphere.X - 1.2f, sphere.Y - 1.2f, sphere.Width + 2.4f, sphere.Height + 2.4f);
+                using (var halo = new PathGradientBrush(haloPath))
                 {
-                    shadow.CenterColor = Color.FromArgb(88, 0, 0, 0);
-                    shadow.SurroundColors = new[] { Color.FromArgb(0, 0, 0, 0) };
-                    e.Graphics.FillPath(shadow, shadowPath);
+                    halo.CenterColor = Color.FromArgb(28, 82, 183, 255);
+                    halo.SurroundColors = new[] { Color.FromArgb(0, 82, 183, 255) };
+                    e.Graphics.FillPath(halo, haloPath);
                 }
             }
 
@@ -113,63 +125,77 @@ namespace FACM
                 spherePath.AddEllipse(sphere);
                 using (var body = new PathGradientBrush(spherePath))
                 {
-                    body.CenterPoint = new PointF(sphere.Left + sphere.Width * 0.31f, sphere.Top + sphere.Height * 0.25f);
-                    body.CenterColor = Color.FromArgb(154, 229, 255);
-                    body.SurroundColors = new[] { Color.FromArgb(17, 36, 112) };
+                    body.CenterPoint = new PointF(sphere.Left + sphere.Width * 0.30f, sphere.Top + sphere.Height * 0.23f);
+                    body.CenterColor = Color.FromArgb(192, 241, 255);
+                    body.SurroundColors = new[] { Color.FromArgb(9, 27, 78) };
                     e.Graphics.FillPath(body, spherePath);
                 }
             }
 
-            using (var lowerPath = new GraphicsPath())
+            using (var depthPath = new GraphicsPath())
             {
-                lowerPath.AddEllipse(
-                    sphere.Left + sphere.Width * 0.13f,
-                    sphere.Top + sphere.Height * 0.48f,
-                    sphere.Width * 0.74f,
-                    sphere.Height * 0.42f);
-                using (var lower = new PathGradientBrush(lowerPath))
+                depthPath.AddEllipse(
+                    sphere.Left + sphere.Width * 0.08f,
+                    sphere.Top + sphere.Height * 0.43f,
+                    sphere.Width * 0.84f,
+                    sphere.Height * 0.50f);
+                using (var depth = new PathGradientBrush(depthPath))
                 {
-                    lower.CenterColor = Color.FromArgb(42, 38, 92, 229);
-                    lower.SurroundColors = new[] { Color.FromArgb(0, 26, 52, 126) };
-                    e.Graphics.FillPath(lower, lowerPath);
+                    depth.CenterColor = Color.FromArgb(92, 21, 65, 154);
+                    depth.SurroundColors = new[] { Color.FromArgb(0, 8, 27, 72) };
+                    e.Graphics.FillPath(depth, depthPath);
                 }
             }
 
-            var glow = 52 + (int)(54 * _hoverProgress) + (int)(14 * (0.5 + 0.5 * Math.Sin(_pulse)));
-            using (var outer = new Pen(Color.FromArgb(Math.Max(0, Math.Min(140, glow)), 97, 205, 255), 2.6f))
+            var glow = 54 + (int)(44 * _hoverProgress) + (int)(10 * (0.5 + 0.5 * Math.Sin(_pulse)));
+            using (var outer = new Pen(Color.FromArgb(Math.Max(0, Math.Min(125, glow)), 88, 195, 255), 2.0f))
                 e.Graphics.DrawEllipse(outer, sphere);
-            using (var rim = new Pen(Color.FromArgb(120, 194, 232, 255), 1.1f))
-                e.Graphics.DrawEllipse(rim, sphere.X + 4, sphere.Y + 4, sphere.Width - 8, sphere.Height - 8);
+            using (var rim = new Pen(Color.FromArgb(165, 199, 234, 255), 1.15f))
+                e.Graphics.DrawEllipse(rim, sphere.X + 3.5f, sphere.Y + 3.5f, sphere.Width - 7, sphere.Height - 7);
 
             var orbitBounds = new RectangleF(sphere.X + 8, sphere.Y + sphere.Height * 0.35f, sphere.Width - 16, sphere.Height * 0.30f);
-            using (var orbitPen = new Pen(Color.FromArgb(110, 136, 218, 255), 1.3f))
+            using (var orbitPen = new Pen(Color.FromArgb(105, 118, 208, 255), 1.15f))
             {
-                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit, 118f);
-                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit + 180f, 82f);
+                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit, 116f);
+                e.Graphics.DrawArc(orbitPen, orbitBounds, _orbit + 182f, 76f);
             }
 
-            using (var shine = new SolidBrush(Color.FromArgb(178, 255, 255, 255)))
-                e.Graphics.FillEllipse(shine, sphere.X + sphere.Width * 0.20f, sphere.Y + sphere.Height * 0.16f, sphere.Width * 0.25f, sphere.Height * 0.13f);
-            using (var shineSoft = new SolidBrush(Color.FromArgb(50, 255, 255, 255)))
-                e.Graphics.FillEllipse(shineSoft, sphere.X + sphere.Width * 0.14f, sphere.Y + sphere.Height * 0.11f, sphere.Width * 0.42f, sphere.Height * 0.28f);
+            using (var glassPath = new GraphicsPath())
+            {
+                glassPath.AddEllipse(
+                    sphere.X + sphere.Width * 0.12f,
+                    sphere.Y + sphere.Height * 0.08f,
+                    sphere.Width * 0.50f,
+                    sphere.Height * 0.34f);
+                using (var glass = new PathGradientBrush(glassPath))
+                {
+                    glass.CenterColor = Color.FromArgb(100, 255, 255, 255);
+                    glass.SurroundColors = new[] { Color.FromArgb(0, 255, 255, 255) };
+                    e.Graphics.FillPath(glass, glassPath);
+                }
+            }
 
-            var coreSize = 35f + 2.5f * _hoverProgress;
+            using (var shine = new SolidBrush(Color.FromArgb(196, 255, 255, 255)))
+                e.Graphics.FillEllipse(shine, sphere.X + sphere.Width * 0.20f, sphere.Y + sphere.Height * 0.15f, sphere.Width * 0.23f, sphere.Height * 0.105f);
+
+            var coreSize = 35f + 2.2f * _hoverProgress;
             var core = new RectangleF((Width - coreSize) / 2f, (Height - coreSize) / 2f, coreSize, coreSize);
             using (var corePath = new GraphicsPath())
             {
                 corePath.AddEllipse(core);
                 using (var coreBrush = new PathGradientBrush(corePath))
                 {
-                    coreBrush.CenterColor = Color.FromArgb(245, 243, 251, 255);
-                    coreBrush.SurroundColors = new[] { Color.FromArgb(95, 75, 151, 247) };
+                    coreBrush.CenterPoint = new PointF(core.Left + core.Width * 0.34f, core.Top + core.Height * 0.27f);
+                    coreBrush.CenterColor = Color.FromArgb(255, 250, 253, 255);
+                    coreBrush.SurroundColors = new[] { Color.FromArgb(130, 77, 152, 236) };
                     e.Graphics.FillPath(coreBrush, corePath);
                 }
             }
-            using (var corePen = new Pen(Color.FromArgb(190, 209, 239, 255), 1.2f))
+            using (var corePen = new Pen(Color.FromArgb(210, 211, 240, 255), 1.2f))
                 e.Graphics.DrawEllipse(corePen, core);
 
             using (var font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var textBrush = new SolidBrush(Color.FromArgb(20, 54, 116)))
+            using (var textBrush = new SolidBrush(Color.FromArgb(17, 52, 112)))
             {
                 const string logo = "F";
                 var size = e.Graphics.MeasureString(logo, font);
@@ -178,8 +204,8 @@ namespace FACM
 
             var lightX = sphere.X + sphere.Width * (0.50f + 0.35f * (float)Math.Cos(_orbit * Math.PI / 180D));
             var lightY = sphere.Y + sphere.Height * (0.50f + 0.16f * (float)Math.Sin(_orbit * Math.PI / 180D));
-            using (var light = new SolidBrush(Color.FromArgb(210, 210, 248, 255)))
-                e.Graphics.FillEllipse(light, lightX - 2.6f, lightY - 2.6f, 5.2f, 5.2f);
+            using (var light = new SolidBrush(Color.FromArgb(215, 215, 249, 255)))
+                e.Graphics.FillEllipse(light, lightX - 2.2f, lightY - 2.2f, 4.4f, 4.4f);
         }
 
         public void CloseMenu()
@@ -196,6 +222,7 @@ namespace FACM
             _exiting = true;
             CloseMenu();
             StopPetEventSubscription();
+            StopPetHealthWatch();
             Close();
         }
 
@@ -238,6 +265,7 @@ namespace FACM
             try
             {
                 CloseMenu();
+                StopPetHealthWatch();
                 ShowBuiltInBall();
                 using (var picker = new PetPickerForm(_settings.PetStyleId))
                 {
@@ -253,6 +281,7 @@ namespace FACM
                         string.IsNullOrWhiteSpace(picker.ActivatedPersonaId)
                             ? PetCatalog.Get(_settings.PetStyleId).PersonaId
                             : picker.ActivatedPersonaId);
+                    StartPetHealthWatch();
                     _externalPetActive = true;
                     HideBuiltInBall();
                 }
@@ -360,6 +389,7 @@ namespace FACM
         private void HandleClosed(object sender, FormClosedEventArgs e)
         {
             StopPetEventSubscription();
+            StopPetHealthWatch();
             _ballAnimation.Stop();
             _ballAnimation.Dispose();
             _tray.Visible = false;
@@ -368,6 +398,7 @@ namespace FACM
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
+            if (Region != null) Region.Dispose();
             _appIcon.Dispose();
         }
 
@@ -402,7 +433,7 @@ namespace FACM
             try
             {
                 var pet = PetCatalog.Get(_settings.PetStyleId);
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     var result = await DesktopHomunculusManager.TryRestoreAsync(pet, cancellation.Token);
                     if (IsDisposed) return;
@@ -410,6 +441,7 @@ namespace FACM
                     {
                         _externalPetActive = true;
                         StartPetEventSubscription(result.PersonaId);
+                        StartPetHealthWatch();
                         HideBuiltInBall();
                         return;
                     }
@@ -460,6 +492,58 @@ namespace FACM
             _petEventsCancellation.Cancel();
             _petEventsCancellation.Dispose();
             _petEventsCancellation = null;
+        }
+
+        private void StartPetHealthWatch()
+        {
+            StopPetHealthWatch();
+            _petHealthCancellation = new CancellationTokenSource();
+            var token = _petHealthCancellation.Token;
+            Task.Run(async delegate
+            {
+                try
+                {
+                    await Task.Delay(2200, token).ConfigureAwait(false);
+                    var failures = 0;
+                    while (!token.IsCancellationRequested)
+                    {
+                        var ready = await DesktopHomunculusManager.IsReadyAsync(token).ConfigureAwait(false);
+                        failures = ready ? 0 : failures + 1;
+                        if (failures >= 2)
+                        {
+                            DesktopHomunculusManager.CleanupFailedEngineProcesses();
+                            if (!IsDisposed && !_exiting)
+                            {
+                                BeginInvoke(new Action(delegate
+                                {
+                                    if (IsDisposed || _exiting) return;
+                                    _externalPetActive = false;
+                                    StopPetEventSubscription();
+                                    ShowBuiltInBall();
+                                    _tray.ShowBalloonTip(4500, "FACM", "桌宠已停止，已自动恢复默认悬浮球。", ToolTipIcon.Info);
+                                }));
+                            }
+                            return;
+                        }
+                        await Task.Delay(1400, token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Desktop pet health watch stopped: " + exception.Message);
+                }
+            }, token);
+        }
+
+        private void StopPetHealthWatch()
+        {
+            if (_petHealthCancellation == null) return;
+            _petHealthCancellation.Cancel();
+            _petHealthCancellation.Dispose();
+            _petHealthCancellation = null;
         }
 
         private void AnimateBall(object sender, EventArgs e)
