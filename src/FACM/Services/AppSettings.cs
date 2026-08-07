@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using FACM.Pets;
 using FACM.Theming;
 
 namespace FACM.Services
@@ -18,6 +19,7 @@ namespace FACM.Services
         public bool AutoUpdateEnabled { get; set; } = true;
         public string LastAnnouncementId { get; set; } = string.Empty;
         public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
+        public string PetStyleId { get; set; } = PetCatalog.DefaultPetId;
 
         public static AppSettings Load()
         {
@@ -45,13 +47,16 @@ namespace FACM.Services
                     else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoUpdateEnabled = flag;
                     else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
                     else if (key.Equals("ThemeId", StringComparison.OrdinalIgnoreCase)) result.ThemeId = ThemeCatalog.Get(value).Id;
+                    else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = PetCatalog.Get(value).Id;
                 }
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to load settings", exception);
             }
+
             result.ThemeId = ThemeCatalog.Get(result.ThemeId).Id;
+            result.PetStyleId = PetCatalog.Get(result.PetStyleId).Id;
             return result;
         }
 
@@ -67,7 +72,8 @@ namespace FACM.Services
                     "GamePath=" + Sanitize(GamePath),
                     "AutoUpdateEnabled=" + AutoUpdateEnabled,
                     "LastAnnouncementId=" + Sanitize(LastAnnouncementId),
-                    "ThemeId=" + ThemeCatalog.Get(ThemeId).Id
+                    "ThemeId=" + ThemeCatalog.Get(ThemeId).Id,
+                    "PetStyleId=" + PetCatalog.Get(PetStyleId).Id
                 };
                 File.WriteAllLines(RuntimePaths.SettingsPath, lines);
             }
