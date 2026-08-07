@@ -21,6 +21,8 @@ namespace FACM.Pets
 
         public static string Find()
         {
+            if (!DesktopPetLaunchGate.ExplicitUseAllowed) return null;
+
             var candidates = new List<string>();
             Add(candidates, FindFromRunningProcesses());
 
