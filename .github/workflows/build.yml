@@ -35,13 +35,15 @@ concurrency:
 env:
   SOLUTION: FACM.sln
   OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  PETHOST_PROJECT: src\FACM.PetHost\FACM.PetHost.csproj
+  PETHOST_PUBLISH: out\PetHostPublish
   PACKAGE_NAME: FACM-Windows-x64
 
 jobs:
   build:
-    name: Build FACM.exe
+    name: Build FACM + VPet PetHost
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout source
@@ -107,6 +109,41 @@ jobs:
           if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
             throw "Build output not found: $env:OUTPUT_EXE"
           }
+
+      - name: Publish and self-test VPet PetHost
+        shell: pwsh
+        run: |
+          $publish = Join-Path $PWD $env:PETHOST_PUBLISH
+          if (Test-Path $publish) {
+            Remove-Item $publish -Recurse -Force
+          }
+
+          dotnet publish $env:PETHOST_PROJECT `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=false `
+            -p:PublishReadyToRun=false `
+            -p:DebugType=None `
+            -o $publish
+          if ($LASTEXITCODE -ne 0) {
+            throw "PetHost publish failed with exit code $LASTEXITCODE"
+          }
+
+          $hostExe = Join-Path $publish 'FACM.PetHost.exe'
+          if (-not (Test-Path $hostExe -PathType Leaf)) {
+            throw "PetHost executable not found: $hostExe"
+          }
+
+          $selfTest = Start-Process -FilePath $hostExe -ArgumentList '--self-test' -Wait -PassThru
+          if ($selfTest.ExitCode -ne 0) {
+            $errorFile = Join-Path $env:LOCALAPPDATA 'FACM\PetHost\self-test-error.txt'
+            if (Test-Path $errorFile) {
+              Get-Content $errorFile -Raw | Write-Host
+            }
+            throw "PetHost self-test failed with exit code $($selfTest.ExitCode)"
+          }
+          Write-Host "PetHost self-test passed: $hostExe"
 
       - name: Verify FACM.exe
         id: verify
@@ -184,8 +221,19 @@ jobs:
           $output = Join-Path $artifactDir 'FACM.exe'
           Copy-Item $env:OUTPUT_EXE $output -Force
 
+          $petHostOutput = Join-Path $artifactDir 'PetHost'
+          Copy-Item (Join-Path $PWD $env:PETHOST_PUBLISH) $petHostOutput -Recurse -Force
+          $petHostExe = Join-Path $petHostOutput 'FACM.PetHost.exe'
+          if (-not (Test-Path $petHostExe -PathType Leaf)) {
+            throw "Packaged PetHost executable not found: $petHostExe"
+          }
+
           $hash = Get-FileHash $output -Algorithm SHA256
-          "$($hash.Hash) *FACM.exe" | Set-Content (Join-Path $artifactDir 'SHA256.txt') -Encoding ascii
+          $petHostHash = Get-FileHash $petHostExe -Algorithm SHA256
+          @(
+            "$($hash.Hash) *FACM.exe",
+            "$($petHostHash.Hash) *PetHost/FACM.PetHost.exe"
+          ) | Set-Content (Join-Path $artifactDir 'SHA256.txt') -Encoding ascii
 
           $signature = Get-AuthenticodeSignature $output
           $signature | Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
@@ -202,6 +250,9 @@ jobs:
             sha256 = $hash.Hash
             signature_status = [string]$signature.Status
             tool_bundle = 'embedded FACM.ToolBundle.dll'
+            pet_host = 'self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
+            pet_host_sha256 = $petHostHash.Hash
+            vpet_assets = 'downloaded on first use; pinned upstream commit 6a6da4089e0706d8f0c61714f3c071fb2a2c268f'
             built_at_utc = [DateTime]::UtcNow.ToString('o')
           }
           $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir 'BUILD-INFO.json') -Encoding utf8
@@ -212,6 +263,9 @@ jobs:
           if (Test-Path docs\ONLINE-MANAGEMENT.md) {
             Copy-Item docs\ONLINE-MANAGEMENT.md (Join-Path $artifactDir 'ONLINE-MANAGEMENT.md')
           }
+          if (Test-Path docs\VPET-PETHOST.md) {
+            Copy-Item docs\VPET-PETHOST.md (Join-Path $artifactDir 'VPET-PETHOST.md')
+          }
 
           $zip = Join-Path $PWD ($env:PACKAGE_NAME + '.zip')
           if (Test-Path $zip) {
@@ -220,13 +274,14 @@ jobs:
           Compress-Archive -Path "$artifactDir\*" -DestinationPath $zip -Force
           Write-Host "Package created: $zip"
 
-      - name: Upload FACM.exe
+      - name: Upload FACM package
         uses: actions/upload-artifact@v4
         with:
           name: FACM-Windows-x64-${{ github.run_number }}
           path: |
             FACM-Windows-x64.zip
             artifacts/FACM.exe
+            artifacts/PetHost/FACM.PetHost.exe
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
             artifacts/BUILD-INFO.json
