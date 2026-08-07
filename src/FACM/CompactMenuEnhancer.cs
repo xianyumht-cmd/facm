@@ -18,6 +18,7 @@ namespace FACM
         {
             if (_installed) return;
             _installed = true;
+            UiTextRuntime.Install();
             Application.Idle += ApplyToOpenForms;
         }
 
