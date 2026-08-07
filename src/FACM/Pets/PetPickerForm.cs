@@ -127,7 +127,8 @@ namespace FACM.Pets
                 }
                 catch (Exception exception)
                 {
-                    MessageBox.Show(exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Services.AppLog.Info("Pet manager open failed: " + exception.Message);
+                    MessageBox.Show("暂时无法打开桌宠管理，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
 
@@ -282,7 +283,7 @@ namespace FACM.Pets
             _operationCancellation = new CancellationTokenSource();
             var progress = new Progress<PetSetupProgress>(value =>
             {
-                _status.Text = value.Message;
+                _status.Text = FriendlyProgress(value.Percent);
                 _status.ForeColor = Color.FromArgb(112, 165, 255);
                 _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value.Percent));
             });
@@ -292,7 +293,8 @@ namespace FACM.Pets
                 var result = await DesktopHomunculusManager.ActivateAsync(pet, progress, _operationCancellation.Token);
                 if (!result.Success)
                 {
-                    _status.Text = result.ErrorMessage;
+                    Services.AppLog.Info("Pet activation failed: " + result.ErrorMessage);
+                    _status.Text = "桌宠应用失败，请稍后重试。";
                     _status.ForeColor = Color.FromArgb(255, 145, 121);
                     return;
                 }
@@ -317,6 +319,16 @@ namespace FACM.Pets
                     _operationCancellation = null;
                 }
             }
+        }
+
+        private static string FriendlyProgress(int percent)
+        {
+            if (percent < 8) return "正在检查所需资源...";
+            if (percent < 42) return "正在下载桌宠组件...";
+            if (percent < 58) return "正在准备桌宠组件...";
+            if (percent < 88) return "正在下载桌宠资源...";
+            if (percent < 96) return "正在加载桌宠...";
+            return "正在启动桌宠...";
         }
     }
 }
