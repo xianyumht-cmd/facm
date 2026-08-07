@@ -1,12 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Mayhem;
 using FACM.Online;
+using FACM.Pets;
 using FACM.Services;
 using FACM.Theming;
 
@@ -14,12 +15,12 @@ namespace FACM
 {
     internal sealed class MainForm : Form
     {
-        private const int BallSize = 62;
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly System.Windows.Forms.Timer _animationTimer;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
+        private PetDefinition _pet;
         private CompactMenuForm _menu;
         private bool _hovered;
         private bool _dragging;
@@ -27,26 +28,33 @@ namespace FACM
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
+        private bool _petPickerOpen;
+        private bool _themePickerOpen;
+        private bool _mayhemOpen;
         private Point _dragCursor;
         private Point _dragWindow;
         private float _hoverProgress;
+        private float _animationPhase;
 
         public MainForm(bool startCleanup = false)
         {
             _startCleanup = startCleanup;
+            _pet = PetCatalog.Get(_settings.PetStyleId);
             _appIcon = BrandIcon.Create();
+
             Text = "FACM";
             Icon = _appIcon;
             ShowInTaskbar = false;
             TopMost = true;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
-            ClientSize = new Size(BallSize, BallSize);
-            MinimumSize = MaximumSize = Size;
-            BackColor = Color.FromArgb(25, 42, 82);
+            ClientSize = _pet.Size;
+            MinimumSize = MaximumSize = _pet.Size;
+            BackColor = Color.Fuchsia;
+            TransparencyKey = Color.Fuchsia;
             DoubleBuffered = true;
             Font = new Font("Microsoft YaHei UI", 9F);
-            ApplyBallRegion();
+            ApplyPetRegion();
 
             _tray = new NotifyIcon
             {
@@ -57,7 +65,7 @@ namespace FACM
             };
             _tray.DoubleClick += delegate { Show(); Activate(); ToggleMenu(); };
 
-            _animationTimer = new System.Windows.Forms.Timer { Interval = 25 };
+            _animationTimer = new System.Windows.Forms.Timer { Interval = 32 };
             _animationTimer.Tick += Animate;
             _animationTimer.Start();
 
@@ -67,7 +75,7 @@ namespace FACM
             MouseMove += ContinueDrag;
             MouseUp += EndDrag;
             Shown += HandleShown;
-            SizeChanged += delegate { ApplyBallRegion(); };
+            SizeChanged += delegate { ApplyPetRegion(); };
             FormClosed += delegate
             {
                 _animationTimer.Stop();
@@ -86,46 +94,15 @@ namespace FACM
             get { return true; }
         }
 
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.Clear(TransparencyKey);
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-            var theme = ThemeCatalog.Get(_settings.ThemeId);
-            var inset = 2.5f - 0.7f * _hoverProgress;
-            var bounds = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
-            var topColor = Blend(theme.Accent, theme.AccentSecondary, 0.18F + _hoverProgress * 0.18F);
-            var bottomColor = Blend(theme.AccentSecondary, theme.BackgroundSecondary, 0.38F - _hoverProgress * 0.12F);
-
-            using (var brush = new LinearGradientBrush(bounds, topColor, bottomColor, 115F))
-            {
-                e.Graphics.FillEllipse(brush, bounds);
-            }
-            using (var border = new Pen(Blend(theme.Border, theme.AccentSecondary, _hoverProgress * 0.55F), 1.6f + _hoverProgress * 0.5f))
-            {
-                e.Graphics.DrawEllipse(border, bounds);
-            }
-            using (var highlight = new Pen(Color.FromArgb(theme.IsLight ? 120 : 70, Color.White), 1f))
-            {
-                e.Graphics.DrawArc(highlight, bounds.X + 4, bounds.Y + 4, bounds.Width - 8, bounds.Height - 8, 205, 125);
-            }
-
-            using (var font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var textBrush = new SolidBrush(Color.White))
-            {
-                const string text = "F";
-                var size = e.Graphics.MeasureString(text, font);
-                e.Graphics.DrawString(text, font, textBrush, (Width - size.Width) / 2f - 1f, (Height - size.Height) / 2f - 1f);
-            }
-
-            var statusColor = ElevationService.IsAdministrator ? theme.Success : theme.Warning;
-            using (var dotBorder = new SolidBrush(Color.FromArgb(235, theme.Background)))
-            using (var dot = new SolidBrush(statusColor))
-            {
-                e.Graphics.FillEllipse(dotBorder, Width - 17, 7, 10, 10);
-                e.Graphics.FillEllipse(dot, Width - 15, 9, 6, 6);
-            }
+            PetRenderer.Draw(e.Graphics, _pet, _animationPhase, _hoverProgress, ElevationService.IsAdministrator);
         }
 
         public void CloseMenu()
@@ -144,13 +121,76 @@ namespace FACM
 
         public void ApplyThemeSelection()
         {
+            // 控制面板主题与桌宠外观完全独立。
             CloseMenu();
-            Invalidate();
             BeginInvoke(new Action(delegate
             {
                 if (IsDisposed || _menu != null) return;
                 ToggleMenu();
             }));
+        }
+
+        public void OpenPanelThemeSelector()
+        {
+            if (_themePickerOpen || IsDisposed) return;
+            _themePickerOpen = true;
+            try
+            {
+                CloseMenu();
+                using (var picker = new ThemePickerForm(_settings.ThemeId))
+                {
+                    picker.TopMost = true;
+                    if (picker.ShowDialog(this) != DialogResult.OK) return;
+                    _settings.ThemeId = picker.SelectedThemeId;
+                    _settings.Save();
+                }
+                ApplyThemeSelection();
+            }
+            finally
+            {
+                _themePickerOpen = false;
+            }
+        }
+
+        public void OpenPetSelector()
+        {
+            if (_petPickerOpen || IsDisposed) return;
+            _petPickerOpen = true;
+            try
+            {
+                CloseMenu();
+                using (var picker = new PetPickerForm(_settings.PetStyleId))
+                {
+                    picker.TopMost = true;
+                    if (picker.ShowDialog(this) != DialogResult.OK) return;
+                    _settings.PetStyleId = picker.SelectedPetId;
+                    _settings.Save();
+                }
+                ApplyPetSelection();
+            }
+            finally
+            {
+                _petPickerOpen = false;
+            }
+        }
+
+        public void OpenMayhemLookup()
+        {
+            if (_mayhemOpen || IsDisposed) return;
+            _mayhemOpen = true;
+            try
+            {
+                CloseMenu();
+                using (var form = new MayhemLookupForm())
+                {
+                    form.TopMost = true;
+                    form.ShowDialog(this);
+                }
+            }
+            finally
+            {
+                _mayhemOpen = false;
+            }
         }
 
         public void RunToolA()
@@ -210,9 +250,7 @@ namespace FACM
                     if (IsDisposed) return;
                     if (_menu == null) ToggleMenu();
                     if (_menu != null && !_menu.IsDisposed)
-                    {
                         _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
-                    }
                     _startCleanup = false;
                 }));
                 return;
@@ -233,13 +271,13 @@ namespace FACM
             {
                 Show();
                 if (_menu == null) ToggleMenu();
-                if (_menu != null && !_menu.IsDisposed) _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                if (_menu != null && !_menu.IsDisposed)
+                    _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
-            menu.Items.Add("主题设置", null, delegate
-            {
-                Show();
-                if (_menu == null) ToggleMenu();
-            });
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
+            menu.Items.Add("桌面宠物", null, delegate { OpenPetSelector(); });
+            menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
             menu.Items.Add(_ui.OpenLog, null, delegate { OpenLogFile(); });
@@ -337,9 +375,7 @@ namespace FACM
                 using (var form = new OnlineCenterForm(this, _settings, snapshot, forceMode))
                 {
                     if (automaticPrompt)
-                    {
                         form.Shown += async delegate { await form.BeginAutomaticUpdateAsync(); };
-                    }
                     form.ShowDialog(this);
                 }
             }
@@ -352,8 +388,10 @@ namespace FACM
 
         private void Animate(object sender, EventArgs e)
         {
-            var target = _hovered || _menu != null ? 1f : 0f;
-            _hoverProgress += (target - _hoverProgress) * 0.22f;
+            var target = _hovered || _menu != null ? 1F : 0F;
+            _hoverProgress += (target - _hoverProgress) * 0.22F;
+            _animationPhase += 0.08F;
+            if (_animationPhase > 10000F) _animationPhase = 0F;
             Invalidate();
         }
 
@@ -386,8 +424,15 @@ namespace FACM
             if (!_dragging || e.Button != MouseButtons.Left) return;
             _dragging = false;
             Capture = false;
-            if (_moved) SnapToEdge();
-            else ToggleMenu();
+            if (_moved)
+            {
+                // 保存用户拖放的准确桌面坐标，不再吸附左右边缘。
+                SavePosition();
+            }
+            else
+            {
+                ToggleMenu();
+            }
         }
 
         private void ToggleMenu()
@@ -415,28 +460,52 @@ namespace FACM
             menu.Location = new Point(x, y);
         }
 
-        private void SnapToEdge()
-        {
-            var area = Screen.FromControl(this).WorkingArea;
-            var x = Left + Width / 2 < area.Left + area.Width / 2 ? area.Left + 8 : area.Right - Width - 8;
-            var y = Math.Max(area.Top + 8, Math.Min(Top, area.Bottom - Height - 8));
-            Location = new Point(x, y);
-            SavePosition();
-        }
-
         private void RestorePosition()
         {
-            var area = Screen.PrimaryScreen.WorkingArea;
+            var primary = Screen.PrimaryScreen.WorkingArea;
             if (_settings.BallX == int.MinValue || _settings.BallY == int.MinValue)
             {
-                Location = new Point(area.Right - Width - 12, area.Top + (area.Height - Height) / 2);
+                Location = new Point(primary.Right - Width - 20, primary.Top + (primary.Height - Height) / 2);
+                return;
             }
-            else
+
+            var saved = new Rectangle(_settings.BallX, _settings.BallY, Width, Height);
+            var visible = false;
+            foreach (var screen in Screen.AllScreens)
             {
-                Location = new Point(
-                    Math.Max(area.Left + 4, Math.Min(_settings.BallX, area.Right - Width - 4)),
-                    Math.Max(area.Top + 4, Math.Min(_settings.BallY, area.Bottom - Height - 4)));
+                if (!screen.WorkingArea.IntersectsWith(saved)) continue;
+                visible = true;
+                break;
             }
+
+            Location = visible
+                ? saved.Location
+                : new Point(primary.Right - Width - 20, primary.Top + (primary.Height - Height) / 2);
+        }
+
+        private void ApplyPetSelection()
+        {
+            var center = new Point(Left + Width / 2, Top + Height / 2);
+            _pet = PetCatalog.Get(_settings.PetStyleId);
+            ClientSize = _pet.Size;
+            MinimumSize = MaximumSize = _pet.Size;
+            Location = new Point(center.X - Width / 2, center.Y - Height / 2);
+            EnsurePetRemainsVisible();
+            ApplyPetRegion();
+            SavePosition();
+            Invalidate();
+        }
+
+        private void EnsurePetRemainsVisible()
+        {
+            var bounds = new Rectangle(Location, Size);
+            foreach (var screen in Screen.AllScreens)
+            {
+                if (screen.WorkingArea.IntersectsWith(bounds)) return;
+            }
+
+            var area = Screen.PrimaryScreen.WorkingArea;
+            Location = new Point(area.Right - Width - 20, area.Top + (area.Height - Height) / 2);
         }
 
         private void SavePosition()
@@ -446,24 +515,15 @@ namespace FACM
             _settings.Save();
         }
 
-        private void ApplyBallRegion()
+        private void ApplyPetRegion()
         {
-            if (Width <= 0 || Height <= 0) return;
-            using (var path = new GraphicsPath())
+            if (Width <= 0 || Height <= 0 || _pet == null) return;
+            using (var path = PetRenderer.CreateRegionPath(_pet, ClientSize))
             {
-                path.AddEllipse(new Rectangle(0, 0, Width, Height));
+                var old = Region;
                 Region = new Region(path);
+                if (old != null) old.Dispose();
             }
-        }
-
-        private static Color Blend(Color first, Color second, float amount)
-        {
-            amount = Math.Max(0f, Math.Min(1f, amount));
-            return Color.FromArgb(
-                (int)(first.A + (second.A - first.A) * amount),
-                (int)(first.R + (second.R - first.R) * amount),
-                (int)(first.G + (second.G - first.G) * amount),
-                (int)(first.B + (second.B - first.B) * amount));
         }
 
         private static string TrimBalloonText(string value)
