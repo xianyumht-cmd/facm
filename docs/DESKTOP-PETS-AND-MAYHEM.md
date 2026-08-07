@@ -1,55 +1,65 @@
-# FACM 3D 桌面宠物与海斗排行榜
+# FACM 开源 3D 桌面宠物与海斗排行榜
 
-## 3D 桌面宠物
+## 开源 3D 桌面宠物
 
-控制面板主题和桌面宠物外观是两个独立设置：
+FACM 不再自行绘制二维贴图或程序化低多边形模型。桌宠运行时改为：
+
+- 引擎：Desktop Homunculus
+- 渲染：Bevy / Vulkan / 真实 VRM 角色
+- 角色格式：VRM
+- 交互：透明桌面窗口、拖动、鼠标跟随、表情、动作和点击事件
+- FACM 连接方式：本机 `127.0.0.1:3100` REST API 与 SSE 事件流
+
+FACM 负责：
+
+1. 查询并下载 Desktop Homunculus 官方 Windows x64 MSI；
+2. 调用 MSI 完成安装；
+3. 下载用户选择的 CC0 VRM 模型；
+4. 通过 `/assets/import` 导入模型；
+5. 创建 Persona，挂载 VRM 并启动角色；
+6. 订阅 `pointer-click` 事件，点击桌宠后打开 FACM 控制面板。
+
+首次使用需要下载约 200 MB 的引擎安装包和一个 VRM 模型。引擎安装后的实际占用可能约 600 MB。FACM.exe 保持较小，是因为引擎和模型由首次设置流程单独安装到运行环境，并非再次使用简易贴图替代。
+
+内置 10 个 CC0 VRM 角色：
+
+- 兔兔 Rabbit
+- 泰迪 Teddy
+- 蘑菇帽 Cappy
+- 恐龙少年 DinoKid
+- 酷外星人 CoolAlien
+- 女巫 Witch
+- 幽灵 Ghost
+- 机甲伙伴 Polybot
+- 宇航员 Astronaut
+- 牛奶人 Milk
+
+角色来自 Open Source Avatars 的 100Avatars R1 原创 CC0 集合，模型使用永久托管地址。FACM 会在界面显示原始名称和授权。
+
+### 显卡兼容
+
+Desktop Homunculus 当前仍处于 Alpha。部分 NVIDIA 设备若出现黑色背景，需要在 NVIDIA 控制面板中把 `Vulkan/OpenGL present method` 设置为 `Prefer native`。
+
+### 面板主题
+
+控制面板主题和桌宠角色继续使用独立设置：
 
 ```ini
 ThemeId=glass-blue
-PetStyleId=jelly-blue
+PetStyleId=rabbit
 ```
 
-`ThemeId` 只影响点击桌宠后显示的控制面板。`PetStyleId` 只影响桌面上的 3D 宠物。
-
-桌宠可在所有显示器的可见桌面范围内自由拖动，松开后保存准确坐标，不再自动吸附左右边缘。只有保存坐标已经完全离开全部显示器时，程序才会恢复到主屏幕可见位置。
-
-内置模型：蓝莓啵啵、奶油猫、落日狐、薄荷机器人、紫雾幽灵、柠檬团子、赤焰幼龙、星愿精灵、像素机兵、云朵兔。
-
-桌宠使用真正的 WPF 3D 场景：
-
-- `Viewport3D` 与 `PerspectiveCamera`
-- `MeshGeometry3D` 三维网格
-- `GeometryModel3D` 与漫反射、镜面高光材质
-- 环境光和多方向灯光
-- 三维位移、缩放、旋转、呼吸、漂浮、眨眼与鼠标视线跟随
-- 透明无边框 WPF 顶层窗口
-
-旧的 GDI+ 二维绘制器已经删除。CI Release 构建完成后会以 `--pet-smoke-test` 启动 EXE，逐个创建十个模型和十个 3D 场景；任一模型加载失败都会让构建失败，禁止上传产物。
+`ThemeId` 只影响控制面板。`PetStyleId` 只决定 Desktop Homunculus 启动哪个 VRM Persona。
 
 ## 海斗排行榜
 
 入口：控制面板底部“海斗排行”，或托盘右键菜单“海斗排行榜”。
 
-支持输入英雄官方中文名、英文名和常用别名，展示：
+支持英雄中文名、英文名和常用别名。
 
-- 当前版本与胜率排名
-- 胜率、选用率和梯队
-- buff / debuff
-- 推荐出装
-- 技能加点
-- 推荐强化符文
-- 当前版本总体胜率前十
+数据按字段明确分工：
 
-交互查询不再使用旧的 MCP 初始化、工具列表、英雄分析和排行榜串行链。当前实现会并行读取 OP.GG 的 build、skills、augments、items 和排行榜页面，共用连接池，总等待上限为 9 秒。
+- OP.GG：当前版本、梯队、技能加点、核心出装、强化符文；
+- ARAMMayhem.com：胜率、选用率、名次、Mayhem 调整和当前版本总体胜率前十。
 
-查询窗口提供：
-
-- 当前阶段文字
-- 已用时间
-- 动态进度条
-- “取消查询”按钮
-- 关闭窗口时立即取消
-- 10 分钟本地缓存
-- OP.GG 原始来源链接
-
-OP.GG 本次没有返回的字段会明确显示“未返回”或“未公开”，不会用估算内容填充。
+多个页面并行读取，总等待上限为 7 秒。窗口显示查询阶段、用时和进度，并支持主动取消。结果缓存 10 分钟。任一来源未返回的字段会明确显示“未返回”，不会生成估算数据。
