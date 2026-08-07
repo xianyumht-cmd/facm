@@ -14,9 +14,9 @@ namespace FACM.Pets
         private readonly Label _name;
         private readonly Label _description;
         private readonly Timer _previewTimer;
-        private CancellationTokenSource _artCancellation;
-        private Bitmap _artwork;
-        private float _phase;
+        private CancellationTokenSource _assetCancellation;
+        private Bitmap _sheet;
+        private double _animationSeconds;
 
         public AnimalPetPickerForm(string currentPetId)
         {
@@ -33,7 +33,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "桌面宠物",
+                Text = "动画桌面宠物",
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -41,7 +41,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "选择一只动物。首次加载会缓存一张小图，之后可直接使用。",
+                Text = "全部使用免登录公开下载的 CC0 动画素材；首次加载后会缓存在本地。",
                 Location = new Point(28, 58),
                 Size = new Size(730, 26),
                 ForeColor = Color.FromArgb(160, 174, 198)
@@ -149,7 +149,7 @@ namespace FACM.Pets
             _previewTimer = new Timer { Interval = 33 };
             _previewTimer.Tick += delegate
             {
-                _phase += 0.20f;
+                _animationSeconds += 0.033;
                 UpdatePreviewOnly();
             };
             _previewTimer.Start();
@@ -159,19 +159,19 @@ namespace FACM.Pets
             {
                 _previewTimer.Stop();
                 _previewTimer.Dispose();
-                if (_artCancellation != null)
+                if (_assetCancellation != null)
                 {
-                    _artCancellation.Cancel();
-                    _artCancellation.Dispose();
-                    _artCancellation = null;
+                    _assetCancellation.Cancel();
+                    _assetCancellation.Dispose();
+                    _assetCancellation = null;
                 }
                 var image = _preview.Image;
                 _preview.Image = null;
                 if (image != null) image.Dispose();
-                if (_artwork != null)
+                if (_sheet != null)
                 {
-                    _artwork.Dispose();
-                    _artwork = null;
+                    _sheet.Dispose();
+                    _sheet = null;
                 }
             };
         }
@@ -183,21 +183,21 @@ namespace FACM.Pets
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null) return;
             _name.Text = pet.Name;
-            _description.Text = pet.Description + "\r\n拖动可手动放置；托盘里的“宠物复位”可以把它叫回屏幕中间。";
-            _phase = 0f;
+            _description.Text = pet.Description + "\r\n来源：" + pet.AssetAuthor + " · " + pet.AssetLicense + "；拖动可放置，托盘可复位。";
+            _animationSeconds = 0;
 
-            if (_artCancellation != null)
+            if (_assetCancellation != null)
             {
-                _artCancellation.Cancel();
-                _artCancellation.Dispose();
+                _assetCancellation.Cancel();
+                _assetCancellation.Dispose();
             }
-            _artCancellation = new CancellationTokenSource();
-            var token = _artCancellation.Token;
+            _assetCancellation = new CancellationTokenSource();
+            var token = _assetCancellation.Token;
             var expectedId = pet.Id;
             Bitmap loaded = null;
             try
             {
-                loaded = await AnimalPetArtService.LoadAsync(pet, token);
+                loaded = await SpritePetAssetService.LoadAsync(pet, token);
             }
             catch (OperationCanceledException)
             {
@@ -220,8 +220,8 @@ namespace FACM.Pets
                 return;
             }
 
-            var old = _artwork;
-            _artwork = loaded;
+            var old = _sheet;
+            _sheet = loaded;
             if (old != null) old.Dispose();
             UpdatePreviewOnly();
         }
@@ -230,13 +230,18 @@ namespace FACM.Pets
         {
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null || IsDisposed) return;
-            using (var rendered = AnimalPetWindow.RenderForSmokeTest(pet, _artwork, _phase, true))
+            var frameCount = Math.Max(1, pet.FrameCount);
+            var frame = (int)(_animationSeconds * Math.Max(1f, pet.FramesPerSecond)) % frameCount;
+            var direction = pet.DirectionalRows ? 0 : pet.AnimationRow;
+            using (var rendered = SpritePetWindow.RenderForSmokeTest(pet, _sheet, frame, direction, true))
             {
                 var canvas = new Bitmap(_preview.Width, _preview.Height);
                 using (var graphics = Graphics.FromImage(canvas))
                 {
                     graphics.Clear(_preview.BackColor);
-                    graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    graphics.InterpolationMode = pet.PixelArt
+                        ? System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor
+                        : System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                     var side = Math.Min(_preview.Width, _preview.Height) - 24;
                     var x = (_preview.Width - side) / 2;
                     var y = (_preview.Height - side) / 2;
