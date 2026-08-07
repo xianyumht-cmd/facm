@@ -35,7 +35,7 @@ internal sealed class PetHostWindow : Window
         _ipc = ipc;
         _controller = new PetWindowController(this);
 
-        Title = "FACM PetHost";
+        Title = PetHostUiText.Translate("FACM PetHost");
         Width = 330;
         Height = 330;
         MinWidth = MaxWidth = Width;
@@ -68,7 +68,7 @@ internal sealed class PetHostWindow : Window
 
         _statusText = new TextBlock
         {
-            Text = "正在启动高精度桌宠…",
+            Text = PetHostUiText.Translate("正在启动高精度桌宠…"),
             Foreground = WpfBrushes.White,
             FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
             FontSize = 13,
@@ -193,7 +193,9 @@ internal sealed class PetHostWindow : Window
 
     private void SetStatus(string message, bool includeNotice = true)
     {
-        _statusText.Text = includeNotice ? message + "\n动画来源：VPet / VUP-Simulator（非商用授权）" : message;
+        var text = includeNotice ? message + "\n动画来源：VPet / VUP-Simulator（非商用授权）" : message;
+        _statusText.Text = PetHostUiText.Translate(text);
+        Title = PetHostUiText.Translate("FACM PetHost");
     }
 
     private void HandleCommand(string line)
