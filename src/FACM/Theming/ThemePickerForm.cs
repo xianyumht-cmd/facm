@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
-using FACM.Services;
 
 namespace FACM.Theming
 {
@@ -18,7 +17,7 @@ namespace FACM.Theming
             _selectedThemeId = ThemeCatalog.Get(currentThemeId).Id;
             var current = ThemeCatalog.Get(_selectedThemeId);
 
-            Text = "FACM 内置主题";
+            Text = "FACM 主题";
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -31,7 +30,7 @@ namespace FACM.Theming
 
             var title = new Label
             {
-                Text = "选择内置主题",
+                Text = "选择控制面板主题",
                 Location = new Point(24, 18),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -39,7 +38,7 @@ namespace FACM.Theming
             };
             var hint = new Label
             {
-                Text = "10 套主题包含不同配色、按钮造型、边框和控制面板尺寸。",
+                Text = "选择喜欢的界面风格，应用后立即生效。",
                 Location = new Point(26, 54),
                 Size = new Size(620, 24),
                 ForeColor = Color.FromArgb(155, 169, 196),
@@ -76,31 +75,9 @@ namespace FACM.Theming
             {
                 Text = BuildSelectedText(current),
                 Location = new Point(24, 520),
-                Size = new Size(330, 44),
+                Size = new Size(420, 44),
                 ForeColor = Color.FromArgb(195, 208, 232),
                 Font = new Font("Microsoft YaHei UI", 8.6F)
-            };
-
-            var editText = new Button
-            {
-                Text = "编辑界面文字",
-                Location = new Point(360, 523),
-                Size = new Size(112, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(31, 41, 61),
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            editText.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
-            editText.Click += delegate
-            {
-                UiTextCatalog.OpenConfig();
-                MessageBox.Show(
-                    "界面文字配置已打开。保存后重新打开控制面板即可生效。",
-                    "FACM",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
             };
 
             var cancel = new Button
@@ -135,7 +112,6 @@ namespace FACM.Theming
             Controls.Add(hint);
             Controls.Add(_list);
             Controls.Add(_selectedLabel);
-            Controls.Add(editText);
             Controls.Add(cancel);
             Controls.Add(_applyButton);
 
@@ -174,8 +150,7 @@ namespace FACM.Theming
 
         private static string BuildSelectedText(ThemeDefinition theme)
         {
-            return theme.Name + "  ·  " + theme.Description + Environment.NewLine +
-                   "控制面板尺寸：" + theme.WindowSize.Width + " × " + theme.WindowSize.Height;
+            return theme.Name + "  ·  " + theme.Description;
         }
 
         private sealed class ThemeChoiceButton : Control
@@ -239,23 +214,16 @@ namespace FACM.Theming
                     e.Graphics,
                     Theme.Name,
                     new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-                    new Rectangle(76, 12, 204, 25),
+                    new Rectangle(76, 14, 204, 25),
                     primary,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
                 TextRenderer.DrawText(
                     e.Graphics,
                     Theme.Description,
                     new Font("Microsoft YaHei UI", 8F),
-                    new Rectangle(76, 37, 204, 20),
+                    new Rectangle(76, 39, 204, 24),
                     Theme.TextMuted,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-                TextRenderer.DrawText(
-                    e.Graphics,
-                    Theme.WindowSize.Width + "×" + Theme.WindowSize.Height,
-                    new Font("Segoe UI", 7.5F, FontStyle.Bold),
-                    new Rectangle(226, 55, 58, 14),
-                    Theme.AccentSecondary,
-                    TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
             }
 
             private static GraphicsPath CreatePath(Rectangle bounds, int radius, bool angular)
