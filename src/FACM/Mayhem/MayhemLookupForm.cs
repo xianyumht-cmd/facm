@@ -24,7 +24,8 @@ namespace FACM.Mayhem
         private readonly TextBox _augments;
         private readonly DataGridView _topTen;
         private readonly LinkLabel _source;
-        private readonly Timer _elapsedTimer;
+        private readonly LinkLabel _rankingSource;
+        private readonly System.Windows.Forms.Timer _elapsedTimer;
         private CancellationTokenSource _queryCancellation;
         private DateTime _queryStartedAt;
         private string _stageText = "准备查询";
@@ -32,7 +33,7 @@ namespace FACM.Mayhem
 
         public MayhemLookupForm()
         {
-            Text = "海斗排行榜查询 · OP.GG";
+            Text = "海斗排行榜查询 · OP.GG + 排行数据源";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(900, 700);
             ClientSize = new Size(980, 742);
@@ -50,9 +51,9 @@ namespace FACM.Mayhem
             };
             var hint = new Label
             {
-                Text = "输入英雄中文名、英文名或常用别名。多个 OP.GG 页面并行读取，最长等待 9 秒。",
+                Text = "OP.GG 提供版本、梯队、技能、出装和强化；独立排行源补齐胜率、名次和前十。最长等待 7 秒。",
                 Location = new Point(26, 56),
-                Size = new Size(800, 24),
+                Size = new Size(880, 24),
                 ForeColor = Color.FromArgb(150, 166, 196)
             };
 
@@ -97,7 +98,7 @@ namespace FACM.Mayhem
 
             var examples = new Label
             {
-                Text = "示例：寒冰 / 艾希 / Ashe / 琴女 / Sona / 火男",
+                Text = "示例：寒冰 / 艾希 / Ashe / 琴女 / Yasuo",
                 Location = new Point(768, 99),
                 Size = new Size(190, 30),
                 ForeColor = Color.FromArgb(126, 144, 177)
@@ -146,22 +147,34 @@ namespace FACM.Mayhem
             _balance = CreateReadOnlyBox(new Rectangle(18, 112, 522, 62));
             var skillsLabel = CreateSectionLabel("技能加点", 18, 184);
             _skills = CreateReadOnlyBox(new Rectangle(18, 208, 522, 58));
-            var itemsLabel = CreateSectionLabel("推荐出装", 18, 278);
+            var itemsLabel = CreateSectionLabel("推荐出装（OP.GG 第一组核心装备）", 18, 278);
             _items = CreateReadOnlyBox(new Rectangle(18, 302, 522, 78));
             var augmentsLabel = CreateSectionLabel("推荐强化符文", 18, 392);
             _augments = CreateReadOnlyBox(new Rectangle(18, 416, 522, 62));
 
             _source = new LinkLabel
             {
-                Text = "打开 OP.GG 原始页面",
+                Text = "打开 OP.GG 构建页面",
                 Location = new Point(18, 492),
-                Size = new Size(220, 24),
+                Size = new Size(180, 24),
                 LinkColor = Color.FromArgb(108, 163, 255),
                 ActiveLinkColor = Color.FromArgb(151, 190, 255),
                 DisabledLinkColor = Color.FromArgb(100, 110, 130),
                 Enabled = false
             };
             _source.LinkClicked += OpenSource;
+
+            _rankingSource = new LinkLabel
+            {
+                Text = "打开胜率排行来源",
+                Location = new Point(220, 492),
+                Size = new Size(180, 24),
+                LinkColor = Color.FromArgb(108, 163, 255),
+                ActiveLinkColor = Color.FromArgb(151, 190, 255),
+                DisabledLinkColor = Color.FromArgb(100, 110, 130),
+                Enabled = false
+            };
+            _rankingSource.LinkClicked += OpenSource;
 
             leftPanel.Controls.Add(_headline);
             leftPanel.Controls.Add(_metrics);
@@ -174,6 +187,7 @@ namespace FACM.Mayhem
             leftPanel.Controls.Add(augmentsLabel);
             leftPanel.Controls.Add(_augments);
             leftPanel.Controls.Add(_source);
+            leftPanel.Controls.Add(_rankingSource);
 
             var rankTitle = new Label
             {
@@ -185,9 +199,9 @@ namespace FACM.Mayhem
             };
             var rankHint = new Label
             {
-                Text = "只展示 OP.GG 实际返回的排行榜数据",
+                Text = "胜率、名次和前十来自独立排行源，避免伪造 OP.GG 空字段",
                 Location = new Point(17, 45),
-                Size = new Size(320, 22),
+                Size = new Size(320, 30),
                 ForeColor = Color.FromArgb(132, 151, 184)
             };
 
@@ -240,7 +254,7 @@ namespace FACM.Mayhem
             Controls.Add(leftPanel);
             Controls.Add(rightPanel);
 
-            _elapsedTimer = new Timer { Interval = 250 };
+            _elapsedTimer = new System.Windows.Forms.Timer { Interval = 250 };
             _elapsedTimer.Tick += UpdateElapsed;
 
             AcceptButton = _search;
@@ -322,19 +336,23 @@ namespace FACM.Mayhem
         private void RenderResult(MayhemChampionResult result)
         {
             _headline.Text = result.ChampionName + "  ·  ARAM: Mayhem";
+            var patchText = string.IsNullOrWhiteSpace(result.Patch) ? "OP.GG 版本未知" : "OP.GG " + result.Patch;
+            if (!string.IsNullOrWhiteSpace(result.RankingPatch) && !string.Equals(result.RankingPatch, result.Patch, StringComparison.OrdinalIgnoreCase))
+                patchText += " / 排行 " + result.RankingPatch;
+
             var metrics = new[]
             {
-                string.IsNullOrWhiteSpace(result.Patch) ? "版本未知" : "版本 " + result.Patch,
+                patchText,
                 result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行未返回",
                 result.WinRate.HasValue ? "胜率 " + result.WinRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "胜率未返回",
                 string.IsNullOrWhiteSpace(result.Tier) ? null : result.Tier + " 梯队",
                 result.PickRate.HasValue ? "选用率 " + result.PickRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : null
             }.Where(value => !string.IsNullOrWhiteSpace(value));
             _metrics.Text = string.Join("  ·  ", metrics);
-            _balance.Text = string.IsNullOrWhiteSpace(result.BalanceSummary) ? "OP.GG 当前页面未返回该项。" : result.BalanceSummary;
+            _balance.Text = string.IsNullOrWhiteSpace(result.BalanceSummary) ? "当前数据源未返回该项。" : result.BalanceSummary;
             _skills.Text = string.IsNullOrWhiteSpace(result.SkillOrder) ? "OP.GG 当前页面未返回该项。" : result.SkillOrder;
             _items.Text = result.CoreItems.Count == 0 ? "OP.GG 当前页面未解析到核心出装。" : string.Join("  →  ", result.CoreItems);
-            _augments.Text = result.Augments.Count == 0 ? "OP.GG 当前页面未解析到强化符文。" : string.Join("  ·  ", result.Augments);
+            _augments.Text = result.Augments.Count == 0 ? "当前页面未解析到强化符文。" : string.Join("  ·  ", result.Augments);
 
             _topTen.Rows.Clear();
             foreach (var champion in result.TopTen.OrderBy(item => item.Rank).Take(10))
@@ -346,10 +364,12 @@ namespace FACM.Mayhem
                     string.IsNullOrWhiteSpace(champion.Tier) ? "—" : champion.Tier);
             }
             if (result.TopTen.Count == 0)
-                _topTen.Rows.Add("—", "OP.GG 本次未返回排行", "—", "—");
+                _topTen.Rows.Add("—", "排行源本次未返回数据", "—", "—");
 
             _source.Tag = result.SourceUrl;
             _source.Enabled = !string.IsNullOrWhiteSpace(result.SourceUrl);
+            _rankingSource.Tag = result.RankingSourceUrl;
+            _rankingSource.Enabled = !string.IsNullOrWhiteSpace(result.RankingSourceUrl);
             _stageText = (result.SourceNote ?? "查询完成") + "  ·  本地缓存 10 分钟";
             _status.ForeColor = Color.FromArgb(99, 205, 166);
             UpdateStatusText(false);
@@ -421,7 +441,8 @@ namespace FACM.Mayhem
 
         private void OpenSource(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            var url = _source.Tag as string;
+            var link = sender as LinkLabel;
+            var url = link == null ? null : link.Tag as string;
             if (string.IsNullOrWhiteSpace(url)) return;
             try
             {
@@ -450,7 +471,7 @@ namespace FACM.Mayhem
             {
                 Text = text,
                 Location = new Point(x, y),
-                Size = new Size(300, 22),
+                Size = new Size(360, 22),
                 ForeColor = Color.FromArgb(142, 165, 207),
                 Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
             };
