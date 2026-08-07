@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace FACM.Pets
 {
@@ -34,6 +36,7 @@ namespace FACM.Pets
                 }
 
                 ValidateNvidiaCompatibilityProfile();
+                ValidateNvidiaInspectorDownload();
                 return 0;
             }
             catch (Exception exception)
@@ -69,6 +72,25 @@ namespace FACM.Pets
             var restore = NvidiaDesktopPetCompatibility.BuildProfileXmlForSmokeTest(2);
             if (restore.IndexOf("<SettingValue>2</SettingValue>", StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("NVIDIA restore-to-Auto profile value is incorrect.");
+        }
+
+        private static void ValidateNvidiaInspectorDownload()
+        {
+            var method = typeof(NvidiaDesktopPetCompatibility).GetMethod(
+                "EnsureInspectorAsync",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            if (method == null) throw new InvalidOperationException("NVIDIA compatibility download method is missing.");
+
+            using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                var task = method.Invoke(null, new object[] { null, cancellation.Token }) as Task<string>;
+                if (task == null) throw new InvalidOperationException("NVIDIA compatibility download method returned an invalid task.");
+                var inspector = task.GetAwaiter().GetResult();
+                if (string.IsNullOrWhiteSpace(inspector) || !File.Exists(inspector))
+                    throw new InvalidOperationException("Current NVIDIA Profile Inspector release could not be downloaded and extracted.");
+                if (!string.Equals(Path.GetFileName(inspector), "nvidiaProfileInspector.exe", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Unexpected NVIDIA Profile Inspector executable name.");
+            }
         }
 
         private static void WriteFakeExecutable(string path)
