@@ -4,7 +4,6 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using FACM.Configuration;
 using FACM.Services;
 
 namespace FACM.Online
@@ -22,7 +21,6 @@ namespace FACM.Online
         private readonly bool _forceMode;
         private readonly Label _versionValue;
         private readonly Label _updateStatus;
-        private readonly Label _programInfo;
         private readonly Label _announcementTitle;
         private readonly TextBox _announcementBody;
         private readonly Button _refreshButton;
@@ -49,7 +47,7 @@ namespace FACM.Online
             MinimizeBox = false;
             ShowInTaskbar = false;
             TopMost = forceMode;
-            ClientSize = new Size(560, 690);
+            ClientSize = new Size(560, 620);
             BackColor = Background;
             ForeColor = TextPrimary;
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -66,15 +64,15 @@ namespace FACM.Online
             var subtitle = new Label
             {
                 Text = forceMode
-                    ? "当前版本已低于允许范围，请完成更新后继续。"
-                    : "版本、签名、权限和公告统一在这里查看。",
+                    ? "当前版本已不再支持，请更新后继续使用。"
+                    : "查看版本更新和最新公告。",
                 Location = new Point(26, 55),
                 Size = new Size(508, 24),
                 ForeColor = TextMuted
             };
 
-            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 229));
-            var versionTitle = CreateSectionTitle("版本与程序状态", new Point(16, 13));
+            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 172));
+            var versionTitle = CreateSectionTitle("版本更新", new Point(16, 13));
             _versionValue = new Label
             {
                 Location = new Point(16, 43),
@@ -89,18 +87,10 @@ namespace FACM.Online
                 AutoEllipsis = true,
                 ForeColor = TextMuted
             };
-            _programInfo = new Label
-            {
-                Location = new Point(16, 111),
-                Size = new Size(486, 58),
-                AutoEllipsis = true,
-                ForeColor = Color.FromArgb(193, 205, 225),
-                Font = new Font("Microsoft YaHei UI", 8.2F)
-            };
             _autoUpdate = new CheckBox
             {
-                Text = "启动时自动检查并提示更新",
-                Location = new Point(16, 181),
+                Text = "启动时自动检查更新",
+                Location = new Point(16, 126),
                 Size = new Size(240, 28),
                 Checked = _settings.AutoUpdateEnabled,
                 ForeColor = TextPrimary,
@@ -111,21 +101,20 @@ namespace FACM.Online
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            _refreshButton = CreateButton("立即检查", new Point(282, 179), 100, false);
+            _refreshButton = CreateButton("立即检查", new Point(282, 124), 100, false);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton("立即更新", new Point(392, 179), 110, true);
+            _updateButton = CreateButton("立即更新", new Point(392, 124), 110, true);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
             versionPanel.Controls.Add(_versionValue);
             versionPanel.Controls.Add(_updateStatus);
-            versionPanel.Controls.Add(_programInfo);
             versionPanel.Controls.Add(_autoUpdate);
             versionPanel.Controls.Add(_refreshButton);
             versionPanel.Controls.Add(_updateButton);
 
-            var announcementPanel = CreatePanel(new Point(20, 335), new Size(520, 274));
-            var announcementSection = CreateSectionTitle("联网公告", new Point(16, 13));
+            var announcementPanel = CreatePanel(new Point(20, 278), new Size(520, 250));
+            var announcementSection = CreateSectionTitle("公告", new Point(16, 13));
             _announcementTitle = new Label
             {
                 Location = new Point(16, 43),
@@ -136,7 +125,7 @@ namespace FACM.Online
             _announcementBody = new TextBox
             {
                 Location = new Point(16, 77),
-                Size = new Size(486, 142),
+                Size = new Size(486, 122),
                 ReadOnly = true,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -144,7 +133,7 @@ namespace FACM.Online
                 BackColor = Color.FromArgb(18, 24, 36),
                 ForeColor = TextPrimary
             };
-            _linkButton = CreateButton("打开公告链接", new Point(16, 229), 120, false);
+            _linkButton = CreateButton("查看详情", new Point(16, 209), 100, false);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -153,13 +142,13 @@ namespace FACM.Online
 
             _progress = new ProgressBar
             {
-                Location = new Point(20, 623),
+                Location = new Point(20, 542),
                 Size = new Size(520, 14),
                 Minimum = 0,
                 Maximum = 100,
                 Visible = false
             };
-            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(420, 648), 120, false);
+            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(420, 570), 120, false);
             _closeButton.Click += delegate
             {
                 if (_updateStarted) return;
@@ -175,7 +164,6 @@ namespace FACM.Online
             Controls.Add(_closeButton);
 
             FormClosing += HandleFormClosing;
-            ApplyProgramInfo();
             ApplySnapshot();
         }
 
@@ -190,26 +178,22 @@ namespace FACM.Online
 
             var choice = MessageBox.Show(
                 this,
-                "检测到新版本，自动更新已开启。现在下载并安装吗？",
+                "检测到新版本，现在下载并安装吗？",
                 "FACM 更新",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Information,
                 MessageBoxDefaultButton.Button1);
-            if (choice == DialogResult.Yes)
-            {
-                await BeginUpdateAsync();
-            }
+            if (choice == DialogResult.Yes) await BeginUpdateAsync();
         }
 
         private async Task RefreshAsync()
         {
-            SetBusy(true, "正在读取在线配置...");
+            SetBusy(true, "正在检查更新...");
             try
             {
                 if (_cancellation != null) _cancellation.Dispose();
                 _cancellation = new CancellationTokenSource();
                 _snapshot = await OnlineService.FetchSnapshotAsync(_cancellation.Token);
-                ApplyProgramInfo();
                 ApplySnapshot();
             }
             finally
@@ -223,7 +207,7 @@ namespace FACM.Online
             if (_updateStarted || _snapshot == null || !_snapshot.UpdateAvailable || _snapshot.Update == null) return;
 
             _updateStarted = true;
-            SetBusy(true, "正在下载并校验更新...");
+            SetBusy(true, "正在下载更新...");
             _progress.Visible = true;
             _progress.Value = 0;
             try
@@ -235,11 +219,8 @@ namespace FACM.Online
                     _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value));
                     _updateStatus.Text = "正在下载更新：" + value + "%";
                 });
-                var downloaded = await UpdateInstaller.DownloadAsync(
-                    _snapshot.Update,
-                    progress,
-                    _cancellation.Token);
-                _updateStatus.Text = "下载完成，正在启动替换程序...";
+                var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
+                _updateStatus.Text = "下载完成，正在安装...";
                 UpdateInstaller.StartReplacement(downloaded);
                 _owner.ExitApplication();
             }
@@ -252,7 +233,7 @@ namespace FACM.Online
             {
                 _updateStarted = false;
                 AppLog.Error("Update installation failed", exception);
-                MessageBox.Show(this, "更新失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, "更新失败，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 ApplySnapshot();
             }
             finally
@@ -265,35 +246,26 @@ namespace FACM.Online
             }
         }
 
-        private void ApplyProgramInfo()
-        {
-            _programInfo.Text =
-                "签名状态：" + SignatureInspector.GetCurrentExecutableSignatureStatus() + "\r\n" +
-                "运行权限：" + (ElevationService.IsAdministrator ? "管理员" : "标准用户") +
-                "    清理配置：" + (CleanupProfile.IsConfigured ? "已配置" : "尚未配置") + "\r\n" +
-                "工具资源：FACM.ToolBundle.dll + runtime，释放和运行前校验 SHA-256";
-        }
-
         private void ApplySnapshot()
         {
             var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
             var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
-            _versionValue.Text = "当前版本：" + current + "    在线版本：" + latest;
+            _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
             {
-                _updateStatus.Text = "读取失败：" + _snapshot.ErrorMessage;
+                _updateStatus.Text = "暂时无法获取更新信息。";
                 _updateButton.Enabled = false;
             }
             else if (_snapshot.ForceUpdateRequired)
             {
-                _updateStatus.Text = "必须更新后才能继续使用。";
+                _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
             }
             else if (_snapshot.UpdateAvailable)
             {
                 _updateStatus.Text = string.IsNullOrWhiteSpace(_snapshot.Update.ReleaseNotes)
-                    ? "发现可用的新版本。"
+                    ? "发现新版本。"
                     : _snapshot.Update.ReleaseNotes;
                 _updateButton.Enabled = true;
             }
@@ -313,7 +285,7 @@ namespace FACM.Online
             else
             {
                 _announcementTitle.Text = "暂无公告";
-                _announcementBody.Text = "后台当前未启用公告。";
+                _announcementBody.Text = "暂无公告内容。";
                 _linkButton.Enabled = false;
             }
         }
@@ -330,9 +302,7 @@ namespace FACM.Online
 
         private void OpenAnnouncementLink(object sender, EventArgs e)
         {
-            var url = _snapshot == null || _snapshot.Announcement == null
-                ? null
-                : _snapshot.Announcement.LinkUrl;
+            var url = _snapshot == null || _snapshot.Announcement == null ? null : _snapshot.Announcement.LinkUrl;
             if (!IsHttpsUrl(url)) return;
             Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
@@ -389,9 +359,7 @@ namespace FACM.Online
                 TabStop = false
             };
             button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(65, 80, 105);
-            button.FlatAppearance.MouseOverBackColor = primary
-                ? Color.FromArgb(88, 144, 255)
-                : Color.FromArgb(48, 61, 82);
+            button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(88, 144, 255) : Color.FromArgb(48, 61, 82);
             return button;
         }
 
