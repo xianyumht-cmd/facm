@@ -32,43 +32,58 @@ namespace FACM.Mayhem
             if (result == null || string.IsNullOrWhiteSpace(result.ChampionSlug)) return;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
                 var ct = timeout.Token;
                 try
                 {
-                    var championsTask = ReadGameDataAsync("champion-summary.json", ct);
-                    var itemsTask = ReadGameDataAsync("items.json", ct);
-                    var augmentsTask = ReadGameDataAsync("cherry-augments.json", ct);
+                    await RiotDataDragonService.EnrichAsync(result, ct).ConfigureAwait(false);
+
+                    var needChampionFallback = string.IsNullOrWhiteSpace(result.ChampionIconUrl) ||
+                                               string.IsNullOrWhiteSpace(result.ChampionSplashUrl) ||
+                                               result.SkillIconUrls.Count < 4 ||
+                                               result.TopTen.Any(item => string.IsNullOrWhiteSpace(item.IconUrl));
+                    var needItemFallback = result.CoreItems.Count > 0 && result.CoreItemIconUrls.Count < result.CoreItems.Count;
+
+                    var championsTask = needChampionFallback ? ReadGameDataAsync("champion-summary.json", ct) : Task.FromResult<object>(null);
+                    var itemsTask = needItemFallback ? ReadGameDataAsync("items.json", ct) : Task.FromResult<object>(null);
+                    var augmentsTask = result.Augments.Count > 0 ? ReadGameDataAsync("cherry-augments.json", ct) : Task.FromResult<object>(null);
                     await Task.WhenAll(championsTask, itemsTask, augmentsTask).ConfigureAwait(false);
 
                     var champions = AsArray(championsTask.Result);
-                    var champion = FindChampion(champions, result.ChampionSlug, result.ChampionName);
-                    if (champion != null)
+                    if (champions != null)
                     {
-                        var officialName = ReadString(champion, "name");
-                        if (!string.IsNullOrWhiteSpace(officialName)) result.ChampionName = officialName;
-                        result.ChampionIconUrl = AssetReference(ReadString(champion, "squarePortraitPath"));
-
-                        var id = ReadInt(champion, "id");
-                        if (id > 0)
+                        var champion = FindChampion(champions, result.ChampionSlug, result.ChampionName);
+                        if (champion != null)
                         {
-                            var detail = await ReadGameDataAsync("champions/" + id + ".json", ct).ConfigureAwait(false) as Dictionary<string, object>;
-                            EnrichChampionDetail(result, detail);
+                            if (string.IsNullOrWhiteSpace(result.ChampionName))
+                            {
+                                var officialName = ReadString(champion, "name");
+                                if (!string.IsNullOrWhiteSpace(officialName)) result.ChampionName = officialName;
+                            }
+                            if (string.IsNullOrWhiteSpace(result.ChampionIconUrl))
+                                result.ChampionIconUrl = AssetReference(ReadString(champion, "squarePortraitPath"));
+
+                            var id = ReadInt(champion, "id");
+                            if (id > 0 && (string.IsNullOrWhiteSpace(result.ChampionSplashUrl) || result.SkillIconUrls.Count < 4))
+                            {
+                                var detail = await ReadGameDataAsync("champions/" + id + ".json", ct).ConfigureAwait(false) as Dictionary<string, object>;
+                                EnrichChampionDetailFallback(result, detail);
+                            }
                         }
+                        EnrichTopTenFallback(result, champions);
                     }
 
-                    EnrichItems(result, AsArray(itemsTask.Result));
+                    EnrichItemsFallback(result, AsArray(itemsTask.Result));
                     EnrichAugments(result, AsArray(augmentsTask.Result));
-                    EnrichTopTen(result, champions);
                 }
                 catch (OperationCanceledException)
                 {
                     if (token.IsCancellationRequested) throw;
-                    AppLog.Info("Riot visual metadata enrichment timed out; result will render with available images.");
+                    AppLog.Info("Mayhem visual metadata enrichment timed out; card will use available images.");
                 }
                 catch (Exception exception)
                 {
-                    AppLog.Info("Riot visual metadata enrichment skipped: " + exception.Message);
+                    AppLog.Info("Mayhem visual metadata enrichment skipped: " + exception.Message);
                 }
             }
         }
@@ -116,7 +131,7 @@ namespace FACM.Mayhem
             try
             {
                 using (var request = new HttpRequestMessage(HttpMethod.Get, CommunityDragonBase + relativePath))
-                using (var response = await PublicClient.SendAsync(request, token).ConfigureAwait(false))
+                using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
                 {
                     if (!response.IsSuccessStatusCode) return null;
                     var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -216,15 +231,18 @@ namespace FACM.Mayhem
             });
         }
 
-        private static void EnrichChampionDetail(MayhemChampionResult result, Dictionary<string, object> detail)
+        private static void EnrichChampionDetailFallback(MayhemChampionResult result, Dictionary<string, object> detail)
         {
             if (detail == null) return;
-            var skins = AsArray(ReadObject(detail, "skins"));
-            if (skins != null && skins.Length > 0)
+            if (string.IsNullOrWhiteSpace(result.ChampionSplashUrl))
             {
-                var skin = skins[0] as Dictionary<string, object>;
-                result.ChampionSplashUrl = AssetReference(
-                    First(ReadString(skin, "uncenteredSplashPath"), ReadString(skin, "splashPath"), ReadString(skin, "loadScreenPath")));
+                var skins = AsArray(ReadObject(detail, "skins"));
+                if (skins != null && skins.Length > 0)
+                {
+                    var skin = skins[0] as Dictionary<string, object>;
+                    result.ChampionSplashUrl = AssetReference(
+                        First(ReadString(skin, "uncenteredSplashPath"), ReadString(skin, "splashPath"), ReadString(skin, "loadScreenPath")));
+                }
             }
 
             var spells = AsArray(ReadObject(detail, "spells"));
@@ -233,25 +251,38 @@ namespace FACM.Mayhem
             {
                 var key = (ReadString(spell, "spellKey") ?? string.Empty).ToUpperInvariant();
                 if (key != "Q" && key != "W" && key != "E" && key != "R") continue;
+                if (result.SkillIconUrls.ContainsKey(key) && !string.IsNullOrWhiteSpace(result.SkillIconUrls[key])) continue;
                 var path = AssetReference(First(ReadString(spell, "abilityIconPath"), ReadString(spell, "iconPath")));
                 if (!string.IsNullOrWhiteSpace(path)) result.SkillIconUrls[key] = path;
             }
         }
 
-        private static void EnrichItems(MayhemChampionResult result, object[] items)
+        private static void EnrichItemsFallback(MayhemChampionResult result, object[] items)
         {
-            result.CoreItemIconUrls.Clear();
-            if (items == null) return;
-            foreach (var requested in result.CoreItems)
+            if (result.CoreItems.Count == 0) return;
+            if (result.CoreItemIconUrls.Count >= result.CoreItems.Count) return;
+            var output = new List<string>();
+            for (var i = 0; i < result.CoreItems.Count; i++)
             {
-                var normalized = Normalize(requested);
+                if (i < result.CoreItemIconUrls.Count && !string.IsNullOrWhiteSpace(result.CoreItemIconUrls[i]))
+                {
+                    output.Add(result.CoreItemIconUrls[i]);
+                    continue;
+                }
+                if (items == null)
+                {
+                    output.Add(null);
+                    continue;
+                }
+                var normalized = Normalize(result.CoreItems[i]);
                 var item = items.OfType<Dictionary<string, object>>().FirstOrDefault(candidate =>
                 {
                     var candidateName = Normalize(ReadString(candidate, "name"));
                     return candidateName.Length > 0 && (candidateName == normalized || normalized.Contains(candidateName) || candidateName.Contains(normalized));
                 });
-                result.CoreItemIconUrls.Add(item == null ? null : AssetReference(ReadString(item, "iconPath")));
+                output.Add(item == null ? null : AssetReference(ReadString(item, "iconPath")));
             }
+            result.CoreItemIconUrls = output;
         }
 
         private static void EnrichAugments(MayhemChampionResult result, object[] augments)
@@ -270,16 +301,20 @@ namespace FACM.Mayhem
             }
         }
 
-        private static void EnrichTopTen(MayhemChampionResult result, object[] champions)
+        private static void EnrichTopTenFallback(MayhemChampionResult result, object[] champions)
         {
             if (champions == null) return;
             foreach (var top in result.TopTen)
             {
+                if (!string.IsNullOrWhiteSpace(top.IconUrl)) continue;
                 var row = FindChampion(champions, top.Slug, top.Name);
                 if (row == null) continue;
                 top.IconUrl = AssetReference(ReadString(row, "squarePortraitPath"));
-                var officialName = ReadString(row, "name");
-                if (!string.IsNullOrWhiteSpace(officialName)) top.Name = officialName;
+                if (string.IsNullOrWhiteSpace(top.Name))
+                {
+                    var officialName = ReadString(row, "name");
+                    if (!string.IsNullOrWhiteSpace(officialName)) top.Name = officialName;
+                }
             }
         }
 
