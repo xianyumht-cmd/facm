@@ -33,7 +33,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "桌面宠物运行层",
+                Text = "桌面宠物",
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -41,7 +41,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "优先测试 VPet Core 高精度运行层；旧 CC0 Sprite 仅保留为回退/对照。VPet 首次启用会联网缓存官方最小动作集。",
+                Text = "选择喜欢的桌面宠物。部分桌宠首次使用时需要联网准备资源。",
                 Location = new Point(28, 58),
                 Size = new Size(730, 30),
                 ForeColor = Color.FromArgb(160, 174, 198)
@@ -178,7 +178,7 @@ namespace FACM.Pets
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null) return;
             _name.Text = pet.Name;
-            _description.Text = pet.Description + "\r\n来源：" + pet.AssetAuthor + " · " + pet.AssetLicense + "；拖动可放置，托盘可复位。";
+            _description.Text = pet.Description + "\r\n来源：" + pet.AssetAuthor + " · " + pet.AssetLicense + "；长按可拖动，托盘可复位。";
             _animationSeconds = 0;
             CancelAssetRequest();
 
@@ -273,10 +273,10 @@ namespace FACM.Pets
                 graphics.Clear(_preview.BackColor);
                 graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 38, _preview.Width - 24, 52), format);
+                graphics.DrawString("高精度桌宠", titleFont, titleBrush, new RectangleF(12, 38, _preview.Width - 24, 52), format);
                 graphics.DrawLine(linePen, 76, 103, _preview.Width - 76, 103);
                 graphics.DrawString(
-                    "成熟动作状态机\r\nIdle · Move · Raised · Touch\r\n\r\n应用后直接在桌面实时验收",
+                    "待机 · 移动 · 触摸 · 拖动\r\n\r\n应用后即可使用",
                     bodyFont,
                     bodyBrush,
                     new RectangleF(18, 112, _preview.Width - 36, 124),
