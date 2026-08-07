@@ -19,14 +19,17 @@ namespace FACM
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
             var floatingBallTest = HasArgument(args, "--floating-ball-test");
-            var testMode = petCatalogTest || mayhemSourceTest || floatingBallTest;
+            var petLocatorTest = HasArgument(args, "--pet-locator-test");
+            var testMode = petCatalogTest || mayhemSourceTest || floatingBallTest || petLocatorTest;
             var instanceMutex = petCatalogTest
                 ? MutexName + "-PetCatalogTest"
                 : (mayhemSourceTest
                     ? MutexName + "-MayhemSourceTest"
                     : (floatingBallTest
                         ? MutexName + "-FloatingBallTest"
-                        : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName)));
+                        : (petLocatorTest
+                            ? MutexName + "-PetLocatorTest"
+                            : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName))));
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -52,6 +55,11 @@ namespace FACM
                 if (floatingBallTest)
                 {
                     Environment.ExitCode = FloatingBallSmokeTest.Run();
+                    return;
+                }
+                if (petLocatorTest)
+                {
+                    Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run();
                     return;
                 }
 
