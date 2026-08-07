@@ -40,7 +40,7 @@ namespace FACM
                 if (!createdNew)
                 {
                     if (!testMode)
-                        MessageBox.Show("FACM 已经在运行。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(Ui("FACM 已经在运行。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
                     return;
                 }
@@ -83,10 +83,11 @@ namespace FACM
                 {
                     AppLog.Error("FACM startup preparation failed", exception);
                     MessageBox.Show(
-                        "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
-                        "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
-                        exception.Message,
-                        "FACM 启动失败",
+                        Ui(
+                            "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
+                            "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
+                            exception.Message),
+                        Ui("FACM 启动失败"),
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                     Environment.ExitCode = 3;
@@ -96,7 +97,7 @@ namespace FACM
                 Application.ThreadException += (sender, eventArgs) =>
                 {
                     AppLog.Error("UI thread exception", eventArgs.Exception);
-                    MessageBox.Show("程序遇到错误，详情已写入日志。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(Ui("程序遇到错误，详情已写入日志。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
                 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
                 {
@@ -120,6 +121,18 @@ namespace FACM
             {
                 Console.Error.WriteLine(exception);
                 return 4;
+            }
+        }
+
+        private static string Ui(string text)
+        {
+            try
+            {
+                return UiTextCatalog.Load().Translate(text);
+            }
+            catch
+            {
+                return text ?? string.Empty;
             }
         }
 
