@@ -70,11 +70,14 @@ namespace FACM.Pets
                     return false;
                 }
 
+                RuntimePaths.Initialize();
+                Directory.CreateDirectory(RuntimePaths.PetHostDataDirectory);
                 var pipeName = "FACM.PetHost." + Process.GetCurrentProcess().Id + "." + Guid.NewGuid().ToString("N");
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = executable,
-                    Arguments = "--pipe \"" + pipeName + "\" --parent-pid " + Process.GetCurrentProcess().Id,
+                    Arguments = "--pipe \"" + pipeName + "\" --parent-pid " + Process.GetCurrentProcess().Id +
+                                " --data-root \"" + RuntimePaths.PetHostDataDirectory + "\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     WorkingDirectory = Path.GetDirectoryName(executable) ?? AppDomain.CurrentDomain.BaseDirectory
@@ -99,7 +102,7 @@ namespace FACM.Pets
                     _activePetId = petId;
                     _readerTask = Task.Run((Func<Task>)ReadLoopAsync);
                     SendLocked("activate|" + petId);
-                    AppLog.Info("VPet PetHost connected: " + executable);
+                    AppLog.Info("VPet PetHost connected: " + executable + "; data-root=" + RuntimePaths.PetHostDataDirectory);
                     return true;
                 }
                 catch (Exception exception)
