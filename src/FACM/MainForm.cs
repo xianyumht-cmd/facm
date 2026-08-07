@@ -19,9 +19,8 @@ namespace FACM
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
-        private PetDefinition _pet;
-        private Pet3DWindow _petWindow;
         private CompactMenuForm _menu;
+        private CancellationTokenSource _petEventsCancellation;
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -33,7 +32,6 @@ namespace FACM
         public MainForm(bool startCleanup = false)
         {
             _startCleanup = startCleanup;
-            _pet = PetCatalog.Get(_settings.PetStyleId);
             _appIcon = BrandIcon.Create();
 
             Text = "FACM";
@@ -53,11 +51,7 @@ namespace FACM
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
-            _tray.DoubleClick += delegate
-            {
-                EnsurePetWindow();
-                ToggleMenu();
-            };
+            _tray.DoubleClick += delegate { ToggleMenu(); };
 
             Shown += HandleShown;
             FormClosed += HandleClosed;
@@ -76,19 +70,12 @@ namespace FACM
             if (_exiting) return;
             _exiting = true;
             CloseMenu();
-            if (_petWindow != null)
-            {
-                var window = _petWindow;
-                _petWindow = null;
-                window.Close();
-                window.Dispose();
-            }
+            StopPetEventSubscription();
             Close();
         }
 
         public void ApplyThemeSelection()
         {
-            // 主题只重建控制面板，不接触 3D 桌宠场景。
             CloseMenu();
             BeginInvoke(new Action(delegate
             {
@@ -132,8 +119,11 @@ namespace FACM
                     if (picker.ShowDialog() != DialogResult.OK) return;
                     _settings.PetStyleId = picker.SelectedPetId;
                     _settings.Save();
+                    StartPetEventSubscription(
+                        string.IsNullOrWhiteSpace(picker.ActivatedPersonaId)
+                            ? PetCatalog.Get(_settings.PetStyleId).PersonaId
+                            : picker.ActivatedPersonaId);
                 }
-                ApplyPetSelection();
             }
             finally
             {
@@ -210,7 +200,7 @@ namespace FACM
         private void HandleShown(object sender, EventArgs e)
         {
             Hide();
-            EnsurePetWindow();
+            BeginInvoke(new Action(StartPetRestore));
 
             if (_startCleanup)
             {
@@ -230,46 +220,14 @@ namespace FACM
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
         {
+            StopPetEventSubscription();
             _tray.Visible = false;
             var trayMenu = _tray.ContextMenuStrip;
             _tray.ContextMenuStrip = null;
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
-            if (_petWindow != null)
-            {
-                var window = _petWindow;
-                _petWindow = null;
-                window.Close();
-                window.Dispose();
-            }
             _appIcon.Dispose();
-        }
-
-        private void EnsurePetWindow()
-        {
-            if (_petWindow != null) return;
-
-            _petWindow = new Pet3DWindow(_pet);
-            RestorePetPosition(_petWindow);
-            _petWindow.Clicked += delegate { BeginInvoke(new Action(ToggleMenu)); };
-            _petWindow.DragStarted += delegate { BeginInvoke(new Action(CloseMenu)); };
-            _petWindow.DragFinished += delegate
-            {
-                _settings.BallX = (int)Math.Round(_petWindow.Left);
-                _settings.BallY = (int)Math.Round(_petWindow.Top);
-                _settings.Save();
-            };
-            _petWindow.ContextMenuRequested += delegate
-            {
-                var menu = _tray.ContextMenuStrip;
-                if (menu != null) menu.Show(Cursor.Position);
-            };
-            _petWindow.Closed += delegate
-            {
-                if (!_exiting) _petWindow = null;
-            };
-            _petWindow.Show();
         }
 
         private ContextMenuStrip BuildTrayMenu()
@@ -279,17 +237,16 @@ namespace FACM
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ShowImageMargin = false
             };
-            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { EnsurePetWindow(); ToggleMenu(); });
+            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { ToggleMenu(); });
             menu.Items.Add(_ui.Cleanup, null, delegate
             {
-                EnsurePetWindow();
                 if (_menu == null) ToggleMenu();
                 if (_menu != null && !_menu.IsDisposed)
                     _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
-            menu.Items.Add("3D 桌面宠物", null, delegate { OpenPetSelector(); });
+            menu.Items.Add("开源 3D 桌面宠物", null, delegate { OpenPetSelector(); });
             menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
@@ -297,6 +254,66 @@ namespace FACM
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.Exit, null, delegate { ExitApplication(); });
             return menu;
+        }
+
+        private async void StartPetRestore()
+        {
+            try
+            {
+                var pet = PetCatalog.Get(_settings.PetStyleId);
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
+                {
+                    var result = await DesktopHomunculusManager.TryRestoreAsync(pet, cancellation.Token);
+                    if (IsDisposed) return;
+                    if (result.Success)
+                    {
+                        StartPetEventSubscription(result.PersonaId);
+                        return;
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Pet restore unavailable: " + exception.Message);
+            }
+
+            if (!IsDisposed)
+                _tray.ShowBalloonTip(7000, "FACM", "请从托盘菜单打开“开源 3D 桌面宠物”，选择角色并完成首次安装。", ToolTipIcon.Info);
+        }
+
+        private void StartPetEventSubscription(string personaId)
+        {
+            StopPetEventSubscription();
+            _petEventsCancellation = new CancellationTokenSource();
+            var token = _petEventsCancellation.Token;
+            Task.Run(async delegate
+            {
+                await DesktopHomunculusManager.SubscribeClicksAsync(
+                    personaId,
+                    delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        try
+                        {
+                            BeginInvoke(new Action(delegate
+                            {
+                                if (!_exiting && !IsDisposed) ToggleMenu();
+                            }));
+                        }
+                        catch
+                        {
+                        }
+                    },
+                    token);
+            }, token);
+        }
+
+        private void StopPetEventSubscription()
+        {
+            if (_petEventsCancellation == null) return;
+            _petEventsCancellation.Cancel();
+            _petEventsCancellation.Dispose();
+            _petEventsCancellation = null;
         }
 
         private async void StartOnlineCheck()
@@ -407,7 +424,6 @@ namespace FACM
                 return;
             }
 
-            EnsurePetWindow();
             _menu = new CompactMenuForm(this, _settings, _ui);
             _menu.FormClosed += delegate { _menu = null; };
             PositionMenu(_menu);
@@ -415,71 +431,16 @@ namespace FACM
             _menu.Activate();
         }
 
-        private void PositionMenu(Form menu)
+        private static void PositionMenu(Form menu)
         {
-            EnsurePetWindow();
-            var petBounds = new Rectangle(
-                (int)Math.Round(_petWindow.Left),
-                (int)Math.Round(_petWindow.Top),
-                Math.Max(1, (int)Math.Round(_petWindow.Width)),
-                Math.Max(1, (int)Math.Round(_petWindow.Height)));
-            var area = Screen.FromRectangle(petBounds).WorkingArea;
-            var openLeft = petBounds.Left > area.Left + area.Width / 2;
-            var x = openLeft ? petBounds.Left - menu.Width - 12 : petBounds.Right + 12;
-            var y = Math.Max(area.Top + 8, Math.Min(petBounds.Top + petBounds.Height / 2 - menu.Height / 2, area.Bottom - menu.Height - 8));
+            var cursor = Cursor.Position;
+            var area = Screen.FromPoint(cursor).WorkingArea;
+            var x = cursor.X + 18;
+            if (x + menu.Width > area.Right - 8) x = cursor.X - menu.Width - 18;
+            var y = cursor.Y - menu.Height / 2;
             x = Math.Max(area.Left + 8, Math.Min(x, area.Right - menu.Width - 8));
+            y = Math.Max(area.Top + 8, Math.Min(y, area.Bottom - menu.Height - 8));
             menu.Location = new Point(x, y);
-        }
-
-        private void RestorePetPosition(Pet3DWindow window)
-        {
-            var primary = Screen.PrimaryScreen.WorkingArea;
-            if (_settings.BallX == int.MinValue || _settings.BallY == int.MinValue)
-            {
-                window.SetScreenPosition(primary.Right - window.Width - 24, primary.Top + (primary.Height - window.Height) / 2.0);
-                return;
-            }
-
-            var saved = new Rectangle(
-                _settings.BallX,
-                _settings.BallY,
-                Math.Max(1, (int)Math.Round(window.Width)),
-                Math.Max(1, (int)Math.Round(window.Height)));
-            foreach (var screen in Screen.AllScreens)
-            {
-                if (!screen.WorkingArea.IntersectsWith(saved)) continue;
-                window.SetScreenPosition(saved.Left, saved.Top);
-                return;
-            }
-
-            window.SetScreenPosition(primary.Right - window.Width - 24, primary.Top + (primary.Height - window.Height) / 2.0);
-        }
-
-        private void ApplyPetSelection()
-        {
-            _pet = PetCatalog.Get(_settings.PetStyleId);
-            EnsurePetWindow();
-            _petWindow.SetPet(_pet);
-            EnsurePetVisible();
-            _settings.BallX = (int)Math.Round(_petWindow.Left);
-            _settings.BallY = (int)Math.Round(_petWindow.Top);
-            _settings.Save();
-        }
-
-        private void EnsurePetVisible()
-        {
-            var bounds = new Rectangle(
-                (int)Math.Round(_petWindow.Left),
-                (int)Math.Round(_petWindow.Top),
-                Math.Max(1, (int)Math.Round(_petWindow.Width)),
-                Math.Max(1, (int)Math.Round(_petWindow.Height)));
-            foreach (var screen in Screen.AllScreens)
-            {
-                if (screen.WorkingArea.IntersectsWith(bounds)) return;
-            }
-
-            var area = Screen.PrimaryScreen.WorkingArea;
-            _petWindow.SetScreenPosition(area.Right - _petWindow.Width - 24, area.Top + (area.Height - _petWindow.Height) / 2.0);
         }
 
         private static string TrimBalloonText(string value)
