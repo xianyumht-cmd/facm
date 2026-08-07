@@ -12,7 +12,7 @@ namespace FACM.Mayhem
         {
             try
             {
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     var result = OpggMayhemService.QueryAsync("yasuo", cancellation.Token).GetAwaiter().GetResult();
                     if (result == null) throw new InvalidOperationException("Mayhem query returned null.");
@@ -43,10 +43,13 @@ namespace FACM.Mayhem
                     if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
                         throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
 
-                    using (var augmentImage = MayhemImageCache.GetAsync(result.AugmentIconUrls[0], cancellation.Token).GetAwaiter().GetResult())
+                    for (var index = 0; index < 5; index++)
                     {
-                        if (augmentImage == null || augmentImage.Width < 24 || augmentImage.Height < 24)
-                            throw new InvalidOperationException("Ranked augment image could not be downloaded.");
+                        using (var augmentImage = MayhemImageCache.GetAsync(result.AugmentIconUrls[index], cancellation.Token).GetAwaiter().GetResult())
+                        {
+                            if (augmentImage == null || augmentImage.Width < 24 || augmentImage.Height < 24)
+                                throw new InvalidOperationException("Ranked augment image #" + (index + 1) + " could not be decoded: " + result.AugmentIconUrls[index]);
+                        }
                     }
 
                     using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
