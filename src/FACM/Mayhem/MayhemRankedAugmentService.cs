@@ -17,10 +17,23 @@ namespace FACM.Mayhem
     {
         private const string ClientAugmentsUrl = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json";
         private const string ClientAssetBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/";
+        private const string KiwiIconBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/ux/kiwi/augments/icons/";
+        private const string CherryIconBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/ux/cherry/augments/icons/";
         private const string ArenaDataUrl = "https://raw.communitydragon.org/latest/cdragon/arena/en_us.json";
         private const string ArenaAssetBase = "https://raw.communitydragon.org/latest/game/";
+        private const string ArenaIconBase = "https://raw.communitydragon.org/latest/game/assets/ux/cherry/augments/icons/";
         private static readonly HttpClient Client = CreateClient();
         private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        private static readonly Dictionary<string, string> FileAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "upgradeinfinityedge", "upgradeie" },
+            { "endlessdecimation", "endlessdecimate" },
+            { "escapade", "escapade" },
+            { "outlawsgrit", "outlawsgrit" },
+            { "finalform", "finalform" },
+            { "mysticpunch", "mysticpunch" },
+            { "goredrink", "goredrink" }
+        };
 
         private sealed class RankedAugment
         {
@@ -34,7 +47,7 @@ namespace FACM.Mayhem
             if (result == null || string.IsNullOrWhiteSpace(result.RankingSourceUrl)) return;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(3.5));
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
                 try
                 {
                     var htmlTask = ReadAsync(result.RankingSourceUrl, timeout.Token);
@@ -48,6 +61,7 @@ namespace FACM.Mayhem
                     if (picks.Count == 0) return;
                     ResolveClientGameDataIcons(picks, clientDataTask.Result);
                     ResolveArenaIcons(picks, arenaTask.Result);
+                    await ProbeMissingIconsAsync(picks, timeout.Token).ConfigureAwait(false);
                     Apply(result, picks);
                 }
                 catch (OperationCanceledException)
@@ -164,6 +178,56 @@ namespace FACM.Mayhem
                 if (!string.IsNullOrWhiteSpace(pick.IconUrl)) continue;
                 string icon;
                 if (lookup.TryGetValue(NormalizeName(pick.Name), out icon)) pick.IconUrl = icon;
+            }
+        }
+
+        private static async Task ProbeMissingIconsAsync(IList<RankedAugment> picks, CancellationToken token)
+        {
+            var tasks = picks.Select(pick => ProbePickIconAsync(pick, token)).ToArray();
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        private static async Task ProbePickIconAsync(RankedAugment pick, CancellationToken token)
+        {
+            if (pick == null || !string.IsNullOrWhiteSpace(pick.IconUrl)) return;
+            var normalized = NormalizeName(pick.Name);
+            string key;
+            if (!FileAliases.TryGetValue(normalized, out key)) key = normalized;
+            if (string.IsNullOrWhiteSpace(key)) return;
+
+            var candidates = new[]
+            {
+                KiwiIconBase + key + "_small.png",
+                CherryIconBase + key + "_small.png",
+                ArenaIconBase + key + "_large.png",
+                ArenaIconBase + key + "_small.png"
+            };
+            foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (await ExistsAsync(candidate, token).ConfigureAwait(false))
+                {
+                    pick.IconUrl = candidate;
+                    return;
+                }
+            }
+            AppLog.Info("No ranked augment icon matched: " + pick.Name + "; key=" + key);
+        }
+
+        private static async Task<bool> ExistsAsync(string url, CancellationToken token)
+        {
+            try
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                    return response.IsSuccessStatusCode && (!response.Content.Headers.ContentLength.HasValue || response.Content.Headers.ContentLength.Value > 256);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return false;
             }
         }
 
