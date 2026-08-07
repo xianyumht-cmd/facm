@@ -15,6 +15,8 @@ namespace FACM.Mayhem
 {
     internal static class MayhemRankedAugmentService
     {
+        private const string ClientAugmentsUrl = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json";
+        private const string ClientAssetBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/";
         private const string ArenaDataUrl = "https://raw.communitydragon.org/latest/cdragon/arena/en_us.json";
         private const string ArenaAssetBase = "https://raw.communitydragon.org/latest/game/";
         private static readonly HttpClient Client = CreateClient();
@@ -32,17 +34,19 @@ namespace FACM.Mayhem
             if (result == null || string.IsNullOrWhiteSpace(result.RankingSourceUrl)) return;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                timeout.CancelAfter(TimeSpan.FromSeconds(3.5));
                 try
                 {
                     var htmlTask = ReadAsync(result.RankingSourceUrl, timeout.Token);
+                    var clientDataTask = ReadAsync(ClientAugmentsUrl, timeout.Token);
                     var arenaTask = ReadAsync(ArenaDataUrl, timeout.Token);
-                    await Task.WhenAll(htmlTask, arenaTask).ConfigureAwait(false);
+                    await Task.WhenAll(htmlTask, clientDataTask, arenaTask).ConfigureAwait(false);
                     var html = htmlTask.Result;
                     if (string.IsNullOrWhiteSpace(html)) return;
 
                     var picks = ParseRankedPicks(html).Take(5).ToList();
                     if (picks.Count == 0) return;
+                    ResolveClientGameDataIcons(picks, clientDataTask.Result);
                     ResolveArenaIcons(picks, arenaTask.Result);
                     Apply(result, picks);
                 }
@@ -96,6 +100,37 @@ namespace FACM.Mayhem
             }
         }
 
+        private static void ResolveClientGameDataIcons(IList<RankedAugment> picks, string json)
+        {
+            if (picks == null || picks.Count == 0 || string.IsNullOrWhiteSpace(json)) return;
+            object[] rows;
+            try
+            {
+                rows = Json.DeserializeObject(json) as object[];
+            }
+            catch
+            {
+                return;
+            }
+            if (rows == null) return;
+
+            var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows.OfType<Dictionary<string, object>>())
+            {
+                var name = ReadString(row, "name");
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                var icon = First(ReadString(row, "iconPath"), ReadString(row, "iconLarge"), ReadString(row, "iconSmall"));
+                if (string.IsNullOrWhiteSpace(icon)) continue;
+                lookup[NormalizeName(name)] = ToClientAssetUrl(icon);
+            }
+
+            foreach (var pick in picks)
+            {
+                string icon;
+                if (lookup.TryGetValue(NormalizeName(pick.Name), out icon)) pick.IconUrl = icon;
+            }
+        }
+
         private static void ResolveArenaIcons(IList<RankedAugment> picks, string json)
         {
             if (picks == null || picks.Count == 0 || string.IsNullOrWhiteSpace(json)) return;
@@ -126,6 +161,7 @@ namespace FACM.Mayhem
 
             foreach (var pick in picks)
             {
+                if (!string.IsNullOrWhiteSpace(pick.IconUrl)) continue;
                 string icon;
                 if (lookup.TryGetValue(NormalizeName(pick.Name), out icon)) pick.IconUrl = icon;
             }
@@ -194,6 +230,17 @@ namespace FACM.Mayhem
                 if (char.IsLetterOrDigit(c)) builder.Append(c);
             }
             return builder.ToString();
+        }
+
+        private static string ToClientAssetUrl(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            if (path.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                return path;
+            const string prefix = "/lol-game-data/assets/";
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return ClientAssetBase + path.Substring(prefix.Length).TrimStart('/').ToLowerInvariant();
+            return ClientAssetBase + path.TrimStart('/').ToLowerInvariant();
         }
 
         private static string ToArenaAssetUrl(string path)
