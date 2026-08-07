@@ -32,14 +32,16 @@ PetHost 使用：
 
 1. Default / Idle；
 2. Move；
-3. Raised（拖动/提起）；
+3. Raised（长按后拖动/提起，保持 VPet 原交互）；
 4. Touch Head / Touch Body；
 5. StartUP；
 6. 动画与位移同步；
 7. 朝向与实际移动一致；
 8. 连续运行无瞬时透明/闪烁；
 9. 多显示器与高 DPI 下仍可复位；
-10. 单击打开 FACM、右键显示 FACM 托盘菜单。
+10. 单击打开 FACM、右键显示 FACM 功能列表。
+
+FACM 自己的左键/右键桥接只在 VPet 配置中的 TouchHead + TouchBody 区域生效，不再把整个透明 PetHost 窗口当成打开控制面板/功能列表的点击区域。VPet 自己的触摸、长按 Raised 等互动不因此改变。
 
 ## 动画资源策略
 
@@ -62,11 +64,40 @@ FACM 不把 VPet 默认角色的整套动画直接提交进本仓库，也不在
 
 这是 2026-05-19（`VPet-Simulator.Core` 1.1.0.66 发布当天）的默认动画更新提交。FACM 故意使用与稳定 Core 同代的动画快照，而不是把 5 月稳定 Core 与 8 月以后继续变化的动作定义混用。
 
-缓存目录：
+## 便携数据目录
 
-`%LOCALAPPDATA%\FACM\PetHost\Assets\vpet-ac77ba14\`
+当前正式运行不会再把新的 VPet 资源/动画缓存写到 `%LOCALAPPDATA%`。FACM 启动 PetHost 时会显式传入便携数据目录：
 
-下载前会读取官方 Git tree，校验文件数量和总大小；异常偏少、大小为 0 或超过安全上限时直接拒绝下载。下载使用随机 staging 目录。只有所有清单文件成功写完且完成标记写入后，才原子切换成正式缓存目录。下载中断、进程被关闭或网络失败不会把半套资源当成可用缓存。
+`FACM\runtime\pethost\`
+
+其中主要包含：
+
+```text
+FACM\
+└─ runtime\
+   └─ pethost\
+      ├─ Assets\
+      │  └─ vpet-ac77ba14\
+      └─ Cache\
+```
+
+如果升级前已经存在 `%LOCALAPPDATA%\FACM\PetHost`，PetHost 会在首次启动时把旧数据复制到新的便携目录，逐文件检查长度后再尝试删除旧目录。迁移本身不是桌宠启动的硬依赖：旧缓存无法复制时，会直接在 `FACM\runtime\pethost` 重新准备资源，不会因为迁移失败让桌宠不可用。
+
+海斗图片磁盘缓存也只写入 `FACM\runtime\cache\mayhem-images`；若 FACM 所在目录不可写，则放弃磁盘缓存而只使用内存，不再回退到 Windows TEMP。
+
+## 首次加载与续传
+
+第一次启用可能需要处理约 538 个动作资源文件。当前实现：
+
+- 下载并发 20；
+- 固定 partial staging，可从中断进度继续；
+- 逐文件按 Git tree 大小校验；
+- 单文件先写 `.download`，完成后原子替换；
+- 恢复 VPet 官方桌面程序使用的动态 `PNGAnimation.MaxLoadMemory` 初始化；
+- VPet `LoadALL()` 放到后台执行；
+- 加载界面显示 `正在生成动作缓存 x/y` 的真实进度，而不是长时间只显示“正在建立动作状态机”。
+
+下载前会读取官方 Git tree，校验文件数量和总大小；异常偏少、大小为 0 或超过安全上限时直接拒绝下载。只有所有清单文件成功写完且完成标记写入后，才切换成正式缓存目录。
 
 ## 许可证与来源
 
@@ -92,34 +123,23 @@ PetHost 安装目录还会包含 `VPET-ASSET-NOTICE.txt`，首次资源准备界
 - 原 8 套 CC0 Sprite 素材元数据
 - 旧 Sprite smoke test
 
-但它们已经降级为：
+但它们已经降级为回退/对照测试，不再是正式桌宠架构。VPet 技术预览启动失败时，FACM 不会偷偷用旧低清 Sprite 冒充成功；主程序会恢复默认悬浮球，让故障保持可见。
 
-- 回退；
-- 对照测试；
-- 第二阶段蜘蛛/飞虫方向验证的参考。
-
-它们不再是正式桌宠架构。VPet 技术预览启动失败时，FACM 不会偷偷用旧低清 Sprite 冒充成功；主程序会恢复默认悬浮球，让故障保持可见。
+旧 Desktop Homunculus 兼容代码也不作为当前正式桌宠运行层。它可能探测历史外部安装位置，但当前 VPet PetHost 不依赖它，也不会把新的 VPet 数据写入其目录。
 
 ## CI
 
-Windows CI 分成两条桌宠验证：
+Windows CI 会：
 
-### FACM / 旧 Sprite 回退
+1. 验证 FACM 旧 Sprite 回退链；
+2. 使用 .NET 8 构建 `FACM.PetHost`；
+3. 发布 `win-x64` self-contained 包；
+4. 使用显式 `--data-root` 运行 `FACM.PetHost.exe --self-test`，避免自检依赖用户 `%LOCALAPPDATA%`；
+5. 验证 VPet Core、控制器、x64 环境和 IPC；
+6. 把完整 PetHost 目录打进 FACM ZIP；
+7. 单独记录 `FACM.PetHost.exe` SHA-256。
 
-仍运行 `--animal-pet-test`，确保原 8 套 CC0 Sprite 回退链没有被新运行层破坏。
-
-### FACM.PetHost
-
-CI 会：
-
-1. 使用 .NET 8 构建 `FACM.PetHost`；
-2. 发布 `win-x64` self-contained 包；
-3. 运行 `FACM.PetHost.exe --self-test`；
-4. 验证 VPet Core 可以加载、控制器实现正确、x64 环境正确、IPC 协议可用；
-5. 把完整 PetHost 目录打进 FACM ZIP；
-6. 单独记录 `FACM.PetHost.exe` SHA-256。
-
-CI 不把“能构建”当成视觉验收。真实感、动作自然度、透明窗口稳定性仍必须由 Windows 实机运行确认。
+CI 不把“能构建”当成视觉验收。真实感、动作自然度、透明窗口稳定性和交互命中范围仍必须由 Windows 实机运行确认。
 
 ## 实机验收
 
@@ -129,8 +149,10 @@ CI 不把“能构建”当成视觉验收。真实感、动作自然度、透�
 2. 托盘 → `桌面宠物`；
 3. 选择列表第一项 `高精度桌宠 · VPet Core`；
 4. 首次启用允许它联网缓存官方最小动作集；
-5. 连续观察至少数分钟；
-6. 测试移动、停下、转向、拖动/提起、摸头/身体、单击、右键和“宠物复位”；
-7. 重点观察是否还有瞬间消失、倒着走、动画与位移脱节、明显像图片滑动等旧问题。
+5. 观察首次下载和 `动作缓存 x/y` 是否持续推进并最终自动显示桌宠；
+6. 测试移动、停下、转向、长按拖动/提起、摸头/身体；
+7. 测试人物附近透明区域左键/右键不再打开 FACM；
+8. 右键打开 FACM 功能列表后，点击菜单外空白区域应自动关闭；
+9. 检查 `FACM\runtime\pethost` 是否生成 Assets/Cache，新的 VPet 数据不应继续写入 `%LOCALAPPDATA%\FACM\PetHost`。
 
-只有实机认可第一只 VPet 桌宠后，才继续做第二只蜘蛛/苍蝇等方向明显的宠物，并最终清理旧 `SpritePetWindow` 正式路径。
+在第一只 VPet 桌宠实机验收完成前，不合并 PR #13。
