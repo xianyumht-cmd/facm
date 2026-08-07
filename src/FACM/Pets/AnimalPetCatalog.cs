@@ -18,8 +18,24 @@ namespace FACM.Pets
         public string Name { get; set; }
         public string Description { get; set; }
         public AnimalMotionStyle Motion { get; set; }
+
+        // Legacy artwork fields are retained so older fallback code still compiles.
         public string ArtworkUrl { get; set; }
         public string ArtworkFileName { get; set; }
+
+        public string SpriteUrl { get; set; }
+        public string SpriteFileName { get; set; }
+        public int SpriteColumns { get; set; }
+        public int SpriteRows { get; set; }
+        public int AnimationRow { get; set; }
+        public int FrameCount { get; set; }
+        public float FramesPerSecond { get; set; }
+        public bool DirectionalRows { get; set; }
+        public bool PixelArt { get; set; }
+        public string SourcePage { get; set; }
+        public string AssetAuthor { get; set; }
+        public string AssetLicense { get; set; }
+
         public float Speed { get; set; }
         public float VisualScale { get; set; }
     }
@@ -27,20 +43,56 @@ namespace FACM.Pets
     internal static class AnimalPetCatalog
     {
         public const string DefaultPetId = "cat";
-        private const string NotoBase = "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128/";
 
         private static readonly IReadOnlyList<AnimalPetDefinition> Pets = new List<AnimalPetDefinition>
         {
-            Pet("cat", "猫咪", "会在桌面里散步、停顿和转身。", AnimalMotionStyle.Walk, "emoji_u1f408.png", 1.00f, 0.92f),
-            Pet("shiba", "狗狗", "小步快走，偶尔停下来东张西望。", AnimalMotionStyle.Walk, "emoji_u1f415.png", 1.04f, 0.92f),
-            Pet("rabbit", "兔兔", "一跳一跳地在桌面里闲逛。", AnimalMotionStyle.Hop, "emoji_u1f407.png", 1.08f, 0.94f),
-            Pet("hamster", "仓鼠", "圆滚滚地慢慢乱跑，动作比较轻。", AnimalMotionStyle.Crawl, "emoji_u1f439.png", 0.80f, 0.80f),
-            Pet("fox", "狐狸", "动作轻快，走动速度偏快。", AnimalMotionStyle.Walk, "emoji_u1f98a.png", 1.14f, 0.82f),
-            Pet("panda", "熊猫", "慢吞吞地晃来晃去。", AnimalMotionStyle.Waddle, "emoji_u1f43c.png", 0.72f, 0.82f),
-            Pet("chick", "小鸡", "小碎步乱逛，偶尔轻轻跳一下。", AnimalMotionStyle.Walk, "emoji_u1f425.png", 1.04f, 0.86f),
-            Pet("penguin", "企鹅", "左右摇摆着走，动作比较憨。", AnimalMotionStyle.Waddle, "emoji_u1f427.png", 0.78f, 0.86f),
-            Pet("turtle", "乌龟", "贴着桌面慢慢爬，不容易跑远。", AnimalMotionStyle.Crawl, "emoji_u1f422.png", 0.54f, 0.88f),
-            Pet("butterfly", "蝴蝶", "会在屏幕里自由飞动，轨迹更轻快。", AnimalMotionStyle.Fly, "emoji_u1f98b.png", 1.20f, 0.80f)
+            Pet(
+                "cat", "猫咪", "真正 5 帧跑动动画，不再是一张图片平移。", AnimalMotionStyle.Walk,
+                "https://opengameart.org/sites/default/files/cat_run.png", "cat_run.png",
+                5, 1, 0, 5, 12f, false, true, 1.00f, 0.82f,
+                "https://opengameart.org/content/pixel-cat-0", "alizard", "CC0"),
+
+            Pet(
+                "dog", "狗狗", "6 帧走路循环，身体和四肢会真正逐帧变化。", AnimalMotionStyle.Walk,
+                "https://opengameart.org/sites/default/files/dog_medium.png", "dog_medium.png",
+                6, 6, 1, 6, 11f, false, true, 1.03f, 0.86f,
+                "https://opengameart.org/content/dog-3", "rmazanek / Shepardskin / Hellkipz", "CC0"),
+
+            Pet(
+                "spider", "蜘蛛", "8 个方向、13 帧步态；转向和八条腿爬行都是真动画。", AnimalMotionStyle.Crawl,
+                "https://opengameart.org/sites/default/files/sprite_sheet_3.png", "iso_spider_8x13.png",
+                13, 8, 0, 13, 15f, true, false, 0.88f, 0.86f,
+                "https://opengameart.org/content/iso-spider-spritesheet", "KillGorack", "CC0"),
+
+            Pet(
+                "ant", "蚂蚁", "多方向行走序列，六条腿会持续交替迈步。", AnimalMotionStyle.Crawl,
+                "https://opengameart.org/sites/default/files/walk_5.png", "walking_ant.png",
+                8, 8, 0, 8, 14f, true, false, 0.82f, 0.72f,
+                "https://opengameart.org/content/walking-ant-with-parts-and-rigged-spriter-file", "DudeMan", "CC0"),
+
+            Pet(
+                "greenfly", "绿苍蝇", "三帧高速扇翅，移动轨迹更碎、更像飞虫。", AnimalMotionStyle.Fly,
+                "https://opengameart.org/sites/default/files/greenfly_spritesheet.png", "greenfly_spritesheet.png",
+                3, 1, 0, 3, 22f, false, true, 1.36f, 0.56f,
+                "https://opengameart.org/content/16x16-flies", "ARoachIFoundOnMyPillow", "CC0"),
+
+            Pet(
+                "greyfly", "灰苍蝇", "三帧高速扇翅，会快速改变方向并轻微抖动。", AnimalMotionStyle.Fly,
+                "https://opengameart.org/sites/default/files/greyfly_spritesheet.png", "greyfly_spritesheet.png",
+                3, 1, 0, 3, 22f, false, true, 1.38f, 0.56f,
+                "https://opengameart.org/content/16x16-flies", "ARoachIFoundOnMyPillow", "CC0"),
+
+            Pet(
+                "wasp", "胡蜂", "双帧高速振翅，移动速度快，转向频繁。", AnimalMotionStyle.Fly,
+                "https://opengameart.org/sites/default/files/spr_wasp_flying_strip_2.png", "wasp_flying.png",
+                2, 1, 0, 2, 18f, false, true, 1.28f, 0.66f,
+                "https://opengameart.org/content/flying-hornetwasp", "Nerveona", "CC0"),
+
+            Pet(
+                "bird", "小鸟", "使用完整动画表中的飞行行，翅膀逐帧拍动。", AnimalMotionStyle.Fly,
+                "https://opengameart.org/sites/default/files/bird_v001_blue_and_yellow.png", "bird_blue_yellow.png",
+                11, 8, 6, 11, 15f, false, true, 1.18f, 0.70f,
+                "https://opengameart.org/content/bird-2", "rmazanek", "CC0")
         };
 
         public static IReadOnlyList<AnimalPetDefinition> All
@@ -71,9 +123,20 @@ namespace FACM.Pets
             string name,
             string description,
             AnimalMotionStyle motion,
-            string artworkFileName,
+            string spriteUrl,
+            string spriteFileName,
+            int columns,
+            int rows,
+            int animationRow,
+            int frameCount,
+            float fps,
+            bool directionalRows,
+            bool pixelArt,
             float speed,
-            float visualScale)
+            float visualScale,
+            string sourcePage,
+            string author,
+            string license)
         {
             return new AnimalPetDefinition
             {
@@ -81,10 +144,22 @@ namespace FACM.Pets
                 Name = name,
                 Description = description,
                 Motion = motion,
-                ArtworkFileName = artworkFileName,
-                ArtworkUrl = NotoBase + artworkFileName,
+                SpriteUrl = spriteUrl,
+                SpriteFileName = spriteFileName,
+                SpriteColumns = columns,
+                SpriteRows = rows,
+                AnimationRow = animationRow,
+                FrameCount = frameCount,
+                FramesPerSecond = fps,
+                DirectionalRows = directionalRows,
+                PixelArt = pixelArt,
+                SourcePage = sourcePage,
+                AssetAuthor = author,
+                AssetLicense = license,
                 Speed = speed,
-                VisualScale = visualScale
+                VisualScale = visualScale,
+                ArtworkUrl = spriteUrl,
+                ArtworkFileName = spriteFileName
             };
         }
     }
