@@ -18,6 +18,7 @@ internal static class PetHostPaths
 
     internal static string AssetsDirectory => Path.Combine(RootDirectory, "Assets");
     internal static string AssetVersionDirectory => Path.Combine(AssetsDirectory, "vpet-" + UpstreamShortCommit);
+    internal static string AssetStagingDirectory => Path.Combine(AssetsDirectory, ".vpet-" + UpstreamShortCommit + ".partial");
     internal static string PetDirectory => Path.Combine(AssetVersionDirectory, "pet");
     internal static string VupDirectory => Path.Combine(PetDirectory, "vup");
     internal static string PetConfigPath => Path.Combine(PetDirectory, "vup.lps");
@@ -29,6 +30,7 @@ internal sealed class VPetAssetBootstrapper
 {
     private const string Repository = "LorisYounger/VPet";
     private const string RepositoryPetPrefix = "VPet-Simulator.Windows/mod/0000_core/pet/";
+    private const int DownloadConcurrency = 20;
 
     private static readonly string[] RequiredDirectoryPrefixes =
     {
@@ -49,7 +51,8 @@ internal sealed class VPetAssetBootstrapper
         Directory.CreateDirectory(PetHostPaths.AssetsDirectory);
         Directory.CreateDirectory(PetHostPaths.CacheDirectory);
 
-        if (IsComplete())
+        var cacheState = GetCacheState();
+        if (cacheState.IsComplete)
         {
             progress?.Report("高精度动作资源已缓存");
             return PetHostPaths.PetDirectory;
@@ -65,30 +68,48 @@ internal sealed class VPetAssetBootstrapper
         var totalBytes = entries.Sum(x => Math.Max(0L, x.Size));
         if (totalBytes <= 0 || totalBytes > 700L * 1024L * 1024L)
             throw new InvalidOperationException("VPet 最小动作集大小异常，已拒绝自动下载。");
-        progress?.Report($"官方动作集 {entries.Count} 个文件 · 约 {totalBytes / 1024d / 1024d:0.0} MB");
 
-        var stageDirectory = Path.Combine(
-            PetHostPaths.AssetsDirectory,
-            ".vpet-" + PetHostPaths.UpstreamShortCommit + ".partial-" + Guid.NewGuid().ToString("N"));
+        RecoverInterruptedStage();
+        var stageDirectory = PetHostPaths.AssetStagingDirectory;
         var stagePetDirectory = Path.Combine(stageDirectory, "pet");
         Directory.CreateDirectory(stagePetDirectory);
 
+        var completed = 0;
+        var resumed = 0;
+        foreach (var entry in entries)
+        {
+            var relative = entry.Path.Substring(RepositoryPetPrefix.Length);
+            var destination = SafeLocalPath(stagePetDirectory, relative);
+            if (IsDownloadedFileComplete(destination, entry.Size))
+            {
+                completed++;
+                resumed++;
+            }
+        }
+
+        if (resumed > 0)
+            progress?.Report($"继续上次进度 {resumed}/{entries.Count} · 共约 {totalBytes / 1024d / 1024d:0.0} MB");
+        else
+            progress?.Report($"官方动作集 {entries.Count} 个文件 · 约 {totalBytes / 1024d / 1024d:0.0} MB");
+
         try
         {
-            var completed = 0;
-            using var gate = new SemaphoreSlim(8, 8);
+            using var gate = new SemaphoreSlim(DownloadConcurrency, DownloadConcurrency);
             var tasks = entries.Select(async entry =>
             {
+                var relative = entry.Path.Substring(RepositoryPetPrefix.Length);
+                var destination = SafeLocalPath(stagePetDirectory, relative);
+                if (IsDownloadedFileComplete(destination, entry.Size)) return;
+
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    var relative = entry.Path.Substring(RepositoryPetPrefix.Length);
-                    var destination = SafeLocalPath(stagePetDirectory, relative);
+                    if (IsDownloadedFileComplete(destination, entry.Size)) return;
                     var parent = Path.GetDirectoryName(destination);
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-                    await DownloadPinnedRawAsync(entry.Path, destination, cancellationToken).ConfigureAwait(false);
+                    await DownloadPinnedRawAsync(entry.Path, destination, entry.Size, cancellationToken).ConfigureAwait(false);
                     var now = Interlocked.Increment(ref completed);
-                    if (now == 1 || now == entries.Count || now % 12 == 0)
+                    if (now == entries.Count || now % 12 == 0)
                         progress?.Report($"正在缓存高精度动作 {now}/{entries.Count}");
                 }
                 finally
@@ -98,6 +119,16 @@ internal sealed class VPetAssetBootstrapper
             }).ToArray();
 
             await Task.WhenAll(tasks).ConfigureAwait(false);
+
+            // Re-check every file before promoting the staging directory. This makes interrupted or truncated
+            // first-use downloads resumable without ever treating a half cache as complete.
+            foreach (var entry in entries)
+            {
+                var relative = entry.Path.Substring(RepositoryPetPrefix.Length);
+                var destination = SafeLocalPath(stagePetDirectory, relative);
+                if (!IsDownloadedFileComplete(destination, entry.Size))
+                    throw new InvalidOperationException("VPet 动作资源未完整下载：" + relative);
+            }
 
             var notice = new StringBuilder()
                 .AppendLine("FACM.PetHost VPet animation cache")
@@ -129,19 +160,68 @@ internal sealed class VPetAssetBootstrapper
         }
         catch
         {
-            TryDeleteDirectory(stageDirectory);
+            // Deliberately keep the deterministic .partial directory. The next PetHost run validates sizes
+            // and resumes only missing/truncated files instead of restarting hundreds of downloads.
             throw;
         }
     }
 
-    internal static bool IsComplete()
+    internal static CacheState GetCacheState()
     {
         try
         {
-            if (!File.Exists(PetHostPaths.CompletionMarker) || !File.Exists(PetHostPaths.PetConfigPath)) return false;
-            if (!Directory.Exists(PetHostPaths.VupDirectory)) return false;
+            if (!Directory.Exists(PetHostPaths.AssetVersionDirectory))
+                return new CacheState(false, "正式缓存目录不存在");
+            if (!File.Exists(PetHostPaths.CompletionMarker))
+                return new CacheState(false, "完成标记不存在");
+            if (!File.Exists(PetHostPaths.PetConfigPath))
+                return new CacheState(false, "vup.lps 不存在");
+            if (!Directory.Exists(PetHostPaths.VupDirectory))
+                return new CacheState(false, "vup 动作目录不存在");
             var marker = File.ReadAllText(PetHostPaths.CompletionMarker);
-            return marker.Contains(PetHostPaths.UpstreamCommit, StringComparison.OrdinalIgnoreCase);
+            if (!marker.Contains(PetHostPaths.UpstreamCommit, StringComparison.OrdinalIgnoreCase))
+                return new CacheState(false, "缓存版本与当前固定版本不同");
+            return new CacheState(true, "完整");
+        }
+        catch (Exception exception)
+        {
+            return new CacheState(false, "检查缓存失败：" + exception.Message);
+        }
+    }
+
+    internal static bool IsComplete() => GetCacheState().IsComplete;
+
+    private static void RecoverInterruptedStage()
+    {
+        if (Directory.Exists(PetHostPaths.AssetStagingDirectory)) return;
+        try
+        {
+            var candidates = Directory.GetDirectories(
+                    PetHostPaths.AssetsDirectory,
+                    ".vpet-" + PetHostPaths.UpstreamShortCommit + ".partial-*")
+                .Select(path => new DirectoryInfo(path))
+                .OrderByDescending(info => info.LastWriteTimeUtc)
+                .ToArray();
+            if (candidates.Length == 0) return;
+            Directory.Move(candidates[0].FullName, PetHostPaths.AssetStagingDirectory);
+            for (var index = 1; index < candidates.Length; index++)
+            {
+                try { candidates[index].Delete(true); } catch { }
+            }
+        }
+        catch
+        {
+            // Recovery is opportunistic. A clean deterministic staging directory will still work.
+        }
+    }
+
+    private static bool IsDownloadedFileComplete(string destination, long expectedSize)
+    {
+        try
+        {
+            if (!File.Exists(destination)) return false;
+            if (expectedSize <= 0) return new FileInfo(destination).Length > 0;
+            return new FileInfo(destination).Length == expectedSize;
         }
         catch
         {
@@ -188,15 +268,27 @@ internal sealed class VPetAssetBootstrapper
         return result.OrderBy(x => x.Path, StringComparer.Ordinal).ToList();
     }
 
-    private static async Task DownloadPinnedRawAsync(string repositoryPath, string destination, CancellationToken cancellationToken)
+    private static async Task DownloadPinnedRawAsync(string repositoryPath, string destination, long expectedSize, CancellationToken cancellationToken)
     {
         var encodedPath = string.Join("/", repositoryPath.Split('/').Select(Uri.EscapeDataString));
         var uri = new Uri($"https://raw.githubusercontent.com/LorisYounger/VPet/{PetHostPaths.UpstreamCommit}/{encodedPath}");
-        using var response = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-        await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+        var temporary = destination + ".download";
+        try
+        {
+            using var response = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+
+            if (expectedSize > 0 && new FileInfo(temporary).Length != expectedSize)
+                throw new IOException("下载文件大小不匹配：" + repositoryPath);
+            File.Move(temporary, destination, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+        }
     }
 
     private static string SafeLocalPath(string root, string relative)
@@ -220,17 +312,6 @@ internal sealed class VPetAssetBootstrapper
         return client;
     }
 
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path)) Directory.Delete(path, true);
-        }
-        catch
-        {
-            // A failed first download is safe to abandon; the randomized staging path is never used as a completed cache.
-        }
-    }
-
+    internal sealed record CacheState(bool IsComplete, string Reason);
     private sealed record GitTreeEntry(string Path, long Size);
 }
