@@ -10,6 +10,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         PetHostPaths.ConfigureDataRoot(ReadArgument(args, "--data-root"));
+        PetHostUiText.Configure(ReadArgument(args, "--ui-text"));
 
         if (args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return PetHostSelfTest.Run();
