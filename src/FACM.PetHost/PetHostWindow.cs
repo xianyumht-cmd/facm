@@ -170,6 +170,13 @@ internal sealed class PetHostWindow : Window
             }, _lifetime.Token);
 
             if (_lifetime.IsCancellationRequested) return;
+
+            // FACM embeds only the pet rendering/interaction layer. VPet's full simulator toolbar
+            // (Feed / Panel / Interaction / System) is intentionally disabled here because its
+            // product actions are not wired into FACM and would create a second, non-functional menu.
+            if (_main.ToolBar != null)
+                _main.ToolBar.Visibility = System.Windows.Visibility.Collapsed;
+
             _root.Children.Remove(_statusCard);
             _main.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
             await _ipc.SendEventAsync("ready", $"vpet-core-1.1.0.66;graphs={graphCount};startup-ms={started.ElapsedMilliseconds}");
@@ -254,9 +261,14 @@ internal sealed class PetHostWindow : Window
 
     private void OnPreviewRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!IsFacmOpenHit(e)) return;
+        // FACM owns right-click behavior in PetHost. Always consume the event so VPet Core never opens
+        // its built-in full-simulator toolbar. Only the configured FACM hit area opens FACM's menu.
+        var openFacmMenu = IsFacmOpenHit(e);
         e.Handled = true;
-        _ = _ipc.SendEventAsync("right-click");
+        if (_main?.ToolBar != null)
+            _main.ToolBar.Visibility = System.Windows.Visibility.Collapsed;
+        if (openFacmMenu)
+            _ = _ipc.SendEventAsync("right-click");
     }
 
     private void OnClosed(object? sender, EventArgs e)
