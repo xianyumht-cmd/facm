@@ -125,8 +125,7 @@ namespace FACM.Mayhem
             _imageHost.Controls.Add(_resultImage);
             _imageHost.Resize += delegate { ResizePreview(); };
 
-            var empty = CreateEmptyCard();
-            _resultImage.Image = empty;
+            _resultImage.Image = CreateEmptyCard();
 
             Controls.Add(title);
             Controls.Add(hint);
@@ -149,11 +148,7 @@ namespace FACM.Mayhem
             {
                 _elapsedTimer.Stop();
                 _elapsedTimer.Dispose();
-                if (_queryCancellation != null)
-                {
-                    _queryCancellation.Dispose();
-                    _queryCancellation = null;
-                }
+                DisposeCancellation();
                 var image = _resultImage.Image;
                 _resultImage.Image = null;
                 if (image != null) image.Dispose();
@@ -172,7 +167,7 @@ namespace FACM.Mayhem
             }
 
             DisposeCancellation();
-            _queryCancellation = new CancellationTokenSource();
+            _queryCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             _queryStartedAt = DateTime.UtcNow;
             _stageText = "正在开始查询";
             SetBusy(true);
@@ -220,8 +215,11 @@ namespace FACM.Mayhem
             {
                 if (!IsDisposed)
                 {
-                    _stageText = "查询已取消";
-                    _status.ForeColor = Color.FromArgb(170, 180, 200);
+                    var elapsed = DateTime.UtcNow - _queryStartedAt;
+                    _stageText = elapsed.TotalSeconds >= 7.5 ? "查询超时，请稍后重试。" : "查询已取消";
+                    _status.ForeColor = elapsed.TotalSeconds >= 7.5
+                        ? Color.FromArgb(255, 155, 120)
+                        : Color.FromArgb(170, 180, 200);
                     UpdateStatusText(false);
                 }
             }
