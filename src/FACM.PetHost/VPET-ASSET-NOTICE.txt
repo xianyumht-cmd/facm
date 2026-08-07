@@ -1,13 +1,14 @@
 FACM.PetHost · VPet 动画资源说明
 
-运行层：VPet-Simulator.Core（Apache-2.0）
+运行层：VPet-Simulator.Core 1.1.0.66（Apache-2.0）
 上游项目：https://github.com/LorisYounger/VPet
 
 FACM.PetHost 当前技术预览会在用户首次启用“VPet Core 高精度桌宠”时，按需联网缓存 VPet 上游默认角色的最小动作集。动画文件版权归 VUP-Simulator 制作组所有，本项目仅按上游明确的非商业用途授权进行使用，不出售、不收费，也不把这些动画作为 FACM 自有素材重新授权。
 
 上游要求非商业使用时向用户告知动画来源并提供项目链接；本文件、FACM 桌宠选择页以及首次资源准备界面共同承担该告知。
 
-固定上游提交：6a6da4089e0706d8f0c61714f3c071fb2a2c268f
+固定上游提交：ac77ba144ed39f61624d93542c008b38be4d85aa
+该提交位于 VPet-Simulator.Core 1.1.0.66 发布当天，并包含当日默认动画更新；FACM 用它作为与 Core 1.1.0.66 同代的资源快照，避免稳定 Core 与未来动画定义混用。
 当前仅缓存：Default、IDEL、MOVE、Raise、StartUP、Touch_Body、Touch_Head。
 
 若未来 FACM 改为商业用途，必须在继续分发或使用这些默认动画前重新核对并履行上游的商业授权条件；代码层 VPet-Simulator.Core 的 Apache-2.0 与动画资源授权是两回事。
