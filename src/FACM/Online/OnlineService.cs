@@ -73,7 +73,7 @@ namespace FACM.Online
             }
             catch (Exception exception)
             {
-                snapshot.ErrorMessage = exception.Message;
+                snapshot.ErrorMessage = "暂时无法读取更新信息，请稍后重试。";
                 AppLog.Error("Online metadata request failed", exception);
             }
 
@@ -112,7 +112,6 @@ namespace FACM.Online
             }
             catch (HttpRequestException primaryException)
             {
-                AppLog.Info("Primary online feed unavailable, trying preview feed: " + primaryException.Message);
                 try
                 {
                     return await DownloadJsonAsync<T>(client, previewUrl, cancellationToken).ConfigureAwait(false);
@@ -120,7 +119,7 @@ namespace FACM.Online
                 catch (Exception previewException)
                 {
                     throw new InvalidOperationException(
-                        "在线配置读取失败。请确认仓库 main 分支已包含 online/version.json 与 online/announcement.json。",
+                        "Online feed unavailable. Primary: " + primaryException.Message,
                         previewException);
                 }
             }
