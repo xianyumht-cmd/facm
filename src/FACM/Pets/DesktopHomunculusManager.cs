@@ -32,6 +32,7 @@ namespace FACM.Pets
     {
         private const string ReleaseApi = "https://api.github.com/repos/not-elm/desktop-homunculus/releases/latest";
         private const string ReleasesApi = "https://api.github.com/repos/not-elm/desktop-homunculus/releases?per_page=10";
+        private const string BackendOverrideEnvironment = "FACM_DESKTOP_PET_WGPU_BACKEND";
         private static readonly string EngineDirectory = Path.Combine(RuntimePaths.RuntimeDirectory, "desktop-homunculus");
         private static readonly string ModelsDirectory = Path.Combine(RuntimePaths.RuntimeDirectory, "pet-models");
         private static readonly HttpClient DownloadClient = CreateDownloadClient();
@@ -71,12 +72,14 @@ namespace FACM.Pets
             }
             catch (OperationCanceledException)
             {
+                CleanupFailedEngineProcesses();
                 return Failure("操作已取消。");
             }
             catch (Exception exception)
             {
+                CleanupFailedEngineProcesses();
                 AppLog.Error("Open-source 3D pet activation failed", exception);
-                return Failure("桌宠启动失败，请稍后重试。");
+                return Failure("桌宠启动失败，已保留默认悬浮球。稍后可再次尝试。");
             }
             finally
             {
@@ -95,8 +98,11 @@ namespace FACM.Pets
                     {
                         if (string.IsNullOrWhiteSpace(enginePath)) return Failure("桌宠组件尚未安装。");
                         StartEngine(enginePath);
-                        if (!await WaitForApiAsync(TimeSpan.FromSeconds(25), token).ConfigureAwait(false))
+                        if (!await WaitForApiAsync(TimeSpan.FromSeconds(20), token).ConfigureAwait(false))
+                        {
+                            StopEngineProcesses("restore startup failed");
                             return Failure("桌宠组件未能正常启动。");
+                        }
                     }
                 }
 
@@ -118,10 +124,12 @@ namespace FACM.Pets
             }
             catch (OperationCanceledException)
             {
+                CleanupFailedEngineProcesses();
                 return Failure("恢复已取消。");
             }
             catch (Exception exception)
             {
+                CleanupFailedEngineProcesses();
                 AppLog.Info("Desktop pet restore skipped: " + exception.Message);
                 return Failure("桌宠暂时无法恢复。");
             }
@@ -156,9 +164,32 @@ namespace FACM.Pets
             }
         }
 
+        public static async Task<bool> IsReadyAsync(CancellationToken token)
+        {
+            try
+            {
+                using (var client = new DesktopHomunculusClient())
+                    return await client.IsReadyAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static string FindInstalledEngine()
         {
             return DesktopHomunculusLocator.Find();
+        }
+
+        public static void CleanupFailedEngineProcesses()
+        {
+            if (!HasEngineFailureWindow()) return;
+            StopEngineProcesses("detected crashed or unresponsive desktop pet window");
         }
 
         public static void OpenEngine()
@@ -180,13 +211,15 @@ namespace FACM.Pets
                 }
             }
 
+            CleanupFailedEngineProcesses();
             var installed = FindInstalledEngine();
             if (!string.IsNullOrWhiteSpace(installed))
             {
                 Report(progress, "正在启动已安装的桌宠组件...", 20);
                 StartEngine(installed);
-                if (await WaitForApiAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false)) return installed;
-                AppLog.Info("Installed desktop pet executable did not expose API after launch: " + installed);
+                if (await WaitForApiAsync(TimeSpan.FromSeconds(20), token).ConfigureAwait(false)) return installed;
+                StopEngineProcesses("installed desktop pet did not become ready");
+                throw new InvalidOperationException("桌宠组件暂时无法启动。");
             }
 
             Report(progress, "首次使用：正在获取桌宠组件...", 4);
@@ -205,16 +238,10 @@ namespace FACM.Pets
 
             Report(progress, "正在首次启动桌宠组件...", 52);
             StartEngine(installed);
-            if (!await WaitForApiAsync(TimeSpan.FromSeconds(45), token).ConfigureAwait(false))
+            if (!await WaitForApiAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false))
             {
-                var rediscovered = FindInstalledEngine();
-                if (!string.IsNullOrWhiteSpace(rediscovered) && !string.Equals(rediscovered, installed, StringComparison.OrdinalIgnoreCase))
-                {
-                    AppLog.Info("Retrying desktop pet engine with rediscovered path: " + rediscovered);
-                    StartEngine(rediscovered);
-                    if (await WaitForApiAsync(TimeSpan.FromSeconds(20), token).ConfigureAwait(false)) return rediscovered;
-                }
-                throw new InvalidOperationException("桌宠组件已安装，但启动服务没有就绪。");
+                StopEngineProcesses("freshly installed desktop pet did not become ready");
+                throw new InvalidOperationException("桌宠组件已安装，但当前电脑无法正常启动透明桌宠窗口。");
             }
             return installed;
         }
@@ -326,7 +353,13 @@ namespace FACM.Pets
                 {
                     if (await client.IsReadyAsync(token).ConfigureAwait(false)) return true;
                 }
-                await Task.Delay(700, token).ConfigureAwait(false);
+                if (HasEngineFailureWindow())
+                {
+                    AppLog.Info("Desktop pet startup failed before API became ready; a crash or unresponsive window was detected.");
+                    StopEngineProcesses("startup failure window detected");
+                    return false;
+                }
+                await Task.Delay(650, token).ConfigureAwait(false);
             }
             return false;
         }
@@ -336,12 +369,55 @@ namespace FACM.Pets
             if (string.IsNullOrWhiteSpace(path) || string.Equals(path, "running", StringComparison.OrdinalIgnoreCase)) return;
             if (!File.Exists(path)) throw new FileNotFoundException("桌宠启动程序不存在。", path);
 
+            CleanupFailedEngineProcesses();
+            if (HasRunningEngineProcess()) return;
+
+            var backend = ResolveWindowsBackend();
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = path,
+                WorkingDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = false
+            };
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                startInfo.EnvironmentVariables["WGPU_BACKEND"] = backend;
+                startInfo.EnvironmentVariables["WGPU_POWER_PREF"] = "high";
+            }
+
+            var started = Process.Start(startInfo);
+            if (started != null)
+            {
+                try
+                {
+                    AppLog.Info("Desktop pet engine process started: pid=" + started.Id + "; path=" + path + "; WGPU_BACKEND=" + backend);
+                }
+                finally
+                {
+                    started.Dispose();
+                }
+            }
+        }
+
+        private static string ResolveWindowsBackend()
+        {
+            var configured = Environment.GetEnvironmentVariable(BackendOverrideEnvironment);
+            if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
+            return "dx12";
+        }
+
+        private static bool HasRunningEngineProcess()
+        {
             foreach (var process in Process.GetProcesses())
             {
                 try
                 {
-                    var name = process.ProcessName ?? string.Empty;
-                    if (name.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) >= 0) return;
+                    if (!IsEngineProcess(process)) continue;
+                    if (process.HasExited) continue;
+                    var title = process.MainWindowTitle ?? string.Empty;
+                    if (title.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    return true;
                 }
                 catch
                 {
@@ -351,18 +427,67 @@ namespace FACM.Pets
                     process.Dispose();
                 }
             }
+            return false;
+        }
 
-            var started = Process.Start(new ProcessStartInfo
+        private static bool HasEngineFailureWindow()
+        {
+            foreach (var process in Process.GetProcesses())
             {
-                FileName = path,
-                WorkingDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory,
-                UseShellExecute = true
-            });
-            if (started != null)
-            {
-                try { AppLog.Info("Desktop pet engine process started: pid=" + started.Id + "; path=" + path); }
-                finally { started.Dispose(); }
+                try
+                {
+                    if (!IsEngineProcess(process) || process.HasExited) continue;
+                    var title = process.MainWindowTitle ?? string.Empty;
+                    if (title.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                    if (!string.IsNullOrWhiteSpace(title) && !process.Responding) return true;
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    process.Dispose();
+                }
             }
+            return false;
+        }
+
+        private static bool IsEngineProcess(Process process)
+        {
+            if (process == null) return false;
+            try
+            {
+                var name = process.ProcessName ?? string.Empty;
+                if (name.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                var path = process.MainModule == null ? null : process.MainModule.FileName;
+                return !string.IsNullOrWhiteSpace(path) && path.IndexOf("homunculus", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void StopEngineProcesses(string reason)
+        {
+            var stopped = 0;
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (!IsEngineProcess(process) || process.HasExited) continue;
+                    process.Kill();
+                    stopped++;
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+            if (stopped > 0) AppLog.Info("Stopped " + stopped + " desktop pet process(es): " + reason);
         }
 
         private static void InstallMsi(string installer, CancellationToken token)
