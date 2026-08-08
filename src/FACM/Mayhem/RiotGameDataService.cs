@@ -105,7 +105,10 @@ namespace FACM.Mayhem
                 using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
                 {
                     if (!response.IsSuccessStatusCode) return null;
-                    return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                    return await CancelableHttpContentReader.ReadBytesAsync(
+                        response.Content,
+                        token,
+                        CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -134,7 +137,7 @@ namespace FACM.Mayhem
                 using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
                 {
                     if (!response.IsSuccessStatusCode) return null;
-                    var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
                     return Json.DeserializeObject(text);
                 }
             }
