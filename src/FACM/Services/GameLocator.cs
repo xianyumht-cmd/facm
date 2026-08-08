@@ -3,27 +3,47 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Windows.Forms;
 using FACM.Configuration;
 using Microsoft.Win32;
 
 namespace FACM.Services
 {
+    internal sealed class GameLocationSearchLimitException : InvalidOperationException
+    {
+        public GameLocationSearchLimitException(int visitedDirectories, TimeSpan elapsed)
+            : base(
+                "目录识别范围过大，已检查 " + visitedDirectories +
+                " 个目录、耗时 " + Math.Max(1, (int)Math.Ceiling(elapsed.TotalSeconds)) +
+                " 秒。请改选更具体的安装目录后重试。")
+        {
+        }
+    }
+
+    internal sealed class GameLocationSearchCancelledException : InvalidOperationException
+    {
+        public GameLocationSearchCancelledException()
+            : base("已取消目录识别。")
+        {
+        }
+    }
+
     internal static class GameLocator
     {
+        private const int DefaultMaxVisitedDirectories = 2500;
+        private static readonly TimeSpan DefaultSearchTimeBudget = TimeSpan.FromSeconds(5);
+
         public static string FindGameRoot()
         {
             CleanupProfile.Validate();
-
-            var running = FindFromRunningProcesses();
-            if (!string.IsNullOrEmpty(running)) return running;
-
-            foreach (var candidate in EnumerateRegistryCandidates())
-            {
-                var root = ResolveGameRoot(candidate);
-                if (!string.IsNullOrEmpty(root)) return root;
-            }
-
-            return null;
+            return ExecuteSearch(
+                "正在从进程与注册表识别目录…",
+                delegate(CancellationToken cancellationToken, IProgress<int> progress)
+                {
+                    var budget = new SearchBudget(DefaultMaxVisitedDirectories, DefaultSearchTimeBudget);
+                    return FindGameRootCore(cancellationToken, progress, budget);
+                });
         }
 
         public static string ResolveGameRoot(string selectedOrCandidatePath)
@@ -31,28 +51,24 @@ namespace FACM.Services
             if (string.IsNullOrWhiteSpace(selectedOrCandidatePath)) return null;
             CleanupProfile.Validate();
 
-            try
-            {
-                var candidate = Environment.ExpandEnvironmentVariables(selectedOrCandidatePath.Trim().Trim('"'));
-                var comma = candidate.IndexOf(',');
-                if (comma > 0) candidate = candidate.Substring(0, comma).Trim().Trim('"');
-                if (File.Exists(candidate)) candidate = Path.GetDirectoryName(candidate);
-                if (string.IsNullOrWhiteSpace(candidate) || !Directory.Exists(candidate)) return null;
-
-                var directory = new DirectoryInfo(Path.GetFullPath(candidate));
-                for (var i = 0; i < 8 && directory != null; i++, directory = directory.Parent)
+            return ExecuteSearch(
+                "正在搜索所选范围…",
+                delegate(CancellationToken cancellationToken, IProgress<int> progress)
                 {
-                    var direct = ResolveDirectMarker(directory.FullName);
-                    if (!string.IsNullOrEmpty(direct)) return direct;
-                }
+                    var budget = new SearchBudget(DefaultMaxVisitedDirectories, DefaultSearchTimeBudget);
+                    return ResolveGameRootCore(selectedOrCandidatePath, cancellationToken, progress, budget);
+                });
+        }
 
-                return SearchBelow(Path.GetFullPath(candidate), CleanupProfile.MaxMarkerSearchDepth);
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Resolve configured game root failed", exception);
-                return null;
-            }
+        internal static string ResolveGameRootForTest(
+            string selectedOrCandidatePath,
+            int maxVisitedDirectories,
+            TimeSpan timeBudget,
+            CancellationToken cancellationToken)
+        {
+            CleanupProfile.Validate();
+            var budget = new SearchBudget(maxVisitedDirectories, timeBudget);
+            return ResolveGameRootCore(selectedOrCandidatePath, cancellationToken, null, budget);
         }
 
         public static bool IsValidGameRoot(string path)
@@ -70,17 +86,111 @@ namespace FACM.Services
             }
         }
 
-        private static string FindFromRunningProcesses()
+        private static string ExecuteSearch(
+            string statusText,
+            Func<CancellationToken, IProgress<int>, string> worker)
+        {
+            if (worker == null) throw new ArgumentNullException(nameof(worker));
+
+            // CompactMenuForm calls GameLocator from the WinForms UI thread. A modal progress dialog
+            // keeps that message loop responsive while the synchronous file-system APIs run on a worker.
+            if (Application.MessageLoop)
+                return GameLocatorSearchDialog.Run(statusText, worker);
+
+            return worker(CancellationToken.None, null);
+        }
+
+        private static string FindGameRootCore(
+            CancellationToken cancellationToken,
+            IProgress<int> progress,
+            SearchBudget budget)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var running = FindFromRunningProcesses(cancellationToken, progress, budget);
+            if (!string.IsNullOrEmpty(running)) return running;
+
+            foreach (var candidate in EnumerateRegistryCandidates())
+            {
+                budget.Check(cancellationToken);
+                var root = ResolveGameRootCore(candidate, cancellationToken, progress, budget);
+                if (!string.IsNullOrEmpty(root)) return root;
+            }
+
+            return null;
+        }
+
+        private static string ResolveGameRootCore(
+            string selectedOrCandidatePath,
+            CancellationToken cancellationToken,
+            IProgress<int> progress,
+            SearchBudget budget)
+        {
+            if (string.IsNullOrWhiteSpace(selectedOrCandidatePath)) return null;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var candidate = Environment.ExpandEnvironmentVariables(selectedOrCandidatePath.Trim().Trim('"'));
+                var comma = candidate.IndexOf(',');
+                if (comma > 0) candidate = candidate.Substring(0, comma).Trim().Trim('"');
+                if (File.Exists(candidate)) candidate = Path.GetDirectoryName(candidate);
+                if (string.IsNullOrWhiteSpace(candidate) || !Directory.Exists(candidate)) return null;
+
+                var directory = new DirectoryInfo(Path.GetFullPath(candidate));
+                for (var i = 0; i < 8 && directory != null; i++, directory = directory.Parent)
+                {
+                    budget.Check(cancellationToken);
+                    var direct = ResolveDirectMarker(directory.FullName);
+                    if (!string.IsNullOrEmpty(direct)) return direct;
+                }
+
+                return SearchBelow(
+                    Path.GetFullPath(candidate),
+                    CleanupProfile.MaxMarkerSearchDepth,
+                    cancellationToken,
+                    progress,
+                    budget);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (GameLocationSearchLimitException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Resolve configured game root failed", exception);
+                return null;
+            }
+        }
+
+        private static string FindFromRunningProcesses(
+            CancellationToken cancellationToken,
+            IProgress<int> progress,
+            SearchBudget budget)
         {
             foreach (var processName in CleanupProfile.NormalizedProcessNames)
             {
+                budget.Check(cancellationToken);
                 foreach (var process in Process.GetProcessesByName(processName))
                 {
                     try
                     {
+                        budget.Check(cancellationToken);
                         var executable = process.MainModule == null ? null : process.MainModule.FileName;
-                        var root = ResolveGameRoot(executable);
+                        var root = ResolveGameRootCore(executable, cancellationToken, progress, budget);
                         if (!string.IsNullOrEmpty(root)) return root;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (GameLocationSearchLimitException)
+                    {
+                        throw;
                     }
                     catch
                     {
@@ -158,13 +268,22 @@ namespace FACM.Services
             return Directory.Exists(marker) ? full : null;
         }
 
-        private static string SearchBelow(string startPath, int maxDepth)
+        private static string SearchBelow(
+            string startPath,
+            int maxDepth,
+            CancellationToken cancellationToken,
+            IProgress<int> progress,
+            SearchBudget budget)
         {
+            var start = NormalizeDirectory(startPath);
+            if (string.IsNullOrEmpty(start)) return null;
+
             var queue = new Queue<Tuple<string, int>>();
-            queue.Enqueue(Tuple.Create(NormalizeDirectory(startPath), 0));
+            queue.Enqueue(Tuple.Create(start, 0));
 
             while (queue.Count > 0)
             {
+                budget.VisitDirectory(cancellationToken, progress);
                 var current = queue.Dequeue();
                 if (string.IsNullOrEmpty(current.Item1)) continue;
 
@@ -173,20 +292,37 @@ namespace FACM.Services
                 if (current.Item2 >= maxDepth) continue;
 
                 IEnumerable<string> children;
-                try { children = Directory.EnumerateDirectories(current.Item1).ToArray(); }
+                try { children = Directory.EnumerateDirectories(current.Item1); }
                 catch { continue; }
 
-                foreach (var child in children)
+                try
                 {
-                    try
+                    foreach (var child in children)
                     {
-                        if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) continue;
-                        queue.Enqueue(Tuple.Create(child, current.Item2 + 1));
+                        budget.Check(cancellationToken);
+                        try
+                        {
+                            if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) continue;
+                            if (IsProtectedRoot(child)) continue;
+                            queue.Enqueue(Tuple.Create(child, current.Item2 + 1));
+                        }
+                        catch
+                        {
+                            // Ignore inaccessible directories while looking for the configured marker.
+                        }
                     }
-                    catch
-                    {
-                        // Ignore inaccessible directories while looking for the configured marker.
-                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (GameLocationSearchLimitException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Directory enumeration can fail part-way through when a folder disappears or access changes.
                 }
             }
 
@@ -218,6 +354,40 @@ namespace FACM.Services
             return protectedPaths.Where(value => !string.IsNullOrWhiteSpace(value))
                 .Select(NormalizeDirectory)
                 .Any(value => string.Equals(value, full, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private sealed class SearchBudget
+        {
+            private readonly int _maxVisitedDirectories;
+            private readonly TimeSpan _timeBudget;
+            private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+            private int _visitedDirectories;
+
+            public SearchBudget(int maxVisitedDirectories, TimeSpan timeBudget)
+            {
+                if (maxVisitedDirectories < 1) throw new ArgumentOutOfRangeException(nameof(maxVisitedDirectories));
+                if (timeBudget <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeBudget));
+                _maxVisitedDirectories = maxVisitedDirectories;
+                _timeBudget = timeBudget;
+            }
+
+            public void VisitDirectory(CancellationToken cancellationToken, IProgress<int> progress)
+            {
+                Check(cancellationToken);
+                if (_visitedDirectories >= _maxVisitedDirectories)
+                    throw new GameLocationSearchLimitException(_visitedDirectories, _stopwatch.Elapsed);
+
+                _visitedDirectories++;
+                if (progress != null && (_visitedDirectories == 1 || _visitedDirectories % 25 == 0))
+                    progress.Report(_visitedDirectories);
+            }
+
+            public void Check(CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_stopwatch.Elapsed > _timeBudget)
+                    throw new GameLocationSearchLimitException(_visitedDirectories, _stopwatch.Elapsed);
+            }
         }
     }
 }
