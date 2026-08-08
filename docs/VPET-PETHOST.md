@@ -29,9 +29,11 @@ FACM 主程序仍是 .NET Framework 4.8 + WinForms，负责清理工具、ToolBu
 
 正式运行时，FACM 查找顺序为：
 
-1. 应用目录下已有的 `PetHost\FACM.PetHost.exe`（旧包兼容/开发调试）；
-2. 自身内嵌 `FACM.Resources.PetHost.zip`；
-3. 开发构建目录中的 PetHost。
+1. 当前 `FACM.exe` 自身内嵌的 `FACM.Resources.PetHost.zip`；
+2. 仅当当前构建没有内嵌资源时，才兼容应用目录下历史/开发用的 `PetHost\FACM.PetHost.exe`；
+3. 最后才探测开发构建目录中的 PetHost。
+
+这个顺序是升级兼容的必要条件：旧版完整包可能在应用目录留下旧 sidecar，但新版单 EXE 在线更新后必须优先运行当前 EXE 自带的匹配 PetHost，不能被旧 sidecar 覆盖。
 
 内嵌包释放到：
 
