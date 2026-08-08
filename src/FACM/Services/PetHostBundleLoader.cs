@@ -28,7 +28,7 @@ namespace FACM.Services
                 var destination = Path.Combine(bundleRoot, bundleId);
                 var executable = Path.Combine(destination, HostExecutableName);
                 var marker = Path.Combine(destination, CompletionMarkerName);
-                if (IsComplete(executable, marker)) return executable;
+                if (IsComplete(destination, executable, marker, bundleId)) return executable;
 
                 if (Directory.Exists(destination))
                 {
@@ -46,22 +46,43 @@ namespace FACM.Services
                     ExtractArchive(resource, stage);
                     var stagedExecutable = Path.Combine(stage, HostExecutableName);
                     if (!File.Exists(stagedExecutable) || new FileInfo(stagedExecutable).Length < 65536)
-                        throw new InvalidDataException("内嵌 PetHost 包缺少有效的 FACM.PetHost.exe。 ");
+                        throw new InvalidDataException("内嵌 PetHost 包缺少有效的 FACM.PetHost.exe。");
+
+                    long payloadBytes;
+                    var payloadFiles = MeasurePayload(stage, out payloadBytes);
+                    if (payloadFiles < 1 || payloadBytes < 65536)
+                        throw new InvalidDataException("内嵌 PetHost 包释放后的文件统计无效。");
 
                     File.WriteAllText(
                         Path.Combine(stage, CompletionMarkerName),
                         "facm-mvid=" + bundleId + Environment.NewLine +
-                        "facm-version=" + assembly.GetName().Version + Environment.NewLine);
+                        "facm-version=" + assembly.GetName().Version + Environment.NewLine +
+                        "files=" + payloadFiles + Environment.NewLine +
+                        "bytes=" + payloadBytes + Environment.NewLine);
 
                     // Another FACM process may have completed the same extraction while this process was
                     // preparing its private stage. Never replace a complete directory in that case.
-                    if (IsComplete(executable, marker))
+                    if (IsComplete(destination, executable, marker, bundleId))
                     {
                         Directory.Delete(stage, true);
                         return executable;
                     }
 
-                    Directory.Move(stage, destination);
+                    try
+                    {
+                        Directory.Move(stage, destination);
+                    }
+                    catch (IOException)
+                    {
+                        // Close the tiny race between the complete check above and Directory.Move.
+                        if (IsComplete(destination, executable, marker, bundleId))
+                        {
+                            Directory.Delete(stage, true);
+                            return executable;
+                        }
+                        throw;
+                    }
+
                     AppLog.Info("Embedded PetHost extracted: " + destination);
                     return executable;
                 }
@@ -81,7 +102,7 @@ namespace FACM.Services
             using (var archive = new ZipArchive(resource, ZipArchiveMode.Read, false))
             {
                 if (archive.Entries.Count < 1)
-                    throw new InvalidDataException("内嵌 PetHost 包为空。 ");
+                    throw new InvalidDataException("内嵌 PetHost 包为空。");
 
                 foreach (var entry in archive.Entries)
                 {
@@ -111,18 +132,55 @@ namespace FACM.Services
             }
         }
 
-        private static bool IsComplete(string executable, string marker)
+        private static bool IsComplete(string directory, string executable, string marker, string bundleId)
         {
             try
             {
-                return File.Exists(marker) &&
-                       File.Exists(executable) &&
-                       new FileInfo(executable).Length >= 65536;
+                if (!File.Exists(marker) || !File.Exists(executable) || new FileInfo(executable).Length < 65536)
+                    return false;
+
+                var expectedMvid = string.Empty;
+                var expectedFiles = 0;
+                long expectedBytes = 0;
+                foreach (var line in File.ReadAllLines(marker))
+                {
+                    var separator = line.IndexOf('=');
+                    if (separator <= 0) continue;
+                    var key = line.Substring(0, separator).Trim();
+                    var value = line.Substring(separator + 1).Trim();
+                    if (string.Equals(key, "facm-mvid", StringComparison.OrdinalIgnoreCase)) expectedMvid = value;
+                    else if (string.Equals(key, "files", StringComparison.OrdinalIgnoreCase)) int.TryParse(value, out expectedFiles);
+                    else if (string.Equals(key, "bytes", StringComparison.OrdinalIgnoreCase)) long.TryParse(value, out expectedBytes);
+                }
+
+                if (!string.Equals(expectedMvid, bundleId, StringComparison.OrdinalIgnoreCase) ||
+                    expectedFiles < 1 || expectedBytes < 65536)
+                    return false;
+
+                long actualBytes;
+                var actualFiles = MeasurePayload(directory, out actualBytes);
+                return actualFiles == expectedFiles && actualBytes == expectedBytes;
             }
             catch
             {
                 return false;
             }
+        }
+
+        private static int MeasurePayload(string directory, out long bytes)
+        {
+            bytes = 0;
+            var files = 0;
+            if (!Directory.Exists(directory)) return 0;
+
+            foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                if (string.Equals(Path.GetFileName(path), CompletionMarkerName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                files++;
+                bytes += new FileInfo(path).Length;
+            }
+            return files;
         }
     }
 }
