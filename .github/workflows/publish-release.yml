@@ -190,7 +190,7 @@ jobs:
             -PfxBase64 $env:FACM_PFX_BASE64 `
             -PfxPassword $env:FACM_PFX_PASSWORD
 
-      - name: Prepare draft release and disabled manifest
+      - name: Prepare disabled online manifest
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
@@ -217,13 +217,37 @@ jobs:
           $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
           "FACM_RELEASE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Create draft GitHub release
+      - name: Commit version metadata with updater disabled
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $remoteSha = (git rev-parse origin/main).Trim()
+          if ($remoteSha -ne $env:FACM_RELEASE_BASE_SHA) {
+            throw "main moved during release build: expected $env:FACM_RELEASE_BASE_SHA, got $remoteSha. Nothing was published."
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
+          git commit -m "准备发布 FACM $env:RELEASE_VERSION"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to commit release metadata."
+          }
+          $metadataSha = (git rev-parse HEAD).Trim()
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to push release metadata. Nothing was published."
+          }
+          "FACM_RELEASE_METADATA_SHA=$metadataSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create draft GitHub release from committed source
         shell: pwsh
         run: |
           $arguments = @(
             'release', 'create', ("v" + $env:RELEASE_VERSION),
             'release/FACM.exe',
             '--repo', '${{ github.repository }}',
+            '--target', $env:FACM_RELEASE_METADATA_SHA,
             '--title', ("FACM " + $env:RELEASE_VERSION),
             '--notes-file', 'release/RELEASE-NOTES.txt',
             '--draft'
@@ -233,27 +257,7 @@ jobs:
           }
           & gh @arguments
           if ($LASTEXITCODE -ne 0) {
-            throw "gh release create --draft failed with exit code $LASTEXITCODE"
-          }
-
-      - name: Commit version metadata with updater disabled
-        shell: pwsh
-        run: |
-          git fetch origin main
-          $remoteSha = (git rev-parse origin/main).Trim()
-          if ($remoteSha -ne $env:FACM_RELEASE_BASE_SHA) {
-            gh release delete ("v" + $env:RELEASE_VERSION) --repo '${{ github.repository }}' --cleanup-tag --yes
-            throw "main moved during release build: expected $env:FACM_RELEASE_BASE_SHA, got $remoteSha. Draft release was removed."
-          }
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
-          git commit -m "准备发布 FACM $env:RELEASE_VERSION"
-          git push origin HEAD:main
-          if ($LASTEXITCODE -ne 0) {
-            gh release delete ("v" + $env:RELEASE_VERSION) --repo '${{ github.repository }}' --cleanup-tag --yes
-            throw "Failed to push release metadata; draft release was removed."
+            throw "gh release create --draft failed. online/version.json remains safely disabled."
           }
 
       - name: Publish GitHub release
@@ -272,7 +276,8 @@ jobs:
           }
           & gh @arguments
           if ($LASTEXITCODE -ne 0) {
-            throw "Publishing draft release failed. online/version.json remains disabled."
+            gh release delete ("v" + $env:RELEASE_VERSION) --repo '${{ github.repository }}' --cleanup-tag --yes
+            throw "Publishing draft release failed. Draft/tag cleanup was attempted and online/version.json remains disabled."
           }
 
       - name: Enable online update manifest
@@ -287,6 +292,10 @@ jobs:
           if ([string]$manifest.sha256 -ne $env:FACM_RELEASE_SHA256) {
             throw "online/version.json SHA changed after release metadata commit; refusing to enable it."
           }
+          if ([bool]$manifest.enabled) {
+            throw "online/version.json was unexpectedly enabled before the release finalization step."
+          }
+
           $manifest.enabled = $true
           $manifest.published_at = [DateTimeOffset]::UtcNow.ToString('o')
           $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
