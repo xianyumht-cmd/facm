@@ -89,9 +89,9 @@ Actions → FACM Publish Release → Run workflow
 
 1. publish/self-test PetHost 并嵌入 FACM；
 2. 编译并签名 `FACM.exe`；
-3. 先创建不可见的 draft Release；
-4. 先把版本元数据以 `enabled=false` 安全提交到 `main`；
-5. 再公开 GitHub Release；
+3. 先把版本元数据以 `enabled=false` 安全提交到 `main`；
+4. 再从这个精确提交创建不可见的 draft Release，使版本 tag 指向实际发布源码；
+5. 公开 GitHub Release；
 6. 最后启用在线版本清单。
 
 发布或最终清单更新中途失败时，客户端不会收到半发布更新。
