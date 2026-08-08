@@ -16,6 +16,16 @@ namespace FACM.Services
             {
                 Directory.CreateDirectory(root);
 
+                var driveRoot = Path.GetPathRoot(Path.GetFullPath(root));
+                var normalizedDriveRoot = GameLocator.NormalizeDirectoryForTest(driveRoot);
+                if (!string.Equals(
+                    Path.GetFullPath(driveRoot),
+                    normalizedDriveRoot,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("GameLocator changed a drive root into drive-relative syntax.");
+                }
+
                 var expectedRoot = Path.Combine(root, "Install");
                 Directory.CreateDirectory(Path.Combine(expectedRoot, "Game"));
                 var resolved = GameLocator.ResolveGameRootForTest(
