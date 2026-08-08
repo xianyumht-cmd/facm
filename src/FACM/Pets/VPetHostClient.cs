@@ -19,12 +19,14 @@ namespace FACM.Pets
         private StreamWriter _writer;
         private CancellationTokenSource _cancellation;
         private Task _readerTask;
+        private Task _startupTask;
         private Action _clicked;
         private Action _rightClicked;
         private SynchronizationContext _uiContext;
         private volatile bool _intentionalStop;
         private volatile bool _readyReceived;
         private int _recoveryPosted;
+        private int _startupGeneration;
         private string _activePetId = string.Empty;
 
         public bool IsActive
@@ -69,17 +71,75 @@ namespace FACM.Pets
                     return true;
                 }
 
+                // Starting PetHost used to synchronously extract a large embedded bundle and wait up to
+                // seven seconds for NamedPipe.Connect on the WinForms UI thread. Keep the public launch
+                // contract synchronous, but make the expensive transport startup a background operation.
+                if (_startupTask != null && !_startupTask.IsCompleted)
+                {
+                    _activePetId = petId;
+                    return true;
+                }
+
                 CleanupTransportLocked(false);
                 _intentionalStop = false;
                 _readyReceived = false;
                 Interlocked.Exchange(ref _recoveryPosted, 0);
+                _activePetId = petId;
+                var generation = ++_startupGeneration;
+                _startupTask = Task.Run(delegate { StartHost(generation); });
+                AppLog.Info("VPet PetHost startup queued in background: " + petId);
+                return true;
+            }
+        }
 
+        public void ResetToPrimaryScreen()
+        {
+            lock (_sync)
+            {
+                if (IsActive) SendLocked("reset");
+            }
+        }
+
+        public void Stop()
+        {
+            Process process = null;
+            _intentionalStop = true;
+            lock (_sync)
+            {
+                ++_startupGeneration;
+                try
+                {
+                    if (IsActive) SendLocked("stop");
+                }
+                catch { }
+
+                process = _process;
+                if (process != null)
+                {
+                    try { process.Exited -= HandleProcessExited; } catch { }
+                }
+                CleanupTransportLocked(false, false);
+                _activePetId = string.Empty;
+            }
+
+            // Do not make the WinForms thread wait for WPF shutdown. The Job Object and PetHost's
+            // parent watcher are the hard safety net; this is only graceful cleanup.
+            if (process != null) StopProcessEventually(process);
+        }
+
+        private void StartHost(int generation)
+        {
+            Process process = null;
+            NamedPipeClientStream pipe = null;
+            StreamReader reader = null;
+            StreamWriter writer = null;
+            CancellationTokenSource cancellation = null;
+
+            try
+            {
                 var executable = LocatePetHost();
                 if (string.IsNullOrEmpty(executable))
-                {
-                    AppLog.Info("VPet PetHost executable was not found.");
-                    return false;
-                }
+                    throw new FileNotFoundException("VPet PetHost executable was not found.");
 
                 RuntimePaths.Initialize();
                 Directory.CreateDirectory(RuntimePaths.PetHostDataDirectory);
@@ -95,69 +155,62 @@ namespace FACM.Pets
                     WorkingDirectory = Path.GetDirectoryName(executable) ?? AppDomain.CurrentDomain.BaseDirectory
                 };
 
-                _process = Process.Start(startInfo);
-                if (_process == null) return false;
-                _process.EnableRaisingEvents = true;
-                _process.Exited += HandleProcessExited;
+                process = Process.Start(startInfo);
+                if (process == null) throw new InvalidOperationException("PetHost process could not be started.");
+                ChildProcessJob.TryAssign(process);
 
-                try
+                pipe = new NamedPipeClientStream(
+                    ".",
+                    pipeName,
+                    PipeDirection.InOut,
+                    PipeOptions.Asynchronous);
+                pipe.Connect(7000);
+                reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, true);
+                writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
+                cancellation = new CancellationTokenSource();
+
+                lock (_sync)
                 {
-                    _pipe = new NamedPipeClientStream(
-                        ".",
-                        pipeName,
-                        PipeDirection.InOut,
-                        PipeOptions.Asynchronous);
-                    _pipe.Connect(7000);
-                    _reader = new StreamReader(_pipe, new UTF8Encoding(false), false, 4096, true);
-                    _writer = new StreamWriter(_pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
-                    _cancellation = new CancellationTokenSource();
-                    _activePetId = petId;
+                    if (_intentionalStop || generation != _startupGeneration)
+                    {
+                        DisposeLocalTransport(process, pipe, reader, writer, cancellation, true);
+                        return;
+                    }
+
+                    _process = process;
+                    _pipe = pipe;
+                    _reader = reader;
+                    _writer = writer;
+                    _cancellation = cancellation;
+                    process = null;
+                    pipe = null;
+                    reader = null;
+                    writer = null;
+                    cancellation = null;
+
+                    _process.EnableRaisingEvents = true;
+                    _process.Exited += HandleProcessExited;
                     _readerTask = Task.Run((Func<Task>)ReadLoopAsync);
-                    SendLocked("activate|" + petId);
-                    AppLog.Info("VPet PetHost connected: " + executable + "; data-root=" + RuntimePaths.PetHostDataDirectory);
-                    return true;
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Error("VPet PetHost connection failed", exception);
-                    _intentionalStop = true;
-                    CleanupTransportLocked(true);
-                    return false;
+                    SendLocked("activate|" + _activePetId);
+                    AppLog.Info("VPet PetHost connected; data-root=" + RuntimePaths.PetHostDataDirectory);
                 }
             }
-        }
-
-        public void ResetToPrimaryScreen()
-        {
-            lock (_sync)
+            catch (Exception exception)
             {
-                if (IsActive) SendLocked("reset");
+                DisposeLocalTransport(process, pipe, reader, writer, cancellation, true);
+                if (!_intentionalStop && generation == Volatile.Read(ref _startupGeneration))
+                {
+                    AppLog.Error("VPet PetHost background startup failed", exception);
+                    RecoverFacm("PetHost 启动失败：" + exception.Message);
+                }
             }
-        }
-
-        public void Stop()
-        {
-            _intentionalStop = true;
-            lock (_sync)
+            finally
             {
-                if (_process == null)
+                lock (_sync)
                 {
-                    CleanupTransportLocked(false);
-                    return;
+                    if (generation == _startupGeneration && _startupTask != null)
+                        _startupTask = null;
                 }
-
-                try
-                {
-                    if (IsActive) SendLocked("stop");
-                }
-                catch { }
-
-                try
-                {
-                    if (!_process.HasExited && !_process.WaitForExit(1200)) _process.Kill();
-                }
-                catch { }
-                CleanupTransportLocked(false);
             }
         }
 
@@ -297,6 +350,11 @@ namespace FACM.Pets
 
         private void CleanupTransportLocked(bool terminateProcess)
         {
+            CleanupTransportLocked(terminateProcess, true);
+        }
+
+        private void CleanupTransportLocked(bool terminateProcess, bool disposeProcess)
+        {
             try { if (_cancellation != null) _cancellation.Cancel(); } catch { }
             try { if (_writer != null) _writer.Dispose(); } catch { }
             try { if (_reader != null) _reader.Dispose(); } catch { }
@@ -309,7 +367,10 @@ namespace FACM.Pets
                 {
                     try { if (!_process.HasExited) _process.Kill(); } catch { }
                 }
-                try { _process.Dispose(); } catch { }
+                if (disposeProcess)
+                {
+                    try { _process.Dispose(); } catch { }
+                }
             }
 
             if (_cancellation != null) _cancellation.Dispose();
@@ -319,7 +380,44 @@ namespace FACM.Pets
             _reader = null;
             _pipe = null;
             _process = null;
-            _activePetId = string.Empty;
+            if (_intentionalStop) _activePetId = string.Empty;
+        }
+
+        private static void DisposeLocalTransport(
+            Process process,
+            NamedPipeClientStream pipe,
+            StreamReader reader,
+            StreamWriter writer,
+            CancellationTokenSource cancellation,
+            bool terminateProcess)
+        {
+            try { if (cancellation != null) cancellation.Cancel(); } catch { }
+            try { if (writer != null) writer.Dispose(); } catch { }
+            try { if (reader != null) reader.Dispose(); } catch { }
+            try { if (pipe != null) pipe.Dispose(); } catch { }
+            try { if (cancellation != null) cancellation.Dispose(); } catch { }
+            if (process == null) return;
+            if (terminateProcess)
+            {
+                try { if (!process.HasExited) process.Kill(); } catch { }
+            }
+            try { process.Dispose(); } catch { }
+        }
+
+        private static void StopProcessEventually(Process process)
+        {
+            Task.Run(delegate
+            {
+                try
+                {
+                    if (!process.HasExited && !process.WaitForExit(1200)) process.Kill();
+                }
+                catch { }
+                finally
+                {
+                    try { process.Dispose(); } catch { }
+                }
+            });
         }
 
         public void Dispose()
