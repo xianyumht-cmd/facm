@@ -162,7 +162,7 @@ namespace FACM.Mayhem
                         Services.AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url);
                         return null;
                     }
-                    return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)

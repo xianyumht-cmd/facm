@@ -19,27 +19,30 @@ namespace FACM
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
             var animalPetTest = HasArgument(args, "--animal-pet-test");
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
+            var mayhemBodyCancellationTest = HasArgument(args, "--mayhem-body-cancellation-test");
             var floatingBallTest = HasArgument(args, "--floating-ball-test");
             var petLocatorTest = HasArgument(args, "--pet-locator-test");
             var embeddedPetHostTest = HasArgument(args, "--embedded-pethost-test");
             var gameLocatorTest = HasArgument(args, "--game-locator-test");
-            var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || floatingBallTest ||
+            var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest || floatingBallTest ||
                            petLocatorTest || embeddedPetHostTest || gameLocatorTest;
-            var instanceMutex = gameLocatorTest
-                ? MutexName + "-GameLocatorTest"
-                : (embeddedPetHostTest
-                    ? MutexName + "-EmbeddedPetHostTest"
-                    : (petCatalogTest
-                        ? MutexName + "-PetCatalogTest"
-                        : (animalPetTest
-                            ? MutexName + "-AnimalPetTest"
-                            : (mayhemSourceTest
-                                ? MutexName + "-MayhemSourceTest"
-                                : (floatingBallTest
-                                    ? MutexName + "-FloatingBallTest"
-                                    : (petLocatorTest
-                                        ? MutexName + "-PetLocatorTest"
-                                        : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName)))))));
+            var instanceMutex = mayhemBodyCancellationTest
+                ? MutexName + "-MayhemBodyCancellationTest"
+                : (gameLocatorTest
+                    ? MutexName + "-GameLocatorTest"
+                    : (embeddedPetHostTest
+                        ? MutexName + "-EmbeddedPetHostTest"
+                        : (petCatalogTest
+                            ? MutexName + "-PetCatalogTest"
+                            : (animalPetTest
+                                ? MutexName + "-AnimalPetTest"
+                                : (mayhemSourceTest
+                                    ? MutexName + "-MayhemSourceTest"
+                                    : (floatingBallTest
+                                        ? MutexName + "-FloatingBallTest"
+                                        : (petLocatorTest
+                                            ? MutexName + "-PetLocatorTest"
+                                            : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName))))))));
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -52,6 +55,11 @@ namespace FACM
                     return;
                 }
 
+                if (mayhemBodyCancellationTest)
+                {
+                    Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run();
+                    return;
+                }
                 if (gameLocatorTest)
                 {
                     Environment.ExitCode = GameLocatorSmokeTest.Run();
