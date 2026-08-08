@@ -5,6 +5,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using FACM.Services;
 
 namespace FACM.Pets
@@ -20,6 +21,10 @@ namespace FACM.Pets
         private Task _readerTask;
         private Action _clicked;
         private Action _rightClicked;
+        private SynchronizationContext _uiContext;
+        private volatile bool _intentionalStop;
+        private volatile bool _readyReceived;
+        private int _recoveryPosted;
         private string _activePetId = string.Empty;
 
         public bool IsActive
@@ -52,17 +57,23 @@ namespace FACM.Pets
         {
             _clicked = clicked;
             _rightClicked = rightClicked;
+            _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
             lock (_sync)
             {
                 if (IsActive)
                 {
+                    _intentionalStop = false;
                     _activePetId = petId;
                     SendLocked("activate|" + petId);
                     return true;
                 }
 
                 CleanupTransportLocked(false);
+                _intentionalStop = false;
+                _readyReceived = false;
+                Interlocked.Exchange(ref _recoveryPosted, 0);
+
                 var executable = LocatePetHost();
                 if (string.IsNullOrEmpty(executable))
                 {
@@ -109,6 +120,7 @@ namespace FACM.Pets
                 catch (Exception exception)
                 {
                     AppLog.Error("VPet PetHost connection failed", exception);
+                    _intentionalStop = true;
                     CleanupTransportLocked(true);
                     return false;
                 }
@@ -125,6 +137,7 @@ namespace FACM.Pets
 
         public void Stop()
         {
+            _intentionalStop = true;
             lock (_sync)
             {
                 if (_process == null)
@@ -164,12 +177,14 @@ namespace FACM.Pets
             catch (ObjectDisposedException)
             {
             }
-            catch (IOException)
+            catch (IOException exception)
             {
+                if (!_intentionalStop) RecoverFacm("PetHost IPC 已断开：" + exception.Message);
             }
             catch (Exception exception)
             {
                 AppLog.Info("VPet PetHost event loop ended: " + exception.Message);
+                if (!_intentionalStop) RecoverFacm("PetHost 事件通道异常：" + exception.Message);
             }
         }
 
@@ -192,13 +207,49 @@ namespace FACM.Pets
             }
             if (string.Equals(eventName, "ready", StringComparison.OrdinalIgnoreCase))
             {
+                _readyReceived = true;
                 AppLog.Info("VPet PetHost ready: " + (parts.Length > 2 ? parts[2] : string.Empty));
                 return;
             }
             if (string.Equals(eventName, "error", StringComparison.OrdinalIgnoreCase))
             {
-                AppLog.Info("VPet PetHost reported error: " + (parts.Length > 2 ? parts[2] : string.Empty));
+                var detail = parts.Length > 2 ? parts[2] : string.Empty;
+                AppLog.Info("VPet PetHost reported error: " + detail);
+                if (!_readyReceived) RecoverFacm("PetHost 启动失败：" + detail);
             }
+        }
+
+        private void RecoverFacm(string reason)
+        {
+            if (_intentionalStop) return;
+            if (Interlocked.Exchange(ref _recoveryPosted, 1) != 0) return;
+
+            AppLog.Info(reason + "；正在恢复 FACM 默认悬浮球。");
+            var context = _uiContext;
+            if (context == null)
+            {
+                AppLog.Info("FACM UI context is unavailable; automatic PetHost recovery was skipped.");
+                return;
+            }
+
+            context.Post(delegate
+            {
+                try
+                {
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        var main = form as FACM.MainForm;
+                        if (main == null || main.IsDisposed) continue;
+                        main.RestoreDefaultBall();
+                        return;
+                    }
+                    AppLog.Info("FACM MainForm was not found while recovering from PetHost failure.");
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Failed to restore FACM after PetHost failure", exception);
+                }
+            }, null);
         }
 
         private void SendLocked(string command)
@@ -211,6 +262,7 @@ namespace FACM.Pets
         private void HandleProcessExited(object sender, EventArgs e)
         {
             AppLog.Info("VPet PetHost process exited.");
+            if (!_intentionalStop) RecoverFacm("PetHost 进程意外退出");
         }
 
         private static string LocatePetHost()

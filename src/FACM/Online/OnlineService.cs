@@ -18,12 +18,6 @@ namespace FACM.Online
         internal const string AnnouncementManifestUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/announcement.json";
 
-        private const string PreviewUpdateManifestUrl =
-            "https://raw.githubusercontent.com/xianyumht-cmd/facm/codex/facm-online-toolbundle-20260807/online/version.json";
-
-        private const string PreviewAnnouncementManifestUrl =
-            "https://raw.githubusercontent.com/xianyumht-cmd/facm/codex/facm-online-toolbundle-20260807/online/announcement.json";
-
         public static async Task<OnlineSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken)
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
@@ -37,15 +31,13 @@ namespace FACM.Online
             {
                 using (var client = CreateClient())
                 {
-                    var updateTask = DownloadJsonWithFallbackAsync<UpdateManifest>(
+                    var updateTask = DownloadJsonAsync<UpdateManifest>(
                         client,
                         UpdateManifestUrl,
-                        PreviewUpdateManifestUrl,
                         cancellationToken);
-                    var announcementTask = DownloadJsonWithFallbackAsync<AnnouncementManifest>(
+                    var announcementTask = DownloadJsonAsync<AnnouncementManifest>(
                         client,
                         AnnouncementManifestUrl,
-                        PreviewAnnouncementManifestUrl,
                         cancellationToken);
                     await Task.WhenAll(updateTask, announcementTask).ConfigureAwait(false);
                     snapshot.Update = updateTask.Result;
@@ -98,31 +90,6 @@ namespace FACM.Online
                 NoStore = true
             };
             return client;
-        }
-
-        private static async Task<T> DownloadJsonWithFallbackAsync<T>(
-            HttpClient client,
-            string primaryUrl,
-            string previewUrl,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await DownloadJsonAsync<T>(client, primaryUrl, cancellationToken).ConfigureAwait(false);
-            }
-            catch (HttpRequestException primaryException)
-            {
-                try
-                {
-                    return await DownloadJsonAsync<T>(client, previewUrl, cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception previewException)
-                {
-                    throw new InvalidOperationException(
-                        "Online feed unavailable. Primary: " + primaryException.Message,
-                        previewException);
-                }
-            }
         }
 
         private static async Task<T> DownloadJsonAsync<T>(
