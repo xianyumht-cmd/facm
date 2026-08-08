@@ -18,6 +18,23 @@
 
 `FACM.csproj` 的 `ValidateRuntimeSourcesAfterCiBuild` 只能放确定性/本地 smoke。不要把实时第三方 source probe 再放回这个 target。
 
+### 并发与过期构建取消
+
+`FACM Windows Build` 的 concurrency key 按 **事件类型 + PR 编号或 ref** 分组，而不是按 commit SHA 分组：
+
+```text
+facm-windows-build-<workflow>-<event>-<PR-or-ref>
+```
+
+这样：
+
+- 同一 PR 推送新提交时，旧 `pull_request` build 自动取消，只保留最新 HEAD；
+- 同一分支连续 push 时，旧 `push` build 自动取消；
+- 不同 PR / 不同分支仍可并行；
+- `push` 与 `pull_request` 故意保留为不同组，避免 branch push 把 PR required check 对应的运行取消掉。
+
+不要把 `github.sha` 放回 concurrency group。SHA 每次提交都会变化，会让 `cancel-in-progress: true` 失去实际作用。
+
 ## 海斗第三方数据源探测
 
 工作流：`.github/workflows/mayhem-source-probe.yml`（`FACM Mayhem Source Probe`）。
