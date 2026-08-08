@@ -350,7 +350,7 @@ namespace FACM.Online
             if (_forceMode && e.CloseReason == CloseReason.UserClosing && !_closing)
             {
                 _closing = true;
-                BeginInvoke(new Action(_owner.ExitApplication));
+                _owner.BeginInvoke(new Action(_owner.ExitApplication));
             }
         }
 
