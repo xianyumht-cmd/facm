@@ -63,3 +63,28 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 ### 关联
 
 - Issue #19
+
+## `cancel-in-progress` 的并发键不能包含 commit SHA
+
+### 根因
+
+核心 Windows CI 曾使用 `github.sha` 作为 concurrency group 的一部分。SHA 每个提交都不同，所以同一 PR/分支的旧构建和新构建永远不在同一个组；即使配置了 `cancel-in-progress: true`，也没有旧运行可以被匹配取消。
+
+这会同时浪费 Windows Runner，并让“哪个绿灯才对应最新 HEAD”变得更难判断。
+
+### 防回归规则
+
+- 核心 CI concurrency 应按稳定的逻辑身份分组，例如 **事件类型 + PR number/ref**，不要按 commit SHA 分组。
+- 同一 `pull_request` 的后续提交必须能取消旧 PR run；同一 branch `push` 的后续提交也应取消旧 push run。
+- `push` 与 `pull_request` 保持不同 concurrency group，避免 branch push 把 PR required check 对应的运行取消掉。
+- 不同 PR/不同分支要保留并行能力，不能为了取消旧任务把整个仓库串成一条队列。
+- 修改 concurrency 规则后不要只看 YAML；应在真实 PR 中连续提交两次，确认旧 run 的 conclusion 实际变成 `cancelled`，再以最新 HEAD 的绿色 build 作为合并门槛。
+
+### 已验证行为
+
+PR #25 首个 HEAD 的 PR Build #442 在后续同 PR 提交触发 #444 后，被 GitHub 明确标记为 `cancelled`；PetHost publish 阶段被终止，后续 Release、资源校验和打包步骤均被跳过。
+
+### 关联
+
+- Issue #21
+- PR #25
