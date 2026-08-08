@@ -1,47 +1,79 @@
 # FACM 高真实感桌宠：VPet PetHost
 
 > 状态：FACM 3.1 正式桌宠运行层。  
-> 目标：使用独立 .NET 8 / WPF / VPet Core 宿主实现高精度桌宠，同时让 .NET Framework 4.8 的 FACM 主程序保持稳定、可回退。
+> 目标：使用独立 .NET 8 / WPF / VPet Core 宿主实现高精度桌宠，同时让 .NET Framework 4.8 的 FACM 主程序保持稳定、流畅、可回退。
 
-## 架构
+## 架构边界
 
-FACM 主程序仍是 .NET Framework 4.8 + WinForms，负责清理工具、ToolBundle、在线管理、海斗排行、控制面板、托盘和桌宠选择器。
+FACM 主程序仍是 .NET Framework 4.8 + WinForms，负责清理工具、ToolBundle、在线管理、海斗排行、控制中心、托盘和桌宠选择器。
 
 桌宠运行层单独使用 `FACM.PetHost.exe`：
 
-- `FACM.exe`：负责产品逻辑、设置、托盘、桌宠选择器和故障恢复；
-- `FACM.PetHost.exe`：独立 .NET 8 x64 WPF 进程，负责 VPet Core、透明桌宠窗口、动作状态和桌面移动；
-- 双向命名管道：FACM 发送启用、复位、退出等命令，PetHost 回传单击、右键、ready/error 等状态；
-- 父进程守护：FACM 退出后 PetHost 自动退出；
-- PetHost 启动失败、IPC 断开或宿主意外退出时，FACM 自动恢复默认悬浮球，不再让桌面入口一起消失。
+- `FACM.exe`：产品主进程；
+- `FACM.PetHost.exe`：独立 .NET 8 x64 WPF 子进程，负责 VPet Core、透明窗口、动作状态和桌面移动；
+- 双向命名管道：FACM 发送启用、复位、退出，PetHost 回传单击、右键、ready/error；
+- Windows Job Object：PetHost 启动后由 FACM 尝试加入带 `KILL_ON_JOB_CLOSE` 的 Job；
+- `--parent-pid`：PetHost 自己每 2 秒检查一次父进程，作为 Job Object 无法分配时的兼容兜底；
+- PetHost 启动失败、IPC 断开或宿主意外退出时，FACM 自动恢复默认悬浮球。
+
+### 为什么不是单 PID
+
+FACM 主程序和 PetHost 使用不同 CLR/UI 技术栈：net48 WinForms 与 net8 WPF。为了让任务管理器只显示一个 PID，必须把主程序整体迁到现代 .NET 并重新整合 WPF/VPet，这会同时影响清理提权、更新器、ToolBundle、WinForms UI、签名和现有 smoke。
+
+正式发布前不做这种高风险迁移。当前目标是**一个 FACM 主进程管理一棵受控子进程树**：保留 VPet 崩溃隔离，同时保证 FACM 退出时 PetHost 不成为孤儿进程。
+
+未来如果 FACM 主程序整体迁到 .NET 8，可以再评估把 WPF 桌宠组件同进程托管；这属于架构版本升级，不属于 3.1 发布前修补。
+
+## UI 线程与启动性能
+
+PetHost 启动链包含大包检查/释放、进程创建和最长 7 秒的命名管道连接。它们不能同步运行在 WinForms UI 线程。
+
+当前 `VPetHostClient.Activate` 只在 UI 线程登记回调与当前 pet id，然后把启动链提交到后台任务：
+
+1. 定位或释放当前 FACM.exe 内嵌的精确 PetHost bundle；
+2. 创建便携数据目录；
+3. 启动 `FACM.PetHost.exe --pipe ... --parent-pid ...`；
+4. 尝试把新进程加入 FACM Job Object；
+5. 在后台连接 named pipe；
+6. 连接成功后发送最新 pet id 并启动事件读取；
+7. 失败时切回 UI context 恢复默认悬浮球。
+
+`Stop` 也不再让 UI 线程等待 WPF 最长 1.2 秒退出；发送 stop 后由后台完成等待/强制结束。
+
+## 控制中心交互
+
+从 VPet 点击打开控制中心时，Windows 的前台激活规则可能拒绝 FACM 立即抢焦点，因此不能只依赖 `CompactMenuForm.Deactivate` 判断“用户点到了空白处”。
+
+控制中心现在同时保留：
+
+- 正常获得焦点时的 `Deactivate` 自动关闭；
+- 一个按物理左键边沿触发的 outside-click watcher；
+- watcher 先等待打开面板的那次左键完全释放，再武装下一次点击，避免 PetHost 上报 IPC 点击后面板刚打开就被同一次按键关闭；
+- 打开文件夹选择器、消息框等内部对话流程时，沿用 `_dialogOpen` 防止误关父面板。
 
 ## PetHost 如何交付
 
-运行时仍是独立进程，但正式发布不再要求用户手工携带 `PetHost/` 目录。
+运行时是独立子进程，但正式发布只需要一个 `FACM.exe`。
 
-正式构建顺序：
+构建顺序：
 
 1. `dotnet publish` 生成 win-x64 self-contained PetHost；
 2. 运行 `FACM.PetHost.exe --self-test`；
 3. 将完整 publish 目录压缩为 `PetHostBundle.zip`；
-4. 把 ZIP 以 `FACM.Resources.PetHost.zip` 嵌入 `FACM.exe`；
-5. 构建后的 `FACM.exe` 再执行 `--embedded-pethost-test`，由 FACM 自己释放内嵌包并启动释放后的 PetHost 自检。
+4. 以 `FACM.Resources.PetHost.zip` 嵌入 `FACM.exe`；
+5. 构建后的 `FACM.exe --embedded-pethost-test` 再释放并启动内嵌 PetHost 自检。
 
-正式运行时，FACM 查找顺序为：
+正式运行查找顺序：
 
 1. 当前 `FACM.exe` 自身内嵌的 `FACM.Resources.PetHost.zip`；
-2. 仅当当前构建没有内嵌资源时，才兼容应用目录下历史/开发用的 `PetHost\FACM.PetHost.exe`；
-3. 最后才探测开发构建目录中的 PetHost。
+2. 仅当前构建没有内嵌资源时，兼容应用目录历史/开发用 `PetHost\FACM.PetHost.exe`；
+3. 最后探测开发构建目录。
 
-这个顺序是升级兼容的必要条件：旧版完整包可能在应用目录留下旧 sidecar，但新版单 EXE 在线更新后必须优先运行当前 EXE 自带的匹配 PetHost，不能被旧 sidecar 覆盖。
-
-内嵌包释放到：
+内嵌宿主释放到：
 
 `FACM\runtime\pethost-host\<FACM-MVID>\`
 
-`<FACM-MVID>` 来自当前 `FACM.exe` 的精确构建内容。换版本或换内嵌 PetHost 后会进入新的宿主目录，避免“主程序已经更新、却继续启动旧 PetHost”的错配。
-
-这也解决了旧版在线更新器只能下载一个 `FACM.exe` 的兼容问题：新 EXE 本身已经携带匹配的 PetHost，因此旧客户端升级后无需再补 sidecar 文件。
+MVID 绑定当前 FACM 精确构建内容，避免单 EXE 在线更新后误用旧 sidecar PetHost。
 
 ## 当前运行层
 
@@ -50,119 +82,52 @@ PetHost 使用：
 - .NET 8 Windows / WPF；
 - x64；
 - `VPet-Simulator.Core` 1.1.0.66；
-- WPF 无边框窗口 + DWM glass frame；
+- WPF 无边框透明桌面窗口；
 - PerMonitorV2 DPI；
-- VPet 自己的 `GameCore`、`GraphCore`、`PetLoader`、`Main` 和 `IController` 接口；
-- VPet 原生动作状态和移动配置，而不是 FACM 自己随机改变窗口速度。
+- VPet 自己的 `GameCore`、`GraphCore`、`PetLoader`、`Main` 和 `IController`。
 
-正式 VPet 角色重点覆盖：Default / Idle、Move、Raised、Touch Head、Touch Body、StartUP、方向与位移同步、多显示器复位，以及左键/右键到 FACM 的桥接。
+正式 VPet 角色重点覆盖 Default / Idle、Move、Raised、Touch Head、Touch Body、StartUP、方向与位移同步、多显示器复位，以及左键/右键到 FACM 的桥接。
 
-FACM 的左键/右键桥接只在 VPet 配置中的 TouchHead + TouchBody 区域生效，不把整个透明 PetHost 窗口当成控制面板点击区域。
+## 动画资源与便携目录
 
-## 动画资源策略
-
-FACM 不把 VPet 默认角色的整套动画提交进本仓库，也不在安装包里重新分发整套动画资源。
-
-首次选择“高精度桌宠 · VPet Core”时，PetHost 从 VPet 官方 GitHub 仓库按需缓存最小动作集：
-
-- `vup.lps`
-- `vup/Default/`
-- `vup/IDEL/`
-- `vup/MOVE/`
-- `vup/Raise/`
-- `vup/StartUP/`
-- `vup/Touch_Body/`
-- `vup/Touch_Head/`
-
-资源固定到上游提交：
+FACM 不把 VPet 默认角色整套动画提交进仓库或直接重分发在安装包里。首次使用按需缓存上游最小动作集，固定到上游提交：
 
 `ac77ba144ed39f61624d93542c008b38be4d85aa`
 
-这是 2026-05-19、`VPet-Simulator.Core` 1.1.0.66 发布当天的默认动画更新提交。FACM 使用与稳定 Core 同代的动画快照，不把稳定 Core 与后续变化的动作定义混用。
-
-## 便携数据目录
-
-新的 VPet 数据不写 `%LOCALAPPDATA%`，FACM 启动 PetHost 时显式传入：
-
-`FACM\runtime\pethost\`
-
-其中主要包含：
+便携目录：
 
 ```text
 FACM\
 └─ runtime\
-   ├─ pethost-host\
-   │  └─ <FACM-MVID>\
-   │     └─ FACM.PetHost.exe + self-contained runtime
-   └─ pethost\
-      ├─ Assets\
-      │  └─ vpet-ac77ba14\
+   ├─ pethost-host\<FACM-MVID>\   # self-contained 程序宿主
+   └─ pethost\                     # 动作资源与生成缓存
+      ├─ Assets\vpet-ac77ba14\
       └─ Cache\
 ```
 
-`pethost-host` 是程序运行宿主；`pethost` 是动作资源和生成缓存。两者职责不同。
-
-如果升级前存在 `%LOCALAPPDATA%\FACM\PetHost`，PetHost 会在首次启动时复制旧数据到新的便携缓存目录，逐文件检查长度后再尝试删除旧目录。迁移失败不会阻止桌宠启动，会直接在新目录重新准备资源。
-
-## 首次加载与续传
-
-第一次启用可能需要处理约 538 个动作资源文件。当前实现：
-
-- 下载并发 20；
-- 固定 partial staging，可从中断进度继续；
-- 逐文件按 Git tree 大小校验；
-- 单文件先写 `.download`，完成后原子替换；
-- 动作缓存完成标记会再次核对固定 commit、关键目录、文件数量和总字节；
-- 完成标记存在但缓存已经残缺时，会使标记失效并重新准备资源；
-- VPet `LoadALL()` 后台执行并显示真实进度。
-
-下载前还会校验官方 Git tree 的文件数量和总大小；异常偏少、大小为 0 或超过安全上限时直接拒绝继续。
+首次加载会处理约 538 个动作资源文件，使用并发下载、固定 partial staging、逐文件大小校验、`.download` 原子替换和完成标记复核。缓存残缺时完成标记会失效并重新准备。
 
 ## 许可证与来源
-
-运行代码与动画资源必须分开看：
 
 - VPet / VPet-Simulator.Core 代码：Apache-2.0；
 - VPet 默认动画：VUP-Simulator 制作组的独立动画授权条款。
 
-FACM 使用这些动画前必须继续遵守上游授权；如果项目商业化，应重新核对并履行对应商业授权要求。
+FACM 使用这些动画前必须继续遵守上游授权；如果项目商业化，应重新核对并履行相应商业授权要求。
 
 上游：<https://github.com/LorisYounger/VPet>
 
-PetHost publish 中保留 `VPET-ASSET-NOTICE.txt`，首次资源准备界面也显示来源。
+PetHost publish 中保留 `VPET-ASSET-NOTICE.txt`。
 
-## 与旧 Sprite 引擎的关系
+## CI 与实机验收
 
-旧 `SpritePetWindow` / `SpritePetAssetService` 和原 CC0 Sprite 素材仍作为回退/对照代码存在，但不再是正式桌宠运行层。
+Windows CI 验证 PetHost publish/self-test、完整 ZIP 内嵌、FACM 释放内嵌包和启动自检、最终资源与打包。CI 能证明构建/交付/启动链，但透明窗口、真实交互、outside-click、Job Object 在用户桌面环境中的行为仍需 Windows 实机验收。
 
-VPet 启动失败时，FACM 不会偷偷用低清 Sprite 冒充成功；主程序会恢复默认悬浮球并保留可诊断错误。
+发布前重点测试：
 
-旧 Desktop Homunculus 兼容代码也不作为当前正式运行层，只保留历史安装位置探测兼容。
-
-## CI 保证
-
-Windows CI 会验证：
-
-1. 工具输入及 CleanupProfile 状态；
-2. PetHost win-x64 self-contained publish；
-3. 独立 PetHost `--self-test`；
-4. 完整 PetHost publish ZIP 的生成；
-5. `FACM.Resources.PetHost.zip` 确实嵌入 `FACM.exe`；
-6. `FACM.exe --embedded-pethost-test` 能安全释放该 ZIP，并启动释放后的 PetHost 自检；
-7. FACM 其它已有 smoke tests、资源校验和下载包生成。
-
-CI 能证明构建/交付/启动链，但桌宠视觉自然度、透明窗口表现和交互命中范围仍需要 Windows 实机验收。
-
-## 实机验收
-
-新的正式构建只需要 `FACM.exe` 即可验证完整桌宠交付链：
-
-1. 把 `FACM.exe` 放到一个新的可写空目录；
-2. 启动 FACM；
-3. 托盘或控制中心 → `桌面宠物`；
-4. 选择 `高精度桌宠 · VPet Core`；
-5. 检查 `runtime\pethost-host\<FACM-MVID>` 是否自动出现并包含 `FACM.PetHost.exe`；
-6. 首次启用允许它联网缓存官方最小动作集；
-7. 测试移动、停下、转向、长按拖动/提起、摸头/身体；
-8. 测试 PetHost 被手工结束后 FACM 默认悬浮球是否自动恢复；
-9. 检查 `runtime\pethost` 是否生成 Assets/Cache，新的 VPet 数据不应继续写入 `%LOCALAPPDATA%\FACM\PetHost`。
+1. 从可写空目录只运行一个 `FACM.exe`；
+2. 首次选 VPet 时控制中心不应因解包/pipe connect 假死；
+3. 点击 VPet 能打开控制中心，再点击屏幕空白处应收起；
+4. 在任务管理器结束 `FACM.PetHost.exe`，默认悬浮球应恢复；
+5. 正常退出 FACM 后，不应残留 PetHost；
+6. 若能测试强制结束 FACM，PetHost 也应被 Job/父进程守护清理；
+7. `runtime\pethost-host\<FACM-MVID>` 与 `runtime\pethost` 按预期生成。
