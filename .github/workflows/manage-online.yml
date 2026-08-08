@@ -45,7 +45,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: facm-online-management
+  group: facm-main-writer
   cancel-in-progress: false
 
 jobs:
