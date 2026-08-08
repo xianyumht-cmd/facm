@@ -43,3 +43,23 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 
 - Issue #17
 - PR #23
+
+## 实时第三方健康检查不能和核心构建绑成同一个门禁
+
+### 根因
+
+`--mayhem-source-test` 会真实访问 OP.GG、ARAMMayhem.com、Riot Data Dragon / CommunityDragon。它很适合发现第三方页面结构、WAF 或资源路径变化，但第三方 429/5xx/网络抖动与 FACM 自身是否能正确编译、打包没有必然关系。
+
+把这种 live probe 放在 `FACM.csproj` 的 `AfterTargets=Build` 中，会让桌宠、清理器等完全无关的提交因为外部网站临时故障而变红。
+
+### 防回归规则
+
+- `ValidateRuntimeSourcesAfterCiBuild` 只放 deterministic、本地可重复 smoke；禁止把实时公网探测重新塞回核心 MSBuild target。
+- 真实海斗数据源健康检查统一放在 `.github/workflows/mayhem-source-probe.yml`。
+- PR 上的 live probe 是 advisory；第三方失败不能代替核心 `FACM Windows Build` 的代码回归结论。
+- main/定时 live probe 失败需要保留 stdout/stderr/FACM 日志 artifact，先区分外部服务故障与解析器真实回归。
+- 修复第三方解析器时仍应尽量增加 deterministic fixture/smoke，不能只依赖“今天网站恰好能访问”。
+
+### 关联
+
+- Issue #19

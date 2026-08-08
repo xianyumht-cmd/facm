@@ -1,0 +1,93 @@
+name: FACM Mayhem Source Probe
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/FACM/Mayhem/**'
+      - 'src/FACM/Program.cs'
+      - '.github/workflows/mayhem-source-probe.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/FACM/Mayhem/**'
+      - 'src/FACM/Program.cs'
+      - '.github/workflows/mayhem-source-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facm-mayhem-source-probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLUTION: FACM.sln
+  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+
+jobs:
+  probe:
+    name: Probe OP.GG + ARAMMayhem + Riot assets
+    runs-on: windows-latest
+    timeout-minutes: 12
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build probe executable
+        shell: pwsh
+        run: |
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
+            throw "Build output not found: $env:OUTPUT_EXE"
+          }
+
+      - name: Run live Mayhem source probe
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'mayhem-source-probe.stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'mayhem-source-probe.stderr.txt'
+          $process = Start-Process `
+            -FilePath $env:OUTPUT_EXE `
+            -ArgumentList '--mayhem-source-test' `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr
+
+          if (Test-Path $stdout) {
+            Write-Host '--- Mayhem probe stdout ---'
+            Get-Content $stdout -Raw | Write-Host
+          }
+          if (Test-Path $stderr) {
+            Write-Host '--- Mayhem probe stderr ---'
+            Get-Content $stderr -Raw | Write-Host
+          }
+          if ($process.ExitCode -ne 0) {
+            throw "Mayhem source probe failed with exit code $($process.ExitCode). See uploaded probe logs."
+          }
+
+      - name: Upload probe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mayhem-source-probe-${{ github.run_number }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/mayhem-source-probe.stdout.txt
+            ${{ runner.temp }}/mayhem-source-probe.stderr.txt
+            src/FACM/bin/Release/net48/logs/**
