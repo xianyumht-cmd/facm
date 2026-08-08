@@ -7,11 +7,13 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Services;
 
 namespace FACM.Mayhem
 {
     internal static class OpggMayhemService
     {
+        private const string HexdataHeroesUrl = "https://hexdata.com.cn/heroes";
         private const string OpggBaseUrl = "https://op.gg/zh-cn/lol/modes/aram-mayhem";
         private const string RankingBaseUrl = "https://arammayhem.com";
         private static readonly object Sync = new object();
@@ -22,6 +24,14 @@ namespace FACM.Mayhem
         {
             public DateTime Time { get; set; }
             public MayhemChampionResult Value { get; set; }
+        }
+
+        private sealed class HexdataChampionRow
+        {
+            public int Rank { get; set; }
+            public string Name { get; set; }
+            public string Slug { get; set; }
+            public double? WinRate { get; set; }
         }
 
         public static Task<MayhemChampionResult> QueryAsync(string input, CancellationToken token)
@@ -45,19 +55,27 @@ namespace FACM.Mayhem
             }
 
             var result = new MayhemChampionResult { Query = query };
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            using (var overall = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(7));
-                var requestToken = timeout.Token;
-
+                overall.CancelAfter(TimeSpan.FromSeconds(5.5));
+                var requestToken = overall.Token;
                 try
                 {
-                    Report(progress, "正在识别英雄...");
+                    Report(progress, "正在读取国内排行与国服版本...");
+                    var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(2.8), requestToken);
+                    var officialTask = TencentMayhemPatchService.FetchLatestAsync(requestToken);
+
                     string slug;
+                    string hexdataHtml = null;
                     if (!ChampionAliases.TryResolve(query, out slug))
                     {
-                        var indexHtml = await GetSafeAsync(OpggBaseUrl, requestToken).ConfigureAwait(false);
-                        slug = ResolveSlug(indexHtml, query);
+                        hexdataHtml = await hexdataTask.ConfigureAwait(false);
+                        slug = ResolveSlugFromHexdata(hexdataHtml, query);
+                        if (string.IsNullOrWhiteSpace(slug))
+                        {
+                            var opggIndex = await GetSafeAsync(OpggBaseUrl, TimeSpan.FromSeconds(1.5), requestToken).ConfigureAwait(false);
+                            slug = ResolveSlugFromOpgg(opggIndex, query);
+                        }
                     }
 
                     if (string.IsNullOrWhiteSpace(slug))
@@ -70,28 +88,28 @@ namespace FACM.Mayhem
                     result.SourceUrl = OpggBaseUrl + "/" + slug + "/build";
                     result.RankingSourceUrl = RankingBaseUrl + "/build/" + slug + "/";
 
-                    Report(progress, "正在并行读取 OP.GG 构建数据与胜率排行...");
-                    var opggTask = GetSafeAsync(result.SourceUrl, requestToken);
-                    var championRankTask = GetSafeAsync(result.RankingSourceUrl, requestToken);
-                    var topTenTask = GetSafeAsync(RankingBaseUrl + "/", requestToken);
-                    await Task.WhenAll(opggTask, championRankTask, topTenTask).ConfigureAwait(false);
+                    Report(progress, "正在并行读取排行、平衡与攻略补充...");
+                    var rankingTask = GetSafeAsync(result.RankingSourceUrl, TimeSpan.FromSeconds(3.8), requestToken);
+                    var rankingTopTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.4), requestToken);
+                    var opggTask = GetSafeAsync(result.SourceUrl, TimeSpan.FromSeconds(2.2), requestToken);
 
+                    if (hexdataHtml == null) hexdataHtml = await hexdataTask.ConfigureAwait(false);
+                    await Task.WhenAll(rankingTask, rankingTopTask, opggTask).ConfigureAwait(false);
+                    var rankingHtml = rankingTask.Result;
+                    var rankingTopHtml = rankingTopTask.Result;
                     var opggHtml = opggTask.Result;
-                    var rankingHtml = championRankTask.Result;
-                    var topTenHtml = topTenTask.Result;
 
-                    if (string.IsNullOrWhiteSpace(opggHtml) && string.IsNullOrWhiteSpace(rankingHtml))
-                    {
-                        result.ErrorMessage = token.IsCancellationRequested
-                            ? "查询已取消。"
-                            : "数据源在 7 秒内没有返回可用数据，请稍后重试。";
-                        return result;
-                    }
+                    Report(progress, "正在合并国内排行、当前平衡和攻略字段...");
+                    var hexRows = ParseHexdataRows(hexdataHtml);
+                    var hexTargetFound = ApplyHexdata(hexRows, slug, query, result);
 
-                    Report(progress, "正在解析英雄、技能、装备、强化和排行...");
-                    ParseOpggChampion(opggHtml, result);
                     ParseRankingChampion(rankingHtml, result);
-                    result.TopTen = ParseTopTen(topTenHtml);
+                    if (result.TopTen.Count < 10)
+                    {
+                        var fallbackTop = ParseTopTen(rankingTopHtml);
+                        if (fallbackTop.Count > result.TopTen.Count) result.TopTen = fallbackTop;
+                    }
+                    ParseOpggChampion(opggHtml, result);
 
                     var current = result.TopTen.FirstOrDefault(item =>
                         string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase) ||
@@ -104,16 +122,30 @@ namespace FACM.Mayhem
                     }
 
                     if (string.IsNullOrWhiteSpace(result.ChampionName)) result.ChampionName = Title(slug);
-                    if (string.IsNullOrWhiteSpace(result.BalanceSummary))
-                        result.BalanceSummary = "当前数据源未公开该英雄的独立 Mayhem buff / debuff 数值。";
-                    if (string.IsNullOrWhiteSpace(result.SkillOrder))
-                        result.SkillOrder = "OP.GG 当前页面未返回可解析的技能加点顺序。";
-                    if (result.CoreItems.Count == 0)
-                        result.CoreItems.Add("OP.GG 当前页面未返回可解析的核心出装");
-                    if (result.Augments.Count == 0)
-                        result.Augments.Add("当前页面未返回可解析的强化符文");
 
-                    result.SourceNote = "构建：OP.GG；胜率/名次/前十：ARAMMayhem.com；并行读取，最长等待 7 秒";
+                    TencentMayhemPatchSnapshot official = null;
+                    try { official = await officialTask.ConfigureAwait(false); }
+                    catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
+                    ApplyOfficialPatch(result, official, !string.IsNullOrWhiteSpace(rankingHtml), query);
+
+                    var anyPrimary = hexTargetFound || !string.IsNullOrWhiteSpace(rankingHtml) || !string.IsNullOrWhiteSpace(opggHtml);
+                    if (!anyPrimary && string.IsNullOrWhiteSpace(result.BalanceSummary))
+                    {
+                        result.ErrorMessage = token.IsCancellationRequested
+                            ? "查询已取消。"
+                            : "暂时没有读取到可用排行，请稍后重试。";
+                        return result;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(result.Tier) && result.Rank.HasValue)
+                        result.Tier = InferTier(result.Rank.Value);
+
+                    result.SourceNote = BuildSourceNote(
+                        hexTargetFound,
+                        !string.IsNullOrWhiteSpace(rankingHtml),
+                        !string.IsNullOrWhiteSpace(opggHtml),
+                        official != null);
+
                     lock (Sync)
                     {
                         Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
@@ -125,14 +157,187 @@ namespace FACM.Mayhem
                 {
                     result.ErrorMessage = token.IsCancellationRequested
                         ? "查询已取消。"
-                        : "查询超过 7 秒，已自动停止。";
+                        : "查询超过 5.5 秒，已返回前仍未得到可用结果。";
                     return result;
                 }
                 catch (Exception exception)
                 {
-                    Services.AppLog.Error("Mayhem query failed", exception);
+                    AppLog.Error("Mayhem resilient query failed", exception);
                     result.ErrorMessage = "读取数据失败：" + exception.Message;
                     return result;
+                }
+            }
+        }
+
+        private static bool ApplyHexdata(IList<HexdataChampionRow> rows, string slug, string query, MayhemChampionResult result)
+        {
+            if (rows == null || rows.Count == 0) return false;
+
+            result.TopTen = rows.Take(10).Select(row => new MayhemTopChampion
+            {
+                Rank = row.Rank,
+                Name = row.Name,
+                Slug = row.Slug,
+                WinRate = row.WinRate,
+                Tier = row.Rank <= 10 ? "S+" : InferTier(row.Rank)
+            }).ToList();
+
+            var normalizedQuery = ChampionAliases.Normalize(query);
+            var target = rows.FirstOrDefault(row => string.Equals(row.Slug, slug, StringComparison.OrdinalIgnoreCase));
+            if (target == null)
+            {
+                target = rows.FirstOrDefault(row =>
+                {
+                    var name = ChampionAliases.Normalize(row.Name);
+                    return normalizedQuery.Length > 0 && (name.Contains(normalizedQuery) || normalizedQuery.Contains(name));
+                });
+            }
+            if (target == null) return false;
+
+            result.ChampionName = target.Name;
+            result.Rank = target.Rank;
+            result.WinRate = target.WinRate;
+            result.Tier = InferTier(target.Rank);
+            return true;
+        }
+
+        private static List<HexdataChampionRow> ParseHexdataRows(string html)
+        {
+            var output = new List<HexdataChampionRow>();
+            if (string.IsNullOrWhiteSpace(html)) return output;
+            var normalized = NormalizeEscapedHtml(html);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var anchors = Regex.Matches(
+                normalized,
+                "<a\\b[^>]*href\\s*=\\s*[\"'](?<href>[^\"']*/hero/(?<id>\\d+)-(?<slug>[a-z0-9-]+))[^\"']*[\"'][^>]*>(?<body>.*?)</a>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            foreach (Match anchor in anchors)
+            {
+                var slug = WebUtility.HtmlDecode(anchor.Groups["slug"].Value).Trim();
+                var name = ExtractPreferredChampionName(CleanText(anchor.Groups["body"].Value));
+                if (string.IsNullOrWhiteSpace(slug) || string.IsNullOrWhiteSpace(name) ||
+                    string.Equals(name, "查看详情", StringComparison.OrdinalIgnoreCase) || seen.Contains(slug)) continue;
+
+                var windowLength = Math.Min(700, normalized.Length - anchor.Index);
+                var window = CleanText(normalized.Substring(anchor.Index, windowLength));
+                var winText = First(
+                    Match(window, "胜率\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
+                    Match(window, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*[·•]?\\s*样本", false));
+                var winRate = Rate(winText);
+                if (!winRate.HasValue) continue;
+
+                seen.Add(slug);
+                output.Add(new HexdataChampionRow
+                {
+                    Rank = output.Count + 1,
+                    Name = name,
+                    Slug = slug,
+                    WinRate = winRate
+                });
+            }
+            return output;
+        }
+
+        private static string ResolveSlugFromHexdata(string html, string query)
+        {
+            var target = ChampionAliases.Normalize(query);
+            if (target.Length == 0) return null;
+            foreach (var row in ParseHexdataRows(html))
+            {
+                var name = ChampionAliases.Normalize(row.Name);
+                if (name == target || name.Contains(target) || target.Contains(name)) return row.Slug;
+            }
+            return null;
+        }
+
+        private static void ApplyOfficialPatch(
+            MayhemChampionResult result,
+            TencentMayhemPatchSnapshot official,
+            bool fullStateFetched,
+            string query)
+        {
+            if (official == null)
+            {
+                if (fullStateFetched && string.IsNullOrWhiteSpace(result.BalanceSummary))
+                    result.BalanceSummary = "当前版本未发现英雄专属平衡修正。";
+                return;
+            }
+
+            result.Patch = official.Patch;
+            var changes = official.FindChampionChanges(result.ChampionName, query);
+            var rankingPatch = result.RankingPatch;
+            var fullStateCurrent = fullStateFetched &&
+                                   !string.IsNullOrWhiteSpace(rankingPatch) &&
+                                   PatchesMatch(rankingPatch, official.Patch);
+
+            if (fullStateFetched && !string.IsNullOrWhiteSpace(rankingPatch) && !fullStateCurrent)
+            {
+                result.RankingPatch = null;
+                result.BalanceSummary = changes.Count > 0
+                    ? "国服 " + official.Patch + " 本版本官方改动（完整当前状态同步中）：" + string.Join(" · ", changes)
+                    : "国服 " + official.Patch + " 平衡状态正在同步，暂不展示 " + rankingPatch + " 的旧数值。";
+                return;
+            }
+
+            if (fullStateCurrent)
+            {
+                if (string.IsNullOrWhiteSpace(result.BalanceSummary))
+                    result.BalanceSummary = "当前版本：无英雄专属修正。";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(result.BalanceSummary) && changes.Count > 0)
+            {
+                result.BalanceSummary = "国服 " + official.Patch + " 本版本官方改动（非完整当前状态）：" + string.Join(" · ", changes);
+            }
+        }
+
+        private static bool PatchesMatch(string first, string second)
+        {
+            Version a;
+            Version b;
+            return Version.TryParse(first, out a) && Version.TryParse(second, out b) && a.Equals(b);
+        }
+
+        private static string BuildSourceNote(bool hexdata, bool ranking, bool opgg, bool official)
+        {
+            var parts = new List<string>();
+            parts.Add(hexdata ? "排行：Hexdata 国内优先" : (ranking ? "排行：ARAMMayhem 备用" : "排行：部分降级"));
+            parts.Add(opgg ? "攻略：OP.GG 已补充" : "攻略：OP.GG 未连接也可查询");
+            parts.Add(ranking ? "平衡：ARAMMayhem 完整状态" : "平衡：完整状态未连接");
+            parts.Add(official ? "国服版本：腾讯官网已校验" : "国服版本：本次未校验");
+            return string.Join("；", parts);
+        }
+
+        private static async Task<string> GetSafeAsync(string url, TimeSpan budget, CancellationToken token)
+        {
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(budget);
+                try
+                {
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                    using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url);
+                            return null;
+                        }
+                        return await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    if (token.IsCancellationRequested) throw;
+                    AppLog.Info("Mayhem source budget expired: " + url);
+                    return null;
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Mayhem source request failed: " + url + "; " + exception.Message);
+                    return null;
                 }
             }
         }
@@ -150,32 +355,6 @@ namespace FACM.Mayhem
             return client;
         }
 
-        private static async Task<string> GetSafeAsync(string url, CancellationToken token)
-        {
-            try
-            {
-                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
-                using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
-                {
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Services.AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url);
-                        return null;
-                    }
-                    return await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                return null;
-            }
-            catch (Exception exception)
-            {
-                Services.AppLog.Info("Mayhem source request failed: " + url + "; " + exception.Message);
-                return null;
-            }
-        }
-
         private static void ParseOpggChampion(string html, MayhemChampionResult result)
         {
             if (string.IsNullOrWhiteSpace(html)) return;
@@ -183,26 +362,28 @@ namespace FACM.Mayhem
             var text = CleanText(normalized);
             var h1 = Match(normalized, "<h1[^>]*>(?<v>.*?)</h1>", true);
 
-            result.ChampionName = First(CleanName(h1), result.ChampionName);
-            result.Patch = First(
-                Match(text, "(?:在|Patch\\s*)?(?<v>\\d{1,2}\\.\\d{1,2})\\s*(?:版本|Patch)", false),
-                Match(text, "(?:版本|Patch)\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
-                result.Patch);
-            result.Tier = First(
-                Match(text, "(?<v>[1-5SABCDF](?:\\+)?)\\s*(?:段位|Tier|梯队)", false),
-                result.Tier);
-            result.SkillOrder = First(ExtractSkillOrder(text), result.SkillOrder);
+            if (string.IsNullOrWhiteSpace(result.ChampionName))
+                result.ChampionName = First(CleanName(h1), result.ChampionName);
+            if (string.IsNullOrWhiteSpace(result.Patch))
+                result.Patch = First(
+                    Match(text, "(?:在|Patch\\s*)?(?<v>\\d{1,2}\\.\\d{1,2})\\s*(?:版本|Patch)", false),
+                    Match(text, "(?:版本|Patch)\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
+                    result.Patch);
+            if (string.IsNullOrWhiteSpace(result.SkillOrder)) result.SkillOrder = ExtractSkillOrder(text);
 
-            result.CoreItems = ExtractAltSection(
+            var items = ExtractAltSection(
                 normalized,
                 new[] { "核心装备", "核心出装", "Builds Table", "Core builds", "Core Items" },
                 new[] { "广告", "增幅装置", "Augments", "召唤师技能", "Summoner" },
                 4);
-            result.Augments = ExtractAltSection(
+            if (items.Count > 0) result.CoreItems = items;
+
+            var augments = ExtractAltSection(
                 normalized,
                 new[] { " 增幅装置", "增幅装置", "强化符文", "Augments" },
                 new[] { "召唤师技能", "Summoner", "技能加点", "Skills" },
                 8);
+            if (augments.Count > 0) result.Augments = augments;
         }
 
         private static void ParseRankingChampion(string html, MayhemChampionResult result)
@@ -214,23 +395,26 @@ namespace FACM.Mayhem
                 Match(text, "Patch\\s*:\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
                 Match(text, "patch\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),
                 result.RankingPatch);
-            result.Tier = First(
-                Match(text, "\\b(?<v>S\\+|S|A|B|C|D|F)\\s+Tier\\s+ARAM", false),
-                result.Tier);
-            result.WinRate = FirstRate(
-                Match(text, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*WR", false),
-                Match(text, "win rate\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
-                result.WinRate);
+            if (string.IsNullOrWhiteSpace(result.Tier))
+                result.Tier = Match(text, "\\b(?<v>S\\+|S|A|B|C|D|F)\\s+Tier\\s+ARAM", false);
+            if (!result.WinRate.HasValue)
+                result.WinRate = FirstRate(
+                    Match(text, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*WR", false),
+                    Match(text, "win rate\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
+                    result.WinRate);
             result.PickRate = FirstRate(
                 Match(text, "(?<v>\\d{1,2}(?:\\.\\d+)?)%\\s*PR", false),
                 Match(text, "pick rate\\s*(?<v>\\d{1,2}(?:\\.\\d+)?)%", false),
                 result.PickRate);
 
-            int rank;
-            var rankText = Match(text, "Rank\\s*:\\s*(?<v>\\d{1,3})", false);
-            if (int.TryParse(rankText, NumberStyles.Integer, CultureInfo.InvariantCulture, out rank)) result.Rank = rank;
+            if (!result.Rank.HasValue)
+            {
+                int rank;
+                var rankText = Match(text, "Rank\\s*:\\s*(?<v>\\d{1,3})", false);
+                if (int.TryParse(rankText, NumberStyles.Integer, CultureInfo.InvariantCulture, out rank)) result.Rank = rank;
+            }
 
-            result.BalanceSummary = First(ParseBalanceAdjustments(text), result.BalanceSummary);
+            result.BalanceSummary = ParseBalanceAdjustments(text);
             if (result.Augments.Count == 0) result.Augments = ParseRankingAugments(text, 8);
         }
 
@@ -241,7 +425,7 @@ namespace FACM.Mayhem
             var text = CleanText(NormalizeEscapedHtml(html));
             var marker = text.IndexOf("TOP 10 Highest Win Rate Champions", StringComparison.OrdinalIgnoreCase);
             if (marker < 0) marker = text.IndexOf("TOP 10", StringComparison.OrdinalIgnoreCase);
-            var section = marker < 0 ? text : text.Substring(marker, Math.Min(1800, text.Length - marker));
+            var section = marker < 0 ? text : text.Substring(marker, Math.Min(2200, text.Length - marker));
 
             foreach (Match match in Regex.Matches(
                 section,
@@ -262,11 +446,10 @@ namespace FACM.Mayhem
                     Tier = rank <= 7 ? "S+" : "S"
                 });
             }
-
             return output.OrderBy(item => item.Rank).Take(10).ToList();
         }
 
-        private static string ResolveSlug(string html, string query)
+        private static string ResolveSlugFromOpgg(string html, string query)
         {
             var target = ChampionAliases.Normalize(query);
             var normalized = NormalizeEscapedHtml(html ?? string.Empty);
@@ -351,30 +534,48 @@ namespace FACM.Mayhem
         private static string ParseBalanceAdjustments(string text)
         {
             var values = new List<string>();
-            foreach (Match match in Regex.Matches(text ?? string.Empty, "(?<dir>[↑↓])(?<name>[A-Za-z ]{3,28})(?<v>[+-]\\d+(?:\\.\\d+)?%)"))
+            var pattern = "(?<name>Damage\\s+Dealt|Damage\\s+Taken|Attack\\s+Speed|Ability\\s+Haste|Cooldown\\s+Reduction|Healing|Shielding|Tenacity|Minion\\s+Damage)\\s*(?<v>[+-]?\\d+(?:\\.\\d+)?%?)";
+            foreach (Match match in Regex.Matches(text ?? string.Empty, pattern, RegexOptions.IgnoreCase))
             {
-                var name = match.Groups["name"].Value.Trim();
-                var translated = TranslateBalanceName(name);
+                var translated = TranslateBalanceName(match.Groups["name"].Value);
                 var item = translated + " " + match.Groups["v"].Value;
-                if (!values.Contains(item)) values.Add(item);
-                if (values.Count >= 8) break;
+                if (!values.Any(value => string.Equals(value, item, StringComparison.OrdinalIgnoreCase))) values.Add(item);
+                if (values.Count >= 10) break;
             }
             return values.Count == 0 ? null : string.Join("  ·  ", values);
         }
 
         private static string TranslateBalanceName(string value)
         {
-            switch ((value ?? string.Empty).Trim().ToLowerInvariant())
+            switch (Regex.Replace((value ?? string.Empty).Trim().ToLowerInvariant(), "\\s+", " "))
             {
                 case "attack speed": return "攻击速度";
                 case "damage dealt": return "造成伤害";
                 case "damage taken": return "承受伤害";
+                case "ability haste":
                 case "cooldown reduction": return "技能急速";
                 case "healing": return "治疗";
                 case "shielding": return "护盾";
                 case "tenacity": return "韧性";
+                case "minion damage": return "对小兵伤害";
                 default: return value.Trim();
             }
+        }
+
+        private static string ExtractPreferredChampionName(string value)
+        {
+            var text = (value ?? string.Empty).Trim();
+            var match = Regex.Match(text, "[（(](?<v>[^）)]+)[）)]");
+            return match.Success ? match.Groups["v"].Value.Trim() : text;
+        }
+
+        private static string InferTier(int rank)
+        {
+            if (rank <= 10) return "S+";
+            if (rank <= 30) return "S";
+            if (rank <= 60) return "A";
+            if (rank <= 100) return "B";
+            return "C";
         }
 
         private static string NormalizeEscapedHtml(string value)
