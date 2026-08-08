@@ -32,6 +32,7 @@ namespace FACM.Online
         private OnlineSnapshot _snapshot;
         private CancellationTokenSource _cancellation;
         private bool _updateStarted;
+        private bool _closing;
 
         public OnlineCenterForm(MainForm owner, AppSettings settings, OnlineSnapshot snapshot, bool forceMode)
         {
@@ -152,8 +153,16 @@ namespace FACM.Online
             _closeButton.Click += delegate
             {
                 if (_updateStarted) return;
-                if (_forceMode) _owner.ExitApplication();
-                else Close();
+                if (_forceMode)
+                {
+                    _closing = true;
+                    Close();
+                    _owner.ExitApplication();
+                }
+                else
+                {
+                    Close();
+                }
             };
 
             Controls.Add(header);
@@ -188,17 +197,24 @@ namespace FACM.Online
 
         private async Task RefreshAsync()
         {
+            if (IsDisposed || Disposing || _closing) return;
             SetBusy(true, "正在检查更新...");
             try
             {
                 if (_cancellation != null) _cancellation.Dispose();
                 _cancellation = new CancellationTokenSource();
-                _snapshot = await OnlineService.FetchSnapshotAsync(_cancellation.Token);
+                var snapshot = await OnlineService.FetchSnapshotAsync(_cancellation.Token);
+                if (IsDisposed || Disposing || _closing) return;
+                _snapshot = snapshot;
                 ApplySnapshot();
+            }
+            catch (OperationCanceledException)
+            {
+                // Closing the dialog cancels an in-flight refresh. No UI update is required afterwards.
             }
             finally
             {
-                SetBusy(false, null);
+                if (!IsDisposed && !Disposing && !_closing) SetBusy(false, null);
             }
         }
 
@@ -216,29 +232,41 @@ namespace FACM.Online
                 _cancellation = new CancellationTokenSource();
                 var progress = new Progress<int>(value =>
                 {
+                    if (IsDisposed || Disposing || _closing) return;
                     _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value));
                     _updateStatus.Text = "正在下载更新：" + value + "%";
                 });
                 var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
+                if (IsDisposed || Disposing || _closing) return;
                 _updateStatus.Text = "下载完成，正在安装...";
                 UpdateInstaller.StartReplacement(downloaded);
+
+                // From this point the replacement script is waiting for FACM to exit. Close the modal
+                // update dialog first so its FormClosing guard cannot keep the process alive.
+                _updateStarted = false;
+                _closing = true;
+                Close();
                 _owner.ExitApplication();
             }
             catch (OperationCanceledException)
             {
                 _updateStarted = false;
-                _updateStatus.Text = "更新已取消。";
+                if (!IsDisposed && !Disposing && !_closing)
+                    _updateStatus.Text = "更新已取消。";
             }
             catch (Exception exception)
             {
                 _updateStarted = false;
                 AppLog.Error("Update installation failed", exception);
-                MessageBox.Show(this, "更新失败，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                ApplySnapshot();
+                if (!IsDisposed && !Disposing && !_closing)
+                {
+                    MessageBox.Show(this, "更新失败，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ApplySnapshot();
+                }
             }
             finally
             {
-                if (!_updateStarted)
+                if (!_updateStarted && !IsDisposed && !Disposing && !_closing)
                 {
                     _progress.Visible = false;
                     SetBusy(false, null);
@@ -248,6 +276,7 @@ namespace FACM.Online
 
         private void ApplySnapshot()
         {
+            if (IsDisposed || Disposing) return;
             var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
             var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
@@ -292,6 +321,7 @@ namespace FACM.Online
 
         private void SetBusy(bool busy, string status)
         {
+            if (IsDisposed || Disposing) return;
             _refreshButton.Enabled = !busy;
             _updateButton.Enabled = !busy && _snapshot != null && _snapshot.UpdateAvailable;
             _autoUpdate.Enabled = !busy;
@@ -309,16 +339,18 @@ namespace FACM.Online
 
         private void HandleFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_updateStarted)
+            if (_updateStarted && !_closing)
             {
                 e.Cancel = true;
                 return;
             }
 
-            if (_forceMode && e.CloseReason == CloseReason.UserClosing)
+            try { if (_cancellation != null) _cancellation.Cancel(); } catch { }
+
+            if (_forceMode && e.CloseReason == CloseReason.UserClosing && !_closing)
             {
-                e.Cancel = true;
-                _owner.ExitApplication();
+                _closing = true;
+                BeginInvoke(new Action(_owner.ExitApplication));
             }
         }
 
@@ -371,7 +403,11 @@ namespace FACM.Online
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && _cancellation != null) _cancellation.Dispose();
+            if (disposing && _cancellation != null)
+            {
+                try { _cancellation.Cancel(); } catch { }
+                _cancellation.Dispose();
+            }
             base.Dispose(disposing);
         }
     }
