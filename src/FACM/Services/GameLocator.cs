@@ -71,6 +71,11 @@ namespace FACM.Services
             return ResolveGameRootCore(selectedOrCandidatePath, cancellationToken, null, budget);
         }
 
+        internal static string NormalizeDirectoryForTest(string path)
+        {
+            return NormalizeDirectory(path);
+        }
+
         public static bool IsValidGameRoot(string path)
         {
             if (string.IsNullOrWhiteSpace(path) || !CleanupProfile.IsConfigured) return false;
@@ -279,11 +284,12 @@ namespace FACM.Services
             if (string.IsNullOrEmpty(start)) return null;
 
             var queue = new Queue<Tuple<string, int>>();
+            budget.VisitDirectory(cancellationToken, progress);
             queue.Enqueue(Tuple.Create(start, 0));
 
             while (queue.Count > 0)
             {
-                budget.VisitDirectory(cancellationToken, progress);
+                budget.Check(cancellationToken);
                 var current = queue.Dequeue();
                 if (string.IsNullOrEmpty(current.Item1)) continue;
 
@@ -304,7 +310,16 @@ namespace FACM.Services
                         {
                             if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) continue;
                             if (IsProtectedRoot(child)) continue;
+                            budget.VisitDirectory(cancellationToken, progress);
                             queue.Enqueue(Tuple.Create(child, current.Item2 + 1));
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (GameLocationSearchLimitException)
+                        {
+                            throw;
                         }
                         catch
                         {
@@ -332,7 +347,21 @@ namespace FACM.Services
         private static string NormalizeDirectory(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
-            return Path.GetFullPath(path.Trim().Trim('"')).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            var full = Path.GetFullPath(path.Trim().Trim('"'));
+            var root = Path.GetPathRoot(full);
+            var trimmedFull = full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var trimmedRoot = string.IsNullOrEmpty(root)
+                ? null
+                : root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // Keep the trailing separator on a drive/UNC root. On Windows, "C:" means the current
+            // directory on drive C, while "C:\\" is the actual root directory.
+            if (!string.IsNullOrEmpty(root) &&
+                string.Equals(trimmedFull, trimmedRoot, StringComparison.OrdinalIgnoreCase))
+                return root;
+
+            return trimmedFull;
         }
 
         private static bool IsProtectedRoot(string path)
@@ -341,7 +370,12 @@ namespace FACM.Services
             if (string.IsNullOrEmpty(full)) return true;
 
             var root = Path.GetPathRoot(full);
-            if (string.Equals(full, root == null ? null : root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)) return true;
+            if (!string.IsNullOrEmpty(root) &&
+                string.Equals(
+                    full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
+                return true;
 
             var protectedPaths = new[]
             {
