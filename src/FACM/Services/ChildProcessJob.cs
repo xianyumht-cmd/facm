@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -7,7 +6,7 @@ namespace FACM.Services
 {
     internal static class ChildProcessJob
     {
-        private const uint JobObjectExtendedLimitInformation = 9;
+        private const uint JobObjectExtendedLimitInformationClass = 9;
         private const uint JobObjectLimitKillOnJobClose = 0x00002000;
         private static readonly object Sync = new object();
         private static IntPtr _job;
@@ -60,7 +59,7 @@ namespace FACM.Services
                 try
                 {
                     Marshal.StructureToPtr(info, pointer, false);
-                    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, pointer, (uint)length))
+                    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformationClass, pointer, (uint)length))
                     {
                         var error = Marshal.GetLastWin32Error();
                         CloseHandle(job);
