@@ -1,12 +1,12 @@
 # FACM 3.1
 
-FACM 3.1 是 Windows 桌面悬浮控制中心，包含开发者配置的清理流程、经过完整性校验的内置工具资源、联网版本更新和公告管理。
+FACM 3.1 是 Windows 桌面悬浮控制中心，包含开发者配置的清理流程、经过完整性校验的内置工具资源、VPet Core 桌宠、联网版本更新和公告管理。
 
 ## 界面与运行
 
 - 68×68 桌面悬浮入口，支持拖动、边缘吸附和托盘恢复。
 - 深色控制中心，包含工作目录、清理预览、内置工具和操作日志。
-- 悬浮球右键菜单提供完整工具入口、在线中心、检查更新和退出。
+- 悬浮球右键菜单提供完整工具入口、桌面宠物、海斗排行榜、在线中心、检查更新和退出。
 - 普通模式与管理员模式分离，只在需要时请求管理员权限。
 
 ## 清理配置
@@ -45,6 +45,23 @@ FACM.ToolBundle.dll
 tools/EXTRACTED-TOOLS.json
 ```
 
+## VPet PetHost
+
+高精度桌宠运行在独立的 .NET 8 x64 WPF 进程 `FACM.PetHost.exe` 中，但正式发布不要求用户额外下载 `PetHost/` 目录。
+
+构建流程会先 publish 并 self-test PetHost，再把完整 publish 目录压缩为 `FACM.Resources.PetHost.zip` 嵌入 `FACM.exe`。第一次启用 VPet Core 时，FACM 会把与当前构建匹配的 PetHost 安全释放到：
+
+```text
+runtime\pethost-host\<FACM-MVID>\
+```
+
+因此正式下载包和旧版在线更新仍只需要一个 `FACM.exe`，升级后也不会缺少匹配版本的 PetHost。详细设计见：
+
+```text
+docs/VPET-PETHOST.md
+docs/PORTABLE-LAYOUT.md
+```
+
 ## 在线版本更新
 
 程序读取：
@@ -68,7 +85,16 @@ online/version.json
 Actions → FACM Publish Release → Run workflow
 ```
 
-发布工作流会编译、签名、创建 GitHub Release、上传 `FACM.exe`，并自动更新在线版本清单。
+发布工作流会：
+
+1. publish/self-test PetHost 并嵌入 FACM；
+2. 编译并签名 `FACM.exe`；
+3. 先创建不可见的 draft Release；
+4. 先把版本元数据以 `enabled=false` 安全提交到 `main`；
+5. 再公开 GitHub Release；
+6. 最后启用在线版本清单。
+
+发布或最终清单更新中途失败时，客户端不会收到半发布更新。
 
 ## 联网公告
 
@@ -84,7 +110,7 @@ online/announcement.json
 Actions → FACM Online Management → Run workflow
 ```
 
-可修改公告开关、标题、正文、级别、是否启动时弹出和可选 HTTPS 链接。完整操作说明见：
+发布流程与公告管理共享同一个 `main` 写入串行锁，避免两个 Actions 同时直接推送 `main`。完整操作说明见：
 
 ```text
 docs/ONLINE-MANAGEMENT.md
@@ -95,12 +121,14 @@ docs/ONLINE-MANAGEMENT.md
 源码提交到 `main` 后，GitHub Actions 会自动：
 
 1. 校验 `tools/` 输入文件大小和 SHA-256。
-2. 编译 `FACM.ToolBundle.dll` 并嵌入 `FACM.exe`。
-3. 检查清理配置状态。
-4. 使用 Windows Runner 和 .NET Framework 4.8 编译 Release。
-5. 检查 PE、版本信息和工具 DLL 资源。
-6. 在配置证书 Secrets 时执行 Authenticode 签名。
-7. 生成 EXE、ZIP、SHA-256、签名状态和构建信息。
+2. 校验真实 `CleanupProfile.cs` 路径和配置状态。
+3. publish 并 self-test win-x64 self-contained PetHost。
+4. 把完整 PetHost bundle 嵌入 `FACM.exe`。
+5. 使用 Windows Runner 和 .NET Framework 4.8 编译 Release。
+6. 由构建后的 FACM 自己释放内嵌 PetHost，并再次启动 PetHost self-test。
+7. 检查 PE、版本信息、ToolBundle 和 PetHost 资源。
+8. 在配置证书 Secrets 时执行 Authenticode 签名。
+9. 生成单 EXE 下载包、SHA-256、签名状态和构建信息。
 
 手动构建：
 
@@ -116,11 +144,13 @@ FACM-Windows-x64-运行编号
 
 ## 本地构建
 
-系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022，以及 .NET Framework 4.8 targeting pack。
+系统要求：Windows 10/11、Visual Studio 2022 Build Tools 或 Visual Studio 2022、.NET Framework 4.8 targeting pack，以及 .NET 8 SDK。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 ```
+
+本地脚本与 CI 使用相同顺序：PetHost publish/self-test → 压缩 bundle → FACM 内嵌 → FACM smoke tests → 打包。
 
 ## 代码签名
 
@@ -145,4 +175,4 @@ docs/SIGNING.md
 - `SIGNATURE.txt`
 - `BUILD-INFO.json`
 
-构建产物默认保留 90 天。
+正式下载包不再要求外置 PetHost sidecar；`FACM.exe` 自身包含匹配的 PetHost bundle。构建产物默认保留 90 天。
