@@ -270,6 +270,9 @@ namespace FACM.Pets
             var packaged = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PetHost", "FACM.PetHost.exe");
             if (File.Exists(packaged)) return packaged;
 
+            var embedded = PetHostBundleLoader.TryEnsureExtracted();
+            if (!string.IsNullOrWhiteSpace(embedded) && File.Exists(embedded)) return embedded;
+
             try
             {
                 var development = Path.GetFullPath(Path.Combine(
