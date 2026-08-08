@@ -39,11 +39,12 @@ FACM\
 
 第一次需要 VPet Core 时：
 
-1. 如果应用目录存在历史/开发用的 `PetHost\FACM.PetHost.exe`，FACM 仍可直接使用它；
-2. 否则 FACM 从自身内嵌资源释放完整 PetHost 到 `runtime\pethost-host\<FACM-MVID>`；
-3. `<FACM-MVID>` 绑定当前 `FACM.exe` 的精确构建内容，因此新版本不会误复用旧版本 PetHost；
-4. 释放使用私有 staging 目录并校验目标路径，完成后才切换为正式目录，避免半解压状态被当成可运行宿主；
-5. CI 会让构建后的 FACM 自己执行一次内嵌释放，并运行释放后的 `FACM.PetHost.exe --self-test`。
+1. 正式 FACM 优先从自身内嵌资源释放完整 PetHost 到 `runtime\pethost-host\<FACM-MVID>`；
+2. `<FACM-MVID>` 绑定当前 `FACM.exe` 的精确构建内容，因此新版本不会误复用旧版本 PetHost；
+3. 即使升级目录里残留旧 `PetHost\FACM.PetHost.exe`，只要当前 FACM 包含正式内嵌资源，就不会优先启动这个旧 sidecar；
+4. 只有不含内嵌资源的旧包/开发构建才继续把应用目录 `PetHost\FACM.PetHost.exe` 作为兼容回退；
+5. 释放使用私有 staging 目录并校验目标路径，完成后才切换为正式目录，避免半解压状态被当成可运行宿主；
+6. CI 会让构建后的 FACM 自己执行一次内嵌释放，并运行释放后的 `FACM.PetHost.exe --self-test`。
 
 这套设计保留了原来的“在线更新只下载并替换一个 `FACM.exe`”协议，同时保证从旧版本在线升级后也能得到与新 FACM 匹配的 PetHost。
 
@@ -76,7 +77,7 @@ FACM\
 
 旧 Desktop Homunculus 是已经退出正式路线的外部桌宠程序。FACM 仍保留历史安装位置探测兼容代码，因此可能读取 Program Files / LocalAppData Programs 中的历史安装信息，但当前 VPet PetHost 不依赖它，也不会把新的 VPet 数据写入这些目录。
 
-应用目录下外置的 `PetHost\FACM.PetHost.exe` 只作为旧包兼容和开发调试入口保留，不是正式发布包的必需文件。
+应用目录下外置的 `PetHost\FACM.PetHost.exe` 只作为旧包兼容和开发调试入口保留，不是正式发布包的必需文件；正式内嵌 PetHost 存在时，它也不会覆盖当前构建匹配的内嵌宿主。
 
 ## 部署要求
 
