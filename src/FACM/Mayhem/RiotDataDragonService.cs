@@ -186,7 +186,7 @@ namespace FACM.Mayhem
             using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
             {
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
             }
         }
 
