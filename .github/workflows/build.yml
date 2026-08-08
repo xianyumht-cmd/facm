@@ -73,9 +73,10 @@ jobs:
       - name: Report cleanup configuration state
         shell: pwsh
         run: |
-          $profile = Get-Content 'src/FACM/Services/CleanupProfile.cs' -Raw -ErrorAction SilentlyContinue
+          $profilePath = 'src/FACM/Configuration/CleanupProfile.cs'
+          $profile = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
           if (-not $profile) {
-            Write-Warning 'CleanupProfile.cs not found. Cleanup validation skipped.'
+            throw "CleanupProfile.cs not found at expected path: $profilePath"
           }
           elseif ($profile -match 'REPLACE_[A-Z0-9_]+') {
             Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. FACM will build, but cleanup stays disabled until the developer fills them in.'
