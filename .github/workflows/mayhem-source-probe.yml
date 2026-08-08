@@ -11,12 +11,19 @@ on:
       - 'src/FACM/Mayhem/**'
       - 'src/FACM/Program.cs'
       - '.github/workflows/mayhem-source-probe.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/FACM/Mayhem/**'
+      - 'src/FACM/Program.cs'
+      - '.github/workflows/mayhem-source-probe.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: facm-mayhem-source-probe-${{ github.ref }}
+  group: facm-mayhem-source-probe-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -28,6 +35,7 @@ jobs:
     name: Probe OP.GG + ARAMMayhem + Riot assets
     runs-on: windows-latest
     timeout-minutes: 12
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
 
     steps:
       - name: Checkout source
