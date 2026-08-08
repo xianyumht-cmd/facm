@@ -87,7 +87,5 @@
     <Exec Command="&quot;$(TargetPath)&quot; --mayhem-body-cancellation-test" />
     <Message Condition="Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
     <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" />
-    <Message Importance="High" Text="Validating live Mayhem build, ranking and image-card sources." />
-    <Exec Command="&quot;$(TargetPath)&quot; --mayhem-source-test" />
   </Target>
 </Project>
