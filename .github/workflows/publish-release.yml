@@ -32,17 +32,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: facm-publish-release
+  group: facm-main-writer
   cancel-in-progress: false
 
 env:
   SOLUTION: FACM.sln
   OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  PETHOST_PROJECT: src\FACM.PetHost\FACM.PetHost.csproj
+  PETHOST_PUBLISH: out\PetHostPublish
+  PETHOST_BUNDLE: out\PetHostBundle.zip
 
 jobs:
   publish:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       MINIMUM_VERSION: ${{ inputs.minimum_version }}
@@ -61,7 +64,7 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Validate release inputs
+      - name: Validate release inputs and capture base
         shell: pwsh
         run: |
           if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') {
@@ -78,6 +81,9 @@ jobs:
             throw "Release v$($env:RELEASE_VERSION) already exists."
           }
           $global:LASTEXITCODE = 0
+          $baseSha = (git rev-parse HEAD).Trim()
+          "FACM_RELEASE_BASE_SHA=$baseSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Release base main SHA: $baseSha"
 
       - name: Apply release version
         shell: pwsh
@@ -107,10 +113,49 @@ jobs:
             }
           }
 
-      - name: Build Release
+      - name: Publish, self-test and bundle VPet PetHost
         shell: pwsh
         run: |
-          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          $publish = Join-Path $PWD $env:PETHOST_PUBLISH
+          $bundle = Join-Path $PWD $env:PETHOST_BUNDLE
+          if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
+          if (Test-Path $bundle) { Remove-Item $bundle -Force }
+
+          dotnet publish $env:PETHOST_PROJECT `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=false `
+            -p:PublishReadyToRun=false `
+            -p:DebugType=None `
+            -o $publish
+          if ($LASTEXITCODE -ne 0) {
+            throw "PetHost publish failed with exit code $LASTEXITCODE"
+          }
+
+          $hostExe = Join-Path $publish 'FACM.PetHost.exe'
+          if (-not (Test-Path $hostExe -PathType Leaf)) {
+            throw "PetHost executable not found: $hostExe"
+          }
+          $selfTestRoot = Join-Path $env:RUNNER_TEMP 'FACM-PetHost-Release-SelfTest'
+          if (Test-Path $selfTestRoot) { Remove-Item $selfTestRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $selfTestRoot -Force | Out-Null
+          $selfTest = Start-Process -FilePath $hostExe -ArgumentList "--self-test --data-root `"$selfTestRoot`"" -Wait -PassThru
+          if ($selfTest.ExitCode -ne 0) {
+            throw "PetHost self-test failed with exit code $($selfTest.ExitCode)"
+          }
+
+          Compress-Archive -Path "$publish\*" -DestinationPath $bundle -CompressionLevel Optimal -Force
+          if (-not (Test-Path $bundle -PathType Leaf)) {
+            throw "PetHost bundle was not created: $bundle"
+          }
+          Write-Host "PetHost bundle SHA256: $((Get-FileHash $bundle -Algorithm SHA256).Hash)"
+
+      - name: Build Release with embedded PetHost
+        shell: pwsh
+        run: |
+          $bundle = (Resolve-Path $env:PETHOST_BUNDLE).Path
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:RequirePetHostBundle=true /p:PetHostBundlePath="$bundle" /v:minimal
           if ($LASTEXITCODE -ne 0) {
             throw "MSBuild failed with exit code $LASTEXITCODE"
           }
@@ -118,7 +163,7 @@ jobs:
             throw "Build output not found: $env:OUTPUT_EXE"
           }
 
-      - name: Verify embedded tool bundle
+      - name: Verify embedded bundles
         shell: pwsh
         run: |
           $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom((Resolve-Path $env:OUTPUT_EXE).Path)
@@ -126,7 +171,10 @@ jobs:
           if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
             throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
           }
-          Write-Host 'Verified embedded FACM.ToolBundle.dll resource.'
+          if ($resources -notcontains 'FACM.Resources.PetHost.zip') {
+            throw 'PetHost bundle was not embedded into FACM.exe.'
+          }
+          Write-Host 'Verified embedded tool bundle and PetHost bundle resources.'
 
       - name: Sign release executable
         shell: pwsh
@@ -142,8 +190,7 @@ jobs:
             -PfxBase64 $env:FACM_PFX_BASE64 `
             -PfxPassword $env:FACM_PFX_PASSWORD
 
-      - name: Prepare release and online manifest
-        id: prepare
+      - name: Prepare disabled online manifest
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
@@ -158,7 +205,7 @@ jobs:
           Set-Content $notesPath $env:RELEASE_NOTES -Encoding utf8
 
           $manifest = [ordered]@{
-            enabled = $true
+            enabled = $false
             version = $env:RELEASE_VERSION
             minimum_version = $env:MINIMUM_VERSION
             force_update = [bool]::Parse($env:FORCE_UPDATE)
@@ -167,19 +214,59 @@ jobs:
             release_notes = $env:RELEASE_NOTES
             published_at = [DateTimeOffset]::UtcNow.ToString('o')
           }
-          New-Item -ItemType Directory -Path online -Force | Out-Null
           $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
-          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "FACM_RELEASE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Create GitHub release
+      - name: Commit version metadata with updater disabled
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $remoteSha = (git rev-parse origin/main).Trim()
+          if ($remoteSha -ne $env:FACM_RELEASE_BASE_SHA) {
+            throw "main moved during release build: expected $env:FACM_RELEASE_BASE_SHA, got $remoteSha. Nothing was published."
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
+          git commit -m "准备发布 FACM $env:RELEASE_VERSION"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to commit release metadata."
+          }
+          $metadataSha = (git rev-parse HEAD).Trim()
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to push release metadata. Nothing was published."
+          }
+          "FACM_RELEASE_METADATA_SHA=$metadataSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create draft GitHub release from committed source
         shell: pwsh
         run: |
           $arguments = @(
             'release', 'create', ("v" + $env:RELEASE_VERSION),
             'release/FACM.exe',
             '--repo', '${{ github.repository }}',
+            '--target', $env:FACM_RELEASE_METADATA_SHA,
             '--title', ("FACM " + $env:RELEASE_VERSION),
-            '--notes-file', 'release/RELEASE-NOTES.txt'
+            '--notes-file', 'release/RELEASE-NOTES.txt',
+            '--draft'
+          )
+          if ([bool]::Parse($env:PRERELEASE)) {
+            $arguments += '--prerelease'
+          }
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "gh release create --draft failed. online/version.json remains safely disabled."
+          }
+
+      - name: Publish GitHub release
+        shell: pwsh
+        run: |
+          $arguments = @(
+            'release', 'edit', ("v" + $env:RELEASE_VERSION),
+            '--repo', '${{ github.repository }}',
+            '--draft=false'
           )
           if ([bool]::Parse($env:PRERELEASE)) {
             $arguments += '--prerelease'
@@ -189,14 +276,32 @@ jobs:
           }
           & gh @arguments
           if ($LASTEXITCODE -ne 0) {
-            throw "gh release create failed with exit code $LASTEXITCODE"
+            gh release delete ("v" + $env:RELEASE_VERSION) --repo '${{ github.repository }}' --cleanup-tag --yes
+            throw "Publishing draft release failed. Draft/tag cleanup was attempted and online/version.json remains disabled."
           }
 
-      - name: Commit version metadata
+      - name: Enable online update manifest
         shell: pwsh
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
-          git commit -m "发布 FACM $env:RELEASE_VERSION"
-          git push origin main
+          git fetch origin main
+          git reset --hard origin/main
+          $manifest = Get-Content online/version.json -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$manifest.version -ne $env:RELEASE_VERSION) {
+            throw "online/version.json changed after release metadata commit; refusing to enable it."
+          }
+          if ([string]$manifest.sha256 -ne $env:FACM_RELEASE_SHA256) {
+            throw "online/version.json SHA changed after release metadata commit; refusing to enable it."
+          }
+          if ([bool]$manifest.enabled) {
+            throw "online/version.json was unexpectedly enabled before the release finalization step."
+          }
+
+          $manifest.enabled = $true
+          $manifest.published_at = [DateTimeOffset]::UtcNow.ToString('o')
+          $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
+          git add online/version.json
+          git commit -m "启用 FACM $env:RELEASE_VERSION 在线更新"
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Release is public but updater remains safely disabled because the final manifest push failed."
+          }

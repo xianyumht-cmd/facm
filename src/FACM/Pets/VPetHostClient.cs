@@ -267,6 +267,11 @@ namespace FACM.Pets
 
         private static string LocatePetHost()
         {
+            // A formal FACM build carries its exact PetHost payload. Prefer it over any sidecar left
+            // by an older installation so a single-EXE online upgrade cannot accidentally run a stale host.
+            var embedded = PetHostBundleLoader.TryEnsureExtracted();
+            if (!string.IsNullOrWhiteSpace(embedded) && File.Exists(embedded)) return embedded;
+
             var packaged = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PetHost", "FACM.PetHost.exe");
             if (File.Exists(packaged)) return packaged;
 

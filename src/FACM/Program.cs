@@ -21,18 +21,21 @@ namespace FACM
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
             var floatingBallTest = HasArgument(args, "--floating-ball-test");
             var petLocatorTest = HasArgument(args, "--pet-locator-test");
-            var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || floatingBallTest || petLocatorTest;
-            var instanceMutex = petCatalogTest
-                ? MutexName + "-PetCatalogTest"
-                : (animalPetTest
-                    ? MutexName + "-AnimalPetTest"
-                    : (mayhemSourceTest
-                        ? MutexName + "-MayhemSourceTest"
-                        : (floatingBallTest
-                            ? MutexName + "-FloatingBallTest"
-                            : (petLocatorTest
-                                ? MutexName + "-PetLocatorTest"
-                                : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName)))));
+            var embeddedPetHostTest = HasArgument(args, "--embedded-pethost-test");
+            var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || floatingBallTest || petLocatorTest || embeddedPetHostTest;
+            var instanceMutex = embeddedPetHostTest
+                ? MutexName + "-EmbeddedPetHostTest"
+                : (petCatalogTest
+                    ? MutexName + "-PetCatalogTest"
+                    : (animalPetTest
+                        ? MutexName + "-AnimalPetTest"
+                        : (mayhemSourceTest
+                            ? MutexName + "-MayhemSourceTest"
+                            : (floatingBallTest
+                                ? MutexName + "-FloatingBallTest"
+                                : (petLocatorTest
+                                    ? MutexName + "-PetLocatorTest"
+                                    : (startCleanup ? MutexName + "-ElevatedCleanup" : MutexName))))));
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -45,6 +48,11 @@ namespace FACM
                     return;
                 }
 
+                if (embeddedPetHostTest)
+                {
+                    Environment.ExitCode = EmbeddedPetHostSmokeTest.Run();
+                    return;
+                }
                 if (petCatalogTest)
                 {
                     Environment.ExitCode = RunPetCatalogTest();

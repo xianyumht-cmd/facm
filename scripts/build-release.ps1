@@ -10,6 +10,9 @@ $artifactDir = Join-Path $repoRoot "artifacts"
 $outputExe = Join-Path $repoRoot "src\FACM\bin\$Configuration\net48\FACM.exe"
 $packagePath = Join-Path $repoRoot "FACM-Windows-x64.zip"
 $toolManifestPath = Join-Path $repoRoot "tools\EXTRACTED-TOOLS.json"
+$petHostProject = Join-Path $repoRoot "src\FACM.PetHost\FACM.PetHost.csproj"
+$petHostPublish = Join-Path $repoRoot "out\PetHostPublish"
+$petHostBundle = Join-Path $repoRoot "out\PetHostBundle.zip"
 
 if (-not (Test-Path $toolManifestPath -PathType Leaf)) {
     throw "Tool manifest is missing: $toolManifestPath"
@@ -43,10 +46,40 @@ if (-not $msbuildPath) {
     if (-not $msbuildPath) { throw "MSBuild.exe was not found." }
 }
 
+if (-not (Get-Command dotnet.exe -ErrorAction SilentlyContinue)) {
+    throw ".NET SDK was not found. FACM release builds require .NET 8 to publish PetHost."
+}
+
 if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
 New-Item -ItemType Directory -Path $artifactDir | Out-Null
+if (Test-Path $petHostPublish) { Remove-Item $petHostPublish -Recurse -Force }
+if (Test-Path $petHostBundle) { Remove-Item $petHostBundle -Force }
 
-& $msbuildPath $solution /restore /t:Rebuild /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+& dotnet publish $petHostProject `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=false `
+    -p:PublishReadyToRun=false `
+    -p:DebugType=None `
+    -o $petHostPublish
+if ($LASTEXITCODE -ne 0) { throw "PetHost publish failed. Exit code: $LASTEXITCODE" }
+
+$petHostExe = Join-Path $petHostPublish "FACM.PetHost.exe"
+if (-not (Test-Path $petHostExe -PathType Leaf)) { throw "PetHost executable was not found: $petHostExe" }
+$selfTestRoot = Join-Path $env:TEMP "FACM-PetHost-Local-SelfTest"
+if (Test-Path $selfTestRoot) { Remove-Item $selfTestRoot -Recurse -Force }
+New-Item -ItemType Directory -Path $selfTestRoot -Force | Out-Null
+$selfTest = Start-Process -FilePath $petHostExe -ArgumentList "--self-test --data-root `"$selfTestRoot`"" -Wait -PassThru
+if ($selfTest.ExitCode -ne 0) { throw "PetHost self-test failed. Exit code: $($selfTest.ExitCode)" }
+
+Compress-Archive -Path "$petHostPublish\*" -DestinationPath $petHostBundle -CompressionLevel Optimal -Force
+if (-not (Test-Path $petHostBundle -PathType Leaf)) { throw "PetHost bundle was not created: $petHostBundle" }
+$petHostBundleHash = Get-FileHash $petHostBundle -Algorithm SHA256
+$petHostExeHash = Get-FileHash $petHostExe -Algorithm SHA256
+Write-Host "PetHost bundle verified: $($petHostBundleHash.Hash)"
+
+& $msbuildPath $solution /restore /t:Rebuild /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:RequirePetHostBundle=true /p:PetHostBundlePath="$petHostBundle" /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "Build failed. Exit code: $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "Build completed but output was not found: $outputExe" }
 
@@ -80,12 +113,19 @@ $resources | Sort-Object | ForEach-Object { Write-Host ("  - " + $_) }
 if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
     throw "FACM.ToolBundle.dll was not embedded in FACM.exe."
 }
-Write-Host "Embedded tool bundle verified."
+if ($resources -notcontains 'FACM.Resources.PetHost.zip') {
+    throw "PetHost bundle was not embedded in FACM.exe."
+}
+Write-Host "Embedded tool and PetHost bundles verified."
 
 $artifactExe = Join-Path $artifactDir "FACM.exe"
 Copy-Item $outputExe $artifactExe -Force
 $hash = Get-FileHash $artifactExe -Algorithm SHA256
-"$($hash.Hash) *FACM.exe" | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
+@(
+    "$($hash.Hash) *FACM.exe",
+    "$($petHostBundleHash.Hash) *embedded:FACM.Resources.PetHost.zip",
+    "$($petHostExeHash.Hash) *embedded:PetHost/FACM.PetHost.exe"
+) | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
 Get-AuthenticodeSignature $artifactExe |
     Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
     Out-File (Join-Path $artifactDir "SIGNATURE.txt") -Encoding utf8
@@ -97,6 +137,10 @@ $buildInfo = [ordered]@{
     sha256 = $hash.Hash
     signature_status = [string](Get-AuthenticodeSignature $artifactExe).Status
     tool_bundle = "embedded FACM.ToolBundle.dll"
+    pet_host = "embedded ZIP; self-contained .NET 8 x64"
+    pet_host_bundle_sha256 = $petHostBundleHash.Hash
+    pet_host_exe_sha256 = $petHostExeHash.Hash
+    pet_host_runtime = "auto-extracted under FACM/runtime/pethost-host/<FACM-MVID>"
     built_at_utc = [DateTime]::UtcNow.ToString("o")
 }
 $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir "BUILD-INFO.json") -Encoding utf8
@@ -109,6 +153,9 @@ if (Test-Path (Join-Path $repoRoot "docs\ONLINE-MANAGEMENT.md")) {
 }
 if (Test-Path (Join-Path $repoRoot "docs\PORTABLE-LAYOUT.md")) {
     Copy-Item (Join-Path $repoRoot "docs\PORTABLE-LAYOUT.md") (Join-Path $artifactDir "PORTABLE-LAYOUT.md") -Force
+}
+if (Test-Path (Join-Path $repoRoot "docs\VPET-PETHOST.md")) {
+    Copy-Item (Join-Path $repoRoot "docs\VPET-PETHOST.md") (Join-Path $artifactDir "VPET-PETHOST.md") -Force
 }
 
 if (Test-Path $packagePath) { Remove-Item $packagePath -Force }
