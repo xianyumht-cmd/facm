@@ -15,6 +15,8 @@ internal static class Program
         if (args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return PetHostSelfTest.Run();
 
+        VPetAssetCacheValidator.InvalidateBrokenCompletionMarkers();
+
         var pipeName = ReadArgument(args, "--pipe");
         var parentPidText = ReadArgument(args, "--parent-pid");
         _ = int.TryParse(parentPidText, out var parentPid);
