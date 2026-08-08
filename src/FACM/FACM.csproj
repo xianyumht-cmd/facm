@@ -81,6 +81,8 @@
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
     <Message Importance="High" Text="Validating FACM built-in roaming animal pets and reset behavior." />
     <Exec Command="&quot;$(TargetPath)&quot; --animal-pet-test" />
+    <Message Importance="High" Text="Validating game-locator search budget and cancellation." />
+    <Exec Command="&quot;$(TargetPath)&quot; --game-locator-test" />
     <Message Condition="Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
     <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" />
     <Message Importance="High" Text="Validating live Mayhem build, ranking and image-card sources." />
