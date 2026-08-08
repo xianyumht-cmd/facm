@@ -22,6 +22,7 @@ env:
   OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
   PETHOST_PROJECT: src\FACM.PetHost\FACM.PetHost.csproj
   PETHOST_PUBLISH: out\PetHostPublish
+  PETHOST_BUNDLE: out\PetHostBundle.zip
   PACKAGE_NAME: FACM-Windows-x64
 
 jobs:
@@ -85,23 +86,16 @@ jobs:
             Write-Host 'CleanupProfile.cs contains no REPLACE_ placeholders.'
           }
 
-      - name: Restore and build Release
-        shell: pwsh
-        run: |
-          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
-          if ($LASTEXITCODE -ne 0) {
-            throw "MSBuild failed with exit code $LASTEXITCODE"
-          }
-          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
-            throw "Build output not found: $env:OUTPUT_EXE"
-          }
-
-      - name: Publish and self-test VPet PetHost
+      - name: Publish, self-test and bundle VPet PetHost
         shell: pwsh
         run: |
           $publish = Join-Path $PWD $env:PETHOST_PUBLISH
+          $bundle = Join-Path $PWD $env:PETHOST_BUNDLE
           if (Test-Path $publish) {
             Remove-Item $publish -Recurse -Force
+          }
+          if (Test-Path $bundle) {
+            Remove-Item $bundle -Force
           }
 
           dotnet publish $env:PETHOST_PROJECT `
@@ -135,7 +129,25 @@ jobs:
             }
             throw "PetHost self-test failed with exit code $($selfTest.ExitCode)"
           }
-          Write-Host "PetHost self-test passed: $hostExe; data-root=$selfTestRoot"
+
+          Compress-Archive -Path "$publish\*" -DestinationPath $bundle -CompressionLevel Optimal -Force
+          if (-not (Test-Path $bundle -PathType Leaf)) {
+            throw "PetHost bundle was not created: $bundle"
+          }
+          $bundleHash = (Get-FileHash $bundle -Algorithm SHA256).Hash
+          Write-Host "PetHost self-test passed and bundle created: $bundle; SHA256=$bundleHash"
+
+      - name: Restore and build Release
+        shell: pwsh
+        run: |
+          $bundle = (Resolve-Path $env:PETHOST_BUNDLE).Path
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:RequirePetHostBundle=true /p:PetHostBundlePath="$bundle" /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
+            throw "Build output not found: $env:OUTPUT_EXE"
+          }
 
       - name: Verify FACM.exe
         id: verify
@@ -179,11 +191,14 @@ jobs:
           if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
             throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
           }
+          if ($resources -notcontains 'FACM.Resources.PetHost.zip') {
+            throw 'PetHost bundle was not embedded into FACM.exe.'
+          }
 
           "file_version=$($version.FileVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "product_version=$($version.ProductVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Built FACM.exe version $($version.FileVersion), size $($bytes.Length) bytes"
-          Write-Host 'Verified embedded FACM.ToolBundle.dll resource.'
+          Write-Host 'Verified embedded FACM.ToolBundle.dll and PetHost.zip resources.'
 
       - name: Sign when certificate secrets exist
         shell: pwsh
@@ -224,18 +239,22 @@ jobs:
           $output = Join-Path $artifactDir 'FACM.exe'
           Copy-Item $env:OUTPUT_EXE $output -Force
 
-          $petHostOutput = Join-Path $artifactDir 'PetHost'
-          Copy-Item (Join-Path $PWD $env:PETHOST_PUBLISH) $petHostOutput -Recurse -Force
-          $petHostExe = Join-Path $petHostOutput 'FACM.PetHost.exe'
+          $petHostExe = Join-Path (Join-Path $PWD $env:PETHOST_PUBLISH) 'FACM.PetHost.exe'
+          $bundle = Join-Path $PWD $env:PETHOST_BUNDLE
           if (-not (Test-Path $petHostExe -PathType Leaf)) {
-            throw "Packaged PetHost executable not found: $petHostExe"
+            throw "Published PetHost executable not found: $petHostExe"
+          }
+          if (-not (Test-Path $bundle -PathType Leaf)) {
+            throw "PetHost bundle not found: $bundle"
           }
 
           $hash = Get-FileHash $output -Algorithm SHA256
           $petHostHash = Get-FileHash $petHostExe -Algorithm SHA256
+          $bundleHash = Get-FileHash $bundle -Algorithm SHA256
           @(
             "$($hash.Hash) *FACM.exe",
-            "$($petHostHash.Hash) *PetHost/FACM.PetHost.exe"
+            "$($bundleHash.Hash) *embedded:FACM.Resources.PetHost.zip",
+            "$($petHostHash.Hash) *embedded:PetHost/FACM.PetHost.exe"
           ) | Set-Content (Join-Path $artifactDir 'SHA256.txt') -Encoding ascii
 
           $signature = Get-AuthenticodeSignature $output
@@ -249,8 +268,10 @@ jobs:
             sha256 = $hash.Hash
             signature_status = [string]$signature.Status
             tool_bundle = 'embedded FACM.ToolBundle.dll'
-            pet_host = 'self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
-            pet_host_sha256 = $petHostHash.Hash
+            pet_host = 'embedded ZIP; self-contained .NET 8 x64 + VPet-Simulator.Core 1.1.0.66'
+            pet_host_bundle_sha256 = $bundleHash.Hash
+            pet_host_exe_sha256 = $petHostHash.Hash
+            pet_host_runtime = 'auto-extracted under FACM/runtime/pethost-host/<FACM-MVID>'
             pet_host_data = 'portable: FACM/runtime/pethost'
             vpet_assets = 'downloaded on first use; Core-1.1.0.66-era upstream commit ac77ba144ed39f61624d93542c008b38be4d85aa'
             built_at_utc = [DateTime]::UtcNow.ToString('o')
@@ -285,7 +306,6 @@ jobs:
           path: |
             FACM-Windows-x64.zip
             artifacts/FACM.exe
-            artifacts/PetHost/FACM.PetHost.exe
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
             artifacts/BUILD-INFO.json
