@@ -1,0 +1,80 @@
+name: FACM Machine Cat 3D Prototype
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "prototypes/FACM.MachineCat3DPrototype/**"
+      - ".github/workflows/machine-cat-3d-prototype.yml"
+  pull_request:
+    paths:
+      - "prototypes/FACM.MachineCat3DPrototype/**"
+      - ".github/workflows/machine-cat-3d-prototype.yml"
+
+concurrency:
+  group: machine-cat-3d-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate1-3d:
+    name: Build and self-test 3D Gate 1
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build .\prototypes\FACM.MachineCat3DPrototype\FACM.MachineCat3DPrototype.csproj -c Release --nologo
+
+      - name: Run GLB parser and rigid-rig self-test
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path .\prototypes\FACM.MachineCat3DPrototype\bin\Release\net8.0-windows\FACM.MachineCat3DPrototype.exe).Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) { throw "3D Gate 1 self-test failed: $($process.ExitCode)" }
+
+      - name: Launch real WPF Viewport3D smoke
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path .\prototypes\FACM.MachineCat3DPrototype\bin\Release\net8.0-windows\FACM.MachineCat3DPrototype.exe).Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--window-smoke-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "3D Gate 1 window smoke failed: $($process.ExitCode)" }
+
+      - name: Publish self-contained win-x64 prototype
+        shell: pwsh
+        run: |
+          dotnet publish .\prototypes\FACM.MachineCat3DPrototype\FACM.MachineCat3DPrototype.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o .\artifacts\machine-cat-3d-gate1 --nologo
+          @'
+          FACM Machine Cat 3D Gate 1
+
+          This package intentionally does NOT contain any third-party Doraemon model.
+          Put your legally obtained 664230004_doraemon_model.glb beside the EXE,
+          or drag the GLB file onto FACM.MachineCat3DPrototype.exe.
+
+          Keys: 1 Idle / 2 Walk / 3 Run / 4 Turn / D debug / Esc exit.
+          '@ | Set-Content .\artifacts\machine-cat-3d-gate1\HOW-TO-RUN.txt -Encoding UTF8
+
+      - name: Assert no third-party model is packaged
+        shell: pwsh
+        run: |
+          $forbidden = Get-ChildItem .\artifacts\machine-cat-3d-gate1 -Recurse -File | Where-Object { $_.Extension -in '.glb','.gltf','.fbx','.zip' }
+          if ($forbidden) { throw "Third-party model must not be uploaded: $($forbidden.FullName -join ', ')" }
+
+      - name: Upload 3D Gate 1 runtime only
+        uses: actions/upload-artifact@v4
+        with:
+          name: FACM-MachineCat-3D-Gate1-${{ github.run_number }}
+          path: artifacts/machine-cat-3d-gate1/**
+          if-no-files-found: error
+          retention-days: 14
