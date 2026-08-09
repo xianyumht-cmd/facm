@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-09：FACM 3.1.1 正式主线保持稳定；Issue #33 已从蜘蛛方案整理推进为独立机器猫 Gate 1 原型，当前等待真实 Windows 视觉验收。
+> 2026-08-10：正式 3.1.1 保持稳定；Issue #33 / Draft PR #35 正在独立验证机器猫桌宠 Gate 1 第二版。
 
 ## 当前正式版
 
@@ -22,67 +22,41 @@
 - 用户已在真实 Windows 环境中确认：现有 3.1.0 客户端能够自动检测、下载、校验、替换并重新启动到 3.1.1，在线更新链路实机验证成功。
 - Issue #28（3.1.0 正式发布）与 Issue #31（3.1.1 在线更新验证）均已完成关闭。
 
-## 当前正式架构状态
+## 当前阶段
 
-FACM 当前正式主线仍保持：
+FACM 当前正式主阶段仍为 **基本完成 / 可暂停**。现有 3.1.1 是后续实验的稳定基线；Issue #33 的桌宠原型不改变正式版本和现有 VPet/PetHost 路线。
 
-`FACM.exe (.NET Framework 4.8 / WinForms)` → `FACM.PetHost.exe (.NET 8 x64 / WPF / VPet Core)`。
+新任务继续按 `AGENTS.md`：从最新 `main` 开始，一任务一短分支 + PR；不要从旧本地快照或已合并任务分支继续开发。
 
-本轮机器猫 Gate 1 **没有修改** `src/FACM`、`src/FACM.PetHost`、VPet 正式路线或 `FACM.sln`。现有 3.1.1 继续作为稳定基线。
+## Issue #33 / PR #35：机器猫桌宠 Gate 1
 
-新任务仍按 `AGENTS.md`：从最新 `main` 开始，一任务一短分支 + PR；不要从旧本地快照或已合并任务分支继续开发。
-
-## 当前进行中：Issue #33 / PR #35 机器猫 Gate 1
-
-- Issue #33：`机器猫桌宠 Gate 1 原型（保留蜘蛛失败基线）`。
-- 任务分支：`codex/machine-cat-gate1`，从 `main` `877fd6706e12b3558ef1524de862ea648e189b2b` 创建。
+- Issue：#33 `机器猫桌宠 Gate 1 原型（保留蜘蛛失败基线）`。
 - Draft PR：#35 `Gate 1：独立机器猫桌宠原地动作原型`。
+- 任务分支：`codex/machine-cat-gate1`。
 - 原型路径：`prototypes/FACM.MachineCatPrototype/`。
-- 独立验证工作流：`.github/workflows/machine-cat-prototype.yml`。
+- 当前仍不修改 `src/FACM`、`src/FACM.PetHost`，不替换 VPet，不进入自动漫游 Gate 2。
 
-用户已确认当前机器猫角色外形方向，后续**不再为本阶段生成角色图片**。Gate 1 使用代码绘制的 WPF 分层矢量 Rig，只验证动作系统本身。
+### Gate 1 第一版：视觉验收失败
 
-当前原型状态：
+第一版采用程序绘制的 WPF 矢量机器猫。它曾通过 Release build、deterministic self-test、真实 WPF window smoke、自包含 publish，核心 FACM Windows Build 也保持全绿；但用户随后用真实 Windows 录屏确认：
 
-- 8 个原地状态：Idle / Walk / Run / Turn / Observe / Raised / Recover / Sleep；
-- `Stopwatch + CompositionTarget.Rendering + deltaTime`，frame gap 最大按 50ms clamp；
-- 状态输出连续身体、头部、四肢、眼神、铃铛和阴影参数，不使用固定 FPS Sprite 切帧；
-- Walk / Run 使用不同步频与幅度；Turn 不靠瞬间镜像；Raised / Recover 有独立悬空和落地恢复运动；
-- 点击与拖动有阈值区分；透明区域使用 Gate 1 级别的近似 `HTTRANSPARENT` 穿透；
-- 当前不做自动漫游，不实现 Gate 2 MotionController。
+- 程序重画出来的扁平角色与已经认可的圆润 2.5D 机器猫外形差距明显；
+- Walk / Run / Turn / Raised / Sleep 等动作有“纸片变形/程序图形在动”的感觉；
+- 因此自动化成功不能视为 Gate 1 视觉成功。
 
-### 已验证到的 CI 证据
+第一版已明确判定 **Gate 1 失败**，没有进入 Gate 2，也没有合并 PR #35。
 
-在 PR #35 中，独立 `FACM Machine Cat Prototype` 工作流已经验证：
+### Gate 1 第二版：当前进行中
 
-- Release build 成功，0 warning / 0 error；
-- deterministic `--self-test` 成功；
-- win-x64 self-contained publish 成功；
-- artifact 上传成功；
-- 后续提交继续增加真实 `--window-smoke-test`，要求实际创建透明 WPF 窗口并收到至少 3 帧 `CompositionTarget.Rendering` 后才通过。
+第二版保留用户已经认可的机器猫视觉，不再由程序重新画角色：
 
-上述自动化只能证明工程、动画数学和窗口运行链没有坏，**不能替代用户视觉验收**。
+- 从本轮已经认可的 Identity / Action Sheet 提取透明动作/视角素材；没有再次生成角色图片；
+- 当前包含 Idle / Walk / Run / Observe / Raised / Recover / Sleep，以及 Turn 的正面 / 3⁄4 / 侧面 / 背面，共 11 个透明素材；
+- 程序只负责状态、`deltaTime`、轻微 translate / scale / rotate、短时 crossfade、镜像换步和鼠标交互；
+- Walk / Run 大部分周期保持单个清晰轮廓，仅在换步瞬间短暂交叉淡化；
+- Turn 使用 `正面 → 3/4 → 侧面 → 背面 → 镜像侧面 → 镜像3/4 → 正面`，不再把一张正面图直接旋转或瞬间翻面；
+- 原型资源暂以 `Assets/*.b64` 嵌入，启动时一次解码并缓存为冻结的 `BitmapImage`；正式集成前可再收口资源格式。
 
-## Gate 1 当前完成条件
+第二版仍必须经过：Release build → asset/self-test → 真实 WPF window smoke → win-x64 self-contained artifact → **用户真实 Windows 肉眼验收**。
 
-只有以下两层都完成，才允许进入 Gate 2：
-
-1. 自动层：Release build、自检、真实 WPF window smoke、自包含 artifact 全部通过；
-2. 人工层：用户在真实 Windows 桌面观察 8 个原地状态，明确确认动作自然、不是“图片在动/PPT 感”。
-
-在 Gate 1 人工验收前：
-
-- 不实现自动桌面漫游；
-- 不接入 FACM 正式桌宠选择器；
-- 不修改/替换 VPet；
-- 不把 CI 绿色当作视觉效果通过。
-
-## Gate 2 预定边界（尚未实现）
-
-Gate 1 通过后才进入运动轨迹验证，并先用调试图形而不是正式角色验证：
-
-- BehaviorController 只决定行为/目标，不直接改窗口坐标；
-- MotionController 使用 position / velocity / desiredVelocity / acceleration / deceleration / heading / targetHeading / angularVelocity / arrival；
-- Random 只用于行为或目标决策，禁止每帧随机位置/速度；
-- 屏幕边缘不能使用 `vx = -vx` / `vy = -vy` 的弹球反射作为正式行为；
-- `actualSpeed` 必须驱动 Walk / Run 与步频，静止时不能继续走路动作。
+只有用户明确确认第二版 Gate 1 的角色外形和原地动作合格，才能设计/实现 Gate 2 MotionController。CI 不能替代这一视觉门禁。
