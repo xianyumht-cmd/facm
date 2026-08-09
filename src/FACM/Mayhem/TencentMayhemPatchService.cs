@@ -62,9 +62,7 @@ namespace FACM.Mayhem
 
                 var indexHtml = await ReadSafeAsync(NewsIndexUrl, TimeSpan.FromSeconds(1.8), ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(indexHtml))
-                {
                     candidates.InsertRange(0, ExtractArticleUrls(indexHtml).Take(6));
-                }
                 candidates = candidates.Distinct(StringComparer.OrdinalIgnoreCase).Take(7).ToList();
 
                 var tasks = candidates.Select(async url =>
@@ -116,7 +114,7 @@ namespace FACM.Mayhem
                 RegexOptions.IgnoreCase);
             if (!patchMatch.Success) return null;
 
-            var sectionStart = decoded.IndexOf("海克斯大乱斗", StringComparison.OrdinalIgnoreCase);
+            var sectionStart = FindMayhemHeading(decoded);
             if (sectionStart < 0) return null;
             var sectionEnd = decoded.IndexOf("斗魂竞技场", sectionStart + 5, StringComparison.OrdinalIgnoreCase);
             if (sectionEnd < 0) sectionEnd = Math.Min(decoded.Length, sectionStart + 90000);
@@ -163,6 +161,19 @@ namespace FACM.Mayhem
             }
 
             return output;
+        }
+
+        private static int FindMayhemHeading(string html)
+        {
+            var heading = Regex.Match(
+                html ?? string.Empty,
+                "<h[1-6]\\b[^>]*>.*?海克斯大乱斗.*?</h[1-6]>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (heading.Success) return heading.Index;
+
+            // Test fixtures and mirrors may preserve Markdown-style headings instead of HTML.
+            var markdown = Regex.Match(html ?? string.Empty, "(?:^|[\\r\\n])\\s*#{1,6}\\s*海克斯大乱斗\\s*(?:[\\r\\n]|$)", RegexOptions.IgnoreCase);
+            return markdown.Success ? markdown.Index : -1;
         }
 
         private static IEnumerable<string> ExtractArticleUrls(string html)
