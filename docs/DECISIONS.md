@@ -1,5 +1,31 @@
 # FACM 技术决策
 
+## 2026-08-10：桌宠 Prototype 必须保留已人工确认的角色视觉，程序不再重画角色
+
+### 决策
+
+Issue #33 / PR #35 的机器猫 Gate 1 从第二版开始采用：
+
+- 已经由用户人工确认的角色外观作为视觉基线；
+- 从本轮已确认的 Identity / Action Sheet 提取透明动作/视角素材；
+- 程序只负责状态、时间、轻微 transform、短时 crossfade、镜像换步、鼠标交互和窗口生命周期；
+- 不再为了“少用图片/更程序化”而用 WPF 图元重新设计或重画角色；
+- 自动 build/self-test/window-smoke 只能证明工程链路，不替代真实 Windows 视觉验收；
+- Gate 1 未被用户明确通过前，不进入 Gate 2 MotionController，不接 FACM/PetHost，不合并 Draft PR。
+
+### 原因
+
+PR #35 第一版程序绘制的 WPF 矢量机器猫曾经同时通过 Release build、deterministic self-test、真实 WPF window smoke 和自包含 publish，但用户实机录屏仍显示：角色与已经认可的圆润 2.5D 机器猫明显不一致，Walk/Run/Turn/Raised/Sleep 也有纸片变形感。
+
+因此“技术上可运行”和“桌宠视觉合格”是两条独立门禁；已确认的视觉身份不能在实现阶段被程序方便性重新定义。
+
+### 后果
+
+- PR #35 第一版保留为失败经验，不作为正式桌宠基础；
+- 第二版使用 11 个已确认动作/视角透明素材，运行时一次解码并缓存；
+- 原型期可使用 `Assets/*.b64` 作为 GitHub/程序集资源载体，正式接入前再决定常规二进制资源打包方式；
+- 当前正式 VPet/PetHost 架构不受此实验影响。
+
 ## 2026-08-09：VPet 保持独立子进程，不为单 PID 强迁主程序
 
 ### 决策
@@ -9,6 +35,8 @@ FACM 3.1 继续采用：
 `FACM.exe (net48 WinForms)` → `FACM.PetHost.exe (net8 x64 WPF/VPet)`
 
 PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`。PetHost 自身的 `--parent-pid` 检测继续保留。
+
+Issue #33 的机器猫 Prototype 当前是隔离实验，不改变这条正式架构决策。只有独立 Prototype 完成视觉、运动和稳定性验收后，才重新讨论正式接入方式。
 
 ### 原因
 
