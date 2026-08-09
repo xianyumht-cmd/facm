@@ -1,0 +1,65 @@
+name: FACM Machine Cat Prototype
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "prototypes/FACM.MachineCatPrototype/**"
+      - ".github/workflows/machine-cat-prototype.yml"
+  pull_request:
+    paths:
+      - "prototypes/FACM.MachineCatPrototype/**"
+      - ".github/workflows/machine-cat-prototype.yml"
+
+concurrency:
+  group: machine-cat-prototype-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate1:
+    name: Build and self-test Gate 1
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          dotnet build .\prototypes\FACM.MachineCatPrototype\FACM.MachineCatPrototype.csproj -c Release --nologo
+
+      - name: Run deterministic animation self-test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path .\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe
+          & $exe --self-test
+          if ($LASTEXITCODE -ne 0) {
+            throw "Machine Cat Gate 1 self-test failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Publish self-contained win-x64 prototype
+        shell: pwsh
+        run: |
+          dotnet publish .\prototypes\FACM.MachineCatPrototype\FACM.MachineCatPrototype.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o .\artifacts\machine-cat-gate1 `
+            --nologo
+
+      - name: Upload Gate 1 prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: FACM-MachineCat-Gate1-${{ github.run_number }}
+          path: artifacts/machine-cat-gate1/**
+          if-no-files-found: error
+          retention-days: 14
