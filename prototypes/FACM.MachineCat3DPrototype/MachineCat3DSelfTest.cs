@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
+using System.Windows;
 using System.Windows.Media.Media3D;
 
 namespace FACM.MachineCat3DPrototype;
@@ -48,6 +49,8 @@ internal static class MachineCat3DSelfTest
                 for (var frame = 0; frame < 360; frame++)
                     rig.Apply(state, frame / 120d);
             }
+
+            ValidateDesktopTravel();
             return 0;
         }
         catch (Exception exception)
@@ -56,6 +59,45 @@ internal static class MachineCat3DSelfTest
             catch { }
             return 61;
         }
+    }
+
+    private static void ValidateDesktopTravel()
+    {
+        var controller = new DesktopMotionController(deterministicSeed: 20260810);
+        var area = new Rect(0d, 0d, 1920d, 1040d);
+        const double width = 350d;
+        const double height = 380d;
+        var left = 1400d;
+        controller.Reset(area, width, height, left, 0d);
+
+        var totalTravel = 0d;
+        var sawWalk = false;
+        var sawRun = false;
+        var sawTurn = false;
+        for (var frame = 1; frame <= 120 * 45; frame++)
+        {
+            var now = frame / 120d;
+            var next = controller.Step(1d / 120d, now, area, width, height, left);
+            totalTravel += Math.Abs(next.Left - left);
+            left = next.Left;
+            sawWalk |= next.State == MotionState.Walk;
+            sawRun |= next.State == MotionState.Run;
+            sawTurn |= next.State == MotionState.Turn;
+
+            if (!double.IsFinite(left) || left < 13d || left > area.Right - width - 13d)
+                throw new InvalidOperationException($"Desktop motion escaped work area at frame {frame}: {left}");
+            if (Math.Abs(next.Top - (area.Bottom - height + 48d)) > 0.001d)
+                throw new InvalidOperationException("Desktop motion no longer stays on the ground line.");
+        }
+
+        if (totalTravel < 900d)
+            throw new InvalidOperationException($"Desktop motion did not really travel: {totalTravel:0.0}px");
+        if (!sawWalk || !sawTurn)
+            throw new InvalidOperationException("Desktop motion did not exercise walk/turn states.");
+        // Running is intentionally probabilistic in product behavior, but the fixed test
+        // seed should currently exercise it. Keep this assertion to catch accidental loss.
+        if (!sawRun)
+            throw new InvalidOperationException("Desktop motion fixed-seed test did not exercise Run.");
     }
 
     public static RigidModel CreateRigFixture()
