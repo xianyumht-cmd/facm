@@ -20,11 +20,20 @@ internal readonly record struct RigPose(
     string? SecondaryAsset,
     bool SecondaryMirror,
     double SecondaryOpacity,
+    bool UseLayeredRig,
     double RootX,
     double RootY,
     double RootRotation,
     double RootScaleX,
     double RootScaleY,
+    double HeadY,
+    double HeadRotation,
+    double LeftArmRotation,
+    double RightArmRotation,
+    double LeftFootRotation,
+    double RightFootRotation,
+    double LeftFootY,
+    double RightFootY,
     double ShadowScaleX,
     double ShadowOpacity)
 {
@@ -37,42 +46,47 @@ internal readonly record struct RigPose(
         double scaleY = 1d,
         double shadowScaleX = 1d,
         double shadowOpacity = 0.18d,
-        bool mirror = false)
-        => new(asset, mirror, null, false, 0d, x, y, rotation, scaleX, scaleY, shadowScaleX, shadowOpacity);
-
-    public static RigPose CrossFade(
-        string primary,
-        bool primaryMirror,
-        string secondary,
-        bool secondaryMirror,
-        double blend,
-        double x = 0d,
-        double y = 0d,
-        double rotation = 0d,
-        double scaleX = 1d,
-        double scaleY = 1d,
-        double shadowScaleX = 1d,
-        double shadowOpacity = 0.18d)
+        bool mirror = false,
+        bool layered = false,
+        double headY = 0d,
+        double headRotation = 0d,
+        double leftArmRotation = 0d,
+        double rightArmRotation = 0d,
+        double leftFootRotation = 0d,
+        double rightFootRotation = 0d,
+        double leftFootY = 0d,
+        double rightFootY = 0d)
         => new(
-            primary,
-            primaryMirror,
-            secondary,
-            secondaryMirror,
-            Math.Clamp(blend, 0d, 1d),
+            asset,
+            mirror,
+            null,
+            false,
+            0d,
+            layered,
             x,
             y,
             rotation,
             scaleX,
             scaleY,
+            headY,
+            headRotation,
+            leftArmRotation,
+            rightArmRotation,
+            leftFootRotation,
+            rightFootRotation,
+            leftFootY,
+            rightFootY,
             shadowScaleX,
             shadowOpacity);
 }
 
 internal sealed class MachineCatAnimator
 {
-    private const double TransitionSeconds = 0.16d;
-    internal const double WalkFrequency = 2.05d;
-    internal const double RunFrequency = 4.40d;
+    // Short pose hand-off only. Visuals never alpha-crossfade: the second Gate 1
+    // recording proved that whole-character crossfade creates an obvious ghost.
+    private const double TransitionSeconds = 0.14d;
+    internal const double WalkFrequency = 1.82d;
+    internal const double RunFrequency = 3.62d;
 
     private PetState _state = PetState.Idle;
     private double _timeInState;
@@ -102,20 +116,31 @@ internal sealed class MachineCatAnimator
         if (_transitionElapsed >= TransitionSeconds)
             return _lastPose = target;
 
-        var t = SmoothStep(_transitionElapsed / TransitionSeconds);
-        return _lastPose = RigPose.CrossFade(
-            DominantAsset(_transitionFrom),
-            DominantMirror(_transitionFrom),
-            DominantAsset(target),
-            DominantMirror(target),
-            t,
-            Mix(_transitionFrom.RootX, target.RootX, t),
-            Mix(_transitionFrom.RootY, target.RootY, t),
-            Mix(_transitionFrom.RootRotation, target.RootRotation, t),
-            Mix(_transitionFrom.RootScaleX, target.RootScaleX, t),
-            Mix(_transitionFrom.RootScaleY, target.RootScaleY, t),
-            Mix(_transitionFrom.ShadowScaleX, target.ShadowScaleX, t),
-            Mix(_transitionFrom.ShadowOpacity, target.ShadowOpacity, t));
+        var raw = Math.Clamp(_transitionElapsed / TransitionSeconds, 0d, 1d);
+        var t = SmoothStep(raw);
+        var visual = raw < 0.5d ? _transitionFrom : target;
+        var squeeze = Math.Sin(raw * Math.PI);
+
+        return _lastPose = visual with
+        {
+            SecondaryAsset = null,
+            SecondaryOpacity = 0d,
+            RootX = Mix(_transitionFrom.RootX, target.RootX, t),
+            RootY = Mix(_transitionFrom.RootY, target.RootY, t),
+            RootRotation = Mix(_transitionFrom.RootRotation, target.RootRotation, t),
+            RootScaleX = Mix(_transitionFrom.RootScaleX, target.RootScaleX, t) * (1d - (squeeze * 0.035d)),
+            RootScaleY = Mix(_transitionFrom.RootScaleY, target.RootScaleY, t),
+            HeadY = Mix(_transitionFrom.HeadY, target.HeadY, t),
+            HeadRotation = Mix(_transitionFrom.HeadRotation, target.HeadRotation, t),
+            LeftArmRotation = Mix(_transitionFrom.LeftArmRotation, target.LeftArmRotation, t),
+            RightArmRotation = Mix(_transitionFrom.RightArmRotation, target.RightArmRotation, t),
+            LeftFootRotation = Mix(_transitionFrom.LeftFootRotation, target.LeftFootRotation, t),
+            RightFootRotation = Mix(_transitionFrom.RightFootRotation, target.RightFootRotation, t),
+            LeftFootY = Mix(_transitionFrom.LeftFootY, target.LeftFootY, t),
+            RightFootY = Mix(_transitionFrom.RightFootY, target.RightFootY, t),
+            ShadowScaleX = Mix(_transitionFrom.ShadowScaleX, target.ShadowScaleX, t),
+            ShadowOpacity = Mix(_transitionFrom.ShadowOpacity, target.ShadowOpacity, t)
+        };
     }
 
     internal static double ClampDelta(double deltaTime)
@@ -132,8 +157,8 @@ internal sealed class MachineCatAnimator
 
         return state switch
         {
-            PetState.Walk => SampleGait("Walk", time, WalkFrequency, run: false),
-            PetState.Run => SampleGait("Run", time, RunFrequency, run: true),
+            PetState.Walk => SampleGait(time, WalkFrequency, run: false),
+            PetState.Run => SampleGait(time, RunFrequency, run: true),
             PetState.Turn => SampleTurn(time),
             PetState.Observe => SampleObserve(time, mouseDirection),
             PetState.Raised => SampleRaised(time),
@@ -145,50 +170,73 @@ internal sealed class MachineCatAnimator
 
     private static RigPose SampleIdle(double time)
     {
-        var breath = Math.Sin(time * Math.PI * 2d * 0.36d);
-        var sway = Math.Sin(time * 0.72d);
+        var breath = Math.Sin(time * Math.PI * 2d * 0.34d);
+        var sway = Math.Sin(time * 0.70d);
         return RigPose.Single(
             "Idle",
-            x: sway * 0.30d,
-            y: breath * -0.65d,
-            rotation: sway * 0.45d,
-            scaleX: 1d - (breath * 0.003d),
-            scaleY: 1d + (breath * 0.007d),
-            shadowScaleX: 1d - (breath * 0.01d));
+            layered: true,
+            x: sway * 0.22d,
+            y: breath * -0.48d,
+            rotation: sway * 0.25d,
+            scaleX: 1d - (breath * 0.002d),
+            scaleY: 1d + (breath * 0.005d),
+            headY: breath * -0.20d,
+            headRotation: Math.Sin(time * 0.52d) * 0.35d,
+            shadowScaleX: 1d - (breath * 0.008d));
     }
 
-    private static RigPose SampleGait(string asset, double time, double frequency, bool run)
+    private static RigPose SampleGait(double time, double frequency, bool run)
     {
         var phase = PositiveModulo(time * frequency, 1d);
         var cycle = phase * Math.PI * 2d;
-        var sway = Math.Sin(cycle);
-        var lift = Math.Abs(Math.Sin(cycle));
-        var (primaryMirror, secondaryMirror, blend) = GaitViews(phase);
+        var step = Math.Sin(cycle);
+        var counter = -step;
+        var lift = Math.Abs(step);
+        var leftLift = Math.Max(0d, step);
+        var rightLift = Math.Max(0d, -step);
 
         if (!run)
         {
-            return RigPose.CrossFade(
-                asset, primaryMirror, asset, secondaryMirror, blend,
-                x: sway * 0.85d,
-                y: -0.8d - (lift * 1.8d),
-                rotation: sway * 1.25d,
-                scaleX: 1d + (lift * 0.003d),
-                scaleY: 1d - (lift * 0.006d),
-                shadowScaleX: 0.99d + (lift * 0.025d),
-                shadowOpacity: 0.19d);
+            return RigPose.Single(
+                "Idle",
+                layered: true,
+                x: step * 0.42d,
+                y: -0.55d - (lift * 1.25d),
+                rotation: step * 0.52d,
+                scaleX: 1d + (lift * 0.002d),
+                scaleY: 1d - (lift * 0.004d),
+                headY: -lift * 0.42d,
+                headRotation: counter * 0.75d,
+                leftArmRotation: counter * 15.5d,
+                rightArmRotation: step * 15.5d,
+                leftFootRotation: step * 11.5d,
+                rightFootRotation: counter * 11.5d,
+                leftFootY: leftLift * -3.5d,
+                rightFootY: rightLift * -3.5d,
+                shadowScaleX: 0.99d + (lift * 0.018d),
+                shadowOpacity: 0.18d);
         }
 
         var flight = Math.Max(0d, Math.Sin(cycle));
         var compression = Math.Abs(Math.Cos(cycle));
-        return RigPose.CrossFade(
-            asset, primaryMirror, asset, secondaryMirror, blend,
-            x: sway * 1.25d,
-            y: -2.5d - (flight * 3.1d),
-            rotation: 1.8d + (sway * 1.35d),
-            scaleX: 1d + (compression * 0.008d),
-            scaleY: 1d - (compression * 0.014d),
-            shadowScaleX: 0.94d + (compression * 0.055d),
-            shadowOpacity: 0.18d - (flight * 0.035d));
+        return RigPose.Single(
+            "Idle",
+            layered: true,
+            x: step * 0.70d,
+            y: -2.0d - (flight * 2.7d),
+            rotation: 1.25d + (step * 0.75d),
+            scaleX: 1d + (compression * 0.006d),
+            scaleY: 1d - (compression * 0.010d),
+            headY: -1.0d - (flight * 0.65d),
+            headRotation: counter * 1.05d,
+            leftArmRotation: counter * 27d,
+            rightArmRotation: step * 27d,
+            leftFootRotation: step * 19d,
+            rightFootRotation: counter * 19d,
+            leftFootY: leftLift * -6.2d,
+            rightFootY: rightLift * -6.2d,
+            shadowScaleX: 0.94d + (compression * 0.050d),
+            shadowOpacity: 0.17d - (flight * 0.028d));
     }
 
     private static RigPose SampleTurn(double time)
@@ -204,22 +252,24 @@ internal sealed class MachineCatAnimator
             ("TurnFront", false)
         };
 
-        const double cycleSeconds = 4.20d;
+        const double cycleSeconds = 4.45d;
         var progress = PositiveModulo(time, cycleSeconds) / cycleSeconds;
         var segmentPosition = progress * (sequence.Length - 1);
         var index = Math.Min(sequence.Length - 2, (int)Math.Floor(segmentPosition));
         var local = segmentPosition - index;
-        var blend = SmoothStep(Math.Clamp((local - 0.64d) / 0.26d, 0d, 1d));
-        var a = sequence[index];
-        var b = sequence[index + 1];
+        var visual = local < 0.5d ? sequence[index] : sequence[index + 1];
+        var handoffDistance = Math.Abs(local - 0.5d) / 0.5d;
+        var squeeze = 1d - (Math.Pow(1d - Math.Clamp(handoffDistance, 0d, 1d), 2d) * 0.105d);
         var wave = Math.Sin(progress * Math.PI * 2d);
 
-        return RigPose.CrossFade(
-            a.Asset, a.Mirror, b.Asset, b.Mirror, blend,
-            x: wave * 0.55d,
-            y: -Math.Abs(wave) * 0.55d,
-            rotation: wave * 0.35d,
-            shadowScaleX: 1d - (Math.Abs(wave) * 0.025d));
+        return RigPose.Single(
+            visual.Asset,
+            mirror: visual.Mirror,
+            x: wave * 0.38d,
+            y: -Math.Abs(wave) * 0.35d,
+            rotation: wave * 0.22d,
+            scaleX: squeeze,
+            shadowScaleX: 1d - (Math.Abs(wave) * 0.018d));
     }
 
     private static RigPose SampleObserve(double time, Vector2 mouseDirection)
@@ -228,40 +278,40 @@ internal sealed class MachineCatAnimator
         var micro = Math.Sin(time * 1.35d);
         return RigPose.Single(
             "Observe",
-            x: mouseDirection.X * 1.7d * settle,
-            y: mouseDirection.Y * 0.55d * settle,
-            rotation: (mouseDirection.X * 1.8d * settle) + (micro * 0.35d),
+            x: mouseDirection.X * 1.45d * settle,
+            y: mouseDirection.Y * 0.42d * settle,
+            rotation: (mouseDirection.X * 1.45d * settle) + (micro * 0.28d),
             scaleY: 1d + (Math.Sin(time * 2.2d) * 0.002d));
     }
 
     private static RigPose SampleRaised(double time)
     {
-        var pendulum = Math.Sin(time * 2.5d);
-        var bob = Math.Sin(time * 3.7d + 0.6d);
+        var pendulum = Math.Sin(time * 2.35d);
+        var bob = Math.Sin(time * 3.35d + 0.6d);
         return RigPose.Single(
             "Raised",
-            x: pendulum * 1.8d,
-            y: -14d + (bob * 1.1d),
-            rotation: pendulum * 3d,
-            scaleY: 1.008d,
+            x: pendulum * 1.55d,
+            y: -14d + (bob * 0.95d),
+            rotation: pendulum * 2.6d,
+            scaleY: 1.006d,
             shadowScaleX: 0.72d,
             shadowOpacity: 0.11d);
     }
 
     private static RigPose SampleRecover(double time)
     {
-        var envelope = Math.Exp(-Math.Max(0d, time) * 3.7d);
-        var bounce = Math.Cos(time * 11d) * envelope;
+        var envelope = Math.Exp(-Math.Max(0d, time) * 3.8d);
+        var bounce = Math.Cos(time * 10.8d) * envelope;
         var squash = Math.Max(0d, bounce);
         return RigPose.Single(
             "Recover",
-            x: Math.Sin(time * 7d) * envelope * 0.55d,
-            y: squash * 5.5d,
-            rotation: Math.Sin(time * 8.5d) * envelope * 1.5d,
-            scaleX: 1d + (squash * 0.024d),
-            scaleY: 1d - (squash * 0.035d),
-            shadowScaleX: 1.06d - (Math.Abs(bounce) * 0.045d),
-            shadowOpacity: 0.19d);
+            x: Math.Sin(time * 7d) * envelope * 0.45d,
+            y: squash * 4.8d,
+            rotation: Math.Sin(time * 8.5d) * envelope * 1.25d,
+            scaleX: 1d + (squash * 0.020d),
+            scaleY: 1d - (squash * 0.030d),
+            shadowScaleX: 1.05d - (Math.Abs(bounce) * 0.038d),
+            shadowOpacity: 0.18d);
     }
 
     private static RigPose SampleSleep(double time)
@@ -271,31 +321,12 @@ internal sealed class MachineCatAnimator
             "Sleep",
             x: -1d,
             y: 15d,
-            rotation: Math.Sin(time * 0.45d) * 0.18d,
-            scaleX: 1d + (breath * 0.003d),
-            scaleY: 1d + (breath * 0.009d),
-            shadowScaleX: 1.10d + (breath * 0.008d),
+            rotation: Math.Sin(time * 0.45d) * 0.14d,
+            scaleX: 1d + (breath * 0.002d),
+            scaleY: 1d + (breath * 0.007d),
+            shadowScaleX: 1.10d + (breath * 0.006d),
             shadowOpacity: 0.14d);
     }
-
-    private static (bool PrimaryMirror, bool SecondaryMirror, double Blend) GaitViews(double phase)
-    {
-        if (phase < 0.36d) return (false, true, 0d);
-        if (phase < 0.50d)
-            return (false, true, SmoothStep((phase - 0.36d) / 0.14d));
-        if (phase < 0.86d) return (true, false, 0d);
-        return (true, false, SmoothStep((phase - 0.86d) / 0.14d));
-    }
-
-    private static string DominantAsset(in RigPose pose)
-        => pose.SecondaryAsset is not null && pose.SecondaryOpacity >= 0.5d
-            ? pose.SecondaryAsset
-            : pose.PrimaryAsset;
-
-    private static bool DominantMirror(in RigPose pose)
-        => pose.SecondaryAsset is not null && pose.SecondaryOpacity >= 0.5d
-            ? pose.SecondaryMirror
-            : pose.PrimaryMirror;
 
     private static double Mix(double from, double to, double amount)
         => from + ((to - from) * amount);
@@ -338,15 +369,33 @@ internal static class MachineCatSelfTest
                     ValidatePose(state, MachineCatAnimator.SampleState(state, frame / 120d, new Vector2(0.7f, -0.4f)));
             }
 
-            if (CountMirrorTransitions(PetState.Run, 2d) <= CountMirrorTransitions(PetState.Walk, 2d))
-                throw new InvalidOperationException("Run gait cadence must exceed Walk gait cadence.");
+            if (CountArmDirectionChanges(PetState.Run, 2d) <= CountArmDirectionChanges(PetState.Walk, 2d))
+                throw new InvalidOperationException("Run layered gait cadence must exceed Walk cadence.");
 
-            var turnAssets = Enumerable.Range(0, 505)
+            var walk = MachineCatAnimator.SampleState(PetState.Walk, 0.2d, Vector2.Zero);
+            var run = MachineCatAnimator.SampleState(PetState.Run, 0.2d, Vector2.Zero);
+            if (!walk.UseLayeredRig || !run.UseLayeredRig)
+                throw new InvalidOperationException("Walk and Run must use the layered approved-pixel rig.");
+            if (walk.SecondaryOpacity != 0d || run.SecondaryOpacity != 0d)
+                throw new InvalidOperationException("Walk/Run must not whole-character crossfade.");
+
+            var turnAssets = Enumerable.Range(0, 540)
                 .Select(frame => MachineCatAnimator.SampleState(PetState.Turn, frame / 120d, Vector2.Zero).PrimaryAsset)
                 .Distinct(StringComparer.Ordinal)
                 .Count();
             if (turnAssets < 4)
                 throw new InvalidOperationException("Turn must traverse the approved multi-angle views.");
+            if (Enumerable.Range(0, 540).Any(frame => MachineCatAnimator.SampleState(PetState.Turn, frame / 120d, Vector2.Zero).SecondaryOpacity != 0d))
+                throw new InvalidOperationException("Turn must not alpha-crossfade whole characters.");
+
+            var animator = new MachineCatAnimator();
+            animator.SetState(PetState.Walk);
+            for (var i = 0; i < 30; i++)
+            {
+                var pose = animator.Update(1d / 120d, Vector2.Zero);
+                if (pose.SecondaryOpacity != 0d)
+                    throw new InvalidOperationException("State hand-off must not reintroduce whole-character ghosting.");
+            }
 
             if (MachineCatAnimator.ClampDelta(1d) > 0.050001d)
                 throw new InvalidOperationException("deltaTime frame-gap clamp failed.");
@@ -366,20 +415,18 @@ internal static class MachineCatSelfTest
         }
     }
 
-    private static int CountMirrorTransitions(PetState state, double seconds)
+    private static int CountArmDirectionChanges(PetState state, double seconds)
     {
-        var count = 0;
-        bool? last = null;
+        var changes = 0;
+        var lastSign = 0;
         for (var frame = 0; frame <= seconds * 120d; frame++)
         {
             var pose = MachineCatAnimator.SampleState(state, frame / 120d, Vector2.Zero);
-            var mirror = pose.SecondaryAsset is not null && pose.SecondaryOpacity >= 0.5d
-                ? pose.SecondaryMirror
-                : pose.PrimaryMirror;
-            if (last.HasValue && last.Value != mirror) count++;
-            last = mirror;
+            var sign = Math.Sign(pose.LeftArmRotation);
+            if (sign != 0 && lastSign != 0 && sign != lastSign) changes++;
+            if (sign != 0) lastSign = sign;
         }
-        return count;
+        return changes;
     }
 
     private static void ValidatePose(PetState state, RigPose pose)
@@ -392,14 +439,20 @@ internal static class MachineCatSelfTest
         var values = new[]
         {
             pose.SecondaryOpacity, pose.RootX, pose.RootY, pose.RootRotation,
-            pose.RootScaleX, pose.RootScaleY, pose.ShadowScaleX, pose.ShadowOpacity
+            pose.RootScaleX, pose.RootScaleY, pose.HeadY, pose.HeadRotation,
+            pose.LeftArmRotation, pose.RightArmRotation, pose.LeftFootRotation, pose.RightFootRotation,
+            pose.LeftFootY, pose.RightFootY, pose.ShadowScaleX, pose.ShadowOpacity
         };
         if (values.Any(value => !double.IsFinite(value)))
             throw new InvalidOperationException($"{state} generated a non-finite value.");
         if (pose.SecondaryOpacity is < 0d or > 1d)
-            throw new InvalidOperationException($"{state} crossfade opacity is invalid.");
-        if (pose.RootScaleX is < 0.7d or > 1.3d || pose.RootScaleY is < 0.7d or > 1.3d)
+            throw new InvalidOperationException($"{state} secondary opacity is invalid.");
+        if (pose.RootScaleX is < 0.78d or > 1.22d || pose.RootScaleY is < 0.78d or > 1.22d)
             throw new InvalidOperationException($"{state} root scale is invalid.");
+        if (Math.Abs(pose.LeftArmRotation) > 45d || Math.Abs(pose.RightArmRotation) > 45d)
+            throw new InvalidOperationException($"{state} arm rotation is invalid.");
+        if (Math.Abs(pose.LeftFootRotation) > 35d || Math.Abs(pose.RightFootRotation) > 35d)
+            throw new InvalidOperationException($"{state} foot rotation is invalid.");
         if (pose.ShadowOpacity is < 0d or > 1d)
             throw new InvalidOperationException($"{state} shadow opacity is invalid.");
     }
