@@ -36,6 +36,35 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 
 不要把 `github.sha` 放回 concurrency group。SHA 每次提交都会变化，会让 `cancel-in-progress: true` 失去实际作用。
 
+## 机器猫 Gate 1 独立原型验证
+
+工作流：`.github/workflows/machine-cat-prototype.yml`（`FACM Machine Cat Prototype`）。
+
+用途：验证 Issue #33 / PR #35 的**独立原地动作 Prototype**，不改变正式 `FACM Windows Build` 的职责，也不把尚未通过视觉验收的机器猫接入正式 PetHost/VPet 链。
+
+当前 Gate 1 工作流按顺序执行：
+
+1. .NET 8 WPF Release build；
+2. `FACM.MachineCatPrototype.exe --self-test`：对 8 个状态进行 deterministic 动画数学采样；
+3. `FACM.MachineCatPrototype.exe --window-smoke-test`：实际创建透明 WPF 窗口，要求 `Loaded` 且至少收到 3 帧 `CompositionTarget.Rendering` 后自动关闭；
+4. win-x64 self-contained publish；
+5. 上传 `FACM-MachineCat-Gate1-<run>` artifact，保留 14 天。
+
+这是**工程门禁，不是视觉门禁**。Actions 可以证明项目能编译、动画参数没有明显数学异常、WPF 窗口实际能启动并渲染、自包含包能生成，但不能判断动作是否自然。Gate 1 最终仍需要用户在真实 Windows 桌面运行 artifact，逐项观察 Idle / Walk / Run / Turn / Observe / Raised / Recover / Sleep。
+
+如果 Gate 1 人工未通过，只在原型层修动作；不要提前实现自动漫游，也不要修改 `src/FACM`、`src/FACM.PetHost` 或 VPet 正式路线。Gate 2 只有在人工作品观感通过后才开始。
+
+### GUI WinExe 自检调用注意
+
+PowerShell 对 `WinExe` 直接使用 `& $exe --self-test` 时，不应假设 `$LASTEXITCODE` 一定可靠，因为 GUI 子系统程序可能不会按控制台命令的方式被同步等待。当前工作流统一使用：
+
+```powershell
+$process = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+if ($process.ExitCode -ne 0) { ... }
+```
+
+真实 window smoke 同样通过 `Start-Process -Wait -PassThru` 读取明确的 `ExitCode`。不要为了让 CI 变绿而删除自检断言；先区分是产品逻辑失败还是调用/等待方式错误。
+
 ## 海斗第三方数据源探测
 
 工作流：`.github/workflows/mayhem-source-probe.yml`（`FACM Mayhem Source Probe`）。
