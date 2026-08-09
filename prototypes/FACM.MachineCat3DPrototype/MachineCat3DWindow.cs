@@ -10,17 +10,22 @@ namespace FACM.MachineCat3DPrototype;
 internal sealed class MachineCat3DWindow : Window
 {
     private readonly RigidPartRig _rig;
+    private readonly ModelVisual3D _facingRoot;
+    private readonly DesktopMotionController _motion = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly TextBlock _debug;
     private readonly bool _smokeTest;
+    private readonly string _modelLabel;
     private double _lastSeconds;
     private double _stateStarted;
     private int _renderedFrames;
     private MotionState _state = MotionState.Idle;
+    private bool _autoMotion = true;
 
     public MachineCat3DWindow(RigidModel model, string modelLabel, bool smokeTest = false)
     {
         _smokeTest = smokeTest;
+        _modelLabel = modelLabel;
         Width = 350;
         Height = 380;
         WindowStyle = WindowStyle.None;
@@ -29,7 +34,7 @@ internal sealed class MachineCat3DWindow : Window
         Background = Brushes.Transparent;
         ShowInTaskbar = false;
         Topmost = true;
-        Title = "FACM Machine Cat 3D Gate 1";
+        Title = "FACM Machine Cat 3D Desktop Motion Prototype";
 
         var root = new Grid { Background = Brushes.Transparent };
         Content = root;
@@ -60,11 +65,13 @@ internal sealed class MachineCat3DWindow : Window
         viewport.Children.Add(new ModelVisual3D { Content = lights });
 
         _rig = new RigidPartRig(model);
-        viewport.Children.Add(_rig.Visual);
+        _facingRoot = new ModelVisual3D();
+        _facingRoot.Children.Add(_rig.Visual);
+        viewport.Children.Add(_facingRoot);
 
         _debug = new TextBlock
         {
-            Text = BuildDebugText(modelLabel),
+            Text = BuildDebugText(),
             Foreground = Brushes.White,
             Background = new SolidColorBrush(Color.FromArgb(175, 18, 18, 22)),
             FontSize = 12d,
@@ -77,7 +84,11 @@ internal sealed class MachineCat3DWindow : Window
         };
         root.Children.Add(_debug);
 
-        Loaded += (_, _) => PositionNearBottomRight();
+        Loaded += (_, _) =>
+        {
+            PositionOnGroundNearBottomRight();
+            _motion.Reset(SystemParameters.WorkArea, Width, Height, Left, _clock.Elapsed.TotalSeconds);
+        };
         KeyDown += OnKeyDown;
         MouseLeftButtonDown += OnMouseLeftButtonDown;
         CompositionTarget.Rendering += OnRendering;
@@ -92,7 +103,36 @@ internal sealed class MachineCat3DWindow : Window
         if (!double.IsFinite(delta) || delta <= 0d) delta = 1d / 120d;
         if (delta > 0.05d) delta = 0.05d;
 
-        _rig.Apply(_state, Math.Max(0d, now - _stateStarted));
+        if (_autoMotion && !_smokeTest)
+        {
+            var frame = _motion.Step(delta, now, SystemParameters.WorkArea, Width, Height, Left);
+            Left = frame.Left;
+            Top = frame.Top;
+
+            if (_state != frame.State)
+            {
+                _state = frame.State;
+                _stateStarted = now;
+            }
+
+            // Automatic direction changes rotate the whole 3D character continuously.
+            // During that short turn we keep the limb rig idle instead of playing the
+            // old full-360 showcase turn animation.
+            var rigState = frame.State == MotionState.Turn ? MotionState.Idle : frame.State;
+            _rig.Apply(rigState, Math.Max(0d, now - _stateStarted));
+            _facingRoot.Transform = new RotateTransform3D(
+                new AxisAngleRotation3D(new Vector3D(0, 1, 0), frame.FacingYaw),
+                new Point3D(-0.03, 1.30, 0.0));
+
+            if (_debug.Visibility == Visibility.Visible)
+                _debug.Text = BuildDebugText(frame);
+        }
+        else
+        {
+            _rig.Apply(_state, Math.Max(0d, now - _stateStarted));
+            _facingRoot.Transform = Transform3D.Identity;
+        }
+
         _renderedFrames++;
         if (_smokeTest && _renderedFrames >= 5)
             Close();
@@ -102,21 +142,30 @@ internal sealed class MachineCat3DWindow : Window
     {
         switch (e.Key)
         {
+            case Key.A:
+                _autoMotion = !_autoMotion;
+                if (_autoMotion)
+                {
+                    _motion.Reset(SystemParameters.WorkArea, Width, Height, Left, _clock.Elapsed.TotalSeconds);
+                    _state = MotionState.Idle;
+                    _stateStarted = _clock.Elapsed.TotalSeconds;
+                }
+                break;
             case Key.D1:
             case Key.NumPad1:
-                SetState(MotionState.Idle);
+                SetManualState(MotionState.Idle);
                 break;
             case Key.D2:
             case Key.NumPad2:
-                SetState(MotionState.Walk);
+                SetManualState(MotionState.Walk);
                 break;
             case Key.D3:
             case Key.NumPad3:
-                SetState(MotionState.Run);
+                SetManualState(MotionState.Run);
                 break;
             case Key.D4:
             case Key.NumPad4:
-                SetState(MotionState.Turn);
+                SetManualState(MotionState.Turn);
                 break;
             case Key.D:
             case Key.F1:
@@ -126,11 +175,14 @@ internal sealed class MachineCat3DWindow : Window
                 Close();
                 break;
         }
-        _debug.Text = _debug.Text.Split('\n')[0] + $"\n状态: {_state} | 1 Idle  2 Walk  3 Run  4 Turn  D 调试  Esc 退出";
+
+        if (_debug.Visibility == Visibility.Visible)
+            _debug.Text = BuildDebugText();
     }
 
-    private void SetState(MotionState state)
+    private void SetManualState(MotionState state)
     {
+        _autoMotion = false;
         if (_state == state) return;
         _state = state;
         _stateStarted = _clock.Elapsed.TotalSeconds;
@@ -139,17 +191,24 @@ internal sealed class MachineCat3DWindow : Window
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ButtonState != MouseButtonState.Pressed) return;
+        _autoMotion = false;
         try { DragMove(); }
         catch (InvalidOperationException) { }
     }
 
-    private void PositionNearBottomRight()
+    private void PositionOnGroundNearBottomRight()
     {
         var area = SystemParameters.WorkArea;
-        Left = Math.Max(area.Left, area.Right - Width - 24d);
-        Top = Math.Max(area.Top, area.Bottom - Height - 24d);
+        Left = Math.Max(area.Left + 14d, area.Right - Width - 42d);
+        Top = Math.Max(area.Top, area.Bottom - Height + 48d);
     }
 
-    private static string BuildDebugText(string modelLabel)
-        => $"FACM 3D Gate 1 | {modelLabel}\n状态: Idle | 1 Idle  2 Walk  3 Run  4 Turn  D 调试  Esc 退出";
+    private string BuildDebugText(DesktopMotionFrame? frame = null)
+    {
+        var speed = frame?.Speed ?? _motion.Speed;
+        var target = frame?.TargetLeft ?? _motion.TargetLeft;
+        return $"FACM 3D Desktop Motion | {_modelLabel}\n" +
+               $"模式: {(_autoMotion ? "AUTO" : "MANUAL")} | 状态: {_state} | speed={speed:0.0}px/s | targetX={target:0}\n" +
+               "A 自动巡走  1 Idle  2 Walk  3 Run  4 Turn  D 调试  Esc 退出";
+    }
 }
