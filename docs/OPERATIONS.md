@@ -102,6 +102,10 @@ CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀�
 
 `release/request.json` 只负责提供发布参数，不能替代发布流程本身的任何安全检查。正式发布仍必须依次完成：输入校验 → PetHost publish/self-test → FACM Release build → 内嵌资源验证 → Authenticode 签名 → 生成 disabled manifest → 确认 main 未移动 → 提交发布元数据 → 创建并公开 GitHub Release → 最后启用在线更新清单。
 
+内嵌资源验证必须在 **Windows PowerShell 5.1 / .NET Framework** 上读取 .NET Framework 4.8 的 `FACM.exe` manifest resources。不要在 GitHub hosted runner 的 `shell: pwsh`（PowerShell 7 / .NET）里直接调用 `Assembly.ReflectionOnlyLoadFrom()`；该 API 在 .NET Core / .NET 5+ 不支持。核心 Build 和正式 Release 应保持同一套资源验证方式。
+
 如果在 Release 公开前失败，在线清单应保持 disabled；如果 Release 已公开但最终清单启用失败，工作流必须明确报错，不能伪称在线更新已经开启。
+
+同一版本在 **Release/tag 尚未创建** 的前提下需要重试时，应先修复并验证失败根因，再修改 `release/request.json` 的审计字段 `request_id`（例如 `3.1.0-attempt-2`）并通过新的短分支 + PR 合并触发。`request_id` 不改变版本或客户端语义，只用于让失败后的重试在 Git 历史中可追踪。若目标 tag/Release 已存在，不得用这种方式盲目重试；必须先核对线上 Release 与 manifest 状态。
 
 发布工作流最终成功后会同时更新 `docs/PROJECT_STATE.md`，记录正式版本、Release、在线更新状态和发布基础提交，避免仓库状态文档落后于生产状态。
