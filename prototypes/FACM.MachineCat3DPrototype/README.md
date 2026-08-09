@@ -1,26 +1,25 @@
-# FACM Machine Cat 3D Prototype — Gate 1
+# FACM Machine Cat 3D Prototype — Visual + Desktop Motion Gate
 
-这是 Issue #33 / Draft PR #35 在 2D Gate 1 四轮实机失败后的 **3D 刚性分件原型**。
+这是 Issue #33 / Draft PR #35 的独立桌宠验证工程，不接 FACM/PetHost，不替换现有 VPet。
 
-## 为什么转 3D
+## 已确认的失败路线
 
 真实 Windows 录屏已经确认：
 
 1. 程序重画矢量角色：外形失败；
 2. 整图 crossfade：出现双角色鬼影；
 3. 单图镜像/切姿势：无鬼影但动作仍像切图片；
-4. 扁平 PNG 局部位移场：手脚会拉长/变胖，产生明显橡皮感。
+4. 扁平 PNG 局部位移场：手脚会拉长/变胖，产生明显橡皮感；
+5. 第一只 3D GLB 虽然证明了 Viewport3D、刚性零件关节和连续 3D Turn 技术可行，但用户实机明确判定 **外观非常丑**；
+6. 之前“窗口固定、只原地踏步”的 Gate 设计也被用户否决：桌宠必须真正改变 Windows 窗口位置，才能评价走路是否可信。
 
-因此停止继续调 PNG 技巧。当前目标是：**不拉伸顶点，使用真正独立的 3D 零件围绕关节旋转。**
+因此当前门槛改为：
 
-## 用户提供模型的已验证事实
+> **外观合格 + 真正在桌面移动 + 步态与实际速度同步**，三项必须一起验收。
 
-本轮用户自行下载并提供：
+## 当前 3D 模型的定位
 
-- `664230004_doraemon_model.glb`
-- 对应原始下载 ZIP / FBX
-
-实际文件检查结果优先于网页描述：
+用户自行下载并提供的 `664230004_doraemon_model.glb` / FBX 已验证：
 
 - GLB 2.0；
 - 29 个独立 Mesh；
@@ -28,55 +27,65 @@
 - `skins = 0`；
 - `animations = 0`；
 - 原始 FBX 也未检出 Skin / Cluster / AnimationStack；
-- 模型不是现成骨骼动画模型，但头、眼、鼻、嘴、胡须、项圈、铃铛、身体、口袋、左右上臂/小臂/手、左右腿/脚、尾巴已经拆成独立 Mesh；
-- 因此 Prototype 在运行时为这些刚性零件建立关节关系，不做蒙皮顶点形变。
+- 头、眼、鼻、嘴、胡须、项圈、铃铛、身体、口袋、左右上臂/小臂/手、左右腿/脚、尾巴已经拆成独立 Mesh。
+
+它让我们验证了“刚性分件 3D Rig”是可行的，但 **已经不再是视觉候选角色**。不要继续为它调材质、灯光、脸型或细节。
 
 ## 第三方模型边界
 
 **模型文件不进入本仓库，不进入 GitHub Actions artifact。**
 
-`.gitignore` 明确排除 `*.glb / *.gltf / *.fbx / *.zip`，CI 发布前也会检查 artifact 中不存在这些格式。
+`.gitignore` 排除 `*.glb / *.gltf / *.fbx / *.zip`，CI 发布前检查 artifact 中不存在这些格式。公开 artifact 只有 runtime；本地测试者自行放入合法取得的模型。
 
-测试时：
-
-1. 下载 `FACM-MachineCat-3D-Gate1-*` runtime artifact；
-2. 将你自己合法取得的 `664230004_doraemon_model.glb` 放到 EXE 同目录；
-3. 或直接把 GLB 文件拖到 `FACM.MachineCat3DPrototype.exe` 上。
-
-## 技术路线
+## 当前技术路线
 
 - .NET 8 WPF；
-- 内置 `Viewport3D`，Gate 1 暂不引入大型游戏引擎或第三方渲染框架；
-- 极窄 GLB 2.0 Loader，只实现当前模型实际需要的 triangle / POSITION / NORMAL / indices / node matrix；
-- 加载时把 GLB 节点变换烘到各独立 Mesh 的世界坐标；
-- 运行时按零件名建立刚性关节：
-  - shoulder → forearm → hand；
-  - hip → foot；
-  - head / face group；
-  - bell secondary motion；
-  - tail secondary motion；
-- Walk / Run 只旋转刚性 Mesh，不拉伸像素或顶点；
-- Turn 是整个 3D 模型围绕 Y 轴连续旋转，不再切前/侧/背图片；
-- 模型原文件只有通用材质，Prototype 按零件名在运行时恢复经典蓝/白/红/黄配色，并用两个很小的程序球体补瞳孔；不修改模型文件本身。
+- 内置 `Viewport3D`；
+- 极窄 GLB 2.0 Loader；
+- 旧模型用刚性零件关节验证 shoulder → forearm → hand、hip → foot、head/face、bell、tail；
+- 不 crossfade、不镜像整图、不做位图 warp；
+- 3D Turn 使用连续旋转；
+- **新增 `DesktopMotionController`，窗口位置本身使用 deltaTime 真正移动。**
 
-## Gate 1 操作
+### DesktopMotionController
 
-窗口固定，不做桌面自动巡航：
+默认启动即进入 AUTO：
 
-- `1` Idle
-- `2` Walk
-- `3` Run
-- `4` Turn（连续 3D 旋转）
-- `D` / `F1` 调试文字
-- `Esc` 退出
-- 鼠标左键可拖动窗口
+- 角色位于 `SystemParameters.WorkArea` 底部的地面线；
+- 在屏幕左右选择有最短距离约束的目标点；
+- Walk 约 92 px/s，Run 约 168 px/s；
+- 使用加速度渐进到目标速度，不瞬移；
+- 距目标越近越减速；
+- 到达后停留一小段时间，再决定下一目标；
+- 需要反向时先减速、连续转身，再移动；
+- 目标点永远在工作区内，边缘不直接反弹；
+- 产品行为中长距离约 30% 概率进入 Run；
+- 动画状态由**实际速度**决定：加速阶段先 Walk，超过阈值才 Run。
 
-本轮只验：
+自动 self-test 在 1920×1040 工作区模拟 45 秒，必须：
 
-1. 外形/材质是否可接受；
-2. Walk 左右手脚是否真的围绕关节连续摆动；
-3. Run 是否比 Walk 明显更有速度/幅度，但不穿模得离谱；
-4. Turn 是否真正连续 360°，彻底摆脱离散图片切换；
-5. CPU / 内存是否适合继续做桌宠。
+- 累计窗口实际位移 ≥ 900 px；
+- 始终处于工作区；
+- 始终保持地面线；
+- 覆盖 Walk / Turn / Run。
 
-Gate 1 没被用户明确通过前，不做 Gate 2 自动漫游，不接 FACM/PetHost，不替换 VPet。
+## 操作
+
+- 默认：AUTO 真正桌面巡走
+- `A`：开关自动巡走
+- `1`：暂停自动并手动 Idle
+- `2`：暂停自动并手动 Walk 动作
+- `3`：暂停自动并手动 Run 动作
+- `4`：暂停自动并手动 360° Turn 演示
+- `D` / `F1`：调试信息
+- `Esc`：退出
+- 鼠标拖动窗口：暂停 AUTO；按 `A` 恢复
+
+## 当前验收顺序
+
+1. **先换掉已经判丑的 3D 模型。**
+2. 新模型必须先看外观，不再默认相信网页“rigged / animated”描述；实际下载文件优先。
+3. 新模型加载成功后，同时看它在 Windows 桌面真实移动时的 Walk / Run / Turn。
+4. 只有外观、实际移动、动作同步三项同时合格，才讨论接 FACM/PetHost。
+
+PR #35 继续保持 Draft。
