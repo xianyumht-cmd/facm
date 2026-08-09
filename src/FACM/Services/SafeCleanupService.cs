@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Forms;
 using FACM.Configuration;
 
 namespace FACM.Services
@@ -59,6 +60,18 @@ namespace FACM.Services
     internal static class SafeCleanupService
     {
         public static CleanupPlan CreatePlan(string selectedPath)
+        {
+            if (Application.MessageLoop)
+            {
+                return BackgroundOperationDialog.Run(
+                    "FACM 清理预览",
+                    "正在扫描清理目标并统计文件，请稍候…",
+                    delegate { return CreatePlanCore(selectedPath); });
+            }
+            return CreatePlanCore(selectedPath);
+        }
+
+        private static CleanupPlan CreatePlanCore(string selectedPath)
         {
             CleanupProfile.Validate();
             var gameRoot = GameLocator.ResolveGameRoot(selectedPath);
@@ -133,6 +146,19 @@ namespace FACM.Services
         }
 
         public static CleanupResult Execute(CleanupPlan plan)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (Application.MessageLoop)
+            {
+                return BackgroundOperationDialog.Run(
+                    "FACM 正在清理",
+                    "正在安全删除已确认项目，请勿关闭程序…",
+                    delegate { return ExecuteCore(plan); });
+            }
+            return ExecuteCore(plan);
+        }
+
+        private static CleanupResult ExecuteCore(CleanupPlan plan)
         {
             if (plan == null) throw new ArgumentNullException(nameof(plan));
             CleanupProfile.Validate();
