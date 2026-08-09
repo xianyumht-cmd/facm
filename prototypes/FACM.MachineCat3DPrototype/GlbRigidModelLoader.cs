@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
-using System.Text;
 using System.Text.Json;
-using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
 namespace FACM.MachineCat3DPrototype;
@@ -20,6 +18,11 @@ internal sealed class RigidModel
     public Rect3D Bounds { get; }
 }
 
+/// <summary>
+/// Deliberately small GLB 2.0 loader for the current Gate 1 asset shape:
+/// triangle primitives, FLOAT VEC3 positions/normals, integer indices and node matrices.
+/// It is not intended to become a general glTF engine.
+/// </summary>
 internal static class GlbRigidModelLoader
 {
     private const uint GlbMagic = 0x46546C67;
@@ -30,340 +33,217 @@ internal static class GlbRigidModelLoader
 
     internal static RigidModel Load(byte[] data)
     {
-        if (data.Length < 20)
-            throw new InvalidDataException("GLB is too small.");
-        if (BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, 4)) != GlbMagic)
-            throw new InvalidDataException("Not a glTF binary (GLB) file.");
+        if (data.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, 4)) != GlbMagic)
+            throw new InvalidDataException("Not a GLB file.");
         if (BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4, 4)) != 2)
-            throw new InvalidDataException("Only GLB/glTF 2.0 is supported.");
+            throw new InvalidDataException("Only glTF/GLB 2.0 is supported.");
 
         var declaredLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(8, 4)));
-        if (declaredLength > data.Length)
-            throw new InvalidDataException("GLB length is invalid.");
+        if (declaredLength > data.Length) throw new InvalidDataException("Invalid GLB length.");
 
         ReadOnlyMemory<byte> jsonBytes = default;
         ReadOnlyMemory<byte> binaryBytes = default;
-        var offset = 12;
-        while (offset + 8 <= declaredLength)
+        for (var offset = 12; offset + 8 <= declaredLength;)
         {
-            var chunkLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset, 4)));
-            var chunkType = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset + 4, 4));
+            var length = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset, 4)));
+            var type = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset + 4, 4));
             offset += 8;
-            if (chunkLength < 0 || offset + chunkLength > declaredLength)
-                throw new InvalidDataException("GLB chunk length is invalid.");
-
-            if (chunkType == JsonChunk)
-                jsonBytes = data.AsMemory(offset, chunkLength);
-            else if (chunkType == BinChunk)
-                binaryBytes = data.AsMemory(offset, chunkLength);
-            offset += chunkLength;
+            if (length < 0 || offset + length > declaredLength) throw new InvalidDataException("Invalid GLB chunk.");
+            if (type == JsonChunk) jsonBytes = data.AsMemory(offset, length);
+            if (type == BinChunk) binaryBytes = data.AsMemory(offset, length);
+            offset += length;
         }
+        if (jsonBytes.IsEmpty || binaryBytes.IsEmpty) throw new InvalidDataException("GLB JSON/BIN chunk missing.");
 
-        if (jsonBytes.IsEmpty || binaryBytes.IsEmpty)
-            throw new InvalidDataException("GLB must contain JSON and BIN chunks.");
-
-        using var document = JsonDocument.Parse(jsonBytes);
-        var root = document.RootElement;
+        using var doc = JsonDocument.Parse(jsonBytes);
+        var root = doc.RootElement;
         var nodes = root.GetProperty("nodes");
         var meshes = root.GetProperty("meshes");
         var accessors = root.GetProperty("accessors");
-        var bufferViews = root.GetProperty("bufferViews");
+        var views = root.GetProperty("bufferViews");
         var scenes = root.GetProperty("scenes");
-        var sceneIndex = root.TryGetProperty("scene", out var selectedScene) ? selectedScene.GetInt32() : 0;
-        var scene = scenes[sceneIndex];
+        var sceneIndex = root.TryGetProperty("scene", out var sceneProp) ? sceneProp.GetInt32() : 0;
 
         var parts = new List<RigidMeshPart>();
-        foreach (var nodeIndexValue in scene.GetProperty("nodes").EnumerateArray())
-            VisitNode(nodeIndexValue.GetInt32(), Matrix4.Identity, nodes, meshes, accessors, bufferViews, binaryBytes, parts);
+        foreach (var item in scenes[sceneIndex].GetProperty("nodes").EnumerateArray())
+            Visit(item.GetInt32(), Matrix4.Identity, nodes, meshes, accessors, views, binaryBytes, parts);
+        if (parts.Count == 0) throw new InvalidDataException("GLB has no triangle meshes.");
 
-        if (parts.Count == 0)
-            throw new InvalidDataException("GLB contains no triangle mesh parts.");
-
-        var overall = EmptyBounds();
-        foreach (var part in parts)
-            Union(ref overall, part.Bounds);
-        return new RigidModel(parts, overall);
+        var bounds = Rect3D.Empty;
+        foreach (var part in parts) Union(ref bounds, part.Bounds);
+        return new RigidModel(parts, bounds);
     }
 
-    private static void VisitNode(
-        int nodeIndex,
-        Matrix4 parentWorld,
-        JsonElement nodes,
-        JsonElement meshes,
-        JsonElement accessors,
-        JsonElement bufferViews,
-        ReadOnlyMemory<byte> binary,
+    private static void Visit(
+        int nodeIndex, Matrix4 parent, JsonElement nodes, JsonElement meshes,
+        JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary,
         List<RigidMeshPart> parts)
     {
         var node = nodes[nodeIndex];
-        var local = ReadNodeMatrix(node);
-        var world = Matrix4.Multiply(parentWorld, local);
+        var world = Matrix4.Multiply(parent, ReadMatrix(node));
 
-        if (node.TryGetProperty("mesh", out var meshProperty))
+        if (node.TryGetProperty("mesh", out var meshIndex))
         {
-            var mesh = meshes[meshProperty.GetInt32()];
-            var baseName = node.TryGetProperty("name", out var nameProperty)
-                ? nameProperty.GetString() ?? $"mesh-{meshProperty.GetInt32()}"
-                : $"mesh-{meshProperty.GetInt32()}";
-
-            var primitiveNumber = 0;
+            var mesh = meshes[meshIndex.GetInt32()];
+            var baseName = node.TryGetProperty("name", out var name)
+                ? name.GetString() ?? $"mesh-{meshIndex.GetInt32()}"
+                : $"mesh-{meshIndex.GetInt32()}";
+            var primitiveNo = 0;
             foreach (var primitive in mesh.GetProperty("primitives").EnumerateArray())
             {
                 if (primitive.TryGetProperty("mode", out var mode) && mode.GetInt32() != 4)
-                    throw new InvalidDataException($"{baseName}: only TRIANGLES primitives are supported.");
-
-                var attributes = primitive.GetProperty("attributes");
-                if (!attributes.TryGetProperty("POSITION", out var positionAccessor))
-                    throw new InvalidDataException($"{baseName}: POSITION is missing.");
-
-                var positions = ReadVec3Accessor(positionAccessor.GetInt32(), accessors, bufferViews, binary);
-                var normals = attributes.TryGetProperty("NORMAL", out var normalAccessor)
-                    ? ReadVec3Accessor(normalAccessor.GetInt32(), accessors, bufferViews, binary)
+                    throw new InvalidDataException($"{baseName}: only TRIANGLES is supported.");
+                var attrs = primitive.GetProperty("attributes");
+                var positions = ReadPoints(attrs.GetProperty("POSITION").GetInt32(), accessors, views, binary);
+                var normals = attrs.TryGetProperty("NORMAL", out var normalIndex)
+                    ? ReadVectors(normalIndex.GetInt32(), accessors, views, binary)
                     : Array.Empty<Vector3D>();
-                var indices = primitive.TryGetProperty("indices", out var indexAccessor)
-                    ? ReadIndexAccessor(indexAccessor.GetInt32(), accessors, bufferViews, binary)
+                var indices = primitive.TryGetProperty("indices", out var indicesIndex)
+                    ? ReadIndices(indicesIndex.GetInt32(), accessors, views, binary)
                     : Enumerable.Range(0, positions.Length).ToArray();
 
                 var geometry = new MeshGeometry3D();
-                var bounds = EmptyBounds();
-                for (var i = 0; i < positions.Length; i++)
+                var bounds = Rect3D.Empty;
+                foreach (var position in positions)
                 {
-                    var transformed = world.TransformPoint(positions[i]);
-                    geometry.Positions.Add(transformed);
-                    Include(ref bounds, transformed);
+                    var p = world.Point(position);
+                    geometry.Positions.Add(p);
+                    Include(ref bounds, p);
                 }
-
                 if (normals.Length == positions.Length)
                 {
                     foreach (var normal in normals)
                     {
-                        var transformed = world.TransformVector(normal);
-                        if (transformed.LengthSquared > 0.0000001)
-                            transformed.Normalize();
-                        geometry.Normals.Add(transformed);
+                        var n = world.Vector(normal);
+                        if (n.LengthSquared > 0.0000001) n.Normalize();
+                        geometry.Normals.Add(n);
                     }
                 }
-
-                foreach (var index in indices)
-                    geometry.TriangleIndices.Add(index);
-
+                foreach (var index in indices) geometry.TriangleIndices.Add(index);
                 geometry.Freeze();
-                var partName = primitiveNumber == 0 ? baseName : $"{baseName}#{primitiveNumber}";
+
+                var partName = primitiveNo == 0 ? baseName : $"{baseName}#{primitiveNo}";
                 var center = new Point3D(
                     bounds.X + bounds.SizeX / 2d,
                     bounds.Y + bounds.SizeY / 2d,
                     bounds.Z + bounds.SizeZ / 2d);
                 parts.Add(new RigidMeshPart(partName, geometry, center, bounds));
-                primitiveNumber++;
+                primitiveNo++;
             }
         }
 
         if (node.TryGetProperty("children", out var children))
-        {
             foreach (var child in children.EnumerateArray())
-                VisitNode(child.GetInt32(), world, nodes, meshes, accessors, bufferViews, binary, parts);
-        }
+                Visit(child.GetInt32(), world, nodes, meshes, accessors, views, binary, parts);
     }
 
-    private static Point3D[] ReadVec3Accessor(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
+    private static Point3D[] ReadPoints(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
+    {
+        var raw = ReadFloatVec3(accessorIndex, accessors, views, binary);
+        var result = new Point3D[raw.Length / 3];
+        for (var i = 0; i < result.Length; i++) result[i] = new Point3D(raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]);
+        return result;
+    }
+
+    private static Vector3D[] ReadVectors(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
+    {
+        var raw = ReadFloatVec3(accessorIndex, accessors, views, binary);
+        var result = new Vector3D[raw.Length / 3];
+        for (var i = 0; i < result.Length; i++) result[i] = new Vector3D(raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]);
+        return result;
+    }
+
+    private static double[] ReadFloatVec3(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
     {
         var accessor = accessors[accessorIndex];
         if (accessor.GetProperty("componentType").GetInt32() != 5126 || accessor.GetProperty("type").GetString() != "VEC3")
-            throw new InvalidDataException("Expected FLOAT VEC3 accessor.");
-
+            throw new InvalidDataException("Expected FLOAT VEC3.");
         var count = accessor.GetProperty("count").GetInt32();
         var view = views[accessor.GetProperty("bufferView").GetInt32()];
-        var start = GetOptionalInt(view, "byteOffset") + GetOptionalInt(accessor, "byteOffset");
-        var stride = view.TryGetProperty("byteStride", out var strideProperty) ? strideProperty.GetInt32() : 12;
-        if (stride < 12)
-            throw new InvalidDataException("Invalid VEC3 byteStride.");
-
-        var result = new Point3D[count];
+        var start = OptionalInt(view, "byteOffset") + OptionalInt(accessor, "byteOffset");
+        var stride = view.TryGetProperty("byteStride", out var strideProp) ? strideProp.GetInt32() : 12;
+        var result = new double[count * 3];
         var span = binary.Span;
         for (var i = 0; i < count; i++)
         {
-            var item = start + i * stride;
-            EnsureRange(span.Length, item, 12);
-            result[i] = new Point3D(
-                ReadSingle(span, item),
-                ReadSingle(span, item + 4),
-                ReadSingle(span, item + 8));
+            var p = start + i * stride;
+            Ensure(span.Length, p, 12);
+            result[i * 3] = ReadFloat(span, p);
+            result[i * 3 + 1] = ReadFloat(span, p + 4);
+            result[i * 3 + 2] = ReadFloat(span, p + 8);
         }
         return result;
     }
 
-    private static Vector3D[] ReadVec3AccessorAsVectors(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
-    {
-        var points = ReadVec3Accessor(accessorIndex, accessors, views, binary);
-        return points.Select(p => new Vector3D(p.X, p.Y, p.Z)).ToArray();
-    }
-
-    private static int[] ReadIndexAccessor(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
+    private static int[] ReadIndices(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary)
     {
         var accessor = accessors[accessorIndex];
-        if (accessor.GetProperty("type").GetString() != "SCALAR")
-            throw new InvalidDataException("Index accessor must be SCALAR.");
-        var componentType = accessor.GetProperty("componentType").GetInt32();
-        var componentBytes = componentType switch
-        {
-            5121 => 1,
-            5123 => 2,
-            5125 => 4,
-            _ => throw new InvalidDataException($"Unsupported index component type {componentType}.")
-        };
+        var component = accessor.GetProperty("componentType").GetInt32();
+        var bytes = component switch { 5121 => 1, 5123 => 2, 5125 => 4, _ => throw new InvalidDataException("Unsupported index type.") };
         var count = accessor.GetProperty("count").GetInt32();
         var view = views[accessor.GetProperty("bufferView").GetInt32()];
-        var start = GetOptionalInt(view, "byteOffset") + GetOptionalInt(accessor, "byteOffset");
-        var stride = view.TryGetProperty("byteStride", out var strideProperty) ? strideProperty.GetInt32() : componentBytes;
+        var start = OptionalInt(view, "byteOffset") + OptionalInt(accessor, "byteOffset");
+        var stride = view.TryGetProperty("byteStride", out var strideProp) ? strideProp.GetInt32() : bytes;
         var result = new int[count];
         var span = binary.Span;
         for (var i = 0; i < count; i++)
         {
-            var item = start + i * stride;
-            EnsureRange(span.Length, item, componentBytes);
-            result[i] = componentType switch
+            var p = start + i * stride;
+            Ensure(span.Length, p, bytes);
+            result[i] = component switch
             {
-                5121 => span[item],
-                5123 => BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(item, 2)),
-                5125 => checked((int)BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(item, 4))),
+                5121 => span[p],
+                5123 => BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(p, 2)),
+                5125 => checked((int)BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(p, 4))),
                 _ => 0
             };
         }
         return result;
     }
 
-    private static Vector3D[] ReadVec3Accessor(int accessorIndex, JsonElement accessors, JsonElement views, ReadOnlyMemory<byte> binary, bool asVector)
-        => ReadVec3AccessorAsVectors(accessorIndex, accessors, views, binary);
-
-    private static Matrix4 ReadNodeMatrix(JsonElement node)
+    private static Matrix4 ReadMatrix(JsonElement node)
     {
-        if (node.TryGetProperty("matrix", out var matrix))
-        {
-            var values = matrix.EnumerateArray().Select(value => value.GetDouble()).ToArray();
-            if (values.Length != 16)
-                throw new InvalidDataException("Node matrix must contain 16 values.");
-            return new Matrix4(values);
-        }
-
-        var result = Matrix4.Identity;
-        if (node.TryGetProperty("scale", out var scale))
-        {
-            var v = scale.EnumerateArray().Select(value => value.GetDouble()).ToArray();
-            result = Matrix4.Multiply(result, Matrix4.Scale(v[0], v[1], v[2]));
-        }
-        if (node.TryGetProperty("rotation", out var rotation))
-        {
-            var q = rotation.EnumerateArray().Select(value => value.GetDouble()).ToArray();
-            result = Matrix4.Multiply(result, Matrix4.Quaternion(q[0], q[1], q[2], q[3]));
-        }
-        if (node.TryGetProperty("translation", out var translation))
-        {
-            var v = translation.EnumerateArray().Select(value => value.GetDouble()).ToArray();
-            result = Matrix4.Multiply(Matrix4.Translation(v[0], v[1], v[2]), result);
-        }
-        return result;
+        if (!node.TryGetProperty("matrix", out var matrix)) return Matrix4.Identity;
+        var values = matrix.EnumerateArray().Select(v => v.GetDouble()).ToArray();
+        if (values.Length != 16) throw new InvalidDataException("Node matrix must contain 16 values.");
+        return new Matrix4(values);
     }
 
-    private static int GetOptionalInt(JsonElement element, string name)
-        => element.TryGetProperty(name, out var value) ? value.GetInt32() : 0;
-
-    private static float ReadSingle(ReadOnlySpan<byte> data, int offset)
-        => BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset, 4)));
-
-    private static void EnsureRange(int length, int offset, int count)
+    private static int OptionalInt(JsonElement item, string name) => item.TryGetProperty(name, out var value) ? value.GetInt32() : 0;
+    private static float ReadFloat(ReadOnlySpan<byte> span, int offset) => BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset, 4)));
+    private static void Ensure(int length, int offset, int count)
     {
-        if (offset < 0 || count < 0 || offset > length - count)
-            throw new InvalidDataException("Accessor points outside the GLB BIN chunk.");
+        if (offset < 0 || count < 0 || offset > length - count) throw new InvalidDataException("Accessor is outside BIN chunk.");
     }
-
-    private static Rect3D EmptyBounds() => Rect3D.Empty;
-
-    private static void Include(ref Rect3D bounds, Point3D point)
+    private static void Include(ref Rect3D bounds, Point3D p)
     {
-        if (bounds.IsEmpty)
-            bounds = new Rect3D(point, new Size3D(0, 0, 0));
-        else
-            bounds.Union(point);
+        if (bounds.IsEmpty) bounds = new Rect3D(p, new Size3D(0, 0, 0)); else bounds.Union(p);
     }
-
     private static void Union(ref Rect3D bounds, Rect3D other)
     {
         if (other.IsEmpty) return;
-        if (bounds.IsEmpty) bounds = other;
-        else bounds.Union(other);
+        if (bounds.IsEmpty) bounds = other; else bounds.Union(other);
     }
 
     private readonly struct Matrix4
     {
         private readonly double[] _m;
-
-        public Matrix4(double[] values) => _m = values;
-
-        public static Matrix4 Identity => new(new double[]
-        {
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-        });
-
+        public Matrix4(double[] m) => _m = m;
+        public static Matrix4 Identity => new(new double[] { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 });
         public static Matrix4 Multiply(Matrix4 a, Matrix4 b)
         {
-            var result = new double[16];
-            for (var column = 0; column < 4; column++)
-            for (var row = 0; row < 4; row++)
-            {
-                var value = 0d;
-                for (var k = 0; k < 4; k++)
-                    value += a._m[k * 4 + row] * b._m[column * 4 + k];
-                result[column * 4 + row] = value;
-            }
-            return new Matrix4(result);
+            var r = new double[16];
+            for (var c = 0; c < 4; c++) for (var row = 0; row < 4; row++)
+                for (var k = 0; k < 4; k++) r[c * 4 + row] += a._m[k * 4 + row] * b._m[c * 4 + k];
+            return new Matrix4(r);
         }
-
-        public Point3D TransformPoint(Point3D p)
-            => new(
-                _m[0] * p.X + _m[4] * p.Y + _m[8] * p.Z + _m[12],
-                _m[1] * p.X + _m[5] * p.Y + _m[9] * p.Z + _m[13],
-                _m[2] * p.X + _m[6] * p.Y + _m[10] * p.Z + _m[14]);
-
-        public Vector3D TransformVector(Vector3D v)
-            => new(
-                _m[0] * v.X + _m[4] * v.Y + _m[8] * v.Z,
-                _m[1] * v.X + _m[5] * v.Y + _m[9] * v.Z,
-                _m[2] * v.X + _m[6] * v.Y + _m[10] * v.Z);
-
-        public static Matrix4 Translation(double x, double y, double z)
-        {
-            var m = Identity._m.ToArray();
-            m[12] = x; m[13] = y; m[14] = z;
-            return new Matrix4(m);
-        }
-
-        public static Matrix4 Scale(double x, double y, double z)
-            => new(new double[]
-            {
-                x, 0, 0, 0,
-                0, y, 0, 0,
-                0, 0, z, 0,
-                0, 0, 0, 1
-            });
-
-        public static Matrix4 Quaternion(double x, double y, double z, double w)
-        {
-            var length = Math.Sqrt(x * x + y * y + z * z + w * w);
-            if (length <= 0.0000001) return Identity;
-            x /= length; y /= length; z /= length; w /= length;
-            var xx = x * x; var yy = y * y; var zz = z * z;
-            var xy = x * y; var xz = x * z; var yz = y * z;
-            var wx = w * x; var wy = w * y; var wz = w * z;
-            return new Matrix4(new double[]
-            {
-                1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0,
-                2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0,
-                2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0,
-                0, 0, 0, 1
-            });
-        }
+        public Point3D Point(Point3D p) => new(
+            _m[0] * p.X + _m[4] * p.Y + _m[8] * p.Z + _m[12],
+            _m[1] * p.X + _m[5] * p.Y + _m[9] * p.Z + _m[13],
+            _m[2] * p.X + _m[6] * p.Y + _m[10] * p.Z + _m[14]);
+        public Vector3D Vector(Vector3D v) => new(
+            _m[0] * v.X + _m[4] * v.Y + _m[8] * v.Z,
+            _m[1] * v.X + _m[5] * v.Y + _m[9] * v.Z,
+            _m[2] * v.X + _m[6] * v.Y + _m[10] * v.Z);
     }
 }
