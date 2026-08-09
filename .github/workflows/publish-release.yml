@@ -27,6 +27,11 @@ on:
         required: true
         type: string
         default: '稳定性与功能更新。'
+  push:
+    branches:
+      - main
+    paths:
+      - 'release/request.json'
 
 permissions:
   contents: write
@@ -60,6 +65,41 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+
+      - name: Resolve release request
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -ne 'push') {
+            Write-Host 'Using workflow_dispatch release inputs.'
+            exit 0
+          }
+
+          $requestPath = 'release/request.json'
+          if (-not (Test-Path $requestPath -PathType Leaf)) {
+            throw "Release request file is missing: $requestPath"
+          }
+          $request = Get-Content $requestPath -Raw -Encoding utf8 | ConvertFrom-Json
+          $version = [string]$request.version
+          $minimumVersion = [string]$request.minimum_version
+          $forceUpdate = [string][bool]$request.force_update
+          $prerelease = [string][bool]$request.prerelease
+          $notes = [string]$request.release_notes
+
+          if ([string]::IsNullOrWhiteSpace($version) -or
+              [string]::IsNullOrWhiteSpace($minimumVersion) -or
+              [string]::IsNullOrWhiteSpace($notes)) {
+            throw 'release/request.json must define version, minimum_version and release_notes.'
+          }
+
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "MINIMUM_VERSION=$minimumVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "FORCE_UPDATE=$forceUpdate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PRERELEASE=$prerelease" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $delimiter = 'FACM_RELEASE_NOTES_' + [Guid]::NewGuid().ToString('N')
+          "RELEASE_NOTES<<$delimiter" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $notes | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $delimiter | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Resolved audited release request for FACM $version."
 
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -299,7 +339,37 @@ jobs:
           $manifest.enabled = $true
           $manifest.published_at = [DateTimeOffset]::UtcNow.ToString('o')
           $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
-          git add online/version.json
+
+          New-Item -ItemType Directory -Path docs -Force | Out-Null
+          $stateLines = @(
+            '# FACM 当前项目状态',
+            '',
+            ('> 正式发布工作流于 ' + [DateTimeOffset]::UtcNow.ToString('u') + ' 更新。'),
+            '',
+            '## 当前正式版',
+            '',
+            ('- 版本：FACM ' + $env:RELEASE_VERSION),
+            ('- GitHub Release：v' + $env:RELEASE_VERSION),
+            '- 在线更新：已启用',
+            ('- minimum_version：' + $env:MINIMUM_VERSION),
+            ('- force_update：' + $env:FORCE_UPDATE.ToLowerInvariant()),
+            ('- 发布基础 main：' + $env:FACM_RELEASE_BASE_SHA),
+            ('- 发布元数据提交：' + $env:FACM_RELEASE_METADATA_SHA),
+            '',
+            '## 验证状态',
+            '',
+            '- Build #495 的 Windows 发布候选已完成用户实机验收并确认无问题。',
+            '- 正式 Release 继续经过签名、SHA-256、PetHost self-test/内嵌验证与事务式在线清单启用。',
+            '- Issue #28 记录本次 3.1.0 正式发布授权与执行。',
+            '',
+            '## 后续',
+            '',
+            '- 新功能或缺陷继续通过 Issue + 短分支 + PR 进入 main。',
+            '- 下一正式版本继续使用 `.github/workflows/publish-release.yml`；可从 Actions 手动触发，也可通过合并 `release/request.json` 的审计式发布请求触发。'
+          )
+          Set-Content docs/PROJECT_STATE.md $stateLines -Encoding utf8
+
+          git add online/version.json docs/PROJECT_STATE.md
           git commit -m "启用 FACM $env:RELEASE_VERSION 在线更新"
           git push origin HEAD:main
           if ($LASTEXITCODE -ne 0) {
