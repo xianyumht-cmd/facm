@@ -11,6 +11,7 @@ namespace FACM
 {
     internal static class CompactMenuEnhancer
     {
+        private const int WmPaint = 0x000F;
         private const int WmShowWindow = 0x0018;
         private static readonly HashSet<IntPtr> AppliedHandles = new HashSet<IntPtr>();
         private static readonly Dictionary<IntPtr, OutsideClickWatcher> OutsideWatchers = new Dictionary<IntPtr, OutsideClickWatcher>();
@@ -25,8 +26,9 @@ namespace FACM
 
             // The old implementation waited for Application.Idle and moved custom-painted buttons
             // after the form had already been shown. That left stale pixels until each button happened
-            // to repaint on hover. WM_SHOWWINDOW arrives before the first normal paint, so finish the
-            // compatibility layout there. Idle remains only as a safety fallback for unusual handles.
+            // to repaint on hover. WM_SHOWWINDOW is useful when it reaches the message filter, while the
+            // first WM_PAINT is the hard boundary: finish the compatibility layout before that paint is
+            // dispatched. Idle remains only as a safety fallback for unusual handles.
             Application.AddMessageFilter(MessageFilter);
             Application.Idle += ApplyToOpenForms;
             Application.ApplicationExit += delegate
@@ -183,7 +185,7 @@ namespace FACM
         {
             public bool PreFilterMessage(ref Message m)
             {
-                if (m.Msg == WmShowWindow) TryApplyHandle(m.HWnd);
+                if (m.Msg == WmShowWindow || m.Msg == WmPaint) TryApplyHandle(m.HWnd);
                 return false;
             }
         }
