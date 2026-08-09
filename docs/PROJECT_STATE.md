@@ -1,16 +1,16 @@
 # FACM 当前项目状态
 
-> 正式发布工作流于 2026-08-09 11:20:52Z 更新。
+> 正式发布工作流于 2026-08-09 14:05:33Z 更新。
 
 ## 当前正式版
 
-- 版本：FACM 3.1.0
-- GitHub Release：v3.1.0
+- 版本：FACM 3.1.1
+- GitHub Release：v3.1.1
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：7b830ffaf9687a3e1085113b3e3d942f1bac9c0f
-- 发布元数据提交：1fa7c7c928354c47127184de90050ffc351738df
+- 发布基础 main：e53c45773b224e4d8f670f44381e394457fdf660
+- 发布元数据提交：04f7cbae702d6dd136ab278f72938cff2a8c26ef
 
 ## 验证状态
 
