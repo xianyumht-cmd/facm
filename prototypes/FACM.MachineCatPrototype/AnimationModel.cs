@@ -398,21 +398,22 @@ internal static class MachineCatSelfTest
                 }
             }
 
-            var walkA = MachineCatAnimator.SampleState(PetState.Walk, 0.00d, Vector2.Zero);
-            var walkB = MachineCatAnimator.SampleState(PetState.Walk, 0.12d, Vector2.Zero);
-            var runA = MachineCatAnimator.SampleState(PetState.Run, 0.00d, Vector2.Zero);
-            var runB = MachineCatAnimator.SampleState(PetState.Run, 0.12d, Vector2.Zero);
+            const double localSampleStep = 1d / 120d;
+            var walkA = MachineCatAnimator.SampleState(PetState.Walk, 0d, Vector2.Zero);
+            var walkB = MachineCatAnimator.SampleState(PetState.Walk, localSampleStep, Vector2.Zero);
+            var runA = MachineCatAnimator.SampleState(PetState.Run, 0d, Vector2.Zero);
+            var runB = MachineCatAnimator.SampleState(PetState.Run, localSampleStep, Vector2.Zero);
             if (Math.Abs(runB.LeftLegRotation - runA.LeftLegRotation) <= Math.Abs(walkB.LeftLegRotation - walkA.LeftLegRotation))
-                throw new InvalidOperationException("Run 步态变化应明显快于 Walk。 ");
+                throw new InvalidOperationException("Run 局部步态变化率应明显快于 Walk。");
 
             var sleep = MachineCatAnimator.SampleState(PetState.Sleep, 2d, Vector2.Zero);
-            if (sleep.EyeOpen > 0.1d) throw new InvalidOperationException("Sleep 必须闭眼。 ");
+            if (sleep.EyeOpen > 0.1d) throw new InvalidOperationException("Sleep 必须闭眼。");
 
             var observe = MachineCatAnimator.SampleState(PetState.Observe, 2d, new Vector2(1f, 1f));
-            if (observe.EyeX <= 0d || observe.EyeY <= 0d) throw new InvalidOperationException("Observe 眼神方向映射失败。 ");
+            if (observe.EyeX <= 0d || observe.EyeY <= 0d) throw new InvalidOperationException("Observe 眼神方向映射失败。");
 
             if (MachineCatAnimator.ClampDelta(1d) > 0.050001d)
-                throw new InvalidOperationException("deltaTime frame-gap clamp 失败。 ");
+                throw new InvalidOperationException("deltaTime frame-gap clamp 失败。");
 
             return 0;
         }
@@ -442,12 +443,12 @@ internal static class MachineCatSelfTest
         };
 
         if (values.Any(value => !double.IsFinite(value)))
-            throw new InvalidOperationException($"{state} 产生了非有限动画参数。 ");
+            throw new InvalidOperationException($"{state} 产生了非有限动画参数。");
         if (pose.RootScaleX is < 0.7d or > 1.3d || pose.RootScaleY is < 0.7d or > 1.3d)
-            throw new InvalidOperationException($"{state} 根缩放越界。 ");
+            throw new InvalidOperationException($"{state} 根缩放越界。");
         if (pose.EyeOpen is < 0d or > 1.2d)
-            throw new InvalidOperationException($"{state} 眼睛开合越界。 ");
+            throw new InvalidOperationException($"{state} 眼睛开合越界。");
         if (pose.ShadowOpacity is < 0d or > 1d)
-            throw new InvalidOperationException($"{state} 阴影透明度越界。 ");
+            throw new InvalidOperationException($"{state} 阴影透明度越界。");
     }
 }
