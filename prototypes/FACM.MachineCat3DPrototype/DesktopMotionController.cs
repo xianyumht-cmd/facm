@@ -24,6 +24,7 @@ internal sealed class DesktopMotionController
     private const double LeftYaw = 72d;
 
     private readonly Random _random;
+    private readonly double _runChance;
     private bool _initialized;
     private bool _travelling;
     private bool _turning;
@@ -35,9 +36,10 @@ internal sealed class DesktopMotionController
     private double _restUntil;
     private double _turnUntil;
 
-    public DesktopMotionController(int? deterministicSeed = null)
+    public DesktopMotionController(int? deterministicSeed = null, double runChance = 0.30d)
     {
         _random = deterministicSeed.HasValue ? new Random(deterministicSeed.Value) : new Random();
+        _runChance = Math.Clamp(runChance, 0d, 1d);
     }
 
     public double TargetLeft => _targetLeft;
@@ -150,7 +152,7 @@ internal sealed class DesktopMotionController
         _targetLeft = Math.Clamp(target, minLeft, maxLeft);
         var direction = Math.Sign(_targetLeft - left);
         _desiredYaw = direction < 0 ? LeftYaw : RightYaw;
-        _running = Math.Abs(_targetLeft - left) > 520d && _random.NextDouble() < 0.30d;
+        _running = Math.Abs(_targetLeft - left) > 520d && _random.NextDouble() < _runChance;
 
         var needsTurn = Math.Abs(ShortestAngle(_facingYaw, _desiredYaw)) > 35d;
         if (needsTurn)
