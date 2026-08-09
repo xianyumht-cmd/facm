@@ -38,10 +38,10 @@ jobs:
       - name: Run deterministic animation self-test
         shell: pwsh
         run: |
-          $exe = Resolve-Path .\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe
-          & $exe --self-test
-          if ($LASTEXITCODE -ne 0) {
-            throw "Machine Cat Gate 1 self-test failed with exit code $LASTEXITCODE"
+          $exe = (Resolve-Path .\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe).Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) {
+            throw "Machine Cat Gate 1 self-test failed with exit code $($process.ExitCode)"
           }
 
       - name: Publish self-contained win-x64 prototype
