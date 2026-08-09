@@ -93,6 +93,15 @@ CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀�
 
 ## 正式发布
 
-正式版本仍使用 `.github/workflows/publish-release.yml`。发布/在线清单事务与第三方海斗 source probe 相互独立；不得因为 probe 临时失败而绕过发布包自身的签名、SHA-256、manifest 和 PetHost 内嵌验证。
+正式版本使用 `.github/workflows/publish-release.yml`。发布/在线清单事务与第三方海斗 source probe 相互独立；不得因为 probe 临时失败而绕过发布包自身的签名、SHA-256、manifest 和 PetHost 内嵌验证。
 
-用户完成发布候选实机验收前，不触发正式 Release。
+发布前必须先有明确的用户实机验收与发布授权。满足后有两种等价入口：
+
+1. GitHub Actions 中手动 `workflow_dispatch`，填写版本、最低版本、是否强制更新、是否 prerelease 和更新说明；
+2. 通过短分支 + PR 修改并合并 `release/request.json`。该文件进入 `main` 时触发同一个发布工作流，适合 API/AI 客户端没有 workflow-dispatch 写权限的场景。
+
+`release/request.json` 只负责提供发布参数，不能替代发布流程本身的任何安全检查。正式发布仍必须依次完成：输入校验 → PetHost publish/self-test → FACM Release build → 内嵌资源验证 → Authenticode 签名 → 生成 disabled manifest → 确认 main 未移动 → 提交发布元数据 → 创建并公开 GitHub Release → 最后启用在线更新清单。
+
+如果在 Release 公开前失败，在线清单应保持 disabled；如果 Release 已公开但最终清单启用失败，工作流必须明确报错，不能伪称在线更新已经开启。
+
+发布工作流最终成功后会同时更新 `docs/PROJECT_STATE.md`，记录正式版本、Release、在线更新状态和发布基础提交，避免仓库状态文档落后于生产状态。

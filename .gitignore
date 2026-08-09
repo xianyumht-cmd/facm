@@ -8,3 +8,4 @@ obj/
 *.cer
 *.snk
 artifacts/
+local-signing/
