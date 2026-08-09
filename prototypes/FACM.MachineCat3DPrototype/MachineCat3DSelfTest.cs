@@ -63,7 +63,7 @@ internal static class MachineCat3DSelfTest
 
     private static void ValidateDesktopTravel()
     {
-        var controller = new DesktopMotionController(deterministicSeed: 20260810);
+        var controller = new DesktopMotionController(deterministicSeed: 20260810, runChance: 1d);
         var area = new Rect(0d, 0d, 1920d, 1040d);
         const double width = 350d;
         const double height = 380d;
@@ -92,12 +92,8 @@ internal static class MachineCat3DSelfTest
 
         if (totalTravel < 900d)
             throw new InvalidOperationException($"Desktop motion did not really travel: {totalTravel:0.0}px");
-        if (!sawWalk || !sawTurn)
-            throw new InvalidOperationException("Desktop motion did not exercise walk/turn states.");
-        // Running is intentionally probabilistic in product behavior, but the fixed test
-        // seed should currently exercise it. Keep this assertion to catch accidental loss.
-        if (!sawRun)
-            throw new InvalidOperationException("Desktop motion fixed-seed test did not exercise Run.");
+        if (!sawWalk || !sawTurn || !sawRun)
+            throw new InvalidOperationException("Desktop motion did not exercise walk/turn/run states.");
     }
 
     public static RigidModel CreateRigFixture()
