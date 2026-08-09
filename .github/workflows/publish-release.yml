@@ -206,15 +206,35 @@ jobs:
       - name: Verify embedded bundles
         shell: pwsh
         run: |
-          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom((Resolve-Path $env:OUTPUT_EXE).Path)
-          $resources = $assembly.GetManifestResourceNames()
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-facm-release-resources.ps1'
+          @'
+          param([Parameter(Mandatory=$true)][string]$ExePath)
+          $ErrorActionPreference = 'Stop'
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($ExePath)
+          $assembly.GetManifestResourceNames()
+          '@ | Set-Content -LiteralPath $resourceVerifier -Encoding utf8
+
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $resources = @(
+            & $windowsPowerShell `
+              -NoLogo `
+              -NoProfile `
+              -NonInteractive `
+              -ExecutionPolicy Bypass `
+              -File $resourceVerifier `
+              -ExePath $exe
+          )
+          if ($LASTEXITCODE -ne 0) {
+            throw "Resource verification failed with exit code $LASTEXITCODE"
+          }
           if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
             throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
           }
           if ($resources -notcontains 'FACM.Resources.PetHost.zip') {
             throw 'PetHost bundle was not embedded into FACM.exe.'
           }
-          Write-Host 'Verified embedded tool bundle and PetHost bundle resources.'
+          Write-Host 'Verified embedded tool bundle and PetHost bundle resources under Windows PowerShell 5.1.'
 
       - name: Sign release executable
         shell: pwsh
