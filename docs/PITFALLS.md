@@ -48,7 +48,7 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 
 ### 根因
 
-`--mayhem-source-test` 会真实访问 OP.GG、ARAMMayhem.com、Riot Data Dragon / CommunityDragon。它很适合发现第三方页面结构、WAF 或资源路径变化，但第三方 429/5xx/网络抖动与 FACM 自身是否能正确编译、打包没有必然关系。
+`--mayhem-source-test` 会真实访问海斗实时来源。它很适合发现第三方页面结构、WAF 或资源路径变化，但第三方 429/5xx/网络抖动与 FACM 自身是否能正确编译、打包没有必然关系。
 
 把这种 live probe 放在 `FACM.csproj` 的 `AfterTargets=Build` 中，会让桌宠、清理器等完全无关的提交因为外部网站临时故障而变红。
 
@@ -70,15 +70,12 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 
 核心 Windows CI 曾使用 `github.sha` 作为 concurrency group 的一部分。SHA 每个提交都不同，所以同一 PR/分支的旧构建和新构建永远不在同一个组；即使配置了 `cancel-in-progress: true`，也没有旧运行可以被匹配取消。
 
-这会同时浪费 Windows Runner，并让“哪个绿灯才对应最新 HEAD”变得更难判断。
-
 ### 防回归规则
 
 - 核心 CI concurrency 应按稳定的逻辑身份分组，例如 **事件类型 + PR number/ref**，不要按 commit SHA 分组。
 - 同一 `pull_request` 的后续提交必须能取消旧 PR run；同一 branch `push` 的后续提交也应取消旧 push run。
 - `push` 与 `pull_request` 保持不同 concurrency group，避免 branch push 把 PR required check 对应的运行取消掉。
-- 不同 PR/不同分支要保留并行能力，不能为了取消旧任务把整个仓库串成一条队列。
-- 修改 concurrency 规则后不要只看 YAML；应在真实 PR 中连续提交两次，确认旧 run 的 conclusion 实际变成 `cancelled`，再以最新 HEAD 的绿色 build 作为合并门槛。
+- 不同 PR/不同分支要保留并行能力。
 
 ### 已验证行为
 
@@ -88,3 +85,115 @@ PR #25 首个 HEAD 的 PR Build #442 在后续同 PR 提交触发 #444 后，被
 
 - Issue #21
 - PR #25
+
+## 不要在 WinForms 首次绘制后用 Idle + 反射补布局
+
+### 根因
+
+控制中心最初只原生创建 3 个底部按钮，随后 `CompactMenuEnhancer` 等到 `Application.Idle` 才反射创建“桌面宠物/海斗排行榜”并移动 5 个自绘按钮。窗口首帧已经画完后再移动自绘控件会留下旧像素；鼠标 hover 会触发单个按钮 `Invalidate()`，于是用户看到“把鼠标逐个移一遍后排版才正常”。
+
+### 防回归规则
+
+- 能在构造/首次 Show 前确定的控件布局，不要延迟到 `Application.Idle` 才改变几何位置。
+- 兼容层暂时无法移入原生构造器时，必须在第一条 `WM_PAINT` 真正分发前完成布局；不能只赌 `WM_SHOWWINDOW` 会经过 `IMessageFilter`。
+- 最终布局后执行 `PerformLayout + Invalidate(true)`；Idle 只可作为异常兜底，不再承担正常布局职责。
+- 自绘控件的 hover repaint 不能承担“修复布局”的职责；如果只有 hover 后画面才正常，应按首帧布局/无效区域错误处理，而不是增加更多 hover 刷新。
+- 后续重构 `CompactMenuForm` 时应最终把 5 个正式入口收回原生布局，并删除兼容反射层。
+
+### 关联
+
+- Issue #26
+- PR #27
+
+## IPC 打开的弹窗不能只依赖 `Deactivate` 判断外部点击
+
+### 根因
+
+VPet 点击发生在独立 PetHost 前台进程中。FACM 收到 IPC 后调用 `Show/Activate`，但 Windows foreground activation 限制可能不允许 FACM 真正成为前台窗口。若控制中心从未成功激活，用户下一次点桌面空白处就不会产生预期的 `Deactivate`，面板因此一直留在屏幕上。
+
+### 防回归规则
+
+- 跨进程点击打开的轻量 popup 要保留 `Deactivate`，但不能把它作为唯一 outside-click 信号。
+- outside-click watcher 必须先等待“打开 popup 的那一次鼠标按键”完全释放，再对下一次按下边沿做命中判断，否则会刚打开就被同一次点击关闭。
+- 文件夹选择器、消息框等内部 modal 流程必须有明确抑制条件，不能被全局 outside-click 误关。
+- 不安装进程级低级鼠标 hook 来解决普通 popup；优先使用轻量定时物理键状态 + 屏幕 Bounds，降低权限、稳定性和反作弊软件兼容风险。
+
+### 关联
+
+- Issue #26
+- PR #27
+
+## 不要在 UI 线程等待辅助进程解包、启动和 IPC
+
+### 根因
+
+`VPetHostClient.Activate` 曾从 WinForms UI 事件同步执行：内嵌 PetHost ZIP 检查/释放 → `Process.Start` → `NamedPipeClientStream.Connect(7000)`。任何磁盘慢、杀软扫描、首次释放或 pipe 启动延迟都可能直接让控制中心假死，最坏等待 7 秒。
+
+### 防回归规则
+
+- 大包校验/解压、辅助进程启动、IPC connect/readiness 等必须离开 WinForms UI 线程。
+- UI 线程只提交启动意图和更新显示；失败通过捕获的 `SynchronizationContext` 回到 UI 恢复状态。
+- 辅助进程停止也不要在 UI 线程同步 `WaitForExit`；先发 stop，再后台等待/兜底 kill。
+- 独立辅助进程如果属于 FACM 产品运行树，应使用 Job Object 的 `KILL_ON_JOB_CLOSE` 管理生命周期，同时保留子进程自己的 parent-pid 守护作为兼容兜底。
+- 不为了“单 PID 好看”在发布前把不同 CLR/UI 技术栈硬塞进同一进程；需要整体迁移时作为独立架构版本处理。
+
+### 关联
+
+- Issue #26
+- PR #27
+
+## 海斗数据必须按字段降级，不能让单一网站决定整次查询
+
+### 根因
+
+早期查询虽然同时访问 OP.GG 与 ARAMMayhem，但英雄识别、攻略字段和整体等待仍与 OP.GG 强耦合。国内访问 OP.GG 不稳定时，用户会把“一个攻略源不可达”体验成“海斗排行榜坏了”。同时，版本公告是增量日志，直接拿最新公告当完整 Buff 状态会丢掉历史未改字段。
+
+### 防回归规则
+
+- 排行、攻略、完整平衡状态、官方版本校验、静态图标必须是独立职责；任一可选字段失败不应抹掉其它已获得字段。
+- 国内可访问的数据源优先承担核心排行；OP.GG 只作为攻略补充，不能重新成为整体成功条件。
+- 每个来源有自己的短预算，不能让一个站点耗完整体查询时间。
+- 腾讯版本公告只表示“这个版本改了什么”，不能单独推出“这个英雄现在所有修正是什么”。
+- 完整状态来源的 Patch 与当前官方 Patch 不一致时，宁可明确显示同步中，也不能把旧数值伪装成最新状态。
+- 新 HTML 解析器至少要有一个离线 fixture 回归；真实公网兼容性由独立 source probe 负责。
+
+### 关联
+
+- Issue #26
+- PR #27
+
+## 异步方法不代表缓存命中路径一定离开 UI 线程
+
+### 根因
+
+`MayhemImageCache.GetAsync` 以前在方法第一次真正遇到不完整 `await` 之前，会同步读取磁盘缓存并 `Image.FromStream` 解码 Bitmap。`MayhemCardRenderer` 一次最多准备 32 个图片引用，因此缓存全部命中时，反而可能在调用线程连续完成大量磁盘读取/图片解码，造成“缓存越热，点查询越容易顿一下”。
+
+### 防回归规则
+
+- 检查 async 方法的**首个未完成 await 之前**是否仍有磁盘、图片解码、压缩/解压等重工作，不能只看方法签名里有 `async` 就判定不会阻塞 UI。
+- 海斗磁盘缓存读取和 Bitmap 解码放到后台任务；两类工作分别限制为最多 4 路并发，避免 20～30 张图片同时争抢磁盘/CPU。
+- 内存字节缓存查找可以同步，但图片解码本身仍按 CPU 工作处理。
+- 网络下载继续使用真正 async I/O，不要用 `Task.Run` 包一层网络请求。
+
+### 关联
+
+- Issue #26
+- PR #27
+
+## 清理预览与删除不能把控制中心消息循环一起锁住
+
+### 根因
+
+`SafeCleanupService.CreatePlan` 会递归统计配置目录的文件数/大小，`Execute` 会逐文件重校验和删除。即使清理规则本身完全安全，大目录、慢盘或杀软扫描都可能让同步调用持续数秒。旧版从控制中心事件直接调用这两个方法，导致窗口在“正在生成清理预览/正在清理”时无法重绘，看起来像程序卡死。
+
+### 防回归规则
+
+- 清理路径白名单、重解析点检查、二次校验逻辑保持在 `SafeCleanupService`，不要为了异步化复制一份删除算法。
+- 从 WinForms 消息循环调用时，预览扫描和正式删除由 `BackgroundOperationDialog` 在后台工作线程运行；前台只显示不可误点的进度窗并保持消息泵响应。
+- 删除阶段不提供任意中断按钮，避免用户误以为中止是事务回滚；失败继续按现有逐目标记录语义处理。
+- 非 UI/测试调用保持同步 core 路径，避免服务层被迫依赖一个正在运行的窗口。
+
+### 关联
+
+- Issue #26
+- PR #27

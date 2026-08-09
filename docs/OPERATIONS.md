@@ -4,7 +4,7 @@
 
 工作流：`.github/workflows/build.yml`（`FACM Windows Build`）。
 
-用途：判断仓库代码本身是否可以安全构建和打包。它必须尽量确定、可重复，不应依赖 OP.GG、ARAMMayhem.com、Data Dragon、CommunityDragon 等实时第三方服务是否临时可用。
+用途：判断仓库代码本身是否可以安全构建和打包。它必须尽量确定、可重复，不应依赖 Hexdata、腾讯 LOL 官网、OP.GG、ARAMMayhem.com、Data Dragon、CommunityDragon 等实时公网服务是否临时可用。
 
 核心 CI 目前验证：
 
@@ -13,6 +13,7 @@
 - PetHost win-x64 publish、自检和内嵌 bundle；
 - FACM .NET Framework 4.8 Release 编译；
 - 悬浮球、旧 Sprite、游戏目录预算/取消、海斗 HTTP 正文取消等本地 deterministic smoke；
+- 腾讯海克斯大乱斗公告解析的离线 fixture，包括一个英雄多条改动和“正文提前提及海斗但不应提前进入英雄段”的边界；
 - 内嵌 PetHost 释放与启动；
 - FACM.exe 资源、版本、签名步骤、下载包与 artifact。
 
@@ -39,16 +40,24 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 
 工作流：`.github/workflows/mayhem-source-probe.yml`（`FACM Mayhem Source Probe`）。
 
-用途：单独判断真实第三方数据源和解析器当前是否仍兼容。该结果与“FACM 核心代码能否构建”是两件事。
+用途：单独判断真实公网数据源和解析器当前是否仍兼容。该结果与“FACM 核心代码能否构建”是两件事。
 
 触发方式：
 
 - 每 6 小时自动运行一次；
 - Actions 中手动 `workflow_dispatch`；
 - Mayhem 相关代码进入 `main` 时立即运行；
-- Mayhem 相关 PR 会运行 advisory probe，用于提前发现来源变化，但该 job 设置 `continue-on-error`，不会把第三方临时故障变成核心 PR 构建门禁。
+- Mayhem 相关 PR 会运行 advisory probe，用于提前发现来源变化，但该 job 设置 `continue-on-error`，不会把公网临时故障变成核心 PR 构建门禁。
 
-探测内容由 `FACM.exe --mayhem-source-test` 执行，覆盖 OP.GG / ARAMMayhem 排行、Riot Data Dragon / CommunityDragon 元数据和图片链路。
+探测内容由 `FACM.exe --mayhem-source-test` 执行。当前主查询本身会触达：
+
+- Hexdata 国内英雄排行；
+- ARAMMayhem.com 当前英雄页/排行备用；
+- OP.GG 攻略补充；
+- 腾讯 LOL 官网当前版本公告校验；
+- Riot Data Dragon / CommunityDragon 元数据和图片链路。
+
+注意：产品运行时允许字段级降级，但 live probe 会继续对技能加点、核心装备、排行、图标等完整链路提出更严格要求。因此“某个可选攻略源故障导致 probe 红”并不等于“用户查询会整体失败”。
 
 ### 失败诊断
 
@@ -60,12 +69,30 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 
 处理失败时先判断：
 
-1. 第三方是否返回 WAF / 429 / 5xx / 结构变化；
-2. 是否只有单一来源失败而其他来源正常；
-3. deterministic 核心 CI 是否仍为绿色。
+1. 是 Hexdata / 腾讯 / OP.GG / ARAMMayhem / Riot CDN 中哪一个来源返回 WAF、429、5xx、超时或结构变化；
+2. 主查询是否已经通过其它来源正确降级；
+3. 腾讯官方 Patch 与完整平衡状态 Patch 是否一致；
+4. deterministic 核心 CI 是否仍为绿色。
 
 如果核心 CI 绿色而 live probe 失败，默认先按“外部集成健康问题”排查，不要直接把无关产品代码回滚。
+
+## 发布候选实机验收
+
+CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀软扫描和用户网络环境。正式发布前集中做一轮 5～10 分钟 smoke，不需要每个提交都重复下载。
+
+至少检查：
+
+- **控制中心首帧**：连续打开几次控制中心，底部 5 个按钮第一次出现就应位置/文字正常，不需要鼠标逐个悬停“修复”画面；
+- **桌宠 outside-click**：从 VPet 左键打开控制中心，下一次点击屏幕空白处应收起；
+- **桌宠启动流畅性**：首次启用 VPet 时 FACM 控制中心仍能重绘/移动，不因 PetHost 解包或 pipe connect 假死；
+- **桌宠进程树**：正常退出 FACM 后没有遗留 PetHost；手工结束 PetHost 后 FACM 恢复默认悬浮球；条件允许时强制结束 FACM，确认 PetHost 被 Job Object 或 parent-pid 守护清理；
+- **海斗国内容灾**：查询“阿狸 / 阿克尚 / 亚索”等英雄，核心排行不应依赖 OP.GG；如果能临时阻断 OP.GG，再查一次验证排行仍返回；
+- **海斗当前平衡**：结果显示当前完整 Buff/Debuff，或在完整状态源 Patch 落后时明确显示“同步中/本版本官方改动（非完整当前状态）”，不得把旧 Patch 数值伪装成最新；同一英雄多条 Buff/Debuff 要全部保留；
+- **海斗热缓存流畅性**：同一英雄连续查询两三次，第二/第三次不应因本地图片缓存读盘/Bitmap 解码出现明显 UI 短卡；
+- **清理流程流畅性**：点击清理后，生成预览和正式删除期间应出现响应式进度窗，窗口能正常重绘，不再像程序无响应；原预览内容、保留 DATA、路径白名单和重解析点安全语义不能变化。
 
 ## 正式发布
 
 正式版本仍使用 `.github/workflows/publish-release.yml`。发布/在线清单事务与第三方海斗 source probe 相互独立；不得因为 probe 临时失败而绕过发布包自身的签名、SHA-256、manifest 和 PetHost 内嵌验证。
+
+用户完成发布候选实机验收前，不触发正式 Release。

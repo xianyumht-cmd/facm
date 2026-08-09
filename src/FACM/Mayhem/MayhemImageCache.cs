@@ -22,12 +22,17 @@ namespace FACM.Mayhem
         private static readonly Dictionary<string, CacheEntry> Cache = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
         private static readonly TimeSpan MemoryLifetime = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan DiskLifetime = TimeSpan.FromHours(6);
+        private static readonly SemaphoreSlim DiskReadGate = new SemaphoreSlim(4, 4);
+        private static readonly SemaphoreSlim DecodeGate = new SemaphoreSlim(4, 4);
 
         public static async Task<Bitmap> GetAsync(string reference, CancellationToken token)
         {
             if (string.IsNullOrWhiteSpace(reference)) return null;
+            token.ThrowIfCancellationRequested();
+
             byte[] bytes = ReadMemory(reference);
-            if (bytes == null) bytes = TryReadDisk(reference);
+            if (bytes == null)
+                bytes = await ReadDiskAsync(reference, token).ConfigureAwait(false);
 
             if (bytes == null)
             {
@@ -41,11 +46,42 @@ namespace FACM.Mayhem
                 StoreMemory(reference, bytes);
             }
 
-            var bitmap = Decode(bytes);
+            var bitmap = await DecodeAsync(bytes, token).ConfigureAwait(false);
             if (bitmap != null) return bitmap;
             TryDeleteDisk(reference);
             lock (Sync) Cache.Remove(reference);
             return null;
+        }
+
+        private static async Task<byte[]> ReadDiskAsync(string reference, CancellationToken token)
+        {
+            await DiskReadGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                return await Task.Run(delegate { return TryReadDisk(reference); }, token).ConfigureAwait(false);
+            }
+            finally
+            {
+                DiskReadGate.Release();
+            }
+        }
+
+        private static async Task<Bitmap> DecodeAsync(byte[] bytes, CancellationToken token)
+        {
+            if (bytes == null || bytes.Length < 64) return null;
+            await DecodeGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                return await Task.Run(delegate
+                {
+                    token.ThrowIfCancellationRequested();
+                    return Decode(bytes);
+                }, token).ConfigureAwait(false);
+            }
+            finally
+            {
+                DecodeGate.Release();
+            }
         }
 
         private static byte[] ReadMemory(string reference)
