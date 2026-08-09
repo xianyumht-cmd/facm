@@ -62,49 +62,85 @@ internal sealed class RigidPartRig
     {
         var cycle = state switch
         {
-            MotionState.Walk => time * Math.PI * 2d * 1.35d,
-            MotionState.Run => time * Math.PI * 2d * 2.65d,
+            MotionState.Walk => time * Math.PI * 2d * 1.25d,
+            MotionState.Run => time * Math.PI * 2d * 2.45d,
             _ => time * Math.PI * 2d * 0.35d
         };
 
         var sine = Math.Sin(cycle);
         var cosine = Math.Cos(cycle);
-        var absoluteSine = Math.Abs(sine);
         var walk = state == MotionState.Walk;
         var run = state == MotionState.Run;
 
-        var armSwing = walk ? sine * 24d : run ? sine * 39d : Math.Sin(time * 1.1d) * 1.5d;
-        var legSwing = walk ? sine * 19d : run ? sine * 33d : 0d;
-        var elbowBend = walk ? 8d + Math.Max(0d, -cosine) * 10d : run ? 18d + Math.Max(0d, -cosine) * 18d : 3d;
-        var ankle = walk ? cosine * 7d : run ? cosine * 13d : 0d;
-        var bodyBob = walk ? absoluteSine * 0.035d : run ? absoluteSine * 0.070d : Math.Sin(time * 2.0d) * 0.006d;
-        var headCounter = walk ? -sine * 2.0d : run ? -sine * 3.2d : Math.Sin(time * 0.75d) * 1.0d;
-        var bodyRoll = walk ? sine * 1.25d : run ? sine * 2.2d : Math.Sin(time * 0.7d) * 0.35d;
+        // Real-video pass 2: keep the rigid-part advantage, but stop treating the feet
+        // like two free pendulums. Each leg now has a stance half and a swing half.
+        // The support foot receives a small downward compensation for the height gained
+        // by hip rotation; only the swing foot gets a deliberate lift.
+        var leftLeg = BuildGroundedLegPose(-sine, run);
+        var rightLeg = BuildGroundedLegPose(sine, run);
+
+        var armSwing = walk ? sine * 19d : run ? sine * 30d : Math.Sin(time * 1.1d) * 1.5d;
+        var elbowBend = walk
+            ? 6d + Math.Max(0d, -cosine) * 7d
+            : run
+                ? 13d + Math.Max(0d, -cosine) * 10d
+                : 3d;
+
+        var midStance = 0.5d - 0.5d * Math.Cos(cycle * 2d);
+        var bodyBob = walk
+            ? midStance * 0.014d
+            : run
+                ? midStance * 0.023d
+                : Math.Sin(time * 2.0d) * 0.006d;
+        var bodySway = walk ? sine * 0.014d : run ? sine * 0.020d : 0d;
+        var bodyRoll = walk ? sine * 0.75d : run ? sine * 1.25d : Math.Sin(time * 0.7d) * 0.35d;
+        var bodyPitch = walk ? -0.8d + cosine * 0.25d : run ? -3.2d + cosine * 0.45d : 0d;
+        var headCounter = walk ? -sine * 1.3d : run ? -sine * 2.1d : Math.Sin(time * 0.75d) * 1.0d;
         var yaw = state == MotionState.Turn
             ? PositiveModulo(time * 72d, 360d)
             : -11d;
 
-        // Opposite arm/leg phase gives a real rigid-part walk cycle. No vertices are
-        // stretched: every mesh is only translated/rotated around an explicit joint.
         SetArm(".L", LeftShoulder, LeftElbow, armSwing, elbowBend);
         SetArm(".R", RightShoulder, RightElbow, -armSwing, elbowBend);
-        SetLeg(".L", LeftHip, LeftAnkle, -legSwing, -ankle);
-        SetLeg(".R", RightHip, RightAnkle, legSwing, ankle);
+        SetLeg(".L", LeftHip, LeftAnkle, leftLeg.HipAngle, leftLeg.AnkleAngle, leftLeg.VerticalOffset);
+        SetLeg(".R", RightHip, RightAnkle, rightLeg.HipAngle, rightLeg.AnkleAngle, rightLeg.VerticalOffset);
 
         var headTransforms = Group(
             Rotate(new Vector3D(0, 1, 0), headCounter, HeadPivot),
-            Rotate(new Vector3D(0, 0, 1), -bodyRoll * 0.28d, HeadPivot));
+            Rotate(new Vector3D(0, 0, 1), -bodyRoll * 0.22d, HeadPivot));
         SetHeadGroup(headTransforms);
 
-        var bellSwing = walk ? -sine * 5d : run ? -sine * 10d : Math.Sin(time * 1.4d) * 1.5d;
+        var bellSwing = walk ? -sine * 4d : run ? -sine * 7d : Math.Sin(time * 1.4d) * 1.5d;
         SetContains("bell", Group(Rotate(new Vector3D(1, 0, 0), bellSwing, BellPivot)));
-        SetContains("tail", Group(Rotate(new Vector3D(1, 0, 0), run ? sine * 8d : sine * 3d, TailPivot)));
+        SetContains("tail", Group(Rotate(new Vector3D(1, 0, 0), run ? sine * 6d : sine * 2.5d, TailPivot)));
 
         var root = new Transform3DGroup();
-        root.Children.Add(new TranslateTransform3D(0d, bodyBob, 0d));
+        root.Children.Add(new TranslateTransform3D(bodySway, bodyBob, 0d));
+        root.Children.Add(Rotate(new Vector3D(1, 0, 0), bodyPitch, ModelCenter));
         root.Children.Add(Rotate(new Vector3D(0, 0, 1), bodyRoll, ModelCenter));
         root.Children.Add(Rotate(new Vector3D(0, 1, 0), yaw, ModelCenter));
         Visual.Transform = root;
+    }
+
+    private static LegPose BuildGroundedLegPose(double phase, bool run)
+    {
+        var swingAmplitude = run ? 24d : 15d;
+        var hipAngle = phase * swingAmplitude;
+        var swing = Math.Max(0d, phase);
+        var stance = Math.Max(0d, -phase);
+
+        // Rotating a nearly vertical leg around the hip raises the ankle for either
+        // forward or backward angles. Counter that geometric rise during stance so the
+        // visible support foot stays close to one floor line. The swing half then adds
+        // an intentional smooth lift instead of lifting both feet at once.
+        var radians = hipAngle * Math.PI / 180d;
+        var rotationRise = (1d - Math.Cos(radians)) * 0.58d;
+        var swingLift = Math.Pow(swing, 1.35d) * (run ? 0.125d : 0.078d);
+        var stanceSettle = stance * (run ? 0.006d : 0.004d);
+        var verticalOffset = swingLift - rotationRise - stanceSettle;
+
+        var ankleAngle = -hipAngle * 0.22d + swing * (run ? 7d : 4.5d) - stance * 1.5d;
+        return new LegPose(hipAngle, ankleAngle, verticalOffset);
     }
 
     private void SetArm(string side, Point3D shoulder, Point3D elbow, double shoulderAngle, double elbowAngle)
@@ -122,18 +158,19 @@ internal sealed class RigidPartRig
         }
     }
 
-    private void SetLeg(string side, Point3D hip, Point3D anklePivot, double hipAngle, double ankleAngle)
+    private void SetLeg(string side, Point3D hip, Point3D anklePivot, double hipAngle, double ankleAngle, double verticalOffset)
     {
         var hipTransform = Rotate(new Vector3D(1, 0, 0), hipAngle, hip);
         var ankleTransform = Rotate(new Vector3D(1, 0, 0), ankleAngle, anklePivot);
+        var groundingTransform = new TranslateTransform3D(0d, verticalOffset, 0d);
         foreach (var (name, model) in _parts)
         {
             var lower = name.ToLowerInvariant();
             if (!lower.Contains(side.ToLowerInvariant())) continue;
             if (lower.Contains("012.leg"))
-                model.Transform = Group(hipTransform);
+                model.Transform = Group(hipTransform, groundingTransform);
             else if (lower.Contains("013.foot"))
-                model.Transform = Group(hipTransform, ankleTransform);
+                model.Transform = Group(hipTransform, ankleTransform, groundingTransform);
         }
     }
 
@@ -236,4 +273,6 @@ internal sealed class RigidPartRig
         var result = value % period;
         return result < 0d ? result + period : result;
     }
+
+    private readonly record struct LegPose(double HipAngle, double AnkleAngle, double VerticalOffset);
 }
