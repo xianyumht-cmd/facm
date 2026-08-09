@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-10：正式 3.1.1 保持稳定；Issue #33 / Draft PR #35 正在独立验证机器猫桌宠 Gate 1 第二版。
+> 2026-08-10：正式 3.1.1 保持稳定；Issue #33 / Draft PR #35 正在独立验证机器猫桌宠 Gate 1 第四版。
 
 ## 当前正式版
 
@@ -46,17 +46,40 @@ FACM 当前正式主阶段仍为 **基本完成 / 可暂停**。现有 3.1.1 是
 
 第一版已明确判定 **Gate 1 失败**，没有进入 Gate 2，也没有合并 PR #35。
 
-### Gate 1 第二版：当前进行中
+### Gate 1 第二版：外形恢复，但整图 crossfade 失败
 
-第二版保留用户已经认可的机器猫视觉，不再由程序重新画角色：
+第二版改为直接使用用户已经认可的透明机器猫动作/视角素材，角色视觉方向恢复正确；但真实 Windows 录屏确认：
 
-- 从本轮已经认可的 Identity / Action Sheet 提取透明动作/视角素材；没有再次生成角色图片；
-- 当前包含 Idle / Walk / Run / Observe / Raised / Recover / Sleep，以及 Turn 的正面 / 3⁄4 / 侧面 / 背面，共 11 个透明素材；
-- 程序只负责状态、`deltaTime`、轻微 translate / scale / rotate、短时 crossfade、镜像换步和鼠标交互；
-- Walk / Run 大部分周期保持单个清晰轮廓，仅在换步瞬间短暂交叉淡化；
-- Turn 使用 `正面 → 3/4 → 侧面 → 背面 → 镜像侧面 → 镜像3/4 → 正面`，不再把一张正面图直接旋转或瞬间翻面；
-- 原型资源暂以 `Assets/*.b64` 嵌入，启动时一次解码并缓存为冻结的 `BitmapImage`；正式集成前可再收口资源格式。
+- Walk / Run 左右换步时，完整角色原图与镜像图 alpha-crossfade 会同时出现；
+- Turn 多视角交接同样会出现明显的“双机器猫/鬼影”；
+- 因此整图 crossfade 被明确淘汰。
 
-第二版仍必须经过：Release build → asset/self-test → 真实 WPF window smoke → win-x64 self-contained artifact → **用户真实 Windows 肉眼验收**。
+### Gate 1 第三版：鬼影解决，但整图步态仍不够真实
 
-只有用户明确确认第二版 Gate 1 的角色外形和原地动作合格，才能设计/实现 Gate 2 MotionController。CI 不能替代这一视觉门禁。
+第三版禁止完整角色 alpha 叠加，任意时刻只显示一只机器猫；Walk / Run 改为单图镜像换步并在换面附近做极短水平收窄，Turn 改为单图多视角切换。
+
+用户随后提交两段真实 Windows 录屏，结论：
+
+- Walk / Run / Turn 的半透明双影已经消失，外形仍保持认可的 2.5D 机器猫；
+- 但 Walk / Run 本质仍是一张完整跑姿在整体弹动/翻面，四肢没有真正连续运动；
+- Turn 虽然干净，但仍能看出正面 / 3⁄4 / 侧面 / 背面几个离散视角在切换。
+
+因此第三版只通过“无鬼影”，**没有通过 Gate 1 的真实动作标准**。
+
+### Gate 1 第四版：当前候选
+
+第四版继续坚持“不重新生成角色图片”，并保留现有 11 个认可透明素材；本轮只替换 Walk / Run 的动作渲染方式：
+
+- `MachineCatAnimator` 不再通过 `PrimaryMirror` 翻完整角色模拟左右步；
+- Walk / Run 输出连续 `GaitPhase`；
+- `ProceduralGaitFrames` 从现有 Walk / Run PNG 在内存中生成 32 个局部形变相位；
+- 局部位移场只重点影响左右手、前后脚和很小范围的下半身，脸和主体大部分像素保持锁定；
+- 两侧手脚使用相反 phase，形成交替抬落；Run 的位移幅度和节奏高于 Walk；
+- 形变帧第一次进入 Walk / Run 时生成并冻结缓存，之后直接复用，不每帧重新计算；
+- 不新增角色图片文件、不整图 crossfade、不整图左右翻面。
+
+Turn 暂时保留第三版的单图多视角切换；第四版首先验证 Walk / Run 能否从“整图弹跳”提升为可信的局部四肢运动。如果局部位图形变仍有明显橡皮感，则应停止继续堆参数，并把“现有扁平 PNG 已到上限，需要真正分层源素材/骨骼源”作为后续结论。
+
+第四版仍必须经过：Release build → procedural gait/self-test → 真实 WPF window smoke → win-x64 self-contained artifact → **用户真实 Windows 肉眼验收**。
+
+只有用户明确确认 Gate 1 的原地动作合格，才能设计/实现 Gate 2 MotionController。CI 不能替代这一视觉门禁。
