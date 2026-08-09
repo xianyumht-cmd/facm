@@ -10,6 +10,9 @@ internal static class Program
         if (args.Any(arg => string.Equals(arg, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return MachineCatSelfTest.Run();
 
+        if (args.Any(arg => string.Equals(arg, "--window-smoke-test", StringComparison.OrdinalIgnoreCase)))
+            return WindowSmokeTest.Run();
+
         if (!OperatingSystem.IsWindows())
             return 52;
 
