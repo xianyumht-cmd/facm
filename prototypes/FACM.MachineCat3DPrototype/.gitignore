@@ -1,0 +1,6 @@
+*.glb
+*.gltf
+*.fbx
+*.zip
+bin/
+obj/
