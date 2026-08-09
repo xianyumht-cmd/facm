@@ -203,29 +203,21 @@ jobs:
       - name: Sign when certificate secrets exist
         shell: pwsh
         env:
-          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_PFX_BASE64)) {
-            Write-Host 'No WINDOWS_CERT_PFX_BASE64 secret configured. Skipping code signing.'
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            Write-Host 'No FACM_PFX_BASE64 secret configured. Skipping code signing.'
             exit 0
           }
-
-          $certPath = Join-Path $env:RUNNER_TEMP 'facm-signing.pfx'
-          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
-          $timestamp = if ([string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) { 'http://timestamp.digicert.com' } else { $env:WINDOWS_TIMESTAMP_URL }
-          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1).FullName
-          if (-not $signtool) {
-            throw 'signtool.exe was not found.'
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_PASSWORD)) {
+            throw 'FACM_PFX_PASSWORD is required when FACM_PFX_BASE64 is configured.'
           }
 
-          & $signtool sign /fd SHA256 /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr $timestamp /td SHA256 $env:OUTPUT_EXE
-          if ($LASTEXITCODE -ne 0) {
-            throw "signtool failed with exit code $LASTEXITCODE"
-          }
+          & .\scripts\sign-ci.ps1 `
+            -ExePath $env:OUTPUT_EXE `
+            -PfxBase64 $env:FACM_PFX_BASE64 `
+            -PfxPassword $env:FACM_PFX_PASSWORD
 
       - name: Create downloadable package
         shell: pwsh
