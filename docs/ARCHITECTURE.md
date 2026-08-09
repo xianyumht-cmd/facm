@@ -31,6 +31,28 @@ PetHost 的内嵌包定位/释放、进程创建、最长 7 秒的 named-pipe co
 
 outside-click watcher 必须先等待打开面板的那次按键释放，再监测下一次按下，且内部 modal 对话流程由 `_dialogOpen` 抑制误关。
 
+## 清理执行边界
+
+清理的安全规则仍全部归 `SafeCleanupService` 所有，包括编译期白名单、重解析点阻止、预览统计和执行前再次校验。
+
+从 WinForms 控制中心调用时，两个可能持续较久的阶段不再占用 UI 线程：
+
+```text
+CompactMenuForm
+   │
+   ├─ SafeCleanupService.CreatePlan
+   │      └─ BackgroundOperationDialog → worker thread
+   │             └─ 递归统计目标 / 大小 / reparse 检查
+   │
+   └─ SafeCleanupService.Execute
+          └─ BackgroundOperationDialog → worker thread
+                 └─ 二次安全校验 / 文件删除
+```
+
+后台化只改变执行线程，不改变允许删除的路径集合和校验顺序。正式删除阶段不给任意中断按钮，避免把“中止”误解为事务回滚；单目标失败仍按原有语义记录后继续。
+
+非 UI/测试调用没有 WinForms message loop 时直接执行同步 core，因此服务逻辑仍可独立验证。
+
 ## 海斗查询数据流
 
 海斗查询采用字段级多源合并，而不是“一个网站成功才算整次查询成功”。
