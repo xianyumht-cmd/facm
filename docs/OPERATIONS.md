@@ -13,7 +13,7 @@
 - PetHost win-x64 publish、自检和内嵌 bundle；
 - FACM .NET Framework 4.8 Release 编译；
 - 悬浮球、旧 Sprite、游戏目录预算/取消、海斗 HTTP 正文取消等本地 deterministic smoke；
-- 腾讯海克斯大乱斗公告解析的离线 fixture，包括一个英雄多条改动；
+- 腾讯海克斯大乱斗公告解析的离线 fixture，包括一个英雄多条改动和“正文提前提及海斗但不应提前进入英雄段”的边界；
 - 内嵌 PetHost 释放与启动；
 - FACM.exe 资源、版本、签名步骤、下载包与 artifact。
 
@@ -76,17 +76,20 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 
 如果核心 CI 绿色而 live probe 失败，默认先按“外部集成健康问题”排查，不要直接把无关产品代码回滚。
 
-## 桌宠进程验收
+## 发布候选实机验收
 
-核心 CI 可以验证 PetHost 构建/嵌入/释放/自检，但 Job Object、真实桌面前台激活和 outside-click 仍需要 Windows 实机。
+CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀软扫描和用户网络环境。正式发布前集中做一轮 5～10 分钟 smoke，不需要每个提交都重复下载。
 
-发布候选至少检查：
+至少检查：
 
-- 首次启用 VPet 时 FACM 控制中心保持可响应；
-- 从 VPet 左键打开控制中心后，下一次点击屏幕空白处能收起；
-- 正常退出 FACM 后没有遗留 PetHost；
-- 手工结束 PetHost 后 FACM 恢复默认悬浮球；
-- 条件允许时强制结束 FACM，确认 PetHost 被 Job Object 或 parent-pid 守护清理。
+- **控制中心首帧**：连续打开几次控制中心，底部 5 个按钮第一次出现就应位置/文字正常，不需要鼠标逐个悬停“修复”画面；
+- **桌宠 outside-click**：从 VPet 左键打开控制中心，下一次点击屏幕空白处应收起；
+- **桌宠启动流畅性**：首次启用 VPet 时 FACM 控制中心仍能重绘/移动，不因 PetHost 解包或 pipe connect 假死；
+- **桌宠进程树**：正常退出 FACM 后没有遗留 PetHost；手工结束 PetHost 后 FACM 恢复默认悬浮球；条件允许时强制结束 FACM，确认 PetHost 被 Job Object 或 parent-pid 守护清理；
+- **海斗国内容灾**：查询“阿狸 / 阿克尚 / 亚索”等英雄，核心排行不应依赖 OP.GG；如果能临时阻断 OP.GG，再查一次验证排行仍返回；
+- **海斗当前平衡**：结果显示当前完整 Buff/Debuff，或在完整状态源 Patch 落后时明确显示“同步中/本版本官方改动（非完整当前状态）”，不得把旧 Patch 数值伪装成最新；同一英雄多条 Buff/Debuff 要全部保留；
+- **海斗热缓存流畅性**：同一英雄连续查询两三次，第二/第三次不应因本地图片缓存读盘/Bitmap 解码出现明显 UI 短卡；
+- **清理流程流畅性**：点击清理后，生成预览和正式删除期间应出现响应式进度窗，窗口能正常重绘，不再像程序无响应；原预览内容、保留 DATA、路径白名单和重解析点安全语义不能变化。
 
 ## 正式发布
 
