@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-10：正式 3.1.1 保持稳定；Issue #33 / Draft PR #35 正在独立验证机器猫桌宠 Gate 1 第四版。
+> 2026-08-10：正式 3.1.1 保持稳定；Issue #33 / Draft PR #35 已停止继续调 2D PNG，当前转入独立 **机器猫 3D Gate 1** 实机验收。
 
 ## 当前正式版
 
@@ -33,53 +33,80 @@ FACM 当前正式主阶段仍为 **基本完成 / 可暂停**。现有 3.1.1 是
 - Issue：#33 `机器猫桌宠 Gate 1 原型（保留蜘蛛失败基线）`。
 - Draft PR：#35 `Gate 1：独立机器猫桌宠原地动作原型`。
 - 任务分支：`codex/machine-cat-gate1`。
-- 原型路径：`prototypes/FACM.MachineCatPrototype/`。
+- 旧 2D 原型：`prototypes/FACM.MachineCatPrototype/`。
+- 当前 3D 原型：`prototypes/FACM.MachineCat3DPrototype/`。
 - 当前仍不修改 `src/FACM`、`src/FACM.PetHost`，不替换 VPet，不进入自动漫游 Gate 2。
 
-### Gate 1 第一版：视觉验收失败
+### 2D Gate 1 四轮实机结论
 
-第一版采用程序绘制的 WPF 矢量机器猫。它曾通过 Release build、deterministic self-test、真实 WPF window smoke、自包含 publish，核心 FACM Windows Build 也保持全绿；但用户随后用真实 Windows 录屏确认：
+1. **第一版：失败。** 程序绘制 WPF 矢量机器猫；CI 全绿但外形与认可的圆润 2.5D 机器猫差距明显，动作有纸片感。
+2. **第二版：失败。** 改用认可的透明动作/视角素材；外形恢复，但 Walk / Run / Turn 的完整角色 alpha-crossfade 产生明显“双机器猫/鬼影”。
+3. **第三版：失败。** 禁止整图 crossfade 后鬼影消失；但 Walk / Run 仍是一张完整跑姿整体弹动/翻面，Turn 仍是离散前/3⁄4/侧/背图片切换。
+4. **第四版：失败。** `ProceduralGaitFrames` 从认可 PNG 生成 32 个局部位移相位；真实 Windows 录屏确认脸/头基本稳定、无鬼影、无明显首次长卡顿，但手脚会拉长、变胖、缩回，Run 更明显，形成典型“橡皮变形感”。
 
-- 程序重画出来的扁平角色与已经认可的圆润 2.5D 机器猫外形差距明显；
-- Walk / Run / Turn / Raised / Sleep 等动作有“纸片变形/程序图形在动”的感觉；
-- 因此自动化成功不能视为 Gate 1 视觉成功。
+**停止条件已触发：不再做第五轮 PNG crossfade / mirror / squash / warp 参数实验。** 当前扁平 PNG 在“最真实、最流畅”的目标下已达到可接受上限。
 
-第一版已明确判定 **Gate 1 失败**，没有进入 Gate 2，也没有合并 PR #35。
+### 用户提供 3D 模型的实际检查结果
 
-### Gate 1 第二版：外形恢复，但整图 crossfade 失败
+用户自行下载并提供：
 
-第二版改为直接使用用户已经认可的透明机器猫动作/视角素材，角色视觉方向恢复正确；但真实 Windows 录屏确认：
+- `664230004_doraemon_model.glb`
+- 对应下载 ZIP，内含原始 FBX。
 
-- Walk / Run 左右换步时，完整角色原图与镜像图 alpha-crossfade 会同时出现；
-- Turn 多视角交接同样会出现明显的“双机器猫/鬼影”；
-- 因此整图 crossfade 被明确淘汰。
+实际文件证据优先于网页描述：
 
-### Gate 1 第三版：鬼影解决，但整图步态仍不够真实
+- GLB 2.0；
+- 61 个 Node；
+- **29 个独立 Mesh**；
+- `skins = 0`；
+- `animations = 0`；
+- GLB 没有贴图，只有一个通用材质；
+- 原始 FBX 二进制扫描同样未检出 `Skin / Cluster / AnimationStack / AnimationCurve`；
+- 因此它不是现成骨骼动画模型，但头、眼、鼻、嘴、胡须、项圈、铃铛、身体、口袋、左右上臂/小臂/手、左右腿/脚和尾巴已经天然拆成独立刚性 Mesh。
 
-第三版禁止完整角色 alpha 叠加，任意时刻只显示一只机器猫；Walk / Run 改为单图镜像换步并在换面附近做极短水平收窄，Turn 改为单图多视角切换。
+该结构允许 FACM Prototype 自己建立轻量“刚性分件 Rig”，不做蒙皮顶点拉伸。
 
-用户随后提交两段真实 Windows 录屏，结论：
+### 当前 3D Gate 1 路线
 
-- Walk / Run / Turn 的半透明双影已经消失，外形仍保持认可的 2.5D 机器猫；
-- 但 Walk / Run 本质仍是一张完整跑姿在整体弹动/翻面，四肢没有真正连续运动；
-- Turn 虽然干净，但仍能看出正面 / 3⁄4 / 侧面 / 背面几个离散视角在切换。
+- .NET 8 WPF 内置 `Viewport3D`；Gate 1 暂不引入大型游戏引擎或第三方渲染库。
+- 极窄 GLB 2.0 Loader，只实现当前模型实际需要的 triangle / POSITION / NORMAL / indices / node matrix。
+- 加载时把 GLB 节点变换烘到独立 Mesh；运行时只围绕显式关节旋转刚性零件。
+- 关节链：shoulder → forearm → hand、hip → foot、head/face group、bell secondary motion、tail secondary motion。
+- Walk / Run 使用左右反相的真实关节角度；不 crossfade、不镜像整图、不 warp 顶点。
+- Turn 直接让整个 3D 根节点围绕 Y 轴连续旋转，可自然覆盖任意角度。
+- 模型下载文件没有经典材质区分，Prototype 按零件名在运行时恢复蓝/白/红/黄基础配色，并补两个小型程序瞳孔；不修改原模型文件。
 
-因此第三版只通过“无鬼影”，**没有通过 Gate 1 的真实动作标准**。
+### 第三方模型边界
 
-### Gate 1 第四版：当前候选
+- 模型文件 **不进入公开 FACM 仓库**；
+- `.gitignore` 排除 `*.glb / *.gltf / *.fbx / *.zip`；
+- 公开 GitHub Actions artifact 发布前硬检查这些格式不存在；
+- 公开 runtime 只包含程序，测试者需自行把合法取得的 GLB 放到 EXE 同目录或拖到 EXE 上；
+- 当前用户会话中可以把用户自己上传的模型与 runtime 组合成私有测试包，但不把该组合包提交/发布到 GitHub。
 
-第四版继续坚持“不重新生成角色图片”，并保留现有 11 个认可透明素材；本轮只替换 Walk / Run 的动作渲染方式：
+### 当前自动验证
 
-- `MachineCatAnimator` 不再通过 `PrimaryMirror` 翻完整角色模拟左右步；
-- Walk / Run 输出连续 `GaitPhase`；
-- `ProceduralGaitFrames` 从现有 Walk / Run PNG 在内存中生成 32 个局部形变相位；
-- 局部位移场只重点影响左右手、前后脚和很小范围的下半身，脸和主体大部分像素保持锁定；
-- 两侧手脚使用相反 phase，形成交替抬落；Run 的位移幅度和节奏高于 Walk；
-- 形变帧第一次进入 Walk / Run 时生成并冻结缓存，之后直接复用，不每帧重新计算；
-- 不新增角色图片文件、不整图 crossfade、不整图左右翻面。
+3D Prototype 当前验证链：
 
-Turn 暂时保留第三版的单图多视角切换；第四版首先验证 Walk / Run 能否从“整图弹跳”提升为可信的局部四肢运动。如果局部位图形变仍有明显橡皮感，则应停止继续堆参数，并把“现有扁平 PNG 已到上限，需要真正分层源素材/骨骼源”作为后续结论。
+1. .NET 8 WPF Release build；
+2. 内置 synthetic GLB fixture 验证 parser、indices、node matrix；
+3. 刚性 Rig 的 Idle / Walk / Run / Turn deterministic self-test；
+4. 真正 Show 透明 WPF `Viewport3D` 窗口并收到 Rendering 帧；
+5. win-x64 self-contained publish；
+6. artifact 不含第三方模型的硬检查；
+7. 核心 FACM Windows Build 继续独立通过。
 
-第四版仍必须经过：Release build → procedural gait/self-test → 真实 WPF window smoke → win-x64 self-contained artifact → **用户真实 Windows 肉眼验收**。
+已验证：`FACM Machine Cat 3D Prototype` Run #6 全绿，`FACM Windows Build` #652 全绿。
 
-只有用户明确确认 Gate 1 的原地动作合格，才能设计/实现 Gate 2 MotionController。CI 不能替代这一视觉门禁。
+### 当前唯一剩余 Gate
+
+用户在真实 Windows 上用其本地 GLB 运行 3D Gate 1，重点判断：
+
+- 模型加载/朝向/大小是否正确；
+- runtime 配色是否可接受；
+- Walk 左右手脚是否真正围绕关节运动，而非拉伸；
+- Run 是否自然、有速度差且不过度穿模；
+- Turn 是否连续 360°；
+- WPF `Viewport3D + AllowsTransparency` 的实际 CPU / GPU / 内存是否适合作为桌宠基础。
+
+只有用户明确确认 3D Gate 1 的原地动作和性能方向合格，才能设计/实现 Gate 2 MotionController。CI 不能替代视觉和资源占用门禁。
