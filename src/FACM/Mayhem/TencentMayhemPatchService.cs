@@ -165,11 +165,15 @@ namespace FACM.Mayhem
 
         private static int FindMayhemHeading(string html)
         {
-            var heading = Regex.Match(
+            foreach (Match heading in Regex.Matches(
                 html ?? string.Empty,
-                "<h[1-6]\\b[^>]*>.*?海克斯大乱斗.*?</h[1-6]>",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (heading.Success) return heading.Index;
+                "<h(?<level>[1-6])\\b[^>]*>(?<body>.*?)</h\\k<level>>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline))
+            {
+                var headingText = CleanText(heading.Groups["body"].Value);
+                if (headingText.IndexOf("海克斯大乱斗", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return heading.Index;
+            }
 
             // Test fixtures and mirrors may preserve Markdown-style headings instead of HTML.
             var markdown = Regex.Match(html ?? string.Empty, "(?:^|[\\r\\n])\\s*#{1,6}\\s*海克斯大乱斗\\s*(?:[\\r\\n]|$)", RegexOptions.IgnoreCase);
