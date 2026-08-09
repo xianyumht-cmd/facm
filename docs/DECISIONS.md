@@ -1,26 +1,30 @@
 # FACM 技术决策
 
-## 2026-08-09：新桌宠先走独立机器猫 Gate 1，不提前替换 VPet
+## 2026-08-10：桌宠 Prototype 必须保留已人工确认的角色视觉，程序不再重画角色
 
 ### 决策
 
-Issue #33 当前角色方向从蜘蛛改为用户已确认外形的机器猫桌宠。第一阶段只在 `prototypes/FACM.MachineCatPrototype/` 做独立 WPF Gate 1 原型，验证 Idle / Walk / Run / Turn / Observe / Raised / Recover / Sleep 的原地动作；在用户真实 Windows 视觉验收前，不接入 `FACM.exe`、不修改 `FACM.PetHost.exe`、不替换 VPet，也不实现自动桌面漫游。
+Issue #33 / PR #35 的机器猫 Gate 1 从第二版开始采用：
 
-PR #13 旧蜘蛛/Sprite 的失败复盘继续保留为防回归基线：不能因为换成 WPF、增加 deltaTime、多帧或更高清素材就认定路线已经不同。当前 Gate 1 使用连续 Rig 参数驱动动作，不靠固定 FPS Sprite 切帧或窗口随机平移制造生命感。
+- 已经由用户人工确认的角色外观作为视觉基线；
+- 从本轮已确认的 Identity / Action Sheet 提取透明动作/视角素材；
+- 程序只负责状态、时间、轻微 transform、短时 crossfade、镜像换步、鼠标交互和窗口生命周期；
+- 不再为了“少用图片/更程序化”而用 WPF 图元重新设计或重画角色；
+- 自动 build/self-test/window-smoke 只能证明工程链路，不替代真实 Windows 视觉验收；
+- Gate 1 未被用户明确通过前，不进入 Gate 2 MotionController，不接 FACM/PetHost，不合并 Draft PR。
 
 ### 原因
 
-- 旧 Sprite 已经具备 `Stopwatch + deltaTime`、多方向多帧、速度平滑和透明窗口，失败点不是“技术名词不够新”，而是动作与行为没有形成真正角色感；
-- 先固定窗口验证原地动作，可以在运动轨迹和桌面漫游掩盖问题之前发现动作本身是否机械；
-- 现有 FACM 3.1.1 / PetHost / VPet 已实机稳定，不应为尚未通过视觉验收的新桌宠扩大正式回归面；
-- 用户已确认当前机器猫角色外形，本阶段不再把时间投入到继续生成角色图片。
+PR #35 第一版程序绘制的 WPF 矢量机器猫曾经同时通过 Release build、deterministic self-test、真实 WPF window smoke 和自包含 publish，但用户实机录屏仍显示：角色与已经认可的圆润 2.5D 机器猫明显不一致，Walk/Run/Turn/Raised/Sleep 也有纸片变形感。
+
+因此“技术上可运行”和“桌宠视觉合格”是两条独立门禁；已确认的视觉身份不能在实现阶段被程序方便性重新定义。
 
 ### 后果
 
-- Gate 1 CI 独立于正式 Release，负责 Release build、deterministic 动画自检、真实 WPF window smoke 和 win-x64 self-contained artifact；
-- 自动测试通过只代表工程/动画数学/窗口运行链有效，不能替代用户视觉验收；
-- 只有 Gate 1 人工通过后才进入 Gate 2：先用调试图形验证 BehaviorController / MotionController 的轨迹，再把真实角色动作与 `actualSpeed` 绑定；
-- 在 Gate 2 前继续禁止“随机角度 + 随机速度 + 窗口平移”和碰边直接速度反射的旧路线。
+- PR #35 第一版保留为失败经验，不作为正式桌宠基础；
+- 第二版使用 11 个已确认动作/视角透明素材，运行时一次解码并缓存；
+- 原型期可使用 `Assets/*.b64` 作为 GitHub/程序集资源载体，正式接入前再决定常规二进制资源打包方式；
+- 当前正式 VPet/PetHost 架构不受此实验影响。
 
 ## 2026-08-09：VPet 保持独立子进程，不为单 PID 强迁主程序
 
@@ -31,6 +35,8 @@ FACM 3.1 继续采用：
 `FACM.exe (net48 WinForms)` → `FACM.PetHost.exe (net8 x64 WPF/VPet)`
 
 PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`。PetHost 自身的 `--parent-pid` 检测继续保留。
+
+Issue #33 的机器猫 Prototype 当前是隔离实验，不改变这条正式架构决策。只有独立 Prototype 完成视觉、运动和稳定性验收后，才重新讨论正式接入方式。
 
 ### 原因
 
@@ -59,7 +65,7 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 
 - OP.GG 在中国大陆存在访问不稳定，不能作为排行榜整体成功条件；
 - 单个第三方页面结构/WAF/限流随时可能变化；
-- 腾讯版本公告只列本版本增量，无法单独回答“这个英雄现在所有 Buff/Debuff 是什么”；
+- 腾讯版本公告只列本版本增量，无法单独回答“一个英雄现在所有 Buff/Debuff 是什么”；
 - 用户需要的是当前生效状态，因此完整状态必须带 Patch 语义，并与当前国服版本核对。
 
 ### 后果
