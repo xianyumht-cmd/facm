@@ -142,11 +142,19 @@ AnimationController
 dotnet build .\prototypes\FACM.MachineCatPrototype\FACM.MachineCatPrototype.csproj -c Release
 ```
 
-自检：
+动画数学自检：
 
 ```powershell
 .\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe --self-test
 ```
+
+真实窗口 smoke：
+
+```powershell
+.\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe --window-smoke-test
+```
+
+它会实际 `Show()` 一个 Walk 状态透明 WPF 窗口，确认 `Loaded` 后收到至少 3 帧 `CompositionTarget.Rendering`，再自动关闭；超过 3 秒未满足会返回非 0，并写 `machine-cat-window-smoke-error.txt`。
 
 直接指定初始状态：
 
@@ -162,7 +170,8 @@ Gate 1 的自动化层面需要：
 
 - `dotnet build -c Release` 通过；
 - `--self-test` 返回 0；
+- `--window-smoke-test` 返回 0；
 - win-x64 self-contained publish 成功；
 - CI 上传独立原型 artifact。
 
-**视觉 Gate 1 仍必须在真实 Windows 桌面由用户看实际窗口。** CI 只能证明工程和动画数学没有坏，不能替代视觉验收。
+**视觉 Gate 1 仍必须在真实 Windows 桌面由用户看实际窗口。** CI 可以证明工程、动画数学和 WPF 窗口运行链没有坏，但不能替代“动作看起来是否自然”的人工验收。
