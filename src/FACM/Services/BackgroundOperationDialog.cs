@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -10,6 +11,7 @@ namespace FACM.Services
         private readonly Func<object> _worker;
         private object _result;
         private Exception _error;
+        private bool _completed;
 
         private BackgroundOperationDialog(string titleText, string statusText, Func<object> worker)
         {
@@ -85,12 +87,23 @@ namespace FACM.Services
             }
             finally
             {
+                _completed = true;
                 if (!IsDisposed && !Disposing)
                 {
                     DialogResult = DialogResult.OK;
                     Close();
                 }
             }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (!_completed)
+            {
+                e.Cancel = true;
+                return;
+            }
+            base.OnFormClosing(e);
         }
     }
 }
