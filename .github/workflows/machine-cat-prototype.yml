@@ -44,6 +44,17 @@ jobs:
             throw "Machine Cat Gate 1 self-test failed with exit code $($process.ExitCode)"
           }
 
+      - name: Launch real WPF window smoke
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path .\prototypes\FACM.MachineCatPrototype\bin\Release\net8.0-windows\FACM.MachineCatPrototype.exe).Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--window-smoke-test' -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) {
+            $diagnostic = Join-Path (Split-Path $exe) 'machine-cat-window-smoke-error.txt'
+            if (Test-Path $diagnostic) { Get-Content $diagnostic }
+            throw "Machine Cat Gate 1 window smoke failed with exit code $($process.ExitCode)"
+          }
+
       - name: Publish self-contained win-x64 prototype
         shell: pwsh
         run: |
