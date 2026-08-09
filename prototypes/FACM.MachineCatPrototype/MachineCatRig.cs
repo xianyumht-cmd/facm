@@ -75,7 +75,10 @@ internal sealed class MachineCatRig
 
     public void Apply(in RigPose pose)
     {
-        var primarySource = MachineCatAssetCatalog.Get(pose.PrimaryAsset);
+        var primarySource = pose.UseProceduralGait
+            ? ProceduralGaitFrames.Get(pose.PrimaryAsset, pose.GaitPhase)
+            : MachineCatAssetCatalog.Get(pose.PrimaryAsset);
+
         if (!ReferenceEquals(_primary.Source, primarySource))
             _primary.Source = primarySource;
 
