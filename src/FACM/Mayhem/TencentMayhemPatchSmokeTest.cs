@@ -12,6 +12,9 @@ namespace FACM.Mayhem
                 const string fixture = @"
 <html><body>
 <p>LOL将在维护后发布26.15版本。</p>
+<p>还有海克斯大乱斗和竞技场更新！</p>
+<h3>英雄</h3>
+<p>普通模式英雄</p><li>错误字段：1 ⇒ 2</li>
 <h3>海克斯大乱斗</h3>
 <h4>英雄</h4>
 <p>阿狸</p>
@@ -30,6 +33,8 @@ namespace FACM.Mayhem
                 if (snapshot == null) throw new InvalidOperationException("Tencent Mayhem fixture was not parsed.");
                 if (!string.Equals(snapshot.Patch, "26.15", StringComparison.Ordinal))
                     throw new InvalidOperationException("Tencent Mayhem patch was parsed incorrectly: " + snapshot.Patch);
+                if (snapshot.ChampionChanges.ContainsKey("普通模式英雄"))
+                    throw new InvalidOperationException("Parser started at an early prose mention instead of the Mayhem heading.");
 
                 var ahri = snapshot.FindChampionChanges("阿狸");
                 if (ahri.Count != 1 || !ahri[0].Contains("90% → 100%"))
