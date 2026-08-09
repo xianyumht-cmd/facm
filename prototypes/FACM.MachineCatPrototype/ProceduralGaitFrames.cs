@@ -5,9 +5,9 @@ namespace FACM.MachineCatPrototype;
 
 /// <summary>
 /// Builds a small in-memory animation cache from the already approved Walk/Run PNGs.
-/// No additional character artwork is generated or stored.  Instead a smooth local
-/// displacement field moves the hand/foot regions while keeping the face and most of
-/// the torso visually locked to the approved source pixels.
+/// No additional character artwork is generated or stored. Instead a smooth local
+/// displacement field moves hand/foot regions while keeping the face and most of the
+/// torso visually locked to the approved source pixels.
 /// </summary>
 internal static class ProceduralGaitFrames
 {
@@ -52,43 +52,30 @@ internal static class ProceduralGaitFrames
         var controls = run ? BuildRunControls() : BuildWalkControls();
         var weights = controls.Select(control => BuildWeightMap(width, height, control)).ToArray();
         var frames = new BitmapSource[FrameCount];
+        var normalizedY = BuildNormalizedY(height);
 
         for (var frame = 0; frame < FrameCount; frame++)
         {
             var phase = frame / (double)FrameCount;
             var cycle = phase * Math.PI * 2d;
+            var lowerBodySin = Math.Sin(cycle);
+            var movements = BuildMovements(controls, cycle);
             var pixels = new byte[sourcePixels.Length];
 
             for (var y = 0; y < height; y++)
             {
+                var lower = normalizedY[y];
                 for (var x = 0; x < width; x++)
                 {
                     var pixelIndex = y * width + x;
-                    var dx = 0d;
+                    var dx = lower * lowerBodySin * (run ? 0.95d : 0.60d);
                     var dy = 0d;
 
                     for (var c = 0; c < controls.Length; c++)
                     {
-                        var control = controls[c];
-                        var angle = cycle + control.PhaseOffset;
-                        var sin = Math.Sin(angle);
-                        var cos = Math.Cos(angle);
-                        var lift = Math.Max(cos, 0d);
-                        var settle = Math.Max(-cos, 0d);
                         var weight = weights[c][pixelIndex];
-
-                        dx += weight * control.HorizontalPixels * sin;
-                        dy += weight * ((-control.LiftPixels * lift) + (control.ReturnPixels * settle));
-                    }
-
-                    // A tiny lower-body sway keeps the step from looking like isolated
-                    // stickers while leaving the face almost completely untouched.
-                    var normalizedY = height <= 1 ? 0d : y / (double)(height - 1);
-                    if (normalizedY > 0.58d)
-                    {
-                        var lower = (normalizedY - 0.58d) / 0.42d;
-                        lower *= lower;
-                        dx += lower * Math.Sin(cycle) * (run ? 0.95d : 0.60d);
+                        dx += weight * movements[c].Dx;
+                        dy += weight * movements[c].Dy;
                     }
 
                     SampleBilinear(
@@ -117,6 +104,42 @@ internal static class ProceduralGaitFrames
         }
 
         return frames;
+    }
+
+    private static Movement[] BuildMovements(ControlPoint[] controls, double cycle)
+    {
+        var result = new Movement[controls.Length];
+        for (var i = 0; i < controls.Length; i++)
+        {
+            var control = controls[i];
+            var angle = cycle + control.PhaseOffset;
+            var sin = Math.Sin(angle);
+            var cos = Math.Cos(angle);
+            var lift = Math.Max(cos, 0d);
+            var settle = Math.Max(-cos, 0d);
+            result[i] = new Movement(
+                control.HorizontalPixels * sin,
+                (-control.LiftPixels * lift) + (control.ReturnPixels * settle));
+        }
+        return result;
+    }
+
+    private static double[] BuildNormalizedY(int height)
+    {
+        var result = new double[height];
+        for (var y = 0; y < height; y++)
+        {
+            var normalized = height <= 1 ? 0d : y / (double)(height - 1);
+            if (normalized <= 0.58d)
+            {
+                result[y] = 0d;
+                continue;
+            }
+
+            var lower = (normalized - 0.58d) / 0.42d;
+            result[y] = lower * lower;
+        }
+        return result;
     }
 
     private static ControlPoint[] BuildWalkControls() =>
@@ -192,6 +215,8 @@ internal static class ProceduralGaitFrames
             destination[destinationOffset + channel] = (byte)Math.Clamp((int)Math.Round(value), 0, 255);
         }
     }
+
+    private readonly record struct Movement(double Dx, double Dy);
 
     private readonly record struct ControlPoint(
         double X,
