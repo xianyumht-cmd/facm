@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.1.0",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.1.0/FACM.exe",
   "sha256": "6F9C5C435549C1673752CF401AE1E3DDD1C8F59473C3BA48D8A605C8DD36B7DB",
   "release_notes": "FACM 3.1 正式版：海斗排行榜改为国内优先的多数据源容灾并加入国服版本校验；修复控制中心首帧排版、桌宠面板空白处不收起等交互问题；优化 PetHost 生命周期、海斗热缓存、清理预览与删除流程的运行流畅性；正式支持单 EXE 内嵌 PetHost 与在线更新。",
-  "published_at": "2026-08-09T11:20:43.7722770+00:00"
+  "published_at": "2026-08-09T11:20:52.7801721+00:00"
 }
