@@ -324,7 +324,12 @@ jobs:
         shell: pwsh
         run: |
           git fetch origin main
-          git reset --hard origin/main
+          $remoteSha = (git rev-parse origin/main).Trim()
+          $localSha = (git rev-parse HEAD).Trim()
+          if ($remoteSha -ne $localSha) {
+            throw "main moved after release metadata push: expected $localSha, got $remoteSha. Release is public but online update remains disabled."
+          }
+
           $manifest = Get-Content online/version.json -Raw -Encoding utf8 | ConvertFrom-Json
           if ([string]$manifest.version -ne $env:RELEASE_VERSION) {
             throw "online/version.json changed after release metadata commit; refusing to enable it."
