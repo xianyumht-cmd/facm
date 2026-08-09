@@ -1,8 +1,8 @@
 {
-  "request_id": "3.1.0-attempt-2",
-  "version": "3.1.0",
+  "request_id": "3.1.1-update-push-test",
+  "version": "3.1.1",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.1 正式版：海斗排行榜改为国内优先的多数据源容灾并加入国服版本校验；修复控制中心首帧排版、桌宠面板空白处不收起等交互问题；优化 PetHost 生命周期、海斗热缓存、清理预览与删除流程的运行流畅性；正式支持单 EXE 内嵌 PetHost 与在线更新。"
+  "release_notes": "FACM 3.1.1 在线更新推送验证版：不包含新的业务功能，仅用于验证已安装的 FACM 3.1.0 能否正常检测、提示并升级到 3.1.1。"
 }
