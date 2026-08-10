@@ -21,12 +21,14 @@ namespace FACM
             var mayhemSourceTest = HasArgument(args, "--mayhem-source-test");
             var mayhemBodyCancellationTest = HasArgument(args, "--mayhem-body-cancellation-test");
             var tencentMayhemPatchTest = HasArgument(args, "--tencent-mayhem-patch-test");
+            var aramBaseBalanceTest = HasArgument(args, "--aram-base-balance-test");
             var floatingBallTest = HasArgument(args, "--floating-ball-test");
             var petLocatorTest = HasArgument(args, "--pet-locator-test");
             var embeddedPetHostTest = HasArgument(args, "--embedded-pethost-test");
             var gameLocatorTest = HasArgument(args, "--game-locator-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
-                           tencentMayhemPatchTest || floatingBallTest || petLocatorTest || embeddedPetHostTest || gameLocatorTest;
+                           tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
+                           embeddedPetHostTest || gameLocatorTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -34,6 +36,7 @@ namespace FACM
                 mayhemSourceTest,
                 mayhemBodyCancellationTest,
                 tencentMayhemPatchTest,
+                aramBaseBalanceTest,
                 floatingBallTest,
                 petLocatorTest,
                 embeddedPetHostTest,
@@ -58,6 +61,11 @@ namespace FACM
                 if (tencentMayhemPatchTest)
                 {
                     Environment.ExitCode = TencentMayhemPatchSmokeTest.Run();
+                    return;
+                }
+                if (aramBaseBalanceTest)
+                {
+                    Environment.ExitCode = OpggAramBaseBalanceSmokeTest.Run();
                     return;
                 }
                 if (gameLocatorTest)
@@ -142,6 +150,7 @@ namespace FACM
             bool mayhemSourceTest,
             bool mayhemBodyCancellationTest,
             bool tencentMayhemPatchTest,
+            bool aramBaseBalanceTest,
             bool floatingBallTest,
             bool petLocatorTest,
             bool embeddedPetHostTest,
@@ -149,6 +158,7 @@ namespace FACM
         {
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";
+            if (aramBaseBalanceTest) return MutexName + "-AramBaseBalanceTest";
             if (gameLocatorTest) return MutexName + "-GameLocatorTest";
             if (embeddedPetHostTest) return MutexName + "-EmbeddedPetHostTest";
             if (petCatalogTest) return MutexName + "-PetCatalogTest";

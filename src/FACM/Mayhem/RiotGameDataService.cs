@@ -36,6 +36,10 @@ namespace FACM.Mayhem
                 var ct = timeout.Token;
                 try
                 {
+                    // Base ARAM balance is supplementary and independent from the
+                    // Mayhem ranking pipeline. Start it before visual metadata so
+                    // the added complete-state lookup does not extend the critical path.
+                    var baseBalanceTask = OpggAramBaseBalanceService.EnrichAsync(result, ct);
                     await RiotDataDragonService.EnrichAsync(result, ct).ConfigureAwait(false);
 
                     var needChampionFallback = string.IsNullOrWhiteSpace(result.ChampionIconUrl) ||
@@ -47,7 +51,7 @@ namespace FACM.Mayhem
                     var championsTask = needChampionFallback ? ReadGameDataAsync("champion-summary.json", ct) : Task.FromResult<object>(null);
                     var itemsTask = needItemFallback ? ReadGameDataAsync("items.json", ct) : Task.FromResult<object>(null);
                     var augmentsTask = result.Augments.Count > 0 ? ReadGameDataAsync("cherry-augments.json", ct) : Task.FromResult<object>(null);
-                    await Task.WhenAll(championsTask, itemsTask, augmentsTask).ConfigureAwait(false);
+                    await Task.WhenAll(championsTask, itemsTask, augmentsTask, baseBalanceTask).ConfigureAwait(false);
 
                     var champions = AsArray(championsTask.Result);
                     if (champions != null)

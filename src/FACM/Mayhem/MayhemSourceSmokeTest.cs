@@ -41,6 +41,34 @@ namespace FACM.Mayhem
                         if (attempt < 2) Thread.Sleep(450);
                     }
 
+                    // Keep the live source gate separate from the Yasuo ranking probe.
+                    // Seraphine is intentionally used because her base ARAM page has
+                    // long-lived non-neutral modifiers, so disappearance of the balance
+                    // section is a meaningful parser/source regression instead of a
+                    // harmless champion-with-no-adjustments case.
+                    var baseProbe = new MayhemChampionResult
+                    {
+                        ChampionName = "萨勒芬妮",
+                        ChampionSlug = "seraphine",
+                        Patch = result.Patch,
+                        BalanceSummary = "Mayhem probe"
+                    };
+                    OpggAramBaseBalanceService.EnrichAsync(baseProbe, cancellation.Token).GetAwaiter().GetResult();
+                    if (string.IsNullOrWhiteSpace(baseProbe.BaseBalanceStatus) ||
+                        string.Equals(baseProbe.BaseBalanceStatus, "unavailable", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException(
+                            "Live Seraphine base ARAM balance source is unavailable or no longer parseable. " +
+                            "status=" + (baseProbe.BaseBalanceStatus ?? "<null>") +
+                            "; error=" + (baseProbe.BaseBalanceErrorClass ?? "<null>"));
+                    if (!string.Equals(baseProbe.BaseBalanceStatus, "syncing", StringComparison.OrdinalIgnoreCase) && !baseProbe.BaseBalanceComplete)
+                        throw new InvalidOperationException(
+                            "Live Seraphine base ARAM balance source returned a non-complete state. " +
+                            "status=" + baseProbe.BaseBalanceStatus +
+                            "; error=" + (baseProbe.BaseBalanceErrorClass ?? "<null>"));
+                    if (string.IsNullOrWhiteSpace(baseProbe.BaseBalanceSummary) ||
+                        baseProbe.BalanceSummary.IndexOf("基础 ARAM", StringComparison.OrdinalIgnoreCase) < 0)
+                        throw new InvalidOperationException("Base ARAM balance was not composed into the card summary.");
+
                     MayhemRankedAugmentService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
 
                     if (string.IsNullOrWhiteSpace(result.ChampionIconUrl))
