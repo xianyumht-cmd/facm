@@ -213,11 +213,12 @@ namespace FACM.Mayhem
                 var aliases = string.Join("|", rule.Aliases.OrderByDescending(value => value.Length).Select(Regex.Escape));
                 var match = Regex.Match(
                     section,
-                    "(?:" + aliases + ")\\s*[:：]?\\s*(?<v>[+-]?\\d+(?:\\.\\d+)?%?|-)",
+                    "(?:" + aliases + ")\\s*[:：]?\\s*(?<v>(?:[+-]\\s*)?\\d+(?:\\.\\d+)?%?|-)",
                     RegexOptions.IgnoreCase);
                 if (!match.Success) continue;
 
                 var raw = match.Groups["v"].Value.Trim();
+                raw = Regex.Replace(raw, "^([+-])\\s+", "$1");
                 if (raw.StartsWith("+", StringComparison.Ordinal) ||
                     (raw.StartsWith("-", StringComparison.Ordinal) && raw.Length > 1))
                     recognizedSignedValues++;
@@ -239,7 +240,7 @@ namespace FACM.Mayhem
             // a balance modifier, so use them as the completeness guard. This keeps
             // unknown +X/-X modifiers fail-closed without turning ordinary page stats
             // into false parser failures.
-            var signedTokens = Regex.Matches(section, "(?<![\\d.])[+-]\\d+(?:\\.\\d+)?%?")
+            var signedTokens = Regex.Matches(section, "(?<![\\d.])[+-]\\s*\\d+(?:\\.\\d+)?%?")
                 .Cast<Match>()
                 .Select(match => match.Value)
                 .ToArray();
@@ -377,6 +378,8 @@ namespace FACM.Mayhem
                 .Replace("\\/", "/")
                 .Replace("\\\"", "\"")
                 .Replace("\\n", " ")
+                .Replace('–', '-')
+                .Replace('—', '-')
                 .Replace('−', '-');
             text = Regex.Replace(text, "<(script|style)\\b[^>]*>.*?</\\1>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);
             text = Regex.Replace(text, "<[^>]+>", " ");
@@ -385,9 +388,14 @@ namespace FACM.Mayhem
 
         private static string ExtractPatch(string text)
         {
-            var match = Regex.Match(text ?? string.Empty, "\\bPatch\\s*:?\\s*(?<v>\\d{1,2}\\.\\d{1,2})\\b", RegexOptions.IgnoreCase);
+            var source = text ?? string.Empty;
+            var match = Regex.Match(source, "\\bPatch\\s*:?\\s*(?<v>\\d{1,2}\\.\\d{1,2})\\b", RegexOptions.IgnoreCase);
             if (!match.Success)
-                match = Regex.Match(text ?? string.Empty, "\\b(?<v>\\d{1,2}\\.\\d{1,2})\\s*版本\\b", RegexOptions.IgnoreCase);
+                match = Regex.Match(source, "\\bVer(?:sion)?\\s*[:：]?\\s*(?<v>\\d{1,2}\\.\\d{1,2})\\b", RegexOptions.IgnoreCase);
+            if (!match.Success)
+                match = Regex.Match(source, "\\b(?<v>\\d{1,2}\\.\\d{1,2})\\s*版本\\b", RegexOptions.IgnoreCase);
+            if (!match.Success)
+                match = Regex.Match(source, "版本(?:号)?\\s*[:：]?\\s*(?<v>\\d{1,2}\\.\\d{1,2})\\b", RegexOptions.IgnoreCase);
             return match.Success ? match.Groups["v"].Value : null;
         }
 
@@ -426,8 +434,10 @@ namespace FACM.Mayhem
         private static bool TryNumeric(string raw, out double value)
         {
             value = 0D;
-            var match = Regex.Match(raw ?? string.Empty, "[+-]?\\d+(?:\\.\\d+)?");
-            return match.Success && double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+            var match = Regex.Match(raw ?? string.Empty, "[+-]?\\s*\\d+(?:\\.\\d+)?");
+            if (!match.Success) return false;
+            var normalized = Regex.Replace(match.Value, "\\s+", string.Empty);
+            return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
         private static string DisplayPatch(string patch)
