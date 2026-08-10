@@ -29,11 +29,13 @@ namespace FACM.Mayhem
         public List<AramBaseBalanceChange> Changes { get; set; } = new List<AramBaseBalanceChange>();
         public string Summary { get; set; }
         public string ErrorClass { get; set; }
+        public string SourceUrl { get; set; }
     }
 
     internal static class OpggAramBaseBalanceService
     {
-        private const string BaseUrl = "https://op.gg/lol/modes/aram/";
+        private const string LocalizedBaseUrl = "https://op.gg/zh-cn/lol/modes/aram/";
+        private const string GlobalBaseUrl = "https://op.gg/lol/modes/aram/";
         private static readonly HttpClient Client = CreateClient();
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, CacheEntry> Cache =
@@ -123,38 +125,77 @@ namespace FACM.Mayhem
                 }
             }
 
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            var urls = new[]
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(2.5));
-                try
+                LocalizedBaseUrl + key + "/build",
+                GlobalBaseUrl + key + "/build"
+            };
+            var lastError = "unavailable";
+            AramBaseBalanceSnapshot lastPartial = null;
+
+            foreach (var url in urls)
+            {
+                token.ThrowIfCancellationRequested();
+                using (var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + key + "/build"))
-                    using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false))
+                    requestTimeout.CancelAfter(TimeSpan.FromSeconds(2.2));
+                    try
                     {
-                        if (!response.IsSuccessStatusCode) return Unavailable("http_" + (int)response.StatusCode);
-                        var html = await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
-                        var parsed = ParsePage(html, expectedPatch);
-                        if (parsed.Complete && parsed.Status != "syncing")
+                        using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                         {
-                            lock (Sync)
+                            request.Headers.Referrer = new Uri("https://op.gg/zh-cn/lol/modes/aram");
+                            using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestTimeout.Token).ConfigureAwait(false))
                             {
-                                Cache[key] = new CacheEntry { Time = DateTime.UtcNow, Snapshot = Clone(parsed) };
+                                if (!response.IsSuccessStatusCode)
+                                {
+                                    lastError = "http_" + (int)response.StatusCode;
+                                    AppLog.Info("Base ARAM balance source returned " + lastError + ": " + url);
+                                    continue;
+                                }
+
+                                var html = await CancelableHttpContentReader.ReadStringAsync(response.Content, requestTimeout.Token).ConfigureAwait(false);
+                                var parsed = ParsePage(html, expectedPatch);
+                                parsed.SourceUrl = url;
+                                if (!string.Equals(parsed.Status, "unavailable", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (parsed.Complete && parsed.Status != "syncing")
+                                    {
+                                        lock (Sync)
+                                        {
+                                            Cache[key] = new CacheEntry { Time = DateTime.UtcNow, Snapshot = Clone(parsed) };
+                                        }
+                                    }
+                                    return parsed;
+                                }
+
+                                lastError = string.IsNullOrWhiteSpace(parsed.ErrorClass)
+                                    ? "validation_error"
+                                    : parsed.ErrorClass;
+                                lastPartial = parsed;
+                                AppLog.Info("Base ARAM balance source parse skipped: " + lastError + "; " + url);
                             }
                         }
-                        return parsed;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (token.IsCancellationRequested) throw;
+                        lastError = "timeout";
+                        AppLog.Info("Base ARAM balance source timed out: " + url);
+                    }
+                    catch (Exception exception)
+                    {
+                        lastError = exception.GetType().Name;
+                        AppLog.Info("Base ARAM balance source request failed: " + url + "; " + exception.Message);
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    if (token.IsCancellationRequested) throw;
-                    return Unavailable("timeout");
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Info("Base ARAM balance source request failed: " + exception.Message);
-                    return Unavailable(exception.GetType().Name);
-                }
             }
+
+            if (lastPartial != null)
+            {
+                lastPartial.ErrorClass = lastError;
+                return lastPartial;
+            }
+            return Unavailable(lastError);
         }
 
         private static AramBaseBalanceSnapshot ParsePage(string html, string expectedPatch)
@@ -236,6 +277,7 @@ namespace FACM.Mayhem
             snapshot = snapshot ?? Unavailable("missing_snapshot");
             result.BaseBalancePatch = snapshot.DisplayPatch;
             result.BaseBalanceStatus = snapshot.Status;
+            result.BaseBalanceErrorClass = snapshot.ErrorClass;
             result.BaseBalanceComplete = snapshot.Complete;
 
             string baseText;
@@ -307,6 +349,7 @@ namespace FACM.Mayhem
                 CurrentPatchVerified = source.CurrentPatchVerified,
                 Summary = source.Summary,
                 ErrorClass = source.ErrorClass,
+                SourceUrl = source.SourceUrl,
                 Changes = (source.Changes ?? new List<AramBaseBalanceChange>()).Select(item => new AramBaseBalanceChange
                 {
                     Key = item.Key,
@@ -401,11 +444,12 @@ namespace FACM.Mayhem
         {
             var handler = new HttpClientHandler
             {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                AllowAutoRedirect = true
             };
             var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/151.0 FACM/3.1");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9,zh-CN;q=0.7,zh;q=0.6");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0 Safari/537.36 FACM/3.1");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7");
             client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
             return client;
         }
