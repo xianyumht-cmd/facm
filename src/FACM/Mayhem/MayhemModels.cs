@@ -28,6 +28,7 @@ namespace FACM.Mayhem
         public string BaseBalanceSummary { get; set; }
         public string BaseBalancePatch { get; set; }
         public string BaseBalanceStatus { get; set; }
+        public string BaseBalanceErrorClass { get; set; }
         public bool BaseBalanceComplete { get; set; }
         public string SkillOrder { get; set; }
         public List<string> CoreItems { get; set; } = new List<string>();
