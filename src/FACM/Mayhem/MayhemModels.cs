@@ -24,6 +24,11 @@ namespace FACM.Mayhem
         public double? WinRate { get; set; }
         public double? PickRate { get; set; }
         public string BalanceSummary { get; set; }
+        public string MayhemBalanceSummary { get; set; }
+        public string BaseBalanceSummary { get; set; }
+        public string BaseBalancePatch { get; set; }
+        public string BaseBalanceStatus { get; set; }
+        public bool BaseBalanceComplete { get; set; }
         public string SkillOrder { get; set; }
         public List<string> CoreItems { get; set; } = new List<string>();
         public List<string> Augments { get; set; } = new List<string>();
