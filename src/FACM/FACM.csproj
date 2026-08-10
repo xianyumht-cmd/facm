@@ -87,6 +87,8 @@
     <Exec Command="&quot;$(TargetPath)&quot; --mayhem-body-cancellation-test" />
     <Message Importance="High" Text="Validating Tencent Mayhem patch parsing with an offline fixture." />
     <Exec Command="&quot;$(TargetPath)&quot; --tencent-mayhem-patch-test" />
+    <Message Importance="High" Text="Validating complete base ARAM balance parsing with an offline Seraphine fixture." />
+    <Exec Command="&quot;$(TargetPath)&quot; --aram-base-balance-test" />
     <Message Condition="Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
     <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" />
   </Target>
