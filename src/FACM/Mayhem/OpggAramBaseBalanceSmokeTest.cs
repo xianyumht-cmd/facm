@@ -64,6 +64,65 @@ Energy Regen -
                 if (localizedParsed == null || !localizedParsed.Complete || localizedParsed.Changes.Count != 4)
                     throw new InvalidOperationException("Current localized OP.GG balance labels are not fully supported.");
 
+                const string yasuoLiveShape = @"
+<html><body>
+<div>Ver: 16.15</div>
+<section>
+Balance adjustment
+Damage Dealt -
+Damage Taken -
+Attack Speed + 2.5%
+Cooldown Reduction -
+Healing -
+Tenacity -
+Shield Amount -
+Energy Regen -
+ADVERTISEMENT 300 250
+</section>
+<div>Summoner spells</div>
+</body></html>";
+                var yasuo = OpggAramBaseBalanceService.ParseForSmokeTest(yasuoLiveShape, "26.15");
+                if (yasuo == null || !yasuo.Complete || yasuo.Status != "ok" || !yasuo.CurrentPatchVerified)
+                    throw new InvalidOperationException("Yasuo live OP.GG balance shape was not parsed and patch-verified.");
+                if (yasuo.Changes.Count != 1 || yasuo.Changes[0].Key != "attack_speed" ||
+                    yasuo.Changes[0].Value != "+2.5%" || yasuo.Changes[0].Direction != "buff")
+                    throw new InvalidOperationException("Yasuo spaced +2.5% attack-speed modifier was not normalized correctly.");
+
+                const string corkiVersionShape = @"
+<html><body>
+<div>Version: 16.15</div>
+<section>
+Balance adjustment
+Damage Dealt -
+Damage Taken -10%
+Attack Speed -
+Cooldown Reduction -20
+Healing -
+Tenacity -
+Shield Amount -
+Energy Regen -
+</section>
+<div>Build</div>
+</body></html>";
+                var corki = OpggAramBaseBalanceService.ParseForSmokeTest(corkiVersionShape, "26.15");
+                if (corki == null || !corki.Complete || corki.Status != "ok" || !corki.CurrentPatchVerified)
+                    throw new InvalidOperationException("Corki Version: patch selector shape was not parsed and verified.");
+                var corkiTaken = corki.Changes.FirstOrDefault(item => item.Key == "damage_taken");
+                var corkiHaste = corki.Changes.FirstOrDefault(item => item.Key == "ability_haste");
+                if (corkiTaken == null || corkiTaken.Value != "-10%" || corkiTaken.Direction != "buff")
+                    throw new InvalidOperationException("Corki -10% damage-taken buff was not preserved.");
+                if (corkiHaste == null || corkiHaste.Value != "-20" || corkiHaste.Direction != "debuff")
+                    throw new InvalidOperationException("Corki -20 cooldown modifier was not preserved.");
+
+                const string chineseVersionPrefix = @"
+版本号：16.15
+平衡调整
+造成伤害 - 承受伤害 - 攻击速度 +2.5% 技能急速 - 治疗 - 护盾 - 韧性 - 资源回复 -
+召唤师技能";
+                var chineseVersion = OpggAramBaseBalanceService.ParseForSmokeTest(chineseVersionPrefix, "26.15");
+                if (chineseVersion == null || !chineseVersion.Complete || !chineseVersion.CurrentPatchVerified || chineseVersion.Patch != "16.15")
+                    throw new InvalidOperationException("Chinese version-prefix patch label was not extracted.");
+
                 var inverse = OpggAramBaseBalanceService.ParseForSmokeTest(
                     "Balance adjustment Damage Dealt +5% Damage Taken -10% Healing +10% Summoner Spells",
                     null);
@@ -75,6 +134,12 @@ Energy Regen -
                     null);
                 if (unknown.Complete || unknown.Status != "unavailable" || unknown.ErrorClass != "unparsed_balance_values")
                     throw new InvalidOperationException("Unknown signed balance fields must reject a false complete state.");
+
+                var unknownSpaced = OpggAramBaseBalanceService.ParseForSmokeTest(
+                    "Balance adjustment Damage Dealt - Future Modifier - 15% Summoner Spells",
+                    null);
+                if (unknownSpaced.Complete || unknownSpaced.Status != "unavailable" || unknownSpaced.ErrorClass != "unparsed_balance_values")
+                    throw new InvalidOperationException("Unknown spaced signed balance fields must also reject a false complete state.");
 
                 var oldPatch = OpggAramBaseBalanceService.ParseForSmokeTest(seraphine.Replace("16.15", "16.14"), "26.15");
                 if (oldPatch.Status != "syncing" || oldPatch.Changes.Count != 0)
