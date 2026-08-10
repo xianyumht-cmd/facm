@@ -56,9 +56,15 @@ namespace FACM.Mayhem
                     OpggAramBaseBalanceService.EnrichAsync(baseProbe, cancellation.Token).GetAwaiter().GetResult();
                     if (string.IsNullOrWhiteSpace(baseProbe.BaseBalanceStatus) ||
                         string.Equals(baseProbe.BaseBalanceStatus, "unavailable", StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidOperationException("Live Seraphine base ARAM balance source is unavailable or no longer parseable.");
+                        throw new InvalidOperationException(
+                            "Live Seraphine base ARAM balance source is unavailable or no longer parseable. " +
+                            "status=" + (baseProbe.BaseBalanceStatus ?? "<null>") +
+                            "; error=" + (baseProbe.BaseBalanceErrorClass ?? "<null>"));
                     if (!string.Equals(baseProbe.BaseBalanceStatus, "syncing", StringComparison.OrdinalIgnoreCase) && !baseProbe.BaseBalanceComplete)
-                        throw new InvalidOperationException("Live Seraphine base ARAM balance source returned a non-complete state.");
+                        throw new InvalidOperationException(
+                            "Live Seraphine base ARAM balance source returned a non-complete state. " +
+                            "status=" + baseProbe.BaseBalanceStatus +
+                            "; error=" + (baseProbe.BaseBalanceErrorClass ?? "<null>"));
                     if (string.IsNullOrWhiteSpace(baseProbe.BaseBalanceSummary) ||
                         baseProbe.BalanceSummary.IndexOf("基础 ARAM", StringComparison.OrdinalIgnoreCase) < 0)
                         throw new InvalidOperationException("Base ARAM balance was not composed into the card summary.");
