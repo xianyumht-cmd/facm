@@ -207,7 +207,7 @@ namespace FACM.Mayhem
                 return Unavailable("balance_section_missing", pagePatch);
 
             var changes = new List<AramBaseBalanceChange>();
-            var recognizedNumericValues = 0;
+            var recognizedSignedValues = 0;
             foreach (var rule in FieldRules)
             {
                 var aliases = string.Join("|", rule.Aliases.OrderByDescending(value => value.Length).Select(Regex.Escape));
@@ -218,8 +218,11 @@ namespace FACM.Mayhem
                 if (!match.Success) continue;
 
                 var raw = match.Groups["v"].Value.Trim();
+                if (raw.StartsWith("+", StringComparison.Ordinal) ||
+                    (raw.StartsWith("-", StringComparison.Ordinal) && raw.Length > 1))
+                    recognizedSignedValues++;
+
                 double numeric;
-                if (TryNumeric(raw, out numeric)) recognizedNumericValues++;
                 if (raw == "-" || (TryNumeric(raw, out numeric) && Math.Abs(numeric) < 0.0001)) continue;
 
                 changes.Add(new AramBaseBalanceChange
@@ -231,11 +234,16 @@ namespace FACM.Mayhem
                 });
             }
 
-            var numericTokens = Regex.Matches(section, "(?<![\\d.])[+-]?\\d+(?:\\.\\d+)?%?")
+            // The page contains unrelated unsigned statistics (for example pick/win
+            // rates) near the balance card. Only signed values are strong evidence of
+            // a balance modifier, so use them as the completeness guard. This keeps
+            // unknown +X/-X modifiers fail-closed without turning ordinary page stats
+            // into false parser failures.
+            var signedTokens = Regex.Matches(section, "(?<![\\d.])[+-]\\d+(?:\\.\\d+)?%?")
                 .Cast<Match>()
                 .Select(match => match.Value)
                 .ToArray();
-            if (numericTokens.Length > recognizedNumericValues)
+            if (signedTokens.Length > recognizedSignedValues)
                 return Unavailable("unparsed_balance_values", pagePatch, changes);
 
             var displayPatch = DisplayPatch(pagePatch);
