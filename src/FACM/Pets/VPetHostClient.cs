@@ -22,6 +22,7 @@ namespace FACM.Pets
         private Task _startupTask;
         private Action _clicked;
         private Action _rightClicked;
+        private Action _ready;
         private SynchronizationContext _uiContext;
         private volatile bool _intentionalStop;
         private volatile bool _readyReceived;
@@ -55,10 +56,11 @@ namespace FACM.Pets
             }
         }
 
-        public bool Activate(string petId, Action clicked, Action rightClicked)
+        public bool Activate(string petId, Action clicked, Action rightClicked, Action ready)
         {
             _clicked = clicked;
             _rightClicked = rightClicked;
+            _ready = ready;
             _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
             lock (_sync)
@@ -68,6 +70,7 @@ namespace FACM.Pets
                     _intentionalStop = false;
                     _activePetId = petId;
                     SendLocked("activate|" + petId);
+                    if (_readyReceived) PostToUi(_ready);
                     return true;
                 }
 
@@ -120,6 +123,7 @@ namespace FACM.Pets
                 }
                 CleanupTransportLocked(false, false);
                 _activePetId = string.Empty;
+                _ready = null;
             }
 
             // Do not make the WinForms thread wait for WPF shutdown. The Job Object and PetHost's
@@ -262,6 +266,7 @@ namespace FACM.Pets
             {
                 _readyReceived = true;
                 AppLog.Info("VPet PetHost ready: " + (parts.Length > 2 ? parts[2] : string.Empty));
+                PostToUi(_ready);
                 return;
             }
             if (string.Equals(eventName, "error", StringComparison.OrdinalIgnoreCase))
@@ -270,6 +275,18 @@ namespace FACM.Pets
                 AppLog.Info("VPet PetHost reported error: " + detail);
                 if (!_readyReceived) RecoverFacm("PetHost 启动失败：" + detail);
             }
+        }
+
+        private void PostToUi(Action callback)
+        {
+            if (callback == null) return;
+            var context = _uiContext;
+            if (context == null) return;
+            context.Post(delegate
+            {
+                try { callback(); }
+                catch (Exception exception) { AppLog.Error("VPet PetHost UI callback failed", exception); }
+            }, null);
         }
 
         private void RecoverFacm(string reason)
