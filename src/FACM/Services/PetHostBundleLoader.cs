@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
 
 namespace FACM.Services
 {
@@ -10,86 +12,138 @@ namespace FACM.Services
         internal const string ResourceName = "FACM.Resources.PetHost.zip";
         private const string HostExecutableName = "FACM.PetHost.exe";
         private const string CompletionMarkerName = ".facm-pethost-complete";
+        private static readonly object WarmupSync = new object();
+        private static Task<string> _warmupTask;
+
+        // A cache hit only needs to prove that the exact embedded bundle owns this directory and that
+        // the files required to boot WPF/VPet are still present. The old implementation recursively
+        // enumerated the whole self-contained runtime (hundreds of files) on every activation; on some
+        // Windows Defender / slow-disk systems that alone can delay the PetHost window for many seconds.
+        private static readonly string[] CriticalPayloadFiles =
+        {
+            HostExecutableName,
+            "FACM.PetHost.dll",
+            "FACM.PetHost.deps.json",
+            "hostfxr.dll",
+            "hostpolicy.dll",
+            "VPet-Simulator.Core.dll",
+            "PresentationFramework.dll",
+            "WindowsBase.dll",
+            "wpfgfx_cor3.dll"
+        };
+
+        public static Task<string> BeginWarmup()
+        {
+            lock (WarmupSync)
+            {
+                if (_warmupTask == null || _warmupTask.IsCanceled || _warmupTask.IsFaulted)
+                    _warmupTask = Task.Run((Func<string>)EnsureExtractedCore);
+                return _warmupTask;
+            }
+        }
 
         public static string TryEnsureExtracted()
         {
+            // VPetHostClient already calls this from its background startup worker. Sharing the same
+            // task with startup warmup prevents two concurrent extractions of the large embedded host.
+            return BeginWarmup().GetAwaiter().GetResult();
+        }
+
+        private static string EnsureExtractedCore()
+        {
             var assembly = Assembly.GetExecutingAssembly();
-            using (var resource = assembly.GetManifestResourceStream(ResourceName))
+            var bundleId = ComputeBundleSha256(assembly);
+            if (string.IsNullOrWhiteSpace(bundleId)) return string.Empty;
+
+            RuntimePaths.Initialize();
+            var bundleRoot = Path.Combine(RuntimePaths.RuntimeDirectory, "pethost-host");
+            Directory.CreateDirectory(bundleRoot);
+
+            // Cache identity follows the PetHost payload itself, not FACM's MVID. A FACM-only update can
+            // therefore reuse the exact same host, while any PetHost code/resource change gets a distinct
+            // directory even if compiler metadata behavior changes.
+            var destination = Path.Combine(bundleRoot, bundleId);
+            var executable = Path.Combine(destination, HostExecutableName);
+            var marker = Path.Combine(destination, CompletionMarkerName);
+            if (IsComplete(destination, executable, marker, bundleId)) return executable;
+
+            if (Directory.Exists(destination))
             {
-                if (resource == null) return string.Empty;
-
-                RuntimePaths.Initialize();
-                var bundleRoot = Path.Combine(RuntimePaths.RuntimeDirectory, "pethost-host");
-                Directory.CreateDirectory(bundleRoot);
-
-                // The MVID is tied to the exact FACM assembly contents. A new embedded PetHost bundle
-                // therefore receives a new extraction directory without relying on mutable "latest" assets.
-                var bundleId = assembly.ManifestModule.ModuleVersionId.ToString("N");
-                var destination = Path.Combine(bundleRoot, bundleId);
-                var executable = Path.Combine(destination, HostExecutableName);
-                var marker = Path.Combine(destination, CompletionMarkerName);
-                if (IsComplete(destination, executable, marker, bundleId)) return executable;
-
-                if (Directory.Exists(destination))
+                try { Directory.Delete(destination, true); }
+                catch (Exception exception)
                 {
-                    try { Directory.Delete(destination, true); }
-                    catch (Exception exception)
-                    {
-                        throw new IOException("无法清理残缺的 PetHost 运行目录。", exception);
-                    }
+                    throw new IOException("无法清理残缺的 PetHost 运行目录。", exception);
+                }
+            }
+
+            var stage = Path.Combine(bundleRoot, "." + bundleId + ".partial-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stage);
+            try
+            {
+                using (var resource = assembly.GetManifestResourceStream(ResourceName))
+                {
+                    if (resource == null) return string.Empty;
+                    ExtractArchive(resource, stage);
                 }
 
-                var stage = Path.Combine(bundleRoot, "." + bundleId + ".partial-" + Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(stage);
+                var stagedExecutable = Path.Combine(stage, HostExecutableName);
+                if (!File.Exists(stagedExecutable) || new FileInfo(stagedExecutable).Length < 65536)
+                    throw new InvalidDataException("内嵌 PetHost 包缺少有效的 FACM.PetHost.exe。");
+
+                long payloadBytes;
+                var payloadFiles = MeasurePayload(stage, out payloadBytes);
+                if (payloadFiles < 1 || payloadBytes < 65536)
+                    throw new InvalidDataException("内嵌 PetHost 包释放后的文件统计无效。");
+
+                File.WriteAllText(
+                    Path.Combine(stage, CompletionMarkerName),
+                    "bundle-sha256=" + bundleId + Environment.NewLine +
+                    "facm-version=" + assembly.GetName().Version + Environment.NewLine +
+                    "files=" + payloadFiles + Environment.NewLine +
+                    "bytes=" + payloadBytes + Environment.NewLine);
+
+                // Another FACM process may have completed the same extraction while this process was
+                // preparing its private stage. Never replace a complete directory in that case.
+                if (IsComplete(destination, executable, marker, bundleId))
+                {
+                    Directory.Delete(stage, true);
+                    return executable;
+                }
+
                 try
                 {
-                    ExtractArchive(resource, stage);
-                    var stagedExecutable = Path.Combine(stage, HostExecutableName);
-                    if (!File.Exists(stagedExecutable) || new FileInfo(stagedExecutable).Length < 65536)
-                        throw new InvalidDataException("内嵌 PetHost 包缺少有效的 FACM.PetHost.exe。");
-
-                    long payloadBytes;
-                    var payloadFiles = MeasurePayload(stage, out payloadBytes);
-                    if (payloadFiles < 1 || payloadBytes < 65536)
-                        throw new InvalidDataException("内嵌 PetHost 包释放后的文件统计无效。");
-
-                    File.WriteAllText(
-                        Path.Combine(stage, CompletionMarkerName),
-                        "facm-mvid=" + bundleId + Environment.NewLine +
-                        "facm-version=" + assembly.GetName().Version + Environment.NewLine +
-                        "files=" + payloadFiles + Environment.NewLine +
-                        "bytes=" + payloadBytes + Environment.NewLine);
-
-                    // Another FACM process may have completed the same extraction while this process was
-                    // preparing its private stage. Never replace a complete directory in that case.
+                    Directory.Move(stage, destination);
+                }
+                catch (IOException)
+                {
+                    // Close the tiny race between the complete check above and Directory.Move.
                     if (IsComplete(destination, executable, marker, bundleId))
                     {
                         Directory.Delete(stage, true);
                         return executable;
                     }
-
-                    try
-                    {
-                        Directory.Move(stage, destination);
-                    }
-                    catch (IOException)
-                    {
-                        // Close the tiny race between the complete check above and Directory.Move.
-                        if (IsComplete(destination, executable, marker, bundleId))
-                        {
-                            Directory.Delete(stage, true);
-                            return executable;
-                        }
-                        throw;
-                    }
-
-                    AppLog.Info("Embedded PetHost extracted: " + destination);
-                    return executable;
-                }
-                catch
-                {
-                    try { if (Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
                     throw;
+                }
+
+                AppLog.Info("Embedded PetHost extracted: bundle=" + bundleId + "; path=" + destination);
+                return executable;
+            }
+            catch
+            {
+                try { if (Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
+                throw;
+            }
+        }
+
+        private static string ComputeBundleSha256(Assembly assembly)
+        {
+            using (var resource = assembly.GetManifestResourceStream(ResourceName))
+            {
+                if (resource == null) return string.Empty;
+                using (var sha = SHA256.Create())
+                {
+                    var hash = sha.ComputeHash(resource);
+                    return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
                 }
             }
         }
@@ -136,10 +190,11 @@ namespace FACM.Services
         {
             try
             {
-                if (!File.Exists(marker) || !File.Exists(executable) || new FileInfo(executable).Length < 65536)
+                if (!Directory.Exists(directory) || !File.Exists(marker) || !File.Exists(executable) ||
+                    new FileInfo(executable).Length < 65536)
                     return false;
 
-                var expectedMvid = string.Empty;
+                var expectedBundle = string.Empty;
                 var expectedFiles = 0;
                 long expectedBytes = 0;
                 foreach (var line in File.ReadAllLines(marker))
@@ -148,18 +203,22 @@ namespace FACM.Services
                     if (separator <= 0) continue;
                     var key = line.Substring(0, separator).Trim();
                     var value = line.Substring(separator + 1).Trim();
-                    if (string.Equals(key, "facm-mvid", StringComparison.OrdinalIgnoreCase)) expectedMvid = value;
+                    if (string.Equals(key, "bundle-sha256", StringComparison.OrdinalIgnoreCase)) expectedBundle = value;
                     else if (string.Equals(key, "files", StringComparison.OrdinalIgnoreCase)) int.TryParse(value, out expectedFiles);
                     else if (string.Equals(key, "bytes", StringComparison.OrdinalIgnoreCase)) long.TryParse(value, out expectedBytes);
                 }
 
-                if (!string.Equals(expectedMvid, bundleId, StringComparison.OrdinalIgnoreCase) ||
+                if (!string.Equals(expectedBundle, bundleId, StringComparison.OrdinalIgnoreCase) ||
                     expectedFiles < 1 || expectedBytes < 65536)
                     return false;
 
-                long actualBytes;
-                var actualFiles = MeasurePayload(directory, out actualBytes);
-                return actualFiles == expectedFiles && actualBytes == expectedBytes;
+                foreach (var relative in CriticalPayloadFiles)
+                {
+                    var path = Path.Combine(directory, relative);
+                    if (!File.Exists(path) || new FileInfo(path).Length < 1) return false;
+                }
+
+                return true;
             }
             catch
             {

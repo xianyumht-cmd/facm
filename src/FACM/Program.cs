@@ -109,8 +109,11 @@ namespace FACM
 
                 try
                 {
+                    // Only create the tiny writable runtime skeleton before the message loop starts.
+                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
+                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
+                    // never make the application look like it failed to launch.
                     RuntimePaths.Initialize();
-                    ToolBundleLoader.Prepare();
                 }
                 catch (Exception exception)
                 {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,6 +13,7 @@ using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfFontFamily = System.Windows.Media.FontFamily;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfProgressBar = System.Windows.Controls.ProgressBar;
 using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace FACM.PetHost;
@@ -23,12 +25,15 @@ internal sealed class PetHostWindow : Window
     private readonly Grid _root;
     private readonly Border _statusCard;
     private readonly TextBlock _statusText;
+    private readonly WpfProgressBar _statusProgress;
+    private readonly TextBlock _statusProgressText;
     private readonly PetWindowController _controller;
     private VPetMain? _main;
     private GameCore? _core;
     private System.Drawing.Point _leftDownPoint;
     private long _leftDownTicks;
     private bool _leftTracking;
+    private int _bootstrapProgressTotal;
 
     public PetHostWindow(PetHostIpc ipc)
     {
@@ -74,23 +79,56 @@ internal sealed class PetHostWindow : Window
             FontSize = 13,
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = WpfVerticalAlignment.Center,
-            HorizontalAlignment = WpfHorizontalAlignment.Center,
-            Margin = new Thickness(18, 10, 18, 10)
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 0, 4, 0)
         };
+
+        _statusProgress = new WpfProgressBar
+        {
+            Minimum = 0,
+            Maximum = 1,
+            Value = 0,
+            Height = 8,
+            Margin = new Thickness(8, 10, 8, 0),
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(WpfColor.FromRgb(38, 48, 66)),
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(44, 218, 255)),
+            BorderThickness = new Thickness(0),
+            Visibility = Visibility.Collapsed
+        };
+
+        _statusProgressText = new TextBlock
+        {
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(184, 199, 222)),
+            FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
+            FontSize = 11,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 5, 4, 0),
+            Visibility = Visibility.Collapsed
+        };
+
+        var statusStack = new StackPanel
+        {
+            VerticalAlignment = WpfVerticalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch
+        };
+        statusStack.Children.Add(_statusText);
+        statusStack.Children.Add(_statusProgress);
+        statusStack.Children.Add(_statusProgressText);
 
         _statusCard = new Border
         {
             Width = 278,
-            MinHeight = 92,
-            Padding = new Thickness(8),
+            MinHeight = 88,
+            Padding = new Thickness(14, 12, 14, 12),
             Background = new SolidColorBrush(WpfColor.FromArgb(222, 12, 17, 28)),
             BorderBrush = new SolidColorBrush(WpfColor.FromArgb(120, 121, 155, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
             VerticalAlignment = WpfVerticalAlignment.Center,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
-            Child = _statusText
+            Child = statusStack
         };
         _root.Children.Add(_statusCard);
         Content = _root;
@@ -112,7 +150,7 @@ internal sealed class PetHostWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _controller.ResetToPrimaryScreen();
-        var progress = new Progress<string>(message => SetStatus(message));
+        var progress = new Progress<string>(HandleBootstrapProgress);
         var started = Stopwatch.StartNew();
 
         try
@@ -153,7 +191,7 @@ internal sealed class PetHostWindow : Window
 
             // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
             _root.Children.Insert(0, _main);
-            SetStatus($"正在生成动作缓存 0/{graphCount}\n首次启动会比之后慢");
+            SetLoadProgress();
 
             var lastReported = 0;
             await Task.Run(() =>
@@ -162,10 +200,7 @@ internal sealed class PetHostWindow : Window
                 {
                     if (readyCount <= Volatile.Read(ref lastReported)) return;
                     Volatile.Write(ref lastReported, readyCount);
-                    Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        SetStatus($"正在生成动作缓存 {Math.Min(readyCount, graphCount)}/{graphCount}\n首次启动会比之后慢");
-                    }));
+                    Dispatcher.BeginInvoke(new Action(SetLoadProgress));
                 });
             }, _lifetime.Token);
 
@@ -186,15 +221,88 @@ internal sealed class PetHostWindow : Window
         }
         catch (Exception exception)
         {
-            SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单", includeNotice: false);
+            SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单");
             await _ipc.SendEventAsync("error", exception.GetType().Name + ": " + exception.Message);
         }
     }
 
-    private void SetStatus(string message, bool includeNotice = true)
+    private void HandleBootstrapProgress(string message)
     {
-        var text = includeNotice ? message + "\n动画来源：VPet / VUP-Simulator（非商用授权）" : message;
-        _statusText.Text = PetHostUiText.Translate(text);
+        var text = message ?? string.Empty;
+
+        if (text.Contains("核对", StringComparison.Ordinal) && text.Contains("动作清单", StringComparison.Ordinal))
+        {
+            SetStatus("加载中请稍等....");
+            return;
+        }
+
+        var fraction = Regex.Match(text, @"(?<current>\d+)\s*/\s*(?<total>\d+)");
+        if (fraction.Success &&
+            int.TryParse(fraction.Groups["current"].Value, out var current) &&
+            int.TryParse(fraction.Groups["total"].Value, out var total) &&
+            total > 0)
+        {
+            _bootstrapProgressTotal = total;
+            SetCompileProgress(Math.Clamp(current, 0, total), total);
+            return;
+        }
+
+        var manifest = Regex.Match(text, @"官方动作集\s+(?<total>\d+)\s+个文件");
+        if (manifest.Success && int.TryParse(manifest.Groups["total"].Value, out total) && total > 0)
+        {
+            _bootstrapProgressTotal = total;
+            SetCompileProgress(0, total);
+            return;
+        }
+
+        if (_bootstrapProgressTotal > 0 && text.Contains("资源准备完成", StringComparison.Ordinal))
+        {
+            SetCompileProgress(_bootstrapProgressTotal, _bootstrapProgressTotal);
+            return;
+        }
+
+        SetStatus(text);
+    }
+
+    private void SetStatus(string message)
+    {
+        _statusText.Text = PetHostUiText.Translate(message);
+        _statusProgress.IsIndeterminate = false;
+        _statusProgress.Visibility = Visibility.Collapsed;
+        _statusProgressText.Visibility = Visibility.Collapsed;
+        Title = PetHostUiText.Translate("FACM PetHost");
+    }
+
+    private void SetCompileProgress(int readyCount, int graphCount)
+    {
+        SetProgress("正在编译着色器…", readyCount, graphCount);
+    }
+
+    private void SetLoadProgress()
+    {
+        _statusText.Text = PetHostUiText.Translate("加载中请稍等....");
+        _statusProgress.Minimum = 0;
+        _statusProgress.Maximum = 1;
+        _statusProgress.Value = 0;
+        _statusProgress.IsIndeterminate = true;
+        _statusProgress.Visibility = Visibility.Visible;
+        _statusProgressText.Visibility = Visibility.Collapsed;
+        Title = PetHostUiText.Translate("FACM PetHost");
+    }
+
+    private void SetProgress(string message, int readyCount, int graphCount)
+    {
+        var total = Math.Max(1, graphCount);
+        var current = Math.Clamp(readyCount, 0, total);
+        var percent = current * 100d / total;
+
+        _statusText.Text = PetHostUiText.Translate(message);
+        _statusProgress.IsIndeterminate = false;
+        _statusProgress.Maximum = total;
+        _statusProgress.Value = current;
+        _statusProgress.Visibility = Visibility.Visible;
+        _statusProgressText.Text = $"{percent:0}%   {current}/{graphCount}";
+        _statusProgressText.Visibility = Visibility.Visible;
         Title = PetHostUiText.Translate("FACM PetHost");
     }
 

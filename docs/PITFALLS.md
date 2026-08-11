@@ -98,7 +98,7 @@ PR #25 首个 HEAD 的 PR Build #442 在后续同 PR 提交触发 #444 后，被
 - 兼容层暂时无法移入原生构造器时，必须在第一条 `WM_PAINT` 真正分发前完成布局；不能只赌 `WM_SHOWWINDOW` 会经过 `IMessageFilter`。
 - 最终布局后执行 `PerformLayout + Invalidate(true)`；Idle 只可作为异常兜底，不再承担正常布局职责。
 - 自绘控件的 hover repaint 不能承担“修复布局”的职责；如果只有 hover 后画面才正常，应按首帧布局/无效区域错误处理，而不是增加更多 hover 刷新。
-- 后续重构 `CompactMenuForm` 时应最终把 5 个正式入口收回原生布局，并删除兼容反射层。
+- 后续重构 `CompactMenuForm` 时应最终把正式入口收回原生布局，并删除兼容反射层。
 
 ### 关联
 
@@ -141,6 +141,50 @@ VPet 点击发生在独立 PetHost 前台进程中。FACM 收到 IPC 后调用 `
 
 - Issue #26
 - PR #27
+
+## 内嵌子宿主缓存身份必须跟 payload 绑定，缓存命中不要全目录体检
+
+### 根因
+
+PetHost 是一整套 self-contained .NET 8 runtime。旧实现用 `FACM.exe` 的 MVID 作为 `runtime\pethost-host` 缓存目录身份，并在每次缓存命中时递归枚举宿主全部文件、重新统计文件数和总字节。
+
+这有两个问题：
+
+1. FACM 主程序只改业务代码时，MVID 变化也会强制重新释放完全相同的 PetHost；
+2. 即使已经有完整缓存，Windows Defender、机械盘或慢 SSD 对几百个 runtime 文件逐个扫描也可能明显推迟 `Process.Start(FACM.PetHost.exe)`，导致用户看到桌宠加载卡几十秒后才出现。
+
+### 防回归规则
+
+- 内嵌辅助运行时的缓存 key 必须来自辅助 payload 本身；PetHost 使用内嵌 ZIP 的 SHA-256，而不是 FACM 主程序集版本/MVID。
+- 首次解包完成前做完整统计并写不可变完成标记；后续缓存命中只检查 payload 身份、完成标记和启动关键文件，不要重复全目录枚举。
+- **只有配置已经启用桌宠时**，FACM 启动后才应后台预热当前精确 PetHost；默认 FACM Shell 路径不预热 PetHost。用户实际启用时与预热共享同一任务，不能并发重复解包。
+- 任何 PetHost payload 改动必须得到新的 SHA 目录，禁止为了启动快而复用不匹配旧宿主。
+- 性能实机验收至少测试新 bundle 第一次启动和关闭 FACM 后第二次启动；第二次必须走快速缓存路径。
+
+### 关联
+
+- PR #40
+
+## 不要把可选桌宠的优化提升成默认启动依赖
+
+### 根因
+
+PR #40 排查 PetHost 首次释放慢时，曾把“尽早准备 PetHost”误当成 FACM 全局启动目标，并据此让所有启动都预热 PetHost。这个推导忽略了产品配置语义：桌宠本来就是可选能力。用户随后明确调整产品方向——默认需要一个 FACM 自己的专业 Shell 作为可见入口，但这并不等于默认应该加载 VPet。
+
+这类问题的本质是把“解决一个可选模块的体验问题”错误扩张成“修改整个产品的默认启动链”。
+
+### 防回归规则
+
+- 修改默认启动体验前，必须先审 `AppSettings` 默认值、`MainForm` 启动条件、功能启用开关和实际用户配置，不能从某个测试场景倒推全局默认行为。
+- FACM Shell 与桌宠必须是两个概念：Shell 是主程序自己的轻量入口；桌宠是用户选择的桌面形态。
+- `AnimalPetEnabled=false` 时显示 FACM Shell，但不得因此读取、解包、扫描或启动 PetHost。
+- PetHost 只能在“配置已启用桌宠”或“用户刚主动选择桌宠”后进入准备链。
+- 性能修复不得静默改变无关用户的默认资源成本、桌面行为或功能启用状态。
+- 讨论产品方案时先分清“默认路径、可选路径、失败回退路径”，再决定哪些阶段需要进度条、预热或替换 UI。
+
+### 关联
+
+- PR #40
 
 ## 海斗数据必须按字段降级，不能让单一网站决定整次查询
 
@@ -197,6 +241,46 @@ VPet 点击发生在独立 PetHost 前台进程中。FACM 收到 IPC 后调用 `
 
 - Issue #26
 - PR #27
+
+## 同一个启动卡可能覆盖多个加载阶段，先确认用户看到的是哪一阶段
+
+### 根因
+
+PetHost 的启动卡至少覆盖两类不同工作：`VPetAssetBootstrapper` 的资源准备/核对，以及 `VPetMain.LoadALL` 的动作图缓存。两者都会在同一个 FACM 状态卡里出现 `x/N`，但总数、进度语义和可用回调并不相同。
+
+PR #40 第一轮只改了后面的 `LoadALL` 显示，所以源码里虽然已经有“正在编译着色器…”和进度条，用户实机看到的前一段 `60/1995` 仍然是旧“正在缓存高精度动作”。问题不是用户跑错 EXE，而是修改了错误的加载阶段。
+
+### 防回归规则
+
+- 改启动/加载 UI 前，先沿着用户看到的**具体文字、计数和回调**定位实际 emitter，不能只凭“都是加载过程”猜阶段。
+- 截图/视频里的 `x/N` 必须映射到具体源回调；同一个视觉卡片不代表同一个底层进度源。
+- 产品需要统一视觉时，可以让多个阶段走同一个 renderer，但每个阶段仍保留自己的真实计数和语义。
+- 不得把两个阶段的总数拼成一个假的连续百分比。
+- 某阶段没有可信递增进度时，用 indeterminate 状态，不显示长期 `0%`。
+
+### 关联
+
+- PR #40
+
+## ToolStrip 下拉菜单的 `Closed` 不是同步 Dispose 的安全边界
+
+### 根因
+
+PR #40 新增统一「主题」下拉菜单时，在 `ContextMenuStrip.Closed` 事件里直接 `menu.Dispose()`。但 WinForms 触发 `Closed` 时，内部 `SetVisibleCore`、`OnItemClicked` 和 `ToolStripManager.ModalMenuFilter` 的当前消息栈仍可能继续访问该对象。
+
+Build #741 实机日志因此出现连续 `ObjectDisposedException`：一次来自 outside-click Timer，一次来自 `OnItemClicked`，最终还能在 `ModalMenuFilter` 中变成未处理异常并终止消息循环。同步打开新的 modal 窗口/选择器也会增加 ToolStrip 点击栈的重入风险。
+
+### 防回归规则
+
+- `ToolStripDropDown/ContextMenuStrip.Closed` 只表示“已进入关闭流程”，不能在事件回调里同步 Dispose 自身。
+- 需要主动释放临时下拉菜单时，通过稳定 owner 的 `BeginInvoke` 把 Dispose 推迟到当前 ToolStrip 消息栈完全退出之后。
+- 菜单项如果会打开 modal 窗口、切换桌面形态或触发较大 UI 状态变更，也应通过 `BeginInvoke` 推迟到当前 item-click 栈退出后执行。
+- 自定义 outside-click Timer 在 Dispose 开始时必须停止并解绑；Tick 入口还要检查 `Disposing/IsDisposed`，因为已经排队的 WM_TIMER 仍可能晚到一次。
+- 处理关闭竞态时，`ObjectDisposedException` 可作为“目标已经关闭”的终态，但不能只靠 catch 掩盖同步 Dispose 的错误时序。
+
+### 关联
+
+- PR #40
 
 ## OP.GG ARAM 真实页面不能假设版本标签和正负号紧贴数值
 

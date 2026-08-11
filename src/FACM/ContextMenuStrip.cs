@@ -20,6 +20,7 @@ namespace FACM
         private bool _leftWasDown;
         private bool _rightWasDown;
         private bool _middleWasDown;
+        private bool _disposeStarted;
 
         public ContextMenuStrip()
         {
@@ -31,6 +32,7 @@ namespace FACM
         protected override void OnOpened(EventArgs e)
         {
             base.OnOpened(e);
+            if (_disposeStarted || IsDisposed || Disposing) return;
             _leftWasDown = IsButtonDown(VkLButton);
             _rightWasDown = IsButtonDown(VkRButton);
             _middleWasDown = IsButtonDown(VkMButton);
@@ -39,14 +41,16 @@ namespace FACM
 
         protected override void OnClosed(ToolStripDropDownClosedEventArgs e)
         {
-            _outsideClickTimer.Stop();
+            if (!_disposeStarted)
+                _outsideClickTimer.Stop();
             base.OnClosed(e);
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !_disposeStarted)
             {
+                _disposeStarted = true;
                 _outsideClickTimer.Stop();
                 _outsideClickTimer.Tick -= HandleOutsideClickTick;
                 _outsideClickTimer.Dispose();
@@ -56,7 +60,15 @@ namespace FACM
 
         private void HandleOutsideClickTick(object sender, EventArgs e)
         {
-            if (!Visible) return;
+            // A WM_TIMER message can already be queued when a dropdown is closed/disposed. Never let
+            // that late tick touch ToolStripDropDown state, because WinForms may otherwise recreate a
+            // handle for an object whose disposal has already started.
+            if (_disposeStarted || IsDisposed || Disposing) return;
+
+            bool visible;
+            try { visible = Visible; }
+            catch (ObjectDisposedException) { return; }
+            if (!visible) return;
 
             var leftDown = IsButtonDown(VkLButton);
             var rightDown = IsButtonDown(VkRButton);
@@ -75,8 +87,57 @@ namespace FACM
             try { cursor = Control.MousePosition; }
             catch { return; }
 
-            if (!Bounds.Contains(cursor))
+            if (_disposeStarted || IsDisposed || Disposing) return;
+
+            // A submenu is a separate top-level ToolStripDropDown window, so its screen rectangle is
+            // outside the root ContextMenuStrip.Bounds. Treat every visible descendant dropdown as
+            // part of this menu tree; otherwise clicking "桌面形态" children is misclassified as an
+            // outside click and the root closes before the child receives MouseUp/Click.
+            if (ContainsScreenPoint(this, cursor)) return;
+
+            try
+            {
                 Close(ToolStripDropDownCloseReason.AppClicked);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Closing the owner application can dispose the dropdown between the physical mouse
+                // sample above and this call. At that point the desired state is already closed.
+            }
+        }
+
+        private static bool ContainsScreenPoint(ToolStrip strip, Point cursor)
+        {
+            if (strip == null || strip.IsDisposed || strip.Disposing || !strip.Visible) return false;
+
+            try
+            {
+                var bounds = strip.RectangleToScreen(strip.ClientRectangle);
+                if (bounds.Contains(cursor)) return true;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+
+            foreach (ToolStripItem item in strip.Items)
+            {
+                var dropDownItem = item as ToolStripDropDownItem;
+                if (dropDownItem == null || !dropDownItem.HasDropDownItems) continue;
+
+                ToolStripDropDown child;
+                try { child = dropDownItem.DropDown; }
+                catch (ObjectDisposedException) { continue; }
+                catch (InvalidOperationException) { continue; }
+
+                if (child != null && ContainsScreenPoint(child, cursor)) return true;
+            }
+
+            return false;
         }
 
         private static bool IsButtonDown(int virtualKey)

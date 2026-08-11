@@ -6,10 +6,10 @@ FACM 3.1 是一棵由 `FACM.exe` 管理的产品进程树，而不是强制单 P
 
 ```text
 FACM.exe  (.NET Framework 4.8 / WinForms)
-├─ 控制中心 / 悬浮球 / 托盘
+├─ 控制中心 / FACM Shell / 托盘
 ├─ 清理与内置工具
 ├─ 海斗查询与在线更新
-└─ FACM.PetHost.exe  (.NET 8 x64 / WPF / VPet Core)
+└─ FACM.PetHost.exe  (.NET 8 x64 / WPF / VPet Core，仅启用对应桌面形态时启动)
 ```
 
 `FACM.exe` 是产品主进程和生命周期拥有者。`FACM.PetHost.exe` 仅负责高精度桌宠运行层，通过命名管道与主进程通信。
@@ -18,11 +18,37 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并使用 `KIL
 
 PetHost 的内嵌包定位/释放、进程创建、最长 7 秒的 named-pipe connect 和停止等待均不得占用 WinForms UI 线程。
 
-## 控制中心
+FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌宠时，才在 Shell 出现后后台预热对应内嵌 PetHost；默认 `AnimalPetEnabled=false` 不触碰 PetHost payload。预热与用户实际启用桌宠共用同一个任务，避免重复解包。PetHost 运行宿主按 **内嵌 PetHost ZIP 的 SHA-256** 隔离，而不是按 FACM 主程序集 MVID 隔离；这样 FACM-only 更新可以复用完全相同的 PetHost，而任何 PetHost payload 变化都会进入新的宿主目录。
 
-`MainForm` 是悬浮球和应用级入口拥有者；`CompactMenuForm` 是轻量弹出控制中心。
+缓存命中时只快速校验完成标记和启动所需关键文件，不再每次递归统计 self-contained runtime 的几百个文件；首次释放仍会做完整文件数/总字节统计后才写完成标记。新的 PetHost payload 第一次出现时仍必须真实释放一次；Shell 在整个准备阶段保持可用，只有 PetHost 真正发出 `ready` 后桌宠才接管桌面入口。
 
-当前底部桌宠/海斗两个入口仍由 `CompactMenuEnhancer` 兼容注入。为了避免旧版 `Application.Idle` 后置重排造成首帧残影，兼容布局必须在控制中心第一条 `WM_PAINT` 真正分发前完成；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。
+## FACM Shell 与控制中心
+
+`MainForm` 是应用级入口拥有者，同时承载默认 FACM Shell；`CompactMenuForm` 是轻量弹出控制中心。
+
+默认 Shell 使用 56×56 的透明分层窗口，实际可见主体约 46px。渲染由 `LayeredFloatingBall` 负责，采用深色圆角方形、细边框、单一品牌标记和轻量 Hover；空闲时不运行持续呼吸/环绕动画。透明层文字使用灰度抗锯齿，避免 ClearType 子像素彩边。Shell 保留：
+
+- 左键单击打开/收起控制中心；
+- 拖动调整位置并写入 `BallX/BallY`；
+- 右键打开托盘菜单；
+- 桌宠启动失败时作为稳定回退入口。
+
+`AnimalPetEnabled=false` 表示使用 FACM Shell；为 true 时启动 `PetStyleId` 对应桌面宠物。桌宠进入 ready 前 Shell 不隐藏。
+
+控制中心底部只保留 `日志 / 主题 / 海斗排行榜 / 退出` 四个入口。“面板主题”和“桌面宠物”不再并列占两个顶层按钮；统一由「主题」菜单管理：
+
+```text
+主题
+├─ 面板外观…
+└─ 桌面形态
+   ├─ FACM 悬浮入口
+   ├─ 选择桌面宠物…
+   └─ 复位桌面位置
+```
+
+这里的「主题」是统一入口，不表示面板皮肤与桌面形态必须绑定为同一个枚举值：现阶段 `ThemeId` 继续控制控制中心外观，`AnimalPetEnabled/PetStyleId` 继续控制桌面形态；统一的是用户入口和概念层级，避免一次性重写已验证的配置兼容性。
+
+底部兼容布局仍由 `CompactMenuEnhancer` 在第一条 `WM_PAINT` 前完成，避免旧 `Application.Idle` 后置重排造成首帧残影；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。
 
 控制中心关闭使用两条信号：
 
@@ -98,6 +124,8 @@ Riot 元数据优先使用本机 League Client LCU，无法使用时回退 Data 
 
 ## 发布边界
 
-正式发布包继续只交付一个 `FACM.exe`。匹配版本的 self-contained PetHost publish 目录在构建时压成 `FACM.Resources.PetHost.zip` 嵌入主 EXE，运行时按 FACM MVID 释放到 `runtime\pethost-host\<FACM-MVID>`。
+正式发布包继续只交付一个 `FACM.exe`。匹配版本的 self-contained PetHost publish 目录在构建时压成 `FACM.Resources.PetHost.zip` 嵌入主 EXE，运行时按该 ZIP 的 SHA-256 释放/复用到：
+
+`runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>`
 
 正式 Release 与在线更新事务由独立发布工作流负责；发布前实机验收与普通 Actions 测试 artifact 分开。

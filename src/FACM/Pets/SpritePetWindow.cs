@@ -289,53 +289,11 @@ namespace FACM.Pets
             var fly = _pet != null && _pet.Motion == AnimalMotionStyle.Fly;
             var jitterX = fly ? (float)Math.Sin(_animationSeconds * 17.0) * 10f : 0f;
             var jitterY = fly ? (float)Math.Cos(_animationSeconds * 13.0) * 8f : 0f;
+
+            // Free wandering is intentional. A desktop pet may leave every monitor and later wander
+            // back in; the explicit "复位桌面位置" command is the recovery path, not an invisible wall.
             _x += (_vx + jitterX) * dt;
             _y += (_vy + jitterY) * dt;
-
-            var center = new Point((int)Math.Round(_x + Width / 2f), (int)Math.Round(_y + Height / 2f));
-            var area = Screen.FromPoint(center).WorkingArea;
-            var outsideX = Width * 0.20f;
-            var outsideY = Height * 0.16f;
-            var minX = area.Left - outsideX;
-            var maxX = area.Right - Width + outsideX;
-            var minY = area.Top - outsideY;
-            var maxY = area.Bottom - Height + outsideY;
-            var bounced = false;
-
-            if (_x < minX)
-            {
-                _x = minX;
-                _vx = Math.Abs(_vx);
-                _targetVx = Math.Max(28f, Math.Abs(_targetVx));
-                _facingRight = true;
-                bounced = true;
-            }
-            else if (_x > maxX)
-            {
-                _x = maxX;
-                _vx = -Math.Abs(_vx);
-                _targetVx = -Math.Max(28f, Math.Abs(_targetVx));
-                _facingRight = false;
-                bounced = true;
-            }
-
-            if (_y < minY)
-            {
-                _y = minY;
-                _vy = Math.Abs(_vy);
-                _targetVy = Math.Max(20f, Math.Abs(_targetVy));
-                bounced = true;
-            }
-            else if (_y > maxY)
-            {
-                _y = maxY;
-                _vy = -Math.Abs(_vy);
-                _targetVy = -Math.Max(20f, Math.Abs(_targetVy));
-                bounced = true;
-            }
-
-            if (bounced)
-                _stateUntilSeconds = Math.Min(_stateUntilSeconds, _clock.Elapsed.TotalSeconds + 0.65);
 
             var next = new Point((int)Math.Round(_x), (int)Math.Round(_y));
             if (next != Location) Location = next;
@@ -382,24 +340,10 @@ namespace FACM.Pets
             Capture = false;
             _vx = _vy = 0f;
             _stateUntilSeconds = _clock.Elapsed.TotalSeconds + 0.45;
-            if (_moved)
-            {
-                KeepMostlyVisible();
-                return;
-            }
+            if (_moved) return;
+
             var clicked = PetClicked;
             if (clicked != null) clicked(this, EventArgs.Empty);
-        }
-
-        private void KeepMostlyVisible()
-        {
-            var center = new Point(Left + Width / 2, Top + Height / 2);
-            var area = Screen.FromPoint(center).WorkingArea;
-            var marginX = Width / 4;
-            var marginY = Height / 5;
-            var x = Math.Max(area.Left - marginX, Math.Min(Left, area.Right - Width + marginX));
-            var y = Math.Max(area.Top - marginY, Math.Min(Top, area.Bottom - Height + marginY));
-            SetPetLocation(x, y);
         }
 
         private void ApplyLayeredStyle()

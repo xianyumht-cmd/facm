@@ -15,7 +15,7 @@ namespace FACM
 {
     internal sealed class MainForm : Form
     {
-        private const int BallSize = 88;
+        private const int BallSize = 56;
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly NotifyIcon _tray;
@@ -28,6 +28,7 @@ namespace FACM
         private bool _petPickerOpen;
         private bool _themePickerOpen;
         private bool _mayhemOpen;
+        private bool _startupWarmupStarted;
         private bool _exiting;
         private bool _animalPetActive;
         private bool _dragging;
@@ -185,8 +186,7 @@ namespace FACM
                     return;
                 }
 
-                RestoreBallPosition();
-                ShowBuiltInBall();
+                ResetBuiltInBallPosition();
             }
             catch (Exception exception)
             {
@@ -275,6 +275,10 @@ namespace FACM
             RestoreBallPosition();
             ShowBuiltInBall();
 
+            // FACM Shell is the first visible product surface. Keep the default path light: optional
+            // VPet payloads are only warmed when the user has actually enabled a desktop pet.
+            BeginBackgroundWarmup();
+
             if (_settings.AnimalPetEnabled)
                 BeginInvoke(new Action(ActivateAnimalPet));
 
@@ -292,6 +296,41 @@ namespace FACM
             }
 
             BeginInvoke(new Action(StartOnlineCheck));
+        }
+
+        private void BeginBackgroundWarmup()
+        {
+            if (_startupWarmupStarted || IsDisposed || _exiting) return;
+            _startupWarmupStarted = true;
+            var warmPetHost = _settings.AnimalPetEnabled;
+
+            Task.Run(async delegate
+            {
+                // Give the message loop a short head start so the FACM shell can paint before disk/AV
+                // work begins. ToolBundle is part of the core product; PetHost is optional and stays cold
+                // unless the current configuration actually enables a desktop pet.
+                await Task.Delay(180).ConfigureAwait(false);
+
+                try
+                {
+                    ToolBundleLoader.Prepare();
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Tool bundle background warmup failed", exception);
+                }
+
+                if (!warmPetHost) return;
+
+                try
+                {
+                    await PetHostBundleLoader.BeginWarmup().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("PetHost background warmup failed", exception);
+                }
+            });
         }
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
@@ -322,10 +361,7 @@ namespace FACM
                     _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
-            menu.Items.Add("桌面宠物", null, delegate { OpenPetSelector(); });
-            menu.Items.Add("宠物复位", null, delegate { ResetAnimalPet(); });
-            menu.Items.Add("恢复默认悬浮球", null, delegate { RestoreDefaultBall(); });
+            menu.Items.Add("主题", null, delegate { ThemeMenu.Show(this, Cursor.Position); });
             menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
@@ -340,6 +376,11 @@ namespace FACM
             if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
             try
             {
+                // Keep the lightweight FACM entry visible until the selected desktop form reports that
+                // it is actually ready. This removes the previous no-visible-UI gap while PetHost starts.
+                _animalPetActive = false;
+                ShowBuiltInBall();
+
                 AnimalPetManager.Activate(
                     _settings.PetStyleId,
                     delegate
@@ -366,9 +407,21 @@ namespace FACM
                             }));
                         }
                         catch { }
+                    },
+                    delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        try
+                        {
+                            BeginInvoke(new Action(delegate
+                            {
+                                if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
+                                _animalPetActive = true;
+                                HideBuiltInBall();
+                            }));
+                        }
+                        catch { }
                     });
-                _animalPetActive = true;
-                HideBuiltInBall();
             }
             catch (Exception exception)
             {
@@ -432,6 +485,17 @@ namespace FACM
             Location = new Point(
                 Math.Max(area.Left - Width / 3, Math.Min(saved.X, area.Right - Width * 2 / 3)),
                 Math.Max(area.Top, Math.Min(saved.Y, area.Bottom - Height)));
+        }
+
+        private void ResetBuiltInBallPosition()
+        {
+            _settings.BallX = int.MinValue;
+            _settings.BallY = int.MinValue;
+            _settings.Save();
+            RestoreBallPosition();
+            if (!Visible) Show();
+            TopMost = true;
+            AppLog.Info("FACM shell reset to default position: " + Left + "," + Top);
         }
 
         private void SaveBallPosition()
