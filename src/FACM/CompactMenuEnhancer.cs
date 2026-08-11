@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM
 {
@@ -89,33 +90,37 @@ namespace FACM
                     if (createButton == null) return false;
 
                     var logButton = bottomButtons[0];
-                    var themeButton = bottomButtons[1];
+                    var legacyThemeButton = bottomButtons[1];
                     var exitButton = bottomButtons[2];
-                    themeButton.Text = "面板主题";
 
-                    var petButton = createButton.Invoke(
+                    // Theme and desktop-pet selection are one product concept now: how FACM should look
+                    // on the desktop. Replace the old theme button instead of stacking another button on it.
+                    var themeButton = createButton.Invoke(
                         menu,
-                        new object[] { "桌面宠物", new Rectangle(0, 0, 72, 40), false }) as Control;
+                        new object[] { "主题", new Rectangle(0, 0, 80, 40), false }) as Control;
                     var mayhemButton = createButton.Invoke(
                         menu,
-                        new object[] { "海斗排行榜", new Rectangle(0, 0, 72, 40), false }) as Control;
-                    if (petButton == null || mayhemButton == null)
+                        new object[] { "海斗排行榜", new Rectangle(0, 0, 80, 40), false }) as Control;
+                    if (themeButton == null || mayhemButton == null)
                     {
-                        if (petButton != null) petButton.Dispose();
+                        if (themeButton != null) themeButton.Dispose();
                         if (mayhemButton != null) mayhemButton.Dispose();
                         return false;
                     }
 
-                    petButton.Click += delegate { owner.OpenPetSelector(); };
+                    themeButton.Click += delegate { ThemeMenu.Show(owner, themeButton); };
                     mayhemButton.Click += delegate { owner.OpenMayhemLookup(); };
-                    menu.Controls.Add(petButton);
+
+                    menu.Controls.Remove(legacyThemeButton);
+                    legacyThemeButton.Dispose();
+                    menu.Controls.Add(themeButton);
                     menu.Controls.Add(mayhemButton);
 
-                    var ordered = new[] { logButton, themeButton, petButton, mayhemButton, exitButton };
+                    var ordered = new[] { logButton, themeButton, mayhemButton, exitButton };
                     var margin = Math.Max(10, (int)Math.Round(menu.Width * 16D / 420D));
-                    var gap = Math.Max(4, (int)Math.Round(menu.Width * 7D / 420D));
-                    var available = menu.ClientSize.Width - margin * 2 - gap * 4;
-                    var width = Math.Max(58, available / 5);
+                    var gap = Math.Max(6, (int)Math.Round(menu.Width * 9D / 420D));
+                    var available = menu.ClientSize.Width - margin * 2 - gap * 3;
+                    var width = Math.Max(72, available / 4);
                     var y = bottomButtons.Min(control => control.Top);
                     var height = bottomButtons.Max(control => control.Height);
 
@@ -126,7 +131,7 @@ namespace FACM
                         control.Size = new Size(width, height);
                     }
                 }
-                else if (bottomButtons.Count < 5)
+                else if (bottomButtons.Count < 4)
                 {
                     return false;
                 }
