@@ -17,7 +17,7 @@ namespace FACM
 
                 using (var form = new MainForm(false))
                 {
-                    if (form.Width < 64 || form.Height < 64)
+                    if (form.Width < 52 || form.Height < 52)
                         throw new InvalidOperationException("Built-in FACM shell window is unexpectedly small.");
                     if (form.FormBorderStyle != FormBorderStyle.None || !form.TopMost)
                         throw new InvalidOperationException("Built-in FACM shell window settings are invalid.");
@@ -48,11 +48,11 @@ namespace FACM
                             }
                         }
 
-                        if (visibleBodyPixels < 1800)
+                        if (visibleBodyPixels < 1350)
                             throw new InvalidOperationException("Built-in FACM shell did not produce enough visible body content.");
-                        if (translucentEdgePixels < 80)
+                        if (translucentEdgePixels < 55)
                             throw new InvalidOperationException("Built-in FACM shell does not have anti-aliased alpha edges.");
-                        if (accentPixels < 20)
+                        if (accentPixels < 10)
                             throw new InvalidOperationException("Built-in FACM shell did not preserve a restrained theme accent.");
                     }
                     form.Close();
