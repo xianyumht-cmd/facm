@@ -191,7 +191,7 @@ internal sealed class PetHostWindow : Window
 
             // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
             _root.Children.Insert(0, _main);
-            SetLoadProgress(0, graphCount);
+            SetLoadProgress();
 
             var lastReported = 0;
             await Task.Run(() =>
@@ -200,10 +200,7 @@ internal sealed class PetHostWindow : Window
                 {
                     if (readyCount <= Volatile.Read(ref lastReported)) return;
                     Volatile.Write(ref lastReported, readyCount);
-                    Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        SetLoadProgress(Math.Min(readyCount, graphCount), graphCount);
-                    }));
+                    Dispatcher.BeginInvoke(new Action(SetLoadProgress));
                 });
             }, _lifetime.Token);
 
@@ -270,6 +267,7 @@ internal sealed class PetHostWindow : Window
     private void SetStatus(string message)
     {
         _statusText.Text = PetHostUiText.Translate(message);
+        _statusProgress.IsIndeterminate = false;
         _statusProgress.Visibility = Visibility.Collapsed;
         _statusProgressText.Visibility = Visibility.Collapsed;
         Title = PetHostUiText.Translate("FACM PetHost");
@@ -280,9 +278,16 @@ internal sealed class PetHostWindow : Window
         SetProgress("正在编译着色器…", readyCount, graphCount);
     }
 
-    private void SetLoadProgress(int readyCount, int graphCount)
+    private void SetLoadProgress()
     {
-        SetProgress("加载中请稍等....", readyCount, graphCount);
+        _statusText.Text = PetHostUiText.Translate("加载中请稍等....");
+        _statusProgress.Minimum = 0;
+        _statusProgress.Maximum = 1;
+        _statusProgress.Value = 0;
+        _statusProgress.IsIndeterminate = true;
+        _statusProgress.Visibility = Visibility.Visible;
+        _statusProgressText.Visibility = Visibility.Collapsed;
+        Title = PetHostUiText.Translate("FACM PetHost");
     }
 
     private void SetProgress(string message, int readyCount, int graphCount)
@@ -292,6 +297,7 @@ internal sealed class PetHostWindow : Window
         var percent = current * 100d / total;
 
         _statusText.Text = PetHostUiText.Translate(message);
+        _statusProgress.IsIndeterminate = false;
         _statusProgress.Maximum = total;
         _statusProgress.Value = current;
         _statusProgress.Visibility = Visibility.Visible;
