@@ -553,7 +553,7 @@ namespace FACM
 
                 if (snapshot.UpdateAvailable)
                 {
-                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“ + _ui.CheckUpdate + ”处理。", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“" + _ui.CheckUpdate + "”处理。", ToolTipIcon.Info);
                 }
                 else if (announcement != null && announcement.Enabled &&
                          !string.IsNullOrWhiteSpace(announcement.Id) &&
