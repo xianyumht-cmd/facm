@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-12：FACM 3.1.2 已正式发布并启用在线更新；PR #40 正在实机验收 PetHost 启动卡、启动性能与 shell-first 启动体验。
+> 2026-08-12：FACM 3.1.2 已正式发布并启用在线更新；PR #40 正在实机验收 PetHost 加载、FACM Shell 与主题/桌面形态整合。
 
 ## 当前正式版
 
@@ -23,17 +23,45 @@
 - 发布请求 PR #38 的 FACM Windows Build #697 成功后合并到 main。
 - 正式发布继续经过 PetHost publish/self-test、FACM Release build、内嵌资源验证、Authenticode 签名、SHA-256、disabled manifest、公开 GitHub Release、最终 enabled manifest 的事务式链路；在线清单现已指向 v3.1.2。
 
-## PR #40：PetHost 启动卡、启动性能与 shell-first 启动
+## PR #40：PetHost 加载、FACM Shell 与主题整合
 
-- 启动卡属于 `FACM.PetHost/PetHostWindow.cs`，不是 VPet 配置项；VPet 资源准备的 `x/1995` 阶段显示“正在编译着色器…” + determinate 进度条 + 百分比/完成数。
-- “正在核对 VPet 官方动作清单”改显示“加载中请稍等....”。第一次编译结束后的 `LoadALL` 阶段也显示“加载中请稍等....”，但由于该阶段的 `readyCount` 在真实机器上可能长期保持 0，现已改为 **indeterminate 不定进度条**，不再显示误导性的 `0%` / `0/N`。
-- 按用户要求，加载卡不再显示“动画来源：VPet / VUP-Simulator（非商用授权）”；授权/来源信息继续保留在随包文档与 NOTICE 中，不占加载卡 UI。
-- 第一轮 Build #703 虽然 CI 成功，但用户 Windows 实机发现加载卡比上一版约晚 30 秒出现，因此未合并。根因是内嵌 self-contained PetHost 在进程启动前需要释放/检查数百个文件，并受慢盘/杀软扫描影响。
-- PR #40 已把 PetHost 缓存身份由 FACM MVID 改为内嵌 `PetHost.zip` SHA-256；首次释放仍完整校验，后续缓存命中只检查完成标记与启动关键文件；相同 PetHost payload 可跨 FACM-only 构建复用。
-- **新的产品启动不变量：FACM shell 必须先可见。** `Program` 在 WinForms message loop 前只创建最小 runtime 目录，不再同步加载 ToolBundle/PetHost；`MainForm.Shown` 后后台预热两类可选 payload。
-- 用户启用了桌宠时，默认 FACM 悬浮入口会继续保持可见；只有 PetHost 真正发出 `ready` 后，才把默认入口隐藏并交给桌宠接管。这样解包、杀软扫描、资源准备、动作缓存或 PetHost 失败都不会制造“程序好像没启动”的无可见 UI 间隙。
-- 最新代码 HEAD `cabee2feb7a59cf14d233f11591364d5f42c2a22` 的 FACM Windows Build #728 成功，FACM Mayhem Source Probe #67 成功；artifact 等待用户实机确认 shell 首帧、VPet 接管时机和第二阶段不定进度条。
-- PR #40 在用户确认前不得合并，也不得触发新的正式在线版本。
+### PetHost 加载卡
+
+- 启动卡属于 `FACM.PetHost/PetHostWindow.cs`，不是 VPet 配置项。
+- VPet 资源准备的 `x/1995` 阶段显示“正在编译着色器…” + determinate 真实进度条 + 百分比/完成数。
+- “正在核对 VPet 官方动作清单”显示“加载中请稍等....”。
+- 第一次编译结束后的 `LoadALL` 阶段也显示“加载中请稍等....”，但真实机器上 `readyCount` 可能长期保持 0，因此已改成 **indeterminate 不定进度条**；不再显示误导性的 `0% / 0/N`。
+- 加载卡不显示“动画来源：VPet / VUP-Simulator（非商用授权）”；授权/来源信息继续保留在随包文档与 NOTICE 中。
+
+### PetHost 启动性能
+
+- 第一轮 Build #703 虽然 CI 成功，但用户 Windows 实机发现加载卡比上一版约晚 30 秒出现，因此未合并。
+- 根因是内嵌 PetHost 为 self-contained runtime，旧启动链在进程启动前释放/检查数百个文件，缓存命中还递归扫描完整目录；慢盘/杀软会直接推迟 WPF 窗口出现。
+- 缓存身份现由 FACM MVID 改为内嵌 `PetHost.zip` SHA-256；首次释放完整统计，后续命中只检查完成标记与关键启动文件。
+- 用户后续视频已确认加载窗口出现时间明显恢复。
+
+### FACM Shell 与默认启动
+
+- 新产品决策：FACM 默认不再采用“桌面无入口、仅托盘常驻”；启动后立即显示 FACM 自己的轻量 Shell。
+- Shell 窗口已从 88×88 收紧到 **56×56**，实际可见主体约 46px；旧蓝色玻璃球的外发光、呼吸和环绕亮点已移除，改为深色圆角方形、细边框、品牌 `F` 和轻量 Hover。
+- Shell 空闲时不再 33ms 常驻重绘，只在 Hover 过渡时短暂刷新。
+- 当 `AnimalPetEnabled=true` 时，Shell 先保持可用；PetHost 真正发送 `ready` 后才隐藏 Shell，由桌宠接管。PetHost 失败时继续恢复/保留 Shell。
+- **默认 `AnimalPetEnabled=false` 时不预热 PetHost**。只有配置已启用桌宠或用户主动选择桌宠后，才进入 PetHost 准备/启动链；不能让可选 VPet 成为默认启动负担。
+
+### 主题与桌面形态
+
+- 控制中心底部已从 `日志 / 面板主题 / 桌面宠物 / 海斗排行榜 / 退出` 收敛为 `日志 / 主题 / 海斗排行榜 / 退出`。
+- 托盘同样只保留一个顶层「主题」入口，不再并列显示“控制面板主题 / 桌面宠物 / 宠物复位 / 恢复默认悬浮球”。
+- 「主题」菜单内部区分：`面板外观…` 与 `桌面形态 → FACM 悬浮入口 / 选择桌面宠物… / 复位桌面位置`。
+- 没有把任何具体桌宠名称擅自提升为产品固定名称；桌面宠物仍按现有目录/配置名称展示。
+
+### 验证状态
+
+- Build #716：`x/1995` 资源准备阶段接入真实进度条。
+- Build #719：移除动画来源 UI。
+- Build #728：Shell-first、ready 后再接管、后段不定进度条通过。
+- Build #736：56px 新 FACM Shell、统一主题入口、默认不预热未启用 PetHost，Windows Build 全步骤成功；Mayhem Source Probe #75 成功。
+- PR #40 仍**未合并、未发布**；需要用户实机确认新 Shell 视觉、主题菜单以及 VPet 切换过程后再决定是否合并。
 
 ## 在线更新状态
 
@@ -44,6 +72,8 @@
 
 ## 后续
 
-FACM 3.1.2 继续作为当前线上稳定基线。PR #40 完成实机验收后，再决定是否合并和安排后续正式版本。
+FACM 3.1.2 继续作为当前线上稳定基线。PR #40 下一步只做实机视觉/交互验收和必要微调，不自动正式发布。
 
-下一项产品结构调整已经明确：**“桌面宠物”和“面板主题”合并为一个“主题”入口**，统一管理面板主题与桌面形态；同时重新设计默认 FACM 悬浮入口的现代轻量视觉。该信息架构调整应在 PR #40 验收后使用独立短分支实施，避免把当前启动修复继续扩大。
+用户此前提到的“打包内置自定义默认配置”仍未在 PR #40 中实现；应在 Shell/主题结构稳定后单独处理，避免把开发机专属 `BallX/BallY/GamePath` 原样写入所有用户默认配置。
+
+Issue #33 `整理轻量蜘蛛桌宠方案` 仍是已记录的独立后续方向，不因本次 Shell/主题重构自动进入实现。
