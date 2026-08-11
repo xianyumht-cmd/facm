@@ -89,10 +89,11 @@ namespace FACM
 
             if (_disposeStarted || IsDisposed || Disposing) return;
 
-            Rectangle bounds;
-            try { bounds = Bounds; }
-            catch (ObjectDisposedException) { return; }
-            if (bounds.Contains(cursor)) return;
+            // A submenu is a separate top-level ToolStripDropDown window, so its screen rectangle is
+            // outside the root ContextMenuStrip.Bounds. Treat every visible descendant dropdown as
+            // part of this menu tree; otherwise clicking "桌面形态" children is misclassified as an
+            // outside click and the root closes before the child receives MouseUp/Click.
+            if (ContainsScreenPoint(this, cursor)) return;
 
             try
             {
@@ -103,6 +104,40 @@ namespace FACM
                 // Closing the owner application can dispose the dropdown between the physical mouse
                 // sample above and this call. At that point the desired state is already closed.
             }
+        }
+
+        private static bool ContainsScreenPoint(ToolStrip strip, Point cursor)
+        {
+            if (strip == null || strip.IsDisposed || strip.Disposing || !strip.Visible) return false;
+
+            try
+            {
+                var bounds = strip.RectangleToScreen(strip.ClientRectangle);
+                if (bounds.Contains(cursor)) return true;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+
+            foreach (ToolStripItem item in strip.Items)
+            {
+                var dropDownItem = item as ToolStripDropDownItem;
+                if (dropDownItem == null || !dropDownItem.HasDropDownItems) continue;
+
+                ToolStripDropDown child;
+                try { child = dropDownItem.DropDown; }
+                catch (ObjectDisposedException) { continue; }
+                catch (InvalidOperationException) { continue; }
+
+                if (child != null && ContainsScreenPoint(child, cursor)) return true;
+            }
+
+            return false;
         }
 
         private static bool IsButtonDown(int virtualKey)
