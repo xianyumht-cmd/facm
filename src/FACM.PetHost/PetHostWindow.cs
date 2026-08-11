@@ -191,7 +191,7 @@ internal sealed class PetHostWindow : Window
 
             // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
             _root.Children.Insert(0, _main);
-            SetCacheProgress(0, graphCount);
+            SetLoadProgress(0, graphCount);
 
             var lastReported = 0;
             await Task.Run(() =>
@@ -202,7 +202,7 @@ internal sealed class PetHostWindow : Window
                     Volatile.Write(ref lastReported, readyCount);
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        SetCacheProgress(Math.Min(readyCount, graphCount), graphCount);
+                        SetLoadProgress(Math.Min(readyCount, graphCount), graphCount);
                     }));
                 });
             }, _lifetime.Token);
@@ -232,6 +232,13 @@ internal sealed class PetHostWindow : Window
     private void HandleBootstrapProgress(string message)
     {
         var text = message ?? string.Empty;
+
+        if (text.Contains("核对", StringComparison.Ordinal) && text.Contains("动作清单", StringComparison.Ordinal))
+        {
+            SetStatus("加载中请稍等....");
+            return;
+        }
+
         var fraction = Regex.Match(text, @"(?<current>\d+)\s*/\s*(?<total>\d+)");
         if (fraction.Success &&
             int.TryParse(fraction.Groups["current"].Value, out var current) &&
@@ -239,7 +246,7 @@ internal sealed class PetHostWindow : Window
             total > 0)
         {
             _bootstrapProgressTotal = total;
-            SetCacheProgress(Math.Clamp(current, 0, total), total);
+            SetCompileProgress(Math.Clamp(current, 0, total), total);
             return;
         }
 
@@ -247,13 +254,13 @@ internal sealed class PetHostWindow : Window
         if (manifest.Success && int.TryParse(manifest.Groups["total"].Value, out total) && total > 0)
         {
             _bootstrapProgressTotal = total;
-            SetCacheProgress(0, total);
+            SetCompileProgress(0, total);
             return;
         }
 
         if (_bootstrapProgressTotal > 0 && text.Contains("资源准备完成", StringComparison.Ordinal))
         {
-            SetCacheProgress(_bootstrapProgressTotal, _bootstrapProgressTotal);
+            SetCompileProgress(_bootstrapProgressTotal, _bootstrapProgressTotal);
             return;
         }
 
@@ -268,13 +275,23 @@ internal sealed class PetHostWindow : Window
         Title = PetHostUiText.Translate("FACM PetHost");
     }
 
-    private void SetCacheProgress(int readyCount, int graphCount)
+    private void SetCompileProgress(int readyCount, int graphCount)
+    {
+        SetProgress("正在编译着色器…", readyCount, graphCount);
+    }
+
+    private void SetLoadProgress(int readyCount, int graphCount)
+    {
+        SetProgress("加载中请稍等....", readyCount, graphCount);
+    }
+
+    private void SetProgress(string message, int readyCount, int graphCount)
     {
         var total = Math.Max(1, graphCount);
         var current = Math.Clamp(readyCount, 0, total);
         var percent = current * 100d / total;
 
-        _statusText.Text = PetHostUiText.Translate("正在编译着色器…");
+        _statusText.Text = PetHostUiText.Translate(message);
         _statusProgress.Maximum = total;
         _statusProgress.Value = current;
         _statusProgress.Visibility = Visibility.Visible;
