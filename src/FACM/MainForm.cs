@@ -15,7 +15,7 @@ namespace FACM
 {
     internal sealed class MainForm : Form
     {
-        private const int BallSize = 88;
+        private const int BallSize = 56;
         private readonly AppSettings _settings = AppSettings.Load();
         private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly NotifyIcon _tray;
