@@ -1,8 +1,8 @@
 {
-  "request_id": "3.1.1-update-push-test",
-  "version": "3.1.1",
+  "request_id": "3.1.2-full-aram-balance-release",
+  "version": "3.1.2",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.1.1 在线更新推送验证版：不包含新的业务功能，仅用于验证已安装的 FACM 3.1.0 能否正常检测、提示并升级到 3.1.1。"
+  "release_notes": "FACM 3.1.2：海斗排行榜新增英雄完整基础 ARAM Buff/Debuff，并与 Mayhem 专属状态分层展示；修复 OP.GG 实时页面版本号与带空格正负调整值解析，提升亚索、库奇、萨勒芬妮等英雄平衡状态的准确性与版本校验稳定性。"
 }
