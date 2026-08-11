@@ -109,14 +109,11 @@ namespace FACM
 
                 try
                 {
+                    // Only create the tiny writable runtime skeleton before the message loop starts.
+                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
+                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
+                    // never make the application look like it failed to launch.
                     RuntimePaths.Initialize();
-                    ToolBundleLoader.Prepare();
-
-                    // Start preparing the exact embedded PetHost as soon as FACM itself is ready. This is
-                    // deliberately fire-and-forget: the WinForms message loop must not wait for a large
-                    // self-contained host to be hashed/extracted/scanned by antivirus. VPetHostClient will
-                    // join this same task if the user activates the pet before warmup has finished.
-                    PetHostBundleLoader.BeginWarmup();
                 }
                 catch (Exception exception)
                 {
