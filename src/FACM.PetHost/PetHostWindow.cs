@@ -27,7 +27,6 @@ internal sealed class PetHostWindow : Window
     private readonly TextBlock _statusText;
     private readonly WpfProgressBar _statusProgress;
     private readonly TextBlock _statusProgressText;
-    private readonly TextBlock _statusNotice;
     private readonly PetWindowController _controller;
     private VPetMain? _main;
     private GameCore? _core;
@@ -109,18 +108,6 @@ internal sealed class PetHostWindow : Window
             Visibility = Visibility.Collapsed
         };
 
-        _statusNotice = new TextBlock
-        {
-            Text = PetHostUiText.Translate("动画来源：VPet / VUP-Simulator（非商用授权）"),
-            Foreground = new SolidColorBrush(WpfColor.FromRgb(166, 178, 198)),
-            FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
-            FontSize = 10.5,
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
-            Margin = new Thickness(4, 6, 4, 0)
-        };
-
         var statusStack = new StackPanel
         {
             VerticalAlignment = WpfVerticalAlignment.Center,
@@ -129,12 +116,11 @@ internal sealed class PetHostWindow : Window
         statusStack.Children.Add(_statusText);
         statusStack.Children.Add(_statusProgress);
         statusStack.Children.Add(_statusProgressText);
-        statusStack.Children.Add(_statusNotice);
 
         _statusCard = new Border
         {
             Width = 278,
-            MinHeight = 104,
+            MinHeight = 88,
             Padding = new Thickness(14, 12, 14, 12),
             Background = new SolidColorBrush(WpfColor.FromArgb(222, 12, 17, 28)),
             BorderBrush = new SolidColorBrush(WpfColor.FromArgb(120, 121, 155, 255)),
@@ -238,7 +224,7 @@ internal sealed class PetHostWindow : Window
         }
         catch (Exception exception)
         {
-            SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单", includeNotice: false);
+            SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单");
             await _ipc.SendEventAsync("error", exception.GetType().Name + ": " + exception.Message);
         }
     }
@@ -274,12 +260,11 @@ internal sealed class PetHostWindow : Window
         SetStatus(text);
     }
 
-    private void SetStatus(string message, bool includeNotice = true)
+    private void SetStatus(string message)
     {
         _statusText.Text = PetHostUiText.Translate(message);
         _statusProgress.Visibility = Visibility.Collapsed;
         _statusProgressText.Visibility = Visibility.Collapsed;
-        _statusNotice.Visibility = includeNotice ? Visibility.Visible : Visibility.Collapsed;
         Title = PetHostUiText.Translate("FACM PetHost");
     }
 
@@ -295,7 +280,6 @@ internal sealed class PetHostWindow : Window
         _statusProgress.Visibility = Visibility.Visible;
         _statusProgressText.Text = $"{percent:0}%   {current}/{graphCount}";
         _statusProgressText.Visibility = Visibility.Visible;
-        _statusNotice.Visibility = Visibility.Visible;
         Title = PetHostUiText.Translate("FACM PetHost");
     }
 
