@@ -48,7 +48,31 @@ namespace FACM.Theming
 
             menu.Items.Add(panelTheme);
             menu.Items.Add(desktop);
-            menu.Closed += delegate { menu.Dispose(); };
+            menu.Closed += delegate
+            {
+                // ToolStripDropDown raises Closed before its internal SetVisibleCore/OnItemClicked/
+                // ModalMenuFilter stack has fully unwound. Disposing synchronously from Closed leaves
+                // WinForms finishing the current mouse/menu message against an already disposed object.
+                // Post disposal to the owner message queue so the current dropdown transaction can end.
+                try
+                {
+                    if (!owner.IsDisposed && owner.IsHandleCreated)
+                    {
+                        owner.BeginInvoke(new Action(delegate
+                        {
+                            if (!menu.IsDisposed) menu.Dispose();
+                        }));
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // Owner is shutting down; the application teardown will release remaining handles.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Same shutdown case, already at the desired final state.
+                }
+            };
             menu.Show(screenLocation);
         }
 
