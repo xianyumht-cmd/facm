@@ -62,7 +62,7 @@
 - Build #719：移除动画来源 UI。
 - Build #728：Shell-first、ready 后再接管、后段不定进度条通过。
 - Build #736：56px 新 FACM Shell、统一主题入口、默认不预热未启用 PetHost，Windows Build 全步骤成功；Mayhem Source Probe #75 成功。
-- 最终视觉代码提交 `49f5cd5927dc1a07cf33044428e7de70e187bfb7` 的 Windows Build #741 成功；该构建包含透明层文字抗锯齿修正。后续提交只同步架构/决策/状态文档，不改变二进制行为。
+- 最终二进制行为对应代码提交 `49f5cd5927dc1a07cf33044428e7de70e187bfb7`；其 Windows Build #741 成功，并包含透明层文字抗锯齿修正。其后的提交仅同步架构/决策/状态文档，不改变二进制行为。
 - PR #40 仍**未合并、未发布**；需要用户实机确认新 Shell 视觉、主题菜单以及 VPet 切换过程后再决定是否合并。
 
 ## 在线更新状态
