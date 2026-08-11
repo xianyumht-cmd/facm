@@ -186,8 +186,7 @@ namespace FACM
                     return;
                 }
 
-                RestoreBallPosition();
-                ShowBuiltInBall();
+                ResetBuiltInBallPosition();
             }
             catch (Exception exception)
             {
@@ -486,6 +485,17 @@ namespace FACM
             Location = new Point(
                 Math.Max(area.Left - Width / 3, Math.Min(saved.X, area.Right - Width * 2 / 3)),
                 Math.Max(area.Top, Math.Min(saved.Y, area.Bottom - Height)));
+        }
+
+        private void ResetBuiltInBallPosition()
+        {
+            _settings.BallX = int.MinValue;
+            _settings.BallY = int.MinValue;
+            _settings.Save();
+            RestoreBallPosition();
+            if (!Visible) Show();
+            TopMost = true;
+            AppLog.Info("FACM shell reset to default position: " + Left + "," + Top);
         }
 
         private void SaveBallPosition()
