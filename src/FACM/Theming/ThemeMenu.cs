@@ -32,15 +32,15 @@ namespace FACM.Theming
             };
 
             var panelTheme = new ToolStripMenuItem("面板外观…");
-            panelTheme.Click += delegate { owner.OpenPanelThemeSelector(); };
+            panelTheme.Click += delegate { PostOwnerAction(owner, owner.OpenPanelThemeSelector); };
 
             var desktop = new ToolStripMenuItem("桌面形态");
             var shell = new ToolStripMenuItem("FACM 悬浮入口");
-            shell.Click += delegate { owner.RestoreDefaultBall(); };
+            shell.Click += delegate { PostOwnerAction(owner, owner.RestoreDefaultBall); };
             var pet = new ToolStripMenuItem("选择桌面宠物…");
-            pet.Click += delegate { owner.OpenPetSelector(); };
+            pet.Click += delegate { PostOwnerAction(owner, owner.OpenPetSelector); };
             var reset = new ToolStripMenuItem("复位桌面位置");
-            reset.Click += delegate { owner.ResetAnimalPet(); };
+            reset.Click += delegate { PostOwnerAction(owner, owner.ResetAnimalPet); };
             desktop.DropDownItems.Add(shell);
             desktop.DropDownItems.Add(pet);
             desktop.DropDownItems.Add(new ToolStripSeparator());
@@ -70,6 +70,22 @@ namespace FACM.Theming
                 }
             };
             menu.Show(screenLocation);
+        }
+
+        private static void PostOwnerAction(MainForm owner, Action action)
+        {
+            if (owner == null || action == null || owner.IsDisposed) return;
+            try
+            {
+                owner.BeginInvoke(new Action(delegate
+                {
+                    if (!owner.IsDisposed) action();
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+                // The owner is closing. There is no UI action left to perform.
+            }
         }
 
         private sealed class ThemeMenuColorTable : ProfessionalColorTable
