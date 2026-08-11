@@ -276,9 +276,8 @@ namespace FACM
             RestoreBallPosition();
             ShowBuiltInBall();
 
-            // The FACM shell is the first visible product surface. Optional heavy payloads warm in the
-            // background only after this form has been shown, so VPet/tool extraction cannot make the
-            // application look like it failed to launch.
+            // FACM Shell is the first visible product surface. Keep the default path light: optional
+            // VPet payloads are only warmed when the user has actually enabled a desktop pet.
             BeginBackgroundWarmup();
 
             if (_settings.AnimalPetEnabled)
@@ -304,11 +303,13 @@ namespace FACM
         {
             if (_startupWarmupStarted || IsDisposed || _exiting) return;
             _startupWarmupStarted = true;
+            var warmPetHost = _settings.AnimalPetEnabled;
 
             Task.Run(async delegate
             {
-                // Give the message loop a short head start so the floating entry can paint before disk/AV
-                // work begins. These preparations are opportunistic; each feature still lazily retries.
+                // Give the message loop a short head start so the FACM shell can paint before disk/AV
+                // work begins. ToolBundle is part of the core product; PetHost is optional and stays cold
+                // unless the current configuration actually enables a desktop pet.
                 await Task.Delay(180).ConfigureAwait(false);
 
                 try
@@ -319,6 +320,8 @@ namespace FACM
                 {
                     AppLog.Error("Tool bundle background warmup failed", exception);
                 }
+
+                if (!warmPetHost) return;
 
                 try
                 {
@@ -359,10 +362,7 @@ namespace FACM
                     _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
             });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("控制面板主题", null, delegate { OpenPanelThemeSelector(); });
-            menu.Items.Add("桌面宠物", null, delegate { OpenPetSelector(); });
-            menu.Items.Add("宠物复位", null, delegate { ResetAnimalPet(); });
-            menu.Items.Add("恢复默认悬浮球", null, delegate { RestoreDefaultBall(); });
+            menu.Items.Add("主题", null, delegate { ThemeMenu.Show(this, Cursor.Position); });
             menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
