@@ -68,10 +68,6 @@ namespace FACM.Theming
                 {
                     // Owner is shutting down; the application teardown will release remaining handles.
                 }
-                catch (ObjectDisposedException)
-                {
-                    // Same shutdown case, already at the desired final state.
-                }
             };
             menu.Show(screenLocation);
         }
