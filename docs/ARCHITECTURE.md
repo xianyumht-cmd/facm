@@ -26,7 +26,7 @@ FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌
 
 `MainForm` 是应用级入口拥有者，同时承载默认 FACM Shell；`CompactMenuForm` 是轻量弹出控制中心。
 
-默认 Shell 使用 56×56 的透明分层窗口，实际可见主体约 46px。渲染由 `LayeredFloatingBall` 负责，采用深色圆角方形、细边框、单一品牌标记和轻量 Hover；空闲时不运行持续呼吸/环绕动画。Shell 保留：
+默认 Shell 使用 56×56 的透明分层窗口，实际可见主体约 46px。渲染由 `LayeredFloatingBall` 负责，采用深色圆角方形、细边框、单一品牌标记和轻量 Hover；空闲时不运行持续呼吸/环绕动画。透明层文字使用灰度抗锯齿，避免 ClearType 子像素彩边。Shell 保留：
 
 - 左键单击打开/收起控制中心；
 - 拖动调整位置并写入 `BallX/BallY`；
@@ -45,6 +45,8 @@ FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌
    ├─ 选择桌面宠物…
    └─ 复位桌面位置
 ```
+
+这里的「主题」是统一入口，不表示面板皮肤与桌面形态必须绑定为同一个枚举值：现阶段 `ThemeId` 继续控制控制中心外观，`AnimalPetEnabled/PetStyleId` 继续控制桌面形态；统一的是用户入口和概念层级，避免一次性重写已验证的配置兼容性。
 
 底部兼容布局仍由 `CompactMenuEnhancer` 在第一条 `WM_PAINT` 前完成，避免旧 `Application.Idle` 后置重排造成首帧残影；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。
 
