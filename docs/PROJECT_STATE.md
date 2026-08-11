@@ -77,8 +77,8 @@
 - Build #757：Shell 首次 layered frame 有限重试与日志通过；用户实机确认无配置时 Shell 正常显示，有 VPet 配置时自动加载 VPet。
 - Build #759：主题二级桌面形态菜单修复通过；用户实机确认整体体验较满意。
 - Build #762：Shell 真正复位 + Sprite 桌宠取消硬屏幕边界；Windows Build 成功。用户已实机确认“复位桌面位置”正常、Sprite 桌宠跑出屏幕后行为正常，两项均验收通过。
-- PR #40 最新 HEAD `a2e28853c472199435da1cb08b4711248a494f5e` 的 Windows Build #765 与 Mayhem Source Probe #105 均成功；用户已明确授权将当前版本作为正式版发布并推送在线更新。
-- 当前阶段：**等待 PR #40 合并后进入正式发布事务链**。
+- PR #40 最新 HEAD `af9b0a96510b850af675ec7512b024d8ba1ac72a` 的 Windows Build #766 与 Mayhem Source Probe #106 均成功；用户已明确授权将当前版本作为正式版发布并推送在线更新。
+- 当前阶段：**PR #40 已满足合并与正式发布条件**。
 
 ## 在线更新状态
 
