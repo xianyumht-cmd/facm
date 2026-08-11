@@ -185,7 +185,7 @@ namespace FACM
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 graphics.CompositingQuality = CompositingQuality.HighQuality;
-                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
                 var margin = Math.Max(5f, size * 0.09f);
                 var bodyRect = new RectangleF(margin, margin - 1f, size - margin * 2f, size - margin * 2f);
