@@ -65,8 +65,8 @@
 - Build #728：Shell-first、ready 后再接管、后段不定进度条通过。
 - Build #736：56px 新 FACM Shell、统一主题入口、默认不预热未启用 PetHost，Windows Build 全步骤成功；Mayhem Source Probe #75 成功。
 - Build #741：首个可实机验收的新 Shell + 主题整合包；用户日志随后确认主题菜单 Dispose 生命周期回归，因此该包**不可接受为候选**。
-- 菜单生命周期根修最新代码提交为 `35e0e0defc09ed250acd547bcb4b73611fc253e3`；等待其最终 HEAD CI 与下一轮实机菜单验收。
-- 当前阶段：**等待修复包实机验收**。PR #40 仍未合并、未发布；验收前不继续扩大功能范围。
+- 菜单生命周期根修代码提交 `35e0e0defc09ed250acd547bcb4b73611fc253e3`；最终文档对齐 HEAD `7ab24f03f4c53df7803f92143e5b951a9dcffdd8` 的 Windows Build #755 全步骤成功，Mayhem Source Probe #94 成功；artifact `FACM-Windows-x64-755` 用于下一轮实机菜单验收。
+- 当前阶段：**等待 Build #755 修复包实机验收**。PR #40 仍未合并、未发布；验收前不继续扩大功能范围。
 
 ## 在线更新状态
 
