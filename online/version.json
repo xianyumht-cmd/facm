@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.1.2",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.1.2/FACM.exe",
   "sha256": "A9843A9FA52A935874B268615C8BA929C01A9D209DBC85879013CB142AA8F8DE",
   "release_notes": "FACM 3.1.2：海斗排行榜新增英雄完整基础 ARAM Buff/Debuff，并与 Mayhem 专属状态分层展示；修复 OP.GG 实时页面版本号与带空格正负调整值解析，提升亚索、库奇、萨勒芬妮等英雄平衡状态的准确性与版本校验稳定性。",
-  "published_at": "2026-08-11T01:46:12.7466200+00:00"
+  "published_at": "2026-08-11T01:46:22.8317099+00:00"
 }
