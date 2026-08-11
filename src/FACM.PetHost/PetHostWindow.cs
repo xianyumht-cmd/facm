@@ -23,6 +23,9 @@ internal sealed class PetHostWindow : Window
     private readonly Grid _root;
     private readonly Border _statusCard;
     private readonly TextBlock _statusText;
+    private readonly ProgressBar _statusProgress;
+    private readonly TextBlock _statusProgressText;
+    private readonly TextBlock _statusNotice;
     private readonly PetWindowController _controller;
     private VPetMain? _main;
     private GameCore? _core;
@@ -74,23 +77,69 @@ internal sealed class PetHostWindow : Window
             FontSize = 13,
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = WpfVerticalAlignment.Center,
-            HorizontalAlignment = WpfHorizontalAlignment.Center,
-            Margin = new Thickness(18, 10, 18, 10)
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 0, 4, 0)
         };
+
+        _statusProgress = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 1,
+            Value = 0,
+            Height = 8,
+            Margin = new Thickness(8, 10, 8, 0),
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(WpfColor.FromRgb(38, 48, 66)),
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(44, 218, 255)),
+            BorderThickness = new Thickness(0),
+            Visibility = Visibility.Collapsed
+        };
+
+        _statusProgressText = new TextBlock
+        {
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(184, 199, 222)),
+            FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
+            FontSize = 11,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 5, 4, 0),
+            Visibility = Visibility.Collapsed
+        };
+
+        _statusNotice = new TextBlock
+        {
+            Text = PetHostUiText.Translate("动画来源：VPet / VUP-Simulator（非商用授权）"),
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(166, 178, 198)),
+            FontFamily = new WpfFontFamily("Microsoft YaHei UI"),
+            FontSize = 10.5,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 6, 4, 0)
+        };
+
+        var statusStack = new StackPanel
+        {
+            VerticalAlignment = WpfVerticalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch
+        };
+        statusStack.Children.Add(_statusText);
+        statusStack.Children.Add(_statusProgress);
+        statusStack.Children.Add(_statusProgressText);
+        statusStack.Children.Add(_statusNotice);
 
         _statusCard = new Border
         {
             Width = 278,
-            MinHeight = 92,
-            Padding = new Thickness(8),
+            MinHeight = 104,
+            Padding = new Thickness(14, 12, 14, 12),
             Background = new SolidColorBrush(WpfColor.FromArgb(222, 12, 17, 28)),
             BorderBrush = new SolidColorBrush(WpfColor.FromArgb(120, 121, 155, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
             VerticalAlignment = WpfVerticalAlignment.Center,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
-            Child = _statusText
+            Child = statusStack
         };
         _root.Children.Add(_statusCard);
         Content = _root;
@@ -153,7 +202,7 @@ internal sealed class PetHostWindow : Window
 
             // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
             _root.Children.Insert(0, _main);
-            SetStatus($"正在生成动作缓存 0/{graphCount}\n首次启动会比之后慢");
+            SetCacheProgress(0, graphCount);
 
             var lastReported = 0;
             await Task.Run(() =>
@@ -164,7 +213,7 @@ internal sealed class PetHostWindow : Window
                     Volatile.Write(ref lastReported, readyCount);
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        SetStatus($"正在生成动作缓存 {Math.Min(readyCount, graphCount)}/{graphCount}\n首次启动会比之后慢");
+                        SetCacheProgress(Math.Min(readyCount, graphCount), graphCount);
                     }));
                 });
             }, _lifetime.Token);
@@ -193,8 +242,26 @@ internal sealed class PetHostWindow : Window
 
     private void SetStatus(string message, bool includeNotice = true)
     {
-        var text = includeNotice ? message + "\n动画来源：VPet / VUP-Simulator（非商用授权）" : message;
-        _statusText.Text = PetHostUiText.Translate(text);
+        _statusText.Text = PetHostUiText.Translate(message);
+        _statusProgress.Visibility = Visibility.Collapsed;
+        _statusProgressText.Visibility = Visibility.Collapsed;
+        _statusNotice.Visibility = includeNotice ? Visibility.Visible : Visibility.Collapsed;
+        Title = PetHostUiText.Translate("FACM PetHost");
+    }
+
+    private void SetCacheProgress(int readyCount, int graphCount)
+    {
+        var total = Math.Max(1, graphCount);
+        var current = Math.Clamp(readyCount, 0, total);
+        var percent = current * 100d / total;
+
+        _statusText.Text = PetHostUiText.Translate("正在编译着色器…");
+        _statusProgress.Maximum = total;
+        _statusProgress.Value = current;
+        _statusProgress.Visibility = Visibility.Visible;
+        _statusProgressText.Text = $"{percent:0}%   {current}/{graphCount}";
+        _statusProgressText.Visibility = Visibility.Visible;
+        _statusNotice.Visibility = Visibility.Visible;
         Title = PetHostUiText.Translate("FACM PetHost");
     }
 
