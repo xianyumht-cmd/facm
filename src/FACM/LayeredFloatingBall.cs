@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using FACM.Services;
 using FACM.Theming;
 
 namespace FACM
@@ -17,12 +18,17 @@ namespace FACM
         private const int UlwAlpha = 0x00000002;
         private const byte AcSrcOver = 0x00;
         private const byte AcSrcAlpha = 0x01;
+        private const int InitialRenderMaxAttempts = 12;
 
         private readonly Form _form;
         private readonly Timer _hoverTimer;
+        private readonly Timer _initialRenderTimer;
         private ThemeDefinition _theme;
         private bool _hovered;
         private bool _disposed;
+        private bool _layeredReady;
+        private int _initialRenderAttempts;
+        private int _lastLayeredError;
         private float _hover;
 
         private LayeredFloatingBall(Form form, ThemeDefinition theme)
@@ -51,6 +57,13 @@ namespace FACM
             _hoverTimer = new Timer { Interval = 16 };
             _hoverTimer.Tick += TickHover;
 
+            // Removing the old perpetual timer also removed its accidental startup self-healing. A
+            // layered window can transiently reject the very first UpdateLayeredWindow call while the
+            // native window is still being shown. Retry only the initial frame for a short bounded
+            // window, then stay idle once a real layered frame has succeeded.
+            _initialRenderTimer = new Timer { Interval = 80 };
+            _initialRenderTimer.Tick += TickInitialRender;
+
             if (_form.IsHandleCreated) ApplyLayeredStyle();
         }
 
@@ -68,7 +81,7 @@ namespace FACM
         {
             if (_disposed) return;
             _theme = theme ?? ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
-            RenderLayered();
+            TryRenderOrSchedule();
         }
 
         internal static Bitmap RenderForSmokeTest(int size, float hover = 0f, float phase = 0f)
@@ -82,13 +95,13 @@ namespace FACM
         private void HandleCreated(object sender, EventArgs e)
         {
             ApplyLayeredStyle();
-            RenderLayered();
+            TryRenderOrSchedule();
         }
 
         private void RefreshNow(object sender, EventArgs e)
         {
             if (_disposed || !_form.Visible) return;
-            RenderLayered();
+            TryRenderOrSchedule();
         }
 
         private void StartHoverTransition()
@@ -112,7 +125,46 @@ namespace FACM
                 _hover = target;
                 _hoverTimer.Stop();
             }
-            RenderLayered();
+            TryRenderOrSchedule();
+        }
+
+        private void TickInitialRender(object sender, EventArgs e)
+        {
+            if (_disposed || !_form.Visible || !_form.IsHandleCreated)
+            {
+                _initialRenderTimer.Stop();
+                return;
+            }
+
+            _initialRenderAttempts++;
+            ApplyLayeredStyle();
+            if (RenderLayered())
+            {
+                _initialRenderTimer.Stop();
+                return;
+            }
+
+            if (_initialRenderAttempts < InitialRenderMaxAttempts) return;
+
+            _initialRenderTimer.Stop();
+            AppLog.Error(
+                "FACM shell layered frame did not become visible after " +
+                _initialRenderAttempts + " attempts; lastWin32Error=" + _lastLayeredError,
+                null);
+        }
+
+        private void TryRenderOrSchedule()
+        {
+            if (_disposed || !_form.Visible || !_form.IsHandleCreated) return;
+
+            if (RenderLayered())
+            {
+                _initialRenderTimer.Stop();
+                return;
+            }
+
+            if (_initialRenderAttempts >= InitialRenderMaxAttempts) return;
+            if (!_initialRenderTimer.Enabled) _initialRenderTimer.Start();
         }
 
         private void ApplyLayeredStyle()
@@ -124,9 +176,9 @@ namespace FACM
             SetWindowLong(_form.Handle, GwlExStyle, style);
         }
 
-        private void RenderLayered()
+        private bool RenderLayered()
         {
-            if (_disposed || !_form.IsHandleCreated || !_form.Visible) return;
+            if (_disposed || !_form.IsHandleCreated || !_form.Visible) return false;
             using (var bitmap = RenderShell(Math.Min(_form.Width, _form.Height), _hover, _theme))
             {
                 IntPtr screenDc = IntPtr.Zero;
@@ -136,9 +188,32 @@ namespace FACM
                 try
                 {
                     screenDc = GetDC(IntPtr.Zero);
+                    if (screenDc == IntPtr.Zero)
+                    {
+                        _lastLayeredError = Marshal.GetLastWin32Error();
+                        return false;
+                    }
+
                     memoryDc = CreateCompatibleDC(screenDc);
+                    if (memoryDc == IntPtr.Zero)
+                    {
+                        _lastLayeredError = Marshal.GetLastWin32Error();
+                        return false;
+                    }
+
                     hBitmap = bitmap.GetHbitmap(Color.FromArgb(0));
+                    if (hBitmap == IntPtr.Zero)
+                    {
+                        _lastLayeredError = Marshal.GetLastWin32Error();
+                        return false;
+                    }
+
                     oldBitmap = SelectObject(memoryDc, hBitmap);
+                    if (oldBitmap == IntPtr.Zero || oldBitmap == new IntPtr(-1))
+                    {
+                        _lastLayeredError = Marshal.GetLastWin32Error();
+                        return false;
+                    }
 
                     var destination = new PointNative(_form.Left, _form.Top);
                     var source = new PointNative(0, 0);
@@ -151,7 +226,7 @@ namespace FACM
                         AlphaFormat = AcSrcAlpha
                     };
 
-                    UpdateLayeredWindow(
+                    var updated = UpdateLayeredWindow(
                         _form.Handle,
                         screenDc,
                         ref destination,
@@ -161,10 +236,27 @@ namespace FACM
                         0,
                         ref blend,
                         UlwAlpha);
+                    if (!updated)
+                    {
+                        _lastLayeredError = Marshal.GetLastWin32Error();
+                        return false;
+                    }
+
+                    if (!_layeredReady)
+                    {
+                        _layeredReady = true;
+                        AppLog.Info(
+                            "FACM shell layered frame ready; attempts=" + _initialRenderAttempts +
+                            "; size=" + bitmap.Width + "x" + bitmap.Height +
+                            "; location=" + _form.Left + "," + _form.Top);
+                    }
+                    _lastLayeredError = 0;
+                    return true;
                 }
                 finally
                 {
-                    if (oldBitmap != IntPtr.Zero && memoryDc != IntPtr.Zero) SelectObject(memoryDc, oldBitmap);
+                    if (oldBitmap != IntPtr.Zero && oldBitmap != new IntPtr(-1) && memoryDc != IntPtr.Zero)
+                        SelectObject(memoryDc, oldBitmap);
                     if (hBitmap != IntPtr.Zero) DeleteObject(hBitmap);
                     if (memoryDc != IntPtr.Zero) DeleteDC(memoryDc);
                     if (screenDc != IntPtr.Zero) ReleaseDC(IntPtr.Zero, screenDc);
@@ -291,6 +383,11 @@ namespace FACM
             {
                 _hoverTimer.Stop();
                 _hoverTimer.Dispose();
+            }
+            if (_initialRenderTimer != null)
+            {
+                _initialRenderTimer.Stop();
+                _initialRenderTimer.Dispose();
             }
             if (_form != null)
             {
