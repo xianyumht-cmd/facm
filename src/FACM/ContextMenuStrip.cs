@@ -20,6 +20,7 @@ namespace FACM
         private bool _leftWasDown;
         private bool _rightWasDown;
         private bool _middleWasDown;
+        private bool _disposeStarted;
 
         public ContextMenuStrip()
         {
@@ -31,6 +32,7 @@ namespace FACM
         protected override void OnOpened(EventArgs e)
         {
             base.OnOpened(e);
+            if (_disposeStarted || IsDisposed || Disposing) return;
             _leftWasDown = IsButtonDown(VkLButton);
             _rightWasDown = IsButtonDown(VkRButton);
             _middleWasDown = IsButtonDown(VkMButton);
@@ -39,14 +41,16 @@ namespace FACM
 
         protected override void OnClosed(ToolStripDropDownClosedEventArgs e)
         {
-            _outsideClickTimer.Stop();
+            if (!_disposeStarted)
+                _outsideClickTimer.Stop();
             base.OnClosed(e);
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && !_disposeStarted)
             {
+                _disposeStarted = true;
                 _outsideClickTimer.Stop();
                 _outsideClickTimer.Tick -= HandleOutsideClickTick;
                 _outsideClickTimer.Dispose();
@@ -56,7 +60,15 @@ namespace FACM
 
         private void HandleOutsideClickTick(object sender, EventArgs e)
         {
-            if (!Visible) return;
+            // A WM_TIMER message can already be queued when a dropdown is closed/disposed. Never let
+            // that late tick touch ToolStripDropDown state, because WinForms may otherwise recreate a
+            // handle for an object whose disposal has already started.
+            if (_disposeStarted || IsDisposed || Disposing) return;
+
+            bool visible;
+            try { visible = Visible; }
+            catch (ObjectDisposedException) { return; }
+            if (!visible) return;
 
             var leftDown = IsButtonDown(VkLButton);
             var rightDown = IsButtonDown(VkRButton);
@@ -75,8 +87,22 @@ namespace FACM
             try { cursor = Control.MousePosition; }
             catch { return; }
 
-            if (!Bounds.Contains(cursor))
+            if (_disposeStarted || IsDisposed || Disposing) return;
+
+            Rectangle bounds;
+            try { bounds = Bounds; }
+            catch (ObjectDisposedException) { return; }
+            if (bounds.Contains(cursor)) return;
+
+            try
+            {
                 Close(ToolStripDropDownCloseReason.AppClicked);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Closing the owner application can dispose the dropdown between the physical mouse
+                // sample above and this call. At that point the desired state is already closed.
+            }
         }
 
         private static bool IsButtonDown(int virtualKey)
