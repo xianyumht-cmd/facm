@@ -14,7 +14,7 @@ FACM 主程序仍是 .NET Framework 4.8 + WinForms，负责清理工具、ToolBu
 - 双向命名管道：FACM 发送启用、复位、退出，PetHost 回传单击、右键、ready/error；
 - Windows Job Object：PetHost 启动后由 FACM 尝试加入带 `KILL_ON_JOB_CLOSE` 的 Job；
 - `--parent-pid`：PetHost 自己每 2 秒检查一次父进程，作为 Job Object 无法分配时的兼容兜底；
-- PetHost 启动失败、IPC 断开或宿主意外退出时，FACM 自动恢复默认悬浮球。
+- PetHost 启动失败、IPC 断开或宿主意外退出时，FACM 自动恢复默认悬浮入口。
 
 ### 为什么不是单 PID
 
@@ -28,17 +28,18 @@ FACM 主程序和 PetHost 使用不同 CLR/UI 技术栈：net48 WinForms 与 net
 
 PetHost 启动链包含大包检查/释放、进程创建和最长 7 秒的命名管道连接。它们不能同步运行在 WinForms UI 线程。
 
-当前 FACM 在主程序启动准备完成后即调用 `PetHostBundleLoader.BeginWarmup()`，后台准备当前内嵌 PetHost；如果用户在预热完成前启用桌宠，`VPetHostClient` 会加入同一个准备任务，不会重复解包。
+FACM 默认启动只先显示自己的轻量 Shell。`AnimalPetEnabled=false` 时**不预热、不解包、不扫描 PetHost**。只有配置已经启用桌宠，或者用户在「主题 → 桌面形态」里主动选择桌宠后，才调用 `PetHostBundleLoader.BeginWarmup()` / 实际启动链。若当前配置已启用桌宠，后台预热与实际启用共享同一准备任务，不会重复解包。
 
 实际启用链为：
 
-1. 等待或复用后台预热得到当前精确 PetHost；
+1. 等待或复用当前精确 PetHost 的准备任务；
 2. 创建便携数据目录；
 3. 启动 `FACM.PetHost.exe --pipe ... --parent-pid ...`；
 4. 尝试把新进程加入 FACM Job Object；
 5. 在后台连接 named pipe；
 6. 连接成功后发送最新 pet id 并启动事件读取；
-7. 失败时切回 UI context 恢复默认悬浮球。
+7. PetHost 真正发送 `ready` 前 FACM Shell 保持可用；ready 后才由桌宠接管；
+8. 失败时切回 UI context 恢复 FACM Shell。
 
 PetHost 运行宿主按内嵌 `FACM.Resources.PetHost.zip` 的 **SHA-256** 缓存，而不是按 FACM MVID 缓存。这样：
 
@@ -47,7 +48,7 @@ PetHost 运行宿主按内嵌 `FACM.Resources.PetHost.zip` 的 **SHA-256** 缓�
 - 首次释放完成前仍统计完整文件数/总字节并写完成标记；
 - 后续缓存命中只核对 bundle SHA、完成标记和一组启动关键文件，不再每次递归扫描数百个 runtime 文件。
 
-新的 bundle 第一次出现时仍要真实释放一次；后台预热只是把这段成本提前并移出 UI 热路径。关闭 FACM 后再次启动，同一 bundle 应走快速缓存命中。
+新的 bundle 第一次真正启用时仍要真实释放一次。对已启用桌宠的配置，后台预热只是把这段成本移出 UI 热路径；默认未启用桌宠的用户不承担这项成本。关闭 FACM 后再次启动并继续启用同一桌宠，同一 bundle 应走快速缓存命中。
 
 `Stop` 也不再让 UI 线程等待 WPF 最长 1.2 秒退出；发送 stop 后由后台完成等待/强制结束。
 
@@ -55,15 +56,15 @@ PetHost 运行宿主按内嵌 `FACM.Resources.PetHost.zip` 的 **SHA-256** 缓�
 
 PetHost 窗口本身由 FACM 的 `PetHostWindow` 创建，不是 VPet 配置项。
 
-VPet 启动包含两个有真实计数的阶段：上游动作资源准备/缓存阶段，以及后续 `LoadALL` 动作/PNG 缓存阶段。FACM 分别使用各阶段自己的真实完成数/总数驱动同一张加载卡；进入下一阶段时允许总数重新初始化，不把不同语义的两个总数强行相加。
+VPet 启动至少包含两个不同底层阶段：上游动作资源准备/核对，以及后续 `VPetMain.LoadALL` 动作/PNG 缓存。两个阶段会复用同一张 FACM 加载卡，但不能把它们的总数拼成一个假连续进度。
 
 加载卡的产品文案按阶段区分：
 
-- VPet 资源准备的 `当前/总数`（例如 `60/1995`）阶段显示 `正在编译着色器…`，并显示 determinate 进度条、百分比和 `当前/总数`；
-- “正在核对 VPet 官方动作清单”这类没有稳定计数的检查阶段统一显示 `加载中请稍等....`，不伪造进度；
-- 第一次资源准备完成后的后续 `LoadALL` 动作/PNG 缓存阶段显示 `加载中请稍等....`，但仍使用真实 `readyCount / graphCount` 显示进度条、百分比和 `当前/总数`。
+- VPet 资源准备的 `当前/总数`（例如 `60/1995`）由 `HandleBootstrapProgress` 接入统一卡片，显示 `正在编译着色器…`、determinate 真实进度条、百分比和 `当前/总数`；
+- “正在核对 VPet 官方动作清单”这类没有稳定计数的检查阶段显示 `加载中请稍等....`；
+- 第一次资源准备完成后的 `LoadALL` 阶段也显示 `加载中请稍等....`。由于真实机器上 `readyCount` 可能长时间保持 0、不能构成可信连续百分比，该阶段使用 **indeterminate 不定进度条**，不显示长期 `0% / 0/N`。
 
-“正在编译着色器”与“加载中请稍等....”都是产品层展示文案，底层实际工作仍是 VPet 资源准备、动作解析与动作/PNG 缓存生成；有计数时的进度值来自真实回调，不使用定时器模拟。
+“正在编译着色器”与“加载中请稍等....”都是产品层展示文案，底层实际工作仍是 VPet 资源准备、动作解析与动作/PNG 缓存生成；确定进度只在底层提供可信计数时展示，不使用定时器模拟百分比。
 
 按产品要求，加载卡**不显示**“动画来源：VPet / VUP-Simulator（非商用授权）”等来源文字，也不保留空白占位。授权与来源信息继续保留在仓库文档、发行说明和 PetHost publish 内的 `VPET-ASSET-NOTICE.txt`，UI 精简不改变许可证遵循要求。
 
@@ -77,6 +78,8 @@ VPet 启动包含两个有真实计数的阶段：上游动作资源准备/缓�
 - 一个按物理左键边沿触发的 outside-click watcher；
 - watcher 先等待打开面板的那次左键完全释放，再武装下一次点击，避免 PetHost 上报 IPC 点击后面板刚打开就被同一次按键关闭；
 - 打开文件夹选择器、消息框等内部 modal 流程时，沿用 `_dialogOpen` 防止误关父面板。
+
+统一「主题」临时下拉菜单还有额外生命周期要求：WinForms 的 `ToolStripDropDown.Closed` 触发时内部 item-click / modal-menu 消息栈可能尚未完全退出，因此菜单项动作和临时菜单 Dispose 都通过 owner `BeginInvoke` 延后执行；自定义 outside-click Timer 在 Dispose 开始后不再触碰菜单句柄。
 
 ## PetHost 如何交付
 
@@ -132,7 +135,7 @@ FACM\
       └─ Cache\
 ```
 
-首次加载会处理约 538 个动作资源文件，使用并发下载、固定 partial staging、逐文件大小校验、`.download` 原子替换和完成标记复核。缓存残缺时完成标记会失效并重新准备。
+首次加载会准备上游动作资源并生成本地缓存，使用并发下载、固定 partial staging、逐文件大小校验、`.download` 原子替换和完成标记复核。缓存残缺时完成标记会失效并重新准备。
 
 ## 许可证与来源
 
@@ -147,16 +150,18 @@ PetHost publish 中保留 `VPET-ASSET-NOTICE.txt`。
 
 ## CI 与实机验收
 
-Windows CI 验证 PetHost publish/self-test、完整 ZIP 内嵌、FACM 释放内嵌包和启动自检、最终资源与打包。CI 能证明构建/交付/启动链，但透明窗口、真实交互、outside-click、Job Object 与真实磁盘/杀软启动延迟仍需 Windows 实机验收。
+Windows CI 验证 PetHost publish/self-test、完整 ZIP 内嵌、FACM 释放内嵌包和启动自检、最终资源与打包。CI 能证明构建/交付/启动链，但透明窗口、真实交互、outside-click、ToolStrip 生命周期、Job Object 与真实磁盘/杀软启动延迟仍需 Windows 实机验收。
 
 发布前重点测试：
 
-1. 从可写空目录只运行一个 `FACM.exe`；
-2. 新 PetHost bundle 首次出现时允许后台完成一次释放，FACM 主界面必须保持响应；
-3. 关闭 FACM 后再次启动并启用 VPet，应命中 bundle-SHA 快速缓存，不能再次因全目录统计产生明显等待；
-4. `x/1995` 资源准备阶段应显示“正在编译着色器…”和真实进度；核对官方动作清单以及后续 `LoadALL` 阶段应显示“加载中请稍等....”，其中 `LoadALL` 仍显示真实进度条；加载卡不显示动画来源文字；
-5. 点击 VPet 能打开控制中心，再点击屏幕空白处应收起；
-6. 在任务管理器结束 `FACM.PetHost.exe`，默认悬浮球应恢复；
-7. 正常退出 FACM 后，不应残留 PetHost；
-8. 若能测试强制结束 FACM，PetHost 也应被 Job/父进程守护清理；
-9. `runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>` 与 `runtime\pethost` 按预期生成。
+1. 从可写空目录只运行一个 `FACM.exe`，默认应先出现 FACM Shell；
+2. 默认未启用桌宠时，不应准备或启动 PetHost；
+3. 主动启用桌宠后，新 PetHost bundle 首次出现允许后台完成一次释放，FACM Shell 必须保持响应；
+4. 关闭 FACM 后再次启动并继续启用 VPet，应命中 bundle-SHA 快速缓存，不能再次因全目录统计产生明显等待；
+5. `x/1995` 资源准备阶段应显示“正在编译着色器…”和真实进度；核对官方动作清单以及后续 `LoadALL` 阶段应显示“加载中请稍等....”，其中 `LoadALL` 使用活动的不定进度条，不显示长期 0%；加载卡不显示动画来源文字；
+6. 点击 VPet 能打开控制中心，再点击屏幕空白处应收起；
+7. 反复打开/关闭「主题」及其子菜单、打开“面板外观/选择桌面宠物”，不能出现 `ContextMenuStrip ObjectDisposedException`；
+8. 在任务管理器结束 `FACM.PetHost.exe`，FACM Shell 应恢复；
+9. 正常退出 FACM 后，不应残留 PetHost；
+10. 若能测试强制结束 FACM，PetHost 也应被 Job/父进程守护清理；
+11. `runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>` 与 `runtime\pethost` 按预期生成。
