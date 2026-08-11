@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using FACM.Theming;
 
 namespace FACM
 {
@@ -18,39 +19,64 @@ namespace FACM
         private const byte AcSrcAlpha = 0x01;
 
         private readonly Form _form;
-        private readonly Timer _timer;
+        private readonly Timer _hoverTimer;
+        private ThemeDefinition _theme;
         private bool _hovered;
         private bool _disposed;
         private float _hover;
-        private float _phase;
 
-        private LayeredFloatingBall(Form form)
+        private LayeredFloatingBall(Form form, ThemeDefinition theme)
         {
             _form = form ?? throw new ArgumentNullException(nameof(form));
+            _theme = theme ?? ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
             _form.Region = null;
             _form.HandleCreated += HandleCreated;
             _form.Shown += RefreshNow;
             _form.VisibleChanged += RefreshNow;
             _form.LocationChanged += RefreshNow;
-            _form.MouseEnter += delegate { _hovered = true; };
-            _form.MouseLeave += delegate { _hovered = false; };
+            _form.MouseEnter += delegate
+            {
+                _hovered = true;
+                StartHoverTransition();
+            };
+            _form.MouseLeave += delegate
+            {
+                _hovered = false;
+                StartHoverTransition();
+            };
             _form.FormClosed += delegate { Dispose(); };
 
-            _timer = new Timer { Interval = 33 };
-            _timer.Tick += Tick;
-            _timer.Start();
+            // The previous orb rendered a perpetual glow/orbit animation at ~30 FPS even when idle.
+            // The FACM shell is intentionally quiet: redraw only while hover is transitioning.
+            _hoverTimer = new Timer { Interval = 16 };
+            _hoverTimer.Tick += TickHover;
 
             if (_form.IsHandleCreated) ApplyLayeredStyle();
         }
 
         public static LayeredFloatingBall Attach(Form form)
         {
-            return new LayeredFloatingBall(form);
+            return new LayeredFloatingBall(form, ThemeCatalog.Get(ThemeCatalog.DefaultThemeId));
+        }
+
+        public static LayeredFloatingBall Attach(Form form, ThemeDefinition theme)
+        {
+            return new LayeredFloatingBall(form, theme);
+        }
+
+        public void SetTheme(ThemeDefinition theme)
+        {
+            if (_disposed) return;
+            _theme = theme ?? ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
+            RenderLayered();
         }
 
         internal static Bitmap RenderForSmokeTest(int size, float hover = 0f, float phase = 0f)
         {
-            return RenderBall(size, Math.Max(0f, Math.Min(1f, hover)), phase);
+            return RenderShell(
+                size,
+                Math.Max(0f, Math.Min(1f, hover)),
+                ThemeCatalog.Get(ThemeCatalog.DefaultThemeId));
         }
 
         private void HandleCreated(object sender, EventArgs e)
@@ -65,13 +91,27 @@ namespace FACM
             RenderLayered();
         }
 
-        private void Tick(object sender, EventArgs e)
+        private void StartHoverTransition()
         {
-            if (_disposed || !_form.Visible) return;
+            if (_disposed) return;
+            if (!_hoverTimer.Enabled) _hoverTimer.Start();
+        }
+
+        private void TickHover(object sender, EventArgs e)
+        {
+            if (_disposed)
+            {
+                _hoverTimer.Stop();
+                return;
+            }
+
             var target = _hovered ? 1f : 0f;
-            _hover += (target - _hover) * 0.18f;
-            _phase += 0.045f;
-            if (_phase > Math.PI * 2f) _phase -= (float)(Math.PI * 2f);
+            _hover += (target - _hover) * 0.24f;
+            if (Math.Abs(target - _hover) < 0.015f)
+            {
+                _hover = target;
+                _hoverTimer.Stop();
+            }
             RenderLayered();
         }
 
@@ -87,7 +127,7 @@ namespace FACM
         private void RenderLayered()
         {
             if (_disposed || !_form.IsHandleCreated || !_form.Visible) return;
-            using (var bitmap = RenderBall(Math.Min(_form.Width, _form.Height), _hover, _phase))
+            using (var bitmap = RenderShell(Math.Min(_form.Width, _form.Height), _hover, _theme))
             {
                 IntPtr screenDc = IntPtr.Zero;
                 IntPtr memoryDc = IntPtr.Zero;
@@ -132,9 +172,10 @@ namespace FACM
             }
         }
 
-        private static Bitmap RenderBall(int size, float hover, float phase)
+        private static Bitmap RenderShell(int size, float hover, ThemeDefinition theme)
         {
-            size = Math.Max(64, size);
+            size = Math.Max(56, size);
+            theme = theme ?? ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
             var bitmap = new Bitmap(size, size, PixelFormat.Format32bppPArgb);
             using (var graphics = Graphics.FromImage(bitmap))
             {
@@ -144,113 +185,112 @@ namespace FACM
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 graphics.CompositingQuality = CompositingQuality.HighQuality;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                var pulse = 0.5f + 0.5f * (float)Math.Sin(phase);
-                var glowAlpha = 30 + (int)(34 * hover) + (int)(8 * pulse);
-                var haloRect = new RectangleF(5.5f, 5.5f, size - 11f, size - 11f);
-                using (var haloPath = new GraphicsPath())
+                var margin = Math.Max(5f, size * 0.09f);
+                var bodyRect = new RectangleF(margin, margin - 1f, size - margin * 2f, size - margin * 2f);
+                var radius = Math.Max(12f, bodyRect.Width * 0.29f);
+
+                // Soft separation shadow only. No neon halo, orbiting dot or breathing animation.
+                for (var index = 3; index >= 1; index--)
                 {
-                    haloPath.AddEllipse(haloRect);
-                    using (var halo = new PathGradientBrush(haloPath))
-                    {
-                        halo.CenterPoint = new PointF(size * 0.5f, size * 0.5f);
-                        halo.CenterColor = Color.FromArgb(glowAlpha, 77, 205, 255);
-                        halo.SurroundColors = new[] { Color.FromArgb(0, 77, 205, 255) };
-                        graphics.FillPath(halo, haloPath);
-                    }
+                    var expand = index * 1.2f;
+                    var shadowRect = new RectangleF(
+                        bodyRect.X - expand,
+                        bodyRect.Y - expand + 2.2f,
+                        bodyRect.Width + expand * 2f,
+                        bodyRect.Height + expand * 2f);
+                    using (var shadowPath = CreateRoundedPath(shadowRect, radius + expand))
+                    using (var shadow = new SolidBrush(Color.FromArgb(8 + index * 6, 0, 0, 0)))
+                        graphics.FillPath(shadow, shadowPath);
                 }
 
-                var sphere = new RectangleF(9f, 9f, size - 18f, size - 18f);
-                using (var spherePath = new GraphicsPath())
+                var baseSurface = theme.IsLight
+                    ? Blend(theme.Surface, Color.White, 0.12f)
+                    : Blend(theme.Surface, Color.Black, 0.16f);
+                var hoverSurface = theme.IsLight
+                    ? Blend(baseSurface, Color.Black, 0.035f)
+                    : Blend(baseSurface, Color.White, 0.075f);
+                var surface = Blend(baseSurface, hoverSurface, hover);
+
+                using (var bodyPath = CreateRoundedPath(bodyRect, radius))
+                using (var body = new SolidBrush(Color.FromArgb(244, surface)))
+                using (var border = new Pen(
+                    Color.FromArgb(
+                        76 + (int)(74 * hover),
+                        hover > 0.02f ? theme.Accent : theme.Border),
+                    1f + hover * 0.18f))
                 {
-                    spherePath.AddEllipse(sphere);
-                    using (var body = new PathGradientBrush(spherePath))
-                    {
-                        body.CenterPoint = new PointF(sphere.Left + sphere.Width * 0.33f, sphere.Top + sphere.Height * 0.26f);
-                        body.CenterColor = Color.FromArgb(250, 183, 232, 255);
-                        body.SurroundColors = new[] { Color.FromArgb(248, 32, 88, 166) };
-                        graphics.FillPath(body, spherePath);
-                    }
+                    graphics.FillPath(body, bodyPath);
+                    graphics.DrawPath(border, bodyPath);
                 }
 
-                using (var lowerPath = new GraphicsPath())
-                {
-                    lowerPath.AddEllipse(
-                        sphere.Left + sphere.Width * 0.08f,
-                        sphere.Top + sphere.Height * 0.50f,
-                        sphere.Width * 0.84f,
-                        sphere.Height * 0.40f);
-                    using (var shade = new PathGradientBrush(lowerPath))
-                    {
-                        shade.CenterColor = Color.FromArgb(96, 31, 91, 190);
-                        shade.SurroundColors = new[] { Color.FromArgb(0, 45, 119, 212) };
-                        graphics.FillPath(shade, lowerPath);
-                    }
-                }
+                // A single restrained top highlight gives depth without making the entry look glossy.
+                var highlightRect = RectangleF.Inflate(bodyRect, -3.2f, -3.2f);
+                using (var highlightPath = CreateRoundedPath(highlightRect, Math.Max(8f, radius - 3f)))
+                using (var highlight = new Pen(Color.FromArgb(theme.IsLight ? 38 : 24, Color.White), 1f))
+                    graphics.DrawPath(highlight, highlightPath);
 
-                var ringAlpha = 180 + (int)(55 * hover);
-                using (var outerRing = new Pen(Color.FromArgb(Math.Min(255, ringAlpha), 111, 220, 255), 1.7f))
-                    graphics.DrawEllipse(outerRing, sphere);
-                using (var innerRing = new Pen(Color.FromArgb(120 + (int)(45 * hover), 203, 242, 255), 1.0f))
-                    graphics.DrawEllipse(innerRing, sphere.X + 4f, sphere.Y + 4f, sphere.Width - 8f, sphere.Height - 8f);
+                // Tiny theme accent doubles as the shell's status/identity mark.
+                var accentWidth = bodyRect.Width * 0.23f;
+                var accentRect = new RectangleF(
+                    bodyRect.X + (bodyRect.Width - accentWidth) / 2f,
+                    bodyRect.Bottom - 6.2f,
+                    accentWidth,
+                    2.2f);
+                using (var accentPath = CreateRoundedPath(accentRect, 1.2f))
+                using (var accent = new SolidBrush(Color.FromArgb(185 + (int)(55 * hover), theme.Accent)))
+                    graphics.FillPath(accent, accentPath);
 
-                using (var glassPath = new GraphicsPath())
-                {
-                    glassPath.AddEllipse(
-                        sphere.X + sphere.Width * 0.13f,
-                        sphere.Y + sphere.Height * 0.10f,
-                        sphere.Width * 0.48f,
-                        sphere.Height * 0.31f);
-                    using (var glass = new PathGradientBrush(glassPath))
-                    {
-                        glass.CenterColor = Color.FromArgb(138 + (int)(28 * hover), 255, 255, 255);
-                        glass.SurroundColors = new[] { Color.FromArgb(0, 255, 255, 255) };
-                        graphics.FillPath(glass, glassPath);
-                    }
-                }
-
-                var coreSize = 31f;
-                var core = new RectangleF((size - coreSize) / 2f, (size - coreSize) / 2f, coreSize, coreSize);
-                using (var corePath = new GraphicsPath())
-                {
-                    corePath.AddEllipse(core);
-                    using (var coreBrush = new PathGradientBrush(corePath))
-                    {
-                        coreBrush.CenterPoint = new PointF(core.Left + core.Width * 0.34f, core.Top + core.Height * 0.26f);
-                        coreBrush.CenterColor = Color.FromArgb(255, 251, 254, 255);
-                        coreBrush.SurroundColors = new[] { Color.FromArgb(250, 111, 190, 244) };
-                        graphics.FillPath(coreBrush, corePath);
-                    }
-                }
-                using (var coreRing = new Pen(Color.FromArgb(210, 222, 247, 255), 1f))
-                    graphics.DrawEllipse(coreRing, core);
-
-                using (var font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
-                using (var textBrush = new SolidBrush(Color.FromArgb(32, 73, 132)))
+                var logoColor = theme.IsLight
+                    ? Blend(theme.TextPrimary, Color.Black, 0.06f)
+                    : Blend(theme.TextPrimary, Color.White, 0.08f);
+                using (var font = new Font("Segoe UI", Math.Max(18f, size * 0.32f), FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var textBrush = new SolidBrush(Color.FromArgb(245, logoColor)))
                 {
                     const string logo = "F";
                     var measured = graphics.MeasureString(logo, font);
-                    graphics.DrawString(logo, font, textBrush, (size - measured.Width) / 2f - 0.3f, (size - measured.Height) / 2f - 1.8f);
+                    graphics.DrawString(
+                        logo,
+                        font,
+                        textBrush,
+                        (size - measured.Width) / 2f - 0.2f,
+                        (size - measured.Height) / 2f - 2.4f);
                 }
-
-                var dotAngle = phase * 0.85f;
-                var dotX = size * 0.5f + 25.5f * (float)Math.Cos(dotAngle);
-                var dotY = size * 0.5f + 8.5f * (float)Math.Sin(dotAngle);
-                using (var dot = new SolidBrush(Color.FromArgb(175 + (int)(55 * hover), 218, 249, 255)))
-                    graphics.FillEllipse(dot, dotX - 1.6f, dotY - 1.6f, 3.2f, 3.2f);
             }
             return bitmap;
+        }
+
+        private static GraphicsPath CreateRoundedPath(RectangleF bounds, float radius)
+        {
+            var path = new GraphicsPath();
+            var diameter = Math.Max(2f, Math.Min(Math.Min(bounds.Width, bounds.Height), radius * 2f));
+            path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        private static Color Blend(Color first, Color second, float amount)
+        {
+            amount = Math.Max(0f, Math.Min(1f, amount));
+            return Color.FromArgb(
+                (int)(first.A + (second.A - first.A) * amount),
+                (int)(first.R + (second.R - first.R) * amount),
+                (int)(first.G + (second.G - first.G) * amount),
+                (int)(first.B + (second.B - first.B) * amount));
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            if (_timer != null)
+            if (_hoverTimer != null)
             {
-                _timer.Stop();
-                _timer.Dispose();
+                _hoverTimer.Stop();
+                _hoverTimer.Dispose();
             }
             if (_form != null)
             {
