@@ -241,3 +241,64 @@ PR #40 排查 PetHost 首次释放慢时，曾把“尽早准备 PetHost”误�
 
 - Issue #26
 - PR #27
+
+## 同一个启动卡可能覆盖多个加载阶段，先确认用户看到的是哪一阶段
+
+### 根因
+
+PetHost 的启动卡至少覆盖两类不同工作：`VPetAssetBootstrapper` 的资源准备/核对，以及 `VPetMain.LoadALL` 的动作图缓存。两者都会在同一个 FACM 状态卡里出现 `x/N`，但总数、进度语义和可用回调并不相同。
+
+PR #40 第一轮只改了后面的 `LoadALL` 显示，所以源码里虽然已经有“正在编译着色器…”和进度条，用户实机看到的前一段 `60/1995` 仍然是旧“正在缓存高精度动作”。问题不是用户跑错 EXE，而是修改了错误的加载阶段。
+
+### 防回归规则
+
+- 改启动/加载 UI 前，先沿着用户看到的**具体文字、计数和回调**定位实际 emitter，不能只凭“都是加载过程”猜阶段。
+- 截图/视频里的 `x/N` 必须映射到具体源回调；同一个视觉卡片不代表同一个底层进度源。
+- 产品需要统一视觉时，可以让多个阶段走同一个 renderer，但每个阶段仍保留自己的真实计数和语义。
+- 不得把两个阶段的总数拼成一个假的连续百分比。
+- 某阶段没有可信递增进度时，用 indeterminate 状态，不显示长期 `0%`。
+
+### 关联
+
+- PR #40
+
+## ToolStrip 下拉菜单的 `Closed` 不是同步 Dispose 的安全边界
+
+### 根因
+
+PR #40 新增统一「主题」下拉菜单时，在 `ContextMenuStrip.Closed` 事件里直接 `menu.Dispose()`。但 WinForms 触发 `Closed` 时，内部 `SetVisibleCore`、`OnItemClicked` 和 `ToolStripManager.ModalMenuFilter` 的当前消息栈仍可能继续访问该对象。
+
+Build #741 实机日志因此出现连续 `ObjectDisposedException`：一次来自 outside-click Timer，一次来自 `OnItemClicked`，最终还能在 `ModalMenuFilter` 中变成未处理异常并终止消息循环。同步打开新的 modal 窗口/选择器也会增加 ToolStrip 点击栈的重入风险。
+
+### 防回归规则
+
+- `ToolStripDropDown/ContextMenuStrip.Closed` 只表示“已进入关闭流程”，不能在事件回调里同步 Dispose 自身。
+- 需要主动释放临时下拉菜单时，通过稳定 owner 的 `BeginInvoke` 把 Dispose 推迟到当前 ToolStrip 消息栈完全退出之后。
+- 菜单项如果会打开 modal 窗口、切换桌面形态或触发较大 UI 状态变更，也应通过 `BeginInvoke` 推迟到当前 item-click 栈退出后执行。
+- 自定义 outside-click Timer 在 Dispose 开始时必须停止并解绑；Tick 入口还要检查 `Disposing/IsDisposed`，因为已经排队的 WM_TIMER 仍可能晚到一次。
+- 处理关闭竞态时，`ObjectDisposedException` 可作为“目标已经关闭”的终态，但不能只靠 catch 掩盖同步 Dispose 的错误时序。
+
+### 关联
+
+- PR #40
+
+## OP.GG ARAM 真实页面不能假设版本标签和正负号紧贴数值
+
+### 根因
+
+完整基础 ARAM 状态首次接入 FACM 时，离线 fixture 使用了理想化的 `Patch 16.15`、`Attack Speed +2.5%` 形态。接口项目随后在真实页面验收发现：OP.GG 的 HTML/可见文本可能把版本写成 `Ver: 16.15` / `Version: 16.15`，也可能把正负号和数字拆成 `+ 2.5%`。如果解析器只接受单一形态，会出现两类假降级：有真实 Buff 却显示“完整平衡暂不可用”，或平衡数值正确但版本被标成“未校验”。
+
+平衡卡附近还可能出现广告尺寸、胜率等普通无符号数字。把所有数字都当成“未知平衡字段”会把正常页面误判为不完整。
+
+### 防回归规则
+
+- Patch 提取至少兼容 `Patch`、`Ver`、`Version`、`16.15 版本`、`版本号：16.15` 等明确版本标签；不要从页面任意裸版本数字猜当前平衡版本。
+- 平衡字段允许 `+/-` 与数字之间出现空白，解析后统一归一为 `+2.5%` / `-20` 这类稳定值。
+- 完整性 fail-closed 只对**未识别的带符号调整值**生效；广告尺寸、场次、胜率等无符号数字不能触发 `unparsed_balance_values`。
+- 未识别的 `- 15%` 这类带空格新字段仍必须 fail-closed，不能为了兼容页面噪声而放弃未知修正保护。
+- `--aram-base-balance-test` 至少保留亚索（单正向攻速）、库奇（承伤 + 冷却）和萨勒芬妮（多项持续 debuff）三类 deterministic fixture；公网可访问性继续由独立 Mayhem source probe 验证。
+
+### 关联
+
+- PR #36
+- PR #37
