@@ -18,6 +18,10 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并使用 `KIL
 
 PetHost 的内嵌包定位/释放、进程创建、最长 7 秒的 named-pipe connect 和停止等待均不得占用 WinForms UI 线程。
 
+FACM 启动准备完成后会在后台预热当前内嵌 PetHost。预热与用户实际启用桌宠共用同一个任务，避免重复解包。PetHost 运行宿主按 **内嵌 PetHost ZIP 的 SHA-256** 隔离，而不是按 FACM 主程序集 MVID 隔离；这样 FACM-only 更新可以复用完全相同的 PetHost，而任何 PetHost payload 变化都会进入新的宿主目录。
+
+缓存命中时只快速校验完成标记和启动所需关键文件，不再每次递归统计 self-contained runtime 的几百个文件；首次释放仍会做完整文件数/总字节统计后才写完成标记。
+
 ## 控制中心
 
 `MainForm` 是悬浮球和应用级入口拥有者；`CompactMenuForm` 是轻量弹出控制中心。
@@ -98,6 +102,8 @@ Riot 元数据优先使用本机 League Client LCU，无法使用时回退 Data 
 
 ## 发布边界
 
-正式发布包继续只交付一个 `FACM.exe`。匹配版本的 self-contained PetHost publish 目录在构建时压成 `FACM.Resources.PetHost.zip` 嵌入主 EXE，运行时按 FACM MVID 释放到 `runtime\pethost-host\<FACM-MVID>`。
+正式发布包继续只交付一个 `FACM.exe`。匹配版本的 self-contained PetHost publish 目录在构建时压成 `FACM.Resources.PetHost.zip` 嵌入主 EXE，运行时按该 ZIP 的 SHA-256 释放/复用到：
+
+`runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>`
 
 正式 Release 与在线更新事务由独立发布工作流负责；发布前实机验收与普通 Actions 测试 artifact 分开。
