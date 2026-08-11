@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using FACM.Services;
 
 namespace FACM.Theming
 {
@@ -31,20 +32,46 @@ namespace FACM.Theming
                 Renderer = new ToolStripProfessionalRenderer(new ThemeMenuColorTable())
             };
 
-            var panelTheme = new ToolStripMenuItem("面板外观…");
-            panelTheme.Click += delegate { PostOwnerAction(owner, owner.OpenPanelThemeSelector); };
+            var panelTheme = CreateItem("面板外观…", menu.ForeColor);
+            panelTheme.Click += delegate
+            {
+                AppLog.Info("Theme menu action: panel appearance");
+                PostOwnerAction(owner, owner.OpenPanelThemeSelector);
+            };
 
-            var desktop = new ToolStripMenuItem("桌面形态");
-            var shell = new ToolStripMenuItem("FACM 悬浮入口");
-            shell.Click += delegate { PostOwnerAction(owner, owner.RestoreDefaultBall); };
-            var pet = new ToolStripMenuItem("选择桌面宠物…");
-            pet.Click += delegate { PostOwnerAction(owner, owner.OpenPetSelector); };
-            var reset = new ToolStripMenuItem("复位桌面位置");
-            reset.Click += delegate { PostOwnerAction(owner, owner.ResetAnimalPet); };
+            var desktop = CreateItem("桌面形态", menu.ForeColor);
+            var shell = CreateItem("FACM 悬浮入口", menu.ForeColor);
+            shell.Click += delegate
+            {
+                AppLog.Info("Theme menu action: FACM shell");
+                PostOwnerAction(owner, owner.RestoreDefaultBall);
+            };
+            var pet = CreateItem("选择桌面宠物…", menu.ForeColor);
+            pet.Click += delegate
+            {
+                AppLog.Info("Theme menu action: desktop pet picker");
+                PostOwnerAction(owner, owner.OpenPetSelector);
+            };
+            var reset = CreateItem("复位桌面位置", menu.ForeColor);
+            reset.Click += delegate
+            {
+                AppLog.Info("Theme menu action: reset desktop position");
+                PostOwnerAction(owner, owner.ResetAnimalPet);
+            };
             desktop.DropDownItems.Add(shell);
             desktop.DropDownItems.Add(pet);
             desktop.DropDownItems.Add(new ToolStripSeparator());
             desktop.DropDownItems.Add(reset);
+
+            // Child ToolStripDropDownMenu does not reliably inherit the visual properties assigned to
+            // the root ContextMenuStrip. Apply the same surface/renderer explicitly so the submenu does
+            // not fall back to dark default text on FACM's dark menu background.
+            desktop.DropDown.BackColor = menu.BackColor;
+            desktop.DropDown.ForeColor = menu.ForeColor;
+            desktop.DropDown.Renderer = menu.Renderer;
+            var desktopMenu = desktop.DropDown as ToolStripDropDownMenu;
+            if (desktopMenu != null)
+                desktopMenu.ShowImageMargin = false;
 
             menu.Items.Add(panelTheme);
             menu.Items.Add(desktop);
@@ -70,6 +97,11 @@ namespace FACM.Theming
                 }
             };
             menu.Show(screenLocation);
+        }
+
+        private static ToolStripMenuItem CreateItem(string text, Color foreColor)
+        {
+            return new ToolStripMenuItem(text) { ForeColor = foreColor };
         }
 
         private static void PostOwnerAction(MainForm owner, Action action)
