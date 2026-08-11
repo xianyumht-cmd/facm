@@ -28,6 +28,7 @@ namespace FACM
         private bool _petPickerOpen;
         private bool _themePickerOpen;
         private bool _mayhemOpen;
+        private bool _startupWarmupStarted;
         private bool _exiting;
         private bool _animalPetActive;
         private bool _dragging;
@@ -275,6 +276,11 @@ namespace FACM
             RestoreBallPosition();
             ShowBuiltInBall();
 
+            // The FACM shell is the first visible product surface. Optional heavy payloads warm in the
+            // background only after this form has been shown, so VPet/tool extraction cannot make the
+            // application look like it failed to launch.
+            BeginBackgroundWarmup();
+
             if (_settings.AnimalPetEnabled)
                 BeginInvoke(new Action(ActivateAnimalPet));
 
@@ -292,6 +298,37 @@ namespace FACM
             }
 
             BeginInvoke(new Action(StartOnlineCheck));
+        }
+
+        private void BeginBackgroundWarmup()
+        {
+            if (_startupWarmupStarted || IsDisposed || _exiting) return;
+            _startupWarmupStarted = true;
+
+            Task.Run(async delegate
+            {
+                // Give the message loop a short head start so the floating entry can paint before disk/AV
+                // work begins. These preparations are opportunistic; each feature still lazily retries.
+                await Task.Delay(180).ConfigureAwait(false);
+
+                try
+                {
+                    ToolBundleLoader.Prepare();
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Tool bundle background warmup failed", exception);
+                }
+
+                try
+                {
+                    await PetHostBundleLoader.BeginWarmup().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("PetHost background warmup failed", exception);
+                }
+            });
         }
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
@@ -340,6 +377,11 @@ namespace FACM
             if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
             try
             {
+                // Keep the lightweight FACM entry visible until the selected desktop form reports that
+                // it is actually ready. This removes the previous no-visible-UI gap while PetHost starts.
+                _animalPetActive = false;
+                ShowBuiltInBall();
+
                 AnimalPetManager.Activate(
                     _settings.PetStyleId,
                     delegate
@@ -366,9 +408,21 @@ namespace FACM
                             }));
                         }
                         catch { }
+                    },
+                    delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        try
+                        {
+                            BeginInvoke(new Action(delegate
+                            {
+                                if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
+                                _animalPetActive = true;
+                                HideBuiltInBall();
+                            }));
+                        }
+                        catch { }
                     });
-                _animalPetActive = true;
-                HideBuiltInBall();
             }
             catch (Exception exception)
             {
@@ -499,7 +553,7 @@ namespace FACM
 
                 if (snapshot.UpdateAvailable)
                 {
-                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“" + _ui.CheckUpdate + "”处理。", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“ + _ui.CheckUpdate + ”处理。", ToolTipIcon.Info);
                 }
                 else if (announcement != null && announcement.Enabled &&
                          !string.IsNullOrWhiteSpace(announcement.Id) &&
