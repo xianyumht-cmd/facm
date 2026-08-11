@@ -55,6 +55,8 @@
 - 「主题」菜单内部区分：`面板外观…` 与 `桌面形态 → FACM 悬浮入口 / 选择桌面宠物… / 复位桌面位置`。
 - 「主题」是统一产品入口；现阶段不强行合并 `ThemeId` 与 `AnimalPetEnabled/PetStyleId` 的持久化枚举，避免 UI 整理破坏既有配置兼容。
 - 没有把任何具体桌宠名称擅自提升为产品固定名称；桌面宠物仍按现有目录/配置名称展示。
+- Build #741 实机日志暴露「主题」临时下拉菜单的生命周期回归：`Closed` 事件同步 `Dispose()`，而 WinForms 内部 `SetVisibleCore/OnItemClicked/ModalMenuFilter` 仍在当前消息栈中继续使用该菜单，最终连续触发 `ObjectDisposedException` 并可终止主消息循环。
+- 修复已改为：主题菜单动作通过 `BeginInvoke` 推迟到 ToolStrip 点击栈退出后执行；菜单本身也在 `Closed` 后通过 owner 消息队列延迟 Dispose；通用 `ContextMenuStrip` 的 outside-click Tick 增加 disposing/disposed 防护，避免已排队的 WM_TIMER 在销毁后重新触碰下拉句柄。
 
 ### 验证状态
 
@@ -62,8 +64,9 @@
 - Build #719：移除动画来源 UI。
 - Build #728：Shell-first、ready 后再接管、后段不定进度条通过。
 - Build #736：56px 新 FACM Shell、统一主题入口、默认不预热未启用 PetHost，Windows Build 全步骤成功；Mayhem Source Probe #75 成功。
-- 最终二进制行为对应代码提交 `49f5cd5927dc1a07cf33044428e7de70e187bfb7`；其 Windows Build #741 成功，并包含透明层文字抗锯齿修正。其后的提交仅同步架构/决策/状态文档，不改变二进制行为。
-- 当前阶段：**等待用户实机验收**。PR #40 仍未合并、未发布；验收前不继续扩大功能范围。
+- Build #741：首个可实机验收的新 Shell + 主题整合包；用户日志随后确认主题菜单 Dispose 生命周期回归，因此该包**不可接受为候选**。
+- 菜单生命周期根修最新代码提交为 `35e0e0defc09ed250acd547bcb4b73611fc253e3`；等待其最终 HEAD CI 与下一轮实机菜单验收。
+- 当前阶段：**等待修复包实机验收**。PR #40 仍未合并、未发布；验收前不继续扩大功能范围。
 
 ## 在线更新状态
 
