@@ -81,10 +81,10 @@ namespace FACM.Pets
                 "https://opengameart.org/content/walking-ant-with-parts-and-rigged-spriter-file", "DudeMan", "CC0"),
 
             Pet(
-                "greenfly", "绿苍蝇（旧引擎）", "三帧高速扇翅 Sprite，仅作为旧引擎回退。", AnimalMotionStyle.Fly,
-                "https://opengameart.org/sites/default/files/greenfly_spritesheet.png", "greenfly_spritesheet.png",
-                3, 1, 0, 3, 22f, false, true, 1.36f, 0.56f,
-                "https://opengameart.org/content/16x16-flies", "ARoachIFoundOnMyPillow", "CC0"),
+                "greenfly", "绿苍蝇（轻量）", "FACM 内置 96px 精细 Sprite：4 个稳定锚点振翅状态，保留现有高速随机飞行轨迹。", AnimalMotionStyle.Fly,
+                SpritePetAssetService.BuiltInGreenFlyUrl, "greenfly_hq_v1.generated",
+                4, 1, 0, 4, 22f, false, false, 1.36f, 0.56f,
+                "https://github.com/xianyumht-cmd/facm/issues/43", "FACM project", "CC0"),
 
             Pet(
                 "greyfly", "灰苍蝇（旧引擎）", "三帧高速扇翅 Sprite，仅作为旧引擎回退。", AnimalMotionStyle.Fly,
