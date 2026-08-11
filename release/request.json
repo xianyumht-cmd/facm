@@ -1,8 +1,8 @@
 {
-  "request_id": "3.1.2-full-aram-balance-release",
-  "version": "3.1.2",
+  "request_id": "3.1.3-shell-theme-desktop-release",
+  "version": "3.1.3",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.1.2：海斗排行榜新增英雄完整基础 ARAM Buff/Debuff，并与 Mayhem 专属状态分层展示；修复 OP.GG 实时页面版本号与带空格正负调整值解析，提升亚索、库奇、萨勒芬妮等英雄平衡状态的准确性与版本校验稳定性。"
+  "release_notes": "FACM 3.1.3：新增轻量 FACM 悬浮入口并整合主题与桌面形态；优化 VPet 启动和加载体验，修复桌面形态菜单与位置复位问题；轻量桌宠支持更自然的自由移动。"
 }
