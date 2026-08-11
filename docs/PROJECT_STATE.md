@@ -44,7 +44,7 @@
 
 - 新产品决策：FACM 默认不再采用“桌面无入口、仅托盘常驻”；启动后立即显示 FACM 自己的轻量 Shell。
 - Shell 窗口已从 88×88 收紧到 **56×56**，实际可见主体约 46px；旧蓝色玻璃球的外发光、呼吸和环绕亮点已移除，改为深色圆角方形、细边框、品牌 `F` 和轻量 Hover。
-- Shell 空闲时不再 33ms 常驻重绘，只在 Hover 过渡时短暂刷新。
+- Shell 空闲时不再 33ms 常驻重绘，只在 Hover 过渡时短暂刷新；透明分层窗口上的文字渲染使用灰度抗锯齿，避免 ClearType 彩边。
 - 当 `AnimalPetEnabled=true` 时，Shell 先保持可用；PetHost 真正发送 `ready` 后才隐藏 Shell，由桌宠接管。PetHost 失败时继续恢复/保留 Shell。
 - **默认 `AnimalPetEnabled=false` 时不预热 PetHost**。只有配置已启用桌宠或用户主动选择桌宠后，才进入 PetHost 准备/启动链；不能让可选 VPet 成为默认启动负担。
 
@@ -61,6 +61,7 @@
 - Build #719：移除动画来源 UI。
 - Build #728：Shell-first、ready 后再接管、后段不定进度条通过。
 - Build #736：56px 新 FACM Shell、统一主题入口、默认不预热未启用 PetHost，Windows Build 全步骤成功；Mayhem Source Probe #75 成功。
+- 当前最终视觉代码 HEAD `49f5cd5927dc1a07cf33044428e7de70e187bfb7` 的 Windows Build #741 成功；该构建包含透明层文字抗锯齿修正。对应 Mayhem Source Probe #80 独立运行。
 - PR #40 仍**未合并、未发布**；需要用户实机确认新 Shell 视觉、主题菜单以及 VPet 切换过程后再决定是否合并。
 
 ## 在线更新状态
