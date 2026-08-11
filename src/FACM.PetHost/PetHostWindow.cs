@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -33,6 +34,7 @@ internal sealed class PetHostWindow : Window
     private System.Drawing.Point _leftDownPoint;
     private long _leftDownTicks;
     private bool _leftTracking;
+    private int _bootstrapProgressTotal;
 
     public PetHostWindow(PetHostIpc ipc)
     {
@@ -162,7 +164,7 @@ internal sealed class PetHostWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _controller.ResetToPrimaryScreen();
-        var progress = new Progress<string>(message => SetStatus(message));
+        var progress = new Progress<string>(HandleBootstrapProgress);
         var started = Stopwatch.StartNew();
 
         try
@@ -239,6 +241,37 @@ internal sealed class PetHostWindow : Window
             SetStatus("高精度桌宠启动失败\n" + Trim(exception.Message, 120) + "\n右键可返回 FACM 菜单", includeNotice: false);
             await _ipc.SendEventAsync("error", exception.GetType().Name + ": " + exception.Message);
         }
+    }
+
+    private void HandleBootstrapProgress(string message)
+    {
+        var text = message ?? string.Empty;
+        var fraction = Regex.Match(text, @"(?<current>\d+)\s*/\s*(?<total>\d+)");
+        if (fraction.Success &&
+            int.TryParse(fraction.Groups["current"].Value, out var current) &&
+            int.TryParse(fraction.Groups["total"].Value, out var total) &&
+            total > 0)
+        {
+            _bootstrapProgressTotal = total;
+            SetCacheProgress(Math.Clamp(current, 0, total), total);
+            return;
+        }
+
+        var manifest = Regex.Match(text, @"官方动作集\s+(?<total>\d+)\s+个文件");
+        if (manifest.Success && int.TryParse(manifest.Groups["total"].Value, out total) && total > 0)
+        {
+            _bootstrapProgressTotal = total;
+            SetCacheProgress(0, total);
+            return;
+        }
+
+        if (_bootstrapProgressTotal > 0 && text.Contains("资源准备完成", StringComparison.Ordinal))
+        {
+            SetCacheProgress(_bootstrapProgressTotal, _bootstrapProgressTotal);
+            return;
+        }
+
+        SetStatus(text);
     }
 
     private void SetStatus(string message, bool includeNotice = true)
