@@ -12,6 +12,7 @@ using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfFontFamily = System.Windows.Media.FontFamily;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfProgressBar = System.Windows.Controls.ProgressBar;
 using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace FACM.PetHost;
@@ -23,7 +24,7 @@ internal sealed class PetHostWindow : Window
     private readonly Grid _root;
     private readonly Border _statusCard;
     private readonly TextBlock _statusText;
-    private readonly ProgressBar _statusProgress;
+    private readonly WpfProgressBar _statusProgress;
     private readonly TextBlock _statusProgressText;
     private readonly TextBlock _statusNotice;
     private readonly PetWindowController _controller;
@@ -81,7 +82,7 @@ internal sealed class PetHostWindow : Window
             Margin = new Thickness(4, 0, 4, 0)
         };
 
-        _statusProgress = new ProgressBar
+        _statusProgress = new WpfProgressBar
         {
             Minimum = 0,
             Maximum = 1,
