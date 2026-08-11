@@ -55,15 +55,17 @@ PetHost 运行宿主按内嵌 `FACM.Resources.PetHost.zip` 的 **SHA-256** 缓�
 
 PetHost 窗口本身由 FACM 的 `PetHostWindow` 创建，不是 VPet 配置项。
 
-VPet `LoadALL` 生成动作/PNG 缓存时，FACM 使用它的真实 `readyCount / graphCount` 回调显示：
+VPet 启动包含两个有真实计数的阶段：上游动作资源准备/缓存阶段，以及后续 `LoadALL` 动作/PNG 缓存阶段。FACM 分别使用各阶段自己的真实完成数/总数驱动同一张加载卡；进入下一阶段时允许总数重新初始化，不把不同语义的两个总数强行相加。
+
+加载卡统一显示：
 
 - `正在编译着色器…`；
 - determinate 进度条；
 - 百分比和 `当前/总数`。
 
-这里“正在编译着色器”是产品层展示文案，底层实际工作仍是 VPet 动作/PNG 缓存生成；进度值不是定时器模拟。
+这里“正在编译着色器”是产品层展示文案，底层实际工作仍是 VPet 资源准备与动作/PNG 缓存生成；进度值不是定时器模拟。
 
-VPet 动画资源下载阶段仍有独立资源准备状态，不能把资源下载数量与 `LoadALL` 的 graph 数量混为同一个阶段。
+按产品要求，加载卡**不显示**“动画来源：VPet / VUP-Simulator（非商用授权）”等来源文字，也不保留空白占位。授权与来源信息继续保留在仓库文档、发行说明和 PetHost publish 内的 `VPET-ASSET-NOTICE.txt`，UI 精简不改变许可证遵循要求。
 
 ## 控制中心交互
 
@@ -74,7 +76,7 @@ VPet 动画资源下载阶段仍有独立资源准备状态，不能把资源下
 - 正常获得焦点时的 `Deactivate` 自动关闭；
 - 一个按物理左键边沿触发的 outside-click watcher；
 - watcher 先等待打开面板的那次左键完全释放，再武装下一次点击，避免 PetHost 上报 IPC 点击后面板刚打开就被同一次按键关闭；
-- 打开文件夹选择器、消息框等内部对话流程时，沿用 `_dialogOpen` 防止误关父面板。
+- 打开文件夹选择器、消息框等内部 modal 流程时，沿用 `_dialogOpen` 防止误关父面板。
 
 ## PetHost 如何交付
 
@@ -152,7 +154,7 @@ Windows CI 验证 PetHost publish/self-test、完整 ZIP 内嵌、FACM 释放内
 1. 从可写空目录只运行一个 `FACM.exe`；
 2. 新 PetHost bundle 首次出现时允许后台完成一次释放，FACM 主界面必须保持响应；
 3. 关闭 FACM 后再次启动并启用 VPet，应命中 bundle-SHA 快速缓存，不能再次因全目录统计产生明显等待；
-4. 动作缓存阶段应显示“正在编译着色器…”和真实进度条；
+4. 资源准备和动作缓存阶段都应显示“正在编译着色器…”、真实进度条和百分比/完成数，且加载卡不显示动画来源文字；
 5. 点击 VPet 能打开控制中心，再点击屏幕空白处应收起；
 6. 在任务管理器结束 `FACM.PetHost.exe`，默认悬浮球应恢复；
 7. 正常退出 FACM 后，不应残留 PetHost；
