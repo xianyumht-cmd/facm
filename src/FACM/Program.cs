@@ -162,8 +162,9 @@ namespace FACM
                     AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
                 };
 
-                var shell = new ShellModule(startCleanup);
-                using (var host = CreateHost(shell))
+                var settings = new SettingsModule();
+                var shell = new ShellModule(startCleanup, settings);
+                using (var host = CreateHost(settings, shell))
                 {
                     try
                     {
@@ -206,10 +207,11 @@ namespace FACM
             }
         }
 
-        private static FacmHost CreateHost(ShellModule shell)
+        private static FacmHost CreateHost(SettingsModule settings, ShellModule shell)
         {
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
+            host.Register(settings);
             host.Register(shell);
             return host;
         }

@@ -1,321 +1,261 @@
 # FACM 3.1 / 3.2 架构
 
-> 本文前半部分记录 `main` 的 FACM 3.1 已验证产品架构；文末记录 FACM 3.2 modular-host 架构。Issue #55 Phase 1 已通过 Build #832 / Probe #145 自动验证，Host/Shell 样板属于已实现事实；Settings / Online / Pets / Mayhem / LeagueClient 的进一步所有权迁移仍属于后续阶段，不能提前写成已完成。
+> FACM 3.1.3 仍是线上正式版；当前 `main` 已包含 FACM 3.2 modular-host Phase 1，Phase 2 正在 PR #58 迁移 Settings ownership。本文区分**已验证事实**与**后续目标**，避免把规划提前写成实现。
 
 ## 进程边界
 
-FACM 3.1 是一棵由 `FACM.exe` 管理的产品进程树，而不是强制单 PID。
-
 ```text
 FACM.exe  (.NET Framework 4.8 / WinForms)
-├─ 控制中心 / FACM Shell / 托盘
+├─ FACM Shell / 控制中心 / 托盘
 ├─ 清理与内置工具
 ├─ 海斗查询与在线更新
 └─ FACM.PetHost.exe  (.NET 8 x64 / WPF / VPet Core，仅启用对应桌面形态时启动)
 ```
 
-`FACM.exe` 是产品主进程和生命周期拥有者。`FACM.PetHost.exe` 仅负责高精度桌宠运行层，通过命名管道与主进程通信。
+`FACM.exe` 是产品主进程。VPet 继续由独立 PetHost 承载，通过 named pipe 通信；PetHost 加入 FACM 的 Job Object 并保留 parent-pid 守护。PetHost bundle 按内嵌 ZIP SHA-256 缓存/释放，默认 `AnimalPetEnabled=false` 不预热 PetHost。Shell 在 PetHost ready 前始终保持可见，失败时继续作为回退入口。
 
-PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并使用 `KILL_ON_JOB_CLOSE`；PetHost 自身仍保留 `--parent-pid` 守护作为兼容兜底。这样既保留 WPF/VPet 崩溃隔离，又避免 FACM 结束后留下孤儿宿主。
+这条进程边界在 3.2 后端重构期间冻结，不为了模块化强制合并 CLR/UI 技术栈。
 
-PetHost 的内嵌包定位/释放、进程创建、最长 7 秒的 named-pipe connect 和停止等待均不得占用 WinForms UI 线程。
+## 单实例边界
 
-FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌宠时，才在 Shell 出现后后台预热对应内嵌 PetHost；默认 `AnimalPetEnabled=false` 不触碰 PetHost payload。预热与用户实际启用桌宠共用同一个任务，避免重复解包。PetHost 运行宿主按 **内嵌 PetHost ZIP 的 SHA-256** 隔离，而不是按 FACM 主程序集 MVID 隔离；这样 FACM-only 更新可以复用完全相同的 PetHost，而任何 PetHost payload 变化都会进入新的宿主目录。
-
-缓存命中时只快速校验完成标记和启动所需关键文件，不再每次递归统计 self-contained runtime 的几百个文件；首次释放仍会做完整文件数/总字节统计后才写完成标记。新的 PetHost payload 第一次出现时仍必须真实释放一次；Shell 在整个准备阶段保持可用，只有 PetHost 真正发出 `ready` 后桌宠才接管桌面入口。
-
-## 单实例与二次启动唤醒
-
-普通 FACM 模式由 `Local\FACM-2C429A53-6710-48BC-A57C-32BEA688B25D` Mutex 保持单实例。Mutex 负责**实例所有权**，另有一个当前 Windows 会话内的命名 AutoResetEvent 只负责**无参数激活通知**：
+普通 FACM 仍由 Mutex 保持单实例；当前 Windows session 的命名 AutoResetEvent 只传递无参数“激活现有控制中心”信号：
 
 ```text
 第二次 FACM.exe
-    │
-    ├─ 普通 Mutex 已占用
-    │
-    ├─ 最多 1.6s 有限重试打开激活事件
-    │
-    └─ Set()
-          │
-          ▼
-第一实例 SingleInstanceActivation
-          │
-          └─ MainForm.RequestExternalActivation()
-                    │
-                    ├─ 控制中心未开 → 创建并显示
-                    └─ 控制中心已开 → BringToFront + Activate
+  -> 普通 Mutex 已占用
+  -> 最多约 1.6s 有限重试 activation event
+  -> Set()
+  -> 第一实例 MainForm.RequestExternalActivation()
+       -> 未打开：创建控制中心
+       -> 已打开：BringToFront / Activate
 ```
 
-如果第一实例刚取得 Mutex、WinForms message loop 尚未完全就绪，`MainForm` 先记录 pending activation，`Shown` 后再消费；因此第二次启动不会因为极短的启动竞态被静默丢弃。第二实例只有在有限重试仍无法找到激活事件时，才回退“FACM 已经在运行”的旧提示。
+外部激活是 **Ensure Open**，不是 Toggle。`--cleanup` 与各 smoke/test 使用独立 Mutex，不参与普通实例 activation。
 
-此激活通道不携带命令、配置或文件路径，也不使用 TCP/HTTP 端口。`--cleanup` 继续使用独立 elevated cleanup Mutex；各 smoke/test 模式也继续使用自己的 Mutex，不参与普通实例唤醒。
+## Shell / UI 稳定契约
 
-## FACM Shell 与控制中心
+- `MainForm` 是 FACM Shell 的 WinForms 表现层；`CompactMenuForm` 是轻量控制中心。
+- 默认 Shell 使用透明分层窗口；左键开控制中心、拖动保存位置、右键托盘菜单。
+- `AnimalPetEnabled=false` 表示使用 FACM Shell；启用桌宠后才进入对应 Pets/PetHost 路线。
+- 控制中心「主题」统一管理面板外观与桌面形态，但 `ThemeId` 与 `AnimalPetEnabled/PetStyleId` 继续保持独立配置语义。
+- `CompactMenuEnhancer` 仍负责既有首帧兼容布局，Phase 1 只改变其初始化所有权，不重写表现行为。
+- 后端架构重构默认不改变用户可见 UI/交互。
 
-`MainForm` 承载默认 FACM Shell 的 WinForms 表现；`CompactMenuForm` 是轻量弹出控制中心。FACM 3.2 Phase 1 起，`MainForm` 的创建已由 `ShellModule` 所有，`Program` 不再直接构造它；MainForm 内部的业务依赖会在后续阶段继续迁出。
+## 清理边界
 
-默认 Shell 使用 56×56 的透明分层窗口，实际可见主体约 46px。渲染由 `LayeredFloatingBall` 负责，采用深色圆角方形、细边框、单一品牌标记和轻量 Hover；空闲时不运行持续呼吸/环绕动画。透明层文字使用灰度抗锯齿，避免 ClearType 子像素彩边。Shell 保留：
+`SafeCleanupService` 继续拥有：白名单、reparse point 阻止、预览、执行前二次校验和删除规则。耗时扫描/删除在 WinForms 调用路径中通过 `BackgroundOperationDialog` 离开 UI 线程；模块化不得复制或弱化安全算法。
 
-- 左键单击打开/收起控制中心；
-- 拖动调整位置并写入 `BallX/BallY`；
-- 右键打开托盘菜单；
-- 桌宠启动失败时作为稳定回退入口。
+## Mayhem 边界
 
-`AnimalPetEnabled=false` 表示使用 FACM Shell；为 true 时启动 `PetStyleId` 对应桌面宠物。桌宠进入 ready 前 Shell 不隐藏。
-
-控制中心底部只保留 `日志 / 主题 / 海斗排行榜 / 退出` 四个入口。“面板主题”和“桌面宠物”不再并列占两个顶层按钮；统一由「主题」菜单管理：
+海斗继续使用字段级多源合并：
 
 ```text
-主题
-├─ 面板外观…
-└─ 桌面形态
-   ├─ FACM 悬浮入口
-   ├─ 选择桌面宠物…
-   └─ 复位桌面位置
+英雄名/别名
+├─ Hexdata                  国内优先排行/胜率
+├─ ARAMMayhem               完整当前平衡/备用排行
+├─ OP.GG                    可选攻略字段
+├─ 腾讯 LOL 官网            国服 Patch / 本版本增量
+└─ LCU -> DataDragon/CDN    静态英雄/装备/图标
+        -> MayhemChampionResult
+        -> MayhemCardRenderer
 ```
 
-这里的「主题」是统一入口，不表示面板皮肤与桌面形态必须绑定为同一个枚举值：现阶段 `ThemeId` 继续控制控制中心外观，`AnimalPetEnabled/PetStyleId` 继续控制桌面形态；统一的是用户入口和概念层级，避免一次性重写已验证的配置兼容性。
-
-底部兼容布局仍由 `CompactMenuEnhancer` 在第一条 `WM_PAINT` 前完成，避免旧 `Application.Idle` 后置重排造成首帧残影；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。Phase 1 起其安装调用由 `CompactMenuEnhancerModule` 管理，但 enhancer 内部行为没有重写。
-
-控制中心关闭使用两条信号：
-
-- 正常前台激活场景：`Deactivate`；
-- PetHost 等跨进程点击打开场景：物理左键 outside-click watcher。
-
-outside-click watcher 必须先等待打开面板的那次按键释放，再监测下一次按下，且内部 modal 对话流程由 `_dialogOpen` 抑制误关。
-
-## 清理执行边界
-
-清理的安全规则仍全部归 `SafeCleanupService` 所有，包括编译期白名单、重解析点阻止、预览统计和执行前再次校验。
-
-从 WinForms 控制中心调用时，两个可能持续较久的阶段不再占用 UI 线程：
-
-```text
-CompactMenuForm
-   │
-   ├─ SafeCleanupService.CreatePlan
-   │      └─ BackgroundOperationDialog → worker thread
-   │             └─ 递归统计目标 / 大小 / reparse 检查
-   │
-   └─ SafeCleanupService.Execute
-          └─ BackgroundOperationDialog → worker thread
-                 └─ 二次安全校验 / 文件删除
-```
-
-后台化只改变执行线程，不改变允许删除的路径集合和校验顺序。正式删除阶段不给任意中断按钮，避免把“中止”误解为事务回滚；单目标失败仍按原有语义记录后继续。
-
-非 UI/测试调用没有 WinForms message loop 时直接执行同步 core，因此服务逻辑仍可独立验证。
-
-## 海斗查询数据流
-
-海斗查询采用字段级多源合并，而不是“一个网站成功才算整次查询成功”。
-
-```text
-用户英雄名/别名
-        │
-        ├─ ChampionAliases（本地快速解析）
-        │
-        ├─ Hexdata（国内优先）──────────────┐
-        │     排名 / 胜率 / 前十             │
-        ├─ ARAMMayhem.com ─────────────────┤
-        │     完整当前平衡 / 选用率 / 备用排行│
-        ├─ OP.GG ──────────────────────────┤
-        │     技能加点 / 核心装备等可选攻略  │
-        ├─ lol.qq.com ─────────────────────┤
-        │     国服当前 Patch / 本版本增量改动 │
-        └─ LCU → DataDragon/CommunityDragon │
-              英雄、技能、装备、强化图标      │
-                                            ▼
-                                  MayhemChampionResult
-                                            │
-                                  MayhemCardRenderer
-```
-
-来源按字段短预算并行读取。OP.GG 不再是排行整体成功条件。
-
-腾讯公告是“本版本改了什么”的增量日志，不是完整当前状态库。只有完整平衡来源的 Patch 与腾讯当前国服 Patch 一致时，FACM 才把其 Buff/Debuff 当成当前完整状态；版本不一致时拒绝静默展示旧值，只允许显示明确标注为非完整状态的本版本官方增量。
-
-## 海斗图片与渲染
-
-Riot 元数据优先使用本机 League Client LCU，无法使用时回退 Data Dragon / CommunityDragon。
-
-`MayhemImageCache` 有 10 分钟内存缓存和 6 小时便携磁盘缓存。磁盘缓存读取和 Bitmap 解码必须在后台执行，并限制为最多 4 路并发，避免“缓存越热越卡 UI”或几十张图同时争抢 CPU。
-
-最终卡片渲染在图片异步准备完成后执行；网络正文统一受 `CancelableHttpContentReader` 的取消和大小上限保护。
-
-## 构建与外部健康检查
-
-`FACM Windows Build` 只承担 deterministic 核心构建与本地 smoke。真实 Hexdata、腾讯、OP.GG、ARAMMayhem、Riot CDN 的可用性由独立 `FACM Mayhem Source Probe` 检查。
-
-公网 probe 失败不能自动证明核心程序构建失败；但正式发布候选仍需要确认主查询在国内优先源和字段级降级下可以完成用户实际查询。
+单一第三方失败不能抹掉其它已获得字段；完整平衡数据 Patch 不匹配国服当前 Patch 时不得冒充最新状态。核心 CI 只跑 deterministic smoke，真实公网健康由独立 Mayhem Source Probe 负责。
 
 ## 发布边界
 
-正式发布包继续只交付一个 `FACM.exe`。匹配版本的 self-contained PetHost publish 目录在构建时压成 `FACM.Resources.PetHost.zip` 嵌入主 EXE，运行时按该 ZIP 的 SHA-256 释放/复用到：
-
-`runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>`
-
-正式 Release 与在线更新事务由独立发布工作流负责；发布前实机验收与普通 Actions 测试 artifact 分开。
+正式交付仍是单 `FACM.exe`，匹配 PetHost bundle 嵌入主 EXE。Release / online manifest 是独立事务；架构 PR、CI artifact、内部 Phase 合并都不等于发布授权。
 
 ---
 
-## FACM 3.2 modular-host 架构
+# FACM 3.2 Modular Host
 
-FACM 3.2 的架构升级目标不是换 Electron/Vue，也不是把 FACM 全量迁移到 .NET 8；目标是把当前已经稳定的能力组织成**模块化单体（modular monolith）**，让后续 League Client、账号、Gameflow、ChampSelect、战绩、自动化等功能有清晰的所有权和生命周期边界。
+## 设计目标
 
-### 已实现组合根（Phase 1）
-
-```text
-Program
-│
-├─ 进程级职责
-│  ├─ command-line mode / smoke mode
-│  ├─ Mutex / SingleInstanceActivation
-│  ├─ WinForms runtime 初始化
-│  └─ fatal exception boundary
-│
-└─ FacmHost  (FACM.AppHost)
-   ├─ CompactMenuEnhancerModule
-   └─ ShellModule
-        └─ MainForm
-```
-
-`Program` 保留真正属于进程入口的职责；正常产品模式在进入 message loop 前创建 `FacmHost`。`FacmHost` 初始化 `CompactMenuEnhancerModule`，再按依赖初始化 `ShellModule`；`ShellModule` 创建 `MainForm`，随后 `Program` 只把该 Form 交给现有 `SingleInstanceActivation` listener 和 `Application.Run`。消息循环结束后 Host 按反向顺序 Dispose。
-
-宿主稳定 namespace 是 `FACM.AppHost` / `FACM.AppHost.Modules`。不要改成 `FACM.Application`，否则会遮蔽根 `namespace FACM` 内大量旧源码使用的 `System.Windows.Forms.Application` 类型；Build #821 已验证该失败模式。
-
-### 模块契约（已实现）
-
-Phase 1 采用适合 .NET Framework 4.8 的透明轻量实现，不复制 League Akari 的 decorator/reflection 细节，也不默认引入大型 DI 容器。
-
-`IFacmModule` 当前具有：
+FACM 学习 League Akari 的成熟架构原则，但不复制其 Electron/Vue/TypeScript/renderer IPC 技术栈：
 
 - 稳定模块 ID；
-- 显式依赖列表；
-- 初始化生命周期；
-- Dispose 生命周期。
+- 显式依赖；
+- 模块所有权；
+- 统一 Initialize / Dispose 生命周期；
+- 缺失、重复、循环依赖确定性失败；
+- 依赖顺序初始化 / 反向释放；
+- 成功和失败路径都有 timing / diagnostics；
+- Settings / state / controller 逐步归属 feature；
+- UI 逐步退回表现与命令转发层。
+
+FACM 采用适合 net48 的 lightweight modular monolith，不默认引入大型 DI 容器。
+
+## Phase 1：FacmHost 基础层（已合并）
+
+Issue #55 / PR #56，merge commit `8bb44cfef3e9ac24c20390fc60fcd307b7dd612a`。
+
+稳定 namespace：
+
+```text
+FACM.AppHost
+FACM.AppHost.Modules
+```
+
+不要使用 `FACM.Application`：Build #821 已证明它会遮蔽根 namespace 中的 `System.Windows.Forms.Application`。
+
+`IFacmModule`：
+
+```text
+Id
+Dependencies
+Initialize()
+Dispose()
+```
 
 `FacmHost` 已负责：
 
-- 拒绝重复模块 ID；
-- 拒绝缺失依赖；
-- 检测循环依赖；
-- 按依赖拓扑顺序初始化；
-- 初始化失败后 rollback 已初始化模块；
-- 关闭时按反向顺序释放；
-- 对初始化/释放失败写入明确诊断。
+- duplicate ID 检测 + 日志；
+- missing dependency 检测 + 日志；
+- circular dependency chain + 日志；
+- topological initialization；
+- 初始化失败模块自身 Dispose；
+- prior modules reverse rollback；
+- 正常退出 reverse Dispose；
+- success/failure 总耗时、每模块耗时、slowest module 和失败详情。
 
-`FACM.exe --facm-host-test` 已进入核心 deterministic CI，验证这些契约。
+`FACM.exe --facm-host-test` 是 deterministic 门禁，覆盖依赖图、rollback、first-module failure 和 timing/report。
 
-### 生命周期可观测性（已实现）
-
-Host 记录：
+Phase 1 后的正常启动：
 
 ```text
-FACM host initialized: <total ms>
-FACM module initialization order: A -> B -> C
-FACM module initialized: A; duration=<ms>
-...
-FACM slowest module: <id> (<ms>)
+Program
+  -> FacmHost
+       -> CompactMenuEnhancerModule
+       -> ShellModule
+            -> MainForm
+  -> SingleInstanceActivation listener
+  -> Application.Run(shell.MainForm)
+  -> Host reverse Dispose
 ```
 
-`FacmHostReport` 同时保留 initialization order、每模块 timing、总耗时、slowest module 和失败 timing。目的不是做用户可见性能面板，而是让“FACM 为什么启动变慢 / 哪个模块初始化失败”可以从现有日志直接定位。
+## Phase 2：Settings ownership（PR #58 当前实现）
 
-### 后续模块承载面（已建立 facade，尚未完成所有权迁移）
+Phase 2 将 Settings/UiText 从 MainForm 的隐式全局加载变成 Host 模块图中的显式依赖。
 
-Phase 1 分支已经建立：
+当前实现：
 
 ```text
-SettingsModule
+Program
+  -> create SettingsModule
+  -> create ShellModule(startCleanup, settingsModule)
+  -> FacmHost.Register(
+       CompactMenuEnhancerModule,
+       SettingsModule,
+       ShellModule)
+  -> FacmHost.Initialize()
+       -> CompactMenuEnhancerModule
+       -> SettingsModule
+            -> AppSettings.Load()
+            -> UiTextCatalog.Load()
+       -> ShellModule
+            -> MainForm(settings, uiText, startCleanup)
+```
+
+`ShellModule.Dependencies` 明确包含：
+
+```text
+shell.compact-menu-enhancer
+settings
+```
+
+`MainForm` 当前构造契约：
+
+```text
+MainForm(AppSettings settings, UiTextCatalog ui, bool startCleanup = false)
+```
+
+因此正常产品路径中：
+
+- MainForm 不再决定配置如何加载；
+- Settings 只由 `SettingsModule.Initialize()` 加载一次；
+- Shell 只有在 Settings 初始化成功后才能创建；
+- MainForm 继续使用同一个 `AppSettings` 实例执行原 `_settings.Save()`；
+- `settings.ini` 的 key/default/migration/write-back 语义没有改变。
+
+`FloatingBallSmokeTest` 等测试构造点同样必须显式提供依赖，禁止为了方便测试恢复 `MainForm(bool)` 隐式加载重载。
+
+Phase 2 当前行为代码 HEAD `235299eda170835d13c4035efa617d433db306a3`：Build #846 SUCCESS，Mayhem Source Probe #159 SUCCESS。
+
+## 已建立、待接管所有权的 facade
+
+```text
 ToolsModule
 PetsModule
 OnlineModule
 MayhemModule
 ```
 
-这些 facade 暂时只包住现有实现；Phase 1 没有为了“架构漂亮”强行把 MainForm 一次性改成依赖注入。后续阶段会逐项注册并迁移所有权。
-
-长期目标：
+这些 facade 在 Phase 1 已建立，当前仍主要包住现有成熟实现。下一阶段将由 Host 注册，并由 Shell/MainForm 显式接收：
 
 ```text
-FacmHost
+Shell
 ├─ Settings
 ├─ Tools
 ├─ Online
 ├─ Pets
-├─ Mayhem
-├─ Cleanup
-├─ Shell
-└─ LeagueClient
+└─ Mayhem
 ```
 
-### 纵向 feature 所有权
-
-3.2 之后优先按 feature 组织复杂度，而不是继续把业务按技术类型散在整个主项目：
+### MainForm 下一步要迁出的 direct dependencies
 
 ```text
-Modules/Pets/
-├─ PetModule
-├─ PetController
-├─ PetState
-├─ existing Flying Runtime adapters
-├─ existing VPet/PetHost adapter
-└─ UI adapters
-
-Modules/Online/
-├─ OnlineModule
-├─ OnlineController
-├─ OnlineState
-├─ existing OnlineService / UpdateInstaller adapters
-└─ UI adapters
+ToolRunner / ToolBundleLoader
+OnlineService
+AnimalPetManager / PetHostBundleLoader
+new MayhemLookupForm()
 ```
 
-这里的“adapter”意味着**先包住已经验收的实现，再收回所有权**，不是为了目录好看重写成熟代码。
+迁移时保持现有业务时序，尤其：
 
-### MainForm 的长期目标
+- Shell 先可见；
+- 后台 warmup 保留约 180ms head-start；
+- ToolBundle 可以后台准备；
+- 只有启动时配置已经启用桌宠才预热 PetHost；
+- Pets ready/fallback、Online prompt、Mayhem UI 行为不变。
 
-`MainForm` 继续作为 FACM Shell 的 WinForms 表现层，但长期只应主要承担：
+## 后续结构
 
-- 显示/隐藏 Shell；
-- 鼠标拖动与 UI 事件；
-- 绑定应用状态；
-- 把用户操作转成模块命令；
-- 呈现错误/状态反馈。
+完成现有 ownership 迁移后的目标：
 
-下面这些职责要迁出 `MainForm`：
+```text
+Program
+└─ FacmHost
+   ├─ Settings
+   ├─ Tools
+   ├─ Online
+   ├─ Pets
+   ├─ Mayhem
+   ├─ Cleanup
+   ├─ Shell
+   └─ LeagueClient
+```
 
-- settings / UI-text 自行加载；
-- Online service 直接调用与更新策略 orchestration；
-- PetHost/Flying 的 direct static orchestration；
-- ToolRunner/ToolBundle direct static 调用；
-- `new MayhemLookupForm()` 等具体 feature 构造；
-- 应用模块 warmup 决策；
-- 新增 League 功能的连接与业务状态。
+后续顺序：
 
-### 迁移顺序与验收节奏
+1. Tools / Online / Pets / Mayhem facade 接管 MainForm direct dependencies；
+2. Cleanup ownership；
+3. 建立真正的 LeagueClient module foundation，统一客户端发现/连接/session/API 边界；
+4. 架构重构整体收口后生成一个 Windows 候选包集中实机验收；
+5. 候选接受后，再在新架构上增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
 
-1. **Phase 1 / Issue #55**：Host、依赖解析、生命周期、启动观测、Shell/Enhancer 样板 —— Build #832 / Probe #145 已自动验证。
-2. Settings ownership + Shell 显式依赖。
-3. Tools / Online / Pets / Mayhem facade 接管 MainForm direct dependencies。
-4. Cleanup ownership。
-5. 建立真正的 LeagueClient module。
-6. 在新架构上增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
+## 迁移期间冻结契约
 
-技术迁移仍按依赖顺序分层实现，但不在每个内部 Phase 停下来要求用户 Windows 实机测试。内部阶段用 compile + deterministic smoke + AppLog + Actions 收敛；整轮既定后端架构重构完成后再给一个最终 Windows 候选包集中实机验收。
+- 单实例 Mutex + AutoResetEvent Ensure Open；
+- `--cleanup` / smoke 独立 Mutex；
+- Flying Runtime 已验收行为；
+- VPet/PetHost 独立进程与 ready/fallback；
+- `settings.ini` 兼容；
+- Mayhem 字段级多源容灾；
+- Online Release/manifest 事务；
+- 无独立产品需求时不改变现有 UI；
+- 不自动发布正式版本。
 
-### 迁移期间必须保持的稳定契约
+## 验收节奏
 
-架构重构不得借机修改已经验收的产品行为：
-
-- Issue #53 的 Mutex + AutoResetEvent 二次启动唤醒保持不变；
-- Flying Runtime 的已验收轨迹、尺寸、素材/Profile 行为保持不变；
-- VPet 继续由独立 `.NET 8 x64 / WPF` PetHost 承载；
-- `settings.ini` 继续兼容；
-- 海斗字段级多源容灾保持；
-- Online Release/manifest 事务保持；
-- `--cleanup` 和现有 smoke/test mode Mutex 语义保持；
-- 无独立产品需求时，后端重构不主动改变用户可见 UI；
-- 架构阶段不自动触发新的正式 Release。
-
-任何一项如果确实需要改变，应单独给出用户价值和迁移/回滚方案，而不是作为“架构整理”的顺带修改。
+技术实现仍按依赖顺序分层，但**内部 Phase 不逐轮要求用户 Windows 实机测试**。每层通过 compile + deterministic smoke + AppLog + Actions 后继续推进；整轮既定后端架构重构完成后再提供一个单一 Windows 候选包进行集中验收。

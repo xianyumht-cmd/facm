@@ -15,7 +15,7 @@ namespace FACM
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                using (var form = new MainForm(false))
+                using (var form = new MainForm(new AppSettings(), UiTextCatalog.Load(), false))
                 {
                     if (form.Width < 52 || form.Height < 52)
                         throw new InvalidOperationException("Built-in FACM shell window is unexpectedly small.");

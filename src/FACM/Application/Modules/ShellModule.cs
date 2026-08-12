@@ -8,13 +8,16 @@ namespace FACM.AppHost.Modules
     {
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
         {
-            CompactMenuEnhancerModule.ModuleId
+            CompactMenuEnhancerModule.ModuleId,
+            SettingsModule.ModuleId
         };
         private readonly bool _startCleanup;
+        private readonly SettingsModule _settings;
 
-        public ShellModule(bool startCleanup)
+        public ShellModule(bool startCleanup, SettingsModule settings)
         {
             _startCleanup = startCleanup;
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
         public const string ModuleId = "shell";
@@ -33,7 +36,10 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
-            MainForm = new MainForm(_startCleanup);
+            if (_settings.Settings == null || _settings.UiText == null)
+                throw new InvalidOperationException("Settings module must initialize before shell.");
+
+            MainForm = new MainForm(_settings.Settings, _settings.UiText, _startCleanup);
         }
 
         public void Dispose()
