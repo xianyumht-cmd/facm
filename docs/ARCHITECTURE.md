@@ -1,5 +1,7 @@
 # FACM 3.1 架构
 
+> 本文前半部分记录当前 `main` 已验证的 FACM 3.1 架构。文末“FACM 3.2 目标架构”属于 Issue #55 的规划目标；在对应代码和实机验收完成前，不得把目标结构当成已经存在的运行事实。
+
 ## 进程边界
 
 FACM 3.1 是一棵由 `FACM.exe` 管理的产品进程树，而不是强制单 PID。
@@ -155,3 +157,147 @@ Riot 元数据优先使用本机 League Client LCU，无法使用时回退 Data 
 `runtime\pethost-host\<PET-HOST-BUNDLE-SHA256>`
 
 正式 Release 与在线更新事务由独立发布工作流负责；发布前实机验收与普通 Actions 测试 artifact 分开。
+
+---
+
+## FACM 3.2 目标架构（Issue #55，规划中）
+
+FACM 3.2 的架构升级目标不是换 Electron/Vue，也不是把 FACM 全量迁移到 .NET 8；目标是把当前已经稳定的能力组织成**模块化单体（modular monolith）**，让后续 League Client、账号、Gameflow、ChampSelect、战绩、自动化等功能有清晰的所有权和生命周期边界。
+
+### 目标组合根
+
+```text
+Program
+│
+├─ 进程级职责
+│  ├─ command-line mode / smoke mode
+│  ├─ Mutex / SingleInstanceActivation
+│  ├─ WinForms runtime 初始化
+│  └─ fatal exception boundary
+│
+└─ FacmHost
+   ├─ Infrastructure / Platform
+   │  ├─ Logging
+   │  ├─ Settings
+   │  ├─ Paths
+   │  ├─ Process / Job
+   │  ├─ HTTP
+   │  └─ Background Tasks
+   │
+   └─ Modules
+      ├─ Shell
+      ├─ Cleanup
+      ├─ Online
+      ├─ Pets
+      ├─ Mayhem
+      ├─ Tools
+      └─ LeagueClient          # 后续阶段新增
+```
+
+`Program` 保留真正属于进程入口的职责；`FacmHost` 成为正常产品模式的应用组合根。后续不再把新的业务 orchestration 直接堆进 `Program` 或 `MainForm`。
+
+### 模块契约
+
+Phase 1 的模块机制采用适合 .NET Framework 4.8 的透明轻量实现，不复制 League Akari 的 decorator/reflection 细节，也不默认引入大型 DI 容器。
+
+每个模块至少具有：
+
+- 稳定模块 ID；
+- 显式依赖列表；
+- 初始化生命周期；
+- 停止/释放生命周期；
+- 自己拥有的 state / controller / settings 边界；
+- 可测试的公共契约。
+
+Host 负责：
+
+- 拒绝重复模块 ID；
+- 拒绝缺失依赖；
+- 检测循环依赖；
+- 按依赖拓扑顺序初始化；
+- 关闭时按反向顺序停止/释放；
+- 对初始化/释放失败写入明确诊断，不静默吞错。
+
+### 生命周期可观测性
+
+FacmHost 必须记录：
+
+```text
+FACM host initialized: <total ms>
+Initialization order: A -> B -> C
+A: <ms>
+B: <ms>
+C: <ms>
+Slowest module: <id> (<ms>)
+```
+
+目的不是做用户可见性能面板，而是让“FACM 为什么启动变慢 / 哪个模块初始化失败”可以直接从现有日志定位。
+
+### 纵向 feature 所有权
+
+3.2 之后优先按 feature 组织复杂度，而不是继续把业务按技术类型散在整个主项目：
+
+```text
+Modules/Pets/
+├─ PetModule
+├─ PetController
+├─ PetState
+├─ existing Flying Runtime adapters
+├─ existing VPet/PetHost adapter
+└─ UI adapters
+
+Modules/Online/
+├─ OnlineModule
+├─ OnlineController
+├─ OnlineState
+├─ existing OnlineService / UpdateInstaller adapters
+└─ UI adapters
+```
+
+这里的“adapter”意味着**先包住已经验收的实现，再逐步收回所有权**，不是为了目录好看重写成熟代码。
+
+### MainForm 的长期目标
+
+`MainForm` 继续作为 FACM Shell 的 WinForms 表现层，但长期只应主要承担：
+
+- 显示/隐藏 Shell；
+- 鼠标拖动与 UI 事件；
+- 绑定应用状态；
+- 把用户操作转成模块命令；
+- 呈现错误/状态反馈。
+
+下面这些职责应逐步迁出 `MainForm`：
+
+- Online 更新策略；
+- PetHost/Flying 的业务编排；
+- 应用模块 warmup 决策；
+- 子功能窗口是否已打开等跨模块运行状态；
+- 新增 League 功能的连接与业务状态。
+
+### 迁移顺序
+
+架构升级按小步迁移，不做大爆炸重写：
+
+1. **Phase 1 / Issue #55**：`FacmHost + Module` 基础层、依赖解析、生命周期与启动可观测性；只接一个低风险样板模块。
+2. Shell/Application lifecycle orchestration。
+3. Settings。
+4. Online。
+5. Pets facade：先包住现有 `AnimalPetManager`，不改 Flying Runtime / VPet 行为。
+6. Mayhem。
+7. 建立真正的 LeagueClient module。
+8. 在新架构上增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
+
+### 迁移期间必须保持的稳定契约
+
+架构重构不得借机修改已经验收的产品行为：
+
+- Issue #53 的 Mutex + AutoResetEvent 二次启动唤醒保持不变；
+- Flying Runtime 的已验收轨迹、尺寸、素材/Profile 行为保持不变；
+- VPet 继续由独立 `.NET 8 x64 / WPF` PetHost 承载；
+- `settings.ini` 继续兼容；
+- 海斗字段级多源容灾保持；
+- Online Release/manifest 事务保持；
+- `--cleanup` 和现有 smoke/test mode Mutex 语义保持；
+- 架构阶段不自动触发新的正式 Release。
+
+任何一项如果确实需要改变，应单独立 Issue、给出用户价值和迁移/回滚方案，而不是作为“架构整理”的顺带修改。
