@@ -45,69 +45,98 @@ namespace FACM.Pets
 
         public float Speed { get; set; }
         public float VisualScale { get; set; }
+        public string FlyingProfileId { get; set; }
+        public bool ShowInPicker { get; set; } = true;
     }
 
     internal static class AnimalPetCatalog
     {
-        // Keep the old sprite default for compatibility. New users only start a pet after explicitly choosing one.
-        public const string DefaultPetId = "cat";
+        // Invalid/old pet IDs now fail soft to the lightweight flying baseline. New installs still do not
+        // start a pet until the user explicitly enables the desktop-pet mode.
+        public const string DefaultPetId = "greenfly";
 
         private static readonly IReadOnlyList<AnimalPetDefinition> Pets = new List<AnimalPetDefinition>
         {
+            FlyingPet(
+                "greenfly", "绿苍蝇", "高速、小范围急转；沿用已实机验收的 FACM 飞行轨迹，升级为 360° 平滑朝向。",
+                SpritePetAssetService.BuiltInGreenFlyUrl, "greenfly_hq_v1.generated",
+                22f, 1.36f, 0.56f, FlyingPetProfiles.GreenFly),
+
+            FlyingPet(
+                "bee", "蜜蜂", "中速巡航，转向更圆滑，会有短暂停悬；使用统一 Flying Runtime。",
+                BuiltInFlyingPetArtService.BeeUrl, "bee_hq_v1.generated",
+                18f, 1.00f, 0.62f, FlyingPetProfiles.Bee),
+
+            FlyingPet(
+                "dragonfly", "蜻蜓", "长距离快速冲刺、急停和快速改向；使用统一 Flying Runtime。",
+                BuiltInFlyingPetArtService.DragonflyUrl, "dragonfly_hq_v1.generated",
+                24f, 1.00f, 0.72f, FlyingPetProfiles.Dragonfly),
+
+            FlyingPet(
+                "butterfly", "蝴蝶", "慢速大曲线飞行，带明显上下漂浮和低频大幅振翅。",
+                BuiltInFlyingPetArtService.ButterflyUrl, "butterfly_hq_v1.generated",
+                8f, 1.00f, 0.74f, FlyingPetProfiles.Butterfly),
+
+            FlyingPet(
+                "moth", "飞蛾", "短距离随机游走、频繁改向，轨迹比蝴蝶更紧凑。",
+                BuiltInFlyingPetArtService.MothUrl, "moth_hq_v1.generated",
+                11f, 1.00f, 0.68f, FlyingPetProfiles.Moth),
+
             VPetPet(),
 
-            Pet(
-                "cat", "猫咪（旧引擎）", "旧版 5 帧 Sprite 跑动，仅保留为回退和对照。", AnimalMotionStyle.Walk,
+            LegacyPet(
+                "cat", "猫咪（兼容）", "旧版 5 帧 Sprite 跑动；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Walk,
                 "https://opengameart.org/sites/default/files/cat_run.png", "cat_run.png",
                 5, 1, 0, 5, 12f, false, true, 1.00f, 0.82f,
                 "https://opengameart.org/content/pixel-cat-0", "alizard", "CC0"),
 
-            Pet(
-                "dog", "狗狗（旧引擎）", "旧版 6 帧 Sprite 走路循环，仅保留为回退和对照。", AnimalMotionStyle.Walk,
+            LegacyPet(
+                "dog", "狗狗（兼容）", "旧版 6 帧 Sprite 走路循环；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Walk,
                 "https://opengameart.org/sites/default/files/dog_medium.png", "dog_medium.png",
                 6, 6, 1, 6, 11f, false, true, 1.03f, 0.86f,
                 "https://opengameart.org/content/dog-3", "rmazanek / Shepardskin / Hellkipz", "CC0"),
 
-            Pet(
-                "spider", "蜘蛛（旧引擎）", "8 个方向、13 帧步态；用于后续和成熟运行层做方向/爬行动作对照。", AnimalMotionStyle.Crawl,
+            LegacyPet(
+                "spider", "蜘蛛（兼容）", "旧 8 方向、13 帧步态；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Crawl,
                 "https://opengameart.org/sites/default/files/sprite_sheet_3.png", "iso_spider_8x13.png",
                 13, 8, 0, 13, 15f, true, false, 0.88f, 0.86f,
                 "https://opengameart.org/content/iso-spider-spritesheet", "KillGorack", "CC0"),
 
-            Pet(
-                "ant", "蚂蚁（旧引擎）", "多方向 Sprite 行走序列，仅作为旧引擎回退。", AnimalMotionStyle.Crawl,
+            LegacyPet(
+                "ant", "蚂蚁（兼容）", "旧多方向 Sprite；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Crawl,
                 "https://opengameart.org/sites/default/files/walk_5.png", "walking_ant.png",
                 8, 8, 0, 8, 14f, true, false, 0.82f, 0.72f,
                 "https://opengameart.org/content/walking-ant-with-parts-and-rigged-spriter-file", "DudeMan", "CC0"),
 
-            Pet(
-                "greenfly", "绿苍蝇（轻量）", "FACM 内置 96px 精细 Sprite：4 个稳定锚点振翅状态，保留现有高速随机飞行轨迹。", AnimalMotionStyle.Fly,
-                SpritePetAssetService.BuiltInGreenFlyUrl, "greenfly_hq_v1.generated",
-                4, 1, 0, 4, 22f, false, false, 1.36f, 0.56f,
-                "https://github.com/xianyumht-cmd/facm/issues/43", "FACM project", "CC0"),
-
-            Pet(
-                "greyfly", "灰苍蝇（旧引擎）", "三帧高速扇翅 Sprite，仅作为旧引擎回退。", AnimalMotionStyle.Fly,
+            LegacyPet(
+                "greyfly", "灰苍蝇（兼容）", "旧 16px 三帧 Sprite；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Fly,
                 "https://opengameart.org/sites/default/files/greyfly_spritesheet.png", "greyfly_spritesheet.png",
                 3, 1, 0, 3, 22f, false, true, 1.38f, 0.56f,
                 "https://opengameart.org/content/16x16-flies", "ARoachIFoundOnMyPillow", "CC0"),
 
-            Pet(
-                "wasp", "胡蜂（旧引擎）", "双帧高速振翅 Sprite，仅作为旧引擎回退。", AnimalMotionStyle.Fly,
+            LegacyPet(
+                "wasp", "胡蜂（兼容）", "旧双帧 Sprite；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Fly,
                 "https://opengameart.org/sites/default/files/spr_wasp_flying_strip_2.png", "wasp_flying.png",
                 2, 1, 0, 2, 18f, false, true, 1.28f, 0.66f,
                 "https://opengameart.org/content/flying-hornetwasp", "Nerveona", "CC0"),
 
-            Pet(
-                "bird", "小鸟（旧引擎）", "完整 Sprite 动画表中的飞行行，仅作为旧引擎回退。", AnimalMotionStyle.Fly,
+            LegacyPet(
+                "bird", "小鸟（兼容）", "旧 Sprite 飞行行；已有配置继续可用，新选择器不再推荐。", AnimalMotionStyle.Fly,
                 "https://opengameart.org/sites/default/files/bird_v001_blue_and_yellow.png", "bird_blue_yellow.png",
                 11, 8, 6, 11, 15f, false, true, 1.18f, 0.70f,
                 "https://opengameart.org/content/bird-2", "rmazanek", "CC0")
         };
 
+        private static readonly IReadOnlyList<AnimalPetDefinition> PickerPets = BuildPickerPets();
+
         public static IReadOnlyList<AnimalPetDefinition> All
         {
             get { return Pets; }
+        }
+
+        public static IReadOnlyList<AnimalPetDefinition> Visible
+        {
+            get { return PickerPets; }
         }
 
         public static AnimalPetDefinition Get(string id)
@@ -132,23 +161,73 @@ namespace FACM.Pets
             return false;
         }
 
+        private static IReadOnlyList<AnimalPetDefinition> BuildPickerPets()
+        {
+            var visible = new List<AnimalPetDefinition>();
+            foreach (var pet in Pets)
+            {
+                if (pet.ShowInPicker) visible.Add(pet);
+            }
+            return visible;
+        }
+
+        private static AnimalPetDefinition FlyingPet(
+            string id,
+            string name,
+            string description,
+            string spriteUrl,
+            string spriteFileName,
+            float fps,
+            float speed,
+            float visualScale,
+            string profileId)
+        {
+            return new AnimalPetDefinition
+            {
+                Id = id,
+                Name = name,
+                Description = description,
+                Motion = AnimalMotionStyle.Fly,
+                Runtime = AnimalPetRuntime.Sprite,
+                SpriteUrl = spriteUrl,
+                SpriteFileName = spriteFileName,
+                SpriteColumns = 4,
+                SpriteRows = 1,
+                AnimationRow = 0,
+                FrameCount = 4,
+                FramesPerSecond = fps,
+                DirectionalRows = false,
+                PixelArt = false,
+                SourcePage = "https://github.com/xianyumht-cmd/facm/issues/45",
+                AssetAuthor = "FACM project",
+                AssetLicense = "CC0",
+                Speed = speed,
+                VisualScale = visualScale,
+                FlyingProfileId = profileId,
+                ShowInPicker = true,
+                ArtworkUrl = spriteUrl,
+                ArtworkFileName = spriteFileName
+            };
+        }
+
         private static AnimalPetDefinition VPetPet()
         {
             return new AnimalPetDefinition
             {
                 Id = "vpet",
                 Name = "高精度桌宠 · VPet Core",
-                Description = "新运行层：成熟 Idle / Move / Raised / Touch 状态与动作同步，不再靠 WinForms 窗口随机平移。首次启用会按需缓存官方高分辨率动作。",
+                Description = "高精度独立运行层：成熟 Idle / Move / Raised / Touch 状态。首次启用会按需缓存官方动作。",
                 Motion = AnimalMotionStyle.Walk,
                 Runtime = AnimalPetRuntime.VPetCore,
                 SourcePage = "https://github.com/LorisYounger/VPet",
                 AssetAuthor = "VUP-Simulator team / VPet",
                 AssetLicense = "VPet 非商用动画授权",
-                VisualScale = 1f
+                VisualScale = 1f,
+                ShowInPicker = true
             };
         }
 
-        private static AnimalPetDefinition Pet(
+        private static AnimalPetDefinition LegacyPet(
             string id,
             string name,
             string description,
@@ -189,6 +268,7 @@ namespace FACM.Pets
                 AssetLicense = license,
                 Speed = speed,
                 VisualScale = visualScale,
+                ShowInPicker = false,
                 ArtworkUrl = spriteUrl,
                 ArtworkFileName = spriteFileName
             };
