@@ -23,6 +23,7 @@ namespace FACM
                     new OnlineModule(),
                     new PetsModule(),
                     new MayhemModule(),
+                    new CleanupModule(),
                     false))
                 {
                     if (form.Width < 52 || form.Height < 52)
