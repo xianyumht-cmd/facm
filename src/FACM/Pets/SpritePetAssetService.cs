@@ -29,6 +29,12 @@ namespace FACM.Pets
                 return CreateBuiltInGreenFlySheet();
             }
 
+            if (BuiltInFlyingPetArtService.IsBuiltIn(pet.SpriteUrl))
+            {
+                token.ThrowIfCancellationRequested();
+                return BuiltInFlyingPetArtService.TryCreate(pet.SpriteUrl);
+            }
+
             if (string.IsNullOrWhiteSpace(pet.SpriteUrl) || string.IsNullOrWhiteSpace(pet.SpriteFileName))
                 return null;
 
