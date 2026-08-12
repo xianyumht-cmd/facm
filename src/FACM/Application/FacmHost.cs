@@ -127,6 +127,7 @@ namespace FACM.AppHost
                         moduleTimer.Stop();
                         _timings.Add(new FacmModuleTiming(id, moduleTimer.ElapsedMilliseconds, false, exception.Message));
                         AppLog.Error("FACM module initialization failed: " + id, exception);
+                        DisposeFailedModule(module);
                         throw new InvalidOperationException("Failed to initialize FACM module: " + id, exception);
                     }
                 }
@@ -209,6 +210,18 @@ namespace FACM.AppHost
             stack.RemoveAt(stack.Count - 1);
             state[id] = 2;
             result.Add(id);
+        }
+
+        private static void DisposeFailedModule(IFacmModule module)
+        {
+            try
+            {
+                module.Dispose();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("FACM failed module dispose also failed: " + module.Id, exception);
+            }
         }
 
         private void DisposeInitializedModules()
