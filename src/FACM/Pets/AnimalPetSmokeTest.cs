@@ -20,6 +20,8 @@ namespace FACM.Pets
                 if (AnimalPetCatalog.Get("vpet").Runtime != AnimalPetRuntime.VPetCore)
                     throw new InvalidOperationException("VPet Core runtime is missing from the pet catalog.");
 
+                ValidateHighDetailGreenFly();
+
                 var signatures = new HashSet<int>();
                 var spriteCount = 0;
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(55)))
@@ -90,6 +92,37 @@ namespace FACM.Pets
             {
                 Console.Error.WriteLine(exception);
                 return 8;
+            }
+        }
+
+        private static void ValidateHighDetailGreenFly()
+        {
+            var fly = AnimalPetCatalog.Get("greenfly");
+            if (fly.Runtime != AnimalPetRuntime.Sprite || fly.Motion != AnimalMotionStyle.Fly)
+                throw new InvalidOperationException("Green fly no longer uses the lightweight Sprite/Fly runtime.");
+            if (!string.Equals(fly.SpriteUrl, SpritePetAssetService.BuiltInGreenFlyUrl, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Green fly is no longer using the built-in high-detail asset.");
+            if (fly.SpriteColumns != SpritePetAssetService.BuiltInGreenFlyFrameCount || fly.SpriteRows != 1 ||
+                fly.FrameCount != SpritePetAssetService.BuiltInGreenFlyFrameCount)
+                throw new InvalidOperationException("Green fly high-detail sprite grid changed unexpectedly.");
+            if (fly.PixelArt)
+                throw new InvalidOperationException("Green fly high-detail sprite must not use nearest-neighbor pixel-art scaling.");
+            if (Math.Abs(fly.Speed - 1.36f) > 0.001f || Math.Abs(fly.VisualScale - 0.56f) > 0.001f)
+                throw new InvalidOperationException("Green fly accepted movement/size profile changed while upgrading artwork.");
+
+            using (var sheet = SpritePetAssetService.CreateBuiltInGreenFlySheetForSmokeTest())
+            {
+                var expectedWidth = SpritePetAssetService.BuiltInGreenFlyFrameSize * SpritePetAssetService.BuiltInGreenFlyFrameCount;
+                if (sheet.Width != expectedWidth || sheet.Height != SpritePetAssetService.BuiltInGreenFlyFrameSize)
+                    throw new InvalidOperationException("Green fly built-in sheet is not the expected 96px-per-frame source.");
+
+                for (var frame = 0; frame < SpritePetAssetService.BuiltInGreenFlyFrameCount; frame++)
+                {
+                    var rectangle = SpritePetAssetService.GetFrameRectangle(fly, sheet, frame, 0);
+                    if (rectangle.Width != SpritePetAssetService.BuiltInGreenFlyFrameSize ||
+                        rectangle.Height != SpritePetAssetService.BuiltInGreenFlyFrameSize)
+                        throw new InvalidOperationException("Green fly source frame was accidentally downscaled.");
+                }
             }
         }
 

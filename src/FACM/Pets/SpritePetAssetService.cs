@@ -1,5 +1,7 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
@@ -10,12 +12,24 @@ namespace FACM.Pets
 {
     internal static class SpritePetAssetService
     {
+        internal const string BuiltInGreenFlyUrl = "builtin://facm/greenfly-hq-v1";
+        internal const int BuiltInGreenFlyFrameSize = 96;
+        internal const int BuiltInGreenFlyFrameCount = 4;
+
         private static readonly HttpClient Client = CreateClient();
         private static readonly string CacheDirectory = Path.Combine(RuntimePaths.RuntimeDirectory, "animal-sprites");
 
         public static async Task<Bitmap> LoadAsync(AnimalPetDefinition pet, CancellationToken token)
         {
-            if (pet == null || string.IsNullOrWhiteSpace(pet.SpriteUrl) || string.IsNullOrWhiteSpace(pet.SpriteFileName))
+            if (pet == null) return null;
+
+            if (string.Equals(pet.SpriteUrl, BuiltInGreenFlyUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                token.ThrowIfCancellationRequested();
+                return CreateBuiltInGreenFlySheet();
+            }
+
+            if (string.IsNullOrWhiteSpace(pet.SpriteUrl) || string.IsNullOrWhiteSpace(pet.SpriteFileName))
                 return null;
 
             RuntimePaths.Initialize();
@@ -76,6 +90,169 @@ namespace FACM.Pets
             var row = pet.DirectionalRows ? directionRow : pet.AnimationRow;
             row = Math.Max(0, Math.Min(rows - 1, row));
             return new Rectangle(frameIndex * cellWidth, row * cellHeight, cellWidth, cellHeight);
+        }
+
+        internal static Bitmap CreateBuiltInGreenFlySheetForSmokeTest()
+        {
+            return CreateBuiltInGreenFlySheet();
+        }
+
+        private static Bitmap CreateBuiltInGreenFlySheet()
+        {
+            var sheet = new Bitmap(
+                BuiltInGreenFlyFrameSize * BuiltInGreenFlyFrameCount,
+                BuiltInGreenFlyFrameSize,
+                PixelFormat.Format32bppPArgb);
+
+            using (var graphics = Graphics.FromImage(sheet))
+            {
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.Clear(Color.Transparent);
+                graphics.CompositingMode = CompositingMode.SourceOver;
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+                for (var frame = 0; frame < BuiltInGreenFlyFrameCount; frame++)
+                {
+                    var state = graphics.Save();
+                    graphics.TranslateTransform(frame * BuiltInGreenFlyFrameSize, 0f);
+                    DrawGreenFlyFrame(graphics, frame);
+                    graphics.Restore(state);
+                }
+            }
+
+            return sheet;
+        }
+
+        private static void DrawGreenFlyFrame(Graphics graphics, int frame)
+        {
+            // The body anchor is intentionally identical in every frame. Only the wings move, which
+            // keeps the fly visually stable while the existing FACM movement engine owns all desktop motion.
+            var upperTip = new[]
+            {
+                new PointF(24f, 10f),
+                new PointF(17f, 25f),
+                new PointF(24f, 38f),
+                new PointF(19f, 20f)
+            }[frame % BuiltInGreenFlyFrameCount];
+            var lowerTip = new[]
+            {
+                new PointF(24f, 86f),
+                new PointF(17f, 71f),
+                new PointF(24f, 58f),
+                new PointF(19f, 76f)
+            }[frame % BuiltInGreenFlyFrameCount];
+
+            using (var legPen = new Pen(Color.FromArgb(215, 27, 32, 25), 2.25f))
+            {
+                legPen.StartCap = LineCap.Round;
+                legPen.EndCap = LineCap.Round;
+                DrawLeg(graphics, legPen, new PointF(53f, 39f), new PointF(37f, 24f), new PointF(23f, 19f));
+                DrawLeg(graphics, legPen, new PointF(50f, 46f), new PointF(31f, 42f), new PointF(17f, 35f));
+                DrawLeg(graphics, legPen, new PointF(49f, 54f), new PointF(30f, 62f), new PointF(18f, 72f));
+                DrawLeg(graphics, legPen, new PointF(58f, 39f), new PointF(47f, 20f), new PointF(39f, 13f));
+                DrawLeg(graphics, legPen, new PointF(58f, 56f), new PointF(47f, 75f), new PointF(39f, 83f));
+                DrawLeg(graphics, legPen, new PointF(67f, 49f), new PointF(78f, 63f), new PointF(84f, 72f));
+            }
+
+            DrawWing(graphics, new PointF(55f, 42f), upperTip, true);
+            DrawWing(graphics, new PointF(55f, 54f), lowerTip, false);
+
+            using (var abdomenBrush = new LinearGradientBrush(
+                new RectangleF(28f, 37f, 34f, 22f),
+                Color.FromArgb(255, 89, 111, 34),
+                Color.FromArgb(255, 37, 53, 24),
+                LinearGradientMode.Horizontal))
+            using (var abdomenPen = new Pen(Color.FromArgb(235, 24, 31, 20), 1.6f))
+            {
+                graphics.FillEllipse(abdomenBrush, 28f, 37f, 34f, 22f);
+                graphics.DrawEllipse(abdomenPen, 28f, 37f, 34f, 22f);
+            }
+
+            using (var thoraxBrush = new LinearGradientBrush(
+                new RectangleF(49f, 34f, 25f, 28f),
+                Color.FromArgb(255, 72, 88, 37),
+                Color.FromArgb(255, 29, 38, 24),
+                LinearGradientMode.Vertical))
+            using (var thoraxPen = new Pen(Color.FromArgb(240, 22, 27, 20), 1.7f))
+            {
+                graphics.FillEllipse(thoraxBrush, 49f, 34f, 25f, 28f);
+                graphics.DrawEllipse(thoraxPen, 49f, 34f, 25f, 28f);
+            }
+
+            using (var stripePen = new Pen(Color.FromArgb(130, 18, 25, 16), 1.4f))
+            {
+                graphics.DrawArc(stripePen, 32f, 39f, 22f, 18f, 80f, 200f);
+                graphics.DrawArc(stripePen, 38f, 39f, 17f, 18f, 80f, 200f);
+            }
+
+            using (var headBrush = new SolidBrush(Color.FromArgb(255, 61, 68, 42)))
+            using (var headPen = new Pen(Color.FromArgb(240, 26, 31, 24), 1.6f))
+            {
+                graphics.FillEllipse(headBrush, 67f, 38f, 18f, 20f);
+                graphics.DrawEllipse(headPen, 67f, 38f, 18f, 20f);
+            }
+
+            using (var eyeBrush = new SolidBrush(Color.FromArgb(255, 121, 45, 31)))
+            using (var eyeHighlight = new SolidBrush(Color.FromArgb(145, 235, 166, 115)))
+            {
+                graphics.FillEllipse(eyeBrush, 73f, 39.5f, 9f, 8.5f);
+                graphics.FillEllipse(eyeBrush, 73f, 48f, 9f, 8.5f);
+                graphics.FillEllipse(eyeHighlight, 77f, 41f, 2.1f, 1.7f);
+                graphics.FillEllipse(eyeHighlight, 77f, 51f, 2.1f, 1.7f);
+            }
+
+            using (var antennaPen = new Pen(Color.FromArgb(220, 29, 34, 25), 1.4f))
+            {
+                antennaPen.StartCap = LineCap.Round;
+                antennaPen.EndCap = LineCap.Round;
+                graphics.DrawLine(antennaPen, 82f, 43f, 91f, 37f);
+                graphics.DrawLine(antennaPen, 82f, 53f, 91f, 59f);
+            }
+        }
+
+        private static void DrawWing(Graphics graphics, PointF root, PointF tip, bool upper)
+        {
+            var vertical = upper ? -1f : 1f;
+            using (var path = new GraphicsPath())
+            {
+                path.StartFigure();
+                path.AddBezier(
+                    root,
+                    new PointF(root.X - 8f, root.Y + 2f * vertical),
+                    new PointF(tip.X + 11f, tip.Y - 7f * vertical),
+                    tip);
+                path.AddBezier(
+                    tip,
+                    new PointF(tip.X + 18f, tip.Y + 5f * vertical),
+                    new PointF(root.X - 1f, root.Y + 13f * vertical),
+                    root);
+                path.CloseFigure();
+
+                using (var wingBrush = new SolidBrush(Color.FromArgb(112, 202, 225, 228)))
+                using (var wingPen = new Pen(Color.FromArgb(145, 74, 94, 91), 1.15f))
+                {
+                    graphics.FillPath(wingBrush, path);
+                    graphics.DrawPath(wingPen, path);
+                }
+            }
+
+            using (var veinPen = new Pen(Color.FromArgb(78, 72, 91, 88), 0.95f))
+            {
+                graphics.DrawLine(veinPen, root, tip);
+                var mid = new PointF((root.X + tip.X) * 0.5f, (root.Y + tip.Y) * 0.5f);
+                graphics.DrawLine(
+                    veinPen,
+                    new PointF(root.X - 1f, root.Y + (upper ? -4f : 4f)),
+                    new PointF(mid.X + 5f, mid.Y + (upper ? 2f : -2f)));
+            }
+        }
+
+        private static void DrawLeg(Graphics graphics, Pen pen, PointF root, PointF knee, PointF foot)
+        {
+            graphics.DrawLine(pen, root, knee);
+            graphics.DrawLine(pen, knee, foot);
         }
 
         private static Bitmap TryLoadAndValidate(string path, AnimalPetDefinition pet)
