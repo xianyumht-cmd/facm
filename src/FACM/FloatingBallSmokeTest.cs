@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using FACM.AppHost.Modules;
 using FACM.Services;
 
 namespace FACM
@@ -15,7 +16,14 @@ namespace FACM
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                using (var form = new MainForm(new AppSettings(), UiTextCatalog.Load(), false))
+                using (var form = new MainForm(
+                    new AppSettings(),
+                    UiTextCatalog.Load(),
+                    new ToolsModule(),
+                    new OnlineModule(),
+                    new PetsModule(),
+                    new MayhemModule(),
+                    false))
                 {
                     if (form.Width < 52 || form.Height < 52)
                         throw new InvalidOperationException("Built-in FACM shell window is unexpectedly small.");
