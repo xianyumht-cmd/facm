@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FACM.AppHost;
+using FACM.Configuration;
 using FACM.Services;
 
 namespace FACM.AppHost.Modules
@@ -21,6 +22,11 @@ namespace FACM.AppHost.Modules
             get { return NoDependencies; }
         }
 
+        public bool IsConfigured
+        {
+            get { return CleanupProfile.IsConfigured; }
+        }
+
         public bool IsAdministrator
         {
             get { return ElevationService.IsAdministrator; }
@@ -35,9 +41,14 @@ namespace FACM.AppHost.Modules
             return ElevationService.RestartElevatedForCleanup();
         }
 
-        public bool IsRelatedProcessRunning(string gamePath)
+        public IReadOnlyList<string> GetRunningRelatedProcesses()
         {
-            return ProcessGuard.IsRelatedProcessRunning(gamePath);
+            return ProcessGuard.GetRunningRelatedProcesses();
+        }
+
+        public string FindGameRoot()
+        {
+            return GameLocator.FindGameRoot();
         }
 
         public string ResolveGameRoot(string path)
@@ -45,14 +56,19 @@ namespace FACM.AppHost.Modules
             return GameLocator.ResolveGameRoot(path);
         }
 
+        public bool IsValidGameRoot(string path)
+        {
+            return GameLocator.IsValidGameRoot(path);
+        }
+
         public CleanupPlan CreatePlan(string gameRoot)
         {
             return SafeCleanupService.CreatePlan(gameRoot);
         }
 
-        public void Execute(CleanupPlan plan)
+        public CleanupResult Execute(CleanupPlan plan)
         {
-            SafeCleanupService.Execute(plan);
+            return SafeCleanupService.Execute(plan);
         }
 
         public void Dispose()
