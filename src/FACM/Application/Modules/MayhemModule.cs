@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using FACM.AppHost;
 using FACM.Mayhem;
 
-namespace FACM.Application.Modules
+namespace FACM.AppHost.Modules
 {
     internal sealed class MayhemModule : IFacmModule
     {
