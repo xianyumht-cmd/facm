@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修、PR #52 产品化桌宠选择器均已完成 Windows 实机验收并进入 main。Issue #49 / PR #50 的发布状态写入修复也已完成。当前没有新的正式发布动作。
+> 2026-08-13：FACM 3.1.3 仍是线上正式版。高清 Flying Runtime、五种飞虫精修和产品化桌宠选择器均已完成 Windows 实机验收并进入 `main`。当前任务为 Issue #53 / PR #54：普通模式二次启动直接唤醒现有 FACM 控制中心；尚未合并、尚未发布，等待 Windows 实机验收。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -15,75 +15,55 @@
 
 ## 已进入 main、尚未发布的新能力
 
-### PR #44：高清绿苍蝇基线
+### Flying Runtime 与桌宠产品化
 
-- Issue #43 / PR #44 已实机验收，用户确认效果不错；合并提交 `c8f4a0a4a4a847682845fef0cca3c64c49a8948d`。
-- `greenfly` ID、`Speed=1.36`、`VisualScale=0.56` 和原 `_vx/_vy + jitter` 轨迹保持。
-- 原 16×16 × 3 帧网络贴图升级为 FACM 内置 96×96 × 4 帧程序化精细 Sprite；身体锚点固定，仅翅膀变化。
-- Build #773 完整成功并用于实机验收。
+- PR #44：高清绿苍蝇基线已实机验收并合并；保持 `greenfly` ID、既有速度/轨迹和自由出屏行为。
+- PR #46：统一 Flying Runtime 已实机验收并合并；主路线为 **绿苍蝇 / 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾**，VPet Core 保留为独立高精度路线。
+- PR #48：蜜蜂、蜻蜓、蝴蝶、飞蛾的素材与既有 Profile 二次精修已实机验收并合并；绿苍蝇继续作为轨迹回归基线。
+- PR #52：产品化桌宠选择器 Build #790 已实机验收并合并；当前项、飞行性格、轻量/高精度定位和应用交互已收口。
+- Legacy 猫、狗、蜘蛛、蚂蚁等 ID 继续兼容旧 `settings.ini`，但不再作为新选择器推荐项。
+- Flying Runtime 不使用屏幕硬边界；桌宠允许自然飞出所有屏幕，恢复入口仍是“复位桌面位置”。
 
-### PR #46：统一 Flying Runtime
+### 发布状态维护
 
-- Issue #45 / PR #46 已于 2026-08-12 完成 Windows 实机验收，用户反馈“没什么问题”。
-- PR #46 合并提交：`d6cdc2e860b488204348d8158c4da24a899d4aa2`。
-- 最新候选 Build #779 成功；合并后的 main Build #780 也完整成功。
-- 轻量桌宠主路线收敛为：**绿苍蝇 / 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾**；VPet Core 保留为独立高精度路线。
-- 猫、狗、蜘蛛、蚂蚁、旧灰苍蝇、旧胡蜂、小鸟等旧 Sprite ID 不删除，既有 `settings.ini` 继续兼容，但新选择器不再推荐。
-- 运行层把 **桌面运动轨迹 / 360° 身体朝向 / 翅膀动画** 三层解耦；素材统一朝右为 0°，运行时按真实速度向量平滑旋转。
-- Flying Runtime 不增加屏幕硬边界；桌宠允许自然飞出所有屏幕，恢复入口仍是“复位桌面位置”。
-- `greenfly` 继续锁定既有轨迹基线：基础速度 82~140 × 1.36、移动段 0.55~1.80s、idle=0.02、velocity response=7.5、`sin(17t)×10 / cos(13t)×8` jitter。
+- Issue #49 / PR #50 已完成：正式发布工作流只维护 `FACM_RELEASE_STATE` marker 区块，不再整份覆盖 `PROJECT_STATE.md`，也不再写入旧 Build/Issue 模板。
+- 3.1.3 发布后曾出现的旧状态覆盖问题已经修复；当前在线 manifest 未受影响。
 
-### PR #48：Flying Runtime 二次精修
+## 当前任务：Issue #53 / PR #54 二次启动唤醒
 
-- Issue #47 / PR #48 已于 2026-08-13 完成 Windows 实机验收，用户反馈“没什么问题”。
-- PR #48 合并提交：`0126789dc6274a90068aaedafa7f8d2ca71b8361`；Issue #47 已自动关闭为 completed。
-- 本轮不改已经实机通过的 Flying Runtime 架构，只精修素材和既有 Profile 参数；绿苍蝇继续作为轨迹回归基线。
-- FACM Windows Build #781 完整成功并用于实机验收；验收后的分支提交仅同步项目状态文档，不改变 EXE 行为。
+### 目标
 
-#### 素材精修
+普通模式已有 FACM 正在运行时，用户再次双击 `FACM.exe` 不再只看到“FACM 已经在运行”，而是直接唤醒原进程的控制中心。
 
-- 蜜蜂源帧提高到 104px：强化腹部黄黑层次、独立胸部、复眼高光、半透明翅膀和翅脉。
-- 蜻蜓源帧提高到 128px：强化大复眼、胸部、长腹节、四片翅膀、翅脉和翼痣，保持身体锚点不动。
-- 蝴蝶源帧提高到 112px：增加前/后翅层次、翅脉和眼斑，开合仅改变翅膀，不移动身体。
-- 飞蛾源帧提高到 112px：使用更低饱和的厚翅、翼带、绒感胸部和羽状触角。
-- 四套素材继续由 FACM 内置程序化生成，不依赖运行时网络下载；`PixelArt=false`。
+### 当前实现
 
-#### 飞行性格调优
+- 分支：`feat/single-instance-activation-0813`。
+- PR：#54，当前保持 OPEN、未合并。
+- 普通 Mutex 继续负责单实例所有权；新增当前 Windows 会话内的命名 AutoResetEvent，仅传递无参数“激活”信号。
+- 第二实例检测到普通 Mutex 已占用后，最多 1.6 秒有限重试打开激活事件；成功后 `Set()` 并正常退出，不再弹“已经在运行”。
+- 第一实例收到信号后：控制中心未打开则创建并显示；已经打开则只 `BringToFront + Activate`，不会因为复用 Toggle 路径把控制中心关掉。
+- Flying 桌宠 / VPet 不停止、不切换；控制中心继续按当前桌面形态的既有定位逻辑显示。
+- 第一实例刚取得 Mutex 但 WinForms message loop 尚未完全就绪时，以 pending activation 保留请求，在 `Shown` 后消费，避免窄竞态丢失二次启动。
+- `--cleanup` 继续使用独立 elevated cleanup Mutex；所有现有 smoke/test 模式继续使用独立 Mutex，不参与普通实例激活。
+- 新增 `--single-instance-activation-test`：验证 listener 不存在时有限失败、listener 存在时第一次与重复激活都各触发一次回调。
 
-- 蜜蜂：48~82 基础速度，idle 18%，停悬 0.35~1.10s，突出巡航 + 悬停。
-- 蜻蜓：120~205 基础速度，移动段 2.20~4.60s，局部 jitter 0.5/0.8，突出长直线高速冲刺 + 短停。
-- 蝴蝶：18~38 基础速度，移动段 2.80~5.60s，低响应 + 14px 低频纵向漂浮，突出慢速大曲线。
-- 飞蛾：36~68 基础速度，移动段 0.65~1.55s；X/Y jitter 同频同幅 4.8Hz / 7px，形成小范围绕圈感。
-- 不增加新的运动状态机，不改 `SpritePetWindow` 核心算法。
+### 验证状态
 
-#### 自动验证
+- 初版 Windows Build #794 在编译期失败：`ObjectDisposedException` 继承 `InvalidOperationException`，catch 顺序写反导致 CS0160；已通过把子类 catch 放在父类前修复，未改变业务设计。
+- 修复后的 PR HEAD：`5a52ff8936a655c023746d3517848530b9bc26eb`。
+- FACM Windows Build #797：完整成功，包括 PetHost publish/self-test、Release build、FACM.exe 验证、签名步骤、打包与上传；新增单实例激活 smoke 随 CI build target 一并通过。
+- FACM Mayhem Source Probe #116：成功。
+- 当前缺口：**Windows 实机二次启动体验尚未由用户验收**。
 
-- `--animal-pet-test` 继续锁定绿苍蝇原轨迹参数、360° 朝向、四种精修 Profile 性格约束和各自源帧尺寸。
-- PR #48 已合并到 main，但**未触发正式发布**；FACM 3.1.3 继续作为线上正式版。
+### 实机验收重点
 
-### PR #52：产品化桌宠选择器
+1. 正常启动 FACM 后再次双击同一 `FACM.exe`：不应出现“FACM 已经在运行”，原进程控制中心应直接出现。
+2. 控制中心已经打开时再次双击：控制中心应保持打开并置前，不能被关闭。
+3. 绿苍蝇/其它 Flying 桌宠运行时再次双击：桌宠应继续运行，只出现控制中心。
+4. VPet 运行时同样不应被停止或切换。
+5. 关闭控制中心后再次双击，应可重复唤醒。
 
-- Issue #51 / PR #52 已于 2026-08-13 完成 Windows 实机验收，用户反馈“没问题”。
-- PR #52 测试候选 Build #790 完整成功；验收记录提交后的 Build #791 也完整成功。
-- PR #52 合并提交：`eef449652b82519acada4d4bd91aa3876c9fdca9`；Issue #51 已自动关闭为 completed。
-- 本轮未改五种 Flying Runtime 桌宠的速度、VisualScale、FPS、素材或 `SpritePetWindow` 运动算法，也未新增动物。
-- 左侧桌宠列表改为产品化双行卡片：名称 + 简短飞行性格，并对当前正在使用的桌宠显示“当前”标识。
-- 右侧详情区区分“轻量 · 自主飞行”和“高精度 · 独立桌宠”，用普通用户文案说明飞行性格、资源取舍与拖动/自由出屏/复位交互。
-- 当前正在使用的选项会明确显示并禁用重复“应用”，其它项目继续支持单击预览、双击应用和按钮应用。
-- VPet 预览使用用户视角说明动作与首次资源成本；主界面不再暴露 `Flying Runtime / CC0` 等实现术语。
-- `--animal-pet-test` 已增加选择器呈现守卫：6 个可见选项需保持独立性格摘要/行为文案，轻量飞虫与 VPet 的运行层标签必须正确。
+## 发布边界
 
-## Issue #49 / PR #50：发布状态写入已修复
-
-- 根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
-- 修复后发布工作流只维护 `<!-- FACM_RELEASE_STATE_BEGIN -->` / `<!-- FACM_RELEASE_STATE_END -->` 包围的机器发布状态区块，保留区块之外的开发、验收与后续任务内容。
-- 当前 3.1.3 正式版段落已经迁入该 marker 区块；下一次正式发布会原位替换，不会生成第二份“当前正式版”。
-- 机器区块只写 workflow 能直接证明的版本、Release tag、online enabled、`minimum_version`、`force_update`、发布基础/元数据 SHA、FACM.exe SHA-256、`published_at` 和 release notes；不再写 Build/Issue/用户验收等推断信息。
-- PR #50 HEAD `ebb518c9d14071278398d46acfae71b9b77b88f6` 的 FACM Windows Build #787 完整成功；PR #50 合并提交 `56f2ac14b1b405852e6b919584529c7e0b0166a8`，Issue #49 已关闭 completed。
-- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，本维护任务没有触发或改写正式发布。
-
-## 当前状态与下一步
-
-- PR #52 已完成实机验收并进入 main；第三轮飞行桌宠选择器任务已关闭。
-- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，没有触发正式发布。
-- 当前没有必须继续修复的桌宠阻塞项；下一步可从最新 main 重新选择新的高收益任务，而不是为了继续迭代而强行改已验收稳定的 Flying Runtime。
+- Issue #53 / PR #54 当前只作为测试候选，不触发正式 Release，也不修改 `online/version.json`。
+- FACM 3.1.3 继续作为线上正式版；下一次正式发布必须另行获得用户明确授权。
