@@ -2,14 +2,16 @@
 
 > 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修均已完成 Windows 实机验收并进入 main。当前维护任务为 Issue #49：修复正式发布后 `PROJECT_STATE.md` 被旧模板覆盖的问题；不触发新正式版。
 
-## 当前正式版
+<!-- FACM_RELEASE_STATE_BEGIN -->
+## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.1.3。
-- GitHub Release：v3.1.3。
-- 在线更新：已启用。
-- `minimum_version=3.0.0`。
-- `force_update=false`。
-- Release FACM.exe SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`。
+- 版本：FACM 3.1.3
+- GitHub Release：v3.1.3
+- 在线更新：已启用
+- minimum_version：3.0.0
+- force_update：false
+- Release FACM.exe SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
+<!-- FACM_RELEASE_STATE_END -->
 
 ## 已进入 main、尚未发布的新能力
 
@@ -64,7 +66,8 @@
 - 分支：`fix/release-state-template-0813`，从 `main` 的 `64c5cb9065da0f17d6fa4dc61237173ec60e91a5` 创建。
 - 已确认根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
 - 修复后发布工作流只维护 `<!-- FACM_RELEASE_STATE_BEGIN -->` / `<!-- FACM_RELEASE_STATE_END -->` 包围的机器发布状态区块，保留区块之外的开发、验收与后续任务内容。
+- 当前 3.1.3 正式版段落已经迁入该 marker 区块；下一次正式发布会原位替换，不会生成第二份“当前正式版”。
 - 机器区块只写 workflow 能直接证明的版本、Release tag、online enabled、`minimum_version`、`force_update`、发布基础/元数据 SHA、FACM.exe SHA-256、`published_at` 和 release notes；不再写 Build/Issue/用户验收等推断信息。
 - 当前工作流修复提交：`ab3288c870ac7f121eb5963b88bf4c8deaa6171e`；`OPERATIONS.md` 与 `PITFALLS.md` 已同步维护规则和失败经验。
 - 本任务只做 workflow / docs 修复，**不得为了验证而触发真实 Release，也不得修改当前 3.1.3 在线清单**。
-- 下一步：开 PR、通过普通 CI/YAML 校验后合并；随后再从最新 main 开第三轮飞行桌宠产品细节精修。
+- 下一步：PR #50 通过普通 CI/YAML 校验后合并；随后再从最新 main 开第三轮飞行桌宠产品细节精修。
