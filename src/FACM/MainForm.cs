@@ -33,6 +33,7 @@ namespace FACM
         private bool _animalPetActive;
         private bool _dragging;
         private bool _moved;
+        private int _externalActivationPending;
         private Point _dragCursor;
         private Point _dragWindow;
 
@@ -103,6 +104,26 @@ namespace FACM
             CloseMenu();
             try { AnimalPetManager.Stop(); } catch { }
             Close();
+        }
+
+        public void RequestExternalActivation()
+        {
+            if (_exiting || IsDisposed) return;
+            Interlocked.Exchange(ref _externalActivationPending, 1);
+            if (!IsHandleCreated) return;
+
+            try
+            {
+                BeginInvoke(new Action(ShowControlCenterFromExternalActivation));
+            }
+            catch (InvalidOperationException)
+            {
+                // The main window can be between construction and message-loop startup. HandleShown
+                // consumes the pending flag so a launch during this narrow race is not lost.
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         public void ApplyThemeSelection()
@@ -281,6 +302,9 @@ namespace FACM
 
             if (_settings.AnimalPetEnabled)
                 BeginInvoke(new Action(ActivateAnimalPet));
+
+            if (Interlocked.CompareExchange(ref _externalActivationPending, 0, 0) != 0)
+                BeginInvoke(new Action(ShowControlCenterFromExternalActivation));
 
             if (_startCleanup)
             {
@@ -621,11 +645,22 @@ namespace FACM
             return Task.CompletedTask;
         }
 
-        private void ToggleMenu()
+        private void ShowControlCenterFromExternalActivation()
         {
-            if (_menu != null)
+            if (Interlocked.Exchange(ref _externalActivationPending, 0) == 0 || IsDisposed || _exiting) return;
+            EnsureMenuOpenAndActive();
+        }
+
+        private void EnsureMenuOpenAndActive()
+        {
+            if (IsDisposed || _exiting) return;
+
+            if (_menu != null && !_menu.IsDisposed)
             {
-                CloseMenu();
+                if (!_menu.Visible) _menu.Show();
+                _menu.TopMost = true;
+                _menu.BringToFront();
+                _menu.Activate();
                 return;
             }
 
@@ -634,6 +669,17 @@ namespace FACM
             PositionMenu(_menu);
             _menu.Show();
             _menu.Activate();
+        }
+
+        private void ToggleMenu()
+        {
+            if (_menu != null)
+            {
+                CloseMenu();
+                return;
+            }
+
+            EnsureMenuOpenAndActive();
         }
 
         private void PositionMenu(Form menu)
