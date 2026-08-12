@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FACM.Application
+namespace FACM.AppHost
 {
     internal interface IFacmModule : IDisposable
     {
