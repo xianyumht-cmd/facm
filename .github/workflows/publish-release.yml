@@ -366,12 +366,13 @@ jobs:
           $manifest | ConvertTo-Json | Set-Content online/version.json -Encoding utf8
 
           New-Item -ItemType Directory -Path docs -Force | Out-Null
-          $stateLines = @(
-            '# FACM 当前项目状态',
-            '',
-            ('> 正式发布工作流于 ' + [DateTimeOffset]::UtcNow.ToString('u') + ' 更新。'),
-            '',
-            '## 当前正式版',
+          $statePath = 'docs/PROJECT_STATE.md'
+          $beginMarker = '<!-- FACM_RELEASE_STATE_BEGIN -->'
+          $endMarker = '<!-- FACM_RELEASE_STATE_END -->'
+          $notesForState = (($env:RELEASE_NOTES -replace '\r?\n', ' ') -replace '\s{2,}', ' ').Trim()
+          $releaseStateLines = @(
+            $beginMarker,
+            '## 当前正式版（发布工作流维护）',
             '',
             ('- 版本：FACM ' + $env:RELEASE_VERSION),
             ('- GitHub Release：v' + $env:RELEASE_VERSION),
@@ -380,19 +381,40 @@ jobs:
             ('- force_update：' + $env:FORCE_UPDATE.ToLowerInvariant()),
             ('- 发布基础 main：' + $env:FACM_RELEASE_BASE_SHA),
             ('- 发布元数据提交：' + $env:FACM_RELEASE_METADATA_SHA),
-            '',
-            '## 验证状态',
-            '',
-            '- Build #495 的 Windows 发布候选已完成用户实机验收并确认无问题。',
-            '- 正式 Release 继续经过签名、SHA-256、PetHost self-test/内嵌验证与事务式在线清单启用。',
-            '- Issue #28 记录本次 3.1.0 正式发布授权与执行。',
-            '',
-            '## 后续',
-            '',
-            '- 新功能或缺陷继续通过 Issue + 短分支 + PR 进入 main。',
-            '- 下一正式版本继续使用 `.github/workflows/publish-release.yml`；可从 Actions 手动触发，也可通过合并 `release/request.json` 的审计式发布请求触发。'
+            ('- Release FACM.exe SHA-256：' + $env:FACM_RELEASE_SHA256),
+            ('- published_at：' + [string]$manifest.published_at),
+            ('- release_notes：' + $notesForState),
+            $endMarker
           )
-          Set-Content docs/PROJECT_STATE.md $stateLines -Encoding utf8
+          $releaseBlock = $releaseStateLines -join [Environment]::NewLine
+
+          if (Test-Path $statePath -PathType Leaf) {
+            $state = Get-Content $statePath -Raw -Encoding utf8
+          }
+          else {
+            $state = '# FACM 当前项目状态' + [Environment]::NewLine
+          }
+
+          $markerPattern = '(?s)' + [regex]::Escape($beginMarker) + '.*?' + [regex]::Escape($endMarker)
+          if ([regex]::IsMatch($state, $markerPattern)) {
+            $state = [regex]::Replace(
+              $state,
+              $markerPattern,
+              [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $releaseBlock }
+            )
+          }
+          else {
+            $titlePattern = '(?m)^# FACM 当前项目状态\s*$'
+            if ([regex]::IsMatch($state, $titlePattern)) {
+              $replacement = '$0' + [Environment]::NewLine + [Environment]::NewLine + $releaseBlock
+              $state = [regex]::Replace($state, $titlePattern, $replacement)
+            }
+            else {
+              $state = '# FACM 当前项目状态' + [Environment]::NewLine + [Environment]::NewLine +
+                $releaseBlock + [Environment]::NewLine + [Environment]::NewLine + $state.TrimStart()
+            }
+          }
+          Set-Content $statePath $state.TrimEnd() -Encoding utf8
 
           git add online/version.json docs/PROJECT_STATE.md
           git commit -m "启用 FACM $env:RELEASE_VERSION 在线更新"
