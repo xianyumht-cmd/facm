@@ -108,4 +108,4 @@ CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀�
 
 同一版本在 **Release/tag 尚未创建** 的前提下需要重试时，应先修复并验证失败根因，再修改 `release/request.json` 的审计字段 `request_id`（例如 `3.1.0-attempt-2`）并通过新的短分支 + PR 合并触发。`request_id` 不改变版本或客户端语义，只用于让失败后的重试在 Git 历史中可追踪。若目标 tag/Release 已存在，不得用这种方式盲目重试；必须先核对线上 Release 与 manifest 状态。
 
-发布工作流最终成功后会同时更新 `docs/PROJECT_STATE.md`，记录正式版本、Release、在线更新状态和发布基础提交，避免仓库状态文档落后于生产状态。
+发布工作流最终成功后会更新 `docs/PROJECT_STATE.md` 中由 `<!-- FACM_RELEASE_STATE_BEGIN -->` / `<!-- FACM_RELEASE_STATE_END -->` 包围的**发布状态区块**，只写入本次工作流可以从 release 输入、manifest 和运行时直接证明的事实：正式版本、Release tag、在线更新状态、`minimum_version`、`force_update`、发布基础提交、发布元数据提交、FACM.exe SHA-256、`published_at` 和更新说明。该步骤必须保留区块之外的当前开发/验收状态，不得整份重建 `PROJECT_STATE.md`，也不得硬编码历史 Build、Issue/PR 编号或用户验收结论。
