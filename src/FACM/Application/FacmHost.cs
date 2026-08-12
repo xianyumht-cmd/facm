@@ -142,6 +142,7 @@ namespace FACM.AppHost
                 total.Stop();
                 DisposeInitializedModules();
                 UpdateReport(order, total.ElapsedMilliseconds);
+                LogFailureReport();
                 throw;
             }
         }
@@ -244,13 +245,13 @@ namespace FACM.AppHost
 
         private void UpdateReport(IReadOnlyList<string> order, long totalDurationMilliseconds)
         {
-            var successful = _timings.Where(item => item.Succeeded).OrderByDescending(item => item.DurationMilliseconds).FirstOrDefault();
+            var slowest = _timings.OrderByDescending(item => item.DurationMilliseconds).FirstOrDefault();
             _report = new FacmHostReport(
                 order.ToArray(),
                 _timings.ToArray(),
                 totalDurationMilliseconds,
-                successful == null ? string.Empty : successful.Id,
-                successful == null ? 0 : successful.DurationMilliseconds);
+                slowest == null ? string.Empty : slowest.Id,
+                slowest == null ? 0 : slowest.DurationMilliseconds);
         }
 
         private void LogInitializationReport()
@@ -263,12 +264,32 @@ namespace FACM.AppHost
                     "FACM module initialized: " + timing.Id + "; duration=" + timing.DurationMilliseconds + "ms");
             }
 
-            if (!string.IsNullOrWhiteSpace(_report.SlowestModuleId))
+            LogSlowestModule();
+        }
+
+        private void LogFailureReport()
+        {
+            AppLog.Warning(
+                "FACM host initialization aborted: total=" + _report.TotalDurationMilliseconds +
+                "ms; plannedOrder=" + string.Join(" -> ", _report.InitializationOrder));
+            foreach (var timing in _report.Timings)
             {
-                AppLog.Info(
-                    "FACM slowest module: " + _report.SlowestModuleId +
-                    " (" + _report.SlowestModuleDurationMilliseconds + "ms)");
+                AppLog.Warning(
+                    "FACM module initialization attempt: " + timing.Id +
+                    "; duration=" + timing.DurationMilliseconds +
+                    "ms; succeeded=" + timing.Succeeded +
+                    (timing.Succeeded ? string.Empty : "; error=" + timing.ErrorMessage));
             }
+
+            LogSlowestModule();
+        }
+
+        private void LogSlowestModule()
+        {
+            if (string.IsNullOrWhiteSpace(_report.SlowestModuleId)) return;
+            AppLog.Info(
+                "FACM slowest module: " + _report.SlowestModuleId +
+                " (" + _report.SlowestModuleDurationMilliseconds + "ms)");
         }
 
         private static TException LogAndReturn<TException>(string message, TException exception)
