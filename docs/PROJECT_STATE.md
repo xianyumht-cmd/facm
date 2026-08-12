@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是线上正式版。Issue #53 / PR #54“二次启动唤醒现有 FACM 控制中心”已经完成 CI、Windows 实机验收并合并。当前主线已转入 **FACM 3.2 架构基础阶段**：Issue #55 `FACM 3.2 Phase 1：建立 FacmHost 与模块生命周期基础层` 已建立，任务分支为 `feat/facm-host-phase1-55`。本阶段只建立应用宿主/模块边界，不发布新正式版，不重写已验收功能。
+> 2026-08-13：FACM 3.1.3 仍是线上正式版。当前产品主线是 **FACM 3.2 后端架构升级**。Issue #55 / PR #56 的 Phase 1 已完成自动验证：`FacmHost + Module` 基础层、依赖解析、生命周期、启动耗时诊断和 Shell 低风险样板已进入任务分支；FACM Windows Build #832 与 Mayhem Source Probe #145 均 SUCCESS。按用户明确的长重构验收节奏，中间 Phase 不逐次要求 Windows 实机测试，整轮后端重构收口后再提供一个最终候选包集中验收。当前没有正式发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -15,45 +15,41 @@
 
 ## 新对话优先读取
 
-1. `AGENTS.md`：仓库强制规则；canonical branch 为 `main`，一任务一短分支，发布/部署和 destructive refs 必须单独明确授权。
-2. 本文件：当前已验证状态、正在进行的 Issue/branch、冻结契约和下一步。
-3. Issue #55：当前 FACM 3.2 Phase 1 的范围、明确不做和验收条件。
-4. `docs/ARCHITECTURE.md`：3.1 已验证架构 + 3.2 目标架构；注意区分“当前事实”和“规划目标”。
-5. `docs/DECISIONS.md`：记录为什么采用 lightweight modular host、为什么不做 Electron/.NET 8/大型 DI 的大爆炸迁移。
-6. `docs/OPERATIONS.md` / `docs/PITFALLS.md`：现有 CI、发布、单实例、PetHost、Flying Runtime、海斗等防回归约束。
+1. `AGENTS.md`：仓库强制规则；canonical branch 为 `main`，一任务一短分支，发布/部署/destructive refs 必须单独明确授权。
+2. 本文件：当前已验证状态、活动 Issue/PR、CI、冻结契约和下一步。
+3. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：FACM 3.1 verified architecture 与 3.2 modular-host target architecture。
+4. `docs/AI_WORKSTYLE.md`：长架构重构期间依赖自动验证连续推进，整轮收口后再让用户做一次集中 Windows 实机验收。
+5. `docs/PITFALLS.md`：WinForms、PetHost、Flying Runtime、海斗、单实例和 modular-host 防回归规则。
+6. `docs/OPERATIONS.md`：构建、smoke、最终候选与发布边界。
 
 ---
 
-# 一、当前仓库 / 分支 / 发布状态
+# 一、仓库 / 发布状态
 
-## canonical main
+## canonical main 基线
 
-当前任务开始时最新 `main`：`639b80c8f92f8f3551598faac8ce3de8ff547b7e`。
+Issue #55 开始时的最新 `main`：`639b80c8f92f8f3551598faac8ce3de8ff547b7e`。
 
-该 main 已包含并验收：
+该基线已包含并完成 Windows 实机验收：
 
 - PR #44：高清绿苍蝇基线；
 - PR #46：统一 Flying Runtime；
-- PR #48：蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾素材与 Flying Profile 精修；
+- PR #48：蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾精修；
 - PR #50：发布工作流 `PROJECT_STATE` marker 修复；
 - PR #52：产品化桌宠选择器；
 - PR #54：普通模式二次启动唤醒现有 FACM 控制中心。
 
-Issue #53 / PR #54 的 merge commit：`6147851ee9b28bdb432c17809ac657f46d9ed23f`。随后 `639b80c...` 只完成 post-merge 项目状态收口。
-
-## 当前进行中：Issue #55
+## 当前架构任务
 
 - Issue：#55 `FACM 3.2 Phase 1：建立 FacmHost 与模块生命周期基础层`
-- 状态：open
-- 任务分支：`feat/facm-host-phase1-55`
-- 当前阶段：**架构规格已开始固化，尚未进入业务迁移/产品功能开发**。
-- 目标：在 .NET Framework 4.8 / WinForms 现有主程序上建立 lightweight `FacmHost + Module` 应用宿主层。
-- Phase 1 只要求：模块注册、显式依赖、缺失/重复/循环依赖检测、确定性 init/dispose 顺序、启动耗时观测，以及一个低风险样板模块。
-- Phase 1 不要求一次迁移 Settings / Online / Pets / Mayhem / LeagueClient。
+- PR：#56 `refactor(core): establish FACM 3.2 modular host foundation`
+- 分支：`feat/facm-host-phase1-55`
+- PR：OPEN / DRAFT；Phase 1 自动验证已通过，等待 canonical docs/review 收口后合并。
+- 当前经 CI 验证的代码 HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`。
 
-## 在线正式版
+## 线上正式版
 
-当前线上仍保持：
+仍是 FACM 3.1.3：
 
 - `enabled=true`
 - `version=3.1.3`
@@ -61,155 +57,238 @@ Issue #53 / PR #54 的 merge commit：`6147851ee9b28bdb432c17809ac657f46d9ed23f`
 - `force_update=false`
 - SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
 
-**Issue #55、架构分支、CI 测试包都不等于发布授权。** 不自动创建 v3.2.0 / v3.1.4 Release，不改线上 manifest，除非用户后续明确要求正式发布。
+架构 PR、CI artifact 和内部 Phase 合并均不等于正式 Release 授权。不要自行创建 v3.2.0 / v3.1.4 或修改线上 manifest。
 
 ---
 
-# 二、为什么当前主线转向 FACM 3.2 架构基础
+# 二、FACM 3.2 架构方向
 
-FACM 当前不是“功能代码不可用”，相反已有多条经过 CI 和 Windows 实机验收的稳定链路。新的问题是：随着产品从小型工具成长为常驻 Shell / 桌宠 / 海斗 / 在线更新平台，`Program` / `MainForm` 正逐步承担过多应用级 orchestration，部分子系统通过 static manager、直接 `new` 和隐式全局状态连接。
+目标不是复制 League Akari 的 Electron/Vue/TypeScript 技术栈，而是吸收其长期桌面应用架构原则：
 
-如果后续继续加入 League Client、账号、Gameflow、ChampSelect、战绩、自动化等长期功能，而不先建立所有权边界，新增能力会继续挂到主窗体和入口代码上，回归范围越来越大。
-
-本阶段参考 League Akari 等成熟长期桌面应用的**架构原则**，而不是照搬技术栈：
-
-- 模块拥有自己的职责和状态；
+- 模块有稳定 ID 和明确所有权；
 - 依赖显式；
 - 生命周期统一；
-- 复杂度按 feature 纵向封装；
-- 启动顺序和耗时可观测；
-- UI 逐步退回表现层角色。
+- 初始化依赖顺序可验证；
+- 状态/设置逐步归属各 feature；
+- 启动顺序、耗时和失败可从日志直接定位；
+- UI 逐步退回表现/命令转发层；
+- 复杂度封装在纵向 feature 内，而不是继续向 `Program` / `MainForm` 聚集。
 
-FACM 继续保留自己的 WinForms、PetHost、发布链、国服/第三方数据策略和轻量便携定位。
-
----
-
-# 三、FACM 3.2 Phase 1 目标
+FACM 采用适合现有 `.NET Framework 4.8 / WinForms` 的 lightweight modular monolith，不默认引入大型 DI 容器，不为了“成熟”整体迁移 .NET 8，也不改变 PetHost 独立进程边界。
 
 目标组合根：
 
 ```text
 Program
-│
-├─ 进程级职责
-│  ├─ command-line / smoke modes
+├─ process concerns
+│  ├─ command line / smoke modes
 │  ├─ Mutex / SingleInstanceActivation
-│  ├─ WinForms initialization
+│  ├─ WinForms runtime
 │  └─ fatal exception boundary
 │
 └─ FacmHost
-   ├─ Infrastructure / Platform
-   └─ Modules
-      ├─ Shell
-      ├─ Cleanup
-      ├─ Online
-      ├─ Pets
-      ├─ Mayhem
-      ├─ Tools
-      └─ future LeagueClient
+   ├─ Settings
+   ├─ Tools
+   ├─ Online
+   ├─ Pets
+   ├─ Mayhem
+   ├─ Cleanup
+   ├─ Shell
+   └─ future LeagueClient
 ```
-
-Phase 1 的原则：
-
-1. `Program` 仍负责真正的进程入口语义，不把 Mutex / `--cleanup` / smoke mode 硬塞进模块框架。
-2. `FacmHost` 负责正常产品模式的应用级模块注册、依赖解析、初始化和释放。
-3. 模块机制保持小型、透明、可调试；当前没有证据需要 Autofac / Unity 等大型容器。
-4. 首个样板模块必须低风险，不选 Flying Runtime、PetHost、海斗多源查询或在线更新事务。
-5. 先通过 adapter/facade 建边界，不为了“架构漂亮”重写已经稳定的内部实现。
-6. Phase 1 完成后，再一项一项迁移 Shell、Settings、Online、Pets、Mayhem，最后建立真正的 LeagueClient module。
 
 ---
 
-# 四、必须冻结的已验收契约
+# 三、Phase 1 已实现
 
-架构阶段默认不得改变以下行为；如确有新用户价值，需要另立 Issue，而不是顺手重构：
+## FacmHost
+
+新增 lightweight Host：
+
+- `IFacmModule`：稳定 `Id`、显式 `Dependencies`、`Initialize()`、`Dispose()`；
+- `FacmHost`：注册模块、依赖图解析、初始化、失败回滚和反向释放；
+- 拒绝重复 module ID；
+- 拒绝缺失依赖；
+- 检测循环依赖并输出 dependency chain；
+- 初始化顺序由依赖关系决定，不依赖散落的调用顺序约定；
+- Host 关闭时按已初始化顺序反向 Dispose；
+- 初始化失败时先记录失败模块，再反向释放已经成功初始化的模块。
+
+宿主 namespace 使用 `FACM.AppHost` / `FACM.AppHost.Modules`。文件目录仍可位于 `src/FACM/Application/`，但**不要改回 `FACM.Application` namespace**；原因见 `docs/PITFALLS.md`。
+
+## 生命周期可观测性
+
+`FacmHostReport` / AppLog 记录：
+
+- initialization order；
+- 每个 module 的初始化耗时；
+- Host 总初始化耗时；
+- slowest module；
+- 初始化失败模块/异常。
+
+## deterministic smoke
+
+新增：`FACM.exe --facm-host-test`，使用独立 `-FacmHostTest` Mutex，不参与普通实例激活。
+
+覆盖：
+
+- 正常依赖初始化顺序；
+- 反向 Dispose；
+- missing dependency；
+- duplicate ID；
+- circular dependency；
+- 初始化失败后的 rollback；
+- timing/report 基本完整性。
+
+该 smoke 已加入 `FACM.csproj` 的 deterministic CI build target，并位于其它现有 smokes 之前。
+
+## 第一只低风险样板
+
+`CompactMenuEnhancerModule` 接管原 `Program` 中的 `CompactMenuEnhancer.Install()` 调用；其已有 WinForms 兼容行为未重写。
+
+`ShellModule` 已由 Host 管理并负责创建当前 `MainForm(startCleanup)`。因此正常产品启动现在是：
+
+```text
+Program
+  -> create ShellModule
+  -> FacmHost.Register(...)
+  -> FacmHost.Initialize()
+       -> CompactMenuEnhancerModule
+       -> ShellModule -> MainForm
+  -> SingleInstanceActivation listener
+  -> Application.Run(shell.MainForm)
+  -> Host reverse Dispose
+```
+
+`Program` 不再直接执行 `CompactMenuEnhancer.Install()` 或直接 `new MainForm(...)`。
+
+## 后续 facade groundwork
+
+已经建立但尚未在 Phase 1 强行注入 MainForm 的轻量 facade：
+
+- `SettingsModule`
+- `ToolsModule`
+- `PetsModule`
+- `OnlineModule`
+- `MayhemModule`
+
+这些文件是下一阶段迁移所有权的承载面。Phase 1 为避免跨阶段硬接，MainForm 内部仍保持原有 static/direct-new 调用，等下一 Issue 再逐项迁移。
+
+---
+
+# 四、Phase 1 CI / 失败记录
+
+## Build #821 — FAILED，已定位并修复
+
+PetHost publish/self-test 成功，FACM 在 C# 编译阶段失败。
+
+根因：新建 namespace `FACM.Application` 后，根 namespace `FACM` 内旧源码中的未限定 `Application` 被编译器优先解析为 `FACM.Application`，遮蔽 `System.Windows.Forms.Application`，因此同时出现：
+
+- `Application.Run`
+- `Application.OpenForms`
+- `Application.MessageLoop`
+- `Application.EnableVisualStyles`
+- `Application.SetCompatibleTextRenderingDefault`
+- `Application.ExecutablePath`
+
+等大量 CS0234。
+
+修复：**只把新宿主 namespace 改为 `FACM.AppHost` / `FACM.AppHost.Modules`，不修改旧业务文件来绕过冲突。**
+
+## Build #832 — SUCCESS
+
+HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`
+
+已 fresh-check：FACM Windows Build #832 `completed / success`。
+
+其中已成功完成：
+
+- tools 输入验证；
+- PetHost publish + self-test + bundle；
+- FACM net48 Release build；
+- 新 `--facm-host-test`；
+- 原有 floating-ball / single-instance / animal-pet / game-locator / Mayhem cancellation / Tencent patch / ARAM balance / embedded PetHost smokes；
+- FACM.exe 验证；
+- package creation；
+- artifact upload。
+
+## Mayhem Source Probe #145 — SUCCESS
+
+已 fresh-check：`completed / success`。
+
+因此 Phase 1 目前没有自动验证 blocker。
+
+---
+
+# 五、长重构验收节奏
+
+用户已明确：**不要在每个内部 Phase / 模块迁移后停下来要求 Windows 实机测试。**
+
+执行方式固定为：
+
+1. 按既定技术 Phase 连续重构；
+2. 每个内部阶段由代码审查、日志、deterministic smoke、编译和 GitHub Actions 自行收敛；
+3. 自动验证成功后继续下一架构阶段；
+4. 整轮既定后端架构重构完成并形成单一 Windows 候选包后，再让用户集中实机验收一次；
+5. 只有自动验证无法判断、且必须真实 Windows 环境才能解除的 blocker，才提前请求用户测试。
+
+这只改变验收节奏，不降低测试要求，也不改变架构技术计划。
+
+---
+
+# 六、冻结契约
+
+架构重构不得顺手改变以下已验收行为：
 
 ## 单实例
 
-- 普通实例所有权仍由原 Mutex 负责；
-- 第二次普通启动仍通过当前会话命名 AutoResetEvent 发送无参数 activation；
-- 控制中心未开则打开，已开则 BringToFront/Activate，不能 Toggle；
-- `--cleanup` 和各 smoke/test 继续使用独立 Mutex；
-- 不因为“统一架构”改成 TCP/HTTP/重型 IPC。
+- 普通实例 Mutex 所有权保持；
+- 当前会话 AutoResetEvent 只传无参数 activation；
+- 二次启动语义是 Ensure Open/Activate，不是 Toggle；
+- `--cleanup` 和 smoke/test Mutex 保持独立。
 
-## Flying Runtime / 桌宠
+## Flying Runtime / Pets
 
-- 已验收的五种 Flying Runtime 轨迹、尺寸、素材/Profile、自由出屏行为保持；
-- VPet 继续由独立 `.NET 8 x64 / WPF` `FACM.PetHost.exe` 承载；
-- PetHost Job Object、parent-pid、bundle SHA 隔离和 ready 前 Shell 不隐藏等契约保持；
-- `AnimalPetEnabled` / `PetStyleId` 和旧 `settings.ini` 继续兼容。
+- 五种 Flying Runtime 已验收轨迹、尺寸、素材/Profile、自由出屏保持；
+- VPet 继续在独立 `.NET 8 x64 / WPF` PetHost；
+- Job Object、parent-pid、bundle SHA、ready/fallback 保持；
+- `AnimalPetEnabled` / `PetStyleId` / 旧 settings 继续兼容。
 
-## 海斗
+## Mayhem
 
 - 字段级多源容灾保持；
-- 国内优先源/腾讯 Patch 语义/LCU → DataDragon fallback 保持；
-- 公网 live probe 与 deterministic core CI 继续分离。
+- 国内优先 / 腾讯 Patch / LCU → DataDragon fallback 保持；
+- live probe 与 deterministic core CI 保持分离。
 
 ## Online / Release
 
-- 当前正式交付仍是单个 `FACM.exe`，匹配 PetHost bundle 内嵌；
-- Release 与在线 manifest 继续走已验证事务；
-- 架构测试不自动更新线上版本。
+- Release/manifest 事务不变；
+- 当前正式交付仍是单 FACM.exe + 内嵌匹配 PetHost bundle；
+- 架构 Phase 不触发正式发布。
+
+## UI
+
+- 这一轮目标主要是后端架构和稳定性；没有独立产品需求时，不为了后端重构改变现有用户可见交互。
 
 ---
 
-# 五、Issue #55 验收重点
+# 七、下一步
 
-Phase 1 必须至少证明：
+Phase 1 docs/review 收口并合并后，**不要求用户实机测试，直接继续下一架构 Issue**。
 
-1. 正常产品启动通过 `FacmHost` 进入模块生命周期。
-2. 重复模块、缺失依赖和循环依赖能确定性失败并留下明确诊断。
-3. 初始化顺序由依赖决定，关闭时按反向顺序停止/释放。
-4. 日志包含初始化顺序、每模块耗时、总耗时、最慢模块和失败模块。
-5. 至少一个低风险样板模块接入 Host，用户可见行为保持当前 main。
-6. 现有单实例、桌宠、海斗、GameLocator、PetHost 等 smoke 不回归。
-7. Windows 测试包实机确认 Shell、控制中心、二次启动、桌宠、海斗、更新入口没有因 Host 引入改变。
-8. canonical docs 与实际代码一致。
+优先迁移顺序：
 
----
+1. Settings ownership：保留 `settings.ini` 和已有 key，先把加载/保存归属从 MainForm/static 调用迁入明确模块边界；
+2. Shell orchestration：MainForm 改为显式接收需要的 module/facade，不再自己 `AppSettings.Load()` / `UiTextCatalog.Load()`；
+3. Tools / Online / Pets / Mayhem：逐步用 module facade 替换 MainForm 的 direct static/direct-new 依赖；
+4. Cleanup ownership；
+5. 建立真正的 LeagueClient module；
+6. 之后再加入账号 / Gameflow / ChampSelect / 战绩等产品能力。
 
-# 六、当前不做
-
-- 不迁移 Electron / Vue；
-- 不把 FACM 主程序整体迁到 .NET 8；
-- 不重写 Flying Runtime；
-- 不重构 VPet/PetHost 进程模型；
-- 不改变 Issue #53 单实例激活协议；
-- 不改变 `settings.ini` 格式；
-- 不重做控制中心 UI；
-- 不在 Phase 1 新增账号 / 战绩 / Gameflow / ChampSelect 产品功能；
-- 不把历史机器猫/Q 版蜘蛛探索线当成当前主线；
-- 不发布正式 3.2.0。
+迁移过程中保留相同用户行为，自动验证通过就继续，不做每 Phase 用户验收停顿。
 
 ---
 
-# 七、后续迁移顺序
+# 八、给下一会话的一句话
 
-Issue #55 通过 CI + Windows 实机验收后，按小 Issue 继续：
-
-1. Shell / Application lifecycle orchestration；
-2. Settings；
-3. Online；
-4. Pets facade（先包住现有 `AnimalPetManager`，不动 Flying Runtime）；
-5. Mayhem；
-6. LeagueClient module；
-7. 账号 / Gameflow / ChampSelect / 战绩；
-8. 在稳定模块架构上重新规划更完整的 FACM 控制中心 UI。
-
-每次只迁移一个所有权边界，避免大爆炸重写。
-
----
-
-# 八、当前下一步
-
-1. 在 `feat/facm-host-phase1-55` 上完成 3.2 target architecture / decision 文档收口。
-2. 为 Issue #55 创建/维护单一 PR，不创建 `v2/final/test` 等平行分支。
-3. 文档规格稳定后开始 Phase 1 代码：先实现最小 `FacmHost + Module` 契约和 deterministic tests，再选低风险样板模块接入。
-4. Phase 1 CI 全绿后提供 Windows 测试包，先验收“行为无变化 + Host 可观测性”；实机通过前不继续大规模迁移。
-5. 正式 Release 继续等待单独授权。
-
----
-
-# 九、给下一会话的一句话
-
-**当前主线是 Issue #55 / `feat/facm-host-phase1-55`：FACM 3.2 先建立 lightweight `FacmHost + Module` 架构基础，吸收成熟软件的显式依赖/生命周期/feature ownership 思路，但不换 Electron/.NET 8、不动已验收 Flying Runtime/PetHost/单实例/海斗/发布契约；Phase 1 先做宿主、依赖解析、启动耗时观测和一个低风险样板模块，线上仍是 FACM 3.1.3。**
+**FACM 3.2 modular-host Phase 1 已自动验证通过：Issue #55 / Draft PR #56 / `feat/facm-host-phase1-55`，Host 负责依赖解析、生命周期、失败回滚和启动耗时；Shell/CompactMenuEnhancer 已作为低风险样板接入；Build #821 的 `FACM.Application` 命名冲突已通过改为 `FACM.AppHost` 修复，Build #832 + Probe #145 SUCCESS；不要中途要求用户实机测试，Phase 1 合并后直接继续 Settings/Shell/Online/Pets/Mayhem 后端迁移，整轮收口后再给一个最终 Windows 候选包。**
