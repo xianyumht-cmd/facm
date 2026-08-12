@@ -19,6 +19,16 @@ namespace FACM.Pets
         public float JitterYAmplitude { get; set; }
         public float JitterXFrequency { get; set; }
         public float JitterYFrequency { get; set; }
+
+        // Green fly keeps the historical fully-random heading choice. Other managed flyers use
+        // relative course changes so their path has a readable "personality" instead of teleporting
+        // the target vector to an unrelated direction every state transition.
+        public bool UseAbsoluteRandomHeading { get; set; }
+        public float TurnMinDegrees { get; set; }
+        public float TurnMaxDegrees { get; set; }
+        public double SharpTurnChance { get; set; }
+        public float SharpTurnMinDegrees { get; set; }
+        public float SharpTurnMaxDegrees { get; set; }
     }
 
     internal static class FlyingPetProfiles
@@ -48,75 +58,101 @@ namespace FACM.Pets
                     JitterXAmplitude = 10f,
                     JitterYAmplitude = 8f,
                     JitterXFrequency = 17f,
-                    JitterYFrequency = 13f
+                    JitterYFrequency = 13f,
+                    UseAbsoluteRandomHeading = true
                 },
                 [Bee] = new FlyingPetProfile
                 {
                     Id = Bee,
-                    MinBaseSpeed = 52f,
-                    MaxBaseSpeed = 88f,
-                    MoveMinSeconds = 1.05,
-                    MoveMaxSeconds = 2.60,
-                    IdleChance = 0.12,
-                    IdleMinSeconds = 0.25,
-                    IdleMaxSeconds = 0.90,
-                    VelocityResponse = 4.8f,
-                    HeadingResponse = 7.0f,
-                    JitterXAmplitude = 3.0f,
-                    JitterYAmplitude = 4.5f,
-                    JitterXFrequency = 8.0f,
-                    JitterYFrequency = 6.2f
+                    // Bee: medium cruise, gentle turns and visibly longer hover pauses.
+                    MinBaseSpeed = 48f,
+                    MaxBaseSpeed = 82f,
+                    MoveMinSeconds = 1.20,
+                    MoveMaxSeconds = 2.80,
+                    IdleChance = 0.18,
+                    IdleMinSeconds = 0.35,
+                    IdleMaxSeconds = 1.10,
+                    VelocityResponse = 4.2f,
+                    HeadingResponse = 5.8f,
+                    JitterXAmplitude = 2.5f,
+                    JitterYAmplitude = 4.0f,
+                    JitterXFrequency = 7.2f,
+                    JitterYFrequency = 6.1f,
+                    TurnMinDegrees = 22f,
+                    TurnMaxDegrees = 78f,
+                    SharpTurnChance = 0.06,
+                    SharpTurnMinDegrees = 110f,
+                    SharpTurnMaxDegrees = 170f
                 },
                 [Dragonfly] = new FlyingPetProfile
                 {
                     Id = Dragonfly,
-                    MinBaseSpeed = 104f,
-                    MaxBaseSpeed = 176f,
-                    MoveMinSeconds = 1.60,
-                    MoveMaxSeconds = 3.60,
-                    IdleChance = 0.08,
-                    IdleMinSeconds = 0.18,
-                    IdleMaxSeconds = 0.55,
-                    VelocityResponse = 9.2f,
-                    HeadingResponse = 12.0f,
-                    JitterXAmplitude = 1.5f,
-                    JitterYAmplitude = 1.8f,
-                    JitterXFrequency = 7.0f,
-                    JitterYFrequency = 6.0f
+                    // Dragonfly: long straight dashes, tiny corrections, then occasional hard breaks.
+                    MinBaseSpeed = 120f,
+                    MaxBaseSpeed = 205f,
+                    MoveMinSeconds = 2.20,
+                    MoveMaxSeconds = 4.60,
+                    IdleChance = 0.14,
+                    IdleMinSeconds = 0.12,
+                    IdleMaxSeconds = 0.40,
+                    VelocityResponse = 12.0f,
+                    HeadingResponse = 15.5f,
+                    JitterXAmplitude = 0.5f,
+                    JitterYAmplitude = 0.8f,
+                    JitterXFrequency = 5.0f,
+                    JitterYFrequency = 4.0f,
+                    TurnMinDegrees = 8f,
+                    TurnMaxDegrees = 28f,
+                    SharpTurnChance = 0.32,
+                    SharpTurnMinDegrees = 95f,
+                    SharpTurnMaxDegrees = 170f
                 },
                 [Butterfly] = new FlyingPetProfile
                 {
                     Id = Butterfly,
-                    MinBaseSpeed = 24f,
-                    MaxBaseSpeed = 48f,
-                    MoveMinSeconds = 2.30,
-                    MoveMaxSeconds = 4.80,
-                    IdleChance = 0.08,
-                    IdleMinSeconds = 0.45,
-                    IdleMaxSeconds = 1.35,
-                    VelocityResponse = 2.2f,
-                    HeadingResponse = 3.4f,
-                    JitterXAmplitude = 7.0f,
-                    JitterYAmplitude = 10.0f,
-                    JitterXFrequency = 4.4f,
-                    JitterYFrequency = 3.7f
+                    // Butterfly: slow broad arcs with obvious vertical float and very soft heading response.
+                    MinBaseSpeed = 18f,
+                    MaxBaseSpeed = 38f,
+                    MoveMinSeconds = 2.80,
+                    MoveMaxSeconds = 5.60,
+                    IdleChance = 0.04,
+                    IdleMinSeconds = 0.50,
+                    IdleMaxSeconds = 1.40,
+                    VelocityResponse = 1.7f,
+                    HeadingResponse = 2.4f,
+                    JitterXAmplitude = 6.0f,
+                    JitterYAmplitude = 14.0f,
+                    JitterXFrequency = 2.6f,
+                    JitterYFrequency = 2.1f,
+                    TurnMinDegrees = 18f,
+                    TurnMaxDegrees = 65f,
+                    SharpTurnChance = 0.05,
+                    SharpTurnMinDegrees = 80f,
+                    SharpTurnMaxDegrees = 130f
                 },
                 [Moth] = new FlyingPetProfile
                 {
                     Id = Moth,
-                    MinBaseSpeed = 42f,
-                    MaxBaseSpeed = 78f,
-                    MoveMinSeconds = 0.85,
-                    MoveMaxSeconds = 2.25,
-                    IdleChance = 0.06,
-                    IdleMinSeconds = 0.25,
-                    IdleMaxSeconds = 1.05,
-                    VelocityResponse = 5.6f,
-                    HeadingResponse = 6.5f,
-                    JitterXAmplitude = 5.0f,
-                    JitterYAmplitude = 5.5f,
-                    JitterXFrequency = 7.6f,
-                    JitterYFrequency = 6.4f
+                    // Moth: short nervous hops. Equal X/Y frequencies intentionally create a subtle
+                    // local circular loop around the larger random course.
+                    MinBaseSpeed = 36f,
+                    MaxBaseSpeed = 68f,
+                    MoveMinSeconds = 0.65,
+                    MoveMaxSeconds = 1.55,
+                    IdleChance = 0.04,
+                    IdleMinSeconds = 0.18,
+                    IdleMaxSeconds = 0.65,
+                    VelocityResponse = 6.2f,
+                    HeadingResponse = 8.6f,
+                    JitterXAmplitude = 7.0f,
+                    JitterYAmplitude = 7.0f,
+                    JitterXFrequency = 4.8f,
+                    JitterYFrequency = 4.8f,
+                    TurnMinDegrees = 45f,
+                    TurnMaxDegrees = 125f,
+                    SharpTurnChance = 0.18,
+                    SharpTurnMinDegrees = 135f,
+                    SharpTurnMaxDegrees = 180f
                 }
             };
 
