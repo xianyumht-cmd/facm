@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
+using FACM.AppHost;
 using FACM.Services;
 
-namespace FACM.Application.Modules
+namespace FACM.AppHost.Modules
 {
     internal sealed class SettingsModule : IFacmModule
     {
