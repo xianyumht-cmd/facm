@@ -15,6 +15,7 @@ namespace FACM.AppHost
                 ValidateDuplicateModuleId();
                 ValidateCircularDependency();
                 ValidateInitializationFailureRollback();
+                ValidateFirstModuleFailureReport();
                 return 0;
             }
             catch (Exception exception)
@@ -110,6 +111,26 @@ namespace FACM.AppHost
                     "FACM host did not dispose the partially initialized failing module and roll back prior modules.");
                 Require(host.Report.Timings.Count == 2, "FACM host failure report lost timing diagnostics.");
                 Require(!host.Report.Timings[1].Succeeded, "FACM host failure timing was marked successful.");
+            }
+        }
+
+        private static void ValidateFirstModuleFailureReport()
+        {
+            var events = new List<string>();
+            using (var host = new FacmHost())
+            {
+                host.Register(new TestModule("first", Array.Empty<string>(), events, true));
+
+                RequireThrows(
+                    delegate { host.Initialize(); },
+                    "Failed to initialize FACM module: first",
+                    "FACM host did not surface first-module initialization failure.");
+
+                Require(
+                    events.SequenceEqual(new[] { "init:first", "dispose:first" }),
+                    "FACM host did not dispose a first module that failed during initialization.");
+                Require(host.Report.Timings.Count == 1, "FACM first-module failure report lost timing diagnostics.");
+                Require(host.Report.SlowestModuleId == "first", "FACM first-module failure report lost slowest module identity.");
             }
         }
 
