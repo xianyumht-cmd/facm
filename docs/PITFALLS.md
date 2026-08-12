@@ -302,3 +302,21 @@ Build #741 实机日志因此出现连续 `ObjectDisposedException`：一次来�
 
 - PR #36
 - PR #37
+
+## 发布工作流不能用静态模板覆盖项目状态
+
+### 根因
+
+FACM 3.1.3 正式发布时，`.github/workflows/publish-release.yml` 的最终在线更新步骤会整份重建 `docs/PROJECT_STATE.md`，其中还残留历史发布的 `Build #495 / Issue #28 / 3.1.0` 固定文字。发布二进制、签名和在线清单本身都正确，但 canonical 项目状态被旧模板覆盖，导致后续 AI/维护者读取到错误的当前版本与验收历史，只能再人工恢复。
+
+### 防回归规则
+
+- 发布自动化只能维护 `PROJECT_STATE.md` 中一个有明确 begin/end marker 的机器所有区块，不能整份重建 canonical 状态文档。
+- 机器区块只记录本次 workflow 能直接证明的事实：版本、Release tag、online enabled、`minimum_version`、`force_update`、发布基础/元数据 SHA、FACM.exe SHA-256、`published_at` 和 release notes。
+- 不得在发布脚本里硬编码 Build 编号、Issue/PR 编号、用户实机验收结论或任何历史版本专属描述；这些信息只能由实际任务/验收流程写入普通项目状态区。
+- 更新 release 区块必须幂等：marker 已存在时只替换该区块；marker 不存在时插入，不删除其余开发、验收和后续任务状态。
+- 修发布状态写入逻辑时不得通过触发真实 Release 来“测试”；优先静态检查、YAML/PowerShell 语法检查和普通 CI，避免为验证文档逻辑误发版本。
+
+### 关联
+
+- Issue #49
