@@ -116,13 +116,13 @@ namespace FACM
             {
                 BeginInvoke(new Action(ShowControlCenterFromExternalActivation));
             }
+            catch (ObjectDisposedException)
+            {
+            }
             catch (InvalidOperationException)
             {
                 // The main window can be between construction and message-loop startup. HandleShown
                 // consumes the pending flag so a launch during this narrow race is not lost.
-            }
-            catch (ObjectDisposedException)
-            {
             }
         }
 
