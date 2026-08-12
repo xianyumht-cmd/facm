@@ -26,12 +26,12 @@ namespace FACM
         private readonly Label _status;
         private bool _dialogOpen;
 
-        public CompactMenuForm(MainForm ownerBall, AppSettings settings, UiTextCatalog ui, CleanupModule cleanup)
+        public CompactMenuForm(MainForm ownerBall, AppSettings settings, UiTextCatalog ui, CleanupModule cleanupModule)
         {
             _ownerBall = ownerBall;
             _settings = settings;
             _ui = ui ?? UiTextCatalog.Load();
-            _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
+            _cleanup = cleanupModule ?? throw new ArgumentNullException(nameof(cleanupModule));
             _theme = ThemeCatalog.Get(_settings.ThemeId);
             _scaleX = _theme.WindowSize.Width / (float)BaseWidth;
             _scaleY = _theme.WindowSize.Height / (float)BaseHeight;
