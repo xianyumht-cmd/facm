@@ -320,3 +320,31 @@ FACM 3.1.3 正式发布时，`.github/workflows/publish-release.yml` 的最终�
 ### 关联
 
 - Issue #49
+- PR #50
+
+## 外部激活控制中心必须是 Ensure Open，不能复用 Toggle
+
+### 根因
+
+Issue #53 / PR #54 把“第二次启动 FACM.exe”从单纯报“已经在运行”改成唤醒现有实例。控制中心原有 `ToggleMenu()` 语义是“关闭则打开、打开则关闭”，适合用户点击同一个悬浮入口，但不适合作为跨进程/跨实例 activation 回调。
+
+如果第二实例收到 Mutex 已占用后直接让第一实例调用 `ToggleMenu()`，那么用户本来已经打开控制中心时再次双击 EXE，会把控制中心关掉，和“把 FACM 叫出来”的产品语义完全相反。
+
+本轮初版还出现过一个独立的 C# 编译错误：`catch (InvalidOperationException)` 写在 `catch (ObjectDisposedException)` 前面。`ObjectDisposedException` 继承 `InvalidOperationException`，因此后一个 catch 永远不可达，Build #794 以 CS0160 失败。该错误与 AutoResetEvent 方案无关，不应因此重写 IPC。
+
+### 防回归规则
+
+- 外部/二次启动 activation 使用 **Ensure Open**：控制中心不存在则创建，已经存在则 `BringToFront/Activate`；禁止直接复用 `ToggleMenu()`。
+- 普通 Mutex 继续只负责单实例所有权；命名 AutoResetEvent 只负责无参数 activation，不要为了一个布尔信号引入 socket/HTTP/重型 IPC。
+- 第一实例刚启动时允许 pending activation，第二实例只做短时间有限重试；禁止无限等待。
+- 第二实例只发信号然后退出，不 kill/restart 第一实例，不修改桌宠状态。
+- `--cleanup` 和 smoke/test 模式继续使用各自独立 Mutex，不得误接普通 activation channel。
+- C# 捕获存在继承关系的异常时，具体子类必须排在父类前；不要用 catch 顺序错误掩盖实际 UI 生命周期问题。
+- `FACM.exe --single-instance-activation-test` 必须继续验证 listener 缺失有限失败、首次激活和重复激活；涉及前台窗口语义的修改仍需要 Windows 实机测试。
+
+### 关联
+
+- Issue #53
+- PR #54
+- Build #794（catch 顺序编译失败）
+- Build #797（修复后 CI + 用户实机验收通过）
