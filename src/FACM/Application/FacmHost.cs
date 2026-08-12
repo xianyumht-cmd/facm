@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using FACM.Services;
 
-namespace FACM.Application
+namespace FACM.AppHost
 {
     internal sealed class FacmModuleTiming
     {
