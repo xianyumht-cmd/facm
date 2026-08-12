@@ -143,7 +143,8 @@ namespace FACM.AppHost
             var online = new OnlineModule();
             var pets = new PetsModule();
             var mayhem = new MayhemModule();
-            var shell = new ShellModule(false, settings, tools, online, pets, mayhem);
+            var cleanup = new CleanupModule();
+            var shell = new ShellModule(false, settings, tools, online, pets, mayhem, cleanup);
 
             var expected = new[]
             {
@@ -152,12 +153,13 @@ namespace FACM.AppHost
                 ToolsModule.ModuleId,
                 OnlineModule.ModuleId,
                 PetsModule.ModuleId,
-                MayhemModule.ModuleId
+                MayhemModule.ModuleId,
+                CleanupModule.ModuleId
             };
 
             Require(
                 shell.Dependencies.SequenceEqual(expected),
-                "FACM Phase 3 shell feature dependency contract changed unexpectedly.");
+                "FACM Phase 4 shell feature dependency contract changed unexpectedly.");
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)
