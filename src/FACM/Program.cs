@@ -26,9 +26,10 @@ namespace FACM
             var petLocatorTest = HasArgument(args, "--pet-locator-test");
             var embeddedPetHostTest = HasArgument(args, "--embedded-pethost-test");
             var gameLocatorTest = HasArgument(args, "--game-locator-test");
+            var singleInstanceActivationTest = HasArgument(args, "--single-instance-activation-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
-                           embeddedPetHostTest || gameLocatorTest;
+                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -40,19 +41,31 @@ namespace FACM
                 floatingBallTest,
                 petLocatorTest,
                 embeddedPetHostTest,
-                gameLocatorTest);
+                gameLocatorTest,
+                singleInstanceActivationTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
             {
                 if (!createdNew)
                 {
+                    if (!testMode && !startCleanup && SingleInstanceActivation.TrySignalExisting(TimeSpan.FromMilliseconds(1600)))
+                    {
+                        Environment.ExitCode = 0;
+                        return;
+                    }
+
                     if (!testMode)
                         MessageBox.Show(Ui("FACM 已经在运行。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
                     return;
                 }
 
+                if (singleInstanceActivationTest)
+                {
+                    Environment.ExitCode = SingleInstanceActivation.RunSmokeTest();
+                    return;
+                }
                 if (mayhemBodyCancellationTest)
                 {
                     Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run();
@@ -142,7 +155,19 @@ namespace FACM
 
                 CompactMenuEnhancer.Install();
                 AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
-                Application.Run(new MainForm(startCleanup));
+
+                var mainForm = new MainForm(startCleanup);
+                SingleInstanceActivation activation = null;
+                try
+                {
+                    if (!startCleanup)
+                        activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
+                    Application.Run(mainForm);
+                }
+                finally
+                {
+                    if (activation != null) activation.Dispose();
+                }
             }
         }
 
@@ -157,8 +182,10 @@ namespace FACM
             bool floatingBallTest,
             bool petLocatorTest,
             bool embeddedPetHostTest,
-            bool gameLocatorTest)
+            bool gameLocatorTest,
+            bool singleInstanceActivationTest)
         {
+            if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";
             if (aramBaseBalanceTest) return MutexName + "-AramBaseBalanceTest";
