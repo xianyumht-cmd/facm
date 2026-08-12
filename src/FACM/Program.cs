@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
+using FACM.AppHost;
+using FACM.AppHost.Modules;
 using FACM.Mayhem;
 using FACM.Pets;
 using FACM.Services;
@@ -27,9 +29,10 @@ namespace FACM
             var embeddedPetHostTest = HasArgument(args, "--embedded-pethost-test");
             var gameLocatorTest = HasArgument(args, "--game-locator-test");
             var singleInstanceActivationTest = HasArgument(args, "--single-instance-activation-test");
+            var facmHostTest = HasArgument(args, "--facm-host-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
-                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest;
+                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -42,7 +45,8 @@ namespace FACM
                 petLocatorTest,
                 embeddedPetHostTest,
                 gameLocatorTest,
-                singleInstanceActivationTest);
+                singleInstanceActivationTest,
+                facmHostTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -61,6 +65,11 @@ namespace FACM
                     return;
                 }
 
+                if (facmHostTest)
+                {
+                    Environment.ExitCode = FacmHostSmokeTest.Run();
+                    return;
+                }
                 if (singleInstanceActivationTest)
                 {
                     Environment.ExitCode = SingleInstanceActivation.RunSmokeTest();
@@ -153,22 +162,56 @@ namespace FACM
                     AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
                 };
 
-                CompactMenuEnhancer.Install();
-                AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
+                var shell = new ShellModule(startCleanup);
+                using (var host = CreateHost(shell))
+                {
+                    try
+                    {
+                        host.Initialize();
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Error("FACM host startup failed", exception);
+                        MessageBox.Show(
+                            Ui("FACM 应用模块初始化失败，详情已写入日志。\r\n\r\n" + exception.Message),
+                            Ui("FACM 启动失败"),
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error);
+                        Environment.ExitCode = 3;
+                        return;
+                    }
 
-                var mainForm = new MainForm(startCleanup);
-                SingleInstanceActivation activation = null;
-                try
-                {
-                    if (!startCleanup)
-                        activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
-                    Application.Run(mainForm);
-                }
-                finally
-                {
-                    if (activation != null) activation.Dispose();
+                    var mainForm = shell.MainForm;
+                    if (mainForm == null)
+                    {
+                        AppLog.Error("FACM shell module initialized without a MainForm", null);
+                        Environment.ExitCode = 3;
+                        return;
+                    }
+
+                    AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
+
+                    SingleInstanceActivation activation = null;
+                    try
+                    {
+                        if (!startCleanup)
+                            activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
+                        Application.Run(mainForm);
+                    }
+                    finally
+                    {
+                        if (activation != null) activation.Dispose();
+                    }
                 }
             }
+        }
+
+        private static FacmHost CreateHost(ShellModule shell)
+        {
+            var host = new FacmHost();
+            host.Register(new CompactMenuEnhancerModule());
+            host.Register(shell);
+            return host;
         }
 
         private static string ResolveMutexName(
@@ -183,8 +226,10 @@ namespace FACM
             bool petLocatorTest,
             bool embeddedPetHostTest,
             bool gameLocatorTest,
-            bool singleInstanceActivationTest)
+            bool singleInstanceActivationTest,
+            bool facmHostTest)
         {
+            if (facmHostTest) return MutexName + "-FacmHostTest";
             if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";

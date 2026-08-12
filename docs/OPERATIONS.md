@@ -12,6 +12,7 @@
 - CleanupProfile 配置状态；
 - PetHost win-x64 publish、自检和内嵌 bundle；
 - FACM .NET Framework 4.8 Release 编译；
+- FACM modular host：`--facm-host-test` 验证依赖拓扑、缺失/重复/循环依赖、失败回滚、反向释放和初始化报告；
 - 悬浮球、旧 Sprite、游戏目录预算/取消、海斗 HTTP 正文取消等本地 deterministic smoke；
 - 普通 FACM 单实例激活通道：`--single-instance-activation-test` 验证 listener 不存在时有限失败、listener 存在时首次/重复激活各触发一次回调；
 - 腾讯海克斯大乱斗公告解析的离线 fixture，包括一个英雄多条改动和“正文提前提及海斗但不应提前进入英雄段”的边界；
@@ -36,6 +37,28 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 - `push` 与 `pull_request` 故意保留为不同组，避免 branch push 把 PR required check 对应的运行取消掉。
 
 不要把 `github.sha` 放回 concurrency group。SHA 每次提交都会变化，会让 `cancel-in-progress: true` 失去实际作用。
+
+## FACM modular host 验证
+
+FACM 3.2 架构阶段新增：
+
+```text
+FACM.exe --facm-host-test
+```
+
+该模式使用独立 `-FacmHostTest` Mutex，不参与普通实例唤醒，也不触碰真实用户配置/公网。
+
+至少证明：
+
+1. 模块按显式依赖的确定顺序初始化；
+2. Host 关闭时按反向依赖顺序 Dispose；
+3. 缺失 dependency 确定性失败；
+4. duplicate module ID 确定性失败；
+5. circular dependency 被检测并留下可读链路；
+6. 某模块初始化失败时，已经成功初始化的模块会反向 rollback；
+7. report 至少保留初始化顺序、每模块 timing、总耗时和 slowest module。
+
+架构变更后如果出现大量 `Application.Run/OpenForms/MessageLoop/...` “不存在”的 CS0234，先检查是否又引入了 `FACM.Application` 之类会遮蔽 `System.Windows.Forms.Application` 的 namespace。当前稳定宿主 namespace 是 `FACM.AppHost` / `FACM.AppHost.Modules`。
 
 ## 普通 FACM 单实例 / 二次启动验证
 
@@ -73,7 +96,7 @@ CI 无法完全证明 Windows 前台窗口激活语义，因此涉及 `SingleIns
 
 外部 activation 的产品契约是 **Ensure Open**，不是 Toggle。不要把 `MainForm.ToggleMenu()` 直接绑定为二次启动回调。
 
-PR #54 的 Build #797 已通过上述 deterministic smoke，用户于 2026-08-13 完成 Windows 实机验证并反馈“测试通过”。如果后续提交只改 canonical docs、没有改变 activation 代码行为，可沿用该实机验收；若 `Program.cs`、`MainForm.cs` 或 `SingleInstanceActivation.cs` 再发生行为改动，则必须重新做这组实机 smoke。
+PR #54 的 Build #797 已通过上述 deterministic smoke，用户于 2026-08-13 完成 Windows 实机验证并反馈“测试通过”。如果后续提交只改 canonical docs、没有改变 activation 代码行为，可沿用该实机验收；若 `Program.cs`、`MainForm.cs` 或 `SingleInstanceActivation.cs` 再发生行为改动，则必须在**整轮架构重构最终候选**集中重新做这组实机 smoke；长重构内部 Phase 不需要逐轮要求用户测试，除非真实 Windows 行为成为无法自动解除的 blocker。
 
 ## 海斗第三方数据源探测
 
@@ -118,6 +141,8 @@ PR #54 的 Build #797 已通过上述 deterministic smoke，用户于 2026-08-13
 ## 发布候选实机验收
 
 CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀软扫描和用户网络环境。正式发布前集中做一轮 5～10 分钟 smoke，不需要每个提交都重复下载。
+
+对于 FACM 3.2 这种连续后端/架构重构，内部 Phase 通过编译、deterministic smoke、日志和 Actions 后继续推进，不在每个 Phase 都要求用户实机测试。等既定重构范围整体收口、生成**单一最终 Windows 候选包**后，再执行下面这轮集中验收。
 
 至少检查：
 

@@ -348,3 +348,26 @@ Issue #53 / PR #54 把“第二次启动 FACM.exe”从单纯报“已经在运�
 - PR #54
 - Build #794（catch 顺序编译失败）
 - Build #797（修复后 CI + 用户实机验收通过）
+
+## WinForms 项目不要用 `FACM.Application` 作为根级业务 namespace
+
+### 根因
+
+FACM 3.2 modular-host Phase 1 最初把新宿主放进 `namespace FACM.Application`。由于大量旧文件本身位于根 `namespace FACM`，其中原本正常使用的未限定类型名 `Application` 被 C# 名称解析优先绑定到新建的 `FACM.Application` namespace，而不再是 `System.Windows.Forms.Application`。
+
+Build #821 因此一次出现大量 CS0234，包括 `Application.Run`、`OpenForms`、`MessageLoop`、`EnableVisualStyles`、`SetCompatibleTextRenderingDefault`、`ExecutablePath` 等“在 FACM.Application 中不存在”。PetHost publish/self-test 当时仍成功，说明故障只来自 net48 主项目的新 namespace 污染，不是 Host 模块化设计或 PetHost 行为回归。
+
+### 防回归规则
+
+- FACM modular host 的稳定 namespace 使用 `FACM.AppHost` / `FACM.AppHost.Modules`；文件目录可以叫 `Application`，但 namespace 不要改回 `FACM.Application`。
+- 在 WinForms 根 namespace 附近新增 `Application`、`Form`、`Timer`、`Control` 等常见框架类型同名 namespace/type 前，先搜索项目内未限定引用，避免全项目名称遮蔽。
+- 遇到这种批量“框架成员突然不存在”的编译错误，先检查名称解析/namespace collision，不要逐个旧文件加 fully-qualified 名称掩盖根因。
+- 修复 namespace collision 时优先改新命名空间本身，保持已验证旧业务文件不动。
+- `--facm-host-test` 和核心 Windows Build 必须继续作为 Host 架构变更的 deterministic 门禁。
+
+### 关联
+
+- Issue #55
+- PR #56
+- Build #821（namespace collision）
+- Build #832（改为 `FACM.AppHost` 后通过）
