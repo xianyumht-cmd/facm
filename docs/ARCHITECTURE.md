@@ -1,6 +1,6 @@
-# FACM 3.1 架构
+# FACM 3.1 / 3.2 架构
 
-> 本文前半部分记录当前 `main` 已验证的 FACM 3.1 架构。文末“FACM 3.2 目标架构”属于 Issue #55 的规划目标；在对应代码和实机验收完成前，不得把目标结构当成已经存在的运行事实。
+> 本文前半部分记录 `main` 的 FACM 3.1 已验证产品架构；文末记录 FACM 3.2 modular-host 架构。Issue #55 Phase 1 已通过 Build #832 / Probe #145 自动验证，Host/Shell 样板属于已实现事实；Settings / Online / Pets / Mayhem / LeagueClient 的进一步所有权迁移仍属于后续阶段，不能提前写成已完成。
 
 ## 进程边界
 
@@ -52,7 +52,7 @@ FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌
 
 ## FACM Shell 与控制中心
 
-`MainForm` 是应用级入口拥有者，同时承载默认 FACM Shell；`CompactMenuForm` 是轻量弹出控制中心。
+`MainForm` 承载默认 FACM Shell 的 WinForms 表现；`CompactMenuForm` 是轻量弹出控制中心。FACM 3.2 Phase 1 起，`MainForm` 的创建已由 `ShellModule` 所有，`Program` 不再直接构造它；MainForm 内部的业务依赖会在后续阶段继续迁出。
 
 默认 Shell 使用 56×56 的透明分层窗口，实际可见主体约 46px。渲染由 `LayeredFloatingBall` 负责，采用深色圆角方形、细边框、单一品牌标记和轻量 Hover；空闲时不运行持续呼吸/环绕动画。透明层文字使用灰度抗锯齿，避免 ClearType 子像素彩边。Shell 保留：
 
@@ -76,7 +76,7 @@ FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌
 
 这里的「主题」是统一入口，不表示面板皮肤与桌面形态必须绑定为同一个枚举值：现阶段 `ThemeId` 继续控制控制中心外观，`AnimalPetEnabled/PetStyleId` 继续控制桌面形态；统一的是用户入口和概念层级，避免一次性重写已验证的配置兼容性。
 
-底部兼容布局仍由 `CompactMenuEnhancer` 在第一条 `WM_PAINT` 前完成，避免旧 `Application.Idle` 后置重排造成首帧残影；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。
+底部兼容布局仍由 `CompactMenuEnhancer` 在第一条 `WM_PAINT` 前完成，避免旧 `Application.Idle` 后置重排造成首帧残影；Idle 只能作为异常情况下的兜底，不再承担正常布局职责。Phase 1 起其安装调用由 `CompactMenuEnhancerModule` 管理，但 enhancer 内部行为没有重写。
 
 控制中心关闭使用两条信号：
 
@@ -160,11 +160,11 @@ Riot 元数据优先使用本机 League Client LCU，无法使用时回退 Data 
 
 ---
 
-## FACM 3.2 目标架构（Issue #55，规划中）
+## FACM 3.2 modular-host 架构
 
 FACM 3.2 的架构升级目标不是换 Electron/Vue，也不是把 FACM 全量迁移到 .NET 8；目标是把当前已经稳定的能力组织成**模块化单体（modular monolith）**，让后续 League Client、账号、Gameflow、ChampSelect、战绩、自动化等功能有清晰的所有权和生命周期边界。
 
-### 目标组合根
+### 已实现组合根（Phase 1）
 
 ```text
 Program
@@ -175,63 +175,80 @@ Program
 │  ├─ WinForms runtime 初始化
 │  └─ fatal exception boundary
 │
-└─ FacmHost
-   ├─ Infrastructure / Platform
-   │  ├─ Logging
-   │  ├─ Settings
-   │  ├─ Paths
-   │  ├─ Process / Job
-   │  ├─ HTTP
-   │  └─ Background Tasks
-   │
-   └─ Modules
-      ├─ Shell
-      ├─ Cleanup
-      ├─ Online
-      ├─ Pets
-      ├─ Mayhem
-      ├─ Tools
-      └─ LeagueClient          # 后续阶段新增
+└─ FacmHost  (FACM.AppHost)
+   ├─ CompactMenuEnhancerModule
+   └─ ShellModule
+        └─ MainForm
 ```
 
-`Program` 保留真正属于进程入口的职责；`FacmHost` 成为正常产品模式的应用组合根。后续不再把新的业务 orchestration 直接堆进 `Program` 或 `MainForm`。
+`Program` 保留真正属于进程入口的职责；正常产品模式在进入 message loop 前创建 `FacmHost`。`FacmHost` 初始化 `CompactMenuEnhancerModule`，再按依赖初始化 `ShellModule`；`ShellModule` 创建 `MainForm`，随后 `Program` 只把该 Form 交给现有 `SingleInstanceActivation` listener 和 `Application.Run`。消息循环结束后 Host 按反向顺序 Dispose。
 
-### 模块契约
+宿主稳定 namespace 是 `FACM.AppHost` / `FACM.AppHost.Modules`。不要改成 `FACM.Application`，否则会遮蔽根 `namespace FACM` 内大量旧源码使用的 `System.Windows.Forms.Application` 类型；Build #821 已验证该失败模式。
 
-Phase 1 的模块机制采用适合 .NET Framework 4.8 的透明轻量实现，不复制 League Akari 的 decorator/reflection 细节，也不默认引入大型 DI 容器。
+### 模块契约（已实现）
 
-每个模块至少具有：
+Phase 1 采用适合 .NET Framework 4.8 的透明轻量实现，不复制 League Akari 的 decorator/reflection 细节，也不默认引入大型 DI 容器。
+
+`IFacmModule` 当前具有：
 
 - 稳定模块 ID；
 - 显式依赖列表；
 - 初始化生命周期；
-- 停止/释放生命周期；
-- 自己拥有的 state / controller / settings 边界；
-- 可测试的公共契约。
+- Dispose 生命周期。
 
-Host 负责：
+`FacmHost` 已负责：
 
 - 拒绝重复模块 ID；
 - 拒绝缺失依赖；
 - 检测循环依赖；
 - 按依赖拓扑顺序初始化；
-- 关闭时按反向顺序停止/释放；
-- 对初始化/释放失败写入明确诊断，不静默吞错。
+- 初始化失败后 rollback 已初始化模块；
+- 关闭时按反向顺序释放；
+- 对初始化/释放失败写入明确诊断。
 
-### 生命周期可观测性
+`FACM.exe --facm-host-test` 已进入核心 deterministic CI，验证这些契约。
 
-FacmHost 必须记录：
+### 生命周期可观测性（已实现）
+
+Host 记录：
 
 ```text
 FACM host initialized: <total ms>
-Initialization order: A -> B -> C
-A: <ms>
-B: <ms>
-C: <ms>
-Slowest module: <id> (<ms>)
+FACM module initialization order: A -> B -> C
+FACM module initialized: A; duration=<ms>
+...
+FACM slowest module: <id> (<ms>)
 ```
 
-目的不是做用户可见性能面板，而是让“FACM 为什么启动变慢 / 哪个模块初始化失败”可以直接从现有日志定位。
+`FacmHostReport` 同时保留 initialization order、每模块 timing、总耗时、slowest module 和失败 timing。目的不是做用户可见性能面板，而是让“FACM 为什么启动变慢 / 哪个模块初始化失败”可以从现有日志直接定位。
+
+### 后续模块承载面（已建立 facade，尚未完成所有权迁移）
+
+Phase 1 分支已经建立：
+
+```text
+SettingsModule
+ToolsModule
+PetsModule
+OnlineModule
+MayhemModule
+```
+
+这些 facade 暂时只包住现有实现；Phase 1 没有为了“架构漂亮”强行把 MainForm 一次性改成依赖注入。后续阶段会逐项注册并迁移所有权。
+
+长期目标：
+
+```text
+FacmHost
+├─ Settings
+├─ Tools
+├─ Online
+├─ Pets
+├─ Mayhem
+├─ Cleanup
+├─ Shell
+└─ LeagueClient
+```
 
 ### 纵向 feature 所有权
 
@@ -254,7 +271,7 @@ Modules/Online/
 └─ UI adapters
 ```
 
-这里的“adapter”意味着**先包住已经验收的实现，再逐步收回所有权**，不是为了目录好看重写成熟代码。
+这里的“adapter”意味着**先包住已经验收的实现，再收回所有权**，不是为了目录好看重写成熟代码。
 
 ### MainForm 的长期目标
 
@@ -266,26 +283,26 @@ Modules/Online/
 - 把用户操作转成模块命令；
 - 呈现错误/状态反馈。
 
-下面这些职责应逐步迁出 `MainForm`：
+下面这些职责要迁出 `MainForm`：
 
-- Online 更新策略；
-- PetHost/Flying 的业务编排；
+- settings / UI-text 自行加载；
+- Online service 直接调用与更新策略 orchestration；
+- PetHost/Flying 的 direct static orchestration；
+- ToolRunner/ToolBundle direct static 调用；
+- `new MayhemLookupForm()` 等具体 feature 构造；
 - 应用模块 warmup 决策；
-- 子功能窗口是否已打开等跨模块运行状态；
 - 新增 League 功能的连接与业务状态。
 
-### 迁移顺序
+### 迁移顺序与验收节奏
 
-架构升级按小步迁移，不做大爆炸重写：
+1. **Phase 1 / Issue #55**：Host、依赖解析、生命周期、启动观测、Shell/Enhancer 样板 —— Build #832 / Probe #145 已自动验证。
+2. Settings ownership + Shell 显式依赖。
+3. Tools / Online / Pets / Mayhem facade 接管 MainForm direct dependencies。
+4. Cleanup ownership。
+5. 建立真正的 LeagueClient module。
+6. 在新架构上增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
 
-1. **Phase 1 / Issue #55**：`FacmHost + Module` 基础层、依赖解析、生命周期与启动可观测性；只接一个低风险样板模块。
-2. Shell/Application lifecycle orchestration。
-3. Settings。
-4. Online。
-5. Pets facade：先包住现有 `AnimalPetManager`，不改 Flying Runtime / VPet 行为。
-6. Mayhem。
-7. 建立真正的 LeagueClient module。
-8. 在新架构上增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
+技术迁移仍按依赖顺序分层实现，但不在每个内部 Phase 停下来要求用户 Windows 实机测试。内部阶段用 compile + deterministic smoke + AppLog + Actions 收敛；整轮既定后端架构重构完成后再给一个最终 Windows 候选包集中实机验收。
 
 ### 迁移期间必须保持的稳定契约
 
@@ -298,6 +315,7 @@ Modules/Online/
 - 海斗字段级多源容灾保持；
 - Online Release/manifest 事务保持；
 - `--cleanup` 和现有 smoke/test mode Mutex 语义保持；
+- 无独立产品需求时，后端重构不主动改变用户可见 UI；
 - 架构阶段不自动触发新的正式 Release。
 
-任何一项如果确实需要改变，应单独立 Issue、给出用户价值和迁移/回滚方案，而不是作为“架构整理”的顺带修改。
+任何一项如果确实需要改变，应单独给出用户价值和迁移/回滚方案，而不是作为“架构整理”的顺带修改。
