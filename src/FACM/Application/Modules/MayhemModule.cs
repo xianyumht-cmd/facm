@@ -8,7 +8,16 @@ namespace FACM.AppHost.Modules
 {
     internal sealed class MayhemModule : IFacmModule
     {
-        private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
+        private static readonly IReadOnlyList<string> ModuleDependencies = new[]
+        {
+            LeagueClientModule.ModuleId
+        };
+        private readonly LeagueClientModule _leagueClient;
+
+        public MayhemModule(LeagueClientModule leagueClient)
+        {
+            _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
+        }
 
         public const string ModuleId = "mayhem";
 
@@ -19,7 +28,7 @@ namespace FACM.AppHost.Modules
 
         public IReadOnlyList<string> Dependencies
         {
-            get { return NoDependencies; }
+            get { return ModuleDependencies; }
         }
 
         public void Initialize()
@@ -28,7 +37,7 @@ namespace FACM.AppHost.Modules
 
         public Form CreateLookupForm()
         {
-            return new MayhemLookupForm();
+            return new MayhemLookupForm(_leagueClient);
         }
 
         public void Dispose()

@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using FACM.League;
 using FACM.Services;
 
 namespace FACM.Mayhem
@@ -21,13 +19,10 @@ namespace FACM.Mayhem
         private static readonly HttpClient PublicClient = CreatePublicClient();
         private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
 
-        private sealed class LcuSession
-        {
-            public string BaseUrl { get; set; }
-            public string Password { get; set; }
-        }
-
-        public static async Task EnrichAsync(MayhemChampionResult result, CancellationToken token)
+        public static async Task EnrichAsync(
+            MayhemChampionResult result,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             if (result == null || string.IsNullOrWhiteSpace(result.ChampionSlug)) return;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -48,9 +43,15 @@ namespace FACM.Mayhem
                                                result.TopTen.Any(item => string.IsNullOrWhiteSpace(item.IconUrl));
                     var needItemFallback = result.CoreItems.Count > 0 && result.CoreItemIconUrls.Count < result.CoreItems.Count;
 
-                    var championsTask = needChampionFallback ? ReadGameDataAsync("champion-summary.json", ct) : Task.FromResult<object>(null);
-                    var itemsTask = needItemFallback ? ReadGameDataAsync("items.json", ct) : Task.FromResult<object>(null);
-                    var augmentsTask = result.Augments.Count > 0 ? ReadGameDataAsync("cherry-augments.json", ct) : Task.FromResult<object>(null);
+                    var championsTask = needChampionFallback
+                        ? ReadGameDataAsync("champion-summary.json", leagueClient, ct)
+                        : Task.FromResult<object>(null);
+                    var itemsTask = needItemFallback
+                        ? ReadGameDataAsync("items.json", leagueClient, ct)
+                        : Task.FromResult<object>(null);
+                    var augmentsTask = result.Augments.Count > 0
+                        ? ReadGameDataAsync("cherry-augments.json", leagueClient, ct)
+                        : Task.FromResult<object>(null);
                     await Task.WhenAll(championsTask, itemsTask, augmentsTask, baseBalanceTask).ConfigureAwait(false);
 
                     var champions = AsArray(championsTask.Result);
@@ -70,7 +71,10 @@ namespace FACM.Mayhem
                             var id = ReadInt(champion, "id");
                             if (id > 0 && (string.IsNullOrWhiteSpace(result.ChampionSplashUrl) || result.SkillIconUrls.Count < 4))
                             {
-                                var detail = await ReadGameDataAsync("champions/" + id + ".json", ct).ConfigureAwait(false) as Dictionary<string, object>;
+                                var detail = await ReadGameDataAsync(
+                                    "champions/" + id + ".json",
+                                    leagueClient,
+                                    ct).ConfigureAwait(false) as Dictionary<string, object>;
                                 EnrichChampionDetailFallback(result, detail);
                             }
                         }
@@ -92,13 +96,18 @@ namespace FACM.Mayhem
             }
         }
 
-        public static async Task<byte[]> DownloadImageAsync(string reference, CancellationToken token)
+        public static async Task<byte[]> DownloadImageAsync(
+            string reference,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             if (string.IsNullOrWhiteSpace(reference)) return null;
             if (reference.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase))
             {
                 var path = reference.Substring(4);
-                var local = await TryReadLcuBytesAsync(path, token).ConfigureAwait(false);
+                var local = leagueClient == null
+                    ? null
+                    : await leagueClient.TryGetBytesAsync(path, token).ConfigureAwait(false);
                 if (local != null && local.Length > 0) return local;
                 reference = ToPublicAssetUrl(path);
             }
@@ -125,10 +134,13 @@ namespace FACM.Mayhem
             }
         }
 
-        private static async Task<object> ReadGameDataAsync(string relativePath, CancellationToken token)
+        private static async Task<object> ReadGameDataAsync(
+            string relativePath,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             var lcuPath = "/lol-game-data/assets/v1/" + relativePath.TrimStart('/');
-            var local = await TryReadLcuTextAsync(lcuPath, token).ConfigureAwait(false);
+            var local = await TryReadLcuTextAsync(lcuPath, leagueClient, token).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(local))
             {
                 try { return Json.DeserializeObject(local); }
@@ -155,74 +167,14 @@ namespace FACM.Mayhem
             }
         }
 
-        private static async Task<string> TryReadLcuTextAsync(string path, CancellationToken token)
+        private static async Task<string> TryReadLcuTextAsync(
+            string path,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
-            var bytes = await TryReadLcuBytesAsync(path, token).ConfigureAwait(false);
+            if (leagueClient == null) return null;
+            var bytes = await leagueClient.TryGetBytesAsync(path, token).ConfigureAwait(false);
             return bytes == null ? null : Encoding.UTF8.GetString(bytes);
-        }
-
-        private static async Task<byte[]> TryReadLcuBytesAsync(string path, CancellationToken token)
-        {
-            var session = DiscoverLcuSession();
-            if (session == null) return null;
-            try
-            {
-                using (var handler = new HttpClientHandler())
-                {
-                    handler.ServerCertificateCustomValidationCallback = delegate { return true; };
-                    using (var client = new HttpClient(handler) { BaseAddress = new Uri(session.BaseUrl), Timeout = TimeSpan.FromSeconds(2) })
-                    {
-                        var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes("riot:" + session.Password));
-                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", auth);
-                        using (var response = await client.GetAsync(path, token).ConfigureAwait(false))
-                        {
-                            if (!response.IsSuccessStatusCode) return null;
-                            return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
-                        }
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                if (token.IsCancellationRequested) throw;
-                return null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static LcuSession DiscoverLcuSession()
-        {
-            var names = new[] { "LeagueClientUx", "LeagueClient" };
-            foreach (var name in names)
-            {
-                foreach (var process in Process.GetProcessesByName(name))
-                {
-                    try
-                    {
-                        var executable = process.MainModule == null ? null : process.MainModule.FileName;
-                        var directory = string.IsNullOrWhiteSpace(executable) ? null : Path.GetDirectoryName(executable);
-                        var lockfile = string.IsNullOrWhiteSpace(directory) ? null : Path.Combine(directory, "lockfile");
-                        if (string.IsNullOrWhiteSpace(lockfile) || !File.Exists(lockfile)) continue;
-                        var parts = File.ReadAllText(lockfile).Trim().Split(':');
-                        if (parts.Length < 5) continue;
-                        int port;
-                        if (!int.TryParse(parts[2], out port) || port <= 0) continue;
-                        var protocol = string.IsNullOrWhiteSpace(parts[4]) ? "https" : parts[4];
-                        return new LcuSession { BaseUrl = protocol + "://127.0.0.1:" + port + "/", Password = parts[3] };
-                    }
-                    catch
-                    {
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-            }
-            return null;
         }
 
         private static Dictionary<string, object> FindChampion(object[] champions, string slug, string name)

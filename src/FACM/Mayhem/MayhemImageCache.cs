@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.League;
 using FACM.Services;
 
 namespace FACM.Mayhem
@@ -25,7 +26,10 @@ namespace FACM.Mayhem
         private static readonly SemaphoreSlim DiskReadGate = new SemaphoreSlim(4, 4);
         private static readonly SemaphoreSlim DecodeGate = new SemaphoreSlim(4, 4);
 
-        public static async Task<Bitmap> GetAsync(string reference, CancellationToken token)
+        public static async Task<Bitmap> GetAsync(
+            string reference,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             if (string.IsNullOrWhiteSpace(reference)) return null;
             token.ThrowIfCancellationRequested();
@@ -36,7 +40,7 @@ namespace FACM.Mayhem
 
             if (bytes == null)
             {
-                bytes = await RiotGameDataService.DownloadImageAsync(reference, token).ConfigureAwait(false);
+                bytes = await RiotGameDataService.DownloadImageAsync(reference, leagueClient, token).ConfigureAwait(false);
                 if (bytes == null || bytes.Length < 64) return null;
                 StoreMemory(reference, bytes);
                 TryWriteDisk(reference, bytes);

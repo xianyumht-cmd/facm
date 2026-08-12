@@ -16,13 +16,14 @@ namespace FACM
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
+                var leagueClient = new LeagueClientModule();
                 using (var form = new MainForm(
                     new AppSettings(),
                     UiTextCatalog.Load(),
                     new ToolsModule(),
                     new OnlineModule(),
                     new PetsModule(),
-                    new MayhemModule(),
+                    new MayhemModule(leagueClient),
                     new CleanupModule(),
                     false))
                 {

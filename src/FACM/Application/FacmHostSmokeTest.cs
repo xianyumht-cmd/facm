@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FACM.AppHost.Modules;
+using FACM.League;
 
 namespace FACM.AppHost
 {
@@ -18,6 +19,7 @@ namespace FACM.AppHost
                 ValidateInitializationFailureRollback();
                 ValidateFirstModuleFailureReport();
                 ValidateShellFeatureDependencyContract();
+                LeagueClientSmokeTest.Validate();
                 return 0;
             }
             catch (Exception exception)
@@ -142,9 +144,14 @@ namespace FACM.AppHost
             var tools = new ToolsModule();
             var online = new OnlineModule();
             var pets = new PetsModule();
-            var mayhem = new MayhemModule();
+            var leagueClient = new LeagueClientModule();
+            var mayhem = new MayhemModule(leagueClient);
             var cleanup = new CleanupModule();
             var shell = new ShellModule(false, settings, tools, online, pets, mayhem, cleanup);
+
+            Require(
+                mayhem.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId }),
+                "FACM Phase 5 Mayhem -> LeagueClient dependency contract changed unexpectedly.");
 
             var expected = new[]
             {
@@ -159,7 +166,7 @@ namespace FACM.AppHost
 
             Require(
                 shell.Dependencies.SequenceEqual(expected),
-                "FACM Phase 4 shell feature dependency contract changed unexpectedly.");
+                "FACM Phase 5 shell direct dependency contract changed unexpectedly.");
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)

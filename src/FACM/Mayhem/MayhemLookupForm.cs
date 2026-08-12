@@ -6,11 +6,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.League;
 
 namespace FACM.Mayhem
 {
     internal sealed class MayhemLookupForm : Form
     {
+        private readonly ILeagueClientApi _leagueClient;
         private readonly TextBox _query;
         private readonly Button _search;
         private readonly Button _cancel;
@@ -26,8 +28,9 @@ namespace FACM.Mayhem
         private string _stageText = "准备查询";
         private bool _busy;
 
-        public MayhemLookupForm()
+        public MayhemLookupForm(ILeagueClientApi leagueClient)
         {
+            _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             Text = "海斗排行榜查询";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(920, 700);
@@ -193,7 +196,7 @@ namespace FACM.Mayhem
 
                 _stageText = "正在整理英雄图片和推荐内容";
                 UpdateStatusText();
-                await RiotGameDataService.EnrichAsync(result, token);
+                await RiotGameDataService.EnrichAsync(result, _leagueClient, token);
 
                 _stageText = "正在整理强化排行图片";
                 UpdateStatusText();
@@ -202,7 +205,7 @@ namespace FACM.Mayhem
 
                 _stageText = "正在生成图片卡片";
                 UpdateStatusText();
-                var image = await MayhemCardRenderer.RenderAsync(result, token);
+                var image = await MayhemCardRenderer.RenderAsync(result, _leagueClient, token);
                 if (IsDisposed)
                 {
                     image.Dispose();

@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.League;
 
 namespace FACM.Mayhem
 {
@@ -25,10 +26,13 @@ namespace FACM.Mayhem
             }
         }
 
-        public static async Task<Bitmap> RenderAsync(MayhemChampionResult result, CancellationToken token)
+        public static async Task<Bitmap> RenderAsync(
+            MayhemChampionResult result,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
-            var loaded = await LoadImagesAsync(result, token).ConfigureAwait(false);
+            var loaded = await LoadImagesAsync(result, leagueClient, token).ConfigureAwait(false);
             try
             {
                 token.ThrowIfCancellationRequested();
@@ -48,7 +52,10 @@ namespace FACM.Mayhem
             return Render(result, new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase));
         }
 
-        private static async Task<List<LoadedImage>> LoadImagesAsync(MayhemChampionResult result, CancellationToken token)
+        private static async Task<List<LoadedImage>> LoadImagesAsync(
+            MayhemChampionResult result,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             var references = new List<string>();
             AddReference(references, result.ChampionIconUrl);
@@ -62,16 +69,23 @@ namespace FACM.Mayhem
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(32)
                 .ToArray();
-            var tasks = distinct.Select(reference => LoadOneAsync(reference, token)).ToArray();
+            var tasks = distinct.Select(reference => LoadOneAsync(reference, leagueClient, token)).ToArray();
             var images = await Task.WhenAll(tasks).ConfigureAwait(false);
             return images.ToList();
         }
 
-        private static async Task<LoadedImage> LoadOneAsync(string reference, CancellationToken token)
+        private static async Task<LoadedImage> LoadOneAsync(
+            string reference,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
         {
             try
             {
-                return new LoadedImage { Reference = reference, Bitmap = await MayhemImageCache.GetAsync(reference, token).ConfigureAwait(false) };
+                return new LoadedImage
+                {
+                    Reference = reference,
+                    Bitmap = await MayhemImageCache.GetAsync(reference, leagueClient, token).ConfigureAwait(false)
+                };
             }
             catch (OperationCanceledException)
             {
@@ -278,7 +292,7 @@ namespace FACM.Mayhem
             using (var border = new Pen(Color.FromArgb(90, accent), 1F))
             {
                 g.FillPath(fill, path);
-                g.DrawPath(border, path);
+                g.DrawPath(pen: border, path: path);
             }
             using (var labelFont = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
             using (var valueFont = new Font("Segoe UI", 28F, FontStyle.Bold, GraphicsUnit.Pixel))

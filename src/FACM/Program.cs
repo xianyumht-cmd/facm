@@ -166,10 +166,11 @@ namespace FACM
                 var tools = new ToolsModule();
                 var online = new OnlineModule();
                 var pets = new PetsModule();
-                var mayhem = new MayhemModule();
+                var leagueClient = new LeagueClientModule();
+                var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, mayhem, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, leagueClient, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -217,6 +218,7 @@ namespace FACM
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
+            LeagueClientModule leagueClient,
             MayhemModule mayhem,
             CleanupModule cleanup,
             ShellModule shell)
@@ -227,6 +229,7 @@ namespace FACM
             host.Register(tools);
             host.Register(online);
             host.Register(pets);
+            host.Register(leagueClient);
             host.Register(mayhem);
             host.Register(cleanup);
             host.Register(shell);
