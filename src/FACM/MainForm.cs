@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using FACM.Mayhem;
+using FACM.AppHost.Modules;
 using FACM.Online;
 using FACM.Pets;
 using FACM.Services;
@@ -18,6 +18,10 @@ namespace FACM
         private const int BallSize = 56;
         private readonly AppSettings _settings;
         private readonly UiTextCatalog _ui;
+        private readonly ToolsModule _tools;
+        private readonly OnlineModule _online;
+        private readonly PetsModule _pets;
+        private readonly MayhemModule _mayhem;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private readonly LayeredFloatingBall _layeredBall;
@@ -37,10 +41,21 @@ namespace FACM
         private Point _dragCursor;
         private Point _dragWindow;
 
-        public MainForm(AppSettings settings, UiTextCatalog ui, bool startCleanup = false)
+        public MainForm(
+            AppSettings settings,
+            UiTextCatalog ui,
+            ToolsModule tools,
+            OnlineModule online,
+            PetsModule pets,
+            MayhemModule mayhem,
+            bool startCleanup = false)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
+            _tools = tools ?? throw new ArgumentNullException(nameof(tools));
+            _online = online ?? throw new ArgumentNullException(nameof(online));
+            _pets = pets ?? throw new ArgumentNullException(nameof(pets));
+            _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
             _startCleanup = startCleanup;
             _appIcon = BrandIcon.Create();
 
@@ -104,7 +119,7 @@ namespace FACM
             if (_exiting) return;
             _exiting = true;
             CloseMenu();
-            try { AnimalPetManager.Stop(); } catch { }
+            try { _pets.Stop(); } catch { }
             Close();
         }
 
@@ -196,16 +211,16 @@ namespace FACM
         {
             try
             {
-                if (AnimalPetManager.IsActive)
+                if (_pets.IsActive)
                 {
-                    AnimalPetManager.ResetToPrimaryScreen();
+                    _pets.ResetToPrimaryScreen();
                     return;
                 }
 
                 if (_settings.AnimalPetEnabled)
                 {
                     ActivateAnimalPet();
-                    AnimalPetManager.ResetToPrimaryScreen();
+                    _pets.ResetToPrimaryScreen();
                     return;
                 }
 
@@ -220,7 +235,7 @@ namespace FACM
 
         public void RestoreDefaultBall()
         {
-            try { AnimalPetManager.Stop(); } catch { }
+            try { _pets.Stop(); } catch { }
             _settings.AnimalPetEnabled = false;
             _settings.Save();
             _animalPetActive = false;
@@ -234,7 +249,7 @@ namespace FACM
             try
             {
                 CloseMenu();
-                using (var form = new MayhemLookupForm())
+                using (var form = _mayhem.CreateLookupForm())
                 {
                     form.TopMost = true;
                     form.ShowDialog();
@@ -250,7 +265,7 @@ namespace FACM
         {
             try
             {
-                ToolRunner.RunStandaloneToolA();
+                _tools.RunStandaloneToolA();
             }
             catch (Exception exception)
             {
@@ -263,7 +278,7 @@ namespace FACM
         {
             try
             {
-                ToolRunner.RunFixLcu(mode);
+                _tools.RunFixLcu(mode);
             }
             catch (Exception exception)
             {
@@ -339,7 +354,7 @@ namespace FACM
 
                 try
                 {
-                    ToolBundleLoader.Prepare();
+                    await _tools.WarmupAsync().ConfigureAwait(false);
                 }
                 catch (Exception exception)
                 {
@@ -350,7 +365,7 @@ namespace FACM
 
                 try
                 {
-                    await PetHostBundleLoader.BeginWarmup().ConfigureAwait(false);
+                    await _pets.WarmupAsync().ConfigureAwait(false);
                 }
                 catch (Exception exception)
                 {
@@ -361,7 +376,7 @@ namespace FACM
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
         {
-            try { AnimalPetManager.Stop(); } catch { }
+            try { _pets.Stop(); } catch { }
             if (_layeredBall != null) _layeredBall.Dispose();
             _tray.Visible = false;
             var trayMenu = _tray.ContextMenuStrip;
@@ -407,7 +422,7 @@ namespace FACM
                 _animalPetActive = false;
                 ShowBuiltInBall();
 
-                AnimalPetManager.Activate(
+                _pets.Activate(
                     _settings.PetStyleId,
                     delegate
                     {
@@ -557,7 +572,7 @@ namespace FACM
                 await Task.Delay(900);
                 if (IsDisposed) return;
 
-                var snapshot = await OnlineService.FetchSnapshotAsync(CancellationToken.None);
+                var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
                 if (IsDisposed || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage)) return;
 
                 var announcement = snapshot.Announcement;
@@ -616,7 +631,7 @@ namespace FACM
             try
             {
                 _tray.ShowBalloonTip(1800, "FACM", "正在读取更新与公告...", ToolTipIcon.Info);
-                var snapshot = await OnlineService.FetchSnapshotAsync(CancellationToken.None);
+                var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
                 await ShowOnlineCenterAsync(snapshot, snapshot.ForceUpdateRequired, false);
             }
             catch (Exception exception)

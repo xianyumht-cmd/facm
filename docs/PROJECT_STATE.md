@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是线上正式版。当前主线是 **FACM 3.2 后端架构升级**。Phase 1（Issue #55 / PR #56）已合并到 `main`；Phase 2（Issue #57 / PR #58）正在把 Settings / UiText 所有权从 `MainForm` 迁入 `SettingsModule`。Phase 2 当前行为代码 HEAD `235299eda170835d13c4035efa617d433db306a3` 的 FACM Windows Build #846 与 Mayhem Source Probe #159 均 SUCCESS。内部 Phase 不逐次要求 Windows 实机测试，整轮后端重构收口后再提供单一最终候选包集中验收。当前没有正式发布动作。
+> 2026-08-13：FACM 3.1.3 仍是线上正式版。当前主线是 **FACM 3.2 后端架构升级**。Phase 1（#55/#56）与 Phase 2（#57/#58）均已合并到 `main`；Phase 3（Issue #59 / PR #60）已完成 Tools / Online / Pets / Mayhem 的 Shell 显式依赖迁移。Phase 3 当前行为代码 HEAD `10a81d38a530e99eb77eab1a7d2f1c19c46e9279` 的 FACM Windows Build #851 与 Mayhem Source Probe #164 均 SUCCESS。内部 Phase 不逐次要求 Windows 实机测试，整轮后端重构收口后再提供单一最终候选包集中验收。当前没有正式发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -28,46 +28,50 @@
 
 ## Phase 1 已完成
 
-- Issue #55：`FACM 3.2 Phase 1：建立 FacmHost 与模块生命周期基础层`，已 closed / completed。
-- PR #56：`refactor(core): establish FACM 3.2 modular host foundation`，已 merged。
+- Issue #55 / PR #56：`FacmHost + IFacmModule`、依赖图、失败回滚、反向释放、成功/失败 timing、ShellModule 与 `--facm-host-test`。
 - merge commit：`8bb44cfef3e9ac24c20390fc60fcd307b7dd612a`。
-- 最终行为代码 HEAD：`9b6b1a7da0829b8c18e8cd5a9ca5d0e169e54447`。
-- 行为验证：FACM Windows Build #842 SUCCESS；Mayhem Source Probe #155 SUCCESS。
-- 最终 docs-only HEAD：`7e0a589e0d5537a9d698d837e27bb9b80f401ae4`。
-- docs-only 验证：FACM Windows Build #843 SUCCESS；Mayhem Source Probe #156 SUCCESS。
-- Phase 1 建立 `FacmHost / IFacmModule`、依赖图、失败回滚、反向释放、成功/失败 timing、ShellModule 与 `--facm-host-test`。
-- 旧任务分支 `feat/facm-host-phase1-55` 未自动删除；分支删除需要用户明确意图。
+- 最终行为验证：Build #842 / Probe #155 SUCCESS。
+- 最终 docs-only 验证：Build #843 / Probe #156 SUCCESS。
 
-## 当前 Phase 2
+## Phase 2 已完成
 
-- Issue #57：`FACM 3.2 Phase 2：Settings ownership 与 Shell 显式依赖`。
-- PR #58：`refactor(settings): move settings ownership into FacmHost`，当前 OPEN / DRAFT。
-- 分支：`refactor/settings-shell-phase2-57`。
-- 当前行为代码 HEAD：`235299eda170835d13c4035efa617d433db306a3`。
-- FACM Windows Build #846：SUCCESS。
-- FACM Mayhem Source Probe #159：SUCCESS。
+- Issue #57 / PR #58：Settings ownership 与 Shell 显式依赖。
+- merge commit：`64182dddeaa8a89f8d70a31e5ca3307dd2098ba7`。
+- `SettingsModule.Initialize()` 负责 `AppSettings.Load()` / `UiTextCatalog.Load()`；MainForm 不再自行加载。
+- `ShellModule` 显式依赖 Settings，并创建 `MainForm(settings, uiText, ...)`。
+- Build #845 曾因 `FloatingBallSmokeTest` 漏改旧 MainForm 构造调用而失败，已修；不是架构方案失败。
+- 最终行为验证：Build #846 / Probe #159 SUCCESS。
+- 最终 docs-only 验证：Build #849 / Probe #162 SUCCESS。
 
-Phase 2 已实现：
+## 当前 Phase 3
 
-- `SettingsModule` 由正常产品 Host 注册；
-- `ShellModule` 显式依赖 `CompactMenuEnhancerModule + SettingsModule`；
-- `SettingsModule.Initialize()` 负责 `AppSettings.Load()` 与 `UiTextCatalog.Load()`；
-- `ShellModule` 在 Settings ready 后创建 `MainForm(settings, uiText, startCleanup)`；
-- `MainForm` 不再自行调用 `AppSettings.Load()` / `UiTextCatalog.Load()`；
-- MainForm 原有 `_settings.Save()` 时机、`settings.ini` key/default/migration 全部保持；
-- `--facm-host-test` 锁定 Shell→Settings dependency contract。
+- Issue #59：`FACM 3.2 Phase 3：Shell 显式依赖 Tools / Online / Pets / Mayhem`。
+- PR #60：`refactor(shell): inject Tools Online Pets Mayhem modules`，当前 OPEN / DRAFT。
+- 分支：`refactor/shell-feature-facades-phase3-59`。
+- 当前行为代码 HEAD：`10a81d38a530e99eb77eab1a7d2f1c19c46e9279`。
+- FACM Windows Build #851：SUCCESS。
+- FACM Mayhem Source Probe #164：SUCCESS。
 
-### Phase 2 已修复失败
+Phase 3 已实现：
 
-初版 HEAD `1d388ab165719df434a3c917d8202a66c34c0333` 的 Build #845 在 FACM 编译阶段失败：`FloatingBallSmokeTest` 仍使用旧 `new MainForm(false)` 构造函数，产生 CS7036。PetHost publish/self-test 当时成功。
+- 正常 Host 注册 `ToolsModule / OnlineModule / PetsModule / MayhemModule`；
+- `ShellModule` 显式依赖 enhancer + Settings + Tools + Online + Pets + Mayhem；
+- MainForm 构造函数显式接收这四个 facade；
+- `ToolRunner / ToolBundleLoader` direct calls 改走 `ToolsModule`；
+- `OnlineService` direct calls 改走 `OnlineModule`；
+- `AnimalPetManager / PetHostBundleLoader` direct calls 改走 `PetsModule`；
+- `new MayhemLookupForm()` 改走 `MayhemModule.CreateLookupForm()`；
+- `FloatingBallSmokeTest` 同步到新构造契约；
+- `--facm-host-test` 锁定真实 Shell feature dependency 顺序。
 
-修复没有恢复 MainForm 隐式加载，而是把 deterministic test 也改为显式注入：
+### Phase 3 保持的时序
 
-```text
-new MainForm(new AppSettings(), UiTextCatalog.Load(), false)
-```
-
-修复后 Build #846 / Probe #159 全绿。这个教训记录到 `docs/PITFALLS.md`：把构造依赖显式化时必须同时搜索产品与 deterministic test 的所有实例化点。
+- Shell 仍先显示；
+- background warmup 仍先等待约 180ms，让消息循环先绘制；
+- ToolBundle 仍后台准备；
+- 只有启动时 `AnimalPetEnabled=true` 才预热 PetHost；
+- Pets ready/fallback、Online prompt、Mayhem modal 和 Tool error UI 不变；
+- MainForm 退出/关闭时仍主动 `_pets.Stop()`，Host 的 `PetsModule.Dispose()` 只作为最终生命周期兜底。
 
 ## 线上正式版
 
@@ -79,31 +83,36 @@ new MainForm(new AppSettings(), UiTextCatalog.Load(), false)
 - `force_update=false`
 - SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
 
-架构 PR、CI artifact 和内部 Phase 合并均不等于正式 Release 授权；不要自行创建 v3.2.0 / v3.1.4 或修改线上 manifest。
+内部架构 PR、CI artifact 和合并都不等于正式 Release 授权。
 
 ---
 
-# 二、FACM 3.2 当前架构
-
-目标是吸收 League Akari 的模块所有权、显式依赖、统一生命周期、状态/设置归属和可观测性原则，但保留 FACM 的 .NET Framework 4.8 / WinForms 主程序以及独立 .NET 8 x64 / WPF PetHost。
-
-当前已落地的正常启动骨架：
+# 二、FACM 3.2 当前正常启动依赖图
 
 ```text
 Program
   -> SettingsModule
-  -> ShellModule(SettingsModule)
-  -> FacmHost.Register(CompactMenuEnhancer, Settings, Shell)
+  -> ToolsModule
+  -> OnlineModule
+  -> PetsModule
+  -> MayhemModule
+  -> ShellModule(...all facades...)
+  -> FacmHost.Register(...)
   -> FacmHost.Initialize()
        -> CompactMenuEnhancerModule
        -> SettingsModule
-       -> ShellModule -> MainForm(settings, uiText)
+       -> ToolsModule
+       -> OnlineModule
+       -> PetsModule
+       -> MayhemModule
+       -> ShellModule
+            -> MainForm(settings, uiText, tools, online, pets, mayhem)
   -> SingleInstanceActivation listener
   -> Application.Run(shell.MainForm)
   -> Host reverse Dispose
 ```
 
-稳定 namespace：`FACM.AppHost` / `FACM.AppHost.Modules`。不要恢复 `FACM.Application`，Build #821 已证明其会遮蔽 `System.Windows.Forms.Application`。
+稳定 namespace：`FACM.AppHost` / `FACM.AppHost.Modules`。不要恢复 `FACM.Application`。
 
 ---
 
@@ -125,11 +134,11 @@ Program
 
 架构重构不得顺手改变：
 
-- 普通实例 Mutex + 当前会话 AutoResetEvent 二次启动 Ensure Open/Activate 语义；
-- `--cleanup` 与各 smoke/test 独立 Mutex；
-- 五种 Flying Runtime 已验收轨迹、素材/Profile、自由出屏；
+- 普通实例 Mutex + 当前会话 AutoResetEvent 二次启动 Ensure Open/Activate；
+- `--cleanup` 与 smoke/test 独立 Mutex；
+- 五种 Flying Runtime 已验收行为；
 - VPet 独立 PetHost、Job Object、parent-pid、bundle SHA、ready/fallback；
-- `settings.ini` 现有键、默认值、迁移与写回兼容；
+- `settings.ini` key/default/migration/write-back；
 - Mayhem 字段级多源容灾、国内优先、腾讯 Patch、LCU/DataDragon fallback；
 - Online Release/manifest 事务；
 - 当前用户可见 UI/交互，除非另有独立产品需求；
@@ -139,18 +148,25 @@ Program
 
 # 五、下一步
 
-Phase 2 canonical docs/review/CI 收口并合并后，**不要求用户实机测试，直接继续 Phase 3**：
+Phase 3 canonical docs/review/CI 收口并合并后，**不要求用户实机测试，直接继续 Phase 4：Cleanup ownership**。
 
-1. Host 注册 `ToolsModule / OnlineModule / PetsModule / MayhemModule`；
-2. `ShellModule` 显式依赖这些模块；
-3. MainForm 构造函数接收这些 facade；
-4. 用 facade 替换 `ToolRunner / ToolBundleLoader / OnlineService / AnimalPetManager / PetHostBundleLoader / new MayhemLookupForm()` 等 direct static/direct-new 依赖；
-5. 保持后台 warmup 的 180ms head-start 和“仅已启用桌宠时才预热 PetHost”语义；
-6. 之后再做 Cleanup ownership；
-7. 最后建立真正的 LeagueClient module foundation，再形成整轮架构重构的单一 Windows 候选包。
+Phase 4 目标：
+
+- 建立 `CleanupModule`，把 `ProcessGuard / ElevationService / SafeCleanupService / GameLocator` 等后端调用从 `CompactMenuForm` 迁入明确 facade；
+- UI 确认、FolderBrowserDialog、CleanupReviewForm、状态文字继续留在控制中心表现层；
+- 不复制或重写 `SafeCleanupService` 安全算法；
+- 保持管理员重启、后台预览/删除、路径白名单与 reparse 防护。
+
+Phase 4 之后：
+
+1. 建立真正的 `LeagueClientModule` foundation；
+2. 统一客户端发现、LCU session、HTTP/API 连接所有权；
+3. 复用现有 RiotGameDataService 中已验证的 LCU 发现/授权经验，不在 Mayhem 里继续复制新的客户端连接逻辑；
+4. 架构重构整体收口后生成单一 Windows 候选包集中实机验收；
+5. 候选接受后，再增加账号 / Gameflow / ChampSelect / 战绩等产品能力。
 
 ---
 
 # 六、给下一会话的一句话
 
-**FACM 3.2 Phase 1 已通过 PR #56 合并到 main（`8bb44cf...`）；Phase 2 为 Issue #57 / Draft PR #58 / `refactor/settings-shell-phase2-57`，当前代码 HEAD `235299e...` 的 Build #846 + Probe #159 SUCCESS。Settings/UiText 已由 SettingsModule 所有并显式注入 Shell/MainForm；Build #845 仅因 FloatingBallSmokeTest 漏改旧构造函数失败，已修。不要要求用户中途实机测试；Phase 2 合并后直接继续 Tools/Online/Pets/Mayhem 显式依赖，整轮后端重构结束后再给单一最终 Windows 候选包。**
+**FACM 3.2 Phase 1/2 已合并；Phase 3 为 Issue #59 / Draft PR #60 / `refactor/shell-feature-facades-phase3-59`，行为代码 HEAD `10a81d3...` 的 Build #851 + Probe #164 SUCCESS。MainForm 的 ToolRunner/ToolBundleLoader/OnlineService/AnimalPetManager/PetHostBundleLoader/MayhemLookupForm 后端依赖已切到 Tools/Online/Pets/Mayhem module facades，warmup 与 UI 行为保持。不要要求用户中途实机测试；Phase 3 合并后直接做 Cleanup ownership，再做 LeagueClient foundation，整轮完成后给单一最终 Windows 候选包。**
