@@ -1,5 +1,38 @@
 # FACM 技术决策
 
+## 2026-08-13：FACM 3.2 采用轻量 Modular Host，小步迁移而不是技术栈重写
+
+### 决策
+
+FACM 3.2 的第一阶段架构主线定为 **lightweight modular host / 模块化单体**：
+
+- 保留 `FACM.exe` 的 .NET Framework 4.8 / WinForms 主程序边界；
+- 保留 `FACM.PetHost.exe` 的 .NET 8 x64 / WPF 独立子进程边界；
+- 正常产品模式新增 `FacmHost` 作为应用级组合根，逐步把业务生命周期从 `Program` / `MainForm` 中迁出；
+- 功能按模块拥有自己的 state / controller / settings / lifecycle 边界，依赖必须显式；
+- Host 负责模块注册、缺失/重复/循环依赖检测、拓扑初始化、反向释放和启动耗时日志；
+- Phase 1 只建立基础层并接入一个低风险样板模块，不一次迁移所有现有业务；
+- 后续 Shell、Settings、Online、Pets、Mayhem、LeagueClient 等分别立小 Issue 迁移。
+
+不照搬 League Akari 的 Electron/Vue/TypeScript/Shard 实现细节，也不为了“现代化”默认引入 Autofac、Unity 等大型 DI 容器。只有未来出现轻量 Host 无法解决的真实需求时，才重新评估。
+
+### 原因
+
+- FACM 当前的可靠性工程已经比较成熟，真正的增长瓶颈是应用层组织：`Program` / `MainForm` 承担越来越多业务 orchestration，static manager 和直接 new 让依赖关系隐式；
+- 后续计划增加 League Client、账号、Gameflow、ChampSelect、战绩、自动化等长期功能，如果继续把状态和生命周期挂到主窗体，耦合会快速扩大；
+- League Akari 的长期价值主要来自“模块所有权 + 显式依赖 + 生命周期 + 状态边界 + 可观测性”，这些原则可以在 FACM 现有技术栈内吸收，不需要复制它的 Electron 多进程和 renderer IPC 成本；
+- FACM 已经有 PetHost、在线更新、海斗、多种 smoke、Shell 等经过 Windows 实机验收的成熟链路，大爆炸重写会把产品风险从“架构债务”扩大成“所有稳定功能同时回归”；
+- 小步 adapter/facade 迁移允许每次只改变一个所有权边界，CI 和实机都可以清楚判断是否回归。
+
+### 后果
+
+- 新功能原则上不得继续把业务生命周期直接堆进 `Program` / `MainForm`；优先在对应模块内形成明确所有者；
+- 已验收实现先通过 adapter/facade 接入模块，再根据真实收益决定是否消除旧 static manager，不为了形式美观重写；
+- Issue #53 单实例 AutoResetEvent、Flying Runtime、VPet/PetHost、海斗多源策略、在线发布事务、`settings.ini` 等稳定契约在架构阶段默认冻结；
+- Phase 1 的成功标准是“建立可扩展边界且用户行为不变”，不是代码目录变漂亮，也不是新增用户功能；
+- 架构目标与当前事实必须在 `docs/ARCHITECTURE.md` 中明确区分，未实现的 3.2 结构不能写成已经存在；
+- 正式 3.2.0 发布仍需独立用户授权，架构分支/CI 测试包本身不等同发布。
+
 ## 2026-08-13：普通模式二次启动视为“唤醒现有 FACM”
 
 ### 决策
