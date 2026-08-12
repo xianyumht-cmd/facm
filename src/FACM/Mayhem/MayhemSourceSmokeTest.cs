@@ -3,6 +3,8 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
+using FACM.League;
 
 namespace FACM.Mayhem
 {
@@ -12,6 +14,7 @@ namespace FACM.Mayhem
         {
             try
             {
+                var noLeagueClient = new NoLeagueClientApi();
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     var result = OpggMayhemService.QueryAsync("yasuo", cancellation.Token).GetAwaiter().GetResult();
@@ -31,7 +34,7 @@ namespace FACM.Mayhem
 
                     for (var attempt = 0; attempt < 3; attempt++)
                     {
-                        RiotGameDataService.EnrichAsync(result, cancellation.Token).GetAwaiter().GetResult();
+                        RiotGameDataService.EnrichAsync(result, noLeagueClient, cancellation.Token).GetAwaiter().GetResult();
                         var skillsReady = result.SkillIconUrls != null &&
                                           result.SkillIconUrls.Count >= 4 &&
                                           new[] { "Q", "W", "E", "R" }.All(key =>
@@ -88,7 +91,10 @@ namespace FACM.Mayhem
 
                     for (var index = 0; index < 5; index++)
                     {
-                        using (var augmentImage = MayhemImageCache.GetAsync(result.AugmentIconUrls[index], cancellation.Token).GetAwaiter().GetResult())
+                        using (var augmentImage = MayhemImageCache.GetAsync(
+                            result.AugmentIconUrls[index],
+                            noLeagueClient,
+                            cancellation.Token).GetAwaiter().GetResult())
                         {
                             if (augmentImage == null || augmentImage.Width < 24 || augmentImage.Height < 24)
                                 throw new InvalidOperationException("Ranked augment image #" + (index + 1) + " could not be decoded: " + result.AugmentIconUrls[index]);
@@ -113,6 +119,15 @@ namespace FACM.Mayhem
             {
                 Console.Error.WriteLine(exception);
                 return 5;
+            }
+        }
+
+        private sealed class NoLeagueClientApi : ILeagueClientApi
+        {
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult<byte[]>(null);
             }
         }
     }
