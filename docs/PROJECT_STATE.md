@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是线上正式版。当前产品主线是 **FACM 3.2 后端架构升级**。Issue #55 / PR #56 的 Phase 1 已完成自动验证：`FacmHost + Module` 基础层、依赖解析、生命周期、启动耗时诊断和 Shell 低风险样板已进入任务分支；FACM Windows Build #832 与 Mayhem Source Probe #145 均 SUCCESS。按用户明确的长重构验收节奏，中间 Phase 不逐次要求 Windows 实机测试，整轮后端重构收口后再提供一个最终候选包集中验收。当前没有正式发布动作。
+> 2026-08-13：FACM 3.1.3 仍是线上正式版。当前产品主线是 **FACM 3.2 后端架构升级**。Issue #55 / PR #56 的 Phase 1 行为代码已完成自动验证：`FacmHost + Module` 基础层、依赖解析、失败模块自清理、反向 rollback、启动/失败耗时诊断和 Shell 低风险样板均已实现；最终代码 HEAD `9b6b1a7da0829b8c18e8cd5a9ca5d0e169e54447` 的 FACM Windows Build #842 与 Mayhem Source Probe #155 均 SUCCESS。按用户明确的长重构验收节奏，中间 Phase 不逐次要求 Windows 实机测试，整轮后端重构收口后再提供一个最终候选包集中验收。当前没有正式发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -17,10 +17,10 @@
 
 1. `AGENTS.md`：仓库强制规则；canonical branch 为 `main`，一任务一短分支，发布/部署/destructive refs 必须单独明确授权。
 2. 本文件：当前已验证状态、活动 Issue/PR、CI、冻结契约和下一步。
-3. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：FACM 3.1 verified architecture 与 3.2 modular-host target architecture。
+3. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：FACM 3.1 verified architecture 与 3.2 modular-host architecture/迁移边界。
 4. `docs/AI_WORKSTYLE.md`：长架构重构期间依赖自动验证连续推进，整轮收口后再让用户做一次集中 Windows 实机验收。
 5. `docs/PITFALLS.md`：WinForms、PetHost、Flying Runtime、海斗、单实例和 modular-host 防回归规则。
-6. `docs/OPERATIONS.md`：构建、smoke、最终候选与发布边界。
+6. `docs/OPERATIONS.md`：构建、`--facm-host-test`、最终候选与发布边界。
 
 ---
 
@@ -44,8 +44,9 @@ Issue #55 开始时的最新 `main`：`639b80c8f92f8f3551598faac8ce3de8ff547b7e`
 - Issue：#55 `FACM 3.2 Phase 1：建立 FacmHost 与模块生命周期基础层`
 - PR：#56 `refactor(core): establish FACM 3.2 modular host foundation`
 - 分支：`feat/facm-host-phase1-55`
-- PR：OPEN / DRAFT；Phase 1 自动验证已通过，等待 canonical docs/review 收口后合并。
-- 当前经 CI 验证的代码 HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`。
+- PR：OPEN / Ready for review；Phase 1 行为代码与 canonical docs 已收口，等待最终 docs-only CI/review fresh-check 后合并。
+- 最终经 CI 验证的行为代码 HEAD：`9b6b1a7da0829b8c18e8cd5a9ca5d0e169e54447`。
+- 行为代码验证：FACM Windows Build #842 SUCCESS；Mayhem Source Probe #155 SUCCESS。
 
 ## 线上正式版
 
@@ -107,24 +108,28 @@ Program
 
 - `IFacmModule`：稳定 `Id`、显式 `Dependencies`、`Initialize()`、`Dispose()`；
 - `FacmHost`：注册模块、依赖图解析、初始化、失败回滚和反向释放；
-- 拒绝重复 module ID；
-- 拒绝缺失依赖；
-- 检测循环依赖并输出 dependency chain；
+- 拒绝重复 module ID 并写日志；
+- 拒绝缺失依赖并写 graph validation 日志；
+- 检测循环依赖、输出 dependency chain 并写日志；
 - 初始化顺序由依赖关系决定，不依赖散落的调用顺序约定；
 - Host 关闭时按已初始化顺序反向 Dispose；
-- 初始化失败时先记录失败模块，再反向释放已经成功初始化的模块。
+- 模块 Initialize 中途失败时，先给失败模块自身一次 Dispose 清理机会，再反向释放此前成功初始化的模块；
+- 失败模块 Dispose 再失败时继续记录日志，不覆盖原初始化异常。
 
 宿主 namespace 使用 `FACM.AppHost` / `FACM.AppHost.Modules`。文件目录仍可位于 `src/FACM/Application/`，但**不要改回 `FACM.Application` namespace**；原因见 `docs/PITFALLS.md`。
 
 ## 生命周期可观测性
 
-`FacmHostReport` / AppLog 记录：
+`FacmHostReport` / AppLog 对成功和失败路径都记录：
 
-- initialization order；
-- 每个 module 的初始化耗时；
+- planned initialization order；
+- 每个实际尝试 module 的初始化耗时；
+- succeeded / failed；
 - Host 总初始化耗时；
-- slowest module；
+- slowest attempted module；
 - 初始化失败模块/异常。
+
+因此即使第一个模块就失败，日志也不会只剩一个堆栈而丢失 Host timing 摘要。
 
 ## deterministic smoke
 
@@ -137,8 +142,9 @@ Program
 - missing dependency；
 - duplicate ID；
 - circular dependency；
-- 初始化失败后的 rollback；
-- timing/report 基本完整性。
+- 初始化失败模块自身 Dispose + prior modules rollback；
+- 第一个模块就失败时的 timing / slowest report；
+- 成功 timing/report 基本完整性。
 
 该 smoke 已加入 `FACM.csproj` 的 deterministic CI build target，并位于其它现有 smokes 之前。
 
@@ -172,7 +178,7 @@ Program
 - `OnlineModule`
 - `MayhemModule`
 
-这些文件是下一阶段迁移所有权的承载面。Phase 1 为避免跨阶段硬接，MainForm 内部仍保持原有 static/direct-new 调用，等下一 Issue 再逐项迁移。
+这些文件是下一阶段迁移所有权的承载面。Phase 1 为避免跨阶段硬接，MainForm 内部仍保持原有 static/direct-new 调用，下一 Issue 再按显式依赖迁移。
 
 ---
 
@@ -195,13 +201,28 @@ PetHost publish/self-test 成功，FACM 在 C# 编译阶段失败。
 
 修复：**只把新宿主 namespace 改为 `FACM.AppHost` / `FACM.AppHost.Modules`，不修改旧业务文件来绕过冲突。**
 
-## Build #832 — SUCCESS
+## Build #832 / Probe #145 — SUCCESS
 
-HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`
+`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee` 已验证 namespace 修复、基础 Host、Shell 样板与最初的 `--facm-host-test`。
 
-已 fresh-check：FACM Windows Build #832 `completed / success`。
+## Build #842 / Probe #155 — 最终行为代码验证 SUCCESS
 
-其中已成功完成：
+HEAD：`9b6b1a7da0829b8c18e8cd5a9ca5d0e169e54447`
+
+已 fresh-check：
+
+- FACM Windows Build #842：`completed / success`；
+- FACM Mayhem Source Probe #155：`completed / success`。
+
+该 HEAD 在 #832 基础上进一步补齐：
+
+- duplicate / missing / circular dependency 诊断日志；
+- 初始化失败模块自身 Dispose；
+- prior modules reverse rollback；
+- failed-host timing / slowest report；
+- first-module failure deterministic smoke。
+
+Build #842 已成功完成：
 
 - tools 输入验证；
 - PetHost publish + self-test + bundle；
@@ -209,14 +230,11 @@ HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`
 - 新 `--facm-host-test`；
 - 原有 floating-ball / single-instance / animal-pet / game-locator / Mayhem cancellation / Tencent patch / ARAM balance / embedded PetHost smokes；
 - FACM.exe 验证；
+- 签名步骤；
 - package creation；
 - artifact upload。
 
-## Mayhem Source Probe #145 — SUCCESS
-
-已 fresh-check：`completed / success`。
-
-因此 Phase 1 目前没有自动验证 blocker。
+因此 Phase 1 行为代码当前没有自动验证 blocker。
 
 ---
 
@@ -274,13 +292,13 @@ HEAD：`12d32c973e50b8aaf696f7b62cb4fe6efc37f3ee`
 
 # 七、下一步
 
-Phase 1 docs/review 收口并合并后，**不要求用户实机测试，直接继续下一架构 Issue**。
+Phase 1 最终 docs-only CI/review 收口并合并后，**不要求用户实机测试，直接继续下一架构 Issue**。
 
 优先迁移顺序：
 
-1. Settings ownership：保留 `settings.ini` 和已有 key，先把加载/保存归属从 MainForm/static 调用迁入明确模块边界；
-2. Shell orchestration：MainForm 改为显式接收需要的 module/facade，不再自己 `AppSettings.Load()` / `UiTextCatalog.Load()`；
-3. Tools / Online / Pets / Mayhem：逐步用 module facade 替换 MainForm 的 direct static/direct-new 依赖；
+1. Settings ownership：保留 `settings.ini` 和已有 key，把加载/保存归属从 MainForm/static 调用迁入明确模块边界；
+2. Shell orchestration：MainForm 改为显式接收 Settings/UiText 等依赖，不再自己 `AppSettings.Load()` / `UiTextCatalog.Load()`；
+3. Tools / Online / Pets / Mayhem：用 module facade 替换 MainForm 的 direct static/direct-new 依赖；
 4. Cleanup ownership；
 5. 建立真正的 LeagueClient module；
 6. 之后再加入账号 / Gameflow / ChampSelect / 战绩等产品能力。
@@ -291,4 +309,4 @@ Phase 1 docs/review 收口并合并后，**不要求用户实机测试，直接�
 
 # 八、给下一会话的一句话
 
-**FACM 3.2 modular-host Phase 1 已自动验证通过：Issue #55 / Draft PR #56 / `feat/facm-host-phase1-55`，Host 负责依赖解析、生命周期、失败回滚和启动耗时；Shell/CompactMenuEnhancer 已作为低风险样板接入；Build #821 的 `FACM.Application` 命名冲突已通过改为 `FACM.AppHost` 修复，Build #832 + Probe #145 SUCCESS；不要中途要求用户实机测试，Phase 1 合并后直接继续 Settings/Shell/Online/Pets/Mayhem 后端迁移，整轮收口后再给一个最终 Windows 候选包。**
+**FACM 3.2 modular-host Phase 1 行为代码已完成自动验证：Issue #55 / PR #56 / `feat/facm-host-phase1-55`，最终代码 HEAD `9b6b1a7...` 的 Build #842 + Probe #155 SUCCESS；Host 负责依赖解析、成功/失败 timing、失败模块自 Dispose、prior-module rollback 和反向释放，Shell/CompactMenuEnhancer 已作为低风险样板接入；Build #821 的 `FACM.Application` 命名冲突已通过 `FACM.AppHost` 修复。完成 docs-only CI/review 后合并 #56，不要求用户中途实机测试，随后直接继续 Settings/Shell/Online/Pets/Mayhem 后端迁移，整轮收口后再给一个最终 Windows 候选包。**
