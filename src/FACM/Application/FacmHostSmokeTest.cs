@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using FACM.AppHost.Modules;
 
 namespace FACM.AppHost
 {
@@ -16,6 +17,7 @@ namespace FACM.AppHost
                 ValidateCircularDependency();
                 ValidateInitializationFailureRollback();
                 ValidateFirstModuleFailureReport();
+                ValidateShellSettingsDependencyContract();
                 return 0;
             }
             catch (Exception exception)
@@ -132,6 +134,22 @@ namespace FACM.AppHost
                 Require(host.Report.Timings.Count == 1, "FACM first-module failure report lost timing diagnostics.");
                 Require(host.Report.SlowestModuleId == "first", "FACM first-module failure report lost slowest module identity.");
             }
+        }
+
+        private static void ValidateShellSettingsDependencyContract()
+        {
+            var settings = new SettingsModule();
+            var shell = new ShellModule(false, settings);
+
+            Require(
+                shell.Dependencies.Contains(CompactMenuEnhancerModule.ModuleId),
+                "FACM shell lost the CompactMenuEnhancer module dependency.");
+            Require(
+                shell.Dependencies.Contains(SettingsModule.ModuleId),
+                "FACM shell lost the explicit Settings module dependency.");
+            Require(
+                shell.Dependencies.Count == 2,
+                "FACM Phase 2 shell dependency contract changed unexpectedly.");
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)
