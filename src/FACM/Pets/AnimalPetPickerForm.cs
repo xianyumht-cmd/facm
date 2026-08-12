@@ -33,7 +33,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "桌面宠物运行层",
+                Text = "桌面宠物",
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -41,7 +41,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "优先测试 VPet Core 高精度运行层；旧 CC0 Sprite 仅保留为回退/对照。VPet 首次启用会联网缓存官方最小动作集。",
+                Text = "轻量桌宠统一采用 Flying Runtime：轨迹、360° 朝向和翅膀动画分离；VPet Core 作为高精度独立选项。",
                 Location = new Point(28, 58),
                 Size = new Size(730, 30),
                 ForeColor = Color.FromArgb(160, 174, 198)
@@ -59,7 +59,7 @@ namespace FACM.Pets
                 DisplayMember = "Name",
                 Font = new Font("Microsoft YaHei UI", 10F)
             };
-            foreach (var pet in AnimalPetCatalog.All) _list.Items.Add(pet);
+            foreach (var pet in AnimalPetCatalog.Visible) _list.Items.Add(pet);
 
             var previewPanel = new Panel
             {
@@ -138,13 +138,13 @@ namespace FACM.Pets
             _list.DoubleClick += delegate { apply.PerformClick(); };
 
             var selectedIndex = 0;
-            for (var index = 0; index < AnimalPetCatalog.All.Count; index++)
+            for (var index = 0; index < AnimalPetCatalog.Visible.Count; index++)
             {
-                if (!string.Equals(AnimalPetCatalog.All[index].Id, currentPetId, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.Equals(AnimalPetCatalog.Visible[index].Id, currentPetId, StringComparison.OrdinalIgnoreCase)) continue;
                 selectedIndex = index;
                 break;
             }
-            _list.SelectedIndex = selectedIndex;
+            if (_list.Items.Count > 0) _list.SelectedIndex = selectedIndex;
 
             _previewTimer = new Timer { Interval = 33 };
             _previewTimer.Tick += delegate
@@ -242,7 +242,20 @@ namespace FACM.Pets
             var frameCount = Math.Max(1, pet.FrameCount);
             var frame = (int)(_animationSeconds * Math.Max(1f, pet.FramesPerSecond)) % frameCount;
             var direction = pet.DirectionalRows ? 0 : pet.AnimationRow;
-            using (var rendered = SpritePetWindow.RenderForSmokeTest(pet, _sheet, frame, direction, true))
+            Bitmap rendered;
+            if (FlyingPetProfiles.IsManaged(pet))
+            {
+                // A gentle preview-only heading sweep makes the right-facing master/360° runtime visible
+                // without pretending to preview the actual randomized desktop trajectory.
+                var heading = (float)Math.Sin(_animationSeconds * 0.75) * 18f;
+                rendered = SpritePetWindow.RenderFlyingForSmokeTest(pet, _sheet, frame, heading);
+            }
+            else
+            {
+                rendered = SpritePetWindow.RenderForSmokeTest(pet, _sheet, frame, direction, true);
+            }
+
+            using (rendered)
             {
                 var canvas = new Bitmap(_preview.Width, _preview.Height);
                 using (var graphics = Graphics.FromImage(canvas))
@@ -276,7 +289,7 @@ namespace FACM.Pets
                 graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 38, _preview.Width - 24, 52), format);
                 graphics.DrawLine(linePen, 76, 103, _preview.Width - 76, 103);
                 graphics.DrawString(
-                    "成熟动作状态机\r\nIdle · Move · Raised · Touch\r\n\r\n应用后直接在桌面实时验收",
+                    "高精度独立运行层\r\nIdle · Move · Raised · Touch\r\n\r\n应用后直接在桌面实时验收",
                     bodyFont,
                     bodyBrush,
                     new RectangleF(18, 112, _preview.Width - 36, 124),
