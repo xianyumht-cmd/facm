@@ -7,9 +7,11 @@ namespace FACM.Application.Modules
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
 
+        public const string ModuleId = "shell.compact-menu-enhancer";
+
         public string Id
         {
-            get { return "shell.compact-menu-enhancer"; }
+            get { return ModuleId; }
         }
 
         public IReadOnlyList<string> Dependencies
