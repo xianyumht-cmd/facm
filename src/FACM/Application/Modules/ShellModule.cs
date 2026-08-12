@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using FACM.AppHost;
 
-namespace FACM.Application.Modules
+namespace FACM.AppHost.Modules
 {
     internal sealed class ShellModule : IFacmModule
     {
