@@ -60,7 +60,7 @@ namespace FACM.Pets
                 _window.FormClosed += HandleClosed;
                 _window.Show();
                 _window.ResetToPrimaryScreen();
-                AppLog.Info("Legacy animated sprite pet started: " + definition.Id);
+                AppLog.Info(SpriteRuntimeName(definition) + " pet started: " + definition.Id);
                 HandleReady();
                 return;
             }
@@ -68,7 +68,7 @@ namespace FACM.Pets
             _window.SetPet(definition);
             if (!_window.Visible) _window.Show();
             _window.TopMost = true;
-            AppLog.Info("Legacy animated sprite pet changed: " + definition.Id);
+            AppLog.Info(SpriteRuntimeName(definition) + " pet changed: " + definition.Id);
             HandleReady();
         }
 
@@ -82,8 +82,9 @@ namespace FACM.Pets
                 return;
             }
             if (_window == null || _window.IsDisposed) return;
+            var definition = AnimalPetCatalog.Get(_window.PetId);
             _window.ResetToPrimaryScreen();
-            AppLog.Info("Legacy animated sprite pet reset to primary screen.");
+            AppLog.Info(SpriteRuntimeName(definition) + " pet reset to primary screen.");
         }
 
         public static void Stop()
@@ -94,6 +95,11 @@ namespace FACM.Pets
             _clicked = null;
             _rightClicked = null;
             _ready = null;
+        }
+
+        private static string SpriteRuntimeName(AnimalPetDefinition definition)
+        {
+            return FlyingPetProfiles.IsManaged(definition) ? "Flying Runtime" : "Compatibility Sprite";
         }
 
         private static void StopHost()
@@ -120,7 +126,7 @@ namespace FACM.Pets
             }
             catch (Exception exception)
             {
-                AppLog.Info("Legacy animated sprite pet stop skipped: " + exception.Message);
+                AppLog.Info("Animated sprite pet stop skipped: " + exception.Message);
             }
         }
 

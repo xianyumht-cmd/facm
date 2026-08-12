@@ -15,12 +15,14 @@ namespace FACM.Pets
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                if (AnimalPetCatalog.All.Count < 9)
+                if (AnimalPetCatalog.All.Count < 13)
                     throw new InvalidOperationException("Pet catalog is unexpectedly small.");
                 if (AnimalPetCatalog.Get("vpet").Runtime != AnimalPetRuntime.VPetCore)
                     throw new InvalidOperationException("VPet Core runtime is missing from the pet catalog.");
 
+                ValidateVisibleCatalog();
                 ValidateHighDetailGreenFly();
+                ValidateFlyingProfilesAndHeading();
 
                 var signatures = new HashSet<int>();
                 var spriteCount = 0;
@@ -31,9 +33,9 @@ namespace FACM.Pets
                         if (pet.Runtime != AnimalPetRuntime.Sprite) continue;
                         spriteCount++;
                         if (!string.Equals(pet.AssetLicense, "CC0", StringComparison.OrdinalIgnoreCase))
-                            throw new InvalidOperationException("Non-CC0 asset entered the legacy sprite fallback catalog: " + pet.Id);
+                            throw new InvalidOperationException("Non-CC0 asset entered the Sprite catalog: " + pet.Id);
                         if (pet.FrameCount < 2)
-                            throw new InvalidOperationException("Legacy sprite fallback is not truly animated: " + pet.Id);
+                            throw new InvalidOperationException("Sprite pet is not truly animated: " + pet.Id);
 
                         using (var sheet = SpritePetAssetService.LoadAsync(pet, cancellation.Token).GetAwaiter().GetResult())
                         {
@@ -64,14 +66,23 @@ namespace FACM.Pets
                                         throw new InvalidOperationException("Directional pet rows render identically: " + pet.Id);
                                 }
                             }
+
+                            if (FlyingPetProfiles.IsManaged(pet))
+                            {
+                                var source = SpritePetAssetService.GetFrameRectangle(pet, sheet, 0, 0);
+                                if (source.Width < 96 || source.Height < 96)
+                                    throw new InvalidOperationException("Managed flying source is below the high-detail floor: " + pet.Id);
+                                if (pet.DirectionalRows || pet.PixelArt)
+                                    throw new InvalidOperationException("Managed flying pet regressed to directional/pixel-art rendering: " + pet.Id);
+                            }
                         }
                     }
                 }
 
-                if (spriteCount < 8)
-                    throw new InvalidOperationException("Legacy sprite fallback count dropped unexpectedly.");
+                if (spriteCount < 12)
+                    throw new InvalidOperationException("Sprite compatibility catalog dropped unexpectedly.");
                 if (signatures.Count < spriteCount * 2 - 2)
-                    throw new InvalidOperationException("Animated fallback renders are not visually distinct enough.");
+                    throw new InvalidOperationException("Animated sprite renders are not visually distinct enough.");
 
                 using (var window = new SpritePetWindow(AnimalPetCatalog.Get("spider")))
                 {
@@ -84,7 +95,7 @@ namespace FACM.Pets
                 }
 
                 if (SpritePetWindow.DirectionRowForVector(1f, 0f) == SpritePetWindow.DirectionRowForVector(0f, 1f))
-                    throw new InvalidOperationException("Eight-direction pet mapping is not changing with movement direction.");
+                    throw new InvalidOperationException("Legacy eight-direction mapping is not changing with movement direction.");
 
                 return 0;
             }
@@ -95,20 +106,49 @@ namespace FACM.Pets
             }
         }
 
+        private static void ValidateVisibleCatalog()
+        {
+            if (!string.Equals(AnimalPetCatalog.DefaultPetId, "greenfly", StringComparison.Ordinal))
+                throw new InvalidOperationException("Default pet fallback is no longer the accepted lightweight flying baseline.");
+            if (AnimalPetCatalog.Visible.Count != 6)
+                throw new InvalidOperationException("Desktop-pet picker must expose five managed flying pets plus VPet Core.");
+
+            var managedCount = 0;
+            var vpetCount = 0;
+            foreach (var pet in AnimalPetCatalog.Visible)
+            {
+                if (pet.Runtime == AnimalPetRuntime.VPetCore)
+                {
+                    vpetCount++;
+                    continue;
+                }
+                if (!FlyingPetProfiles.IsManaged(pet))
+                    throw new InvalidOperationException("Legacy/non-managed Sprite leaked back into the primary picker: " + pet.Id);
+                managedCount++;
+            }
+            if (managedCount != 5 || vpetCount != 1)
+                throw new InvalidOperationException("Primary picker composition changed unexpectedly.");
+
+            if (!AnimalPetCatalog.Contains("spider") || !AnimalPetCatalog.Contains("cat") || !AnimalPetCatalog.Contains("dog"))
+                throw new InvalidOperationException("Legacy pet IDs must remain resolvable for existing settings.ini files.");
+        }
+
         private static void ValidateHighDetailGreenFly()
         {
             var fly = AnimalPetCatalog.Get("greenfly");
             if (fly.Runtime != AnimalPetRuntime.Sprite || fly.Motion != AnimalMotionStyle.Fly)
                 throw new InvalidOperationException("Green fly no longer uses the lightweight Sprite/Fly runtime.");
             if (!string.Equals(fly.SpriteUrl, SpritePetAssetService.BuiltInGreenFlyUrl, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Green fly is no longer using the built-in high-detail asset.");
+                throw new InvalidOperationException("Green fly is no longer using the accepted built-in high-detail asset.");
             if (fly.SpriteColumns != SpritePetAssetService.BuiltInGreenFlyFrameCount || fly.SpriteRows != 1 ||
                 fly.FrameCount != SpritePetAssetService.BuiltInGreenFlyFrameCount)
                 throw new InvalidOperationException("Green fly high-detail sprite grid changed unexpectedly.");
             if (fly.PixelArt)
                 throw new InvalidOperationException("Green fly high-detail sprite must not use nearest-neighbor pixel-art scaling.");
             if (Math.Abs(fly.Speed - 1.36f) > 0.001f || Math.Abs(fly.VisualScale - 0.56f) > 0.001f)
-                throw new InvalidOperationException("Green fly accepted movement/size profile changed while upgrading artwork.");
+                throw new InvalidOperationException("Green fly accepted movement/size profile changed while refactoring the runtime.");
+            if (!string.Equals(fly.FlyingProfileId, FlyingPetProfiles.GreenFly, StringComparison.Ordinal))
+                throw new InvalidOperationException("Green fly is not attached to the managed flight profile.");
 
             using (var sheet = SpritePetAssetService.CreateBuiltInGreenFlySheetForSmokeTest())
             {
@@ -123,7 +163,46 @@ namespace FACM.Pets
                         rectangle.Height != SpritePetAssetService.BuiltInGreenFlyFrameSize)
                         throw new InvalidOperationException("Green fly source frame was accidentally downscaled.");
                 }
+
+                using (var right = SpritePetWindow.RenderFlyingForSmokeTest(fly, sheet, 0, 0f))
+                using (var down = SpritePetWindow.RenderFlyingForSmokeTest(fly, sheet, 0, 90f))
+                {
+                    if (Signature(right) == Signature(down))
+                        throw new InvalidOperationException("Managed flight heading rotation is not affecting the rendered body.");
+                }
             }
+        }
+
+        private static void ValidateFlyingProfilesAndHeading()
+        {
+            var green = FlyingPetProfiles.Get(FlyingPetProfiles.GreenFly);
+            if (green == null)
+                throw new InvalidOperationException("Green fly motion profile is missing.");
+            if (Math.Abs(green.MinBaseSpeed - 82f) > 0.001f || Math.Abs(green.MaxBaseSpeed - 140f) > 0.001f ||
+                Math.Abs(green.MoveMinSeconds - 0.55) > 0.0001 || Math.Abs(green.MoveMaxSeconds - 1.80) > 0.0001 ||
+                Math.Abs(green.IdleChance - 0.02) > 0.0001 || Math.Abs(green.VelocityResponse - 7.5f) > 0.001f ||
+                Math.Abs(green.JitterXAmplitude - 10f) > 0.001f || Math.Abs(green.JitterYAmplitude - 8f) > 0.001f ||
+                Math.Abs(green.JitterXFrequency - 17f) > 0.001f || Math.Abs(green.JitterYFrequency - 13f) > 0.001f)
+                throw new InvalidOperationException("Green fly trajectory baseline changed during Flying Runtime refactor.");
+
+            if (FlyingPetProfiles.Get(FlyingPetProfiles.Bee) == null ||
+                FlyingPetProfiles.Get(FlyingPetProfiles.Dragonfly) == null ||
+                FlyingPetProfiles.Get(FlyingPetProfiles.Butterfly) == null ||
+                FlyingPetProfiles.Get(FlyingPetProfiles.Moth) == null)
+                throw new InvalidOperationException("One or more managed flying profiles are missing.");
+
+            AssertNear(SpritePetWindow.HeadingDegreesForVector(1f, 0f), 0f, "right heading");
+            AssertNear(SpritePetWindow.HeadingDegreesForVector(0f, 1f), 90f, "down heading");
+            AssertNear(SpritePetWindow.HeadingDegreesForVector(-1f, 0f), 180f, "left heading");
+            AssertNear(SpritePetWindow.HeadingDegreesForVector(0f, -1f), 270f, "up heading");
+            AssertNear(SpritePetWindow.ShortestAngleDelta(350f, 10f), 20f, "wrap-positive turn");
+            AssertNear(SpritePetWindow.ShortestAngleDelta(10f, 350f), -20f, "wrap-negative turn");
+        }
+
+        private static void AssertNear(float actual, float expected, string label)
+        {
+            if (Math.Abs(actual - expected) > 0.01f)
+                throw new InvalidOperationException(label + " mismatch: " + actual + " != " + expected);
         }
 
         private static void ValidateTransparentRender(AnimalPetDefinition pet, Bitmap bitmap)

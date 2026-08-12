@@ -21,6 +21,7 @@ namespace FACM.Pets
         private const int UlwAlpha = 0x00000002;
         private const byte AcSrcOver = 0x00;
         private const byte AcSrcAlpha = 0x01;
+        private const float HeadingRenderStepDegrees = 2f;
 
         private readonly Timer _timer;
         private readonly Random _random = new Random(unchecked(Environment.TickCount * 397));
@@ -38,6 +39,8 @@ namespace FACM.Pets
         private float _vy;
         private float _targetVx;
         private float _targetVy;
+        private float _headingDegrees;
+        private bool _headingInitialized;
         private bool _dragging;
         private bool _moved;
         private Point _dragCursor;
@@ -48,6 +51,7 @@ namespace FACM.Pets
         private int _lastFrame = -1;
         private int _lastDirection = -1;
         private bool _lastFacing;
+        private int _lastHeadingBucket = int.MinValue;
 
         public SpritePetWindow(AnimalPetDefinition pet)
         {
@@ -109,8 +113,12 @@ namespace FACM.Pets
             _pet = pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId);
             _animationSeconds = 0;
             _vx = _vy = 0f;
+            _targetVx = _targetVy = 0f;
+            _headingDegrees = 0f;
+            _headingInitialized = false;
             _lastFrame = -1;
             _lastDirection = -1;
+            _lastHeadingBucket = int.MinValue;
             ChooseNewMotion(true);
             await LoadSpriteAsync();
             RenderLayered(true);
@@ -132,7 +140,26 @@ namespace FACM.Pets
 
         internal static Bitmap RenderForSmokeTest(AnimalPetDefinition pet, Bitmap sheet, int frameIndex, int directionRow, bool facingRight)
         {
-            return RenderPet(pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId), sheet, PetSize, frameIndex, directionRow, facingRight);
+            return RenderPet(
+                pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId),
+                sheet,
+                PetSize,
+                frameIndex,
+                directionRow,
+                facingRight,
+                0f);
+        }
+
+        internal static Bitmap RenderFlyingForSmokeTest(AnimalPetDefinition pet, Bitmap sheet, int frameIndex, float headingDegrees)
+        {
+            return RenderPet(
+                pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId),
+                sheet,
+                PetSize,
+                frameIndex,
+                0,
+                true,
+                headingDegrees);
         }
 
         internal static int DirectionRowForVector(float vx, float vy)
@@ -142,6 +169,21 @@ namespace FACM.Pets
             if (angle < 0) angle += Math.PI * 2.0;
             var octant = (int)Math.Round(angle / (Math.PI / 4.0)) % 8;
             return octant;
+        }
+
+        internal static float HeadingDegreesForVector(float vx, float vy)
+        {
+            if (Math.Abs(vx) < 0.001f && Math.Abs(vy) < 0.001f) return 0f;
+            var degrees = (float)(Math.Atan2(vy, vx) * 180.0 / Math.PI);
+            return NormalizeDegrees(degrees);
+        }
+
+        internal static float ShortestAngleDelta(float fromDegrees, float toDegrees)
+        {
+            var delta = NormalizeDegrees(toDegrees) - NormalizeDegrees(fromDegrees);
+            if (delta > 180f) delta -= 360f;
+            if (delta < -180f) delta += 360f;
+            return delta;
         }
 
         private async Task LoadSpriteAsync()
@@ -180,6 +222,7 @@ namespace FACM.Pets
             if (old != null) old.Dispose();
             _lastFrame = -1;
             _lastDirection = -1;
+            _lastHeadingBucket = int.MinValue;
         }
 
         private void EnsurePosition()
@@ -210,7 +253,8 @@ namespace FACM.Pets
             var frame = CurrentFrameIndex();
             var direction = CurrentDirectionRow();
             var facing = _facingRight;
-            if (frame != _lastFrame || direction != _lastDirection || facing != _lastFacing)
+            var headingBucket = CurrentHeadingBucket();
+            if (frame != _lastFrame || direction != _lastDirection || facing != _lastFacing || headingBucket != _lastHeadingBucket)
                 RenderLayered(false);
         }
 
@@ -232,9 +276,22 @@ namespace FACM.Pets
             return DirectionRowForVector(vx, vy);
         }
 
+        private int CurrentHeadingBucket()
+        {
+            if (!FlyingPetProfiles.IsManaged(_pet)) return 0;
+            return (int)Math.Round(NormalizeDegrees(_headingDegrees) / HeadingRenderStepDegrees);
+        }
+
         private void ChooseNewMotion(bool forceMove)
         {
             if (_pet == null) return;
+            var profile = FlyingPetProfiles.Get(_pet);
+            if (profile != null)
+            {
+                ChooseFlyingMotion(profile, forceMove);
+                return;
+            }
+
             var now = _clock.Elapsed.TotalSeconds;
             var fly = _pet.Motion == AnimalMotionStyle.Fly;
             var idleChance = fly ? 0.02 : 0.12;
@@ -273,22 +330,96 @@ namespace FACM.Pets
             if (Math.Abs(_targetVx) > 2f) _facingRight = _targetVx >= 0f;
         }
 
+        private void ChooseFlyingMotion(FlyingPetProfile profile, bool forceMove)
+        {
+            var now = _clock.Elapsed.TotalSeconds;
+            var idle = !forceMove && _random.NextDouble() < profile.IdleChance;
+            var duration = idle
+                ? profile.IdleMinSeconds + _random.NextDouble() * Math.Max(0.01, profile.IdleMaxSeconds - profile.IdleMinSeconds)
+                : profile.MoveMinSeconds + _random.NextDouble() * Math.Max(0.01, profile.MoveMaxSeconds - profile.MoveMinSeconds);
+            _stateUntilSeconds = now + duration;
+
+            if (idle)
+            {
+                _targetVx = 0f;
+                _targetVy = 0f;
+                return;
+            }
+
+            var angle = _random.NextDouble() * Math.PI * 2.0;
+            var baseSpeed = profile.MinBaseSpeed + (float)_random.NextDouble() * Math.Max(0.1f, profile.MaxBaseSpeed - profile.MinBaseSpeed);
+            var pixelsPerSecond = baseSpeed * Math.Max(0.55f, _pet.Speed);
+            _targetVx = (float)Math.Cos(angle) * pixelsPerSecond;
+            _targetVy = (float)Math.Sin(angle) * pixelsPerSecond;
+
+            if (!_headingInitialized)
+            {
+                _headingDegrees = HeadingDegreesForVector(_targetVx, _targetVy);
+                _headingInitialized = true;
+            }
+        }
+
         private void SmoothVelocity(float dt)
         {
+            var profile = FlyingPetProfiles.Get(_pet);
+            if (profile != null)
+            {
+                var blend = 1f - (float)Math.Exp(-profile.VelocityResponse * dt);
+                _vx += (_targetVx - _vx) * blend;
+                _vy += (_targetVy - _vy) * blend;
+                UpdateFlyingHeading(profile, dt);
+                return;
+            }
+
             var fly = _pet != null && _pet.Motion == AnimalMotionStyle.Fly;
             var response = fly ? 7.5f : 5.4f;
-            var blend = 1f - (float)Math.Exp(-response * dt);
-            _vx += (_targetVx - _vx) * blend;
-            _vy += (_targetVy - _vy) * blend;
+            var legacyBlend = 1f - (float)Math.Exp(-response * dt);
+            _vx += (_targetVx - _vx) * legacyBlend;
+            _vy += (_targetVy - _vy) * legacyBlend;
             if (Math.Abs(_vx) > 2f) _facingRight = _vx >= 0f;
+        }
+
+        private void UpdateFlyingHeading(FlyingPetProfile profile, float dt)
+        {
+            var vx = _vx;
+            var vy = _vy;
+            if (Math.Abs(vx) + Math.Abs(vy) < 2f)
+            {
+                vx = _targetVx;
+                vy = _targetVy;
+            }
+            if (Math.Abs(vx) + Math.Abs(vy) < 2f) return;
+
+            var targetHeading = HeadingDegreesForVector(vx, vy);
+            if (!_headingInitialized)
+            {
+                _headingDegrees = targetHeading;
+                _headingInitialized = true;
+                return;
+            }
+
+            var delta = ShortestAngleDelta(_headingDegrees, targetHeading);
+            var blend = 1f - (float)Math.Exp(-profile.HeadingResponse * dt);
+            _headingDegrees = NormalizeDegrees(_headingDegrees + delta * blend);
         }
 
         private void MoveOneFrame(float dt)
         {
             EnsurePosition();
-            var fly = _pet != null && _pet.Motion == AnimalMotionStyle.Fly;
-            var jitterX = fly ? (float)Math.Sin(_animationSeconds * 17.0) * 10f : 0f;
-            var jitterY = fly ? (float)Math.Cos(_animationSeconds * 13.0) * 8f : 0f;
+            var profile = FlyingPetProfiles.Get(_pet);
+            float jitterX;
+            float jitterY;
+            if (profile != null)
+            {
+                jitterX = (float)Math.Sin(_animationSeconds * profile.JitterXFrequency) * profile.JitterXAmplitude;
+                jitterY = (float)Math.Cos(_animationSeconds * profile.JitterYFrequency) * profile.JitterYAmplitude;
+            }
+            else
+            {
+                var fly = _pet != null && _pet.Motion == AnimalMotionStyle.Fly;
+                jitterX = fly ? (float)Math.Sin(_animationSeconds * 17.0) * 10f : 0f;
+                jitterY = fly ? (float)Math.Cos(_animationSeconds * 13.0) * 8f : 0f;
+            }
 
             // Free wandering is intentional. A desktop pet may leave every monitor and later wander
             // back in; the explicit "复位桌面位置" command is the recovery path, not an invisible wall.
@@ -360,9 +491,17 @@ namespace FACM.Pets
             if (_disposed || !IsHandleCreated || !Visible || _pet == null) return;
             var frame = CurrentFrameIndex();
             var direction = CurrentDirectionRow();
-            if (!force && frame == _lastFrame && direction == _lastDirection && _facingRight == _lastFacing) return;
+            var headingBucket = CurrentHeadingBucket();
+            if (!force && frame == _lastFrame && direction == _lastDirection && _facingRight == _lastFacing && headingBucket == _lastHeadingBucket) return;
 
-            using (var bitmap = RenderPet(_pet, _sheet, Math.Min(Width, Height), frame, direction, _facingRight))
+            using (var bitmap = RenderPet(
+                _pet,
+                _sheet,
+                Math.Min(Width, Height),
+                frame,
+                direction,
+                _facingRight,
+                _headingDegrees))
             {
                 IntPtr screenDc = IntPtr.Zero;
                 IntPtr memoryDc = IntPtr.Zero;
@@ -392,9 +531,17 @@ namespace FACM.Pets
             _lastFrame = frame;
             _lastDirection = direction;
             _lastFacing = _facingRight;
+            _lastHeadingBucket = headingBucket;
         }
 
-        private static Bitmap RenderPet(AnimalPetDefinition pet, Bitmap sheet, int size, int frameIndex, int directionRow, bool facingRight)
+        private static Bitmap RenderPet(
+            AnimalPetDefinition pet,
+            Bitmap sheet,
+            int size,
+            int frameIndex,
+            int directionRow,
+            bool facingRight,
+            float headingDegrees)
         {
             size = Math.Max(120, size);
             var bitmap = new Bitmap(size, size, PixelFormat.Format32bppPArgb);
@@ -427,12 +574,24 @@ namespace FACM.Pets
                 var ratio = Math.Min(maxSide / source.Width, maxSide / source.Height);
                 var width = source.Width * ratio;
                 var height = source.Height * ratio;
-                var y = size / 2f - height / 2f - (pet.Motion == AnimalMotionStyle.Fly ? 4f : 1f);
 
-                g.TranslateTransform(size / 2f, 0f);
-                if (!pet.DirectionalRows && !facingRight) g.ScaleTransform(-1f, 1f);
-                var destination = new RectangleF(-width / 2f, y, width, height);
-                g.DrawImage(sheet, destination, source, GraphicsUnit.Pixel);
+                if (FlyingPetProfiles.IsManaged(pet))
+                {
+                    // All managed flying art uses a right-facing master. Desktop movement owns position,
+                    // while rendering only rotates the body toward the smoothed velocity heading.
+                    g.TranslateTransform(size / 2f, size / 2f);
+                    g.RotateTransform(NormalizeDegrees(headingDegrees));
+                    var flyingDestination = new RectangleF(-width / 2f, -height / 2f - 4f, width, height);
+                    g.DrawImage(sheet, flyingDestination, source, GraphicsUnit.Pixel);
+                }
+                else
+                {
+                    var y = size / 2f - height / 2f - (pet.Motion == AnimalMotionStyle.Fly ? 4f : 1f);
+                    g.TranslateTransform(size / 2f, 0f);
+                    if (!pet.DirectionalRows && !facingRight) g.ScaleTransform(-1f, 1f);
+                    var destination = new RectangleF(-width / 2f, y, width, height);
+                    g.DrawImage(sheet, destination, source, GraphicsUnit.Pixel);
+                }
             }
             return bitmap;
         }
@@ -460,6 +619,13 @@ namespace FACM.Pets
             {
                 g.DrawArc(pen, size / 2f - 16f, size / 2f - 16f, 32f, 32f, -70f, 250f);
             }
+        }
+
+        private static float NormalizeDegrees(float degrees)
+        {
+            degrees %= 360f;
+            if (degrees < 0f) degrees += 360f;
+            return degrees;
         }
 
         private void DisposeResources()
