@@ -22,6 +22,32 @@ FACM 启动时先显示自己的轻量 Shell。只有当前配置已经启用桌
 
 缓存命中时只快速校验完成标记和启动所需关键文件，不再每次递归统计 self-contained runtime 的几百个文件；首次释放仍会做完整文件数/总字节统计后才写完成标记。新的 PetHost payload 第一次出现时仍必须真实释放一次；Shell 在整个准备阶段保持可用，只有 PetHost 真正发出 `ready` 后桌宠才接管桌面入口。
 
+## 单实例与二次启动唤醒
+
+普通 FACM 模式由 `Local\FACM-2C429A53-6710-48BC-A57C-32BEA688B25D` Mutex 保持单实例。Mutex 负责**实例所有权**，另有一个当前 Windows 会话内的命名 AutoResetEvent 只负责**无参数激活通知**：
+
+```text
+第二次 FACM.exe
+    │
+    ├─ 普通 Mutex 已占用
+    │
+    ├─ 最多 1.6s 有限重试打开激活事件
+    │
+    └─ Set()
+          │
+          ▼
+第一实例 SingleInstanceActivation
+          │
+          └─ MainForm.RequestExternalActivation()
+                    │
+                    ├─ 控制中心未开 → 创建并显示
+                    └─ 控制中心已开 → BringToFront + Activate
+```
+
+如果第一实例刚取得 Mutex、WinForms message loop 尚未完全就绪，`MainForm` 先记录 pending activation，`Shown` 后再消费；因此第二次启动不会因为极短的启动竞态被静默丢弃。第二实例只有在有限重试仍无法找到激活事件时，才回退“FACM 已经在运行”的旧提示。
+
+此激活通道不携带命令、配置或文件路径，也不使用 TCP/HTTP 端口。`--cleanup` 继续使用独立 elevated cleanup Mutex；各 smoke/test 模式也继续使用自己的 Mutex，不参与普通实例唤醒。
+
 ## FACM Shell 与控制中心
 
 `MainForm` 是应用级入口拥有者，同时承载默认 FACM Shell；`CompactMenuForm` 是轻量弹出控制中心。

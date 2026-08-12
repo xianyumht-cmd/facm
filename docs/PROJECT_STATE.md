@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修、PR #52 产品化桌宠选择器均已完成 Windows 实机验收并进入 main。Issue #49 / PR #50 的发布状态写入修复也已完成。当前没有新的正式发布动作。
+> 2026-08-13 交接：FACM 3.1.3 仍是线上正式版。高清 Flying Runtime、五种飞虫精修、产品化桌宠选择器均已进入 `main`。当前唯一进行中的代码任务是 Issue #53 / PR #54“二次启动唤醒现有 FACM 控制中心”；Build #797 已通过 CI，用户已完成 Windows 实机验收并明确反馈“测试通过”。**PR #54 仍 OPEN、未合并、未发布；新对话应从这里继续收口。**
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -13,77 +13,308 @@
 - Release FACM.exe SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
 <!-- FACM_RELEASE_STATE_END -->
 
-## 已进入 main、尚未发布的新能力
+## 新对话优先读取
 
-### PR #44：高清绿苍蝇基线
+1. `AGENTS.md`：仓库强制规则；canonical branch 为 `main`，一任务一短分支，合并后要验证 main 和知识文档；生产发布必须单独授权。
+2. 本文件：当前任务、CI、实机验收和下一步。
+3. PR #54 / Issue #53：当前未完成任务的事实来源。
+4. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：已经记录本轮单实例激活契约和设计选择。
+5. `docs/OPERATIONS.md`：已经记录 `--single-instance-activation-test` 和 Windows 二次启动实机验证步骤。
+6. `docs/PITFALLS.md`：已经记录 Ensure Open ≠ Toggle、Build #794 catch 顺序，以及历史 Shell/PetHost/Flying Runtime/发布链防回归规则。
 
-- Issue #43 / PR #44 已实机验收，用户确认效果不错；合并提交 `c8f4a0a4a4a847682845fef0cca3c64c49a8948d`。
-- `greenfly` ID、`Speed=1.36`、`VisualScale=0.56` 和原 `_vx/_vy + jitter` 轨迹保持。
-- 原 16×16 × 3 帧网络贴图升级为 FACM 内置 96×96 × 4 帧程序化精细 Sprite；身体锚点固定，仅翅膀变化。
-- Build #773 完整成功并用于实机验收。
+---
 
-### PR #46：统一 Flying Runtime
+# 一、当前仓库 / 分支 / 发布状态
 
-- Issue #45 / PR #46 已于 2026-08-12 完成 Windows 实机验收，用户反馈“没什么问题”。
-- PR #46 合并提交：`d6cdc2e860b488204348d8158c4da24a899d4aa2`。
-- 最新候选 Build #779 成功；合并后的 main Build #780 也完整成功。
-- 轻量桌宠主路线收敛为：**绿苍蝇 / 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾**；VPet Core 保留为独立高精度路线。
-- 猫、狗、蜘蛛、蚂蚁、旧灰苍蝇、旧胡蜂、小鸟等旧 Sprite ID 不删除，既有 `settings.ini` 继续兼容，但新选择器不再推荐。
-- 运行层把 **桌面运动轨迹 / 360° 身体朝向 / 翅膀动画** 三层解耦；素材统一朝右为 0°，运行时按真实速度向量平滑旋转。
-- Flying Runtime 不增加屏幕硬边界；桌宠允许自然飞出所有屏幕，恢复入口仍是“复位桌面位置”。
-- `greenfly` 继续锁定既有轨迹基线：基础速度 82~140 × 1.36、移动段 0.55~1.80s、idle=0.02、velocity response=7.5、`sin(17t)×10 / cos(13t)×8` jitter。
+## canonical main
 
-### PR #48：Flying Runtime 二次精修
+- `main` 当前提交：`285cea0f6eb84a4d0ca116c6af2a857e054ead01`。
+- 该 main 已包含：
+  - PR #44 高清绿苍蝇基线；
+  - PR #46 统一 Flying Runtime；
+  - PR #48 蜜蜂/蜻蜓/蝴蝶/飞蛾素材与 Profile 精修；
+  - PR #50 发布工作流 `PROJECT_STATE` marker 修复；
+  - PR #52 产品化桌宠选择器。
+- 上述桌宠相关版本均已由用户 Windows 实机验收。
 
-- Issue #47 / PR #48 已于 2026-08-13 完成 Windows 实机验收，用户反馈“没什么问题”。
-- PR #48 合并提交：`0126789dc6274a90068aaedafa7f8d2ca71b8361`；Issue #47 已自动关闭为 completed。
-- 本轮不改已经实机通过的 Flying Runtime 架构，只精修素材和既有 Profile 参数；绿苍蝇继续作为轨迹回归基线。
-- FACM Windows Build #781 完整成功并用于实机验收；验收后的分支提交仅同步项目状态文档，不改变 EXE 行为。
+## 当前任务分支
 
-#### 素材精修
+- 分支：`feat/single-instance-activation-0813`
+- Issue：#53 `二次启动直接唤醒现有 FACM 控制中心`
+- PR：#54 `feat(shell): 二次启动唤醒现有 FACM 控制中心`
+- PR 状态：**OPEN / mergeable / 未合并 / 未发布**。
+- 本轮真正改变 EXE 行为的修复代码 HEAD：`5a52ff8936a655c023746d3517848530b9bc26eb`。
+- 后续提交均为 canonical docs 收口，不改变 Build #797 的 EXE 行为。
+- docs 收口 HEAD `395d96297bc9977c92428c68a14edd04e4cc7c23` 的 Windows Build #801 和 Mayhem Source Probe #120 均已 SUCCESS。
+- 本文件最后一次校正本身会再产生一个 docs-only HEAD；新会话不要死记本文里的分支 HEAD，**先 fresh-read PR #54 当前 head_sha**。如果此后的变化仍只有 docs，可沿用 Build #797 的实机验收。
 
-- 蜜蜂源帧提高到 104px：强化腹部黄黑层次、独立胸部、复眼高光、半透明翅膀和翅脉。
-- 蜻蜓源帧提高到 128px：强化大复眼、胸部、长腹节、四片翅膀、翅脉和翼痣，保持身体锚点不动。
-- 蝴蝶源帧提高到 112px：增加前/后翅层次、翅脉和眼斑，开合仅改变翅膀，不移动身体。
-- 飞蛾源帧提高到 112px：使用更低饱和的厚翅、翼带、绒感胸部和羽状触角。
-- 四套素材继续由 FACM 内置程序化生成，不依赖运行时网络下载；`PixelArt=false`。
+## 在线正式版
 
-#### 飞行性格调优
+- `online/version.json` 当前仍为：
+  - `enabled=true`
+  - `version=3.1.3`
+  - `minimum_version=3.0.0`
+  - `force_update=false`
+  - SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
+- Issue #53 / PR #54 **没有修改在线 manifest，也没有触发正式 Release**。
+- 不要因为本轮实机验收通过就自行发 3.1.4/3.2.0；正式发布仍需要用户另行明确授权。
 
-- 蜜蜂：48~82 基础速度，idle 18%，停悬 0.35~1.10s，突出巡航 + 悬停。
-- 蜻蜓：120~205 基础速度，移动段 2.20~4.60s，局部 jitter 0.5/0.8，突出长直线高速冲刺 + 短停。
-- 蝴蝶：18~38 基础速度，移动段 2.80~5.60s，低响应 + 14px 低频纵向漂浮，突出慢速大曲线。
-- 飞蛾：36~68 基础速度，移动段 0.65~1.55s；X/Y jitter 同频同幅 4.8Hz / 7px，形成小范围绕圈感。
-- 不增加新的运动状态机，不改 `SpritePetWindow` 核心算法。
+---
 
-#### 自动验证
+# 二、本轮 Issue #53 / PR #54 的产品目标
 
-- `--animal-pet-test` 继续锁定绿苍蝇原轨迹参数、360° 朝向、四种精修 Profile 性格约束和各自源帧尺寸。
-- PR #48 已合并到 main，但**未触发正式发布**；FACM 3.1.3 继续作为线上正式版。
+旧行为：FACM 已经运行时，用户再次双击 `FACM.exe`，第二进程只弹“FACM 已经在运行”并退出。对现在的常驻 Shell / 桌宠产品，这条恢复路径很差：悬浮入口可能被遮挡、桌宠可能飞出屏幕，用户再次双击程序的自然预期是“把 FACM 叫出来”。
 
-### PR #52：产品化桌宠选择器
+新行为：
 
-- Issue #51 / PR #52 已于 2026-08-13 完成 Windows 实机验收，用户反馈“没问题”。
-- PR #52 测试候选 Build #790 完整成功；验收记录提交后的 Build #791 也完整成功。
-- PR #52 合并提交：`eef449652b82519acada4d4bd91aa3876c9fdca9`；Issue #51 已自动关闭为 completed。
-- 本轮未改五种 Flying Runtime 桌宠的速度、VisualScale、FPS、素材或 `SpritePetWindow` 运动算法，也未新增动物。
-- 左侧桌宠列表改为产品化双行卡片：名称 + 简短飞行性格，并对当前正在使用的桌宠显示“当前”标识。
-- 右侧详情区区分“轻量 · 自主飞行”和“高精度 · 独立桌宠”，用普通用户文案说明飞行性格、资源取舍与拖动/自由出屏/复位交互。
-- 当前正在使用的选项会明确显示并禁用重复“应用”，其它项目继续支持单击预览、双击应用和按钮应用。
-- VPet 预览使用用户视角说明动作与首次资源成本；主界面不再暴露 `Flying Runtime / CC0` 等实现术语。
-- `--animal-pet-test` 已增加选择器呈现守卫：6 个可见选项需保持独立性格摘要/行为文案，轻量飞虫与 VPet 的运行层标签必须正确。
+- 普通 FACM 已运行时再次双击同一个 EXE：通知现有实例直接打开控制中心；
+- 控制中心未开：创建并显示；
+- 控制中心已开：只置前/激活，不 Toggle 关闭；
+- Flying 桌宠和 VPet 保持原状态，不重启、不停止、不切换；
+- 第二实例正常退出，主实例仍唯一；
+- `--cleanup` 和所有 smoke/test 模式继续保持原有独立 Mutex 语义。
 
-## Issue #49 / PR #50：发布状态写入已修复
+---
 
-- 根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
-- 修复后发布工作流只维护 `<!-- FACM_RELEASE_STATE_BEGIN -->` / `<!-- FACM_RELEASE_STATE_END -->` 包围的机器发布状态区块，保留区块之外的开发、验收与后续任务内容。
-- 当前 3.1.3 正式版段落已经迁入该 marker 区块；下一次正式发布会原位替换，不会生成第二份“当前正式版”。
-- 机器区块只写 workflow 能直接证明的版本、Release tag、online enabled、`minimum_version`、`force_update`、发布基础/元数据 SHA、FACM.exe SHA-256、`published_at` 和 release notes；不再写 Build/Issue/用户验收等推断信息。
-- PR #50 HEAD `ebb518c9d14071278398d46acfae71b9b77b88f6` 的 FACM Windows Build #787 完整成功；PR #50 合并提交 `56f2ac14b1b405852e6b919584529c7e0b0166a8`，Issue #49 已关闭 completed。
-- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，本维护任务没有触发或改写正式发布。
+# 三、已完成代码实现
 
-## 当前状态与下一步
+## 1. 单实例激活通道
 
-- PR #52 已完成实机验收并进入 main；第三轮飞行桌宠选择器任务已关闭。
-- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，没有触发正式发布。
-- 当前没有必须继续修复的桌宠阻塞项；下一步可从最新 main 重新选择新的高收益任务，而不是为了继续迭代而强行改已验收稳定的 Flying Runtime。
+新增：`src/FACM/Services/SingleInstanceActivation.cs`
+
+设计：
+
+- 普通单实例所有权仍由原有 `Local\\FACM-2C429A53-6710-48BC-A57C-32BEA688B25D` Mutex 负责；**没有把 Mutex 替换成 IPC**。
+- 额外建立当前 Windows session 内的命名 `AutoResetEvent`，只承担“请激活现有 FACM”这一种无参数信号。
+- 第一实例拥有 listener；后台等待事件，收到后回调 `MainForm.RequestExternalActivation()`。
+- 第二实例检测到普通 Mutex 已被占用时，不再第一时间弹“已经运行”；它尝试打开命名事件并 `Set()`。
+- 为覆盖“第一实例刚拿到 Mutex、但 activation event 尚未建立”的启动竞态，第二实例做短时间有限重试，总预算约 1.6 秒；仍找不到 listener 才回退旧提示。
+- 没有开 TCP/UDP 端口，没有 HTTP、本地 WebSocket、外部服务或新依赖。
+
+## 2. MainForm 激活语义
+
+修改：`src/FACM/MainForm.cs`
+
+关键点：
+
+- 新增 `RequestExternalActivation()`，可从 activation listener 请求 UI 唤醒。
+- 如果 WinForms handle/message loop 尚未完全就绪，用 pending flag 记录请求；`Shown` 后消费，避免早期请求丢失。
+- 外部激活使用专用“确保控制中心打开”的逻辑：
+  - `_menu == null` → 新建并显示控制中心；
+  - `_menu != null` → `BringToFront()` / `Activate()`；
+  - **绝对不要调用现有 `ToggleMenu()` 作为外部激活入口**，否则菜单已经打开时第二次启动会把它关掉。
+- 外部激活不调用 `AnimalPetManager.Stop()`，不修改 `AnimalPetEnabled` / `PetStyleId`，不触碰 Flying Runtime / VPet 生命周期。
+- 桌宠激活状态下控制中心继续走现有 cursor/pet-active 定位逻辑。
+
+## 3. Program / Mutex 行为
+
+修改：`src/FACM/Program.cs`
+
+- 普通模式 Mutex 已存在时：优先尝试 `SingleInstanceActivation.TrySignalExistingInstance(...)`；成功即静默退出第二实例。
+- 只有激活通知失败时才保留旧“FACM 已经在运行”提示，作为故障兜底。
+- `--cleanup` 仍走原来的 `-ElevatedCleanup` Mutex；不参与普通激活。
+- 其它 smoke/test 仍各有独立 Mutex，不与普通激活通道混用。
+- 新增测试入口：`--single-instance-activation-test`。
+
+## 4. CI smoke
+
+修改：`src/FACM/FACM.csproj`
+
+`ValidateRuntimeSourcesAfterCiBuild` 新增 deterministic 本地 smoke：
+
+- activation listener 不存在时，有限重试必须按预期失败，不能无限挂住；
+- listener 存在时，第一次信号触发一次 callback；
+- 重复信号再次独立触发一次 callback；
+- smoke 不依赖公网，不参与真实用户实例。
+
+---
+
+# 四、已验证结果
+
+## CI
+
+### Build #794 —— 已失败、已修复
+
+- 失败阶段：`Restore and build Release`。
+- PetHost publish/self-test 在此之前是成功的。
+- 编译错误：`MainForm.cs(124,20) CS0160`。
+- 根因：代码先写了 `catch (InvalidOperationException)`，后写 `catch (ObjectDisposedException)`；但 `ObjectDisposedException` 继承 `InvalidOperationException`，后一个 catch 永远不可达。
+- 修复：把更具体的 `ObjectDisposedException` 放前面，父类 `InvalidOperationException` 放后面。
+- 这是**纯 C# catch 顺序编译错误，不是单实例方案失败，也不需要换 IPC 设计**。
+
+### Build #797 —— 代码候选通过
+
+行为代码 HEAD：`5a52ff8936a655c023746d3517848530b9bc26eb`
+
+结果：FACM Windows Build #797 全流程成功，包括：
+
+- checkout / tools 输入验证；
+- CleanupProfile 检查；
+- PetHost win-x64 publish + self-test + bundle；
+- FACM .NET Framework 4.8 Release build；
+- deterministic smoke（包含新的 `--single-instance-activation-test`）；
+- `FACM.exe` 验证；
+- 签名步骤；
+- 下载包生成与 artifact 上传。
+
+Build #797 artifact：
+
+- name：`FACM-Windows-x64-797`
+- artifact ID：`9156067026`
+- digest：`sha256:801f6dbb04225b281a82fe50d1cf262f825b128d94aaf9208663eca14170fef0`
+- 用户实际测试包文件名曾提供为：`FACM-二次启动唤醒-Build797.zip`
+
+同代码阶段 Mayhem Source Probe #116：SUCCESS。
+
+### 后续 docs-only CI
+
+- `2e6377cae2265639aee73ebd22825aaa19403567`：FACM Windows Build #798 SUCCESS；Mayhem Source Probe #117 SUCCESS。
+- `395d96297bc9977c92428c68a14edd04e4cc7c23`：FACM Windows Build #801 SUCCESS；Mayhem Source Probe #120 SUCCESS。
+- 这些提交只补 canonical docs，没有改变 Build #797 EXE 行为。
+
+## Windows 实机验收 —— **已通过**
+
+2026-08-13 用户测试 Build #797 后明确回复：**“测试通过”**。
+
+已验收的实际行为：
+
+1. FACM 已运行、控制中心关闭时，再次双击同一 `FACM.exe`：直接打开原实例控制中心，不再弹“FACM 已经在运行”。
+2. 控制中心本来已经打开时，再次双击：控制中心保持打开并被唤醒，不会被 Toggle 掉。
+3. Flying 桌宠运行时重复启动：桌宠继续运行，没有关闭、重启或切换。
+4. VPet 路线同样不得被激活流程破坏；本轮设计没有操作其生命周期。
+5. 控制中心关闭后可再次重复用 EXE 唤醒。
+
+因此：**功能验收已经完成；当前未完成的是仓库收口，不是功能修复。**
+
+---
+
+# 五、失败方案、原因和不要重复的路线
+
+## 已发生失败：Build #794 catch 顺序
+
+不要再次写：
+
+```text
+catch (InvalidOperationException)
+catch (ObjectDisposedException)
+```
+
+`ObjectDisposedException : InvalidOperationException`。具体异常必须排在父类前；或仅捕获父类并明确注释。这个错误会在编译期直接 CS0160。
+
+## 不要把外部激活接到 `ToggleMenu()`
+
+`ToggleMenu()` 的定义就是“开则关、关则开”。外部二次启动的产品语义是 **Ensure Open**，不是 Toggle。若复用 Toggle，用户控制中心已开时再次双击会把它关掉，直接违背验收。
+
+## 不要为这一个无参数信号引入重型 IPC
+
+当前命名 AutoResetEvent 足够：
+
+- 需求只有“激活”这一种无参数信号；
+- 无需 NamedPipe payload、socket、HTTP、本地端口或服务发现；
+- 不要为了技术统一把 PetHost 的 named-pipe IPC 强行复用到普通进程激活。
+
+只有未来确实需要向现有实例传递文件路径、命令参数等 payload 时，再重新评估 named pipe。
+
+## 不要让第二实例杀掉/重启第一实例
+
+桌宠、控制中心状态、更新状态都属于现有进程。第二次双击只应发激活信号然后退出；不要 kill/relaunch 第一实例来“保证置前”。
+
+## 不要混用 `--cleanup` / smoke test Mutex
+
+普通实例、elevated cleanup、各种 smoke 当前故意使用不同 Mutex。不要把“单实例激活”扩大成所有模式统一一个事件，否则 CI/self-test 或提权清理可能错误唤醒真实 FACM。
+
+## 不要触碰已经验收稳定的桌宠运行层
+
+Issue #53 不需要修改：
+
+- Flying Runtime 轨迹；
+- 五种飞虫素材/Profile；
+- PetHost/VPet 启动；
+- `AnimalPetEnabled` / `PetStyleId`；
+- 桌宠自由出屏策略。
+
+外部激活只负责控制中心。
+
+## 不要把本 PR 的验收等同于发布授权
+
+PR #54 合并和“发新正式版”是两件事。用户已通过 Build #797 功能验收，但当前并未在本交接请求中要求发布新版本。线上继续保持 3.1.3，直到用户另行明确要求发布/推送更新。
+
+---
+
+# 六、环境状态
+
+## 产品运行边界
+
+- `FACM.exe`：.NET Framework 4.8 / WinForms，产品主进程。
+- `FACM.PetHost.exe`：.NET 8 x64 / WPF / VPet Core，仅 VPet 桌面形态需要。
+- Flying Runtime：在 FACM 主进程内的轻量 Sprite 桌宠路线。
+- 正式交付仍是单个 `FACM.exe`，PetHost bundle 嵌入 EXE 后按 payload SHA-256 解包/复用。
+
+## CI 环境（Build #794 日志已确认）
+
+- GitHub hosted runner：Windows Server 2025 / image `windows-2025-vs2026`
+- MSBuild：Visual Studio 2026，setup-msbuild 使用 x86 MSBuild
+- FACM：net48 Release
+- PetHost：net8.0-windows / `win-x64` / self-contained
+- 核心 CI 与 Mayhem live probe 分离；公网 probe 红不能自动等同核心构建失败。
+
+## 当前外部状态
+
+- Build #797 artifact 未过期时可继续复现用户验收候选。
+- main 尚未包含 Issue #53 功能。
+- PR #54 当前无正式 Release 动作。
+
+---
+
+# 七、Canonical docs / review 状态
+
+本任务分支已完成：
+
+- `docs/DECISIONS.md`：记录“普通二次启动采用当前会话命名事件，只做无参数 activation”的持久设计选择。
+- `docs/ARCHITECTURE.md`：记录普通 FACM 单实例的 Mutex + activation event 边界，以及和 PetHost IPC 的区别。
+- `docs/PROJECT_STATE.md`：本交接文件，记录当前 PR、CI、实机验收、失败与下一步。
+- `docs/OPERATIONS.md`：已加入二次启动实机验证步骤与 `--single-instance-activation-test` 的 CI 说明。
+- `docs/PITFALLS.md`：已加入 Ensure Open ≠ Toggle、不要过度 IPC 化、不要混用 Mutex，以及 Build #794 catch 顺序教训。
+
+Codex 曾在 PR #54 留 P1 review thread，要求补齐 activation canonical docs。该评论基于较早 commit `707ae796...`；上述文档补齐后，该 review thread 已于交接阶段 **resolved**。新会话仍可 fresh-check review threads，防止后续又出现新评论，但无需重新处理已解决的那条。
+
+---
+
+# 八、未完成问题
+
+当前没有已知功能 Bug；剩余都是收口动作：
+
+1. PR #54 仍未合并到 `main`。
+2. Issue #53 仍应保持 open，直到 PR merge 后由 `Closes #53` 自动关闭或再 fresh-check。
+3. 本文件最后一次 docs-only 校正会形成比 `395d962...` 更新的 PR HEAD；合并前应 fresh-check该最终 HEAD 的 FACM Windows Build，不要只拿旧 #797/#801 绿色代替最新 PR head 状态。
+4. 合并后要 fresh-verify `main` 和 `online/version.json`；不能假设 online manifest 没变化。
+5. 正式 Release 未授权，不执行。
+6. 临时分支删除属于 destructive ref 操作，需要明确用户意图 + fresh safety check；如果当前 connector 不支持删除，不要声称已删除。
+
+---
+
+# 九、新对话下一步操作（按顺序）
+
+1. 读取 `AGENTS.md`、本文件、PR #54、Issue #53。
+2. Fresh-read PR #54：确认仍 OPEN、base=`main`、head=`feat/single-instance-activation-0813`，记录最新 `head_sha`，确认没有他人新改动。
+3. Fresh-check最新 HEAD 对应的：
+   - `FACM Windows Build`
+   - `FACM Mayhem Source Probe`（advisory）
+4. Fresh-check PR review threads：已知 canonical-docs P1 已 resolved；只处理新的/重新打开的评论。
+5. 用户已经对 Build #797 回复“测试通过”；**无需重新要求用户重复同一实机测试，除非最新 HEAD 出现新的代码行为变更。** 若最新 HEAD 只有 docs，沿用 #797 实机验收。
+6. 在上述检查通过后，合并 PR #54 到 `main`，使用 expected head SHA 防止 head 移动竞态。
+7. 合并后验证：
+   - PR #54 = merged；
+   - `main` 指向新 merge commit；
+   - Issue #53 = closed/completed；
+   - `online/version.json` 仍为 3.1.3 / enabled=true / minimum=3.0.0 / force=false；
+   - 没有意外 Release/tag。
+8. 更新 `docs/PROJECT_STATE.md`：把 Issue #53 / PR #54 从“当前任务”改成“已实机验收并进入 main”，记录 merge SHA；遵守当前 task lifecycle，不制造额外 handoff/backup 分支。
+9. 不发布新正式版，除非用户在新对话明确说“发布/推送更新”。
+10. #53 收口后，再从最新 main 做下一轮高收益审查；不要为了继续迭代而重新改已经验收稳定的 Flying Runtime。
+
+---
+
+# 十、给下一会话的一句话
+
+**功能已经做完且 Build #797 用户实机测试通过；不要重写单实例方案。当前只需要 fresh-check 最终 docs-only HEAD 的 CI，合并 PR #54，验证 main/Issue/online 状态，然后再选下一个任务。**

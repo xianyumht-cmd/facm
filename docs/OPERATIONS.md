@@ -13,6 +13,7 @@
 - PetHost win-x64 publish、自检和内嵌 bundle；
 - FACM .NET Framework 4.8 Release 编译；
 - 悬浮球、旧 Sprite、游戏目录预算/取消、海斗 HTTP 正文取消等本地 deterministic smoke；
+- 普通 FACM 单实例激活通道：`--single-instance-activation-test` 验证 listener 不存在时有限失败、listener 存在时首次/重复激活各触发一次回调；
 - 腾讯海克斯大乱斗公告解析的离线 fixture，包括一个英雄多条改动和“正文提前提及海斗但不应提前进入英雄段”的边界；
 - 内嵌 PetHost 释放与启动；
 - FACM.exe 资源、版本、签名步骤、下载包与 artifact。
@@ -35,6 +36,44 @@ facm-windows-build-<workflow>-<event>-<PR-or-ref>
 - `push` 与 `pull_request` 故意保留为不同组，避免 branch push 把 PR required check 对应的运行取消掉。
 
 不要把 `github.sha` 放回 concurrency group。SHA 每次提交都会变化，会让 `cancel-in-progress: true` 失去实际作用。
+
+## 普通 FACM 单实例 / 二次启动验证
+
+普通模式使用两层本机会话机制：
+
+- Mutex 继续负责“只能有一个普通 FACM 主实例”；
+- 当前 Windows session 内的命名 `AutoResetEvent` 只负责把“请打开现有控制中心”的无参数 activation 信号发送给第一实例。
+
+第二实例发现普通 Mutex 已被占用后，应短时间有限重试找到 activation event；成功 `Set()` 后静默退出。若 listener 在预算内始终不存在，才回退“FACM 已经在运行”提示。不要把这条无参数 activation 扩成 TCP/UDP/HTTP、本地端口或重型 IPC；也不要让普通 activation 复用 `--cleanup` / smoke test 的独立 Mutex。
+
+### deterministic smoke
+
+CI 中执行：
+
+```text
+FACM.exe --single-instance-activation-test
+```
+
+至少证明：
+
+1. listener 不存在时能在有限预算内失败，不无限等待；
+2. listener 存在时第一次 signal 恰好触发一次 callback；
+3. 第二次 signal 仍能独立触发一次 callback；
+4. smoke 使用测试专用事件名，不唤醒真实 FACM 用户实例。
+
+### Windows 实机验收
+
+CI 无法完全证明 Windows 前台窗口激活语义，因此涉及 `SingleInstanceActivation`、`Program` 普通 Mutex 分支或 `MainForm` 外部激活逻辑的发布候选，至少执行：
+
+1. 启动 FACM，关闭控制中心，仅保留 Shell 或桌宠；再次双击同一个 `FACM.exe`，原实例控制中心应直接打开，**不再弹“FACM 已经在运行”**。
+2. 控制中心已经打开时再次双击 EXE：只能置前/激活，不能调用 Toggle 语义把控制中心关掉。
+3. Flying 桌宠运行时重复启动：桌宠不能停止、重启、切换，只打开控制中心。
+4. VPet 运行时同样不得被 activation 流程改变生命周期。
+5. 关闭控制中心后可再次双击 EXE重复唤醒。
+
+外部 activation 的产品契约是 **Ensure Open**，不是 Toggle。不要把 `MainForm.ToggleMenu()` 直接绑定为二次启动回调。
+
+PR #54 的 Build #797 已通过上述 deterministic smoke，用户于 2026-08-13 完成 Windows 实机验证并反馈“测试通过”。如果后续提交只改 canonical docs、没有改变 activation 代码行为，可沿用该实机验收；若 `Program.cs`、`MainForm.cs` 或 `SingleInstanceActivation.cs` 再发生行为改动，则必须重新做这组实机 smoke。
 
 ## 海斗第三方数据源探测
 
@@ -82,10 +121,11 @@ CI 无法完整证明真实 Windows 前台激活、鼠标、磁盘速度、杀�
 
 至少检查：
 
-- **控制中心首帧**：连续打开几次控制中心，底部 5 个按钮第一次出现就应位置/文字正常，不需要鼠标逐个悬停“修复”画面；
+- **控制中心首帧**：连续打开几次控制中心，底部按钮第一次出现就应位置/文字正常，不需要鼠标逐个悬停“修复”画面；
+- **二次启动唤醒**：FACM 已运行时再次双击同一 EXE，应打开/置前现有控制中心而不是只提示已运行；控制中心已打开时不能被第二次启动 Toggle 关闭；
 - **桌宠 outside-click**：从 VPet 左键打开控制中心，下一次点击屏幕空白处应收起；
 - **桌宠启动流畅性**：首次启用 VPet 时 FACM 控制中心仍能重绘/移动，不因 PetHost 解包或 pipe connect 假死；
-- **桌宠进程树**：正常退出 FACM 后没有遗留 PetHost；手工结束 PetHost 后 FACM 恢复默认悬浮球；条件允许时强制结束 FACM，确认 PetHost 被 Job Object 或 parent-pid 守护清理；
+- **桌宠进程树**：正常退出 FACM 后没有遗留 PetHost；手工结束 PetHost 后 FACM 恢复默认悬浮入口；条件允许时强制结束 FACM，确认 PetHost 被 Job Object 或 parent-pid 守护清理；
 - **海斗国内容灾**：查询“阿狸 / 阿克尚 / 亚索”等英雄，核心排行不应依赖 OP.GG；如果能临时阻断 OP.GG，再查一次验证排行仍返回；
 - **海斗当前平衡**：结果显示当前完整 Buff/Debuff，或在完整状态源 Patch 落后时明确显示“同步中/本版本官方改动（非完整当前状态）”，不得把旧 Patch 数值伪装成最新；同一英雄多条 Buff/Debuff 要全部保留；
 - **海斗热缓存流畅性**：同一英雄连续查询两三次，第二/第三次不应因本地图片缓存读盘/Bitmap 解码出现明显 UI 短卡；

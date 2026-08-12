@@ -79,6 +79,8 @@
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
+    <Message Importance="High" Text="Validating duplicate-launch activation channel." />
+    <Exec Command="&quot;$(TargetPath)&quot; --single-instance-activation-test" />
     <Message Importance="High" Text="Validating FACM built-in roaming animal pets and reset behavior." />
     <Exec Command="&quot;$(TargetPath)&quot; --animal-pet-test" />
     <Message Importance="High" Text="Validating game-locator search budget and cancellation." />
