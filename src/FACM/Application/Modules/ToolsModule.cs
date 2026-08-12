@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FACM.AppHost;
 using FACM.Services;
 
-namespace FACM.Application.Modules
+namespace FACM.AppHost.Modules
 {
     internal sealed class ToolsModule : IFacmModule
     {
