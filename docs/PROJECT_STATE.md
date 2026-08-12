@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13 交接：FACM 3.1.3 仍是线上正式版。高清 Flying Runtime、五种飞虫精修、产品化桌宠选择器均已进入 `main`。当前唯一进行中的代码任务是 Issue #53 / PR #54“二次启动唤醒现有 FACM 控制中心”；Build #797 已通过 CI，用户已完成 Windows 实机验收并明确反馈“测试通过”。**PR #54 仍 OPEN、未合并、未发布；新对话应从这里继续收口。**
+> 2026-08-13：FACM 3.1.3 仍是线上正式版。高清 Flying Runtime、五种飞虫精修、产品化桌宠选择器，以及 Issue #53 / PR #54“二次启动唤醒现有 FACM 控制中心”均已完成 Windows 实机验收并进入 `main`。PR #54 合并提交为 `6147851ee9b28bdb432c17809ac657f46d9ed23f`；Issue #53 已自动关闭为 completed。当前没有新的正式发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -16,9 +16,9 @@
 ## 新对话优先读取
 
 1. `AGENTS.md`：仓库强制规则；canonical branch 为 `main`，一任务一短分支，合并后要验证 main 和知识文档；生产发布必须单独授权。
-2. 本文件：当前任务、CI、实机验收和下一步。
-3. PR #54 / Issue #53：当前未完成任务的事实来源。
-4. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：已经记录本轮单实例激活契约和设计选择。
+2. 本文件：当前已验证状态、最近完成任务、CI/实机验收和下一步。
+3. PR #54 / Issue #53：最近完成的普通单实例激活任务事实来源。
+4. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：已经记录单实例激活契约和设计选择。
 5. `docs/OPERATIONS.md`：已经记录 `--single-instance-activation-test` 和 Windows 二次启动实机验证步骤。
 6. `docs/PITFALLS.md`：已经记录 Ensure Open ≠ Toggle、Build #794 catch 顺序，以及历史 Shell/PetHost/Flying Runtime/发布链防回归规则。
 
@@ -28,36 +28,38 @@
 
 ## canonical main
 
-- `main` 当前提交：`285cea0f6eb84a4d0ca116c6af2a857e054ead01`。
+- PR #54 合并后的 `main` 提交：`6147851ee9b28bdb432c17809ac657f46d9ed23f`。
 - 该 main 已包含：
   - PR #44 高清绿苍蝇基线；
   - PR #46 统一 Flying Runtime；
   - PR #48 蜜蜂/蜻蜓/蝴蝶/飞蛾素材与 Profile 精修；
   - PR #50 发布工作流 `PROJECT_STATE` marker 修复；
-  - PR #52 产品化桌宠选择器。
-- 上述桌宠相关版本均已由用户 Windows 实机验收。
+  - PR #52 产品化桌宠选择器；
+  - PR #54 普通模式二次启动唤醒现有 FACM 控制中心。
+- 上述桌宠相关任务和 PR #54 均已由用户 Windows 实机验收。
 
-## 当前任务分支
+## 最近完成任务：Issue #53 / PR #54
 
-- 分支：`feat/single-instance-activation-0813`
-- Issue：#53 `二次启动直接唤醒现有 FACM 控制中心`
-- PR：#54 `feat(shell): 二次启动唤醒现有 FACM 控制中心`
-- PR 状态：**OPEN / mergeable / 未合并 / 未发布**。
+- 任务分支：`feat/single-instance-activation-0813`
+- Issue：#53 `二次启动直接唤醒现有 FACM 控制中心`，已 closed / completed。
+- PR：#54 `feat(shell): 二次启动唤醒现有 FACM 控制中心`，已 merged。
+- PR 最终 head：`07a39164580c84e1b4c0653e0ce345ab0b9a1706`。
+- merge commit：`6147851ee9b28bdb432c17809ac657f46d9ed23f`。
 - 本轮真正改变 EXE 行为的修复代码 HEAD：`5a52ff8936a655c023746d3517848530b9bc26eb`。
 - 后续提交均为 canonical docs 收口，不改变 Build #797 的 EXE 行为。
-- docs 收口 HEAD `395d96297bc9977c92428c68a14edd04e4cc7c23` 的 Windows Build #801 和 Mayhem Source Probe #120 均已 SUCCESS。
-- 本文件最后一次校正本身会再产生一个 docs-only HEAD；新会话不要死记本文里的分支 HEAD，**先 fresh-read PR #54 当前 head_sha**。如果此后的变化仍只有 docs，可沿用 Build #797 的实机验收。
+- 最终 docs-only HEAD 的 FACM Windows Build #802 和 Mayhem Source Probe #121 均已 fresh-check 为 SUCCESS 后才执行合并。
+- 临时任务分支是否删除不在本轮自动收口范围；分支删除属于 destructive ref 操作，需要明确用户意图与 fresh safety check。
 
 ## 在线正式版
 
-- `online/version.json` 当前仍为：
+- `online/version.json` 合并后 fresh-check 仍为：
   - `enabled=true`
   - `version=3.1.3`
   - `minimum_version=3.0.0`
   - `force_update=false`
   - SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
-- Issue #53 / PR #54 **没有修改在线 manifest，也没有触发正式 Release**。
-- 不要因为本轮实机验收通过就自行发 3.1.4/3.2.0；正式发布仍需要用户另行明确授权。
+- GitHub 最新正式 Release 合并后仍为 `v3.1.3`；Issue #53 / PR #54 没有触发新 Release。
+- 不要因为本轮实机验收和合并完成就自行发 3.1.4/3.2.0；正式发布仍需要用户另行明确授权。
 
 ---
 
@@ -170,6 +172,7 @@ Build #797 artifact：
 
 - `2e6377cae2265639aee73ebd22825aaa19403567`：FACM Windows Build #798 SUCCESS；Mayhem Source Probe #117 SUCCESS。
 - `395d96297bc9977c92428c68a14edd04e4cc7c23`：FACM Windows Build #801 SUCCESS；Mayhem Source Probe #120 SUCCESS。
+- `07a39164580c84e1b4c0653e0ce345ab0b9a1706`：FACM Windows Build #802 SUCCESS；Mayhem Source Probe #121 SUCCESS。
 - 这些提交只补 canonical docs，没有改变 Build #797 EXE 行为。
 
 ## Windows 实机验收 —— **已通过**
@@ -184,7 +187,7 @@ Build #797 artifact：
 4. VPet 路线同样不得被激活流程破坏；本轮设计没有操作其生命周期。
 5. 控制中心关闭后可再次重复用 EXE 唤醒。
 
-因此：**功能验收已经完成；当前未完成的是仓库收口，不是功能修复。**
+因此：**Issue #53 功能、CI、实机验收和仓库合并均已完成。**
 
 ---
 
@@ -237,7 +240,7 @@ Issue #53 不需要修改：
 
 ## 不要把本 PR 的验收等同于发布授权
 
-PR #54 合并和“发新正式版”是两件事。用户已通过 Build #797 功能验收，但当前并未在本交接请求中要求发布新版本。线上继续保持 3.1.3，直到用户另行明确要求发布/推送更新。
+PR #54 合并和“发新正式版”是两件事。用户已通过 Build #797 功能验收，PR #54 也已进入 main，但当前并未要求发布新版本。线上继续保持 3.1.3，直到用户另行明确要求发布/推送更新。
 
 ---
 
@@ -261,60 +264,44 @@ PR #54 合并和“发新正式版”是两件事。用户已通过 Build #797 �
 ## 当前外部状态
 
 - Build #797 artifact 未过期时可继续复现用户验收候选。
-- main 尚未包含 Issue #53 功能。
-- PR #54 当前无正式 Release 动作。
+- main 已包含 Issue #53 功能，merge commit 为 `6147851ee9b28bdb432c17809ac657f46d9ed23f`。
+- PR #54 已合并，没有触发正式 Release；线上仍为 FACM 3.1.3。
 
 ---
 
 # 七、Canonical docs / review 状态
 
-本任务分支已完成：
+本任务已完成：
 
 - `docs/DECISIONS.md`：记录“普通二次启动采用当前会话命名事件，只做无参数 activation”的持久设计选择。
 - `docs/ARCHITECTURE.md`：记录普通 FACM 单实例的 Mutex + activation event 边界，以及和 PetHost IPC 的区别。
-- `docs/PROJECT_STATE.md`：本交接文件，记录当前 PR、CI、实机验收、失败与下一步。
+- `docs/PROJECT_STATE.md`：记录 Issue #53 / PR #54 的实现、CI、实机验收、合并和当前线上状态。
 - `docs/OPERATIONS.md`：已加入二次启动实机验证步骤与 `--single-instance-activation-test` 的 CI 说明。
 - `docs/PITFALLS.md`：已加入 Ensure Open ≠ Toggle、不要过度 IPC 化、不要混用 Mutex，以及 Build #794 catch 顺序教训。
 
-Codex 曾在 PR #54 留 P1 review thread，要求补齐 activation canonical docs。该评论基于较早 commit `707ae796...`；上述文档补齐后，该 review thread 已于交接阶段 **resolved**。新会话仍可 fresh-check review threads，防止后续又出现新评论，但无需重新处理已解决的那条。
+Codex 曾在 PR #54 留 P1 review thread，要求补齐 activation canonical docs。该评论基于较早 commit `707ae796...`；相关文档已经补齐并在交接阶段 resolved。合并前 fresh-check 没有发现新的 review 评论。
 
 ---
 
-# 八、未完成问题
+# 八、当前未完成问题
 
-当前没有已知功能 Bug；剩余都是收口动作：
-
-1. PR #54 仍未合并到 `main`。
-2. Issue #53 仍应保持 open，直到 PR merge 后由 `Closes #53` 自动关闭或再 fresh-check。
-3. 本文件最后一次 docs-only 校正会形成比 `395d962...` 更新的 PR HEAD；合并前应 fresh-check该最终 HEAD 的 FACM Windows Build，不要只拿旧 #797/#801 绿色代替最新 PR head 状态。
-4. 合并后要 fresh-verify `main` 和 `online/version.json`；不能假设 online manifest 没变化。
-5. 正式 Release 未授权，不执行。
-6. 临时分支删除属于 destructive ref 操作，需要明确用户意图 + fresh safety check；如果当前 connector 不支持删除，不要声称已删除。
+- Issue #53 / PR #54 已完成，不再是进行中任务。
+- 当前没有已知需要继续修复的单实例激活 Bug。
+- 当前没有必须继续修改的 Flying Runtime / 桌宠选择器阻塞项；这些方案已经实机验收，不要为了“继续迭代”而重新设计。
+- 正式 Release 仍未授权，不执行。
+- `feat/single-instance-activation-0813` 临时分支未在本轮自动删除；删除分支属于 destructive ref 操作，需明确用户意图和 fresh safety check。
 
 ---
 
-# 九、新对话下一步操作（按顺序）
+# 九、下一步
 
-1. 读取 `AGENTS.md`、本文件、PR #54、Issue #53。
-2. Fresh-read PR #54：确认仍 OPEN、base=`main`、head=`feat/single-instance-activation-0813`，记录最新 `head_sha`，确认没有他人新改动。
-3. Fresh-check最新 HEAD 对应的：
-   - `FACM Windows Build`
-   - `FACM Mayhem Source Probe`（advisory）
-4. Fresh-check PR review threads：已知 canonical-docs P1 已 resolved；只处理新的/重新打开的评论。
-5. 用户已经对 Build #797 回复“测试通过”；**无需重新要求用户重复同一实机测试，除非最新 HEAD 出现新的代码行为变更。** 若最新 HEAD 只有 docs，沿用 #797 实机验收。
-6. 在上述检查通过后，合并 PR #54 到 `main`，使用 expected head SHA 防止 head 移动竞态。
-7. 合并后验证：
-   - PR #54 = merged；
-   - `main` 指向新 merge commit；
-   - Issue #53 = closed/completed；
-   - `online/version.json` 仍为 3.1.3 / enabled=true / minimum=3.0.0 / force=false；
-   - 没有意外 Release/tag。
-8. 更新 `docs/PROJECT_STATE.md`：把 Issue #53 / PR #54 从“当前任务”改成“已实机验收并进入 main”，记录 merge SHA；遵守当前 task lifecycle，不制造额外 handoff/backup 分支。
-9. 不发布新正式版，除非用户在新对话明确说“发布/推送更新”。
-10. #53 收口后，再从最新 main 做下一轮高收益审查；不要为了继续迭代而重新改已经验收稳定的 Flying Runtime。
+1. 新任务从最新 `main` 开始，先按 `AGENTS.md` 检查是否已有对应 active Issue/PR/branch。
+2. 优先选择新的高收益产品问题或真实缺陷，不要重复修改已经通过实机验收的 Issue #53 单实例方案、Flying Runtime 或桌宠选择器。
+3. 若未来需要把文件路径、命令参数等 payload 传给现有 FACM 实例，再单独立项评估 named pipe；不要在无 payload 需求时重构当前 AutoResetEvent 激活契约。
+4. 若用户明确要求正式发布，再按 `docs/OPERATIONS.md` 执行发布前 fresh safety check、版本决策、Release 与在线更新验证。
 
 ---
 
 # 十、给下一会话的一句话
 
-**功能已经做完且 Build #797 用户实机测试通过；不要重写单实例方案。当前只需要 fresh-check 最终 docs-only HEAD 的 CI，合并 PR #54，验证 main/Issue/online 状态，然后再选下一个任务。**
+**Issue #53 / PR #54 已完成：Build #797 用户实机测试通过，最终 docs-only HEAD Build #802 / Probe #121 通过，PR #54 已合并到 main（`6147851...`），Issue #53 已关闭，线上仍是 FACM 3.1.3；不要重写已验收单实例方案，下一轮从最新 main 选择新的高收益任务。**
