@@ -66,14 +66,23 @@
 
 ### 验证状态
 
-- PR #46 代码 HEAD `fdd617d58342035f6da5d14f9c50549ba09aa8ea` 的 Windows Build #776 已完整成功，包括 PetHost self-test、FACM Release build、`--animal-pet-test`、签名步骤和 artifact 上传。
+- PR #46 代码 HEAD `fdd617d58342035f6da5d14f9c50549ba09aa8ea` 的 Windows Build #776 已完整成功。
+- 加入正式技术决策与项目状态文档后的 HEAD `0a659efcfa9207f08dc24f6d9e4101c3170ff02d`，Windows Build #778 也已完整成功；artifact `FACM-Windows-x64-778`，digest `sha256:b1f4786cc4fc50a2e73c1fce202cdd32a59e0742d1699da2bd2db8ab7dcb065e`。
+- 两轮均包含 PetHost self-test、FACM Release build、`--animal-pet-test`、签名步骤和 artifact 上传。
 - `--animal-pet-test` 已新增：主选择器组成、Legacy ID 兼容、五套 Flying Profile、96px 高精度下限、greenfly 原轨迹参数、0/90/180/270° heading、350↔10° 最短角度环绕、旋转后渲染差异等守卫。
-- 文档提交之后仍需以 PR #46 最新 HEAD 再跑最终 CI，再给用户 Windows 实机测试包；未验收前不合并、不发布。
+- 当前阶段：**等待 Windows 实机验收 Flying Runtime；未验收前 PR #46 不合并、不发布。**
+
+## 实机验收重点
+
+- 绿苍蝇轨迹体感不能比 PR #44 / FACM 3.1.3 基线退化；允许视觉朝向更自然，但不能变成新的移动算法。
+- 五只飞行动物转向时不能倒着飞、瞬间镜像或绕 360° 长路转向。
+- 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾的 Profile 性格差异应肉眼可辨，而不是仅换皮。
+- 四帧翅膀动画切换时身体锚点不能跳动。
+- 继续允许飞出所有屏幕；“复位桌面位置”仍是找回入口。
 
 ## 后续
 
-- 第一轮实机重点不是“谁最好看”，而是确认：绿苍蝇轨迹没有退化；五只飞行动物转向时不会倒着飞/瞬间翻面；不同 Profile 的性格差异肉眼可辨；翅膀与身体锚点不抖。
-- Flying Runtime 通过后再决定各动物的二次素材精修和 Profile 调参。
+- Flying Runtime 实机通过后，再根据观感逐个做素材二次精修和 Profile 调参。
 - Issue #33 的 Q 版蜘蛛 Gate 方案保留为独立长期探索，不是当前轻量桌宠主路线。
 - VPet 自主行为继续排在 Flying Runtime 稳定之后。
 
