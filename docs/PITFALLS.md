@@ -371,3 +371,26 @@ Build #821 因此一次出现大量 CS0234，包括 `Application.Run`、`OpenFor
 - PR #56
 - Build #821（namespace collision）
 - Build #832（改为 `FACM.AppHost` 后通过）
+
+## 把构造依赖显式化时，不能只搜索产品入口而漏掉 deterministic test
+
+### 根因
+
+FACM 3.2 Phase 2 把 `MainForm` 从内部 `AppSettings.Load()` / `UiTextCatalog.Load()` 改为构造函数显式接收依赖。正常产品入口 `ShellModule` 和 `Program` 都已经迁移，但 `FloatingBallSmokeTest` 仍保留旧的 `new MainForm(false)`。
+
+Build #845 因此在 FACM 编译阶段以 CS7036 失败；PetHost publish/self-test 在此之前保持成功。这不是 Settings ownership 方案失败，而是构造契约改变后漏掉一个 deterministic test 实例化点。
+
+### 防回归规则
+
+- 修改构造函数、接口或 service ownership 前，先全仓搜索所有 `new TypeName(...)`、factory、reflection/test helper 调用点，不要只看正常产品启动链。
+- deterministic smoke 也必须遵守新的显式依赖契约；不要为了让旧测试继续编译而恢复隐式 global load 或增加“方便测试”的旧行为重载。
+- 测试如果不需要磁盘真实 settings，应传入明确的 test/default `AppSettings` 对象；需要 UI text 时可以显式加载对应测试依赖。
+- 构造依赖迁移后的第一轮编译失败如果只指向漏改 call site，应修 call site，不应推翻依赖注入方向。
+- `--facm-host-test` 应锁定真实模块 dependency contract，防止后续把 Settings→Shell 又改回隐式加载。
+
+### 关联
+
+- Issue #57
+- PR #58
+- Build #845（旧 `FloatingBallSmokeTest` 构造调用）
+- Build #846（显式注入修复后成功）
