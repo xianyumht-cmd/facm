@@ -77,6 +77,8 @@
   <Target Name="ValidateRuntimeSourcesAfterCiBuild"
           AfterTargets="Build"
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Message Importance="High" Text="Validating FACM modular host dependency graph and lifecycle." />
+    <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" />
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
     <Message Importance="High" Text="Validating duplicate-launch activation channel." />
