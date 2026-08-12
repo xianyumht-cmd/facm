@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,10 +10,19 @@ namespace FACM.Pets
 {
     internal sealed class AnimalPetPickerForm : Form
     {
+        private readonly string _currentPetId;
         private readonly ListBox _list;
         private readonly PictureBox _preview;
         private readonly Label _name;
+        private readonly Label _runtimeBadge;
+        private readonly Label _behavior;
         private readonly Label _description;
+        private readonly Label _interaction;
+        private readonly Label _currentStatus;
+        private readonly Button _apply;
+        private readonly Font _listNameFont;
+        private readonly Font _listMetaFont;
+        private readonly Font _listCurrentFont;
         private readonly Timer _previewTimer;
         private CancellationTokenSource _assetCancellation;
         private Bitmap _sheet;
@@ -20,20 +30,25 @@ namespace FACM.Pets
 
         public AnimalPetPickerForm(string currentPetId)
         {
+            _currentPetId = currentPetId ?? string.Empty;
+            _listNameFont = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
+            _listMetaFont = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular);
+            _listCurrentFont = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold);
+
             Text = "FACM · 桌面宠物";
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(790, 560);
+            ClientSize = new Size(820, 590);
             BackColor = Color.FromArgb(12, 17, 28);
             ForeColor = Color.White;
             Font = new Font("Microsoft YaHei UI", 9F);
 
             var title = new Label
             {
-                Text = "桌面宠物",
+                Text = "选择桌面宠物",
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -41,37 +56,46 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "轻量桌宠统一采用 Flying Runtime：轨迹、360° 朝向和翅膀动画分离；VPet Core 作为高精度独立选项。",
-                Location = new Point(28, 58),
-                Size = new Size(730, 30),
+                Text = "五种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。",
+                Location = new Point(28, 60),
+                Size = new Size(660, 26),
                 ForeColor = Color.FromArgb(160, 174, 198)
+            };
+            _currentStatus = new Label
+            {
+                Location = new Point(610, 22),
+                Size = new Size(178, 28),
+                TextAlign = ContentAlignment.MiddleRight,
+                ForeColor = Color.FromArgb(151, 173, 215),
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
 
             _list = new ListBox
             {
-                Location = new Point(26, 96),
-                Size = new Size(258, 392),
+                Location = new Point(26, 100),
+                Size = new Size(284, 410),
                 BackColor = Color.FromArgb(8, 12, 21),
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 IntegralHeight = false,
-                ItemHeight = 34,
-                DisplayMember = "Name",
+                ItemHeight = 62,
+                DrawMode = DrawMode.OwnerDrawFixed,
                 Font = new Font("Microsoft YaHei UI", 10F)
             };
             foreach (var pet in AnimalPetCatalog.Visible) _list.Items.Add(pet);
+            _list.DrawItem += DrawPetItem;
 
             var previewPanel = new Panel
             {
-                Location = new Point(306, 96),
-                Size = new Size(454, 314),
+                Location = new Point(330, 100),
+                Size = new Size(458, 292),
                 BackColor = Color.FromArgb(8, 12, 21),
                 BorderStyle = BorderStyle.FixedSingle
             };
             _preview = new PictureBox
             {
-                Location = new Point(69, 20),
-                Size = new Size(314, 260),
+                Location = new Point(72, 18),
+                Size = new Size(314, 252),
                 BackColor = Color.FromArgb(8, 12, 21),
                 SizeMode = PictureBoxSizeMode.Zoom
             };
@@ -79,23 +103,46 @@ namespace FACM.Pets
 
             _name = new Label
             {
-                Location = new Point(308, 426),
-                Size = new Size(450, 30),
+                Location = new Point(332, 407),
+                Size = new Size(300, 30),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold)
             };
+            _runtimeBadge = new Label
+            {
+                Location = new Point(640, 408),
+                Size = new Size(146, 26),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.FromArgb(204, 218, 244),
+                BackColor = Color.FromArgb(28, 39, 61),
+                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+            };
+            _behavior = new Label
+            {
+                Location = new Point(332, 444),
+                Size = new Size(454, 24),
+                ForeColor = Color.FromArgb(118, 169, 255),
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+            };
             _description = new Label
             {
-                Location = new Point(308, 458),
-                Size = new Size(450, 48),
+                Location = new Point(332, 474),
+                Size = new Size(454, 42),
                 ForeColor = Color.FromArgb(189, 201, 220)
+            };
+            _interaction = new Label
+            {
+                Location = new Point(332, 518),
+                Size = new Size(454, 28),
+                ForeColor = Color.FromArgb(132, 151, 184),
+                Font = new Font("Microsoft YaHei UI", 8.3F)
             };
 
             var close = new Button
             {
                 Text = "关闭",
-                Location = new Point(548, 510),
-                Size = new Size(100, 36),
+                Location = new Point(574, 550),
+                Size = new Size(100, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(31, 41, 61),
                 ForeColor = Color.White,
@@ -104,22 +151,22 @@ namespace FACM.Pets
             };
             close.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
 
-            var apply = new Button
+            _apply = new Button
             {
                 Text = "应用桌宠",
-                Location = new Point(660, 510),
-                Size = new Size(100, 36),
+                Location = new Point(686, 550),
+                Size = new Size(102, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(70, 113, 255),
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
-            apply.FlatAppearance.BorderColor = Color.FromArgb(112, 151, 255);
-            apply.Click += delegate
+            _apply.FlatAppearance.BorderColor = Color.FromArgb(112, 151, 255);
+            _apply.Click += delegate
             {
                 var selected = _list.SelectedItem as AnimalPetDefinition;
-                if (selected == null) return;
+                if (selected == null || IsCurrentPet(selected)) return;
                 SelectedPetId = selected.Id;
                 DialogResult = DialogResult.OK;
                 Close();
@@ -127,23 +174,31 @@ namespace FACM.Pets
 
             Controls.Add(title);
             Controls.Add(hint);
+            Controls.Add(_currentStatus);
             Controls.Add(_list);
             Controls.Add(previewPanel);
             Controls.Add(_name);
+            Controls.Add(_runtimeBadge);
+            Controls.Add(_behavior);
             Controls.Add(_description);
+            Controls.Add(_interaction);
             Controls.Add(close);
-            Controls.Add(apply);
+            Controls.Add(_apply);
 
             _list.SelectedIndexChanged += async delegate { await UpdateSelectionAsync(); };
-            _list.DoubleClick += delegate { apply.PerformClick(); };
+            _list.DoubleClick += delegate { if (_apply.Enabled) _apply.PerformClick(); };
 
             var selectedIndex = 0;
+            var currentName = string.Empty;
             for (var index = 0; index < AnimalPetCatalog.Visible.Count; index++)
             {
-                if (!string.Equals(AnimalPetCatalog.Visible[index].Id, currentPetId, StringComparison.OrdinalIgnoreCase)) continue;
+                var candidate = AnimalPetCatalog.Visible[index];
+                if (!string.Equals(candidate.Id, _currentPetId, StringComparison.OrdinalIgnoreCase)) continue;
                 selectedIndex = index;
+                currentName = candidate.Name;
                 break;
             }
+            _currentStatus.Text = string.IsNullOrWhiteSpace(currentName) ? "" : "当前：" + currentName;
             if (_list.Items.Count > 0) _list.SelectedIndex = selectedIndex;
 
             _previewTimer = new Timer { Interval = 33 };
@@ -168,17 +223,103 @@ namespace FACM.Pets
                     _sheet.Dispose();
                     _sheet = null;
                 }
+                _listNameFont.Dispose();
+                _listMetaFont.Dispose();
+                _listCurrentFont.Dispose();
             };
         }
 
         public string SelectedPetId { get; private set; }
+
+        internal static string SummaryForSmokeTest(AnimalPetDefinition pet)
+        {
+            return GetPetSummary(pet);
+        }
+
+        internal static string BehaviorForSmokeTest(AnimalPetDefinition pet)
+        {
+            return GetBehaviorLine(pet);
+        }
+
+        internal static string RuntimeBadgeForSmokeTest(AnimalPetDefinition pet)
+        {
+            return GetRuntimeBadge(pet);
+        }
+
+        private void DrawPetItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= _list.Items.Count) return;
+            var pet = _list.Items[e.Index] as AnimalPetDefinition;
+            if (pet == null) return;
+
+            var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            var background = selected ? Color.FromArgb(24, 39, 67) : Color.FromArgb(8, 12, 21);
+            using (var brush = new SolidBrush(background)) e.Graphics.FillRectangle(brush, e.Bounds);
+            if (selected)
+            {
+                using (var accent = new SolidBrush(Color.FromArgb(88, 136, 255)))
+                    e.Graphics.FillRectangle(accent, new Rectangle(e.Bounds.Left, e.Bounds.Top, 3, e.Bounds.Height));
+            }
+
+            var left = e.Bounds.Left + 14;
+            var nameRect = new Rectangle(left, e.Bounds.Top + 8, e.Bounds.Width - 28, 23);
+            var metaRect = new Rectangle(left, e.Bounds.Top + 33, e.Bounds.Width - 28, 20);
+            var current = IsCurrentPet(pet);
+            if (current) nameRect.Width -= 54;
+
+            TextRenderer.DrawText(
+                e.Graphics,
+                pet.Name,
+                _listNameFont,
+                nameRect,
+                selected ? Color.White : Color.FromArgb(224, 232, 247),
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(
+                e.Graphics,
+                GetPetSummary(pet),
+                _listMetaFont,
+                metaRect,
+                selected ? Color.FromArgb(159, 190, 245) : Color.FromArgb(124, 143, 174),
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+            if (current)
+            {
+                var badge = new Rectangle(e.Bounds.Right - 52, e.Bounds.Top + 9, 38, 20);
+                using (var badgeBrush = new SolidBrush(Color.FromArgb(39, 75, 68)))
+                    e.Graphics.FillRectangle(badgeBrush, badge);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    "当前",
+                    _listCurrentFont,
+                    badge,
+                    Color.FromArgb(154, 224, 199),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+
+            e.DrawFocusRectangle();
+        }
 
         private async Task UpdateSelectionAsync()
         {
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null) return;
             _name.Text = pet.Name;
-            _description.Text = pet.Description + "\r\n来源：" + pet.AssetAuthor + " · " + pet.AssetLicense + "；拖动可放置，托盘可复位。";
+            _runtimeBadge.Text = GetRuntimeBadge(pet);
+            _runtimeBadge.BackColor = pet.Runtime == AnimalPetRuntime.VPetCore
+                ? Color.FromArgb(55, 43, 76)
+                : Color.FromArgb(27, 55, 68);
+            _behavior.Text = GetBehaviorLine(pet);
+            _description.Text = GetUserDescription(pet);
+            _interaction.Text = pet.Runtime == AnimalPetRuntime.VPetCore
+                ? "应用后在桌面直接体验；可拖动放置，也可从「复位桌面位置」找回。"
+                : "可拖动放置 · 会自主移动并允许飞出屏幕 · 可用「复位桌面位置」找回";
+            var current = IsCurrentPet(pet);
+            _apply.Text = current ? "当前使用" : "应用桌宠";
+            _apply.Enabled = !current;
+            _apply.BackColor = current ? Color.FromArgb(42, 53, 70) : Color.FromArgb(70, 113, 255);
+            _apply.ForeColor = current ? Color.FromArgb(139, 153, 178) : Color.White;
+            _list.Invalidate();
+
             _animationSeconds = 0;
             CancelAssetRequest();
 
@@ -215,8 +356,8 @@ namespace FACM.Pets
                 if (loaded != null) loaded.Dispose();
                 return;
             }
-            var current = _list.SelectedItem as AnimalPetDefinition;
-            if (current == null || !string.Equals(current.Id, expectedId, StringComparison.OrdinalIgnoreCase))
+            var selected = _list.SelectedItem as AnimalPetDefinition;
+            if (selected == null || !string.Equals(selected.Id, expectedId, StringComparison.OrdinalIgnoreCase))
             {
                 if (loaded != null) loaded.Dispose();
                 return;
@@ -245,8 +386,7 @@ namespace FACM.Pets
             Bitmap rendered;
             if (FlyingPetProfiles.IsManaged(pet))
             {
-                // A gentle preview-only heading sweep makes the right-facing master/360° runtime visible
-                // without pretending to preview the actual randomized desktop trajectory.
+                // Preview only: expose the smooth body heading without pretending to replay the randomized desktop path.
                 var heading = (float)Math.Sin(_animationSeconds * 0.75) * 18f;
                 rendered = SpritePetWindow.RenderFlyingForSmokeTest(pet, _sheet, frame, heading);
             }
@@ -286,16 +426,72 @@ namespace FACM.Pets
                 graphics.Clear(_preview.BackColor);
                 graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 38, _preview.Width - 24, 52), format);
-                graphics.DrawLine(linePen, 76, 103, _preview.Width - 76, 103);
+                graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 34, _preview.Width - 24, 52), format);
+                graphics.DrawLine(linePen, 76, 98, _preview.Width - 76, 98);
                 graphics.DrawString(
-                    "高精度独立运行层\r\nIdle · Move · Raised · Touch\r\n\r\n应用后直接在桌面实时验收",
+                    "动作更丰富的独立桌宠\r\n待机 · 移动 · 提起 · 触摸\r\n\r\n首次启用需要准备更多资源",
                     bodyFont,
                     bodyBrush,
-                    new RectangleF(18, 112, _preview.Width - 36, 124),
+                    new RectangleF(18, 106, _preview.Width - 36, 126),
                     format);
             }
             ReplacePreview(canvas, pet.Id);
+        }
+
+        private bool IsCurrentPet(AnimalPetDefinition pet)
+        {
+            return pet != null && string.Equals(pet.Id, _currentPetId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetRuntimeBadge(AnimalPetDefinition pet)
+        {
+            if (pet == null) return string.Empty;
+            return pet.Runtime == AnimalPetRuntime.VPetCore ? "高精度 · 独立桌宠" : "轻量 · 自主飞行";
+        }
+
+        private static string GetPetSummary(AnimalPetDefinition pet)
+        {
+            if (pet == null) return string.Empty;
+            switch ((pet.Id ?? string.Empty).ToLowerInvariant())
+            {
+                case "greenfly": return "高速急转 · 灵活随机";
+                case "bee": return "巡航悬停 · 转向平稳";
+                case "dragonfly": return "高速冲刺 · 长直线";
+                case "butterfly": return "慢速漂浮 · 大曲线";
+                case "moth": return "短距游走 · 小范围绕行";
+                case "vpet": return "动作丰富 · 资源占用较高";
+                default: return pet.Runtime == AnimalPetRuntime.VPetCore ? "高精度桌宠" : "轻量桌宠";
+            }
+        }
+
+        private static string GetBehaviorLine(AnimalPetDefinition pet)
+        {
+            if (pet == null) return string.Empty;
+            switch ((pet.Id ?? string.Empty).ToLowerInvariant())
+            {
+                case "greenfly": return "飞行性格：快、急转、几乎不停";
+                case "bee": return "飞行性格：中速巡航，偶尔原地悬停";
+                case "dragonfly": return "飞行性格：快速长冲刺，短暂停顿后改向";
+                case "butterfly": return "飞行性格：慢速大曲线，上下轻柔漂浮";
+                case "moth": return "飞行性格：短距离频繁改向，偶尔绕小圈";
+                case "vpet": return "桌面性格：动作真实，偏重交互，不主动漫游";
+                default: return string.Empty;
+            }
+        }
+
+        private static string GetUserDescription(AnimalPetDefinition pet)
+        {
+            if (pet == null) return string.Empty;
+            switch ((pet.Id ?? string.Empty).ToLowerInvariant())
+            {
+                case "greenfly": return "反应最快的小型飞虫，适合喜欢随机、灵活桌面运动的人。";
+                case "bee": return "速度适中，转向柔和，会穿插短暂停悬，整体更安静。";
+                case "dragonfly": return "速度最快、方向感最强，常做较长距离的直线飞行。";
+                case "butterfly": return "移动最慢，曲线和上下漂浮更明显，视觉节奏最舒缓。";
+                case "moth": return "活动范围更紧凑，改向频繁，飞行轨迹带一点小范围绕行。";
+                case "vpet": return "动作和互动更丰富，但首次启用需要准备较多资源，运行也更重。";
+                default: return pet.Description ?? string.Empty;
+            }
         }
 
         private void ReplacePreview(Image image, string tag)

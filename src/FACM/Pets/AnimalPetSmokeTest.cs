@@ -21,6 +21,7 @@ namespace FACM.Pets
                     throw new InvalidOperationException("VPet Core runtime is missing from the pet catalog.");
 
                 ValidateVisibleCatalog();
+                ValidatePickerPresentation();
                 ValidateHighDetailGreenFly();
                 ValidateFlyingProfilesAndHeading();
                 ValidateFlyingPolishProfiles();
@@ -132,6 +133,40 @@ namespace FACM.Pets
 
             if (!AnimalPetCatalog.Contains("spider") || !AnimalPetCatalog.Contains("cat") || !AnimalPetCatalog.Contains("dog"))
                 throw new InvalidOperationException("Legacy pet IDs must remain resolvable for existing settings.ini files.");
+        }
+
+        private static void ValidatePickerPresentation()
+        {
+            var summaries = new HashSet<string>(StringComparer.Ordinal);
+            var behaviors = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var pet in AnimalPetCatalog.Visible)
+            {
+                var summary = AnimalPetPickerForm.SummaryForSmokeTest(pet);
+                var behavior = AnimalPetPickerForm.BehaviorForSmokeTest(pet);
+                var badge = AnimalPetPickerForm.RuntimeBadgeForSmokeTest(pet);
+                if (string.IsNullOrWhiteSpace(summary) || string.IsNullOrWhiteSpace(behavior) || string.IsNullOrWhiteSpace(badge))
+                    throw new InvalidOperationException("Pet picker presentation is incomplete: " + pet.Id);
+                if (summary.IndexOf("Runtime", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    summary.IndexOf("CC0", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    behavior.IndexOf("Runtime", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    behavior.IndexOf("CC0", StringComparison.OrdinalIgnoreCase) >= 0)
+                    throw new InvalidOperationException("Implementation/licensing jargon leaked into primary picker copy: " + pet.Id);
+                summaries.Add(summary);
+                behaviors.Add(behavior);
+
+                if (pet.Runtime == AnimalPetRuntime.VPetCore)
+                {
+                    if (badge.IndexOf("高精度", StringComparison.Ordinal) < 0)
+                        throw new InvalidOperationException("VPet picker badge lost the high-detail distinction.");
+                }
+                else if (badge.IndexOf("轻量", StringComparison.Ordinal) < 0 || badge.IndexOf("自主飞行", StringComparison.Ordinal) < 0)
+                {
+                    throw new InvalidOperationException("Managed flying picker badge lost its lightweight autonomous distinction: " + pet.Id);
+                }
+            }
+
+            if (summaries.Count != AnimalPetCatalog.Visible.Count || behaviors.Count != AnimalPetCatalog.Visible.Count)
+                throw new InvalidOperationException("Pet picker personalities are no longer visually distinct in copy.");
         }
 
         private static void ValidateHighDetailGreenFly()
