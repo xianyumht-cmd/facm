@@ -17,7 +17,7 @@ namespace FACM.AppHost
                 ValidateCircularDependency();
                 ValidateInitializationFailureRollback();
                 ValidateFirstModuleFailureReport();
-                ValidateShellSettingsDependencyContract();
+                ValidateShellFeatureDependencyContract();
                 return 0;
             }
             catch (Exception exception)
@@ -136,20 +136,28 @@ namespace FACM.AppHost
             }
         }
 
-        private static void ValidateShellSettingsDependencyContract()
+        private static void ValidateShellFeatureDependencyContract()
         {
             var settings = new SettingsModule();
-            var shell = new ShellModule(false, settings);
+            var tools = new ToolsModule();
+            var online = new OnlineModule();
+            var pets = new PetsModule();
+            var mayhem = new MayhemModule();
+            var shell = new ShellModule(false, settings, tools, online, pets, mayhem);
+
+            var expected = new[]
+            {
+                CompactMenuEnhancerModule.ModuleId,
+                SettingsModule.ModuleId,
+                ToolsModule.ModuleId,
+                OnlineModule.ModuleId,
+                PetsModule.ModuleId,
+                MayhemModule.ModuleId
+            };
 
             Require(
-                shell.Dependencies.Contains(CompactMenuEnhancerModule.ModuleId),
-                "FACM shell lost the CompactMenuEnhancer module dependency.");
-            Require(
-                shell.Dependencies.Contains(SettingsModule.ModuleId),
-                "FACM shell lost the explicit Settings module dependency.");
-            Require(
-                shell.Dependencies.Count == 2,
-                "FACM Phase 2 shell dependency contract changed unexpectedly.");
+                shell.Dependencies.SequenceEqual(expected),
+                "FACM Phase 3 shell feature dependency contract changed unexpectedly.");
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)
