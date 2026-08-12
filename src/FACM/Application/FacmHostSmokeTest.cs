@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace FACM.Application
+namespace FACM.AppHost
 {
     internal static class FacmHostSmokeTest
     {
