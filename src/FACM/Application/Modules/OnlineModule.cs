@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.AppHost;
 using FACM.Online;
 
-namespace FACM.Application.Modules
+namespace FACM.AppHost.Modules
 {
     internal sealed class OnlineModule : IFacmModule
     {
