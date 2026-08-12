@@ -19,8 +19,8 @@
 2. 本文件：当前任务、CI、实机验收和下一步。
 3. PR #54 / Issue #53：当前未完成任务的事实来源。
 4. `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`：已经记录本轮单实例激活契约和设计选择。
-5. `docs/OPERATIONS.md`：构建、实机验证、发布边界；本交接会补充二次启动验证步骤。
-6. `docs/PITFALLS.md`：历史回归与禁止路线，尤其不要破坏已验收的 Shell、PetHost、Flying Runtime 和发布链。
+5. `docs/OPERATIONS.md`：已经记录 `--single-instance-activation-test` 和 Windows 二次启动实机验证步骤。
+6. `docs/PITFALLS.md`：已经记录 Ensure Open ≠ Toggle、Build #794 catch 顺序，以及历史 Shell/PetHost/Flying Runtime/发布链防回归规则。
 
 ---
 
@@ -44,8 +44,9 @@
 - PR：#54 `feat(shell): 二次启动唤醒现有 FACM 控制中心`
 - PR 状态：**OPEN / mergeable / 未合并 / 未发布**。
 - 本轮真正改变 EXE 行为的修复代码 HEAD：`5a52ff8936a655c023746d3517848530b9bc26eb`。
-- 之后 `2e6377cae2265639aee73ebd22825aaa19403567` 只同步状态文档，不改变 Build #797 的 EXE 行为。
-- 本交接文档写入后分支 HEAD 会再次成为 docs-only 新提交；新会话不要死记本文里的分支 HEAD，**先 fresh-read PR #54 当前 head_sha**。
+- 后续提交均为 canonical docs 收口，不改变 Build #797 的 EXE 行为。
+- docs 收口 HEAD `395d96297bc9977c92428c68a14edd04e4cc7c23` 的 Windows Build #801 和 Mayhem Source Probe #120 均已 SUCCESS。
+- 本文件最后一次校正本身会再产生一个 docs-only HEAD；新会话不要死记本文里的分支 HEAD，**先 fresh-read PR #54 当前 head_sha**。如果此后的变化仍只有 docs，可沿用 Build #797 的实机验收。
 
 ## 在线正式版
 
@@ -165,13 +166,11 @@ Build #797 artifact：
 
 同代码阶段 Mayhem Source Probe #116：SUCCESS。
 
-### Build #798 —— docs-only HEAD 也通过
+### 后续 docs-only CI
 
-后续状态文档 HEAD：`2e6377cae2265639aee73ebd22825aaa19403567`
-
-- FACM Windows Build #798：SUCCESS
-- FACM Mayhem Source Probe #117：SUCCESS
-- 该提交不改变 Build #797 EXE 行为，只证明文档同步后的 PR HEAD 仍然是绿色。
+- `2e6377cae2265639aee73ebd22825aaa19403567`：FACM Windows Build #798 SUCCESS；Mayhem Source Probe #117 SUCCESS。
+- `395d96297bc9977c92428c68a14edd04e4cc7c23`：FACM Windows Build #801 SUCCESS；Mayhem Source Probe #120 SUCCESS。
+- 这些提交只补 canonical docs，没有改变 Build #797 EXE 行为。
 
 ## Windows 实机验收 —— **已通过**
 
@@ -267,16 +266,17 @@ PR #54 合并和“发新正式版”是两件事。用户已通过 Build #797 �
 
 ---
 
-# 七、Canonical docs 状态
+# 七、Canonical docs / review 状态
 
-本任务分支已修改/计划收口：
+本任务分支已完成：
 
 - `docs/DECISIONS.md`：记录“普通二次启动采用当前会话命名事件，只做无参数 activation”的持久设计选择。
 - `docs/ARCHITECTURE.md`：记录普通 FACM 单实例的 Mutex + activation event 边界，以及和 PetHost IPC 的区别。
 - `docs/PROJECT_STATE.md`：本交接文件，记录当前 PR、CI、实机验收、失败与下一步。
-- `docs/OPERATIONS.md`：应包含二次启动实机验证步骤与 `--single-instance-activation-test` 的 CI 说明。
+- `docs/OPERATIONS.md`：已加入二次启动实机验证步骤与 `--single-instance-activation-test` 的 CI 说明。
+- `docs/PITFALLS.md`：已加入 Ensure Open ≠ Toggle、不要过度 IPC 化、不要混用 Mutex，以及 Build #794 catch 顺序教训。
 
-Codex 在 PR #54 留过一个 P1 review thread，要求把 activation contract 写入 canonical docs。当时评论基于较早 commit `707ae796...`；之后 ARCHITECTURE / DECISIONS / PROJECT_STATE 已补，交接阶段继续补 OPERATIONS。**新会话合并前要 fresh-check该 review thread 是否仍 unresolved；文档齐全后回复/resolve，不要忽略。**
+Codex 曾在 PR #54 留 P1 review thread，要求补齐 activation canonical docs。该评论基于较早 commit `707ae796...`；上述文档补齐后，该 review thread 已于交接阶段 **resolved**。新会话仍可 fresh-check review threads，防止后续又出现新评论，但无需重新处理已解决的那条。
 
 ---
 
@@ -286,11 +286,10 @@ Codex 在 PR #54 留过一个 P1 review thread，要求把 activation contract �
 
 1. PR #54 仍未合并到 `main`。
 2. Issue #53 仍应保持 open，直到 PR merge 后由 `Closes #53` 自动关闭或再 fresh-check。
-3. PR review thread 的 canonical docs P1 评论需要确认已满足并 resolve。
-4. 本交接文档/OPERATIONS 新提交会触发新的 docs-only CI；合并前应 fresh-check最新 HEAD 的 FACM Windows Build，不要只拿旧 #797 绿色代替最新 PR head 状态。
-5. 合并后要 fresh-verify `main` 和 `online/version.json`；不能假设 online manifest 没变化。
-6. 正式 Release 未授权，不执行。
-7. 临时分支删除属于 destructive ref 操作，需要明确用户意图 + fresh safety check；如果当前 connector 不支持删除，不要声称已删除。
+3. 本文件最后一次 docs-only 校正会形成比 `395d962...` 更新的 PR HEAD；合并前应 fresh-check该最终 HEAD 的 FACM Windows Build，不要只拿旧 #797/#801 绿色代替最新 PR head 状态。
+4. 合并后要 fresh-verify `main` 和 `online/version.json`；不能假设 online manifest 没变化。
+5. 正式 Release 未授权，不执行。
+6. 临时分支删除属于 destructive ref 操作，需要明确用户意图 + fresh safety check；如果当前 connector 不支持删除，不要声称已删除。
 
 ---
 
@@ -300,8 +299,8 @@ Codex 在 PR #54 留过一个 P1 review thread，要求把 activation contract �
 2. Fresh-read PR #54：确认仍 OPEN、base=`main`、head=`feat/single-instance-activation-0813`，记录最新 `head_sha`，确认没有他人新改动。
 3. Fresh-check最新 HEAD 对应的：
    - `FACM Windows Build`
-   - `FACM Mayhem Source Probe`（advisory，但当前最近均成功）
-4. Fresh-check PR review threads；确认 canonical docs 评论已被当前文档满足，必要时回复并 resolve。
+   - `FACM Mayhem Source Probe`（advisory）
+4. Fresh-check PR review threads：已知 canonical-docs P1 已 resolved；只处理新的/重新打开的评论。
 5. 用户已经对 Build #797 回复“测试通过”；**无需重新要求用户重复同一实机测试，除非最新 HEAD 出现新的代码行为变更。** 若最新 HEAD 只有 docs，沿用 #797 实机验收。
 6. 在上述检查通过后，合并 PR #54 到 `main`，使用 expected head SHA 防止 head 移动竞态。
 7. 合并后验证：
@@ -310,7 +309,7 @@ Codex 在 PR #54 留过一个 P1 review thread，要求把 activation contract �
    - Issue #53 = closed/completed；
    - `online/version.json` 仍为 3.1.3 / enabled=true / minimum=3.0.0 / force=false；
    - 没有意外 Release/tag。
-8. 更新 `docs/PROJECT_STATE.md`：把 Issue #53 / PR #54 从“当前任务”改成“已实机验收并进入 main”，记录 merge SHA；若这一步需要新短文档提交，应遵守仓库当前流程，不制造额外 handoff 分支。
+8. 更新 `docs/PROJECT_STATE.md`：把 Issue #53 / PR #54 从“当前任务”改成“已实机验收并进入 main”，记录 merge SHA；遵守当前 task lifecycle，不制造额外 handoff/backup 分支。
 9. 不发布新正式版，除非用户在新对话明确说“发布/推送更新”。
 10. #53 收口后，再从最新 main 做下一轮高收益审查；不要为了继续迭代而重新改已经验收稳定的 Flying Runtime。
 
@@ -318,4 +317,4 @@ Codex 在 PR #54 留过一个 P1 review thread，要求把 activation contract �
 
 # 十、给下一会话的一句话
 
-**功能已经做完且 Build #797 用户实机测试通过；不要重写单实例方案。当前只需要把最新 docs-only HEAD 的 CI/review fresh-check 完，合并 PR #54，验证 main/Issue/online 状态，然后再选下一个任务。**
+**功能已经做完且 Build #797 用户实机测试通过；不要重写单实例方案。当前只需要 fresh-check 最终 docs-only HEAD 的 CI，合并 PR #54，验证 main/Issue/online 状态，然后再选下一个任务。**
