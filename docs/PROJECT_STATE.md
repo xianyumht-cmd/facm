@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修均已完成 Windows 实机验收并进入 main。当前维护任务为 Issue #49：修复正式发布后 `PROJECT_STATE.md` 被旧模板覆盖的问题；不触发新正式版。
+> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修均已完成 Windows 实机验收并进入 main。Issue #49 / PR #50 的发布状态写入修复也已完成并进入 main；当前没有新的正式版发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -61,13 +61,18 @@
 - `--animal-pet-test` 继续锁定绿苍蝇原轨迹参数、360° 朝向、四种精修 Profile 性格约束和各自源帧尺寸。
 - PR #48 已合并到 main，但**未触发正式发布**；FACM 3.1.3 继续作为线上正式版。
 
-## 当前维护任务：Issue #49 发布状态写入
+## Issue #49 / PR #50：发布状态写入已修复
 
-- 分支：`fix/release-state-template-0813`，从 `main` 的 `64c5cb9065da0f17d6fa4dc61237173ec60e91a5` 创建。
-- 已确认根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
+- 根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
 - 修复后发布工作流只维护 `<!-- FACM_RELEASE_STATE_BEGIN -->` / `<!-- FACM_RELEASE_STATE_END -->` 包围的机器发布状态区块，保留区块之外的开发、验收与后续任务内容。
 - 当前 3.1.3 正式版段落已经迁入该 marker 区块；下一次正式发布会原位替换，不会生成第二份“当前正式版”。
 - 机器区块只写 workflow 能直接证明的版本、Release tag、online enabled、`minimum_version`、`force_update`、发布基础/元数据 SHA、FACM.exe SHA-256、`published_at` 和 release notes；不再写 Build/Issue/用户验收等推断信息。
-- 当前工作流修复提交：`ab3288c870ac7f121eb5963b88bf4c8deaa6171e`；`OPERATIONS.md` 与 `PITFALLS.md` 已同步维护规则和失败经验。
-- 本任务只做 workflow / docs 修复，**不得为了验证而触发真实 Release，也不得修改当前 3.1.3 在线清单**。
-- 下一步：PR #50 通过普通 CI/YAML 校验后合并；随后再从最新 main 开第三轮飞行桌宠产品细节精修。
+- PR #50 HEAD `ebb518c9d14071278398d46acfae71b9b77b88f6` 的 FACM Windows Build #787 完整成功；PR #50 合并提交 `56f2ac14b1b405852e6b919584529c7e0b0166a8`，Issue #49 已关闭 completed。
+- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，本维护任务没有触发或改写正式发布。
+
+## 下一步
+
+- 从最新 `main` 开新的短分支，进入飞行桌宠第三轮产品细节精修。
+- 不再改已经实机通过的 Flying Runtime 架构，不急着继续增加动物数量。
+- 绿苍蝇继续作为锁定基线；重点统一蜜蜂、蜻蜓、蝴蝶、飞蛾的实际显示尺寸、视觉层级、翅膀频率与旋转/停悬/冲刺体感，必要时再优化桌宠选择器的展示信息。
+- 第三轮继续先出 Windows 测试构建，实机通过前不并入下一正式版。
