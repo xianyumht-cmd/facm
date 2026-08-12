@@ -19,16 +19,6 @@ namespace FACM.Pets
         public float JitterYAmplitude { get; set; }
         public float JitterXFrequency { get; set; }
         public float JitterYFrequency { get; set; }
-
-        // Green fly keeps the historical fully-random heading choice. Other managed flyers use
-        // relative course changes so their path has a readable "personality" instead of teleporting
-        // the target vector to an unrelated direction every state transition.
-        public bool UseAbsoluteRandomHeading { get; set; }
-        public float TurnMinDegrees { get; set; }
-        public float TurnMaxDegrees { get; set; }
-        public double SharpTurnChance { get; set; }
-        public float SharpTurnMinDegrees { get; set; }
-        public float SharpTurnMaxDegrees { get; set; }
     }
 
     internal static class FlyingPetProfiles
@@ -58,13 +48,12 @@ namespace FACM.Pets
                     JitterXAmplitude = 10f,
                     JitterYAmplitude = 8f,
                     JitterXFrequency = 17f,
-                    JitterYFrequency = 13f,
-                    UseAbsoluteRandomHeading = true
+                    JitterYFrequency = 13f
                 },
                 [Bee] = new FlyingPetProfile
                 {
                     Id = Bee,
-                    // Bee: medium cruise, gentle turns and visibly longer hover pauses.
+                    // Bee: medium cruise, gentle acceleration and visibly longer hover pauses.
                     MinBaseSpeed = 48f,
                     MaxBaseSpeed = 82f,
                     MoveMinSeconds = 1.20,
@@ -77,17 +66,12 @@ namespace FACM.Pets
                     JitterXAmplitude = 2.5f,
                     JitterYAmplitude = 4.0f,
                     JitterXFrequency = 7.2f,
-                    JitterYFrequency = 6.1f,
-                    TurnMinDegrees = 22f,
-                    TurnMaxDegrees = 78f,
-                    SharpTurnChance = 0.06,
-                    SharpTurnMinDegrees = 110f,
-                    SharpTurnMaxDegrees = 170f
+                    JitterYFrequency = 6.1f
                 },
                 [Dragonfly] = new FlyingPetProfile
                 {
                     Id = Dragonfly,
-                    // Dragonfly: long straight dashes, tiny corrections, then occasional hard breaks.
+                    // Dragonfly: long high-speed dashes with almost no local wobble and brief stops.
                     MinBaseSpeed = 120f,
                     MaxBaseSpeed = 205f,
                     MoveMinSeconds = 2.20,
@@ -100,17 +84,12 @@ namespace FACM.Pets
                     JitterXAmplitude = 0.5f,
                     JitterYAmplitude = 0.8f,
                     JitterXFrequency = 5.0f,
-                    JitterYFrequency = 4.0f,
-                    TurnMinDegrees = 8f,
-                    TurnMaxDegrees = 28f,
-                    SharpTurnChance = 0.32,
-                    SharpTurnMinDegrees = 95f,
-                    SharpTurnMaxDegrees = 170f
+                    JitterYFrequency = 4.0f
                 },
                 [Butterfly] = new FlyingPetProfile
                 {
                     Id = Butterfly,
-                    // Butterfly: slow broad arcs with obvious vertical float and very soft heading response.
+                    // Butterfly: slow long arcs; strong low-frequency vertical drift makes the path float.
                     MinBaseSpeed = 18f,
                     MaxBaseSpeed = 38f,
                     MoveMinSeconds = 2.80,
@@ -123,18 +102,13 @@ namespace FACM.Pets
                     JitterXAmplitude = 6.0f,
                     JitterYAmplitude = 14.0f,
                     JitterXFrequency = 2.6f,
-                    JitterYFrequency = 2.1f,
-                    TurnMinDegrees = 18f,
-                    TurnMaxDegrees = 65f,
-                    SharpTurnChance = 0.05,
-                    SharpTurnMinDegrees = 80f,
-                    SharpTurnMaxDegrees = 130f
+                    JitterYFrequency = 2.1f
                 },
                 [Moth] = new FlyingPetProfile
                 {
                     Id = Moth,
-                    // Moth: short nervous hops. Equal X/Y frequencies intentionally create a subtle
-                    // local circular loop around the larger random course.
+                    // Moth: short nervous hops. Equal X/Y frequency makes the existing sin/cos jitter
+                    // trace a small local loop without adding another movement engine.
                     MinBaseSpeed = 36f,
                     MaxBaseSpeed = 68f,
                     MoveMinSeconds = 0.65,
@@ -147,12 +121,7 @@ namespace FACM.Pets
                     JitterXAmplitude = 7.0f,
                     JitterYAmplitude = 7.0f,
                     JitterXFrequency = 4.8f,
-                    JitterYFrequency = 4.8f,
-                    TurnMinDegrees = 45f,
-                    TurnMaxDegrees = 125f,
-                    SharpTurnChance = 0.18,
-                    SharpTurnMinDegrees = 135f,
-                    SharpTurnMaxDegrees = 180f
+                    JitterYFrequency = 4.8f
                 }
             };
 
