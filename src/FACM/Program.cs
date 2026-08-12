@@ -167,8 +167,9 @@ namespace FACM
                 var online = new OnlineModule();
                 var pets = new PetsModule();
                 var mayhem = new MayhemModule();
-                var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem);
-                using (var host = CreateHost(settings, tools, online, pets, mayhem, shell))
+                var cleanup = new CleanupModule();
+                var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem, cleanup);
+                using (var host = CreateHost(settings, tools, online, pets, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -194,7 +195,7 @@ namespace FACM
                         return;
                     }
 
-                    AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
+                    AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + cleanup.IsAdministrator);
 
                     SingleInstanceActivation activation = null;
                     try
@@ -217,6 +218,7 @@ namespace FACM
             OnlineModule online,
             PetsModule pets,
             MayhemModule mayhem,
+            CleanupModule cleanup,
             ShellModule shell)
         {
             var host = new FacmHost();
@@ -226,6 +228,7 @@ namespace FACM
             host.Register(online);
             host.Register(pets);
             host.Register(mayhem);
+            host.Register(cleanup);
             host.Register(shell);
             return host;
         }
