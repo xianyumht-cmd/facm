@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-12：FACM 3.1.3 已正式发布并启用在线更新；PR #44 的高清绿苍蝇已实机验收并合并。当前任务是 Issue #45 / PR #46：统一轻量 Flying Runtime。
+> 2026-08-12：FACM 3.1.3 已正式发布并启用在线更新；PR #44 高清绿苍蝇与 PR #46 Flying Runtime 均已完成 Windows 实机验收并合并。当前任务是 Issue #47：精修五种 Flying Runtime 桌宠素材与飞行性格。
 
 ## 当前正式版
 
@@ -9,84 +9,57 @@
 - 在线更新：已启用。
 - `minimum_version=3.0.0`。
 - `force_update=false`。
-- 发布基础 main：`3402aa69821178ff816f8f971bf9c85b60598c48`。
-- 发布元数据提交：`06b01ee7099b8c4d759e34b251d84b708a6e9ec1`。
-- 在线更新启用提交：`c1fe46019a32acb84e7a979bf35ee0b657bc1778`。
 - Release FACM.exe SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`。
 
-## 3.1.3 已验证内容
+## 已进入 main、尚未发布的新能力
 
-- PR #40 合并提交：`a63be62c93207790804faf6b730b9b22234ac45d`。
-- 默认启动立即显示 56×56 FACM Shell；默认未启用桌宠时不加载/预热 PetHost。
-- 「面板主题 / 桌面宠物」已统一为「主题」入口，并保留 `ThemeId`、`AnimalPetEnabled`、`PetStyleId` 兼容。
-- VPet 首次资源准备使用真实 `x/N` 进度，后续无可信百分比阶段使用 indeterminate 进度；PetHost bundle 缓存按 payload SHA-256 复用。
-- Sprite 桌宠取消 WorkingArea 硬边界和反弹；用户实机确认复位位置与自由跑出屏幕两项均正常。
-- 正式发布工作流 run #5 全部步骤成功：PetHost publish/self-test、Release build、内嵌资源验证、Authenticode 签名、disabled manifest、GitHub Release、最终在线清单启用均完成。
+### PR #44：高清绿苍蝇基线
 
-## PR #44：高清绿苍蝇基线
-
-- Issue #43 / PR #44 已完成 Windows 实机画质验收，用户确认效果不错；PR #44 已合并到 main，合并提交 `c8f4a0a4a4a847682845fef0cca3c64c49a8948d`。
-- `greenfly` ID、`Fly` 运动类型、`Speed=1.36`、`VisualScale=0.56` 和既有 `_vx/_vy + jitter` 轨迹保持。
-- 原 16×16 × 3 帧网络贴图已升级为 FACM 内置 **96×96 × 4 帧**程序化精细 Sprite；身体锚点固定，仅翅膀变化。
+- Issue #43 / PR #44 已实机验收，用户确认效果不错；合并提交 `c8f4a0a4a4a847682845fef0cca3c64c49a8948d`。
+- `greenfly` ID、`Speed=1.36`、`VisualScale=0.56` 和原 `_vx/_vy + jitter` 轨迹保持。
+- 原 16×16 × 3 帧网络贴图升级为 FACM 内置 96×96 × 4 帧程序化精细 Sprite；身体锚点固定，仅翅膀变化。
 - Build #773 完整成功并用于实机验收。
 
-## 当前任务：Issue #45 / PR #46 Flying Runtime
+### PR #46：统一 Flying Runtime
 
-### 产品方向
+- Issue #45 / PR #46 已于 2026-08-12 完成 Windows 实机验收，用户反馈“没什么问题”。
+- PR #46 合并提交：`d6cdc2e860b488204348d8158c4da24a899d4aa2`。
+- 最新候选 Build #779 成功；合并后的 main Build #780 也完整成功。
+- 轻量桌宠主路线收敛为：**绿苍蝇 / 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾**；VPet Core 保留为独立高精度路线。
+- 猫、狗、蜘蛛、蚂蚁、旧灰苍蝇、旧胡蜂、小鸟等旧 Sprite ID 不删除，既有 `settings.ini` 继续兼容，但新选择器不再推荐。
+- 运行层把 **桌面运动轨迹 / 360° 身体朝向 / 翅膀动画** 三层解耦；素材统一朝右为 0°，运行时按真实速度向量平滑旋转。
+- Flying Runtime 不增加屏幕硬边界；桌宠允许自然飞出所有屏幕，恢复入口仍是“复位桌面位置”。
+- `greenfly` 继续锁定既有轨迹基线：基础速度 82~140 × 1.36、移动段 0.55~1.80s、idle=0.02、velocity response=7.5、`sin(17t)×10 / cos(13t)×8` jitter。
 
-- 轻量桌宠主路线收敛为会飞的动物/昆虫；贴地猫狗蜘蛛等旧 Sprite 只保留配置兼容，不再作为新用户推荐项。
-- 推荐选择器现在只展示：**绿苍蝇 / 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾 / VPet Core**。
-- 旧 `cat` / `dog` / `spider` / `ant` / `greyfly` / `wasp` / `bird` ID 仍可通过既有 `settings.ini` 解析和启动。
+## 当前任务：Issue #47 飞行桌宠二次精修
 
-### 统一运行层
+- 分支：`feat/flying-pet-polish-0812`，从 PR #46 合并并经 main Build #780 验证后的 `d6cdc2e860b488204348d8158c4da24a899d4aa2` 创建。
+- 原则：**不再改已经实机通过的 Flying Runtime 架构**。本轮只精修素材和既有 Profile 参数。
+- 绿苍蝇继续作为轨迹回归基线，不调其已验收参数。
 
-- 新增 `FlyingPetProfiles`，把 **运动轨迹 / 360° 身体朝向 / 翅膀动画** 三层解耦。
-- 所有 managed flying 素材以朝右为 0° 母版；运行时根据实际 `_vx/_vy` 计算 `atan2` 目标角度，并用最短角度差平滑旋转。
-- 不再需要 8 方向 Sprite 行；转向视觉由连续角度负责。
-- 每种飞行动物只通过 Profile 定义速度区间、改向时长、停悬概率、VelocityResponse、HeadingResponse 和 jitter。
-- 自由出屏规则不变；Flying Runtime 不增加屏幕硬边界。
+### 素材精修
 
-### 绿苍蝇回归基线
+- 蜜蜂源帧提高到 104px：强化腹部黄黑层次、独立胸部、复眼高光、半透明翅膀和翅脉。
+- 蜻蜓源帧提高到 128px：强化大复眼、胸部、长腹节、四片翅膀、翅脉和翼痣，保持身体锚点不动。
+- 蝴蝶源帧提高到 112px：增加前/后翅层次、翅脉和眼斑，开合仅改变翅膀，不移动身体。
+- 飞蛾源帧提高到 112px：使用更低饱和的厚翅、翼带、绒感胸部和羽状触角。
+- 四套素材继续由 FACM 内置程序化生成，不依赖运行时网络下载；`PixelArt=false`。
 
-- 为避免“重构运行层把满意的轨迹改坏”，`greenfly` Profile 明确锁定 FACM 3.1.3 / PR #44 参数：
-  - 基础速度 `82~140`，再乘 `Speed=1.36`；
-  - 移动段 `0.55~1.80s`；
-  - idle 概率 `0.02`；
-  - velocity response `7.5`；
-  - `sin(17t) × 10` / `cos(13t) × 8` jitter。
-- 新增的仅是视觉朝向平滑，不改变桌面位移公式。
+### 飞行性格调优
 
-### 新飞行动物
+- 蜜蜂：48~82 基础速度，idle 提升到 18%，停悬 0.35~1.10s，速度/朝向响应放缓，突出巡航 + 悬停。
+- 蜻蜓：120~205 基础速度，移动段延长到 2.20~4.60s，局部 jitter 降到 0.5/0.8，突出长直线高速冲刺 + 短停。
+- 蝴蝶：18~38 基础速度，移动段 2.80~5.60s，低响应 + 14px 低频纵向漂浮，突出慢速大曲线。
+- 飞蛾：36~68 基础速度，移动段缩短到 0.65~1.55s；X/Y jitter 同频同幅 4.8Hz / 7px，利用现有 sin/cos 形成小范围绕圈感。
+- 以上调参不增加新的运动状态机，不改 `SpritePetWindow` 核心算法。
 
-- 蜜蜂：中速、圆滑转向、短暂停悬；FACM 内置 96px × 4 帧程序化素材。
-- 蜻蜓：高速长距离冲刺、快速改向；FACM 内置 112px × 4 帧程序化素材。
-- 蝴蝶：慢速大曲线、明显上下漂浮、低频大幅振翅；FACM 内置 96px × 4 帧素材。
-- 飞蛾：短距离随机游走、轨迹紧凑；FACM 内置 96px × 4 帧素材。
-- 四套新素材均不依赖运行时网络下载，身体锚点稳定，`PixelArt=false`。
+### 自动验证
 
-### 验证状态
-
-- PR #46 代码 HEAD `fdd617d58342035f6da5d14f9c50549ba09aa8ea` 的 Windows Build #776 已完整成功。
-- 加入正式技术决策与项目状态文档后的 HEAD `0a659efcfa9207f08dc24f6d9e4101c3170ff02d`，Windows Build #778 也已完整成功；artifact `FACM-Windows-x64-778`，digest `sha256:b1f4786cc4fc50a2e73c1fce202cdd32a59e0742d1699da2bd2db8ab7dcb065e`。
-- 两轮均包含 PetHost self-test、FACM Release build、`--animal-pet-test`、签名步骤和 artifact 上传。
-- `--animal-pet-test` 已新增：主选择器组成、Legacy ID 兼容、五套 Flying Profile、96px 高精度下限、greenfly 原轨迹参数、0/90/180/270° heading、350↔10° 最短角度环绕、旋转后渲染差异等守卫。
-- 当前阶段：**等待 Windows 实机验收 Flying Runtime；未验收前 PR #46 不合并、不发布。**
-
-## 实机验收重点
-
-- 绿苍蝇轨迹体感不能比 PR #44 / FACM 3.1.3 基线退化；允许视觉朝向更自然，但不能变成新的移动算法。
-- 五只飞行动物转向时不能倒着飞、瞬间镜像或绕 360° 长路转向。
-- 蜜蜂 / 蜻蜓 / 蝴蝶 / 飞蛾的 Profile 性格差异应肉眼可辨，而不是仅换皮。
-- 四帧翅膀动画切换时身体锚点不能跳动。
-- 继续允许飞出所有屏幕；“复位桌面位置”仍是找回入口。
-
-## 后续
-
-- Flying Runtime 实机通过后，再根据观感逐个做素材二次精修和 Profile 调参。
-- Issue #33 的 Q 版蜘蛛 Gate 方案保留为独立长期探索，不是当前轻量桌宠主路线。
-- VPet 自主行为继续排在 Flying Runtime 稳定之后。
+- `--animal-pet-test` 继续锁定绿苍蝇原轨迹参数和 360° 朝向回归。
+- 新增四种精修 Profile 的性格约束和各自源帧尺寸守卫，避免后续把蜜蜂/蜻蜓/蝴蝶/飞蛾重新调成同一种飞法。
+- 当前阶段：等待本分支 CI；通过后生成 Windows 测试包做实机观感验收，未验收前不合并、不发布。
 
 ## 已知发布文档问题
 
-- `.github/workflows/publish-release.yml` 当前最终状态模板仍残留旧 `Build #495 / Issue #28 / 3.1.0` 的硬编码文字；它不影响发布产物和在线更新，但会在每次发布后覆盖 `PROJECT_STATE.md` 为陈旧内容。
-- 3.1.3 发布后已手工恢复正确状态；后续应单独修复发布工作流的状态写入模板。
+- `.github/workflows/publish-release.yml` 最终状态模板仍残留旧 `Build #495 / Issue #28 / 3.1.0` 的硬编码文字；它不影响发布产物和在线更新，但会在发布后覆盖 `PROJECT_STATE.md`。
+- 3.1.3 发布后已手工恢复正确状态；后续应单独修复发布工作流状态模板。
