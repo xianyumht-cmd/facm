@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
-using FACM.Configuration;
+using FACM.AppHost.Modules;
 using FACM.Services;
 using FACM.Theming;
 
@@ -18,6 +18,7 @@ namespace FACM
         private readonly MainForm _ownerBall;
         private readonly AppSettings _settings;
         private readonly UiTextCatalog _ui;
+        private readonly CleanupModule _cleanup;
         private readonly ThemeDefinition _theme;
         private readonly float _scaleX;
         private readonly float _scaleY;
@@ -25,11 +26,12 @@ namespace FACM
         private readonly Label _status;
         private bool _dialogOpen;
 
-        public CompactMenuForm(MainForm ownerBall, AppSettings settings, UiTextCatalog ui)
+        public CompactMenuForm(MainForm ownerBall, AppSettings settings, UiTextCatalog ui, CleanupModule cleanupModule)
         {
             _ownerBall = ownerBall;
             _settings = settings;
             _ui = ui ?? UiTextCatalog.Load();
+            _cleanup = cleanupModule ?? throw new ArgumentNullException(nameof(cleanupModule));
             _theme = ThemeCatalog.Get(_settings.ThemeId);
             _scaleX = _theme.WindowSize.Width / (float)BaseWidth;
             _scaleY = _theme.WindowSize.Height / (float)BaseHeight;
@@ -86,10 +88,10 @@ namespace FACM
             };
 
             var adminBadge = CreateButton(
-                ElevationService.IsAdministrator ? "管理员" : "标准模式",
+                _cleanup.IsAdministrator ? "管理员" : "标准模式",
                 new Rectangle(282, 20, 84, 28),
                 false);
-            adminBadge.ForeColor = ElevationService.IsAdministrator ? _theme.Success : _theme.TextMuted;
+            adminBadge.ForeColor = _cleanup.IsAdministrator ? _theme.Success : _theme.TextMuted;
             adminBadge.Enabled = false;
 
             var close = new Label
@@ -135,11 +137,11 @@ namespace FACM
             choose.Click += SelectGamePath;
             var config = new Label
             {
-                Text = CleanupProfile.IsConfigured ? "● 规则已配置" : "● 等待配置",
+                Text = _cleanup.IsConfigured ? "● 规则已配置" : "● 等待配置",
                 Location = ScaleChildPoint(224, 63),
                 Size = ScaleChildSize(150, 23),
                 TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = CleanupProfile.IsConfigured ? _theme.Success : _theme.Warning,
+                ForeColor = _cleanup.IsConfigured ? _theme.Success : _theme.Warning,
                 BackColor = Color.Transparent,
                 Font = new Font(_theme.FontName, ScaleFont(8F), FontStyle.Bold)
             };
@@ -428,7 +430,7 @@ namespace FACM
         {
             RunDialogAction(delegate
             {
-                if (!CleanupProfile.IsConfigured)
+                if (!_cleanup.IsConfigured)
                 {
                     SetStatus("等待开发者填写清理规则");
                     MessageBox.Show(
@@ -441,7 +443,7 @@ namespace FACM
 
                 if (!EnsureGamePath()) return;
 
-                var running = ProcessGuard.GetRunningRelatedProcesses();
+                var running = _cleanup.GetRunningRelatedProcesses();
                 if (running.Count > 0)
                 {
                     SetStatus("检测到相关程序仍在运行");
@@ -453,7 +455,7 @@ namespace FACM
                     return;
                 }
 
-                if (!ElevationService.IsAdministrator)
+                if (!_cleanup.IsAdministrator)
                 {
                     var choice = MessageBox.Show(
                         "清理固定系统目录需要管理员权限。FACM 将以管理员身份重新启动，并自动继续本次清理。",
@@ -462,7 +464,7 @@ namespace FACM
                         MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice != DialogResult.OK) return;
-                    if (ElevationService.RestartElevatedForCleanup())
+                    if (_cleanup.RestartElevatedForCleanup())
                     {
                         SetStatus("正在以管理员身份重新启动...");
                         _ownerBall.ExitApplication();
@@ -471,7 +473,7 @@ namespace FACM
                 }
 
                 SetStatus("正在生成清理预览...");
-                var plan = SafeCleanupService.CreatePlan(_settings.GamePath);
+                var plan = _cleanup.CreatePlan(_settings.GamePath);
                 if (plan.Targets.Count == 0)
                 {
                     SetStatus("没有发现可清理项目");
@@ -489,7 +491,7 @@ namespace FACM
                 }
 
                 SetStatus("正在清理...");
-                var result = SafeCleanupService.Execute(plan);
+                var result = _cleanup.Execute(plan);
                 var summary = "清理完成。\r\n\r\n已删除文件：" + result.DeletedFiles +
                               "\r\n已删除文件夹：" + result.DeletedDirectories;
                 if (result.Failures.Count > 0)
@@ -506,14 +508,14 @@ namespace FACM
         {
             RunDialogAction(delegate
             {
-                if (!CleanupProfile.IsConfigured)
+                if (!_cleanup.IsConfigured)
                 {
                     MessageBox.Show("请先完成 CleanupProfile.cs 中的开发者配置。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
                 SetStatus("正在从进程与注册表识别目录...");
-                var detected = GameLocator.FindGameRoot();
+                var detected = _cleanup.FindGameRoot();
                 if (string.IsNullOrEmpty(detected))
                 {
                     SetStatus("未自动识别，请手动选择");
@@ -530,7 +532,7 @@ namespace FACM
         {
             RunDialogAction(delegate
             {
-                if (!CleanupProfile.IsConfigured)
+                if (!_cleanup.IsConfigured)
                 {
                     MessageBox.Show("请先完成 CleanupProfile.cs 中的开发者配置。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
@@ -544,7 +546,7 @@ namespace FACM
                 })
                 {
                     if (dialog.ShowDialog(this) != DialogResult.OK) return;
-                    var resolved = GameLocator.ResolveGameRoot(dialog.SelectedPath);
+                    var resolved = _cleanup.ResolveGameRoot(dialog.SelectedPath);
                     if (string.IsNullOrEmpty(resolved))
                     {
                         MessageBox.Show("所选范围内没有找到开发者配置的标记文件夹。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -581,9 +583,9 @@ namespace FACM
 
         private bool EnsureGamePath()
         {
-            if (GameLocator.IsValidGameRoot(_settings.GamePath)) return true;
+            if (_cleanup.IsValidGameRoot(_settings.GamePath)) return true;
 
-            var detected = GameLocator.FindGameRoot();
+            var detected = _cleanup.FindGameRoot();
             if (!string.IsNullOrEmpty(detected))
             {
                 SaveGamePath(detected);
@@ -591,7 +593,7 @@ namespace FACM
             }
 
             SelectGamePath(this, EventArgs.Empty);
-            return GameLocator.IsValidGameRoot(_settings.GamePath);
+            return _cleanup.IsValidGameRoot(_settings.GamePath);
         }
 
         private void SaveGamePath(string path)
@@ -603,7 +605,7 @@ namespace FACM
 
         private void RefreshPathLabel()
         {
-            _pathValue.Text = GameLocator.IsValidGameRoot(_settings.GamePath)
+            _pathValue.Text = _cleanup.IsValidGameRoot(_settings.GamePath)
                 ? _settings.GamePath
                 : "尚未选择或未完成开发者配置";
         }

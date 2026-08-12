@@ -22,6 +22,7 @@ namespace FACM
         private readonly OnlineModule _online;
         private readonly PetsModule _pets;
         private readonly MayhemModule _mayhem;
+        private readonly CleanupModule _cleanup;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private readonly LayeredFloatingBall _layeredBall;
@@ -48,6 +49,7 @@ namespace FACM
             OnlineModule online,
             PetsModule pets,
             MayhemModule mayhem,
+            CleanupModule cleanup,
             bool startCleanup = false)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -56,6 +58,7 @@ namespace FACM
             _online = online ?? throw new ArgumentNullException(nameof(online));
             _pets = pets ?? throw new ArgumentNullException(nameof(pets));
             _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
+            _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
             _startCleanup = startCleanup;
             _appIcon = BrandIcon.Create();
 
@@ -681,7 +684,7 @@ namespace FACM
                 return;
             }
 
-            _menu = new CompactMenuForm(this, _settings, _ui);
+            _menu = new CompactMenuForm(this, _settings, _ui, _cleanup);
             _menu.FormClosed += delegate { _menu = null; };
             PositionMenu(_menu);
             _menu.Show();

@@ -13,7 +13,8 @@ namespace FACM.AppHost.Modules
             ToolsModule.ModuleId,
             OnlineModule.ModuleId,
             PetsModule.ModuleId,
-            MayhemModule.ModuleId
+            MayhemModule.ModuleId,
+            CleanupModule.ModuleId
         };
         private readonly bool _startCleanup;
         private readonly SettingsModule _settings;
@@ -21,6 +22,7 @@ namespace FACM.AppHost.Modules
         private readonly OnlineModule _online;
         private readonly PetsModule _pets;
         private readonly MayhemModule _mayhem;
+        private readonly CleanupModule _cleanup;
 
         public ShellModule(
             bool startCleanup,
@@ -28,7 +30,8 @@ namespace FACM.AppHost.Modules
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
-            MayhemModule mayhem)
+            MayhemModule mayhem,
+            CleanupModule cleanup)
         {
             _startCleanup = startCleanup;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -36,6 +39,7 @@ namespace FACM.AppHost.Modules
             _online = online ?? throw new ArgumentNullException(nameof(online));
             _pets = pets ?? throw new ArgumentNullException(nameof(pets));
             _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
+            _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
         }
 
         public const string ModuleId = "shell";
@@ -64,6 +68,7 @@ namespace FACM.AppHost.Modules
                 _online,
                 _pets,
                 _mayhem,
+                _cleanup,
                 _startCleanup);
         }
 

@@ -1,6 +1,6 @@
 # FACM 3.1 / 3.2 架构
 
-> FACM 3.1.3 仍是线上正式版。FACM 3.2 正在按 modular-host 路线重构后端：Phase 1 Host 基础层和 Phase 2 Settings ownership 已合并；Phase 3 PR #60 已把 Tools / Online / Pets / Mayhem 变成 Shell 的显式模块依赖。本文区分已验证事实与后续目标。
+> FACM 3.1.3 仍是线上正式版。FACM 3.2 正在按 modular-host 路线重构后端：Phase 1 Host 基础层、Phase 2 Settings ownership、Phase 3 Tools / Online / Pets / Mayhem facade ownership 已合并；Phase 4 Cleanup ownership 的完整修正位于 PR #64，行为代码已通过 Build #858 / Probe #169。本文区分已验证事实与后续目标。
 
 ## 进程边界
 
@@ -28,7 +28,9 @@ FACM.exe  (.NET Framework 4.8 / WinForms)
 
 ## Cleanup 稳定边界
 
-`SafeCleanupService` 继续拥有路径白名单、reparse point 阻止、预览、执行前二次校验和删除规则。耗时扫描/删除在 WinForms 调用路径中通过 `BackgroundOperationDialog` 离开 UI 线程。Phase 4 只迁移调用所有权，不复制或弱化安全算法。
+`SafeCleanupService` 继续拥有路径白名单、reparse point 阻止、预览、执行前二次校验和删除规则。其公开 `CreatePlan/Execute` 在 WinForms message loop 下通过 `BackgroundOperationDialog.Run(...)` 把 `CreatePlanCore / ExecuteCore` 放到 worker thread；非 UI/test 调用继续走同步 core。`GameLocator` 自身同样负责搜索预算、取消和 WinForms 进度窗口。
+
+Phase 4 只迁移调用所有权到 `CleanupModule`，**不复制、不下沉 UI，也不弱化这些安全/线程语义**。
 
 ## Mayhem 稳定边界
 
@@ -82,56 +84,11 @@ SettingsModule.Initialize()
 
 MainForm 不再自行加载 Settings/UiText；继续使用同一个 `AppSettings` 实例按原时机 Save。`settings.ini` key/default/migration/write-back 不变。
 
-## Phase 3：Shell feature facade ownership（PR #60 当前实现）
+## Phase 3：Shell feature facade ownership（已合并）
 
-Phase 3 将 MainForm 对具体后端 static service/direct-new 的依赖迁入四个已存在 module facade。
+Issue #59 / PR #60，merge commit `974d2bbde73fe78b25052392adc9258c7c20493e`。
 
-### 当前正常启动图
-
-```text
-Program
-  -> create SettingsModule
-  -> create ToolsModule
-  -> create OnlineModule
-  -> create PetsModule
-  -> create MayhemModule
-  -> create ShellModule(...all modules...)
-  -> FacmHost.Register(
-       CompactMenuEnhancer,
-       Settings,
-       Tools,
-       Online,
-       Pets,
-       Mayhem,
-       Shell)
-  -> FacmHost.Initialize()
-       -> CompactMenuEnhancerModule
-       -> SettingsModule
-       -> ToolsModule
-       -> OnlineModule
-       -> PetsModule
-       -> MayhemModule
-       -> ShellModule
-            -> MainForm(settings, uiText, tools, online, pets, mayhem)
-  -> SingleInstanceActivation listener
-  -> Application.Run(shell.MainForm)
-  -> Host reverse Dispose
-```
-
-`ShellModule.Dependencies` 当前按以下顺序锁定：
-
-```text
-shell.compact-menu-enhancer
-settings
-tools
-online
-pets
-mayhem
-```
-
-### MainForm 后端入口
-
-MainForm 现在使用：
+Phase 3 将 MainForm 对具体后端 static service/direct-new 的依赖迁入四个 module facade：
 
 ```text
 _tools
@@ -151,7 +108,7 @@ new MayhemLookupForm()
 
 MainForm 仍可引用 UI/模型类型，例如 `AnimalPetPickerForm`、`AnimalPetCatalog`、`OnlineCenterForm`、`OnlineSnapshot`。目标是迁移 backend ownership，不是禁止 UI 层引用任何 feature 类型。
 
-### Warmup 时序保持
+Warmup 时序保持：
 
 ```text
 Shell shown
@@ -165,47 +122,189 @@ Shell shown
 
 因此默认 Shell 路线仍不预热 PetHost。Pets ready/fallback、Online prompt、Mayhem modal、Tool error UI 没有因 facade 迁移改变。
 
-MainForm 退出/关闭时仍按原时机调用 `_pets.Stop()`，Host 的 `PetsModule.Dispose()` 只承担最终生命周期兜底，避免为了“去重漂亮”改变现有时序。
+Phase 3 最终 docs-only Build #853 / Probe #166 SUCCESS。
 
-Phase 3 行为代码 HEAD `10a81d38a530e99eb77eab1a7d2f1c19c46e9279`：FACM Windows Build #851 SUCCESS，Mayhem Source Probe #164 SUCCESS。
+## Phase 4：Cleanup ownership（PR #64 完整候选）
+
+### 超时恢复边界
+
+聊天 UI 超时期间，远端操作继续执行，导致 PR #62 以 HEAD `e15877ac...` 提前合并到 `main`；该 PR 只包含最早的 `CleanupModule.cs` 草稿，却因 `Closes #61` 自动关闭了 Issue #61。它不构成 Phase 4 完成状态。
+
+恢复时没有回滚 main、没有 reset/rebase/force-push，而是：
+
+- 重开 Issue #61；
+- 继续原任务分支；
+- 用 PR #64 只提交 #62 之后的完整修正。
+
+### 当前完整依赖图
+
+```text
+Program
+  -> create SettingsModule
+  -> create ToolsModule
+  -> create OnlineModule
+  -> create PetsModule
+  -> create MayhemModule
+  -> create CleanupModule
+  -> create ShellModule(...all modules...)
+  -> FacmHost.Register(
+       CompactMenuEnhancer,
+       Settings,
+       Tools,
+       Online,
+       Pets,
+       Mayhem,
+       Cleanup,
+       Shell)
+  -> FacmHost.Initialize()
+       -> CompactMenuEnhancerModule
+       -> SettingsModule
+       -> ToolsModule
+       -> OnlineModule
+       -> PetsModule
+       -> MayhemModule
+       -> CleanupModule
+       -> ShellModule
+            -> MainForm(settings, uiText, tools, online, pets, mayhem, cleanup)
+                 -> CompactMenuForm(..., cleanup)
+  -> SingleInstanceActivation listener
+  -> Application.Run(shell.MainForm)
+  -> Host reverse Dispose
+```
+
+`ShellModule.Dependencies` 当前锁定：
+
+```text
+shell.compact-menu-enhancer
+settings
+tools
+online
+pets
+mayhem
+cleanup
+```
+
+### CleanupModule 的真实 facade
+
+```text
+IsConfigured
+IsAdministrator
+RestartElevatedForCleanup()
+GetRunningRelatedProcesses()
+FindGameRoot()
+ResolveGameRoot(path)
+IsValidGameRoot(path)
+CreatePlan(gameRoot)
+Execute(plan) -> CleanupResult
+```
+
+`CompactMenuForm` 继续负责用户交互：
+
+- MessageBox；
+- `FolderBrowserDialog`；
+- `CleanupReviewForm`；
+- 状态文字和按钮状态。
+
+但不再自己访问 `CleanupProfile / ElevationService / ProcessGuard / GameLocator / SafeCleanupService` backend。
+
+### 保留的服务语义
+
+```text
+CompactMenuForm
+   -> CleanupModule
+       -> GameLocator
+            -> WinForms message loop: GameLocatorSearchDialog + worker search
+       -> SafeCleanupService.CreatePlan
+            -> WinForms message loop: BackgroundOperationDialog + CreatePlanCore worker
+       -> SafeCleanupService.Execute
+            -> WinForms message loop: BackgroundOperationDialog + ExecuteCore worker
+```
+
+因此 Phase 4 只是显式所有权迁移，没有把耗时 core 搬回 UI 线程，也没有复制删除算法。
+
+### Phase 4 自动验证
+
+- Build #857：FAILED；原因仅为 `CompactMenuForm` 构造参数 `cleanup` 与旧 UI 局部变量 `var cleanup` 同名，CS0841 / CS0136。
+- 修复：构造参数改为 `cleanupModule`，UI 局部变量和行为不动。
+- 行为 HEAD `16cefad9162de302de68478cde2a3d6ed9b49d0c`：
+  - FACM Windows Build #858 SUCCESS；
+  - FACM Mayhem Source Probe #169 SUCCESS。
 
 ---
 
-# 后续架构
+# Phase 5：LeagueClient foundation
 
-## Phase 4：Cleanup ownership
+## 当前真实 LCU 技术债
 
-目标建立 `CleanupModule`，把 `ProcessGuard / ElevationService / SafeCleanupService / GameLocator` 等后端调用从 `CompactMenuForm` 收进明确 facade。
+现有 LCU ownership 主要藏在 `Mayhem/RiotGameDataService.cs`，不是独立应用模块。
 
-UI 仍负责：
+当前 `DiscoverLcuSession()` 的真实实现是：
 
-- 用户确认；
-- `FolderBrowserDialog`；
-- `CleanupReviewForm`；
-- 状态文字与按钮状态。
+```text
+Process.GetProcessesByName("LeagueClientUx" / "LeagueClient")
+  -> process.MainModule.FileName
+  -> executable directory
+  -> directory/lockfile
+  -> split lockfile fields
+       port = parts[2]
+       password = parts[3]
+       protocol = parts[4] (fallback https)
+  -> protocol://127.0.0.1:<port>/
+```
 
-CleanupModule 只承接 backend ownership，不能复制 `SafeCleanupService` 安全规则。
+当前 authenticated request：
 
-## Phase 5：LeagueClient foundation
+```text
+HttpClientHandler
+  -> allow League Client local self-signed certificate
+HttpClient
+  -> BaseAddress = local LCU URL
+  -> Timeout = 2s
+Authorization = Basic base64("riot:" + password)
+GET <LCU path>
+```
 
-现有 LCU 客户端发现逻辑主要散在 Mayhem 的 `RiotGameDataService`：通过 `LeagueClientUx.exe` command line 解析 app-port/remoting-auth-token，并构造 localhost LCU HttpClient。
+Mayhem 目前用这条路线读取 `/lol-game-data/assets/v1/...`；LCU 不可用时继续回退 CommunityDragon/DataDragon。
 
-Phase 5 应建立真正的 `LeagueClientModule`：
+问题不在于这段逻辑“不能用”，而在于：
+
+- discovery/auth/session 所有权藏在 Mayhem；
+- 每次 bytes 请求都重新发现 session；
+- 每次请求都新建 handler/client；
+- 后续账号、Gameflow、ChampSelect、战绩如果继续各自复制，会重新形成横向耦合。
+
+## Phase 5 目标结构
 
 ```text
 LeagueClientModule
-├─ client discovery
-├─ LCU credentials/session
-├─ connection state
-├─ reusable authenticated HTTP/API boundary
-└─ diagnostics
+├─ LeagueClientLocator / lockfile parser
+├─ LeagueClientSession
+├─ authenticated local HTTP/API client
+├─ bounded timeout + cancellation
+├─ connection/session diagnostics
+└─ deterministic discovery/parser/API smoke
 ```
 
-然后让 Mayhem 等现有功能逐步复用该模块，而不是继续各自发现客户端。Phase 5 暂不新增账号/Gameflow/ChampSelect/战绩 UI；先把客户端连接所有权做对。
+关键设计：
 
-## 架构重构收口
+- League Client 未运行是正常状态，不能让 FACM Host 启动失败；
+- credentials 不向 UI/普通 feature 广泛暴露；
+- local certificate tolerance 只封装在本地 LCU client；
+- session 可按需发现/刷新，不把过期 lockfile 结果永久缓存；
+- Mayhem 现有 LCU-first → public fallback 行为必须保持；
+- `MayhemModule` 应显式依赖 `LeagueClientModule`；
+- 依赖继续传给 `MayhemLookupForm / RiotGameDataService` 或新的实例化 metadata service；
+- **禁止为了少改代码新增全局 static LeagueClient singleton**。
 
-完成 Cleanup + LeagueClient foundation 后，当前这一轮“学习 Akari 的成熟后端架构”可进入整体候选阶段：
+Phase 5 暂不新增账号/Gameflow/ChampSelect/战绩 UI；先把连接所有权做对。后续产品能力全部复用这个边界。
+
+腾讯/国服兼容性以实际客户端机制和国服实测为准，不根据 League Akari 官网“不支持腾讯服务器”的免责声明推导技术不可用。
+
+---
+
+# 架构重构收口
+
+完成 Phase 5 后，当前这一轮“学习 Akari 的成熟后端架构”进入整体候选阶段：
 
 1. canonical docs 与真实依赖图收口；
 2. 全部 deterministic smoke + Windows Build + Mayhem Probe；
@@ -220,6 +319,7 @@ LeagueClientModule
 - Flying Runtime 已验收行为；
 - VPet/PetHost 独立进程与 ready/fallback；
 - `settings.ini` 兼容；
+- Cleanup 安全算法 / BackgroundOperationDialog / GameLocator 预算语义；
 - Mayhem 字段级多源容灾；
 - Online Release/manifest 事务；
 - 无独立产品需求时不改变现有 UI；
