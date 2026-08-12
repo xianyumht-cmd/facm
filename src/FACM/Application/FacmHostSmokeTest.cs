@@ -106,8 +106,8 @@ namespace FACM.AppHost
                     "FACM host did not surface module initialization failure.");
 
                 Require(
-                    events.SequenceEqual(new[] { "init:a", "init:b", "dispose:a" }),
-                    "FACM host did not roll back already initialized modules after failure.");
+                    events.SequenceEqual(new[] { "init:a", "init:b", "dispose:b", "dispose:a" }),
+                    "FACM host did not dispose the partially initialized failing module and roll back prior modules.");
                 Require(host.Report.Timings.Count == 2, "FACM host failure report lost timing diagnostics.");
                 Require(!host.Report.Timings[1].Succeeded, "FACM host failure timing was marked successful.");
             }
