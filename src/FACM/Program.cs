@@ -163,8 +163,12 @@ namespace FACM
                 };
 
                 var settings = new SettingsModule();
-                var shell = new ShellModule(startCleanup, settings);
-                using (var host = CreateHost(settings, shell))
+                var tools = new ToolsModule();
+                var online = new OnlineModule();
+                var pets = new PetsModule();
+                var mayhem = new MayhemModule();
+                var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem);
+                using (var host = CreateHost(settings, tools, online, pets, mayhem, shell))
                 {
                     try
                     {
@@ -207,11 +211,21 @@ namespace FACM
             }
         }
 
-        private static FacmHost CreateHost(SettingsModule settings, ShellModule shell)
+        private static FacmHost CreateHost(
+            SettingsModule settings,
+            ToolsModule tools,
+            OnlineModule online,
+            PetsModule pets,
+            MayhemModule mayhem,
+            ShellModule shell)
         {
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
             host.Register(settings);
+            host.Register(tools);
+            host.Register(online);
+            host.Register(pets);
+            host.Register(mayhem);
             host.Register(shell);
             return host;
         }
