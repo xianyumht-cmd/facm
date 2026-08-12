@@ -162,7 +162,8 @@ namespace FACM
                     AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
                 };
 
-                using (var host = CreateHost())
+                var shell = new ShellModule(startCleanup);
+                using (var host = CreateHost(shell))
                 {
                     try
                     {
@@ -180,9 +181,16 @@ namespace FACM
                         return;
                     }
 
+                    var mainForm = shell.MainForm;
+                    if (mainForm == null)
+                    {
+                        AppLog.Error("FACM shell module initialized without a MainForm", null);
+                        Environment.ExitCode = 3;
+                        return;
+                    }
+
                     AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + ElevationService.IsAdministrator);
 
-                    var mainForm = new MainForm(startCleanup);
                     SingleInstanceActivation activation = null;
                     try
                     {
@@ -198,10 +206,11 @@ namespace FACM
             }
         }
 
-        private static FacmHost CreateHost()
+        private static FacmHost CreateHost(ShellModule shell)
         {
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
+            host.Register(shell);
             return host;
         }
 
