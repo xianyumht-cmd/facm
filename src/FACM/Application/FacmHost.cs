@@ -79,9 +79,11 @@ namespace FACM.AppHost
             if (_initialized) throw new InvalidOperationException("FACM host is already initialized.");
             if (module == null) throw new ArgumentNullException(nameof(module));
             if (string.IsNullOrWhiteSpace(module.Id))
-                throw new ArgumentException("FACM module ID cannot be empty.", nameof(module));
+                throw LogAndReturn("FACM module registration failed", new ArgumentException("FACM module ID cannot be empty.", nameof(module)));
             if (_modules.ContainsKey(module.Id))
-                throw new InvalidOperationException("Duplicate FACM module ID: " + module.Id);
+                throw LogAndReturn(
+                    "FACM module registration failed: " + module.Id,
+                    new InvalidOperationException("Duplicate FACM module ID: " + module.Id));
 
             _modules.Add(module.Id, module);
             _registrationOrder.Add(module.Id);
@@ -92,7 +94,17 @@ namespace FACM.AppHost
             ThrowIfDisposed();
             if (_initialized) throw new InvalidOperationException("FACM host is already initialized.");
 
-            var order = ResolveInitializationOrder();
+            IReadOnlyList<string> order;
+            try
+            {
+                order = ResolveInitializationOrder();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("FACM module graph validation failed", exception);
+                throw;
+            }
+
             var total = Stopwatch.StartNew();
             _timings.Clear();
             _initializedModules.Clear();
@@ -244,6 +256,13 @@ namespace FACM.AppHost
                     "FACM slowest module: " + _report.SlowestModuleId +
                     " (" + _report.SlowestModuleDurationMilliseconds + "ms)");
             }
+        }
+
+        private static TException LogAndReturn<TException>(string message, TException exception)
+            where TException : Exception
+        {
+            AppLog.Error(message, exception);
+            return exception;
         }
 
         private void ThrowIfDisposed()
