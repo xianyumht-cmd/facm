@@ -23,6 +23,7 @@ namespace FACM.Pets
                 ValidateVisibleCatalog();
                 ValidateHighDetailGreenFly();
                 ValidateFlyingProfilesAndHeading();
+                ValidateFlyingPolishProfiles();
 
                 var signatures = new HashSet<int>();
                 var spriteCount = 0;
@@ -197,6 +198,43 @@ namespace FACM.Pets
             AssertNear(SpritePetWindow.HeadingDegreesForVector(0f, -1f), 270f, "up heading");
             AssertNear(SpritePetWindow.ShortestAngleDelta(350f, 10f), 20f, "wrap-positive turn");
             AssertNear(SpritePetWindow.ShortestAngleDelta(10f, 350f), -20f, "wrap-negative turn");
+        }
+
+        private static void ValidateFlyingPolishProfiles()
+        {
+            var bee = FlyingPetProfiles.Get(FlyingPetProfiles.Bee);
+            var dragonfly = FlyingPetProfiles.Get(FlyingPetProfiles.Dragonfly);
+            var butterfly = FlyingPetProfiles.Get(FlyingPetProfiles.Butterfly);
+            var moth = FlyingPetProfiles.Get(FlyingPetProfiles.Moth);
+
+            if (bee.IdleChance < 0.15 || bee.VelocityResponse >= 5.0f)
+                throw new InvalidOperationException("Bee profile lost its hover/gentle-response character.");
+            if (dragonfly.MinBaseSpeed < 110f || dragonfly.MaxBaseSpeed < 190f ||
+                dragonfly.JitterXAmplitude > 1.0f || dragonfly.JitterYAmplitude > 1.0f ||
+                dragonfly.MoveMinSeconds < 2.0)
+                throw new InvalidOperationException("Dragonfly profile no longer reads as long straight high-speed dashes.");
+            if (butterfly.MaxBaseSpeed > 42f || butterfly.HeadingResponse > 2.8f ||
+                butterfly.JitterYAmplitude < 12f || butterfly.MoveMinSeconds < 2.5)
+                throw new InvalidOperationException("Butterfly profile lost its slow floating arc character.");
+            if (moth.MoveMaxSeconds > 1.7 || moth.HeadingResponse < 8f ||
+                Math.Abs(moth.JitterXFrequency - moth.JitterYFrequency) > 0.001f ||
+                Math.Abs(moth.JitterXAmplitude - moth.JitterYAmplitude) > 0.001f)
+                throw new InvalidOperationException("Moth profile lost its short looping wander character.");
+
+            using (var beeSheet = BuiltInFlyingPetArtService.TryCreate(BuiltInFlyingPetArtService.BeeUrl))
+            using (var dragonflySheet = BuiltInFlyingPetArtService.TryCreate(BuiltInFlyingPetArtService.DragonflyUrl))
+            using (var butterflySheet = BuiltInFlyingPetArtService.TryCreate(BuiltInFlyingPetArtService.ButterflyUrl))
+            using (var mothSheet = BuiltInFlyingPetArtService.TryCreate(BuiltInFlyingPetArtService.MothUrl))
+            {
+                if (beeSheet == null || beeSheet.Height != BuiltInFlyingPetArtService.BeeFrameSize)
+                    throw new InvalidOperationException("Bee polished source size is invalid.");
+                if (dragonflySheet == null || dragonflySheet.Height != BuiltInFlyingPetArtService.DragonflyFrameSize)
+                    throw new InvalidOperationException("Dragonfly polished source size is invalid.");
+                if (butterflySheet == null || butterflySheet.Height != BuiltInFlyingPetArtService.ButterflyFrameSize)
+                    throw new InvalidOperationException("Butterfly polished source size is invalid.");
+                if (mothSheet == null || mothSheet.Height != BuiltInFlyingPetArtService.MothFrameSize)
+                    throw new InvalidOperationException("Moth polished source size is invalid.");
+            }
         }
 
         private static void AssertNear(float actual, float expected, string label)
