@@ -16,8 +16,8 @@ namespace FACM
     internal sealed class MainForm : Form
     {
         private const int BallSize = 56;
-        private readonly AppSettings _settings = AppSettings.Load();
-        private readonly UiTextCatalog _ui = UiTextCatalog.Load();
+        private readonly AppSettings _settings;
+        private readonly UiTextCatalog _ui;
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private readonly LayeredFloatingBall _layeredBall;
@@ -37,8 +37,10 @@ namespace FACM
         private Point _dragCursor;
         private Point _dragWindow;
 
-        public MainForm(bool startCleanup = false)
+        public MainForm(AppSettings settings, UiTextCatalog ui, bool startCleanup = false)
         {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _startCleanup = startCleanup;
             _appIcon = BrandIcon.Create();
 
