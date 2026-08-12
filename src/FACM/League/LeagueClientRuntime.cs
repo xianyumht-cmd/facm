@@ -353,7 +353,6 @@ namespace FACM.League
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
                     "Basic",
                     LeagueClientSessionParser.CreateBasicAuthorizationParameter(session));
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM/3.2");
 
                 _clientSession = session;
                 _client = client;

@@ -292,7 +292,7 @@ namespace FACM.Mayhem
             using (var border = new Pen(Color.FromArgb(90, accent), 1F))
             {
                 g.FillPath(fill, path);
-                g.DrawPath(pen: border, path: path);
+                g.DrawPath(border, path);
             }
             using (var labelFont = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
             using (var valueFont = new Font("Segoe UI", 28F, FontStyle.Bold, GraphicsUnit.Pixel))
