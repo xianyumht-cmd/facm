@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修均已完成 Windows 实机验收并进入 main。Issue #49 / PR #50 的发布状态写入修复也已完成并进入 main；Issue #51 / PR #52 的产品化桌宠选择器已通过 Build #790 Windows 实机验收，正在按流程收口合并。
+> 2026-08-13：FACM 3.1.3 仍是当前正式版；PR #44 高清绿苍蝇、PR #46 Flying Runtime、PR #48 Flying Runtime 二次精修、PR #52 产品化桌宠选择器均已完成 Windows 实机验收并进入 main。Issue #49 / PR #50 的发布状态写入修复也已完成。当前没有新的正式发布动作。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -61,6 +61,18 @@
 - `--animal-pet-test` 继续锁定绿苍蝇原轨迹参数、360° 朝向、四种精修 Profile 性格约束和各自源帧尺寸。
 - PR #48 已合并到 main，但**未触发正式发布**；FACM 3.1.3 继续作为线上正式版。
 
+### PR #52：产品化桌宠选择器
+
+- Issue #51 / PR #52 已于 2026-08-13 完成 Windows 实机验收，用户反馈“没问题”。
+- PR #52 测试候选 Build #790 完整成功；验收记录提交后的 Build #791 也完整成功。
+- PR #52 合并提交：`eef449652b82519acada4d4bd91aa3876c9fdca9`；Issue #51 已自动关闭为 completed。
+- 本轮未改五种 Flying Runtime 桌宠的速度、VisualScale、FPS、素材或 `SpritePetWindow` 运动算法，也未新增动物。
+- 左侧桌宠列表改为产品化双行卡片：名称 + 简短飞行性格，并对当前正在使用的桌宠显示“当前”标识。
+- 右侧详情区区分“轻量 · 自主飞行”和“高精度 · 独立桌宠”，用普通用户文案说明飞行性格、资源取舍与拖动/自由出屏/复位交互。
+- 当前正在使用的选项会明确显示并禁用重复“应用”，其它项目继续支持单击预览、双击应用和按钮应用。
+- VPet 预览使用用户视角说明动作与首次资源成本；主界面不再暴露 `Flying Runtime / CC0` 等实现术语。
+- `--animal-pet-test` 已增加选择器呈现守卫：6 个可见选项需保持独立性格摘要/行为文案，轻量飞虫与 VPet 的运行层标签必须正确。
+
 ## Issue #49 / PR #50：发布状态写入已修复
 
 - 根因：正式发布工作流最终步骤曾整份重建 `docs/PROJECT_STATE.md`，并硬编码历史 `Build #495 / Issue #28 / 3.1.0`；3.1.3 发布时实际发生过状态文档被旧内容覆盖，但二进制、Release 和在线 manifest 本身未受影响。
@@ -70,15 +82,8 @@
 - PR #50 HEAD `ebb518c9d14071278398d46acfae71b9b77b88f6` 的 FACM Windows Build #787 完整成功；PR #50 合并提交 `56f2ac14b1b405852e6b919584529c7e0b0166a8`，Issue #49 已关闭 completed。
 - 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，本维护任务没有触发或改写正式发布。
 
-## Issue #51 / PR #52：产品化桌宠选择器
+## 当前状态与下一步
 
-- 分支：`ui/pet-picker-product-0813`，从 Issue #49 收口后的 main `3721b03779c6a2a3512971734e9d30bd89039930` 创建。
-- 本轮不改五种 Flying Runtime 桌宠已经实机验收通过的速度、VisualScale、FPS、素材或 `SpritePetWindow` 运动算法，也不新增动物。
-- 左侧桌宠列表改为产品化双行卡片：名称 + 简短飞行性格，并对当前正在使用的桌宠显示“当前”标识。
-- 右侧详情区区分“轻量 · 自主飞行”和“高精度 · 独立桌宠”，用普通用户文案说明飞行性格、资源取舍与拖动/自由出屏/复位交互，不再把 `Flying Runtime / CC0` 等实现术语作为主界面说明。
-- 当前正在使用的选项会明确显示并禁用重复“应用”，其它项目仍支持单击预览、双击应用和按钮应用。
-- VPet 预览文案改成用户视角：动作更丰富、首次启用资源更多，不伪装成轻量自主飞行桌宠。
-- `--animal-pet-test` 新增选择器呈现守卫：6 个可见选项必须有互不相同的性格摘要/行为文案，轻量飞虫和 VPet 的运行层标签必须正确，主文案不得重新泄漏 `Runtime/CC0` 调试术语。
-- PR #52 HEAD `f5d183710c2356e793a46bfd9e1b8208035edd6f` 的 FACM Windows Build #790 完整成功，artifact `FACM-Windows-x64-790`；2026-08-13 用户完成 Windows 实机测试并反馈“没问题”。
-- 实机验收结论：选择器展示、当前状态、应用/双击交互与现有飞虫行为均可接受；本轮不再追加产品行为改动。
-- 下一步：等待本次验收记录提交的普通 CI 通过后合并 PR #52，Issue #51 随 PR 自动关闭；不触发正式发布，FACM 3.1.3 继续作为线上正式版。
+- PR #52 已完成实机验收并进入 main；第三轮飞行桌宠选择器任务已关闭。
+- 合并后再次核对 `online/version.json`：仍为 FACM 3.1.3、`enabled=true`、`minimum_version=3.0.0`、`force_update=false`，没有触发正式发布。
+- 当前没有必须继续修复的桌宠阻塞项；下一步可从最新 main 重新选择新的高收益任务，而不是为了继续迭代而强行改已验收稳定的 Flying Runtime。
