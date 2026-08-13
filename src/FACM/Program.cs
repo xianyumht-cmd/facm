@@ -34,23 +34,10 @@ namespace FACM
             var performanceContractTest = HasArgument(args, "--performance-contract-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
-                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest ||
-                           performanceContractTest;
-            var instanceMutex = ResolveMutexName(
-                startCleanup,
-                petCatalogTest,
-                animalPetTest,
-                mayhemSourceTest,
-                mayhemBodyCancellationTest,
-                tencentMayhemPatchTest,
-                aramBaseBalanceTest,
-                floatingBallTest,
-                petLocatorTest,
-                embeddedPetHostTest,
-                gameLocatorTest,
-                singleInstanceActivationTest,
-                facmHostTest,
-                performanceContractTest);
+                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest || performanceContractTest;
+            var instanceMutex = ResolveMutexName(startCleanup, petCatalogTest, animalPetTest, mayhemSourceTest,
+                mayhemBodyCancellationTest, tencentMayhemPatchTest, aramBaseBalanceTest, floatingBallTest,
+                petLocatorTest, embeddedPetHostTest, gameLocatorTest, singleInstanceActivationTest, facmHostTest, performanceContractTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -62,101 +49,32 @@ namespace FACM
                         Environment.ExitCode = 0;
                         return;
                     }
-
-                    if (!testMode)
-                        MessageBox.Show(Ui("FACM 已经在运行。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (!testMode) MessageBox.Show(Ui("FACM 已经在运行。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
                     return;
                 }
 
-                if (facmHostTest)
-                {
-                    Environment.ExitCode = FacmHostSmokeTest.Run();
-                    return;
-                }
-                if (performanceContractTest)
-                {
-                    Environment.ExitCode = PerformanceContractSmokeTest.Run();
-                    return;
-                }
-                if (singleInstanceActivationTest)
-                {
-                    Environment.ExitCode = SingleInstanceActivation.RunSmokeTest();
-                    return;
-                }
-                if (mayhemBodyCancellationTest)
-                {
-                    Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run();
-                    return;
-                }
-                if (tencentMayhemPatchTest)
-                {
-                    Environment.ExitCode = TencentMayhemPatchSmokeTest.Run();
-                    return;
-                }
-                if (aramBaseBalanceTest)
-                {
-                    Environment.ExitCode = OpggAramBaseBalanceSmokeTest.Run();
-                    return;
-                }
-                if (gameLocatorTest)
-                {
-                    Environment.ExitCode = GameLocatorSmokeTest.Run();
-                    return;
-                }
-                if (embeddedPetHostTest)
-                {
-                    Environment.ExitCode = EmbeddedPetHostSmokeTest.Run();
-                    return;
-                }
-                if (petCatalogTest)
-                {
-                    Environment.ExitCode = RunPetCatalogTest();
-                    return;
-                }
-                if (animalPetTest)
-                {
-                    Environment.ExitCode = AnimalPetSmokeTest.Run();
-                    return;
-                }
-                if (mayhemSourceTest)
-                {
-                    Environment.ExitCode = MayhemSourceSmokeTest.Run();
-                    return;
-                }
-                if (floatingBallTest)
-                {
-                    Environment.ExitCode = FloatingBallSmokeTest.Run();
-                    return;
-                }
-                if (petLocatorTest)
-                {
-                    Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run();
-                    return;
-                }
+                if (facmHostTest) { Environment.ExitCode = FacmHostSmokeTest.Run(); return; }
+                if (performanceContractTest) { Environment.ExitCode = PerformanceContractSmokeTest.Run(); return; }
+                if (singleInstanceActivationTest) { Environment.ExitCode = SingleInstanceActivation.RunSmokeTest(); return; }
+                if (mayhemBodyCancellationTest) { Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run(); return; }
+                if (tencentMayhemPatchTest) { Environment.ExitCode = TencentMayhemPatchSmokeTest.Run(); return; }
+                if (aramBaseBalanceTest) { Environment.ExitCode = OpggAramBaseBalanceSmokeTest.Run(); return; }
+                if (gameLocatorTest) { Environment.ExitCode = GameLocatorSmokeTest.Run(); return; }
+                if (embeddedPetHostTest) { Environment.ExitCode = EmbeddedPetHostSmokeTest.Run(); return; }
+                if (petCatalogTest) { Environment.ExitCode = RunPetCatalogTest(); return; }
+                if (animalPetTest) { Environment.ExitCode = AnimalPetSmokeTest.Run(); return; }
+                if (mayhemSourceTest) { Environment.ExitCode = MayhemSourceSmokeTest.Run(); return; }
+                if (floatingBallTest) { Environment.ExitCode = FloatingBallSmokeTest.Run(); return; }
+                if (petLocatorTest) { Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run(); return; }
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-
-                try
-                {
-                    // Only create the tiny writable runtime skeleton before the message loop starts.
-                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
-                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
-                    // never make the application look like it failed to launch.
-                    RuntimePaths.Initialize();
-                }
+                try { RuntimePaths.Initialize(); }
                 catch (Exception exception)
                 {
                     AppLog.Error("FACM startup preparation failed", exception);
-                    MessageBox.Show(
-                        Ui(
-                            "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
-                            "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
-                            exception.Message),
-                        Ui("FACM 启动失败"),
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
+                    MessageBox.Show(Ui("无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" + exception.Message), Ui("FACM 启动失败"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Environment.ExitCode = 3;
                     return;
                 }
@@ -166,10 +84,7 @@ namespace FACM
                     AppLog.Error("UI thread exception", eventArgs.Exception);
                     MessageBox.Show(Ui("程序遇到错误，详情已写入日志。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
-                AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
-                {
-                    AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
-                };
+                AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) => AppLog.Error("Unhandled exception", eventArgs.ExceptionObject as Exception);
 
                 var settings = new SettingsModule();
                 var tools = new ToolsModule();
@@ -177,23 +92,18 @@ namespace FACM
                 var pets = new PetsModule();
                 var performance = new PerformanceModule();
                 var leagueClient = new LeagueClientModule();
+                var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
-                var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, mayhem, cleanup, shell))
+                var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, mayhem, cleanup);
+
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, mayhem, cleanup, shell))
                 {
-                    try
-                    {
-                        host.Initialize();
-                    }
+                    try { host.Initialize(); }
                     catch (Exception exception)
                     {
                         AppLog.Error("FACM host startup failed", exception);
-                        MessageBox.Show(
-                            Ui("FACM 应用模块初始化失败，详情已写入日志。\r\n\r\n" + exception.Message),
-                            Ui("FACM 启动失败"),
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error);
+                        MessageBox.Show(Ui("FACM 应用模块初始化失败，详情已写入日志。\r\n\r\n" + exception.Message), Ui("FACM 启动失败"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         Environment.ExitCode = 3;
                         return;
                     }
@@ -205,34 +115,22 @@ namespace FACM
                         Environment.ExitCode = 3;
                         return;
                     }
-
                     AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + cleanup.IsAdministrator);
 
                     SingleInstanceActivation activation = null;
                     try
                     {
-                        if (!startCleanup)
-                            activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
+                        if (!startCleanup) activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
                         Application.Run(mainForm);
                     }
-                    finally
-                    {
-                        if (activation != null) activation.Dispose();
-                    }
+                    finally { if (activation != null) activation.Dispose(); }
                 }
             }
         }
 
-        private static FacmHost CreateHost(
-            SettingsModule settings,
-            ToolsModule tools,
-            OnlineModule online,
-            PetsModule pets,
-            PerformanceModule performance,
-            LeagueClientModule leagueClient,
-            MayhemModule mayhem,
-            CleanupModule cleanup,
-            ShellModule shell)
+        private static FacmHost CreateHost(SettingsModule settings, ToolsModule tools, OnlineModule online, PetsModule pets,
+            PerformanceModule performance, LeagueClientModule leagueClient, LeagueDashboardModule leagueDashboard,
+            MayhemModule mayhem, CleanupModule cleanup, ShellModule shell)
         {
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
@@ -242,27 +140,17 @@ namespace FACM
             host.Register(pets);
             host.Register(performance);
             host.Register(leagueClient);
+            host.Register(leagueDashboard);
             host.Register(mayhem);
             host.Register(cleanup);
             host.Register(shell);
             return host;
         }
 
-        private static string ResolveMutexName(
-            bool startCleanup,
-            bool petCatalogTest,
-            bool animalPetTest,
-            bool mayhemSourceTest,
-            bool mayhemBodyCancellationTest,
-            bool tencentMayhemPatchTest,
-            bool aramBaseBalanceTest,
-            bool floatingBallTest,
-            bool petLocatorTest,
-            bool embeddedPetHostTest,
-            bool gameLocatorTest,
-            bool singleInstanceActivationTest,
-            bool facmHostTest,
-            bool performanceContractTest)
+        private static string ResolveMutexName(bool startCleanup, bool petCatalogTest, bool animalPetTest, bool mayhemSourceTest,
+            bool mayhemBodyCancellationTest, bool tencentMayhemPatchTest, bool aramBaseBalanceTest, bool floatingBallTest,
+            bool petLocatorTest, bool embeddedPetHostTest, bool gameLocatorTest, bool singleInstanceActivationTest,
+            bool facmHostTest, bool performanceContractTest)
         {
             if (facmHostTest) return MutexName + "-FacmHostTest";
             if (performanceContractTest) return MutexName + "-PerformanceContractTest";
@@ -282,28 +170,14 @@ namespace FACM
 
         private static int RunPetCatalogTest()
         {
-            try
-            {
-                PetCatalogSmokeTest.Validate();
-                return 0;
-            }
-            catch (Exception exception)
-            {
-                Console.Error.WriteLine(exception);
-                return 4;
-            }
+            try { PetCatalogSmokeTest.Validate(); return 0; }
+            catch (Exception exception) { Console.Error.WriteLine(exception); return 4; }
         }
 
         private static string Ui(string text)
         {
-            try
-            {
-                return UiTextCatalog.Load().Translate(text);
-            }
-            catch
-            {
-                return text ?? string.Empty;
-            }
+            try { return UiTextCatalog.Load().Translate(text); }
+            catch { return text ?? string.Empty; }
         }
 
         private static bool HasArgument(string[] args, string value)
