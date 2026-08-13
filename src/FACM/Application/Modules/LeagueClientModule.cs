@@ -16,7 +16,7 @@ namespace FACM.AppHost.Modules
         private LeagueClientApiClient _api;
 
         public LeagueClientModule()
-            : this(new ProcessLockfileLeagueClientSessionDiscovery())
+            : this(new ResilientLeagueClientSessionDiscovery())
         {
         }
 
