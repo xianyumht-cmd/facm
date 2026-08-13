@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.AppHost.Modules;
 using FACM.Mayhem;
+using FACM.Performance;
 using FACM.Pets;
 using FACM.Services;
 
@@ -30,9 +31,11 @@ namespace FACM
             var gameLocatorTest = HasArgument(args, "--game-locator-test");
             var singleInstanceActivationTest = HasArgument(args, "--single-instance-activation-test");
             var facmHostTest = HasArgument(args, "--facm-host-test");
+            var performanceContractTest = HasArgument(args, "--performance-contract-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
-                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest;
+                           embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest ||
+                           performanceContractTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -46,7 +49,8 @@ namespace FACM
                 embeddedPetHostTest,
                 gameLocatorTest,
                 singleInstanceActivationTest,
-                facmHostTest);
+                facmHostTest,
+                performanceContractTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -68,6 +72,11 @@ namespace FACM
                 if (facmHostTest)
                 {
                     Environment.ExitCode = FacmHostSmokeTest.Run();
+                    return;
+                }
+                if (performanceContractTest)
+                {
+                    Environment.ExitCode = PerformanceContractSmokeTest.Run();
                     return;
                 }
                 if (singleInstanceActivationTest)
@@ -131,10 +140,6 @@ namespace FACM
 
                 try
                 {
-                    // Only create the tiny writable runtime skeleton before the message loop starts.
-                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
-                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
-                    // never make the application look like it failed to launch.
                     RuntimePaths.Initialize();
                 }
                 catch (Exception exception)
@@ -166,11 +171,12 @@ namespace FACM
                 var tools = new ToolsModule();
                 var online = new OnlineModule();
                 var pets = new PetsModule();
+                var performance = new PerformanceModule();
                 var leagueClient = new LeagueClientModule();
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, leagueClient, mayhem, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -218,6 +224,7 @@ namespace FACM
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
+            PerformanceModule performance,
             LeagueClientModule leagueClient,
             MayhemModule mayhem,
             CleanupModule cleanup,
@@ -229,6 +236,7 @@ namespace FACM
             host.Register(tools);
             host.Register(online);
             host.Register(pets);
+            host.Register(performance);
             host.Register(leagueClient);
             host.Register(mayhem);
             host.Register(cleanup);
@@ -249,9 +257,11 @@ namespace FACM
             bool embeddedPetHostTest,
             bool gameLocatorTest,
             bool singleInstanceActivationTest,
-            bool facmHostTest)
+            bool facmHostTest,
+            bool performanceContractTest)
         {
             if (facmHostTest) return MutexName + "-FacmHostTest";
+            if (performanceContractTest) return MutexName + "-PerformanceContractTest";
             if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";
