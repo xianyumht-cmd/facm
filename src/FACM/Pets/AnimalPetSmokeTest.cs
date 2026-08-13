@@ -221,11 +221,26 @@ namespace FACM.Pets
                 realBee.FrameCount != SpritePetAssetService.BuiltInRealBeeFrameCount)
                 throw new InvalidOperationException("Real Bee Gate 1 sprite grid changed unexpectedly.");
             if (realBee.PixelArt || realBee.DirectionalRows)
-                throw new InvalidOperationException("Real Bee Gate 1 must use high-quality continuous rotation rendering.");
+                throw new InvalidOperationException("Real Bee Gate 1 must use high-quality natural-pose rendering.");
             if (Math.Abs(realBee.Speed - 1.00f) > 0.001f || Math.Abs(realBee.VisualScale - 0.55f) > 0.001f)
                 throw new InvalidOperationException("Real Bee Gate 1 visual size or inherited speed changed unexpectedly.");
             if (!string.Equals(realBee.FlyingProfileId, FlyingPetProfiles.Bee, StringComparison.Ordinal))
-                throw new InvalidOperationException("Real Bee Gate 1 must reuse the accepted bee trajectory for visual-only evaluation.");
+                throw new InvalidOperationException("Real Bee Gate 1 must reuse the accepted bee trajectory while pose rendering evolves independently.");
+            if (!SpritePetWindow.UsesNaturalFlightPose(realBee))
+                throw new InvalidOperationException("Real Bee Gate 1 lost its natural flight-pose presentation route.");
+
+            AssertNear(SpritePetWindow.NaturalFlightPitchForVector(100f, 0f), 0f, "real-bee level pitch");
+            var steepDown = SpritePetWindow.NaturalFlightPitchForVector(0f, 100f);
+            var steepUp = SpritePetWindow.NaturalFlightPitchForVector(0f, -100f);
+            if (steepDown < 25f || steepDown > 32.01f || steepUp > -25f || steepUp < -32.01f)
+                throw new InvalidOperationException("Real Bee natural pitch is no longer bounded near horizontal flight attitude.");
+            if (SpritePetWindow.NaturalFlightFacingRightForVector(-100f, 8f, true))
+                throw new InvalidOperationException("Real Bee strong leftward travel no longer mirrors the body left.");
+            if (!SpritePetWindow.NaturalFlightFacingRightForVector(100f, -8f, false))
+                throw new InvalidOperationException("Real Bee strong rightward travel no longer mirrors the body right.");
+            if (!SpritePetWindow.NaturalFlightFacingRightForVector(2f, 100f, true) ||
+                SpritePetWindow.NaturalFlightFacingRightForVector(2f, 100f, false))
+                throw new InvalidOperationException("Real Bee near-vertical travel no longer preserves facing and may chatter between mirrored states.");
 
             using (var sheet = SpritePetAssetService.CreateBuiltInRealBeeSheetForSmokeTest())
             {
@@ -233,17 +248,17 @@ namespace FACM.Pets
                 if (sheet.Width != expectedWidth || sheet.Height != SpritePetAssetService.BuiltInRealBeeFrameSize)
                     throw new InvalidOperationException("Real Bee Gate 1 embedded sheet dimensions are invalid.");
 
-                using (var right = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 0f))
-                using (var down = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 90f))
-                using (var left = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 180f))
-                using (var up = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 270f))
+                using (var right = SpritePetWindow.RenderNaturalFlyingForSmokeTest(realBee, sheet, 0, 0f, true))
+                using (var left = SpritePetWindow.RenderNaturalFlyingForSmokeTest(realBee, sheet, 0, 0f, false))
+                using (var climb = SpritePetWindow.RenderNaturalFlyingForSmokeTest(realBee, sheet, 0, -32f, true))
+                using (var descend = SpritePetWindow.RenderNaturalFlyingForSmokeTest(realBee, sheet, 0, 32f, true))
                 {
                     ValidateTransparentRender(realBee, right);
-                    ValidateTransparentRender(realBee, down);
                     ValidateTransparentRender(realBee, left);
-                    ValidateTransparentRender(realBee, up);
-                    if (Signature(right) == Signature(down) || Signature(right) == Signature(left) || Signature(down) == Signature(up))
-                        throw new InvalidOperationException("Real Bee Gate 1 heading rotations are not visually distinct.");
+                    ValidateTransparentRender(realBee, climb);
+                    ValidateTransparentRender(realBee, descend);
+                    if (Signature(right) == Signature(left) || Signature(right) == Signature(climb) || Signature(climb) == Signature(descend))
+                        throw new InvalidOperationException("Real Bee natural facing/pitch poses are not visually distinct.");
                 }
             }
         }
