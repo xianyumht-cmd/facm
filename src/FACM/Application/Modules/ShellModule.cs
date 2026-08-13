@@ -26,15 +26,7 @@ namespace FACM.AppHost.Modules
         private readonly MayhemModule _mayhem;
         private readonly CleanupModule _cleanup;
 
-        public ShellModule(
-            bool startCleanup,
-            SettingsModule settings,
-            ToolsModule tools,
-            OnlineModule online,
-            PetsModule pets,
-            LeagueDashboardModule leagueDashboard,
-            MayhemModule mayhem,
-            CleanupModule cleanup)
+        public ShellModule(bool startCleanup, SettingsModule settings, ToolsModule tools, OnlineModule online, PetsModule pets, LeagueDashboardModule leagueDashboard, MayhemModule mayhem, CleanupModule cleanup)
         {
             _startCleanup = startCleanup;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -55,17 +47,7 @@ namespace FACM.AppHost.Modules
         {
             if (_settings.Settings == null || _settings.UiText == null)
                 throw new InvalidOperationException("Settings module must initialize before shell.");
-
-            MainForm = new MainForm(
-                _settings.Settings,
-                _settings.UiText,
-                _tools,
-                _online,
-                _pets,
-                _leagueDashboard,
-                _mayhem,
-                _cleanup,
-                _startCleanup);
+            MainForm = new MainForm(_settings.Settings, _settings.UiText, _tools, _online, _pets, _mayhem, _cleanup, _startCleanup);
         }
 
         public void Dispose()
