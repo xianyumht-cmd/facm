@@ -58,9 +58,7 @@ namespace FACM.League
 
             var item = new ToolStripMenuItem(UiTextRuntime.Text(UiTextKeys.LeagueDashboardMenu)) { Name = MenuName };
             item.Click += delegate { Open(owner); };
-            var insertIndex = Math.Min(4, menu.Items.Count);
-            menu.Items.Insert(insertIndex, item);
-            UiTextRuntime.Apply(menu);
+            menu.Items.Insert(Math.Min(4, menu.Items.Count), item);
             _owner = owner;
         }
 
