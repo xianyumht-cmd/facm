@@ -165,7 +165,10 @@ namespace FACM.Performance
                    candidate.DiskIoConcurrency <= ceiling.DiskIoConcurrency &&
                    candidate.BackgroundCpuConcurrency <= ceiling.BackgroundCpuConcurrency &&
                    candidate.MatchHistoryPrefetchCount <= ceiling.MatchHistoryPrefetchCount &&
-                   candidate.NonCriticalPollInterval >= ceiling.NonCriticalPollInterval;
+                   candidate.NonCriticalPollInterval >= ceiling.NonCriticalPollInterval &&
+                   (!candidate.AllowBackgroundPrefetch || ceiling.AllowBackgroundPrefetch) &&
+                   (!candidate.AllowMaintenanceWork || ceiling.AllowMaintenanceWork) &&
+                   (!candidate.AllowVisualEnhancements || ceiling.AllowVisualEnhancements);
         }
     }
 
