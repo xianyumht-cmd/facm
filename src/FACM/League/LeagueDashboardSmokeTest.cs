@@ -29,6 +29,7 @@ namespace FACM
         private static async Task Validate()
         {
             Require(LeagueGameflowActivityMapper.Map(null, false) == LeagueActivityLevel.None, "Disconnected mapping failed.");
+            Require(LeagueGameflowActivityMapper.Map("None", true) == LeagueActivityLevel.Client, "Connected idle mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Lobby", true) == LeagueActivityLevel.Client, "Lobby mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Matchmaking", true) == LeagueActivityLevel.Queueing, "Matchmaking mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("ReadyCheck", true) == LeagueActivityLevel.Queueing, "ReadyCheck mapping failed.");
@@ -53,9 +54,19 @@ namespace FACM
             Require(snapshot.PlatformName == "测试区服", "Platform name parsing failed.");
             Require(api.MaxConcurrent <= budgets.Current.NetworkConcurrency, "Dashboard exceeded current network budget.");
 
+            var fallback = new LeagueDashboardSnapshot();
+            details.ApplyChatMe(fallback, Encoding.UTF8.GetBytes("{\"platformId\":\"TENCENT_TEST\"}"));
+            Require(fallback.PlatformId == "TENCENT_TEST", "Chat platform fallback parsing failed.");
+
             budgets.UpdateLeagueActivity(LeagueActivityLevel.InGame);
             api.ResetConcurrency();
-            var inGamePhase = new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress", Activity = LeagueActivityLevel.InGame, BudgetName = budgets.Current.Name };
+            var inGamePhase = new LeagueDashboardPhaseState
+            {
+                Connected = true,
+                Phase = "InProgress",
+                Activity = LeagueActivityLevel.InGame,
+                BudgetName = budgets.Current.Name
+            };
             await details.LoadAsync(inGamePhase, CancellationToken.None);
             Require(api.MaxConcurrent == 1, "In-game Dashboard details must be sequential.");
 
@@ -104,6 +115,8 @@ namespace FACM
                         return Utf8("{\"gameName\":\"FACM测试\",\"tagLine\":\"CN1\",\"summonerLevel\":88,\"profileIconId\":123}");
                     if (path == LeagueDashboardDetailsService.SessionPath)
                         return Utf8("{\"map\":{\"platformId\":\"HN1\",\"platformName\":\"测试区服\"}}");
+                    if (path == LeagueDashboardDetailsService.ChatMePath)
+                        return Utf8("{\"platformId\":\"HN1\"}");
                     return null;
                 }
                 finally
