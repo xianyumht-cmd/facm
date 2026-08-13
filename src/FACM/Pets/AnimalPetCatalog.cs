@@ -67,6 +67,8 @@ namespace FACM.Pets
                 BuiltInFlyingPetArtService.BeeUrl, "bee_hq_v1.generated",
                 18f, 1.00f, 0.62f, FlyingPetProfiles.Bee),
 
+            RealBeePet(),
+
             FlyingPet(
                 "dragonfly", "蜻蜓", "长距离快速冲刺、急停和快速改向；使用统一 Flying Runtime。",
                 BuiltInFlyingPetArtService.DragonflyUrl, "dragonfly_hq_v1.generated",
@@ -207,6 +209,37 @@ namespace FACM.Pets
                 ShowInPicker = true,
                 ArtworkUrl = spriteUrl,
                 ArtworkFileName = spriteFileName
+            };
+        }
+
+        private static AnimalPetDefinition RealBeePet()
+        {
+            return new AnimalPetDefinition
+            {
+                Id = "real-bee",
+                Name = "真实蜜蜂",
+                Description = "写真级真实蜜蜂：小尺寸、透明翅膀与自然转向，适合更接近实物的桌面风格。",
+                Motion = AnimalMotionStyle.Fly,
+                Runtime = AnimalPetRuntime.Sprite,
+                SpriteUrl = SpritePetAssetService.BuiltInRealBeeUrl,
+                SpriteFileName = "real_bee_gate1_v1.generated",
+                SpriteColumns = SpritePetAssetService.BuiltInRealBeeFrameCount,
+                SpriteRows = 1,
+                AnimationRow = 0,
+                FrameCount = SpritePetAssetService.BuiltInRealBeeFrameCount,
+                FramesPerSecond = 18f,
+                DirectionalRows = false,
+                PixelArt = false,
+                SourcePage = "https://github.com/xianyumht-cmd/facm/issues/68",
+                AssetAuthor = "FACM project / OpenAI generated asset",
+                AssetLicense = "CC0",
+                Speed = 1.00f,
+                VisualScale = 0.55f,
+                // Gate 1 deliberately reuses the accepted bee trajectory. Visual quality is evaluated first.
+                FlyingProfileId = FlyingPetProfiles.Bee,
+                ShowInPicker = true,
+                ArtworkUrl = SpritePetAssetService.BuiltInRealBeeUrl,
+                ArtworkFileName = "real_bee_gate1_v1.generated"
             };
         }
 

@@ -22,6 +22,9 @@ namespace FACM.Pets
         private const byte AcSrcOver = 0x00;
         private const byte AcSrcAlpha = 0x01;
         private const float HeadingRenderStepDegrees = 2f;
+        private const float NaturalFlightMaxPitchDegrees = 32f;
+        private const float NaturalFlightFacingDeadZone = 8f;
+        private const float NaturalFlightVerticalFacingRatio = 0.22f;
 
         private readonly Timer _timer;
         private readonly Random _random = new Random(unchecked(Environment.TickCount * 397));
@@ -162,6 +165,18 @@ namespace FACM.Pets
                 headingDegrees);
         }
 
+        internal static Bitmap RenderNaturalFlyingForSmokeTest(AnimalPetDefinition pet, Bitmap sheet, int frameIndex, float pitchDegrees, bool facingRight)
+        {
+            return RenderPet(
+                pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId),
+                sheet,
+                PetSize,
+                frameIndex,
+                0,
+                facingRight,
+                pitchDegrees);
+        }
+
         internal static int DirectionRowForVector(float vx, float vy)
         {
             if (Math.Abs(vx) < 0.001f && Math.Abs(vy) < 0.001f) return 0;
@@ -184,6 +199,26 @@ namespace FACM.Pets
             if (delta > 180f) delta -= 360f;
             if (delta < -180f) delta += 360f;
             return delta;
+        }
+
+        internal static float NaturalFlightPitchForVector(float vx, float vy)
+        {
+            if (Math.Abs(vx) + Math.Abs(vy) < 0.001f) return 0f;
+            var horizontalReference = Math.Max(Math.Abs(vx), 24f);
+            var degrees = (float)(Math.Atan2(vy, horizontalReference) * 180.0 / Math.PI);
+            return ClampNaturalFlightPitch(degrees);
+        }
+
+        internal static bool NaturalFlightFacingRightForVector(float vx, float vy, bool currentFacingRight)
+        {
+            var threshold = Math.Max(NaturalFlightFacingDeadZone, Math.Abs(vy) * NaturalFlightVerticalFacingRatio);
+            if (Math.Abs(vx) < threshold) return currentFacingRight;
+            return vx >= 0f;
+        }
+
+        internal static bool UsesNaturalFlightPose(AnimalPetDefinition pet)
+        {
+            return pet != null && string.Equals(pet.Id, "real-bee", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task LoadSpriteAsync()
@@ -278,6 +313,8 @@ namespace FACM.Pets
 
         private int CurrentHeadingBucket()
         {
+            if (UsesNaturalFlightPose(_pet))
+                return (int)Math.Round(_headingDegrees / HeadingRenderStepDegrees);
             if (!FlyingPetProfiles.IsManaged(_pet)) return 0;
             return (int)Math.Round(NormalizeDegrees(_headingDegrees) / HeadingRenderStepDegrees);
         }
@@ -354,7 +391,15 @@ namespace FACM.Pets
 
             if (!_headingInitialized)
             {
-                _headingDegrees = HeadingDegreesForVector(_targetVx, _targetVy);
+                if (UsesNaturalFlightPose(_pet))
+                {
+                    _facingRight = NaturalFlightFacingRightForVector(_targetVx, _targetVy, _facingRight);
+                    _headingDegrees = NaturalFlightPitchForVector(_targetVx, _targetVy);
+                }
+                else
+                {
+                    _headingDegrees = HeadingDegreesForVector(_targetVx, _targetVy);
+                }
                 _headingInitialized = true;
             }
         }
@@ -367,7 +412,10 @@ namespace FACM.Pets
                 var blend = 1f - (float)Math.Exp(-profile.VelocityResponse * dt);
                 _vx += (_targetVx - _vx) * blend;
                 _vy += (_targetVy - _vy) * blend;
-                UpdateFlyingHeading(profile, dt);
+                if (UsesNaturalFlightPose(_pet))
+                    UpdateNaturalFlightPose(profile, dt);
+                else
+                    UpdateFlyingHeading(profile, dt);
                 return;
             }
 
@@ -377,6 +425,34 @@ namespace FACM.Pets
             _vx += (_targetVx - _vx) * legacyBlend;
             _vy += (_targetVy - _vy) * legacyBlend;
             if (Math.Abs(_vx) > 2f) _facingRight = _vx >= 0f;
+        }
+
+        private void UpdateNaturalFlightPose(FlyingPetProfile profile, float dt)
+        {
+            var vx = _vx;
+            var vy = _vy;
+            if (Math.Abs(vx) + Math.Abs(vy) < 2f)
+            {
+                vx = _targetVx;
+                vy = _targetVy;
+            }
+            if (Math.Abs(vx) + Math.Abs(vy) < 2f) return;
+
+            _facingRight = NaturalFlightFacingRightForVector(vx, vy, _facingRight);
+            var targetPitch = NaturalFlightPitchForVector(vx, vy);
+            if (!_headingInitialized)
+            {
+                _headingDegrees = targetPitch;
+                _headingInitialized = true;
+                return;
+            }
+
+            // A photo-real insect should not rotate as a rigid 2D card. Keep the visual body close
+            // to horizontal, let velocity change first, then let the body pitch catch up a little later.
+            var poseResponse = Math.Max(2.4f, profile.HeadingResponse * 0.65f);
+            var blend = 1f - (float)Math.Exp(-poseResponse * dt);
+            _headingDegrees += (targetPitch - _headingDegrees) * blend;
+            _headingDegrees = ClampNaturalFlightPitch(_headingDegrees);
         }
 
         private void UpdateFlyingHeading(FlyingPetProfile profile, float dt)
@@ -577,10 +653,19 @@ namespace FACM.Pets
 
                 if (FlyingPetProfiles.IsManaged(pet))
                 {
-                    // All managed flying art uses a right-facing master. Desktop movement owns position,
-                    // while rendering only rotates the body toward the smoothed velocity heading.
                     g.TranslateTransform(size / 2f, size / 2f);
-                    g.RotateTransform(NormalizeDegrees(headingDegrees));
+                    if (UsesNaturalFlightPose(pet))
+                    {
+                        // Photo-real masters already contain perspective. Preserve a believable body plane:
+                        // mirror for left/right travel and only allow a small projected climb/dive pitch.
+                        g.RotateTransform(ClampNaturalFlightPitch(headingDegrees));
+                        if (!facingRight) g.ScaleTransform(-1f, 1f);
+                    }
+                    else
+                    {
+                        // Stylized managed flying art intentionally retains the accepted 360-degree heading model.
+                        g.RotateTransform(NormalizeDegrees(headingDegrees));
+                    }
                     var flyingDestination = new RectangleF(-width / 2f, -height / 2f - 4f, width, height);
                     g.DrawImage(sheet, flyingDestination, source, GraphicsUnit.Pixel);
                 }
@@ -619,6 +704,11 @@ namespace FACM.Pets
             {
                 g.DrawArc(pen, size / 2f - 16f, size / 2f - 16f, 32f, 32f, -70f, 250f);
             }
+        }
+
+        private static float ClampNaturalFlightPitch(float degrees)
+        {
+            return Math.Max(-NaturalFlightMaxPitchDegrees, Math.Min(NaturalFlightMaxPitchDegrees, degrees));
         }
 
         private static float NormalizeDegrees(float degrees)
