@@ -35,14 +35,29 @@
   <ItemGroup>
     <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
     <None Include="Resources\FACM-Canva.png" />
+
+    <!--
+      Gate 1 写真实蜜蜂使用项目自有透明 PNG sprite sheet。资源直接嵌入 FACM.exe，
+      避免桌宠第一次启用时依赖外网下载，也保证 360° 旋转使用同一固定版本资产。
+    -->
     <EmbeddedResource Include="Resources\real_bee_gate1_v1.png"
                       LogicalName="FACM.Resources.RealBeeGate1.png"
                       Type="Non-Resx"
                       WithCulture="false" />
+
+    <!--
+      EmbeddedResource 必须在项目加载阶段进入资源项列表。FACM.ToolBundle
+      会由上面的 ProjectReference 先构建，随后以固定资源名写入 FACM.exe。
+    -->
     <EmbeddedResource Include="$(ToolBundleAssembly)"
                       LogicalName="FACM.Resources.FACM.ToolBundle.dll"
                       Type="Non-Resx"
                       WithCulture="false" />
+
+    <!--
+      正式构建会先 publish/self-test PetHost，再把完整 publish 目录压成 ZIP。
+      ZIP 直接嵌入 FACM.exe，因此旧版单 EXE 更新器升级后也能恢复匹配版本的 PetHost。
+    -->
     <EmbeddedResource Include="$(PetHostBundlePath)"
                       Condition="Exists('$(PetHostBundlePath)')"
                       LogicalName="FACM.Resources.PetHost.zip"
