@@ -16,6 +16,11 @@ namespace FACM.Pets
         internal const int BuiltInGreenFlyFrameSize = 96;
         internal const int BuiltInGreenFlyFrameCount = 4;
 
+        internal const string BuiltInRealBeeUrl = "builtin://facm/real-bee-gate1-v1";
+        internal const int BuiltInRealBeeFrameSize = 128;
+        internal const int BuiltInRealBeeFrameCount = 4;
+        private const string BuiltInRealBeeResourceName = "FACM.Resources.RealBeeGate1.png";
+
         private static readonly HttpClient Client = CreateClient();
         private static readonly string CacheDirectory = Path.Combine(RuntimePaths.RuntimeDirectory, "animal-sprites");
 
@@ -27,6 +32,12 @@ namespace FACM.Pets
             {
                 token.ThrowIfCancellationRequested();
                 return CreateBuiltInGreenFlySheet();
+            }
+
+            if (string.Equals(pet.SpriteUrl, BuiltInRealBeeUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                token.ThrowIfCancellationRequested();
+                return LoadBuiltInRealBeeSheet();
             }
 
             if (BuiltInFlyingPetArtService.IsBuiltIn(pet.SpriteUrl))
@@ -101,6 +112,42 @@ namespace FACM.Pets
         internal static Bitmap CreateBuiltInGreenFlySheetForSmokeTest()
         {
             return CreateBuiltInGreenFlySheet();
+        }
+
+        internal static Bitmap CreateBuiltInRealBeeSheetForSmokeTest()
+        {
+            return LoadBuiltInRealBeeSheet();
+        }
+
+        private static Bitmap LoadBuiltInRealBeeSheet()
+        {
+            using (var stream = typeof(SpritePetAssetService).Assembly.GetManifestResourceStream(BuiltInRealBeeResourceName))
+            {
+                if (stream == null)
+                    throw new InvalidDataException("Embedded Real Bee Gate 1 sprite resource is missing.");
+
+                using (var source = Image.FromStream(stream, true, true))
+                {
+                    var expectedWidth = BuiltInRealBeeFrameSize * BuiltInRealBeeFrameCount;
+                    if (source.Width != expectedWidth || source.Height != BuiltInRealBeeFrameSize)
+                        throw new InvalidDataException("Embedded Real Bee Gate 1 sprite dimensions are invalid.");
+
+                    var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppPArgb);
+                    using (var graphics = Graphics.FromImage(bitmap))
+                    {
+                        graphics.CompositingMode = CompositingMode.SourceCopy;
+                        graphics.DrawImage(
+                            source,
+                            new Rectangle(0, 0, source.Width, source.Height),
+                            0,
+                            0,
+                            source.Width,
+                            source.Height,
+                            GraphicsUnit.Pixel);
+                    }
+                    return bitmap;
+                }
+            }
         }
 
         private static Bitmap CreateBuiltInGreenFlySheet()
