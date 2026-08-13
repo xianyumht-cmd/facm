@@ -56,7 +56,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "五种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。",
+                Text = "六种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。",
                 Location = new Point(28, 60),
                 Size = new Size(660, 26),
                 ForeColor = Color.FromArgb(160, 174, 198)
@@ -456,6 +456,7 @@ namespace FACM.Pets
             {
                 case "greenfly": return "高速急转 · 灵活随机";
                 case "bee": return "巡航悬停 · 转向平稳";
+                case "real-bee": return "写真质感 · 灵活巡航";
                 case "dragonfly": return "高速冲刺 · 长直线";
                 case "butterfly": return "慢速漂浮 · 大曲线";
                 case "moth": return "短距游走 · 小范围绕行";
@@ -471,6 +472,7 @@ namespace FACM.Pets
             {
                 case "greenfly": return "飞行性格：快、急转、几乎不停";
                 case "bee": return "飞行性格：中速巡航，偶尔原地悬停";
+                case "real-bee": return "飞行性格：中速巡航，写真外观更接近实物";
                 case "dragonfly": return "飞行性格：快速长冲刺，短暂停顿后改向";
                 case "butterfly": return "飞行性格：慢速大曲线，上下轻柔漂浮";
                 case "moth": return "飞行性格：短距离频繁改向，偶尔绕小圈";
@@ -486,6 +488,7 @@ namespace FACM.Pets
             {
                 case "greenfly": return "反应最快的小型飞虫，适合喜欢随机、灵活桌面运动的人。";
                 case "bee": return "速度适中，转向柔和，会穿插短暂停悬，整体更安静。";
+                case "real-bee": return "写真级真实蜜蜂，保留自然巡航节奏，更强调透明翅膀、真实材质和小尺寸桌面观感。";
                 case "dragonfly": return "速度最快、方向感最强，常做较长距离的直线飞行。";
                 case "butterfly": return "移动最慢，曲线和上下漂浮更明显，视觉节奏最舒缓。";
                 case "moth": return "活动范围更紧凑，改向频繁，飞行轨迹带一点小范围绕行。";
