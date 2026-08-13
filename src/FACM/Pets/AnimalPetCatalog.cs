@@ -218,7 +218,7 @@ namespace FACM.Pets
             {
                 Id = "real-bee",
                 Name = "真实蜜蜂",
-                Description = "Real Pet Gate 1 写真样板；复用已验收蜜蜂飞行性格，只验证真实素材、透明边缘与小尺寸旋转表现。",
+                Description = "写真级真实蜜蜂：小尺寸、透明翅膀与自然转向，适合更接近实物的桌面风格。",
                 Motion = AnimalMotionStyle.Fly,
                 Runtime = AnimalPetRuntime.Sprite,
                 SpriteUrl = SpritePetAssetService.BuiltInRealBeeUrl,
@@ -237,8 +237,7 @@ namespace FACM.Pets
                 VisualScale = 0.55f,
                 // Gate 1 deliberately reuses the accepted bee trajectory. Visual quality is evaluated first.
                 FlyingProfileId = FlyingPetProfiles.Bee,
-                // Keep the prototype out of the primary picker until its alpha/anchor/rotation gate is proven.
-                ShowInPicker = false,
+                ShowInPicker = true,
                 ArtworkUrl = SpritePetAssetService.BuiltInRealBeeUrl,
                 ArtworkFileName = "real_bee_gate1_v1.generated"
             };

@@ -15,7 +15,7 @@ namespace FACM.Pets
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                if (AnimalPetCatalog.All.Count < 13)
+                if (AnimalPetCatalog.All.Count < 14)
                     throw new InvalidOperationException("Pet catalog is unexpectedly small.");
                 if (AnimalPetCatalog.Get("vpet").Runtime != AnimalPetRuntime.VPetCore)
                     throw new InvalidOperationException("VPet Core runtime is missing from the pet catalog.");
@@ -23,6 +23,7 @@ namespace FACM.Pets
                 ValidateVisibleCatalog();
                 ValidatePickerPresentation();
                 ValidateHighDetailGreenFly();
+                ValidateRealBeeGate();
                 ValidateFlyingProfilesAndHeading();
                 ValidateFlyingPolishProfiles();
 
@@ -81,7 +82,7 @@ namespace FACM.Pets
                     }
                 }
 
-                if (spriteCount < 12)
+                if (spriteCount < 13)
                     throw new InvalidOperationException("Sprite compatibility catalog dropped unexpectedly.");
                 if (signatures.Count < spriteCount * 2 - 2)
                     throw new InvalidOperationException("Animated sprite renders are not visually distinct enough.");
@@ -112,8 +113,8 @@ namespace FACM.Pets
         {
             if (!string.Equals(AnimalPetCatalog.DefaultPetId, "greenfly", StringComparison.Ordinal))
                 throw new InvalidOperationException("Default pet fallback is no longer the accepted lightweight flying baseline.");
-            if (AnimalPetCatalog.Visible.Count != 6)
-                throw new InvalidOperationException("Desktop-pet picker must expose five managed flying pets plus VPet Core.");
+            if (AnimalPetCatalog.Visible.Count != 7)
+                throw new InvalidOperationException("Desktop-pet picker must expose six managed flying pets plus VPet Core.");
 
             var managedCount = 0;
             var vpetCount = 0;
@@ -128,7 +129,7 @@ namespace FACM.Pets
                     throw new InvalidOperationException("Legacy/non-managed Sprite leaked back into the primary picker: " + pet.Id);
                 managedCount++;
             }
-            if (managedCount != 5 || vpetCount != 1)
+            if (managedCount != 6 || vpetCount != 1)
                 throw new InvalidOperationException("Primary picker composition changed unexpectedly.");
 
             if (!AnimalPetCatalog.Contains("spider") || !AnimalPetCatalog.Contains("cat") || !AnimalPetCatalog.Contains("dog"))
@@ -205,6 +206,44 @@ namespace FACM.Pets
                 {
                     if (Signature(right) == Signature(down))
                         throw new InvalidOperationException("Managed flight heading rotation is not affecting the rendered body.");
+                }
+            }
+        }
+
+        private static void ValidateRealBeeGate()
+        {
+            var realBee = AnimalPetCatalog.Get("real-bee");
+            if (realBee.Runtime != AnimalPetRuntime.Sprite || realBee.Motion != AnimalMotionStyle.Fly || !realBee.ShowInPicker)
+                throw new InvalidOperationException("Real Bee Gate 1 is not exposed as a managed flying pet.");
+            if (!string.Equals(realBee.SpriteUrl, SpritePetAssetService.BuiltInRealBeeUrl, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Real Bee Gate 1 lost its embedded photo-real asset route.");
+            if (realBee.SpriteColumns != SpritePetAssetService.BuiltInRealBeeFrameCount || realBee.SpriteRows != 1 ||
+                realBee.FrameCount != SpritePetAssetService.BuiltInRealBeeFrameCount)
+                throw new InvalidOperationException("Real Bee Gate 1 sprite grid changed unexpectedly.");
+            if (realBee.PixelArt || realBee.DirectionalRows)
+                throw new InvalidOperationException("Real Bee Gate 1 must use high-quality continuous rotation rendering.");
+            if (Math.Abs(realBee.Speed - 1.00f) > 0.001f || Math.Abs(realBee.VisualScale - 0.55f) > 0.001f)
+                throw new InvalidOperationException("Real Bee Gate 1 visual size or inherited speed changed unexpectedly.");
+            if (!string.Equals(realBee.FlyingProfileId, FlyingPetProfiles.Bee, StringComparison.Ordinal))
+                throw new InvalidOperationException("Real Bee Gate 1 must reuse the accepted bee trajectory for visual-only evaluation.");
+
+            using (var sheet = SpritePetAssetService.CreateBuiltInRealBeeSheetForSmokeTest())
+            {
+                var expectedWidth = SpritePetAssetService.BuiltInRealBeeFrameSize * SpritePetAssetService.BuiltInRealBeeFrameCount;
+                if (sheet.Width != expectedWidth || sheet.Height != SpritePetAssetService.BuiltInRealBeeFrameSize)
+                    throw new InvalidOperationException("Real Bee Gate 1 embedded sheet dimensions are invalid.");
+
+                using (var right = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 0f))
+                using (var down = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 90f))
+                using (var left = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 180f))
+                using (var up = SpritePetWindow.RenderFlyingForSmokeTest(realBee, sheet, 0, 270f))
+                {
+                    ValidateTransparentRender(realBee, right);
+                    ValidateTransparentRender(realBee, down);
+                    ValidateTransparentRender(realBee, left);
+                    ValidateTransparentRender(realBee, up);
+                    if (Signature(right) == Signature(down) || Signature(right) == Signature(left) || Signature(down) == Signature(up))
+                        throw new InvalidOperationException("Real Bee Gate 1 heading rotations are not visually distinct.");
                 }
             }
         }
