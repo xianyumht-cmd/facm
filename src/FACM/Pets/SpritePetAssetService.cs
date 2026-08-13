@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
@@ -145,8 +146,113 @@ namespace FACM.Pets
                             source.Height,
                             GraphicsUnit.Pixel);
                     }
-                    return bitmap;
+
+                    try
+                    {
+                        ValidateBuiltInRealBeeSheet(bitmap);
+                        return bitmap;
+                    }
+                    catch
+                    {
+                        bitmap.Dispose();
+                        throw;
+                    }
                 }
+            }
+        }
+
+        private static void ValidateBuiltInRealBeeSheet(Bitmap sheet)
+        {
+            if (sheet == null)
+                throw new InvalidDataException("Real Bee Gate 1 sprite sheet is null.");
+
+            var expectedWidth = BuiltInRealBeeFrameSize * BuiltInRealBeeFrameCount;
+            if (sheet.Width != expectedWidth || sheet.Height != BuiltInRealBeeFrameSize)
+                throw new InvalidDataException("Real Bee Gate 1 sprite sheet dimensions changed unexpectedly.");
+
+            var rectangle = new Rectangle(0, 0, sheet.Width, sheet.Height);
+            var data = sheet.LockBits(rectangle, ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
+            try
+            {
+                var stride = Math.Abs(data.Stride);
+                var pixels = new byte[stride * sheet.Height];
+                Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+
+                double baselineX = 0d;
+                double baselineY = 0d;
+                for (var frame = 0; frame < BuiltInRealBeeFrameCount; frame++)
+                {
+                    var minX = BuiltInRealBeeFrameSize;
+                    var minY = BuiltInRealBeeFrameSize;
+                    var maxX = -1;
+                    var maxY = -1;
+                    var visiblePixels = 0;
+                    long coreX = 0L;
+                    long coreY = 0L;
+                    var corePixels = 0;
+
+                    for (var y = 0; y < BuiltInRealBeeFrameSize; y++)
+                    {
+                        var row = data.Stride >= 0 ? y * stride : (sheet.Height - 1 - y) * stride;
+                        for (var x = 0; x < BuiltInRealBeeFrameSize; x++)
+                        {
+                            var sheetX = frame * BuiltInRealBeeFrameSize + x;
+                            var index = row + sheetX * 4;
+                            var blue = pixels[index];
+                            var green = pixels[index + 1];
+                            var red = pixels[index + 2];
+                            var alpha = pixels[index + 3];
+
+                            if (alpha > 10)
+                            {
+                                visiblePixels++;
+                                if (x < minX) minX = x;
+                                if (y < minY) minY = y;
+                                if (x > maxX) maxX = x;
+                                if (y > maxY) maxY = y;
+                            }
+
+                            // The warm, mostly-opaque thorax/abdomen is the stable body anchor. Wings are
+                            // intentionally excluded so high-frequency wing poses cannot move the pet's body.
+                            if (alpha > 160 && red > 60 && red > blue + 8 && green > blue)
+                            {
+                                coreX += x;
+                                coreY += y;
+                                corePixels++;
+                            }
+                        }
+                    }
+
+                    if (visiblePixels < 1200 || corePixels < 450 || maxX < minX || maxY < minY)
+                        throw new InvalidDataException("Real Bee Gate 1 frame is empty or lost its body core: frame=" + frame + ".");
+
+                    const int minimumRotationMargin = 12;
+                    if (minX < minimumRotationMargin || minY < minimumRotationMargin ||
+                        BuiltInRealBeeFrameSize - 1 - maxX < minimumRotationMargin ||
+                        BuiltInRealBeeFrameSize - 1 - maxY < minimumRotationMargin)
+                    {
+                        throw new InvalidDataException("Real Bee Gate 1 frame no longer has safe 360-degree rotation margins: frame=" + frame + ".");
+                    }
+
+                    var anchorX = coreX / (double)corePixels;
+                    var anchorY = coreY / (double)corePixels;
+                    if (frame == 0)
+                    {
+                        baselineX = anchorX;
+                        baselineY = anchorY;
+                    }
+                    else
+                    {
+                        var dx = anchorX - baselineX;
+                        var dy = anchorY - baselineY;
+                        if (Math.Sqrt(dx * dx + dy * dy) > 4d)
+                            throw new InvalidDataException("Real Bee Gate 1 body anchor drifted between wing frames: frame=" + frame + ".");
+                    }
+                }
+            }
+            finally
+            {
+                sheet.UnlockBits(data);
             }
         }
 
