@@ -32,27 +32,27 @@ namespace FACM.Theming
                 Renderer = new ToolStripProfessionalRenderer(new ThemeMenuColorTable())
             };
 
-            var panelTheme = CreateItem("面板外观…", menu.ForeColor);
+            var panelTheme = CreateItem(UiTextRuntime.Text(UiTextKeys.ThemePanelAppearance), menu.ForeColor);
             panelTheme.Click += delegate
             {
                 AppLog.Info("Theme menu action: panel appearance");
                 PostOwnerAction(owner, owner.OpenPanelThemeSelector);
             };
 
-            var desktop = CreateItem("桌面形态", menu.ForeColor);
-            var shell = CreateItem("FACM 悬浮入口", menu.ForeColor);
+            var desktop = CreateItem(UiTextRuntime.Text(UiTextKeys.ThemeDesktopMode), menu.ForeColor);
+            var shell = CreateItem(UiTextRuntime.Text(UiTextKeys.ThemeFacmShell), menu.ForeColor);
             shell.Click += delegate
             {
                 AppLog.Info("Theme menu action: FACM shell");
                 PostOwnerAction(owner, owner.RestoreDefaultBall);
             };
-            var pet = CreateItem("选择桌面宠物…", menu.ForeColor);
+            var pet = CreateItem(UiTextRuntime.Text(UiTextKeys.ThemeSelectDesktopPet), menu.ForeColor);
             pet.Click += delegate
             {
                 AppLog.Info("Theme menu action: desktop pet picker");
                 PostOwnerAction(owner, owner.OpenPetSelector);
             };
-            var reset = CreateItem("复位桌面位置", menu.ForeColor);
+            var reset = CreateItem(UiTextRuntime.Text(UiTextKeys.ThemeResetDesktopPosition), menu.ForeColor);
             reset.Click += delegate
             {
                 AppLog.Info("Theme menu action: reset desktop position");
@@ -96,6 +96,10 @@ namespace FACM.Theming
                     // Owner is shutting down; the application teardown will release remaining handles.
                 }
             };
+
+            // Apply legacy [Replace] rules too. The stable [Text] values above are the primary path;
+            // this explicit pass keeps older user configurations working for this ephemeral popup.
+            UiTextRuntime.Apply(menu);
             menu.Show(screenLocation);
         }
 

@@ -16,43 +16,143 @@ namespace FACM.Services
 
         private static readonly KeyValuePair<string, string>[] DefaultText =
         {
-            Pair("AppName", "FACM"),
-            Pair("ControlCenter", "控制中心"),
-            Pair("Cleanup", "清理环境"),
-            Pair("ToolGroup", "快捷工具"),
-            Pair("ToolA", "工具 A"),
-            Pair("Mode1", "模式 1"),
-            Pair("Mode2", "模式 2"),
-            Pair("Mode3", "模式 3"),
-            Pair("Mode4", "模式 4"),
-            Pair("CheckUpdate", "检查更新"),
-            Pair("OpenLog", "操作日志"),
-            Pair("About", "程序信息"),
-            Pair("EditText", "界面文字"),
-            Pair("Exit", "退出程序"),
-            Pair("PanelTheme", "面板主题"),
-            Pair("ThemeSettings", "主题设置"),
-            Pair("DesktopPet", "桌面宠物"),
-            Pair("PetReset", "宠物复位"),
-            Pair("RestoreFloatingBall", "恢复默认悬浮球"),
-            Pair("MayhemRanking", "海斗排行榜"),
-            Pair("WorkDirectory", "工作目录"),
-            Pair("AutoDetect", "自动识别"),
-            Pair("SelectDirectory", "选择目录"),
-            Pair("RulesConfigured", "规则已配置"),
-            Pair("WaitingConfiguration", "等待配置"),
-            Pair("CleanupHint", "先预览路径，再确认执行"),
-            Pair("StartCleanup", "开始清理"),
-            Pair("UpdateAndAnnouncements", "更新与公告"),
-            Pair("AutoCheckAtStartup", "启动时自动检查"),
-            Pair("Ready", "准备就绪"),
-            Pair("Administrator", "管理员"),
-            Pair("StandardMode", "标准模式"),
-            Pair("Close", "关闭"),
-            Pair("ApplyPet", "应用桌宠"),
-            Pair("PetSource", "来源"),
-            Pair("Open", "打开")
+            Pair(UiTextKeys.AppName, "FACM"),
+            Pair(UiTextKeys.ControlCenter, "控制中心"),
+            Pair(UiTextKeys.Cleanup, "清理环境"),
+            Pair(UiTextKeys.ToolGroup, "快捷工具"),
+            Pair(UiTextKeys.ToolA, "工具 A"),
+            Pair(UiTextKeys.Mode1, "模式 1"),
+            Pair(UiTextKeys.Mode2, "模式 2"),
+            Pair(UiTextKeys.Mode3, "模式 3"),
+            Pair(UiTextKeys.Mode4, "模式 4"),
+            Pair(UiTextKeys.CheckUpdate, "检查更新"),
+            Pair(UiTextKeys.OpenLog, "操作日志"),
+            Pair(UiTextKeys.About, "程序信息"),
+            Pair(UiTextKeys.EditText, "界面文字"),
+            Pair(UiTextKeys.Exit, "退出程序"),
+            Pair(UiTextKeys.PanelTheme, "面板主题"),
+            Pair(UiTextKeys.ThemeSettings, "主题设置"),
+            Pair(UiTextKeys.DesktopPet, "桌面宠物"),
+            Pair(UiTextKeys.PetReset, "宠物复位"),
+            Pair(UiTextKeys.RestoreFloatingBall, "恢复默认悬浮球"),
+            Pair(UiTextKeys.MayhemRanking, "海斗排行榜"),
+            Pair(UiTextKeys.WorkDirectory, "工作目录"),
+            Pair(UiTextKeys.AutoDetect, "自动识别"),
+            Pair(UiTextKeys.SelectDirectory, "选择目录"),
+            Pair(UiTextKeys.RulesConfigured, "规则已配置"),
+            Pair(UiTextKeys.WaitingConfiguration, "等待配置"),
+            Pair(UiTextKeys.CleanupHint, "先预览路径，再确认执行"),
+            Pair(UiTextKeys.StartCleanup, "开始清理"),
+            Pair(UiTextKeys.UpdateAndAnnouncements, "更新与公告"),
+            Pair(UiTextKeys.AutoCheckAtStartup, "启动时自动检查"),
+            Pair(UiTextKeys.Ready, "准备就绪"),
+            Pair(UiTextKeys.Administrator, "管理员"),
+            Pair(UiTextKeys.StandardMode, "标准模式"),
+            Pair(UiTextKeys.Close, "关闭"),
+            Pair(UiTextKeys.ApplyPet, "应用桌宠"),
+            Pair(UiTextKeys.PetSource, "来源"),
+            Pair(UiTextKeys.Open, "打开"),
+
+            // Role-specific contract keys. These are resolved explicitly with Text(key), not by the
+            // legacy global named replacement path below.
+            Pair(UiTextKeys.ThemePanelAppearance, "面板外观..."),
+            Pair(UiTextKeys.ThemeDesktopMode, "桌面形态"),
+            Pair(UiTextKeys.ThemeFacmShell, "FACM 悬浮入口"),
+            Pair(UiTextKeys.ThemeSelectDesktopPet, "选择桌面宠物..."),
+            Pair(UiTextKeys.ThemeResetDesktopPosition, "复位桌面位置"),
+
+            Pair(UiTextKeys.PetPickerWindowTitle, "FACM · 桌面宠物"),
+            Pair(UiTextKeys.PetPickerTitle, "选择桌面宠物"),
+            Pair(UiTextKeys.PetPickerHint, "六种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。"),
+            Pair(UiTextKeys.PetCurrentPrefix, "当前："),
+            Pair(UiTextKeys.PetCurrentBadge, "当前"),
+            Pair(UiTextKeys.PetCurrentUse, "当前使用"),
+            Pair(UiTextKeys.PetInteractionVPet, "应用后在桌面直接体验；可拖动放置，也可从「复位桌面位置」找回。"),
+            Pair(UiTextKeys.PetInteractionFlying, "可拖动放置 · 会自主移动并允许飞出屏幕 · 可用「复位桌面位置」找回"),
+            Pair(UiTextKeys.PetRuntimeVPet, "高精度 · 独立桌宠"),
+            Pair(UiTextKeys.PetRuntimeFlying, "轻量 · 自主飞行"),
+            Pair(UiTextKeys.VPetPreviewTitle, "VPet Core"),
+            Pair(UiTextKeys.VPetPreviewDescription, "动作更丰富的独立桌宠\r\n待机 · 移动 · 提起 · 触摸\r\n\r\n首次启用需要准备更多资源"),
+
+            Pair(UiTextKeys.PetNameGreenFly, "绿苍蝇"),
+            Pair(UiTextKeys.PetNameBee, "蜜蜂"),
+            Pair(UiTextKeys.PetNameRealBee, "真实蜜蜂"),
+            Pair(UiTextKeys.PetNameDragonfly, "蜻蜓"),
+            Pair(UiTextKeys.PetNameButterfly, "蝴蝶"),
+            Pair(UiTextKeys.PetNameMoth, "飞蛾"),
+            Pair(UiTextKeys.PetNameVPet, "VPet Core"),
+
+            Pair(UiTextKeys.PetSummaryGreenFly, "高速急转 · 灵活随机"),
+            Pair(UiTextKeys.PetSummaryBee, "巡航悬停 · 转向平稳"),
+            Pair(UiTextKeys.PetSummaryRealBee, "写真质感 · 灵活巡航"),
+            Pair(UiTextKeys.PetSummaryDragonfly, "高速冲刺 · 长直线"),
+            Pair(UiTextKeys.PetSummaryButterfly, "慢速漂浮 · 大曲线"),
+            Pair(UiTextKeys.PetSummaryMoth, "短距游走 · 小范围绕行"),
+            Pair(UiTextKeys.PetSummaryVPet, "动作丰富 · 资源占用较高"),
+            Pair(UiTextKeys.PetSummaryDefaultVPet, "高精度桌宠"),
+            Pair(UiTextKeys.PetSummaryDefaultFlying, "轻量桌宠"),
+
+            Pair(UiTextKeys.PetBehaviorGreenFly, "飞行性格：快、急转、几乎不停"),
+            Pair(UiTextKeys.PetBehaviorBee, "飞行性格：中速巡航，偶尔原地悬停"),
+            Pair(UiTextKeys.PetBehaviorRealBee, "飞行性格：中速巡航，写真外观更接近实物"),
+            Pair(UiTextKeys.PetBehaviorDragonfly, "飞行性格：快速长冲刺，短暂停顿后改向"),
+            Pair(UiTextKeys.PetBehaviorButterfly, "飞行性格：慢速大曲线，上下轻柔漂浮"),
+            Pair(UiTextKeys.PetBehaviorMoth, "飞行性格：短距离频繁改向，偶尔绕小圈"),
+            Pair(UiTextKeys.PetBehaviorVPet, "桌面性格：动作真实，偏重交互，不主动漫游"),
+
+            Pair(UiTextKeys.PetDescriptionGreenFly, "反应最快的小型飞虫，适合喜欢随机、灵活桌面运动的人。"),
+            Pair(UiTextKeys.PetDescriptionBee, "速度适中，转向柔和，会穿插短暂停悬，整体更安静。"),
+            Pair(UiTextKeys.PetDescriptionRealBee, "写真级真实蜜蜂，保留自然巡航节奏，更强调透明翅膀、真实材质和小尺寸桌面观感。"),
+            Pair(UiTextKeys.PetDescriptionDragonfly, "速度最快、方向感最强，常做较长距离的直线飞行。"),
+            Pair(UiTextKeys.PetDescriptionButterfly, "移动最慢，曲线和上下漂浮更明显，视觉节奏最舒缓。"),
+            Pair(UiTextKeys.PetDescriptionMoth, "活动范围更紧凑，改向频繁，飞行轨迹带一点小范围绕行。"),
+            Pair(UiTextKeys.PetDescriptionVPet, "动作和互动更丰富，但首次启用需要准备较多资源，运行也更重。")
         };
+
+        // These 36 keys existed before the role-scoped contract. They intentionally keep the old
+        // behavior where a configured named value can translate matching legacy hard-coded copy.
+        private static readonly HashSet<string> LegacyNamedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            UiTextKeys.AppName,
+            UiTextKeys.ControlCenter,
+            UiTextKeys.Cleanup,
+            UiTextKeys.ToolGroup,
+            UiTextKeys.ToolA,
+            UiTextKeys.Mode1,
+            UiTextKeys.Mode2,
+            UiTextKeys.Mode3,
+            UiTextKeys.Mode4,
+            UiTextKeys.CheckUpdate,
+            UiTextKeys.OpenLog,
+            UiTextKeys.About,
+            UiTextKeys.EditText,
+            UiTextKeys.Exit,
+            UiTextKeys.PanelTheme,
+            UiTextKeys.ThemeSettings,
+            UiTextKeys.DesktopPet,
+            UiTextKeys.PetReset,
+            UiTextKeys.RestoreFloatingBall,
+            UiTextKeys.MayhemRanking,
+            UiTextKeys.WorkDirectory,
+            UiTextKeys.AutoDetect,
+            UiTextKeys.SelectDirectory,
+            UiTextKeys.RulesConfigured,
+            UiTextKeys.WaitingConfiguration,
+            UiTextKeys.CleanupHint,
+            UiTextKeys.StartCleanup,
+            UiTextKeys.UpdateAndAnnouncements,
+            UiTextKeys.AutoCheckAtStartup,
+            UiTextKeys.Ready,
+            UiTextKeys.Administrator,
+            UiTextKeys.StandardMode,
+            UiTextKeys.Close,
+            UiTextKeys.ApplyPet,
+            UiTextKeys.PetSource,
+            UiTextKeys.Open
+        };
+
+        private static readonly Dictionary<string, string> DefaultValues =
+            DefaultText.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
 
         private readonly Dictionary<string, string> _values =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -64,20 +164,20 @@ namespace FACM.Services
             foreach (var entry in DefaultText) _values[entry.Key] = entry.Value;
         }
 
-        public string AppName { get { return Get("AppName", "FACM"); } }
-        public string ControlCenter { get { return Get("ControlCenter", "控制中心"); } }
-        public string Cleanup { get { return Get("Cleanup", "清理环境"); } }
-        public string ToolGroup { get { return Get("ToolGroup", "快捷工具"); } }
-        public string ToolA { get { return Get("ToolA", "工具 A"); } }
-        public string Mode1 { get { return Get("Mode1", "模式 1"); } }
-        public string Mode2 { get { return Get("Mode2", "模式 2"); } }
-        public string Mode3 { get { return Get("Mode3", "模式 3"); } }
-        public string Mode4 { get { return Get("Mode4", "模式 4"); } }
-        public string CheckUpdate { get { return Get("CheckUpdate", "检查更新"); } }
-        public string OpenLog { get { return Get("OpenLog", "操作日志"); } }
-        internal string About { get { return Get("About", "程序信息"); } }
-        public string EditText { get { return Get("EditText", "界面文字"); } }
-        public string Exit { get { return Get("Exit", "退出程序"); } }
+        public string AppName { get { return Get(UiTextKeys.AppName); } }
+        public string ControlCenter { get { return Get(UiTextKeys.ControlCenter); } }
+        public string Cleanup { get { return Get(UiTextKeys.Cleanup); } }
+        public string ToolGroup { get { return Get(UiTextKeys.ToolGroup); } }
+        public string ToolA { get { return Get(UiTextKeys.ToolA); } }
+        public string Mode1 { get { return Get(UiTextKeys.Mode1); } }
+        public string Mode2 { get { return Get(UiTextKeys.Mode2); } }
+        public string Mode3 { get { return Get(UiTextKeys.Mode3); } }
+        public string Mode4 { get { return Get(UiTextKeys.Mode4); } }
+        public string CheckUpdate { get { return Get(UiTextKeys.CheckUpdate); } }
+        public string OpenLog { get { return Get(UiTextKeys.OpenLog); } }
+        internal string About { get { return Get(UiTextKeys.About); } }
+        public string EditText { get { return Get(UiTextKeys.EditText); } }
+        public string Exit { get { return Get(UiTextKeys.Exit); } }
 
         public static string ConfigPath
         {
@@ -129,6 +229,14 @@ namespace FACM.Services
                 FileName = RuntimePaths.UiTextPath,
                 UseShellExecute = true
             });
+        }
+
+        public string Get(string key)
+        {
+            string fallback;
+            return DefaultValues.TryGetValue(key ?? string.Empty, out fallback)
+                ? Get(key, fallback)
+                : string.Empty;
         }
 
         public string Get(string key, string fallback)
@@ -192,6 +300,7 @@ namespace FACM.Services
         private IEnumerable<KeyValuePair<string, string>> OrderedNamedRules()
         {
             return DefaultText
+                .Where(entry => LegacyNamedKeys.Contains(entry.Key))
                 .Select(entry => Pair(entry.Value, Get(entry.Key, entry.Value)))
                 .OrderByDescending(entry => entry.Key.Length);
         }
@@ -199,6 +308,7 @@ namespace FACM.Services
         private IEnumerable<KeyValuePair<string, string>> OrderedNamedReverseRules()
         {
             return DefaultText
+                .Where(entry => LegacyNamedKeys.Contains(entry.Key))
                 .Select(entry => Pair(Get(entry.Key, entry.Value), entry.Value))
                 .Where(entry => entry.Key.Length > 0)
                 .OrderByDescending(entry => entry.Key.Length);
@@ -244,8 +354,9 @@ namespace FACM.Services
             {
                 "# FACM 界面文字配置",
                 "# 修改后保存即可，程序运行时会自动重新读取，不需要重新编译。",
-                "# [Text] 是常用文字；把等号右侧改成你想显示的内容。",
-                "# [Replace] 是全局兜底：左边写当前原文，右边写新文字，可替换整句或关键词。",
+                "# [Text] 是正式文字契约：Key 保持稳定，只修改等号右侧即可。",
+                "# 新版本会自动补充缺失 Key，不覆盖你已经设置的值。",
+                "# [Replace] 是历史/全局兼容层：可替换整句或关键词，但新功能优先使用 [Text] Key。",
                 "# 需要换行时写 \\n；需要显示反斜杠写 \\\\。",
                 string.Empty,
                 "[Text]"
@@ -253,7 +364,7 @@ namespace FACM.Services
             foreach (var entry in DefaultText) lines.Add(entry.Key + "=" + Escape(entry.Value));
             lines.Add(string.Empty);
             lines.Add("[Replace]");
-            lines.Add("# 示例（去掉前面的 # 即生效）：");
+            lines.Add("# 兼容示例（去掉前面的 # 即生效）：");
             lines.Add("# FACM=我的程序");
             lines.Add("# VPet Core=高精度桌宠");
             lines.Add("# 面向开发者=自定义文字");
@@ -297,7 +408,7 @@ namespace FACM.Services
             {
                 lines.Add(string.Empty);
                 lines.Add("[Replace]");
-                lines.Add("# 任意没有单独键的界面文字都可写在这里：原文=新文");
+                lines.Add("# 历史/全局兜底：原文=新文");
                 lines.Add("# FACM=我的程序");
             }
             File.WriteAllLines(path, lines, new UTF8Encoding(false));

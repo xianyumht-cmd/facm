@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Services;
 using Timer = System.Windows.Forms.Timer;
 
 namespace FACM.Pets
@@ -35,7 +36,7 @@ namespace FACM.Pets
             _listMetaFont = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular);
             _listCurrentFont = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold);
 
-            Text = "FACM · 桌面宠物";
+            Text = T(UiTextKeys.PetPickerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -48,7 +49,7 @@ namespace FACM.Pets
 
             var title = new Label
             {
-                Text = "选择桌面宠物",
+                Text = T(UiTextKeys.PetPickerTitle),
                 Location = new Point(26, 20),
                 AutoSize = true,
                 ForeColor = Color.White,
@@ -56,7 +57,7 @@ namespace FACM.Pets
             };
             var hint = new Label
             {
-                Text = "六种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。",
+                Text = T(UiTextKeys.PetPickerHint),
                 Location = new Point(28, 60),
                 Size = new Size(660, 26),
                 ForeColor = Color.FromArgb(160, 174, 198)
@@ -140,7 +141,7 @@ namespace FACM.Pets
 
             var close = new Button
             {
-                Text = "关闭",
+                Text = T(UiTextKeys.Close),
                 Location = new Point(574, 550),
                 Size = new Size(100, 34),
                 FlatStyle = FlatStyle.Flat,
@@ -153,7 +154,7 @@ namespace FACM.Pets
 
             _apply = new Button
             {
-                Text = "应用桌宠",
+                Text = T(UiTextKeys.ApplyPet),
                 Location = new Point(686, 550),
                 Size = new Size(102, 34),
                 FlatStyle = FlatStyle.Flat,
@@ -195,10 +196,10 @@ namespace FACM.Pets
                 var candidate = AnimalPetCatalog.Visible[index];
                 if (!string.Equals(candidate.Id, _currentPetId, StringComparison.OrdinalIgnoreCase)) continue;
                 selectedIndex = index;
-                currentName = candidate.Name;
+                currentName = GetPetName(candidate);
                 break;
             }
-            _currentStatus.Text = string.IsNullOrWhiteSpace(currentName) ? "" : "当前：" + currentName;
+            _currentStatus.Text = string.IsNullOrWhiteSpace(currentName) ? string.Empty : T(UiTextKeys.PetCurrentPrefix) + currentName;
             if (_list.Items.Count > 0) _list.SelectedIndex = selectedIndex;
 
             _previewTimer = new Timer { Interval = 33 };
@@ -246,6 +247,11 @@ namespace FACM.Pets
             return GetRuntimeBadge(pet);
         }
 
+        internal static string NameForSmokeTest(AnimalPetDefinition pet)
+        {
+            return GetPetName(pet);
+        }
+
         private void DrawPetItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0 || e.Index >= _list.Items.Count) return;
@@ -269,7 +275,7 @@ namespace FACM.Pets
 
             TextRenderer.DrawText(
                 e.Graphics,
-                pet.Name,
+                GetPetName(pet),
                 _listNameFont,
                 nameRect,
                 selected ? Color.White : Color.FromArgb(224, 232, 247),
@@ -289,7 +295,7 @@ namespace FACM.Pets
                     e.Graphics.FillRectangle(badgeBrush, badge);
                 TextRenderer.DrawText(
                     e.Graphics,
-                    "当前",
+                    T(UiTextKeys.PetCurrentBadge),
                     _listCurrentFont,
                     badge,
                     Color.FromArgb(154, 224, 199),
@@ -303,7 +309,7 @@ namespace FACM.Pets
         {
             var pet = _list.SelectedItem as AnimalPetDefinition;
             if (pet == null) return;
-            _name.Text = pet.Name;
+            _name.Text = GetPetName(pet);
             _runtimeBadge.Text = GetRuntimeBadge(pet);
             _runtimeBadge.BackColor = pet.Runtime == AnimalPetRuntime.VPetCore
                 ? Color.FromArgb(55, 43, 76)
@@ -311,10 +317,10 @@ namespace FACM.Pets
             _behavior.Text = GetBehaviorLine(pet);
             _description.Text = GetUserDescription(pet);
             _interaction.Text = pet.Runtime == AnimalPetRuntime.VPetCore
-                ? "应用后在桌面直接体验；可拖动放置，也可从「复位桌面位置」找回。"
-                : "可拖动放置 · 会自主移动并允许飞出屏幕 · 可用「复位桌面位置」找回";
+                ? T(UiTextKeys.PetInteractionVPet)
+                : T(UiTextKeys.PetInteractionFlying);
             var current = IsCurrentPet(pet);
-            _apply.Text = current ? "当前使用" : "应用桌宠";
+            _apply.Text = current ? T(UiTextKeys.PetCurrentUse) : T(UiTextKeys.ApplyPet);
             _apply.Enabled = !current;
             _apply.BackColor = current ? Color.FromArgb(42, 53, 70) : Color.FromArgb(70, 113, 255);
             _apply.ForeColor = current ? Color.FromArgb(139, 153, 178) : Color.White;
@@ -426,10 +432,10 @@ namespace FACM.Pets
                 graphics.Clear(_preview.BackColor);
                 graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                graphics.DrawString("VPet Core", titleFont, titleBrush, new RectangleF(12, 34, _preview.Width - 24, 52), format);
+                graphics.DrawString(T(UiTextKeys.VPetPreviewTitle), titleFont, titleBrush, new RectangleF(12, 34, _preview.Width - 24, 52), format);
                 graphics.DrawLine(linePen, 76, 98, _preview.Width - 76, 98);
                 graphics.DrawString(
-                    "动作更丰富的独立桌宠\r\n待机 · 移动 · 提起 · 触摸\r\n\r\n首次启用需要准备更多资源",
+                    T(UiTextKeys.VPetPreviewDescription),
                     bodyFont,
                     bodyBrush,
                     new RectangleF(18, 106, _preview.Width - 36, 126),
@@ -446,7 +452,23 @@ namespace FACM.Pets
         private static string GetRuntimeBadge(AnimalPetDefinition pet)
         {
             if (pet == null) return string.Empty;
-            return pet.Runtime == AnimalPetRuntime.VPetCore ? "高精度 · 独立桌宠" : "轻量 · 自主飞行";
+            return T(pet.Runtime == AnimalPetRuntime.VPetCore ? UiTextKeys.PetRuntimeVPet : UiTextKeys.PetRuntimeFlying);
+        }
+
+        private static string GetPetName(AnimalPetDefinition pet)
+        {
+            if (pet == null) return string.Empty;
+            switch ((pet.Id ?? string.Empty).ToLowerInvariant())
+            {
+                case "greenfly": return T(UiTextKeys.PetNameGreenFly);
+                case "bee": return T(UiTextKeys.PetNameBee);
+                case "real-bee": return T(UiTextKeys.PetNameRealBee);
+                case "dragonfly": return T(UiTextKeys.PetNameDragonfly);
+                case "butterfly": return T(UiTextKeys.PetNameButterfly);
+                case "moth": return T(UiTextKeys.PetNameMoth);
+                case "vpet": return T(UiTextKeys.PetNameVPet);
+                default: return UiTextRuntime.Translate(pet.Name ?? string.Empty);
+            }
         }
 
         private static string GetPetSummary(AnimalPetDefinition pet)
@@ -454,14 +476,14 @@ namespace FACM.Pets
             if (pet == null) return string.Empty;
             switch ((pet.Id ?? string.Empty).ToLowerInvariant())
             {
-                case "greenfly": return "高速急转 · 灵活随机";
-                case "bee": return "巡航悬停 · 转向平稳";
-                case "real-bee": return "写真质感 · 灵活巡航";
-                case "dragonfly": return "高速冲刺 · 长直线";
-                case "butterfly": return "慢速漂浮 · 大曲线";
-                case "moth": return "短距游走 · 小范围绕行";
-                case "vpet": return "动作丰富 · 资源占用较高";
-                default: return pet.Runtime == AnimalPetRuntime.VPetCore ? "高精度桌宠" : "轻量桌宠";
+                case "greenfly": return T(UiTextKeys.PetSummaryGreenFly);
+                case "bee": return T(UiTextKeys.PetSummaryBee);
+                case "real-bee": return T(UiTextKeys.PetSummaryRealBee);
+                case "dragonfly": return T(UiTextKeys.PetSummaryDragonfly);
+                case "butterfly": return T(UiTextKeys.PetSummaryButterfly);
+                case "moth": return T(UiTextKeys.PetSummaryMoth);
+                case "vpet": return T(UiTextKeys.PetSummaryVPet);
+                default: return T(pet.Runtime == AnimalPetRuntime.VPetCore ? UiTextKeys.PetSummaryDefaultVPet : UiTextKeys.PetSummaryDefaultFlying);
             }
         }
 
@@ -470,13 +492,13 @@ namespace FACM.Pets
             if (pet == null) return string.Empty;
             switch ((pet.Id ?? string.Empty).ToLowerInvariant())
             {
-                case "greenfly": return "飞行性格：快、急转、几乎不停";
-                case "bee": return "飞行性格：中速巡航，偶尔原地悬停";
-                case "real-bee": return "飞行性格：中速巡航，写真外观更接近实物";
-                case "dragonfly": return "飞行性格：快速长冲刺，短暂停顿后改向";
-                case "butterfly": return "飞行性格：慢速大曲线，上下轻柔漂浮";
-                case "moth": return "飞行性格：短距离频繁改向，偶尔绕小圈";
-                case "vpet": return "桌面性格：动作真实，偏重交互，不主动漫游";
+                case "greenfly": return T(UiTextKeys.PetBehaviorGreenFly);
+                case "bee": return T(UiTextKeys.PetBehaviorBee);
+                case "real-bee": return T(UiTextKeys.PetBehaviorRealBee);
+                case "dragonfly": return T(UiTextKeys.PetBehaviorDragonfly);
+                case "butterfly": return T(UiTextKeys.PetBehaviorButterfly);
+                case "moth": return T(UiTextKeys.PetBehaviorMoth);
+                case "vpet": return T(UiTextKeys.PetBehaviorVPet);
                 default: return string.Empty;
             }
         }
@@ -486,15 +508,20 @@ namespace FACM.Pets
             if (pet == null) return string.Empty;
             switch ((pet.Id ?? string.Empty).ToLowerInvariant())
             {
-                case "greenfly": return "反应最快的小型飞虫，适合喜欢随机、灵活桌面运动的人。";
-                case "bee": return "速度适中，转向柔和，会穿插短暂停悬，整体更安静。";
-                case "real-bee": return "写真级真实蜜蜂，保留自然巡航节奏，更强调透明翅膀、真实材质和小尺寸桌面观感。";
-                case "dragonfly": return "速度最快、方向感最强，常做较长距离的直线飞行。";
-                case "butterfly": return "移动最慢，曲线和上下漂浮更明显，视觉节奏最舒缓。";
-                case "moth": return "活动范围更紧凑，改向频繁，飞行轨迹带一点小范围绕行。";
-                case "vpet": return "动作和互动更丰富，但首次启用需要准备较多资源，运行也更重。";
-                default: return pet.Description ?? string.Empty;
+                case "greenfly": return T(UiTextKeys.PetDescriptionGreenFly);
+                case "bee": return T(UiTextKeys.PetDescriptionBee);
+                case "real-bee": return T(UiTextKeys.PetDescriptionRealBee);
+                case "dragonfly": return T(UiTextKeys.PetDescriptionDragonfly);
+                case "butterfly": return T(UiTextKeys.PetDescriptionButterfly);
+                case "moth": return T(UiTextKeys.PetDescriptionMoth);
+                case "vpet": return T(UiTextKeys.PetDescriptionVPet);
+                default: return UiTextRuntime.Translate(pet.Description ?? string.Empty);
             }
+        }
+
+        private static string T(string key)
+        {
+            return UiTextRuntime.Text(key);
         }
 
         private void ReplacePreview(Image image, string tag)
