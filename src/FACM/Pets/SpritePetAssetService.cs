@@ -187,9 +187,10 @@ namespace FACM.Pets
                     var maxX = -1;
                     var maxY = -1;
                     var visiblePixels = 0;
-                    long coreX = 0L;
-                    long coreY = 0L;
-                    var corePixels = 0;
+                    long bodyWeight = 0L;
+                    long bodyWeightedX = 0L;
+                    long bodyWeightedY = 0L;
+                    var bodyPixels = 0;
 
                     for (var y = 0; y < BuiltInRealBeeFrameSize; y++)
                     {
@@ -198,9 +199,6 @@ namespace FACM.Pets
                         {
                             var sheetX = frame * BuiltInRealBeeFrameSize + x;
                             var index = row + sheetX * 4;
-                            var blue = pixels[index];
-                            var green = pixels[index + 1];
-                            var red = pixels[index + 2];
                             var alpha = pixels[index + 3];
 
                             if (alpha > 10)
@@ -212,19 +210,21 @@ namespace FACM.Pets
                                 if (y > maxY) maxY = y;
                             }
 
-                            // The warm, mostly-opaque thorax/abdomen is the stable body anchor. Wings are
-                            // intentionally excluded so high-frequency wing poses cannot move the pet's body.
-                            if (alpha > 160 && red > 60 && red > blue + 8 && green > blue)
+                            // Gate 1 uses a fixed central body band rather than colour heuristics. That makes
+                            // the anchor check independent of straight-vs-premultiplied RGB conversion while
+                            // excluding the high-frequency wing envelope above the body.
+                            if (alpha > 80 && x >= 30 && x <= 100 && y >= 50 && y <= 82)
                             {
-                                coreX += x;
-                                coreY += y;
-                                corePixels++;
+                                bodyWeight += alpha;
+                                bodyWeightedX += (long)x * alpha;
+                                bodyWeightedY += (long)y * alpha;
+                                bodyPixels++;
                             }
                         }
                     }
 
-                    if (visiblePixels < 1200 || corePixels < 450 || maxX < minX || maxY < minY)
-                        throw new InvalidDataException("Real Bee Gate 1 frame is empty or lost its body core: frame=" + frame + ".");
+                    if (visiblePixels < 1200 || bodyPixels < 900 || bodyWeight <= 0L || maxX < minX || maxY < minY)
+                        throw new InvalidDataException("Real Bee Gate 1 frame is empty or lost its stable body band: frame=" + frame + ".");
 
                     const int minimumRotationMargin = 12;
                     if (minX < minimumRotationMargin || minY < minimumRotationMargin ||
@@ -234,8 +234,8 @@ namespace FACM.Pets
                         throw new InvalidDataException("Real Bee Gate 1 frame no longer has safe 360-degree rotation margins: frame=" + frame + ".");
                     }
 
-                    var anchorX = coreX / (double)corePixels;
-                    var anchorY = coreY / (double)corePixels;
+                    var anchorX = bodyWeightedX / (double)bodyWeight;
+                    var anchorY = bodyWeightedY / (double)bodyWeight;
                     if (frame == 0)
                     {
                         baselineX = anchorX;
@@ -245,8 +245,12 @@ namespace FACM.Pets
                     {
                         var dx = anchorX - baselineX;
                         var dy = anchorY - baselineY;
-                        if (Math.Sqrt(dx * dx + dy * dy) > 4d)
-                            throw new InvalidDataException("Real Bee Gate 1 body anchor drifted between wing frames: frame=" + frame + ".");
+                        if (Math.Sqrt(dx * dx + dy * dy) > 2d)
+                        {
+                            throw new InvalidDataException(
+                                "Real Bee Gate 1 body anchor drifted between wing frames: frame=" + frame +
+                                "; dx=" + dx.ToString("0.00") + "; dy=" + dy.ToString("0.00") + ".");
+                        }
                     }
                 }
             }
