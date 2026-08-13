@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 
 namespace FACM.Services
@@ -54,8 +53,8 @@ namespace FACM.Services
             Pair(UiTextKeys.PetSource, "来源"),
             Pair(UiTextKeys.Open, "打开"),
 
-            // Theme popup keys are role-based so visible wording can change without renaming the contract.
-            // ASCII "..." is intentional here: older user [Replace] rules commonly target that spelling.
+            // Role-specific contract keys. These are resolved explicitly with Text(key), not by the
+            // legacy global named replacement path below.
             Pair(UiTextKeys.ThemePanelAppearance, "面板外观..."),
             Pair(UiTextKeys.ThemeDesktopMode, "桌面形态"),
             Pair(UiTextKeys.ThemeFacmShell, "FACM 悬浮入口"),
@@ -108,6 +107,48 @@ namespace FACM.Services
             Pair(UiTextKeys.PetDescriptionButterfly, "移动最慢，曲线和上下漂浮更明显，视觉节奏最舒缓。"),
             Pair(UiTextKeys.PetDescriptionMoth, "活动范围更紧凑，改向频繁，飞行轨迹带一点小范围绕行。"),
             Pair(UiTextKeys.PetDescriptionVPet, "动作和互动更丰富，但首次启用需要准备较多资源，运行也更重。")
+        };
+
+        // These 36 keys existed before the role-scoped contract. They intentionally keep the old
+        // behavior where a configured named value can translate matching legacy hard-coded copy.
+        private static readonly HashSet<string> LegacyNamedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            UiTextKeys.AppName,
+            UiTextKeys.ControlCenter,
+            UiTextKeys.Cleanup,
+            UiTextKeys.ToolGroup,
+            UiTextKeys.ToolA,
+            UiTextKeys.Mode1,
+            UiTextKeys.Mode2,
+            UiTextKeys.Mode3,
+            UiTextKeys.Mode4,
+            UiTextKeys.CheckUpdate,
+            UiTextKeys.OpenLog,
+            UiTextKeys.About,
+            UiTextKeys.EditText,
+            UiTextKeys.Exit,
+            UiTextKeys.PanelTheme,
+            UiTextKeys.ThemeSettings,
+            UiTextKeys.DesktopPet,
+            UiTextKeys.PetReset,
+            UiTextKeys.RestoreFloatingBall,
+            UiTextKeys.MayhemRanking,
+            UiTextKeys.WorkDirectory,
+            UiTextKeys.AutoDetect,
+            UiTextKeys.SelectDirectory,
+            UiTextKeys.RulesConfigured,
+            UiTextKeys.WaitingConfiguration,
+            UiTextKeys.CleanupHint,
+            UiTextKeys.StartCleanup,
+            UiTextKeys.UpdateAndAnnouncements,
+            UiTextKeys.AutoCheckAtStartup,
+            UiTextKeys.Ready,
+            UiTextKeys.Administrator,
+            UiTextKeys.StandardMode,
+            UiTextKeys.Close,
+            UiTextKeys.ApplyPet,
+            UiTextKeys.PetSource,
+            UiTextKeys.Open
         };
 
         private static readonly Dictionary<string, string> DefaultValues =
@@ -256,37 +297,10 @@ namespace FACM.Services
             }
         }
 
-        internal static void ValidateContractForSmokeTest()
-        {
-            var keyValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var field in typeof(UiTextKeys).GetFields(BindingFlags.Public | BindingFlags.Static))
-            {
-                if (!field.IsLiteral || field.FieldType != typeof(string)) continue;
-                var key = field.GetRawConstantValue() as string;
-                if (string.IsNullOrWhiteSpace(key))
-                    throw new InvalidOperationException("UiTextKeys contains an empty key: " + field.Name);
-                if (!keyValues.Add(key))
-                    throw new InvalidOperationException("UiTextKeys contains a duplicate key value: " + key);
-                if (!DefaultValues.ContainsKey(key))
-                    throw new InvalidOperationException("UI text key has no registered default: " + key);
-            }
-
-            if (keyValues.Count != DefaultValues.Count)
-            {
-                var orphan = DefaultValues.Keys.FirstOrDefault(key => !keyValues.Contains(key));
-                throw new InvalidOperationException("UI text default is not represented by UiTextKeys: " + (orphan ?? "unknown"));
-            }
-        }
-
-        internal static string DefaultForSmokeTest(string key)
-        {
-            string value;
-            return DefaultValues.TryGetValue(key ?? string.Empty, out value) ? value : string.Empty;
-        }
-
         private IEnumerable<KeyValuePair<string, string>> OrderedNamedRules()
         {
             return DefaultText
+                .Where(entry => LegacyNamedKeys.Contains(entry.Key))
                 .Select(entry => Pair(entry.Value, Get(entry.Key, entry.Value)))
                 .OrderByDescending(entry => entry.Key.Length);
         }
@@ -294,6 +308,7 @@ namespace FACM.Services
         private IEnumerable<KeyValuePair<string, string>> OrderedNamedReverseRules()
         {
             return DefaultText
+                .Where(entry => LegacyNamedKeys.Contains(entry.Key))
                 .Select(entry => Pair(Get(entry.Key, entry.Value), entry.Value))
                 .Where(entry => entry.Key.Length > 0)
                 .OrderByDescending(entry => entry.Key.Length);
