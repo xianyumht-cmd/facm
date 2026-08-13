@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using FACM.Services;
 
 namespace FACM
 {
@@ -31,6 +32,9 @@ namespace FACM
 
         protected override void OnOpened(EventArgs e)
         {
+            // Ephemeral popup menus are not guaranteed to be reachable from Application.OpenForms.
+            // Apply the text contract every time this menu opens so current ui-text.ini values are used.
+            UiTextRuntime.Apply(this);
             base.OnOpened(e);
             if (_disposeStarted || IsDisposed || Disposing) return;
             _leftWasDown = IsButtonDown(VkLButton);
