@@ -12,6 +12,7 @@ namespace FACM.League
     {
         internal const string SummonerPath = "/lol-summoner/v1/current-summoner";
         internal const string SessionPath = "/lol-gameflow/v1/session";
+        internal const string ChatMePath = "/lol-chat/v1/me";
 
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
@@ -57,6 +58,12 @@ namespace FACM.League
 
                 ApplySummoner(snapshot, summonerBytes);
                 ApplySession(snapshot, sessionBytes);
+                if (string.IsNullOrWhiteSpace(snapshot.PlatformId))
+                {
+                    var chatBytes = await _client.TryGetBytesAsync(ChatMePath, timeout.Token).ConfigureAwait(false);
+                    ApplyChatMe(snapshot, chatBytes);
+                }
+
                 snapshot.BudgetName = _budgets.Current.Name;
                 snapshot.UpdatedAtUtc = DateTime.UtcNow;
                 return snapshot;
@@ -84,6 +91,14 @@ namespace FACM.League
             if (map == null) return;
             snapshot.PlatformId = ReadString(map, "platformId");
             snapshot.PlatformName = ReadString(map, "platformName");
+        }
+
+        internal void ApplyChatMe(LeagueDashboardSnapshot snapshot, byte[] bytes)
+        {
+            var data = ParseObject(bytes);
+            if (snapshot == null || data == null) return;
+            var platformId = ReadString(data, "platformId");
+            if (!string.IsNullOrWhiteSpace(platformId)) snapshot.PlatformId = platformId;
         }
 
         private Dictionary<string, object> ParseObject(byte[] bytes)
