@@ -13,16 +13,18 @@ namespace FACM.AppHost.Modules
         private static readonly IReadOnlyList<string> ModuleDependencies = new[] { LeagueClientModule.ModuleId, PerformanceModule.ModuleId };
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
+
         public LeagueDashboardModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _performance = performance ?? throw new ArgumentNullException(nameof(performance));
         }
+
         public const string ModuleId = "league-dashboard";
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
-        public void Initialize() { }
+        public void Initialize() { LeagueDashboardUiBridge.Install(this); }
         public Form CreateDashboardForm(UiTextCatalog ui) { return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui); }
-        public void Dispose() { }
+        public void Dispose() { LeagueDashboardUiBridge.Uninstall(); }
     }
 }
