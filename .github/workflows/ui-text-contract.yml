@@ -1,0 +1,44 @@
+name: FACM UI Text Contract
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Guard user-visible copy
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check added UI copy
+        shell: pwsh
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          $base = $env:PR_BASE_SHA
+          if ([string]::IsNullOrWhiteSpace($base)) {
+            $base = $env:PUSH_BASE_SHA
+          }
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') {
+            $base = 'HEAD^'
+          }
+
+          & .\scripts\check-ui-text-contract.ps1 -BaseRef $base -HeadRef HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "UI text contract failed with exit code $LASTEXITCODE"
+          }
