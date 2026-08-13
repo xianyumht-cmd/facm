@@ -40,7 +40,7 @@ namespace FACM.AppHost.Modules
 
         public Form CreateDashboardForm(UiTextCatalog ui)
         {
-            return new LeagueDashboardForm(_monitor, _leagueClient, _performance.Budgets, ui);
+            return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui);
         }
 
         public void Dispose()
