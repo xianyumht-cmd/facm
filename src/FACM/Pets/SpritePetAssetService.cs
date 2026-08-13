@@ -4,7 +4,6 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
@@ -170,93 +169,81 @@ namespace FACM.Pets
             if (sheet.Width != expectedWidth || sheet.Height != BuiltInRealBeeFrameSize)
                 throw new InvalidDataException("Real Bee Gate 1 sprite sheet dimensions changed unexpectedly.");
 
-            var rectangle = new Rectangle(0, 0, sheet.Width, sheet.Height);
-            var data = sheet.LockBits(rectangle, ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
-            try
+            double baselineX = 0d;
+            double baselineY = 0d;
+            for (var frame = 0; frame < BuiltInRealBeeFrameCount; frame++)
             {
-                var stride = Math.Abs(data.Stride);
-                var pixels = new byte[stride * sheet.Height];
-                Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+                var minX = BuiltInRealBeeFrameSize;
+                var minY = BuiltInRealBeeFrameSize;
+                var maxX = -1;
+                var maxY = -1;
+                var visiblePixels = 0;
+                long bodyWeight = 0L;
+                long bodyWeightedX = 0L;
+                long bodyWeightedY = 0L;
+                var bodyPixels = 0;
 
-                double baselineX = 0d;
-                double baselineY = 0d;
-                for (var frame = 0; frame < BuiltInRealBeeFrameCount; frame++)
+                for (var y = 0; y < BuiltInRealBeeFrameSize; y++)
                 {
-                    var minX = BuiltInRealBeeFrameSize;
-                    var minY = BuiltInRealBeeFrameSize;
-                    var maxX = -1;
-                    var maxY = -1;
-                    var visiblePixels = 0;
-                    long bodyWeight = 0L;
-                    long bodyWeightedX = 0L;
-                    long bodyWeightedY = 0L;
-                    var bodyPixels = 0;
-
-                    for (var y = 0; y < BuiltInRealBeeFrameSize; y++)
+                    for (var x = 0; x < BuiltInRealBeeFrameSize; x++)
                     {
-                        var row = data.Stride >= 0 ? y * stride : (sheet.Height - 1 - y) * stride;
-                        for (var x = 0; x < BuiltInRealBeeFrameSize; x++)
+                        var color = sheet.GetPixel(frame * BuiltInRealBeeFrameSize + x, y);
+                        var alpha = color.A;
+
+                        if (alpha > 10)
                         {
-                            var sheetX = frame * BuiltInRealBeeFrameSize + x;
-                            var index = row + sheetX * 4;
-                            var alpha = pixels[index + 3];
-
-                            if (alpha > 10)
-                            {
-                                visiblePixels++;
-                                if (x < minX) minX = x;
-                                if (y < minY) minY = y;
-                                if (x > maxX) maxX = x;
-                                if (y > maxY) maxY = y;
-                            }
-
-                            // Gate 1 uses a fixed central body band rather than colour heuristics. That makes
-                            // the anchor check independent of straight-vs-premultiplied RGB conversion while
-                            // excluding the high-frequency wing envelope above the body.
-                            if (alpha > 80 && x >= 30 && x <= 100 && y >= 50 && y <= 82)
-                            {
-                                bodyWeight += alpha;
-                                bodyWeightedX += (long)x * alpha;
-                                bodyWeightedY += (long)y * alpha;
-                                bodyPixels++;
-                            }
+                            visiblePixels++;
+                            if (x < minX) minX = x;
+                            if (y < minY) minY = y;
+                            if (x > maxX) maxX = x;
+                            if (y > maxY) maxY = y;
                         }
-                    }
 
-                    if (visiblePixels < 1200 || bodyPixels < 900 || bodyWeight <= 0L || maxX < minX || maxY < minY)
-                        throw new InvalidDataException("Real Bee Gate 1 frame is empty or lost its stable body band: frame=" + frame + ".");
-
-                    const int minimumRotationMargin = 12;
-                    if (minX < minimumRotationMargin || minY < minimumRotationMargin ||
-                        BuiltInRealBeeFrameSize - 1 - maxX < minimumRotationMargin ||
-                        BuiltInRealBeeFrameSize - 1 - maxY < minimumRotationMargin)
-                    {
-                        throw new InvalidDataException("Real Bee Gate 1 frame no longer has safe 360-degree rotation margins: frame=" + frame + ".");
-                    }
-
-                    var anchorX = bodyWeightedX / (double)bodyWeight;
-                    var anchorY = bodyWeightedY / (double)bodyWeight;
-                    if (frame == 0)
-                    {
-                        baselineX = anchorX;
-                        baselineY = anchorY;
-                    }
-                    else
-                    {
-                        var dx = anchorX - baselineX;
-                        var dy = anchorY - baselineY;
-                        if (Math.Sqrt(dx * dx + dy * dy) > 2d)
+                        // Gate 1 uses a fixed central body band rather than colour heuristics. That makes
+                        // the anchor check independent of straight-vs-premultiplied RGB conversion while
+                        // excluding the high-frequency wing envelope above the body.
+                        if (alpha > 80 && x >= 30 && x <= 100 && y >= 50 && y <= 82)
                         {
-                            throw new InvalidDataException(
-                                "Real Bee Gate 1 body anchor drifted between wing frames: frame=" + frame +
-                                "; dx=" + dx.ToString("0.00") + "; dy=" + dy.ToString("0.00") + ".");
+                            bodyWeight += alpha;
+                            bodyWeightedX += (long)x * alpha;
+                            bodyWeightedY += (long)y * alpha;
+                            bodyPixels++;
                         }
                     }
                 }
-            }
-            finally
-            {
-                sheet.UnlockBits(data);
+
+                if (visiblePixels < 1200 || bodyPixels < 900 || bodyWeight <= 0L || maxX < minX || maxY < minY)
+                    throw new InvalidDataException("Real Bee Gate 1 frame is empty or lost its stable body band: frame=" + frame + ".");
+
+                const int minimumRotationMargin = 12;
+                var rightMargin = BuiltInRealBeeFrameSize - 1 - maxX;
+                var bottomMargin = BuiltInRealBeeFrameSize - 1 - maxY;
+                if (minX < minimumRotationMargin || minY < minimumRotationMargin ||
+                    rightMargin < minimumRotationMargin || bottomMargin < minimumRotationMargin)
+                {
+                    throw new InvalidDataException(
+                        "Real Bee Gate 1 frame no longer has safe 360-degree rotation margins: frame=" + frame +
+                        "; margins=" + minX + "," + minY + "," + rightMargin + "," + bottomMargin + ".");
+                }
+
+                var anchorX = bodyWeightedX / (double)bodyWeight;
+                var anchorY = bodyWeightedY / (double)bodyWeight;
+                if (frame == 0)
+                {
+                    baselineX = anchorX;
+                    baselineY = anchorY;
+                }
+                else
+                {
+                    var dx = anchorX - baselineX;
+                    var dy = anchorY - baselineY;
+                    if (Math.Sqrt(dx * dx + dy * dy) > 2d)
+                    {
+                        throw new InvalidDataException(
+                            "Real Bee Gate 1 body anchor drifted between wing frames: frame=" + frame +
+                            "; dx=" + dx.ToString("0.00") + "; dy=" + dy.ToString("0.00") + ".");
+                    }
+                }
             }
         }
 
