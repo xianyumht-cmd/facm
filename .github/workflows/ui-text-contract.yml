@@ -2,11 +2,9 @@ name: FACM UI Text Contract
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -17,12 +15,25 @@ jobs:
     name: Guard user-visible copy
     runs-on: windows-latest
     timeout-minutes: 5
-
     steps:
       - name: Checkout full history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check key registry
+        shell: pwsh
+        run: |
+          $k = Get-Content 'src/FACM/Services/UiTextKeys.cs' -Raw
+          $c = Get-Content 'src/FACM/Services/UiTextCatalog.cs' -Raw
+          $a = @([regex]::Matches($k, 'public const string\s+(\w+)\s*=') | % { $_.Groups[1].Value })
+          $b = @([regex]::Matches($c, 'Pair\(UiTextKeys\.(\w+)\s*,') | % { $_.Groups[1].Value })
+          $missing = @($a | ? { $b -notcontains $_ })
+          $orphan = @($b | ? { $a -notcontains $_ })
+          if ($missing.Count -or $orphan.Count) { throw "UI text registry mismatch" }
+          if (@($a | Group-Object | ? Count -gt 1).Count) { throw "Duplicate UI text key" }
+          if (@($b | Group-Object | ? Count -gt 1).Count) { throw "Duplicate UI text default" }
+          Write-Host "UI text registry OK: $($a.Count) keys"
 
       - name: Check added UI copy
         shell: pwsh
@@ -31,14 +42,7 @@ jobs:
           PUSH_BASE_SHA: ${{ github.event.before }}
         run: |
           $base = $env:PR_BASE_SHA
-          if ([string]::IsNullOrWhiteSpace($base)) {
-            $base = $env:PUSH_BASE_SHA
-          }
-          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') {
-            $base = 'HEAD^'
-          }
-
+          if ([string]::IsNullOrWhiteSpace($base)) { $base = $env:PUSH_BASE_SHA }
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
           & .\scripts\check-ui-text-contract.ps1 -BaseRef $base -HeadRef HEAD
-          if ($LASTEXITCODE -ne 0) {
-            throw "UI text contract failed with exit code $LASTEXITCODE"
-          }
+          if ($LASTEXITCODE -ne 0) { throw "UI text contract failed" }
