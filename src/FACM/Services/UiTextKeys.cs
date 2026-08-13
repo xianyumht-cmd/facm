@@ -1,7 +1,15 @@
 namespace FACM.Services
 {
+    /// <summary>
+    /// Stable identifiers for user-visible FACM copy.
+    ///
+    /// Key names are a compatibility contract: default Chinese copy may evolve, but an existing key
+    /// must not be renamed just because the visible wording changes. ui-text.ini [Text] overrides use
+    /// these identifiers, while [Replace] remains a legacy/global compatibility layer.
+    /// </summary>
     internal static class UiTextKeys
     {
+        // Existing public configuration contract. Keep these string values stable.
         public const string AppName = "AppName";
         public const string ControlCenter = "ControlCenter";
         public const string Cleanup = "Cleanup";
@@ -38,11 +46,15 @@ namespace FACM.Services
         public const string ApplyPet = "ApplyPet";
         public const string PetSource = "PetSource";
         public const string Open = "Open";
+
+        // Theme popup. These keys describe UI roles, not the current Chinese wording.
         public const string ThemePanelAppearance = "ThemePanelAppearance";
         public const string ThemeDesktopMode = "ThemeDesktopMode";
         public const string ThemeFacmShell = "ThemeFacmShell";
         public const string ThemeSelectDesktopPet = "ThemeSelectDesktopPet";
         public const string ThemeResetDesktopPosition = "ThemeResetDesktopPosition";
+
+        // League Dashboard Gate 1.
         public const string LeagueDashboardMenu = "LeagueDashboardMenu";
         public const string LeagueDashboardWindowTitle = "LeagueDashboardWindowTitle";
         public const string LeagueDashboardTitle = "LeagueDashboardTitle";
@@ -59,6 +71,8 @@ namespace FACM.Services
         public const string LeagueDashboardWaitingClient = "LeagueDashboardWaitingClient";
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
+
+        // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";
         public const string PetPickerHint = "PetPickerHint";
@@ -71,6 +85,8 @@ namespace FACM.Services
         public const string PetRuntimeFlying = "PetRuntimeFlying";
         public const string VPetPreviewTitle = "VPetPreviewTitle";
         public const string VPetPreviewDescription = "VPetPreviewDescription";
+
+        // Visible pet names.
         public const string PetNameGreenFly = "PetNameGreenFly";
         public const string PetNameBee = "PetNameBee";
         public const string PetNameRealBee = "PetNameRealBee";
@@ -78,6 +94,8 @@ namespace FACM.Services
         public const string PetNameButterfly = "PetNameButterfly";
         public const string PetNameMoth = "PetNameMoth";
         public const string PetNameVPet = "PetNameVPet";
+
+        // Picker summaries.
         public const string PetSummaryGreenFly = "PetSummaryGreenFly";
         public const string PetSummaryBee = "PetSummaryBee";
         public const string PetSummaryRealBee = "PetSummaryRealBee";
@@ -87,6 +105,8 @@ namespace FACM.Services
         public const string PetSummaryVPet = "PetSummaryVPet";
         public const string PetSummaryDefaultVPet = "PetSummaryDefaultVPet";
         public const string PetSummaryDefaultFlying = "PetSummaryDefaultFlying";
+
+        // Picker behavior lines.
         public const string PetBehaviorGreenFly = "PetBehaviorGreenFly";
         public const string PetBehaviorBee = "PetBehaviorBee";
         public const string PetBehaviorRealBee = "PetBehaviorRealBee";
@@ -94,6 +114,8 @@ namespace FACM.Services
         public const string PetBehaviorButterfly = "PetBehaviorButterfly";
         public const string PetBehaviorMoth = "PetBehaviorMoth";
         public const string PetBehaviorVPet = "PetBehaviorVPet";
+
+        // Picker descriptions.
         public const string PetDescriptionGreenFly = "PetDescriptionGreenFly";
         public const string PetDescriptionBee = "PetDescriptionBee";
         public const string PetDescriptionRealBee = "PetDescriptionRealBee";
