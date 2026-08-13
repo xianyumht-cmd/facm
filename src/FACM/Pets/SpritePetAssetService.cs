@@ -116,7 +116,17 @@ namespace FACM.Pets
 
         internal static Bitmap CreateBuiltInRealBeeSheetForSmokeTest()
         {
-            return LoadBuiltInRealBeeSheet();
+            var bitmap = LoadBuiltInRealBeeSheet();
+            try
+            {
+                ValidateBuiltInRealBeeSheet(bitmap);
+                return bitmap;
+            }
+            catch
+            {
+                bitmap.Dispose();
+                throw;
+            }
         }
 
         private static Bitmap LoadBuiltInRealBeeSheet()
@@ -145,17 +155,7 @@ namespace FACM.Pets
                             source.Height,
                             GraphicsUnit.Pixel);
                     }
-
-                    try
-                    {
-                        ValidateBuiltInRealBeeSheet(bitmap);
-                        return bitmap;
-                    }
-                    catch
-                    {
-                        bitmap.Dispose();
-                        throw;
-                    }
+                    return bitmap;
                 }
             }
         }
@@ -199,9 +199,6 @@ namespace FACM.Pets
                             if (y > maxY) maxY = y;
                         }
 
-                        // Gate 1 uses a fixed central body band rather than colour heuristics. That makes
-                        // the anchor check independent of straight-vs-premultiplied RGB conversion while
-                        // excluding the high-frequency wing envelope above the body.
                         if (alpha > 80 && x >= 30 && x <= 100 && y >= 50 && y <= 82)
                         {
                             bodyWeight += alpha;
