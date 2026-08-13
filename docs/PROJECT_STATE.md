@@ -5,12 +5,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.1.3
-- GitHub Release：v3.1.3
+- 版本：FACM 3.2.0
+- GitHub Release：v3.2.0
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- Release FACM.exe SHA-256：`5A6D9C02F2E93A98909D861E6E51301055EF5679CDF85458586759873C6565A2`
+- 发布基础 main：c0609eb43d4127ace8445ecf97f750fda82245cd
+- 发布元数据提交：b4dff7ffab2914c5c1213f09893de80ee67efcb6
+- Release FACM.exe SHA-256：D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9
+- published_at：2026-08-13T15:55:35.7289037+00:00
+- release_notes：FACM 3.2.0：桌面宠物、控制中心、界面文字自定义与整体稳定性更新。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 当前 main 基线

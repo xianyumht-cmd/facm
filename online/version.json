@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.2.0",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.2.0/FACM.exe",
   "sha256": "D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9",
   "release_notes": "FACM 3.2.0：桌面宠物、控制中心、界面文字自定义与整体稳定性更新。",
-  "published_at": "2026-08-13T15:55:27.4825366+00:00"
+  "published_at": "2026-08-13T15:55:35.7289037+00:00"
 }
