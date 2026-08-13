@@ -44,6 +44,16 @@ namespace FACM.Services
             _timer.Start();
         }
 
+        /// <summary>
+        /// Resolve a stable UI Text Contract key to the current configured value.
+        /// The catalog owns the default copy, so callers never need to duplicate user-visible fallback text.
+        /// </summary>
+        public static string Text(string key)
+        {
+            if (_catalog == null) ReloadCatalog();
+            return _catalog == null ? string.Empty : _catalog.Get(key);
+        }
+
         public static string Translate(string text)
         {
             if (_catalog == null) ReloadCatalog();
