@@ -15,7 +15,7 @@ namespace FACM
         {
             try
             {
-                Validate().GetAwaiter().GetResult();
+                Validate();
                 Console.WriteLine("FACM League Dashboard smoke passed.");
                 return 0;
             }
@@ -26,7 +26,12 @@ namespace FACM
             }
         }
 
-        private static async Task Validate()
+        internal static void Validate()
+        {
+            ValidateAsync().GetAwaiter().GetResult();
+        }
+
+        private static async Task ValidateAsync()
         {
             Require(LeagueGameflowActivityMapper.Map(null, false) == LeagueActivityLevel.None, "Disconnected mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("None", true) == LeagueActivityLevel.Client, "Connected idle mapping failed.");
