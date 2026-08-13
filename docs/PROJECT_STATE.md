@@ -1,6 +1,6 @@
 # FACM 当前项目状态
 
-> 2026-08-14：**FACM 3.2.0 已正式发布并启用在线更新。** 用户已接受当前产品基线。Release v3.2.0、在线清单、程序集版本和发布文件 SHA 已核对一致；当前只剩 PR #74 推送面向用户的新版本公告并完成本次发布文档收口。
+> 2026-08-14：**FACM 3.2.0 已正式发布，在线更新与 3.2.0 用户公告均已启用。** 用户已接受当前产品基线。本轮 Release / 公告任务完成后没有遗留发布动作，下一项新工作应回到 FACM 上层产品升级，而不是继续为架构本身拆层。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
@@ -17,16 +17,16 @@
 - release_notes：FACM 3.2.0：桌面宠物、控制中心、界面文字自定义与整体稳定性更新。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 当前发布收口
+## 3.2.0 发布事实
 
-- Issue #72：`Release FACM 3.2.0`，在公告收口完成前保持 open。
-- PR #73：正式发布请求，已合并；merge commit `c0609eb43d4127ace8445ecf97f750fda82245cd`。
+- Issue #72 / PR #73：正式发布请求已完成。
+- PR #73 merge commit：`c0609eb43d4127ace8445ecf97f750fda82245cd`。
 - `FACM Publish Release` #6：SUCCESS。
 - GitHub Release `v3.2.0`：已公开，非 prerelease。
 - `online/version.json`：`enabled=true`、`version=3.2.0`、`minimum_version=3.0.0`、`force_update=false`。
 - `src/FACM/Properties/AssemblyInfo.cs`：3.2.0 / 3.2.0.0。
-- 发布后 main 在公告任务开始前为 `e6f3bd0aad55542462bbf6eebd12211235a215ac`。
-- PR #74：推送 `FACM 3.2.0 正式发布` 新公告并同步本文件；公告启用、使用新 ID、启动时弹出，并链接 v3.2.0 Release。
+- Release `FACM.exe` 与在线清单 SHA-256 一致：`D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9`。
+- PR #74：完成 3.2.0 用户公告与 canonical 状态收口；公告使用新 ID、`enabled=true`、`popup=true`，并链接 v3.2.0 Release。
 
 ## FACM 3.2.0 用户可见基线
 
@@ -60,6 +60,6 @@
 
 ## 下一步
 
-1. PR #74 CI 全绿后合并，验证公告在 `main` 已启用并关闭 Issue #72。
-2. 本次正式发布完成后不再继续做发布/架构清理。
-3. 下一项新工作回到 FACM 上层产品升级；继续参考 League Akari 的成熟产品结构时，以源码机制与实际国服测试为准，不因其官网免责声明直接判定腾讯服技术不可用。
+- 当前没有待执行的 Release / 在线更新动作。
+- 新任务从最新 `main` 开始，先检查 active Issue / PR / branch，再选择真实产品需求或缺陷。
+- 产品升级继续参考 League Akari 的成熟产品结构时，以源码机制与实际国服测试为准，不因其官网免责声明直接判定腾讯服技术不可用。
