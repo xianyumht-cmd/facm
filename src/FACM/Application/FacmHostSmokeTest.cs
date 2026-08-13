@@ -144,14 +144,19 @@ namespace FACM.AppHost
             var tools = new ToolsModule();
             var online = new OnlineModule();
             var pets = new PetsModule();
+            var performance = new PerformanceModule();
             var leagueClient = new LeagueClientModule();
+            var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
             var mayhem = new MayhemModule(leagueClient);
             var cleanup = new CleanupModule();
-            var shell = new ShellModule(false, settings, tools, online, pets, mayhem, cleanup);
+            var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, mayhem, cleanup);
 
             Require(
                 mayhem.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId }),
                 "FACM Phase 5 Mayhem -> LeagueClient dependency contract changed unexpectedly.");
+            Require(
+                leagueDashboard.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, PerformanceModule.ModuleId }),
+                "League Dashboard must depend on LeagueClient and Performance.");
 
             var expected = new[]
             {
@@ -160,13 +165,14 @@ namespace FACM.AppHost
                 ToolsModule.ModuleId,
                 OnlineModule.ModuleId,
                 PetsModule.ModuleId,
+                LeagueDashboardModule.ModuleId,
                 MayhemModule.ModuleId,
                 CleanupModule.ModuleId
             };
 
             Require(
                 shell.Dependencies.SequenceEqual(expected),
-                "FACM Phase 5 shell direct dependency contract changed unexpectedly.");
+                "FACM shell direct dependency contract changed unexpectedly.");
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)
