@@ -25,11 +25,12 @@ foreach ($row in $diff) {
 
     $uiFile = $path -match '(Form|Menu|Window|Dialog|Picker|Renderer)\.cs$' -or
               $path -match '(MainForm|CompactMenuEnhancer|LayeredFloatingBall|ContextMenuStrip)\.cs$'
-    $directText = $source -match '\bText\s*=\s*"' -or
-                  $source -match 'new\s+ToolStrip\w*\s*\(\s*"' -or
-                  $source -match 'MessageBox\.Show\s*\(\s*"' -or
-                  $source -match 'SetToolTip\s*\([^,]+,\s*"' -or
-                  $source -match 'DrawString\s*\(\s*"'
+    $literal = '(?:\$@|@\$|\$|@)?"'
+    $directText = $source -match ("\bText\s*=\s*" + $literal) -or
+                  $source -match ("new\s+ToolStrip\w*\s*\(\s*" + $literal) -or
+                  $source -match ("MessageBox\.Show\s*\(\s*" + $literal) -or
+                  $source -match ("SetToolTip\s*\([^,]+,\s*" + $literal) -or
+                  $source -match ("DrawString\s*\(\s*" + $literal)
     $cjkLiteral = $uiFile -and $source -match '"[^"\r\n]*[\u3400-\u9fff][^"\r\n]*"'
 
     if ($directText -or $cjkLiteral) {
