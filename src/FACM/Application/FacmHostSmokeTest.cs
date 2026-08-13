@@ -144,7 +144,7 @@ namespace FACM.AppHost
             var tools = new ToolsModule();
             var online = new OnlineModule();
             var pets = new PetsModule();
-            var performance = new PerformanceModule();
+            var performance = new FACM.Performance.PerformanceModule();
             var leagueClient = new LeagueClientModule();
             var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
             var mayhem = new MayhemModule(leagueClient);
@@ -155,7 +155,7 @@ namespace FACM.AppHost
                 mayhem.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId }),
                 "FACM Phase 5 Mayhem -> LeagueClient dependency contract changed unexpectedly.");
             Require(
-                leagueDashboard.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, PerformanceModule.ModuleId }),
+                leagueDashboard.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Dashboard must depend on LeagueClient and Performance.");
 
             var expected = new[]
