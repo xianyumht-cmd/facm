@@ -20,8 +20,8 @@ namespace FACM.League
         private readonly Label _performanceValue;
         private readonly Label _updatedValue;
         private readonly Button _refreshButton;
-        private readonly Timer _timer;
-        private CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly System.Windows.Forms.Timer _timer;
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private LeagueDashboardSnapshot _snapshot;
         private DateTime _lastDetailsUtc = DateTime.MinValue;
         private bool _refreshing;
@@ -43,132 +43,57 @@ namespace FACM.League
             ForeColor = Color.FromArgb(238, 243, 252);
             Font = new Font("Microsoft YaHei UI", 9F);
 
-            var title = new Label
-            {
-                Text = _ui.Get(UiTextKeys.LeagueDashboardTitle),
-                Location = new Point(28, 22),
-                Size = new Size(440, 36),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
-            };
-            var hint = new Label
-            {
-                Text = _ui.Get(UiTextKeys.LeagueDashboardHint),
-                Location = new Point(30, 62),
-                Size = new Size(560, 24),
-                ForeColor = Color.FromArgb(146, 161, 188)
-            };
-
-            var connectionCard = CreateCard(new Rectangle(28, 102, 286, 80));
-            connectionCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardConnection));
-            _connectionValue = CreateValueLabel(new Point(16, 36), 252);
-            connectionCard.Controls.Add(_connectionValue);
-
-            var accountCard = CreateCard(new Rectangle(336, 102, 286, 80));
-            accountCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardAccount));
-            _accountValue = CreateValueLabel(new Point(16, 36), 252);
-            accountCard.Controls.Add(_accountValue);
-
-            var platformCard = CreateCard(new Rectangle(28, 198, 286, 80));
-            platformCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardPlatformRegion));
-            _platformValue = CreateValueLabel(new Point(16, 36), 252);
-            platformCard.Controls.Add(_platformValue);
-
-            var phaseCard = CreateCard(new Rectangle(336, 198, 286, 80));
-            phaseCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardGameflow));
-            _phaseValue = CreateValueLabel(new Point(16, 36), 252);
-            phaseCard.Controls.Add(_phaseValue);
-
-            var performanceCard = CreateCard(new Rectangle(28, 294, 286, 80));
-            performanceCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardPerformance));
-            _performanceValue = CreateValueLabel(new Point(16, 36), 252);
-            performanceCard.Controls.Add(_performanceValue);
-
-            var updateCard = CreateCard(new Rectangle(336, 294, 286, 80));
-            updateCard.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardLastUpdated));
-            _updatedValue = CreateValueLabel(new Point(16, 36), 252);
-            updateCard.Controls.Add(_updatedValue);
-
-            _refreshButton = new Button
-            {
-                Text = _ui.Get(UiTextKeys.LeagueDashboardRefresh),
-                Location = new Point(432, 389),
-                Size = new Size(92, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(55, 104, 214),
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
-            };
-            _refreshButton.FlatAppearance.BorderColor = Color.FromArgb(83, 133, 237);
-            _refreshButton.Click += async delegate { await RefreshAsync(true); };
-
-            var closeButton = new Button
-            {
-                Text = _ui.Get(UiTextKeys.Close),
-                Location = new Point(530, 389),
-                Size = new Size(92, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(35, 43, 60),
-                ForeColor = Color.FromArgb(218, 225, 239),
-                Cursor = Cursors.Hand
-            };
-            closeButton.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            closeButton.Click += delegate { Close(); };
-
+            var title = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardTitle), Location = new Point(28, 22), Size = new Size(440, 36), ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold) };
+            var hint = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardHint), Location = new Point(30, 62), Size = new Size(560, 24), ForeColor = Color.FromArgb(146, 161, 188) };
             Controls.Add(title);
             Controls.Add(hint);
-            Controls.Add(connectionCard);
-            Controls.Add(accountCard);
-            Controls.Add(platformCard);
-            Controls.Add(phaseCard);
-            Controls.Add(performanceCard);
-            Controls.Add(updateCard);
+
+            _connectionValue = AddCard(UiTextKeys.LeagueDashboardConnection, new Rectangle(28, 102, 286, 80));
+            _accountValue = AddCard(UiTextKeys.LeagueDashboardAccount, new Rectangle(336, 102, 286, 80));
+            _platformValue = AddCard(UiTextKeys.LeagueDashboardPlatformRegion, new Rectangle(28, 198, 286, 80));
+            _phaseValue = AddCard(UiTextKeys.LeagueDashboardGameflow, new Rectangle(336, 198, 286, 80));
+            _performanceValue = AddCard(UiTextKeys.LeagueDashboardPerformance, new Rectangle(28, 294, 286, 80));
+            _updatedValue = AddCard(UiTextKeys.LeagueDashboardLastUpdated, new Rectangle(336, 294, 286, 80));
+
+            _refreshButton = CreateButton(UiTextKeys.LeagueDashboardRefresh, new Rectangle(432, 389, 92, 30), Color.FromArgb(55, 104, 214));
+            _refreshButton.Click += async delegate { await RefreshAsync(true); };
+            var close = CreateButton(UiTextKeys.Close, new Rectangle(530, 389, 92, 30), Color.FromArgb(35, 43, 60));
+            close.Click += delegate { Close(); };
             Controls.Add(_refreshButton);
-            Controls.Add(closeButton);
+            Controls.Add(close);
 
             ShowEmptyState();
-            _timer = new Timer { Interval = 5000 };
+            _timer = new System.Windows.Forms.Timer { Interval = 5000 };
             _timer.Tick += async delegate { await RefreshAsync(false); };
             Shown += async delegate
             {
                 await RefreshAsync(true);
                 if (!IsDisposed) _timer.Start();
             };
-            FormClosed += HandleClosed;
-        }
-
-        private Panel CreateCard(Rectangle bounds)
-        {
-            return new Panel
+            FormClosed += delegate
             {
-                Bounds = bounds,
-                BackColor = Color.FromArgb(22, 29, 44),
-                BorderStyle = BorderStyle.FixedSingle
+                _timer.Stop();
+                _timer.Dispose();
+                if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
+                _lifetime.Dispose();
             };
         }
 
-        private Label CreateCaption(string key)
+        private Label AddCard(string key, Rectangle bounds)
         {
-            return new Label
-            {
-                Text = _ui.Get(key),
-                Location = new Point(15, 10),
-                Size = new Size(252, 20),
-                ForeColor = Color.FromArgb(139, 157, 190),
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
-            };
+            var panel = new Panel { Bounds = bounds, BackColor = Color.FromArgb(22, 29, 44), BorderStyle = BorderStyle.FixedSingle };
+            panel.Controls.Add(new Label { Text = _ui.Get(key), Location = new Point(15, 9), Size = new Size(252, 21), ForeColor = Color.FromArgb(139, 157, 190), Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold) });
+            var value = new Label { Location = new Point(15, 36), Size = new Size(252, 28), AutoEllipsis = true, ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold) };
+            panel.Controls.Add(value);
+            Controls.Add(panel);
+            return value;
         }
 
-        private static Label CreateValueLabel(Point location, int width)
+        private Button CreateButton(string key, Rectangle bounds, Color background)
         {
-            return new Label
-            {
-                Location = location,
-                Size = new Size(width, 28),
-                AutoEllipsis = true,
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold)
-            };
+            var button = new Button { Text = _ui.Get(key), Bounds = bounds, FlatStyle = FlatStyle.Flat, BackColor = background, ForeColor = Color.White, Cursor = Cursors.Hand };
+            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
+            return button;
         }
 
         private async Task RefreshAsync(bool forceDetails)
@@ -180,10 +105,7 @@ namespace FACM.League
             {
                 var phase = await _phaseService.RefreshAsync(_lifetime.Token);
                 if (IsDisposed) return;
-
-                var needDetails = phase.Connected &&
-                                  (forceDetails || _snapshot == null || !_snapshot.Connected ||
-                                   DateTime.UtcNow - _lastDetailsUtc >= TimeSpan.FromMinutes(1));
+                var needDetails = phase.Connected && (forceDetails || _snapshot == null || !_snapshot.Connected || DateTime.UtcNow - _lastDetailsUtc >= TimeSpan.FromMinutes(1));
                 if (needDetails)
                 {
                     _snapshot = await _detailsService.LoadAsync(phase, _lifetime.Token);
@@ -193,7 +115,6 @@ namespace FACM.League
                 {
                     MergePhase(phase);
                 }
-
                 ApplySnapshot();
                 AdjustTimerInterval();
             }
@@ -215,9 +136,7 @@ namespace FACM.League
 
         private void MergePhase(LeagueDashboardPhaseState phase)
         {
-            if (phase == null) return;
-            if (_snapshot == null || !phase.Connected)
-                _snapshot = new LeagueDashboardSnapshot();
+            if (_snapshot == null || !phase.Connected) _snapshot = new LeagueDashboardSnapshot();
             _snapshot.Connected = phase.Connected;
             _snapshot.Phase = phase.Phase;
             _snapshot.Activity = phase.Activity;
@@ -227,39 +146,19 @@ namespace FACM.League
 
         private void ApplySnapshot()
         {
-            if (_snapshot == null || !_snapshot.Connected)
-            {
-                ShowEmptyState();
-                return;
-            }
-
+            if (_snapshot == null || !_snapshot.Connected) { ShowEmptyState(); return; }
             _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardConnected);
             _connectionValue.ForeColor = Color.FromArgb(103, 218, 166);
-
-            var account = string.IsNullOrWhiteSpace(_snapshot.AccountName)
-                ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
-                : _snapshot.AccountName;
-            if (_snapshot.SummonerLevel > 0)
-                account += "  ·  " + _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + _snapshot.SummonerLevel;
+            var account = string.IsNullOrWhiteSpace(_snapshot.AccountName) ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : _snapshot.AccountName;
+            if (_snapshot.SummonerLevel > 0) account += "  ·  " + _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + _snapshot.SummonerLevel;
             _accountValue.Text = account;
-
             var platform = FirstNonEmpty(_snapshot.PlatformName, _snapshot.PlatformId);
-            if (!string.IsNullOrWhiteSpace(_snapshot.PlatformName) && !string.IsNullOrWhiteSpace(_snapshot.PlatformId) &&
-                !string.Equals(_snapshot.PlatformName, _snapshot.PlatformId, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(_snapshot.PlatformName) && !string.IsNullOrWhiteSpace(_snapshot.PlatformId) && !string.Equals(_snapshot.PlatformName, _snapshot.PlatformId, StringComparison.OrdinalIgnoreCase))
                 platform = _snapshot.PlatformName + "  ·  " + _snapshot.PlatformId;
-            _platformValue.Text = string.IsNullOrWhiteSpace(platform)
-                ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
-                : platform;
-
-            _phaseValue.Text = string.IsNullOrWhiteSpace(_snapshot.Phase)
-                ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
-                : _snapshot.Phase;
-            _performanceValue.Text = string.IsNullOrWhiteSpace(_snapshot.BudgetName)
-                ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
-                : _snapshot.BudgetName;
-            _updatedValue.Text = _snapshot.UpdatedAtUtc == DateTime.MinValue
-                ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
-                : _snapshot.UpdatedAtUtc.ToLocalTime().ToString("HH:mm:ss");
+            _platformValue.Text = ValueOrUnknown(platform);
+            _phaseValue.Text = ValueOrUnknown(_snapshot.Phase);
+            _performanceValue.Text = ValueOrUnknown(_snapshot.BudgetName);
+            _updatedValue.Text = _snapshot.UpdatedAtUtc == DateTime.MinValue ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : _snapshot.UpdatedAtUtc.ToLocalTime().ToString("HH:mm:ss");
         }
 
         private void ShowEmptyState()
@@ -274,15 +173,11 @@ namespace FACM.League
             _updatedValue.Text = unknown;
         }
 
+        private string ValueOrUnknown(string value) { return string.IsNullOrWhiteSpace(value) ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : value; }
+
         private void AdjustTimerInterval()
         {
-            if (_timer == null) return;
-            if (!Visible || WindowState == FormWindowState.Minimized)
-            {
-                _timer.Interval = 10000;
-                return;
-            }
-
+            if (!Visible || WindowState == FormWindowState.Minimized) { _timer.Interval = 10000; return; }
             switch (_snapshot == null ? LeagueActivityLevel.None : _snapshot.Activity)
             {
                 case LeagueActivityLevel.ChampSelect: _timer.Interval = 2000; break;
@@ -295,19 +190,8 @@ namespace FACM.League
         private static string FirstNonEmpty(params string[] values)
         {
             if (values == null) return null;
-            foreach (var value in values)
-            {
-                if (!string.IsNullOrWhiteSpace(value)) return value;
-            }
+            foreach (var value in values) if (!string.IsNullOrWhiteSpace(value)) return value;
             return null;
-        }
-
-        private void HandleClosed(object sender, FormClosedEventArgs e)
-        {
-            _timer.Stop();
-            _timer.Dispose();
-            if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
-            _lifetime.Dispose();
         }
     }
 }
