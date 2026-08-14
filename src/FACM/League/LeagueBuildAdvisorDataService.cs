@@ -47,7 +47,11 @@ namespace FACM.League
             {
                 using (var response = await _client.GetAsync(path, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
                 {
-                    if (!response.IsSuccessStatusCode) return null;
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        AppLog.Info("OP.GG build request returned HTTP " + (int)response.StatusCode + "; path=" + path);
+                        return null;
+                    }
                     using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
                     using (var output = new MemoryStream())
                     {
@@ -62,7 +66,7 @@ namespace FACM.League
             }
             catch (Exception exception)
             {
-                AppLog.Info("OP.GG build request skipped: " + exception.Message);
+                AppLog.Info("OP.GG build request skipped; path=" + path + "; error=" + exception.Message);
                 return null;
             }
         }
@@ -79,9 +83,11 @@ namespace FACM.League
         internal const string ItemsPath = "/lol-game-data/assets/v1/items.json";
         internal const string SummonerSpellsPath = "/lol-game-data/assets/v1/summoner-spells.json";
         internal const string PerksPath = "/lol-game-data/assets/v1/perks.json";
+        internal const string DefaultOpggTier = "all";
         internal static readonly TimeSpan BuildCacheDuration = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan CatalogCacheDuration = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan VersionCacheDuration = TimeSpan.FromMinutes(30);
+        private static readonly TimeSpan RankedPositionCacheDuration = TimeSpan.FromMinutes(30);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _client;
@@ -93,6 +99,7 @@ namespace FACM.League
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
         private readonly Dictionary<string, CacheEntry> _buildCache = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, VersionEntry> _versionCache = new Dictionary<string, VersionEntry>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, RankedPositionEntry> _rankedPositionCache = new Dictionary<string, RankedPositionEntry>(StringComparer.OrdinalIgnoreCase);
         private LeagueBuildAdvisorCatalog _catalog;
         private DateTime _catalogCachedUtc = DateTime.MinValue;
         private bool _disposed;
@@ -107,6 +114,12 @@ namespace FACM.League
         {
             public DateTime CachedUtc { get; set; }
             public string Version { get; set; }
+        }
+
+        private sealed class RankedPositionEntry
+        {
+            public DateTime CachedUtc { get; set; }
+            public string Position { get; set; }
         }
 
         public LeagueBuildAdvisorDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
@@ -192,6 +205,17 @@ namespace FACM.League
 
                 var version = await ResolveVersionAsync(mode, force, cancellationToken).ConfigureAwait(false);
                 snapshot.Version = version;
+
+                // Akari's current OP.GG flow requires a concrete ranked lane. Tencent queues can omit
+                // assignedPosition, so "all" is only an unresolved sentinel inside FACM and is never
+                // sent directly to the ranked champion-build endpoint.
+                if (string.Equals(mode, "ranked", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(position, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    position = await ResolveRankedPositionAsync(championId, version, force, cancellationToken).ConfigureAwait(false);
+                    snapshot.Position = position;
+                }
+
                 var cachedBuild = force ? null : FindFreshBuild(championId, mode, position, version);
                 if (cachedBuild != null)
                 {
@@ -204,7 +228,7 @@ namespace FACM.League
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     timeout.CancelAfter(TimeSpan.FromSeconds(4));
-                    var path = BuildPath(championId, mode, position);
+                    var path = BuildPath(championId, mode, position, version);
                     var bytes = await _opgg.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
                     var recommendation = ParseBuild(bytes, catalog);
                     if (recommendation == null)
@@ -262,7 +286,7 @@ namespace FACM.League
             output.Rank = ReadInt(tierData, "rank");
 
             AddPickRow(output, "summoner-spells", ReadFirstDictionary(data, "summoner_spells"), catalog == null ? null : catalog.Spells);
-            AddRuneRow(output, ReadFirstDictionary(data, "rune_pages"), catalog == null ? null : catalog.Perks);
+            AddRuneRow(output, FirstNonNullDictionary(ReadFirstDictionary(data, "runes"), ReadFirstDictionary(data, "rune_pages")), catalog == null ? null : catalog.Perks);
             AddPickRow(output, "starter-items", ReadFirstDictionary(data, "starter_items"), catalog == null ? null : catalog.Items);
             AddPickRow(output, "boots", ReadFirstDictionary(data, "boots"), catalog == null ? null : catalog.Items);
             AddPickRow(output, "core-items", ReadFirstDictionary(data, "core_items"), catalog == null ? null : catalog.Items);
@@ -283,6 +307,34 @@ namespace FACM.League
             ParseIdNameArray(spellsBytes, catalog.Spells);
             ParseIdNameArray(perksBytes, catalog.Perks);
             return catalog;
+        }
+
+        internal string ParsePrimaryRankedPosition(byte[] bytes, int championId)
+        {
+            var root = ParseObject(bytes);
+            var rows = EnumerateDictionaries(ReadValue(root, "data"));
+            var champion = rows.FirstOrDefault(row => ReadInt(row, "id") == championId);
+            if (champion == null) return null;
+
+            string best = null;
+            var bestRoleRate = double.MinValue;
+            var bestPlay = int.MinValue;
+            foreach (var position in EnumerateDictionaries(ReadValue(champion, "positions")))
+            {
+                var mapped = MapOpggPositionName(ReadString(position, "name"));
+                if (string.IsNullOrWhiteSpace(mapped)) continue;
+                var stats = ReadDictionary(position, "stats");
+                var roleRate = ReadDoubleNullable(stats, "role_rate") ?? 0.0;
+                var play = ReadInt(stats, "play");
+                if (best == null || roleRate > bestRoleRate ||
+                    (Math.Abs(roleRate - bestRoleRate) < 0.000001 && play > bestPlay))
+                {
+                    best = mapped;
+                    bestRoleRate = roleRate;
+                    bestPlay = play;
+                }
+            }
+            return best;
         }
 
         internal static int ResolveChampionId(LeagueLiveSnapshot live, LeagueLivePlayerRow local)
@@ -322,10 +374,27 @@ namespace FACM.League
             }
         }
 
-        internal static string BuildPath(int championId, string mode, string position)
+        internal static string BuildPath(int championId, string mode, string position, string version)
         {
-            return "/api/global/champions/" + Uri.EscapeDataString(mode ?? "ranked") + "/" + championId + "/" +
-                   Uri.EscapeDataString(string.IsNullOrWhiteSpace(position) ? "all" : position);
+            var lane = string.IsNullOrWhiteSpace(position) ? "none" : position;
+            var path = "/api/global/champions/" + Uri.EscapeDataString(mode ?? "ranked") + "/" + championId + "/" +
+                       Uri.EscapeDataString(lane);
+            return AppendOpggQuery(path, version);
+        }
+
+        internal static string ChampionsPath(string mode, string version)
+        {
+            return AppendOpggQuery(
+                "/api/global/champions/" + Uri.EscapeDataString(mode ?? "ranked"),
+                version);
+        }
+
+        private static string AppendOpggQuery(string path, string version)
+        {
+            var query = "?tier=" + Uri.EscapeDataString(DefaultOpggTier);
+            if (!string.IsNullOrWhiteSpace(version))
+                query += "&version=" + Uri.EscapeDataString(version);
+            return path + query;
         }
 
         private async Task<LeagueBuildAdvisorCatalog> EnsureCatalogAsync(CancellationToken cancellationToken)
@@ -394,6 +463,51 @@ namespace FACM.League
             }
         }
 
+        private async Task<string> ResolveRankedPositionAsync(
+            int championId,
+            string version,
+            bool force,
+            CancellationToken cancellationToken)
+        {
+            var key = championId + "|" + (version ?? string.Empty);
+            lock (_sync)
+            {
+                RankedPositionEntry cached;
+                if (!force && _rankedPositionCache.TryGetValue(key, out cached) &&
+                    DateTime.UtcNow - cached.CachedUtc < RankedPositionCacheDuration &&
+                    !string.IsNullOrWhiteSpace(cached.Position))
+                    return cached.Position;
+            }
+
+            string resolved = null;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                try
+                {
+                    var bytes = await _opgg.TryGetBytesAsync(ChampionsPath("ranked", version), timeout.Token).ConfigureAwait(false);
+                    resolved = ParsePrimaryRankedPosition(bytes, championId);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                }
+            }
+
+            // Akari's saved default ranked position is top. Use it only as a final read-only fallback
+            // when Tencent omits assignedPosition and OP.GG's champion list cannot be read.
+            if (string.IsNullOrWhiteSpace(resolved)) resolved = "top";
+            lock (_sync)
+            {
+                _rankedPositionCache[key] = new RankedPositionEntry
+                {
+                    CachedUtc = DateTime.UtcNow,
+                    Position = resolved
+                };
+            }
+            return resolved;
+        }
+
         private LeagueBuildAdvisorSnapshot CreateBaseSnapshot(LeagueLiveSnapshot live)
         {
             return new LeagueBuildAdvisorSnapshot
@@ -422,7 +536,10 @@ namespace FACM.League
                     return null;
                 }
 
-                var prefix = championId + "|" + mode + "|" + (position ?? string.Empty) + "|";
+                var positionPart = string.Equals(position, "all", StringComparison.OrdinalIgnoreCase)
+                    ? string.Empty
+                    : (position ?? string.Empty) + "|";
+                var prefix = championId + "|" + mode + "|" + positionPart;
                 return _buildCache
                     .Where(pair => pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
                                    DateTime.UtcNow - pair.Value.CachedUtc < BuildCacheDuration)
@@ -453,7 +570,7 @@ namespace FACM.League
         private void AddRuneRow(LeagueBuildRecommendation output, Dictionary<string, object> runePage, IDictionary<int, string> names)
         {
             if (runePage == null) return;
-            var build = FirstDictionary(ReadValue(runePage, "builds"));
+            var build = FirstDictionary(ReadValue(runePage, "builds")) ?? runePage;
             if (build == null) return;
             var ids = new List<int>();
             ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
@@ -544,6 +661,13 @@ namespace FACM.League
             return EnumerateDictionaries(value).FirstOrDefault();
         }
 
+        private static Dictionary<string, object> FirstNonNullDictionary(
+            Dictionary<string, object> first,
+            Dictionary<string, object> second)
+        {
+            return first ?? second;
+        }
+
         private static Dictionary<string, object> ReadDictionary(Dictionary<string, object> source, string key)
         {
             return ReadValue(source, key) as Dictionary<string, object>;
@@ -624,6 +748,23 @@ namespace FACM.League
             {
                 var row = item as Dictionary<string, object>;
                 if (row != null) yield return row;
+            }
+        }
+
+        private static string MapOpggPositionName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            switch (value.Trim().ToUpperInvariant())
+            {
+                case "TOP": return "top";
+                case "JUNGLE": return "jungle";
+                case "MID":
+                case "MIDDLE": return "mid";
+                case "ADC":
+                case "BOTTOM": return "adc";
+                case "SUPPORT":
+                case "UTILITY": return "support";
+                default: return null;
             }
         }
 
