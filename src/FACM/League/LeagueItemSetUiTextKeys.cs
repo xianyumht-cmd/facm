@@ -27,6 +27,31 @@ namespace FACM.League
         public const string WriteFailed = "League.ItemSet.WriteFailed";
         public const string ChampSelectOnly = "League.ItemSet.ChampSelectOnly";
 
+        internal static readonly string[] All =
+        {
+            Menu,
+            WindowTitle,
+            Title,
+            Hint,
+            Context,
+            Preview,
+            Refresh,
+            Write,
+            Waiting,
+            Ready,
+            Preparing,
+            NoItems,
+            ConfirmTitle,
+            ConfirmFormat,
+            ContextChanged,
+            SucceededFormat,
+            CleanupWarningFormat,
+            FailedFormat,
+            InstallLayoutUnavailable,
+            WriteFailed,
+            ChampSelectOnly
+        };
+
         private static readonly Dictionary<string, string> Defaults =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
