@@ -72,7 +72,7 @@ namespace FACM.Services
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
 
-        // Player Gate 1.
+        // Player Gate 1 / Gate 2.
         public const string LeaguePlayerMenu = "LeaguePlayerMenu";
         public const string LeaguePlayerWindowTitle = "LeaguePlayerWindowTitle";
         public const string LeaguePlayerTitle = "LeaguePlayerTitle";
@@ -87,6 +87,7 @@ namespace FACM.Services
         public const string LeaguePlayerTime = "LeaguePlayerTime";
         public const string LeaguePlayerMode = "LeaguePlayerMode";
         public const string LeaguePlayerChampion = "LeaguePlayerChampion";
+        public const string LeaguePlayerChampionStatsFormat = "LeaguePlayerChampionStatsFormat";
         public const string LeaguePlayerKda = "LeaguePlayerKda";
         public const string LeaguePlayerCs = "LeaguePlayerCs";
         public const string LeaguePlayerResult = "LeaguePlayerResult";
