@@ -1,8 +1,8 @@
 # FACM 当前项目状态
 
-> 2026-08-15：FACM 3.2.0 仍是当前正式生产基线。原 League 五阶段规划已经 **5/5（100%）DONE**；其后的第一个独立扩展 **Tools / Automation Gate 2（OP.GG 一键应用符文 + 召唤师技能）也已完成腾讯/国服实机验收并合入 `main`**。
+> 2026-08-15：FACM 3.2.0 仍是当前正式生产基线。原 League 五阶段规划已经 **5/5（100%）DONE**；Tools / Automation Gate 2（OP.GG 一键应用符文 + 召唤师技能）已完成腾讯/国服实机验收并合入 `main`。
 >
-> 当前没有新的 League 主线 Gate 在实施。后续如果继续装备集磁盘写入、更多 OP.GG 自动化或其它能力，必须另建独立 Issue / Gate；不要重新设计已经验收通过的 Dashboard / Player / Live / Build Advisor / Apply Gate。
+> 当前有两个彼此独立、都仍保持 Draft 的后续任务：**Gate 3 OP.GG 装备集安全写入（Issue #99 / PR #103）等待腾讯真实商店识别验收**；**Shell UX 收束（Issue #104 / PR #105）已形成 Windows 候选，等待用户视觉/交互验收**。两者不得混成一个 PR，也不要重新设计已经验收通过的 Dashboard / Player / Live / Build Advisor / Apply Gate。
 
 ## 当前正式版
 
@@ -11,7 +11,74 @@
 - minimum_version：3.0.0
 - force_update：false
 - Release FACM.exe SHA-256：`D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9`
-- Gate 2 本轮没有创建新 Release、Tag，没有修改 `online/version.json`，没有改变线上版本。
+- 当前两个 Draft 任务都没有创建新 Release、Tag，没有修改 `online/version.json`，没有改变线上版本。
+
+## 当前进行中：Shell UX 收束
+
+- Issue #104：OPEN。
+- Draft PR #105：OPEN / Draft；用户视觉/交互验收前不 Ready、不合并。
+- branch：`feat/shell-ux-104`。
+- base：`main` @ `641691108b8eca47c21c2b9b893c651f1ce957b7`。
+- exact 行为候选 HEAD：`6f3d8330127546327830048d06db89df0ae44a02`。
+- UI Text Contract #128：SUCCESS。
+- Windows Build #1007：SUCCESS。
+- Windows #1007 日志明确输出 `FACM performance contract smoke passed.`。
+- FACM.exe version：`3.2.0.0`；build output size：78,091,776 bytes。
+- signed FACM.exe SHA-256：`97BDF787C3F2E6DCEFF42240BEE3D824C672C98F16280A380CBDAB96E2241E61`。
+- artifact：`FACM-Windows-x64-1007`，artifact id `9232122863`，size 154,717,686 bytes。
+- artifact ZIP SHA-256：`40FDACE9D29BBDAE3DD48E3AD13EC0B161A91AC45EC1FD55DA27BDF0C1BF3FD4`。
+- 完整交接：`docs/HANDOFF-20260815-SHELL-UX.md`。
+
+### Shell UX 固定约束
+
+FACM 面向电脑小白；“简化”定义为**减少每层决策数量**，不是把按钮缩小后继续平铺。
+
+托盘/悬浮球右键一级固定为 5 个角色：
+
+1. `打开控制中心`
+2. `清理环境`
+3. `英雄联盟 >`
+4. `更多 >`
+5. `退出程序`
+
+- Dashboard / Player / Live / OP.GG / Mayhem 等业务模块只能注册到既有二级 group，不得继续往一级菜单插入口。
+- 最多两层，不做三级迷宫。
+- `ShellMenuGroups` 负责根菜单 contract、业务 action 去重和固定排序；运行时业务注册会校验真实根菜单仍恰好为 5 项。
+- CI `ShellUxSmokeTest` 使用纯结构 contract，不创建 WinForms 菜单对象，因为 Performance Contract test 在 WinForms message loop 之前运行。
+- `CompactMenuEnhancer` 不再通过反射向控制中心首页动态添加主题/海斗等业务按钮，只保留文字刷新、首帧/外部点击兼容基础设施。
+
+控制中心首页收束为：
+
+- 游戏目录状态 + 一个 `管理` 二级入口；
+- `清理环境` 为唯一高强调主动作，原安全预览/确认语义不变；
+- `修复工具`：驱动清理 + 原 4 个修复模式；
+- `英雄联盟`：复用托盘同一组业务入口；
+- `个性化`：主题 / 桌宠 / 恢复默认悬浮球 / 复位；
+- `更多设置`：自动检查 / 更新 / 日志 / 退出。
+
+原控制中心硬编码的 `3.1` 已改为读取程序实际 major.minor。新增 Shell 可见文案全部进入 `UiTextKeys + UiTextCatalog`，不靠 UI Text allow-list 绕过。
+
+### 与 Gate 3 的边界
+
+Shell UX 分支基于当前 `main`，**故意不包含尚未合并的 Gate 3 `OP.GG 装备集` 实现**。`ShellMenuGroups` 已预留 `ItemSetOrder=60`；等 #103 独立腾讯实机验收并合入后，再让 ItemSet UiBridge 注册到 `英雄联盟` 二级菜单的一键应用之后、海斗之前。
+
+因此测试 Shell UX 候选时，“英雄联盟”菜单当前没有 `OP.GG 装备集` 不是回归。
+
+## 当前进行中：Tools / Automation Gate 3
+
+- Issue #99：OPEN。
+- Draft PR #103：OPEN / Draft；腾讯/国服真实客户端商店识别前不 Ready、不合并。
+- branch：`feat/opgg-itemsets-gate3-99`。
+- exact 行为候选 HEAD：`41110482986c9d562fba166b7472e1032027a95a`。
+- UI Text Contract #117：SUCCESS；Windows Build #996：SUCCESS。
+- Windows #996 日志明确输出 `FACM performance contract smoke passed.`。
+- signed FACM.exe SHA-256：`C2E312D40C86B31339D7DB217937ACBD067BE89C3898C096DC7A92E52344F4A4`。
+- artifact：`FACM-Windows-x64-996`，artifact id `9229662143`。
+- artifact ZIP SHA-256：`18AD47E2B52036566CDBCC1F776B33F26EC39D16A3A50CFE82D401487082CE8C`。
+- 最新 docs-only PR #103 HEAD：`c40d0799b0e36566af6e71d3d64abdad51f1a1b3`；UI Text #119 / Windows #998 SUCCESS。
+- 当前唯一关键缺口：腾讯/国服实机确认写入的 `Game/Config/Global/Recommended/facm1-*.json` 能被游戏商店实际识别。
+
+Gate 3 不重新设计 Gate 1 / Gate 2；不自动写、不删除非 `facm1-*.json`、不新增第二套 LCU connector、不发布正式版。
 
 ## 最新完成扩展：Tools / Automation Gate 2
 
@@ -75,17 +142,6 @@ ready-check accept、Champ Select actions、pick / ban / swap / reroll / dodge /
 - forbidden endpoint exclusion；
 - transport hard allowlist 拒绝 ready-check、Champ Select actions、query-string escape。
 
-## 装备集仍是独立后续 Gate
-
-League Akari 当前源码中装备集不是同一类 LCU 写入：
-
-1. GET `/data-store/v1/install-dir`
-2. 非腾讯通常写 `installDir/Config/Global/Recommended`
-3. Tencent 路径特殊落到 `installDir/../Game/Config/Global/Recommended`
-4. 管理自身前缀 `.json` 文件、旧文件清理和 recipe item restore
-
-因此装备集必须单独定义：腾讯路径、文件原子写、失败恢复/回滚、旧文件删除范围、客户端读取时序。**不要顺手塞回 Gate 2。**
-
 ## 原 League 五阶段：5/5 DONE
 
 1. **League Dashboard Gate 1 — DONE**
@@ -94,7 +150,7 @@ League Akari 当前源码中装备集不是同一类 LCU 写入：
 4. **Player Gate 2 — DONE**
 5. **Tools / Automation Gate 1（OP.GG 对局助手只读推荐）— DONE**
 
-原规划正式完成进度：**5/5 = 100%**。Gate 2 是 5/5 之后完成的独立扩展，不改变原进度定义。
+原规划正式完成进度：**5/5 = 100%**。Gate 2 / Gate 3 / Shell UX 都是 5/5 之后的独立扩展，不改变原进度定义。
 
 ## 关键已完成行为基线
 
@@ -188,12 +244,9 @@ League Akari 当前源码中装备集不是同一类 LCU 写入：
 
 ## 下一步规则
 
-当前没有自动启动的新 Gate。
+当前优先顺序不是再新增第三条功能线，而是完成两个 Draft 的真实验收：
 
-如果继续升级，优先候选包括：
+1. Shell UX #104 / PR #105：Windows 视觉与交互确认；通过后 Ready / merge / main post-merge CI / canonical closeout。
+2. Gate 3 #99 / PR #103：腾讯游戏商店真实识别装备集；通过后 Ready / merge / main post-merge CI / canonical closeout。
 
-- **装备集磁盘写入 Gate**（必须独立做腾讯路径 + 原子写 + 回滚/清理语义）；
-- 更多 OP.GG 数据/工具，但必须继续服从 Performance Contract；
-- 其它新工具能力。
-
-任何新 Gate 都先 fresh-check `main`、开放 Issue/PR 与现有边界，再建立唯一任务分支；不重开已经完成的五阶段和 Gate 2。
+两者都未验收前不要发布新正式版本。之后若继续新增 League / OP.GG / 其它工具，必须注册到既有 Shell 分类，不得重新扩大一级菜单；没有真实缺陷时不重开已完成的五阶段和 Gate 2。
