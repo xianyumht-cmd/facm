@@ -93,6 +93,8 @@ namespace FACM.League
             return state == null ? null : new LeagueDashboardPhaseState
             {
                 Connected = state.Connected,
+                ClientProcessDetected = state.ClientProcessDetected,
+                GameProcessDetected = state.GameProcessDetected,
                 Phase = state.Phase,
                 Activity = state.Activity,
                 BudgetName = state.BudgetName,
