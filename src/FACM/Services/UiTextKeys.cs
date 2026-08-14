@@ -62,6 +62,8 @@ namespace FACM.Services
         public const string LeagueDashboardConnection = "LeagueDashboardConnection";
         public const string LeagueDashboardConnected = "LeagueDashboardConnected";
         public const string LeagueDashboardDisconnected = "LeagueDashboardDisconnected";
+        public const string LeagueDashboardClientDetectedNoApi = "LeagueDashboardClientDetectedNoApi";
+        public const string LeagueDashboardGameDetectedNoApi = "LeagueDashboardGameDetectedNoApi";
         public const string LeagueDashboardAccount = "LeagueDashboardAccount";
         public const string LeagueDashboardLevel = "LeagueDashboardLevel";
         public const string LeagueDashboardPlatformRegion = "LeagueDashboardPlatformRegion";
@@ -69,6 +71,7 @@ namespace FACM.Services
         public const string LeagueDashboardPerformance = "LeagueDashboardPerformance";
         public const string LeagueDashboardRefresh = "LeagueDashboardRefresh";
         public const string LeagueDashboardWaitingClient = "LeagueDashboardWaitingClient";
+        public const string LeagueDashboardWaitingApi = "LeagueDashboardWaitingApi";
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
 
