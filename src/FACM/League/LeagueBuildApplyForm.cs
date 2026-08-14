@@ -213,8 +213,8 @@ namespace FACM.League
             if (InvokeRequired)
             {
                 try { BeginInvoke(new Action(() => HandleAutoStatusChanged(sender, e))); }
-                catch (InvalidOperationException) { }
                 catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
                 return;
             }
 
