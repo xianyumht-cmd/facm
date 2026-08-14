@@ -52,14 +52,13 @@ namespace FACM.League
         public int StartIndex { get; set; }
         public int RequestedCount { get; set; }
         public int ReportedGameCount { get; set; }
+
+        // LCU match-history gameCount describes the returned window on current Tencent snapshots,
+        // not a reliable all-time total. A full requested window is therefore the only safe signal
+        // that another explicit page may exist.
         public bool HasMore
         {
-            get
-            {
-                if (Matches.Count == 0) return false;
-                if (ReportedGameCount > 0) return StartIndex + Matches.Count < ReportedGameCount;
-                return Matches.Count >= RequestedCount;
-            }
+            get { return RequestedCount > 0 && Matches.Count >= RequestedCount; }
         }
     }
 }
