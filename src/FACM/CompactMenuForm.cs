@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -66,7 +65,7 @@ namespace FACM
                 Cursor = Cursors.Hand
             };
             ApplyShape(logo, _theme.ButtonRadius + 3, _theme.UsesAngularCorners);
-            logo.Click += OpenThemePicker;
+            logo.Click += OpenPersonalizationMenu;
 
             var brand = new Label
             {
@@ -79,7 +78,7 @@ namespace FACM
             };
             var version = new Label
             {
-                Text = "3.1  " + _ui.ControlCenter,
+                Text = MainForm.DisplayMajorMinorVersion() + "  " + _ui.ControlCenter,
                 AutoSize = true,
                 Location = ScalePoint(77, 42),
                 ForeColor = _theme.TextMuted,
@@ -88,7 +87,7 @@ namespace FACM
             };
 
             var adminBadge = CreateButton(
-                _cleanup.IsAdministrator ? "管理员" : "标准模式",
+                _cleanup.IsAdministrator ? _ui.Get(UiTextKeys.Administrator) : _ui.Get(UiTextKeys.StandardMode),
                 new Rectangle(282, 20, 84, 28),
                 false);
             adminBadge.ForeColor = _cleanup.IsAdministrator ? _theme.Success : _theme.TextMuted;
@@ -115,48 +114,34 @@ namespace FACM
             header.Controls.Add(adminBadge);
             header.Controls.Add(close);
 
-            var pathCard = CreatePanel(new Rectangle(16, 80, 388, 96), false);
-            pathCard.Controls.Add(CreateCaption("工作目录", new Point(15, 9), 120));
+            // Directory selection is a prerequisite, not a daily task. Keep it as status + one
+            // management affordance and reveal detection/manual selection only when requested.
+            var pathCard = CreatePanel(new Rectangle(16, 80, 388, 62), false);
+            pathCard.Controls.Add(CreateCaption(_ui.Get(UiTextKeys.WorkDirectory), new Point(15, 8), 130));
             _pathValue = new Label
             {
-                Location = ScaleChildPoint(15, 31),
-                Size = ScaleChildSize(358, 25),
+                Location = ScaleChildPoint(15, 29),
+                Size = ScaleChildSize(278, 24),
                 AutoEllipsis = true,
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = _theme.TextPrimary,
                 BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, ScaleFont(9F), FontStyle.Bold)
+                Font = new Font(_theme.FontName, ScaleFont(8.4F), FontStyle.Bold)
             };
-            var detect = CreateButton("自动识别", new Rectangle(15, 62, 96, 26), false);
-            detect.Location = ScaleChildPoint(15, 62);
-            detect.Size = ScaleChildSize(96, 26);
-            detect.Click += DetectGamePath;
-            var choose = CreateButton("选择目录", new Rectangle(119, 62, 96, 26), false);
-            choose.Location = ScaleChildPoint(119, 62);
-            choose.Size = ScaleChildSize(96, 26);
-            choose.Click += SelectGamePath;
-            var config = new Label
-            {
-                Text = _cleanup.IsConfigured ? "● 规则已配置" : "● 等待配置",
-                Location = ScaleChildPoint(224, 63),
-                Size = ScaleChildSize(150, 23),
-                TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = _cleanup.IsConfigured ? _theme.Success : _theme.Warning,
-                BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, ScaleFont(8F), FontStyle.Bold)
-            };
+            var managePath = CreateButton(_ui.Get(UiTextKeys.ShellManageDirectory), new Rectangle(306, 17, 67, 31), false);
+            managePath.Location = ScaleChildPoint(306, 17);
+            managePath.Size = ScaleChildSize(67, 31);
+            managePath.Click += OpenDirectoryMenu;
             pathCard.Controls.Add(_pathValue);
-            pathCard.Controls.Add(detect);
-            pathCard.Controls.Add(choose);
-            pathCard.Controls.Add(config);
+            pathCard.Controls.Add(managePath);
             RefreshPathLabel();
 
-            var cleanup = CreatePanel(new Rectangle(16, 188, 388, 82), true);
+            var cleanup = CreatePanel(new Rectangle(16, 154, 388, 92), true);
             cleanup.Cursor = Cursors.Hand;
             var cleanupIcon = new Label
             {
                 Text = _theme.Style == ThemeStyle.Luxury ? "✦" : "↻",
-                Location = ScaleChildPoint(15, 17),
+                Location = ScaleChildPoint(15, 21),
                 Size = ScaleChildSize(46, 46),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.White,
@@ -168,8 +153,8 @@ namespace FACM
             var cleanupTitle = new Label
             {
                 Text = _ui.Cleanup,
-                Location = ScaleChildPoint(74, 12),
-                Size = ScaleChildSize(205, 29),
+                Location = ScaleChildPoint(74, 15),
+                Size = ScaleChildSize(215, 29),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
                 Font = new Font(_theme.FontName, ScaleFont(13F), FontStyle.Bold),
@@ -177,8 +162,8 @@ namespace FACM
             };
             var cleanupHint = new Label
             {
-                Text = "先预览路径，再确认执行",
-                Location = ScaleChildPoint(75, 43),
+                Text = _ui.Get(UiTextKeys.CleanupHint),
+                Location = ScaleChildPoint(75, 47),
                 Size = ScaleChildSize(225, 22),
                 ForeColor = Blend(Color.White, _theme.TextMuted, 0.35F),
                 BackColor = Color.Transparent,
@@ -186,86 +171,54 @@ namespace FACM
                 Cursor = Cursors.Hand
             };
             var cleanupTag = CreateButton(
-                _theme.Style == ThemeStyle.Luxury ? "开始清理" : "CLEAN",
-                new Rectangle(306, 25, 67, 31),
+                _ui.Get(UiTextKeys.StartCleanup),
+                new Rectangle(297, 28, 76, 34),
                 true);
-            cleanupTag.Location = ScaleChildPoint(306, 25);
-            cleanupTag.Size = ScaleChildSize(67, 31);
-            cleanupTag.Font = new Font(_theme.FontName, ScaleFont(7.4F), FontStyle.Bold);
+            cleanupTag.Location = ScaleChildPoint(297, 28);
+            cleanupTag.Size = ScaleChildSize(76, 34);
+            cleanupTag.Font = new Font(_theme.FontName, ScaleFont(7.8F), FontStyle.Bold);
             cleanup.Controls.Add(cleanupIcon);
             cleanup.Controls.Add(cleanupTitle);
             cleanup.Controls.Add(cleanupHint);
             cleanup.Controls.Add(cleanupTag);
             WireClick(cleanup, CleanEnvironment);
 
-            var toolsCard = CreatePanel(new Rectangle(16, 282, 388, 184), false);
-            toolsCard.Controls.Add(CreateCaption(_ui.ToolGroup, new Point(15, 9), 180));
-            var toolA = CreateButton(_ui.ToolA, new Rectangle(15, 38, 358, 36), true);
-            toolA.Location = ScaleChildPoint(15, 38);
-            toolA.Size = ScaleChildSize(358, 36);
-            toolA.Click += delegate { RunToolA(); };
-            toolsCard.Controls.Add(toolA);
-            for (var mode = 1; mode <= 4; mode++)
-            {
-                var captured = mode;
-                var column = (mode - 1) % 2;
-                var row = (mode - 1) / 2;
-                var button = CreateButton(
-                    _ui.ModeName(mode),
-                    new Rectangle(15 + column * 181, 84 + row * 43, 177, 36),
-                    false);
-                button.Location = ScaleChildPoint(15 + column * 181, 84 + row * 43);
-                button.Size = ScaleChildSize(177, 36);
-                button.Click += delegate { RunFixMode(captured); };
-                toolsCard.Controls.Add(button);
-            }
+            var featureCard = CreatePanel(new Rectangle(16, 258, 388, 234), false);
+            featureCard.Controls.Add(CreateCaption(_ui.Get(UiTextKeys.ShellFeatureCenter), new Point(15, 9), 180));
 
-            var onlineCard = CreatePanel(new Rectangle(16, 478, 388, 88), false);
-            onlineCard.Controls.Add(CreateCaption("更新与公告", new Point(15, 9), 160));
-            var autoUpdate = new CheckBox
-            {
-                Text = "启动时自动检查",
-                Location = ScaleChildPoint(15, 42),
-                Size = ScaleChildSize(178, 28),
-                Checked = _settings.AutoUpdateEnabled,
-                ForeColor = _theme.TextMuted,
-                BackColor = Color.Transparent,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font(_theme.FontName, ScaleFont(8.3F))
-            };
-            autoUpdate.CheckedChanged += delegate
-            {
-                _settings.AutoUpdateEnabled = autoUpdate.Checked;
-                _settings.Save();
-            };
-            var update = CreateButton(_ui.CheckUpdate, new Rectangle(242, 35, 131, 36), true);
-            update.Location = ScaleChildPoint(242, 35);
-            update.Size = ScaleChildSize(131, 36);
-            update.Click += delegate { _ownerBall.OpenUpdateCenter(); };
-            onlineCard.Controls.Add(autoUpdate);
-            onlineCard.Controls.Add(update);
+            var repair = CreateActionRow(
+                _ui.Get(UiTextKeys.ShellRepairTools),
+                _ui.Get(UiTextKeys.ShellRepairHint),
+                new Rectangle(15, 38, 358, 57),
+                OpenRepairMenu);
+            var league = CreateActionRow(
+                _ui.Get(UiTextKeys.ShellLeague),
+                _ui.Get(UiTextKeys.ShellLeagueHint),
+                new Rectangle(15, 103, 358, 57),
+                OpenLeagueMenu);
+            var personalize = CreateActionRow(
+                _ui.Get(UiTextKeys.ShellPersonalization),
+                _ui.Get(UiTextKeys.ShellPersonalizationHint),
+                new Rectangle(15, 168, 358, 57),
+                OpenPersonalizationMenu);
+            featureCard.Controls.Add(repair);
+            featureCard.Controls.Add(league);
+            featureCard.Controls.Add(personalize);
 
-            var bottomWidth = 120;
-            var bottomGap = 14;
-            var bottomX = 16;
-            var logButton = CreateButton(_ui.OpenLog, new Rectangle(bottomX, 578, bottomWidth, 40), false);
-            logButton.Click += OpenLog;
-            var themeButton = CreateButton("主题设置", new Rectangle(bottomX + bottomWidth + bottomGap, 578, bottomWidth, 40), false);
-            themeButton.Click += OpenThemePicker;
-            var exitButton = CreateButton(_ui.Exit, new Rectangle(bottomX + (bottomWidth + bottomGap) * 2, 578, bottomWidth, 40), false);
-            exitButton.Click += delegate { _ownerBall.ExitApplication(); };
+            var more = CreateButton(_ui.Get(UiTextKeys.ShellMoreSettings) + "  ›", new Rectangle(16, 506, 388, 44), false);
+            more.Click += OpenMoreMenu;
 
             var footer = new Panel
             {
-                Location = ScalePoint(0, 630),
-                Size = ScaleSize(BaseWidth, 50),
+                Location = ScalePoint(0, 566),
+                Size = ScaleSize(BaseWidth, 114),
                 BackColor = Blend(_theme.Background, Color.Black, _theme.IsLight ? 0.04F : 0.22F)
             };
             _status = new Label
             {
-                Text = "准备就绪 · " + _theme.Name,
-                Location = ScaleChildPoint(17, 7),
-                Size = ScaleChildSize(386, 19),
+                Text = _ui.Get(UiTextKeys.Ready) + " · " + _theme.Name,
+                Location = ScaleChildPoint(17, 17),
+                Size = ScaleChildSize(386, 22),
                 AutoEllipsis = true,
                 ForeColor = _theme.Style == ThemeStyle.Synthwave ? _theme.AccentSecondary : _theme.TextPrimary,
                 BackColor = Color.Transparent,
@@ -273,24 +226,31 @@ namespace FACM
             };
             var footerHint = new Label
             {
+                Text = "常用功能只放第一层，其它功能按类别打开",
+                Location = ScaleChildPoint(17, 45),
+                Size = ScaleChildSize(386, 18),
+                ForeColor = _theme.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(_theme.FontName, ScaleFont(7.5F))
+            };
+            var moveHint = new Label
+            {
                 Text = "单击悬浮球收起  ·  拖动悬浮球调整位置",
-                Location = ScaleChildPoint(17, 27),
-                Size = ScaleChildSize(386, 17),
+                Location = ScaleChildPoint(17, 69),
+                Size = ScaleChildSize(386, 18),
                 ForeColor = _theme.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(_theme.FontName, ScaleFont(7.5F))
             };
             footer.Controls.Add(_status);
             footer.Controls.Add(footerHint);
+            footer.Controls.Add(moveHint);
 
             Controls.Add(header);
             Controls.Add(pathCard);
             Controls.Add(cleanup);
-            Controls.Add(toolsCard);
-            Controls.Add(onlineCard);
-            Controls.Add(logButton);
-            Controls.Add(themeButton);
-            Controls.Add(exitButton);
+            Controls.Add(featureCard);
+            Controls.Add(more);
             Controls.Add(footer);
 
             Deactivate += delegate { if (!_dialogOpen) Close(); };
@@ -361,7 +321,7 @@ namespace FACM
                 using (var pen = new Pen(Color.FromArgb(115, _theme.AccentSecondary), 1F))
                 {
                     graphics.DrawLine(pen, ScaleX(14), ScaleY(68), Width - ScaleX(14), ScaleY(68));
-                    graphics.DrawLine(pen, ScaleX(14), Height - ScaleY(52), Width - ScaleX(14), Height - ScaleY(52));
+                    graphics.DrawLine(pen, ScaleX(14), Height - ScaleY(115), Width - ScaleX(14), Height - ScaleY(115));
                 }
             }
         }
@@ -402,10 +362,171 @@ namespace FACM
             };
         }
 
+        private ThemedPanel CreateActionRow(string title, string hint, Rectangle bounds, EventHandler click)
+        {
+            var row = new ThemedPanel(_theme, false)
+            {
+                Location = ScaleChildPoint(bounds.X, bounds.Y),
+                Size = ScaleChildSize(bounds.Width, bounds.Height),
+                Cursor = Cursors.Hand
+            };
+            var titleLabel = new Label
+            {
+                Text = title,
+                Location = ScaleChildPoint(15, 8),
+                Size = ScaleChildSize(bounds.Width - 72, 22),
+                ForeColor = _theme.TextPrimary,
+                BackColor = Color.Transparent,
+                Font = new Font(_theme.FontName, ScaleFont(10F), FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            var hintLabel = new Label
+            {
+                Text = hint,
+                Location = ScaleChildPoint(15, 31),
+                Size = ScaleChildSize(bounds.Width - 72, 18),
+                ForeColor = _theme.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(_theme.FontName, ScaleFont(7.7F)),
+                Cursor = Cursors.Hand
+            };
+            var arrow = new Label
+            {
+                Text = "›",
+                Location = ScaleChildPoint(bounds.Width - 48, 8),
+                Size = ScaleChildSize(32, 38),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = _theme.AccentSecondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", ScaleFont(18F), FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            row.Controls.Add(titleLabel);
+            row.Controls.Add(hintLabel);
+            row.Controls.Add(arrow);
+            WireClick(row, click);
+            return row;
+        }
+
         private static void WireClick(Control parent, EventHandler click)
         {
             parent.Click += click;
             foreach (Control child in parent.Controls) child.Click += click;
+        }
+
+        private void OpenDirectoryMenu(object sender, EventArgs e)
+        {
+            ShowPopupMenu(sender as Control, delegate(ContextMenuStrip menu)
+            {
+                AddPopupItem(menu, _ui.Get(UiTextKeys.AutoDetect), delegate { DetectGamePath(this, EventArgs.Empty); });
+                AddPopupItem(menu, _ui.Get(UiTextKeys.SelectDirectory), delegate { SelectGamePath(this, EventArgs.Empty); });
+            });
+        }
+
+        private void OpenRepairMenu(object sender, EventArgs e)
+        {
+            ShowPopupMenu(sender as Control, delegate(ContextMenuStrip menu)
+            {
+                AddPopupItem(menu, _ui.ToolA, delegate { RunToolA(); });
+                menu.Items.Add(new ToolStripSeparator());
+                for (var mode = 1; mode <= 4; mode++)
+                {
+                    var captured = mode;
+                    AddPopupItem(menu, _ui.ModeName(mode), delegate { RunFixMode(captured); });
+                }
+            });
+        }
+
+        private void OpenLeagueMenu(object sender, EventArgs e)
+        {
+            _dialogOpen = true;
+            if (_ownerBall.ShowShellGroup(ShellMenuGroups.LeagueGroupName, sender as Control, EndPopupInteraction)) return;
+            _dialogOpen = false;
+            SetStatus(_ui.Get(UiTextKeys.ShellLeague) + "：暂无可用功能");
+        }
+
+        private void OpenPersonalizationMenu(object sender, EventArgs e)
+        {
+            ShowPopupMenu(sender as Control, delegate(ContextMenuStrip menu)
+            {
+                AddPopupItem(menu, _ui.Get(UiTextKeys.PanelTheme), delegate { _ownerBall.OpenPanelThemeSelector(); });
+                AddPopupItem(menu, _ui.Get(UiTextKeys.DesktopPet), delegate { _ownerBall.OpenPetSelector(); });
+                AddPopupItem(menu, _ui.Get(UiTextKeys.RestoreFloatingBall), delegate { _ownerBall.RestoreDefaultBall(); });
+                AddPopupItem(menu, _ui.Get(UiTextKeys.PetReset), delegate { _ownerBall.ResetAnimalPet(); });
+            });
+        }
+
+        private void OpenMoreMenu(object sender, EventArgs e)
+        {
+            ShowPopupMenu(sender as Control, delegate(ContextMenuStrip menu)
+            {
+                var autoCheck = AddPopupItem(menu, _ui.Get(UiTextKeys.AutoCheckAtStartup), null);
+                autoCheck.Checked = _settings.AutoUpdateEnabled;
+                autoCheck.CheckOnClick = true;
+                autoCheck.Click += delegate
+                {
+                    _settings.AutoUpdateEnabled = autoCheck.Checked;
+                    _settings.Save();
+                    SetStatus(_ui.Get(UiTextKeys.AutoCheckAtStartup) + (autoCheck.Checked ? "：已开启" : "：已关闭"));
+                };
+                menu.Items.Add(new ToolStripSeparator());
+                AddPopupItem(menu, _ui.CheckUpdate, delegate { _ownerBall.OpenUpdateCenter(); });
+                AddPopupItem(menu, _ui.OpenLog, delegate { OpenLog(this, EventArgs.Empty); });
+                menu.Items.Add(new ToolStripSeparator());
+                AddPopupItem(menu, _ui.Exit, delegate { _ownerBall.ExitApplication(); });
+            });
+        }
+
+        private ToolStripMenuItem AddPopupItem(ContextMenuStrip menu, string text, Action click)
+        {
+            var item = new ToolStripMenuItem(text)
+            {
+                ForeColor = _theme.TextPrimary
+            };
+            if (click != null) item.Click += delegate { click(); };
+            menu.Items.Add(item);
+            return item;
+        }
+
+        private void ShowPopupMenu(Control anchor, Action<ContextMenuStrip> populate)
+        {
+            if (populate == null) return;
+            var menu = new ContextMenuStrip
+            {
+                Font = new Font(_theme.FontName, 9F),
+                ShowImageMargin = false,
+                BackColor = _theme.Surface,
+                ForeColor = _theme.TextPrimary
+            };
+            populate(menu);
+            _dialogOpen = true;
+            menu.Closed += delegate
+            {
+                _dialogOpen = false;
+                try
+                {
+                    _ownerBall.BeginInvoke(new Action(delegate
+                    {
+                        if (!menu.IsDisposed) menu.Dispose();
+                        if (!IsDisposed) Activate();
+                    }));
+                }
+                catch
+                {
+                    try { if (!menu.IsDisposed) menu.Dispose(); } catch { }
+                }
+            };
+            var point = anchor != null && !anchor.IsDisposed
+                ? anchor.PointToScreen(new Point(0, anchor.Height + 4))
+                : Cursor.Position;
+            menu.Show(point);
+        }
+
+        private void EndPopupInteraction()
+        {
+            _dialogOpen = false;
+            if (IsDisposed) return;
+            try { BeginInvoke(new Action(Activate)); } catch { }
         }
 
         private void RunToolA()
@@ -565,22 +686,6 @@ namespace FACM
             SetStatus("已打开操作日志");
         }
 
-        private void OpenThemePicker(object sender, EventArgs e)
-        {
-            RunDialogAction(delegate
-            {
-                using (var picker = new ThemePickerForm(_settings.ThemeId))
-                {
-                    if (picker.ShowDialog(this) != DialogResult.OK) return;
-                    if (string.Equals(_settings.ThemeId, picker.SelectedThemeId, StringComparison.OrdinalIgnoreCase)) return;
-                    _settings.ThemeId = picker.SelectedThemeId;
-                    _settings.Save();
-                    AppLog.Info("Theme changed to " + picker.SelectedThemeId);
-                    _ownerBall.BeginInvoke(new Action(_ownerBall.ApplyThemeSelection));
-                }
-            });
-        }
-
         private bool EnsureGamePath()
         {
             if (_cleanup.IsValidGameRoot(_settings.GamePath)) return true;
@@ -605,9 +710,15 @@ namespace FACM
 
         private void RefreshPathLabel()
         {
-            _pathValue.Text = _cleanup.IsValidGameRoot(_settings.GamePath)
-                ? _settings.GamePath
-                : "尚未选择或未完成开发者配置";
+            if (_cleanup.IsValidGameRoot(_settings.GamePath))
+            {
+                _pathValue.Text = "● " + _ui.Get(UiTextKeys.ShellDirectoryReady) + " · " + _settings.GamePath;
+                _pathValue.ForeColor = _theme.Success;
+                return;
+            }
+
+            _pathValue.Text = "● " + _ui.Get(UiTextKeys.ShellDirectoryMissing);
+            _pathValue.ForeColor = _theme.Warning;
         }
 
         private void SetStatus(string text)
