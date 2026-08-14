@@ -20,6 +20,7 @@ namespace FACM.AppHost.Modules
         private readonly SettingsModule _settings;
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
+        private CachingOpggBuildApi _sharedOpgg;
         private LeagueBuildAdvisorDataService _service;
         private LeagueBuildApplyService _applyService;
         private LeagueItemSetService _itemSetService;
@@ -44,15 +45,25 @@ namespace FACM.AppHost.Modules
             if (_settings.Settings == null)
                 throw new InvalidOperationException("Settings module must initialize before League Build Advisor.");
 
-            _service = new LeagueBuildAdvisorDataService(_leagueClient, _performance.Budgets);
+            _sharedOpgg = new CachingOpggBuildApi(new OpggBuildApiClient(), true);
+            _service = new LeagueBuildAdvisorDataService(
+                _leagueClient,
+                _performance.Budgets,
+                _sharedOpgg,
+                false);
             _applyService = new LeagueBuildApplyService(_leagueClient, _leagueClient, _performance.Budgets);
             _itemSetService = new LeagueItemSetService(_leagueClient, _performance.Budgets);
+            var executor = new LeagueAutoApplyExecutor(
+                _applyService,
+                _itemSetService,
+                _sharedOpgg,
+                false);
             _autoApply = new LeagueAutoApplyController(
                 _settings.Settings,
                 _performance.Budgets,
                 _service,
-                _applyService,
-                _itemSetService);
+                executor,
+                new LeagueAutoApplyCoordinator());
             _autoApply.Start();
 
             LeagueBuildAdvisorUiBridge.Install(this);
@@ -90,15 +101,18 @@ namespace FACM.AppHost.Modules
             var itemSetService = _itemSetService;
             var applyService = _applyService;
             var service = _service;
+            var sharedOpgg = _sharedOpgg;
             _autoApply = null;
             _itemSetService = null;
             _applyService = null;
             _service = null;
+            _sharedOpgg = null;
 
             if (autoApply != null) autoApply.Dispose();
             if (itemSetService != null) itemSetService.Dispose();
             if (applyService != null) applyService.Dispose();
             if (service != null) service.Dispose();
+            if (sharedOpgg != null) sharedOpgg.Dispose();
         }
     }
 }
