@@ -65,7 +65,7 @@ namespace FACM.League
             _owner = owner;
         }
 
-        private static int FindIndex(ContextMenuStrip menu, string name)
+        private static int FindIndex(System.Windows.Forms.ContextMenuStrip menu, string name)
         {
             for (var index = 0; index < menu.Items.Count; index++)
             {
