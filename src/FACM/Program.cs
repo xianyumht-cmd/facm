@@ -147,10 +147,6 @@ namespace FACM
 
                 try
                 {
-                    // Only create the tiny writable runtime skeleton before the message loop starts.
-                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
-                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
-                    // never make the application look like it failed to launch.
                     RuntimePaths.Initialize();
                 }
                 catch (Exception exception)
@@ -188,10 +184,11 @@ namespace FACM
                 var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
                 var leagueLive = new LeagueLiveModule(leagueClient, performance);
                 var leagueAdvisor = new LeagueBuildAdvisorModule(leagueClient, performance);
+                var leagueEfficiency = new LeagueEfficiencyModule(settings);
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, mayhem, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -245,6 +242,7 @@ namespace FACM
             LeaguePlayerModule leaguePlayer,
             LeagueLiveModule leagueLive,
             LeagueBuildAdvisorModule leagueAdvisor,
+            LeagueEfficiencyModule leagueEfficiency,
             MayhemModule mayhem,
             CleanupModule cleanup,
             ShellModule shell)
@@ -261,6 +259,7 @@ namespace FACM
             host.Register(leaguePlayer);
             host.Register(leagueLive);
             host.Register(leagueAdvisor);
+            host.Register(leagueEfficiency);
             host.Register(mayhem);
             host.Register(cleanup);
             host.Register(shell);
