@@ -62,7 +62,7 @@ namespace FACM.League
             Controls.Add(_refreshButton);
             Controls.Add(close);
 
-            ShowEmptyState();
+            ShowEmptyState(null);
             _timer = new System.Windows.Forms.Timer { Interval = 5000 };
             _timer.Tick += async delegate { await RefreshAsync(false); };
             Shown += async delegate
@@ -120,12 +120,12 @@ namespace FACM.League
             }
             catch (OperationCanceledException)
             {
-                if (!_lifetime.IsCancellationRequested) ShowEmptyState();
+                if (!_lifetime.IsCancellationRequested) ShowEmptyState(_snapshot);
             }
             catch (Exception exception)
             {
                 AppLog.Info("League Dashboard refresh skipped: " + exception.Message);
-                if (!IsDisposed) ShowEmptyState();
+                if (!IsDisposed) ShowEmptyState(_snapshot);
             }
             finally
             {
@@ -138,6 +138,8 @@ namespace FACM.League
         {
             if (_snapshot == null || !phase.Connected) _snapshot = new LeagueDashboardSnapshot();
             _snapshot.Connected = phase.Connected;
+            _snapshot.ClientProcessDetected = phase.ClientProcessDetected;
+            _snapshot.GameProcessDetected = phase.GameProcessDetected;
             _snapshot.Phase = phase.Phase;
             _snapshot.Activity = phase.Activity;
             _snapshot.BudgetName = phase.BudgetName;
@@ -146,7 +148,7 @@ namespace FACM.League
 
         private void ApplySnapshot()
         {
-            if (_snapshot == null || !_snapshot.Connected) { ShowEmptyState(); return; }
+            if (_snapshot == null || !_snapshot.Connected) { ShowEmptyState(_snapshot); return; }
             _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardConnected);
             _connectionValue.ForeColor = Color.FromArgb(103, 218, 166);
             var account = string.IsNullOrWhiteSpace(_snapshot.AccountName) ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : _snapshot.AccountName;
@@ -161,16 +163,34 @@ namespace FACM.League
             _updatedValue.Text = _snapshot.UpdatedAtUtc == DateTime.MinValue ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : _snapshot.UpdatedAtUtc.ToLocalTime().ToString("HH:mm:ss");
         }
 
-        private void ShowEmptyState()
+        private void ShowEmptyState(LeagueDashboardPhaseState state)
         {
             var unknown = _ui.Get(UiTextKeys.LeagueDashboardUnknown);
-            _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardDisconnected);
-            _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
-            _accountValue.Text = _ui.Get(UiTextKeys.LeagueDashboardWaitingClient);
+            if (state != null && state.GameProcessDetected)
+            {
+                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardGameDetectedNoApi);
+                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
+            }
+            else if (state != null && state.ClientProcessDetected)
+            {
+                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardClientDetectedNoApi);
+                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
+            }
+            else
+            {
+                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardDisconnected);
+                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
+            }
+
+            _accountValue.Text = state != null && (state.ClientProcessDetected || state.GameProcessDetected)
+                ? _ui.Get(UiTextKeys.LeagueDashboardWaitingApi)
+                : _ui.Get(UiTextKeys.LeagueDashboardWaitingClient);
             _platformValue.Text = unknown;
             _phaseValue.Text = unknown;
-            _performanceValue.Text = unknown;
-            _updatedValue.Text = unknown;
+            _performanceValue.Text = state == null ? unknown : ValueOrUnknown(state.BudgetName);
+            _updatedValue.Text = state == null || state.UpdatedAtUtc == DateTime.MinValue
+                ? unknown
+                : state.UpdatedAtUtc.ToLocalTime().ToString("HH:mm:ss");
         }
 
         private string ValueOrUnknown(string value) { return string.IsNullOrWhiteSpace(value) ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : value; }
