@@ -13,6 +13,7 @@ namespace FACM.Performance
                 FACM.League.LeaguePlayerSmokeTest.Validate();
                 FACM.League.LeagueLiveSmokeTest.Validate();
                 FACM.League.LeagueBuildAdvisorSmokeTest.Validate();
+                FACM.League.LeagueBuildApplySmokeTest.Validate();
                 Console.WriteLine("FACM performance contract smoke passed.");
                 return 0;
             }
