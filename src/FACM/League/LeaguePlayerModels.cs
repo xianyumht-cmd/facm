@@ -33,12 +33,44 @@ namespace FACM.League
         public string GameMode { get; set; }
         public int QueueId { get; set; }
         public int ChampionId { get; set; }
+        public string ChampionName { get; set; }
         public int Kills { get; set; }
         public int Deaths { get; set; }
         public int Assists { get; set; }
         public int CreepScore { get; set; }
         public bool Win { get; set; }
         public bool ParticipantResolved { get; set; }
+    }
+
+    internal sealed class LeaguePlayerChampionStat
+    {
+        public int ChampionId { get; set; }
+        public string ChampionName { get; set; }
+        public int Games { get; set; }
+        public int Wins { get; set; }
+        public int Kills { get; set; }
+        public int Deaths { get; set; }
+        public int Assists { get; set; }
+
+        public double WinRate
+        {
+            get { return Games <= 0 ? 0d : Wins * 100d / Games; }
+        }
+
+        public double AverageKills
+        {
+            get { return Games <= 0 ? 0d : (double)Kills / Games; }
+        }
+
+        public double AverageDeaths
+        {
+            get { return Games <= 0 ? 0d : (double)Deaths / Games; }
+        }
+
+        public double AverageAssists
+        {
+            get { return Games <= 0 ? 0d : (double)Assists / Games; }
+        }
     }
 
     internal sealed class LeaguePlayerMatchPage
