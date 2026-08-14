@@ -21,6 +21,7 @@ namespace FACM.League
         private LeaguePlayerProfile _cachedProfile;
         private DateTime _profileCachedUtc = DateTime.MinValue;
         private LeaguePlayerMatchPage _cachedPage;
+        private string _cachedPagePuuId;
         private DateTime _pageCachedUtc = DateTime.MinValue;
 
         public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
@@ -43,7 +44,7 @@ namespace FACM.League
         {
             lock (_cacheSync)
             {
-                if (!force && _cachedProfile != null && DateTime.UtcNow - _profileCachedUtc < TimeSpan.FromMinutes(5))
+                if (!force && _cachedProfile != null && DateTime.UtcNow - _profileCachedUtc < TimeSpan.FromSeconds(15))
                     return CloneProfile(_cachedProfile);
             }
 
@@ -58,6 +59,12 @@ namespace FACM.League
                     if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId)) return profile;
                     lock (_cacheSync)
                     {
+                        if (_cachedProfile != null && !string.Equals(_cachedProfile.PuuId, profile.PuuId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _cachedPage = null;
+                            _cachedPagePuuId = null;
+                            _pageCachedUtc = DateTime.MinValue;
+                        }
                         _cachedProfile = CloneProfile(profile);
                         _profileCachedUtc = DateTime.UtcNow;
                     }
@@ -84,6 +91,7 @@ namespace FACM.League
             lock (_cacheSync)
             {
                 if (!force && _cachedPage != null &&
+                    string.Equals(_cachedPagePuuId, profile.PuuId, StringComparison.OrdinalIgnoreCase) &&
                     _cachedPage.StartIndex == startIndex && _cachedPage.RequestedCount == count &&
                     DateTime.UtcNow - _pageCachedUtc < TimeSpan.FromSeconds(45))
                     return ClonePage(_cachedPage);
@@ -94,7 +102,8 @@ namespace FACM.League
             {
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
-                    timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                    var budget = _budgets.Current;
+                    timeout.CancelAfter(budget.NetworkConcurrency <= 1 ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(4));
                     var endIndex = startIndex + count - 1;
                     var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(profile.PuuId) +
                                "/matches?begIndex=" + startIndex + "&endIndex=" + endIndex;
@@ -105,6 +114,7 @@ namespace FACM.League
                         lock (_cacheSync)
                         {
                             _cachedPage = ClonePage(page);
+                            _cachedPagePuuId = profile.PuuId;
                             _pageCachedUtc = DateTime.UtcNow;
                         }
                     }
@@ -171,11 +181,10 @@ namespace FACM.League
             }
 
             var stats = participant == null ? null : ReadObject(participant, "stats");
-            var creation = ResolveCreationLocal(game);
             return new LeaguePlayerMatchSummary
             {
                 GameId = ReadLong(game, "gameId"),
-                GameCreationLocal = creation,
+                GameCreationLocal = ResolveCreationLocal(game),
                 GameDurationSeconds = ReadInt(game, "gameDuration"),
                 GameMode = ReadString(game, "gameMode"),
                 QueueId = ReadInt(game, "queueId"),
