@@ -197,6 +197,9 @@ namespace FACM.League
                 var page = await _service.LoadRecentMatchesAsync(profile, 0, _requestedCount, force, _lifetime.Token);
                 if (IsDisposed) return;
                 ApplyPage(page);
+
+                var enriched = await _service.EnrichIncompleteMatchesAsync(profile, page, _lifetime.Token);
+                if (!IsDisposed && enriched != null) ApplyPage(enriched);
             }
             catch (OperationCanceledException)
             {
@@ -222,7 +225,11 @@ namespace FACM.League
             {
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingMatches);
                 var page = await _service.LoadRecentMatchesAsync(_profile, 0, _requestedCount, false, _lifetime.Token);
-                if (!IsDisposed) ApplyPage(page);
+                if (IsDisposed) return;
+                ApplyPage(page);
+
+                var enriched = await _service.EnrichIncompleteMatchesAsync(_profile, page, _lifetime.Token);
+                if (!IsDisposed && enriched != null) ApplyPage(enriched);
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -265,6 +272,11 @@ namespace FACM.League
                 return;
             }
             var match = _rows[e.ItemIndex];
+            if (match == null)
+            {
+                e.Item = new ListViewItem(_ui.Get(UiTextKeys.LeaguePlayerUnknown));
+                return;
+            }
             var unknown = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
             var time = match.GameCreationLocal == DateTime.MinValue ? unknown : match.GameCreationLocal.ToString("MM-dd HH:mm");
             var mode = string.IsNullOrWhiteSpace(match.GameMode) ? unknown : match.GameMode;
