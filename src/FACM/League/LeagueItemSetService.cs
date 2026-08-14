@@ -514,7 +514,7 @@ namespace FACM.League
             var champion = string.IsNullOrWhiteSpace(plan.ChampionName)
                 ? "#" + plan.ChampionId.ToString(CultureInfo.InvariantCulture)
                 : plan.ChampionName.Trim();
-            var title = "[OP.GG] " + champion;
+            var title = "[FACM] " + champion;
             if (!string.IsNullOrWhiteSpace(plan.Mode)) title += " - " + plan.Mode.Trim();
             if (!string.IsNullOrWhiteSpace(plan.Position) && !string.Equals(plan.Position, "none", StringComparison.OrdinalIgnoreCase))
                 title += " - " + plan.Position.Trim();
