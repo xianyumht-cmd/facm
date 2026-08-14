@@ -72,7 +72,7 @@ namespace FACM.League
 
             _statsSection = new Label
             {
-                Text = _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + " · " + _ui.Get(UiTextKeys.LeaguePlayerChampion),
+                Text = FormatChampionStatsTitle(0),
                 Location = new Point(30, 166),
                 Size = new Size(500, 25),
                 ForeColor = Color.FromArgb(190, 205, 231),
@@ -92,7 +92,7 @@ namespace FACM.League
                 HideSelection = true,
                 View = View.Details
             };
-            _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerChampion), 300);
+            _championStatsList.Columns.Add(ChampionHeaderText(), 300);
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 160);
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 250);
 
@@ -123,7 +123,7 @@ namespace FACM.League
             };
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerTime), 122);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerMode), 140);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerChampion), 122);
+            _matchesList.Columns.Add(ChampionHeaderText(), 122);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 106);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerCs), 66);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 72);
@@ -312,8 +312,7 @@ namespace FACM.League
             try
             {
                 _championStatsList.Items.Clear();
-                _statsSection.Text = _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + " · " +
-                    _ui.Get(UiTextKeys.LeaguePlayerChampion) + " · " + _rows.Count;
+                _statsSection.Text = FormatChampionStatsTitle(_rows.Count);
                 foreach (var stat in _service.BuildChampionStats(page))
                 {
                     var champion = FormatChampion(stat.ChampionName, stat.ChampionId) + " ×" + stat.Games;
@@ -362,6 +361,27 @@ namespace FACM.League
                 ? (match.Win ? Color.FromArgb(103, 218, 166) : Color.FromArgb(244, 145, 145))
                 : Color.FromArgb(180, 190, 207);
             e.Item = item;
+        }
+
+        private string ChampionHeaderText()
+        {
+            var text = _ui.Get(UiTextKeys.LeaguePlayerChampion);
+            return !string.IsNullOrWhiteSpace(text) && text.EndsWith(" ID", StringComparison.OrdinalIgnoreCase)
+                ? text.Substring(0, text.Length - 3).TrimEnd()
+                : text;
+        }
+
+        private string FormatChampionStatsTitle(int count)
+        {
+            var format = _ui.Get(UiTextKeys.LeaguePlayerChampionStatsFormat);
+            try
+            {
+                return string.Format(format, Math.Max(0, count));
+            }
+            catch (FormatException)
+            {
+                return format + " · " + Math.Max(0, count);
+            }
         }
 
         private static string FormatChampion(string name, int championId)
