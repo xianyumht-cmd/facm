@@ -65,6 +65,15 @@ namespace FACM.Services
             Pair(UiTextKeys.ShellPersonalizationHint, "主题 / 桌面形态"),
             Pair(UiTextKeys.ShellDirectoryReady, "游戏目录已识别"),
             Pair(UiTextKeys.ShellDirectoryMissing, "尚未识别游戏目录"),
+            Pair(UiTextKeys.ShellSimpleHint, "常用功能只放第一层，其它功能按类别打开"),
+            Pair(UiTextKeys.ShellArrow, "›"),
+            Pair(UiTextKeys.ShellUnavailable, "暂无可用功能"),
+            Pair(UiTextKeys.ShellEnabled, "已开启"),
+            Pair(UiTextKeys.ShellDisabled, "已关闭"),
+            Pair(UiTextKeys.ShellStatusFormat, "{0}：{1}"),
+            Pair(UiTextKeys.ShellDirectoryReadyFormat, "● {0} · {1}"),
+            Pair(UiTextKeys.ShellDirectoryMissingFormat, "● {0}"),
+            Pair(UiTextKeys.ShellTrayTooltipFormat, "{0} {1}"),
 
             // Role-specific contract keys. These are resolved explicitly with Text(key), not by the
             // legacy global named replacement path below.
