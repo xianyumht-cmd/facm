@@ -28,6 +28,15 @@ namespace FACM
         public const int ItemSetOrder = 60;
         public const int MayhemOrder = 90;
 
+        private static readonly string[] RootContractNames =
+        {
+            OpenRootName,
+            CleanupRootName,
+            LeagueGroupName,
+            MoreGroupName,
+            ExitRootName
+        };
+
         public static ToolStripMenuItem CreateRootGroup(string name, string text)
         {
             return new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
@@ -82,22 +91,61 @@ namespace FACM
         internal static void ValidateRootContract(System.Windows.Forms.ContextMenuStrip root)
         {
             if (root == null) throw new InvalidOperationException("Shell root menu is missing.");
-            if (ActionableRootCount(root) != 5)
+            if (ActionableRootCount(root) != RootContractNames.Length)
                 throw new InvalidOperationException("Shell root must expose exactly five novice-facing actions/groups.");
 
-            var required = new[]
-            {
-                OpenRootName,
-                CleanupRootName,
-                LeagueGroupName,
-                MoreGroupName,
-                ExitRootName
-            };
-            foreach (var name in required)
+            foreach (var name in RootContractNames)
             {
                 if (!RootContainsAction(root, name))
                     throw new InvalidOperationException("Shell root contract is missing: " + name);
             }
+        }
+
+        /// <summary>
+        /// Pure contract validation for CI. The performance smoke runs before WinForms visual styles
+        /// or a message loop exist, so it must never instantiate ContextMenuStrip/Timer/window state.
+        /// Actual runtime registration still validates the live menu through ValidateRootContract.
+        /// </summary>
+        internal static void ValidateDefinitionForSmokeTest()
+        {
+            if (RootContractNames.Length != 5)
+                throw new InvalidOperationException("Shell root definition must contain exactly five entries.");
+            if (RootContractNames.Any(string.IsNullOrWhiteSpace))
+                throw new InvalidOperationException("Shell root definition contains an empty name.");
+            if (RootContractNames.Distinct(StringComparer.Ordinal).Count() != RootContractNames.Length)
+                throw new InvalidOperationException("Shell root definition contains duplicate names.");
+
+            var orders = new[]
+            {
+                DashboardOrder,
+                PlayerOrder,
+                LiveOrder,
+                AdvisorOrder,
+                ApplyOrder,
+                ItemSetOrder,
+                MayhemOrder
+            };
+            for (var index = 1; index < orders.Length; index++)
+            {
+                if (orders[index] <= orders[index - 1])
+                    throw new InvalidOperationException("League submenu order contract is not strictly increasing.");
+            }
+
+            if (ItemSetOrder >= MayhemOrder)
+                throw new InvalidOperationException("Future OP.GG item-set action must stay before Mayhem in the League group.");
+
+            var businessActions = new[]
+            {
+                "FACM.LeagueDashboard",
+                "FACM.LeaguePlayer",
+                "FACM.LeagueLive",
+                "FACM.LeagueBuildAdvisor",
+                "FACM.LeagueBuildApply",
+                "FACM.LeagueItemSet",
+                MayhemActionName
+            };
+            if (businessActions.Any(action => RootContractNames.Contains(action, StringComparer.Ordinal)))
+                throw new InvalidOperationException("A business action name leaked into the fixed Shell root contract.");
         }
 
         private static bool AddGroupAction(
