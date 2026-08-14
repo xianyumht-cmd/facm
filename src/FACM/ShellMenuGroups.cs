@@ -79,6 +79,27 @@ namespace FACM
                 .Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
         }
 
+        internal static void ValidateRootContract(System.Windows.Forms.ContextMenuStrip root)
+        {
+            if (root == null) throw new InvalidOperationException("Shell root menu is missing.");
+            if (ActionableRootCount(root) != 5)
+                throw new InvalidOperationException("Shell root must expose exactly five novice-facing actions/groups.");
+
+            var required = new[]
+            {
+                OpenRootName,
+                CleanupRootName,
+                LeagueGroupName,
+                MoreGroupName,
+                ExitRootName
+            };
+            foreach (var name in required)
+            {
+                if (!RootContainsAction(root, name))
+                    throw new InvalidOperationException("Shell root contract is missing: " + name);
+            }
+        }
+
         private static bool AddGroupAction(
             System.Windows.Forms.ContextMenuStrip root,
             string groupName,
@@ -89,6 +110,7 @@ namespace FACM
         {
             if (root == null || root.IsDisposed) return false;
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Shell action name is required.", nameof(name));
+            ValidateRootContract(root);
 
             var group = FindGroup(root, groupName);
             if (group == null)
@@ -117,6 +139,7 @@ namespace FACM
                 }
             }
             group.DropDownItems.Insert(insertAt, item);
+            ValidateRootContract(root);
             return true;
         }
 
