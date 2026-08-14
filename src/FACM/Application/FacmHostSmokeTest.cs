@@ -147,9 +147,10 @@ namespace FACM.AppHost
             var performance = new FACM.Performance.PerformanceModule();
             var leagueClient = new LeagueClientModule();
             var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
+            var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
             var mayhem = new MayhemModule(leagueClient);
             var cleanup = new CleanupModule();
-            var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, mayhem, cleanup);
+            var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, leaguePlayer, mayhem, cleanup);
 
             Require(
                 mayhem.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId }),
@@ -157,6 +158,9 @@ namespace FACM.AppHost
             Require(
                 leagueDashboard.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Dashboard must depend on LeagueClient and Performance.");
+            Require(
+                leaguePlayer.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
+                "League Player must depend on LeagueClient and Performance.");
 
             var expected = new[]
             {
@@ -166,6 +170,7 @@ namespace FACM.AppHost
                 OnlineModule.ModuleId,
                 PetsModule.ModuleId,
                 LeagueDashboardModule.ModuleId,
+                LeaguePlayerModule.ModuleId,
                 MayhemModule.ModuleId,
                 CleanupModule.ModuleId
             };
