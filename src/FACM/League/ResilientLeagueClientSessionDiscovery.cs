@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
+using System.Threading;
 
 namespace FACM.League
 {
@@ -78,8 +80,11 @@ namespace FACM.League
             var lockfile = Path.Combine(directory, "lockfile");
             if (!File.Exists(lockfile)) return false;
 
+            string content;
+            if (!TryReadSharedText(lockfile, out content)) return false;
+
             LeagueClientSession parsed;
-            if (!LeagueClientSessionParser.TryParseLockfile(File.ReadAllText(lockfile), out parsed)) return false;
+            if (!LeagueClientSessionParser.TryParseLockfile(content, out parsed)) return false;
 
             session = new LeagueClientSession(
                 parsed.ProcessName,
@@ -91,6 +96,36 @@ namespace FACM.League
                 parsed.PlatformId,
                 parsed.Region);
             return true;
+        }
+
+        internal static bool TryReadSharedText(string path, out string content)
+        {
+            content = null;
+            if (string.IsNullOrWhiteSpace(path)) return false;
+
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        content = reader.ReadToEnd();
+                        return !string.IsNullOrWhiteSpace(content);
+                    }
+                }
+                catch (IOException)
+                {
+                    if (attempt >= 2) return false;
+                    Thread.Sleep(35);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
     }
 }
