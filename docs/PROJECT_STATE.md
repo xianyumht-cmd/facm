@@ -1,8 +1,8 @@
 # FACM 当前项目状态
 
-> 2026-08-14：FACM 3.2.0 是当前正式生产基线。Performance Contract、League Dashboard Gate 1、Player Gate 1、Champ Select / Current Game Gate 1 均已完成、通过 Windows 腾讯/国服验收并合入 `main`。
+> 2026-08-14：FACM 3.2.0 是当前正式生产基线。Performance Contract、League Dashboard Gate 1、Player Gate 1、Champ Select / Current Game Gate 1、Player Gate 2 均已完成并合入 `main`。
 >
-> 当前 League 规划进度：**3/5（60%）**。当前主线是 **Player Gate 2：英雄名称与轻量表现统计**，Issue #90 / Draft PR #91 已有 Windows 候选，等待腾讯/国服实机验收。完整历史交接仍可参考 `docs/HANDOFF-20260814-LEAGUE.md`，但当前状态以本文件和 GitHub 实时状态为准。
+> 当前 League 规划进度：**4/5（80%）**。下一主线正式切到 **Tools / Automation**。完整历史交接可参考 `docs/HANDOFF-20260814-LEAGUE.md`，但当前状态以本文件和 GitHub 实时状态为准。
 
 ## 当前正式版
 
@@ -13,45 +13,26 @@
 - Release FACM.exe SHA-256：`D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9`
 - 本轮没有创建新 Release、没有改 `online/version.json`、没有改变线上版本。
 
-## 当前 main 与最新完成行为
+## 最新完成行为：Player Gate 2
 
-Champ Select / Current Game Gate 1 已完成并 canonical closeout：
+Player Gate 2 已完成腾讯/国服实机验收并合入 `main`：
 
-- Issue #85：completed。
-- PR #86：merged。
-- 候选行为 HEAD：`bf9ae52dbb814a5ac862c6671085e6ed0300d456`。
-- 行为 merge commit：`4d0cbe43c9ae5e1bae62ad62d398f8fba1ab138a`。
-- Windows 腾讯/国服候选 Build #955：用户实机验收反馈“没问题”。
-- 候选 CI：Windows Build #955 / UI Text Contract #76 / Mayhem Source Probe #237 全部 SUCCESS。
-- 行为 main post-merge：Windows Build #958 / UI Text Contract #79 / Mayhem Source Probe #239 全部 SUCCESS。
-- canonical closeout PR #89：merged；当前 main merge commit `6e27fc1f3aa3be711c7539342dff86c63f81ecff`。
-- closeout main checks：Windows Build #960 / UI Text Contract #81 SUCCESS。
+- Issue #90：completed。
+- PR #91：merged。
+- 最终验收候选 HEAD：`24b9db09bc50d0d8490fa46bdd303d59a0f1583a`。
+- merge commit：`1ae84844feddddda91226867172ff93c9cb8d5aa`。
+- Windows 腾讯/国服：Build #961 已验证本地中文英雄名称映射与当前已加载战绩聚合；随后按实机截图反馈修正 Player 文案。
+- 最终 Build #965：用户实机截图确认 `英雄` 列、`英雄表现（当前已加载 2 场）` 标题、中文英雄名称与两场当前战绩统计正常。
+- 最终候选 CI：Windows Build #965 / UI Text Contract #86 SUCCESS。
+- merge 后 main：Windows Build #966 / UI Text Contract #87 SUCCESS。
+- 本 Gate 没有修改 Mayhem 源码，因此本轮没有新增 Mayhem Source Probe run；Windows Build 中的 Performance Contract / `LeaguePlayerSmokeTest` 已通过。
+- 最终 artifact：`FACM-Windows-x64-965`，artifact id `9221920312`。
+- artifact ZIP SHA-256：`D273D4834B1B20E23D601683EFABFB1BCEB783FFFAA0DE03B5CF76BF678615C9`。
+- 构建 FACM.exe 版本：`3.2.0.0`；开发自签名行为未改变。
 
-此前两项 League Gate 也保持完成：
+### Player Gate 2 冻结边界
 
-- League Dashboard Gate 1：已完成并通过腾讯/国服实测。
-- Player Gate 1：已完成并通过 Build #951 腾讯/国服实测；PR #82 已合并，Issue #81 completed。
-
-## 当前未完成：Player Gate 2
-
-- Issue #90：OPEN。
-- Draft PR #91：OPEN / Draft / mergeable。
-- branch：`feat/player-gate2-90`。
-- base：`main` @ `6e27fc1f3aa3be711c7539342dff86c63f81ecff`。
-- 当前候选 HEAD：`bac1aec66644ec1b9e94b2c0df6c19a434449810`。
-- changed files：4，全部位于现有 Player 链；没有新增模块、Release 或 online 更新改动。
-- Windows Build #961：SUCCESS。
-- UI Text Contract #82：SUCCESS。
-- 本次没有改 Mayhem 源码，因此没有额外 Mayhem Source Probe run；Windows Build 的 `--performance-contract-test` 已执行 `LeaguePlayerSmokeTest`。
-- artifact：`FACM-Windows-x64-961`，artifact id `9221229324`。
-- artifact ZIP SHA-256：`AAF50215D0854ADB3C508853830C6943D3C8649CAFFBF175E4692C616DF231D2`。
-- packaged FACM.exe SHA-256：`49E14B51FE443F5130D9BCFEE5FC86A984E4055BC841D500C2E5442CB209447B`。
-- packaged FACM.exe size：77,980,056 bytes。
-- **腾讯/国服实机尚未验收；未通过前 PR #91 必须保持 Draft，不合并。**
-
-### Player Gate 2 当前行为边界
-
-在 Player Gate 1 基础上只做渐进增强：
+在 Player Gate 1 基础上只做了渐进增强：
 
 - champion ID 通过本地 LCU `/lol-game-data/assets/v1/champion-summary.json` 映射客户端本地英雄名称；
 - 英雄表是一次性汇总请求，内存缓存 30 分钟，不按每场/每英雄 fan-out；
@@ -60,21 +41,30 @@ Champ Select / Current Game Gate 1 已完成并 canonical closeout：
 - 表现统计只基于当前已经加载的 10/20 场，不追加 match-history；
 - 统计包含英雄样本场次、胜率、平均 K/D/A；
 - UI 使用轻量有限 ListView，没有英雄图片、动态图表或后台资产预取；
+- Player 英雄列默认文案为 `英雄`，统计标题为 `英雄表现（当前已加载 {0} 场）`；旧 `ui-text.ini` 中遗留的 `英雄 ID` 显示兼容，不要求用户手动删除配置；
 - 保留 Gate 1 的账号缓存、45 秒战绩页缓存、10→20 明确分页、页面关闭取消和敏感阶段 0 战绩详情预取边界；
 - deterministic smoke 覆盖英雄表解析/映射、30 分钟缓存、敏感阶段 0 英雄元数据请求、纯内存统计、0 新增 match-history fan-out、取消和原分页边界。
 
-### Player Gate 2 下一步验收
+没有真实缺陷或新独立需求时，不再重新设计 Player Gate 1/2。
 
-Build #961 Windows 腾讯/国服集中验证：
+## 此前 League Gate 已完成
 
-1. 登录客户端后打开“玩家主页”，原账号和最近战绩仍正常；
-2. 英雄列应优先显示本地中文英雄名并保留 ID；如果腾讯该 endpoint/字段有差异，至少必须稳定退回数字 ID，不能拖垮 Player；
-3. 上方轻量统计区应只统计当前加载的 10 场；手动“再加载 10 场”后改为基于当前 20 场重新聚合；
-4. 检查同一英雄多场时样本数、胜率、平均 K/D/A 是否符合当前可见战绩；
-5. 进入 Queueing / Champ Select / In Game 后再打开/刷新 Player，不应因英雄名称增加额外卡顿或后台重请求；
-6. 原 10→20、关闭页面停止请求、战绩读取和详情降级行为不能回归。
+### Champ Select / Current Game Gate 1
 
-用户明确反馈“正常/没问题”后，fresh-check PR #91 HEAD 与 CI，再 Ready/merge；有 bug 则保持 Draft，只修 scoped bug。
+- Issue #85：completed。
+- PR #86：merged。
+- 候选行为 HEAD：`bf9ae52dbb814a5ac862c6671085e6ed0300d456`。
+- 行为 merge commit：`4d0cbe43c9ae5e1bae62ad62d398f8fba1ab138a`。
+- Windows 腾讯/国服候选 Build #955：用户实机验收反馈“没问题”。
+- 候选 CI：Windows Build #955 / UI Text Contract #76 / Mayhem Source Probe #237 全部 SUCCESS。
+- 行为 main post-merge：Windows Build #958 / UI Text Contract #79 / Mayhem Source Probe #239 全部 SUCCESS。
+- canonical closeout PR #89：merged；closeout main commit `6e27fc1f3aa3be711c7539342dff86c63f81ecff`。
+- closeout main checks：Windows Build #960 / UI Text Contract #81 SUCCESS。
+
+### 更早基线
+
+- League Dashboard Gate 1：已完成并通过腾讯/国服实测。
+- Player Gate 1：已完成并通过 Build #951 腾讯/国服实测；PR #82 已合并，Issue #81 completed。
 
 ## 已完成并冻结
 
@@ -87,6 +77,7 @@ Build #961 Windows 腾讯/国服集中验证：
 - League Dashboard Gate 1。
 - Player Gate 1。
 - Champ Select / Current Game Gate 1。
+- Player Gate 2。
 - 单实例二次启动 Ensure Open / Activate。
 - Flying Runtime。
 - VPet / PetHost。
@@ -128,7 +119,7 @@ League Live 页面继续保持：Champ Select 可见轮询不快于约 2s，In G
 - Dashboard 已在腾讯环境读取当前召唤师、平台/区服 `CQ100`、Gameflow 和 Performance。
 - Player Gate 1 已在腾讯环境实机验收正常。
 - Champ Select / Current Game Gate 1 已在腾讯环境使用 Build #955 实机验收通过。
-- Player Gate 2 的 `/lol-game-data/assets/v1/champion-summary.json` 腾讯兼容性仍待 Build #961 本轮实机验证，不提前标记实测可用。
+- Player Gate 2 已在腾讯环境验证 `/lol-game-data/assets/v1/champion-summary.json` 本地英雄名称映射，并完成 Build #965 最终视觉验收。
 - 腾讯 match-history 的 `gameCount` 不作为账号全历史总数；分页按请求窗口实际返回数量判断。
 
 ## Champ Select / Current Game Gate 1 冻结边界
@@ -178,7 +169,22 @@ Gate 1 明确不包含：
 1. **League Dashboard Gate 1 — DONE**
 2. **Player Gate 1 — DONE**
 3. **Champ Select / Current Game Gate 1 — DONE**
-4. **Player Gate 2 — CURRENT / CANDIDATE**
-5. **Tools / Automation — PLANNED**
+4. **Player Gate 2 — DONE**
+5. **Tools / Automation — CURRENT**
 
-当前正式完成进度仍为：**3/5 = 60%**。Player Gate 2 只有在 Windows 腾讯/国服实机验收并合入 main 后才计为 4/5。
+当前正式完成进度：**4/5 = 80%**。
+
+## 下一主线：Tools / Automation
+
+第 5/5 目前只确定产品方向，尚未定义独立 Gate 规格。下一任务开始前必须先 fresh-check `main`、开放 Issue/PR、现有工具链与 Akari 可借鉴的能力边界，然后建立唯一 Issue/任务分支再实现。
+
+约束继续保持：
+
+- 不重新设计已经验收的 Dashboard / Player / Live；
+- 不新增第二套 LCU connector；
+- 不因为 Akari 官网免责声明推断腾讯技术不兼容，仍以源码机制 + 腾讯实机为准；
+- 不机械翻译 Akari 的 Electron/Vue/TypeScript 实现；FACM 继续采用现有 C#/.NET Windows 架构；
+- Live Gate 已冻结的 auto accept / 自动 pick / ban / swap / reroll / dodge / 改技能或皮肤等写操作，不会因为进入“Automation”阶段自动解禁；如未来确实需要，必须另行定义安全边界、用户控制与独立验收；
+- 优先选择可证明有产品价值、低维护、符合 Performance Contract 的工具能力；
+- 不发布新版本、Tag 或在线更新，除非用户再次明确授权；
+- 不删除任务分支，除非用户明确授权。
