@@ -34,6 +34,8 @@ namespace FACM
         private static async Task ValidateAsync()
         {
             Require(LeagueGameflowActivityMapper.Map(null, false) == LeagueActivityLevel.None, "Disconnected mapping failed.");
+            Require(LeagueGameflowActivityMapper.Map(null, false, true, false) == LeagueActivityLevel.Client, "Client-process fallback mapping failed.");
+            Require(LeagueGameflowActivityMapper.Map(null, false, true, true) == LeagueActivityLevel.InGame, "Game-process fallback mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("None", true) == LeagueActivityLevel.Client, "Connected idle mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Lobby", true) == LeagueActivityLevel.Client, "Lobby mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Matchmaking", true) == LeagueActivityLevel.Queueing, "Matchmaking mapping failed.");
@@ -44,15 +46,24 @@ namespace FACM
             Require(LeagueGameflowActivityMapper.Map("Reconnect", true) == LeagueActivityLevel.InGame, "Reconnect mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("GameStart", true) == LeagueActivityLevel.InGame, "GameStart mapping failed.");
 
+            Require(
+                LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.InGame }) >= TimeSpan.FromSeconds(8),
+                "In-game Gameflow monitor became too aggressive.");
+            Require(
+                LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.ChampSelect }) <= TimeSpan.FromSeconds(3),
+                "Champ-select Gameflow monitor became too slow.");
+
             var budgets = new PerformanceBudgetProvider();
             var api = new FakeLeagueClientApi();
             var phaseService = new LeagueDashboardPhaseService(api, budgets);
             var phase = await phaseService.RefreshAsync(CancellationToken.None);
             Require(phase.Connected && phase.Phase == "ChampSelect", "Phase read failed.");
+            Require(phase.ClientProcessDetected, "Connected phase should imply client presence.");
             Require(budgets.Current.Name == "champ-select", "Performance budget was not driven by Gameflow.");
 
             var details = new LeagueDashboardDetailsService(api, budgets);
             var snapshot = await details.LoadAsync(phase, CancellationToken.None);
+            Require(snapshot.ClientProcessDetected, "Dashboard details lost client-process presence state.");
             Require(snapshot.AccountName == "FACM测试#CN1", "Summoner name parsing failed.");
             Require(snapshot.SummonerLevel == 88, "Summoner level parsing failed.");
             Require(snapshot.PlatformId == "HN1", "Platform id parsing failed.");
@@ -68,6 +79,8 @@ namespace FACM
             var inGamePhase = new LeagueDashboardPhaseState
             {
                 Connected = true,
+                ClientProcessDetected = true,
+                GameProcessDetected = true,
                 Phase = "InProgress",
                 Activity = LeagueActivityLevel.InGame,
                 BudgetName = budgets.Current.Name
