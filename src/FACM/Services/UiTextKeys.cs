@@ -95,6 +95,38 @@ namespace FACM.Services
         public const string LeaguePlayerLoss = "LeaguePlayerLoss";
         public const string LeaguePlayerUnknown = "LeaguePlayerUnknown";
 
+        // Champ Select / Current Game Gate 1.
+        public const string LeagueLiveMenu = "LeagueLiveMenu";
+        public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";
+        public const string LeagueLiveTitle = "LeagueLiveTitle";
+        public const string LeagueLiveHint = "LeagueLiveHint";
+        public const string LeagueLivePhase = "LeagueLivePhase";
+        public const string LeagueLivePerformance = "LeagueLivePerformance";
+        public const string LeagueLiveWaiting = "LeagueLiveWaiting";
+        public const string LeagueLiveChampSelect = "LeagueLiveChampSelect";
+        public const string LeagueLiveCurrentGame = "LeagueLiveCurrentGame";
+        public const string LeagueLiveGame = "LeagueLiveGame";
+        public const string LeagueLiveMap = "LeagueLiveMap";
+        public const string LeagueLiveMode = "LeagueLiveMode";
+        public const string LeagueLiveQueue = "LeagueLiveQueue";
+        public const string LeagueLiveTimer = "LeagueLiveTimer";
+        public const string LeagueLiveLocalAction = "LeagueLiveLocalAction";
+        public const string LeagueLiveBans = "LeagueLiveBans";
+        public const string LeagueLiveTeam = "LeagueLiveTeam";
+        public const string LeagueLivePlayer = "LeagueLivePlayer";
+        public const string LeagueLivePosition = "LeagueLivePosition";
+        public const string LeagueLiveChampion = "LeagueLiveChampion";
+        public const string LeagueLiveIntent = "LeagueLiveIntent";
+        public const string LeagueLiveSpells = "LeagueLiveSpells";
+        public const string LeagueLiveRefresh = "LeagueLiveRefresh";
+        public const string LeagueLiveReadOnly = "LeagueLiveReadOnly";
+        public const string LeagueLiveLocalPlayer = "LeagueLiveLocalPlayer";
+        public const string LeagueLiveAlly = "LeagueLiveAlly";
+        public const string LeagueLiveEnemy = "LeagueLiveEnemy";
+        public const string LeagueLiveTeamOne = "LeagueLiveTeamOne";
+        public const string LeagueLiveTeamTwo = "LeagueLiveTeamTwo";
+        public const string LeagueLiveUnknown = "LeagueLiveUnknown";
+
         // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";
