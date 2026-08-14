@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FACM.Performance;
 using FACM.Services;
 
@@ -12,6 +15,7 @@ namespace FACM.League
             ValidateSettingsPersistenceContract();
             ValidateStableExactlyOnceContract();
             ValidateDisableAndPhaseContract();
+            ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
             ValidateUiTextDefaults();
         }
@@ -120,6 +124,28 @@ namespace FACM.League
                 "Gate 4 must stop its own advisor observer in game.");
         }
 
+        private static void ValidateSharedPayloadCache()
+        {
+            var inner = new CountingOpggApi();
+            using (var cache = new CachingOpggBuildApi(inner, false, TimeSpan.FromMinutes(10)))
+            {
+                var first = cache.TryGetBytesAsync("/same", CancellationToken.None).GetAwaiter().GetResult();
+                var second = cache.TryGetBytesAsync("/same", CancellationToken.None).GetAwaiter().GetResult();
+                Require(first != null && second != null,
+                    "Gate 4 shared OP.GG cache lost a successful payload.");
+                Require(inner.RequestCount == 1,
+                    "Advisor + auto apply would duplicate the same OP.GG build request.");
+                Require(cache.CachedEntryCount == 1,
+                    "Gate 4 shared OP.GG cache did not retain the first build payload.");
+
+                cache.TryGetBytesAsync("/different", CancellationToken.None).GetAwaiter().GetResult();
+                Require(inner.RequestCount == 2,
+                    "Gate 4 shared OP.GG cache incorrectly reused a payload across paths.");
+                Require(cache.CachedEntryCount == 2,
+                    "Gate 4 shared OP.GG cache did not track distinct build paths.");
+            }
+        }
+
         private static void ValidateResultTruthfulness()
         {
             var fullBuild = new LeagueBuildApplyResult
@@ -200,6 +226,18 @@ namespace FACM.League
         private static void Require(bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private sealed class CountingOpggApi : IOpggBuildApi
+        {
+            public int RequestCount { get; private set; }
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                RequestCount++;
+                return Task.FromResult(Encoding.UTF8.GetBytes(path ?? string.Empty));
+            }
         }
     }
 }
