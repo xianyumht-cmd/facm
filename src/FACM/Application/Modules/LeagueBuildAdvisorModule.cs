@@ -19,6 +19,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
         private LeagueBuildAdvisorDataService _service;
+        private LeagueBuildApplyService _applyService;
 
         public LeagueBuildAdvisorModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
@@ -33,7 +34,9 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _service = new LeagueBuildAdvisorDataService(_leagueClient, _performance.Budgets);
+            _applyService = new LeagueBuildApplyService(_leagueClient, _leagueClient, _performance.Budgets);
             LeagueBuildAdvisorUiBridge.Install(this);
+            LeagueBuildApplyUiBridge.Install(this);
         }
 
         public Form CreateForm(UiTextCatalog ui)
@@ -42,11 +45,22 @@ namespace FACM.AppHost.Modules
             return new LeagueBuildAdvisorForm(_service, ui);
         }
 
+        public Form CreateApplyForm(UiTextCatalog ui)
+        {
+            if (_service == null || _applyService == null)
+                throw new InvalidOperationException("League Build Apply module is not initialized.");
+            return new LeagueBuildApplyForm(_service, _applyService, ui);
+        }
+
         public void Dispose()
         {
+            LeagueBuildApplyUiBridge.Uninstall();
             LeagueBuildAdvisorUiBridge.Uninstall();
+            var applyService = _applyService;
             var service = _service;
+            _applyService = null;
             _service = null;
+            if (applyService != null) applyService.Dispose();
             if (service != null) service.Dispose();
         }
     }
