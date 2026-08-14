@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.League
@@ -93,7 +94,7 @@ namespace FACM.League
         internal static string BuildFingerprint(LeagueBuildAdvisorSnapshot snapshot)
         {
             if (snapshot == null || !snapshot.Connected ||
-                snapshot.Activity != Performance.LeagueActivityLevel.ChampSelect ||
+                snapshot.Activity != LeagueActivityLevel.ChampSelect ||
                 snapshot.ChampionId <= 0 || snapshot.Recommendation == null ||
                 !string.Equals(snapshot.Status, "ready", StringComparison.OrdinalIgnoreCase) ||
                 string.IsNullOrWhiteSpace(snapshot.Mode) ||
@@ -354,7 +355,8 @@ namespace FACM.League
 
     /// <summary>
     /// Lifecycle owner for the optional background observation loop. Disabled means no League/OP.GG
-    /// polling at all. The loop is serial and never starts a second transaction while one is active.
+    /// polling at all. When enabled, it reuses the existing global gameflow/performance phase signal:
+    /// outside Champ Select this Gate does not issue its own advisor/OP.GG observation requests.
     /// </summary>
     internal sealed class LeagueAutoApplyController : IDisposable
     {
@@ -362,6 +364,7 @@ namespace FACM.League
 
         private readonly object _sync = new object();
         private readonly AppSettings _settings;
+        private readonly PerformanceBudgetProvider _budgets;
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly ILeagueAutoApplyExecutor _executor;
         private readonly LeagueAutoApplyCoordinator _coordinator;
@@ -373,20 +376,23 @@ namespace FACM.League
 
         public LeagueAutoApplyController(
             AppSettings settings,
+            PerformanceBudgetProvider budgets,
             LeagueBuildAdvisorDataService readService,
             LeagueBuildApplyService buildApply,
             LeagueItemSetService itemSet)
-            : this(settings, readService, new LeagueAutoApplyExecutor(buildApply, itemSet), new LeagueAutoApplyCoordinator())
+            : this(settings, budgets, readService, new LeagueAutoApplyExecutor(buildApply, itemSet), new LeagueAutoApplyCoordinator())
         {
         }
 
         internal LeagueAutoApplyController(
             AppSettings settings,
+            PerformanceBudgetProvider budgets,
             LeagueBuildAdvisorDataService readService,
             ILeagueAutoApplyExecutor executor,
             LeagueAutoApplyCoordinator coordinator)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _readService = readService ?? throw new ArgumentNullException(nameof(readService));
             _executor = executor ?? throw new ArgumentNullException(nameof(executor));
             _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
@@ -448,10 +454,21 @@ namespace FACM.League
                 return;
             }
 
+            if (!ShouldObserveForBudget(_budgets.Current))
+            {
+                _coordinator.CancelPending();
+                return;
+            }
+
             var snapshot = await _readService.RefreshAsync(false, cancellationToken).ConfigureAwait(false);
             if (!Enabled)
             {
                 _coordinator.Observe(null, false, utcNow);
+                return;
+            }
+            if (!ShouldObserveForBudget(_budgets.Current))
+            {
+                _coordinator.CancelPending();
                 return;
             }
 
@@ -461,7 +478,7 @@ namespace FACM.League
             CancellationTokenSource active;
             lock (_sync)
             {
-                if (!Enabled)
+                if (!Enabled || !ShouldObserveForBudget(_budgets.Current))
                 {
                     _coordinator.ReleaseAttempt(decision.Fingerprint);
                     return;
@@ -478,10 +495,10 @@ namespace FACM.League
             }
             catch (OperationCanceledException)
             {
-                if (!Enabled)
+                if (!Enabled || !ShouldObserveForBudget(_budgets.Current))
                 {
                     _coordinator.ReleaseAttempt(decision.Fingerprint);
-                    Publish("disabled", decision.Fingerprint);
+                    Publish(Enabled ? "waiting" : "disabled", decision.Fingerprint);
                 }
                 else if (!_lifetime.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 {
@@ -523,16 +540,21 @@ namespace FACM.League
             _lifetime.Dispose();
         }
 
+        internal static bool ShouldObserveForBudget(PerformanceBudget budget)
+        {
+            return budget != null && string.Equals(budget.Name, "champ-select", StringComparison.OrdinalIgnoreCase);
+        }
+
         private async Task LoopAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    if (Enabled)
+                    if (Enabled && ShouldObserveForBudget(_budgets.Current))
                         await RunOneIterationAsync(DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
                     else
-                        _coordinator.Observe(null, false, DateTime.UtcNow);
+                        _coordinator.CancelPending();
                 }
                 catch (OperationCanceledException)
                 {
