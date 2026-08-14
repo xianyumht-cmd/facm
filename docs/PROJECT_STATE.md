@@ -2,7 +2,7 @@
 
 > 2026-08-15：FACM 3.2.0 仍是当前正式生产基线。Performance Contract、League Dashboard Gate 1、Player Gate 1、Champ Select / Current Game Gate 1、Player Gate 2、Tools / Automation Gate 1 均已完成并合入 `main`。
 >
-> 当前 League 规划进度：**5/5（100%）**。本轮 5 个主阶段已经全部完成；后续新增能力必须作为新的独立 Gate / Issue 规划，不重新设计已经验收通过的 Dashboard / Player / Live / Build Advisor。
+> 原 League 五阶段规划仍为 **5/5（100%）DONE**。当前正在做的是 **5/5 之后的新扩展 Gate：Tools / Automation Gate 2（显式一键应用符文 + 召唤师技能）**，Issue #96 / Draft PR #97。它不重新打开已经完成的五个阶段，也不重新设计 Dashboard / Player / Live / Build Advisor Gate 1。
 
 ## 当前正式版
 
@@ -12,6 +12,90 @@
 - force_update：false
 - Release FACM.exe SHA-256：`D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9`
 - 本轮没有创建新 Release、Tag，没有修改 `online/version.json`，没有改变线上版本。
+
+## 当前进行中扩展：Tools / Automation Gate 2
+
+- Issue #96：OPEN。
+- Draft PR #97：OPEN / Draft；腾讯/国服实机验收前不 Ready、不合并。
+- branch：`feat/opgg-apply-gate2-96`。
+- base：`main` @ `3517c80aaf514a5b8a8f3ad84658bd958c7e5b43`。
+- 第一轮完整实现 HEAD `bce6b2ce409c0c04992058b4379ce88c762b933c`：UI Text #100 SUCCESS；Windows #979 在 Release compile 因 `ContextMenuStrip` 命名空间歧义失败，已按现有 WinForms 桥接模式 scoped 修复，不是 LCU 写入逻辑失败。
+- 第二轮行为 HEAD `689c3e8afc2dab3c14c843f36a6dc687e8393b3c`：Windows #980 SUCCESS；UI Text #101 SUCCESS；Windows 日志明确输出 `FACM performance contract smoke passed.`，因此 Gate 2 deterministic smoke 已随 Performance Contract 实际执行。
+- Build #980 artifact：`FACM-Windows-x64-980`，artifact id `9226698823`；GitHub artifact ZIP digest `39BACEAC1FB90B83E5D5583C88F111CF8BC8FB46012098A3D113CEB398144F1A`。
+- Build #980 FACM.exe：3.2.0.0；CI 签名仍是既有 FACM 开发自签名行为。
+- 后续 UI fail-containment 收紧已提交到同一分支；Windows #981 / UI Text #102 正在作为下一轮候选检查运行。以 GitHub 实时 PR HEAD / CI 为准。
+- **尚未进行腾讯/国服真实写入验收，因此 Gate 2 当前仍只是 Draft 候选。**
+
+### Gate 2 产品与安全边界
+
+本 Gate 只增加 **用户显式触发的一键应用符文 + 召唤师技能**：
+
+- 继续复用唯一 `LeagueClientModule`，不创建第二套 LCU discovery / auth connector；
+- 新增最小 POST / PUT / PATCH transport，但与现有只读 transport 共享同一个 `LeagueClientSessionProvider`；
+- 未点击“一键应用”时零 LCU 写请求；
+- 用户点击后才读取当前 OP.GG structured spell/rune IDs，并先显示预览；
+- 必须再经过 Yes / No 二次确认，默认按钮为 No；取消确认零写；
+- 写入前重新读取 Gameflow / Champ Select，必须仍在 `ChampSelect`、仍是同一英雄，并在可判断时仍是同一 queue；上下文变化则 fail-closed；
+- 召唤师技能写入前先 GET 当前 `/lol-champ-select/v1/session/my-selection`，推荐包含 Flash 时尽可能保持用户当前 D/F 闪现槽位；PATCH 后再次 GET 精确读回验证；
+- 符文写入先 GET `/lol-perks/v1/inventory`；**只有 `canAddCustomPage=true` 才创建新的 `[FACM]` 自定义符文页**；
+- `canAddCustomPage=false` 时直接跳过符文，不读取用户现有符文页用于覆盖，更不采用 Akari“覆盖第一页”的 fallback；
+- 新符文页流程为 POST create → PUT page → PUT current page → GET pages read-back verify；
+- 符文与召唤师技能独立记结果；一条失败、一条成功时必须显示 partial，不能伪报全部成功；
+- 所有写入串行；页面关闭取消；异常留在 Gate 2 窗口内安全降级；日志不记录 LCU 密码/token。
+
+Gate 2 明确禁止：
+
+- 不自动触发；
+- 不 auto accept；
+- 不自动 pick / ban / swap / reroll / dodge；
+- 不改皮肤；
+- 不发送 Champ Select 聊天广播；
+- 不做 Overlay，不注入游戏进程；
+- In Game 零写请求；
+- 本 Gate **不写装备集文件**。
+
+### 为什么装备集不放进本 Gate
+
+已 fresh-read League Akari `dev` @ `cb236b6caf196e2505c7dfa6b34185020fd1e570`：
+
+- 召唤师技能使用 GET / PATCH `my-selection`；
+- 符文使用 perk inventory / pages / currentpage LCU 接口；
+- 装备集不是同一类 LCU 写请求，而是先读取 `/data-store/v1/install-dir` 后直接写客户端磁盘；腾讯路径还需要特殊落到 `../Game/Config/Global/Recommended`，并管理自身前缀文件。
+
+因此装备集需要单独定义腾讯路径、文件事务、失败恢复/回滚、旧文件清理语义，再作为新的独立 Gate 处理；不能为了“功能齐”把磁盘写入硬塞进当前 Gate 2。
+
+### Gate 2 deterministic smoke
+
+当前已覆盖：
+
+- Prepare / 预览阶段零写；
+- 当前 OP.GG `runes` style / rune / stat-mod ID 结构解析；
+- happy path 精确写请求：POST page + PUT page + PUT current page + PATCH spells；
+- Flash 在 D / F 的原槽位偏好保持；
+- 符文页容量已满时 fail-closed，不 GET/覆盖用户现有 page，只允许独立技能写入；
+- 已离开 Champ Select：零写；
+- 英雄变化：零写；
+- spell PATCH 失败而 rune 成功：只报 partial；
+- caller cancellation：零写；
+- 禁止 actions / reroll / skin 等越界 endpoint。
+
+### Gate 2 下一步验收
+
+候选 CI 全绿后，提供对应 Windows artifact 做腾讯/国服实机测试，至少确认：
+
+1. 原 `OP.GG 对局助手` Gate 1 仍正常，不因新增写 transport 回归；
+2. 托盘新增 `OP.GG 一键应用`，Lobby / 非 Champ Select 时无法写入；
+3. Champ Select 推荐就绪后，窗口能显示当前英雄、分路、召唤师技能和符文预览；
+4. 未点击按钮时客户端任何符文/召唤师技能都不变化；
+5. 点击后先出现确认框；选“否”必须零写；
+6. 选“是”后才应用；Flash D/F 原偏好不应无故互换；
+7. 有空自定义符文页时新增 `[FACM]` 页并切换到该页；
+8. 自定义符文页已满时必须明确提示“跳过符文”，不能覆盖用户已有页面；技能仍可独立成功；
+9. 写后结果必须与客户端真实状态一致；失败/partial 不能伪报成功；
+10. 选人过程保持流畅；切换英雄/离开 Champ Select 后 stale plan 必须被阻止；
+11. In Game 不允许新写请求；关闭窗口停止请求。
+
+用户实机明确通过后，再 fresh-check PR #97 exact HEAD / CI，Ready/merge，验证 main post-merge，再做 canonical closeout。**不因此自动发布新版本。**
 
 ## 最新完成行为：Tools / Automation Gate 1
 
@@ -69,7 +153,7 @@ Build #971 第一次真实 Champ Select 测试提供了有效故障证据：
 - 不自动改召唤师技能、符文页、装备集、皮肤或其它客户端设置。
 - 不做 teammate match-history fan-out / 玩家侦察。
 - 不做游戏内 Overlay，不注入游戏进程。
-- 如果未来需要“一键应用符文 / 召唤师技能 / 装备集”，必须另建独立 Gate，要求显式用户触发、明确预览/替换语义并单独腾讯/国服实机验收。
+- Tools / Automation Gate 2 是后续独立扩展，不改变 Gate 1 当时“严格只读”的验收事实和冻结边界。
 
 ## 此前 League Gate 已完成
 
@@ -137,6 +221,7 @@ Build #971 第一次真实 Champ Select 测试提供了有效故障证据：
 - Player：无后台定时刷新；默认 10 场，手动最多 20 场；Queueing / Champ Select / In Game 禁止战绩详情预取；Gate 2 英雄名称元数据也服从同一预算。
 - League Live：Champ Select 可见轮询不快于约 2s；In Game 不快于约 10s；refresh 串行；关闭取消；不请求战绩/队友侦察/图片预取。
 - OP.GG 对局助手：只在用户打开窗口时工作；请求串行；同一上下文缓存；未知 ranked 分路最多额外一次可缓存 champion-list lookup；In Game 不新增 OP.GG 请求；不加载图片、不做玩家 fan-out、不注入游戏。
+- Gate 2 一键应用：无后台轮询和自动触发；只有用户点击后才准备 structured IDs，确认后才串行写入；In Game 零写请求。它不能放宽任何现有 Performance Contract 数字预算。
 
 ## League / 腾讯国服已验证基线
 
@@ -151,11 +236,12 @@ Build #971 第一次真实 Champ Select 测试提供了有效故障证据：
 - Champ Select / Current Game：Build #955 腾讯实机通过。
 - Player Gate 2：Build #965 验证本地英雄名称映射与视觉统计。
 - OP.GG 对局助手：Build #974 腾讯 Champ Select 实机确认 `ranked / mid`、OP.GG Global 16.16 与完整只读推荐正常。
+- Gate 2 写入链尚未腾讯实机验收；CI / offline smoke 不能替代真实腾讯客户端验收。
 - 腾讯 match-history 的 `gameCount` 不作为账号全历史总数；分页按请求窗口实际返回数量判断。
 
 ## League 产品路线与总进度
 
-本轮按 5 个主阶段计算：
+原 5 个主阶段：
 
 1. **League Dashboard Gate 1 — DONE**
 2. **Player Gate 1 — DONE**
@@ -163,6 +249,11 @@ Build #971 第一次真实 Champ Select 测试提供了有效故障证据：
 4. **Player Gate 2 — DONE**
 5. **Tools / Automation Gate 1 — DONE**
 
-当前正式完成进度：**5/5 = 100%**。
+原规划正式完成进度：**5/5 = 100%**。
 
-下一步不自动继续扩展功能。新的产品能力（例如显式一键应用符文/召唤师技能/装备集、更多 OP.GG 数据视图或其它工具）必须先 fresh-check `main`、开放 Issue/PR 与现有边界，再建立新的独立 Gate；不重开已完成的五个阶段。
+当前后续扩展：
+
+- **Tools / Automation Gate 2：OP.GG 一键应用符文 + 召唤师技能 — CURRENT / DRAFT CANDIDATE（Issue #96 / PR #97）**。
+- 装备集磁盘写入不属于 Gate 2；如继续做，另建独立 Gate。
+
+新的扩展仍必须先 fresh-check `main`、开放 Issue/PR 与现有边界；不重开已完成的五个主阶段。
