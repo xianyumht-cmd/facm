@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -32,16 +33,15 @@ namespace FACM.League
     /// <summary>
     /// Minimal authenticated LCU write transport. It deliberately shares the exact same
     /// LeagueClientSessionProvider as the read client, so Gate 2 does not introduce a second
-    /// discovery/auth connector. Only explicit feature code can call this interface.
+    /// discovery/auth connector. The transport itself hard-fences the only Gate 2 write targets;
+    /// forbidden Champ Select actions cannot be reached even if a future caller misuses the API.
     /// </summary>
     internal sealed class LeagueClientWriteApiClient : ILeagueClientWriteApi, IDisposable
     {
-        private static readonly HashSet<string> AllowedMethods = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "POST",
-            "PUT",
-            "PATCH"
-        };
+        private const string MySelectionPath = "/lol-champ-select/v1/session/my-selection";
+        private const string PerkPagesPath = "/lol-perks/v1/pages";
+        private const string PerkCreatePath = "/lol-perks/v1/pages/";
+        private const string PerkCurrentPagePath = "/lol-perks/v1/currentpage";
 
         private readonly object _sync = new object();
         private readonly LeagueClientSessionProvider _sessions;
@@ -62,10 +62,9 @@ namespace FACM.League
             CancellationToken cancellationToken)
         {
             var verb = (method ?? string.Empty).Trim().ToUpperInvariant();
-            if (!AllowedMethods.Contains(verb))
-                throw new ArgumentException("LCU write method is not allowed.", nameof(method));
-            if (string.IsNullOrWhiteSpace(path))
-                throw new ArgumentException("LCU write path is required.", nameof(path));
+            var normalizedPath = NormalizePath(path);
+            if (!IsAllowedTarget(verb, normalizedPath))
+                throw new ArgumentException("LCU write target is not allowed by the Gate 2 transport.", nameof(path));
 
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
@@ -83,7 +82,7 @@ namespace FACM.League
 
             try
             {
-                using (var request = new HttpRequestMessage(new HttpMethod(verb), NormalizePath(path)))
+                using (var request = new HttpRequestMessage(new HttpMethod(verb), normalizedPath))
                 {
                     request.Content = new StringContent(json ?? string.Empty, Encoding.UTF8, "application/json");
                     using (var response = await client.SendAsync(
@@ -123,6 +122,39 @@ namespace FACM.League
                 _sessions.Invalidate(session);
                 return null;
             }
+        }
+
+        internal static bool IsAllowedTargetForSmokeTest(string method, string path)
+        {
+            return IsAllowedTarget(
+                (method ?? string.Empty).Trim().ToUpperInvariant(),
+                NormalizePath(path));
+        }
+
+        private static bool IsAllowedTarget(string verb, string normalizedPath)
+        {
+            if (string.Equals(verb, "PATCH", StringComparison.Ordinal) &&
+                string.Equals(normalizedPath, MySelectionPath, StringComparison.Ordinal))
+                return true;
+
+            if (string.Equals(verb, "POST", StringComparison.Ordinal) &&
+                string.Equals(normalizedPath, PerkCreatePath, StringComparison.Ordinal))
+                return true;
+
+            if (string.Equals(verb, "PUT", StringComparison.Ordinal) &&
+                string.Equals(normalizedPath, PerkCurrentPagePath, StringComparison.Ordinal))
+                return true;
+
+            if (!string.Equals(verb, "PUT", StringComparison.Ordinal) ||
+                !normalizedPath.StartsWith(PerkPagesPath + "/", StringComparison.Ordinal))
+                return false;
+
+            var suffix = normalizedPath.Substring((PerkPagesPath + "/").Length);
+            int pageId;
+            return suffix.Length > 0 &&
+                   suffix.IndexOfAny(new[] { '/', '?', '#' }) < 0 &&
+                   int.TryParse(suffix, NumberStyles.None, CultureInfo.InvariantCulture, out pageId) &&
+                   pageId > 0;
         }
 
         private HttpClient GetOrCreateClient(LeagueClientSession session)
