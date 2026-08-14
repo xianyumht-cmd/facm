@@ -31,8 +31,15 @@ namespace FACM.League
                 var bytes = await _client.TryGetBytesAsync(PhasePath, timeout.Token).ConfigureAwait(false);
                 var connected = bytes != null && bytes.Length > 0;
                 var phase = connected ? ParsePhase(bytes) : null;
-                var clientProcessDetected = connected || IsAnyProcessRunning(ClientProcessNames);
-                var gameProcessDetected = IsAnyProcessRunning(GameProcessNames);
+
+                var clientProcessDetected = connected;
+                var gameProcessDetected = false;
+                if (!connected)
+                {
+                    clientProcessDetected = IsAnyProcessRunning(ClientProcessNames);
+                    gameProcessDetected = IsAnyProcessRunning(GameProcessNames);
+                }
+
                 var activity = LeagueGameflowActivityMapper.Map(
                     phase,
                     connected,
