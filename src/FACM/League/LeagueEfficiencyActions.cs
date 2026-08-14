@@ -113,12 +113,21 @@ namespace FACM.League
         public bool SendTextAndTabThenText(string first, string second)
         {
             var inputs = new List<Input>();
+            AppendCtrlA(inputs);
             AppendUnicode(inputs, first ?? string.Empty);
             AppendVirtualKey(inputs, 0x09);
+            AppendCtrlA(inputs);
             AppendUnicode(inputs, second ?? string.Empty);
             if (inputs.Count == 0) return false;
             var array = inputs.ToArray();
-            return SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input))) == array.Length;
+            return SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input))) == (uint)array.Length;
+        }
+
+        private static void AppendCtrlA(ICollection<Input> inputs)
+        {
+            AppendVirtualKeyDown(inputs, 0x11);
+            AppendVirtualKey(inputs, 0x41);
+            AppendVirtualKeyUp(inputs, 0x11);
         }
 
         private static void AppendUnicode(ICollection<Input> inputs, string value)
@@ -132,8 +141,18 @@ namespace FACM.League
 
         private static void AppendVirtualKey(ICollection<Input> inputs, ushort key)
         {
-            inputs.Add(KeyboardInput(key, 0, 0));
-            inputs.Add(KeyboardInput(key, 0, KeyEventKeyUp));
+            AppendVirtualKeyDown(inputs, key);
+            AppendVirtualKeyUp(inputs, key);
+        }
+
+        private static void AppendVirtualKeyDown(ICollection<Input> inputs, ushort key)
+        {
+            inputs.Add(KeyboardInput(key, '\0', 0));
+        }
+
+        private static void AppendVirtualKeyUp(ICollection<Input> inputs, ushort key)
+        {
+            inputs.Add(KeyboardInput(key, '\0', KeyEventKeyUp));
         }
 
         private static Input KeyboardInput(ushort virtualKey, char scan, uint flags)
@@ -212,11 +231,10 @@ namespace FACM.League
             var separatorEnd = separatorStart;
             while (separatorEnd < text.Length && text[separatorEnd] == '-') separatorEnd++;
             if (separatorEnd >= text.Length) return false;
-            if (text.IndexOf('-', separatorEnd) >= 0) return false;
 
             account = text.Substring(0, separatorStart).Trim();
             password = text.Substring(separatorEnd).Trim();
-            if (account.Length == 0 || password.Length == 0 || account.IndexOf('-') >= 0 || password.IndexOf('-') >= 0)
+            if (account.Length == 0 || password.Length == 0 || account.IndexOf('-') >= 0)
             {
                 account = string.Empty;
                 password = string.Empty;
@@ -327,7 +345,6 @@ namespace FACM.League
                 return true;
 
             if (processName.Equals("WeGame", StringComparison.OrdinalIgnoreCase) ||
-                processName.Equals("wegame", StringComparison.OrdinalIgnoreCase) ||
                 processName.Equals("wegamehelper", StringComparison.OrdinalIgnoreCase))
             {
                 return ContainsAny(title, "WeGame", "登录", "英雄联盟", "账号");
@@ -356,6 +373,7 @@ namespace FACM.League
                 if (_platform.RequestClose(target.Id)) affected++;
             }
 
+            if (targets.All(target => !_platform.IsProcessAlive(target.Id))) return affected;
             await Task.Delay(graceMilliseconds).ConfigureAwait(false);
             foreach (var target in targets)
             {
