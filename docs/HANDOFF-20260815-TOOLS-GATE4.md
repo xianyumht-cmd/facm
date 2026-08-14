@@ -173,7 +173,14 @@ First CI head `8f4b08462bf63f957ccfccb7b3b17cbbafb4b9a9`:
 - both are fixed in the same Gate 4 branch; host smoke now explicitly requires Settings + LeagueClient + Performance.
 - Mayhem #252 was an incidental live probe triggered by temporarily targeting main; do not infer Gate 4 behavior from it.
 
-Final candidate CI/artifact must be recorded only after the post-fix latest HEAD completes UI Text + Windows/Performance validation.
+Final validation baseline after those fixes also includes:
+
+- shared 10-minute raw OP.GG payload cache between Advisor and auto executor;
+- deterministic same-path cache smoke;
+- no Gate 4 Advisor observation outside the global `champ-select` Performance budget;
+- host dependency contract updated for Settings + LeagueClient + Performance.
+
+The behavior code is frozen before this documentation-only validation trigger. Final CI/artifact must be recorded only after the latest HEAD completes UI Text + Windows/Performance validation.
 
 ## Tencent acceptance checklist
 
