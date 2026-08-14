@@ -8,6 +8,9 @@ namespace FACM.League
         public static string Get(UiTextCatalog ui, string key)
         {
             if (ui == null) throw new ArgumentNullException(nameof(ui));
+            string fallback;
+            if (LeagueItemSetUiTextKeys.TryGetDefault(key, out fallback))
+                return ui.Get(key, fallback);
             return ui.Get(key);
         }
     }
