@@ -175,6 +175,12 @@ namespace FACM.League
             {
                 if (!_lifetime.IsCancellationRequested) ApplyWaitingState();
             }
+            catch (Exception exception)
+            {
+                AppLog.Error("League Build Apply refresh failed", exception);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusValue.Text = FormatFailure();
+            }
             finally
             {
                 _busy = false;
@@ -226,12 +232,17 @@ namespace FACM.League
                 var result = await _applyService.ApplyAsync(plan, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 ApplyResult(result);
-                await RefreshAsync(false);
             }
             catch (OperationCanceledException)
             {
                 if (!_lifetime.IsCancellationRequested)
                     _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ChampSelectOnly);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League Build Apply operation failed", exception);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusValue.Text = FormatFailure();
             }
             finally
             {
@@ -262,7 +273,7 @@ namespace FACM.League
         {
             if (result == null)
             {
-                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Failed);
+                _statusValue.Text = FormatFailure();
                 return;
             }
             if (string.Equals(result.Status, "blocked", StringComparison.OrdinalIgnoreCase))
@@ -292,6 +303,13 @@ namespace FACM.League
                     ? LeagueBuildApplyUiTextKeys.Partial
                     : LeagueBuildApplyUiTextKeys.Failed),
                 details);
+        }
+
+        private string FormatFailure()
+        {
+            return string.Format(
+                T(LeagueBuildApplyUiTextKeys.Failed),
+                T(LeagueBuildApplyUiTextKeys.WriteFailed));
         }
 
         private string StatusText(bool applied)
