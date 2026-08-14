@@ -166,25 +166,10 @@ namespace FACM.League
         private void ShowEmptyState(LeagueDashboardPhaseState state)
         {
             var unknown = _ui.Get(UiTextKeys.LeagueDashboardUnknown);
-            if (state != null && state.GameProcessDetected)
-            {
-                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardGameDetectedNoApi);
-                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
-            }
-            else if (state != null && state.ClientProcessDetected)
-            {
-                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardClientDetectedNoApi);
-                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
-            }
-            else
-            {
-                _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardDisconnected);
-                _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
-            }
-
-            _accountValue.Text = state != null && (state.ClientProcessDetected || state.GameProcessDetected)
-                ? _ui.Get(UiTextKeys.LeagueDashboardWaitingApi)
-                : _ui.Get(UiTextKeys.LeagueDashboardWaitingClient);
+            var processDetected = state != null && (state.ClientProcessDetected || state.GameProcessDetected);
+            _connectionValue.Text = processDetected ? unknown : _ui.Get(UiTextKeys.LeagueDashboardDisconnected);
+            _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
+            _accountValue.Text = processDetected ? unknown : _ui.Get(UiTextKeys.LeagueDashboardWaitingClient);
             _platformValue.Text = unknown;
             _phaseValue.Text = unknown;
             _performanceValue.Text = state == null ? unknown : ValueOrUnknown(state.BudgetName);
