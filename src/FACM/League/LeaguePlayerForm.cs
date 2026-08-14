@@ -14,6 +14,8 @@ namespace FACM.League
         private readonly UiTextCatalog _ui;
         private readonly Label _accountLabel;
         private readonly Label _statusLabel;
+        private readonly Label _statsSection;
+        private readonly ListView _championStatsList;
         private readonly ListView _matchesList;
         private readonly Button _refreshButton;
         private readonly Button _loadMoreButton;
@@ -31,8 +33,8 @@ namespace FACM.League
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(860, 610);
-            MinimumSize = new Size(760, 520);
+            ClientSize = new Size(860, 720);
+            MinimumSize = new Size(760, 620);
             MaximizeBox = true;
             BackColor = Color.FromArgb(14, 19, 30);
             ForeColor = Color.FromArgb(238, 243, 252);
@@ -67,10 +69,37 @@ namespace FACM.League
                 Size = new Size(760, 22),
                 ForeColor = Color.FromArgb(139, 157, 190)
             };
+
+            _statsSection = new Label
+            {
+                Text = FormatChampionStatsTitle(0),
+                Location = new Point(30, 166),
+                Size = new Size(500, 25),
+                ForeColor = Color.FromArgb(190, 205, 231),
+                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
+            };
+            _championStatsList = new ListView
+            {
+                Location = new Point(28, 194),
+                Size = new Size(804, 112),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.FromArgb(18, 25, 39),
+                ForeColor = Color.FromArgb(226, 234, 247),
+                BorderStyle = BorderStyle.FixedSingle,
+                FullRowSelect = true,
+                GridLines = false,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable,
+                HideSelection = true,
+                View = View.Details
+            };
+            _championStatsList.Columns.Add(ChampionHeaderText(), 300);
+            _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 160);
+            _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 250);
+
             var section = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePlayerRecentMatches),
-                Location = new Point(30, 166),
+                Location = new Point(30, 320),
                 Size = new Size(300, 25),
                 ForeColor = Color.FromArgb(190, 205, 231),
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
@@ -78,8 +107,8 @@ namespace FACM.League
 
             _matchesList = new ListView
             {
-                Location = new Point(28, 198),
-                Size = new Size(804, 348),
+                Location = new Point(28, 352),
+                Size = new Size(804, 302),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.FromArgb(22, 29, 44),
                 ForeColor = Color.FromArgb(238, 243, 252),
@@ -92,27 +121,27 @@ namespace FACM.League
                 VirtualMode = true,
                 VirtualListSize = 0
             };
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerTime), 126);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerMode), 150);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerChampion), 82);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 110);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerCs), 72);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 76);
-            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerDuration), 84);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerTime), 122);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerMode), 140);
+            _matchesList.Columns.Add(ChampionHeaderText(), 122);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 106);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerCs), 66);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 72);
+            _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerDuration), 76);
             _matchesList.RetrieveVirtualItem += RetrieveVirtualItem;
 
             _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, Color.FromArgb(55, 104, 214));
-            _refreshButton.Location = new Point(542, 562);
+            _refreshButton.Location = new Point(542, 672);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAllAsync(true); };
 
             _loadMoreButton = CreateButton(UiTextKeys.LeaguePlayerLoadMore, Color.FromArgb(35, 43, 60));
-            _loadMoreButton.Location = new Point(640, 562);
+            _loadMoreButton.Location = new Point(640, 672);
             _loadMoreButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _loadMoreButton.Click += async delegate { await LoadMoreAsync(); };
 
             var close = CreateButton(UiTextKeys.Close, Color.FromArgb(35, 43, 60));
-            close.Location = new Point(738, 562);
+            close.Location = new Point(738, 672);
             close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             close.Click += delegate { Close(); };
 
@@ -120,6 +149,8 @@ namespace FACM.League
             Controls.Add(hint);
             Controls.Add(_accountLabel);
             Controls.Add(_statusLabel);
+            Controls.Add(_statsSection);
+            Controls.Add(_championStatsList);
             Controls.Add(section);
             Controls.Add(_matchesList);
             Controls.Add(_refreshButton);
@@ -168,6 +199,7 @@ namespace FACM.League
             {
                 _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingProfile);
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingProfile);
+                _championStatsList.Items.Clear();
             }
         }
 
@@ -186,6 +218,7 @@ namespace FACM.League
                     _hasMore = false;
                     _rows.Clear();
                     _matchesList.VirtualListSize = 0;
+                    _championStatsList.Items.Clear();
                     _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
                     _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
                     return;
@@ -199,7 +232,11 @@ namespace FACM.League
                 ApplyPage(page);
 
                 var enriched = await _service.EnrichIncompleteMatchesAsync(profile, page, _lifetime.Token);
-                if (!IsDisposed && enriched != null) ApplyPage(enriched);
+                var finalPage = enriched ?? page;
+                if (!IsDisposed && finalPage != null) ApplyPage(finalPage);
+
+                var named = await _service.EnrichChampionNamesAsync(profile, finalPage, _lifetime.Token);
+                if (!IsDisposed && named != null) ApplyPage(named);
             }
             catch (OperationCanceledException)
             {
@@ -229,7 +266,11 @@ namespace FACM.League
                 ApplyPage(page);
 
                 var enriched = await _service.EnrichIncompleteMatchesAsync(_profile, page, _lifetime.Token);
-                if (!IsDisposed && enriched != null) ApplyPage(enriched);
+                var finalPage = enriched ?? page;
+                if (!IsDisposed && finalPage != null) ApplyPage(finalPage);
+
+                var named = await _service.EnrichChampionNamesAsync(_profile, finalPage, _lifetime.Token);
+                if (!IsDisposed && named != null) ApplyPage(named);
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -258,10 +299,33 @@ namespace FACM.League
             _hasMore = page != null && page.HasMore;
             _matchesList.VirtualListSize = _rows.Count;
             _matchesList.Invalidate();
+            ApplyChampionStats(page);
             _statusLabel.Text = _rows.Count == 0
                 ? _ui.Get(UiTextKeys.LeaguePlayerNoMatches)
                 : _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + "  ·  " + _rows.Count;
             _loadMoreButton.Enabled = !_loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
+        }
+
+        private void ApplyChampionStats(LeaguePlayerMatchPage page)
+        {
+            _championStatsList.BeginUpdate();
+            try
+            {
+                _championStatsList.Items.Clear();
+                _statsSection.Text = FormatChampionStatsTitle(_rows.Count);
+                foreach (var stat in _service.BuildChampionStats(page))
+                {
+                    var champion = FormatChampion(stat.ChampionName, stat.ChampionId) + " ×" + stat.Games;
+                    var winRate = stat.WinRate.ToString("0") + "%";
+                    var averageKda = stat.AverageKills.ToString("0.0") + " / " +
+                        stat.AverageDeaths.ToString("0.0") + " / " + stat.AverageAssists.ToString("0.0");
+                    _championStatsList.Items.Add(new ListViewItem(new[] { champion, winRate, averageKda }));
+                }
+            }
+            finally
+            {
+                _championStatsList.EndUpdate();
+            }
         }
 
         private void RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
@@ -281,7 +345,9 @@ namespace FACM.League
             var time = match.GameCreationLocal == DateTime.MinValue ? unknown : match.GameCreationLocal.ToString("MM-dd HH:mm");
             var mode = string.IsNullOrWhiteSpace(match.GameMode) ? unknown : match.GameMode;
             if (match.QueueId > 0) mode += " #" + match.QueueId;
-            var champion = match.ParticipantResolved && match.ChampionId > 0 ? match.ChampionId.ToString() : unknown;
+            var champion = match.ParticipantResolved && match.ChampionId > 0
+                ? FormatChampion(match.ChampionName, match.ChampionId)
+                : unknown;
             var kda = match.ParticipantResolved ? match.Kills + " / " + match.Deaths + " / " + match.Assists : unknown;
             var cs = match.ParticipantResolved ? match.CreepScore.ToString() : unknown;
             var result = match.ParticipantResolved
@@ -295,6 +361,33 @@ namespace FACM.League
                 ? (match.Win ? Color.FromArgb(103, 218, 166) : Color.FromArgb(244, 145, 145))
                 : Color.FromArgb(180, 190, 207);
             e.Item = item;
+        }
+
+        private string ChampionHeaderText()
+        {
+            var text = _ui.Get(UiTextKeys.LeaguePlayerChampion);
+            return !string.IsNullOrWhiteSpace(text) && text.EndsWith(" ID", StringComparison.OrdinalIgnoreCase)
+                ? text.Substring(0, text.Length - 3).TrimEnd()
+                : text;
+        }
+
+        private string FormatChampionStatsTitle(int count)
+        {
+            var format = _ui.Get(UiTextKeys.LeaguePlayerChampionStatsFormat);
+            try
+            {
+                return string.Format(format, Math.Max(0, count));
+            }
+            catch (FormatException)
+            {
+                return format + " · " + Math.Max(0, count);
+            }
+        }
+
+        private static string FormatChampion(string name, int championId)
+        {
+            if (!string.IsNullOrWhiteSpace(name)) return name + " #" + championId;
+            return championId > 0 ? championId.ToString() : string.Empty;
         }
 
         private void SetLoading(bool loading)

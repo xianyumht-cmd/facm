@@ -13,6 +13,8 @@ namespace FACM.League
     {
         internal const int InitialMatchCount = 10;
         internal const int MaximumMatchCount = 20;
+        internal const string ChampionSummaryPath = "/lol-game-data/assets/v1/champion-summary.json";
+        private static readonly TimeSpan ChampionMetadataCacheDuration = TimeSpan.FromMinutes(30);
         private readonly object _cacheSync = new object();
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
@@ -23,6 +25,8 @@ namespace FACM.League
         private LeaguePlayerMatchPage _cachedPage;
         private string _cachedPagePuuId;
         private DateTime _pageCachedUtc = DateTime.MinValue;
+        private Dictionary<int, string> _cachedChampionNames;
+        private DateTime _championNamesCachedUtc = DateTime.MinValue;
 
         public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
@@ -176,6 +180,98 @@ namespace FACM.League
             return result;
         }
 
+        public async Task<LeaguePlayerMatchPage> EnrichChampionNamesAsync(
+            LeaguePlayerProfile profile,
+            LeaguePlayerMatchPage page,
+            CancellationToken cancellationToken)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || page == null || page.Matches.Count == 0)
+                return page;
+
+            Dictionary<int, string> names;
+            bool cacheFresh;
+            lock (_cacheSync)
+            {
+                names = CloneChampionNames(_cachedChampionNames);
+                cacheFresh = _cachedChampionNames != null && _cachedChampionNames.Count > 0 &&
+                    DateTime.UtcNow - _championNamesCachedUtc < ChampionMetadataCacheDuration;
+            }
+
+            // Champion names improve readability but are not game-critical. Queueing, Champ Select,
+            // In Game and hidden/background budgets all disable maintenance work, so those phases
+            // may use an existing cache but never start this extra LCU request.
+            if (!cacheFresh && _budgets.Current.AllowMaintenanceWork)
+            {
+                try
+                {
+                    await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        // Re-check after taking the gate so two overlapping page operations do not
+                        // both fetch the same global champion summary.
+                        lock (_cacheSync)
+                        {
+                            cacheFresh = _cachedChampionNames != null && _cachedChampionNames.Count > 0 &&
+                                DateTime.UtcNow - _championNamesCachedUtc < ChampionMetadataCacheDuration;
+                            if (cacheFresh) names = CloneChampionNames(_cachedChampionNames);
+                        }
+
+                        if (!cacheFresh)
+                        {
+                            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                            {
+                                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                                var bytes = await _client.TryGetBytesAsync(ChampionSummaryPath, timeout.Token).ConfigureAwait(false);
+                                var parsed = ParseChampionSummary(bytes);
+                                if (parsed.Count > 0)
+                                {
+                                    lock (_cacheSync)
+                                    {
+                                        _cachedChampionNames = CloneChampionNames(parsed);
+                                        _championNamesCachedUtc = DateTime.UtcNow;
+                                        names = CloneChampionNames(_cachedChampionNames);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _requestGate.Release();
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    // A metadata timeout is non-fatal; stale cache / champion ID remains usable.
+                }
+                catch (Exception exception)
+                {
+                    Services.AppLog.Info("League Player champion metadata skipped: " + exception.Message);
+                }
+            }
+
+            var result = ClonePage(page);
+            var changed = false;
+            if (names != null && names.Count > 0)
+            {
+                foreach (var match in result.Matches)
+                {
+                    if (match == null || match.ChampionId <= 0) continue;
+                    string name;
+                    if (!names.TryGetValue(match.ChampionId, out name) || string.IsNullOrWhiteSpace(name)) continue;
+                    if (!string.Equals(match.ChampionName, name, StringComparison.Ordinal))
+                    {
+                        match.ChampionName = name;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) CachePage(profile.PuuId, result);
+            return result;
+        }
+
         internal LeaguePlayerProfile ParseProfile(byte[] bytes)
         {
             var root = ParseObject(bytes);
@@ -213,6 +309,73 @@ namespace FACM.League
                 if (summary != null) page.Matches.Add(summary);
             }
             return page;
+        }
+
+        internal Dictionary<int, string> ParseChampionSummary(byte[] bytes)
+        {
+            var result = new Dictionary<int, string>();
+            if (bytes == null || bytes.Length == 0) return result;
+            try
+            {
+                var root = _json.DeserializeObject(Encoding.UTF8.GetString(bytes));
+                var rows = root as IEnumerable;
+                if (rows == null || root is string) return result;
+                foreach (var item in rows)
+                {
+                    var row = item as Dictionary<string, object>;
+                    if (row == null) continue;
+                    var id = ReadInt(row, "id");
+                    var name = ReadString(row, "name");
+                    if (id > 0 && !string.IsNullOrWhiteSpace(name)) result[id] = name.Trim();
+                }
+            }
+            catch
+            {
+                // Metadata is optional. Invalid/changed shape falls back to numeric champion IDs.
+            }
+            return result;
+        }
+
+        internal List<LeaguePlayerChampionStat> BuildChampionStats(LeaguePlayerMatchPage page)
+        {
+            var grouped = new Dictionary<int, LeaguePlayerChampionStat>();
+            if (page != null)
+            {
+                foreach (var match in page.Matches)
+                {
+                    if (match == null || !match.ParticipantResolved || match.ChampionId <= 0) continue;
+                    LeaguePlayerChampionStat stat;
+                    if (!grouped.TryGetValue(match.ChampionId, out stat))
+                    {
+                        stat = new LeaguePlayerChampionStat
+                        {
+                            ChampionId = match.ChampionId,
+                            ChampionName = match.ChampionName
+                        };
+                        grouped.Add(match.ChampionId, stat);
+                    }
+                    else if (string.IsNullOrWhiteSpace(stat.ChampionName) && !string.IsNullOrWhiteSpace(match.ChampionName))
+                    {
+                        stat.ChampionName = match.ChampionName;
+                    }
+
+                    stat.Games++;
+                    if (match.Win) stat.Wins++;
+                    stat.Kills += match.Kills;
+                    stat.Deaths += match.Deaths;
+                    stat.Assists += match.Assists;
+                }
+            }
+
+            var result = new List<LeaguePlayerChampionStat>(grouped.Values);
+            result.Sort(delegate(LeaguePlayerChampionStat left, LeaguePlayerChampionStat right)
+            {
+                var byGames = right.Games.CompareTo(left.Games);
+                if (byGames != 0) return byGames;
+                var byWins = right.Wins.CompareTo(left.Wins);
+                return byWins != 0 ? byWins : left.ChampionId.CompareTo(right.ChampionId);
+            });
+            return result;
         }
 
         private LeaguePlayerMatchSummary ParseMatch(Dictionary<string, object> game, LeaguePlayerProfile profile)
@@ -355,6 +518,11 @@ namespace FACM.League
             };
         }
 
+        private static Dictionary<int, string> CloneChampionNames(Dictionary<int, string> source)
+        {
+            return source == null ? null : new Dictionary<int, string>(source);
+        }
+
         private static LeaguePlayerMatchPage ClonePage(LeaguePlayerMatchPage source)
         {
             if (source == null) return null;
@@ -374,6 +542,7 @@ namespace FACM.League
                     GameMode = match.GameMode,
                     QueueId = match.QueueId,
                     ChampionId = match.ChampionId,
+                    ChampionName = match.ChampionName,
                     Kills = match.Kills,
                     Deaths = match.Deaths,
                     Assists = match.Assists,

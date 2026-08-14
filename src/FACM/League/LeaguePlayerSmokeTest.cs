@@ -13,6 +13,7 @@ namespace FACM.League
         {
             ValidateProfileAndRecentMatchParsing();
             ValidateProgressiveEnrichmentBudget();
+            ValidateChampionMetadataAndStats();
             ValidatePaginationBoundary();
             ValidateCancellation();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
@@ -73,6 +74,54 @@ namespace FACM.League
             Require(api.Paths.Count == before, "In-game Player page must not perform automatic per-game detail prefetch.");
         }
 
+        private static void ValidateChampionMetadataAndStats()
+        {
+            const string championSummary = "[{\"id\":-1,\"name\":\"None\"},{\"id\":145,\"name\":\"卡莎\"},{\"id\":22,\"name\":\"艾希\"}]";
+            var profile = new LeaguePlayerProfile { PuuId = "puuid-current", SummonerId = 9001 };
+            var page = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 3 };
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30001, ChampionId = 145, Kills = 8, Deaths = 4, Assists = 12, Win = true, ParticipantResolved = true });
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30002, ChampionId = 145, Kills = 4, Deaths = 6, Assists = 8, Win = false, ParticipantResolved = true });
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30003, ChampionId = 22, Kills = 2, Deaths = 3, Assists = 9, Win = true, ParticipantResolved = true });
+
+            var provider = new PerformanceBudgetProvider();
+            var api = new FixtureApi("{}", "{}", null, championSummary);
+            var service = new LeaguePlayerDataService(api, provider);
+            var named = service.EnrichChampionNamesAsync(profile, page, CancellationToken.None).GetAwaiter().GetResult();
+            Require(named != null && named.Matches[0].ChampionName == "卡莎" && named.Matches[2].ChampionName == "艾希", "Champion-summary ID mapping failed.");
+            Require(CountPath(api.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1, "Champion metadata must use one bounded summary request.");
+            Require(CountPrefix(api.Paths, "/lol-match-history/") == 0, "Champion metadata must not add match-history fan-out.");
+
+            var cachedAgain = service.EnrichChampionNamesAsync(profile, page, CancellationToken.None).GetAwaiter().GetResult();
+            Require(cachedAgain.Matches[0].ChampionName == "卡莎", "Champion metadata cache did not remain usable.");
+            Require(CountPath(api.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1, "Fresh champion metadata cache unexpectedly refetched.");
+
+            var stats = service.BuildChampionStats(named);
+            Require(stats.Count == 2, "Loaded-match champion stats did not group expected champions.");
+            Require(stats[0].ChampionId == 145 && stats[0].Games == 2 && stats[0].Wins == 1, "Champion stats games/wins changed unexpectedly.");
+            Require(Math.Abs(stats[0].WinRate - 50d) < 0.001d, "Champion stats win rate changed unexpectedly.");
+            Require(Math.Abs(stats[0].AverageKills - 6d) < 0.001d && Math.Abs(stats[0].AverageDeaths - 5d) < 0.001d && Math.Abs(stats[0].AverageAssists - 10d) < 0.001d,
+                "Champion stats average K/D/A changed unexpectedly.");
+            Require(CountPrefix(api.Paths, "/lol-match-history/") == 0, "Pure champion aggregation unexpectedly performed network work.");
+
+            provider.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+            var cachedInGame = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 1 };
+            cachedInGame.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30004, ChampionId = 145, ParticipantResolved = true });
+            var beforeCachedInGame = api.Paths.Count;
+            var cachedSensitive = service.EnrichChampionNamesAsync(profile, cachedInGame, CancellationToken.None).GetAwaiter().GetResult();
+            Require(cachedSensitive.Matches[0].ChampionName == "卡莎", "Sensitive phase should still use an existing champion-name cache.");
+            Require(api.Paths.Count == beforeCachedInGame, "Sensitive phase unexpectedly refreshed champion metadata despite a cache.");
+
+            var inGameProvider = new PerformanceBudgetProvider();
+            inGameProvider.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+            var inGameApi = new FixtureApi("{}", "{}", null, championSummary);
+            var inGameService = new LeaguePlayerDataService(inGameApi, inGameProvider);
+            var noCachePage = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 1 };
+            noCachePage.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30005, ChampionId = 145, ParticipantResolved = true });
+            var suppressed = inGameService.EnrichChampionNamesAsync(profile, noCachePage, CancellationToken.None).GetAwaiter().GetResult();
+            Require(string.IsNullOrWhiteSpace(suppressed.Matches[0].ChampionName), "In-game metadata suppression unexpectedly fabricated a champion name.");
+            Require(CountPath(inGameApi.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 0, "In-game Player page must not start nonessential champion metadata requests.");
+        }
+
         private static void ValidatePaginationBoundary()
         {
             Require(LeaguePlayerDataService.InitialMatchCount == 10, "Player Gate 1 must initially request only 10 matches.");
@@ -89,7 +138,7 @@ namespace FACM.League
 
         private static void ValidateCancellation()
         {
-            var api = new FixtureApi("{}", "{}", null);
+            var api = new FixtureApi("{}", "{}", null, "[{\"id\":145,\"name\":\"卡莎\"}]");
             var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider());
             using (var cancellation = new CancellationTokenSource())
             {
@@ -104,6 +153,39 @@ namespace FACM.League
                     // Expected: page-close cancellation must stop queued Player work.
                 }
             }
+
+            var profile = new LeaguePlayerProfile { PuuId = "puuid-current" };
+            var page = new LeaguePlayerMatchPage { RequestedCount = 10 };
+            page.Matches.Add(new LeaguePlayerMatchSummary { ChampionId = 145, ParticipantResolved = true });
+            using (var cancellation = new CancellationTokenSource())
+            {
+                cancellation.Cancel();
+                try
+                {
+                    service.EnrichChampionNamesAsync(profile, page, cancellation.Token).GetAwaiter().GetResult();
+                    throw new InvalidOperationException("Canceled champion metadata request unexpectedly completed.");
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected: page-close cancellation must also stop optional metadata work.
+                }
+            }
+        }
+
+        private static int CountPath(List<string> paths, string expected)
+        {
+            var count = 0;
+            foreach (var path in paths)
+                if (string.Equals(path, expected, StringComparison.Ordinal)) count++;
+            return count;
+        }
+
+        private static int CountPrefix(List<string> paths, string prefix)
+        {
+            var count = 0;
+            foreach (var path in paths)
+                if (path != null && path.StartsWith(prefix, StringComparison.Ordinal)) count++;
+            return count;
         }
 
         private static void Require(bool condition, string message)
@@ -115,12 +197,14 @@ namespace FACM.League
         {
             private readonly byte[] _profile;
             private readonly byte[] _history;
+            private readonly byte[] _championSummary;
             private readonly Dictionary<long, byte[]> _details = new Dictionary<long, byte[]>();
 
-            public FixtureApi(string profile, string history, Dictionary<long, string> details)
+            public FixtureApi(string profile, string history, Dictionary<long, string> details, string championSummary = null)
             {
                 _profile = Encoding.UTF8.GetBytes(profile ?? string.Empty);
                 _history = Encoding.UTF8.GetBytes(history ?? string.Empty);
+                _championSummary = Encoding.UTF8.GetBytes(championSummary ?? string.Empty);
                 if (details != null)
                 {
                     foreach (var pair in details) _details[pair.Key] = Encoding.UTF8.GetBytes(pair.Value ?? string.Empty);
@@ -136,6 +220,8 @@ namespace FACM.League
                 Paths.Add(path);
                 if (string.Equals(path, LeagueDashboardDetailsService.SummonerPath, StringComparison.Ordinal))
                     return Task.FromResult(_profile);
+                if (string.Equals(path, LeaguePlayerDataService.ChampionSummaryPath, StringComparison.Ordinal))
+                    return Task.FromResult(_championSummary);
                 const string detailPrefix = "/lol-match-history/v1/games/";
                 if (path != null && path.StartsWith(detailPrefix, StringComparison.Ordinal))
                 {
