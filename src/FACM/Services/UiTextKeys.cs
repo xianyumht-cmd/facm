@@ -72,6 +72,29 @@ namespace FACM.Services
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
 
+        // Player Gate 1.
+        public const string LeaguePlayerMenu = "LeaguePlayerMenu";
+        public const string LeaguePlayerWindowTitle = "LeaguePlayerWindowTitle";
+        public const string LeaguePlayerTitle = "LeaguePlayerTitle";
+        public const string LeaguePlayerHint = "LeaguePlayerHint";
+        public const string LeaguePlayerLoadingProfile = "LeaguePlayerLoadingProfile";
+        public const string LeaguePlayerLoadingMatches = "LeaguePlayerLoadingMatches";
+        public const string LeaguePlayerClientRequired = "LeaguePlayerClientRequired";
+        public const string LeaguePlayerNoMatches = "LeaguePlayerNoMatches";
+        public const string LeaguePlayerRecentMatches = "LeaguePlayerRecentMatches";
+        public const string LeaguePlayerRefresh = "LeaguePlayerRefresh";
+        public const string LeaguePlayerLoadMore = "LeaguePlayerLoadMore";
+        public const string LeaguePlayerTime = "LeaguePlayerTime";
+        public const string LeaguePlayerMode = "LeaguePlayerMode";
+        public const string LeaguePlayerChampion = "LeaguePlayerChampion";
+        public const string LeaguePlayerKda = "LeaguePlayerKda";
+        public const string LeaguePlayerCs = "LeaguePlayerCs";
+        public const string LeaguePlayerResult = "LeaguePlayerResult";
+        public const string LeaguePlayerDuration = "LeaguePlayerDuration";
+        public const string LeaguePlayerWin = "LeaguePlayerWin";
+        public const string LeaguePlayerLoss = "LeaguePlayerLoss";
+        public const string LeaguePlayerUnknown = "LeaguePlayerUnknown";
+
         // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";
