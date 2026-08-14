@@ -16,6 +16,7 @@ namespace FACM.AppHost.Modules
             LeagueDashboardModule.ModuleId,
             LeaguePlayerModule.ModuleId,
             LeagueLiveModule.ModuleId,
+            LeagueBuildAdvisorModule.ModuleId,
             MayhemModule.ModuleId,
             CleanupModule.ModuleId
         };
