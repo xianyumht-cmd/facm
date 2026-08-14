@@ -56,6 +56,28 @@ namespace FACM.Performance
             Require(inGame.NonCriticalPollInterval >= TimeSpan.FromSeconds(60), "In-game non-critical polling must be throttled.");
             Require(hiddenInGame.Name == inGame.Name, "In-game state must take precedence over window visibility.");
 
+            Require(FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "PATCH", "/lol-champ-select/v1/session/my-selection"),
+                "Gate 2 transport blocked its summoner-spell write endpoint.");
+            Require(FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "POST", "/lol-perks/v1/pages/"),
+                "Gate 2 transport blocked rune-page creation.");
+            Require(FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "PUT", "/lol-perks/v1/pages/77"),
+                "Gate 2 transport blocked an owned rune-page update.");
+            Require(FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "PUT", "/lol-perks/v1/currentpage"),
+                "Gate 2 transport blocked current rune-page selection.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "POST", "/lol-matchmaking/v1/ready-check/accept"),
+                "Gate 2 transport must hard-block auto accept.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "PATCH", "/lol-champ-select/v1/session/actions/1"),
+                "Gate 2 transport must hard-block pick/ban action writes.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest(
+                    "PUT", "/lol-perks/v1/pages/77?force=true"),
+                "Gate 2 transport must reject rune-page paths with query-string escape hatches.");
+
             var provider = new PerformanceBudgetProvider();
             var changes = 0;
             provider.BudgetChanged += delegate { changes++; };
