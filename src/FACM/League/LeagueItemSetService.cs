@@ -194,7 +194,10 @@ namespace FACM.League
                         return result;
                     }
 
-                    result.RemovedOldFiles = CleanupOldOwnedFiles(targetDirectory, fileName, cancellationToken, out var cleanupWarning);
+                    // The durable commit is already complete. Cleanup is best-effort and must not turn a
+                    // successfully written item set into an ambiguous cancellation result.
+                    bool cleanupWarning;
+                    result.RemovedOldFiles = CleanupOldOwnedFiles(targetDirectory, fileName, out cleanupWarning);
                     result.CleanupWarning = cleanupWarning;
                     result.Status = "success";
                     AppLog.Info(
@@ -206,6 +209,7 @@ namespace FACM.League
                 }
                 catch (OperationCanceledException)
                 {
+                    // Cancellation can only escape before the durable destination commit.
                     throw;
                 }
                 catch (Exception exception)
@@ -387,7 +391,7 @@ namespace FACM.League
             if (!_files.DirectoryExists(targetDirectory)) _files.CreateDirectory(targetDirectory);
 
             var destination = Path.Combine(targetDirectory, fileName);
-            var token = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            var token = Guid.NewGuid().ToString("N");
             var temp = Path.Combine(targetDirectory, ".facm1-" + token + ".tmp");
             var backup = Path.Combine(targetDirectory, ".facm1-" + token + ".bak");
             var hadDestination = _files.FileExists(destination);
@@ -412,12 +416,21 @@ namespace FACM.League
                 {
                     if (hadDestination && _files.FileExists(backup))
                     {
-                        if (_files.FileExists(destination)) _files.DeleteFile(destination);
-                        _files.MoveFile(backup, destination);
+                        try
+                        {
+                            if (_files.FileExists(destination)) _files.DeleteFile(destination);
+                            _files.MoveFile(backup, destination);
+                        }
+                        catch
+                        {
+                            // Preserve the backup if rollback itself fails. Losing the previous FACM
+                            // item set would be worse than leaving a private .bak recovery file.
+                        }
                     }
                     else if (_files.FileExists(destination))
                     {
-                        _files.DeleteFile(destination);
+                        try { _files.DeleteFile(destination); }
+                        catch { }
                     }
                     return false;
                 }
@@ -432,18 +445,14 @@ namespace FACM.League
                     try { _files.DeleteFile(temp); }
                     catch { }
                 }
-                if (_files.FileExists(backup))
-                {
-                    try { _files.DeleteFile(backup); }
-                    catch { }
-                }
+                // Never blindly delete backup in finally. Success deletes it explicitly; failed
+                // rollback intentionally keeps it as the safest recovery evidence.
             }
         }
 
         private int CleanupOldOwnedFiles(
             string targetDirectory,
             string keepFileName,
-            CancellationToken cancellationToken,
             out bool warning)
         {
             warning = false;
@@ -458,7 +467,6 @@ namespace FACM.League
 
             foreach (var path in candidates)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var fileName = Path.GetFileName(path);
                 if (!IsOwnedFileName(fileName) || string.Equals(fileName, keepFileName, StringComparison.OrdinalIgnoreCase))
                     continue;
