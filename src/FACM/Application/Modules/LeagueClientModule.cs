@@ -8,12 +8,13 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
         private LeagueClientSessionProvider _sessions;
         private LeagueClientApiClient _api;
+        private LeagueClientWriteApiClient _writer;
 
         public LeagueClientModule()
             : this(new ResilientLeagueClientSessionDiscovery())
@@ -42,6 +43,7 @@ namespace FACM.AppHost.Modules
             if (_api != null) return;
             _sessions = new LeagueClientSessionProvider(_discovery);
             _api = new LeagueClientApiClient(_sessions);
+            _writer = new LeagueClientWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
@@ -53,11 +55,26 @@ namespace FACM.AppHost.Modules
                 : api.TryGetBytesAsync(path, cancellationToken);
         }
 
+        public Task<LeagueClientWriteResponse> TrySendJsonAsync(
+            string method,
+            string path,
+            string json,
+            CancellationToken cancellationToken)
+        {
+            var writer = _writer;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySendJsonAsync(method, path, json, cancellationToken);
+        }
+
         public void Dispose()
         {
+            var writer = _writer;
             var api = _api;
+            _writer = null;
             _api = null;
             _sessions = null;
+            if (writer != null) writer.Dispose();
             if (api != null) api.Dispose();
         }
     }
