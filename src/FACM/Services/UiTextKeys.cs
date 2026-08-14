@@ -54,6 +54,24 @@ namespace FACM.Services
         public const string ThemeSelectDesktopPet = "ThemeSelectDesktopPet";
         public const string ThemeResetDesktopPosition = "ThemeResetDesktopPosition";
 
+        // League Dashboard Gate 1.
+        public const string LeagueDashboardMenu = "LeagueDashboardMenu";
+        public const string LeagueDashboardWindowTitle = "LeagueDashboardWindowTitle";
+        public const string LeagueDashboardTitle = "LeagueDashboardTitle";
+        public const string LeagueDashboardHint = "LeagueDashboardHint";
+        public const string LeagueDashboardConnection = "LeagueDashboardConnection";
+        public const string LeagueDashboardConnected = "LeagueDashboardConnected";
+        public const string LeagueDashboardDisconnected = "LeagueDashboardDisconnected";
+        public const string LeagueDashboardAccount = "LeagueDashboardAccount";
+        public const string LeagueDashboardLevel = "LeagueDashboardLevel";
+        public const string LeagueDashboardPlatformRegion = "LeagueDashboardPlatformRegion";
+        public const string LeagueDashboardGameflow = "LeagueDashboardGameflow";
+        public const string LeagueDashboardPerformance = "LeagueDashboardPerformance";
+        public const string LeagueDashboardRefresh = "LeagueDashboardRefresh";
+        public const string LeagueDashboardWaitingClient = "LeagueDashboardWaitingClient";
+        public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
+        public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
+
         // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";

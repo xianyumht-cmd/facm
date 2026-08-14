@@ -13,6 +13,7 @@ namespace FACM.AppHost.Modules
             ToolsModule.ModuleId,
             OnlineModule.ModuleId,
             PetsModule.ModuleId,
+            LeagueDashboardModule.ModuleId,
             MayhemModule.ModuleId,
             CleanupModule.ModuleId
         };
@@ -21,6 +22,7 @@ namespace FACM.AppHost.Modules
         private readonly ToolsModule _tools;
         private readonly OnlineModule _online;
         private readonly PetsModule _pets;
+        private readonly LeagueDashboardModule _leagueDashboard;
         private readonly MayhemModule _mayhem;
         private readonly CleanupModule _cleanup;
 
@@ -30,6 +32,7 @@ namespace FACM.AppHost.Modules
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
+            LeagueDashboardModule leagueDashboard,
             MayhemModule mayhem,
             CleanupModule cleanup)
         {
@@ -38,6 +41,7 @@ namespace FACM.AppHost.Modules
             _tools = tools ?? throw new ArgumentNullException(nameof(tools));
             _online = online ?? throw new ArgumentNullException(nameof(online));
             _pets = pets ?? throw new ArgumentNullException(nameof(pets));
+            _leagueDashboard = leagueDashboard ?? throw new ArgumentNullException(nameof(leagueDashboard));
             _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
             _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
         }

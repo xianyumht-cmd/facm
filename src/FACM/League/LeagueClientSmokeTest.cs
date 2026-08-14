@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading;
 using FACM.AppHost.Modules;
@@ -11,6 +12,7 @@ namespace FACM.League
         public static void Validate()
         {
             ValidateLockfileParser();
+            ValidateSharedLockfileRead();
             ValidateCommandLineParser();
             ValidateSessionRefreshBoundary();
             ValidateDisconnectedModuleIsNonFatal();
@@ -45,6 +47,32 @@ namespace FACM.League
             Require(
                 !LeagueClientSessionParser.TryParseLockfile("LeagueClientUx:1:12345:token:ftp", out session),
                 "LeagueClient lockfile parser accepted an unsupported protocol.");
+        }
+
+        private static void ValidateSharedLockfileRead()
+        {
+            var path = Path.Combine(Path.GetTempPath(), "facm-league-lockfile-" + Guid.NewGuid().ToString("N") + ".txt");
+            const string expected = "LeagueClientUx:4321:54321:secret-token:https";
+            try
+            {
+                using (var owner = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite))
+                {
+                    var payload = Encoding.UTF8.GetBytes(expected);
+                    owner.Write(payload, 0, payload.Length);
+                    owner.Flush(true);
+
+                    string content;
+                    Require(
+                        ResilientLeagueClientSessionDiscovery.TryReadSharedText(path, out content),
+                        "LeagueClient active lockfile could not be read with compatible sharing.");
+                    Require(content == expected, "LeagueClient active lockfile shared read changed its content.");
+                }
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); }
+                catch { }
+            }
         }
 
         private static void ValidateCommandLineParser()

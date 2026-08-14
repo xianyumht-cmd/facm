@@ -32,10 +32,11 @@ namespace FACM
             var singleInstanceActivationTest = HasArgument(args, "--single-instance-activation-test");
             var facmHostTest = HasArgument(args, "--facm-host-test");
             var performanceContractTest = HasArgument(args, "--performance-contract-test");
+            var leagueDashboardTest = HasArgument(args, "--league-dashboard-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
                            embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest ||
-                           performanceContractTest;
+                           performanceContractTest || leagueDashboardTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -50,7 +51,8 @@ namespace FACM
                 gameLocatorTest,
                 singleInstanceActivationTest,
                 facmHostTest,
-                performanceContractTest);
+                performanceContractTest,
+                leagueDashboardTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -77,6 +79,11 @@ namespace FACM
                 if (performanceContractTest)
                 {
                     Environment.ExitCode = PerformanceContractSmokeTest.Run();
+                    return;
+                }
+                if (leagueDashboardTest)
+                {
+                    Environment.ExitCode = LeagueDashboardSmokeTest.Run();
                     return;
                 }
                 if (singleInstanceActivationTest)
@@ -177,10 +184,11 @@ namespace FACM
                 var pets = new PetsModule();
                 var performance = new PerformanceModule();
                 var leagueClient = new LeagueClientModule();
+                var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
-                var shell = new ShellModule(startCleanup, settings, tools, online, pets, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, mayhem, cleanup, shell))
+                var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, mayhem, cleanup);
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -230,6 +238,7 @@ namespace FACM
             PetsModule pets,
             PerformanceModule performance,
             LeagueClientModule leagueClient,
+            LeagueDashboardModule leagueDashboard,
             MayhemModule mayhem,
             CleanupModule cleanup,
             ShellModule shell)
@@ -242,6 +251,7 @@ namespace FACM
             host.Register(pets);
             host.Register(performance);
             host.Register(leagueClient);
+            host.Register(leagueDashboard);
             host.Register(mayhem);
             host.Register(cleanup);
             host.Register(shell);
@@ -262,10 +272,12 @@ namespace FACM
             bool gameLocatorTest,
             bool singleInstanceActivationTest,
             bool facmHostTest,
-            bool performanceContractTest)
+            bool performanceContractTest,
+            bool leagueDashboardTest)
         {
             if (facmHostTest) return MutexName + "-FacmHostTest";
             if (performanceContractTest) return MutexName + "-PerformanceContractTest";
+            if (leagueDashboardTest) return MutexName + "-LeagueDashboardTest";
             if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";

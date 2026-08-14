@@ -9,6 +9,7 @@ namespace FACM.Performance
             try
             {
                 Validate();
+                FACM.LeagueDashboardSmokeTest.Validate();
                 Console.WriteLine("FACM performance contract smoke passed.");
                 return 0;
             }
