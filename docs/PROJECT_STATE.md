@@ -1,6 +1,8 @@
 # FACM 当前项目状态
 
-> 2026-08-14：FACM 3.2.0 是当前正式生产基线。Performance Contract、League Dashboard Gate 1 与 Player Gate 1 均已完成、通过 Windows 腾讯/国服验收并合入 `main`。下一项主线：**Champ Select / Current Game Gate 1**。
+> 2026-08-14：FACM 3.2.0 是当前正式生产基线。Performance Contract、League Dashboard Gate 1 与 Player Gate 1 均已完成、通过 Windows 腾讯/国服验收并合入 `main`。当前主线：**Champ Select / Current Game Gate 1**。
+>
+> 当前活跃：Issue #85 / Draft PR #86，候选 HEAD `bf9ae52dbb814a5ac862c6671085e6ed0300d456`，Windows Build #955 / UI Text #76 / Mayhem #237 全绿，**等待 Windows 腾讯/国服实机验收，未验收前不要合并**。完整交接见 `docs/HANDOFF-20260814-LEAGUE.md`。
 
 ## 当前正式版
 
@@ -82,20 +84,24 @@ FACM 不复制 Akari 的 Electron/Vue 技术栈。继续使用 C#/.NET Windows �
 顺序：
 1. League Dashboard：已完成
 2. Player Gate 1：当前账号 + 最近对局，已完成
-3. Champ Select / Current Game：下一主线
+3. Champ Select / Current Game：当前 Draft PR #86，等待国服实测
 4. Player 后续：英雄名称/图标、英雄表现与统计，在不破坏性能预算的前提下逐步补齐
 5. Tools / Automation
 
-## 下一步：Champ Select / Current Game Gate 1
+## 当前任务：Champ Select / Current Game Gate 1
 
-下一阶段先做只读、轻量的实时对局面板：
-- 继续复用 `LeagueClientModule + PerformanceModule`；
-- 以已有 Gameflow 状态为入口，不新增第二套客户端连接；
-- 首版优先只读 Champ Select / 当前对局必要信息，先解决“当前发生什么、我方是谁、能拿到哪些可靠字段”；
-- 腾讯字段逐项按 `实测可用 / 实测有差异 / 未验证` 记录，不根据官网免责声明推断技术兼容性；
-- Champ Select / In Game 必须服从当前性能预算，禁止为了实时感做无界并发、高频图片预取或不可见页面刷新；
-- 不在 Gate 1 做自动接受、自动 ban/pick、自动操作客户端或 WebSocket 大改，除非后续真实需求证明必要；
-- 所有静态可见文案继续走 UI Text Contract；
+当前候选已实现，不要从零重做：
+- Issue #85 / Draft PR #86 / branch `feat/champ-current-gate1-85`；
+- 候选 HEAD `bf9ae52dbb814a5ac862c6671085e6ed0300d456`；
+- Champ Select 只读 `/lol-champ-select/v1/session`；
+- Current Game 只读已有 Gameflow + `/lol-gameflow/v1/session`；
+- 不新增第二套客户端连接；
+- 不做 teammate history fan-out、图片预取、时间线或自动客户端操作；
+- Champ Select / In Game 严格服从当前 Performance Contract；
+- 静态可见文案走 UI Text Contract；
+- Build #955 / UI Text #76 / Mayhem #237 已全绿；
+- 下一步是 Windows 腾讯/国服集中验收，不是继续堆功能；
+- 未通过实测前保持 Draft，不合并；
 - 不发布新版本，除非用户再次明确授权。
 
 旧 Issue #33 / Draft PR #35 机器猫仍是暂停实验，不是当前主线，不自动恢复。
