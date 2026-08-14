@@ -49,6 +49,7 @@ namespace FACM.AppHost.Modules
             _itemSetService = new LeagueItemSetService(_leagueClient, _performance.Budgets);
             _autoApply = new LeagueAutoApplyController(
                 _settings.Settings,
+                _performance.Budgets,
                 _service,
                 _applyService,
                 _itemSetService);
