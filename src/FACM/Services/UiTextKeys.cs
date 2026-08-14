@@ -60,6 +60,15 @@ namespace FACM.Services
         public const string ShellPersonalizationHint = "ShellPersonalizationHint";
         public const string ShellDirectoryReady = "ShellDirectoryReady";
         public const string ShellDirectoryMissing = "ShellDirectoryMissing";
+        public const string ShellSimpleHint = "ShellSimpleHint";
+        public const string ShellArrow = "ShellArrow";
+        public const string ShellUnavailable = "ShellUnavailable";
+        public const string ShellEnabled = "ShellEnabled";
+        public const string ShellDisabled = "ShellDisabled";
+        public const string ShellStatusFormat = "ShellStatusFormat";
+        public const string ShellDirectoryReadyFormat = "ShellDirectoryReadyFormat";
+        public const string ShellDirectoryMissingFormat = "ShellDirectoryMissingFormat";
+        public const string ShellTrayTooltipFormat = "ShellTrayTooltipFormat";
 
         // Theme popup. These keys describe UI roles, not the current Chinese wording.
         public const string ThemePanelAppearance = "ThemePanelAppearance";
