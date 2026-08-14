@@ -70,20 +70,36 @@ namespace FACM.League
         private static bool TryFromProcess(Process process, out LeagueClientSession session)
         {
             session = null;
+            if (process == null) return false;
+
             string executable;
             string pathSource;
-            if (!TryResolveImagePath(process, out executable, out pathSource)) return false;
+            if (TryResolveImagePath(process, out executable, out pathSource))
+            {
+                var directory = Path.GetDirectoryName(executable);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    var lockfile = Path.Combine(directory, "lockfile");
+                    if (File.Exists(lockfile) && TryFromLockfile(lockfile, pathSource, out session))
+                        return true;
+                }
+            }
 
-            var directory = Path.GetDirectoryName(executable);
-            if (string.IsNullOrWhiteSpace(directory)) return false;
+            if (!string.Equals(process.ProcessName, "LeagueClientUx", StringComparison.OrdinalIgnoreCase))
+                return false;
 
-            var lockfile = Path.Combine(directory, "lockfile");
-            if (!File.Exists(lockfile)) return false;
+            string commandLine;
+            if (!WmiProcessImagePathReader.TryReadCommandLine(process.Id, out commandLine)) return false;
+            return LeagueClientSessionParser.TryParseCommandLine(commandLine, out session);
+        }
 
+        private static bool TryFromLockfile(string lockfile, string pathSource, out LeagueClientSession session)
+        {
+            session = null;
             for (var attempt = 0; attempt < 3; attempt++)
             {
                 string content;
-                if (!TryReadSharedText(lockfile, out content)) return false;
+                if (!TryReadSharedText(lockfile, out content)) break;
 
                 LeagueClientSession parsed;
                 if (LeagueClientSessionParser.TryParseLockfile(content, out parsed))
