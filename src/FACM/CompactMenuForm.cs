@@ -35,7 +35,7 @@ namespace FACM
             _scaleX = _theme.WindowSize.Width / (float)BaseWidth;
             _scaleY = _theme.WindowSize.Height / (float)BaseHeight;
 
-            Text = "FACM";
+            Text = _ui.AppName;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
@@ -55,7 +55,7 @@ namespace FACM
 
             var logo = new Label
             {
-                Text = "F",
+                Text = "F", // ui-text-contract: allow brand mark
                 Location = ScalePoint(18, 14),
                 Size = ScaleSize(44, 44),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -69,7 +69,7 @@ namespace FACM
 
             var brand = new Label
             {
-                Text = "FACM",
+                Text = _ui.AppName,
                 AutoSize = true,
                 Location = ScalePoint(76, 10),
                 ForeColor = _theme.TextPrimary,
@@ -95,7 +95,7 @@ namespace FACM
 
             var close = new Label
             {
-                Text = "×",
+                Text = "×", // ui-text-contract: allow standard close glyph
                 Location = ScalePoint(374, 14),
                 Size = ScaleSize(32, 32),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -140,7 +140,7 @@ namespace FACM
             cleanup.Cursor = Cursors.Hand;
             var cleanupIcon = new Label
             {
-                Text = _theme.Style == ThemeStyle.Luxury ? "✦" : "↻",
+                Text = _theme.Style == ThemeStyle.Luxury ? "✦" : "↻", // ui-text-contract: allow decorative glyph
                 Location = ScaleChildPoint(15, 21),
                 Size = ScaleChildSize(46, 46),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -205,7 +205,10 @@ namespace FACM
             featureCard.Controls.Add(league);
             featureCard.Controls.Add(personalize);
 
-            var more = CreateButton(_ui.Get(UiTextKeys.ShellMoreSettings) + "  ›", new Rectangle(16, 506, 388, 44), false);
+            var more = CreateButton(
+                _ui.Get(UiTextKeys.ShellMoreSettings) + "  " + _ui.Get(UiTextKeys.ShellArrow),
+                new Rectangle(16, 506, 388, 44),
+                false);
             more.Click += OpenMoreMenu;
 
             var footer = new Panel
@@ -226,7 +229,7 @@ namespace FACM
             };
             var footerHint = new Label
             {
-                Text = "常用功能只放第一层，其它功能按类别打开",
+                Text = _ui.Get(UiTextKeys.ShellSimpleHint),
                 Location = ScaleChildPoint(17, 45),
                 Size = ScaleChildSize(386, 18),
                 ForeColor = _theme.TextMuted,
@@ -392,7 +395,7 @@ namespace FACM
             };
             var arrow = new Label
             {
-                Text = "›",
+                Text = _ui.Get(UiTextKeys.ShellArrow),
                 Location = ScaleChildPoint(bounds.Width - 48, 8),
                 Size = ScaleChildSize(32, 38),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -442,7 +445,10 @@ namespace FACM
             _dialogOpen = true;
             if (_ownerBall.ShowShellGroup(ShellMenuGroups.LeagueGroupName, sender as Control, EndPopupInteraction)) return;
             _dialogOpen = false;
-            SetStatus(_ui.Get(UiTextKeys.ShellLeague) + "：暂无可用功能");
+            SetStatus(string.Format(
+                _ui.Get(UiTextKeys.ShellStatusFormat),
+                _ui.Get(UiTextKeys.ShellLeague),
+                _ui.Get(UiTextKeys.ShellUnavailable)));
         }
 
         private void OpenPersonalizationMenu(object sender, EventArgs e)
@@ -467,7 +473,10 @@ namespace FACM
                 {
                     _settings.AutoUpdateEnabled = autoCheck.Checked;
                     _settings.Save();
-                    SetStatus(_ui.Get(UiTextKeys.AutoCheckAtStartup) + (autoCheck.Checked ? "：已开启" : "：已关闭"));
+                    SetStatus(string.Format(
+                        _ui.Get(UiTextKeys.ShellStatusFormat),
+                        _ui.Get(UiTextKeys.AutoCheckAtStartup),
+                        autoCheck.Checked ? _ui.Get(UiTextKeys.ShellEnabled) : _ui.Get(UiTextKeys.ShellDisabled)));
                 };
                 menu.Items.Add(new ToolStripSeparator());
                 AddPopupItem(menu, _ui.CheckUpdate, delegate { _ownerBall.OpenUpdateCenter(); });
@@ -712,12 +721,17 @@ namespace FACM
         {
             if (_cleanup.IsValidGameRoot(_settings.GamePath))
             {
-                _pathValue.Text = "● " + _ui.Get(UiTextKeys.ShellDirectoryReady) + " · " + _settings.GamePath;
+                _pathValue.Text = string.Format(
+                    _ui.Get(UiTextKeys.ShellDirectoryReadyFormat),
+                    _ui.Get(UiTextKeys.ShellDirectoryReady),
+                    _settings.GamePath);
                 _pathValue.ForeColor = _theme.Success;
                 return;
             }
 
-            _pathValue.Text = "● " + _ui.Get(UiTextKeys.ShellDirectoryMissing);
+            _pathValue.Text = string.Format(
+                _ui.Get(UiTextKeys.ShellDirectoryMissingFormat),
+                _ui.Get(UiTextKeys.ShellDirectoryMissing));
             _pathValue.ForeColor = _theme.Warning;
         }
 
