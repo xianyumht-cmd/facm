@@ -1,8 +1,8 @@
 # FACM 当前项目状态
 
-> 2026-08-14：FACM 3.2.0 是当前正式生产基线。Performance Contract、League Dashboard Gate 1、Player Gate 1、Champ Select / Current Game Gate 1、Player Gate 2 均已完成并合入 `main`。
+> 2026-08-15：FACM 3.2.0 仍是当前正式生产基线。Performance Contract、League Dashboard Gate 1、Player Gate 1、Champ Select / Current Game Gate 1、Player Gate 2、Tools / Automation Gate 1 均已完成并合入 `main`。
 >
-> 当前 League 规划进度：**4/5（80%）**。当前主线是 **Tools / Automation Gate 1：OP.GG 对局助手（只读推荐）**，Issue #93 / Draft PR #94 已进入第二个 Windows 腾讯候选，等待 Build #974 复测。完整历史交接可参考 `docs/HANDOFF-20260814-LEAGUE.md`，但当前状态以本文件和 GitHub 实时状态为准。
+> 当前 League 规划进度：**5/5（100%）**。本轮 5 个主阶段已经全部完成；后续新增能力必须作为新的独立 Gate / Issue 规划，不重新设计已经验收通过的 Dashboard / Player / Live / Build Advisor。
 
 ## 当前正式版
 
@@ -11,165 +11,104 @@
 - minimum_version：3.0.0
 - force_update：false
 - Release FACM.exe SHA-256：`D09BFBCD8F59FE026140B4CFD7BDCFC0002AD0AAF3E0C09E356B4AED61BFD6A9`
-- 本轮没有创建新 Release、没有改 `online/version.json`、没有改变线上版本。
+- 本轮没有创建新 Release、Tag，没有修改 `online/version.json`，没有改变线上版本。
 
-## 当前未完成：Tools / Automation Gate 1
+## 最新完成行为：Tools / Automation Gate 1
 
-- Issue #93：OPEN。
-- Draft PR #94：OPEN / Draft / mergeable；腾讯/国服实机通过前保持 Draft，不合并。
-- branch：`feat/opgg-build-advisor-93`。
-- base：`main` @ `1c3afae6be81759a0a708e438641719215e4f4f6`。
-- 当前行为候选 HEAD：`3b3a3e3ddeeb3fb40fa86a9de4a440c42d34d66f`。
-- Windows Build #974：SUCCESS；Release build、`FACM.exe` 验证、Performance Contract 与扩展后的 `LeagueBuildAdvisorSmokeTest` 均通过。
-- UI Text Contract #95：SUCCESS。
-- Mayhem Source Probe #246：SUCCESS。
-- artifact：`FACM-Windows-x64-974`，artifact id `9225312518`，未过期。
+Tools / Automation Gate 1 已完成腾讯/国服实机验收并合入 `main`：
+
+- Issue #93：completed。
+- PR #94：merged。
+- 最终行为候选 HEAD：`3b3a3e3ddeeb3fb40fa86a9de4a440c42d34d66f`。
+- 最终 PR HEAD：`35eb3eb4bb3e15d667037d82e08d4173bacae4f8`。
+- merge commit：`90b3c829aa8682f0d6be139512b348eb4f4aff78`。
+- Build #974：Windows SUCCESS；UI Text #95 SUCCESS；Mayhem Source Probe #246 SUCCESS。
+- 最终 artifact：`FACM-Windows-x64-974`，artifact id `9225312518`。
 - artifact ZIP SHA-256：`62238B804ABDC3571E2458FAA78BA96FE7192290C189C690D642DAD328D5A622`。
-- **腾讯/国服第二次实机尚未验收；正式完成进度仍保持 4/5 = 80%。**
+- 最终 PR HEAD 检查：Windows #975 / UI Text #96 / Mayhem #247 全部 SUCCESS。
+- merge 后 main：Windows #976 / UI Text #97 / Mayhem #248 全部 SUCCESS。
+- 构建 FACM.exe 版本仍为 `3.2.0.0`；开发自签名行为未改变。
 
-### 第一次腾讯实机反馈与修复
+### 腾讯/国服实机验收记录
 
-Build #971 已完成第一次真实腾讯/国服 Champ Select 测试，并提供了有效故障证据：
+Build #971 第一次真实 Champ Select 测试提供了有效故障证据：
 
-- 正常：`ChampSelect` 已识别；本地英雄 `疾风剑豪 #157` 已识别；模式显示 `ranked / all`；OP.GG 版本 `16.16` 已读取；Performance 正确为 `champ-select`；
-- 异常：状态显示“OP.GG 暂时不可用”，推荐表为空；因此 Build #971 **不通过 Gate 验收**；
-- 结论：LCU / 腾讯发现 / Champ Select / 英雄本地名称 / OP.GG versions 链均已工作，失败收敛到 OP.GG ranked champion-build 请求层。
+- 正常：`ChampSelect`、本地英雄 `疾风剑豪 #157`、OP.GG version `16.16`、Performance=`champ-select` 均读取正常；
+- 异常：上下文停在 `ranked / all`，OP.GG build 返回不可用，推荐表为空；因此 Build #971 不通过验收；
+- 结论：腾讯 LCU / Champ Select / 英雄本地名称 / OP.GG versions 链已工作，故障收敛到 ranked champion-build 请求层。
 
-对照 League Akari 当前源码后，Build #974 做 scoped 修复：
+对照 League Akari 当前源码后，Build #974 做 scoped 修复并通过第二次实机：
 
-- OP.GG champion-build 请求显式带 `tier=all` 与当前已解析的 `version`，不再读到版本后又丢弃；
-- `ranked / all` 只作为 FACM 内部“分路尚未确定”哨兵，不直接发送给 ranked champion-build；
-- 腾讯有 `assignedPosition` 时继续直接使用 top/jungle/mid/adc/support；
-- 腾讯没有分路时，只额外请求一次当前 version 的 OP.GG ranked champion list，按该英雄 position 的 `role_rate`、其次 `play` 推断主位置；该结果内存缓存 30 分钟；
-- champion list 不可用时，才使用 Akari 默认 ranked 偏好 `top` 做最终只读降级，避免继续发送未知位置；
-- build/position/version/cache 全部保持串行，不做五路逐个试探；
-- 当前 OP.GG `runes` 结构和兼容旧 `rune_pages` 都可解析；
-- OP.GG 非 2xx 会在本地日志记录 HTTP 状态码和安全请求 path，便于下一次故障直接定位；不包含任何 LCU 凭据；
-- In Game 仍为严格 cache-only；如果游戏阶段也没有 position，会从该英雄当前 mode 的最近已缓存 build 中读取，不触发新 OP.GG 请求。
+- OP.GG champion-build 请求绑定 `tier=all` 与当前 version；
+- `ranked / all` 只作为 FACM 内部“分路尚未确定”哨兵，不直接发给 ranked build；
+- 腾讯有 `assignedPosition` 时直接使用；没有时只额外读取一次当前 version 的 OP.GG ranked champion list，按 `role_rate`、其次 `play` 推断主位置，结果缓存 30 分钟；
+- champion list 不可用时才使用 Akari 默认 ranked 偏好 `top` 做最终只读降级；
+- 不做五路逐个探测；当前 OP.GG `runes` 与旧 `rune_pages` 均兼容；
+- 非 2xx 只记录安全 HTTP 状态码 / path，不记录 LCU 凭据；
+- In Game 仍严格 cache-only，不新增 OP.GG 请求。
 
-扩展 smoke 已覆盖第一次实机故障形态：腾讯 Champ Select `assignedPosition` 缺失 → `ranked / all` → version → 单次 champion list → 推断主位置 → 带 tier/version 获取 build → 重复刷新零额外请求 → In Game 零 OP.GG 请求。
+最终腾讯/国服截图确认：
 
-### Gate 1 参考与产品边界
+- `ChampSelect · 疾风剑豪 #157 · ranked / mid`；
+- 数据来源 `OP.GG Global`，版本 `16.16`；
+- Tier/rank、Win/Pick/Ban 率正常显示；
+- 召唤师技能、符文、出门装、鞋、核心装备、技能加点、Counter 均正常渲染为本地名称；
+- Performance 保持 `champ-select`；
+- UI 明确只读，没有自动修改客户端配置。
 
-本 Gate 同时参考 League Akari 源码与 OP.GG 产品/公开能力，但不机械复制任一实现：
+### Tools / Automation Gate 1 冻结边界
 
-- Akari 源码用于确认 `opgg-window`、OP.GG 构筑数据结构、LCU 本地 game-data 路径以及写入能力的技术边界；
-- OP.GG 产品/官方公开能力用于校验用户价值：英雄胜/选/禁率、装备、符文、技能、召唤师技能和 Counter 等确实属于成熟对局辅助能力；
-- FACM 继续使用 C#/.NET Windows 架构，复用唯一 `LeagueClientModule + PerformanceModule`；不新增第二套 LCU connector；
-- FACM 已有 Mayhem OP.GG 网络/容灾经验，本 Gate 借鉴其短超时、缓存、取消和失败降级原则，但不反向依赖 Mayhem 模块。
-
-### Gate 1 当前行为
-
-- 新增 `LeagueBuildAdvisorModule`，托盘入口位于“实时对局”之后；
-- 上下文直接复用 `LeagueLiveDataService` 的 Gameflow / Champ Select 解析边界，读取本地玩家 `championId`、预选 intent、位置、queue/mode；
-- OP.GG 构筑数据使用 `https://lol-api-champion.op.gg` 的 global 数据；腾讯没有单独 OP.GG China 统计时，UI 明确显示 **OP.GG Global**，不冒充“国服胜率”；
-- OP.GG build 与 ranked champion-list 请求绑定当前 OP.GG version，并使用 `tier=all`；
-- ranked 未拿到腾讯分路时先按 OP.GG 当前版本英雄榜推断主位置，不把未知 `all` 直接作为 ranked build position；
-- LCU 本地 `/lol-game-data/assets/v1/champion-summary.json`、`items.json`、`summoner-spells.json`、`perks.json` 只用于把 ID 映射成客户端本地名称；不加载英雄/装备图片；
-- 第一版展示：Tier/rank（有数据时）、胜率/选取率/Ban 率、召唤师技能、符文、出门装、鞋、核心装备、技能加点、Counter；
-- 同一 champion/mode/position/version 构筑缓存 10 分钟；本地静态元数据、OP.GG version 与 inferred ranked position 缓存 30 分钟；
-- OP.GG 网络请求只在助手窗口可见且处于需要推荐的上下文发生；相同 key 命中缓存，不按行/装备/符文 fan-out；
-- In Game 强制 cache-only：允许显示本局已经缓存的推荐，但不新增 OP.GG 请求，也不加载新的本地静态表；
-- 页面关闭立即取消；刷新串行；OP.GG 不可用/字段异常/超时时稳定降级，League 客户端主链不受影响；
-- deterministic smoke 覆盖 OP.GG JSON 解析、本地名称映射、global/mode/position、tier/version request contract、未知腾讯分路推断、10 分钟缓存、英雄变化仅请求新 build、In Game 零新增 OP.GG 请求、取消、无 match-history/scouting fan-out 和托盘依赖。
-
-### Gate 1 明确禁止
-
-本 Gate 的“Automation”仅指 **自动识别当前上下文 + 自动切换只读推荐**，不执行客户端写入：
-
-- 不 auto accept；
-- 不自动 pick / ban；
-- 不 swap / reroll / dodge；
-- 不自动修改召唤师技能；
-- 不自动写符文页；
-- 不自动写装备集；
-- 不改皮肤或其它客户端设置；
-- 不做 teammate match-history fan-out / 玩家侦察；
-- 不做游戏内 Overlay；
-- 不注入游戏进程。
-
-如果未来需要“一键应用符文 / 技能 / 装备集”，必须作为独立 Gate，要求显式用户触发、明确预览/替换语义、零自动误操作，并单独做腾讯/国服实机验收。
-
-### Gate 1 下一步验收
-
-Build #974 Windows 腾讯/国服集中复测：
-
-1. Lobby：托盘出现“OP.GG 对局助手”，打开顺畅；未进入选人时只显示等待状态，不修改客户端；
-2. Champ Select：选择或预选英雄后，当前英雄、模式/位置、OP.GG Global、数据版本与推荐内容能自动跟随；第一次截图中的 `ranked / all + OP.GG 暂不可用` 不应继续出现；
-3. 如果腾讯没有分路，UI 中 position 应自动落到具体 `top/jungle/mid/adc/support`，而不是长期停留 `all`；
-4. 推荐应尽量显示本地名称，而不是纯 ID：召唤师技能、符文、出门装、鞋、核心装备、技能加点、Counter；某字段缺失时允许稳定少显示，不能拖垮页面；
-5. 切换英雄后推荐跟随变化；重复相同英雄不应持续重拉 OP.GG；
-6. 明确确认整个过程没有自动改符文、召唤师技能、装备集、pick/ban 等客户端配置；
-7. 选人过程保持流畅，无明显点击/切换/输入延迟；
-8. 进入 In Game 后助手只允许显示已有缓存或“暂无缓存”，不继续发新的 OP.GG 网络请求；关闭助手后请求停止，无残留轮询。
-
-用户明确反馈 Build #974 “正常/没问题”后，fresh-check PR #94 HEAD 与 CI，再 Ready/merge；有 bug 则保持 Draft，只修 scoped bug。
-
-## 最新完成行为：Player Gate 2
-
-Player Gate 2 已完成腾讯/国服实机验收并合入 `main`：
-
-- Issue #90：completed。
-- PR #91：merged。
-- 最终验收候选 HEAD：`24b9db09bc50d0d8490fa46bdd303d59a0f1583a`。
-- merge commit：`1ae84844feddddda91226867172ff93c9cb8d5aa`。
-- Windows 腾讯/国服：Build #961 已验证本地中文英雄名称映射与当前已加载战绩聚合；随后按实机截图反馈修正 Player 文案。
-- 最终 Build #965：用户实机截图确认 `英雄` 列、`英雄表现（当前已加载 2 场）` 标题、中文英雄名称与两场当前战绩统计正常。
-- 最终候选 CI：Windows Build #965 / UI Text Contract #86 SUCCESS。
-- merge 后 main：Windows Build #966 / UI Text Contract #87 SUCCESS。
-- 本 Gate 没有修改 Mayhem 源码，因此本轮没有新增 Mayhem Source Probe run；Windows Build 中的 Performance Contract / `LeaguePlayerSmokeTest` 已通过。
-- 最终 artifact：`FACM-Windows-x64-965`，artifact id `9221920312`。
-- artifact ZIP SHA-256：`D273D4834B1B20E23D601683EFABFB1BCEB783FFFAA0DE03B5CF76BF678615C9`。
-- 构建 FACM.exe 版本：`3.2.0.0`；开发自签名行为未改变。
-
-### Player Gate 2 冻结边界
-
-在 Player Gate 1 基础上只做了渐进增强：
-
-- champion ID 通过本地 LCU `/lol-game-data/assets/v1/champion-summary.json` 映射客户端本地英雄名称；
-- 英雄表是一次性汇总请求，内存缓存 30 分钟，不按每场/每英雄 fan-out；
-- Queueing / Champ Select / In Game / hidden-background 性能档不会启动该非必要元数据请求；已有缓存仍可用于显示；
-- 元数据不可用或字段变化时稳定 fallback 到 champion ID，不影响账号/战绩主链；
-- 表现统计只基于当前已经加载的 10/20 场，不追加 match-history；
-- 统计包含英雄样本场次、胜率、平均 K/D/A；
-- UI 使用轻量有限 ListView，没有英雄图片、动态图表或后台资产预取；
-- Player 英雄列默认文案为 `英雄`，统计标题为 `英雄表现（当前已加载 {0} 场）`；旧 `ui-text.ini` 中遗留的 `英雄 ID` 显示兼容，不要求用户手动删除配置；
-- 保留 Gate 1 的账号缓存、45 秒战绩页缓存、10→20 明确分页、页面关闭取消和敏感阶段 0 战绩详情预取边界；
-- deterministic smoke 覆盖英雄表解析/映射、30 分钟缓存、敏感阶段 0 英雄元数据请求、纯内存统计、0 新增 match-history fan-out、取消和原分页边界。
-
-没有真实缺陷或新独立需求时，不再重新设计 Player Gate 1/2。
+- 独立 `LeagueBuildAdvisorModule` 继续依赖现有 `LeagueClientModule + PerformanceModule`；不创建第二套 LCU connector。
+- 上下文复用现有 `LeagueLiveDataService` Gameflow / Champ Select 解析边界。
+- OP.GG 数据明确标注 **OP.GG Global**，不冒充腾讯/国服胜率。
+- LCU 本地 game-data 只用于名称映射，不加载英雄/装备图片。
+- 同一 champion/mode/position/version 构筑缓存 10 分钟；本地静态元数据、OP.GG version、推断的 ranked position 缓存 30 分钟。
+- 请求串行；页面关闭立即取消；相同上下文命中缓存；In Game cache-only。
+- 不 auto accept。
+- 不自动 pick / ban / swap / reroll / dodge。
+- 不自动改召唤师技能、符文页、装备集、皮肤或其它客户端设置。
+- 不做 teammate match-history fan-out / 玩家侦察。
+- 不做游戏内 Overlay，不注入游戏进程。
+- 如果未来需要“一键应用符文 / 召唤师技能 / 装备集”，必须另建独立 Gate，要求显式用户触发、明确预览/替换语义并单独腾讯/国服实机验收。
 
 ## 此前 League Gate 已完成
 
+### Player Gate 2
+
+- Issue #90：completed；PR #91：merged。
+- 最终候选 HEAD：`24b9db09bc50d0d8490fa46bdd303d59a0f1583a`。
+- merge commit：`1ae84844feddddda91226867172ff93c9cb8d5aa`。
+- Build #965 腾讯/国服截图确认 `英雄` 列、`英雄表现（当前已加载 2 场）`、中文英雄名称与当前已加载战绩统计正常。
+- Windows #965 / UI Text #86 SUCCESS；merge 后 Windows #966 / UI Text #87 SUCCESS。
+- champion ID 通过本地 `/lol-game-data/assets/v1/champion-summary.json` 映射名称；英雄表缓存 30 分钟；敏感阶段不新增该请求；统计只基于当前 10/20 场，不追加 match-history。
+
 ### Champ Select / Current Game Gate 1
 
-- Issue #85：completed。
-- PR #86：merged。
+- Issue #85：completed；PR #86：merged。
 - 候选行为 HEAD：`bf9ae52dbb814a5ac862c6671085e6ed0300d456`。
-- 行为 merge commit：`4d0cbe43c9ae5e1bae62ad62d398f8fba1ab138a`。
-- Windows 腾讯/国服候选 Build #955：用户实机验收反馈“没问题”。
-- 候选 CI：Windows Build #955 / UI Text Contract #76 / Mayhem Source Probe #237 全部 SUCCESS。
-- 行为 main post-merge：Windows Build #958 / UI Text Contract #79 / Mayhem Source Probe #239 全部 SUCCESS。
-- canonical closeout PR #89：merged；closeout main commit `6e27fc1f3aa3be711c7539342dff86c63f81ecff`。
-- closeout main checks：Windows Build #960 / UI Text Contract #81 SUCCESS。
+- merge commit：`4d0cbe43c9ae5e1bae62ad62d398f8fba1ab138a`。
+- Build #955 腾讯/国服实机验收通过。
+- 候选 Windows #955 / UI Text #76 / Mayhem #237 全绿；merge 后 Windows #958 / UI Text #79 / Mayhem #239 全绿。
+- Gate 保持只读：不 auto accept / pick / ban / swap / reroll / dodge / 改技能或皮肤，不做队友战绩 fan-out、千场分析、live timeline、图片后台预取或 SGP 扩展。
 
 ### 更早基线
 
-- League Dashboard Gate 1：已完成并通过腾讯/国服实测。
-- Player Gate 1：已完成并通过 Build #951 腾讯/国服实测；PR #82 已合并，Issue #81 completed。
+- League Dashboard Gate 1：DONE，腾讯/国服已验收。
+- Player Gate 1：DONE，Build #951 腾讯/国服已验收；PR #82 merged，Issue #81 completed。
+- 单实例二次启动 Ensure Open / Activate：DONE；Issue #53 / PR #54 仅作历史，不重新设计。
 
 ## 已完成并冻结
 
-没有真实缺陷或新需求时，不要顺手重做以下已验收基础：
+没有真实缺陷或新独立需求时，不要顺手重做：
 
 - Modular Host Phase 1～5。
 - Real Pet Gate 1。
 - UI Text Contract。
 - Performance Contract。
 - League Dashboard Gate 1。
-- Player Gate 1。
+- Player Gate 1 / 2。
 - Champ Select / Current Game Gate 1。
-- Player Gate 2。
+- Tools / Automation Gate 1（OP.GG 对局助手只读推荐）。
 - 单实例二次启动 Ensure Open / Activate。
 - Flying Runtime。
 - VPet / PetHost。
@@ -194,13 +133,10 @@ Player Gate 2 已完成腾讯/国服实机验收并合入 `main`：
 
 从 Desktop → Client → Queueing → Champ Select → In Game，数字预算和功能开关只能更保守。
 
-League Dashboard 的 Gameflow monitor 继续负责阶段预算联动：client 约 5s / queue 3s / champ-select 2s / in-game 10s。正常 LCU 可用时不额外枚举游戏进程；LCU 暂不可用时才使用进程作为性能兜底。
-
-Player 页面继续保持：无后台定时刷新；打开后先账号/缓存、再战绩；关闭立即取消；默认 10 场，手动最多 20 场；Queueing / Champ Select / In Game 禁止战绩详情预取。Gate 2 的英雄名称元数据也服从同一预算：敏感阶段不新增该请求。
-
-League Live 页面继续保持：Champ Select 可见轮询不快于约 2s，In Game 不快于约 10s；refresh 串行；关闭页面取消；不请求战绩/队友侦察/图片预取。
-
-OP.GG 对局助手继续服从同一预算：只在用户打开窗口时工作；自身请求串行；同一上下文命中缓存；未知 ranked 分路最多额外一次已缓存 champion-list lookup；In Game 不新增 OP.GG 请求；不加载图片、不做玩家战绩 fan-out、不注入游戏进程。
+- League Dashboard Gameflow monitor 继续负责阶段预算联动：client 约 5s / queue 3s / champ-select 2s / in-game 10s。
+- Player：无后台定时刷新；默认 10 场，手动最多 20 场；Queueing / Champ Select / In Game 禁止战绩详情预取；Gate 2 英雄名称元数据也服从同一预算。
+- League Live：Champ Select 可见轮询不快于约 2s；In Game 不快于约 10s；refresh 串行；关闭取消；不请求战绩/队友侦察/图片预取。
+- OP.GG 对局助手：只在用户打开窗口时工作；请求串行；同一上下文缓存；未知 ranked 分路最多额外一次可缓存 champion-list lookup；In Game 不新增 OP.GG 请求；不加载图片、不做玩家 fan-out、不注入游戏。
 
 ## League / 腾讯国服已验证基线
 
@@ -210,61 +146,23 @@ OP.GG 对局助手继续服从同一预算：只在用户打开窗口时工作�
 - `MainModule.FileName` 失败时可用 WMI `ExecutablePath` 补路径。
 - lockfile 仍失败时，仅对 `LeagueClientUx` 使用 WMI `CommandLine` fallback，并交给已有 parser；凭据只在内存使用，禁止日志/UI 输出。
 - Akari 官网“不支持腾讯服务器”只视为官方免责声明；腾讯兼容按源码机制 + 实机功能测试判断。
-- Dashboard 已在腾讯环境读取当前召唤师、平台/区服 `CQ100`、Gameflow 和 Performance。
-- Player Gate 1 已在腾讯环境实机验收正常。
-- Champ Select / Current Game Gate 1 已在腾讯环境使用 Build #955 实机验收通过。
-- Player Gate 2 已在腾讯环境验证 `/lol-game-data/assets/v1/champion-summary.json` 本地英雄名称映射，并完成 Build #965 最终视觉验收。
-- OP.GG 对局助手 Gate 1 已在 Build #971 真实腾讯 Champ Select 证明上下文识别、英雄名称、OP.GG version 和 Performance 正常，但 build 数据因 ranked 未确定分路/request query 不完整而失败；Build #974 已修复并待第二次实机复测。
+- Dashboard：腾讯环境可读取当前召唤师、平台/区服 `CQ100`、Gameflow、Performance。
+- Player Gate 1：腾讯实机通过。
+- Champ Select / Current Game：Build #955 腾讯实机通过。
+- Player Gate 2：Build #965 验证本地英雄名称映射与视觉统计。
+- OP.GG 对局助手：Build #974 腾讯 Champ Select 实机确认 `ranked / mid`、OP.GG Global 16.16 与完整只读推荐正常。
 - 腾讯 match-history 的 `gameCount` 不作为账号全历史总数；分页按请求窗口实际返回数量判断。
-
-## Champ Select / Current Game Gate 1 冻结边界
-
-独立 `LeagueLiveModule` 依赖 `LeagueClientModule + PerformanceModule`，不创建第二套 LCU connector。
-
-Champ Select 只读：
-
-- `/lol-champ-select/v1/session`
-- game / queue
-- `localPlayerCellId`
-- timer
-- bans
-- myTeam / theirTeam
-- champion intent
-- 当前本地 action
-- spell IDs
-
-Current Game 只读：
-
-- 已有 Gameflow phase
-- `/lol-gameflow/v1/session`
-- gameId
-- map
-- mode
-- queue
-- team/player/champion 字段
-
-Gate 1 明确不包含：
-
-- auto accept
-- 自动 pick / ban
-- swap / reroll / dodge
-- 改技能 / 皮肤
-- teammate match-history fan-out
-- 千场分析
-- live timeline
-- champion 图片后台预取
-- SGP 扩展请求
-
-除非出现真实缺陷或新独立需求，不要扩大该已验收 Gate 的范围。
 
 ## League 产品路线与总进度
 
-当前按 5 个主阶段计算：
+本轮按 5 个主阶段计算：
 
 1. **League Dashboard Gate 1 — DONE**
 2. **Player Gate 1 — DONE**
 3. **Champ Select / Current Game Gate 1 — DONE**
 4. **Player Gate 2 — DONE**
-5. **Tools / Automation — CURRENT / CANDIDATE**
+5. **Tools / Automation Gate 1 — DONE**
 
-当前正式完成进度仍为：**4/5 = 80%**。Tools / Automation 只有在 Windows 腾讯/国服实机验收并合入 `main` 后才计为 5/5。
+当前正式完成进度：**5/5 = 100%**。
+
+下一步不自动继续扩展功能。新的产品能力（例如显式一键应用符文/召唤师技能/装备集、更多 OP.GG 数据视图或其它工具）必须先 fresh-check `main`、开放 Issue/PR 与现有边界，再建立新的独立 Gate；不重开已完成的五个阶段。
