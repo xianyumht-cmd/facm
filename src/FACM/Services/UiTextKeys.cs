@@ -128,6 +128,34 @@ namespace FACM.Services
         public const string LeagueLiveTeamTwo = "LeagueLiveTeamTwo";
         public const string LeagueLiveUnknown = "LeagueLiveUnknown";
 
+        // Tools / Automation Gate 1: read-only OP.GG build advisor.
+        public const string LeagueAdvisorMenu = "LeagueAdvisorMenu";
+        public const string LeagueAdvisorWindowTitle = "LeagueAdvisorWindowTitle";
+        public const string LeagueAdvisorTitle = "LeagueAdvisorTitle";
+        public const string LeagueAdvisorHint = "LeagueAdvisorHint";
+        public const string LeagueAdvisorContext = "LeagueAdvisorContext";
+        public const string LeagueAdvisorStats = "LeagueAdvisorStats";
+        public const string LeagueAdvisorSource = "LeagueAdvisorSource";
+        public const string LeagueAdvisorVersion = "LeagueAdvisorVersion";
+        public const string LeagueAdvisorCategory = "LeagueAdvisorCategory";
+        public const string LeagueAdvisorRecommendation = "LeagueAdvisorRecommendation";
+        public const string LeagueAdvisorEvidence = "LeagueAdvisorEvidence";
+        public const string LeagueAdvisorRunes = "LeagueAdvisorRunes";
+        public const string LeagueAdvisorStarterItems = "LeagueAdvisorStarterItems";
+        public const string LeagueAdvisorBoots = "LeagueAdvisorBoots";
+        public const string LeagueAdvisorCoreItems = "LeagueAdvisorCoreItems";
+        public const string LeagueAdvisorSkills = "LeagueAdvisorSkills";
+        public const string LeagueAdvisorCounters = "LeagueAdvisorCounters";
+        public const string LeagueAdvisorWaitingChampion = "LeagueAdvisorWaitingChampion";
+        public const string LeagueAdvisorWaitingChampSelect = "LeagueAdvisorWaitingChampSelect";
+        public const string LeagueAdvisorUnsupportedMode = "LeagueAdvisorUnsupportedMode";
+        public const string LeagueAdvisorOpggUnavailable = "LeagueAdvisorOpggUnavailable";
+        public const string LeagueAdvisorInGameCache = "LeagueAdvisorInGameCache";
+        public const string LeagueAdvisorInGameNoCache = "LeagueAdvisorInGameNoCache";
+        public const string LeagueAdvisorTimeout = "LeagueAdvisorTimeout";
+        public const string LeagueAdvisorReady = "LeagueAdvisorReady";
+        public const string LeagueAdvisorReadOnly = "LeagueAdvisorReadOnly";
+
         // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";
