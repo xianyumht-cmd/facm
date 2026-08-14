@@ -30,6 +30,8 @@ namespace FACM.League
             var snapshot = new LeagueDashboardSnapshot
             {
                 Connected = phase.Connected,
+                ClientProcessDetected = phase.ClientProcessDetected,
+                GameProcessDetected = phase.GameProcessDetected,
                 Phase = phase.Phase,
                 Activity = phase.Activity,
                 BudgetName = phase.BudgetName,
