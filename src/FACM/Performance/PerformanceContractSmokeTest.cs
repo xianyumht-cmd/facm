@@ -9,6 +9,7 @@ namespace FACM.Performance
             try
             {
                 Validate();
+                FACM.ShellUxSmokeTest.Validate();
                 FACM.LeagueDashboardSmokeTest.Validate();
                 FACM.League.LeaguePlayerSmokeTest.Validate();
                 FACM.League.LeagueLiveSmokeTest.Validate();
