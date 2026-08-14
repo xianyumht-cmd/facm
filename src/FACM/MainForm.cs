@@ -332,7 +332,7 @@ namespace FACM
             var point = anchor != null && !anchor.IsDisposed
                 ? anchor.PointToScreen(new Point(0, anchor.Height + 4))
                 : Cursor.Position;
-            UiTextRuntime.Apply(dropDown);
+            UiTextRuntime.Apply(_tray.ContextMenuStrip);
             dropDown.Show(point);
             return true;
         }
