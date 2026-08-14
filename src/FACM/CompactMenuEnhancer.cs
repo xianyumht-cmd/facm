@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using FACM.Services;
-using FACM.Theming;
 
 namespace FACM
 {
@@ -25,11 +23,9 @@ namespace FACM
             _installed = true;
             UiTextRuntime.Install();
 
-            // The old implementation waited for Application.Idle and moved custom-painted buttons
-            // after the form had already been shown. That left stale pixels until each button happened
-            // to repaint on hover. WM_SHOWWINDOW is useful when it reaches the message filter, while the
-            // first WM_PAINT is the hard boundary: finish the compatibility layout before that paint is
-            // dispatched. Idle remains only as a safety fallback for unusual handles.
+            // The enhancer is now deliberately infrastructure-only. Shell actions belong to the
+            // bounded information architecture in CompactMenuForm/MainForm; modules and compatibility
+            // shims must not grow the novice-facing control center after it is constructed.
             Application.AddMessageFilter(MessageFilter);
             Application.Idle += ApplyToOpenForms;
             Application.ApplicationExit += delegate
@@ -68,107 +64,34 @@ namespace FACM
             if (menu == null || menu.IsDisposed) return false;
             var handle = menu.IsHandleCreated ? menu.Handle : IntPtr.Zero;
             if (handle != IntPtr.Zero && AppliedHandles.Contains(handle)) return true;
-
-            var owner = Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed);
-            if (owner == null) return false;
-
-            menu.SuspendLayout();
-            try
-            {
-                var bottomButtons = menu.Controls
-                    .Cast<Control>()
-                    .Where(IsCompactMenuButton)
-                    .Where(control => control.Top >= menu.Height * 0.79 && control.Top <= menu.Height * 0.92)
-                    .OrderBy(control => control.Left)
-                    .ToList();
-
-                if (bottomButtons.Count == 3)
-                {
-                    var createButton = typeof(CompactMenuForm).GetMethod(
-                        "CreateButton",
-                        BindingFlags.Instance | BindingFlags.NonPublic);
-                    if (createButton == null) return false;
-
-                    var logButton = bottomButtons[0];
-                    var legacyThemeButton = bottomButtons[1];
-                    var exitButton = bottomButtons[2];
-
-                    // Theme and desktop-pet selection are one product concept now: how FACM should look
-                    // on the desktop. Replace the old theme button instead of stacking another button on it.
-                    var themeButton = createButton.Invoke(
-                        menu,
-                        new object[] { "主题", new Rectangle(0, 0, 80, 40), false }) as Control;
-                    var mayhemButton = createButton.Invoke(
-                        menu,
-                        new object[] { "海斗排行榜", new Rectangle(0, 0, 80, 40), false }) as Control;
-                    if (themeButton == null || mayhemButton == null)
-                    {
-                        if (themeButton != null) themeButton.Dispose();
-                        if (mayhemButton != null) mayhemButton.Dispose();
-                        return false;
-                    }
-
-                    themeButton.Click += delegate { ThemeMenu.Show(owner, themeButton); };
-                    mayhemButton.Click += delegate { owner.OpenMayhemLookup(); };
-
-                    menu.Controls.Remove(legacyThemeButton);
-                    legacyThemeButton.Dispose();
-                    menu.Controls.Add(themeButton);
-                    menu.Controls.Add(mayhemButton);
-
-                    var ordered = new[] { logButton, themeButton, mayhemButton, exitButton };
-                    var margin = Math.Max(10, (int)Math.Round(menu.Width * 16D / 420D));
-                    var gap = Math.Max(6, (int)Math.Round(menu.Width * 9D / 420D));
-                    var available = menu.ClientSize.Width - margin * 2 - gap * 3;
-                    var width = Math.Max(72, available / 4);
-                    var y = bottomButtons.Min(control => control.Top);
-                    var height = bottomButtons.Max(control => control.Height);
-
-                    for (var index = 0; index < ordered.Length; index++)
-                    {
-                        var control = ordered[index];
-                        control.Location = new Point(margin + index * (width + gap), y);
-                        control.Size = new Size(width, height);
-                    }
-                }
-                else if (bottomButtons.Count < 4)
-                {
-                    return false;
-                }
-            }
-            finally
-            {
-                menu.ResumeLayout(true);
-            }
+            if (Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed) == null) return false;
 
             menu.PerformLayout();
             menu.Invalidate(true);
-            if (menu.IsHandleCreated)
-            {
-                handle = menu.Handle;
-                AppliedHandles.Add(handle);
-                AttachOutsideClickWatcher(menu, handle);
-                menu.FormClosed += delegate
-                {
-                    AppliedHandles.Remove(handle);
-                    OutsideClickWatcher watcher;
-                    if (OutsideWatchers.TryGetValue(handle, out watcher))
-                    {
-                        OutsideWatchers.Remove(handle);
-                        watcher.Dispose();
-                    }
-                };
+            if (!menu.IsHandleCreated) return true;
 
-                // Make the first frame deterministic even when a theme uses custom painting.
-                try
+            handle = menu.Handle;
+            AppliedHandles.Add(handle);
+            AttachOutsideClickWatcher(menu, handle);
+            menu.FormClosed += delegate
+            {
+                AppliedHandles.Remove(handle);
+                OutsideClickWatcher watcher;
+                if (OutsideWatchers.TryGetValue(handle, out watcher))
                 {
-                    menu.BeginInvoke(new Action(delegate
-                    {
-                        if (!menu.IsDisposed) menu.Invalidate(true);
-                    }));
+                    OutsideWatchers.Remove(handle);
+                    watcher.Dispose();
                 }
-                catch { }
+            };
+
+            try
+            {
+                menu.BeginInvoke(new Action(delegate
+                {
+                    if (!menu.IsDisposed) menu.Invalidate(true);
+                }));
             }
+            catch { }
             return true;
         }
 
@@ -176,14 +99,6 @@ namespace FACM
         {
             if (OutsideWatchers.ContainsKey(handle)) return;
             OutsideWatchers[handle] = new OutsideClickWatcher(menu);
-        }
-
-        private static bool IsCompactMenuButton(Control control)
-        {
-            if (control == null) return false;
-            var type = control.GetType();
-            return type.DeclaringType == typeof(CompactMenuForm) &&
-                   string.Equals(type.Name, "ThemedButton", StringComparison.Ordinal);
         }
 
         private sealed class ShowMessageFilter : IMessageFilter
@@ -226,8 +141,8 @@ namespace FACM
 
                 var down = (GetAsyncKeyState(VkLButton) & 0x8000) != 0;
 
-                // A menu may be opened by the very click we are currently observing (especially when
-                // PetHost reports the click over IPC). Do not treat that same press as an outside click.
+                // A menu may be opened by the very click we are currently observing. Arm only after
+                // that click is released so the control center is not immediately closed again.
                 if (!_armed)
                 {
                     if (!down)
