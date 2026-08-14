@@ -289,7 +289,9 @@ namespace FACM.League
             if (result.RuneSkippedNoCapacity)
             {
                 _statusValue.Text = string.Format(
-                    T(LeagueBuildApplyUiTextKeys.Partial),
+                    T(result.AnyApplied
+                        ? LeagueBuildApplyUiTextKeys.Partial
+                        : LeagueBuildApplyUiTextKeys.Failed),
                     T(LeagueBuildApplyUiTextKeys.RuneSlotFull));
                 return;
             }
