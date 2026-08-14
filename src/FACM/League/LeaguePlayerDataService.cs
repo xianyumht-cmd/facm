@@ -16,7 +16,7 @@ namespace FACM.League
         private readonly object _cacheSync = new object();
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
-        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 4 * 1024 * 1024 };
+        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 };
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
         private LeaguePlayerProfile _cachedProfile;
         private DateTime _profileCachedUtc = DateTime.MinValue;
@@ -109,15 +109,7 @@ namespace FACM.League
                                "/matches?begIndex=" + startIndex + "&endIndex=" + endIndex;
                     var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
                     var page = ParseMatchPage(bytes, profile, startIndex, count);
-                    if (page != null)
-                    {
-                        lock (_cacheSync)
-                        {
-                            _cachedPage = ClonePage(page);
-                            _cachedPagePuuId = profile.PuuId;
-                            _pageCachedUtc = DateTime.UtcNow;
-                        }
-                    }
+                    if (page != null) CachePage(profile.PuuId, page);
                     return page;
                 }
             }
@@ -125,6 +117,63 @@ namespace FACM.League
             {
                 _requestGate.Release();
             }
+        }
+
+        public async Task<LeaguePlayerMatchPage> EnrichIncompleteMatchesAsync(
+            LeaguePlayerProfile profile,
+            LeaguePlayerMatchPage page,
+            CancellationToken cancellationToken)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || page == null || page.Matches.Count == 0)
+                return page;
+
+            var budget = _budgets.Current;
+            if (!budget.AllowBackgroundPrefetch || budget.MatchHistoryPrefetchCount <= 0)
+                return page;
+
+            var result = ClonePage(page);
+            var limit = Math.Min(result.Matches.Count, Math.Min(MaximumMatchCount, budget.MatchHistoryPrefetchCount));
+            var changed = false;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                for (var index = 0; index < limit; index++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var current = result.Matches[index];
+                    if (current == null || current.ParticipantResolved || current.GameId <= 0) continue;
+
+                    byte[] bytes;
+                    try
+                    {
+                        await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                        try
+                        {
+                            bytes = await _client.TryGetBytesAsync(
+                                "/lol-match-history/v1/games/" + current.GameId,
+                                timeout.Token).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            _requestGate.Release();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (cancellationToken.IsCancellationRequested) throw;
+                        break;
+                    }
+
+                    var fullGame = ParseObject(bytes);
+                    var enriched = ParseMatch(fullGame, profile);
+                    if (enriched == null || !enriched.ParticipantResolved) continue;
+                    result.Matches[index] = enriched;
+                    changed = true;
+                }
+            }
+
+            if (changed) CachePage(profile.PuuId, result);
+            return result;
         }
 
         internal LeaguePlayerProfile ParseProfile(byte[] bytes)
@@ -196,6 +245,17 @@ namespace FACM.League
                 Win = stats != null && ReadBool(stats, "win"),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private void CachePage(string puuId, LeaguePlayerMatchPage page)
+        {
+            if (string.IsNullOrWhiteSpace(puuId) || page == null) return;
+            lock (_cacheSync)
+            {
+                _cachedPage = ClonePage(page);
+                _cachedPagePuuId = puuId;
+                _pageCachedUtc = DateTime.UtcNow;
+            }
         }
 
         private static int ResolveParticipantId(Dictionary<string, object> game, LeaguePlayerProfile profile)
@@ -306,7 +366,7 @@ namespace FACM.League
             };
             foreach (var match in source.Matches)
             {
-                result.Matches.Add(new LeaguePlayerMatchSummary
+                result.Matches.Add(match == null ? null : new LeaguePlayerMatchSummary
                 {
                     GameId = match.GameId,
                     GameCreationLocal = match.GameCreationLocal,
