@@ -80,22 +80,30 @@ namespace FACM.League
             var lockfile = Path.Combine(directory, "lockfile");
             if (!File.Exists(lockfile)) return false;
 
-            string content;
-            if (!TryReadSharedText(lockfile, out content)) return false;
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                string content;
+                if (!TryReadSharedText(lockfile, out content)) return false;
 
-            LeagueClientSession parsed;
-            if (!LeagueClientSessionParser.TryParseLockfile(content, out parsed)) return false;
+                LeagueClientSession parsed;
+                if (LeagueClientSessionParser.TryParseLockfile(content, out parsed))
+                {
+                    session = new LeagueClientSession(
+                        parsed.ProcessName,
+                        parsed.ProcessId,
+                        parsed.Port,
+                        parsed.Password,
+                        parsed.Protocol,
+                        "lockfile-" + pathSource,
+                        parsed.PlatformId,
+                        parsed.Region);
+                    return true;
+                }
 
-            session = new LeagueClientSession(
-                parsed.ProcessName,
-                parsed.ProcessId,
-                parsed.Port,
-                parsed.Password,
-                parsed.Protocol,
-                "lockfile-" + pathSource,
-                parsed.PlatformId,
-                parsed.Region);
-            return true;
+                if (attempt < 2) Thread.Sleep(20);
+            }
+
+            return false;
         }
 
         internal static bool TryReadSharedText(string path, out string content)
