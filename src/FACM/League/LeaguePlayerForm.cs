@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
         private LeaguePlayerProfile _profile;
         private bool _loading;
+        private bool _hasMore;
         private int _requestedCount = LeaguePlayerDataService.InitialMatchCount;
 
         public LeaguePlayerForm(LeaguePlayerDataService service, UiTextCatalog ui)
@@ -126,7 +127,7 @@ namespace FACM.League
             Controls.Add(close);
 
             ApplyCached();
-            Shown += async delegate { await RefreshAllAsync(false); };
+            Shown += async delegate { await RefreshAllAsync(true); };
             FormClosed += delegate
             {
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
@@ -182,6 +183,7 @@ namespace FACM.League
                 if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId))
                 {
                     _profile = null;
+                    _hasMore = false;
                     _rows.Clear();
                     _matchesList.VirtualListSize = 0;
                     _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
@@ -213,7 +215,7 @@ namespace FACM.League
 
         private async Task LoadMoreAsync()
         {
-            if (_loading || _profile == null || _requestedCount >= LeaguePlayerDataService.MaximumMatchCount) return;
+            if (_loading || _profile == null || !_hasMore || _requestedCount >= LeaguePlayerDataService.MaximumMatchCount) return;
             _requestedCount = LeaguePlayerDataService.MaximumMatchCount;
             SetLoading(true);
             try
@@ -246,12 +248,13 @@ namespace FACM.League
         {
             _rows.Clear();
             if (page != null) _rows.AddRange(page.Matches);
+            _hasMore = page != null && page.HasMore;
             _matchesList.VirtualListSize = _rows.Count;
             _matchesList.Invalidate();
             _statusLabel.Text = _rows.Count == 0
                 ? _ui.Get(UiTextKeys.LeaguePlayerNoMatches)
                 : _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + "  ·  " + _rows.Count;
-            _loadMoreButton.Enabled = !_loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && page != null && page.HasMore;
+            _loadMoreButton.Enabled = !_loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
         }
 
         private void RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
@@ -287,7 +290,7 @@ namespace FACM.League
             _loading = loading;
             if (IsDisposed) return;
             _refreshButton.Enabled = !loading;
-            _loadMoreButton.Enabled = !loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount;
+            _loadMoreButton.Enabled = !loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
         }
     }
 }
