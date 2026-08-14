@@ -57,6 +57,12 @@ namespace FACM.League
                     "Failed hotkey transaction did not restore close-lobby binding.");
             }
             Require(backend.Active.Count == 0, "Disposing hotkey manager must unregister every binding.");
+
+            using (var module = new LeagueEfficiencyModule(new SettingsModule()))
+            {
+                Require(module.Dependencies.Count == 1 && module.Dependencies[0] == SettingsModule.ModuleId,
+                    "League Efficiency must depend only on Settings; hotkeys are event-driven and must not add a League polling dependency.");
+            }
         }
 
         private static void ValidateSettings()
@@ -84,9 +90,10 @@ namespace FACM.League
                 "Expected rental-account clipboard format did not parse.");
             Require(account == "123456789" && password == "1316464saf", "Credential parser returned wrong fields.");
             Require(LeagueCredentialParser.TryParse("abc-def", out account, out password), "Single hyphen separator must be accepted.");
+            Require(LeagueCredentialParser.TryParse("account---pass-word", out account, out password) && password == "pass-word",
+                "Hyphens after the first separator run must remain part of the password.");
             Require(!LeagueCredentialParser.TryParse("-----password", out account, out password), "Empty account must be rejected.");
             Require(!LeagueCredentialParser.TryParse("account-----", out account, out password), "Empty password must be rejected.");
-            Require(!LeagueCredentialParser.TryParse("account---pass-word", out account, out password), "Ambiguous extra hyphen must fail closed.");
             Require(!LeagueCredentialParser.TryParse("account---pass\nword", out account, out password), "Newline credential must fail closed.");
 
             var platform = new FakeDesktopPlatform
