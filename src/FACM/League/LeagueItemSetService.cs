@@ -75,9 +75,6 @@ namespace FACM.League
             _ownsOpgg = ownsOpgg;
         }
 
-        /// <summary>
-        /// Read-only plan preparation. No filesystem API is called here.
-        /// </summary>
         public async Task<LeagueItemSetPlan> PrepareAsync(
             LeagueBuildAdvisorSnapshot snapshot,
             CancellationToken cancellationToken)
@@ -117,10 +114,6 @@ namespace FACM.League
             }
         }
 
-        /// <summary>
-        /// Explicit disk write. Caller must have obtained user confirmation.
-        /// Rechecks live context before the first filesystem write.
-        /// </summary>
         public async Task<LeagueItemSetWriteResult> ApplyAsync(
             LeagueItemSetPlan plan,
             CancellationToken cancellationToken)
@@ -194,8 +187,6 @@ namespace FACM.League
                         return result;
                     }
 
-                    // The durable commit is already complete. Cleanup is best-effort and must not turn a
-                    // successfully written item set into an ambiguous cancellation result.
                     bool cleanupWarning;
                     result.RemovedOldFiles = CleanupOldOwnedFiles(targetDirectory, fileName, out cleanupWarning);
                     result.CleanupWarning = cleanupWarning;
@@ -209,7 +200,6 @@ namespace FACM.League
                 }
                 catch (OperationCanceledException)
                 {
-                    // Cancellation can only escape before the durable destination commit.
                     throw;
                 }
                 catch (Exception exception)
@@ -423,8 +413,6 @@ namespace FACM.League
                         }
                         catch
                         {
-                            // Preserve the backup if rollback itself fails. Losing the previous FACM
-                            // item set would be worse than leaving a private .bak recovery file.
                         }
                     }
                     else if (_files.FileExists(destination))
@@ -445,8 +433,6 @@ namespace FACM.League
                     try { _files.DeleteFile(temp); }
                     catch { }
                 }
-                // Never blindly delete backup in finally. Success deletes it explicitly; failed
-                // rollback intentionally keeps it as the safest recovery evidence.
             }
         }
 
@@ -514,7 +500,7 @@ namespace FACM.League
             var champion = string.IsNullOrWhiteSpace(plan.ChampionName)
                 ? "#" + plan.ChampionId.ToString(CultureInfo.InvariantCulture)
                 : plan.ChampionName.Trim();
-            var title = "[OP.GG] " + champion;
+            var title = "[FACM] " + champion;
             if (!string.IsNullOrWhiteSpace(plan.Mode)) title += " - " + plan.Mode.Trim();
             if (!string.IsNullOrWhiteSpace(plan.Position) && !string.Equals(plan.Position, "none", StringComparison.OrdinalIgnoreCase))
                 title += " - " + plan.Position.Trim();
