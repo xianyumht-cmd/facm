@@ -6,6 +6,8 @@ namespace FACM.League
     internal class LeagueDashboardPhaseState
     {
         public bool Connected { get; set; }
+        public bool ClientProcessDetected { get; set; }
+        public bool GameProcessDetected { get; set; }
         public string Phase { get; set; }
         public LeagueActivityLevel Activity { get; set; }
         public string BudgetName { get; set; }
@@ -37,7 +39,22 @@ namespace FACM.League
     {
         public static LeagueActivityLevel Map(string phase, bool connected)
         {
-            if (!connected) return LeagueActivityLevel.None;
+            return Map(phase, connected, false, false);
+        }
+
+        public static LeagueActivityLevel Map(
+            string phase,
+            bool connected,
+            bool clientProcessDetected,
+            bool gameProcessDetected)
+        {
+            if (!connected)
+            {
+                if (gameProcessDetected) return LeagueActivityLevel.InGame;
+                if (clientProcessDetected) return LeagueActivityLevel.Client;
+                return LeagueActivityLevel.None;
+            }
+
             if (string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(phase, "ReadyCheck", StringComparison.OrdinalIgnoreCase))
                 return LeagueActivityLevel.Queueing;
