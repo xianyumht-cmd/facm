@@ -50,15 +50,13 @@ namespace FACM.League
             var tray = TrayField == null ? null : TrayField.GetValue(owner) as NotifyIcon;
             var menu = tray == null ? null : tray.ContextMenuStrip;
             if (menu == null || menu.IsDisposed) return;
-            if (menu.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, MenuName, StringComparison.Ordinal)))
-            {
-                _owner = owner;
-                return;
-            }
 
-            var item = new ToolStripMenuItem(UiTextRuntime.Text(UiTextKeys.LeagueDashboardMenu)) { Name = MenuName };
-            item.Click += delegate { Open(owner); };
-            menu.Items.Insert(Math.Min(4, menu.Items.Count), item);
+            ShellMenuGroups.AddLeagueAction(
+                menu,
+                MenuName,
+                UiTextRuntime.Text(UiTextKeys.LeagueDashboardMenu),
+                ShellMenuGroups.DashboardOrder,
+                delegate { Open(owner); });
             _owner = owner;
         }
 
@@ -66,7 +64,7 @@ namespace FACM.League
         {
             var tray = TrayField == null ? null : TrayField.GetValue(owner) as NotifyIcon;
             var menu = tray == null ? null : tray.ContextMenuStrip;
-            return menu != null && menu.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, MenuName, StringComparison.Ordinal));
+            return ShellMenuGroups.HasLeagueAction(menu, MenuName);
         }
 
         private static void Open(MainForm owner)
