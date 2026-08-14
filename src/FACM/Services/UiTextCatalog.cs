@@ -53,6 +53,19 @@ namespace FACM.Services
             Pair(UiTextKeys.PetSource, "来源"),
             Pair(UiTextKeys.Open, "打开"),
 
+            Pair(UiTextKeys.ShellLeague, "英雄联盟"),
+            Pair(UiTextKeys.ShellMore, "更多"),
+            Pair(UiTextKeys.ShellFeatureCenter, "功能中心"),
+            Pair(UiTextKeys.ShellRepairTools, "修复工具"),
+            Pair(UiTextKeys.ShellPersonalization, "个性化"),
+            Pair(UiTextKeys.ShellMoreSettings, "更多设置"),
+            Pair(UiTextKeys.ShellManageDirectory, "管理"),
+            Pair(UiTextKeys.ShellRepairHint, "驱动 / 窗口 / 客户端"),
+            Pair(UiTextKeys.ShellLeagueHint, "战绩 / 实时 / OP.GG"),
+            Pair(UiTextKeys.ShellPersonalizationHint, "主题 / 桌面形态"),
+            Pair(UiTextKeys.ShellDirectoryReady, "游戏目录已识别"),
+            Pair(UiTextKeys.ShellDirectoryMissing, "尚未识别游戏目录"),
+
             // Role-specific contract keys. These are resolved explicitly with Text(key), not by the
             // legacy global named replacement path below.
             Pair(UiTextKeys.ThemePanelAppearance, "面板外观..."),
