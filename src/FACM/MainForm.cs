@@ -62,7 +62,7 @@ namespace FACM
             _startCleanup = startCleanup;
             _appIcon = BrandIcon.Create();
 
-            Text = "FACM";
+            Text = _ui.AppName;
             Icon = _appIcon;
             ShowInTaskbar = false;
             TopMost = true;
@@ -79,7 +79,10 @@ namespace FACM
             _tray = new NotifyIcon
             {
                 Icon = _appIcon,
-                Text = "FACM " + DisplayMajorMinorVersion(),
+                Text = string.Format(
+                    _ui.Get(UiTextKeys.ShellTrayTooltipFormat),
+                    _ui.AppName,
+                    DisplayMajorMinorVersion()),
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
