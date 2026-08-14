@@ -105,6 +105,19 @@ namespace FACM.League
                 "Gate 4 observer poll interval became more aggressive than the frozen Champ Select plan.");
             Require(LeagueAutoApplyCoordinator.DefaultStabilityWindow >= TimeSpan.FromSeconds(1),
                 "Gate 4 stability window became too short for a novice-facing automatic write.");
+
+            var budgets = new PerformanceBudgetProvider();
+            Require(!LeagueAutoApplyController.ShouldObserveForBudget(budgets.Current),
+                "Gate 4 must not run its own advisor observer while League is idle.");
+            budgets.UpdateLeagueActivity(LeagueActivityLevel.Queueing);
+            Require(!LeagueAutoApplyController.ShouldObserveForBudget(budgets.Current),
+                "Gate 4 must not run its own advisor observer while queueing.");
+            budgets.UpdateLeagueActivity(LeagueActivityLevel.ChampSelect);
+            Require(LeagueAutoApplyController.ShouldObserveForBudget(budgets.Current),
+                "Gate 4 did not activate its observer in the global Champ Select budget.");
+            budgets.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+            Require(!LeagueAutoApplyController.ShouldObserveForBudget(budgets.Current),
+                "Gate 4 must stop its own advisor observer in game.");
         }
 
         private static void ValidateResultTruthfulness()
