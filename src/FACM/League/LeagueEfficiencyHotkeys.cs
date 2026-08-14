@@ -122,7 +122,7 @@ namespace FACM.League
                 }
                 if (ch >= '0' && ch <= '9')
                 {
-                    key = Keys.D0 + (ch - '0');
+                    key = (Keys)((int)Keys.D0 + (ch - '0'));
                     return true;
                 }
             }
@@ -139,7 +139,7 @@ namespace FACM.League
         private static string FormatKey(Keys key)
         {
             if (key >= Keys.D0 && key <= Keys.D9)
-                return ((int)(key - Keys.D0)).ToString(CultureInfo.InvariantCulture);
+                return ((int)key - (int)Keys.D0).ToString(CultureInfo.InvariantCulture);
             return key.ToString();
         }
 
@@ -253,14 +253,11 @@ namespace FACM.League
 
         private void Restore(Dictionary<string, LeagueHotkeyBinding> previous)
         {
-            var restored = new Dictionary<string, LeagueHotkeyBinding>(StringComparer.Ordinal);
             foreach (var pair in previous)
             {
                 if (!pair.Value.Enabled) continue;
                 var modifiers = (uint)(pair.Value.Modifiers | LeagueHotkeyModifiers.NoRepeat);
-                if (_backend.Register(_windowHandle, _ids[pair.Key], modifiers, (uint)pair.Value.Key))
-                    restored[pair.Key] = pair.Value;
-                else
+                if (!_backend.Register(_windowHandle, _ids[pair.Key], modifiers, (uint)pair.Value.Key))
                     AppLog.Warning("Failed to restore FACM hotkey after registration rollback: " + pair.Key);
             }
             _active = previous;
