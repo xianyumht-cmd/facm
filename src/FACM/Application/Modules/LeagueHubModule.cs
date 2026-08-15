@@ -49,6 +49,7 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             LeagueHubNavigation.ValidateForSmokeTest();
+            LeagueHubUiBridge.Install(this);
         }
 
         public Form CreateForm(UiTextCatalog ui)
@@ -77,6 +78,7 @@ namespace FACM.AppHost.Modules
 
         public void Dispose()
         {
+            LeagueHubUiBridge.Uninstall();
         }
     }
 }
