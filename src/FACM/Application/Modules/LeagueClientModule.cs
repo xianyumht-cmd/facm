@@ -8,13 +8,14 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
         private LeagueClientSessionProvider _sessions;
         private LeagueClientApiClient _api;
         private LeagueClientWriteApiClient _writer;
+        private LeaguePostGameWriteApiClient _postGameWriter;
 
         public LeagueClientModule()
             : this(new ResilientLeagueClientSessionDiscovery())
@@ -44,6 +45,7 @@ namespace FACM.AppHost.Modules
             _sessions = new LeagueClientSessionProvider(_discovery);
             _api = new LeagueClientApiClient(_sessions);
             _writer = new LeagueClientWriteApiClient(_sessions);
+            _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
@@ -67,13 +69,28 @@ namespace FACM.AppHost.Modules
                 : writer.TrySendJsonAsync(method, path, json, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeaguePostGameWriteApi.TrySendAsync(
+            string method,
+            string path,
+            string json,
+            CancellationToken cancellationToken)
+        {
+            var writer = _postGameWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySendAsync(method, path, json, cancellationToken);
+        }
+
         public void Dispose()
         {
+            var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
+            _postGameWriter = null;
             _writer = null;
             _api = null;
             _sessions = null;
+            if (postGameWriter != null) postGameWriter.Dispose();
             if (writer != null) writer.Dispose();
             if (api != null) api.Dispose();
         }
