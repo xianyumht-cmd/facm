@@ -27,6 +27,12 @@ namespace FACM.League
         public const string Saved = "LeagueEfficiencySaved";
         public const string SaveFailed = "LeagueEfficiencySaveFailed";
         public const string Privacy = "LeagueEfficiencyPrivacy";
+        public const string PostGameSection = "LeagueEfficiencyPostGameSection";
+        public const string AutoHonor = "LeagueEfficiencyAutoHonor";
+        public const string AutoHonorHint = "LeagueEfficiencyAutoHonorHint";
+        public const string AutoReturn = "LeagueEfficiencyAutoReturn";
+        public const string AutoReturnHint = "LeagueEfficiencyAutoReturnHint";
+        public const string PostGameSaved = "LeagueEfficiencyPostGameSaved";
     }
 
     internal static class LeagueEfficiencyText
@@ -36,7 +42,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.Menu, "游戏效率" },
             { LeagueEfficiencyUiTextKeys.WindowTitle, "FACM · 游戏效率" },
             { LeagueEfficiencyUiTextKeys.Title, "游戏效率" },
-            { LeagueEfficiencyUiTextKeys.Hint, "只在你按下快捷键时执行；待机不轮询、不截图、不监听普通键盘输入。" },
+            { LeagueEfficiencyUiTextKeys.Hint, "只在需要时做事：快捷键待机不轮询，赛后自动化只在结算阶段短时工作。" },
             { LeagueEfficiencyUiTextKeys.HotkeySection, "快捷键" },
             { LeagueEfficiencyUiTextKeys.ExitGame, "一键退出游戏" },
             { LeagueEfficiencyUiTextKeys.ExitGameHint, "水晶爆炸后按一次：先正常关闭游戏，未退出才精确结束游戏进程。" },
@@ -53,7 +59,13 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.CaptureUnsafe, "这个按键容易误触，请加 Ctrl / Alt / Shift / Win，或使用 F1-F12。" },
             { LeagueEfficiencyUiTextKeys.Saved, "快捷键已保存并立即生效。" },
             { LeagueEfficiencyUiTextKeys.SaveFailed, "没有修改快捷键：{0}" },
-            { LeagueEfficiencyUiTextKeys.Privacy, "FACM 不保存账号或密码；凭据只在你按键时从剪贴板读取。" }
+            { LeagueEfficiencyUiTextKeys.Privacy, "FACM 不保存账号或密码；凭据只在你按键时从剪贴板读取。" },
+            { LeagueEfficiencyUiTextKeys.PostGameSection, "赛后" },
+            { LeagueEfficiencyUiTextKeys.AutoHonor, "自动随机点赞一名队友" },
+            { LeagueEfficiencyUiTextKeys.AutoHonorHint, "仅从可点赞队友中随机选 1 人；不点赞对手，也不会把多张票全部用掉。" },
+            { LeagueEfficiencyUiTextKeys.AutoReturn, "自动返回大厅" },
+            { LeagueEfficiencyUiTextKeys.AutoReturnHint, "结算阶段短暂等待点赞机会后自动回大厅；点赞失败也不会一直卡住。" },
+            { LeagueEfficiencyUiTextKeys.PostGameSaved, "赛后自动化设置已保存。" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
