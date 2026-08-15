@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
@@ -21,8 +22,6 @@ namespace FACM.League
         bool IsProcessAlive(int processId);
         bool RequestClose(int processId);
         bool Kill(int processId);
-        string GetForegroundProcessName();
-        string GetForegroundWindowTitle();
         string ReadClipboardText();
         bool SendTextAndTabThenText(string first, string second);
     }
@@ -81,29 +80,6 @@ namespace FACM.League
             catch { return false; }
         }
 
-        public string GetForegroundProcessName()
-        {
-            int pid;
-            GetWindowThreadProcessId(GetForegroundWindow(), out pid);
-            if (pid <= 0) return string.Empty;
-            try
-            {
-                using (var process = Process.GetProcessById(pid)) return process.ProcessName ?? string.Empty;
-            }
-            catch { return string.Empty; }
-        }
-
-        public string GetForegroundWindowTitle()
-        {
-            var handle = GetForegroundWindow();
-            if (handle == IntPtr.Zero) return string.Empty;
-            var length = GetWindowTextLength(handle);
-            if (length <= 0) return string.Empty;
-            var buffer = new System.Text.StringBuilder(length + 1);
-            GetWindowText(handle, buffer, buffer.Capacity);
-            return buffer.ToString();
-        }
-
         public string ReadClipboardText()
         {
             try { return Clipboard.ContainsText() ? Clipboard.GetText(TextDataFormat.UnicodeText) : string.Empty; }
@@ -112,31 +88,50 @@ namespace FACM.League
 
         public bool SendTextAndTabThenText(string first, string second)
         {
-            var inputs = new List<Input>();
-            AppendCtrlA(inputs);
-            AppendUnicode(inputs, first ?? string.Empty);
-            AppendVirtualKey(inputs, 0x09);
-            AppendCtrlA(inputs);
-            AppendUnicode(inputs, second ?? string.Empty);
-            if (inputs.Count == 0) return false;
-            var array = inputs.ToArray();
-            return SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input))) == (uint)array.Length;
+            if (!SendCtrlA()) return false;
+            Thread.Sleep(25);
+            if (!SendUnicode(first ?? string.Empty)) return false;
+            Thread.Sleep(25);
+            if (!SendVirtualKey(0x09)) return false;
+            Thread.Sleep(50);
+            if (!SendCtrlA()) return false;
+            Thread.Sleep(25);
+            return SendUnicode(second ?? string.Empty);
         }
 
-        private static void AppendCtrlA(ICollection<Input> inputs)
+        private static bool SendCtrlA()
         {
+            var inputs = new List<Input>();
             AppendVirtualKeyDown(inputs, 0x11);
             AppendVirtualKey(inputs, 0x41);
             AppendVirtualKeyUp(inputs, 0x11);
+            return SendBatch(inputs);
         }
 
-        private static void AppendUnicode(ICollection<Input> inputs, string value)
+        private static bool SendUnicode(string value)
         {
+            if (string.IsNullOrEmpty(value)) return false;
+            var inputs = new List<Input>();
             foreach (var ch in value)
             {
                 inputs.Add(KeyboardInput(0, ch, KeyEventUnicode));
                 inputs.Add(KeyboardInput(0, ch, KeyEventUnicode | KeyEventKeyUp));
             }
+            return SendBatch(inputs);
+        }
+
+        private static bool SendVirtualKey(ushort key)
+        {
+            var inputs = new List<Input>();
+            AppendVirtualKey(inputs, key);
+            return SendBatch(inputs);
+        }
+
+        private static bool SendBatch(ICollection<Input> inputs)
+        {
+            if (inputs == null || inputs.Count == 0) return false;
+            var array = inputs.ToArray();
+            return SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input))) == (uint)array.Length;
         }
 
         private static void AppendVirtualKey(ICollection<Input> inputs, ushort key)
@@ -199,18 +194,6 @@ namespace FACM.League
             public uint Time;
             public UIntPtr ExtraInfo;
         }
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int processId);
-
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
-
-        [DllImport("user32.dll")]
-        private static extern int GetWindowTextLength(IntPtr hWnd);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint count, Input[] inputs, int size);
@@ -301,12 +284,6 @@ namespace FACM.League
 
         public LeagueEfficiencyActionResult InputCredentialsFromClipboard()
         {
-            if (!IsAllowedLoginForeground(_platform.GetForegroundProcessName(), _platform.GetForegroundWindowTitle()))
-            {
-                AppLog.Info("League credential-input: blocked");
-                return Result("blocked", "login-window-required", 0);
-            }
-
             var clipboard = _platform.ReadClipboardText();
             string account = null;
             string password = null;
@@ -327,25 +304,6 @@ namespace FACM.League
                 account = null;
                 password = null;
             }
-        }
-
-        internal static bool IsAllowedLoginForeground(string processName, string title)
-        {
-            processName = processName ?? string.Empty;
-            title = title ?? string.Empty;
-            if (processName.Equals("RiotClientServices", StringComparison.OrdinalIgnoreCase) ||
-                processName.Equals("RiotClientUx", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            if (processName.Equals("WeGame", StringComparison.OrdinalIgnoreCase) ||
-                processName.Equals("wegamehelper", StringComparison.OrdinalIgnoreCase))
-            {
-                return ContainsAny(title, "WeGame", "登录", "英雄联盟", "账号");
-            }
-
-            if (processName.Equals("LeagueClientUx", StringComparison.OrdinalIgnoreCase))
-                return ContainsAny(title, "登录", "login", "sign in", "账号");
-            return false;
         }
 
         private LeagueEfficiencyActionResult KillTargets(HashSet<string> names, string noTargetDetail, string successDetail)
@@ -373,13 +331,6 @@ namespace FACM.League
         private static LeagueEfficiencyActionResult Result(string status, string detail, int affected)
         {
             return new LeagueEfficiencyActionResult { Status = status, Detail = detail, AffectedProcesses = affected };
-        }
-
-        private static bool ContainsAny(string value, params string[] needles)
-        {
-            foreach (var needle in needles)
-                if (value.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            return false;
         }
     }
 }
