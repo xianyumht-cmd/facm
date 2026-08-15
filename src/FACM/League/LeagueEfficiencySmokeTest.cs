@@ -58,25 +58,42 @@ namespace FACM.League
             }
             Require(backend.Active.Count == 0, "Disposing hotkey manager must unregister every binding.");
 
-            using (var module = new LeagueEfficiencyModule(new SettingsModule()))
+            var settings = new SettingsModule();
+            var client = new LeagueClientModule();
+            var performance = new FACM.Performance.PerformanceModule();
+            var dashboard = new LeagueDashboardModule(client, performance);
+            using (var module = new LeagueEfficiencyModule(settings, client, dashboard))
             {
-                Require(module.Dependencies.Count == 1 && module.Dependencies[0] == SettingsModule.ModuleId,
-                    "League Efficiency must depend only on Settings; hotkeys are event-driven and must not add a League polling dependency.");
+                Require(module.Dependencies.SequenceEqual(new[]
+                    {
+                        SettingsModule.ModuleId,
+                        LeagueClientModule.ModuleId,
+                        LeagueDashboardModule.ModuleId
+                    }),
+                    "League Efficiency Gate 6 must reuse Settings + unique LeagueClient + existing Dashboard gameflow.");
             }
         }
 
         private static void ValidateSettings()
         {
             var settings = new AppSettings();
+            Require(!settings.LeagueAutoHonorTeammateEnabled && !settings.LeagueAutoReturnLobbyEnabled,
+                "Legacy settings must default post-game automation OFF.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueExitGameHotkey=F8");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueCloseLobbyHotkey=Ctrl+F9");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueCredentialHotkey=Ctrl+Alt+L");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoHonorTeammateEnabled=True");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoReturnLobbyEnabled=True");
             Require(settings.LeagueExitGameHotkey == "F8", "Exit-game hotkey setting did not parse.");
             Require(settings.LeagueCloseLobbyHotkey == "Ctrl+F9", "Close-lobby hotkey setting did not parse.");
             Require(settings.LeagueCredentialHotkey == "Ctrl+Alt+L", "Credential hotkey setting did not parse.");
+            Require(settings.LeagueAutoHonorTeammateEnabled && settings.LeagueAutoReturnLobbyEnabled,
+                "Post-game settings did not parse true values.");
             var serialized = string.Join("\n", settings.BuildLinesForSmokeTest());
             Require(serialized.Contains("LeagueExitGameHotkey=F8"), "Exit-game hotkey setting did not serialize.");
             Require(serialized.Contains("LeagueCredentialHotkey=Ctrl+Alt+L"), "Credential hotkey setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoHonorTeammateEnabled=True"), "Auto-honor setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoReturnLobbyEnabled=True"), "Auto-return setting did not serialize.");
             Require(serialized.IndexOf("password", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("account=", StringComparison.OrdinalIgnoreCase) < 0,
                 "Settings serialization must never contain League credentials.");
@@ -216,14 +233,11 @@ namespace FACM.League
             public string LastSecond;
 
             public void AddProcess(int id, string name) { _alive[id] = name; }
-
             public IReadOnlyList<LeagueProcessSnapshot> GetProcesses()
             {
                 return _alive.Select(pair => new LeagueProcessSnapshot { Id = pair.Key, Name = pair.Value }).ToArray();
             }
-
             public bool IsProcessAlive(int processId) { return _alive.ContainsKey(processId); }
-
             public bool RequestClose(int processId)
             {
                 if (!_alive.ContainsKey(processId)) return false;
@@ -231,7 +245,6 @@ namespace FACM.League
                 _alive.Remove(processId);
                 return true;
             }
-
             public bool Kill(int processId)
             {
                 if (!_alive.ContainsKey(processId)) return false;
@@ -239,11 +252,9 @@ namespace FACM.League
                 _alive.Remove(processId);
                 return true;
             }
-
             public string GetForegroundProcessName() { return ForegroundProcess; }
             public string GetForegroundWindowTitle() { return ForegroundTitle; }
             public string ReadClipboardText() { return Clipboard; }
-
             public bool SendTextAndTabThenText(string first, string second)
             {
                 SendCount++;
