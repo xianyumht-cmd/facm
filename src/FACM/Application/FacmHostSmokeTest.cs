@@ -149,7 +149,7 @@ namespace FACM.AppHost
             var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
             var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
             var leagueLive = new LeagueLiveModule(leagueClient, performance);
-            var leagueAdvisor = new LeagueBuildAdvisorModule(leagueClient, performance);
+            var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
             var mayhem = new MayhemModule(leagueClient);
             var cleanup = new CleanupModule();
             var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
@@ -167,8 +167,8 @@ namespace FACM.AppHost
                 leagueLive.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Live must depend on LeagueClient and Performance.");
             Require(
-                leagueAdvisor.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
-                "League Build Advisor must depend on LeagueClient and Performance.");
+                leagueAdvisor.Dependencies.SequenceEqual(new[] { SettingsModule.ModuleId, LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
+                "League Build Advisor must depend on Settings, LeagueClient and Performance.");
 
             var expected = new[]
             {

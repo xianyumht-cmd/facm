@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using FACM.Pets;
@@ -21,6 +22,7 @@ namespace FACM.Services
         public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
         public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
         public bool AnimalPetEnabled { get; set; } = false;
+        public bool LeagueAutoApplyRecommended { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -34,31 +36,14 @@ namespace FACM.Services
                     return result;
                 }
 
-                foreach (var line in File.ReadAllLines(RuntimePaths.SettingsPath))
-                {
-                    var separator = line.IndexOf('=');
-                    if (separator <= 0) continue;
-                    var key = line.Substring(0, separator).Trim();
-                    var value = line.Substring(separator + 1).Trim();
-                    int number;
-                    bool flag;
-                    if (key.Equals("BallX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallX = number;
-                    else if (key.Equals("BallY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallY = number;
-                    else if (key.Equals("GamePath", StringComparison.OrdinalIgnoreCase)) result.GamePath = value;
-                    else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoUpdateEnabled = flag;
-                    else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
-                    else if (key.Equals("ThemeId", StringComparison.OrdinalIgnoreCase)) result.ThemeId = ThemeCatalog.Get(value).Id;
-                    else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
-                    else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
-                }
+                result = ParseLines(File.ReadAllLines(RuntimePaths.SettingsPath));
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to load settings", exception);
             }
 
-            result.ThemeId = ThemeCatalog.Get(result.ThemeId).Id;
-            result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
+            Normalize(result);
             return result;
         }
 
@@ -67,23 +52,67 @@ namespace FACM.Services
             try
             {
                 RuntimePaths.Initialize();
-                var lines = new[]
-                {
-                    "BallX=" + BallX.ToString(CultureInfo.InvariantCulture),
-                    "BallY=" + BallY.ToString(CultureInfo.InvariantCulture),
-                    "GamePath=" + Sanitize(GamePath),
-                    "AutoUpdateEnabled=" + AutoUpdateEnabled,
-                    "LastAnnouncementId=" + Sanitize(LastAnnouncementId),
-                    "ThemeId=" + ThemeCatalog.Get(ThemeId).Id,
-                    "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
-                    "AnimalPetEnabled=" + AnimalPetEnabled
-                };
-                File.WriteAllLines(RuntimePaths.SettingsPath, lines);
+                File.WriteAllLines(RuntimePaths.SettingsPath, BuildLines());
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to save settings", exception);
             }
+        }
+
+        internal static AppSettings ParseLines(IEnumerable<string> lines)
+        {
+            var result = new AppSettings();
+            if (lines != null)
+            {
+                foreach (var line in lines)
+                    ApplyLine(result, line);
+            }
+            Normalize(result);
+            return result;
+        }
+
+        internal string[] BuildLines()
+        {
+            return new[]
+            {
+                "BallX=" + BallX.ToString(CultureInfo.InvariantCulture),
+                "BallY=" + BallY.ToString(CultureInfo.InvariantCulture),
+                "GamePath=" + Sanitize(GamePath),
+                "AutoUpdateEnabled=" + AutoUpdateEnabled,
+                "LastAnnouncementId=" + Sanitize(LastAnnouncementId),
+                "ThemeId=" + ThemeCatalog.Get(ThemeId).Id,
+                "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
+                "AnimalPetEnabled=" + AnimalPetEnabled,
+                "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended
+            };
+        }
+
+        private static void ApplyLine(AppSettings result, string line)
+        {
+            if (result == null || string.IsNullOrWhiteSpace(line)) return;
+            var separator = line.IndexOf('=');
+            if (separator <= 0) return;
+            var key = line.Substring(0, separator).Trim();
+            var value = line.Substring(separator + 1).Trim();
+            int number;
+            bool flag;
+            if (key.Equals("BallX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallX = number;
+            else if (key.Equals("BallY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.BallY = number;
+            else if (key.Equals("GamePath", StringComparison.OrdinalIgnoreCase)) result.GamePath = value;
+            else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoUpdateEnabled = flag;
+            else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
+            else if (key.Equals("ThemeId", StringComparison.OrdinalIgnoreCase)) result.ThemeId = ThemeCatalog.Get(value).Id;
+            else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
+            else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
+            else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoApplyRecommended = flag;
+        }
+
+        private static void Normalize(AppSettings result)
+        {
+            if (result == null) return;
+            result.ThemeId = ThemeCatalog.Get(result.ThemeId).Id;
+            result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
         }
 
         private static void MigrateLegacySettings()

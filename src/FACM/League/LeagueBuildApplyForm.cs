@@ -13,8 +13,11 @@ namespace FACM.League
     {
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly LeagueBuildApplyService _applyService;
+        private readonly LeagueAutoApplyController _autoController;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly CheckBox _autoToggle;
+        private readonly Label _autoStatusValue;
         private readonly Label _contextValue;
         private readonly TextBox _spellValue;
         private readonly TextBox _runeValue;
@@ -23,20 +26,23 @@ namespace FACM.League
         private readonly Button _applyButton;
         private LeagueBuildAdvisorSnapshot _snapshot;
         private bool _busy;
+        private bool _syncingAutoToggle;
 
         public LeagueBuildApplyForm(
             LeagueBuildAdvisorDataService readService,
             LeagueBuildApplyService applyService,
+            LeagueAutoApplyController autoController,
             UiTextCatalog ui)
         {
             _readService = readService ?? throw new ArgumentNullException(nameof(readService));
             _applyService = applyService ?? throw new ArgumentNullException(nameof(applyService));
+            _autoController = autoController ?? throw new ArgumentNullException(nameof(autoController));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
 
             Text = T(LeagueBuildApplyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(760, 470);
-            MinimumSize = new Size(700, 430);
+            ClientSize = new Size(760, 520);
+            MinimumSize = new Size(700, 480);
             BackColor = Color.FromArgb(14, 19, 30);
             ForeColor = Color.FromArgb(238, 243, 252);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -53,40 +59,63 @@ namespace FACM.League
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Hint),
                 Location = new Point(30, 60),
-                Size = new Size(700, 42),
+                Size = new Size(700, 34),
                 ForeColor = Color.FromArgb(146, 161, 188)
             };
 
-            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 112);
-            _contextValue = CreateValueLabel(146, 28);
+            _autoToggle = new CheckBox
+            {
+                Text = T(LeagueAutoApplyUiTextKeys.Toggle),
+                Location = new Point(30, 96),
+                Size = new Size(292, 28),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                Checked = _autoController.Enabled
+            };
+            _autoStatusValue = new Label
+            {
+                Location = new Point(326, 96),
+                Size = new Size(404, 38),
+                ForeColor = Color.FromArgb(146, 161, 188),
+                AutoEllipsis = true
+            };
+            UpdateAutoStatus(_autoController.LastStatus);
+            _autoToggle.CheckedChanged += HandleAutoToggleChanged;
+            _autoController.StatusChanged += HandleAutoStatusChanged;
 
-            var spellCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Spells), 188);
-            _spellValue = CreateValueBox(222, 52);
+            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 140);
+            _contextValue = CreateValueLabel(170, 28);
 
-            var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 286);
-            _runeValue = CreateValueBox(320, 58);
+            var spellCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Spells), 204);
+            _spellValue = CreateValueBox(234, 52);
+
+            var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 296);
+            _runeValue = CreateValueBox(326, 58);
 
             _statusValue = new Label
             {
-                Location = new Point(30, 392),
-                Size = new Size(500, 42),
+                Location = new Point(30, 430),
+                Size = new Size(480, 44),
                 ForeColor = Color.FromArgb(176, 191, 216),
                 AutoEllipsis = true
             };
 
             _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), Color.FromArgb(35, 43, 60), 110);
-            _refreshButton.Location = new Point(516, 402);
+            _refreshButton.Location = new Point(516, 452);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAsync(true); };
 
             _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Color.FromArgb(55, 104, 214), 110);
-            _applyButton.Location = new Point(632, 402);
+            _applyButton.Location = new Point(632, 452);
             _applyButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _applyButton.Enabled = false;
             _applyButton.Click += async delegate { await ApplyWithConfirmationAsync(); };
 
             Controls.Add(title);
             Controls.Add(hint);
+            Controls.Add(_autoToggle);
+            Controls.Add(_autoStatusValue);
             Controls.Add(contextCaption);
             Controls.Add(_contextValue);
             Controls.Add(spellCaption);
@@ -101,6 +130,7 @@ namespace FACM.League
             Shown += async delegate { await RefreshAsync(false); };
             FormClosed += delegate
             {
+                _autoController.StatusChanged -= HandleAutoStatusChanged;
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
                 _lifetime.Dispose();
             };
@@ -157,6 +187,59 @@ namespace FACM.League
             };
             button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
             return button;
+        }
+
+        private void HandleAutoToggleChanged(object sender, EventArgs e)
+        {
+            if (_syncingAutoToggle || IsDisposed) return;
+            try
+            {
+                _autoController.SetEnabled(_autoToggle.Checked);
+                UpdateAutoStatus(_autoController.LastStatus);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League auto apply toggle failed", exception);
+                _syncingAutoToggle = true;
+                try { _autoToggle.Checked = _autoController.Enabled; }
+                finally { _syncingAutoToggle = false; }
+                UpdateAutoStatus("failed");
+            }
+        }
+
+        private void HandleAutoStatusChanged(object sender, LeagueAutoApplyStatusChangedEventArgs e)
+        {
+            if (IsDisposed || Disposing) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => HandleAutoStatusChanged(sender, e))); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            _syncingAutoToggle = true;
+            try { _autoToggle.Checked = _autoController.Enabled; }
+            finally { _syncingAutoToggle = false; }
+            UpdateAutoStatus(e == null ? _autoController.LastStatus : e.Status);
+        }
+
+        private void UpdateAutoStatus(string status)
+        {
+            string key;
+            if (string.Equals(status, "applying", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Applying;
+            else if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Succeeded;
+            else if (string.Equals(status, "partial", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Partial;
+            else if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Failed;
+            else if (_autoController.Enabled)
+                key = LeagueAutoApplyUiTextKeys.Waiting;
+            else
+                key = LeagueAutoApplyUiTextKeys.Disabled;
+            _autoStatusValue.Text = T(key);
         }
 
         private async Task RefreshAsync(bool force)

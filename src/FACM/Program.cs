@@ -187,7 +187,7 @@ namespace FACM
                 var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
                 var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
                 var leagueLive = new LeagueLiveModule(leagueClient, performance);
-                var leagueAdvisor = new LeagueBuildAdvisorModule(leagueClient, performance);
+                var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
