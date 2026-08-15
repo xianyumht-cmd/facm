@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "id": "announcement-20260815-330",
-  "title": "FACM 3.3.0 正式发布",
-  "body": "FACM 3.3.0 已正式发布：控制中心和托盘菜单更简单；新增选人自动应用 FACM 推荐、一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。",
+  "id": "announcement-20260816-340",
+  "title": "FACM 3.4.0 正式发布",
+  "body": "FACM 3.4.0 已正式发布：英雄联盟功能现在集中到一个「英雄联盟」入口和统一「英雄联盟中心」，对局、推荐、效率在一个面板内管理；同时修复国服自动寻找对局和自动接受。自动化仍默认关闭，继续保持轻量、低占用、低打扰。",
   "level": "info",
   "popup": true,
-  "updated_at": "2026-08-15T13:13:07+08:00",
-  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.3.0"
+  "updated_at": "2026-08-16T05:20:00+08:00",
+  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.4.0"
 }
