@@ -106,7 +106,7 @@ namespace FACM.League
             Require(platform.LastFirst == "123" && platform.LastSecond == "abc",
                 "Credential input sequence fields were wrong.");
 
-            platform.Clipboard = "not-a-valid-pair-";
+            platform.Clipboard = "invalidclipboard";
             var invalid = service.InputCredentialsFromClipboard();
             Require(invalid.Status == "invalid" && platform.SendCount == 1,
                 "Invalid clipboard content must not inject keyboard input.");
