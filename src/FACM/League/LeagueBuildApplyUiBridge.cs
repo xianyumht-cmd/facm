@@ -10,7 +10,6 @@ namespace FACM.League
     internal static class LeagueBuildApplyUiBridge
     {
         private const string MenuName = "FACM.LeagueBuildApply";
-        private const string AdvisorMenuName = "FACM.LeagueBuildAdvisor";
         private static readonly FieldInfo TrayField = typeof(MainForm).GetField("_tray", BindingFlags.Instance | BindingFlags.NonPublic);
         private static LeagueBuildAdvisorModule _module;
         private static MainForm _owner;
@@ -51,38 +50,21 @@ namespace FACM.League
             var tray = TrayField == null ? null : TrayField.GetValue(owner) as NotifyIcon;
             var menu = tray == null ? null : tray.ContextMenuStrip;
             if (menu == null || menu.IsDisposed) return;
-            if (menu.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, MenuName, StringComparison.Ordinal)))
-            {
-                _owner = owner;
-                return;
-            }
 
-            var item = new ToolStripMenuItem(
-                LeagueAdvisorText.Get(UiTextCatalog.Load(), LeagueBuildApplyUiTextKeys.Menu))
-            {
-                Name = MenuName
-            };
-            item.Click += delegate { Open(owner); };
-            var advisorIndex = FindIndex(menu, AdvisorMenuName);
-            var insertAt = advisorIndex >= 0 ? advisorIndex + 1 : Math.Min(8, menu.Items.Count);
-            menu.Items.Insert(Math.Min(insertAt, menu.Items.Count), item);
+            ShellMenuGroups.AddLeagueAction(
+                menu,
+                MenuName,
+                LeagueAdvisorText.Get(UiTextCatalog.Load(), LeagueBuildApplyUiTextKeys.Menu),
+                ShellMenuGroups.ApplyOrder,
+                delegate { Open(owner); });
             _owner = owner;
-        }
-
-        private static int FindIndex(System.Windows.Forms.ContextMenuStrip menu, string name)
-        {
-            for (var index = 0; index < menu.Items.Count; index++)
-            {
-                if (string.Equals(menu.Items[index].Name, name, StringComparison.Ordinal)) return index;
-            }
-            return -1;
         }
 
         private static bool HasMenuItem(MainForm owner)
         {
             var tray = TrayField == null ? null : TrayField.GetValue(owner) as NotifyIcon;
             var menu = tray == null ? null : tray.ContextMenuStrip;
-            return menu != null && menu.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, MenuName, StringComparison.Ordinal));
+            return ShellMenuGroups.HasLeagueAction(menu, MenuName);
         }
 
         private static void Open(MainForm owner)

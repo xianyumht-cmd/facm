@@ -23,6 +23,12 @@ namespace FACM.Services
         public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
         public bool AnimalPetEnabled { get; set; } = false;
         public bool LeagueAutoApplyRecommended { get; set; } = false;
+        public string LeagueExitGameHotkey { get; set; } = string.Empty;
+        public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
+        public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
+        public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
+        public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
+        public bool LeagueAutoAcceptEnabled { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -35,14 +41,12 @@ namespace FACM.Services
                     result.Save();
                     return result;
                 }
-
                 result = ParseLines(File.ReadAllLines(RuntimePaths.SettingsPath));
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to load settings", exception);
             }
-
             Normalize(result);
             return result;
         }
@@ -65,8 +69,7 @@ namespace FACM.Services
             var result = new AppSettings();
             if (lines != null)
             {
-                foreach (var line in lines)
-                    ApplyLine(result, line);
+                foreach (var line in lines) ApplyLine(result, line);
             }
             Normalize(result);
             return result;
@@ -84,8 +87,25 @@ namespace FACM.Services
                 "ThemeId=" + ThemeCatalog.Get(ThemeId).Id,
                 "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
                 "AnimalPetEnabled=" + AnimalPetEnabled,
-                "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended
+                "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended,
+                "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
+                "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
+                "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
+                "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
+                "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
+                "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled
             };
+        }
+
+        internal static void ApplyLineForSmokeTest(AppSettings result, string line)
+        {
+            ApplyLine(result, line);
+            Normalize(result);
+        }
+
+        internal IEnumerable<string> BuildLinesForSmokeTest()
+        {
+            return BuildLines();
         }
 
         private static void ApplyLine(AppSettings result, string line)
@@ -106,6 +126,12 @@ namespace FACM.Services
             else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
             else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
             else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoApplyRecommended = flag;
+            else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
+            else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
+            else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
+            else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
+            else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
+            else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
         }
 
         private static void Normalize(AppSettings result)
@@ -113,6 +139,8 @@ namespace FACM.Services
             if (result == null) return;
             result.ThemeId = ThemeCatalog.Get(result.ThemeId).Id;
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
+            result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
+            result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
         }
 
         private static void MigrateLegacySettings()

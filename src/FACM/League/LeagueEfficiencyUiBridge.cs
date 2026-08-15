@@ -7,16 +7,16 @@ using FACM.Services;
 
 namespace FACM.League
 {
-    internal static class LeagueDashboardUiBridge
+    internal static class LeagueEfficiencyUiBridge
     {
-        private const string MenuName = "FACM.LeagueDashboard";
+        private const string MenuName = "FACM.LeagueEfficiency";
         private static readonly FieldInfo TrayField = typeof(MainForm).GetField("_tray", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static LeagueDashboardModule _module;
+        private static LeagueEfficiencyModule _module;
         private static MainForm _owner;
         private static bool _dialogOpen;
         private static bool _installed;
 
-        public static void Install(LeagueDashboardModule module)
+        public static void Install(LeagueEfficiencyModule module)
         {
             if (module == null) throw new ArgumentNullException(nameof(module));
             _module = module;
@@ -54,8 +54,8 @@ namespace FACM.League
             ShellMenuGroups.AddLeagueAction(
                 menu,
                 MenuName,
-                UiTextRuntime.Text(UiTextKeys.LeagueDashboardMenu),
-                ShellMenuGroups.DashboardOrder,
+                LeagueEfficiencyText.Get(UiTextCatalog.Load(), LeagueEfficiencyUiTextKeys.Menu),
+                ShellMenuGroups.EfficiencyOrder,
                 delegate { Open(owner); });
             _owner = owner;
         }
@@ -73,7 +73,7 @@ namespace FACM.League
             _dialogOpen = true;
             try
             {
-                using (var form = _module.CreateDashboardForm(UiTextCatalog.Load()))
+                using (var form = _module.CreateForm(UiTextCatalog.Load()))
                 {
                     form.TopMost = true;
                     form.ShowDialog(owner);

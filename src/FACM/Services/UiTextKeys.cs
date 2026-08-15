@@ -47,6 +47,29 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
+        // Novice-first Shell information architecture. Root categories stay stable as modules grow.
+        public const string ShellLeague = "ShellLeague";
+        public const string ShellMore = "ShellMore";
+        public const string ShellFeatureCenter = "ShellFeatureCenter";
+        public const string ShellRepairTools = "ShellRepairTools";
+        public const string ShellPersonalization = "ShellPersonalization";
+        public const string ShellMoreSettings = "ShellMoreSettings";
+        public const string ShellManageDirectory = "ShellManageDirectory";
+        public const string ShellRepairHint = "ShellRepairHint";
+        public const string ShellLeagueHint = "ShellLeagueHint";
+        public const string ShellPersonalizationHint = "ShellPersonalizationHint";
+        public const string ShellDirectoryReady = "ShellDirectoryReady";
+        public const string ShellDirectoryMissing = "ShellDirectoryMissing";
+        public const string ShellSimpleHint = "ShellSimpleHint";
+        public const string ShellArrow = "ShellArrow";
+        public const string ShellUnavailable = "ShellUnavailable";
+        public const string ShellEnabled = "ShellEnabled";
+        public const string ShellDisabled = "ShellDisabled";
+        public const string ShellStatusFormat = "ShellStatusFormat";
+        public const string ShellDirectoryReadyFormat = "ShellDirectoryReadyFormat";
+        public const string ShellDirectoryMissingFormat = "ShellDirectoryMissingFormat";
+        public const string ShellTrayTooltipFormat = "ShellTrayTooltipFormat";
+
         // Theme popup. These keys describe UI roles, not the current Chinese wording.
         public const string ThemePanelAppearance = "ThemePanelAppearance";
         public const string ThemeDesktopMode = "ThemeDesktopMode";

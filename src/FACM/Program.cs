@@ -64,83 +64,26 @@ namespace FACM
                         Environment.ExitCode = 0;
                         return;
                     }
-
                     if (!testMode)
                         MessageBox.Show(Ui("FACM 已经在运行。"), Ui("FACM"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.ExitCode = 2;
                     return;
                 }
 
-                if (facmHostTest)
-                {
-                    Environment.ExitCode = FacmHostSmokeTest.Run();
-                    return;
-                }
-                if (performanceContractTest)
-                {
-                    Environment.ExitCode = PerformanceContractSmokeTest.Run();
-                    return;
-                }
-                if (leagueDashboardTest)
-                {
-                    Environment.ExitCode = LeagueDashboardSmokeTest.Run();
-                    return;
-                }
-                if (singleInstanceActivationTest)
-                {
-                    Environment.ExitCode = SingleInstanceActivation.RunSmokeTest();
-                    return;
-                }
-                if (mayhemBodyCancellationTest)
-                {
-                    Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run();
-                    return;
-                }
-                if (tencentMayhemPatchTest)
-                {
-                    Environment.ExitCode = TencentMayhemPatchSmokeTest.Run();
-                    return;
-                }
-                if (aramBaseBalanceTest)
-                {
-                    Environment.ExitCode = OpggAramBaseBalanceSmokeTest.Run();
-                    return;
-                }
-                if (gameLocatorTest)
-                {
-                    Environment.ExitCode = GameLocatorSmokeTest.Run();
-                    return;
-                }
-                if (embeddedPetHostTest)
-                {
-                    Environment.ExitCode = EmbeddedPetHostSmokeTest.Run();
-                    return;
-                }
-                if (petCatalogTest)
-                {
-                    Environment.ExitCode = RunPetCatalogTest();
-                    return;
-                }
-                if (animalPetTest)
-                {
-                    Environment.ExitCode = AnimalPetSmokeTest.Run();
-                    return;
-                }
-                if (mayhemSourceTest)
-                {
-                    Environment.ExitCode = MayhemSourceSmokeTest.Run();
-                    return;
-                }
-                if (floatingBallTest)
-                {
-                    Environment.ExitCode = FloatingBallSmokeTest.Run();
-                    return;
-                }
-                if (petLocatorTest)
-                {
-                    Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run();
-                    return;
-                }
+                if (facmHostTest) { Environment.ExitCode = FacmHostSmokeTest.Run(); return; }
+                if (performanceContractTest) { Environment.ExitCode = PerformanceContractSmokeTest.Run(); return; }
+                if (leagueDashboardTest) { Environment.ExitCode = LeagueDashboardSmokeTest.Run(); return; }
+                if (singleInstanceActivationTest) { Environment.ExitCode = SingleInstanceActivation.RunSmokeTest(); return; }
+                if (mayhemBodyCancellationTest) { Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run(); return; }
+                if (tencentMayhemPatchTest) { Environment.ExitCode = TencentMayhemPatchSmokeTest.Run(); return; }
+                if (aramBaseBalanceTest) { Environment.ExitCode = OpggAramBaseBalanceSmokeTest.Run(); return; }
+                if (gameLocatorTest) { Environment.ExitCode = GameLocatorSmokeTest.Run(); return; }
+                if (embeddedPetHostTest) { Environment.ExitCode = EmbeddedPetHostSmokeTest.Run(); return; }
+                if (petCatalogTest) { Environment.ExitCode = RunPetCatalogTest(); return; }
+                if (animalPetTest) { Environment.ExitCode = AnimalPetSmokeTest.Run(); return; }
+                if (mayhemSourceTest) { Environment.ExitCode = MayhemSourceSmokeTest.Run(); return; }
+                if (floatingBallTest) { Environment.ExitCode = FloatingBallSmokeTest.Run(); return; }
+                if (petLocatorTest) { Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run(); return; }
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
@@ -157,13 +100,8 @@ namespace FACM
                 {
                     AppLog.Error("FACM startup preparation failed", exception);
                     MessageBox.Show(
-                        Ui(
-                            "无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n" +
-                            "请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" +
-                            exception.Message),
-                        Ui("FACM 启动失败"),
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
+                        Ui("无法在 FACM.exe 所在目录创建或更新运行文件。\r\n\r\n请把整个 FACM 文件夹放到可写目录后重试，例如 D:\\FACM。\r\n\r\n" + exception.Message),
+                        Ui("FACM 启动失败"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Environment.ExitCode = 3;
                     return;
                 }
@@ -188,10 +126,11 @@ namespace FACM
                 var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
                 var leagueLive = new LeagueLiveModule(leagueClient, performance);
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
+                var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
                 var mayhem = new MayhemModule(leagueClient);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, mayhem, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, cleanup, shell))
                 {
                     try
                     {
@@ -200,11 +139,7 @@ namespace FACM
                     catch (Exception exception)
                     {
                         AppLog.Error("FACM host startup failed", exception);
-                        MessageBox.Show(
-                            Ui("FACM 应用模块初始化失败，详情已写入日志。\r\n\r\n" + exception.Message),
-                            Ui("FACM 启动失败"),
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error);
+                        MessageBox.Show(Ui("FACM 应用模块初始化失败，详情已写入日志。\r\n\r\n" + exception.Message), Ui("FACM 启动失败"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         Environment.ExitCode = 3;
                         return;
                     }
@@ -218,12 +153,10 @@ namespace FACM
                     }
 
                     AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + cleanup.IsAdministrator);
-
                     SingleInstanceActivation activation = null;
                     try
                     {
-                        if (!startCleanup)
-                            activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
+                        if (!startCleanup) activation = SingleInstanceActivation.Listen(mainForm.RequestExternalActivation);
                         Application.Run(mainForm);
                     }
                     finally
@@ -245,6 +178,7 @@ namespace FACM
             LeaguePlayerModule leaguePlayer,
             LeagueLiveModule leagueLive,
             LeagueBuildAdvisorModule leagueAdvisor,
+            LeagueEfficiencyModule leagueEfficiency,
             MayhemModule mayhem,
             CleanupModule cleanup,
             ShellModule shell)
@@ -261,6 +195,7 @@ namespace FACM
             host.Register(leaguePlayer);
             host.Register(leagueLive);
             host.Register(leagueAdvisor);
+            host.Register(leagueEfficiency);
             host.Register(mayhem);
             host.Register(cleanup);
             host.Register(shell);
@@ -317,14 +252,8 @@ namespace FACM
 
         private static string Ui(string text)
         {
-            try
-            {
-                return UiTextCatalog.Load().Translate(text);
-            }
-            catch
-            {
-                return text ?? string.Empty;
-            }
+            try { return UiTextCatalog.Load().Translate(text); }
+            catch { return text ?? string.Empty; }
         }
 
         private static bool HasArgument(string[] args, string value)
