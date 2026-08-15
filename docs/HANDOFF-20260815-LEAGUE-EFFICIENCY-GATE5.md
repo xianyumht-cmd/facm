@@ -1,105 +1,122 @@
 # League Efficiency Gate 5 交接
 
-> Issue #109 / branch `feat/league-efficiency-gate5-109`。本 Gate 从 `main@a26dc7979bfeb3900bfa8b44bc228d0dd0831513` 开始，不依赖 Shell UX #105 或 Gate 4 #107。
+> Issue #109 / Draft PR #110 / branch `feat/league-efficiency-gate5-109`。基于 `main@a26dc7979bfeb3900bfa8b44bc228d0dd0831513`。腾讯实机快捷键修正版未验收前保持 Draft；不创建 Release/Tag、不修改线上更新、不删除分支。
 
 ## 目标
 
-增加一个统一 `游戏效率` 入口，第一阶段提供三个用户主动快捷键：
+在一个 `游戏效率` 页面提供三项可配置全局快捷键：
 
-- 一键退出游戏；
+- 一键结束游戏；
 - 一键关闭大厅；
-- 剪贴板租号账号密码快捷输入。
+- 剪贴板账号密码快捷输入。
 
-核心要求是 **待机 0 polling**。使用 Windows `RegisterHotKey` 事件，不安装键盘 hook，不截图、不 OCR、不 Overlay/注入。
+三项默认均未绑定。设置写现有 `settings.ini`；账号和密码本身永不落盘。
 
-## 设置与隐私
+## 2026-08-15 腾讯实机反馈后的行为修正
 
-行为设置继续写 FACM 现有 `settings.ini`：
+原 #1018 候选在用户腾讯/国服实机暴露：
+
+1. 快捷键不能满足 FACM 后台/最小化/游戏内随时触发；
+2. 国服游戏目标明确为任务管理器中的 `League of Legends(TM).exe`；
+3. 一键关闭大厅不应因为游戏仍在运行而拒绝；
+4. 账号密码输入的“登录窗口白名单”导致真实登录环境按快捷键零输入。
+
+因此 Gate5 当前行为按实机结果重新冻结为：
+
+### 全局快捷键
+
+- 继续使用 Win32 `RegisterHotKey / UnregisterHotKey` + `MOD_NOREPEAT`；
+- 不使用低级键盘 Hook，不轮询键盘；
+- `LeagueHotkeyService` 使用独立后台 STA 消息线程 + 隐藏 `NativeWindow`，独立 WinForms message loop 接收 `WM_HOTKEY`；
+- FACM 主窗口是否前台、最小化、隐藏不参与 hotkey 接收链；
+- 保存绑定通过隐藏消息窗串行注册，重复绑定/系统占用仍失败并回滚旧绑定。
+
+参考 Microsoft PowerToys 当前 GitHub 源码的两个原则：global hotkey 不依赖当前 context；键盘自动化序列给 UI 焦点切换留短间隔。FACM 保持 RegisterHotKey，不引入低级 Hook。
+
+### 一键结束游戏
+
+用户明确目标：水晶爆炸后立即结束国服游戏进程以快速返回大厅。
+
+- 目标 `Process.ProcessName`：`League of Legends(TM)`；同时保留 `League of Legends` 兼容名；
+- 按快捷键后直接精确 PID `Kill`，不再先 `CloseMainWindow` + grace wait；
+- 不碰 `LeagueClient / LeagueClientUx / LeagueClientUxRender`；
+- 不碰 WeGame 或其它进程。
+
+### 一键关闭大厅
+
+- 不再检查游戏是否正在运行；
+- 按快捷键即直接精确 PID 结束 `LeagueClient / LeagueClientUx / LeagueClientUxRender`；
+- 不碰 `League of Legends(TM)` 游戏进程；
+- 不碰 WeGame 或其它进程。
+
+### 账号密码快捷输入
+
+用户先把焦点放到账号输入框；FACM **不再判断窗口标题或进程名**。
+
+剪贴板格式：`账号-----密码`
+
+- 第一段连续一个或多个 `-` 作为分隔符；
+- 账号不能为空且账号自身不含 `-`；
+- 密码不能为空；
+- 密码后续出现 `-` 原样保留；
+- CR/LF/TAB/NUL fail closed。
+
+按全局快捷键后：
+
+1. 只读取一次剪贴板；
+2. 格式合法则 `Ctrl+A`；
+3. Unicode SendInput 输入账号；
+4. 短等待；
+5. `Tab`；
+6. 给焦点切换留约 50ms；
+7. `Ctrl+A`；
+8. Unicode SendInput 输入密码；
+9. 不发送 Enter。
+
+输入采用分阶段 `SendInput`，而不是把 Ctrl+A/账号/Tab/密码一次性塞进一个巨大 INPUT 数组。账号密码只存在于本次调用内存，不写日志；日志只记 success / invalid-format / failed。
+
+## 设置
+
+现有 `settings.ini`：
 
 - `LeagueExitGameHotkey`
 - `LeagueCloseLobbyHotkey`
 - `LeagueCredentialHotkey`
 
-空值代表关闭。`ui-text.ini` 只覆盖可见文字。
-
-账号/密码不写任何配置、日志或诊断。只有用户按 credential hotkey 时读取一次当前剪贴板；前台不是受支持登录窗口则在读取剪贴板前直接阻断。
-
-租号格式以**第一段连续一个或多个 `-`**作为账号/密码分隔符，例如 `123456789-----1316464saf`。密码后续若自身包含 `-` 会原样保留。CR/LF/TAB/NUL fail-closed。
-
-输入序列是：当前字段 Ctrl+A -> 账号 -> Tab -> Ctrl+A -> 密码。第一版故意不发送 Enter，避免错误上下文直接提交登录。
-
-## Hotkey contract
-
-`LeagueHotkeyService` 是唯一全局热键实现：
-
-- `RegisterHotKey / UnregisterHotKey`；
-- `MOD_NOREPEAT`；
-- F1-F12 可裸用；
-- Ctrl/Alt/Shift/Win + key 可用；
-- 裸 A-Z / 0-9 拒绝，避免聊天/账号输入误触；
-- 三个 FACM action 不能绑定同一组合；
-- 保存时是事务：先验证冲突，注册新组合失败则撤销本轮并恢复旧绑定；
-- Dispose 全量 unregister。
-
-## 进程动作边界
-
-`一键退出游戏`：
-
-- 只匹配 exact process name `League of Legends`；
-- 先 `CloseMainWindow()`；
-- 如果进程已经退出则不等待；
-- 仍存活才短等待并对同一 PID `Kill()`；
-- 不触碰 LeagueClient 或其它进程。
-
-`一键关闭大厅`：
-
-- 如果 `League of Legends` 仍运行，直接 blocked，零关闭；
-- 只处理 `LeagueClient / LeagueClientUx / LeagueClientUxRender`；
-- 同样正常关闭优先、精确 PID fallback；
-- 不关闭 WeGame、浏览器或其它无关进程。
-
-## UI
-
-当前 main 的 Shell UX #105 尚未合并，所以 Gate 5 只新增**一个**托盘入口 `游戏效率`，不把三个动作各自塞到一级菜单。最终 Shell UX 合并后，应把同一个窗口迁入 `英雄联盟 > 游戏效率`，不要复制第二套窗口。
-
-窗口只显示快捷键区，三行分别设置三个动作；支持直接编辑文本或点击 `录入` 捕获。保存失败（冲突/系统占用/非法键）保持旧有效绑定。
+`ui-text.ini` 只负责可见文案，不保存功能状态或凭据。
 
 ## deterministic smoke
 
-`LeagueEfficiencySmokeTest` 已接入 Performance Contract，覆盖：
+`LeagueEfficiencySmokeTest` 随 Performance Contract，当前锁定：
 
-- hotkey parser/formatter；
-- 裸字母/数字拒绝；
-- duplicate binding；
-- backend register 失败回滚；
-- Dispose unregister；
-- settings.ini parse/serialize 且不含 credential；
-- 多横杠分隔和密码内横杠；
-- 非登录前台零 SendInput；
-- WeGame 登录前台账号/密码输入；
-- 游戏存在时关闭大厅 blocked；
-- 退出游戏只影响 exact game process；
-- 退出游戏后关闭大厅不影响 unrelated process；
-- no target = no-op；
-- Module 只依赖 Settings，避免引入 League polling dependency；
-- UI text defaults 非空。
+- F-key / modifier hotkey parse；
+- 裸 A-Z/0-9 拒绝；
+- duplicate registration 拒绝且旧绑定保持；
+- OS registration failure 回滚；
+- dispose/unregister；
+- dedicated-message-thread architecture marker；
+- settings parse/serialize 且没有 credential 字段；
+- `account-----password`、单 `-`、密码后续 hyphen；
+- 空账号/空密码/control-character fail closed；
+- **不做进程/窗口白名单**：合法剪贴板必须调用一次输入事务；
+- invalid clipboard => zero additional SendInput；
+- 腾讯 `League of Legends(TM)` fixture 能被一键结束；
+- 一键关闭大厅在游戏进程仍存在时也必须直接关闭 Lobby family；
+- 两项进程动作使用直接 precise PID kill，不走 graceful close；
+- unrelated process 不受影响；
+- UI copy defaults 非空。
 
-## 腾讯实机验收
+## 腾讯实机重新验收
 
-最终 Windows 候选需要验证：
+新候选必须验证：
 
-1. 三个快捷键可设置、保存、重启恢复；
-2. 重复快捷键/系统占用能清楚报错且旧快捷键仍有效；
-3. 非登录窗口按 credential hotkey 零输入；
-4. 登录页先点账号框，复制 `账号-----密码` 后按 hotkey，账号/密码正确且不自动 Enter；
-5. 游戏仍在运行时 close-lobby hotkey 必须拒绝；
-6. 水晶爆炸后 exit-game hotkey 能退出游戏并回到客户端；
-7. 大厅时 close-lobby hotkey 只关闭 League 客户端；
-8. 待机无明显 CPU / 网络增加。
+1. 保存三个快捷键后，无论 FACM 前台/后台/最小化都能触发；
+2. 游戏进行中按“一键结束游戏”能直接结束 `League of Legends(TM).exe`；
+3. 同时存在游戏进程时按“一键关闭大厅”也会直接关闭 LeagueClient family，游戏进程本身不受影响；
+4. 在当前可输入窗口中先聚焦账号框，复制 `123456-----abc123`，按账密快捷键能输入账号 -> Tab -> 密码；
+5. 账密快捷键不自动 Enter；
+6. 格式错误时零输入；
+7. FACM 主窗焦点不应成为任何快捷键工作的前提；
+8. idle CPU/network 基本不变。
 
-## 未做 / 后续
-
-- Gate 6：自动随机点赞 + 自动返回大厅；
-- Gate 7：自动寻找对局 + 自动接受；
-- 不在 Gate 5 中扩大 LCU writer allowlist；
-- 不创建 Release/Tag，不修改线上更新配置。
+腾讯实机确认前 PR #110 保持 Draft。
