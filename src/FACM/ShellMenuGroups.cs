@@ -6,10 +6,7 @@ namespace FACM
 {
     /// <summary>
     /// Stable Shell information-architecture boundary.
-    ///
-    /// Business modules must register actions inside one of the fixed root groups instead of
-    /// inserting new first-level tray items. This keeps the novice-facing root menu bounded even as
-    /// FACM gains more capabilities.
+    /// Business modules register inside fixed root groups instead of adding first-level tray items.
     /// </summary>
     internal static class ShellMenuGroups
     {
@@ -26,6 +23,7 @@ namespace FACM
         public const int AdvisorOrder = 40;
         public const int ApplyOrder = 50;
         public const int ItemSetOrder = 60;
+        public const int EfficiencyOrder = 70;
         public const int MayhemOrder = 90;
 
         private static readonly string[] RootContractNames =
@@ -42,22 +40,12 @@ namespace FACM
             return new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
         }
 
-        public static bool AddLeagueAction(
-            System.Windows.Forms.ContextMenuStrip root,
-            string name,
-            string text,
-            int order,
-            EventHandler click)
+        public static bool AddLeagueAction(System.Windows.Forms.ContextMenuStrip root, string name, string text, int order, EventHandler click)
         {
             return AddGroupAction(root, LeagueGroupName, name, text, order, click);
         }
 
-        public static bool AddMoreAction(
-            System.Windows.Forms.ContextMenuStrip root,
-            string name,
-            string text,
-            int order,
-            EventHandler click)
+        public static bool AddMoreAction(System.Windows.Forms.ContextMenuStrip root, string name, string text, int order, EventHandler click)
         {
             return AddGroupAction(root, MoreGroupName, name, text, order, click);
         }
@@ -70,8 +58,7 @@ namespace FACM
         public static ToolStripMenuItem FindGroup(System.Windows.Forms.ContextMenuStrip root, string groupName)
         {
             if (root == null || root.IsDisposed || string.IsNullOrWhiteSpace(groupName)) return null;
-            return root.Items
-                .OfType<ToolStripMenuItem>()
+            return root.Items.OfType<ToolStripMenuItem>()
                 .FirstOrDefault(item => string.Equals(item.Name, groupName, StringComparison.Ordinal));
         }
 
@@ -84,8 +71,7 @@ namespace FACM
         internal static bool RootContainsAction(System.Windows.Forms.ContextMenuStrip root, string name)
         {
             if (root == null || string.IsNullOrWhiteSpace(name)) return false;
-            return root.Items.Cast<ToolStripItem>()
-                .Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+            return root.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
         }
 
         internal static void ValidateRootContract(System.Windows.Forms.ContextMenuStrip root)
@@ -93,7 +79,6 @@ namespace FACM
             if (root == null) throw new InvalidOperationException("Shell root menu is missing.");
             if (ActionableRootCount(root) != RootContractNames.Length)
                 throw new InvalidOperationException("Shell root must expose exactly five novice-facing actions/groups.");
-
             foreach (var name in RootContractNames)
             {
                 if (!RootContainsAction(root, name))
@@ -101,11 +86,6 @@ namespace FACM
             }
         }
 
-        /// <summary>
-        /// Pure contract validation for CI. The performance smoke runs before WinForms visual styles
-        /// or a message loop exist, so it must never instantiate ContextMenuStrip/Timer/window state.
-        /// Actual runtime registration still validates the live menu through ValidateRootContract.
-        /// </summary>
         internal static void ValidateDefinitionForSmokeTest()
         {
             if (RootContractNames.Length != 5)
@@ -123,6 +103,7 @@ namespace FACM
                 AdvisorOrder,
                 ApplyOrder,
                 ItemSetOrder,
+                EfficiencyOrder,
                 MayhemOrder
             };
             for (var index = 1; index < orders.Length; index++)
@@ -130,9 +111,6 @@ namespace FACM
                 if (orders[index] <= orders[index - 1])
                     throw new InvalidOperationException("League submenu order contract is not strictly increasing.");
             }
-
-            if (ItemSetOrder >= MayhemOrder)
-                throw new InvalidOperationException("Future OP.GG item-set action must stay before Mayhem in the League group.");
 
             var businessActions = new[]
             {
@@ -142,37 +120,25 @@ namespace FACM
                 "FACM.LeagueBuildAdvisor",
                 "FACM.LeagueBuildApply",
                 "FACM.LeagueItemSet",
+                "FACM.LeagueEfficiency",
                 MayhemActionName
             };
             if (businessActions.Any(action => RootContractNames.Contains(action, StringComparer.Ordinal)))
                 throw new InvalidOperationException("A business action name leaked into the fixed Shell root contract.");
         }
 
-        private static bool AddGroupAction(
-            System.Windows.Forms.ContextMenuStrip root,
-            string groupName,
-            string name,
-            string text,
-            int order,
-            EventHandler click)
+        private static bool AddGroupAction(System.Windows.Forms.ContextMenuStrip root, string groupName, string name, string text, int order, EventHandler click)
         {
             if (root == null || root.IsDisposed) return false;
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Shell action name is required.", nameof(name));
             ValidateRootContract(root);
 
             var group = FindGroup(root, groupName);
-            if (group == null)
-                throw new InvalidOperationException("Shell root group is missing: " + groupName);
-
-            if (group.DropDownItems.Cast<ToolStripItem>()
-                .Any(item => string.Equals(item.Name, name, StringComparison.Ordinal)))
+            if (group == null) throw new InvalidOperationException("Shell root group is missing: " + groupName);
+            if (group.DropDownItems.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, name, StringComparison.Ordinal)))
                 return false;
 
-            var item = new ToolStripMenuItem(text ?? string.Empty)
-            {
-                Name = name,
-                Tag = order
-            };
+            var item = new ToolStripMenuItem(text ?? string.Empty) { Name = name, Tag = order };
             if (click != null) item.Click += click;
 
             var insertAt = group.DropDownItems.Count;
@@ -191,10 +157,7 @@ namespace FACM
             return true;
         }
 
-        private static bool HasGroupAction(
-            System.Windows.Forms.ContextMenuStrip root,
-            string groupName,
-            string name)
+        private static bool HasGroupAction(System.Windows.Forms.ContextMenuStrip root, string groupName, string name)
         {
             var group = FindGroup(root, groupName);
             return group != null && group.DropDownItems.Cast<ToolStripItem>()
