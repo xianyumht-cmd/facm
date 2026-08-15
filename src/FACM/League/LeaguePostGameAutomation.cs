@@ -86,29 +86,18 @@ namespace FACM.League
 
         public void Observe(LeagueDashboardPhaseState state)
         {
-            var phase = state == null ? null : state.Phase;
-            var postGame = state != null && state.Connected && IsPostGamePhase(phase);
+            string phase;
             CancellationToken token;
-            lock (_sync)
-            {
-                if (_disposed) return;
-                if (!postGame)
-                {
-                    _insidePostGame = false;
-                    _cycleStarted = false;
-                    CancelCycleLocked();
-                    return;
-                }
-
-                _insidePostGame = true;
-                if (_cycleStarted || (!_autoHonor && !_autoReturn)) return;
-                _cycleStarted = true;
-                CancelCycleLocked();
-                _cycleCancellation = new CancellationTokenSource();
-                token = _cycleCancellation.Token;
-            }
-
+            if (!TryBeginCycle(state, out phase, out token)) return;
             RunCycleAsync(phase, token).Forget("League post-game automation");
+        }
+
+        internal async Task ObserveForSmokeTestAsync(LeagueDashboardPhaseState state)
+        {
+            string phase;
+            CancellationToken token;
+            if (!TryBeginCycle(state, out phase, out token)) return;
+            await RunCycleAsync(phase, token).ConfigureAwait(false);
         }
 
         internal async Task RunCycleForSmokeTestAsync(
@@ -124,6 +113,32 @@ namespace FACM.League
                 _insidePostGame = true;
             }
             await RunCycleAsync(phase, cancellationToken).ConfigureAwait(false);
+        }
+
+        private bool TryBeginCycle(LeagueDashboardPhaseState state, out string phase, out CancellationToken token)
+        {
+            phase = state == null ? null : state.Phase;
+            token = CancellationToken.None;
+            var postGame = state != null && state.Connected && IsPostGamePhase(phase);
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                if (!postGame)
+                {
+                    _insidePostGame = false;
+                    _cycleStarted = false;
+                    CancelCycleLocked();
+                    return false;
+                }
+
+                _insidePostGame = true;
+                if (_cycleStarted || (!_autoHonor && !_autoReturn)) return false;
+                _cycleStarted = true;
+                CancelCycleLocked();
+                _cycleCancellation = new CancellationTokenSource();
+                token = _cycleCancellation.Token;
+                return true;
+            }
         }
 
         private async Task RunCycleAsync(string initialPhase, CancellationToken cancellationToken)
