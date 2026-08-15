@@ -33,6 +33,12 @@ namespace FACM.League
         public const string AutoReturn = "LeagueEfficiencyAutoReturn";
         public const string AutoReturnHint = "LeagueEfficiencyAutoReturnHint";
         public const string PostGameSaved = "LeagueEfficiencyPostGameSaved";
+        public const string NextGameSection = "LeagueEfficiencyNextGameSection";
+        public const string AutoMatchmaking = "LeagueEfficiencyAutoMatchmaking";
+        public const string AutoMatchmakingHint = "LeagueEfficiencyAutoMatchmakingHint";
+        public const string AutoAccept = "LeagueEfficiencyAutoAccept";
+        public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
+        public const string NextGameSaved = "LeagueEfficiencyNextGameSaved";
     }
 
     internal static class LeagueEfficiencyText
@@ -42,7 +48,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.Menu, "游戏效率" },
             { LeagueEfficiencyUiTextKeys.WindowTitle, "FACM · 游戏效率" },
             { LeagueEfficiencyUiTextKeys.Title, "游戏效率" },
-            { LeagueEfficiencyUiTextKeys.Hint, "只在需要时做事：快捷键待机不轮询，赛后自动化只在结算阶段短时工作。" },
+            { LeagueEfficiencyUiTextKeys.Hint, "只在需要时做事：快捷键待机不轮询，自动化只在对应的英雄联盟阶段轻量工作。" },
             { LeagueEfficiencyUiTextKeys.HotkeySection, "快捷键" },
             { LeagueEfficiencyUiTextKeys.ExitGame, "一键退出游戏" },
             { LeagueEfficiencyUiTextKeys.ExitGameHint, "水晶爆炸后按一次：先正常关闭游戏，未退出才精确结束游戏进程。" },
@@ -65,7 +71,13 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoHonorHint, "仅从可点赞队友中随机选 1 人；不点赞对手，也不会把多张票全部用掉。" },
             { LeagueEfficiencyUiTextKeys.AutoReturn, "自动返回大厅" },
             { LeagueEfficiencyUiTextKeys.AutoReturnHint, "结算阶段短暂等待点赞机会后自动回大厅；点赞失败也不会一直卡住。" },
-            { LeagueEfficiencyUiTextKeys.PostGameSaved, "赛后自动化设置已保存。" }
+            { LeagueEfficiencyUiTextKeys.PostGameSaved, "赛后自动化设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.NextGameSection, "自动下一局" },
+            { LeagueEfficiencyUiTextKeys.AutoMatchmaking, "自动寻找对局" },
+            { LeagueEfficiencyUiTextKeys.AutoMatchmakingHint, "只在你是房主且当前队伍满足开始条件时自动排队；条件不满足就不操作。" },
+            { LeagueEfficiencyUiTextKeys.AutoAccept, "自动接受对局" },
+            { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "ReadyCheck 出现后自动接受一次；已接受或你主动拒绝时不会反复修改。" },
+            { LeagueEfficiencyUiTextKeys.NextGameSaved, "自动下一局设置已保存。" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
