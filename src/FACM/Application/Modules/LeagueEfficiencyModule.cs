@@ -15,7 +15,12 @@ namespace FACM.AppHost.Modules
         public const string CloseLobbyAction = "close-lobby";
         public const string CredentialsAction = "credentials";
 
-        private static readonly IReadOnlyList<string> ModuleDependencies = new[] { SettingsModule.ModuleId };
+        private static readonly IReadOnlyList<string> ModuleDependencies = new[]
+        {
+            SettingsModule.ModuleId,
+            LeagueClientModule.ModuleId,
+            LeagueDashboardModule.ModuleId
+        };
         private static readonly Dictionary<string, int> ActionIds = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             { ExitGameAction, 0x5A11 },
@@ -24,13 +29,21 @@ namespace FACM.AppHost.Modules
         };
 
         private readonly SettingsModule _settingsModule;
+        private readonly LeagueClientModule _leagueClient;
+        private readonly LeagueDashboardModule _dashboard;
         private LeagueHotkeyService _hotkeys;
         private LeagueEfficiencyActionService _actions;
+        private LeaguePostGameAutomationController _postGame;
         private bool _disposed;
 
-        public LeagueEfficiencyModule(SettingsModule settingsModule)
+        public LeagueEfficiencyModule(
+            SettingsModule settingsModule,
+            LeagueClientModule leagueClient,
+            LeagueDashboardModule dashboard)
         {
             _settingsModule = settingsModule ?? throw new ArgumentNullException(nameof(settingsModule));
+            _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
+            _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
         }
 
         public string Id { get { return ModuleId; } }
@@ -54,6 +67,12 @@ namespace FACM.AppHost.Modules
                     out error))
                 AppLog.Warning("League efficiency saved hotkeys were not registered: " + error);
 
+            _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
+            _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
+            _dashboard.GameflowStateChanged += HandleGameflowState;
+            var current = _dashboard.CurrentGameflowState;
+            if (current != null) _postGame.Observe(current);
+
             LeagueEfficiencyUiBridge.Install(this);
         }
 
@@ -66,10 +85,25 @@ namespace FACM.AppHost.Modules
         public string ExitGameHotkey { get { return _settingsModule.Settings.LeagueExitGameHotkey ?? string.Empty; } }
         public string CloseLobbyHotkey { get { return _settingsModule.Settings.LeagueCloseLobbyHotkey ?? string.Empty; } }
         public string CredentialHotkey { get { return _settingsModule.Settings.LeagueCredentialHotkey ?? string.Empty; } }
+        public bool AutoHonorEnabled { get { return _settingsModule.Settings.LeagueAutoHonorTeammateEnabled; } }
+        public bool AutoReturnLobbyEnabled { get { return _settingsModule.Settings.LeagueAutoReturnLobbyEnabled; } }
 
         public bool TryUpdateBindings(string exitGame, string closeLobby, string credentials, out string error)
         {
             return TryApplyBindings(exitGame, closeLobby, credentials, true, out error);
+        }
+
+        public void UpdatePostGameSettings(bool autoHonor, bool autoReturn)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoHonorTeammateEnabled = autoHonor;
+            _settingsModule.Settings.LeagueAutoReturnLobbyEnabled = autoReturn;
+            _settingsModule.Settings.Save();
+            var controller = _postGame;
+            if (controller == null) return;
+            controller.Configure(autoHonor, autoReturn);
+            var current = _dashboard.CurrentGameflowState;
+            if (current != null) controller.Observe(current);
         }
 
         private bool TryApplyBindings(string exitGame, string closeLobby, string credentials, bool persist, out string error)
@@ -98,6 +132,12 @@ namespace FACM.AppHost.Modules
                 _settingsModule.Settings.Save();
             }
             return true;
+        }
+
+        private void HandleGameflowState(LeagueDashboardPhaseState state)
+        {
+            var controller = _postGame;
+            if (!_disposed && controller != null) controller.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -140,6 +180,12 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             LeagueEfficiencyUiBridge.Uninstall();
+            _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_postGame != null)
+            {
+                _postGame.Dispose();
+                _postGame = null;
+            }
             if (_hotkeys != null)
             {
                 _hotkeys.HotkeyPressed -= HandleHotkey;
