@@ -43,7 +43,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.CloseLobby, "一键关闭大厅" },
             { LeagueEfficiencyUiTextKeys.CloseLobbyHint, "按一次直接关闭英雄联盟大厅进程；不会因为游戏正在运行而阻止。" },
             { LeagueEfficiencyUiTextKeys.Credentials, "账号密码快捷输入" },
-            { LeagueEfficiencyUiTextKeys.CredentialsHint, "复制“账号-----密码”后按一次；仅登录窗口输入账号、Tab、密码，不自动回车。" },
+            { LeagueEfficiencyUiTextKeys.CredentialsHint, "先点账号输入框，再复制“账号-----密码”并按快捷键：自动输入账号、Tab、密码，不自动回车。" },
             { LeagueEfficiencyUiTextKeys.Capture, "录入" },
             { LeagueEfficiencyUiTextKeys.Clear, "清除" },
             { LeagueEfficiencyUiTextKeys.Save, "保存快捷键" },
