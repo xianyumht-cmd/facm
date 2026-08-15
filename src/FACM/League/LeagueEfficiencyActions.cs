@@ -266,6 +266,7 @@ namespace FACM.League
     {
         private static readonly HashSet<string> GameProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
+            "League of Legends(TM)",
             "League of Legends"
         };
 
@@ -288,22 +289,14 @@ namespace FACM.League
             _platform = platform ?? throw new ArgumentNullException(nameof(platform));
         }
 
-        public async Task<LeagueEfficiencyActionResult> ExitGameAsync()
+        public Task<LeagueEfficiencyActionResult> ExitGameAsync()
         {
-            var targets = FindTargets(GameProcessNames);
-            if (targets.Count == 0) return Result("no-target", "game-not-running", 0);
-            var affected = await CloseTargetsAsync(targets, 900).ConfigureAwait(false);
-            return Result(affected > 0 ? "success" : "failed", "game-exit", affected);
+            return Task.FromResult(KillTargets(GameProcessNames, "game-not-running", "game-exit"));
         }
 
-        public async Task<LeagueEfficiencyActionResult> CloseLobbyAsync()
+        public Task<LeagueEfficiencyActionResult> CloseLobbyAsync()
         {
-            if (FindTargets(GameProcessNames).Count > 0)
-                return Result("blocked", "game-still-running", 0);
-            var targets = FindTargets(LobbyProcessNames);
-            if (targets.Count == 0) return Result("no-target", "lobby-not-running", 0);
-            var affected = await CloseTargetsAsync(targets, 700).ConfigureAwait(false);
-            return Result(affected > 0 ? "success" : "failed", "lobby-exit", affected);
+            return Task.FromResult(KillTargets(LobbyProcessNames, "lobby-not-running", "lobby-exit"));
         }
 
         public LeagueEfficiencyActionResult InputCredentialsFromClipboard()
@@ -355,6 +348,19 @@ namespace FACM.League
             return false;
         }
 
+        private LeagueEfficiencyActionResult KillTargets(HashSet<string> names, string noTargetDetail, string successDetail)
+        {
+            var targets = FindTargets(names);
+            if (targets.Count == 0) return Result("no-target", noTargetDetail, 0);
+            var affected = 0;
+            foreach (var target in targets)
+            {
+                if (!_platform.IsProcessAlive(target.Id)) continue;
+                if (_platform.Kill(target.Id)) affected++;
+            }
+            return Result(affected > 0 ? "success" : "failed", successDetail, affected);
+        }
+
         private List<LeagueProcessSnapshot> FindTargets(HashSet<string> names)
         {
             return (_platform.GetProcesses() ?? new LeagueProcessSnapshot[0])
@@ -362,25 +368,6 @@ namespace FACM.League
                 .GroupBy(process => process.Id)
                 .Select(group => group.First())
                 .ToList();
-        }
-
-        private async Task<int> CloseTargetsAsync(IReadOnlyList<LeagueProcessSnapshot> targets, int graceMilliseconds)
-        {
-            var affected = 0;
-            foreach (var target in targets)
-            {
-                if (!_platform.IsProcessAlive(target.Id)) continue;
-                if (_platform.RequestClose(target.Id)) affected++;
-            }
-
-            if (targets.All(target => !_platform.IsProcessAlive(target.Id))) return affected;
-            await Task.Delay(graceMilliseconds).ConfigureAwait(false);
-            foreach (var target in targets)
-            {
-                if (!_platform.IsProcessAlive(target.Id)) continue;
-                if (_platform.Kill(target.Id)) affected++;
-            }
-            return affected;
         }
 
         private static LeagueEfficiencyActionResult Result(string status, string detail, int affected)
