@@ -65,10 +65,6 @@ namespace FACM.AppHost.Modules
                 executor,
                 new LeagueAutoApplyCoordinator());
             _autoApply.Start();
-
-            LeagueBuildAdvisorUiBridge.Install(this);
-            LeagueBuildApplyUiBridge.Install(this);
-            LeagueItemSetUiBridge.Install(this);
         }
 
         public Form CreateForm(UiTextCatalog ui)
@@ -93,10 +89,6 @@ namespace FACM.AppHost.Modules
 
         public void Dispose()
         {
-            LeagueItemSetUiBridge.Uninstall();
-            LeagueBuildApplyUiBridge.Uninstall();
-            LeagueBuildAdvisorUiBridge.Uninstall();
-
             var autoApply = _autoApply;
             var itemSetService = _itemSetService;
             var applyService = _applyService;
