@@ -30,6 +30,8 @@ namespace FACM.League
             Require(!LeagueHotkeyBinding.TryParse("7", out binding, out error), "Bare digit must be rejected.");
             Require(LeagueHotkeyBinding.TryParse(string.Empty, out binding, out error) && !binding.Enabled,
                 "Empty hotkey must mean disabled.");
+            Require(LeagueHotkeyService.UsesDedicatedMessageThreadForSmokeTest(),
+                "League hotkeys must be isolated from FACM window focus on a dedicated message thread.");
 
             var backend = new FakeHotkeyBackend();
             var ids = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -40,17 +42,17 @@ namespace FACM.League
             };
             using (var manager = new LeagueHotkeyRegistrationManager(IntPtr.Zero, backend, ids))
             {
-                var first = Bindings("F8", "F9", "Ctrl+Alt+L");
-                Require(manager.TryApply(first, out error), "Initial hotkey registration failed: " + error);
+                Require(manager.TryApply(Bindings("F8", "F9", "Ctrl+Alt+L"), out error),
+                    "Initial hotkey registration failed: " + error);
                 Require(backend.Active.Count == 3, "Initial hotkey registration count mismatch.");
 
-                var duplicate = Bindings("F10", "F10", "Ctrl+Alt+L");
-                Require(!manager.TryApply(duplicate, out error), "Duplicate FACM hotkeys must be rejected.");
-                Require(backend.Active.Count == 3, "Duplicate validation must not tear down valid bindings.");
+                Require(!manager.TryApply(Bindings("F10", "F10", "Ctrl+Alt+L"), out error),
+                    "Duplicate FACM hotkeys must be rejected.");
+                Require(backend.Active.Count == 3, "Duplicate validation must preserve old bindings.");
 
                 backend.FailNextId = 3;
-                var replacement = Bindings("F6", "F7", "Ctrl+Alt+K");
-                Require(!manager.TryApply(replacement, out error), "Backend registration failure must fail transaction.");
+                Require(!manager.TryApply(Bindings("F6", "F7", "Ctrl+Alt+K"), out error),
+                    "Backend registration failure must fail transaction.");
                 Require(backend.Active.ContainsKey(1) && backend.Active[1].VirtualKey == (uint)Keys.F8,
                     "Failed hotkey transaction did not restore exit-game binding.");
                 Require(backend.Active.ContainsKey(2) && backend.Active[2].VirtualKey == (uint)Keys.F9,
@@ -61,7 +63,7 @@ namespace FACM.League
             using (var module = new LeagueEfficiencyModule(new SettingsModule()))
             {
                 Require(module.Dependencies.Count == 1 && module.Dependencies[0] == SettingsModule.ModuleId,
-                    "League Efficiency must depend only on Settings; hotkeys are event-driven and must not add a League polling dependency.");
+                    "League Efficiency hotkeys must remain event-driven and Settings-only.");
             }
         }
 
@@ -96,49 +98,41 @@ namespace FACM.League
             Require(!LeagueCredentialParser.TryParse("account-----", out account, out password), "Empty password must be rejected.");
             Require(!LeagueCredentialParser.TryParse("account---pass\nword", out account, out password), "Newline credential must fail closed.");
 
-            var platform = new FakeDesktopPlatform
-            {
-                ForegroundProcess = "notepad",
-                ForegroundTitle = "notes",
-                Clipboard = "123-----abc"
-            };
+            var platform = new FakeDesktopPlatform { Clipboard = "123-----abc" };
             var service = new LeagueEfficiencyActionService(platform);
-            var blocked = service.InputCredentialsFromClipboard();
-            Require(blocked.Status == "blocked" && platform.SendCount == 0,
-                "Credential hotkey must not type outside an allowed login window.");
-
-            platform.ForegroundProcess = "WeGame";
-            platform.ForegroundTitle = "WeGame 英雄联盟登录";
             var success = service.InputCredentialsFromClipboard();
             Require(success.Status == "success" && platform.SendCount == 1,
-                "Allowed login foreground did not receive credential input.");
+                "Valid credentials must type into the user's currently focused fields without process/title gating.");
             Require(platform.LastFirst == "123" && platform.LastSecond == "abc",
                 "Credential input sequence fields were wrong.");
+
+            platform.Clipboard = "not-a-valid-pair-";
+            var invalid = service.InputCredentialsFromClipboard();
+            Require(invalid.Status == "invalid" && platform.SendCount == 1,
+                "Invalid clipboard content must not inject keyboard input.");
         }
 
         private static void ValidateProcessActions()
         {
             var platform = new FakeDesktopPlatform();
-            platform.AddProcess(10, "League of Legends");
+            platform.AddProcess(10, "League of Legends(TM)");
             platform.AddProcess(20, "LeagueClient");
+            platform.AddProcess(21, "LeagueClientUx");
             platform.AddProcess(30, "notepad");
             var service = new LeagueEfficiencyActionService(platform);
 
-            var blockedLobby = service.CloseLobbyAsync().GetAwaiter().GetResult();
-            Require(blockedLobby.Status == "blocked", "Lobby close must be blocked while game process exists.");
-            Require(platform.Killed.Count == 0 && platform.CloseRequested.Count == 0,
-                "Blocked lobby close must not touch any process.");
+            var lobby = service.CloseLobbyAsync().GetAwaiter().GetResult();
+            Require(lobby.Status == "success" && !platform.IsProcessAlive(20) && !platform.IsProcessAlive(21),
+                "Close-lobby hotkey must close League lobby immediately even while the game is running.");
+            Require(platform.IsProcessAlive(10), "Close-lobby hotkey must not close the League game process.");
+            Require(platform.IsProcessAlive(30), "Close-lobby hotkey touched an unrelated process.");
 
             var exit = service.ExitGameAsync().GetAwaiter().GetResult();
-            Require(exit.Status == "success", "Exit-game action did not close the exact League game process.");
-            Require(!platform.IsProcessAlive(10), "League game process remained alive in smoke fixture.");
-            Require(platform.IsProcessAlive(20), "Exit-game action must not close League lobby.");
+            Require(exit.Status == "success", "Exit-game action did not kill Tencent League of Legends(TM).");
+            Require(!platform.IsProcessAlive(10), "Tencent League of Legends(TM) process remained alive.");
             Require(platform.IsProcessAlive(30), "Exit-game action touched an unrelated process.");
-
-            var lobby = service.CloseLobbyAsync().GetAwaiter().GetResult();
-            Require(lobby.Status == "success" && !platform.IsProcessAlive(20),
-                "Lobby close did not close exact LeagueClient process after game exit.");
-            Require(platform.IsProcessAlive(30), "Lobby close touched an unrelated process.");
+            Require(platform.CloseRequested.Count == 0,
+                "Efficiency process actions must use immediate precise PID kill, not graceful window close.");
 
             var noTarget = service.ExitGameAsync().GetAwaiter().GetResult();
             Require(noTarget.Status == "no-target", "No-target exit must be a no-op.");
@@ -208,8 +202,6 @@ namespace FACM.League
             private readonly Dictionary<int, string> _alive = new Dictionary<int, string>();
             public readonly List<int> CloseRequested = new List<int>();
             public readonly List<int> Killed = new List<int>();
-            public string ForegroundProcess = string.Empty;
-            public string ForegroundTitle = string.Empty;
             public string Clipboard = string.Empty;
             public int SendCount;
             public string LastFirst;
@@ -240,8 +232,6 @@ namespace FACM.League
                 return true;
             }
 
-            public string GetForegroundProcessName() { return ForegroundProcess; }
-            public string GetForegroundWindowTitle() { return ForegroundTitle; }
             public string ReadClipboardText() { return Clipboard; }
 
             public bool SendTextAndTabThenText(string first, string second)
