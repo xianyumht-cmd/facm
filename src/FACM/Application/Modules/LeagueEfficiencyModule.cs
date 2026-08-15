@@ -105,8 +105,30 @@ namespace FACM.AppHost.Modules
             if (_disposed || _actions == null) return;
             if (string.Equals(action, CredentialsAction, StringComparison.Ordinal))
             {
-                try { _actions.InputCredentialsFromClipboard(); }
-                catch (Exception exception) { AppLog.Error("League credential hotkey failed", exception); }
+                try
+                {
+                    LeagueHotkeyBinding binding;
+                    string error;
+                    if (!LeagueHotkeyBinding.TryParse(CredentialHotkey, out binding, out error) || binding == null || !binding.Enabled)
+                    {
+                        AppLog.Warning("League credential hotkey: invalid saved binding");
+                        return;
+                    }
+
+                    if (!LeagueHotkeyReleaseWaiter.WaitUntilReleased(binding))
+                    {
+                        AppLog.Warning("League credential hotkey: trigger-release-timeout");
+                        return;
+                    }
+
+                    var result = _actions.InputCredentialsFromClipboard();
+                    AppLog.Info("League credential hotkey: " +
+                        (result == null ? "no-result" : result.Status + "/" + result.Detail));
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("League credential hotkey failed", exception);
+                }
                 return;
             }
 
