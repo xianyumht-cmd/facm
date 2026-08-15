@@ -28,7 +28,6 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets);
-            LeaguePlayerUiBridge.Install(this);
         }
 
         public Form CreatePlayerForm(UiTextCatalog ui)
@@ -39,7 +38,6 @@ namespace FACM.AppHost.Modules
 
         public void Dispose()
         {
-            LeaguePlayerUiBridge.Uninstall();
             _service = null;
         }
     }
