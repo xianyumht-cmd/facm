@@ -33,6 +33,35 @@ namespace FACM.League
             Require(LeagueHotkeyService.UsesDedicatedMessageThreadForSmokeTest(),
                 "League hotkeys must be isolated from FACM window focus on a dedicated message thread.");
 
+            Require(LeagueHotkeyBinding.TryParse("Ctrl+Alt+L", out binding, out error), error);
+            var releaseKeys = LeagueHotkeyReleaseWaiter.GetReleaseKeys(binding);
+            Require(releaseKeys.Contains((int)Keys.L) && releaseKeys.Contains(0x11) && releaseKeys.Contains(0x12),
+                "Credential hotkey release wait must include trigger key + Ctrl + Alt.");
+            Require(!releaseKeys.Contains(0x10), "Credential hotkey release wait must not invent Shift.");
+
+            var releasePhase = 0;
+            var delays = new List<int>();
+            Require(LeagueHotkeyReleaseWaiter.WaitUntilReleased(
+                    binding,
+                    delegate(int key) { return releasePhase == 0; },
+                    delegate(int milliseconds)
+                    {
+                        delays.Add(milliseconds);
+                        if (milliseconds == 10) releasePhase = 1;
+                    },
+                    100,
+                    10),
+                "Credential hotkey did not wait through physical trigger release.");
+            Require(delays.Contains(10) && delays.Contains(30),
+                "Credential release wait must include bounded polling and a short post-release settle delay.");
+            Require(!LeagueHotkeyReleaseWaiter.WaitUntilReleased(
+                    binding,
+                    delegate(int key) { return true; },
+                    delegate(int milliseconds) { },
+                    20,
+                    10),
+                "Credential release wait must fail closed when the trigger remains physically held past timeout.");
+
             var backend = new FakeHotkeyBackend();
             var ids = new Dictionary<string, int>(StringComparer.Ordinal)
             {
@@ -110,6 +139,15 @@ namespace FACM.League
             var invalid = service.InputCredentialsFromClipboard();
             Require(invalid.Status == "invalid" && platform.SendCount == 1,
                 "Invalid clipboard content must not inject keyboard input.");
+
+            platform.Clipboard = "123-----abc";
+            platform.SendSucceeds = false;
+            platform.InputFailure = "account-select:sent=0/4,win32=5";
+            var failed = service.InputCredentialsFromClipboard();
+            Require(failed.Status == "failed" && failed.Detail.Contains("account-select") && platform.SendCount == 2,
+                "Credential injection failure must preserve the failing step without logging credential content.");
+            Require(failed.Detail.IndexOf("123", StringComparison.Ordinal) < 0 && failed.Detail.IndexOf("abc", StringComparison.Ordinal) < 0,
+                "Credential diagnostics must never include account/password content.");
         }
 
         private static void ValidateProcessActions()
@@ -206,6 +244,10 @@ namespace FACM.League
             public int SendCount;
             public string LastFirst;
             public string LastSecond;
+            public bool SendSucceeds = true;
+            public string InputFailure = string.Empty;
+
+            public string LastInputFailure { get { return InputFailure; } }
 
             public void AddProcess(int id, string name) { _alive[id] = name; }
 
@@ -239,7 +281,7 @@ namespace FACM.League
                 SendCount++;
                 LastFirst = first;
                 LastSecond = second;
-                return true;
+                return SendSucceeds;
             }
         }
     }
