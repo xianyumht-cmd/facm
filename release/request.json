@@ -1,8 +1,8 @@
 {
-  "request_id": "facm-3-2-0",
-  "version": "3.2.0",
+  "request_id": "facm-3-3-0-20260815",
+  "version": "3.3.0",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.2.0：桌面宠物、控制中心、界面文字自定义与整体稳定性更新。"
+  "release_notes": "FACM 3.3.0：控制中心与托盘菜单进一步收束，新增选人自动应用 FACM 推荐、全局一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。"
 }
