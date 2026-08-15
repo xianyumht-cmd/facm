@@ -15,6 +15,8 @@ namespace FACM.League
         private readonly TextBox _credentials;
         private readonly CheckBox _autoHonor;
         private readonly CheckBox _autoReturn;
+        private readonly CheckBox _autoSearch;
+        private readonly CheckBox _autoAccept;
         private readonly Label _status;
         private bool _loading = true;
 
@@ -25,8 +27,8 @@ namespace FACM.League
 
             Text = T(LeagueEfficiencyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(720, 670);
-            MinimumSize = new Size(680, 620);
+            ClientSize = new Size(720, 835);
+            MinimumSize = new Size(680, 720);
             BackColor = Color.FromArgb(17, 24, 39);
             ForeColor = Color.FromArgb(241, 245, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -36,8 +38,9 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 11,
-                BackColor = BackColor
+                RowCount = 14,
+                BackColor = BackColor,
+                AutoScroll = true
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -46,6 +49,9 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
@@ -68,18 +74,9 @@ namespace FACM.League
             }, 0, 1);
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.HotkeySection)), 0, 2);
 
-            _exitGame = AddHotkeyRow(root, 3,
-                T(LeagueEfficiencyUiTextKeys.ExitGame),
-                T(LeagueEfficiencyUiTextKeys.ExitGameHint),
-                _module.ExitGameHotkey);
-            _closeLobby = AddHotkeyRow(root, 4,
-                T(LeagueEfficiencyUiTextKeys.CloseLobby),
-                T(LeagueEfficiencyUiTextKeys.CloseLobbyHint),
-                _module.CloseLobbyHotkey);
-            _credentials = AddHotkeyRow(root, 5,
-                T(LeagueEfficiencyUiTextKeys.Credentials),
-                T(LeagueEfficiencyUiTextKeys.CredentialsHint),
-                _module.CredentialHotkey);
+            _exitGame = AddHotkeyRow(root, 3, T(LeagueEfficiencyUiTextKeys.ExitGame), T(LeagueEfficiencyUiTextKeys.ExitGameHint), _module.ExitGameHotkey);
+            _closeLobby = AddHotkeyRow(root, 4, T(LeagueEfficiencyUiTextKeys.CloseLobby), T(LeagueEfficiencyUiTextKeys.CloseLobbyHint), _module.CloseLobbyHotkey);
+            _credentials = AddHotkeyRow(root, 5, T(LeagueEfficiencyUiTextKeys.Credentials), T(LeagueEfficiencyUiTextKeys.CredentialsHint), _module.CredentialHotkey);
 
             var hotkeyFooter = new TableLayoutPanel
             {
@@ -104,16 +101,16 @@ namespace FACM.League
             root.Controls.Add(hotkeyFooter, 0, 6);
 
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.PostGameSection)), 0, 7);
-            _autoHonor = AddAutomationRow(root, 8,
-                T(LeagueEfficiencyUiTextKeys.AutoHonor),
-                T(LeagueEfficiencyUiTextKeys.AutoHonorHint),
-                _module.AutoHonorEnabled);
-            _autoReturn = AddAutomationRow(root, 9,
-                T(LeagueEfficiencyUiTextKeys.AutoReturn),
-                T(LeagueEfficiencyUiTextKeys.AutoReturnHint),
-                _module.AutoReturnLobbyEnabled);
-            _autoHonor.CheckedChanged += AutoSettingChanged;
-            _autoReturn.CheckedChanged += AutoSettingChanged;
+            _autoHonor = AddAutomationRow(root, 8, T(LeagueEfficiencyUiTextKeys.AutoHonor), T(LeagueEfficiencyUiTextKeys.AutoHonorHint), _module.AutoHonorEnabled);
+            _autoReturn = AddAutomationRow(root, 9, T(LeagueEfficiencyUiTextKeys.AutoReturn), T(LeagueEfficiencyUiTextKeys.AutoReturnHint), _module.AutoReturnLobbyEnabled);
+            _autoHonor.CheckedChanged += PostGameSettingChanged;
+            _autoReturn.CheckedChanged += PostGameSettingChanged;
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.NextGameSection)), 0, 10);
+            _autoSearch = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoMatchmaking), T(LeagueEfficiencyUiTextKeys.AutoMatchmakingHint), _module.AutoMatchmakingEnabled);
+            _autoAccept = AddAutomationRow(root, 12, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
+            _autoSearch.CheckedChanged += MatchmakingSettingChanged;
+            _autoAccept.CheckedChanged += MatchmakingSettingChanged;
 
             Controls.Add(root);
             _loading = false;
@@ -265,7 +262,7 @@ namespace FACM.League
             }
         }
 
-        private void AutoSettingChanged(object sender, EventArgs e)
+        private void PostGameSettingChanged(object sender, EventArgs e)
         {
             if (_loading) return;
             _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked);
@@ -273,10 +270,15 @@ namespace FACM.League
             _status.Text = T(LeagueEfficiencyUiTextKeys.PostGameSaved);
         }
 
-        private string T(string key)
+        private void MatchmakingSettingChanged(object sender, EventArgs e)
         {
-            return LeagueEfficiencyText.Get(_ui, key);
+            if (_loading) return;
+            _module.UpdateMatchmakingSettings(_autoSearch.Checked, _autoAccept.Checked);
+            _status.ForeColor = Color.FromArgb(134, 239, 172);
+            _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
+
+        private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
     }
 
     internal sealed class LeagueHotkeyCaptureDialog : Form
