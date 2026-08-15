@@ -31,7 +31,12 @@
 - FACM 主窗口是否前台、最小化、隐藏不参与 hotkey 接收链；
 - 保存绑定通过隐藏消息窗串行注册，重复绑定/系统占用仍失败并回滚旧绑定。
 
-参考 Microsoft PowerToys 当前 GitHub 源码的两个原则：global hotkey 不依赖当前 context；键盘自动化序列给 UI 焦点切换留短间隔。FACM 保持 RegisterHotKey，不引入低级 Hook。
+参考 Microsoft PowerToys 当前 GitHub 源码的两个原则：
+
+- global hotkey 应始终 active，不依赖当前 context；
+- 自动键盘序列要给按键/焦点切换留短间隔，而不是假设所有 UI 会瞬时处理完整序列。
+
+FACM 保持 `RegisterHotKey`，不引入 PowerToys 的低级键盘 Hook。
 
 ### 一键结束游戏
 
