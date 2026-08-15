@@ -205,6 +205,16 @@ namespace FACM.League
             return false;
         }
 
+        internal static int InputStructureSizeForSmokeTest()
+        {
+            return Marshal.SizeOf(typeof(Input));
+        }
+
+        internal static int ExpectedInputStructureSizeForSmokeTest()
+        {
+            return IntPtr.Size == 8 ? 40 : 28;
+        }
+
         private static void AppendVirtualKey(ICollection<Input> inputs, ushort key)
         {
             AppendVirtualKeyDown(inputs, key);
@@ -253,7 +263,20 @@ namespace FACM.League
         [StructLayout(LayoutKind.Explicit)]
         private struct InputUnion
         {
+            [FieldOffset(0)] public MouseInputData Mouse;
             [FieldOffset(0)] public KeyboardInputData Keyboard;
+            [FieldOffset(0)] public HardwareInputData Hardware;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MouseInputData
+        {
+            public int Dx;
+            public int Dy;
+            public uint MouseData;
+            public uint Flags;
+            public uint Time;
+            public UIntPtr ExtraInfo;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -264,6 +287,14 @@ namespace FACM.League
             public uint Flags;
             public uint Time;
             public UIntPtr ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct HardwareInputData
+        {
+            public uint Message;
+            public ushort ParamL;
+            public ushort ParamH;
         }
 
         [DllImport("user32.dll", SetLastError = true)]
