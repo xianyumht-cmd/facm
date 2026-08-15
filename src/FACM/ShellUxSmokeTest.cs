@@ -1,4 +1,5 @@
 using System;
+using FACM.League;
 
 namespace FACM
 {
@@ -7,16 +8,15 @@ namespace FACM
         internal static void Validate()
         {
             // PerformanceContractSmokeTest runs before Application.EnableVisualStyles/Application.Run.
-            // Keep this contract smoke pure: runtime menu objects are validated when actions register,
-            // while CI validates the stable five-root definition and deterministic League ordering.
+            // Keep this contract smoke pure: runtime menu objects are validated by MainForm, while CI
+            // validates the stable five-root definition and the single-entry League Hub structure.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
+            LeagueHubNavigation.ValidateForSmokeTest();
 
-            Require(ShellMenuGroups.DashboardOrder < ShellMenuGroups.PlayerOrder, "Dashboard must stay before Player.");
-            Require(ShellMenuGroups.PlayerOrder < ShellMenuGroups.LiveOrder, "Player must stay before Live.");
-            Require(ShellMenuGroups.LiveOrder < ShellMenuGroups.AdvisorOrder, "Live must stay before OP.GG Advisor.");
-            Require(ShellMenuGroups.AdvisorOrder < ShellMenuGroups.ApplyOrder, "Advisor must stay before Apply.");
-            Require(ShellMenuGroups.ApplyOrder < ShellMenuGroups.ItemSetOrder, "Apply must stay before ItemSet.");
-            Require(ShellMenuGroups.ItemSetOrder < ShellMenuGroups.MayhemOrder, "ItemSet must stay before Mayhem.");
+            Require(LeagueHubNavigation.Views.Count == 8, "League Hub accepted-view count changed unexpectedly.");
+            Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard, "League Hub must open from Overview/Dashboard.");
+            Require(LeagueHubNavigation.Views[LeagueHubNavigation.Views.Count - 1].Id == LeagueHubNavigation.Efficiency,
+                "League Hub efficiency page must remain reachable from the unified window.");
         }
 
         private static void Require(bool condition, string message)
