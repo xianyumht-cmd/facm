@@ -60,7 +60,7 @@ namespace FACM.Services
             return _catalog == null ? (text ?? string.Empty) : _catalog.Translate(text);
         }
 
-        public static void Apply(ContextMenuStrip menu)
+        public static void Apply(System.Windows.Forms.ContextMenuStrip menu)
         {
             if (menu == null || menu.IsDisposed) return;
             ApplyToolStripItems(menu.Items);

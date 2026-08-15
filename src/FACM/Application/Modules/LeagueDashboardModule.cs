@@ -25,9 +25,17 @@ namespace FACM.AppHost.Modules
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
+        public event Action<LeagueDashboardPhaseState> GameflowStateChanged;
+
+        public LeagueDashboardPhaseState CurrentGameflowState
+        {
+            get { return _monitor == null ? null : _monitor.Current; }
+        }
+
         public void Initialize()
         {
             _monitor = new LeagueGameflowMonitor(_leagueClient, _performance.Budgets);
+            _monitor.StateChanged += ForwardGameflowState;
             LeagueDashboardUiBridge.Install(this);
             Application.Idle += StartMonitor;
         }
@@ -36,6 +44,12 @@ namespace FACM.AppHost.Modules
         {
             Application.Idle -= StartMonitor;
             if (_monitor != null) _monitor.Start();
+        }
+
+        private void ForwardGameflowState(LeagueDashboardPhaseState state)
+        {
+            var handler = GameflowStateChanged;
+            if (handler != null) handler(state);
         }
 
         public Form CreateDashboardForm(UiTextCatalog ui)
@@ -47,7 +61,11 @@ namespace FACM.AppHost.Modules
         {
             Application.Idle -= StartMonitor;
             LeagueDashboardUiBridge.Uninstall();
-            if (_monitor != null) _monitor.Dispose();
+            if (_monitor != null)
+            {
+                _monitor.StateChanged -= ForwardGameflowState;
+                _monitor.Dispose();
+            }
             _monitor = null;
         }
     }

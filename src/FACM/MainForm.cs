@@ -62,7 +62,7 @@ namespace FACM
             _startCleanup = startCleanup;
             _appIcon = BrandIcon.Create();
 
-            Text = "FACM";
+            Text = _ui.AppName;
             Icon = _appIcon;
             ShowInTaskbar = false;
             TopMost = true;
@@ -79,7 +79,10 @@ namespace FACM
             _tray = new NotifyIcon
             {
                 Icon = _appIcon,
-                Text = "FACM 3.1",
+                Text = string.Format(
+                    _ui.Get(UiTextKeys.ShellTrayTooltipFormat),
+                    _ui.AppName,
+                    DisplayMajorMinorVersion()),
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
@@ -311,6 +314,29 @@ namespace FACM
             }
         }
 
+        internal bool ShowShellGroup(string groupName, Control anchor, Action onClosed)
+        {
+            if (IsDisposed || _tray == null || _tray.ContextMenuStrip == null) return false;
+            var group = ShellMenuGroups.FindGroup(_tray.ContextMenuStrip, groupName);
+            if (group == null || group.DropDownItems.Count == 0) return false;
+
+            var dropDown = group.DropDown;
+            ToolStripDropDownClosedEventHandler closed = null;
+            closed = delegate
+            {
+                dropDown.Closed -= closed;
+                if (onClosed != null) onClosed();
+            };
+            dropDown.Closed += closed;
+
+            var point = anchor != null && !anchor.IsDisposed
+                ? anchor.PointToScreen(new Point(0, anchor.Height + 4))
+                : Cursor.Position;
+            UiTextRuntime.Apply(_tray.ContextMenuStrip);
+            dropDown.Show(point);
+            return true;
+        }
+
         private void HandleShown(object sender, EventArgs e)
         {
             RestoreBallPosition();
@@ -397,21 +423,63 @@ namespace FACM
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ShowImageMargin = false
             };
-            menu.Items.Add("打开" + _ui.ControlCenter, null, delegate { ToggleMenu(); });
-            menu.Items.Add(_ui.Cleanup, null, delegate
+
+            var open = new ToolStripMenuItem(_ui.Get(UiTextKeys.Open) + _ui.ControlCenter)
+            {
+                Name = ShellMenuGroups.OpenRootName
+            };
+            open.Click += delegate { ToggleMenu(); };
+
+            var cleanup = new ToolStripMenuItem(_ui.Cleanup)
+            {
+                Name = ShellMenuGroups.CleanupRootName
+            };
+            cleanup.Click += delegate
             {
                 if (_menu == null) ToggleMenu();
                 if (_menu != null && !_menu.IsDisposed)
                     _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
-            });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("主题", null, delegate { ThemeMenu.Show(this, Cursor.Position); });
-            menu.Items.Add("海斗排行榜", null, delegate { OpenMayhemLookup(); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(_ui.CheckUpdate, null, delegate { OpenUpdateCenter(); });
-            menu.Items.Add(_ui.OpenLog, null, delegate { OpenLogFile(); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(_ui.Exit, null, delegate { ExitApplication(); });
+            };
+
+            var league = ShellMenuGroups.CreateRootGroup(
+                ShellMenuGroups.LeagueGroupName,
+                _ui.Get(UiTextKeys.ShellLeague));
+            var more = ShellMenuGroups.CreateRootGroup(
+                ShellMenuGroups.MoreGroupName,
+                _ui.Get(UiTextKeys.ShellMore));
+
+            var exit = new ToolStripMenuItem(_ui.Exit)
+            {
+                Name = ShellMenuGroups.ExitRootName
+            };
+            exit.Click += delegate { ExitApplication(); };
+
+            menu.Items.Add(open);
+            menu.Items.Add(cleanup);
+            menu.Items.Add(league);
+            menu.Items.Add(more);
+            menu.Items.Add(exit);
+
+            ShellMenuGroups.AddLeagueAction(
+                menu,
+                ShellMenuGroups.MayhemActionName,
+                _ui.Get(UiTextKeys.MayhemRanking),
+                ShellMenuGroups.MayhemOrder,
+                delegate { OpenMayhemLookup(); });
+
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.PanelTheme", _ui.Get(UiTextKeys.PanelTheme), 10,
+                delegate { OpenPanelThemeSelector(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.DesktopPet", _ui.Get(UiTextKeys.DesktopPet), 20,
+                delegate { OpenPetSelector(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.RestoreShell", _ui.Get(UiTextKeys.RestoreFloatingBall), 30,
+                delegate { RestoreDefaultBall(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.ResetDesktop", _ui.Get(UiTextKeys.PetReset), 40,
+                delegate { ResetAnimalPet(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.Update", _ui.CheckUpdate, 60,
+                delegate { OpenUpdateCenter(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.Log", _ui.OpenLog, 70,
+                delegate { OpenLogFile(); });
+
             return menu;
         }
 
@@ -724,6 +792,14 @@ namespace FACM
             cursorX = Math.Max(cursorArea.Left + 8, Math.Min(cursorX, cursorArea.Right - menu.Width - 8));
             cursorY = Math.Max(cursorArea.Top + 8, Math.Min(cursorY, cursorArea.Bottom - menu.Height - 8));
             menu.Location = new Point(cursorX, cursorY);
+        }
+
+        internal static string DisplayMajorMinorVersion()
+        {
+            Version version;
+            if (Version.TryParse(Application.ProductVersion, out version))
+                return version.Major + "." + version.Minor;
+            return Application.ProductVersion ?? string.Empty;
         }
 
         private static string TrimBalloonText(string value)
