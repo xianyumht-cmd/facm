@@ -16,6 +16,8 @@
 <!-- FACM_RELEASE_STATE_END -->
 
 > 2026-08-15：**FACM 3.3.0 已正式发布并启用在线更新。** Release `v3.3.0`、在线 manifest 与 3.3.0 公告均为当前生产事实。不要再把 3.2.0 或 3.3.0 候选状态当作当前生产状态。
+>
+> 2026-08-16 腾讯真实使用回归：3.3.0 的 **自动寻找对局 / 自动接受对局确认无效果**。Issue #118 / Draft PR #119 正在修复；在用户重新实机验收前，不得把这两项描述成国服可用。当前生产 3.3.0 其它已验收功能不受该结论影响，也没有因此自动发布新的线上版本。
 
 ## 3.3.0 发布证据
 
@@ -62,13 +64,16 @@
 - 同一连续赛后 episode 最多执行一次，不无限重试。
 - 默认关闭。
 
-### 自动下一局 — RELEASED / 用户授权先发布后实测
+### 自动下一局 — 3.3.0 RELEASED / 腾讯回归确认失败 / #118 修复中
 
-- 自动寻找对局。
-- 自动接受 ReadyCheck。
-- 两项默认关闭。
-- deterministic smoke 与最小 writer allowlist 已进入 Performance Contract。
-- 用户明确授权：随 3.3.0 正式发布，真实腾讯匹配流程若发现问题再单独修复。因此**不要把它描述成已完成腾讯实机验收**。
+- 3.3.0 已包含自动寻找对局与自动接受 ReadyCheck，且两项默认关闭。
+- 发布前只有 deterministic smoke，用户当时明确授权“先发布，真实使用发现问题再修”，没有腾讯实机验收结论。
+- 2026-08-16 用户在国服真实使用确认：两项开关均无效果；因此当前状态是 **生产已发布但国服不可视为可用**。
+- 根因初步确认是 FACM 第一版把未经腾讯验证的可选字段提升成硬门槛：自动找局强依赖 `partyId / allowedStartActivity / queueId / warnings/restrictions`；自动接受强依赖 `/lol-matchmaking/v1/search` 的 `lobbyId / queueId / readyCheck.state`。
+- Issue #118 / Draft PR #119 从生产 main 独立修复：找局只保留 `canStartActivity + isLeader + real member` 核心门槛；自动接受改为以 Gameflow `ReadyCheck` episode 为主触发，search state 仅用于 best-effort 检查已 Accepted/Declined。
+- 修复继续保持唯一 League session、专用 Gate7 writer exact allowlist、默认 OFF、single-episode exactly-once、InGame 零 Gate7 写入。
+- 首轮修复行为 HEAD `965ca170a766369dd341e3a47ae406975c102199`：UI Text #170 SUCCESS / Windows #1049 SUCCESS；Windows 日志明确 `FACM performance contract smoke passed.`。文档提交后以最新 HEAD CI 为最终候选依据。
+- **PR #119 不合并、不发布，直到用户用腾讯真实 Lobby → Queue → ReadyCheck 重新验证。**
 
 ## 明确取消：账号密码快捷输入
 
@@ -99,7 +104,7 @@
 - Gate 4：自动应用推荐 — DONE / 3.3.0
 - League Efficiency Gate 5：结束游戏 + 关闭大厅快捷键 — DONE / 3.3.0
 - Gate 6：随机点赞 + 自动返回大厅 — DONE / 3.3.0
-- Gate 7：自动找局 + 自动接受 — RELEASED / 3.3.0 / 待真实使用反馈
+- Gate 7：自动找局 + 自动接受 — 3.3.0 已发布，但腾讯实机确认无效果；Issue #118 / PR #119 修复中
 
 ## 3.3 性能与权限冻结边界
 
@@ -114,8 +119,9 @@
 ## 仓库收口
 
 - PR #115 是 3.3.0 最终功能集成来源。
-- 旧并行 PR #105（Shell UX）、#110（Gate5）、#112（Gate6）、#114（Gate7）应标记为 **superseded by #115 / v3.3.0**，不要再分别合并。
-- 对应 Issue #104 / #109 / #111 / #113 / 总览 #108 在记录 3.3.0 吸收关系后关闭 completed；#109 需注明 credential 子需求被明确取消。
+- 旧并行 PR #105（Shell UX）、#110（Gate5）、#112（Gate6）、#114（Gate7）已标记为 **superseded by #115 / v3.3.0**，不得再分别合并。
+- 对应 Issue #104 / #109 / #111 / #113 / 总览 #108 已在记录 3.3.0 吸收关系后关闭 completed；#109 已注明 credential 子需求明确取消。
+- Gate7 的生产回归使用新 Issue #118 / PR #119 独立追踪，不重开旧 stacked PR。
 - 不删除这些分支，除非用户另行明确授权。
 
 ## 冻结的稳定系统
