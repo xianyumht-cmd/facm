@@ -116,9 +116,22 @@ namespace FACM.League
             if (!SendCtrlA("account-select")) return false;
             Thread.Sleep(25);
             if (!SendText(first ?? string.Empty, "account-text")) return false;
-            Thread.Sleep(25);
-            if (!SendVirtualKey(0x09, "tab-to-password")) return false;
-            Thread.Sleep(60);
+            Thread.Sleep(35);
+
+            string focusDetail;
+            if (LeagueCredentialFocus.TryFocusPasswordField(out focusDetail))
+            {
+                AppLog.Info("League credential-input password-focus: " + focusDetail);
+            }
+            else
+            {
+                AppLog.Warning("League credential-input password-focus: " + focusDetail + "; fallback-double-tab");
+                if (!SendVirtualKey(0x09, "tab-to-password-1")) return false;
+                Thread.Sleep(50);
+                if (!SendVirtualKey(0x09, "tab-to-password-2")) return false;
+                Thread.Sleep(80);
+            }
+
             if (!SendCtrlA("password-select")) return false;
             Thread.Sleep(25);
             if (!SendText(second ?? string.Empty, "password-text")) return false;
