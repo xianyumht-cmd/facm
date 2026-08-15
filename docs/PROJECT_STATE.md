@@ -1,5 +1,20 @@
 # FACM 当前项目状态
+
 
+<!-- FACM_RELEASE_STATE_BEGIN -->
+## 当前正式版（发布工作流维护）
+
+- 版本：FACM 3.3.0
+- GitHub Release：v3.3.0
+- 在线更新：已启用
+- minimum_version：3.0.0
+- force_update：false
+- 发布基础 main：73d49964fdcc8e3a1441dfbcc605d07f7a4ce7c0
+- 发布元数据提交：5877ffbe8d69eb1ed826186574daefce6d85b4e0
+- Release FACM.exe SHA-256：74649FEC5153A3D47681529D892227F28EB395FC68460D0D12FC8B9D3B9C9C2F
+- published_at：2026-08-15T05:13:06.9356240+00:00
+- release_notes：FACM 3.3.0：控制中心与托盘菜单进一步收束，新增选人自动应用 FACM 推荐、全局一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。
+<!-- FACM_RELEASE_STATE_END -->
 > 2026-08-15：线上正式生产仍为 **FACM 3.2.0 / v3.2.0**。FACM 3.3.0 已进入用户明确授权的正式发布收口；集成 PR #115 汇合已验收/授权功能。发布工作流成功前，不把 3.3.0 视为生产版本。
 
 ## 当前正式生产

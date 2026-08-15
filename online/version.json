@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.3.0",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.3.0/FACM.exe",
   "sha256": "74649FEC5153A3D47681529D892227F28EB395FC68460D0D12FC8B9D3B9C9C2F",
   "release_notes": "FACM 3.3.0：控制中心与托盘菜单进一步收束，新增选人自动应用 FACM 推荐、全局一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。",
-  "published_at": "2026-08-15T05:12:57.2264713+00:00"
+  "published_at": "2026-08-15T05:13:06.9356240+00:00"
 }
