@@ -24,10 +24,15 @@ namespace FACM.League
         bool Kill(int processId);
         string ReadClipboardText();
         bool SendTextAndTabThenText(string first, string second);
+        string LastInputFailure { get; }
     }
 
     internal sealed class WindowsLeagueDesktopPlatform : ILeagueDesktopPlatform
     {
+        private string _lastInputFailure = string.Empty;
+
+        public string LastInputFailure { get { return _lastInputFailure; } }
+
         public IReadOnlyList<LeagueProcessSnapshot> GetProcesses()
         {
             var result = new List<LeagueProcessSnapshot>();
@@ -82,56 +87,94 @@ namespace FACM.League
 
         public string ReadClipboardText()
         {
-            try { return Clipboard.ContainsText() ? Clipboard.GetText(TextDataFormat.UnicodeText) : string.Empty; }
-            catch { return string.Empty; }
+            // The clipboard can be held briefly by the launcher or another foreground process.
+            // Retry only after the explicit credential hotkey; there is no background polling.
+            for (var attempt = 0; attempt < 6; attempt++)
+            {
+                try
+                {
+                    if (Clipboard.ContainsText())
+                        return Clipboard.GetText(TextDataFormat.UnicodeText) ?? string.Empty;
+                }
+                catch (ExternalException)
+                {
+                    // Transient clipboard ownership race; bounded retry below.
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+
+                if (attempt < 5) Thread.Sleep(25);
+            }
+            return string.Empty;
         }
 
         public bool SendTextAndTabThenText(string first, string second)
         {
-            if (!SendCtrlA()) return false;
+            _lastInputFailure = string.Empty;
+            if (!SendCtrlA("account-select")) return false;
             Thread.Sleep(25);
-            if (!SendUnicode(first ?? string.Empty)) return false;
+            if (!SendUnicode(first ?? string.Empty, "account-text")) return false;
             Thread.Sleep(25);
-            if (!SendVirtualKey(0x09)) return false;
-            Thread.Sleep(50);
-            if (!SendCtrlA()) return false;
+            if (!SendVirtualKey(0x09, "tab-to-password")) return false;
+            Thread.Sleep(60);
+            if (!SendCtrlA("password-select")) return false;
             Thread.Sleep(25);
-            return SendUnicode(second ?? string.Empty);
+            if (!SendUnicode(second ?? string.Empty, "password-text")) return false;
+            return true;
         }
 
-        private static bool SendCtrlA()
+        private bool SendCtrlA(string step)
         {
             var inputs = new List<Input>();
             AppendVirtualKeyDown(inputs, 0x11);
             AppendVirtualKey(inputs, 0x41);
             AppendVirtualKeyUp(inputs, 0x11);
-            return SendBatch(inputs);
+            return SendBatch(inputs, step);
         }
 
-        private static bool SendUnicode(string value)
+        private bool SendUnicode(string value, string step)
         {
-            if (string.IsNullOrEmpty(value)) return false;
+            if (string.IsNullOrEmpty(value))
+            {
+                _lastInputFailure = step + ":empty";
+                return false;
+            }
+
             var inputs = new List<Input>();
             foreach (var ch in value)
             {
                 inputs.Add(KeyboardInput(0, ch, KeyEventUnicode));
                 inputs.Add(KeyboardInput(0, ch, KeyEventUnicode | KeyEventKeyUp));
             }
-            return SendBatch(inputs);
+            return SendBatch(inputs, step);
         }
 
-        private static bool SendVirtualKey(ushort key)
+        private bool SendVirtualKey(ushort key, string step)
         {
             var inputs = new List<Input>();
             AppendVirtualKey(inputs, key);
-            return SendBatch(inputs);
+            return SendBatch(inputs, step);
         }
 
-        private static bool SendBatch(ICollection<Input> inputs)
+        private bool SendBatch(ICollection<Input> inputs, string step)
         {
-            if (inputs == null || inputs.Count == 0) return false;
+            if (inputs == null || inputs.Count == 0)
+            {
+                _lastInputFailure = step + ":no-inputs";
+                return false;
+            }
+
             var array = inputs.ToArray();
-            return SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input))) == (uint)array.Length;
+            Marshal.GetLastWin32Error();
+            var sent = SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input)));
+            if (sent == (uint)array.Length) return true;
+
+            var error = Marshal.GetLastWin32Error();
+            _lastInputFailure = step + ":sent=" + sent + "/" + array.Length + ",win32=" + error;
+            AppLog.Warning("League credential-input SendInput failed at " + _lastInputFailure);
+            return false;
         }
 
         private static void AppendVirtualKey(ICollection<Input> inputs, ushort key)
@@ -294,9 +337,20 @@ namespace FACM.League
                     AppLog.Info("League credential-input: invalid-format");
                     return Result("invalid", "clipboard-format", 0);
                 }
+
+                AppLog.Info("League credential-input: parsed accountLength=" + account.Length + ",passwordLength=" + password.Length);
                 var sent = _platform.SendTextAndTabThenText(account, password);
-                AppLog.Info("League credential-input: " + (sent ? "success" : "failed"));
-                return Result(sent ? "success" : "failed", sent ? "credentials-sent" : "send-input-failed", sent ? 1 : 0);
+                if (sent)
+                {
+                    AppLog.Info("League credential-input: success");
+                    return Result("success", "credentials-sent", 1);
+                }
+
+                var failure = string.IsNullOrWhiteSpace(_platform.LastInputFailure)
+                    ? "send-input-failed"
+                    : "send-input-failed/" + _platform.LastInputFailure;
+                AppLog.Warning("League credential-input: failed/" + failure);
+                return Result("failed", failure, 0);
             }
             finally
             {
