@@ -36,7 +36,6 @@ namespace FACM.AppHost.Modules
         {
             _monitor = new LeagueGameflowMonitor(_leagueClient, _performance.Budgets);
             _monitor.StateChanged += ForwardGameflowState;
-            LeagueDashboardUiBridge.Install(this);
             Application.Idle += StartMonitor;
         }
 
@@ -60,7 +59,6 @@ namespace FACM.AppHost.Modules
         public void Dispose()
         {
             Application.Idle -= StartMonitor;
-            LeagueDashboardUiBridge.Uninstall();
             if (_monitor != null)
             {
                 _monitor.StateChanged -= ForwardGameflowState;

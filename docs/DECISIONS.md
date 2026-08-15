@@ -1,5 +1,35 @@
 # FACM 技术决策
 
+## 2026-08-16：League 产品入口收束为一个按钮、一个中心窗口
+
+### 决策
+
+FACM 的英雄联盟功能不再按 Dashboard / Player / Live / OP.GG / Efficiency 等内部模块向用户暴露多个 Shell 按钮。正式信息架构固定为：
+
+- 托盘与控制中心只保留一个 `英雄联盟` 主入口；
+- 点击后只打开一个 `英雄联盟中心` 窗口；
+- Hub 内只保留三个普通用户能理解的分区：`对局 / 推荐 / 效率`；
+- 已验收的 Dashboard、玩家主页、实时对局、海斗、OP.GG 对局助手、一键应用、推荐装备、游戏效率继续复用原有 Form/service，不为了统一外壳重写运行逻辑；
+- `LeagueHubModule` 成为 Shell 层唯一 League UI navigation owner；业务模块不再自行注册 Shell 子按钮；
+- Hub 只保留当前页，切页正常关闭旧页并执行原有 FormClosed 清理，禁止把访问过的页面全部隐藏常驻；
+- `ShellMenuGroups.AddLeagueAction` 作为兼容 no-op，防止旧 UiBridge 或未来新模块把 League submenu 再长回来。
+
+### 原因
+
+- 当前 League 功能数量并不需要多个并列入口；多个按钮只是把内部模块边界暴露给用户，增加寻找和理解成本；
+- 用户明确要求“英雄联盟的功能集中到一个按钮里、一个面板上”；
+- FACM 已经形成面向小白、低打扰的产品路线，继续堆入口会逐步退化成高级工具箱式 UI；
+- 运行层已经按模块拥有明确 service/controller 边界，UI 收束无需把稳定业务代码重新揉成万能模块；
+- 单页懒加载 + 切页释放可以维持 FACM 的低占用优势，避免“统一面板”变成多个旧窗体同时后台运行。
+
+### 后果
+
+- 新 League 功能原则上先判断应归入 `对局 / 推荐 / 效率` 哪一组，不新增 Shell 顶层或 League submenu 按钮；
+- 如果未来出现真正不同的产品域，再单独评估新的顶层入口，不能以“实现方便”为理由突破单入口契约；
+- `ShellUxSmokeTest / LeagueHubNavigation.ValidateForSmokeTest / FacmHostSmokeTest` 必须共同守住单入口、三分区、唯一 League runtime ownership；
+- League Hub 是 navigation/composition 层，不新增 LCU session、gameflow monitor 或 writer；
+- Issue #120 / PR #121 实现该决策；它与已腾讯验收的 #119 Gate7 修复在下一个正式版本中一起发布。
+
 ## 2026-08-13：FACM 3.2 采用轻量 Modular Host，分层实施并在整轮完成后集中实机验收
 
 ### 决策

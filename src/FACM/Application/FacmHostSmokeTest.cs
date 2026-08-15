@@ -118,6 +118,7 @@ namespace FACM.AppHost
             var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
             var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
             var mayhem = new MayhemModule(leagueClient);
+            var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem);
             var cleanup = new CleanupModule();
             var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
 
@@ -133,6 +134,15 @@ namespace FACM.AppHost
                 "League Build Advisor must depend on Settings, LeagueClient and Performance.");
             Require(leagueEfficiency.Dependencies.SequenceEqual(new[] { SettingsModule.ModuleId, LeagueClientModule.ModuleId, LeagueDashboardModule.ModuleId }),
                 "League Efficiency must reuse Settings, the unique LeagueClient session, and shared Dashboard gameflow.");
+            Require(leagueHub.Dependencies.SequenceEqual(new[]
+            {
+                LeagueDashboardModule.ModuleId,
+                LeaguePlayerModule.ModuleId,
+                LeagueLiveModule.ModuleId,
+                LeagueBuildAdvisorModule.ModuleId,
+                LeagueEfficiencyModule.ModuleId,
+                MayhemModule.ModuleId
+            }), "League Hub must aggregate accepted League UI modules without owning a second client/runtime stack.");
 
             var expected = new[]
             {
@@ -145,6 +155,7 @@ namespace FACM.AppHost
                 LeaguePlayerModule.ModuleId,
                 LeagueLiveModule.ModuleId,
                 LeagueBuildAdvisorModule.ModuleId,
+                LeagueHubModule.ModuleId,
                 MayhemModule.ModuleId,
                 CleanupModule.ModuleId
             };

@@ -1,5 +1,31 @@
 # FACM 常见陷阱与防回归规则
 
+## 未经腾讯验证的 LCU 可选字段不能提升为自动化硬门槛
+
+### 根因
+
+FACM 3.3.0 首版“自动寻找对局 / 自动接受”在 deterministic fixture 中成立，但腾讯真实客户端两项均无效果。问题不是 POST endpoint 本身，而是 FACM 为了安全又额外加了若干上游/其它环境中常见的字段假设：
+
+- 自动找局强制要求 `partyId` 非空、`queueId > 0`、`allowedStartActivity=true`，并把任意 warnings/restrictions 都当成阻塞；
+- 自动接受强制要求 `/lol-matchmaking/v1/search` 同时返回 `lobbyId + queueId + readyCheck.state=InProgress` 后才允许 accept。
+
+腾讯客户端缺少或以不同形态返回其中任一可选字段时，代码会在 POST 前 fail-closed，因此用户只看到“开关没效果”，而本地 fixture 因数据过于完整无法暴露问题。
+
+### 防回归规则
+
+- LCU 写操作的**安全状态门槛**与**可选兼容字段**必须分开建模；不能因为某字段在 Riot/第三方工具样例中常见，就默认腾讯也必须提供。
+- 自动找局核心门槛只使用已经腾讯验证的语义：Lobby、客户端明确 `canStartActivity`、本地房主、存在真实成员；`partyId/queueId/allowedStartActivity/warnings/restrictions` 只能在有可靠语义时参与 fingerprint/诊断，不得无证据一刀切阻塞。
+- 自动接受以 Gameflow `ReadyCheck` episode 为主触发；search state 可用于明确 Accepted/Declined 时抑制写入，但读取失败或缺少 `lobbyId/queueId` 不能反向阻止本次 ReadyCheck。
+- fail-closed 必须有用户可见/日志可查的稳定 skip reason；禁止“安全判断很多但全部静默”，否则实机只剩“没效果”。
+- 每个腾讯相关自动化 fixture 至少包含一组**字段缺失/部分返回**样例，而不是只测试最完整 JSON。
+- 发布说明必须区分 deterministic 通过与腾讯实机验收；未实机验证时不能把“已发布”写成“国服已可用”。
+
+### 关联
+
+- Issue #118
+- PR #119
+- Build #1050 / #1059
+
 ## 不要在 WinForms UI 线程递归扫描文件系统
 
 ### 根因

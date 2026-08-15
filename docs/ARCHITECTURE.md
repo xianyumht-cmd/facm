@@ -1,6 +1,6 @@
 # FACM 架构
 
-> 当前架构基线：`.NET Framework 4.8 / WinForms` 主进程 + lightweight modular monolith。FACM 3.3 在 3.2 已验收 Modular Host 上继续扩展 League 自动化，不引入第二套 LCU 连接器、游戏内 Overlay 或低级键盘 Hook。
+> 当前架构基线：`.NET Framework 4.8 / WinForms` 主进程 + lightweight modular monolith。FACM 3.3 之后继续扩展 League 自动化，但不引入第二套 LCU 连接器、游戏内 Overlay、注入或低级键盘 Hook。
 
 ## 1. 进程边界
 
@@ -11,6 +11,7 @@ FACM.exe  (.NET Framework 4.8 / WinForms)
 ├─ Performance Contract
 ├─ League Client / Dashboard / Player / Live / Build Advisor
 ├─ League Efficiency
+├─ League Hub
 └─ Mayhem
 
 FACM.PetHost.exe  (.NET 8 x64 / WPF / VPet Core)
@@ -39,7 +40,7 @@ Dispose()
 
 `FacmHost` 负责依赖拓扑、重复/缺失/循环依赖拒绝、初始化失败 rollback、反向 Dispose 与 timing report。`FACM.exe --facm-host-test` 是 deterministic 架构门禁。
 
-3.3 关键模块关系：
+当前 League 关键模块关系：
 
 ```text
 SettingsModule
@@ -52,13 +53,22 @@ LeagueClientModule  ← 唯一 LCU session owner
    ├─ MayhemModule
    └─ LeagueEfficiencyModule + Settings + LeagueDashboard
 
+LeagueHubModule
+├─ LeagueDashboardModule
+├─ LeaguePlayerModule
+├─ LeagueLiveModule
+├─ LeagueBuildAdvisorModule
+├─ LeagueEfficiencyModule
+└─ MayhemModule
+
 ShellModule
+├─ LeagueHubModule
 └─ MainForm / CompactMenuForm
 ```
 
-`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。
+`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。`LeagueHubModule` 只拥有 **导航/页面组合**，不拥有第二套 League runtime、LCU session 或自动化状态机。
 
-## 3. 小白 Shell 信息架构
+## 3. 小白 Shell 与 League Hub 信息架构
 
 FACM 的功能数量允许增长，但托盘一级决策数量固定。
 
@@ -67,27 +77,48 @@ FACM 的功能数量允许增长，但托盘一级决策数量固定。
 ```text
 打开控制中心
 清理环境
-英雄联盟 >
+英雄联盟
 更多 >
 退出程序
 ```
 
-业务模块只能注册到固定二级组。`ShellMenuGroups.ValidateRootContract()` 在运行时守住这一边界，`ShellUxSmokeTest` 在 CI 以纯结构方式守住定义，避免 pre-message-loop WinForms 对象造成 smoke 卡死。
+其中 **英雄联盟是单一直接入口**，不再展开 Dashboard / Player / Live / OP.GG / Efficiency 等多个 Shell 子按钮。控制中心中的「英雄联盟」行也必须路由到同一个 League Hub。
 
-`英雄联盟 >` 当前顺序：
+统一 `英雄联盟中心` 只有三个用户概念：
 
 ```text
-英雄联盟面板
-玩家主页
-实时对局
-OP.GG 对局助手
-OP.GG 一键应用
-FACM/OP.GG 推荐装备集
-游戏效率
-海斗排行榜
+对局
+├─ 概览
+├─ 玩家主页
+├─ 实时对局
+└─ 海斗
+
+推荐
+├─ OP.GG 对局助手
+├─ OP.GG 一键应用
+└─ FACM / OP.GG 推荐装备集
+
+效率
+└─ 游戏效率
+   ├─ 一键结束游戏
+   ├─ 一键关闭大厅
+   ├─ 随机点赞
+   ├─ 自动返回大厅
+   ├─ 自动寻找对局
+   └─ 自动接受
 ```
 
-控制中心同样使用渐进披露：主页只保留目录状态/管理、清理主动作、修复工具、英雄联盟、个性化、更多设置，不允许模块再次动态插入一级按钮。
+### League UI ownership
+
+- `LeagueHubModule` 是 Shell 层唯一的 League 导航 owner；
+- Dashboard / Player / Live / Build Advisor / Efficiency 等业务模块只提供已经验收的 Form/service，不再自行向 Shell 注册入口；
+- 旧 UiBridge 源码可以暂时保留兼容编译，但运行时不得重新建立 League 多按钮 submenu；`ShellMenuGroups.AddLeagueAction` 是明确的 no-op 防回归边界；
+- League Hub 只懒加载当前页；切到另一页时先正常 `Close()` 旧页，让其 `FormClosed` 清理 Timer / CancellationToken，再释放控件；禁止把访问过的多个页面长期隐藏常驻；
+- 不为“统一面板”重写已验收业务逻辑，也不把页面合并成一个新的万能 controller。
+
+控制中心其它区域继续使用渐进披露：主页只保留目录状态/管理、清理主动作、修复工具、英雄联盟、个性化、更多设置，不允许模块再次动态插入一级按钮。
+
+`ShellMenuGroups.ValidateRootContract()`、`ShellUxSmokeTest` 与 `LeagueHubNavigation.ValidateForSmokeTest()` 共同守住单入口/三分区边界。
 
 ## 4. League Client 单一连接边界
 
@@ -98,7 +129,7 @@ FACM/OP.GG 推荐装备集
 - 共享 read transport；
 - 各能力专用的最小 write transport。
 
-不得为 Dashboard、OP.GG、赛后或匹配自动化创建第二套 LCU discovery/auth/session。
+不得为 Dashboard、OP.GG、赛后、匹配自动化或 League Hub 创建第二套 LCU discovery/auth/session。
 
 ### 写权限分离
 
@@ -108,11 +139,11 @@ FACM/OP.GG 推荐装备集
 - 赛后 writer：只允许 honor / honor ballot / `play-again`；
 - 匹配 writer：只允许 matchmaking search / ready-check accept。
 
-Gate 2 writer 继续硬拒绝 ready-check 与 Champ Select action 路径；Gate 7 不能借 Gate 2 writer 越权。
+Gate 2 writer 继续硬拒绝 ready-check 与 Champ Select action 路径；匹配自动化不能借其它 writer 越权。
 
 ## 5. Build Advisor / 自动应用
 
-只读 `OP.GG 对局助手` 仍是数据展示入口。手动 `OP.GG 一键应用` 与 3.3 自动应用复用同一 Gate 2/3 事务能力。
+只读 `OP.GG 对局助手` 仍是数据展示能力。手动 `OP.GG 一键应用` 与自动应用复用同一 Gate 2/3 事务能力。
 
 自动应用开关：`LeagueAutoApplyRecommended`，默认 `False`。
 
@@ -130,7 +161,7 @@ Advisor 展示与自动应用共享 OP.GG raw payload cache，避免同一路径
 
 ## 6. 游戏效率
 
-`LeagueEfficiencyModule` 是 3.3 的用户效率聚合模块，但底层仍拆成独立控制器。
+`LeagueEfficiencyModule` 是用户效率聚合模块，但底层仍拆成独立控制器。
 
 ### 全局快捷键
 
@@ -140,7 +171,7 @@ Advisor 展示与自动应用共享 OP.GG raw payload cache，避免同一路径
 - 不轮询键盘；
 - 不使用 low-level keyboard hook。
 
-正式 3.3 只保留两个已验收动作：
+正式能力只保留两个已验收动作：
 
 - 一键结束游戏：精确匹配 `League of Legends(TM)`（兼容旧 `League of Legends`）并结束目标 PID；
 - 一键关闭大厅：只结束 `LeagueClient / LeagueClientUx / LeagueClientUxRender`。
@@ -157,21 +188,24 @@ Advisor 展示与自动应用共享 OP.GG raw payload cache，避免同一路径
 - 点赞失败不能阻止自动 `POST /lol-lobby/v2/play-again`；
 - `WaitingForStats / PreEndOfGame / EndOfGame` 使用 bounded wait，不无限等待/重试。
 
-### 自动下一局
+### 自动下一局（腾讯兼容修复后）
 
 设置默认关闭：
 
-- 自动寻找对局只在 Lobby、房主、队伍可启动且没有阻塞 restriction/warning 时执行；
-- fingerprint 包含 party / queue / members，同 fingerprint 最多一次 search；失败不形成 3 秒 POST storm；
-- 自动接受只在 ReadyCheck `InProgress` 且本地未 Accepted/Declined 时执行一次；
-- 用户主动 Decline 后 FACM 不反向接受；
+- 自动寻找对局只把 `Lobby + canStartActivity + 本地房主 + 至少一个真实成员` 作为核心安全门槛；
+- `partyId / allowedStartActivity / queueId / warnings / restrictions` 等字段可以参与 best-effort 诊断/fingerprint，但**不得因为腾讯缺失或形态不同就成为未验证的硬兼容门槛**；
+- 同一稳定 Lobby fingerprint 最多一次 search，失败不形成定时 POST storm；
+- 自动接受以连续 `ReadyCheck` Gameflow episode 为主触发，约 450ms 后最多一次 accept；
+- `/lol-matchmaking/v1/search` 只做 best-effort 状态确认：明确 Accepted/Declined 时抑制写入，缺字段/读取失败不能阻止本次 ReadyCheck accept；
 - ChampSelect / InGame 不执行匹配 writer。
+
+Issue #118 / PR #119 的这一行为已由用户在腾讯真实 Lobby → Queue → ReadyCheck 流程验收通过。
 
 ## 7. Settings ownership
 
 行为设置继续只存在 `runtime/settings.ini`，`ui-text.ini` 只负责显示文案。
 
-3.3 League 相关设置：
+League 相关设置：
 
 ```text
 LeagueAutoApplyRecommended=False
@@ -195,9 +229,10 @@ LeagueAutoAcceptEnabled=False
 - Gate 3 item-set filesystem transaction；
 - Gate 4 auto apply state machine/cache；
 - Shell 一级 5 项 contract；
+- League Hub 单入口、8 个 accepted view、3 个 novice-facing section 导航 contract；
 - 游戏效率全局 hotkey contract；
 - 赛后 automation；
-- matchmaking automation。
+- Tencent-style 缺失 partyId/lobbyId/queueId 的 matchmaking automation fixture。
 
 In Game 预算仍优先于窗口可见性：network/image/disk/background CPU 并发 1、prefetch 0、非必要后台维护/视觉增强关闭。
 
