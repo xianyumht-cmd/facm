@@ -40,8 +40,9 @@ namespace FACM.League
     {
         internal const string BallotPath = "/lol-honor-v2/v1/ballot/";
         internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
-        private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(1500);
-        private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromSeconds(8);
+        private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(650);
+        private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromMilliseconds(3250);
+        private static readonly TimeSpan WaitingForStatsFallbackRemainder = TimeSpan.FromMilliseconds(6750);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
@@ -161,9 +162,19 @@ namespace FACM.League
 
             if (!playAgain) return;
             if (!honor)
+            {
                 await _clock.Delay(ResolveReturnDelay(initialPhase), cancellationToken).ConfigureAwait(false);
+            }
             else if (ballot != null)
+            {
                 await _clock.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
+            }
+            else if (string.Equals(initialPhase, "WaitingForStats", StringComparison.OrdinalIgnoreCase))
+            {
+                // Akari keeps a 10s WaitingForStats fallback. FACM spends at most the first 3.25s
+                // looking for an honor ballot, then only waits the remaining 6.75s before returning.
+                await _clock.Delay(WaitingForStatsFallbackRemainder, cancellationToken).ConfigureAwait(false);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsStillEnabledForReturn()) return;
@@ -185,8 +196,12 @@ namespace FACM.League
                 var bytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
                 var ballot = ParseBallot(bytes);
                 if (ballot != null && ballot.GameId > 0) return ballot;
-                await _clock.Delay(BallotPollInterval, cancellationToken).ConfigureAwait(false);
-                elapsed += BallotPollInterval;
+
+                var remaining = BallotWaitLimit - elapsed;
+                var delay = remaining < BallotPollInterval ? remaining : BallotPollInterval;
+                if (delay <= TimeSpan.Zero) break;
+                await _clock.Delay(delay, cancellationToken).ConfigureAwait(false);
+                elapsed += delay;
             }
             return null;
         }
