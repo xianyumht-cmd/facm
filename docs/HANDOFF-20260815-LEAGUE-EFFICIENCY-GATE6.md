@@ -114,6 +114,10 @@ Gate 6 只认：
 - return-only => 0 honor read，1 play-again；
 - InProgress / ReadyCheck / ChampSelect / Lobby 非 postgame。
 
+## CI 说明
+
+仓库现有 PR workflows 只监听 `main` base。Gate 6 是 stacked PR，因此验证时允许把 Draft PR #112 **临时** retarget 到 main，推一个真实的交接/测试提交触发 UI Text / Windows / Mayhem，run 一出现立即把 base 恢复到 `feat/league-efficiency-gate5-109`。不得在临时 main base 上 Ready 或 merge；最终 merge 仍必须遵守 Gate 5 -> Gate 6 顺序。
+
 ## 尚未验收的真实点
 
 CI 无法替代腾讯/国服实机：
