@@ -26,49 +26,54 @@ namespace FACM.League
     internal sealed class LeagueLobbyEligibility
     {
         public bool CanStartActivity { get; set; }
-        public bool AllowedStartActivity { get; set; }
         public bool IsLeader { get; set; }
         public int QueueId { get; set; }
-        public string PartyId { get; set; }
-        public List<string> MemberPuuids { get; private set; } = new List<string>();
-        public bool HasBlockingMetadata { get; set; }
+        public int RealMemberCount { get; set; }
+        public List<string> MemberIds { get; private set; } = new List<string>();
 
         public string Fingerprint
         {
             get
             {
-                if (QueueId <= 0 || string.IsNullOrWhiteSpace(PartyId)) return null;
-                var members = MemberPuuids.Where(value => !string.IsNullOrWhiteSpace(value))
+                var members = MemberIds.Where(value => !string.IsNullOrWhiteSpace(value))
                     .Distinct(StringComparer.Ordinal)
-                    .OrderBy(value => value, StringComparer.Ordinal);
-                return PartyId.Trim() + "|" + QueueId + "|" + string.Join(",", members);
+                    .OrderBy(value => value, StringComparer.Ordinal)
+                    .ToArray();
+                var memberPart = members.Length > 0
+                    ? string.Join(",", members)
+                    : "count:" + RealMemberCount;
+                return "queue:" + QueueId + "|members:" + memberPart;
             }
         }
 
         public bool IsEligible
         {
+            get { return CanStartActivity && IsLeader && RealMemberCount > 0; }
+        }
+
+        public string BlockReason
+        {
             get
             {
-                return CanStartActivity && AllowedStartActivity && IsLeader && QueueId > 0 &&
-                       MemberPuuids.Count > 0 && !HasBlockingMetadata && !string.IsNullOrWhiteSpace(Fingerprint);
+                if (!CanStartActivity) return "cannot-start";
+                if (!IsLeader) return "not-leader";
+                if (RealMemberCount <= 0) return "no-members";
+                return null;
             }
         }
     }
 
     internal sealed class LeagueReadyCheckState
     {
-        public string LobbyId { get; set; }
-        public int QueueId { get; set; }
-        public bool IsCurrentlyInQueue { get; set; }
         public string State { get; set; }
         public string PlayerResponse { get; set; }
 
-        public string Fingerprint
+        public bool HasFinalLocalResponse
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(LobbyId) || QueueId <= 0 || string.IsNullOrWhiteSpace(State)) return null;
-                return LobbyId.Trim() + "|" + QueueId + "|" + State.Trim();
+                return string.Equals(PlayerResponse, "Accepted", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(PlayerResponse, "Declined", StringComparison.OrdinalIgnoreCase);
             }
         }
     }
@@ -80,8 +85,6 @@ namespace FACM.League
         private static readonly TimeSpan LobbyInitialDelay = TimeSpan.FromMilliseconds(1500);
         private static readonly TimeSpan LobbyObserveInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ReadyInitialDelay = TimeSpan.FromMilliseconds(450);
-        private static readonly TimeSpan ReadyRetryDelay = TimeSpan.FromMilliseconds(350);
-        private const int ReadyStateAttempts = 4;
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
@@ -92,7 +95,8 @@ namespace FACM.League
         private CancellationTokenSource _readyCancellation;
         private string _phase;
         private string _lastSearchFingerprint;
-        private string _lastAcceptFingerprint;
+        private string _lastSearchDiagnostic;
+        private bool _acceptAttemptedThisReadyCheck;
         private bool _autoSearch;
         private bool _autoAccept;
         private bool _disposed;
@@ -124,11 +128,12 @@ namespace FACM.League
                 if (!autoSearch && _autoSearch)
                 {
                     _lastSearchFingerprint = null;
+                    _lastSearchDiagnostic = null;
                     CancelLobbyLocked();
                 }
                 if (!autoAccept && _autoAccept)
                 {
-                    _lastAcceptFingerprint = null;
+                    _acceptAttemptedThisReadyCheck = false;
                     CancelReadyLocked();
                 }
                 _autoSearch = autoSearch;
@@ -151,21 +156,29 @@ namespace FACM.League
 
                 if (!string.Equals(nextPhase, "Lobby", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase)) _lastSearchFingerprint = null;
+                    if (string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _lastSearchFingerprint = null;
+                        _lastSearchDiagnostic = null;
+                    }
                     CancelLobbyLocked();
                 }
                 else if (!string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase) && _autoSearch)
                 {
+                    _lastSearchFingerprint = null;
+                    _lastSearchDiagnostic = null;
                     startLobby = true;
                 }
 
                 if (!string.Equals(nextPhase, "ReadyCheck", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase)) _lastAcceptFingerprint = null;
+                    if (string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase))
+                        _acceptAttemptedThisReadyCheck = false;
                     CancelReadyLocked();
                 }
                 else if (!string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase) && _autoAccept)
                 {
+                    _acceptAttemptedThisReadyCheck = false;
                     startReady = true;
                 }
             }
@@ -221,30 +234,37 @@ namespace FACM.League
         {
             if (!IsSearchActive()) return false;
             var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
-            if (lobby == null || !lobby.IsEligible) return false;
+            if (lobby == null)
+            {
+                LogSearchDiagnostic("lobby-unavailable");
+                return false;
+            }
+            if (!lobby.IsEligible)
+            {
+                LogSearchDiagnostic(lobby.BlockReason ?? "not-eligible");
+                return false;
+            }
 
             var fingerprint = lobby.Fingerprint;
             lock (_sync)
             {
-                if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal)) return false;
-            }
-
-            var search = ParseSearch(await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false));
-            if (search == null || search.IsCurrentlyInQueue) return search != null && search.IsCurrentlyInQueue;
-            if (!IsSearchActive()) return false;
-
-            lock (_sync)
-            {
-                if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal)) return false;
+                if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    LogSearchDiagnosticLocked("already-attempted");
+                    return false;
+                }
                 _lastSearchFingerprint = fingerprint;
+                _lastSearchDiagnostic = null;
             }
 
+            if (!IsSearchActive()) return false;
+            AppLog.Info("League auto matchmaking: attempt");
             var response = await _write.TrySendAsync(
                 "POST",
                 LeagueMatchmakingWriteApiClient.SearchPath,
                 cancellationToken).ConfigureAwait(false);
             var ok = response != null && response.IsSuccessStatusCode;
-            AppLog.Info("League auto matchmaking: " + (ok ? "success" : "failed"));
+            AppLog.Info("League auto matchmaking: " + (ok ? "success" : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
             return ok;
         }
 
@@ -254,7 +274,7 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || !_autoAccept || !IsPhase("ReadyCheck")) return;
-                if (_readyCancellation != null) return;
+                if (_readyCancellation != null || _acceptAttemptedThisReadyCheck) return;
                 _readyCancellation = new CancellationTokenSource();
                 token = _readyCancellation.Token;
             }
@@ -264,38 +284,44 @@ namespace FACM.League
         private async Task RunReadyObserverAsync(CancellationToken cancellationToken)
         {
             await _clock.Delay(ReadyInitialDelay, cancellationToken).ConfigureAwait(false);
-            for (var attempt = 0; attempt < ReadyStateAttempts && IsAcceptActive(); attempt++)
-            {
-                if (await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false)) return;
-                if (attempt + 1 < ReadyStateAttempts)
-                    await _clock.Delay(ReadyRetryDelay, cancellationToken).ConfigureAwait(false);
-            }
+            await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<bool> EvaluateReadyAsync(CancellationToken cancellationToken)
         {
             if (!IsAcceptActive()) return false;
-            var search = ParseSearch(await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false));
-            if (search == null) return false;
-            if (!string.Equals(search.State, "InProgress", StringComparison.OrdinalIgnoreCase)) return false;
-            if (string.Equals(search.PlayerResponse, "Accepted", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(search.PlayerResponse, "Declined", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            var fingerprint = search.Fingerprint;
-            if (string.IsNullOrWhiteSpace(fingerprint)) return false;
             lock (_sync)
             {
-                if (string.Equals(_lastAcceptFingerprint, fingerprint, StringComparison.Ordinal)) return true;
-                _lastAcceptFingerprint = fingerprint;
+                if (_acceptAttemptedThisReadyCheck) return true;
+            }
+
+            // Best effort only: Tencent may omit or reshape fields on /lol-matchmaking/v1/search.
+            // A readable final local response prevents us from reversing an explicit user action,
+            // but missing/partial search data must not block ReadyCheck accept.
+            var search = ParseSearch(await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false));
+            if (search != null && search.HasFinalLocalResponse)
+            {
+                lock (_sync) _acceptAttemptedThisReadyCheck = true;
+                AppLog.Info("League auto accept: skip/already-" + search.PlayerResponse.ToLowerInvariant());
+                return true;
+            }
+
+            lock (_sync)
+            {
+                if (_acceptAttemptedThisReadyCheck) return true;
+                _acceptAttemptedThisReadyCheck = true;
             }
             if (!IsAcceptActive()) return true;
 
+            AppLog.Info("League auto accept: attempt");
             var response = await _write.TrySendAsync(
                 "POST",
                 LeagueMatchmakingWriteApiClient.AcceptPath,
                 cancellationToken).ConfigureAwait(false);
-            AppLog.Info("League auto accept: " + (response != null && response.IsSuccessStatusCode ? "success" : "failed"));
+            AppLog.Info("League auto accept: " +
+                        (response != null && response.IsSuccessStatusCode
+                            ? "success"
+                            : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
             return true;
         }
 
@@ -304,22 +330,23 @@ namespace FACM.League
             var root = ParseObject(bytes);
             if (root == null) return null;
             var local = ReadDictionary(root, "localMember");
+            if (local == null) return null;
+
             var game = ReadDictionary(root, "gameConfig");
-            if (local == null || game == null) return null;
             var output = new LeagueLobbyEligibility
             {
                 CanStartActivity = ReadBool(root, "canStartActivity"),
-                AllowedStartActivity = ReadBool(local, "allowedStartActivity"),
                 IsLeader = ReadBool(local, "isLeader"),
-                QueueId = ReadInt(game, "queueId"),
-                PartyId = ReadString(root, "partyId"),
-                HasBlockingMetadata = HasAny(ReadValue(root, "restrictions")) || HasAny(ReadValue(root, "warnings"))
+                QueueId = game == null ? 0 : ReadInt(game, "queueId")
             };
+
             foreach (var member in EnumerateDictionaries(ReadValue(root, "members")))
             {
                 if (ReadBool(member, "isBot") || ReadBool(member, "isSpectator")) continue;
-                var puuid = ReadString(member, "puuid");
-                if (!string.IsNullOrWhiteSpace(puuid)) output.MemberPuuids.Add(puuid.Trim());
+                output.RealMemberCount++;
+                var id = ReadString(member, "puuid");
+                if (string.IsNullOrWhiteSpace(id)) id = ReadString(member, "summonerId");
+                if (!string.IsNullOrWhiteSpace(id)) output.MemberIds.Add(id.Trim());
             }
             return output;
         }
@@ -331,12 +358,21 @@ namespace FACM.League
             var ready = ReadDictionary(root, "readyCheck");
             return new LeagueReadyCheckState
             {
-                LobbyId = ReadString(root, "lobbyId"),
-                QueueId = ReadInt(root, "queueId"),
-                IsCurrentlyInQueue = ReadBool(root, "isCurrentlyInQueue"),
                 State = ReadString(ready, "state"),
                 PlayerResponse = ReadString(ready, "playerResponse")
             };
+        }
+
+        private void LogSearchDiagnostic(string reason)
+        {
+            lock (_sync) LogSearchDiagnosticLocked(reason);
+        }
+
+        private void LogSearchDiagnosticLocked(string reason)
+        {
+            if (string.Equals(_lastSearchDiagnostic, reason, StringComparison.Ordinal)) return;
+            _lastSearchDiagnostic = reason;
+            AppLog.Info("League auto matchmaking: skip/" + reason);
         }
 
         private bool IsSearchActive()
@@ -388,14 +424,6 @@ namespace FACM.League
         {
             try { return Convert.ToBoolean(ReadValue(source, key)); }
             catch { return false; }
-        }
-
-        private static bool HasAny(object value)
-        {
-            var enumerable = value as IEnumerable;
-            if (enumerable == null || value is string) return false;
-            foreach (var ignored in enumerable) return true;
-            return false;
         }
 
         private static IEnumerable<Dictionary<string, object>> EnumerateDictionaries(object value)
