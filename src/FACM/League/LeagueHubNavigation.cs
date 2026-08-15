@@ -32,14 +32,14 @@ namespace FACM.League
 
         private static readonly IReadOnlyList<LeagueHubViewDefinition> Definitions = new[]
         {
-            new LeagueHubViewDefinition(Dashboard, UiTextKeys.LeagueHubSectionMatch, UiTextKeys.LeagueHubDashboard),
-            new LeagueHubViewDefinition(Player, UiTextKeys.LeagueHubSectionMatch, UiTextKeys.LeaguePlayerMenu),
-            new LeagueHubViewDefinition(Live, UiTextKeys.LeagueHubSectionMatch, UiTextKeys.LeagueLiveMenu),
-            new LeagueHubViewDefinition(Mayhem, UiTextKeys.LeagueHubSectionMatch, UiTextKeys.MayhemRanking),
-            new LeagueHubViewDefinition(Advisor, UiTextKeys.LeagueHubSectionRecommend, UiTextKeys.LeagueAdvisorMenu),
-            new LeagueHubViewDefinition(Apply, UiTextKeys.LeagueHubSectionRecommend, FACM.League.LeagueBuildApplyUiTextKeys.Menu),
-            new LeagueHubViewDefinition(ItemSet, UiTextKeys.LeagueHubSectionRecommend, FACM.League.LeagueItemSetUiTextKeys.Menu),
-            new LeagueHubViewDefinition(Efficiency, UiTextKeys.LeagueHubSectionEfficiency, FACM.League.LeagueEfficiencyUiTextKeys.Menu)
+            new LeagueHubViewDefinition(Dashboard, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Dashboard),
+            new LeagueHubViewDefinition(Player, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.LeaguePlayerMenu),
+            new LeagueHubViewDefinition(Live, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.LeagueLiveMenu),
+            new LeagueHubViewDefinition(Mayhem, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.MayhemRanking),
+            new LeagueHubViewDefinition(Advisor, LeagueHubUiTextKeys.SectionRecommend, UiTextKeys.LeagueAdvisorMenu),
+            new LeagueHubViewDefinition(Apply, LeagueHubUiTextKeys.SectionRecommend, LeagueBuildApplyUiTextKeys.Menu),
+            new LeagueHubViewDefinition(ItemSet, LeagueHubUiTextKeys.SectionRecommend, LeagueItemSetUiTextKeys.Menu),
+            new LeagueHubViewDefinition(Efficiency, LeagueHubUiTextKeys.SectionEfficiency, LeagueEfficiencyUiTextKeys.Menu)
         };
 
         public static IReadOnlyList<LeagueHubViewDefinition> Views
@@ -59,12 +59,16 @@ namespace FACM.League
             var sections = Definitions.Select(item => item.SectionKey).Distinct(StringComparer.Ordinal).ToArray();
             var expected = new[]
             {
-                UiTextKeys.LeagueHubSectionMatch,
-                UiTextKeys.LeagueHubSectionRecommend,
-                UiTextKeys.LeagueHubSectionEfficiency
+                LeagueHubUiTextKeys.SectionMatch,
+                LeagueHubUiTextKeys.SectionRecommend,
+                LeagueHubUiTextKeys.SectionEfficiency
             };
             if (sections.Length != expected.Length || expected.Any(key => !sections.Contains(key, StringComparer.Ordinal)))
                 throw new InvalidOperationException("League Hub must keep exactly three novice-facing sections: match, recommendation and efficiency.");
+
+            var defaults = LeagueHubText.DefaultsForSmokeTest();
+            if (expected.Any(key => !defaults.ContainsKey(key)) || !defaults.ContainsKey(LeagueHubUiTextKeys.WindowTitle) || !defaults.ContainsKey(LeagueHubUiTextKeys.Title))
+                throw new InvalidOperationException("League Hub UI text defaults are incomplete.");
         }
     }
 }
