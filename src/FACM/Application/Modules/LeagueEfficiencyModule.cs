@@ -75,8 +75,6 @@ namespace FACM.AppHost.Modules
                 _postGame.Observe(current);
                 _matchmaking.Observe(current);
             }
-
-            LeagueEfficiencyUiBridge.Install(this);
         }
 
         public Form CreateForm(UiTextCatalog ui)
@@ -188,7 +186,6 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
-            LeagueEfficiencyUiBridge.Uninstall();
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_matchmaking != null)
             {
