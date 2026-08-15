@@ -172,7 +172,7 @@ namespace FACM.League
             Func<UiTextCatalog, Form> factory;
             if (!_factories.TryGetValue(viewId, out factory)) return;
 
-            DisposeCurrentChild();
+            CloseCurrentChild();
 
             Form child = null;
             try
@@ -220,10 +220,10 @@ namespace FACM.League
         private void HandleHubClosing(object sender, FormClosingEventArgs e)
         {
             _closing = true;
-            DisposeCurrentChild();
+            CloseCurrentChild();
         }
 
-        private void DisposeCurrentChild()
+        private void CloseCurrentChild()
         {
             var child = _currentChild;
             _currentChild = null;
@@ -233,9 +233,12 @@ namespace FACM.League
             _switching = true;
             try
             {
-                child.FormClosing -= HandleEmbeddedClosing;
                 _content.Controls.Remove(child);
-                if (!child.IsDisposed) child.Dispose();
+                if (!child.IsDisposed)
+                {
+                    child.Close();
+                    if (!child.IsDisposed) child.Dispose();
+                }
             }
             finally
             {
