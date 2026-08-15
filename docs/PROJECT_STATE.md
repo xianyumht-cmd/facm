@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.3.0
-- GitHub Release：v3.3.0
+- 版本：FACM 3.4.0
+- GitHub Release：v3.4.0
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：73d49964fdcc8e3a1441dfbcc605d07f7a4ce7c0
-- 发布元数据提交：5877ffbe8d69eb1ed826186574daefce6d85b4e0
-- Release FACM.exe SHA-256：74649FEC5153A3D47681529D892227F28EB395FC68460D0D12FC8B9D3B9C9C2F
-- published_at：2026-08-15T05:13:06.9356240+00:00
-- release_notes：FACM 3.3.0：控制中心与托盘菜单进一步收束，新增选人自动应用 FACM 推荐、全局一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。
+- 发布基础 main：65aa513d8b240ac7ce938cefef27ac3013b715fe
+- 发布元数据提交：97e7c6124a41eb072221eceb52df6bb8b27e8c64
+- Release FACM.exe SHA-256：F7BAA613A5B81E88A725F0ED7452EDEB4A98F5CD32EB34D1A58570164173F0A2
+- published_at：2026-08-15T21:19:24.9354659+00:00
+- release_notes：FACM 3.4.0：英雄联盟功能收束为单一入口和统一「英雄联盟中心」，对局、推荐、效率集中管理；同时修复国服自动寻找对局与自动接受兼容性。自动化仍默认关闭，继续保持轻量、低占用、低打扰。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产仍是 **3.3.0**。2026-08-16 用户要求先完成 League Hub 单入口/单面板，再把已经验收的 Gate7 腾讯兼容修复一起正式发布和推送更新。
