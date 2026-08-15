@@ -134,12 +134,9 @@ namespace FACM.League
         private void AddViewButton(Panel sidebar, string viewId, ref int y)
         {
             var definition = LeagueHubNavigation.Views.First(item => string.Equals(item.Id, viewId, StringComparison.Ordinal));
-            var text = LeagueHubText.DefaultsForSmokeTest().ContainsKey(definition.TextKey)
-                ? LeagueHubText.Get(_ui, definition.TextKey)
-                : _ui.Get(definition.TextKey);
             var button = new Button
             {
-                Text = text,
+                Text = ResolveViewText(viewId, definition.TextKey),
                 Location = new Point(12, y),
                 Size = new Size(164, 38),
                 FlatStyle = FlatStyle.Flat,
@@ -155,6 +152,15 @@ namespace FACM.League
             sidebar.Controls.Add(button);
             _buttons[viewId] = button;
             y += 42;
+        }
+
+        private string ResolveViewText(string viewId, string textKey)
+        {
+            if (string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
+                return LeagueEfficiencyText.Get(_ui, textKey);
+            if (LeagueHubText.DefaultsForSmokeTest().ContainsKey(textKey))
+                return LeagueHubText.Get(_ui, textKey);
+            return _ui.Get(textKey);
         }
 
         private void ShowView(string viewId)
