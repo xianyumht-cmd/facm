@@ -34,12 +34,10 @@ namespace FACM.AppHost.Modules
         private LeagueHotkeyService _hotkeys;
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
+        private LeagueMatchmakingAutomationController _matchmaking;
         private bool _disposed;
 
-        public LeagueEfficiencyModule(
-            SettingsModule settingsModule,
-            LeagueClientModule leagueClient,
-            LeagueDashboardModule dashboard)
+        public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
         {
             _settingsModule = settingsModule ?? throw new ArgumentNullException(nameof(settingsModule));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
@@ -69,9 +67,16 @@ namespace FACM.AppHost.Modules
 
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
+            _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, (ILeagueMatchmakingWriteApi)_leagueClient);
+            _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled);
+
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
-            if (current != null) _postGame.Observe(current);
+            if (current != null)
+            {
+                _postGame.Observe(current);
+                _matchmaking.Observe(current);
+            }
 
             LeagueEfficiencyUiBridge.Install(this);
         }
@@ -87,6 +92,8 @@ namespace FACM.AppHost.Modules
         public string CredentialHotkey { get { return _settingsModule.Settings.LeagueCredentialHotkey ?? string.Empty; } }
         public bool AutoHonorEnabled { get { return _settingsModule.Settings.LeagueAutoHonorTeammateEnabled; } }
         public bool AutoReturnLobbyEnabled { get { return _settingsModule.Settings.LeagueAutoReturnLobbyEnabled; } }
+        public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
+        public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
 
         public bool TryUpdateBindings(string exitGame, string closeLobby, string credentials, out string error)
         {
@@ -99,11 +106,26 @@ namespace FACM.AppHost.Modules
             _settingsModule.Settings.LeagueAutoHonorTeammateEnabled = autoHonor;
             _settingsModule.Settings.LeagueAutoReturnLobbyEnabled = autoReturn;
             _settingsModule.Settings.Save();
-            var controller = _postGame;
-            if (controller == null) return;
-            controller.Configure(autoHonor, autoReturn);
-            var current = _dashboard.CurrentGameflowState;
-            if (current != null) controller.Observe(current);
+            if (_postGame != null)
+            {
+                _postGame.Configure(autoHonor, autoReturn);
+                var current = _dashboard.CurrentGameflowState;
+                if (current != null) _postGame.Observe(current);
+            }
+        }
+
+        public void UpdateMatchmakingSettings(bool autoSearch, bool autoAccept)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoMatchmakingEnabled = autoSearch;
+            _settingsModule.Settings.LeagueAutoAcceptEnabled = autoAccept;
+            _settingsModule.Settings.Save();
+            if (_matchmaking != null)
+            {
+                _matchmaking.Configure(autoSearch, autoAccept);
+                var current = _dashboard.CurrentGameflowState;
+                if (current != null) _matchmaking.Observe(current);
+            }
         }
 
         private bool TryApplyBindings(string exitGame, string closeLobby, string credentials, bool persist, out string error)
@@ -136,8 +158,9 @@ namespace FACM.AppHost.Modules
 
         private void HandleGameflowState(LeagueDashboardPhaseState state)
         {
-            var controller = _postGame;
-            if (!_disposed && controller != null) controller.Observe(state);
+            if (_disposed) return;
+            if (_postGame != null) _postGame.Observe(state);
+            if (_matchmaking != null) _matchmaking.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -181,6 +204,11 @@ namespace FACM.AppHost.Modules
             _disposed = true;
             LeagueEfficiencyUiBridge.Uninstall();
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_matchmaking != null)
+            {
+                _matchmaking.Dispose();
+                _matchmaking = null;
+            }
             if (_postGame != null)
             {
                 _postGame.Dispose();
