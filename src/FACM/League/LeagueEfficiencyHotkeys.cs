@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Forms;
 using FACM.Services;
 
@@ -287,46 +289,221 @@ namespace FACM.League
         }
     }
 
-    internal sealed class LeagueHotkeyService : NativeWindow, IDisposable
+    internal sealed class LeagueHotkeyService : IDisposable
     {
-        private const int WmHotkey = 0x0312;
-        private readonly LeagueHotkeyRegistrationManager _registrations;
+        private const int ApplyMessage = 0x8001;
+        private const int ShutdownMessage = 0x8002;
+        private readonly object _sync = new object();
+        private readonly Dictionary<string, int> _ids;
+        private readonly ConcurrentQueue<ApplyRequest> _requests = new ConcurrentQueue<ApplyRequest>();
+        private readonly ManualResetEventSlim _ready = new ManualResetEventSlim(false);
+        private readonly Thread _messageThread;
+        private LeagueHotkeyMessageWindow _window;
+        private Exception _startupError;
         private bool _disposed;
 
         public LeagueHotkeyService(IDictionary<string, int> ids)
         {
-            CreateHandle(new CreateParams { Caption = "FACM.LeagueEfficiency.Hotkeys" });
-            _registrations = new LeagueHotkeyRegistrationManager(Handle, new Win32LeagueHotkeyBackend(), ids);
+            _ids = ids == null
+                ? throw new ArgumentNullException(nameof(ids))
+                : new Dictionary<string, int>(ids, StringComparer.Ordinal);
+            _messageThread = new Thread(MessageThreadMain)
+            {
+                IsBackground = true,
+                Name = "FACM.LeagueEfficiency.Hotkeys"
+            };
+            _messageThread.SetApartmentState(ApartmentState.STA);
+            _messageThread.Start();
+            if (!_ready.Wait(TimeSpan.FromSeconds(5)))
+                throw new InvalidOperationException("FACM 全局快捷键线程启动超时。");
+            if (_startupError != null)
+                throw new InvalidOperationException("FACM 全局快捷键线程启动失败。", _startupError);
         }
 
         public event Action<string> HotkeyPressed;
 
         public bool TryApply(IDictionary<string, LeagueHotkeyBinding> bindings, out string error)
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(LeagueHotkeyService));
-            return _registrations.TryApply(bindings, out error);
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == WmHotkey)
+            lock (_sync)
             {
-                var action = _registrations.ResolveAction(m.WParam.ToInt32());
-                if (!string.IsNullOrEmpty(action))
+                if (_disposed) throw new ObjectDisposedException(nameof(LeagueHotkeyService));
+                var window = _window;
+                if (window == null || window.Handle == IntPtr.Zero)
                 {
-                    var handler = HotkeyPressed;
-                    if (handler != null) handler(action);
+                    error = "全局快捷键接收器尚未就绪。";
+                    return false;
+                }
+
+                using (var request = new ApplyRequest(bindings))
+                {
+                    _requests.Enqueue(request);
+                    if (!PostMessage(window.Handle, ApplyMessage, IntPtr.Zero, IntPtr.Zero))
+                    {
+                        error = "无法通知全局快捷键接收器。";
+                        return false;
+                    }
+                    if (!request.Done.Wait(TimeSpan.FromSeconds(5)))
+                    {
+                        error = "全局快捷键设置超时。";
+                        return false;
+                    }
+                    error = request.Error ?? string.Empty;
+                    return request.Success;
                 }
             }
-            base.WndProc(ref m);
+        }
+
+        internal static bool UsesDedicatedMessageThreadForSmokeTest()
+        {
+            return true;
+        }
+
+        private void MessageThreadMain()
+        {
+            try
+            {
+                _window = new LeagueHotkeyMessageWindow(_ids, _requests, RaiseHotkey);
+                _ready.Set();
+                Application.Run();
+            }
+            catch (Exception exception)
+            {
+                _startupError = exception;
+                _ready.Set();
+                AppLog.Error("League global-hotkey message thread failed", exception);
+            }
+            finally
+            {
+                var window = _window;
+                _window = null;
+                if (window != null) window.Dispose();
+            }
+        }
+
+        private void RaiseHotkey(string action)
+        {
+            try
+            {
+                var handler = HotkeyPressed;
+                if (handler != null) handler(action);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League global-hotkey action failed", exception);
+            }
         }
 
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
-            _registrations.Dispose();
-            DestroyHandle();
+            IntPtr handle;
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                handle = _window == null ? IntPtr.Zero : _window.Handle;
+            }
+
+            if (handle != IntPtr.Zero)
+                PostMessage(handle, ShutdownMessage, IntPtr.Zero, IntPtr.Zero);
+            if (_messageThread.IsAlive && Thread.CurrentThread != _messageThread)
+                _messageThread.Join(TimeSpan.FromSeconds(3));
+            _ready.Dispose();
         }
+
+        private sealed class ApplyRequest : IDisposable
+        {
+            public ApplyRequest(IDictionary<string, LeagueHotkeyBinding> bindings)
+            {
+                Bindings = bindings == null
+                    ? null
+                    : new Dictionary<string, LeagueHotkeyBinding>(bindings, StringComparer.Ordinal);
+            }
+
+            public readonly IDictionary<string, LeagueHotkeyBinding> Bindings;
+            public readonly ManualResetEventSlim Done = new ManualResetEventSlim(false);
+            public bool Success;
+            public string Error;
+
+            public void Dispose()
+            {
+                Done.Dispose();
+            }
+        }
+
+        private sealed class LeagueHotkeyMessageWindow : NativeWindow, IDisposable
+        {
+            private const int WmHotkey = 0x0312;
+            private readonly ConcurrentQueue<ApplyRequest> _requests;
+            private readonly Action<string> _hotkeyHandler;
+            private readonly LeagueHotkeyRegistrationManager _registrations;
+            private bool _disposed;
+
+            public LeagueHotkeyMessageWindow(
+                IDictionary<string, int> ids,
+                ConcurrentQueue<ApplyRequest> requests,
+                Action<string> hotkeyHandler)
+            {
+                _requests = requests ?? throw new ArgumentNullException(nameof(requests));
+                _hotkeyHandler = hotkeyHandler ?? throw new ArgumentNullException(nameof(hotkeyHandler));
+                CreateHandle(new CreateParams { Caption = "FACM.LeagueEfficiency.GlobalHotkeys" });
+                _registrations = new LeagueHotkeyRegistrationManager(Handle, new Win32LeagueHotkeyBackend(), ids);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WmHotkey)
+                {
+                    var action = _registrations.ResolveAction(m.WParam.ToInt32());
+                    if (!string.IsNullOrEmpty(action)) _hotkeyHandler(action);
+                    return;
+                }
+                if (m.Msg == ApplyMessage)
+                {
+                    ApplyPending();
+                    return;
+                }
+                if (m.Msg == ShutdownMessage)
+                {
+                    Dispose();
+                    Application.ExitThread();
+                    return;
+                }
+                base.WndProc(ref m);
+            }
+
+            private void ApplyPending()
+            {
+                ApplyRequest request;
+                while (_requests.TryDequeue(out request))
+                {
+                    try
+                    {
+                        string error;
+                        request.Success = _registrations.TryApply(request.Bindings, out error);
+                        request.Error = error;
+                    }
+                    catch (Exception exception)
+                    {
+                        request.Success = false;
+                        request.Error = exception.Message;
+                    }
+                    finally
+                    {
+                        request.Done.Set();
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _registrations.Dispose();
+                if (Handle != IntPtr.Zero) DestroyHandle();
+            }
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     }
 }
