@@ -15,7 +15,9 @@
 - release_notes：FACM 3.3.0：控制中心与托盘菜单进一步收束，新增选人自动应用 FACM 推荐、全局一键结束游戏/关闭大厅、赛后随机点赞与自动返回大厅，以及可选的自动寻找和接受对局。自动化默认关闭，继续保持轻量、低占用、低打扰。
 <!-- FACM_RELEASE_STATE_END -->
 
-> 2026-08-15：**FACM 3.3.0 已正式发布并启用在线更新。** Release `v3.3.0`、在线 manifest 与 3.3.0 公告均为当前生产事实。不要再把 3.2.0 或 3.3.0 候选状态当作当前生产状态。
+> 2026-08-15：**FACM 3.3.0 已正式发布并启用在线更新。** Release `v3.3.0`、在线 manifest 与 3.3.0 公告均为当前生产事实。
+>
+> 2026-08-16：3.3.0 的自动寻找对局 / 自动接受对局曾在腾讯真实使用中确认无效果。Issue #118 / PR #119 完成兼容修复；Build #1050 经用户真实 Lobby → Queue → ReadyCheck 验证后反馈“好使了，验收”。因此 Gate7 修复已取得腾讯实机验收。用户随后要求先完成 Issue #120「League Hub：英雄联盟功能收束为单按钮 / 单面板」，再把 Gate7 修复与 League Hub 一起正式发布并推送更新；在该新 Release 完成前，当前生产仍是 3.3.0。
 
 ## 3.3.0 发布证据
 
@@ -24,12 +26,11 @@
 - merge 后 main `778393b3...`：UI Text #165 / Windows #1044 / Mayhem #282 SUCCESS。
 - 发布请求 PR #116：merged，merge commit `73d49964fdcc8e3a1441dfbcc605d07f7a4ce7c0`。
 - 发布请求 HEAD `e6295cf988282483f4dd273be5140f4bac33d0e8`：UI Text #166 / Windows #1045 SUCCESS。
-- `FACM Publish Release` #7 / run `31866328728`：SUCCESS；build、embedded resource verify、sign、disabled manifest、metadata commit、draft release、publish release、enable online manifest 全部成功。
+- `FACM Publish Release` #7 / run `31866328728`：SUCCESS。
 - GitHub Release：`https://github.com/xianyumht-cmd/facm/releases/tag/v3.3.0`。
 - 正式下载：`https://github.com/xianyumht-cmd/facm/releases/download/v3.3.0/FACM.exe`。
-- Release asset size：78,282,136 bytes。
 - Release FACM.exe SHA-256：`74649FEC5153A3D47681529D892227F28EB395FC68460D0D12FC8B9D3B9C9C2F`。
-- `online/version.json`：enabled=true / version=3.3.0 / minimum_version=3.0.0 / force_update=false，SHA 与 Release asset 一致。
+- `online/version.json`：enabled=true / version=3.3.0 / minimum_version=3.0.0 / force_update=false。
 
 ## 3.3.0 正式功能范围
 
@@ -62,13 +63,15 @@
 - 同一连续赛后 episode 最多执行一次，不无限重试。
 - 默认关闭。
 
-### 自动下一局 — RELEASED / 用户授权先发布后实测
+### 自动下一局 — FIXED / 腾讯实机验收 / 待与 League Hub 一并发布
 
-- 自动寻找对局。
-- 自动接受 ReadyCheck。
-- 两项默认关闭。
-- deterministic smoke 与最小 writer allowlist 已进入 Performance Contract。
-- 用户明确授权：随 3.3.0 正式发布，真实腾讯匹配流程若发现问题再单独修复。因此**不要把它描述成已完成腾讯实机验收**。
+- 3.3.0 初版已包含自动寻找对局与自动接受 ReadyCheck，但发布前没有腾讯实机验收；用户真实使用确认两项均无效果。
+- 根因：第一版把未经腾讯验证的可选字段提升成硬门槛。自动找局强依赖 `partyId / allowedStartActivity / queueId / warnings/restrictions`；自动接受强依赖 `/lol-matchmaking/v1/search` 的 `lobbyId / queueId / readyCheck.state`。
+- Issue #118 / PR #119 修复后：找局只保留 `canStartActivity + isLeader + real member` 核心门槛；自动接受以 Gameflow `ReadyCheck` episode 为主触发，search state 仅 best-effort 判断已 Accepted/Declined。
+- 保持唯一 League session、专用 Gate7 writer exact allowlist、默认 OFF、single-episode exactly-once、InGame 零 Gate7 写入。
+- Build #1050 / HEAD `b133c5c7a2d483a34f448b6bd78b919ff7bdc56f`：UI Text #171 SUCCESS / Windows #1050 SUCCESS；Performance Contract 通过。
+- 2026-08-16 用户完成腾讯真实 Lobby → Queue → ReadyCheck 测试并明确反馈“好使了，验收”。
+- 用户决定不立即单独发 3.3.1；先完成 Issue #120 League Hub，再一起正式发布并推送更新。
 
 ## 明确取消：账号密码快捷输入
 
@@ -96,12 +99,13 @@
 
 - Gate 2：手动一键应用符文 + 召唤师技能 — DONE / merged / 腾讯验收
 - Gate 3：Recommended item set — DONE / 腾讯商店验收
-- Gate 4：自动应用推荐 — DONE / 3.3.0
-- League Efficiency Gate 5：结束游戏 + 关闭大厅快捷键 — DONE / 3.3.0
-- Gate 6：随机点赞 + 自动返回大厅 — DONE / 3.3.0
-- Gate 7：自动找局 + 自动接受 — RELEASED / 3.3.0 / 待真实使用反馈
+- Gate 4：自动应用推荐 — DONE / 3.3.0 / 腾讯验收
+- League Efficiency Gate 5：结束游戏 + 关闭大厅快捷键 — DONE / 3.3.0 / 腾讯验收
+- Gate 6：随机点赞 + 自动返回大厅 — DONE / 3.3.0 / 腾讯验收
+- Gate 7：自动找局 + 自动接受 — FIXED / PR #119 / Build #1050 / 腾讯实机验收，待下一正式版本发布
+- League Hub：Issue #120 OPEN；目标是 Shell 对 League 只保留一个入口，统一到单个「英雄联盟中心」面板，不改变已验收 runtime 行为。
 
-## 3.3 性能与权限冻结边界
+## 性能与权限冻结边界
 
 - 唯一 `LeagueClientModule + LeagueClientSessionProvider`，不新增第二套 discovery/auth connector。
 - 自动化默认关闭。
@@ -111,12 +115,14 @@
 - `LeagueEfficiencyModule` 复用 Dashboard 已有 gameflow，不新增第二个常驻 gameflow monitor。
 - In Game Performance budget：network/image/disk/background CPU concurrency 1，prefetch 0，非必要后台维护/视觉增强关闭。
 
-## 仓库收口
+## 仓库收口与当前任务
 
 - PR #115 是 3.3.0 最终功能集成来源。
-- 旧并行 PR #105（Shell UX）、#110（Gate5）、#112（Gate6）、#114（Gate7）应标记为 **superseded by #115 / v3.3.0**，不要再分别合并。
-- 对应 Issue #104 / #109 / #111 / #113 / 总览 #108 在记录 3.3.0 吸收关系后关闭 completed；#109 需注明 credential 子需求被明确取消。
-- 不删除这些分支，除非用户另行明确授权。
+- 旧并行 PR #105（Shell UX）、#110（Gate5）、#112（Gate6）、#114（Gate7）已 superseded by #115 / v3.3.0，不得再分别合并。
+- Gate7 生产回归使用 Issue #118 / PR #119 独立追踪；用户已验收修复候选。
+- Issue #120 是下一项 UX 收口：英雄联盟功能集中到一个 Shell 按钮、一个统一面板；不重新设计已验收的 League runtime。
+- 完成 #120 后，再把 Gate7 修复 + League Hub 作为同一个正式版本发布并启用在线更新。
+- 不删除历史分支，除非用户另行明确授权。
 
 ## 冻结的稳定系统
 
@@ -132,4 +138,4 @@
 - Online Release 事务
 - 已验收 League Dashboard / Player / Live / OP.GG Read Advisor / Gate2 Apply / item-set ownership
 
-旧 Issue #33 / Draft PR #35 机器猫继续暂停，不随 3.3.0 恢复。
+旧 Issue #33 / Draft PR #35 机器猫继续暂停。

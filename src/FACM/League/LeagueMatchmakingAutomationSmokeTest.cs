@@ -14,10 +14,12 @@ namespace FACM.League
         {
             ValidateSettings();
             ValidateTransportFence();
+            ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateLobbyBlocks();
+            ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
-            ValidateReadyCheckBlocks();
+            ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
         }
 
@@ -51,11 +53,26 @@ namespace FACM.League
                 "Gate 7 transport must not inherit Gate 6 play-again permission.");
         }
 
+        private static void ValidateTencentLobbyWithoutOptionalFields()
+        {
+            var read = new FakeReadApi();
+            // Tencent compatibility fixture: no partyId, queueId is unavailable/0,
+            // allowedStartActivity is false, and warnings/restrictions are non-empty.
+            // None of those optional fields may veto a client-reported canStartActivity Lobby.
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(0, true, false, true, new[] { "self" }, true));
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                "Tencent Lobby without partyId/queueId/allowedStartActivity must still start matchmaking when canStartActivity+leader are true.");
+        }
+
         private static void ValidateEligibleLobbyExactlyOnce()
         {
             var read = new FakeReadApi();
-            read.Set(LeagueMatchmakingAutomationController.LobbyPath, LobbyJson("party-a", 420, true, true, true, new[] { "self", "ally" }, false));
-            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, SearchJson("party-a", 420, false, "None", "None"));
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
             var write = new FakeWriteApi();
             using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
             {
@@ -66,35 +83,46 @@ namespace FACM.League
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
                     "Same Lobby fingerprint must not repeat matchmaking search.");
 
-                read.Set(LeagueMatchmakingAutomationController.LobbyPath, LobbyJson("party-a", 420, true, true, true, new[] { "self", "ally", "ally2" }, false));
+                read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                    LobbyJson(420, true, true, true, new[] { "self", "ally", "ally2" }, false));
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
-                    "Changed Lobby fingerprint should allow one new matchmaking attempt.");
+                    "Changed member context should allow one new matchmaking attempt.");
             }
         }
 
         private static void ValidateLobbyBlocks()
         {
-            AssertLobbyBlocked(LobbyJson("party", 420, false, true, true, new[] { "self" }, false), "canStartActivity=false");
-            AssertLobbyBlocked(LobbyJson("party", 420, true, false, true, new[] { "self" }, false), "allowedStartActivity=false");
-            AssertLobbyBlocked(LobbyJson("party", 420, true, true, false, new[] { "self" }, false), "not leader");
-            AssertLobbyBlocked(LobbyJson("party", 0, true, true, true, new[] { "self" }, false), "queueId<=0");
-            AssertLobbyBlocked(LobbyJson("party", 420, true, true, true, new string[0], false), "no real members");
-            AssertLobbyBlocked(LobbyJson("party", 420, true, true, true, new[] { "self" }, true), "blocking restrictions/warnings");
+            AssertLobbyBlocked(LobbyJson(420, false, true, true, new[] { "self" }, false), "canStartActivity=false");
+            AssertLobbyBlocked(LobbyJson(420, true, true, false, new[] { "self" }, false), "not leader");
+            AssertLobbyBlocked(LobbyJson(420, true, true, true, new string[0], false), "no real members");
+        }
 
+        private static void ValidateTencentReadyCheckWithoutFingerprintFields()
+        {
             var read = new FakeReadApi();
-            read.Set(LeagueMatchmakingAutomationController.LobbyPath, LobbyJson("party", 420, true, true, true, new[] { "self" }, false));
-            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, SearchJson("party", 420, true, "None", "None"));
+            // Missing/partial search data must not block a ReadyCheck phase accept attempt.
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"isCurrentlyInQueue\":true,\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
             var write = new FakeWriteApi();
             using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
-                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
-            Require(write.Calls.Count == 0, "Already queued Lobby must not POST search again.");
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                "Tencent ReadyCheck without lobbyId/queueId must still accept once.");
+
+            read = new FakeReadApi();
+            write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                "Unavailable /lol-matchmaking/v1/search must be best-effort and must not block ReadyCheck accept.");
         }
 
         private static void ValidateReadyCheckExactlyOnce()
         {
             var read = new FakeReadApi();
-            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, SearchJson("lobby-1", 420, true, "InProgress", "None"));
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
             var write = new FakeWriteApi();
             using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
             {
@@ -102,15 +130,22 @@ namespace FACM.League
                 controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
             }
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
-                "Same ReadyCheck fingerprint must accept exactly once.");
+                "Same continuous ReadyCheck episode must accept exactly once.");
         }
 
-        private static void ValidateReadyCheckBlocks()
+        private static void ValidateExplicitReadyResponseBlocks()
         {
-            AssertReadyBlocked(SearchJson("lobby", 420, true, "None", "None"), "state not InProgress");
-            AssertReadyBlocked(SearchJson("lobby", 420, true, "InProgress", "Accepted"), "already accepted");
-            AssertReadyBlocked(SearchJson("lobby", 420, true, "InProgress", "Declined"), "user declined");
-            AssertReadyBlocked(SearchJson("", 420, true, "InProgress", "None"), "missing lobby fingerprint");
+            AssertReadyBlocked("{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"Accepted\"}}", "already accepted");
+            AssertReadyBlocked("{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"Declined\"}}", "user declined");
+
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"None\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                "Search-state shape/state must not be a hard prerequisite once Gameflow is ReadyCheck.");
         }
 
         private static void ValidateNonTargetPhase()
@@ -132,7 +167,6 @@ namespace FACM.League
         {
             var read = new FakeReadApi();
             read.Set(LeagueMatchmakingAutomationController.LobbyPath, lobbyJson);
-            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, SearchJson("party", 420, false, "None", "None"));
             var write = new FakeWriteApi();
             using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -149,24 +183,17 @@ namespace FACM.League
             Require(write.Calls.Count == 0, "Blocked ReadyCheck emitted accept: " + reason);
         }
 
-        private static string LobbyJson(string partyId, int queueId, bool canStart, bool allowed, bool leader, string[] members, bool blocking)
+        private static string LobbyJson(int queueId, bool canStart, bool allowed, bool leader, string[] members, bool noisyMetadata)
         {
-            var memberJson = string.Join(",", (members ?? new string[0]).Select(value => "{\"puuid\":\"" + value + "\",\"isBot\":false,\"isSpectator\":false}"));
-            var block = blocking ? "[{\"code\":\"blocked\"}]" : "[]";
+            var memberJson = string.Join(",", (members ?? new string[0]).Select(value =>
+                "{\"puuid\":\"" + value + "\",\"summonerId\":123,\"isBot\":false,\"isSpectator\":false}"));
+            var metadata = noisyMetadata ? "[{\"code\":\"informational\"}]" : "[]";
             return "{" +
                    "\"canStartActivity\":" + canStart.ToString().ToLowerInvariant() + "," +
-                   "\"partyId\":\"" + partyId + "\"," +
                    "\"localMember\":{\"allowedStartActivity\":" + allowed.ToString().ToLowerInvariant() + ",\"isLeader\":" + leader.ToString().ToLowerInvariant() + "}," +
                    "\"gameConfig\":{\"queueId\":" + queueId + "}," +
                    "\"members\":[" + memberJson + "]," +
-                   "\"restrictions\":" + block + ",\"warnings\":[]}";
-        }
-
-        private static string SearchJson(string lobbyId, int queueId, bool inQueue, string state, string response)
-        {
-            return "{\"lobbyId\":\"" + lobbyId + "\",\"queueId\":" + queueId +
-                   ",\"isCurrentlyInQueue\":" + inQueue.ToString().ToLowerInvariant() +
-                   ",\"readyCheck\":{\"state\":\"" + state + "\",\"playerResponse\":\"" + response + "\"}}";
+                   "\"restrictions\":" + metadata + ",\"warnings\":" + metadata + "}";
         }
 
         private static void Require(bool condition, string message)
