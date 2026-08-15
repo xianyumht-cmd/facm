@@ -13,7 +13,10 @@ namespace FACM.League
         private readonly TextBox _exitGame;
         private readonly TextBox _closeLobby;
         private readonly TextBox _credentials;
+        private readonly CheckBox _autoHonor;
+        private readonly CheckBox _autoReturn;
         private readonly Label _status;
+        private bool _loading = true;
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
         {
@@ -22,8 +25,8 @@ namespace FACM.League
 
             Text = T(LeagueEfficiencyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(720, 470);
-            MinimumSize = new Size(680, 440);
+            ClientSize = new Size(720, 670);
+            MinimumSize = new Size(680, 620);
             BackColor = Color.FromArgb(17, 24, 39);
             ForeColor = Color.FromArgb(241, 245, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -33,7 +36,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 8,
+                RowCount = 11,
                 BackColor = BackColor
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
@@ -42,8 +45,11 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
 
             root.Controls.Add(new Label
             {
@@ -60,14 +66,7 @@ namespace FACM.League
                 ForeColor = Color.FromArgb(148, 163, 184),
                 TextAlign = ContentAlignment.TopLeft
             }, 0, 1);
-            root.Controls.Add(new Label
-            {
-                Text = T(LeagueEfficiencyUiTextKeys.HotkeySection),
-                Dock = DockStyle.Fill,
-                Font = new Font(Font.FontFamily, 11F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(226, 232, 240),
-                TextAlign = ContentAlignment.MiddleLeft
-            }, 0, 2);
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.HotkeySection)), 0, 2);
 
             _exitGame = AddHotkeyRow(root, 3,
                 T(LeagueEfficiencyUiTextKeys.ExitGame),
@@ -82,38 +81,54 @@ namespace FACM.League
                 T(LeagueEfficiencyUiTextKeys.CredentialsHint),
                 _module.CredentialHotkey);
 
-            var privacy = new Label
-            {
-                Text = T(LeagueEfficiencyUiTextKeys.Privacy),
-                Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
-                TextAlign = ContentAlignment.TopLeft,
-                Padding = new Padding(0, 10, 0, 0)
-            };
-            root.Controls.Add(privacy, 0, 6);
-
-            var footer = new TableLayoutPanel
+            var hotkeyFooter = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 1,
                 BackColor = BackColor
             };
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+            hotkeyFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            hotkeyFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             _status = new Label
             {
+                Text = T(LeagueEfficiencyUiTextKeys.Privacy),
                 Dock = DockStyle.Fill,
                 ForeColor = Color.FromArgb(148, 163, 184),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             var save = CreateButton(T(LeagueEfficiencyUiTextKeys.Save), 140);
             save.Click += delegate { SaveBindings(); };
-            footer.Controls.Add(_status, 0, 0);
-            footer.Controls.Add(save, 1, 0);
-            root.Controls.Add(footer, 0, 7);
+            hotkeyFooter.Controls.Add(_status, 0, 0);
+            hotkeyFooter.Controls.Add(save, 1, 0);
+            root.Controls.Add(hotkeyFooter, 0, 6);
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.PostGameSection)), 0, 7);
+            _autoHonor = AddAutomationRow(root, 8,
+                T(LeagueEfficiencyUiTextKeys.AutoHonor),
+                T(LeagueEfficiencyUiTextKeys.AutoHonorHint),
+                _module.AutoHonorEnabled);
+            _autoReturn = AddAutomationRow(root, 9,
+                T(LeagueEfficiencyUiTextKeys.AutoReturn),
+                T(LeagueEfficiencyUiTextKeys.AutoReturnHint),
+                _module.AutoReturnLobbyEnabled);
+            _autoHonor.CheckedChanged += AutoSettingChanged;
+            _autoReturn.CheckedChanged += AutoSettingChanged;
 
             Controls.Add(root);
+            _loading = false;
+        }
+
+        private Label SectionLabel(string text)
+        {
+            return new Label
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
         }
 
         private TextBox AddHotkeyRow(TableLayoutPanel parent, int row, string title, string hint, string value)
@@ -133,7 +148,6 @@ namespace FACM.League
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
             panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
             panel.Controls.Add(new Label
             {
                 Text = title,
@@ -184,6 +198,40 @@ namespace FACM.League
             return box;
         }
 
+        private CheckBox AddAutomationRow(TableLayoutPanel parent, int row, string title, string hint, bool value)
+        {
+            var panel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Margin = new Padding(0, 4, 0, 4),
+                BackColor = Color.FromArgb(24, 33, 49),
+                Padding = new Padding(12, 7, 12, 6)
+            };
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var check = new CheckBox
+            {
+                Text = title,
+                Checked = value,
+                Dock = DockStyle.Fill,
+                ForeColor = ForeColor,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                AutoSize = false
+            };
+            panel.Controls.Add(check, 0, 0);
+            panel.Controls.Add(new Label
+            {
+                Text = hint,
+                Dock = DockStyle.Fill,
+                ForeColor = Color.FromArgb(148, 163, 184),
+                TextAlign = ContentAlignment.TopLeft
+            }, 0, 1);
+            parent.Controls.Add(panel, 0, row);
+            return check;
+        }
+
         private Button CreateButton(string text, int width)
         {
             return new Button
@@ -217,6 +265,14 @@ namespace FACM.League
             }
         }
 
+        private void AutoSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked);
+            _status.ForeColor = Color.FromArgb(134, 239, 172);
+            _status.Text = T(LeagueEfficiencyUiTextKeys.PostGameSaved);
+        }
+
         private string T(string key)
         {
             return LeagueEfficiencyText.Get(_ui, key);
@@ -241,7 +297,6 @@ namespace FACM.League
             BackColor = Color.FromArgb(17, 24, 39);
             ForeColor = Color.FromArgb(241, 245, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
-
             _prompt = new Label
             {
                 Text = LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.CapturePrompt),
@@ -260,7 +315,7 @@ namespace FACM.League
         {
             e.SuppressKeyPress = true;
             e.Handled = true;
-            if ((e.KeyCode == Keys.Escape) && !e.Control && !e.Alt && !e.Shift)
+            if (e.KeyCode == Keys.Escape && !e.Control && !e.Alt && !e.Shift)
             {
                 Binding = LeagueHotkeyBinding.Disabled;
                 DialogResult = DialogResult.OK;
@@ -277,7 +332,6 @@ namespace FACM.League
                 _prompt.Text = LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.CaptureUnsafe);
                 return;
             }
-
             Binding = parsed;
             DialogResult = DialogResult.OK;
             Close();
