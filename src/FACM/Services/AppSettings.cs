@@ -24,6 +24,8 @@ namespace FACM.Services
         public string LeagueExitGameHotkey { get; set; } = string.Empty;
         public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
         public string LeagueCredentialHotkey { get; set; } = string.Empty;
+        public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
+        public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -93,6 +95,8 @@ namespace FACM.Services
             else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = Sanitize(value);
             else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = Sanitize(value);
             else if (key.Equals("LeagueCredentialHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCredentialHotkey = Sanitize(value);
+            else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
+            else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
         }
 
         private string[] BuildLines()
@@ -109,7 +113,9 @@ namespace FACM.Services
                 "AnimalPetEnabled=" + AnimalPetEnabled,
                 "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
                 "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
-                "LeagueCredentialHotkey=" + Sanitize(LeagueCredentialHotkey)
+                "LeagueCredentialHotkey=" + Sanitize(LeagueCredentialHotkey),
+                "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
+                "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled
             };
         }
 
