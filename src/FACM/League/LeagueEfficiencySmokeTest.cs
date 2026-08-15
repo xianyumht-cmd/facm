@@ -115,6 +115,11 @@ namespace FACM.League
 
         private static void ValidateCredentials()
         {
+            var nativeInputSize = WindowsLeagueDesktopPlatform.InputStructureSizeForSmokeTest();
+            var expectedNativeInputSize = WindowsLeagueDesktopPlatform.ExpectedInputStructureSizeForSmokeTest();
+            Require(nativeInputSize == expectedNativeInputSize,
+                "Win32 INPUT ABI size mismatch: actual=" + nativeInputSize + ", expected=" + expectedNativeInputSize + ".");
+
             string account;
             string password;
             Require(LeagueCredentialParser.TryParse("123456789-----1316464saf", out account, out password),
