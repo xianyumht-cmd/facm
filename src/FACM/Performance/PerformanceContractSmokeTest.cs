@@ -18,6 +18,7 @@ namespace FACM.Performance
                 FACM.League.LeagueItemSetSmokeTest.Validate();
                 FACM.League.LeagueEfficiencySmokeTest.Validate();
                 FACM.League.LeaguePostGameAutomationSmokeTest.Validate();
+                FACM.League.LeagueMatchmakingAutomationSmokeTest.Validate();
                 Console.WriteLine("FACM performance contract smoke passed.");
                 return 0;
             }
