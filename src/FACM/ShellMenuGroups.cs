@@ -1,12 +1,13 @@
 using System;
 using System.Linq;
 using System.Windows.Forms;
+using FACM.League;
 
 namespace FACM
 {
     /// <summary>
     /// Stable Shell information-architecture boundary.
-    /// Business modules register inside fixed root groups instead of adding first-level tray items.
+    /// League owns one direct launcher; other business modules register only in fixed non-League groups.
     /// </summary>
     internal static class ShellMenuGroups
     {
@@ -17,6 +18,8 @@ namespace FACM
         public const string ExitRootName = "FACM.Shell.Exit";
         public const string MayhemActionName = "FACM.Mayhem";
 
+        // Legacy ordering constants are kept for compatibility with old bridge files. League Hub no longer
+        // exposes these as Shell submenu items.
         public const int DashboardOrder = 10;
         public const int PlayerOrder = 20;
         public const int LiveOrder = 30;
@@ -37,44 +40,59 @@ namespace FACM
 
         public static ToolStripMenuItem CreateRootGroup(string name, string text)
         {
-            return new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
+            var item = new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
+            if (string.Equals(name, LeagueGroupName, StringComparison.Ordinal))
+            {
+                // Tray click is direct. CompactMenuForm's legacy ShowShellGroup path invokes ShowDropDown;
+                // intercept that attempt and route it to the same single League Hub window.
+                item.Click += delegate { LeagueHubUiBridge.RequestOpen(); };
+                item.DropDownOpening += delegate(object sender, EventArgs e)
+                {
+                    var cancel = e as System.ComponentModel.CancelEventArgs;
+                    if (cancel != null) cancel.Cancel = true;
+                    LeagueHubUiBridge.RequestOpen();
+                };
+            }
+            return item;
         }
 
-        public static bool AddLeagueAction(System.Windows.Forms.ContextMenuStrip root, string name, string text, int order, EventHandler click)
+        public static bool AddLeagueAction(ContextMenuStrip root, string name, string text, int order, EventHandler click)
         {
-            return AddGroupAction(root, LeagueGroupName, name, text, order, click);
+            // League navigation is intentionally centralized in League Hub. Keeping this method as a
+            // no-op prevents a legacy UiBridge from silently rebuilding the old multi-button submenu.
+            return false;
         }
 
-        public static bool AddMoreAction(System.Windows.Forms.ContextMenuStrip root, string name, string text, int order, EventHandler click)
+        public static bool AddMoreAction(ContextMenuStrip root, string name, string text, int order, EventHandler click)
         {
             return AddGroupAction(root, MoreGroupName, name, text, order, click);
         }
 
-        public static bool HasLeagueAction(System.Windows.Forms.ContextMenuStrip root, string name)
+        public static bool HasLeagueAction(ContextMenuStrip root, string name)
         {
-            return HasGroupAction(root, LeagueGroupName, name);
+            return false;
         }
 
-        public static ToolStripMenuItem FindGroup(System.Windows.Forms.ContextMenuStrip root, string groupName)
+        public static ToolStripMenuItem FindGroup(ContextMenuStrip root, string groupName)
         {
             if (root == null || root.IsDisposed || string.IsNullOrWhiteSpace(groupName)) return null;
             return root.Items.OfType<ToolStripMenuItem>()
                 .FirstOrDefault(item => string.Equals(item.Name, groupName, StringComparison.Ordinal));
         }
 
-        internal static int ActionableRootCount(System.Windows.Forms.ContextMenuStrip root)
+        internal static int ActionableRootCount(ContextMenuStrip root)
         {
             if (root == null) return 0;
             return root.Items.Cast<ToolStripItem>().Count(item => !(item is ToolStripSeparator));
         }
 
-        internal static bool RootContainsAction(System.Windows.Forms.ContextMenuStrip root, string name)
+        internal static bool RootContainsAction(ContextMenuStrip root, string name)
         {
             if (root == null || string.IsNullOrWhiteSpace(name)) return false;
             return root.Items.Cast<ToolStripItem>().Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
         }
 
-        internal static void ValidateRootContract(System.Windows.Forms.ContextMenuStrip root)
+        internal static void ValidateRootContract(ContextMenuStrip root)
         {
             if (root == null) throw new InvalidOperationException("Shell root menu is missing.");
             if (ActionableRootCount(root) != RootContractNames.Length)
@@ -95,23 +113,6 @@ namespace FACM
             if (RootContractNames.Distinct(StringComparer.Ordinal).Count() != RootContractNames.Length)
                 throw new InvalidOperationException("Shell root definition contains duplicate names.");
 
-            var orders = new[]
-            {
-                DashboardOrder,
-                PlayerOrder,
-                LiveOrder,
-                AdvisorOrder,
-                ApplyOrder,
-                ItemSetOrder,
-                EfficiencyOrder,
-                MayhemOrder
-            };
-            for (var index = 1; index < orders.Length; index++)
-            {
-                if (orders[index] <= orders[index - 1])
-                    throw new InvalidOperationException("League submenu order contract is not strictly increasing.");
-            }
-
             var businessActions = new[]
             {
                 "FACM.LeagueDashboard",
@@ -125,9 +126,11 @@ namespace FACM
             };
             if (businessActions.Any(action => RootContractNames.Contains(action, StringComparer.Ordinal)))
                 throw new InvalidOperationException("A business action name leaked into the fixed Shell root contract.");
+
+            LeagueHubNavigation.ValidateForSmokeTest();
         }
 
-        private static bool AddGroupAction(System.Windows.Forms.ContextMenuStrip root, string groupName, string name, string text, int order, EventHandler click)
+        private static bool AddGroupAction(ContextMenuStrip root, string groupName, string name, string text, int order, EventHandler click)
         {
             if (root == null || root.IsDisposed) return false;
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Shell action name is required.", nameof(name));
@@ -155,13 +158,6 @@ namespace FACM
             group.DropDownItems.Insert(insertAt, item);
             ValidateRootContract(root);
             return true;
-        }
-
-        private static bool HasGroupAction(System.Windows.Forms.ContextMenuStrip root, string groupName, string name)
-        {
-            var group = FindGroup(root, groupName);
-            return group != null && group.DropDownItems.Cast<ToolStripItem>()
-                .Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
         }
     }
 }
