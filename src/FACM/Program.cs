@@ -128,9 +128,10 @@ namespace FACM
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
                 var mayhem = new MayhemModule(leagueClient);
+                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueHub, cleanup, shell))
                 {
                     try
                     {
@@ -180,6 +181,7 @@ namespace FACM
             LeagueBuildAdvisorModule leagueAdvisor,
             LeagueEfficiencyModule leagueEfficiency,
             MayhemModule mayhem,
+            LeagueHubModule leagueHub,
             CleanupModule cleanup,
             ShellModule shell)
         {
@@ -197,6 +199,7 @@ namespace FACM
             host.Register(leagueAdvisor);
             host.Register(leagueEfficiency);
             host.Register(mayhem);
+            host.Register(leagueHub);
             host.Register(cleanup);
             host.Register(shell);
             return host;
