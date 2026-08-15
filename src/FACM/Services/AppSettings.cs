@@ -97,6 +97,17 @@ namespace FACM.Services
             };
         }
 
+        internal static void ApplyLineForSmokeTest(AppSettings result, string line)
+        {
+            ApplyLine(result, line);
+            Normalize(result);
+        }
+
+        internal IEnumerable<string> BuildLinesForSmokeTest()
+        {
+            return BuildLines();
+        }
+
         private static void ApplyLine(AppSettings result, string line)
         {
             if (result == null || string.IsNullOrWhiteSpace(line)) return;
