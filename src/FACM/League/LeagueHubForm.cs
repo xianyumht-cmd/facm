@@ -42,7 +42,7 @@ namespace FACM.League
                 { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) }
             };
 
-            Text = _ui.Get(UiTextKeys.LeagueHubWindowTitle);
+            Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(1080, 800);
             MinimumSize = new Size(980, 720);
@@ -58,7 +58,7 @@ namespace FACM.League
             };
             header.Controls.Add(new Label
             {
-                Text = _ui.Get(UiTextKeys.LeagueHubTitle),
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
                 Location = new Point(24, 13),
                 Size = new Size(460, 30),
                 ForeColor = Color.White,
@@ -66,7 +66,7 @@ namespace FACM.League
             });
             header.Controls.Add(new Label
             {
-                Text = _ui.Get(UiTextKeys.LeagueHubHint),
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
                 Location = new Point(25, 44),
                 Size = new Size(760, 20),
                 ForeColor = Color.FromArgb(139, 157, 190)
@@ -81,20 +81,20 @@ namespace FACM.League
             };
 
             var y = 10;
-            AddSection(sidebar, UiTextKeys.LeagueHubSectionMatch, ref y);
+            AddSection(sidebar, LeagueHubUiTextKeys.SectionMatch, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Dashboard, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Player, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Live, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Mayhem, ref y);
 
             y += 8;
-            AddSection(sidebar, UiTextKeys.LeagueHubSectionRecommend, ref y);
+            AddSection(sidebar, LeagueHubUiTextKeys.SectionRecommend, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Advisor, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Apply, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.ItemSet, ref y);
 
             y += 8;
-            AddSection(sidebar, UiTextKeys.LeagueHubSectionEfficiency, ref y);
+            AddSection(sidebar, LeagueHubUiTextKeys.SectionEfficiency, ref y);
             AddViewButton(sidebar, LeagueHubNavigation.Efficiency, ref y);
 
             _content = new Panel
@@ -120,7 +120,7 @@ namespace FACM.League
         {
             var label = new Label
             {
-                Text = _ui.Get(textKey),
+                Text = LeagueHubText.Get(_ui, textKey),
                 Location = new Point(12, y),
                 Size = new Size(164, 24),
                 ForeColor = Color.FromArgb(111, 131, 164),
@@ -134,9 +134,12 @@ namespace FACM.League
         private void AddViewButton(Panel sidebar, string viewId, ref int y)
         {
             var definition = LeagueHubNavigation.Views.First(item => string.Equals(item.Id, viewId, StringComparison.Ordinal));
+            var text = LeagueHubText.DefaultsForSmokeTest().ContainsKey(definition.TextKey)
+                ? LeagueHubText.Get(_ui, definition.TextKey)
+                : _ui.Get(definition.TextKey);
             var button = new Button
             {
-                Text = _ui.Get(definition.TextKey),
+                Text = text,
                 Location = new Point(12, y),
                 Size = new Size(164, 38),
                 FlatStyle = FlatStyle.Flat,
