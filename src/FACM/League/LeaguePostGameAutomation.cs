@@ -57,7 +57,7 @@ namespace FACM.League
         private bool _disposed;
 
         public LeaguePostGameAutomationController(ILeagueClientApi read, ILeaguePostGameWriteApi write)
-            : this(read, write, new LeaguePostGameSystemClock(), count => count <= 1 ? 0 : new Random().Next(count))
+            : this(read, write, new LeaguePostGameSystemClock(), CreateRandomIndex)
         {
         }
 
@@ -88,7 +88,6 @@ namespace FACM.League
         {
             var phase = state == null ? null : state.Phase;
             var postGame = state != null && state.Connected && IsPostGamePhase(phase);
-            bool start;
             CancellationToken token;
             lock (_sync)
             {
@@ -102,8 +101,7 @@ namespace FACM.League
                 }
 
                 _insidePostGame = true;
-                start = !_cycleStarted && (_autoHonor || _autoReturn);
-                if (!start) return;
+                if (_cycleStarted || (!_autoHonor && !_autoReturn)) return;
                 _cycleStarted = true;
                 CancelCycleLocked();
                 _cycleCancellation = new CancellationTokenSource();
@@ -113,8 +111,18 @@ namespace FACM.League
             RunCycleAsync(phase, token).Forget("League post-game automation");
         }
 
-        internal async Task RunCycleForSmokeTestAsync(string phase, CancellationToken cancellationToken)
+        internal async Task RunCycleForSmokeTestAsync(
+            string phase,
+            bool autoHonor,
+            bool autoReturn,
+            CancellationToken cancellationToken)
         {
+            lock (_sync)
+            {
+                _autoHonor = autoHonor;
+                _autoReturn = autoReturn;
+                _insidePostGame = true;
+            }
             await RunCycleAsync(phase, cancellationToken).ConfigureAwait(false);
         }
 
@@ -154,8 +162,8 @@ namespace FACM.League
 
         private async Task<LeagueHonorBallot> WaitForBallotAsync(CancellationToken cancellationToken)
         {
-            var started = DateTime.UtcNow;
-            while (DateTime.UtcNow - started < BallotWaitLimit)
+            var elapsed = TimeSpan.Zero;
+            while (elapsed < BallotWaitLimit)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!IsStillEnabledForHonor()) return null;
@@ -163,6 +171,7 @@ namespace FACM.League
                 var ballot = ParseBallot(bytes);
                 if (ballot != null && ballot.GameId > 0) return ballot;
                 await _clock.Delay(BallotPollInterval, cancellationToken).ConfigureAwait(false);
+                elapsed += BallotPollInterval;
             }
             return null;
         }
@@ -210,9 +219,7 @@ namespace FACM.League
             var bytes = await _read.TryGetBytesAsync(CurrentSummonerPath, cancellationToken).ConfigureAwait(false);
             var root = ParseObject(bytes);
             object value;
-            return root != null && root.TryGetValue("puuid", out value) && value != null
-                ? Convert.ToString(value)
-                : null;
+            return root != null && root.TryGetValue("puuid", out value) && value != null ? Convert.ToString(value) : null;
         }
 
         internal LeagueHonorBallot ParseBallot(byte[] bytes)
@@ -308,6 +315,12 @@ namespace FACM.League
                 var row = item as Dictionary<string, object>;
                 if (row != null) yield return row;
             }
+        }
+
+        private static int CreateRandomIndex(int count)
+        {
+            if (count <= 1) return 0;
+            return new Random(unchecked(Environment.TickCount * 31 + Thread.CurrentThread.ManagedThreadId)).Next(count);
         }
 
         private void CancelCycleLocked()
