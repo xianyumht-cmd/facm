@@ -115,13 +115,13 @@ namespace FACM.League
             _lastInputFailure = string.Empty;
             if (!SendCtrlA("account-select")) return false;
             Thread.Sleep(25);
-            if (!SendUnicode(first ?? string.Empty, "account-text")) return false;
+            if (!SendText(first ?? string.Empty, "account-text")) return false;
             Thread.Sleep(25);
             if (!SendVirtualKey(0x09, "tab-to-password")) return false;
             Thread.Sleep(60);
             if (!SendCtrlA("password-select")) return false;
             Thread.Sleep(25);
-            if (!SendUnicode(second ?? string.Empty, "password-text")) return false;
+            if (!SendText(second ?? string.Empty, "password-text")) return false;
             return true;
         }
 
@@ -134,7 +134,7 @@ namespace FACM.League
             return SendBatch(inputs, step);
         }
 
-        private bool SendUnicode(string value, string step)
+        private bool SendText(string value, string step)
         {
             if (string.IsNullOrEmpty(value))
             {
@@ -142,13 +142,42 @@ namespace FACM.League
                 return false;
             }
 
-            var inputs = new List<Input>();
-            foreach (var ch in value)
+            var layout = GetKeyboardLayout(0);
+            for (var index = 0; index < value.Length; index++)
             {
-                inputs.Add(KeyboardInput(0, ch, KeyEventUnicode));
-                inputs.Add(KeyboardInput(0, ch, KeyEventUnicode | KeyEventKeyUp));
+                var inputs = BuildCharacterInputs(value[index], layout);
+                if (!SendBatch(inputs, step)) return false;
+                Thread.Sleep(4);
             }
-            return SendBatch(inputs, step);
+            return true;
+        }
+
+        private static ICollection<Input> BuildCharacterInputs(char value, IntPtr layout)
+        {
+            var encoded = VkKeyScanEx(value, layout);
+            if (encoded != -1)
+            {
+                var inputs = new List<Input>();
+                var virtualKey = (ushort)(encoded & 0xFF);
+                var shiftState = (encoded >> 8) & 0xFF;
+
+                if ((shiftState & 0x02) != 0) AppendVirtualKeyDown(inputs, 0x11);
+                if ((shiftState & 0x04) != 0) AppendVirtualKeyDown(inputs, 0x12);
+                if ((shiftState & 0x01) != 0) AppendVirtualKeyDown(inputs, 0x10);
+
+                AppendVirtualKey(inputs, virtualKey);
+
+                if ((shiftState & 0x01) != 0) AppendVirtualKeyUp(inputs, 0x10);
+                if ((shiftState & 0x04) != 0) AppendVirtualKeyUp(inputs, 0x12);
+                if ((shiftState & 0x02) != 0) AppendVirtualKeyUp(inputs, 0x11);
+                return inputs;
+            }
+
+            return new[]
+            {
+                KeyboardInput(0, value, KeyEventUnicode),
+                KeyboardInput(0, value, KeyEventUnicode | KeyEventKeyUp)
+            };
         }
 
         private bool SendVirtualKey(ushort key, string step)
@@ -167,7 +196,6 @@ namespace FACM.League
             }
 
             var array = inputs.ToArray();
-            Marshal.GetLastWin32Error();
             var sent = SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(Input)));
             if (sent == (uint)array.Length) return true;
 
@@ -240,6 +268,12 @@ namespace FACM.League
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint count, Input[] inputs, int size);
+
+        [DllImport("user32.dll")]
+        private static extern short VkKeyScanEx(char value, IntPtr keyboardLayout);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetKeyboardLayout(uint threadId);
     }
 
     internal static class LeagueCredentialParser
