@@ -42,17 +42,7 @@ namespace FACM
         {
             var item = new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
             if (string.Equals(name, LeagueGroupName, StringComparison.Ordinal))
-            {
-                // Tray click is direct. CompactMenuForm's legacy ShowShellGroup path invokes ShowDropDown;
-                // intercept that attempt and route it to the same single League Hub window.
                 item.Click += delegate { LeagueHubUiBridge.RequestOpen(); };
-                item.DropDownOpening += delegate(object sender, EventArgs e)
-                {
-                    var cancel = e as System.ComponentModel.CancelEventArgs;
-                    if (cancel != null) cancel.Cancel = true;
-                    LeagueHubUiBridge.RequestOpen();
-                };
-            }
             return item;
         }
 
@@ -76,6 +66,13 @@ namespace FACM
         public static ToolStripMenuItem FindGroup(ContextMenuStrip root, string groupName)
         {
             if (root == null || root.IsDisposed || string.IsNullOrWhiteSpace(groupName)) return null;
+            if (string.Equals(groupName, LeagueGroupName, StringComparison.Ordinal))
+            {
+                // CompactMenuForm still asks MainForm to show the old League dropdown. Route that legacy
+                // call to the same direct Hub launcher and return no dropdown target.
+                LeagueHubUiBridge.RequestOpen();
+                return null;
+            }
             return root.Items.OfType<ToolStripMenuItem>()
                 .FirstOrDefault(item => string.Equals(item.Name, groupName, StringComparison.Ordinal));
         }
