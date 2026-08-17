@@ -279,6 +279,8 @@ namespace FACM.Online
             if (IsDisposed || Disposing) return;
             var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
             var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
+            current = NormalizeVersionText(current);
+            latest = NormalizeVersionText(latest);
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
@@ -317,6 +319,19 @@ namespace FACM.Online
                 _announcementBody.Text = "暂无公告内容。";
                 _linkButton.Enabled = false;
             }
+        }
+
+        internal static string FormatVersionForSmokeTest(Version version)
+        {
+            return version == null ? string.Empty : NormalizeVersionText(version.ToString());
+        }
+
+        private static string NormalizeVersionText(string value)
+        {
+            Version version;
+            if (!Version.TryParse(value, out version)) return value;
+            var build = version.Build < 0 ? 0 : version.Build;
+            return version.Major + "." + version.Minor + "." + build;
         }
 
         private void SetBusy(bool busy, string status)

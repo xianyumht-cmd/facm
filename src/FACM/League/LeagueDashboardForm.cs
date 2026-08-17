@@ -10,6 +10,15 @@ namespace FACM.League
 {
     internal sealed class LeagueDashboardForm : Form
     {
+        private const string DashboardBadgeText = "LEAGUE // LIVE";
+        private static readonly Color Background = Color.FromArgb(10, 15, 25);
+        private static readonly Color Surface = Color.FromArgb(18, 27, 43);
+        private static readonly Color TextPrimary = Color.FromArgb(238, 243, 252);
+        private static readonly Color TextMuted = Color.FromArgb(139, 157, 190);
+        private static readonly Color NeonCyan = Color.FromArgb(73, 218, 255);
+        private static readonly Color NeonBlue = Color.FromArgb(91, 142, 255);
+        private static readonly Color NeonPurple = Color.FromArgb(154, 106, 255);
+
         private readonly UiTextCatalog _ui;
         private readonly LeagueDashboardPhaseService _phaseService;
         private readonly LeagueDashboardDetailsService _detailsService;
@@ -36,31 +45,89 @@ namespace FACM.League
 
             Text = _ui.Get(UiTextKeys.LeagueDashboardWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(650, 430);
-            MinimumSize = new Size(650, 430);
-            MaximizeBox = false;
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
+            ClientSize = new Size(840, 620);
+            MinimumSize = new Size(700, 520);
+            BackColor = Background;
+            ForeColor = TextPrimary;
             Font = new Font("Microsoft YaHei UI", 9F);
 
-            var title = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardTitle), Location = new Point(28, 22), Size = new Size(440, 36), ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold) };
-            var hint = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardHint), Location = new Point(30, 62), Size = new Size(560, 24), ForeColor = Color.FromArgb(146, 161, 188) };
-            Controls.Add(title);
-            Controls.Add(hint);
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(30, 22, 30, 22),
+                ColumnCount = 2,
+                RowCount = 7,
+                BackColor = Background
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 33.34F));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
-            _connectionValue = AddCard(UiTextKeys.LeagueDashboardConnection, new Rectangle(28, 102, 286, 80));
-            _accountValue = AddCard(UiTextKeys.LeagueDashboardAccount, new Rectangle(336, 102, 286, 80));
-            _platformValue = AddCard(UiTextKeys.LeagueDashboardPlatformRegion, new Rectangle(28, 198, 286, 80));
-            _phaseValue = AddCard(UiTextKeys.LeagueDashboardGameflow, new Rectangle(336, 198, 286, 80));
-            _performanceValue = AddCard(UiTextKeys.LeagueDashboardPerformance, new Rectangle(28, 294, 286, 80));
-            _updatedValue = AddCard(UiTextKeys.LeagueDashboardLastUpdated, new Rectangle(336, 294, 286, 80));
+            var titlePanel = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Background };
+            titlePanel.Controls.Add(new Panel { Dock = DockStyle.Left, Width = 4, BackColor = NeonCyan });
+            titlePanel.Controls.Add(new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeagueDashboardTitle),
+                Location = new Point(14, 0),
+                Size = new Size(440, 38),
+                ForeColor = Color.White,
+                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+            });
+            titlePanel.Controls.Add(new Label
+            {
+                Text = DashboardBadgeText,
+                Dock = DockStyle.Right,
+                Width = 180,
+                ForeColor = NeonPurple,
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font("Consolas", 9F, FontStyle.Bold)
+            });
+            root.Controls.Add(titlePanel, 0, 0);
+            root.SetColumnSpan(titlePanel, 2);
 
-            _refreshButton = CreateButton(UiTextKeys.LeagueDashboardRefresh, new Rectangle(432, 389, 92, 30), Color.FromArgb(55, 104, 214));
-            _refreshButton.Click += async delegate { await RefreshAsync(true); };
-            var close = CreateButton(UiTextKeys.Close, new Rectangle(530, 389, 92, 30), Color.FromArgb(35, 43, 60));
+            var hint = new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeagueDashboardHint),
+                Dock = DockStyle.Fill,
+                ForeColor = TextMuted,
+                TextAlign = ContentAlignment.TopLeft,
+                Padding = new Padding(1, 2, 0, 0)
+            };
+            root.Controls.Add(hint, 0, 1);
+            root.SetColumnSpan(hint, 2);
+
+            _connectionValue = AddCard(root, 0, 2, UiTextKeys.LeagueDashboardConnection, NeonCyan);
+            _accountValue = AddCard(root, 1, 2, UiTextKeys.LeagueDashboardAccount, NeonPurple);
+            _platformValue = AddCard(root, 0, 3, UiTextKeys.LeagueDashboardPlatformRegion, NeonBlue);
+            _phaseValue = AddCard(root, 1, 3, UiTextKeys.LeagueDashboardGameflow, NeonCyan);
+            _performanceValue = AddCard(root, 0, 4, UiTextKeys.LeagueDashboardPerformance, NeonPurple);
+            _updatedValue = AddCard(root, 1, 4, UiTextKeys.LeagueDashboardLastUpdated, NeonBlue);
+
+            var actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                BackColor = Background
+            };
+            var close = CreateButton(UiTextKeys.Close, Color.FromArgb(35, 43, 60), 100);
             close.Click += delegate { Close(); };
-            Controls.Add(_refreshButton);
-            Controls.Add(close);
+            _refreshButton = CreateButton(UiTextKeys.LeagueDashboardRefresh, Color.FromArgb(55, 104, 214), 112);
+            _refreshButton.Click += async delegate { await RefreshAsync(true); };
+            actions.Controls.Add(close);
+            actions.Controls.Add(_refreshButton);
+            root.Controls.Add(actions, 0, 6);
+            root.SetColumnSpan(actions, 2);
+
+            Controls.Add(root);
 
             ShowEmptyState(null);
             _timer = new System.Windows.Forms.Timer { Interval = 5000 };
@@ -79,20 +146,67 @@ namespace FACM.League
             };
         }
 
-        private Label AddCard(string key, Rectangle bounds)
+        private Label AddCard(TableLayoutPanel parent, int column, int row, string key, Color accent)
         {
-            var panel = new Panel { Bounds = bounds, BackColor = Color.FromArgb(22, 29, 44), BorderStyle = BorderStyle.FixedSingle };
-            panel.Controls.Add(new Label { Text = _ui.Get(key), Location = new Point(15, 9), Size = new Size(252, 21), ForeColor = Color.FromArgb(139, 157, 190), Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold) });
-            var value = new Label { Location = new Point(15, 36), Size = new Size(252, 28), AutoEllipsis = true, ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold) };
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(column == 0 ? 0 : 8, 6, column == 0 ? 8 : 0, 6),
+                BackColor = Surface
+            };
+            panel.Controls.Add(new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = 3,
+                BackColor = accent
+            });
+            panel.Controls.Add(new Label
+            {
+                Text = _ui.Get(key),
+                Location = new Point(18, 14),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Size = new Size(330, 22),
+                ForeColor = TextMuted,
+                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+            });
+            var value = new Label
+            {
+                Location = new Point(18, 45),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Size = new Size(330, 36),
+                AutoEllipsis = true,
+                ForeColor = Color.White,
+                Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold)
+            };
             panel.Controls.Add(value);
-            Controls.Add(panel);
+            parent.Controls.Add(panel, column, row);
+            panel.Resize += delegate
+            {
+                var width = Math.Max(80, panel.ClientSize.Width - 34);
+                foreach (Control control in panel.Controls)
+                {
+                    var label = control as Label;
+                    if (label != null) label.Width = width;
+                }
+            };
             return value;
         }
 
-        private Button CreateButton(string key, Rectangle bounds, Color background)
+        private Button CreateButton(string key, Color background, int width)
         {
-            var button = new Button { Text = _ui.Get(key), Bounds = bounds, FlatStyle = FlatStyle.Flat, BackColor = background, ForeColor = Color.White, Cursor = Cursors.Hand };
+            var button = new Button
+            {
+                Text = _ui.Get(key),
+                Size = new Size(width, 34),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = background,
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand,
+                Margin = new Padding(8, 4, 0, 4),
+                TabStop = false
+            };
             button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(62, 83, 123);
             return button;
         }
 
