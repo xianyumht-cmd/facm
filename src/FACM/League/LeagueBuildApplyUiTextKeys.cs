@@ -54,21 +54,21 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { Options, "选择推荐方案" },
-                { OptionMain, "主流方案" },
+                { Options, "选择推荐组合" },
+                { OptionMain, "主流组合" },
                 { OptionAlternative, "热门备选" },
-                { OptionThird, "第三方案" },
-                { OptionRankFormat, "OP.GG 热度 #{0}" },
-                { OptionStatsFormat, "符文 {0} · {1} 局   |   技能 {2} · {3} 局" },
-                { OptionUnavailable, "当前 OP.GG 数据未提供这一套完整方案" },
-                { AutoUsesMain, "自动应用始终使用主流方案 #1；手动应用可在下方选择其它方案。" },
+                { OptionThird, "第三组合" },
+                { OptionRankFormat, "FACM 组合 #{0}" },
+                { OptionStatsFormat, "符文热度 {0} · {1} 局   |   技能热度 {2} · {3} 局" },
+                { OptionUnavailable, "当前 OP.GG 数据不足，无法组成这一备选组合" },
+                { AutoUsesMain, "组合由 OP.GG 符文与召唤师技能的独立热度数据生成；自动应用固定使用组合 #1，手动可选其它组合。" },
                 { Items, "装备建议" },
                 { ItemsHint, "这里只预览当前装备建议；需要写入客户端 Recommended 时，请使用左侧“OP.GG 推荐装备集”。" },
                 { ItemStarter, "出门" },
                 { ItemBoots, "鞋子" },
                 { ItemCore, "核心" },
                 { SelectedDetail, "当前选择" },
-                { ConfirmRankFormat, "方案：{0}（OP.GG 热度 #{1}）\r\n{2}" }
+                { ConfirmRankFormat, "方案：{0}（FACM 组合 #{1}）\r\n{2}" }
             };
 
         public static bool TryGetDefault(string key, out string value)
