@@ -182,8 +182,12 @@ namespace FACM.League
 
         private void RebuildSubnav(IReadOnlyList<LeagueHubViewDefinition> views)
         {
-            foreach (Control control in _subnav.Controls) control.Dispose();
-            _subnav.Controls.Clear();
+            while (_subnav.Controls.Count > 0)
+            {
+                var control = _subnav.Controls[0];
+                _subnav.Controls.RemoveAt(0);
+                control.Dispose();
+            }
             _viewButtons.Clear();
 
             if (views == null || views.Count <= 1)
