@@ -9,10 +9,28 @@ using FACM.Services;
 
 namespace FACM.League
 {
+    internal enum LeagueManualApplyMode
+    {
+        Full,
+        Build,
+        Items
+    }
+
     internal sealed class LeagueBuildApplyForm : Form
     {
+        private static readonly Color Background = Color.FromArgb(10, 15, 25);
+        private static readonly Color Surface = Color.FromArgb(18, 27, 43);
+        private static readonly Color SurfaceRaised = Color.FromArgb(25, 38, 59);
+        private static readonly Color TextPrimary = Color.FromArgb(238, 243, 252);
+        private static readonly Color TextMuted = Color.FromArgb(146, 161, 188);
+        private static readonly Color NeonCyan = Color.FromArgb(73, 218, 255);
+        private static readonly Color NeonPurple = Color.FromArgb(154, 106, 255);
+        private static readonly Color Accent = Color.FromArgb(74, 121, 236);
+
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly LeagueBuildApplyService _applyService;
+        private readonly LeagueItemSetService _itemSetService;
+        private readonly ILeagueAutoApplyExecutor _fullApplyExecutor;
         private readonly LeagueAutoApplyController _autoController;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -21,52 +39,94 @@ namespace FACM.League
         private readonly Label _contextValue;
         private readonly TextBox _spellValue;
         private readonly TextBox _runeValue;
+        private readonly TextBox _itemValue;
         private readonly Label _statusValue;
+        private readonly Button _fullModeButton;
+        private readonly Button _buildModeButton;
+        private readonly Button _itemsModeButton;
         private readonly Button _refreshButton;
         private readonly Button _applyButton;
         private LeagueBuildAdvisorSnapshot _snapshot;
+        private LeagueManualApplyMode _mode = LeagueManualApplyMode.Full;
         private bool _busy;
         private bool _syncingAutoToggle;
 
         public LeagueBuildApplyForm(
             LeagueBuildAdvisorDataService readService,
             LeagueBuildApplyService applyService,
+            LeagueItemSetService itemSetService,
+            ILeagueAutoApplyExecutor fullApplyExecutor,
             LeagueAutoApplyController autoController,
             UiTextCatalog ui)
         {
             _readService = readService ?? throw new ArgumentNullException(nameof(readService));
             _applyService = applyService ?? throw new ArgumentNullException(nameof(applyService));
+            _itemSetService = itemSetService ?? throw new ArgumentNullException(nameof(itemSetService));
+            _fullApplyExecutor = fullApplyExecutor ?? throw new ArgumentNullException(nameof(fullApplyExecutor));
             _autoController = autoController ?? throw new ArgumentNullException(nameof(autoController));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
 
             Text = T(LeagueBuildApplyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(760, 520);
-            MinimumSize = new Size(700, 480);
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
+            ClientSize = new Size(800, 650);
+            MinimumSize = new Size(740, 610);
+            BackColor = Background;
+            ForeColor = TextPrimary;
             Font = new Font("Microsoft YaHei UI", 9F);
+
+            Controls.Add(new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 3,
+                BackColor = NeonCyan
+            });
 
             var title = new Label
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Title),
-                Location = new Point(28, 20),
-                Size = new Size(620, 36),
+                Location = new Point(28, 18),
+                Size = new Size(520, 36),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
             };
+            var badge = new Label
+            {
+                Text = "OP.GG // APPLY",
+                Location = new Point(584, 24),
+                Size = new Size(180, 24),
+                ForeColor = NeonPurple,
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font("Consolas", 9F, FontStyle.Bold)
+            };
             var hint = new Label
             {
-                Text = T(LeagueBuildApplyUiTextKeys.Hint),
-                Location = new Point(30, 60),
-                Size = new Size(700, 34),
-                ForeColor = Color.FromArgb(146, 161, 188)
+                Text = T(LeagueBuildApplyUiTextKeys.ModeHint),
+                Location = new Point(30, 58),
+                Size = new Size(734, 40),
+                ForeColor = TextMuted
             };
+            var modeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.ModeSection), 101);
+
+            _fullModeButton = CreateModeButton(
+                T(LeagueBuildApplyUiTextKeys.ModeFull),
+                T(LeagueBuildApplyUiTextKeys.ModeFullHint),
+                new Point(30, 128));
+            _buildModeButton = CreateModeButton(
+                T(LeagueBuildApplyUiTextKeys.ModeBuild),
+                T(LeagueBuildApplyUiTextKeys.ModeBuildHint),
+                new Point(274, 128));
+            _itemsModeButton = CreateModeButton(
+                T(LeagueBuildApplyUiTextKeys.ModeItems),
+                T(LeagueBuildApplyUiTextKeys.ModeItemsHint),
+                new Point(518, 128));
+            _fullModeButton.Click += delegate { SelectMode(LeagueManualApplyMode.Full); };
+            _buildModeButton.Click += delegate { SelectMode(LeagueManualApplyMode.Build); };
+            _itemsModeButton.Click += delegate { SelectMode(LeagueManualApplyMode.Items); };
 
             _autoToggle = new CheckBox
             {
                 Text = T(LeagueAutoApplyUiTextKeys.Toggle),
-                Location = new Point(30, 96),
+                Location = new Point(30, 201),
                 Size = new Size(292, 28),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
@@ -75,45 +135,53 @@ namespace FACM.League
             };
             _autoStatusValue = new Label
             {
-                Location = new Point(326, 96),
-                Size = new Size(404, 38),
-                ForeColor = Color.FromArgb(146, 161, 188),
+                Location = new Point(326, 201),
+                Size = new Size(438, 38),
+                ForeColor = TextMuted,
                 AutoEllipsis = true
             };
             UpdateAutoStatus(_autoController.LastStatus);
             _autoToggle.CheckedChanged += HandleAutoToggleChanged;
             _autoController.StatusChanged += HandleAutoStatusChanged;
 
-            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 140);
-            _contextValue = CreateValueLabel(170, 28);
+            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 238);
+            _contextValue = CreateValueLabel(266, 25);
 
-            var spellCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Spells), 204);
-            _spellValue = CreateValueBox(234, 52);
+            var spellCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Spells), 294);
+            _spellValue = CreateValueBox(321, 46);
 
-            var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 296);
-            _runeValue = CreateValueBox(326, 58);
+            var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 370);
+            _runeValue = CreateValueBox(397, 48);
+
+            var itemCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Items), 448);
+            _itemValue = CreateValueBox(475, 54);
 
             _statusValue = new Label
             {
-                Location = new Point(30, 430),
-                Size = new Size(480, 44),
+                Location = new Point(30, 542),
+                Size = new Size(500, 58),
                 ForeColor = Color.FromArgb(176, 191, 216),
                 AutoEllipsis = true
             };
 
-            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), Color.FromArgb(35, 43, 60), 110);
-            _refreshButton.Location = new Point(516, 452);
+            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), SurfaceRaised, 110);
+            _refreshButton.Location = new Point(548, 594);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAsync(true); };
 
-            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Color.FromArgb(55, 104, 214), 110);
-            _applyButton.Location = new Point(632, 452);
+            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Accent, 124);
+            _applyButton.Location = new Point(666, 594);
             _applyButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _applyButton.Enabled = false;
             _applyButton.Click += async delegate { await ApplyWithConfirmationAsync(); };
 
             Controls.Add(title);
+            Controls.Add(badge);
             Controls.Add(hint);
+            Controls.Add(modeCaption);
+            Controls.Add(_fullModeButton);
+            Controls.Add(_buildModeButton);
+            Controls.Add(_itemsModeButton);
             Controls.Add(_autoToggle);
             Controls.Add(_autoStatusValue);
             Controls.Add(contextCaption);
@@ -122,11 +190,14 @@ namespace FACM.League
             Controls.Add(_spellValue);
             Controls.Add(runeCaption);
             Controls.Add(_runeValue);
+            Controls.Add(itemCaption);
+            Controls.Add(_itemValue);
             Controls.Add(_statusValue);
             Controls.Add(_refreshButton);
             Controls.Add(_applyButton);
 
             ApplyWaitingState();
+            UpdateModeButtons();
             Shown += async delegate { await RefreshAsync(false); };
             FormClosed += delegate
             {
@@ -136,13 +207,18 @@ namespace FACM.League
             };
         }
 
+        internal LeagueManualApplyMode SelectedModeForSmokeTest
+        {
+            get { return _mode; }
+        }
+
         private Label CreateCaption(string text, int top)
         {
             return new Label
             {
                 Text = text,
                 Location = new Point(30, top),
-                Size = new Size(700, 25),
+                Size = new Size(734, 25),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
             };
@@ -153,7 +229,7 @@ namespace FACM.League
             return new Label
             {
                 Location = new Point(30, top),
-                Size = new Size(700, height),
+                Size = new Size(734, height),
                 ForeColor = Color.FromArgb(206, 218, 239),
                 AutoEllipsis = true
             };
@@ -164,14 +240,34 @@ namespace FACM.League
             return new TextBox
             {
                 Location = new Point(30, top),
-                Size = new Size(700, height),
+                Size = new Size(734, height),
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(22, 29, 44),
-                ForeColor = Color.FromArgb(238, 243, 252),
+                BackColor = Surface,
+                ForeColor = TextPrimary,
                 ScrollBars = ScrollBars.Vertical
             };
+        }
+
+        private Button CreateModeButton(string title, string hint, Point location)
+        {
+            var button = new Button
+            {
+                Text = title + Environment.NewLine + hint,
+                Location = location,
+                Size = new Size(232, 62),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Surface,
+                ForeColor = TextPrimary,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(10, 2, 8, 2),
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            button.FlatAppearance.BorderColor = Color.FromArgb(55, 74, 101);
+            button.FlatAppearance.MouseOverBackColor = SurfaceRaised;
+            return button;
         }
 
         private Button CreateButton(string text, Color background, int width)
@@ -179,14 +275,44 @@ namespace FACM.League
             var button = new Button
             {
                 Text = text,
-                Size = new Size(width, 32),
+                Size = new Size(width, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = background,
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand
             };
             button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(62, 83, 123);
             return button;
+        }
+
+        private void SelectMode(LeagueManualApplyMode mode)
+        {
+            if (_busy) return;
+            _mode = mode;
+            UpdateModeButtons();
+            ApplySnapshot(_snapshot);
+        }
+
+        private void UpdateModeButtons()
+        {
+            StyleModeButton(_fullModeButton, _mode == LeagueManualApplyMode.Full, NeonCyan);
+            StyleModeButton(_buildModeButton, _mode == LeagueManualApplyMode.Build, Color.FromArgb(91, 142, 255));
+            StyleModeButton(_itemsModeButton, _mode == LeagueManualApplyMode.Items, NeonPurple);
+            var modeText = _mode == LeagueManualApplyMode.Full
+                ? T(LeagueBuildApplyUiTextKeys.ModeFull)
+                : _mode == LeagueManualApplyMode.Build
+                    ? T(LeagueBuildApplyUiTextKeys.ModeBuild)
+                    : T(LeagueBuildApplyUiTextKeys.ModeItems);
+            _applyButton.Text = T(LeagueBuildApplyUiTextKeys.Apply) + " · " + modeText;
+        }
+
+        private static void StyleModeButton(Button button, bool selected, Color accent)
+        {
+            button.BackColor = selected ? Color.FromArgb(27, 43, 66) : Surface;
+            button.ForeColor = selected ? Color.White : Color.FromArgb(200, 213, 234);
+            button.FlatAppearance.BorderSize = selected ? 2 : 1;
+            button.FlatAppearance.BorderColor = selected ? accent : Color.FromArgb(55, 74, 101);
         }
 
         private void HandleAutoToggleChanged(object sender, EventArgs e)
@@ -279,42 +405,12 @@ namespace FACM.League
             SetButtons(false);
             try
             {
-                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Preparing);
-                var plan = await _applyService.PrepareAsync(_snapshot, _lifetime.Token);
-                if (plan == null)
-                {
-                    _statusValue.Text = T(LeagueBuildApplyUiTextKeys.NoLoadout);
-                    return;
-                }
-
-                var context = BuildContext(_snapshot);
-                var spellPreview = string.IsNullOrWhiteSpace(plan.SpellPreview)
-                    ? plan.Spell1Id + " / " + plan.Spell2Id
-                    : plan.SpellPreview;
-                var runePreview = string.IsNullOrWhiteSpace(plan.RunePreview)
-                    ? plan.PrimaryStyleId + " / " + plan.SecondaryStyleId
-                    : plan.RunePreview;
-                var confirmation = string.Format(
-                    T(LeagueBuildApplyUiTextKeys.ConfirmFormat),
-                    context,
-                    spellPreview,
-                    runePreview);
-                var choice = MessageBox.Show(
-                    this,
-                    confirmation,
-                    T(LeagueBuildApplyUiTextKeys.ConfirmTitle),
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question,
-                    MessageBoxDefaultButton.Button2);
-                if (choice != DialogResult.Yes)
-                {
-                    _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Ready);
-                    return;
-                }
-
-                var result = await _applyService.ApplyAsync(plan, _lifetime.Token);
-                if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                ApplyResult(result);
+                if (_mode == LeagueManualApplyMode.Full)
+                    await ApplyFullAsync();
+                else if (_mode == LeagueManualApplyMode.Items)
+                    await ApplyItemsAsync();
+                else
+                    await ApplyBuildAsync();
             }
             catch (OperationCanceledException)
             {
@@ -335,6 +431,111 @@ namespace FACM.League
             }
         }
 
+        private async Task ApplyBuildAsync()
+        {
+            _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Preparing);
+            var plan = await _applyService.PrepareAsync(_snapshot, _lifetime.Token);
+            if (plan == null)
+            {
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.NoLoadout);
+                return;
+            }
+
+            var context = BuildContext(_snapshot);
+            var spellPreview = string.IsNullOrWhiteSpace(plan.SpellPreview)
+                ? plan.Spell1Id + " / " + plan.Spell2Id
+                : plan.SpellPreview;
+            var runePreview = string.IsNullOrWhiteSpace(plan.RunePreview)
+                ? plan.PrimaryStyleId + " / " + plan.SecondaryStyleId
+                : plan.RunePreview;
+            var confirmation = string.Format(
+                T(LeagueBuildApplyUiTextKeys.ConfirmFormat),
+                context,
+                spellPreview,
+                runePreview);
+            if (!Confirm(confirmation)) return;
+
+            var result = await _applyService.ApplyAsync(plan, _lifetime.Token);
+            if (IsDisposed || _lifetime.IsCancellationRequested) return;
+            ApplyBuildResult(result);
+        }
+
+        private async Task ApplyItemsAsync()
+        {
+            _statusValue.Text = T(LeagueItemSetUiTextKeys.Preparing);
+            var plan = await _itemSetService.PrepareAsync(_snapshot, _lifetime.Token);
+            if (plan == null || !plan.HasItems)
+            {
+                _statusValue.Text = T(LeagueItemSetUiTextKeys.NoItems);
+                return;
+            }
+
+            var confirmation = string.Format(
+                T(LeagueBuildApplyUiTextKeys.ItemsConfirmFormat),
+                BuildContext(_snapshot),
+                BuildItemPreview(_snapshot.Recommendation));
+            if (!Confirm(confirmation)) return;
+
+            var result = await _itemSetService.ApplyAsync(plan, _lifetime.Token);
+            if (IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (result != null && result.Succeeded)
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ItemsSucceeded);
+            else if (result != null && string.Equals(result.Status, "blocked", StringComparison.OrdinalIgnoreCase))
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ContextChanged);
+            else
+                _statusValue.Text = string.Format(T(LeagueBuildApplyUiTextKeys.Failed), T(LeagueItemSetUiTextKeys.WriteFailed));
+        }
+
+        private async Task ApplyFullAsync()
+        {
+            _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Preparing);
+            var confirmation = string.Format(
+                T(LeagueBuildApplyUiTextKeys.FullConfirmFormat),
+                BuildContext(_snapshot),
+                FindRecommendation(_snapshot.Recommendation, "summoner-spells"),
+                FindRecommendation(_snapshot.Recommendation, "runes"),
+                BuildItemPreview(_snapshot.Recommendation));
+            if (!Confirm(confirmation)) return;
+
+            var result = await _fullApplyExecutor.ExecuteAsync(_snapshot, _lifetime.Token);
+            if (IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (result == null)
+            {
+                _statusValue.Text = FormatFailure();
+                return;
+            }
+            if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+            {
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.FullSucceeded);
+                return;
+            }
+            if (string.Equals(result.BuildStatus, "blocked", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(result.ItemSetStatus, "blocked", StringComparison.OrdinalIgnoreCase))
+            {
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ContextChanged);
+                return;
+            }
+
+            _statusValue.Text = string.Format(
+                T(LeagueBuildApplyUiTextKeys.FullPartialFormat),
+                FriendlyStatus(result.BuildStatus),
+                FriendlyStatus(result.ItemSetStatus));
+        }
+
+        private bool Confirm(string confirmation)
+        {
+            var choice = MessageBox.Show(
+                this,
+                confirmation,
+                T(LeagueBuildApplyUiTextKeys.ConfirmTitle),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2);
+            if (choice == DialogResult.Yes) return true;
+            _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Ready);
+            return false;
+        }
+
         private void ApplySnapshot(LeagueBuildAdvisorSnapshot snapshot)
         {
             if (snapshot == null)
@@ -346,13 +547,14 @@ namespace FACM.League
             _contextValue.Text = BuildContext(snapshot);
             _spellValue.Text = FindRecommendation(snapshot.Recommendation, "summoner-spells");
             _runeValue.Text = FindRecommendation(snapshot.Recommendation, "runes");
+            _itemValue.Text = BuildItemPreview(snapshot.Recommendation);
             _statusValue.Text = CanApply(snapshot)
                 ? T(LeagueBuildApplyUiTextKeys.Ready)
                 : T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = !_busy && CanApply(snapshot);
         }
 
-        private void ApplyResult(LeagueBuildApplyResult result)
+        private void ApplyBuildResult(LeagueBuildApplyResult result)
         {
             if (result == null)
             {
@@ -390,6 +592,15 @@ namespace FACM.League
                 details);
         }
 
+        private string FriendlyStatus(string status)
+        {
+            if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                return T(LeagueBuildApplyUiTextKeys.Applied);
+            if (string.Equals(status, "not-available", StringComparison.OrdinalIgnoreCase))
+                return T(LeagueBuildApplyUiTextKeys.NoLoadout);
+            return T(LeagueBuildApplyUiTextKeys.WriteFailed);
+        }
+
         private string FormatFailure()
         {
             return string.Format(
@@ -408,6 +619,7 @@ namespace FACM.League
             _contextValue.Text = string.Empty;
             _spellValue.Text = string.Empty;
             _runeValue.Text = string.Empty;
+            _itemValue.Text = string.Empty;
             _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = false;
         }
@@ -416,6 +628,9 @@ namespace FACM.League
         {
             _refreshButton.Enabled = !_busy;
             _applyButton.Enabled = !_busy && canApply;
+            _fullModeButton.Enabled = !_busy;
+            _buildModeButton.Enabled = !_busy;
+            _itemsModeButton.Enabled = !_busy;
         }
 
         private static bool CanApply(LeagueBuildAdvisorSnapshot snapshot)
@@ -445,6 +660,18 @@ namespace FACM.League
             var row = recommendation.Rows.FirstOrDefault(item =>
                 string.Equals(item.Category, category, StringComparison.OrdinalIgnoreCase));
             return row == null ? string.Empty : row.Recommendation ?? string.Empty;
+        }
+
+        private static string BuildItemPreview(LeagueBuildRecommendation recommendation)
+        {
+            if (recommendation == null) return string.Empty;
+            var categories = new[] { "starter-items", "boots", "core-items" };
+            var rows = recommendation.Rows
+                .Where(row => row != null && categories.Contains(row.Category))
+                .Select(row => row.Recommendation)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToArray();
+            return rows.Length == 0 ? string.Empty : string.Join(" / ", rows);
         }
 
         private string T(string key)
