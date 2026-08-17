@@ -69,4 +69,10 @@ namespace FACM.Online
         public bool ForceUpdateRequired { get; set; }
         public string ErrorMessage { get; set; }
     }
+
+    internal static class OnlineDisplayText
+    {
+        public const string UnknownVersion = "未知";
+        public const string LatestVersionUnavailable = "未获取";
+    }
 }

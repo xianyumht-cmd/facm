@@ -15,11 +15,13 @@ namespace FACM.League
         public static void Validate()
         {
             ValidatePreparationIsReadOnly();
+            ValidateRankedOptionsAreDistinct();
             ValidateHappyPathAndFlashSlot();
             ValidateRuneCapacityFailsClosed();
             ValidateContextDriftBlocksAllWrites();
             ValidatePartialFailureIsHonest();
             ValidateCancellation();
+            ValidateUiFallbacks();
         }
 
         private static void ValidatePreparationIsReadOnly()
@@ -30,6 +32,7 @@ namespace FACM.League
             {
                 var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
                 Require(plan != null && plan.HasSpells && plan.HasRunes, "Gate 2 did not parse a complete OP.GG apply plan.");
+                Require(plan.OptionRank == 1, "Compatibility PrepareAsync must keep automatic apply on OP.GG rank #1.");
                 Require(plan.PrimaryStyleId == 8000 && plan.SecondaryStyleId == 8100,
                     "Gate 2 lost OP.GG rune style IDs required by LCU.");
                 Require(plan.PrimaryRuneIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014 }),
@@ -41,6 +44,31 @@ namespace FACM.League
                 Require(lcu.Writes.Count == 0, "Preparing or previewing Gate 2 produced an LCU write before confirmation.");
                 Require(opgg.Paths.Count == 1 && opgg.Paths[0].Contains("/ranked/157/mid"),
                     "Gate 2 preparation did not reuse the accepted Build Advisor context.");
+            }
+        }
+
+        private static void ValidateRankedOptionsAreDistinct()
+        {
+            var lcu = new FakeLeagueApi();
+            var opgg = new FakeOpggApi();
+            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg))
+            {
+                var options = service.PrepareOptionsAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
+                Require(options.Count == 3, "Manual Gate 2 UI must expose the top three real OP.GG choices when the payload provides them.");
+                Require(options.Select(row => row.OptionRank).SequenceEqual(new[] { 1, 2, 3 }),
+                    "Ranked OP.GG choices lost their stable #1/#2/#3 order.");
+                Require(options[0].Spell1Id == 11 && options[1].Spell1Id == 14 && options[2].Spell1Id == 12,
+                    "Ranked choices collapsed into duplicate summoner-spell data.");
+                Require(options[0].PrimaryRuneIds[0] == 8005 && options[1].PrimaryRuneIds[0] == 8008 && options[2].PrimaryRuneIds[0] == 8021,
+                    "Ranked choices collapsed into duplicate rune data.");
+                Require(Math.Abs((options[0].RunePickRate ?? 0) - 0.60) < 0.0001 &&
+                        Math.Abs((options[1].RunePickRate ?? 0) - 0.24) < 0.0001 &&
+                        Math.Abs((options[2].RunePickRate ?? 0) - 0.11) < 0.0001,
+                    "Ranked choice evidence lost OP.GG pick-rate data.");
+                Require(opgg.Paths.Count == 1,
+                    "Preparing three manual choices must use one OP.GG payload, not three network requests.");
+                Require(lcu.Writes.Count == 0,
+                    "Preparing three manual choices crossed the LCU write boundary before confirmation.");
             }
         }
 
@@ -164,6 +192,17 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateUiFallbacks()
+        {
+            foreach (var pair in LeagueBuildApplyUiTextKeys.DefaultsForSmokeTest())
+                Require(!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value),
+                    "Ranked apply UI fallback contains a blank key or label.");
+            string itemSetMenu;
+            Require(LeagueItemSetUiTextKeys.TryGetDefault(LeagueItemSetUiTextKeys.Menu, out itemSetMenu) &&
+                    !string.IsNullOrWhiteSpace(itemSetMenu),
+                "League Hub item-set navigation fallback must never render as a blank button.");
+        }
+
         private static LeagueBuildAdvisorSnapshot CreateSnapshot()
         {
             var recommendation = new LeagueBuildRecommendation();
@@ -176,6 +215,24 @@ namespace FACM.League
             {
                 Category = "runes",
                 Recommendation = "致命节奏 · 凯旋 · 欢欣 · 坚毅不倒 · 猛然冲击 · 寻宝猎人"
+            });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow
+            {
+                Category = "starter-items",
+                Recommendation = "多兰之刃 · 生命药水",
+                Evidence = "pick 62.0% · 1200 games"
+            });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow
+            {
+                Category = "boots",
+                Recommendation = "狂战士胫甲",
+                Evidence = "pick 55.0% · 1000 games"
+            });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow
+            {
+                Category = "core-items",
+                Recommendation = "破败王者之刃 · 无尽之刃",
+                Evidence = "pick 41.0% · 750 games"
             });
             return new LeagueBuildAdvisorSnapshot
             {
@@ -215,7 +272,15 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Paths.Add(path);
-                return Bytes("{\"data\":{\"summoner_spells\":[{\"ids\":[11,4],\"play\":1000,\"pick_rate\":0.7}],\"runes\":[{\"primary_page_id\":8000,\"secondary_page_id\":8100,\"primary_rune_ids\":[8005,9111,9104,8014],\"secondary_rune_ids\":[8139,8135],\"stat_mod_ids\":[5005,5008,5001],\"play\":900,\"pick_rate\":0.6}]}}");
+                return Bytes("{\"data\":{" +
+                    "\"summoner_spells\":[" +
+                    "{\"ids\":[11,4],\"play\":1000,\"pick_rate\":0.70}," +
+                    "{\"ids\":[14,4],\"play\":410,\"pick_rate\":0.26}," +
+                    "{\"ids\":[12,4],\"play\":180,\"pick_rate\":0.12}]," +
+                    "\"runes\":[" +
+                    "{\"primary_page_id\":8000,\"secondary_page_id\":8100,\"primary_rune_ids\":[8005,9111,9104,8014],\"secondary_rune_ids\":[8139,8135],\"stat_mod_ids\":[5005,5008,5001],\"play\":900,\"pick_rate\":0.60}," +
+                    "{\"primary_page_id\":8000,\"secondary_page_id\":8400,\"primary_rune_ids\":[8008,9111,9104,8014],\"secondary_rune_ids\":[8444,8451],\"stat_mod_ids\":[5005,5008,5001],\"play\":360,\"pick_rate\":0.24}," +
+                    "{\"primary_page_id\":8000,\"secondary_page_id\":8200,\"primary_rune_ids\":[8021,9111,9104,8014],\"secondary_rune_ids\":[8233,8236],\"stat_mod_ids\":[5005,5008,5001],\"play\":165,\"pick_rate\":0.11}]}}");
             }
         }
 

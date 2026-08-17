@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
@@ -34,6 +35,8 @@ namespace FACM.AppHost.Modules
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
+        private int _primaryUiThreadId;
+        private bool _startupRearmPending;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -51,6 +54,7 @@ namespace FACM.AppHost.Modules
             if (_settingsModule.Settings == null)
                 throw new InvalidOperationException("Settings module must initialize before League Efficiency.");
 
+            _primaryUiThreadId = Thread.CurrentThread.ManagedThreadId;
             _actions = new LeagueEfficiencyActionService();
             _hotkeys = new LeagueHotkeyService(ActionIds);
             _hotkeys.HotkeyPressed += HandleHotkey;
@@ -62,6 +66,14 @@ namespace FACM.AppHost.Modules
                     false,
                     out error))
                 AppLog.Warning("League efficiency saved hotkeys were not registered: " + error);
+
+            // FACM's module graph is initialized before Program enters the primary WinForms message loop.
+            // 3.4 real-machine feedback showed the saved global shortcuts could remain inert until a FACM
+            // window was activated. Rearm once at the first idle boundary on the *primary* UI thread so
+            // startup no longer depends on a user click. The dedicated hotkey thread also runs a WinForms
+            // loop, so the thread-ID guard is required to avoid treating its Idle event as primary readiness.
+            _startupRearmPending = true;
+            Application.Idle += HandlePrimaryApplicationIdle;
 
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
@@ -121,6 +133,31 @@ namespace FACM.AppHost.Modules
                 var current = _dashboard.CurrentGameflowState;
                 if (current != null) _matchmaking.Observe(current);
             }
+        }
+
+        private void HandlePrimaryApplicationIdle(object sender, EventArgs e)
+        {
+            if (!_startupRearmPending || Thread.CurrentThread.ManagedThreadId != _primaryUiThreadId) return;
+            _startupRearmPending = false;
+            Application.Idle -= HandlePrimaryApplicationIdle;
+            if (_disposed || _hotkeys == null) return;
+
+            string error;
+            if (!TryApplyBindings(
+                    _settingsModule.Settings.LeagueExitGameHotkey,
+                    _settingsModule.Settings.LeagueCloseLobbyHotkey,
+                    false,
+                    out error))
+            {
+                AppLog.Warning("League efficiency startup hotkey rearm failed: " + error);
+                return;
+            }
+            AppLog.Info("League efficiency saved hotkeys rearmed after primary message loop startup.");
+        }
+
+        internal bool StartupRearmUsesPrimaryIdleForSmokeTest()
+        {
+            return _primaryUiThreadId > 0 || !_startupRearmPending;
         }
 
         private bool TryApplyBindings(string exitGame, string closeLobby, bool persist, out string error)
@@ -186,6 +223,11 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            if (_startupRearmPending)
+            {
+                _startupRearmPending = false;
+                Application.Idle -= HandlePrimaryApplicationIdle;
+            }
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_matchmaking != null)
             {

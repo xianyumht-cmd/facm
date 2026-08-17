@@ -17,6 +17,19 @@
 
 > 2026-08-16：**FACM 3.4.0 已正式发布并启用在线更新。** 当前生产事实以 Release `v3.4.0` 与 `online/version.json` 为准，不再把 3.3.0 或 #120/#121 开发态描述成当前状态。
 
+## 3.4.0 发布后候选 — Issue #126 / Draft PR #128
+
+> 2026-08-17：用户完成 3.4.0 在线更新并进行真实使用测试后，发现启动期全局快捷键、League 推荐中心可用性与少量 UI 文案问题。当前修复仅存在于 `fix/league-startup-ux-126` / Draft PR #128，**尚未合并、尚未发布、online manifest 未改动**。
+
+- 全局快捷键：保存的“一键退出游戏 / 一键关闭大厅”不再把 `NativeWindow.CreateHandle()` 视为可用就绪；worker 必须先让 READY 消息完整经过自身 message loop / `WndProc`，再允许启动阶段注册快捷键，目标是 FACM 刚启动、未打开任何界面也能直接响应。
+- League Hub：保留已经验收的单入口 / 三分区 / 单 LCU session 架构，只做静态暗色电竞视觉增强；青/紫/粉光效不使用动画 Timer，不增加常驻网络或后台任务。
+- 一键应用：手动模式从同一份 OP.GG payload 展示最多 3 个真实热度排序方案，并显示 pick rate / play 证据；自动应用仍固定使用 #1，默认关闭。若源数据不足则禁用缺失方案，不伪造第三套。
+- 推荐装备：一键应用页增加出门装 / 鞋子 / 核心装只读预览；真正写入客户端 Recommended 仍由独立 Gate 3「OP.GG 推荐装备集」负责。
+- 空白按钮：确认根因是 `League.ItemSet.Menu` 有本地 fallback、但 League Hub 直接走 canonical catalog 导致缺项变空；Hub 已改走 League fallback，并统一为「OP.GG 推荐装备集」。
+- 更新窗口：显示层把 revision=0 的 `3.4.0.0` 规范为 `3.4.0`，不改变程序集版本比较或在线更新事务。
+- 安全边界不变：Gate 2 仍需用户确认，写前重新读取 Champ Select 上下文，英雄/队列/阶段漂移 fail closed，写后读回验证；不增加 pick / ban / swap / reroll / dodge / skin 写权限。
+- 收口条件：CI 全绿后只生成一个 Windows 候选，集中做一次实机验收；未收到用户实机通过与明确发布授权前，不 merge / release。
+
 ## 3.4.0 发布证据
 
 - Gate7 腾讯兼容修复：Issue #118 / PR #119；用户真实 Lobby → Queue → ReadyCheck 测试反馈“好使了，验收”。
@@ -53,11 +66,12 @@
 - Gate 3：FACM owned Recommended item set，腾讯游戏内商店验收。
 - Gate 4：选人自动应用推荐，用户验收；默认关闭、稳定 fingerprint exact-once。
 
-### 游戏效率快捷键 — DONE / 用户实机验收
+### 游戏效率快捷键 — DONE / 用户实机验收，启动期缺陷修复候选进行中
 
 - 一键结束国服 `League of Legends(TM)`（兼容旧 `League of Legends`）。
 - 一键关闭 `LeagueClient / LeagueClientUx / LeagueClientUxRender`。
 - 使用独立 STA `RegisterHotKey` message thread；无 keyboard polling / low-level hook。
+- 3.4.0 发布后实测发现：进程刚启动、未打开 FACM 任意界面时快捷键可能尚未可用；Issue #126 / PR #128 正在修复 readiness race，功能本身与进程 allowlist 不重做。
 
 ### 赛后自动化 — DONE / 用户验收
 
@@ -79,7 +93,7 @@
 
 ## League 主线状态
 
-原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7 均已收口；当前 League UX 已由 Issue #120 / PR #121 收束为统一 Hub。Issue #118 与 #120 均 completed，目前没有待发布的 League 主线功能。
+原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7 均已收口；当前 League 架构仍以 Issue #120 / PR #121 验收后的统一 Hub 为冻结基线。Issue #126 / Draft PR #128 是 3.4.0 发布后的缺陷 + UX 收口候选，不重新打开已完成主线，也不在实机验收前视为生产状态。
 
 ## 性能与权限冻结边界
 
