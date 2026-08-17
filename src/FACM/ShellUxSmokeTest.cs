@@ -9,13 +9,19 @@ namespace FACM
         {
             // PerformanceContractSmokeTest runs before Application.EnableVisualStyles/Application.Run.
             // Keep this contract smoke pure: runtime menu objects are validated by MainForm, while CI
-            // validates the stable five-root definition and the single-entry League Hub structure.
+            // validates the fixed Shell roots and the novice-facing League Hub information architecture.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
             LeagueHubNavigation.ValidateForSmokeTest();
 
-            Require(LeagueHubNavigation.Views.Count == 8, "League Hub accepted-view count changed unexpectedly.");
-            Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard, "League Hub must open from Overview/Dashboard.");
-            Require(LeagueHubNavigation.Views[LeagueHubNavigation.Views.Count - 1].Id == LeagueHubNavigation.Efficiency,
+            Require(LeagueHubNavigation.Views.Count == 6,
+                "League Hub must expose four match detail views plus one recommendation center and one efficiency page.");
+            Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard,
+                "League Hub must open from Overview/Dashboard.");
+            Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend).Count == 1 &&
+                    LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend)[0].Id == LeagueHubNavigation.Recommendation,
+                "League Hub recommendation must stay consolidated into one novice-facing surface.");
+            Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency).Count == 1 &&
+                    LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency)[0].Id == LeagueHubNavigation.Efficiency,
                 "League Hub efficiency page must remain reachable from the unified window.");
         }
 
