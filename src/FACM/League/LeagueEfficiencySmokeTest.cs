@@ -29,6 +29,8 @@ namespace FACM.League
             Require(!LeagueHotkeyBinding.TryParse("7", out binding, out error), "Bare digit must be rejected.");
             Require(LeagueHotkeyService.UsesDedicatedMessageThreadForSmokeTest(),
                 "League hotkeys must remain independent of FACM window focus on a dedicated message thread.");
+            Require(LeagueHotkeyService.StartupReadinessRequiresMessageDispatchForSmokeTest(),
+                "League hotkey startup readiness must not be signalled before the worker message loop dispatches a message.");
 
             var backend = new FakeHotkeyBackend();
             var ids = new Dictionary<string, int>(StringComparer.Ordinal)
