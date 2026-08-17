@@ -51,8 +51,18 @@ namespace FACM.AppHost.Modules
                 _performance.Budgets,
                 _sharedOpgg,
                 false);
-            _applyService = new LeagueBuildApplyService(_leagueClient, _leagueClient, _performance.Budgets);
-            _itemSetService = new LeagueItemSetService(_leagueClient, _performance.Budgets);
+            _applyService = new LeagueBuildApplyService(
+                _leagueClient,
+                _leagueClient,
+                _performance.Budgets,
+                _sharedOpgg,
+                false);
+            _itemSetService = new LeagueItemSetService(
+                _leagueClient,
+                _performance.Budgets,
+                _sharedOpgg,
+                new LeagueItemSetPhysicalFileSystem(),
+                false);
             var executor = new LeagueAutoApplyExecutor(
                 _applyService,
                 _itemSetService,
@@ -67,6 +77,15 @@ namespace FACM.AppHost.Modules
             _autoApply.Start();
         }
 
+        public Form CreateRecommendationForm(UiTextCatalog ui)
+        {
+            if (_service == null || _applyService == null || _itemSetService == null || _autoApply == null)
+                throw new InvalidOperationException("League recommendation module is not initialized.");
+            return new LeagueRecommendationForm(_service, _applyService, _itemSetService, _autoApply, ui);
+        }
+
+        // Keep the accepted legacy surfaces available to deterministic tests and future deep-detail flows.
+        // League Hub no longer exposes them as separate novice-facing navigation entries.
         public Form CreateForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Build Advisor module is not initialized.");

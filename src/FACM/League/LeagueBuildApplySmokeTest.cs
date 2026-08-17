@@ -18,7 +18,8 @@ namespace FACM.League
             ValidateHappyPathAndFlashSlot();
             ValidateRuneCapacityFailsClosed();
             ValidateContextDriftBlocksAllWrites();
-            ValidatePartialFailureIsHonest();
+            ValidateRuneFalseSuccessIsRejected();
+            ValidateSpellFalseSuccessIsRejected();
             ValidateCancellation();
         }
 
@@ -26,157 +27,141 @@ namespace FACM.League
         {
             var lcu = new FakeLeagueApi();
             var opgg = new FakeOpggApi();
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg))
+            using (var service = CreateService(lcu, opgg))
             {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
-                Require(plan != null && plan.HasSpells && plan.HasRunes, "Gate 2 did not parse a complete OP.GG apply plan.");
-                Require(plan.PrimaryStyleId == 8000 && plan.SecondaryStyleId == 8100,
-                    "Gate 2 lost OP.GG rune style IDs required by LCU.");
-                Require(plan.PrimaryRuneIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014 }),
-                    "Gate 2 parsed primary rune IDs incorrectly.");
-                Require(plan.SecondaryRuneIds.SequenceEqual(new[] { 8139, 8135 }),
-                    "Gate 2 parsed secondary rune IDs incorrectly.");
-                Require(plan.StatModIds.SequenceEqual(new[] { 5005, 5008, 5001 }),
-                    "Gate 2 parsed stat mod IDs incorrectly.");
-                Require(lcu.Writes.Count == 0, "Preparing or previewing Gate 2 produced an LCU write before confirmation.");
-                Require(opgg.Paths.Count == 1 && opgg.Paths[0].Contains("/ranked/157/mid"),
-                    "Gate 2 preparation did not reuse the accepted Build Advisor context.");
+                var plan = Prepare(service);
+                Require(plan.HasSpells && plan.HasRunes, "Gate 2 did not parse a complete OP.GG apply plan.");
+                Require(plan.PrimaryStyleId == 8000 && plan.SecondaryStyleId == 8100, "Gate 2 lost rune style IDs.");
+                Require(plan.PrimaryRuneIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014 }), "Primary runes parsed incorrectly.");
+                Require(plan.SecondaryRuneIds.SequenceEqual(new[] { 8139, 8135 }), "Secondary runes parsed incorrectly.");
+                Require(plan.StatModIds.SequenceEqual(new[] { 5005, 5008, 5001 }), "Stat mods parsed incorrectly.");
+                Require(lcu.Writes.Count == 0, "Preparing Gate 2 produced an LCU write before confirmation.");
+                Require(opgg.Paths.Count == 1 && opgg.Paths[0].Contains("/ranked/157/mid"), "Preparation lost the accepted OP.GG context.");
             }
         }
 
         private static void ValidateHappyPathAndFlashSlot()
         {
-            var lcu = new FakeLeagueApi
+            var lcu = new FakeLeagueApi { Spell1Id = 4, Spell2Id = 14 };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
             {
-                Spell1Id = 4,
-                Spell2Id = 14,
-                CanAddCustomPage = true
-            };
-            var opgg = new FakeOpggApi();
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg))
-            {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
-                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
-
+                var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
                 Require(result.Status == "success" && result.RunesApplied && result.SpellsApplied,
-                    "Gate 2 happy path did not report full verified success.");
-                Require(result.CreatedRunePageId == FakeLeagueApi.CreatedPageId,
-                    "Gate 2 did not retain the newly created FACM rune page ID.");
-                Require(lcu.Writes.Count == 4, "Gate 2 happy path must use exactly POST page + PUT page + PUT current + PATCH spells.");
+                    "Gate 2 happy path did not report full settled success.");
+                Require(lcu.CurrentRunePageId == FakeLeagueApi.CreatedPageId, "Created FACM rune page was not active.");
+                Require(lcu.Spell1Id == 4 && lcu.Spell2Id == 11, "Flash-on-D preservation failed.");
+                Require(lcu.Writes.Count == 4, "Happy path must use POST page + PUT page + PUT current + PATCH spells.");
                 RequireWrite(lcu, "POST", LeagueBuildApplyService.PerkCreatePath);
                 RequireWrite(lcu, "PUT", LeagueBuildApplyService.PerkPagesPath + "/" + FakeLeagueApi.CreatedPageId);
                 RequireWrite(lcu, "PUT", LeagueBuildApplyService.PerkCurrentPagePath);
-                var spellWrite = RequireWrite(lcu, "PATCH", LeagueBuildApplyService.MySelectionPath);
-                Require(spellWrite.Json.Contains("\"spell1Id\":4") && spellWrite.Json.Contains("\"spell2Id\":11"),
-                    "Gate 2 did not preserve the user's existing Flash-on-D slot.");
-                Require(lcu.Spell1Id == 4 && lcu.Spell2Id == 11,
-                    "Gate 2 spell read-back fixture did not reach the verified target.");
-                Require(lcu.Writes.All(call =>
-                    call.Path.IndexOf("actions", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    call.Path.IndexOf("reroll", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    call.Path.IndexOf("skin", StringComparison.OrdinalIgnoreCase) < 0),
-                    "Gate 2 touched a forbidden Champ Select write endpoint.");
+                var spell = RequireWrite(lcu, "PATCH", LeagueBuildApplyService.MySelectionPath);
+                Require(spell.Json.Contains("\"spell1Id\":4") && spell.Json.Contains("\"spell2Id\":11"), "Flash slot write payload is wrong.");
+                Require(lcu.Writes.All(call => call.Path.IndexOf("actions", StringComparison.OrdinalIgnoreCase) < 0 &&
+                                               call.Path.IndexOf("reroll", StringComparison.OrdinalIgnoreCase) < 0 &&
+                                               call.Path.IndexOf("skin", StringComparison.OrdinalIgnoreCase) < 0),
+                    "Gate 2 touched a forbidden Champ Select endpoint.");
             }
         }
 
         private static void ValidateRuneCapacityFailsClosed()
         {
-            var lcu = new FakeLeagueApi
+            var lcu = new FakeLeagueApi { CanAddCustomPage = false, Spell1Id = 14, Spell2Id = 4 };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
             {
-                CanAddCustomPage = false,
-                Spell1Id = 14,
-                Spell2Id = 4
-            };
-            var opgg = new FakeOpggApi();
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg))
-            {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
-                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
-
+                var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
                 Require(result.Status == "partial" && result.RuneSkippedNoCapacity && !result.RunesApplied && result.SpellsApplied,
-                    "Full rune inventory must skip runes while allowing an independently verified spell apply.");
+                    "Full rune inventory must skip runes but still allow verified spells.");
                 Require(!lcu.Writes.Any(call => call.Path.StartsWith(LeagueBuildApplyService.PerkPagesPath, StringComparison.OrdinalIgnoreCase)),
-                    "Gate 2 overwrote or modified an existing rune page when custom page capacity was full.");
-                Require(!lcu.ReadPaths.Any(path => string.Equals(path, LeagueBuildApplyService.PerkPagesPath, StringComparison.OrdinalIgnoreCase)),
-                    "Gate 2 inspected existing rune pages after learning that no safe custom slot was available.");
-                Require(lcu.Writes.Count == 1 && lcu.Writes[0].Method == "PATCH",
-                    "Full rune inventory should leave only the explicit summoner spell write.");
-                Require(lcu.Spell1Id == 11 && lcu.Spell2Id == 4,
-                    "Gate 2 did not preserve the existing Flash-on-F slot.");
+                    "Gate 2 modified rune pages when capacity was full.");
+                Require(lcu.Spell1Id == 11 && lcu.Spell2Id == 4, "Flash-on-F preservation failed.");
             }
         }
 
         private static void ValidateContextDriftBlocksAllWrites()
         {
-            var lcu = new FakeLeagueApi { Phase = "InProgress" };
-            var opgg = new FakeOpggApi();
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg))
+            var inGame = new FakeLeagueApi { Phase = "InProgress" };
+            using (var service = CreateService(inGame, new FakeOpggApi()))
             {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
-                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
-                Require(result.Status == "blocked" && result.BlockReason == "champ-select-required",
-                    "Leaving Champ Select did not fail closed before Gate 2 writes.");
-                Require(lcu.Writes.Count == 0, "Gate 2 wrote to LCU after phase drift to In Game.");
+                var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "blocked" && result.BlockReason == "champ-select-required", "Phase drift did not fail closed.");
+                Require(inGame.Writes.Count == 0, "Gate 2 wrote after leaving Champ Select.");
             }
 
-            var changedChampion = new FakeLeagueApi { ChampionId = 145 };
-            using (var service = new LeagueBuildApplyService(changedChampion, changedChampion, new PerformanceBudgetProvider(), new FakeOpggApi()))
+            var changed = new FakeLeagueApi { ChampionId = 145 };
+            using (var service = CreateService(changed, new FakeOpggApi()))
             {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
-                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
-                Require(result.Status == "blocked" && result.BlockReason == "champion-changed",
-                    "Champion drift did not fail closed before Gate 2 writes.");
-                Require(changedChampion.Writes.Count == 0, "Gate 2 wrote a stale champion loadout.");
+                var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "blocked" && result.BlockReason == "champion-changed", "Champion drift did not fail closed.");
+                Require(changed.Writes.Count == 0, "Gate 2 wrote a stale champion loadout.");
             }
         }
 
-        private static void ValidatePartialFailureIsHonest()
+        private static void ValidateRuneFalseSuccessIsRejected()
         {
-            var lcu = new FakeLeagueApi { FailSpellPatch = true };
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), new FakeOpggApi()))
+            var lcu = new FakeLeagueApi { IgnoreCurrentPageSelection = true };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
             {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
+                var plan = Prepare(service);
+                plan.Spell1Id = 0;
+                plan.Spell2Id = 0;
                 var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
-                Require(result.Status == "partial" && result.RunesApplied && !result.SpellsApplied,
-                    "Gate 2 falsely reported full success after the spell PATCH failed.");
-                Require(result.SpellStatus == "write-failed", "Gate 2 lost the scoped spell failure reason.");
+                Require(result.Status == "failed" && result.RuneStatus == "verify-failed" && !result.RunesApplied,
+                    "A 2xx current-page response was falsely treated as an applied rune page.");
+                Require(lcu.CurrentRunePageId != FakeLeagueApi.CreatedPageId, "False-success fixture accidentally activated the FACM page.");
+                Require(lcu.Writes.Count(x => x.Method == "PUT" && x.Path == LeagueBuildApplyService.PerkCurrentPagePath) == 2,
+                    "Rune activation must retry once before failing honestly.");
+            }
+        }
+
+        private static void ValidateSpellFalseSuccessIsRejected()
+        {
+            var lcu = new FakeLeagueApi { Spell1Id = 4, Spell2Id = 14, AcceptSpellPatchWithoutApplying = true };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                var plan = Prepare(service);
+                plan.PrimaryStyleId = 0;
+                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "failed" && result.SpellStatus == "verify-failed" && !result.SpellsApplied,
+                    "A 2xx spell PATCH was falsely treated as applied when League kept the old spells.");
+                Require(lcu.Spell1Id == 4 && lcu.Spell2Id == 14, "False-success spell fixture unexpectedly changed state.");
+                Require(lcu.Writes.Count(x => x.Method == "PATCH" && x.Path == LeagueBuildApplyService.MySelectionPath) == 2,
+                    "Spell apply must retry once before failing honestly.");
             }
         }
 
         private static void ValidateCancellation()
         {
             var lcu = new FakeLeagueApi();
-            using (var service = new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), new FakeOpggApi()))
+            using (var service = CreateService(lcu, new FakeOpggApi()))
             using (var cancellation = new CancellationTokenSource())
             {
-                var plan = service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
+                var plan = Prepare(service);
                 cancellation.Cancel();
                 try
                 {
                     service.ApplyAsync(plan, cancellation.Token).GetAwaiter().GetResult();
                     throw new InvalidOperationException("Gate 2 ignored caller cancellation.");
                 }
-                catch (OperationCanceledException)
-                {
-                    // Expected: closing the apply form cancels before any write.
-                }
-                Require(lcu.Writes.Count == 0, "Cancelled Gate 2 apply produced an LCU write.");
+                catch (OperationCanceledException) { }
+                Require(lcu.Writes.Count == 0, "Cancelled Gate 2 apply produced a write.");
             }
+        }
+
+        private static LeagueBuildApplyService CreateService(FakeLeagueApi lcu, FakeOpggApi opgg)
+        {
+            return new LeagueBuildApplyService(lcu, lcu, new PerformanceBudgetProvider(), opgg);
+        }
+
+        private static LeagueBuildApplyPlan Prepare(LeagueBuildApplyService service)
+        {
+            return service.PrepareAsync(CreateSnapshot(), CancellationToken.None).GetAwaiter().GetResult();
         }
 
         private static LeagueBuildAdvisorSnapshot CreateSnapshot()
         {
             var recommendation = new LeagueBuildRecommendation();
-            recommendation.Rows.Add(new LeagueBuildAdvisorRow
-            {
-                Category = "summoner-spells",
-                Recommendation = "惩戒 · 闪现"
-            });
-            recommendation.Rows.Add(new LeagueBuildAdvisorRow
-            {
-                Category = "runes",
-                Recommendation = "致命节奏 · 凯旋 · 欢欣 · 坚毅不倒 · 猛然冲击 · 寻宝猎人"
-            });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow { Category = "summoner-spells", Recommendation = "惩戒 · 闪现" });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow { Category = "runes", Recommendation = "致命节奏 · 凯旋 · 欢欣 · 坚毅不倒 · 猛然冲击 · 寻宝猎人" });
             return new LeagueBuildAdvisorSnapshot
             {
                 Connected = true,
@@ -209,13 +194,12 @@ namespace FACM.League
 
         private sealed class FakeOpggApi : IOpggBuildApi
         {
-            public List<string> Paths { get; } = new List<string>();
-
+            public readonly List<string> Paths = new List<string>();
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Paths.Add(path);
-                return Bytes("{\"data\":{\"summoner_spells\":[{\"ids\":[11,4],\"play\":1000,\"pick_rate\":0.7}],\"runes\":[{\"primary_page_id\":8000,\"secondary_page_id\":8100,\"primary_rune_ids\":[8005,9111,9104,8014],\"secondary_rune_ids\":[8139,8135],\"stat_mod_ids\":[5005,5008,5001],\"play\":900,\"pick_rate\":0.6}]}}");
+                return Bytes("{\"data\":{\"summoner_spells\":[{\"ids\":[11,4]}],\"runes\":[{\"primary_page_id\":8000,\"secondary_page_id\":8100,\"primary_rune_ids\":[8005,9111,9104,8014],\"secondary_rune_ids\":[8139,8135],\"stat_mod_ids\":[5005,5008,5001]}]}}");
             }
         }
 
@@ -237,63 +221,54 @@ namespace FACM.League
             public int QueueId { get; set; } = 420;
             public int Spell1Id { get; set; } = 4;
             public int Spell2Id { get; set; } = 14;
+            public int CurrentRunePageId { get; set; } = 12;
             public bool CanAddCustomPage { get; set; } = true;
-            public bool FailSpellPatch { get; set; }
-            public List<string> ReadPaths { get; } = new List<string>();
-            public List<WriteCall> Writes { get; } = new List<WriteCall>();
+            public bool IgnoreCurrentPageSelection { get; set; }
+            public bool AcceptSpellPatchWithoutApplying { get; set; }
+            public readonly List<string> ReadPaths = new List<string>();
+            public readonly List<WriteCall> Writes = new List<WriteCall>();
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 ReadPaths.Add(path);
-                if (path == LeagueDashboardPhaseService.PhasePath)
-                    return Bytes("\"" + Phase + "\"");
+                if (path == LeagueDashboardPhaseService.PhasePath) return Bytes("\"" + Phase + "\"");
                 if (path == LeagueLiveDataService.ChampSelectSessionPath)
-                {
-                    return Bytes("{\"gameId\":123,\"queueId\":" + QueueId + ",\"localPlayerCellId\":1,\"myTeam\":[{\"cellId\":1,\"puuid\":\"local-puuid\",\"assignedPosition\":\"MIDDLE\",\"championId\":" + ChampionId + ",\"championPickIntent\":" + ChampionId + "}],\"theirTeam\":[],\"actions\":[]}");
-                }
-                if (path == LeagueLiveDataService.GameflowSessionPath)
-                    return Bytes("{\"phase\":\"InProgress\",\"map\":{\"id\":11,\"gameMode\":\"CLASSIC\"},\"gameData\":{\"gameId\":123,\"queue\":{\"id\":" + QueueId + ",\"gameMode\":\"CLASSIC\"},\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":" + ChampionId + "}],\"teamTwo\":[]}}");
-                if (path == LeagueBuildApplyService.PerkInventoryPath)
-                    return Bytes("{\"canAddCustomPage\":" + (CanAddCustomPage ? "true" : "false") + "}");
-                if (path == LeagueBuildApplyService.MySelectionPath)
-                    return Bytes("{\"spell1Id\":" + Spell1Id + ",\"spell2Id\":" + Spell2Id + "}");
-                if (path == LeagueBuildApplyService.PerkPagesPath)
-                    return Bytes(_runePageJson == null ? "[]" : "[" + _runePageJson + "]");
+                    return Bytes("{\"gameId\":123,\"queueId\":" + QueueId + ",\"localPlayerCellId\":1,\"myTeam\":[{\"cellId\":1,\"puuid\":\"local\",\"assignedPosition\":\"MIDDLE\",\"championId\":" + ChampionId + ",\"championPickIntent\":" + ChampionId + "}],\"theirTeam\":[],\"actions\":[]}");
+                if (path == LeagueBuildApplyService.PerkInventoryPath) return Bytes("{\"canAddCustomPage\":" + (CanAddCustomPage ? "true" : "false") + "}");
+                if (path == LeagueBuildApplyService.MySelectionPath) return Bytes("{\"spell1Id\":" + Spell1Id + ",\"spell2Id\":" + Spell2Id + "}");
+                if (path == LeagueBuildApplyService.PerkPagesPath) return Bytes(_runePageJson == null ? "[]" : "[" + _runePageJson + "]");
+                if (path == LeagueBuildApplyService.PerkCurrentPagePath)
+                    return Bytes(CurrentRunePageId == CreatedPageId && _runePageJson != null ? _runePageJson : "{\"id\":" + CurrentRunePageId + "}");
                 return Task.FromResult<byte[]>(null);
             }
 
-            public Task<LeagueClientWriteResponse> TrySendJsonAsync(
-                string method,
-                string path,
-                string json,
-                CancellationToken cancellationToken)
+            public Task<LeagueClientWriteResponse> TrySendJsonAsync(string method, string path, string json, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var call = new WriteCall { Method = method, Path = path, Json = json ?? string.Empty };
-                Writes.Add(call);
-
-                if (method == "POST" && path == LeagueBuildApplyService.PerkCreatePath)
-                    return Success("{\"id\":" + CreatedPageId + "}");
-
+                Writes.Add(new WriteCall { Method = method, Path = path, Json = json ?? string.Empty });
+                if (method == "POST" && path == LeagueBuildApplyService.PerkCreatePath) return Success("{\"id\":" + CreatedPageId + "}");
                 if (method == "PUT" && path == LeagueBuildApplyService.PerkPagesPath + "/" + CreatedPageId)
                 {
                     _runePageJson = json;
                     return Success("{}");
                 }
-
                 if (method == "PUT" && path == LeagueBuildApplyService.PerkCurrentPagePath)
-                    return Success("{}");
-
-                if (method == "PATCH" && path == LeagueBuildApplyService.MySelectionPath)
                 {
-                    if (FailSpellPatch) return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 500, Body = BytesValue("{}") });
-                    var parsed = _json.DeserializeObject(json) as Dictionary<string, object>;
-                    Spell1Id = ReadInt(parsed, "spell1Id");
-                    Spell2Id = ReadInt(parsed, "spell2Id");
+                    int id;
+                    if (!IgnoreCurrentPageSelection && int.TryParse((json ?? string.Empty).Trim('"'), out id)) CurrentRunePageId = id;
                     return Success("{}");
                 }
-
+                if (method == "PATCH" && path == LeagueBuildApplyService.MySelectionPath)
+                {
+                    if (!AcceptSpellPatchWithoutApplying)
+                    {
+                        var parsed = _json.DeserializeObject(json) as Dictionary<string, object>;
+                        Spell1Id = ReadInt(parsed, "spell1Id");
+                        Spell2Id = ReadInt(parsed, "spell2Id");
+                    }
+                    return Success("{}");
+                }
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 404, Body = BytesValue("{}") });
             }
 
@@ -306,21 +281,11 @@ namespace FACM.League
             {
                 object value;
                 int parsed;
-                return source != null && source.TryGetValue(key, out value) &&
-                       int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out parsed)
-                    ? parsed
-                    : 0;
+                return source != null && source.TryGetValue(key, out value) && int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out parsed) ? parsed : 0;
             }
         }
 
-        private static Task<byte[]> Bytes(string text)
-        {
-            return Task.FromResult(BytesValue(text));
-        }
-
-        private static byte[] BytesValue(string text)
-        {
-            return Encoding.UTF8.GetBytes(text ?? string.Empty);
-        }
+        private static Task<byte[]> Bytes(string text) { return Task.FromResult(BytesValue(text)); }
+        private static byte[] BytesValue(string text) { return Encoding.UTF8.GetBytes(text ?? string.Empty); }
     }
 }

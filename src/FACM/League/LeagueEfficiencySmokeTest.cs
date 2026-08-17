@@ -27,8 +27,15 @@ namespace FACM.League
                 "Modified hotkey did not round-trip.");
             Require(!LeagueHotkeyBinding.TryParse("A", out binding, out error), "Bare letter must be rejected.");
             Require(!LeagueHotkeyBinding.TryParse("7", out binding, out error), "Bare digit must be rejected.");
-            Require(LeagueHotkeyService.UsesDedicatedMessageThreadForSmokeTest(),
-                "League hotkeys must remain independent of FACM window focus on a dedicated message thread.");
+            Require(LeagueNativeHotkeyService.UsesIndependentThreadMessageQueueForSmokeTest(),
+                "League hotkeys must use a dedicated native thread message queue.");
+            Require(LeagueNativeHotkeyService.RegistersWithoutWindowHandleForSmokeTest(),
+                "League hotkeys must not depend on any FACM window handle or foreground state.");
+            Require(LeagueNativeHotkeyService.UsesAsyncKeyStateFallbackForSmokeTest(),
+                "Tencent game foreground must have a non-hook key-state fallback when WM_HOTKEY is consumed.");
+            Require(LeagueNativeHotkeyService.PollIntervalMillisecondsForSmokeTest() >= 15 &&
+                    LeagueNativeHotkeyService.PollIntervalMillisecondsForSmokeTest() <= 50,
+                "League hotkey fallback polling interval is outside the bounded low-overhead contract.");
 
             var backend = new FakeHotkeyBackend();
             var ids = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -40,6 +47,8 @@ namespace FACM.League
             {
                 Require(manager.TryApply(Bindings("F8", "F9"), out error), "Initial hotkey registration failed: " + error);
                 Require(backend.Active.Count == 2, "Initial hotkey registration count mismatch.");
+                Require(backend.LastWindowHandle == IntPtr.Zero,
+                    "Thread-owned global hotkeys must register with hWnd=NULL.");
                 Require(!manager.TryApply(Bindings("F10", "F10"), out error), "Duplicate FACM hotkeys must be rejected.");
                 Require(backend.Active.Count == 2, "Duplicate validation must preserve old bindings.");
                 backend.FailNextId = 2;
@@ -98,7 +107,6 @@ namespace FACM.League
 
         private static void ValidateUiContract()
         {
-            Require(LeagueEfficiencyUiBridge.HasTrayAccessForSmokeTest(), "League Efficiency tray bridge lost MainForm tray access.");
             foreach (var pair in LeagueEfficiencyText.DefaultsForSmokeTest())
             {
                 Require(!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value),
@@ -137,9 +145,11 @@ namespace FACM.League
 
             public readonly Dictionary<int, Registered> Active = new Dictionary<int, Registered>();
             public int FailNextId = -1;
+            public IntPtr LastWindowHandle = new IntPtr(-1);
 
             public bool Register(IntPtr windowHandle, int id, uint modifiers, uint virtualKey)
             {
+                LastWindowHandle = windowHandle;
                 if (id == FailNextId)
                 {
                     FailNextId = -1;

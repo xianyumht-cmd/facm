@@ -20,6 +20,8 @@ namespace FACM.AppHost
                 ValidateFirstModuleFailureReport();
                 ValidateShellFeatureDependencyContract();
                 LeagueClientSmokeTest.Validate();
+                LeagueEfficiencySmokeTest.Validate();
+                LeagueHubNavigation.ValidateForSmokeTest();
                 return 0;
             }
             catch (Exception exception)
