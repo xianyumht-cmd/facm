@@ -95,6 +95,28 @@ namespace FACM.AppHost.Modules
             return TryApplyBindings(exitGame, closeLobby, true, out error);
         }
 
+        /// <summary>
+        /// The module graph is initialized before the primary WinForms message loop starts. Real-machine 3.4
+        /// feedback showed that relying only on that pre-loop registration can leave the global shortcuts inert
+        /// until the user activates a FACM window. Reapply the already-saved bindings exactly once on the first
+        /// primary Application.Idle boundary so no user click is required. Registration remains transactional.
+        /// </summary>
+        public void RearmSavedHotkeysAfterPrimaryLoopStarts()
+        {
+            ThrowIfDisposed();
+            string error;
+            if (!TryApplyBindings(
+                    _settingsModule.Settings.LeagueExitGameHotkey,
+                    _settingsModule.Settings.LeagueCloseLobbyHotkey,
+                    false,
+                    out error))
+            {
+                AppLog.Warning("League efficiency startup hotkey rearm failed: " + error);
+                return;
+            }
+            AppLog.Info("League efficiency saved hotkeys rearmed after primary message loop startup.");
+        }
+
         public void UpdatePostGameSettings(bool autoHonor, bool autoReturn)
         {
             ThrowIfDisposed();
