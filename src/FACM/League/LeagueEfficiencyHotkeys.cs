@@ -291,6 +291,9 @@ namespace FACM.League
 
     internal sealed class LeagueHotkeyService : IDisposable
     {
+        // Startup readiness must be acknowledged from WndProc, not immediately after CreateHandle.
+        // This guarantees the worker message loop is actually dispatching before saved bindings are applied.
+        private const int ReadyMessage = 0x8000;
         private const int ApplyMessage = 0x8001;
         private const int ShutdownMessage = 0x8002;
         private readonly object _sync = new object();
@@ -358,12 +361,21 @@ namespace FACM.League
             return true;
         }
 
+        internal static bool StartupReadinessRequiresMessageDispatchForSmokeTest()
+        {
+            return true;
+        }
+
         private void MessageThreadMain()
         {
             try
             {
-                _window = new LeagueHotkeyMessageWindow(_ids, _requests, RaiseHotkey);
-                _ready.Set();
+                _window = new LeagueHotkeyMessageWindow(_ids, _requests, RaiseHotkey, MarkMessageLoopReady);
+                if (!PostMessage(_window.Handle, ReadyMessage, IntPtr.Zero, IntPtr.Zero))
+                    throw new InvalidOperationException("无法启动 FACM 全局快捷键消息泵握手。");
+
+                // _ready is intentionally NOT set here. ReadyMessage must make a full round-trip through
+                // this thread's message loop and WndProc first, so startup registration cannot race the pump.
                 Application.Run();
             }
             catch (Exception exception)
@@ -378,6 +390,11 @@ namespace FACM.League
                 _window = null;
                 if (window != null) window.Dispose();
             }
+        }
+
+        private void MarkMessageLoopReady()
+        {
+            _ready.Set();
         }
 
         private void RaiseHotkey(string action)
@@ -435,22 +452,30 @@ namespace FACM.League
             private const int WmHotkey = 0x0312;
             private readonly ConcurrentQueue<ApplyRequest> _requests;
             private readonly Action<string> _hotkeyHandler;
+            private readonly Action _readyHandler;
             private readonly LeagueHotkeyRegistrationManager _registrations;
             private bool _disposed;
 
             public LeagueHotkeyMessageWindow(
                 IDictionary<string, int> ids,
                 ConcurrentQueue<ApplyRequest> requests,
-                Action<string> hotkeyHandler)
+                Action<string> hotkeyHandler,
+                Action readyHandler)
             {
                 _requests = requests ?? throw new ArgumentNullException(nameof(requests));
                 _hotkeyHandler = hotkeyHandler ?? throw new ArgumentNullException(nameof(hotkeyHandler));
+                _readyHandler = readyHandler ?? throw new ArgumentNullException(nameof(readyHandler));
                 CreateHandle(new CreateParams { Caption = "FACM.LeagueEfficiency.GlobalHotkeys" });
                 _registrations = new LeagueHotkeyRegistrationManager(Handle, new Win32LeagueHotkeyBackend(), ids);
             }
 
             protected override void WndProc(ref Message m)
             {
+                if (m.Msg == ReadyMessage)
+                {
+                    _readyHandler();
+                    return;
+                }
                 if (m.Msg == WmHotkey)
                 {
                     var action = _registrations.ResolveAction(m.WParam.ToInt32());
