@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.0
-- GitHub Release：v3.4.0
+- 版本：FACM 3.4.1
+- GitHub Release：v3.4.1
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：65aa513d8b240ac7ce938cefef27ac3013b715fe
-- 发布元数据提交：97e7c6124a41eb072221eceb52df6bb8b27e8c64
-- Release FACM.exe SHA-256：F7BAA613A5B81E88A725F0ED7452EDEB4A98F5CD32EB34D1A58570164173F0A2
-- published_at：2026-08-15T21:19:24.9354659+00:00
-- release_notes：FACM 3.4.0：英雄联盟功能收束为单一入口和统一「英雄联盟中心」，对局、推荐、效率集中管理；同时修复国服自动寻找对局与自动接受兼容性。自动化仍默认关闭，继续保持轻量、低占用、低打扰。
+- 发布基础 main：9bcdc9dc3e15d78cdb701d07b80628af7e68550c
+- 发布元数据提交：3ae73de4af43cef36f38c70bf829bb854bbb6dec
+- Release FACM.exe SHA-256：E5F54A0957B70809B1CD11E34D5707DAB37D044576416D22A51FEE624F6464FC
+- published_at：2026-08-17T17:19:34.4987503+00:00
+- release_notes：FACM 3.4.1：修复英雄联盟游戏内全局快捷键在未打开 FACM 面板时可能不生效的问题，增加面向腾讯客户端前台输入的低开销备用检测；修复符文与召唤师技能一键应用可能显示成功但客户端仍保留旧配置的问题，改为等待并二次读回确认，未真正生效时不再误报成功。同时保留新版英雄联盟中心、统一推荐中心与装备集应用。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 2026-08-16：**FACM 3.4.0 已正式发布并启用在线更新。** 当前生产事实以 Release `v3.4.0` 与 `online/version.json` 为准，不再把 3.3.0 或 #120/#121 开发态描述成当前状态。
