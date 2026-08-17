@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.1
-- GitHub Release：v3.4.1
+- 版本：FACM 3.4.2
+- GitHub Release：v3.4.2
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：9bcdc9dc3e15d78cdb701d07b80628af7e68550c
-- 发布元数据提交：3ae73de4af43cef36f38c70bf829bb854bbb6dec
-- Release FACM.exe SHA-256：E5F54A0957B70809B1CD11E34D5707DAB37D044576416D22A51FEE624F6464FC
-- published_at：2026-08-17T17:19:34.4987503+00:00
-- release_notes：FACM 3.4.1：修复英雄联盟游戏内全局快捷键在未打开 FACM 面板时可能不生效的问题，增加面向腾讯客户端前台输入的低开销备用检测；修复符文与召唤师技能一键应用可能显示成功但客户端仍保留旧配置的问题，改为等待并二次读回确认，未真正生效时不再误报成功。同时保留新版英雄联盟中心、统一推荐中心与装备集应用。
+- 发布基础 main：bc2603976dd9691172401778656b50429864dfed
+- 发布元数据提交：252ae023428bfa0a57dcbbd4ec273953ebf49440
+- Release FACM.exe SHA-256：B0F31DA0F158301507EFA6567F3115CF3893B34FD07717508E5743A2FF1FF5D1
+- published_at：2026-08-17T18:30:02.4206560+00:00
+- release_notes：FACM 3.4.2：继续修复英雄联盟推荐中心一键应用。符文不再每次都新建一个 FACM 自定义页，而是优先复用同名 [FACM] 页；自定义符文页容量已满时，也只复用 FACM 自有页，绝不覆盖普通用户符文页。同时补齐符文与召唤师技能的一键应用实机日志，可明确记录准备、跳过、阻止以及最终 rune/spell 状态。3.4.1 的游戏内一键退出修复继续保留。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 2026-08-16：**FACM 3.4.0 已正式发布并启用在线更新。** 当前生产事实以 Release `v3.4.0` 与 `online/version.json` 为准，不再把 3.3.0 或 #120/#121 开发态描述成当前状态。
