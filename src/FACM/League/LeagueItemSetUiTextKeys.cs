@@ -55,8 +55,8 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { Menu, "OP.GG 装备集" },
-                { WindowTitle, "FACM · OP.GG 装备集" },
+                { Menu, "OP.GG 推荐装备集" },
+                { WindowTitle, "FACM · OP.GG 推荐装备集" },
                 { Title, "OP.GG Item Set" },
                 { Hint, "仅在英雄选择阶段，由你确认后把 OP.GG 推荐装备写入客户端 Recommended；只管理 FACM 自己的文件。" },
                 { Context, "当前上下文" },
