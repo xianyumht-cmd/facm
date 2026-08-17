@@ -277,8 +277,8 @@ namespace FACM.Online
         private void ApplySnapshot()
         {
             if (IsDisposed || Disposing) return;
-            var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
-            var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
+            var current = FormatVersionForDisplay(_snapshot.CurrentVersion, "未知");
+            var latest = FormatVersionForDisplay(_snapshot.LatestVersion, "未获取");
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
@@ -317,6 +317,16 @@ namespace FACM.Online
                 _announcementBody.Text = "暂无公告内容。";
                 _linkButton.Enabled = false;
             }
+        }
+
+        internal static string FormatVersionForDisplay(Version version, string fallback)
+        {
+            if (version == null) return fallback ?? string.Empty;
+            if (version.Revision > 0)
+                return version.Major + "." + version.Minor + "." + Math.Max(0, version.Build) + "." + version.Revision;
+            if (version.Build >= 0)
+                return version.Major + "." + version.Minor + "." + version.Build;
+            return version.Major + "." + version.Minor;
         }
 
         private void SetBusy(bool busy, string status)
