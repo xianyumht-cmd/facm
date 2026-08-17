@@ -10,6 +10,7 @@ namespace FACM.League
 {
     internal sealed class LeagueDashboardForm : Form
     {
+        private const string DashboardBadgeText = "LEAGUE // LIVE";
         private static readonly Color Background = Color.FromArgb(10, 15, 25);
         private static readonly Color Surface = Color.FromArgb(18, 27, 43);
         private static readonly Color TextPrimary = Color.FromArgb(238, 243, 252);
@@ -80,7 +81,7 @@ namespace FACM.League
             });
             titlePanel.Controls.Add(new Label
             {
-                Text = "LEAGUE // LIVE",
+                Text = DashboardBadgeText,
                 Dock = DockStyle.Right,
                 Width = 180,
                 ForeColor = NeonPurple,
