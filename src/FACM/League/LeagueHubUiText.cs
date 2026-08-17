@@ -10,9 +10,13 @@ namespace FACM.League
         public const string Title = "LeagueHubTitle";
         public const string Hint = "LeagueHubHint";
         public const string SectionMatch = "LeagueHubSectionMatch";
+        public const string SectionMatchHint = "LeagueHubSectionMatchHint";
         public const string SectionRecommend = "LeagueHubSectionRecommend";
+        public const string SectionRecommendHint = "LeagueHubSectionRecommendHint";
         public const string SectionEfficiency = "LeagueHubSectionEfficiency";
+        public const string SectionEfficiencyHint = "LeagueHubSectionEfficiencyHint";
         public const string Dashboard = "LeagueHubDashboard";
+        public const string Recommendation = "LeagueHubRecommendation";
     }
 
     internal static class LeagueHubText
@@ -21,11 +25,15 @@ namespace FACM.League
         {
             { LeagueHubUiTextKeys.WindowTitle, "FACM · 英雄联盟中心" },
             { LeagueHubUiTextKeys.Title, "英雄联盟中心" },
-            { LeagueHubUiTextKeys.Hint, "一个入口管理对局、推荐与效率功能；切换页面不会额外常驻多个功能窗口。" },
+            { LeagueHubUiTextKeys.Hint, "三个入口解决大多数事情：看对局、用推荐、提效率。需要的细节再在顶部切换。" },
             { LeagueHubUiTextKeys.SectionMatch, "对局" },
+            { LeagueHubUiTextKeys.SectionMatchHint, "账号 · 实时 · 海斗" },
             { LeagueHubUiTextKeys.SectionRecommend, "推荐" },
+            { LeagueHubUiTextKeys.SectionRecommendHint, "符文 · 技能 · 装备" },
             { LeagueHubUiTextKeys.SectionEfficiency, "效率" },
-            { LeagueHubUiTextKeys.Dashboard, "概览" }
+            { LeagueHubUiTextKeys.SectionEfficiencyHint, "快捷键 · 赛后 · 下一局" },
+            { LeagueHubUiTextKeys.Dashboard, "概览" },
+            { LeagueHubUiTextKeys.Recommendation, "推荐中心" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
