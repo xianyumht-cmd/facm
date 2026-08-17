@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.League
@@ -17,7 +16,6 @@ namespace FACM.League
         private static readonly Color Card = Color.FromArgb(20, 29, 45);
         private static readonly Color CardSelected = Color.FromArgb(27, 47, 72);
         private static readonly Color AccentCyan = Color.FromArgb(48, 214, 255);
-        private static readonly Color AccentViolet = Color.FromArgb(132, 94, 247);
 
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly LeagueBuildApplyService _applyService;
@@ -479,20 +477,26 @@ namespace FACM.League
                 var index = Math.Max(0, Math.Min(_optionButtons.Length - 1, first.OptionRank - 1));
                 _optionButtons[index].Checked = true;
             }
+            UpdateOptionVisuals();
             UpdateSelectedPreview();
         }
 
         private void HandleOptionSelected(int optionIndex)
         {
             if (optionIndex < 0 || optionIndex >= _optionButtons.Length) return;
+            UpdateOptionVisuals();
+            UpdateSelectedPreview();
+            SetButtons(CanApply(_snapshot) && SelectedPlan != null);
+        }
+
+        private void UpdateOptionVisuals()
+        {
             for (var index = 0; index < _optionButtons.Length; index++)
             {
-                var selected = index == optionIndex && _optionButtons[index].Checked;
+                var selected = _optionButtons[index].Checked;
                 _optionButtons[index].BackColor = selected ? CardSelected : (_optionButtons[index].Enabled ? Card : Color.FromArgb(17, 23, 35));
                 _optionButtons[index].FlatAppearance.BorderColor = selected ? AccentCyan : Color.FromArgb(44, 61, 86);
             }
-            UpdateSelectedPreview();
-            SetButtons(CanApply(_snapshot) && SelectedPlan != null);
         }
 
         private void UpdateSelectedPreview()
@@ -576,11 +580,16 @@ namespace FACM.League
             return string.Join(" · ", ids);
         }
 
-        private static string BuildItemPreview(LeagueBuildRecommendation recommendation)
+        private string BuildItemPreview(LeagueBuildRecommendation recommendation)
         {
             if (recommendation == null) return string.Empty;
             var order = new[] { "starter-items", "boots", "core-items" };
-            var captions = new[] { "出门", "鞋子", "核心" };
+            var captions = new[]
+            {
+                T(LeagueBuildApplyUiTextKeys.ItemStarter),
+                T(LeagueBuildApplyUiTextKeys.ItemBoots),
+                T(LeagueBuildApplyUiTextKeys.ItemCore)
+            };
             var lines = new List<string>();
             for (var index = 0; index < order.Length; index++)
             {
