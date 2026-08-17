@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.League
@@ -54,7 +55,7 @@ namespace FACM.League
             Text = T(LeagueRecommendationUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(900, 700);
-            MinimumSize = new Size(820, 650);
+            MinimumSize = new Size(860, 650);
             BackColor = Color.FromArgb(10, 15, 25);
             ForeColor = Color.FromArgb(235, 242, 255);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -80,8 +81,10 @@ namespace FACM.League
                 Text = T(LeagueRecommendationUiTextKeys.Hint),
                 Location = new Point(30, 54),
                 Size = new Size(820, 25),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 ForeColor = Color.FromArgb(143, 164, 200),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                AutoEllipsis = true
             });
 
             var chooseCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Choose), 112);
@@ -118,7 +121,7 @@ namespace FACM.League
             _autoStatus = new Label
             {
                 Location = new Point(334, 224),
-                Size = new Size(510, 24),
+                Size = new Size(518, 24),
                 ForeColor = Color.FromArgb(129, 224, 255),
                 AutoEllipsis = true
             };
@@ -126,8 +129,9 @@ namespace FACM.League
             {
                 Text = T(LeagueRecommendationUiTextKeys.AutoHint),
                 Location = new Point(30, 252),
-                Size = new Size(820, 22),
-                ForeColor = Color.FromArgb(112, 129, 160)
+                Size = new Size(822, 22),
+                ForeColor = Color.FromArgb(112, 129, 160),
+                AutoEllipsis = true
             };
             _autoToggle.CheckedChanged += HandleAutoToggleChanged;
             _autoController.StatusChanged += HandleAutoStatusChanged;
@@ -137,21 +141,20 @@ namespace FACM.League
             _contextValue = new Label
             {
                 Location = new Point(30, 313),
-                Size = new Size(820, 26),
+                Size = new Size(822, 26),
                 ForeColor = Color.FromArgb(205, 220, 245),
                 AutoEllipsis = true
             };
 
-            _runePreview = CreatePreviewBox(new Rectangle(28, 350, 268, 98));
-            _spellPreview = CreatePreviewBox(new Rectangle(306, 350, 268, 98));
-            _itemPreview = CreatePreviewBox(new Rectangle(584, 350, 268, 98));
-
-            var runeLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Runes), 36, 356);
-            var spellLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Spells), 314, 356);
-            var itemLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Items), 592, 356);
-            _runePreview.Padding = new Padding(0, 22, 0, 0);
-            _spellPreview.Padding = new Padding(0, 22, 0, 0);
-            _itemPreview.Padding = new Padding(0, 22, 0, 0);
+            // Keep captions outside native TextBox windows. Overlaying Labels on a multiline TextBox
+            // can disappear at some DPI/scaling combinations because the native edit control owns its
+            // own HWND and paint order.
+            var runeLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Runes), 28, 348);
+            var spellLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Spells), 306, 348);
+            var itemLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Items), 584, 348);
+            _runePreview = CreatePreviewBox(new Rectangle(28, 372, 268, 78));
+            _spellPreview = CreatePreviewBox(new Rectangle(306, 372, 268, 78));
+            _itemPreview = CreatePreviewBox(new Rectangle(584, 372, 268, 78));
 
             var extraCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Extra), 466);
             var skillsCaption = new Label
@@ -164,7 +167,7 @@ namespace FACM.League
             _skillsValue = new Label
             {
                 Location = new Point(132, 495),
-                Size = new Size(718, 22),
+                Size = new Size(720, 22),
                 ForeColor = Color.FromArgb(224, 232, 247),
                 AutoEllipsis = true
             };
@@ -178,7 +181,7 @@ namespace FACM.League
             _countersValue = new Label
             {
                 Location = new Point(132, 523),
-                Size = new Size(718, 22),
+                Size = new Size(720, 22),
                 ForeColor = Color.FromArgb(224, 232, 247),
                 AutoEllipsis = true
             };
@@ -244,7 +247,7 @@ namespace FACM.League
             {
                 Text = text,
                 Location = new Point(30, top),
-                Size = new Size(820, 25),
+                Size = new Size(822, 25),
                 ForeColor = Color.White,
                 Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
             };
@@ -252,7 +255,7 @@ namespace FACM.League
 
         private CheckBox CreateChoice(string title, string hint, Point location)
         {
-            var choice = new CheckBox
+            return new CheckBox
             {
                 Appearance = Appearance.Button,
                 Text = title + "\r\n" + hint,
@@ -266,7 +269,6 @@ namespace FACM.League
                 BackColor = Color.FromArgb(18, 27, 43),
                 Cursor = Cursors.Hand
             };
-            return choice;
         }
 
         private TextBox CreatePreviewBox(Rectangle bounds)
@@ -286,17 +288,15 @@ namespace FACM.League
 
         private Label CreatePreviewTitle(string text, int left, int top)
         {
-            var label = new Label
+            return new Label
             {
                 Text = text,
                 Location = new Point(left, top),
-                Size = new Size(220, 20),
+                Size = new Size(268, 20),
                 ForeColor = Color.FromArgb(112, 224, 255),
-                BackColor = Color.FromArgb(16, 24, 39),
+                BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
             };
-            label.BringToFront();
-            return label;
         }
 
         private Button CreateButton(string text, bool primary)
@@ -450,10 +450,9 @@ namespace FACM.League
                     return;
                 }
 
-                var confirmation = BuildConfirmation(loadoutPlan, itemPlan);
                 if (MessageBox.Show(
                         this,
-                        confirmation,
+                        BuildConfirmation(loadoutPlan, itemPlan),
                         T(LeagueRecommendationUiTextKeys.ConfirmTitle),
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question,
@@ -636,7 +635,8 @@ namespace FACM.League
             var core = FindRecommendation(recommendation, "core-items");
             if (string.IsNullOrWhiteSpace(starter) && string.IsNullOrWhiteSpace(core))
                 return T(LeagueRecommendationUiTextKeys.Unavailable);
-            return string.Format(T(LeagueRecommendationUiTextKeys.ItemSummaryFormat),
+            return string.Format(
+                T(LeagueRecommendationUiTextKeys.ItemSummaryFormat),
                 string.IsNullOrWhiteSpace(starter) ? "--" : starter,
                 string.IsNullOrWhiteSpace(core) ? "--" : core);
         }
