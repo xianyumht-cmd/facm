@@ -18,6 +18,7 @@ namespace FACM.League
 
     internal sealed class LeagueBuildApplyForm : Form
     {
+        private const string ApplyBadgeText = "OP.GG // APPLY";
         private static readonly Color Background = Color.FromArgb(10, 15, 25);
         private static readonly Color Surface = Color.FromArgb(18, 27, 43);
         private static readonly Color SurfaceRaised = Color.FromArgb(25, 38, 59);
@@ -91,7 +92,7 @@ namespace FACM.League
             };
             var badge = new Label
             {
-                Text = "OP.GG // APPLY",
+                Text = ApplyBadgeText,
                 Location = new Point(584, 24),
                 Size = new Size(180, 24),
                 ForeColor = NeonPurple,
@@ -504,15 +505,23 @@ namespace FACM.League
                 _statusValue.Text = FormatFailure();
                 return;
             }
-            if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
-            {
-                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.FullSucceeded);
-                return;
-            }
             if (string.Equals(result.BuildStatus, "blocked", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(result.ItemSetStatus, "blocked", StringComparison.OrdinalIgnoreCase))
             {
                 _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ContextChanged);
+                return;
+            }
+
+            var buildSucceeded = string.Equals(result.BuildStatus, "success", StringComparison.OrdinalIgnoreCase);
+            var itemSetSucceeded = string.Equals(result.ItemSetStatus, "success", StringComparison.OrdinalIgnoreCase);
+            if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase) && buildSucceeded && itemSetSucceeded)
+            {
+                _statusValue.Text = T(LeagueBuildApplyUiTextKeys.FullSucceeded);
+                return;
+            }
+            if (!buildSucceeded && !itemSetSucceeded)
+            {
+                _statusValue.Text = FormatFailure();
                 return;
             }
 
