@@ -9,6 +9,7 @@ namespace FACM.League
 {
     internal sealed class LeagueHubForm : Form
     {
+        private const string HubBadgeText = "FACM // LEAGUE CONTROL";
         private static readonly Color HubBackground = Color.FromArgb(10, 15, 25);
         private static readonly Color HubSurface = Color.FromArgb(14, 22, 36);
         private static readonly Color HubSurfaceRaised = Color.FromArgb(20, 31, 49);
@@ -80,7 +81,7 @@ namespace FACM.League
             });
             header.Controls.Add(new Label
             {
-                Text = "FACM // LEAGUE CONTROL",
+                Text = HubBadgeText,
                 Location = new Point(796, 16),
                 Size = new Size(250, 22),
                 ForeColor = NeonPurple,
@@ -209,9 +210,7 @@ namespace FACM.League
                 return LeagueAdvisorText.Get(_ui, textKey);
             if (LeagueHubText.DefaultsForSmokeTest().ContainsKey(textKey))
                 return LeagueHubText.Get(_ui, textKey);
-
-            var value = _ui.Get(textKey);
-            return string.IsNullOrWhiteSpace(value) ? "未命名功能" : value;
+            return _ui.Get(textKey);
         }
 
         private void ShowView(string viewId)
