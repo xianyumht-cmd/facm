@@ -30,7 +30,7 @@ namespace FACM.AppHost.Modules
         private readonly SettingsModule _settingsModule;
         private readonly LeagueClientModule _leagueClient;
         private readonly LeagueDashboardModule _dashboard;
-        private LeagueHotkeyService _hotkeys;
+        private LeagueNativeHotkeyService _hotkeys;
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
@@ -52,7 +52,7 @@ namespace FACM.AppHost.Modules
                 throw new InvalidOperationException("Settings module must initialize before League Efficiency.");
 
             _actions = new LeagueEfficiencyActionService();
-            _hotkeys = new LeagueHotkeyService(ActionIds);
+            _hotkeys = new LeagueNativeHotkeyService(ActionIds);
             _hotkeys.HotkeyPressed += HandleHotkey;
 
             string error;
