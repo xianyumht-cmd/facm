@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.4.0",
+  "enabled": false,
+  "version": "3.4.1",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.0/FACM.exe",
-  "sha256": "F7BAA613A5B81E88A725F0ED7452EDEB4A98F5CD32EB34D1A58570164173F0A2",
-  "release_notes": "FACM 3.4.0：英雄联盟功能收束为单一入口和统一「英雄联盟中心」，对局、推荐、效率集中管理；同时修复国服自动寻找对局与自动接受兼容性。自动化仍默认关闭，继续保持轻量、低占用、低打扰。",
-  "published_at": "2026-08-15T21:19:24.9354659+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.1/FACM.exe",
+  "sha256": "E5F54A0957B70809B1CD11E34D5707DAB37D044576416D22A51FEE624F6464FC",
+  "release_notes": "FACM 3.4.1：修复英雄联盟游戏内全局快捷键在未打开 FACM 面板时可能不生效的问题，增加面向腾讯客户端前台输入的低开销备用检测；修复符文与召唤师技能一键应用可能显示成功但客户端仍保留旧配置的问题，改为等待并二次读回确认，未真正生效时不再误报成功。同时保留新版英雄联盟中心、统一推荐中心与装备集应用。",
+  "published_at": "2026-08-17T17:19:23.9530450+00:00"
 }
