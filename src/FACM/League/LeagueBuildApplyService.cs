@@ -20,6 +20,7 @@ namespace FACM.League
         internal const string PerkCreatePath = "/lol-perks/v1/pages/";
         internal const string PerkCurrentPagePath = "/lol-perks/v1/currentpage";
         internal const int FlashSpellId = 4;
+        private const string OwnedRunePagePrefix = "[FACM]";
         private const int RuneSettleDelayMilliseconds = 180;
         private const int SpellSettleDelayMilliseconds = 180;
 
@@ -64,7 +65,11 @@ namespace FACM.League
             CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
-            if (!IsUsableChampSelectSnapshot(snapshot)) return null;
+            if (!IsUsableChampSelectSnapshot(snapshot))
+            {
+                AppLog.Info("League loadout prepare skipped; reason=unusable-champ-select-snapshot");
+                return null;
+            }
 
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -78,7 +83,14 @@ namespace FACM.League
                         snapshot.Version);
                     var bytes = await _opgg.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
                     var plan = ParsePlan(bytes);
-                    if (plan == null || (!plan.HasSpells && !plan.HasRunes)) return null;
+                    if (plan == null || (!plan.HasSpells && !plan.HasRunes))
+                    {
+                        AppLog.Info(
+                            "League loadout prepare unavailable; champion=" + snapshot.ChampionId +
+                            "; mode=" + (snapshot.Mode ?? string.Empty) +
+                            "; position=" + (snapshot.Position ?? string.Empty));
+                        return null;
+                    }
 
                     plan.ChampionId = snapshot.ChampionId;
                     plan.ChampionName = snapshot.ChampionName;
@@ -88,11 +100,17 @@ namespace FACM.League
                     plan.Version = snapshot.Version;
                     plan.SpellPreview = FindRecommendation(snapshot.Recommendation, "summoner-spells");
                     plan.RunePreview = FindRecommendation(snapshot.Recommendation, "runes");
+                    AppLog.Info(
+                        "League loadout prepared; champion=" + plan.ChampionId +
+                        "; queue=" + plan.QueueId +
+                        "; runes=" + plan.HasRunes.ToString().ToLowerInvariant() +
+                        "; spells=" + plan.HasSpells.ToString().ToLowerInvariant());
                     return plan;
                 }
                 catch (OperationCanceledException)
                 {
                     if (cancellationToken.IsCancellationRequested) throw;
+                    AppLog.Info("League loadout prepare unavailable; reason=timeout");
                     return null;
                 }
             }
@@ -127,18 +145,21 @@ namespace FACM.League
                 {
                     result.Status = "blocked";
                     result.BlockReason = "champ-select-required";
+                    LogApplyResult(plan, result);
                     return result;
                 }
                 if (plan.ChampionId <= 0 || currentChampion != plan.ChampionId)
                 {
                     result.Status = "blocked";
                     result.BlockReason = "champion-changed";
+                    LogApplyResult(plan, result);
                     return result;
                 }
                 if (plan.QueueId > 0 && live.QueueId > 0 && live.QueueId != plan.QueueId)
                 {
                     result.Status = "blocked";
                     result.BlockReason = "queue-changed";
+                    LogApplyResult(plan, result);
                     return result;
                 }
 
@@ -155,6 +176,7 @@ namespace FACM.League
                     result.Status = "partial";
                 else
                     result.Status = "failed";
+                LogApplyResult(plan, result);
                 return result;
             }
             finally
@@ -235,39 +257,62 @@ namespace FACM.League
                 result.RuneStatus = "inventory-unavailable";
                 return;
             }
-            if (!ReadBool(inventory, "canAddCustomPage"))
+
+            var canAddCustomPage = ReadBool(inventory, "canAddCustomPage");
+            var pageName = BuildRunePageName(plan);
+            var pagesBytes = await _client.TryGetBytesAsync(PerkPagesPath, cancellationToken).ConfigureAwait(false);
+            var pages = ParseRunePages(pagesBytes);
+            var ownedPage = FindOwnedRunePage(pages, pageName, exactNameOnly: true);
+            if (ownedPage == null && !canAddCustomPage)
+                ownedPage = FindOwnedRunePage(pages, pageName, exactNameOnly: false);
+
+            var pageId = ownedPage == null ? 0 : ReadInt(ownedPage, "id");
+            var reused = pageId > 0;
+            if (!reused && !canAddCustomPage)
             {
                 result.RuneSkippedNoCapacity = true;
-                result.RuneStatus = "no-capacity";
+                result.RuneStatus = pagesBytes == null ? "pages-unavailable" : "no-capacity";
+                AppLog.Info(
+                    "League rune apply skipped; reason=" + result.RuneStatus +
+                    "; facmOwnedPage=false");
                 return;
             }
 
-            var pageName = BuildRunePageName(plan);
-            var createJson = _json.Serialize(new Dictionary<string, object>
+            if (!reused)
             {
-                { "name", pageName },
-                { "isEditable", true },
-                { "primaryStyleId", plan.PrimaryStyleId.ToString(CultureInfo.InvariantCulture) }
-            });
-            var created = await _writer.TrySendJsonAsync(
-                "POST",
-                PerkCreatePath,
-                createJson,
-                cancellationToken).ConfigureAwait(false);
-            if (created == null || !created.IsSuccessStatusCode)
-            {
-                result.RuneStatus = "create-failed";
-                return;
-            }
+                var createJson = _json.Serialize(new Dictionary<string, object>
+                {
+                    { "name", pageName },
+                    { "isEditable", true },
+                    { "primaryStyleId", plan.PrimaryStyleId.ToString(CultureInfo.InvariantCulture) }
+                });
+                var created = await _writer.TrySendJsonAsync(
+                    "POST",
+                    PerkCreatePath,
+                    createJson,
+                    cancellationToken).ConfigureAwait(false);
+                if (created == null || !created.IsSuccessStatusCode)
+                {
+                    result.RuneStatus = "create-failed";
+                    return;
+                }
 
-            var createdPage = ParseObject(created.Body);
-            var pageId = ReadInt(createdPage, "id");
-            if (pageId <= 0)
-            {
-                result.RuneStatus = "create-response-invalid";
-                return;
+                var createdPage = ParseObject(created.Body);
+                pageId = ReadInt(createdPage, "id");
+                if (pageId <= 0)
+                {
+                    result.RuneStatus = "create-response-invalid";
+                    return;
+                }
+                result.CreatedRunePageId = pageId;
             }
-            result.CreatedRunePageId = pageId;
+            else
+            {
+                AppLog.Info(
+                    "League rune page reuse; pageId=" + pageId +
+                    "; exact=" + string.Equals(ReadString(ownedPage, "name"), pageName, StringComparison.OrdinalIgnoreCase).ToString().ToLowerInvariant() +
+                    "; capacity=" + canAddCustomPage.ToString().ToLowerInvariant());
+            }
 
             var selected = plan.GetSelectedPerkIds();
             var pageJson = _json.Serialize(new Dictionary<string, object>
@@ -320,7 +365,7 @@ namespace FACM.League
             }
 
             result.RunesApplied = true;
-            result.RuneStatus = "applied";
+            result.RuneStatus = reused ? "applied-reused-owned-page" : "applied";
         }
 
         private async Task<bool> TrySelectRunePageAsync(int pageId, CancellationToken cancellationToken)
@@ -456,17 +501,55 @@ namespace FACM.League
             int secondaryStyleId,
             IList<int> selected)
         {
-            if (pagesBytes == null || pagesBytes.Length == 0) return false;
-            object decoded;
-            try { decoded = _json.DeserializeObject(Encoding.UTF8.GetString(pagesBytes)); }
-            catch { return false; }
-
-            var page = EnumerateDictionaries(decoded).FirstOrDefault(row => ReadInt(row, "id") == pageId);
+            var pages = ParseRunePages(pagesBytes);
+            var page = pages.FirstOrDefault(row => ReadInt(row, "id") == pageId);
             if (page == null) return false;
             if (ReadInt(page, "primaryStyleId") != primaryStyleId) return false;
             if (ReadInt(page, "subStyleId") != secondaryStyleId) return false;
             var actual = ReadIntArray(ReadValue(page, "selectedPerkIds"));
             return actual.SequenceEqual(selected ?? Array.Empty<int>());
+        }
+
+        private List<Dictionary<string, object>> ParseRunePages(byte[] pagesBytes)
+        {
+            var output = new List<Dictionary<string, object>>();
+            if (pagesBytes == null || pagesBytes.Length == 0) return output;
+            object decoded;
+            try { decoded = _json.DeserializeObject(Encoding.UTF8.GetString(pagesBytes)); }
+            catch { return output; }
+            output.AddRange(EnumerateDictionaries(decoded));
+            return output;
+        }
+
+        private static Dictionary<string, object> FindOwnedRunePage(
+            IEnumerable<Dictionary<string, object>> pages,
+            string desiredName,
+            bool exactNameOnly)
+        {
+            if (pages == null) return null;
+            var owned = pages.Where(page =>
+            {
+                var name = ReadString(page, "name");
+                return !string.IsNullOrWhiteSpace(name) &&
+                       name.StartsWith(OwnedRunePagePrefix, StringComparison.OrdinalIgnoreCase) &&
+                       ReadInt(page, "id") > 0;
+            }).ToList();
+            var exact = owned.FirstOrDefault(page =>
+                string.Equals(ReadString(page, "name"), desiredName, StringComparison.OrdinalIgnoreCase));
+            if (exact != null || exactNameOnly) return exact;
+            return owned.FirstOrDefault();
+        }
+
+        private static void LogApplyResult(LeagueBuildApplyPlan plan, LeagueBuildApplyResult result)
+        {
+            if (result == null) return;
+            AppLog.Info(
+                "League loadout apply result; status=" + (result.Status ?? string.Empty) +
+                "; block=" + (result.BlockReason ?? string.Empty) +
+                "; rune=" + (result.RuneStatus ?? string.Empty) +
+                "; spell=" + (result.SpellStatus ?? string.Empty) +
+                "; champion=" + (plan == null ? 0 : plan.ChampionId) +
+                "; createdPageId=" + result.CreatedRunePageId);
         }
 
         private static bool IsUsableChampSelectSnapshot(LeagueBuildAdvisorSnapshot snapshot)
@@ -498,7 +581,7 @@ namespace FACM.League
                            string.Equals(plan.Position, "none", StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
                 : " - " + plan.Position.Trim();
-            var value = "[FACM] " + champion + position;
+            var value = OwnedRunePagePrefix + " " + champion + position;
             return value.Length <= 50 ? value : value.Substring(0, 50);
         }
 
@@ -531,6 +614,12 @@ namespace FACM.League
                        out parsed)
                 ? parsed
                 : 0;
+        }
+
+        private static string ReadString(Dictionary<string, object> source, string key)
+        {
+            var value = ReadValue(source, key);
+            return value == null ? null : Convert.ToString(value, CultureInfo.InvariantCulture);
         }
 
         private static bool ReadBool(Dictionary<string, object> source, string key)
