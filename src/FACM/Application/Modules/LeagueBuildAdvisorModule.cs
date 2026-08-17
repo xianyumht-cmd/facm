@@ -51,8 +51,18 @@ namespace FACM.AppHost.Modules
                 _performance.Budgets,
                 _sharedOpgg,
                 false);
-            _applyService = new LeagueBuildApplyService(_leagueClient, _leagueClient, _performance.Budgets);
-            _itemSetService = new LeagueItemSetService(_leagueClient, _performance.Budgets);
+            _applyService = new LeagueBuildApplyService(
+                _leagueClient,
+                _leagueClient,
+                _performance.Budgets,
+                _sharedOpgg,
+                false);
+            _itemSetService = new LeagueItemSetService(
+                _leagueClient,
+                _performance.Budgets,
+                _sharedOpgg,
+                new LeagueItemSetPhysicalFileSystem(),
+                false);
             var executor = new LeagueAutoApplyExecutor(
                 _applyService,
                 _itemSetService,
