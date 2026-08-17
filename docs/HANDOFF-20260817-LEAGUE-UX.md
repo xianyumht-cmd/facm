@@ -19,16 +19,17 @@
 
 ## 根因与实现
 
-### 1. 全局快捷键启动期 readiness race
+### 1. 全局快捷键启动生命周期缺口
 
-3.4.0 已经使用独立 STA `RegisterHotKey + NativeWindow`，问题不是页面焦点，也不是功能页面负责注册。真正的启动时序是：Host 初始化阶段创建 hotkey worker，旧实现刚 `CreateHandle()` 就 `_ready.Set()`，随后主线程立即发送保存快捷键的 ApplyMessage；此时 worker 的 `Application.Run()` message loop 还没有被证明已经开始 dispatch。
+3.4.0 已经使用独立 STA `RegisterHotKey + NativeWindow`，快捷键并不是在 League 页面打开时才注册，因此不能把实机症状简单归因为“页面焦点”。代码复查还确认：旧 `TryApply()` 会等待 ApplyMessage 被 worker `WndProc` 真正处理，所以“仅仅是 CreateHandle 后过早 `_ready.Set()`”不足以单独解释全部实机现象。
 
-修复：
+本轮因此不冒充已经证明唯一根因，而是对两个启动边界同时收紧：
 
-- 增加内部 READY message。
-- worker 创建 NativeWindow 后把 READY 投递给自身；只有 READY 经过 worker message loop 并进入 `WndProc` 后才置 `_ready`。
-- 主线程构造 `LeagueHotkeyService` 时继续等待 `_ready`，因此保存快捷键不会再与 message pump 启动竞争。
-- 继续使用 `RegisterHotKey`；没有 keyboard polling、没有 low-level hook、没有额外常驻 Timer。
+- worker 侧增加 READY message：隐藏窗口创建后，READY 必须完整经过该 worker 的 WinForms message loop / `WndProc`，才允许服务构造完成。
+- 主 UI 侧增加一次性 rearm：FACM 模块图仍在 `Application.Run(mainForm)` 前初始化；第一次进入**主 UI 线程**的 `Application.Idle` 后，把已经保存的两组快捷键事务性重新注册一次。
+- 因 hotkey worker 自己也运行 WinForms message loop，`Application.Idle` 是静态事件，因此 rearm 保存主 UI managed thread ID，并明确忽略 worker 线程的 Idle，避免错误线程回调和自等待。
+- rearm 成功/失败均写日志，随后立即解绑 Idle；没有轮询、没有常驻 Timer、没有 low-level keyboard hook。
+- 最终是否完全消除用户机器上的“必须先点开 FACM”症状，以本轮唯一一次集中 Windows 实机验收为准。
 
 ### 2. League Hub 视觉与信息层次
 
@@ -38,18 +39,18 @@
 - 静态 cyan → violet → pink accent，选中项与 hover 更明确。
 - 不使用动画光效，不新增网络任务或后台线程。
 
-### 3. 一键应用的三个真实方案
+### 3. 一键应用的三个真实可选组合
 
-原 Gate 2 只读取 OP.GG payload 的第一套 `summoner_spells` 与第一套 runes。
+原 Gate 2 只读取 OP.GG payload 的第一组 `summoner_spells` 与第一组 runes。
 
 现在：
 
 - `PrepareOptionsAsync()` 仍只请求同一份 OP.GG payload 一次。
-- 从 payload 中按原顺序解析最多三套真实 ranked choices。
-- 手动 UI 显示 #1 主流方案 / #2 热门备选 / #3 第三方案，以及 OP.GG pick rate / play 证据。
-- 如果数据源只提供一两套，缺失卡片直接禁用并说明，不制造不存在的方案。
-- 手动点击应用时重新拉取当前 ranked options，保持用户所选 rank，再进入已有确认流程。
-- 自动应用继续调用兼容入口 `PrepareAsync()`，始终使用 rank #1；默认关闭。
+- 分别保留 OP.GG 召唤师技能列表和符文列表的原始热度顺序，最多取前三档；FACM 按相同档位组合成 #1 / #2 / #3 三个可选组合。
+- 这里**不宣称 OP.GG 原始接口提供了三个彼此绑定的“整套 Build”**：符文和技能本来就是独立排行，所以 UI 明确写成「FACM 组合」，并分别展示“符文热度 / 技能热度”的 pick rate 与局数证据。
+- 手动 UI 使用“主流组合 / 热门备选 / 第三组合”；如果任一侧源数据不足，缺失位置直接禁用并说明，不制造虚假数据。
+- 手动点击应用时重新拉取当前数据并保持所选组合序号，再进入已有确认流程。
+- 自动应用继续调用兼容入口 `PrepareAsync()`，固定使用组合 #1；默认关闭。
 
 Gate 2 既有安全语义保持不变：用户确认、Champ Select 写前上下文重验、英雄/队列/阶段漂移 fail closed、Flash 槽位保持、符文页容量保护、写后回读验证。
 
@@ -73,12 +74,12 @@ Gate 2 既有安全语义保持不变：用户确认、Champ Select 写前上下
 
 ## 自动验证覆盖
 
-- `LeagueEfficiencySmokeTest`：增加 hotkey worker 必须完成 message-dispatch readiness 的契约。
+- `LeagueEfficiencySmokeTest`：增加 hotkey worker 必须完成 message-dispatch readiness 的契约；主 UI 首次 Idle rearm 仍需最终 Windows 实机确认其真实机器效果。
 - `LeagueBuildApplySmokeTest`：
-  - 三套 ranked options 保持 #1/#2/#3；
-  - 真实 spell/rune 数据不能坍缩成重复方案；
-  - 保留 pick rate / play；
-  - 三套准备只允许一次 OP.GG payload 请求；
+  - 三个组合保持 #1/#2/#3；
+  - 真实 spell/rune 候选不能坍缩成重复数据；
+  - 分别保留 pick rate / play；
+  - 三个组合准备只允许一次 OP.GG payload 请求；
   - preview / prepare 阶段必须 0 LCU write；
   - 原 Flash 槽位、符文容量、上下文漂移、partial failure、取消和 forbidden endpoint 契约继续覆盖；
   - League 推荐 fallback 文案不能为空。
@@ -92,8 +93,8 @@ Gate 2 既有安全语义保持不变：用户确认、Champ Select 写前上下
 2. 启动候选 FACM，**不要先点击悬浮球、托盘、控制中心或任何 FACM 页面**。
 3. 在对应 League 环境直接按已经配置的“一键关闭大厅 / 一键退出游戏”快捷键，确认两者都能响应。
 4. 再打开「英雄联盟中心」：确认推荐区没有空白按钮，「OP.GG 推荐装备集」名称正常。
-5. 进入英雄选择并让 OP.GG 推荐就绪：确认一键应用页显示三个方案位置；有三套源数据时 #1/#2/#3 可分别选择，源数据不足时缺失方案明确禁用。
-6. 切换 #2/#3 时检查符文 / 召唤师技能预览与热度证据会变化；点击应用后的确认框必须显示所选 rank。
+5. 进入英雄选择并让 OP.GG 推荐就绪：确认一键应用页显示三个组合位置；源数据足够时 #1/#2/#3 可分别选择，数据不足时缺失组合明确禁用。
+6. 切换 #2/#3 时检查符文 / 召唤师技能预览与各自热度证据会变化；点击应用后的确认框必须显示所选 FACM 组合序号。
 7. 检查出门装 / 鞋子 / 核心装备预览可读，并确认实际 Recommended 写入仍从独立装备集入口执行。
 8. 打开检查更新窗口，确认 `3.4.0.0 / 3.4.0` 的位数不一致已经消失。
 9. 主观检查 League Hub 静态光效与信息密度：需要更有电竞工具感，但不应影响文字可读性或出现明显卡顿/闪烁。
