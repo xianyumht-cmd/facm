@@ -9,6 +9,8 @@ namespace FACM.League
         {
             if (ui == null) throw new ArgumentNullException(nameof(ui));
             string fallback;
+            if (LeagueBuildApplyUiTextKeys.TryGetDefault(key, out fallback))
+                return ui.Get(key, fallback);
             if (LeagueAutoApplyUiTextKeys.TryGetDefault(key, out fallback))
                 return ui.Get(key, fallback);
             if (LeagueItemSetUiTextKeys.TryGetDefault(key, out fallback))
