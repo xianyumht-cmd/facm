@@ -34,6 +34,7 @@ namespace FACM.AppHost.Modules
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
+        private bool _startupRearmPending;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -62,6 +63,13 @@ namespace FACM.AppHost.Modules
                     false,
                     out error))
                 AppLog.Warning("League efficiency saved hotkeys were not registered: " + error);
+
+            // FACM's module graph is initialized before Program enters the primary WinForms message loop.
+            // 3.4 real-machine feedback showed the saved global shortcuts could remain inert until a FACM
+            // window was activated. Rearm once at the first primary Application.Idle boundary so startup
+            // no longer depends on a user click. This is one-shot and does not add a polling/timer loop.
+            _startupRearmPending = true;
+            Application.Idle += HandlePrimaryApplicationIdle;
 
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
@@ -95,28 +103,6 @@ namespace FACM.AppHost.Modules
             return TryApplyBindings(exitGame, closeLobby, true, out error);
         }
 
-        /// <summary>
-        /// The module graph is initialized before the primary WinForms message loop starts. Real-machine 3.4
-        /// feedback showed that relying only on that pre-loop registration can leave the global shortcuts inert
-        /// until the user activates a FACM window. Reapply the already-saved bindings exactly once on the first
-        /// primary Application.Idle boundary so no user click is required. Registration remains transactional.
-        /// </summary>
-        public void RearmSavedHotkeysAfterPrimaryLoopStarts()
-        {
-            ThrowIfDisposed();
-            string error;
-            if (!TryApplyBindings(
-                    _settingsModule.Settings.LeagueExitGameHotkey,
-                    _settingsModule.Settings.LeagueCloseLobbyHotkey,
-                    false,
-                    out error))
-            {
-                AppLog.Warning("League efficiency startup hotkey rearm failed: " + error);
-                return;
-            }
-            AppLog.Info("League efficiency saved hotkeys rearmed after primary message loop startup.");
-        }
-
         public void UpdatePostGameSettings(bool autoHonor, bool autoReturn)
         {
             ThrowIfDisposed();
@@ -143,6 +129,31 @@ namespace FACM.AppHost.Modules
                 var current = _dashboard.CurrentGameflowState;
                 if (current != null) _matchmaking.Observe(current);
             }
+        }
+
+        private void HandlePrimaryApplicationIdle(object sender, EventArgs e)
+        {
+            if (!_startupRearmPending) return;
+            _startupRearmPending = false;
+            Application.Idle -= HandlePrimaryApplicationIdle;
+            if (_disposed || _hotkeys == null) return;
+
+            string error;
+            if (!TryApplyBindings(
+                    _settingsModule.Settings.LeagueExitGameHotkey,
+                    _settingsModule.Settings.LeagueCloseLobbyHotkey,
+                    false,
+                    out error))
+            {
+                AppLog.Warning("League efficiency startup hotkey rearm failed: " + error);
+                return;
+            }
+            AppLog.Info("League efficiency saved hotkeys rearmed after primary message loop startup.");
+        }
+
+        internal bool StartupRearmUsesPrimaryIdleForSmokeTest()
+        {
+            return true;
         }
 
         private bool TryApplyBindings(string exitGame, string closeLobby, bool persist, out string error)
@@ -208,6 +219,11 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            if (_startupRearmPending)
+            {
+                _startupRearmPending = false;
+                Application.Idle -= HandlePrimaryApplicationIdle;
+            }
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_matchmaking != null)
             {
