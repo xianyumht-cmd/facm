@@ -67,7 +67,7 @@ namespace FACM.League
                 using (var request = new ApplyRequest(bindings))
                 {
                     _requests.Enqueue(request);
-                    if (!PostThreadMessage(_threadId, ApplyMessage, IntPtr.Zero, IntPtr.Zero))
+                    if (!PostThreadMessage(_threadId, ApplyMessage, UIntPtr.Zero, IntPtr.Zero))
                     {
                         request.Cancel();
                         error = "无法通知全局快捷键接收线程。win32=" + Marshal.GetLastWin32Error();
@@ -103,7 +103,8 @@ namespace FACM.League
             try
             {
                 // A thread does not receive PostThreadMessage/WM_HOTKEY until it owns a message queue.
-                // PeekMessage is the documented lightweight way to force queue creation.
+                // PeekMessage is the lightweight Win32 operation used here solely to force that queue
+                // to exist before another FACM thread posts configuration messages to it.
                 NativeMessage ignored;
                 PeekMessage(out ignored, IntPtr.Zero, 0, 0, PmNoRemove);
 
@@ -127,22 +128,20 @@ namespace FACM.League
 
                     if (message.Message == WmHotkey)
                     {
-                        var action = registrations.ResolveAction(message.WParam.ToInt32());
+                        var action = registrations.ResolveAction(unchecked((int)message.WParam.ToUInt64()));
                         if (!string.IsNullOrEmpty(action)) RaiseHotkey(action);
                         continue;
                     }
 
                     if (message.Message == ApplyMessage)
-                    {
                         ApplyPending(registrations);
-                    }
                 }
             }
             catch (Exception exception)
             {
                 _startupError = exception;
                 AppLog.Error("League native global-hotkey thread failed", exception);
-                _ready.Set();
+                try { _ready.Set(); } catch (ObjectDisposedException) { }
             }
             finally
             {
@@ -214,7 +213,7 @@ namespace FACM.League
 
             if (threadId != 0)
             {
-                if (!PostThreadMessage(threadId, ShutdownMessage, IntPtr.Zero, IntPtr.Zero))
+                if (!PostThreadMessage(threadId, ShutdownMessage, UIntPtr.Zero, IntPtr.Zero))
                     AppLog.Warning("League native hotkey shutdown post failed; win32=" + Marshal.GetLastWin32Error());
             }
 
@@ -270,10 +269,11 @@ namespace FACM.League
         {
             public IntPtr HWnd;
             public uint Message;
-            public IntPtr WParam;
+            public UIntPtr WParam;
             public IntPtr LParam;
             public uint Time;
             public NativePoint Point;
+            public uint LPrivate;
         }
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -292,7 +292,7 @@ namespace FACM.League
             uint messageFilterMax);
 
         [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool PostThreadMessage(uint threadId, uint message, IntPtr wParam, IntPtr lParam);
+        private static extern bool PostThreadMessage(uint threadId, uint message, UIntPtr wParam, IntPtr lParam);
 
         [DllImport("kernel32.dll")]
         private static extern uint GetCurrentThreadId();
