@@ -31,6 +31,11 @@ namespace FACM.League
                 "League hotkeys must use a dedicated native thread message queue.");
             Require(LeagueNativeHotkeyService.RegistersWithoutWindowHandleForSmokeTest(),
                 "League hotkeys must not depend on any FACM window handle or foreground state.");
+            Require(LeagueNativeHotkeyService.UsesAsyncKeyStateFallbackForSmokeTest(),
+                "Tencent game foreground must have a non-hook key-state fallback when WM_HOTKEY is consumed.");
+            Require(LeagueNativeHotkeyService.PollIntervalMillisecondsForSmokeTest() >= 15 &&
+                    LeagueNativeHotkeyService.PollIntervalMillisecondsForSmokeTest() <= 50,
+                "League hotkey fallback polling interval is outside the bounded low-overhead contract.");
 
             var backend = new FakeHotkeyBackend();
             var ids = new Dictionary<string, int>(StringComparer.Ordinal)
