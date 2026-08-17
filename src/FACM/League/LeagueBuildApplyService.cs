@@ -19,6 +19,7 @@ namespace FACM.League
         internal const string PerkCreatePath = "/lol-perks/v1/pages/";
         internal const string PerkCurrentPagePath = "/lol-perks/v1/currentpage";
         internal const int FlashSpellId = 4;
+        internal const int MaxVisibleOptions = 3;
 
         private readonly ILeagueClientApi _client;
         private readonly ILeagueClientWriteApi _writer;
@@ -53,15 +54,26 @@ namespace FACM.League
         }
 
         /// <summary>
-        /// Read-only preparation. This method never calls the LCU write boundary.
-        /// It is safe to run only after the user has clicked the apply button, before confirmation.
+        /// Compatibility entry point used by automatic apply. It deliberately keeps choosing OP.GG rank #1.
         /// </summary>
         public async Task<LeagueBuildApplyPlan> PrepareAsync(
             LeagueBuildAdvisorSnapshot snapshot,
             CancellationToken cancellationToken)
         {
+            var options = await PrepareOptionsAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            return options.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Read-only preparation for the visible apply UI. A single OP.GG payload is parsed into up to three
+        /// ranked loadout choices. This method never crosses the LCU write boundary.
+        /// </summary>
+        public async Task<IReadOnlyList<LeagueBuildApplyPlan>> PrepareOptionsAsync(
+            LeagueBuildAdvisorSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
             ThrowIfDisposed();
-            if (!IsUsableChampSelectSnapshot(snapshot)) return null;
+            if (!IsUsableChampSelectSnapshot(snapshot)) return Array.Empty<LeagueBuildApplyPlan>();
 
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -74,23 +86,31 @@ namespace FACM.League
                         snapshot.Position,
                         snapshot.Version);
                     var bytes = await _opgg.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
-                    var plan = ParsePlan(bytes);
-                    if (plan == null || (!plan.HasSpells && !plan.HasRunes)) return null;
-
-                    plan.ChampionId = snapshot.ChampionId;
-                    plan.ChampionName = snapshot.ChampionName;
-                    plan.QueueId = snapshot.QueueId;
-                    plan.Mode = snapshot.Mode;
-                    plan.Position = snapshot.Position;
-                    plan.Version = snapshot.Version;
-                    plan.SpellPreview = FindRecommendation(snapshot.Recommendation, "summoner-spells");
-                    plan.RunePreview = FindRecommendation(snapshot.Recommendation, "runes");
-                    return plan;
+                    var plans = ParsePlans(bytes, MaxVisibleOptions)
+                        .Where(plan => plan != null && (plan.HasSpells || plan.HasRunes))
+                        .ToList();
+                    for (var index = 0; index < plans.Count; index++)
+                    {
+                        var plan = plans[index];
+                        plan.OptionRank = index + 1;
+                        plan.ChampionId = snapshot.ChampionId;
+                        plan.ChampionName = snapshot.ChampionName;
+                        plan.QueueId = snapshot.QueueId;
+                        plan.Mode = snapshot.Mode;
+                        plan.Position = snapshot.Position;
+                        plan.Version = snapshot.Version;
+                        if (index == 0)
+                        {
+                            plan.SpellPreview = FindRecommendation(snapshot.Recommendation, "summoner-spells");
+                            plan.RunePreview = FindRecommendation(snapshot.Recommendation, "runes");
+                        }
+                    }
+                    return plans;
                 }
                 catch (OperationCanceledException)
                 {
                     if (cancellationToken.IsCancellationRequested) throw;
-                    return null;
+                    return Array.Empty<LeagueBuildApplyPlan>();
                 }
             }
         }
@@ -160,28 +180,55 @@ namespace FACM.League
 
         internal LeagueBuildApplyPlan ParsePlan(byte[] bytes)
         {
+            return ParsePlans(bytes, 1).FirstOrDefault();
+        }
+
+        internal IReadOnlyList<LeagueBuildApplyPlan> ParsePlans(byte[] bytes, int maxOptions)
+        {
             var root = ParseObject(bytes);
             var data = ReadDictionary(root, "data");
-            if (data == null) return null;
+            if (data == null || maxOptions <= 0) return Array.Empty<LeagueBuildApplyPlan>();
 
-            var plan = new LeagueBuildApplyPlan();
-            var spells = FirstDictionary(ReadValue(data, "summoner_spells"));
+            var spells = EnumerateDictionaries(ReadValue(data, "summoner_spells")).ToList();
+            var runeContainers = EnumerateDictionaries(ReadValue(data, "runes")).ToList();
+            if (runeContainers.Count == 0)
+                runeContainers = EnumerateDictionaries(ReadValue(data, "rune_pages")).ToList();
+
+            var runes = new List<Dictionary<string, object>>();
+            foreach (var container in runeContainers)
+            {
+                var builds = EnumerateDictionaries(ReadValue(container, "builds")).ToList();
+                if (builds.Count > 0) runes.AddRange(builds);
+                else if (container != null) runes.Add(container);
+            }
+
+            var optionCount = Math.Min(maxOptions, Math.Max(spells.Count, runes.Count));
+            if (optionCount <= 0) return Array.Empty<LeagueBuildApplyPlan>();
+
+            var output = new List<LeagueBuildApplyPlan>(optionCount);
+            for (var index = 0; index < optionCount; index++)
+            {
+                var spell = spells.Count == 0 ? null : spells[Math.Min(index, spells.Count - 1)];
+                var rune = runes.Count == 0 ? null : runes[Math.Min(index, runes.Count - 1)];
+                var plan = BuildPlan(spell, rune, index + 1);
+                if (plan.HasSpells || plan.HasRunes) output.Add(plan);
+            }
+            return output;
+        }
+
+        private static LeagueBuildApplyPlan BuildPlan(
+            Dictionary<string, object> spells,
+            Dictionary<string, object> rune,
+            int rank)
+        {
+            var plan = new LeagueBuildApplyPlan { OptionRank = rank };
             var spellIds = ReadIntArray(ReadValue(spells, "ids"));
             if (spellIds.Count >= 2)
             {
                 plan.Spell1Id = spellIds[0];
                 plan.Spell2Id = spellIds[1];
-            }
-
-            var rune = FirstDictionary(ReadValue(data, "runes"));
-            if (rune == null)
-            {
-                var page = FirstDictionary(ReadValue(data, "rune_pages"));
-                rune = FirstDictionary(ReadValue(page, "builds")) ?? page;
-            }
-            else
-            {
-                rune = FirstDictionary(ReadValue(rune, "builds")) ?? rune;
+                plan.SpellPickRate = ReadDoubleNullable(spells, "pick_rate");
+                plan.SpellPlay = Math.Max(0, ReadInt(spells, "play"));
             }
 
             if (rune != null)
@@ -191,8 +238,9 @@ namespace FACM.League
                 plan.PrimaryRuneIds.AddRange(ReadIntArray(ReadValue(rune, "primary_rune_ids")));
                 plan.SecondaryRuneIds.AddRange(ReadIntArray(ReadValue(rune, "secondary_rune_ids")));
                 plan.StatModIds.AddRange(ReadIntArray(ReadValue(rune, "stat_mod_ids")));
+                plan.RunePickRate = ReadDoubleNullable(rune, "pick_rate");
+                plan.RunePlay = Math.Max(0, ReadInt(rune, "play"));
             }
-
             return plan;
         }
 
@@ -407,7 +455,8 @@ namespace FACM.League
                            string.Equals(plan.Position, "none", StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
                 : " - " + plan.Position.Trim();
-            var value = "[FACM] " + champion + position;
+            var suffix = plan.OptionRank > 1 ? " #" + plan.OptionRank.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            var value = "[FACM] " + champion + position + suffix;
             return value.Length <= 50 ? value : value.Substring(0, 50);
         }
 
@@ -442,6 +491,19 @@ namespace FACM.League
                 : 0;
         }
 
+        private static double? ReadDoubleNullable(Dictionary<string, object> source, string key)
+        {
+            var value = ReadValue(source, key);
+            double parsed;
+            return value != null && double.TryParse(
+                       Convert.ToString(value, CultureInfo.InvariantCulture),
+                       NumberStyles.Any,
+                       CultureInfo.InvariantCulture,
+                       out parsed)
+                ? (double?)parsed
+                : null;
+        }
+
         private static bool ReadBool(Dictionary<string, object> source, string key)
         {
             var value = ReadValue(source, key);
@@ -463,11 +525,6 @@ namespace FACM.League
                     output.Add(parsed);
             }
             return output;
-        }
-
-        private static Dictionary<string, object> FirstDictionary(object value)
-        {
-            return EnumerateDictionaries(value).FirstOrDefault();
         }
 
         private static IEnumerable<object> EnumerateValues(object value)
