@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using FACM.Performance;
+using FACM.Services;
 
 namespace FACM.League
 {
@@ -19,6 +20,8 @@ namespace FACM.League
         internal const string PerkCreatePath = "/lol-perks/v1/pages/";
         internal const string PerkCurrentPagePath = "/lol-perks/v1/currentpage";
         internal const int FlashSpellId = 4;
+        private const int RuneSettleDelayMilliseconds = 180;
+        private const int SpellSettleDelayMilliseconds = 180;
 
         private readonly ILeagueClientApi _client;
         private readonly ILeagueClientWriteApi _writer;
@@ -98,6 +101,8 @@ namespace FACM.League
         /// <summary>
         /// Explicit write operation. The caller must have already obtained user confirmation.
         /// Context is re-read immediately before the first write; any phase/champion drift blocks all writes.
+        /// Success is reported only after the active rune page / spell selection remains correct after a short
+        /// LCU settle window. A 2xx write response by itself is never treated as proof that the client applied it.
         /// </summary>
         public async Task<LeagueBuildApplyResult> ApplyAsync(
             LeagueBuildApplyPlan plan,
@@ -286,26 +291,65 @@ namespace FACM.League
                 return;
             }
 
-            var selectedResponse = await _writer.TrySendJsonAsync(
-                "PUT",
-                PerkCurrentPagePath,
-                pageId.ToString(CultureInfo.InvariantCulture),
-                cancellationToken).ConfigureAwait(false);
-            if (selectedResponse == null || !selectedResponse.IsSuccessStatusCode)
+            if (!await TrySelectRunePageAsync(pageId, cancellationToken).ConfigureAwait(false))
             {
                 result.RuneStatus = "select-failed";
                 return;
             }
 
-            var pagesBytes = await _client.TryGetBytesAsync(PerkPagesPath, cancellationToken).ConfigureAwait(false);
-            if (!VerifyRunePage(pagesBytes, pageId, plan.PrimaryStyleId, plan.SecondaryStyleId, selected))
+            if (!await VerifyRuneSelectionSettledAsync(
+                    pageId,
+                    plan.PrimaryStyleId,
+                    plan.SecondaryStyleId,
+                    selected,
+                    cancellationToken).ConfigureAwait(false))
             {
-                result.RuneStatus = "verify-failed";
-                return;
+                AppLog.Warning("League rune selection did not settle after first write; pageId=" + pageId + "; retrying selection once.");
+                if (!await TrySelectRunePageAsync(pageId, cancellationToken).ConfigureAwait(false) ||
+                    !await VerifyRuneSelectionSettledAsync(
+                        pageId,
+                        plan.PrimaryStyleId,
+                        plan.SecondaryStyleId,
+                        selected,
+                        cancellationToken).ConfigureAwait(false))
+                {
+                    result.RuneStatus = "verify-failed";
+                    AppLog.Warning("League rune apply verification failed; pageId=" + pageId + "; FACM will not report success.");
+                    return;
+                }
             }
 
             result.RunesApplied = true;
             result.RuneStatus = "applied";
+        }
+
+        private async Task<bool> TrySelectRunePageAsync(int pageId, CancellationToken cancellationToken)
+        {
+            var response = await _writer.TrySendJsonAsync(
+                "PUT",
+                PerkCurrentPagePath,
+                pageId.ToString(CultureInfo.InvariantCulture),
+                cancellationToken).ConfigureAwait(false);
+            return response != null && response.IsSuccessStatusCode;
+        }
+
+        private async Task<bool> VerifyRuneSelectionSettledAsync(
+            int pageId,
+            int primaryStyleId,
+            int secondaryStyleId,
+            IList<int> selected,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(RuneSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+            var currentBytes = await _client.TryGetBytesAsync(PerkCurrentPagePath, cancellationToken).ConfigureAwait(false);
+            var pagesBytes = await _client.TryGetBytesAsync(PerkPagesPath, cancellationToken).ConfigureAwait(false);
+            if (!VerifyCurrentRunePage(currentBytes, pageId)) return false;
+            if (!VerifyRunePage(pagesBytes, pageId, primaryStyleId, secondaryStyleId, selected)) return false;
+
+            // A second read catches Tencent LCU accepting the request and then immediately restoring an old page.
+            await Task.Delay(RuneSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+            currentBytes = await _client.TryGetBytesAsync(PerkCurrentPagePath, cancellationToken).ConfigureAwait(false);
+            return VerifyCurrentRunePage(currentBytes, pageId);
         }
 
         private async Task ApplySpellsAsync(
@@ -326,36 +370,83 @@ namespace FACM.League
             var newSpell1 = plan.Spell1Id;
             var newSpell2 = plan.Spell2Id;
             PreserveFlashSlot(oldSpell1, oldSpell2, ref newSpell1, ref newSpell2);
+            var changed = oldSpell1 != newSpell1 || oldSpell2 != newSpell2;
 
-            if (oldSpell1 != newSpell1 || oldSpell2 != newSpell2)
+            if (changed && !await TryWriteSpellsAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false))
             {
-                var spellJson = _json.Serialize(new Dictionary<string, object>
+                result.SpellStatus = "write-failed";
+                return;
+            }
+
+            if (!await VerifySpellsSettledAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false))
+            {
+                AppLog.Warning(
+                    "League summoner-spell selection did not settle after first write; expected=" +
+                    newSpell1 + "/" + newSpell2 + "; retrying once.");
+                if (!await TryWriteSpellsAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false) ||
+                    !await VerifySpellsSettledAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false))
                 {
-                    { "spell1Id", newSpell1 },
-                    { "spell2Id", newSpell2 }
-                });
-                var patched = await _writer.TrySendJsonAsync(
-                    "PATCH",
-                    MySelectionPath,
-                    spellJson,
-                    cancellationToken).ConfigureAwait(false);
-                if (patched == null || !patched.IsSuccessStatusCode)
-                {
-                    result.SpellStatus = "write-failed";
+                    result.SpellStatus = "verify-failed";
+                    AppLog.Warning(
+                        "League summoner-spell apply verification failed; expected=" + newSpell1 + "/" + newSpell2 +
+                        "; FACM will not report success.");
                     return;
                 }
             }
 
-            var afterBytes = await _client.TryGetBytesAsync(MySelectionPath, cancellationToken).ConfigureAwait(false);
-            var after = ParseObject(afterBytes);
-            if (after == null || ReadInt(after, "spell1Id") != newSpell1 || ReadInt(after, "spell2Id") != newSpell2)
-            {
-                result.SpellStatus = "verify-failed";
-                return;
-            }
-
             result.SpellsApplied = true;
-            result.SpellStatus = oldSpell1 == newSpell1 && oldSpell2 == newSpell2 ? "already-set" : "applied";
+            result.SpellStatus = changed ? "applied" : "already-set";
+        }
+
+        private async Task<bool> TryWriteSpellsAsync(int spell1Id, int spell2Id, CancellationToken cancellationToken)
+        {
+            var spellJson = _json.Serialize(new Dictionary<string, object>
+            {
+                { "spell1Id", spell1Id },
+                { "spell2Id", spell2Id }
+            });
+            var patched = await _writer.TrySendJsonAsync(
+                "PATCH",
+                MySelectionPath,
+                spellJson,
+                cancellationToken).ConfigureAwait(false);
+            return patched != null && patched.IsSuccessStatusCode;
+        }
+
+        private async Task<bool> VerifySpellsSettledAsync(
+            int expectedSpell1,
+            int expectedSpell2,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(SpellSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+            if (!await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false))
+                return false;
+
+            await Task.Delay(SpellSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+            return await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<bool> VerifySpellsOnceAsync(
+            int expectedSpell1,
+            int expectedSpell2,
+            CancellationToken cancellationToken)
+        {
+            var bytes = await _client.TryGetBytesAsync(MySelectionPath, cancellationToken).ConfigureAwait(false);
+            var selection = ParseObject(bytes);
+            if (selection == null) return false;
+            return ReadInt(selection, "spell1Id") == expectedSpell1 && ReadInt(selection, "spell2Id") == expectedSpell2;
+        }
+
+        private bool VerifyCurrentRunePage(byte[] currentPageBytes, int pageId)
+        {
+            if (currentPageBytes == null || currentPageBytes.Length == 0) return false;
+            var text = Encoding.UTF8.GetString(currentPageBytes).Trim();
+            int directId;
+            if (int.TryParse(text.Trim('"'), NumberStyles.Integer, CultureInfo.InvariantCulture, out directId))
+                return directId == pageId;
+
+            var current = ParseObject(currentPageBytes);
+            return current != null && ReadInt(current, "id") == pageId;
         }
 
         private bool VerifyRunePage(
