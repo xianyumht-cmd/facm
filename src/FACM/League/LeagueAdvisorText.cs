@@ -1,4 +1,3 @@
-using System;
 using FACM.Services;
 
 namespace FACM.League
@@ -7,13 +6,12 @@ namespace FACM.League
     {
         public static string Get(UiTextCatalog ui, string key)
         {
-            if (ui == null) throw new ArgumentNullException(nameof(ui));
             string fallback;
-            if (LeagueAutoApplyUiTextKeys.TryGetDefault(key, out fallback))
-                return ui.Get(key, fallback);
-            if (LeagueItemSetUiTextKeys.TryGetDefault(key, out fallback))
-                return ui.Get(key, fallback);
-            return ui.Get(key);
+            if (LeagueAutoApplyUiTextKeys.TryGetDefault(key, out fallback) ||
+                LeagueItemSetUiTextKeys.TryGetDefault(key, out fallback) ||
+                LeagueBuildApplyUiTextKeys.TryGetDefault(key, out fallback))
+                return ui == null ? fallback : ui.Get(key, fallback);
+            return ui == null ? string.Empty : ui.Get(key);
         }
     }
 }
