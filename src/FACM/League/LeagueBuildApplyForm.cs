@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +13,12 @@ namespace FACM.League
 {
     internal sealed class LeagueBuildApplyForm : Form
     {
+        private static readonly Color Surface = Color.FromArgb(14, 19, 30);
+        private static readonly Color Card = Color.FromArgb(20, 29, 45);
+        private static readonly Color CardSelected = Color.FromArgb(27, 47, 72);
+        private static readonly Color AccentCyan = Color.FromArgb(48, 214, 255);
+        private static readonly Color AccentViolet = Color.FromArgb(132, 94, 247);
+
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly LeagueBuildApplyService _applyService;
         private readonly LeagueAutoApplyController _autoController;
@@ -19,14 +27,18 @@ namespace FACM.League
         private readonly CheckBox _autoToggle;
         private readonly Label _autoStatusValue;
         private readonly Label _contextValue;
+        private readonly RadioButton[] _optionButtons = new RadioButton[LeagueBuildApplyService.MaxVisibleOptions];
         private readonly TextBox _spellValue;
         private readonly TextBox _runeValue;
+        private readonly TextBox _itemValue;
         private readonly Label _statusValue;
         private readonly Button _refreshButton;
         private readonly Button _applyButton;
+        private IReadOnlyList<LeagueBuildApplyPlan> _options = Array.Empty<LeagueBuildApplyPlan>();
         private LeagueBuildAdvisorSnapshot _snapshot;
         private bool _busy;
         private bool _syncingAutoToggle;
+        private bool _bindingOptions;
 
         public LeagueBuildApplyForm(
             LeagueBuildAdvisorDataService readService,
@@ -41,16 +53,23 @@ namespace FACM.League
 
             Text = T(LeagueBuildApplyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(760, 520);
-            MinimumSize = new Size(700, 480);
-            BackColor = Color.FromArgb(14, 19, 30);
+            ClientSize = new Size(858, 700);
+            MinimumSize = new Size(800, 660);
+            BackColor = Surface;
             ForeColor = Color.FromArgb(238, 243, 252);
             Font = new Font("Microsoft YaHei UI", 9F);
+
+            var accent = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 3,
+                BackColor = AccentCyan
+            };
 
             var title = new Label
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Title),
-                Location = new Point(28, 20),
+                Location = new Point(28, 18),
                 Size = new Size(620, 36),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
@@ -58,16 +77,16 @@ namespace FACM.League
             var hint = new Label
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Hint),
-                Location = new Point(30, 60),
-                Size = new Size(700, 34),
+                Location = new Point(30, 58),
+                Size = new Size(798, 32),
                 ForeColor = Color.FromArgb(146, 161, 188)
             };
 
             _autoToggle = new CheckBox
             {
                 Text = T(LeagueAutoApplyUiTextKeys.Toggle),
-                Location = new Point(30, 96),
-                Size = new Size(292, 28),
+                Location = new Point(30, 93),
+                Size = new Size(288, 26),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
@@ -75,53 +94,109 @@ namespace FACM.League
             };
             _autoStatusValue = new Label
             {
-                Location = new Point(326, 96),
-                Size = new Size(404, 38),
+                Location = new Point(320, 92),
+                Size = new Size(508, 22),
                 ForeColor = Color.FromArgb(146, 161, 188),
                 AutoEllipsis = true
+            };
+            var autoHint = new Label
+            {
+                Text = T(LeagueBuildApplyUiTextKeys.AutoUsesMain),
+                Location = new Point(30, 118),
+                Size = new Size(798, 20),
+                ForeColor = Color.FromArgb(112, 139, 180)
             };
             UpdateAutoStatus(_autoController.LastStatus);
             _autoToggle.CheckedChanged += HandleAutoToggleChanged;
             _autoController.StatusChanged += HandleAutoStatusChanged;
 
-            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 140);
-            _contextValue = CreateValueLabel(170, 28);
+            var contextCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Context), 147);
+            _contextValue = CreateValueLabel(174, 25);
 
-            var spellCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Spells), 204);
-            _spellValue = CreateValueBox(234, 52);
+            var optionCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Options), 205);
+            for (var index = 0; index < _optionButtons.Length; index++)
+            {
+                var optionIndex = index;
+                var option = new RadioButton
+                {
+                    Appearance = Appearance.Button,
+                    FlatStyle = FlatStyle.Flat,
+                    Location = new Point(30 + index * 267, 235),
+                    Size = new Size(251, 78),
+                    BackColor = Card,
+                    ForeColor = Color.FromArgb(214, 226, 246),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Padding = new Padding(12, 5, 8, 5),
+                    Cursor = Cursors.Hand,
+                    AutoCheck = true,
+                    TabStop = index == 0
+                };
+                option.FlatAppearance.BorderColor = Color.FromArgb(44, 61, 86);
+                option.FlatAppearance.BorderSize = 1;
+                option.FlatAppearance.CheckedBackColor = CardSelected;
+                option.FlatAppearance.MouseOverBackColor = Color.FromArgb(27, 40, 60);
+                option.CheckedChanged += delegate
+                {
+                    if (!_bindingOptions && option.Checked) HandleOptionSelected(optionIndex);
+                };
+                _optionButtons[index] = option;
+            }
 
-            var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 296);
-            _runeValue = CreateValueBox(326, 58);
+            var selectedCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.SelectedDetail), 324);
+            var spellCaption = CreateSmallCaption(T(LeagueBuildApplyUiTextKeys.Spells), 355, 30);
+            _spellValue = CreateValueBox(381, 48, 30, 386);
+            var runeCaption = CreateSmallCaption(T(LeagueBuildApplyUiTextKeys.Runes), 355, 432);
+            _runeValue = CreateValueBox(381, 48, 432, 396);
+
+            var itemCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Items), 442);
+            var itemHint = new Label
+            {
+                Text = T(LeagueBuildApplyUiTextKeys.ItemsHint),
+                Location = new Point(30, 468),
+                Size = new Size(798, 23),
+                ForeColor = Color.FromArgb(112, 139, 180),
+                AutoEllipsis = true
+            };
+            _itemValue = CreateValueBox(494, 78, 30, 798);
 
             _statusValue = new Label
             {
-                Location = new Point(30, 430),
-                Size = new Size(480, 44),
+                Location = new Point(30, 588),
+                Size = new Size(520, 50),
                 ForeColor = Color.FromArgb(176, 191, 216),
                 AutoEllipsis = true
             };
 
-            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), Color.FromArgb(35, 43, 60), 110);
-            _refreshButton.Location = new Point(516, 452);
+            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), Color.FromArgb(35, 43, 60), 122);
+            _refreshButton.Location = new Point(580, 638);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAsync(true); };
 
-            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Color.FromArgb(55, 104, 214), 110);
-            _applyButton.Location = new Point(632, 452);
+            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Color.FromArgb(42, 107, 208), 130);
+            _applyButton.Location = new Point(708, 638);
             _applyButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _applyButton.Enabled = false;
+            _applyButton.FlatAppearance.BorderColor = AccentCyan;
             _applyButton.Click += async delegate { await ApplyWithConfirmationAsync(); };
 
+            Controls.Add(accent);
             Controls.Add(title);
             Controls.Add(hint);
             Controls.Add(_autoToggle);
             Controls.Add(_autoStatusValue);
+            Controls.Add(autoHint);
             Controls.Add(contextCaption);
             Controls.Add(_contextValue);
+            Controls.Add(optionCaption);
+            foreach (var option in _optionButtons) Controls.Add(option);
+            Controls.Add(selectedCaption);
             Controls.Add(spellCaption);
             Controls.Add(_spellValue);
             Controls.Add(runeCaption);
             Controls.Add(_runeValue);
+            Controls.Add(itemCaption);
+            Controls.Add(itemHint);
+            Controls.Add(_itemValue);
             Controls.Add(_statusValue);
             Controls.Add(_refreshButton);
             Controls.Add(_applyButton);
@@ -142,9 +217,21 @@ namespace FACM.League
             {
                 Text = text,
                 Location = new Point(30, top),
-                Size = new Size(700, 25),
+                Size = new Size(798, 25),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
+            };
+        }
+
+        private Label CreateSmallCaption(string text, int top, int left)
+        {
+            return new Label
+            {
+                Text = text,
+                Location = new Point(left, top),
+                Size = new Size(386, 23),
+                ForeColor = Color.FromArgb(192, 211, 239),
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
         }
 
@@ -153,22 +240,22 @@ namespace FACM.League
             return new Label
             {
                 Location = new Point(30, top),
-                Size = new Size(700, height),
+                Size = new Size(798, height),
                 ForeColor = Color.FromArgb(206, 218, 239),
                 AutoEllipsis = true
             };
         }
 
-        private TextBox CreateValueBox(int top, int height)
+        private TextBox CreateValueBox(int top, int height, int left, int width)
         {
             return new TextBox
             {
-                Location = new Point(30, top),
-                Size = new Size(700, height),
+                Location = new Point(left, top),
+                Size = new Size(width, height),
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(22, 29, 44),
+                BackColor = Color.FromArgb(18, 26, 40),
                 ForeColor = Color.FromArgb(238, 243, 252),
                 ScrollBars = ScrollBars.Vertical
             };
@@ -179,7 +266,7 @@ namespace FACM.League
             var button = new Button
             {
                 Text = text,
-                Size = new Size(width, 32),
+                Size = new Size(width, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = background,
                 ForeColor = Color.White,
@@ -253,6 +340,15 @@ namespace FACM.League
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 _snapshot = snapshot;
                 ApplySnapshot(snapshot);
+
+                IReadOnlyList<LeagueBuildApplyPlan> options = Array.Empty<LeagueBuildApplyPlan>();
+                if (CanApply(snapshot))
+                    options = await _applyService.PrepareOptionsAsync(snapshot, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                BindOptions(options);
+                _statusValue.Text = CanApply(snapshot) && SelectedPlan != null
+                    ? T(LeagueBuildApplyUiTextKeys.Ready)
+                    : T(LeagueBuildApplyUiTextKeys.Waiting);
             }
             catch (OperationCanceledException)
             {
@@ -268,19 +364,22 @@ namespace FACM.League
             {
                 _busy = false;
                 if (!IsDisposed && !_lifetime.IsCancellationRequested)
-                    SetButtons(CanApply(_snapshot));
+                    SetButtons(CanApply(_snapshot) && SelectedPlan != null);
             }
         }
 
         private async Task ApplyWithConfirmationAsync()
         {
-            if (_busy || !CanApply(_snapshot) || IsDisposed || _lifetime.IsCancellationRequested) return;
+            var selected = SelectedPlan;
+            if (_busy || !CanApply(_snapshot) || selected == null || IsDisposed || _lifetime.IsCancellationRequested) return;
+            var selectedRank = selected.OptionRank <= 0 ? 1 : selected.OptionRank;
             _busy = true;
             SetButtons(false);
             try
             {
                 _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Preparing);
-                var plan = await _applyService.PrepareAsync(_snapshot, _lifetime.Token);
+                var freshOptions = await _applyService.PrepareOptionsAsync(_snapshot, _lifetime.Token);
+                var plan = freshOptions.FirstOrDefault(item => item.OptionRank == selectedRank);
                 if (plan == null)
                 {
                     _statusValue.Text = T(LeagueBuildApplyUiTextKeys.NoLoadout);
@@ -288,17 +387,18 @@ namespace FACM.League
                 }
 
                 var context = BuildContext(_snapshot);
-                var spellPreview = string.IsNullOrWhiteSpace(plan.SpellPreview)
-                    ? plan.Spell1Id + " / " + plan.Spell2Id
-                    : plan.SpellPreview;
-                var runePreview = string.IsNullOrWhiteSpace(plan.RunePreview)
-                    ? plan.PrimaryStyleId + " / " + plan.SecondaryStyleId
-                    : plan.RunePreview;
-                var confirmation = string.Format(
+                var spellPreview = BuildSpellPreview(plan);
+                var runePreview = BuildRunePreview(plan);
+                var legacyConfirmation = string.Format(
                     T(LeagueBuildApplyUiTextKeys.ConfirmFormat),
                     context,
                     spellPreview,
                     runePreview);
+                var confirmation = string.Format(
+                    T(LeagueBuildApplyUiTextKeys.ConfirmRankFormat),
+                    OptionName(plan.OptionRank),
+                    plan.OptionRank,
+                    legacyConfirmation);
                 var choice = MessageBox.Show(
                     this,
                     confirmation,
@@ -331,7 +431,7 @@ namespace FACM.League
             {
                 _busy = false;
                 if (!IsDisposed && !_lifetime.IsCancellationRequested)
-                    SetButtons(CanApply(_snapshot));
+                    SetButtons(CanApply(_snapshot) && SelectedPlan != null);
             }
         }
 
@@ -344,12 +444,153 @@ namespace FACM.League
             }
 
             _contextValue.Text = BuildContext(snapshot);
-            _spellValue.Text = FindRecommendation(snapshot.Recommendation, "summoner-spells");
-            _runeValue.Text = FindRecommendation(snapshot.Recommendation, "runes");
+            _itemValue.Text = BuildItemPreview(snapshot.Recommendation);
             _statusValue.Text = CanApply(snapshot)
-                ? T(LeagueBuildApplyUiTextKeys.Ready)
+                ? T(LeagueBuildApplyUiTextKeys.Preparing)
                 : T(LeagueBuildApplyUiTextKeys.Waiting);
-            _applyButton.Enabled = !_busy && CanApply(snapshot);
+        }
+
+        private void BindOptions(IReadOnlyList<LeagueBuildApplyPlan> options)
+        {
+            _options = options ?? Array.Empty<LeagueBuildApplyPlan>();
+            _bindingOptions = true;
+            try
+            {
+                for (var index = 0; index < _optionButtons.Length; index++)
+                {
+                    var rank = index + 1;
+                    var plan = _options.FirstOrDefault(item => item.OptionRank == rank);
+                    var button = _optionButtons[index];
+                    button.Enabled = plan != null;
+                    button.Checked = plan != null && index == 0;
+                    button.BackColor = plan == null ? Color.FromArgb(17, 23, 35) : Card;
+                    button.ForeColor = plan == null ? Color.FromArgb(90, 103, 125) : Color.FromArgb(214, 226, 246);
+                    button.Text = BuildOptionCardText(rank, plan);
+                }
+            }
+            finally
+            {
+                _bindingOptions = false;
+            }
+
+            if (_options.Count > 0 && !_optionButtons.Any(button => button.Checked))
+            {
+                var first = _options.OrderBy(item => item.OptionRank).First();
+                var index = Math.Max(0, Math.Min(_optionButtons.Length - 1, first.OptionRank - 1));
+                _optionButtons[index].Checked = true;
+            }
+            UpdateSelectedPreview();
+        }
+
+        private void HandleOptionSelected(int optionIndex)
+        {
+            if (optionIndex < 0 || optionIndex >= _optionButtons.Length) return;
+            for (var index = 0; index < _optionButtons.Length; index++)
+            {
+                var selected = index == optionIndex && _optionButtons[index].Checked;
+                _optionButtons[index].BackColor = selected ? CardSelected : (_optionButtons[index].Enabled ? Card : Color.FromArgb(17, 23, 35));
+                _optionButtons[index].FlatAppearance.BorderColor = selected ? AccentCyan : Color.FromArgb(44, 61, 86);
+            }
+            UpdateSelectedPreview();
+            SetButtons(CanApply(_snapshot) && SelectedPlan != null);
+        }
+
+        private void UpdateSelectedPreview()
+        {
+            var plan = SelectedPlan;
+            if (plan == null)
+            {
+                _spellValue.Text = string.Empty;
+                _runeValue.Text = string.Empty;
+                return;
+            }
+            _spellValue.Text = BuildSpellPreview(plan);
+            _runeValue.Text = BuildRunePreview(plan);
+        }
+
+        private LeagueBuildApplyPlan SelectedPlan
+        {
+            get
+            {
+                for (var index = 0; index < _optionButtons.Length; index++)
+                {
+                    if (!_optionButtons[index].Checked) continue;
+                    var rank = index + 1;
+                    return _options.FirstOrDefault(item => item.OptionRank == rank);
+                }
+                return null;
+            }
+        }
+
+        private string BuildOptionCardText(int rank, LeagueBuildApplyPlan plan)
+        {
+            var title = OptionName(rank);
+            var rankText = string.Format(T(LeagueBuildApplyUiTextKeys.OptionRankFormat), rank);
+            if (plan == null)
+                return title + "\r\n" + rankText + "\r\n" + T(LeagueBuildApplyUiTextKeys.OptionUnavailable);
+            var stats = string.Format(
+                T(LeagueBuildApplyUiTextKeys.OptionStatsFormat),
+                FormatRate(plan.RunePickRate),
+                FormatPlay(plan.RunePlay),
+                FormatRate(plan.SpellPickRate),
+                FormatPlay(plan.SpellPlay));
+            return title + "\r\n" + rankText + "\r\n" + stats;
+        }
+
+        private string OptionName(int rank)
+        {
+            if (rank == 1) return T(LeagueBuildApplyUiTextKeys.OptionMain);
+            if (rank == 2) return T(LeagueBuildApplyUiTextKeys.OptionAlternative);
+            return T(LeagueBuildApplyUiTextKeys.OptionThird);
+        }
+
+        private static string FormatRate(double? value)
+        {
+            if (!value.HasValue) return "--";
+            var rate = value.Value;
+            if (Math.Abs(rate) <= 1.0) rate *= 100.0;
+            return rate.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+        }
+
+        private static string FormatPlay(int value)
+        {
+            return value > 0 ? value.ToString(CultureInfo.InvariantCulture) : "--";
+        }
+
+        private static string BuildSpellPreview(LeagueBuildApplyPlan plan)
+        {
+            if (plan == null) return string.Empty;
+            if (!string.IsNullOrWhiteSpace(plan.SpellPreview)) return plan.SpellPreview;
+            if (!plan.HasSpells) return string.Empty;
+            return "#" + plan.Spell1Id.ToString(CultureInfo.InvariantCulture) + " · #" +
+                   plan.Spell2Id.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string BuildRunePreview(LeagueBuildApplyPlan plan)
+        {
+            if (plan == null) return string.Empty;
+            if (!string.IsNullOrWhiteSpace(plan.RunePreview)) return plan.RunePreview;
+            if (!plan.HasRunes) return string.Empty;
+            var ids = plan.PrimaryRuneIds.Concat(plan.SecondaryRuneIds).Concat(plan.StatModIds)
+                .Select(id => "#" + id.ToString(CultureInfo.InvariantCulture));
+            return string.Join(" · ", ids);
+        }
+
+        private static string BuildItemPreview(LeagueBuildRecommendation recommendation)
+        {
+            if (recommendation == null) return string.Empty;
+            var order = new[] { "starter-items", "boots", "core-items" };
+            var captions = new[] { "出门", "鞋子", "核心" };
+            var lines = new List<string>();
+            for (var index = 0; index < order.Length; index++)
+            {
+                var row = recommendation.Rows.FirstOrDefault(item =>
+                    string.Equals(item.Category, order[index], StringComparison.OrdinalIgnoreCase));
+                if (row == null || string.IsNullOrWhiteSpace(row.Recommendation)) continue;
+                var evidence = string.IsNullOrWhiteSpace(row.Evidence) ? string.Empty : "  ·  " + row.Evidence;
+                lines.Add(captions[index] + "：" + row.Recommendation + evidence);
+            }
+            return string.Join(Environment.NewLine, lines);
         }
 
         private void ApplyResult(LeagueBuildApplyResult result)
@@ -405,9 +646,27 @@ namespace FACM.League
         private void ApplyWaitingState()
         {
             _snapshot = null;
+            _options = Array.Empty<LeagueBuildApplyPlan>();
             _contextValue.Text = string.Empty;
             _spellValue.Text = string.Empty;
             _runeValue.Text = string.Empty;
+            _itemValue.Text = string.Empty;
+            _bindingOptions = true;
+            try
+            {
+                for (var index = 0; index < _optionButtons.Length; index++)
+                {
+                    _optionButtons[index].Checked = false;
+                    _optionButtons[index].Enabled = false;
+                    _optionButtons[index].BackColor = Color.FromArgb(17, 23, 35);
+                    _optionButtons[index].ForeColor = Color.FromArgb(90, 103, 125);
+                    _optionButtons[index].Text = BuildOptionCardText(index + 1, null);
+                }
+            }
+            finally
+            {
+                _bindingOptions = false;
+            }
             _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = false;
         }
@@ -437,14 +696,6 @@ namespace FACM.League
             return (snapshot.Phase ?? string.Empty) + " · " + champion + " · " +
                    (snapshot.Mode ?? string.Empty) + " / " + (snapshot.Position ?? string.Empty) + " · " +
                    (snapshot.Source ?? string.Empty) + " " + (snapshot.Version ?? string.Empty);
-        }
-
-        private static string FindRecommendation(LeagueBuildRecommendation recommendation, string category)
-        {
-            if (recommendation == null) return string.Empty;
-            var row = recommendation.Rows.FirstOrDefault(item =>
-                string.Equals(item.Category, category, StringComparison.OrdinalIgnoreCase));
-            return row == null ? string.Empty : row.Recommendation ?? string.Empty;
         }
 
         private string T(string key)
