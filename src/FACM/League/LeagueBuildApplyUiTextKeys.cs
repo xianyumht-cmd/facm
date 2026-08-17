@@ -45,6 +45,9 @@ namespace FACM.League
         public const string AutoUsesMain = "LeagueBuildApplyAutoUsesMain";
         public const string Items = "LeagueBuildApplyItems";
         public const string ItemsHint = "LeagueBuildApplyItemsHint";
+        public const string ItemStarter = "LeagueBuildApplyItemStarter";
+        public const string ItemBoots = "LeagueBuildApplyItemBoots";
+        public const string ItemCore = "LeagueBuildApplyItemCore";
         public const string SelectedDetail = "LeagueBuildApplySelectedDetail";
         public const string ConfirmRankFormat = "LeagueBuildApplyConfirmRankFormat";
 
@@ -61,6 +64,9 @@ namespace FACM.League
                 { AutoUsesMain, "自动应用始终使用主流方案 #1；手动应用可在下方选择其它方案。" },
                 { Items, "装备建议" },
                 { ItemsHint, "这里只预览当前装备建议；需要写入客户端 Recommended 时，请使用左侧“OP.GG 推荐装备集”。" },
+                { ItemStarter, "出门" },
+                { ItemBoots, "鞋子" },
+                { ItemCore, "核心" },
                 { SelectedDetail, "当前选择" },
                 { ConfirmRankFormat, "方案：{0}（OP.GG 热度 #{1}）\r\n{2}" }
             };
