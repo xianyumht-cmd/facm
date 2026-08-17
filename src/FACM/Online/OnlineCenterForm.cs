@@ -277,8 +277,10 @@ namespace FACM.Online
         private void ApplySnapshot()
         {
             if (IsDisposed || Disposing) return;
-            var current = FormatVersion(_snapshot.CurrentVersion, "未知");
-            var latest = FormatVersion(_snapshot.LatestVersion, "未获取");
+            var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
+            var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
+            current = NormalizeVersionText(current);
+            latest = NormalizeVersionText(latest);
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
@@ -321,12 +323,13 @@ namespace FACM.Online
 
         internal static string FormatVersionForSmokeTest(Version version)
         {
-            return FormatVersion(version, string.Empty);
+            return version == null ? string.Empty : NormalizeVersionText(version.ToString());
         }
 
-        private static string FormatVersion(Version version, string fallback)
+        private static string NormalizeVersionText(string value)
         {
-            if (version == null) return fallback;
+            Version version;
+            if (!Version.TryParse(value, out version)) return value;
             var build = version.Build < 0 ? 0 : version.Build;
             return version.Major + "." + version.Minor + "." + build;
         }
