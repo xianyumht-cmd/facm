@@ -11,6 +11,7 @@ namespace FACM.League
             StatModIds = new List<int>();
         }
 
+        public int OptionRank { get; set; }
         public int ChampionId { get; set; }
         public string ChampionName { get; set; }
         public int QueueId { get; set; }
@@ -20,12 +21,16 @@ namespace FACM.League
         public int Spell1Id { get; set; }
         public int Spell2Id { get; set; }
         public string SpellPreview { get; set; }
+        public double? SpellPickRate { get; set; }
+        public int SpellPlay { get; set; }
         public int PrimaryStyleId { get; set; }
         public int SecondaryStyleId { get; set; }
         public List<int> PrimaryRuneIds { get; private set; }
         public List<int> SecondaryRuneIds { get; private set; }
         public List<int> StatModIds { get; private set; }
         public string RunePreview { get; set; }
+        public double? RunePickRate { get; set; }
+        public int RunePlay { get; set; }
 
         public bool HasSpells
         {
