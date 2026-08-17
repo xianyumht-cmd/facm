@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Services;
@@ -11,10 +12,13 @@ namespace FACM.League
     {
         private readonly UiTextCatalog _ui;
         private readonly Dictionary<string, Func<UiTextCatalog, Form>> _factories;
-        private readonly Dictionary<string, Button> _buttons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Button> _sectionButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Button> _viewButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
         private Form _currentChild;
         private string _currentViewId;
+        private string _currentSectionKey;
         private bool _switching;
         private bool _closing;
 
@@ -24,9 +28,7 @@ namespace FACM.League
             Func<UiTextCatalog, Form> player,
             Func<UiTextCatalog, Form> live,
             Func<UiTextCatalog, Form> mayhem,
-            Func<UiTextCatalog, Form> advisor,
-            Func<UiTextCatalog, Form> apply,
-            Func<UiTextCatalog, Form> itemSet,
+            Func<UiTextCatalog, Form> recommendation,
             Func<UiTextCatalog, Form> efficiency)
         {
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -36,78 +38,94 @@ namespace FACM.League
                 { LeagueHubNavigation.Player, player ?? throw new ArgumentNullException(nameof(player)) },
                 { LeagueHubNavigation.Live, live ?? throw new ArgumentNullException(nameof(live)) },
                 { LeagueHubNavigation.Mayhem, mayhem ?? throw new ArgumentNullException(nameof(mayhem)) },
-                { LeagueHubNavigation.Advisor, advisor ?? throw new ArgumentNullException(nameof(advisor)) },
-                { LeagueHubNavigation.Apply, apply ?? throw new ArgumentNullException(nameof(apply)) },
-                { LeagueHubNavigation.ItemSet, itemSet ?? throw new ArgumentNullException(nameof(itemSet)) },
+                { LeagueHubNavigation.Recommendation, recommendation ?? throw new ArgumentNullException(nameof(recommendation)) },
                 { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) }
             };
 
             Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(1080, 800);
-            MinimumSize = new Size(980, 720);
-            BackColor = Color.FromArgb(11, 16, 26);
+            ClientSize = new Size(1160, 820);
+            MinimumSize = new Size(1000, 720);
+            BackColor = Color.FromArgb(8, 13, 23);
             ForeColor = Color.FromArgb(238, 243, 252);
             Font = new Font("Microsoft YaHei UI", 9F);
+            DoubleBuffered = true;
 
-            var header = new Panel
+            var header = new HubHeaderPanel
             {
                 Dock = DockStyle.Top,
-                Height = 72,
-                BackColor = Color.FromArgb(15, 22, 35)
+                Height = 86,
+                BackColor = Color.FromArgb(12, 19, 32)
             };
             header.Controls.Add(new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
-                Location = new Point(24, 13),
-                Size = new Size(460, 30),
+                Location = new Point(28, 14),
+                Size = new Size(500, 34),
                 ForeColor = Color.White,
-                Font = new Font(Font.FontFamily, 16F, FontStyle.Bold)
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
             });
             header.Controls.Add(new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
-                Location = new Point(25, 44),
-                Size = new Size(760, 20),
-                ForeColor = Color.FromArgb(139, 157, 190)
+                Location = new Point(30, 50),
+                Size = new Size(930, 23),
+                ForeColor = Color.FromArgb(138, 158, 194),
+                BackColor = Color.Transparent
             });
 
-            var sidebar = new Panel
+            var sidebar = new HubSidebarPanel
             {
                 Dock = DockStyle.Left,
-                Width = 196,
-                Padding = new Padding(12, 12, 12, 12),
-                BackColor = Color.FromArgb(15, 22, 35)
+                Width = 184,
+                Padding = new Padding(14, 18, 14, 14),
+                BackColor = Color.FromArgb(12, 19, 32)
             };
+            AddSectionButton(
+                sidebar,
+                LeagueHubUiTextKeys.SectionMatch,
+                LeagueHubUiTextKeys.SectionMatchHint,
+                20);
+            AddSectionButton(
+                sidebar,
+                LeagueHubUiTextKeys.SectionRecommend,
+                LeagueHubUiTextKeys.SectionRecommendHint,
+                104);
+            AddSectionButton(
+                sidebar,
+                LeagueHubUiTextKeys.SectionEfficiency,
+                LeagueHubUiTextKeys.SectionEfficiencyHint,
+                188);
 
-            var y = 10;
-            AddSection(sidebar, LeagueHubUiTextKeys.SectionMatch, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Dashboard, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Player, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Live, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Mayhem, ref y);
-
-            y += 8;
-            AddSection(sidebar, LeagueHubUiTextKeys.SectionRecommend, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Advisor, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Apply, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.ItemSet, ref y);
-
-            y += 8;
-            AddSection(sidebar, LeagueHubUiTextKeys.SectionEfficiency, ref y);
-            AddViewButton(sidebar, LeagueHubNavigation.Efficiency, ref y);
-
+            var body = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(9, 14, 24)
+            };
+            _subnav = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 54,
+                Padding = new Padding(24, 10, 18, 6),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.FromArgb(11, 18, 30)
+            };
             _content = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(14, 19, 30)
+                BackColor = Color.FromArgb(10, 15, 25),
+                Padding = new Padding(0)
             };
+            body.Controls.Add(_content);
+            body.Controls.Add(_subnav);
 
-            Controls.Add(_content);
+            Controls.Add(body);
             Controls.Add(sidebar);
             Controls.Add(header);
 
-            Shown += delegate { ShowView(LeagueHubNavigation.Dashboard); };
+            Shown += delegate { ShowSection(LeagueHubUiTextKeys.SectionMatch); };
             FormClosing += HandleHubClosing;
         }
 
@@ -116,56 +134,118 @@ namespace FACM.League
             get { return _currentViewId ?? string.Empty; }
         }
 
-        private void AddSection(Panel sidebar, string textKey, ref int y)
+        internal string CurrentSectionForSmokeTest
         {
-            var label = new Label
-            {
-                Text = LeagueHubText.Get(_ui, textKey),
-                Location = new Point(12, y),
-                Size = new Size(164, 24),
-                ForeColor = Color.FromArgb(111, 131, 164),
-                Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            sidebar.Controls.Add(label);
-            y += 26;
+            get { return _currentSectionKey ?? string.Empty; }
         }
 
-        private void AddViewButton(Panel sidebar, string viewId, ref int y)
+        private void AddSectionButton(Panel sidebar, string sectionKey, string hintKey, int top)
         {
-            var definition = LeagueHubNavigation.Views.First(item => string.Equals(item.Id, viewId, StringComparison.Ordinal));
             var button = new Button
             {
-                Text = ResolveViewText(viewId, definition.TextKey),
-                Location = new Point(12, y),
-                Size = new Size(164, 38),
+                Text = LeagueHubText.Get(_ui, sectionKey) + "\r\n" + LeagueHubText.Get(_ui, hintKey),
+                Location = new Point(14, top),
+                Size = new Size(150, 70),
                 FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
-                BackColor = Color.FromArgb(20, 29, 45),
-                ForeColor = Color.FromArgb(209, 220, 239),
+                FlatAppearance = { BorderSize = 1 },
+                BackColor = Color.FromArgb(17, 27, 44),
+                ForeColor = Color.FromArgb(210, 222, 242),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 0, 0),
+                Padding = new Padding(14, 3, 8, 3),
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
-            button.Click += delegate { ShowView(viewId); };
+            button.Click += delegate { ShowSection(sectionKey); };
+            button.MouseEnter += delegate
+            {
+                if (!string.Equals(_currentSectionKey, sectionKey, StringComparison.Ordinal))
+                    button.BackColor = Color.FromArgb(23, 36, 58);
+            };
+            button.MouseLeave += delegate { UpdateSectionSelection(); };
             sidebar.Controls.Add(button);
-            _buttons[viewId] = button;
-            y += 42;
+            _sectionButtons[sectionKey] = button;
+        }
+
+        private void ShowSection(string sectionKey)
+        {
+            if (_closing || IsDisposed || string.IsNullOrWhiteSpace(sectionKey)) return;
+            var views = LeagueHubNavigation.ViewsForSection(sectionKey);
+            if (views == null || views.Count == 0) return;
+
+            _currentSectionKey = sectionKey;
+            RebuildSubnav(views);
+            UpdateSectionSelection();
+
+            var target = views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal)) ?? views[0];
+            ShowView(target.Id, false);
+        }
+
+        private void RebuildSubnav(IReadOnlyList<LeagueHubViewDefinition> views)
+        {
+            foreach (Control control in _subnav.Controls) control.Dispose();
+            _subnav.Controls.Clear();
+            _viewButtons.Clear();
+
+            if (views == null || views.Count <= 1)
+            {
+                _subnav.Visible = false;
+                _subnav.Height = 0;
+                return;
+            }
+
+            _subnav.Visible = true;
+            _subnav.Height = 54;
+            foreach (var definition in views)
+            {
+                var captured = definition;
+                var button = new Button
+                {
+                    Text = ResolveViewText(captured.Id, captured.TextKey),
+                    AutoSize = false,
+                    Size = new Size(126, 32),
+                    Margin = new Padding(0, 0, 8, 0),
+                    FlatStyle = FlatStyle.Flat,
+                    FlatAppearance = { BorderSize = 1 },
+                    BackColor = Color.FromArgb(18, 28, 45),
+                    ForeColor = Color.FromArgb(190, 207, 235),
+                    Cursor = Cursors.Hand,
+                    TabStop = false
+                };
+                button.Click += delegate { ShowView(captured.Id, true); };
+                button.MouseEnter += delegate
+                {
+                    if (!string.Equals(_currentViewId, captured.Id, StringComparison.Ordinal))
+                        button.BackColor = Color.FromArgb(24, 39, 62);
+                };
+                button.MouseLeave += delegate { UpdateViewSelection(); };
+                _subnav.Controls.Add(button);
+                _viewButtons[captured.Id] = button;
+            }
+            UpdateViewSelection();
         }
 
         private string ResolveViewText(string viewId, string textKey)
         {
             if (string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
                 return LeagueEfficiencyText.Get(_ui, textKey);
+            if (string.Equals(viewId, LeagueHubNavigation.Recommendation, StringComparison.Ordinal))
+                return LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Recommendation);
             if (LeagueHubText.DefaultsForSmokeTest().ContainsKey(textKey))
                 return LeagueHubText.Get(_ui, textKey);
             return _ui.Get(textKey);
         }
 
-        private void ShowView(string viewId)
+        private void ShowView(string viewId, bool ensureSection)
         {
             if (_closing || IsDisposed || string.IsNullOrWhiteSpace(viewId)) return;
+            var definition = LeagueHubNavigation.Views.FirstOrDefault(item => string.Equals(item.Id, viewId, StringComparison.Ordinal));
+            if (definition == null) return;
+
+            if (ensureSection && !string.Equals(_currentSectionKey, definition.SectionKey, StringComparison.Ordinal))
+            {
+                ShowSection(definition.SectionKey);
+                return;
+            }
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) && _currentChild != null && !_currentChild.IsDisposed)
                 return;
 
@@ -193,7 +273,9 @@ namespace FACM.League
                 _content.Controls.Add(child);
                 _currentChild = child;
                 _currentViewId = viewId;
-                UpdateSelection();
+                _currentSectionKey = definition.SectionKey;
+                UpdateSectionSelection();
+                UpdateViewSelection();
                 child.Show();
             }
             catch
@@ -205,7 +287,7 @@ namespace FACM.League
                 }
                 _currentChild = null;
                 _currentViewId = null;
-                UpdateSelection();
+                UpdateViewSelection();
                 throw;
             }
         }
@@ -246,13 +328,71 @@ namespace FACM.League
             }
         }
 
-        private void UpdateSelection()
+        private void UpdateSectionSelection()
         {
-            foreach (var pair in _buttons)
+            foreach (var pair in _sectionButtons)
+            {
+                var selected = string.Equals(pair.Key, _currentSectionKey, StringComparison.Ordinal);
+                pair.Value.BackColor = selected ? Color.FromArgb(27, 48, 84) : Color.FromArgb(17, 27, 44);
+                pair.Value.ForeColor = selected ? Color.White : Color.FromArgb(210, 222, 242);
+                pair.Value.FlatAppearance.BorderColor = selected ? Color.FromArgb(73, 218, 255) : Color.FromArgb(37, 52, 74);
+            }
+        }
+
+        private void UpdateViewSelection()
+        {
+            foreach (var pair in _viewButtons)
             {
                 var selected = string.Equals(pair.Key, _currentViewId, StringComparison.Ordinal);
-                pair.Value.BackColor = selected ? Color.FromArgb(48, 91, 190) : Color.FromArgb(20, 29, 45);
-                pair.Value.ForeColor = selected ? Color.White : Color.FromArgb(209, 220, 239);
+                pair.Value.BackColor = selected ? Color.FromArgb(45, 66, 143) : Color.FromArgb(18, 28, 45);
+                pair.Value.ForeColor = selected ? Color.White : Color.FromArgb(190, 207, 235);
+                pair.Value.FlatAppearance.BorderColor = selected ? Color.FromArgb(139, 92, 246) : Color.FromArgb(43, 58, 80);
+            }
+        }
+
+        private sealed class HubHeaderPanel : Panel
+        {
+            public HubHeaderPanel()
+            {
+                DoubleBuffered = true;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (Width <= 0 || Height <= 0) return;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+                using (var cyan = new SolidBrush(Color.FromArgb(22, 65, 214, 255)))
+                    e.Graphics.FillEllipse(cyan, Width - 360, -90, 300, 180);
+                using (var violet = new SolidBrush(Color.FromArgb(18, 151, 71, 255)))
+                    e.Graphics.FillEllipse(violet, Width - 180, -70, 240, 160);
+                using (var bar = new LinearGradientBrush(
+                    new Rectangle(0, Height - 4, Width, 4),
+                    Color.FromArgb(58, 216, 255),
+                    Color.FromArgb(145, 76, 255),
+                    LinearGradientMode.Horizontal))
+                    e.Graphics.FillRectangle(bar, 0, Height - 4, Width, 4);
+            }
+        }
+
+        private sealed class HubSidebarPanel : Panel
+        {
+            public HubSidebarPanel()
+            {
+                DoubleBuffered = true;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (Height <= 0) return;
+                using (var bar = new LinearGradientBrush(
+                    new Rectangle(Width - 2, 0, 2, Height),
+                    Color.FromArgb(58, 216, 255),
+                    Color.FromArgb(111, 74, 255),
+                    LinearGradientMode.Vertical))
+                    e.Graphics.FillRectangle(bar, Width - 2, 0, 2, Height);
             }
         }
     }
