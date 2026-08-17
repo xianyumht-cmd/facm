@@ -277,8 +277,8 @@ namespace FACM.Online
         private void ApplySnapshot()
         {
             if (IsDisposed || Disposing) return;
-            var current = FormatVersionForDisplay(_snapshot.CurrentVersion, "未知");
-            var latest = FormatVersionForDisplay(_snapshot.LatestVersion, "未获取");
+            var current = FormatVersionForDisplay(_snapshot.CurrentVersion, OnlineDisplayText.UnknownVersion);
+            var latest = FormatVersionForDisplay(_snapshot.LatestVersion, OnlineDisplayText.LatestVersionUnavailable);
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
