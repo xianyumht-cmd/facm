@@ -62,7 +62,8 @@ namespace FACM.AppHost.Modules
                 CreateLive,
                 CreateMayhem,
                 CreateRecommendation,
-                CreateEfficiency);
+                CreateEfficiency,
+                CreatePresence);
         }
 
         private Form CreateDashboard(UiTextCatalog ui) { return _dashboard.CreateDashboardForm(ui); }
@@ -71,6 +72,7 @@ namespace FACM.AppHost.Modules
         private Form CreateMayhem(UiTextCatalog ui) { return _mayhem.CreateLookupForm(); }
         private Form CreateRecommendation(UiTextCatalog ui) { return _advisor.CreateRecommendationForm(ui); }
         private Form CreateEfficiency(UiTextCatalog ui) { return _efficiency.CreateForm(ui); }
+        private Form CreatePresence(UiTextCatalog ui) { return _dashboard.CreatePresenceForm(ui, null); }
 
         public void Dispose()
         {
