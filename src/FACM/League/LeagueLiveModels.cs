@@ -11,6 +11,7 @@ namespace FACM.League
             Players = new List<LeagueLivePlayerRow>();
             AllyBans = new List<int>();
             EnemyBans = new List<int>();
+            BenchChampionIds = new List<int>();
         }
 
         public bool Connected { get; set; }
@@ -31,10 +32,26 @@ namespace FACM.League
         public int TimerMillisecondsLeft { get; set; }
         public string LocalActionType { get; set; }
         public int LocalActionChampionId { get; set; }
+        public bool BenchEnabled { get; set; }
 
         public List<int> AllyBans { get; private set; }
         public List<int> EnemyBans { get; private set; }
+        public List<int> BenchChampionIds { get; private set; }
         public List<LeagueLivePlayerRow> Players { get; private set; }
+    }
+
+    internal sealed class LeagueBenchQuickPickState
+    {
+        public LeagueBenchQuickPickState()
+        {
+            ChampionIds = new List<int>();
+        }
+
+        public bool SessionAvailable { get; set; }
+        public bool BenchEnabled { get; set; }
+        public int LocalPlayerCellId { get; set; }
+        public int LocalChampionId { get; set; }
+        public List<int> ChampionIds { get; private set; }
     }
 
     internal sealed class LeagueLivePlayerRow
