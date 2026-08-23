@@ -24,7 +24,7 @@ namespace FACM
             UiTextRuntime.Install();
 
             // Shell actions stay bounded in CompactMenuForm/MainForm. This enhancer only applies
-            // presentation/runtime behavior such as compact hover descriptions and outside-click close.
+            // presentation/runtime behavior such as the desktop launcher, hover descriptions and outside-click close.
             Application.AddMessageFilter(MessageFilter);
             Application.Idle += ApplyToOpenForms;
             Application.ApplicationExit += delegate
@@ -66,6 +66,7 @@ namespace FACM
             if (Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed) == null) return false;
 
             HoverDescriptionEnhancer.ApplyCompactMenu(menu);
+            DesktopLauncherEnhancer.Apply(menu);
             menu.PerformLayout();
             menu.Invalidate(true);
             if (!menu.IsHandleCreated) return true;
