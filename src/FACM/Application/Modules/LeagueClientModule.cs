@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeaguePresenceWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -18,6 +18,7 @@ namespace FACM.AppHost.Modules
         private LeaguePostGameWriteApiClient _postGameWriter;
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
+        private LeaguePresenceWriteApiClient _presenceWriter;
 
         public LeagueClientModule() : this(new ResilientLeagueClientSessionDiscovery()) { }
 
@@ -39,6 +40,7 @@ namespace FACM.AppHost.Modules
             _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
+            _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
@@ -77,19 +79,32 @@ namespace FACM.AppHost.Modules
                 : writer.TrySwapAsync(championId, route, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeaguePresenceWriteApi.TrySetPresenceAsync(
+            string json,
+            CancellationToken cancellationToken)
+        {
+            var writer = _presenceWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySetPresenceAsync(json, cancellationToken);
+        }
+
         public void Dispose()
         {
+            var presenceWriter = _presenceWriter;
             var benchSwapWriter = _benchSwapWriter;
             var matchmakingWriter = _matchmakingWriter;
             var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
+            _presenceWriter = null;
             _benchSwapWriter = null;
             _matchmakingWriter = null;
             _postGameWriter = null;
             _writer = null;
             _api = null;
             _sessions = null;
+            if (presenceWriter != null) presenceWriter.Dispose();
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();
