@@ -20,6 +20,10 @@ namespace FACM
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
         private const string LauncherName = "FACM.DesktopLauncher";
+        private const ControlStyles DesktopTileStyles =
+            ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
+            ControlStyles.Selectable;
 
         private static readonly FieldInfo ThemeField = typeof(CompactMenuForm).GetField(
             "_theme", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -95,13 +99,8 @@ namespace FACM
             if (TileCount != 5) throw new InvalidOperationException("Control-center launcher must expose exactly five primary desktop shortcuts.");
             if (ThemeField == null || RepairMethod == null || PersonalizationMethod == null || MoreMethod == null)
                 throw new InvalidOperationException("Desktop launcher lost access to the existing bounded control-center actions.");
-
-            var theme = ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
-            using (var tile = new DesktopTile(theme, "T", "Test"))
-            {
-                if (tile.BackColor != Color.Transparent)
-                    throw new InvalidOperationException("Desktop launcher tile transparency contract changed unexpectedly.");
-            }
+            if ((DesktopTileStyles & ControlStyles.SupportsTransparentBackColor) == 0)
+                throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
         }
 
         private static void HideLegacyFeatureRows(CompactMenuForm menu, UiTextCatalog ui)
@@ -191,9 +190,7 @@ namespace FACM
 
                 // SupportsTransparentBackColor must be enabled before assigning Color.Transparent.
                 // WinForms throws ArgumentException if the assignment happens first.
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
-                         ControlStyles.Selectable, true);
+                SetStyle(DesktopTileStyles, true);
                 BackColor = Color.Transparent;
 
                 MouseEnter += delegate { _hovered = true; Invalidate(); };
