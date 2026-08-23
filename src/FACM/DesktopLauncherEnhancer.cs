@@ -12,25 +12,25 @@ namespace FACM
 {
     /// <summary>
     /// Replaces the card/table-looking feature rows with a compact desktop-style launcher while
-    /// leaving the header, directory, cleanup card and footer description area untouched.
-    /// The launcher deliberately grows from the top-left instead of stretching to fill the menu,
-    /// so future shortcuts can occupy the next natural slot without rebalancing existing entries.
+    /// leaving the header, directory and cleanup card untouched. Descriptions live beside the
+    /// launcher heading instead of filling the bottom of the control panel.
     /// </summary>
     internal static class DesktopLauncherEnhancer
     {
-        internal const int TileCount = 5;
+        internal const int TileCount = 4;
         internal const int LauncherColumns = 3;
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
         private const int LauncherBaseWidth = 300;
-        private const int LauncherBaseHeight = 210;
+        private const int LauncherBaseHeight = 188;
         private const int FlowBaseWidth = 286;
-        private const int FlowBaseHeight = 178;
+        private const int FlowBaseHeight = 154;
         private const int TileBaseWidth = 80;
-        private const int TileBaseHeight = 78;
+        private const int TileBaseHeight = 70;
         private const int TileGapX = 12;
-        private const int TileGapY = 10;
+        private const int TileGapY = 8;
         private const string LauncherName = "FACM.DesktopLauncher";
+        private const string DefaultHoverHint = "悬停图标看说明";
         private const ControlStyles DesktopTileStyles =
             ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
             ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
@@ -53,9 +53,6 @@ namespace FACM
             var theme = ThemeField == null ? null : ThemeField.GetValue(menu) as ThemeDefinition;
             if (theme == null) return false;
             var ui = UiTextCatalog.Load();
-            var footerHint = Descendants(menu).OfType<Label>()
-                .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellSimpleHint), StringComparison.Ordinal));
-            if (footerHint == null) return false;
 
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
@@ -73,12 +70,24 @@ namespace FACM
             {
                 Text = ui.Get(UiTextKeys.ShellFeatureCenter),
                 Location = new Point(sx(2), sy(2)),
-                Size = new Size(sx(132), sy(22)),
+                Size = new Size(sx(72), sy(22)),
                 ForeColor = theme.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(theme.FontName, Math.Max(7F, 8.2F * Math.Min(scaleX, scaleY)), FontStyle.Bold)
             };
+            var hoverHint = new Label
+            {
+                Text = DefaultHoverHint,
+                Location = new Point(sx(76), sy(2)),
+                Size = new Size(sx(210), sy(22)),
+                AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleRight,
+                ForeColor = theme.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(theme.FontName, Math.Max(6.8F, 7.4F * Math.Min(scaleX, scaleY)))
+            };
             launcher.Controls.Add(caption);
+            launcher.Controls.Add(hoverHint);
 
             var flow = new LauncherFlowPanel
             {
@@ -93,25 +102,21 @@ namespace FACM
             launcher.Controls.Add(flow);
 
             var repairTitle = ui.Get(UiTextKeys.ShellRepairTools);
-            var leagueTitle = ui.Get(UiTextKeys.ShellLeague);
-            var presenceTitle = LeaguePresenceText.Get(ui, LeaguePresenceUiTextKeys.Menu);
+            var leagueTitle = LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title);
             var personalizeTitle = ui.Get(UiTextKeys.ShellPersonalization);
             var moreTitle = ui.Get(UiTextKeys.ShellMoreSettings);
 
-            AddTile(flow, theme, sx, sy, "⚙", repairTitle, ui.Get(UiTextKeys.ShellRepairHint),
-                tile => InvokeLegacy(menu, RepairMethod, tile), footerHint, ui);
-            AddTile(flow, theme, sx, sy, "L", leagueTitle, ui.Get(UiTextKeys.ShellLeagueHint),
-                tile => LeagueHubUiBridge.RequestOpen(), footerHint, ui);
-            AddTile(flow, theme, sx, sy, "●", presenceTitle, LeaguePresenceText.Get(ui, LeaguePresenceUiTextKeys.Hint),
-                tile => LeaguePresenceUiBridge.RequestOpen(theme), footerHint, ui);
-            AddTile(flow, theme, sx, sy, "✦", personalizeTitle, ui.Get(UiTextKeys.ShellPersonalizationHint),
-                tile => InvokeLegacy(menu, PersonalizationMethod, tile), footerHint, ui);
-            AddTile(flow, theme, sx, sy, "⋯", moreTitle, ui.Get(UiTextKeys.ShellSimpleHint),
-                tile => InvokeLegacy(menu, MoreMethod, tile), footerHint, ui);
+            AddTile(flow, theme, sx, sy, "⚙", repairTitle, "修驱动、窗口和客户端问题",
+                tile => InvokeLegacy(menu, RepairMethod, tile), hoverHint);
+            AddTile(flow, theme, sx, sy, "L", leagueTitle, LeagueHubText.Get(ui, LeagueHubUiTextKeys.LauncherHint),
+                tile => LeagueHubUiBridge.RequestOpen(), hoverHint);
+            AddTile(flow, theme, sx, sy, "✦", personalizeTitle, "主题、悬浮球和桌宠",
+                tile => InvokeLegacy(menu, PersonalizationMethod, tile), hoverHint);
+            AddTile(flow, theme, sx, sy, "⋯", moreTitle, "更新、日志和程序设置",
+                tile => InvokeLegacy(menu, MoreMethod, tile), hoverHint);
 
-            // Only hide the legacy controls after the complete replacement surface has been built.
-            // If tile construction ever fails, the old controls stay visible instead of leaving a blank panel.
             HideLegacyFeatureRows(menu, ui);
+            SimplifyFooter(menu, ui);
             menu.Controls.Add(launcher);
             launcher.BringToFront();
             return true;
@@ -119,7 +124,7 @@ namespace FACM
 
         internal static void ValidateDefinitionForSmokeTest()
         {
-            if (TileCount != 5) throw new InvalidOperationException("Control-center launcher must expose exactly five primary desktop shortcuts.");
+            if (TileCount != 4) throw new InvalidOperationException("Control-center launcher must expose exactly four primary desktop shortcuts.");
             if (LauncherColumns != 3) throw new InvalidOperationException("Control-center launcher must keep the three-column growth contract.");
             if (ThemeField == null || RepairMethod == null || PersonalizationMethod == null || MoreMethod == null)
                 throw new InvalidOperationException("Desktop launcher lost access to the existing bounded control-center actions.");
@@ -142,6 +147,17 @@ namespace FACM
             if (legacyMore != null) legacyMore.Visible = false;
         }
 
+        private static void SimplifyFooter(CompactMenuForm menu, UiTextCatalog ui)
+        {
+            var footerHint = Descendants(menu).OfType<Label>()
+                .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellSimpleHint), StringComparison.Ordinal));
+            if (footerHint == null || footerHint.Parent == null) return;
+
+            var footer = footerHint.Parent;
+            foreach (var label in footer.Controls.OfType<Label>().Where(label => label.Top >= footerHint.Top).ToArray())
+                label.Visible = false;
+        }
+
         private static void AddTile(
             FlowLayoutPanel parent,
             ThemeDefinition theme,
@@ -151,8 +167,7 @@ namespace FACM
             string title,
             string hint,
             Action<Control> click,
-            Label footerHint,
-            UiTextCatalog ui)
+            Label hoverHint)
         {
             var tile = new DesktopTile(theme, glyph, title)
             {
@@ -164,11 +179,11 @@ namespace FACM
             tile.Click += delegate { if (click != null) click(tile); };
             tile.MouseEnter += delegate
             {
-                if (!footerHint.IsDisposed) footerHint.Text = title + " · " + hint;
+                if (!hoverHint.IsDisposed) hoverHint.Text = hint;
             };
             tile.MouseLeave += delegate
             {
-                if (!footerHint.IsDisposed) footerHint.Text = ui.Get(UiTextKeys.ShellSimpleHint);
+                if (!hoverHint.IsDisposed) hoverHint.Text = DefaultHoverHint;
             };
             parent.Controls.Add(tile);
         }
@@ -221,7 +236,6 @@ namespace FACM
                 Cursor = Cursors.Hand;
                 TabStop = true;
 
-                // SupportsTransparentBackColor must be enabled before assigning Color.Transparent.
                 SetStyle(DesktopTileStyles, true);
                 BackColor = Color.Transparent;
 
@@ -255,28 +269,22 @@ namespace FACM
                 if (_hovered || _pressed || Focused)
                 {
                     using (var hoverPath = RoundedPath(full, 10))
-                    using (var hoverBrush = new SolidBrush(Color.FromArgb(
-                        _pressed ? 46 : 24,
-                        _theme.TextPrimary)))
-                    {
+                    using (var hoverBrush = new SolidBrush(Color.FromArgb(_pressed ? 46 : 24, _theme.TextPrimary)))
                         e.Graphics.FillPath(hoverBrush, hoverPath);
-                    }
 
                     if (Focused)
                     {
                         using (var focusPath = RoundedPath(full, 10))
                         using (var focusPen = new Pen(Color.FromArgb(150, _theme.AccentSecondary), 1F))
-                        {
                             e.Graphics.DrawPath(focusPen, focusPath);
-                        }
                     }
                 }
 
-                var iconSize = Math.Max(32, Math.Min(38, Height / 2));
-                var icon = new Rectangle((Width - iconSize) / 2, 5, iconSize, iconSize);
+                var iconSize = Math.Max(30, Math.Min(36, Height / 2));
+                var icon = new Rectangle((Width - iconSize) / 2, 4, iconSize, iconSize);
                 using (var iconPath = RoundedPath(icon, Math.Max(7, Math.Min(10, _theme.ButtonRadius + 4))))
                 using (var iconBrush = new SolidBrush(_theme.Accent))
-                using (var iconPen = new Pen(Color.FromArgb(150, _theme.AccentSecondary), 1F))
+                using (var iconPen = new Pen(Color.FromArgb(135, _theme.AccentSecondary), 1F))
                 {
                     e.Graphics.FillPath(iconBrush, iconPath);
                     e.Graphics.DrawPath(iconPen, iconPath);
@@ -284,7 +292,7 @@ namespace FACM
 
                 using (var glyphFont = new Font(
                     string.Equals(_glyph, "L", StringComparison.Ordinal) ? "Segoe UI" : "Segoe UI Symbol",
-                    string.Equals(_glyph, "L", StringComparison.Ordinal) ? 14.5F : 14F,
+                    string.Equals(_glyph, "L", StringComparison.Ordinal) ? 14F : 13.5F,
                     FontStyle.Bold))
                 {
                     TextRenderer.DrawText(
@@ -296,8 +304,8 @@ namespace FACM
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 }
 
-                var titleBounds = new Rectangle(2, icon.Bottom + 7, Math.Max(1, Width - 4), Math.Max(1, Height - icon.Bottom - 8));
-                using (var titleFont = new Font(_theme.FontName, 8.3F, FontStyle.Bold))
+                var titleBounds = new Rectangle(2, icon.Bottom + 6, Math.Max(1, Width - 4), Math.Max(1, Height - icon.Bottom - 7));
+                using (var titleFont = new Font(_theme.FontName, 8.1F, FontStyle.Bold))
                 {
                     TextRenderer.DrawText(
                         e.Graphics,
