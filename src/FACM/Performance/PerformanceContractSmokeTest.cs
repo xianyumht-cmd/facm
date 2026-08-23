@@ -75,8 +75,17 @@ namespace FACM.Performance
                 "Gate 2 transport must hard-block auto accept; Gate 7 uses a separate minimal writer.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PATCH", "/lol-champ-select/v1/session/actions/1"),
                 "Gate 2 transport must hard-block pick/ban action writes.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-champ-select/v1/session/bench/swap/55"),
+                "Gate 2 transport must not absorb the manual bench-swap capability.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-perks/v1/pages/77?force=true"),
                 "Gate 2 transport must reject rune-page paths with query-string escape hatches.");
+
+            Require(FACM.League.LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(55),
+                "Bench writer blocked a valid champion id.");
+            Require(!FACM.League.LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(0),
+                "Bench writer accepted an invalid champion id.");
+            Require(FACM.League.LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55) == "/lol-champ-select/v1/session/bench/swap/55",
+                "Bench writer must remain fenced to the dedicated bench/swap endpoint.");
 
             var provider = new PerformanceBudgetProvider();
             var changes = 0;
