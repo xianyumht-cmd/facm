@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.5
-- GitHub Release：v3.4.5
+- 版本：FACM 3.4.6
+- GitHub Release：v3.4.6
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：a18bce2437693e56c164bca838ab24b1446d6c47
-- 发布元数据提交：0339f9ef961e641763a58c54fdfd01c0b7093c49
-- Release FACM.exe SHA-256：A4E9A8E77A035F651D38D19E0380A49398DE3FB6FF78A6764A05F2FBDDCBED41
-- published_at：2026-08-23T10:06:18.8772095+00:00
-- release_notes：FACM 3.4.5：将在线更新改为多镜像自动容灾。检查更新会在多个 GitHub 镜像与 GitHub 原站之间自动选择可用线路，并缓存远程镜像列表和本机线路健康数据；下载新版本时按线路顺序失败自动切换，不再依赖单一 GitHub 下载链。更新文件仍必须通过正式 SHA-256、与当前 FACM 相同的发布签名、Windows Authenticode 完整性以及文件版本校验后才会安装。GitHub 原站始终保留为兜底线路。
+- 发布基础 main：7057303adfcd1d018c5f8e1aab72ffa94e0b54e8
+- 发布元数据提交：a105bdaf2e35df39cdb575b9f99ac555bb664e2d
+- Release FACM.exe SHA-256：9EA4B5F255C2DBC3EDFF939CE095E1C74E627862486BC4E69AFF2725FE5F2306
+- published_at：2026-08-23T10:44:44.8795801+00:00
+- release_notes：FACM 3.4.6：控制中心进一步收束信息密度。修复工具、英雄联盟、个性化默认只保留入口名称，鼠标悬停时在稳定说明区显示功能摘要；英雄联盟中心的对局、推荐、效率及顶部二级入口同样使用悬停说明，清理环境的安全提示继续常驻。在线更新启动级与动态镜像池扩展为 14 条公开 HTTPS GitHub 加速线路，并继续保留 GitHub 原站兜底、本机线路健康评分、3 路更新检查竞速与下载失败自动切换。更新文件仍需通过 SHA-256、发布证书、Windows Authenticode 和文件版本校验后才会安装。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
