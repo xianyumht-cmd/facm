@@ -44,6 +44,8 @@ namespace FACM.League
 
     internal static class LeagueRecommendationText
     {
+        private const string HiddenHint = "​";
+
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { LeagueRecommendationUiTextKeys.Menu, "对局推荐" },
@@ -52,16 +54,16 @@ namespace FACM.League
             { LeagueRecommendationUiTextKeys.Hint, "选好英雄后勾选要用的内容：符文会切到 FACM 符文页，召唤师技能保留闪现 D/F 习惯，装备写入游戏商店。" },
             { LeagueRecommendationUiTextKeys.Choose, "要应用的内容" },
             { LeagueRecommendationUiTextKeys.Runes, "符文" },
-            { LeagueRecommendationUiTextKeys.RunesHint, "" },
+            { LeagueRecommendationUiTextKeys.RunesHint, HiddenHint },
             { LeagueRecommendationUiTextKeys.Spells, "召唤师技能" },
-            { LeagueRecommendationUiTextKeys.SpellsHint, "" },
+            { LeagueRecommendationUiTextKeys.SpellsHint, HiddenHint },
             { LeagueRecommendationUiTextKeys.Items, "推荐装备" },
-            { LeagueRecommendationUiTextKeys.ItemsHint, "" },
+            { LeagueRecommendationUiTextKeys.ItemsHint, HiddenHint },
             { LeagueRecommendationUiTextKeys.Context, "当前英雄和位置" },
             { LeagueRecommendationUiTextKeys.Extra, "技能与克制" },
             { LeagueRecommendationUiTextKeys.Skills, "加点" },
             { LeagueRecommendationUiTextKeys.Counters, "克制" },
-            { LeagueRecommendationUiTextKeys.AutoHint, "" },
+            { LeagueRecommendationUiTextKeys.AutoHint, HiddenHint },
             { LeagueRecommendationUiTextKeys.Refresh, "刷新" },
             { LeagueRecommendationUiTextKeys.ApplySelected, "应用所选" },
             { LeagueRecommendationUiTextKeys.Waiting, "选好英雄后会自动显示推荐。" },
