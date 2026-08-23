@@ -14,6 +14,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
         private LeagueLiveDataService _service;
+        private LeagueBenchQuickPickService _benchQuickPick;
 
         public LeagueLiveModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
@@ -28,16 +29,19 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _service = new LeagueLiveDataService(_leagueClient, _performance.Budgets);
+            _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient);
         }
 
         public Form CreateLiveForm(UiTextCatalog ui)
         {
-            if (_service == null) throw new InvalidOperationException("League Live module is not initialized.");
-            return new LeagueLiveForm(_service, ui);
+            if (_service == null || _benchQuickPick == null)
+                throw new InvalidOperationException("League Live module is not initialized.");
+            return new LeagueLiveForm(_service, _benchQuickPick, ui);
         }
 
         public void Dispose()
         {
+            _benchQuickPick = null;
             _service = null;
         }
     }

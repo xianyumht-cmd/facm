@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,27 +14,38 @@ namespace FACM.League
     internal sealed class LeagueLiveForm : Form
     {
         private readonly LeagueLiveDataService _service;
+        private readonly LeagueBenchQuickPickService _benchQuickPick;
         private readonly UiTextCatalog _ui;
         private readonly Label _phaseLabel;
         private readonly Label _summaryLabel;
         private readonly Label _detailLabel;
         private readonly Label _bansLabel;
         private readonly Label _statusLabel;
+        private readonly Panel _benchCard;
+        private readonly Label _benchStateLabel;
+        private readonly FlowLayoutPanel _benchFlow;
         private readonly ListView _playersList;
         private readonly Button _refreshButton;
+        private readonly ToolTip _benchToolTip = new ToolTip();
+        private readonly Dictionary<int, Image> _benchImages = new Dictionary<int, Image>();
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private bool _refreshing;
+        private bool _benchRefreshing;
+        private bool _benchSwapping;
+        private bool _benchActive;
+        private string _benchSignature = string.Empty;
         private LeagueActivityLevel _lastActivity = LeagueActivityLevel.None;
 
-        public LeagueLiveForm(LeagueLiveDataService service, UiTextCatalog ui)
+        public LeagueLiveForm(LeagueLiveDataService service, LeagueBenchQuickPickService benchQuickPick, UiTextCatalog ui)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _benchQuickPick = benchQuickPick ?? throw new ArgumentNullException(nameof(benchQuickPick));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
 
             Text = _ui.Get(UiTextKeys.LeagueLiveWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(900, 620);
-            MinimumSize = new Size(790, 540);
+            ClientSize = new Size(900, 670);
+            MinimumSize = new Size(790, 600);
             MaximizeBox = true;
             BackColor = Color.FromArgb(14, 19, 30);
             ForeColor = Color.FromArgb(238, 243, 252);
@@ -48,7 +61,7 @@ namespace FACM.League
             };
             var hint = new Label
             {
-                Text = _ui.Get(UiTextKeys.LeagueLiveHint),
+                Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.LiveHint),
                 Location = new Point(30, 60),
                 Size = new Size(820, 24),
                 ForeColor = Color.FromArgb(146, 161, 188)
@@ -60,10 +73,49 @@ namespace FACM.League
             _bansLabel = CreateInfoLabel(new Point(30, 182), new Size(820, 24), false);
             _statusLabel = CreateInfoLabel(new Point(30, 210), new Size(820, 22), false);
 
+            _benchCard = new Panel
+            {
+                Location = new Point(28, 238),
+                Size = new Size(844, 100),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.FromArgb(18, 27, 43)
+            };
+            var benchTitle = new Label
+            {
+                Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Title),
+                Location = new Point(12, 8),
+                Size = new Size(190, 22),
+                ForeColor = Color.FromArgb(115, 224, 255),
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+            };
+            _benchStateLabel = new Label
+            {
+                Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Waiting),
+                Location = new Point(202, 8),
+                Size = new Size(626, 22),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                ForeColor = Color.FromArgb(146, 161, 188),
+                AutoEllipsis = true
+            };
+            _benchFlow = new FlowLayoutPanel
+            {
+                Location = new Point(9, 34),
+                Size = new Size(826, 58),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.FromArgb(13, 20, 33),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = true,
+                Padding = new Padding(4, 2, 4, 2)
+            };
+            _benchCard.Controls.Add(benchTitle);
+            _benchCard.Controls.Add(_benchStateLabel);
+            _benchCard.Controls.Add(_benchFlow);
+
             _playersList = new ListView
             {
-                Location = new Point(28, 244),
-                Size = new Size(844, 316),
+                Location = new Point(28, 350),
+                Size = new Size(844, 258),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.FromArgb(22, 29, 44),
                 ForeColor = Color.FromArgb(238, 243, 252),
@@ -82,12 +134,12 @@ namespace FACM.League
             _playersList.Columns.Add(_ui.Get(UiTextKeys.LeagueLiveSpells), 120);
 
             _refreshButton = CreateButton(UiTextKeys.LeagueLiveRefresh, Color.FromArgb(55, 104, 214));
-            _refreshButton.Location = new Point(680, 576);
+            _refreshButton.Location = new Point(680, 626);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshOnceAsync(); };
 
             var close = CreateButton(UiTextKeys.Close, Color.FromArgb(35, 43, 60));
-            close.Location = new Point(780, 576);
+            close.Location = new Point(780, 626);
             close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             close.Click += delegate { Close(); };
 
@@ -98,15 +150,22 @@ namespace FACM.League
             Controls.Add(_detailLabel);
             Controls.Add(_bansLabel);
             Controls.Add(_statusLabel);
+            Controls.Add(_benchCard);
             Controls.Add(_playersList);
             Controls.Add(_refreshButton);
             Controls.Add(close);
 
             ApplyWaitingState();
-            Shown += async delegate { await RunLoopAsync(); };
+            Shown += async delegate
+            {
+                await Task.WhenAll(RunLoopAsync(), RunBenchLoopAsync());
+            };
             FormClosed += delegate
             {
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
+                _benchToolTip.Dispose();
+                foreach (var image in _benchImages.Values) image.Dispose();
+                _benchImages.Clear();
                 _lifetime.Dispose();
             };
         }
@@ -144,7 +203,22 @@ namespace FACM.League
             {
                 await RefreshOnceAsync();
                 if (_lifetime.IsCancellationRequested || IsDisposed) break;
-                var delay = LeagueLivePolling.ResolveDelay(_lastActivity, WindowState == FormWindowState.Minimized);
+                var delay = LeagueLivePolling.ResolveDelay(_lastActivity, IsEffectivelyMinimized());
+                try { await Task.Delay(delay, _lifetime.Token); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+
+        private async Task RunBenchLoopAsync()
+        {
+            while (!_lifetime.IsCancellationRequested && !IsDisposed)
+            {
+                var minimized = IsEffectivelyMinimized();
+                if (!minimized && _lastActivity != LeagueActivityLevel.InGame)
+                    await RefreshBenchOnceAsync();
+
+                if (_lifetime.IsCancellationRequested || IsDisposed) break;
+                var delay = LeagueBenchQuickPickPolling.ResolveDelay(_benchActive, _lastActivity, minimized);
                 try { await Task.Delay(delay, _lifetime.Token); }
                 catch (OperationCanceledException) { break; }
             }
@@ -174,6 +248,30 @@ namespace FACM.League
             {
                 _refreshing = false;
                 if (!IsDisposed) _refreshButton.Enabled = true;
+            }
+        }
+
+        private async Task RefreshBenchOnceAsync()
+        {
+            if (_benchRefreshing || _benchSwapping || IsDisposed || _lifetime.IsCancellationRequested) return;
+            _benchRefreshing = true;
+            try
+            {
+                var state = await _benchQuickPick.RefreshAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                ApplyBenchState(state);
+            }
+            catch (OperationCanceledException)
+            {
+                // Form close / process shutdown owns cancellation.
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("League bench refresh skipped: " + exception.Message);
+            }
+            finally
+            {
+                _benchRefreshing = false;
             }
         }
 
@@ -210,7 +308,16 @@ namespace FACM.League
                 _bansLabel.Text = _ui.Get(UiTextKeys.LeagueLiveBans) + ": " +
                                   _ui.Get(UiTextKeys.LeagueLiveAlly) + " [" + JoinInts(snapshot.AllyBans) + "]  ·  " +
                                   _ui.Get(UiTextKeys.LeagueLiveEnemy) + " [" + JoinInts(snapshot.EnemyBans) + "]";
-                _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly);
+                if (!_benchSwapping)
+                    _statusLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.ManualOnly);
+
+                ApplyBenchState(new LeagueBenchQuickPickState
+                {
+                    SessionAvailable = true,
+                    BenchEnabled = snapshot.BenchEnabled,
+                    LocalPlayerCellId = snapshot.LocalPlayerCellId,
+                    LocalChampionId = ResolveLocalChampion(snapshot)
+                }, snapshot.BenchChampionIds);
             }
             else if (snapshot.Activity == LeagueActivityLevel.InGame)
             {
@@ -224,6 +331,7 @@ namespace FACM.League
                 var queue = string.IsNullOrWhiteSpace(snapshot.QueueName) ? Value(snapshot.QueueId) : snapshot.QueueName + " #" + snapshot.QueueId;
                 _bansLabel.Text = _ui.Get(UiTextKeys.LeagueLiveQueue) + ": " + queue;
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly);
+                ApplyBenchState(null);
             }
             else
             {
@@ -234,6 +342,188 @@ namespace FACM.League
             }
 
             ApplyPlayers(snapshot);
+        }
+
+        private void ApplyBenchState(LeagueBenchQuickPickState state, IEnumerable<int> championIds = null)
+        {
+            if (state != null && championIds != null)
+            {
+                foreach (var championId in championIds)
+                {
+                    if (championId > 0) state.ChampionIds.Add(championId);
+                }
+            }
+
+            if (state == null || !state.SessionAvailable)
+            {
+                _benchActive = false;
+                _benchStateLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Waiting);
+                RebuildBenchButtons(new int[0]);
+                return;
+            }
+
+            if (!state.BenchEnabled)
+            {
+                _benchActive = false;
+                _benchStateLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Disabled);
+                RebuildBenchButtons(new int[0]);
+                return;
+            }
+
+            _benchActive = true;
+            var ids = state.ChampionIds.Where(value => value > 0).Distinct().ToArray();
+            _benchStateLabel.Text = ids.Length == 0
+                ? LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Waiting)
+                : LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Hint);
+            RebuildBenchButtons(ids);
+        }
+
+        private void RebuildBenchButtons(IEnumerable<int> championIds)
+        {
+            var ids = championIds == null ? new int[0] : championIds.Where(value => value > 0).Distinct().ToArray();
+            var signature = string.Join(",", ids);
+            if (string.Equals(signature, _benchSignature, StringComparison.Ordinal))
+            {
+                SetBenchButtonsEnabled(!_benchSwapping);
+                return;
+            }
+            _benchSignature = signature;
+
+            while (_benchFlow.Controls.Count > 0)
+            {
+                var control = _benchFlow.Controls[0];
+                _benchFlow.Controls.RemoveAt(0);
+                control.Dispose();
+            }
+
+            foreach (var championId in ids)
+            {
+                var capturedId = championId;
+                var button = new Button
+                {
+                    Tag = capturedId,
+                    Text = capturedId.ToString(),
+                    Size = new Size(58, 50),
+                    Margin = new Padding(2, 1, 4, 1),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(24, 35, 54),
+                    ForeColor = Color.FromArgb(225, 236, 250),
+                    Cursor = Cursors.Hand,
+                    Font = new Font("Microsoft YaHei UI", 7F, FontStyle.Regular),
+                    TextAlign = ContentAlignment.BottomCenter,
+                    ImageAlign = ContentAlignment.TopCenter,
+                    Enabled = !_benchSwapping,
+                    TabStop = false
+                };
+                button.FlatAppearance.BorderColor = Color.FromArgb(54, 171, 207);
+                button.FlatAppearance.MouseOverBackColor = Color.FromArgb(31, 54, 77);
+                button.Click += async delegate { await SwapBenchChampionAsync(capturedId); };
+                _benchToolTip.SetToolTip(
+                    button,
+                    LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Tooltip) + " · #" + capturedId);
+                _benchFlow.Controls.Add(button);
+
+                Image cached;
+                if (_benchImages.TryGetValue(capturedId, out cached)) button.Image = cached;
+                else LoadBenchIconAsync(capturedId, button);
+            }
+        }
+
+        private async void LoadBenchIconAsync(int championId, Button button)
+        {
+            try
+            {
+                var bytes = await _benchQuickPick.LoadChampionIconAsync(championId, _lifetime.Token);
+                if (bytes == null || bytes.Length == 0 || IsDisposed || _lifetime.IsCancellationRequested) return;
+
+                Image image;
+                if (!_benchImages.TryGetValue(championId, out image))
+                {
+                    using (var stream = new MemoryStream(bytes, false))
+                    using (var source = Image.FromStream(stream))
+                        image = new Bitmap(source, new Size(34, 34));
+                    _benchImages[championId] = image;
+                }
+
+                if (button != null && !button.IsDisposed && button.Parent == _benchFlow)
+                    button.Image = image;
+            }
+            catch (OperationCanceledException)
+            {
+                // Form close owns cancellation.
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("League bench champion icon skipped: " + exception.Message);
+            }
+        }
+
+        private async Task SwapBenchChampionAsync(int championId)
+        {
+            if (_benchSwapping || championId <= 0 || IsDisposed || _lifetime.IsCancellationRequested) return;
+            _benchSwapping = true;
+            SetBenchButtonsEnabled(false);
+            _statusLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Swapping) + " #" + championId + "...";
+
+            try
+            {
+                var result = await _benchQuickPick.TrySwapAsync(championId, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                _statusLabel.Text = FormatBenchSwapResult(result);
+            }
+            catch (OperationCanceledException)
+            {
+                // Form close owns cancellation.
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("League bench swap skipped: " + exception.Message);
+                if (!IsDisposed)
+                    _statusLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Rejected);
+            }
+            finally
+            {
+                _benchSwapping = false;
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                {
+                    SetBenchButtonsEnabled(true);
+                    await RefreshBenchOnceAsync();
+                }
+            }
+        }
+
+        private string FormatBenchSwapResult(LeagueBenchSwapResult result)
+        {
+            if (result == null)
+                return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Rejected);
+
+            var suffix = " #" + result.ChampionId;
+            if (result.ElapsedMilliseconds > 0) suffix += " · " + result.ElapsedMilliseconds + " ms";
+            switch (result.Status)
+            {
+                case LeagueBenchSwapStatus.Success:
+                    return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Success) + suffix;
+                case LeagueBenchSwapStatus.TargetUnavailable:
+                    return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Unavailable) + suffix;
+                case LeagueBenchSwapStatus.BenchDisabled:
+                    return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Disabled);
+                case LeagueBenchSwapStatus.SessionUnavailable:
+                    return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Waiting);
+                case LeagueBenchSwapStatus.VerificationFailed:
+                    return LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.VerifyFailed) + suffix;
+                default:
+                    var rejected = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Rejected) + suffix;
+                    return result.StatusCode > 0 ? rejected + " · HTTP " + result.StatusCode : rejected;
+            }
+        }
+
+        private void SetBenchButtonsEnabled(bool enabled)
+        {
+            foreach (Control control in _benchFlow.Controls)
+            {
+                var button = control as Button;
+                if (button != null) button.Enabled = enabled;
+            }
         }
 
         private void ApplyPlayers(LeagueLiveSnapshot snapshot)
@@ -277,6 +567,21 @@ namespace FACM.League
             _bansLabel.Text = string.Empty;
             _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly);
             _playersList.Items.Clear();
+            ApplyBenchState(null);
+        }
+
+        private bool IsEffectivelyMinimized()
+        {
+            if (WindowState == FormWindowState.Minimized) return true;
+            var topLevel = TopLevelControl as Form;
+            return topLevel != null && topLevel != this && topLevel.WindowState == FormWindowState.Minimized;
+        }
+
+        private static int ResolveLocalChampion(LeagueLiveSnapshot snapshot)
+        {
+            if (snapshot == null) return 0;
+            var local = snapshot.Players.FirstOrDefault(row => row != null && row.IsLocalPlayer);
+            return local == null ? 0 : local.ChampionId;
         }
 
         private string FormatSide(string side)
@@ -296,7 +601,7 @@ namespace FACM.League
                 : snapshot.LocalActionType;
         }
 
-        private static string JoinInts(System.Collections.Generic.IEnumerable<int> values)
+        private static string JoinInts(IEnumerable<int> values)
         {
             var materialized = values == null ? new int[0] : values.Where(value => value > 0).ToArray();
             return materialized.Length == 0 ? "--" : string.Join(", ", materialized);

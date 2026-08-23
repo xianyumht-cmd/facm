@@ -13,12 +13,15 @@ namespace FACM.League
     {
         internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
         internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
+        internal const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
 
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
         private readonly LeagueDashboardPhaseService _phaseService;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
+        private readonly object _iconCacheSync = new object();
+        private readonly Dictionary<int, byte[]> _championIconCache = new Dictionary<int, byte[]>();
         private string _lastLocalPuuid;
 
         public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
@@ -70,6 +73,70 @@ namespace FACM.League
             }
         }
 
+        /// <summary>
+        /// Lightweight Champ Select bench probe used only by the visible quick-pick row. It shares
+        /// the exact same request gate as the normal live refresh so the feature cannot create
+        /// parallel LCU reads inside this module.
+        /// </summary>
+        public async Task<LeagueBenchQuickPickState> RefreshBenchAsync(CancellationToken cancellationToken)
+        {
+            await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    var bytes = await _client.TryGetBytesAsync(ChampSelectSessionPath, timeout.Token).ConfigureAwait(false);
+                    return ParseBenchState(bytes);
+                }
+            }
+            finally
+            {
+                _requestGate.Release();
+            }
+        }
+
+        /// <summary>
+        /// Loads a local LCU champion portrait only after that champion is actually visible on the
+        /// bench. Bytes are cached for the lifetime of the Live service; there is no external image
+        /// request or background prefetch.
+        /// </summary>
+        public async Task<byte[]> LoadChampionIconAsync(int championId, CancellationToken cancellationToken)
+        {
+            if (championId <= 0) return null;
+
+            byte[] cached;
+            lock (_iconCacheSync)
+            {
+                if (_championIconCache.TryGetValue(championId, out cached)) return cached;
+            }
+
+            await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                lock (_iconCacheSync)
+                {
+                    if (_championIconCache.TryGetValue(championId, out cached)) return cached;
+                }
+
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    var bytes = await _client.TryGetBytesAsync(
+                        ChampionIconPathPrefix + championId + ".png",
+                        timeout.Token).ConfigureAwait(false);
+                    if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024) return null;
+
+                    lock (_iconCacheSync) _championIconCache[championId] = bytes;
+                    return bytes;
+                }
+            }
+            finally
+            {
+                _requestGate.Release();
+            }
+        }
+
         internal void ApplyChampSelect(LeagueLiveSnapshot snapshot, byte[] bytes)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
@@ -88,6 +155,9 @@ namespace FACM.League
             AppendInts(snapshot.AllyBans, ReadValue(bans, "myTeamBans"));
             AppendInts(snapshot.EnemyBans, ReadValue(bans, "theirTeamBans"));
 
+            snapshot.BenchEnabled = ReadBool(data, "benchEnabled");
+            AppendInts(snapshot.BenchChampionIds, ReadValue(data, "benchChampionIds"));
+
             AppendChampSelectTeam(snapshot, ReadValue(data, "myTeam"), "ally");
             AppendChampSelectTeam(snapshot, ReadValue(data, "theirTeam"), "enemy");
             ApplyLocalAction(snapshot, ReadValue(data, "actions"));
@@ -100,6 +170,26 @@ namespace FACM.League
                     break;
                 }
             }
+        }
+
+        internal LeagueBenchQuickPickState ParseBenchState(byte[] bytes)
+        {
+            var state = new LeagueBenchQuickPickState();
+            var data = ParseObject(bytes);
+            if (data == null) return state;
+
+            state.SessionAvailable = true;
+            state.BenchEnabled = ReadBool(data, "benchEnabled");
+            state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
+            AppendInts(state.ChampionIds, ReadValue(data, "benchChampionIds"));
+
+            foreach (var member in EnumerateDictionaries(ReadValue(data, "myTeam")))
+            {
+                if (ReadInt(member, "cellId") != state.LocalPlayerCellId) continue;
+                state.LocalChampionId = ReadInt(member, "championId");
+                break;
+            }
+            return state;
         }
 
         internal void ApplyCurrentGame(LeagueLiveSnapshot snapshot, byte[] bytes)
@@ -261,7 +351,7 @@ namespace FACM.League
             foreach (var item in EnumerateValues(value))
             {
                 int parsed;
-                if (item != null && int.TryParse(Convert.ToString(item), out parsed)) target.Add(parsed);
+                if (item != null && int.TryParse(Convert.ToString(item), out parsed) && parsed > 0) target.Add(parsed);
             }
         }
 

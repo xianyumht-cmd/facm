@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -17,6 +17,7 @@ namespace FACM.AppHost.Modules
         private LeagueClientWriteApiClient _writer;
         private LeaguePostGameWriteApiClient _postGameWriter;
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
+        private LeagueBenchSwapWriteApiClient _benchSwapWriter;
 
         public LeagueClientModule() : this(new ResilientLeagueClientSessionDiscovery()) { }
 
@@ -37,6 +38,7 @@ namespace FACM.AppHost.Modules
             _writer = new LeagueClientWriteApiClient(_sessions);
             _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
+            _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
@@ -64,17 +66,26 @@ namespace FACM.AppHost.Modules
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, CancellationToken cancellationToken)
+        {
+            var writer = _benchSwapWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySwapAsync(championId, cancellationToken);
+        }
+
         public void Dispose()
         {
+            var benchSwapWriter = _benchSwapWriter;
             var matchmakingWriter = _matchmakingWriter;
             var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
+            _benchSwapWriter = null;
             _matchmakingWriter = null;
             _postGameWriter = null;
             _writer = null;
             _api = null;
             _sessions = null;
+            if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();
             if (writer != null) writer.Dispose();
