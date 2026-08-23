@@ -22,7 +22,8 @@ namespace FACM.League
         internal const int FlashSpellId = 4;
         private const string OwnedRunePagePrefix = "[FACM]";
         private const int RuneSettleDelayMilliseconds = 180;
-        private const int SpellSettleDelayMilliseconds = 180;
+        private const int SpellStableConfirmationDelayMilliseconds = 180;
+        private static readonly int[] SpellVerificationDelaysMilliseconds = { 90, 150, 250, 360, 500 };
 
         private readonly ILeagueClientApi _client;
         private readonly ILeagueClientWriteApi _writer;
@@ -274,7 +275,7 @@ namespace FACM.League
                 result.RuneStatus = pagesBytes == null ? "pages-unavailable" : "no-capacity";
                 AppLog.Info(
                     "League rune apply skipped; reason=" + result.RuneStatus +
-                    "; facmOwnedPage=false");
+                    "; facmOwnedPage=false; action=free-one-custom-page-and-retry");
                 return;
             }
 
@@ -426,7 +427,7 @@ namespace FACM.League
             if (!await VerifySpellsSettledAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false))
             {
                 AppLog.Warning(
-                    "League summoner-spell selection did not settle after first write; expected=" +
+                    "League summoner-spell selection did not settle within verification window; expected=" +
                     newSpell1 + "/" + newSpell2 + "; retrying once.");
                 if (!await TryWriteSpellsAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false) ||
                     !await VerifySpellsSettledAsync(newSpell1, newSpell2, cancellationToken).ConfigureAwait(false))
@@ -463,12 +464,20 @@ namespace FACM.League
             int expectedSpell2,
             CancellationToken cancellationToken)
         {
-            await Task.Delay(SpellSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
-            if (!await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false))
-                return false;
+            // Tencent LCU can acknowledge PATCH before my-selection reflects the new values.
+            // Keep polling within a bounded progressive window instead of treating the first stale
+            // 180ms read as a failed write. Once observed, require one more stable read before success.
+            foreach (var delayMilliseconds in SpellVerificationDelaysMilliseconds)
+            {
+                await Task.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false);
+                if (!await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false))
+                    continue;
 
-            await Task.Delay(SpellSettleDelayMilliseconds, cancellationToken).ConfigureAwait(false);
-            return await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(SpellStableConfirmationDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+                return await VerifySpellsOnceAsync(expectedSpell1, expectedSpell2, cancellationToken).ConfigureAwait(false);
+            }
+
+            return false;
         }
 
         private async Task<bool> VerifySpellsOnceAsync(
