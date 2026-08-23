@@ -15,6 +15,7 @@ namespace FACM.Performance
                 FACM.League.LeagueLiveSmokeTest.Validate();
                 FACM.League.LeagueBuildAdvisorSmokeTest.Validate();
                 FACM.League.LeagueBuildApplySmokeTest.Validate();
+                FACM.League.LeaguePresenceSmokeTest.Validate();
                 FACM.League.LeagueItemSetUiTextSmokeTest.Validate();
                 FACM.League.LeagueItemSetSmokeTest.Validate();
                 FACM.League.LeagueAutoApplySmokeTest.Validate();
@@ -79,8 +80,17 @@ namespace FACM.Performance
                 "Gate 2 transport must not absorb the legacy manual bench-swap capability.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/55"),
                 "Gate 2 transport must not absorb the Team Builder manual bench-swap capability.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-chat/v1/me"),
+                "Gate 2 transport must not absorb the user-directed presence write capability.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-perks/v1/pages/77?force=true"),
                 "Gate 2 transport must reject rune-page paths with query-string escape hatches.");
+
+            Require(FACM.League.LeaguePresenceWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-chat/v1/me"),
+                "Presence writer blocked its exact user-status endpoint.");
+            Require(!FACM.League.LeaguePresenceWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-chat/v1/me?force=true"),
+                "Presence writer accepted a query-string escape hatch.");
+            Require(!FACM.League.LeaguePresenceWriteApiClient.IsAllowedTargetForSmokeTest("PATCH", "/lol-chat/v1/me"),
+                "Presence writer accepted a non-PUT method.");
 
             Require(FACM.League.LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(55),
                 "Bench writer blocked a valid champion id.");
