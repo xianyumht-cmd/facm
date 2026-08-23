@@ -42,8 +42,6 @@ namespace FACM
                 .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellSimpleHint), StringComparison.Ordinal));
             if (footerHint == null) return false;
 
-            HideLegacyFeatureRows(menu, ui);
-
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
             Func<int, int> sx = value => Math.Max(1, (int)Math.Round(value * scaleX));
@@ -84,6 +82,9 @@ namespace FACM
             AddTile(launcher, theme, sx, sy, "⋯", moreTitle, ui.Get(UiTextKeys.ShellSimpleHint), 192, 139,
                 tile => InvokeLegacy(menu, MoreMethod, tile), footerHint, ui);
 
+            // Only hide the legacy controls after the complete replacement surface has been built.
+            // If tile construction ever fails, the old controls stay visible instead of leaving a blank panel.
+            HideLegacyFeatureRows(menu, ui);
             menu.Controls.Add(launcher);
             launcher.BringToFront();
             return true;
@@ -94,6 +95,13 @@ namespace FACM
             if (TileCount != 5) throw new InvalidOperationException("Control-center launcher must expose exactly five primary desktop shortcuts.");
             if (ThemeField == null || RepairMethod == null || PersonalizationMethod == null || MoreMethod == null)
                 throw new InvalidOperationException("Desktop launcher lost access to the existing bounded control-center actions.");
+
+            var theme = ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
+            using (var tile = new DesktopTile(theme, "T", "Test"))
+            {
+                if (tile.BackColor != Color.Transparent)
+                    throw new InvalidOperationException("Desktop launcher tile transparency contract changed unexpectedly.");
+            }
         }
 
         private static void HideLegacyFeatureRows(CompactMenuForm menu, UiTextCatalog ui)
@@ -178,12 +186,16 @@ namespace FACM
                 _theme = theme;
                 _glyph = glyph ?? string.Empty;
                 Text = title ?? string.Empty;
-                BackColor = Color.Transparent;
                 Cursor = Cursors.Hand;
                 TabStop = true;
+
+                // SupportsTransparentBackColor must be enabled before assigning Color.Transparent.
+                // WinForms throws ArgumentException if the assignment happens first.
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                          ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
                          ControlStyles.Selectable, true);
+                BackColor = Color.Transparent;
+
                 MouseEnter += delegate { _hovered = true; Invalidate(); };
                 MouseLeave += delegate { _hovered = false; _pressed = false; Invalidate(); };
                 MouseDown += delegate(object sender, MouseEventArgs e)
