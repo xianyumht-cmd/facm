@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.4.8",
+  "enabled": false,
+  "version": "3.4.9",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.8/FACM.exe",
-  "sha256": "765F22967B8C08EAF0E93438E7C8E8BAE5E96D0A7A520F433DCF5EB960AE5E78",
-  "release_notes": "FACM 3.4.8：控制中心功能区改为更接近 Windows 桌面/开始菜单的稀疏图标入口，去掉三条横向卡片、箭头和单独的长“更多设置”按钮，保留工作目录、清理环境与底部说明区；现有修复工具、英雄联盟、个性化和更多设置业务入口不变，并新增“在线状态”快捷入口。在线状态支持在线、离开、勿扰、手机在线、隐身和显示为游戏中，复用现有单一 League Client 会话，通过 GET/PUT /lol-chat/v1/me 修改好友展示 presence；每次用户点击最多一次写入，完整保留其它 presence 字段并进行两次短间隔读回验证，若腾讯客户端恢复实际状态则明确提示且不后台循环强制覆盖。专用写入器硬限制为 PUT /lol-chat/v1/me，Gate 2、匹配、选人和 Bench 写边界保持不变。",
-  "published_at": "2026-08-23T13:09:26.0951000+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.9/FACM.exe",
+  "sha256": "4338547E9E6EA1B66E442C5057D84E545EA368561C1C5B9DAD5D8A9E58445C77",
+  "release_notes": "FACM 3.4.9：紧急修复 3.4.8 控制中心闪退。3.4.8 的桌面快捷图标在 WinForms 透明背景样式尚未启用时先设置透明 BackColor，打开控制中心会抛出‘控件不支持透明的背景色’并终止主消息循环。3.4.9 调整桌面图标初始化顺序，先启用 SupportsTransparentBackColor 再设置透明背景；桌面快捷区改为完整构建成功后才隐藏旧入口，并为控制中心呈现增强层增加异常隔离，未来视觉层异常只记录并安全回退，不再允许导致 FACM 主程序闪退。在线状态、英雄联盟、Bench、更新等其它业务边界不变。",
+  "published_at": "2026-08-23T13:47:35.2822788+00:00"
 }
