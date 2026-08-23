@@ -402,7 +402,7 @@ namespace FACM.League
                 var button = new Button
                 {
                     Tag = capturedId,
-                    Text = "#" + capturedId,
+                    Text = capturedId.ToString(),
                     Size = new Size(58, 50),
                     Margin = new Padding(2, 1, 4, 1),
                     FlatStyle = FlatStyle.Flat,
