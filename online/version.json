@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.1",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.1/FACM.exe",
   "sha256": "3006BC4F0163EB66DEC2BCA5D5B0C7F8BDBC9C1F0CEB5C599753EEAE6A64DE87",
   "release_notes": "FACM 3.5.1：继续按实机反馈收束界面文字和入口层级。控制中心不再在底部堆叠功能说明与悬浮球操作提示，底部只保留状态信息；修复工具、LOL 助手、个性化、更多设置的功能说明改为在功能区标题右侧悬停显示。独立的‘在线状态’一级入口从控制中心移除并真正并入 LOL 助手。原‘英雄联盟中心’默认名称改为更直接的‘LOL 助手’，顶部说明改为‘查战绩、看实时、用推荐、改在线状态’；左侧只保留‘对局 / 推荐 / 工具’三个短名称，原本塞在按钮里的第二行介绍移动到顶部说明栏。子入口同时改成更白话的‘当前状态 / 我的战绩 / 实时对局 / 海斗榜 / 出装推荐 / 快捷工具 / 在线状态’。在线状态位于‘工具’分类，与快捷工具并列，并继续复用现有 LeagueClientModule/LCU 会话与一次写入后验证的安全边界，不新增第二套连接，也不做后台持续抢写。",
-  "published_at": "2026-08-23T21:39:48.3813432+00:00"
+  "published_at": "2026-08-23T21:39:56.4171529+00:00"
 }
