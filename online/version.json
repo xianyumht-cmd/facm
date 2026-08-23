@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.4.6",
+  "enabled": false,
+  "version": "3.4.7",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe",
-  "sha256": "9EA4B5F255C2DBC3EDFF939CE095E1C74E627862486BC4E69AFF2725FE5F2306",
-  "release_notes": "FACM 3.4.6：控制中心进一步收束信息密度。修复工具、英雄联盟、个性化默认只保留入口名称，鼠标悬停时在稳定说明区显示功能摘要；英雄联盟中心的对局、推荐、效率及顶部二级入口同样使用悬停说明，清理环境的安全提示继续常驻。在线更新启动级与动态镜像池扩展为 14 条公开 HTTPS GitHub 加速线路，并继续保留 GitHub 原站兜底、本机线路健康评分、3 路更新检查竞速与下载失败自动切换。更新文件仍需通过 SHA-256、发布证书、Windows Authenticode 和文件版本校验后才会安装。",
-  "published_at": "2026-08-23T10:44:44.8795801+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.7/FACM.exe",
+  "sha256": "7EEEFE3017B296300698FC1BD8F7D27717525293CEA0FCB2D39F343ECF1B81D9",
+  "release_notes": "FACM 3.4.7：根据 2026-08-23 实机日志修复一批高频但可恢复的问题。召唤师技能写入改为有上限的渐进回读窗口，首次观察到目标值后再稳定确认，避免腾讯 LCU 读回稍慢导致误判并重复写入；真正未生效时仍最多只重试一次并诚实报告失败。符文页已满继续安全跳过且绝不覆盖用户页面，只复用 FACM 自有页面，并补充释放一个自定义符文页后重试的诊断提示。公告元数据超时改为非关键 INFO，不再污染 ERROR；修复正常退出或自更新时桌宠 UI 线程误判造成的 stop skipped 噪声。更新镜像池移除实机返回异常内容的 mirror.houlang.cloud，仍保留 13 条镜像线路与 GitHub 原站兜底。",
+  "published_at": "2026-08-23T11:28:05.2504158+00:00"
 }
