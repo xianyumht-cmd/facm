@@ -29,6 +29,9 @@ namespace FACM.Online
 
         [DataMember(Name = "published_at")]
         public string PublishedAt { get; set; }
+
+        [IgnoreDataMember]
+        public UpdateMirrorSource[] ResolvedSources { get; set; }
     }
 
     [DataContract]
@@ -59,6 +62,41 @@ namespace FACM.Online
         public string LinkUrl { get; set; }
     }
 
+    [DataContract]
+    internal sealed class UpdateMirrorCatalog
+    {
+        [DataMember(Name = "schema")]
+        public string Schema { get; set; }
+
+        [DataMember(Name = "updated_at")]
+        public string UpdatedAt { get; set; }
+
+        [DataMember(Name = "sources")]
+        public UpdateMirrorSource[] Sources { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class UpdateMirrorSource
+    {
+        [DataMember(Name = "name")]
+        public string Name { get; set; }
+
+        [DataMember(Name = "prefix")]
+        public string Prefix { get; set; }
+
+        [DataMember(Name = "enabled")]
+        public bool Enabled { get; set; }
+
+        [DataMember(Name = "priority")]
+        public int Priority { get; set; }
+    }
+
+    internal sealed class UpdateDownloadCandidate
+    {
+        public string SourceName { get; set; }
+        public string Url { get; set; }
+    }
+
     internal sealed class OnlineSnapshot
     {
         public UpdateManifest Update { get; set; }
@@ -67,6 +105,7 @@ namespace FACM.Online
         public Version LatestVersion { get; set; }
         public bool UpdateAvailable { get; set; }
         public bool ForceUpdateRequired { get; set; }
+        public string MetadataSourceName { get; set; }
         public string ErrorMessage { get; set; }
     }
 }
