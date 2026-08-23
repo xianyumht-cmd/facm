@@ -136,10 +136,23 @@ FACM 的功能数量允许增长，但托盘一级决策数量固定。
 不同产品能力使用不同 allowlist writer：
 
 - Gate 2 符文/召唤师技能 writer：只允许 `my-selection` 与 FACM 自建 rune page/current page 路径；
+- ARAM / ARAM Mayhem 手动 Bench writer：调用者只提交正整数 `championId`，transport 自行构造并只允许 `POST /lol-champ-select/v1/session/bench/swap/{championId}`；
 - 赛后 writer：只允许 honor / honor ballot / `play-again`；
 - 匹配 writer：只允许 matchmaking search / ready-check accept。
 
-Gate 2 writer 继续硬拒绝 ready-check 与 Champ Select action 路径；匹配自动化不能借其它 writer 越权。
+Gate 2 writer 继续硬拒绝 ready-check、Bench swap 与 Champ Select action 路径；Bench writer 不接受任意 path，因此不能被借用执行 `/lol-champ-select/v1/session/actions/{id}`、pick / ban / reroll / dodge / skin；匹配自动化也不能借其它 writer 越权。
+
+### Champ Select Bench 快速选择
+
+`LeagueLiveModule` 在现有 `对局 → 实时对局` 页面内提供可用英雄快速选择，不新增 Shell / Hub 顶级入口，也不新增第二个 LCU session owner：
+
+- `LeagueLiveDataService` 继续读取同一个 `/lol-champ-select/v1/session`，解析 `benchEnabled`、`benchChampionIds` 与本地玩家当前英雄；
+- 正常 Live Champ Select 刷新仍保持 2 秒节奏；仅 Bench 条可见且激活时增加 session-only 轻量读取，目标周期约 250ms；未激活时降到约 750ms，InGame / 最小化继续节流；
+- Bench 轻量读取、正常 Live 读取和英雄头像读取共用同一个 service request gate，不在该模块制造并行 LCU 请求；
+- 英雄头像仅在真实出现在 Bench 后按需读取本地 LCU `/lol-game-data/assets/v1/champion-icons/{id}.png` 并缓存，不走外网、不后台预取；
+- 每次用户点击前重新读取 Bench；目标已消失则 fail-closed，不发送写请求；
+- 一次点击最多一次 swap POST；LCU 2xx 后最多进行两次有界只读 settled verification，本地英雄未真正变成目标英雄就不能报告成功；
+- 不实现指定目标自动监控 / 自动 swap。“抢英雄”是降低用户手动点击路径长度，不是自动化抢占。
 
 ## 5. Build Advisor / 自动应用
 
@@ -225,6 +238,8 @@ LeagueAutoAcceptEnabled=False
 
 - 既有 Desktop / Client / Queueing / Champ Select / In Game budgets；
 - Dashboard / Player / Live / Build Advisor；
+- Champ Select Bench 解析、手动 swap 事务、一次点击最多一次 POST、stale target fail-closed 与 settled verification；
+- Bench writer 与 Gate 2 writer 的权限隔离，以及 active / inactive / InGame / minimized 的快速读取节流边界；
 - Gate 2 手动应用；
 - Gate 3 item-set filesystem transaction；
 - Gate 4 auto apply state machine/cache；
