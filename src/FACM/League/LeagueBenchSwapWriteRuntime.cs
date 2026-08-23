@@ -10,17 +10,21 @@ namespace FACM.League
 {
     /// <summary>
     /// Dedicated minimal writer for the ARAM / ARAM Mayhem bench.
-    /// Callers provide only a champion id; the transport constructs the one allowed endpoint itself,
-    /// so this capability cannot be reused for pick/ban/actions/reroll/dodge/skin writes.
+    /// Callers provide only a champion id plus the already-observed Champ Select route; the
+    /// transport still constructs the endpoint itself and cannot be reused for arbitrary writes.
     /// </summary>
     internal interface ILeagueBenchSwapWriteApi
     {
-        Task<LeagueClientWriteResponse> TrySwapAsync(int championId, CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TrySwapAsync(
+            int championId,
+            LeagueBenchSwapRoute route,
+            CancellationToken cancellationToken);
     }
 
     internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, IDisposable
     {
-        internal const string SwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
+        internal const string LegacySwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
+        internal const string TeamBuilderSwapPathPrefix = "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/";
 
         private readonly object _sync = new object();
         private readonly LeagueClientSessionProvider _sessions;
@@ -34,7 +38,10 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TrySwapAsync(int championId, CancellationToken cancellationToken)
+        public async Task<LeagueClientWriteResponse> TrySwapAsync(
+            int championId,
+            LeagueBenchSwapRoute route,
+            CancellationToken cancellationToken)
         {
             if (!IsValidChampionIdForSmokeTest(championId))
                 throw new ArgumentOutOfRangeException(nameof(championId), "Champion id must be positive.");
@@ -55,7 +62,7 @@ namespace FACM.League
 
             try
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Post, BuildPathForSmokeTest(championId)))
+                using (var request = new HttpRequestMessage(HttpMethod.Post, BuildPathForSmokeTest(championId, route)))
                 using (var response = await client.SendAsync(
                     request,
                     HttpCompletionOption.ResponseHeadersRead,
@@ -99,10 +106,12 @@ namespace FACM.League
             return championId > 0;
         }
 
-        internal static string BuildPathForSmokeTest(int championId)
+        internal static string BuildPathForSmokeTest(int championId, LeagueBenchSwapRoute route)
         {
             if (championId <= 0) return string.Empty;
-            return SwapPathPrefix + championId;
+            return (route == LeagueBenchSwapRoute.TeamBuilder
+                ? TeamBuilderSwapPathPrefix
+                : LegacySwapPathPrefix) + championId;
         }
 
         private HttpClient GetOrCreateClient(LeagueClientSession session)

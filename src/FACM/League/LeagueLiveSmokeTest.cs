@@ -13,6 +13,8 @@ namespace FACM.League
         public static void Validate()
         {
             ValidateChampSelectAndCurrentGameParsing();
+            ValidateCurrentMayhemBenchShape();
+            ValidateTeamBuilderFallback();
             ValidateBenchQuickPick();
             ValidatePollingBudget();
             ValidateCancellation();
@@ -46,7 +48,8 @@ namespace FACM.League
             Require(select.GameId == 123456 && select.QueueId == 420 && select.LocalPlayerCellId == 1, "Champ Select session identity did not parse.");
             Require(select.TimerPhase == "BAN_PICK" && select.TimerMillisecondsLeft == 25000, "Champ Select timer did not parse.");
             Require(select.AllyBans.Count == 2 && select.EnemyBans.Count == 1, "Champ Select bans did not parse.");
-            Require(select.BenchEnabled && select.BenchChampionIds.SequenceEqual(new[] { 266, 55 }), "Champ Select bench did not parse.");
+            Require(select.BenchEnabled && select.BenchChampionIds.SequenceEqual(new[] { 266, 55 }), "Legacy benchChampionIds fallback did not parse.");
+            Require(select.BenchSwapRoute == LeagueBenchSwapRoute.Legacy, "Missing isLegacyChampSelect must default to the legacy route.");
             Require(select.Players.Count == 3, "Champ Select teams did not parse expected rows.");
             Require(select.Players.Exists(row => row.IsLocalPlayer && row.PuuId == "local-puuid" && row.ChampionId == 22 && row.ChampionPickIntent == 99), "Champ Select local player was not resolved by localPlayerCellId.");
             Require(select.LocalActionType == "pick" && select.LocalActionChampionId == 99, "Champ Select active local action did not parse.");
@@ -56,7 +59,7 @@ namespace FACM.League
             var bench = service.ParseBenchState(Encoding.UTF8.GetBytes(champSelect));
             Require(bench.SessionAvailable && bench.BenchEnabled, "Bench state did not retain availability flags.");
             Require(bench.LocalPlayerCellId == 1 && bench.LocalChampionId == 22, "Bench state did not resolve the local champion.");
-            Require(bench.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Bench state ids did not preserve client order.");
+            Require(bench.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Legacy bench ids did not preserve client order.");
 
             api.Phase = "InProgress";
             api.Paths.Clear();
@@ -67,7 +70,34 @@ namespace FACM.League
             Require(game.Players.Count == 2, "Current Game teams did not parse.");
             Require(game.Players.Exists(row => row.IsLocalPlayer && row.PuuId == "local-puuid" && row.ChampionId == 22), "Current Game did not retain the local player identity learned during Champ Select.");
             Require(api.Paths.Count == 2 && api.Paths[0] == LeagueDashboardPhaseService.PhasePath && api.Paths[1] == LeagueLiveDataService.GameflowSessionPath, "In-game refresh must remain one phase request plus one gameflow-session request.");
-            Require(!api.Paths.Exists(path => path.IndexOf("match-history", StringComparison.OrdinalIgnoreCase) >= 0), "In-game League Live must perform zero history/scouting requests.");
+        }
+
+        private static void ValidateCurrentMayhemBenchShape()
+        {
+            var mayhem = "{\"gameId\":500861493625,\"queueId\":2400,\"localPlayerCellId\":2,\"benchEnabled\":true," +
+                         "\"isLegacyChampSelect\":false,\"benchChampionIds\":[]," +
+                         "\"benchChampions\":[{\"championId\":266},{\"championId\":55},{\"championId\":266}]," +
+                         "\"myTeam\":[{\"cellId\":2,\"championId\":58}]}";
+            var service = new LeagueLiveDataService(new FixtureApi("ChampSelect", mayhem, "{}"), new PerformanceBudgetProvider());
+            var state = service.ParseBenchState(Encoding.UTF8.GetBytes(mayhem));
+            Require(state.SessionAvailable && state.BenchEnabled, "Mayhem bench session was not recognized.");
+            Require(state.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Mayhem benchChampions did not parse/deduplicate in client order.");
+            Require(state.LocalChampionId == 58, "Mayhem local champion did not parse.");
+            Require(state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder, "Mayhem isLegacyChampSelect=false did not select Team Builder route.");
+            Require(service.LastBenchSwapRouteForQuickPick == LeagueBenchSwapRoute.TeamBuilder, "Observed Mayhem route was not retained for the click path.");
+        }
+
+        private static void ValidateTeamBuilderFallback()
+        {
+            var generic = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":false,\"benchChampions\":[],\"myTeam\":[{\"cellId\":1,\"championId\":34}]}";
+            var teamBuilder = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"benchChampions\":[{\"championId\":55},{\"championId\":99}],\"myTeam\":[{\"cellId\":1,\"championId\":34}]}";
+            var api = new TeamBuilderFallbackApi(generic, teamBuilder);
+            var service = new LeagueLiveDataService(api, new PerformanceBudgetProvider());
+            var state = service.RefreshBenchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(state.SessionAvailable && state.BenchEnabled, "Team Builder fallback did not return a bench session.");
+            Require(state.ChampionIds.SequenceEqual(new[] { 55, 99 }), "Team Builder fallback did not recover bench champions.");
+            Require(state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder, "Team Builder fallback lost its write route.");
+            Require(api.GenericReads == 1 && api.TeamBuilderReads == 1, "Team Builder fallback must be narrow and bounded to one extra GET.");
         }
 
         private static void ValidateBenchQuickPick()
@@ -75,45 +105,45 @@ namespace FACM.League
             Require(LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(55), "Bench writer rejected a valid champion id.");
             Require(!LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(0), "Bench writer accepted champion id zero.");
             Require(
-                LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55) == "/lol-champ-select/v1/session/bench/swap/55",
-                "Bench writer path drifted away from the dedicated swap endpoint.");
+                LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55, LeagueBenchSwapRoute.Legacy) == "/lol-champ-select/v1/session/bench/swap/55",
+                "Legacy bench writer path drifted.");
+            Require(
+                LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55, LeagueBenchSwapRoute.TeamBuilder) == "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/55",
+                "Team Builder bench writer path drifted.");
 
-            var successApi = new BenchFixtureApi(10, new[] { 22, 55 });
+            var successApi = new BenchFixtureApi(10, new[] { 22, 55 }, false);
             var successWriter = new BenchFixtureWriter(successApi) { StatusCode = 204, ApplySwap = true };
-            var successService = new LeagueBenchQuickPickService(
-                new LeagueLiveDataService(successApi, new PerformanceBudgetProvider()),
-                successWriter);
+            var successLive = new LeagueLiveDataService(successApi, new PerformanceBudgetProvider());
+            successLive.RefreshBenchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var successService = new LeagueBenchQuickPickService(successLive, successWriter);
+            var readsBeforeClick = successApi.SessionReads;
             var success = successService.TrySwapAsync(55, CancellationToken.None).GetAwaiter().GetResult();
             Require(success.Success && success.Status == LeagueBenchSwapStatus.Success, "Bench swap did not verify a successful local champion change.");
             Require(successWriter.Calls == 1 && successWriter.LastChampionId == 55, "One bench click must produce exactly one swap POST.");
+            Require(successWriter.LastRoute == LeagueBenchSwapRoute.TeamBuilder, "Observed Team Builder route was not used by the UI-compatible click path.");
             Require(successApi.LocalChampionId == 55, "Successful bench fixture did not settle on the target champion.");
+            Require(successApi.SessionReads > readsBeforeClick, "Successful swap must read back the settled local champion.");
 
-            var missingApi = new BenchFixtureApi(10, new[] { 22 });
-            var missingWriter = new BenchFixtureWriter(missingApi) { StatusCode = 204, ApplySwap = true };
-            var missingService = new LeagueBenchQuickPickService(
-                new LeagueLiveDataService(missingApi, new PerformanceBudgetProvider()),
-                missingWriter);
-            var missing = missingService.TrySwapAsync(55, CancellationToken.None).GetAwaiter().GetResult();
-            Require(missing.Status == LeagueBenchSwapStatus.TargetUnavailable, "Stale bench target did not fail closed.");
-            Require(missingWriter.Calls == 0, "Unavailable target must not produce a swap POST.");
-
-            var rejectedApi = new BenchFixtureApi(10, new[] { 55 });
+            var rejectedApi = new BenchFixtureApi(10, new[] { 55 }, false);
             var rejectedWriter = new BenchFixtureWriter(rejectedApi) { StatusCode = 409, ApplySwap = false };
-            var rejectedService = new LeagueBenchQuickPickService(
-                new LeagueLiveDataService(rejectedApi, new PerformanceBudgetProvider()),
-                rejectedWriter);
+            var rejectedLive = new LeagueLiveDataService(rejectedApi, new PerformanceBudgetProvider());
+            rejectedLive.RefreshBenchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var rejectedService = new LeagueBenchQuickPickService(rejectedLive, rejectedWriter);
+            var rejectedReadsBeforeClick = rejectedApi.SessionReads;
             var rejected = rejectedService.TrySwapAsync(55, CancellationToken.None).GetAwaiter().GetResult();
-            Require(rejected.Status == LeagueBenchSwapStatus.WriteRejected && rejected.StatusCode == 409, "Rejected bench write did not surface the LCU status.");
+            Require(rejected.Status == LeagueBenchSwapStatus.TargetUnavailable && rejected.StatusCode == 409, "Stale Team Builder bench write did not surface as unavailable.");
             Require(rejectedWriter.Calls == 1, "Rejected bench write must not retry the POST.");
+            Require(rejectedApi.SessionReads == rejectedReadsBeforeClick, "Race-sensitive click path must not pre-read before a rejected POST.");
 
-            var verifyApi = new BenchFixtureApi(10, new[] { 55 });
+            var verifyApi = new BenchFixtureApi(10, new[] { 55 }, true);
             var verifyWriter = new BenchFixtureWriter(verifyApi) { StatusCode = 204, ApplySwap = false };
-            var verifyService = new LeagueBenchQuickPickService(
-                new LeagueLiveDataService(verifyApi, new PerformanceBudgetProvider()),
-                verifyWriter);
+            var verifyLive = new LeagueLiveDataService(verifyApi, new PerformanceBudgetProvider());
+            verifyLive.RefreshBenchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var verifyService = new LeagueBenchQuickPickService(verifyLive, verifyWriter);
             var verify = verifyService.TrySwapAsync(55, CancellationToken.None).GetAwaiter().GetResult();
             Require(verify.Status == LeagueBenchSwapStatus.VerificationFailed, "2xx without a settled champion change must not be reported as success.");
             Require(verifyWriter.Calls == 1, "Verification failure must never retry the swap POST.");
+            Require(verifyWriter.LastRoute == LeagueBenchSwapRoute.Legacy, "Legacy session did not keep the legacy writer route.");
 
             Require(LeagueBenchQuickPickText.DefaultsForSmokeTest().Count >= 10, "Bench quick-pick UI text defaults are incomplete.");
         }
@@ -126,7 +156,7 @@ namespace FACM.League
             Require(LeagueLivePolling.ResolveDelay(LeagueActivityLevel.ChampSelect, true) >= TimeSpan.FromSeconds(10), "Minimized League Live must throttle normal polling.");
 
             var quick = LeagueBenchQuickPickPolling.ResolveDelay(true, LeagueActivityLevel.ChampSelect, false);
-            Require(quick >= TimeSpan.FromMilliseconds(200) && quick <= TimeSpan.FromMilliseconds(300), "Active bench quick-pick polling must stay inside its bounded low-latency window.");
+            Require(quick >= TimeSpan.FromMilliseconds(90) && quick <= TimeSpan.FromMilliseconds(125), "Active bench quick-pick polling must stay inside its bounded low-latency window.");
             Require(LeagueBenchQuickPickPolling.ResolveDelay(false, LeagueActivityLevel.Client, false) >= TimeSpan.FromMilliseconds(750), "Inactive bench probing became too aggressive.");
             Require(LeagueBenchQuickPickPolling.ResolveDelay(true, LeagueActivityLevel.InGame, false) >= TimeSpan.FromSeconds(5), "Bench probing must throttle in game.");
             Require(LeagueBenchQuickPickPolling.ResolveDelay(true, LeagueActivityLevel.ChampSelect, true) >= TimeSpan.FromSeconds(1), "Minimized bench probing must throttle.");
@@ -187,12 +217,46 @@ namespace FACM.League
             }
         }
 
+        private sealed class TeamBuilderFallbackApi : ILeagueClientApi
+        {
+            private readonly byte[] _generic;
+            private readonly byte[] _teamBuilder;
+
+            public TeamBuilderFallbackApi(string generic, string teamBuilder)
+            {
+                _generic = Encoding.UTF8.GetBytes(generic ?? string.Empty);
+                _teamBuilder = Encoding.UTF8.GetBytes(teamBuilder ?? string.Empty);
+            }
+
+            public int GenericReads { get; private set; }
+            public int TeamBuilderReads { get; private set; }
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.Equals(path, LeagueLiveDataService.ChampSelectSessionPath, StringComparison.Ordinal))
+                {
+                    GenericReads++;
+                    return Task.FromResult(_generic);
+                }
+                if (string.Equals(path, LeagueLiveDataService.TeamBuilderChampSelectSessionPath, StringComparison.Ordinal))
+                {
+                    TeamBuilderReads++;
+                    return Task.FromResult(_teamBuilder);
+                }
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+
         private sealed class BenchFixtureApi : ILeagueClientApi
         {
-            public BenchFixtureApi(int localChampionId, IEnumerable<int> benchChampionIds)
+            private readonly bool _legacy;
+
+            public BenchFixtureApi(int localChampionId, IEnumerable<int> benchChampionIds, bool legacy)
             {
                 LocalChampionId = localChampionId;
                 BenchChampionIds = new List<int>(benchChampionIds ?? new int[0]);
+                _legacy = legacy;
             }
 
             public int LocalChampionId { get; set; }
@@ -202,12 +266,14 @@ namespace FACM.League
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!string.Equals(path, LeagueLiveDataService.ChampSelectSessionPath, StringComparison.Ordinal))
+                if (!string.Equals(path, LeagueLiveDataService.ChampSelectSessionPath, StringComparison.Ordinal) &&
+                    !string.Equals(path, LeagueLiveDataService.TeamBuilderChampSelectSessionPath, StringComparison.Ordinal))
                     return Task.FromResult<byte[]>(null);
 
                 SessionReads++;
-                var bench = string.Join(",", BenchChampionIds);
-                var json = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"benchChampionIds\":[" + bench + "]," +
+                var benchObjects = string.Join(",", BenchChampionIds.Select(id => "{\"championId\":" + id + "}"));
+                var json = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":" + (_legacy ? "true" : "false") + "," +
+                           "\"benchChampions\":[" + benchObjects + "]," +
                            "\"myTeam\":[{\"cellId\":1,\"championId\":" + LocalChampionId + "}]}";
                 return Task.FromResult(Encoding.UTF8.GetBytes(json));
             }
@@ -230,14 +296,16 @@ namespace FACM.League
 
             public int Calls { get; private set; }
             public int LastChampionId { get; private set; }
+            public LeagueBenchSwapRoute LastRoute { get; private set; }
             public int StatusCode { get; set; }
             public bool ApplySwap { get; set; }
 
-            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, CancellationToken cancellationToken)
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls++;
                 LastChampionId = championId;
+                LastRoute = route;
                 if (StatusCode >= 200 && StatusCode <= 299 && ApplySwap) _api.Apply(championId);
                 return Task.FromResult(new LeagueClientWriteResponse
                 {

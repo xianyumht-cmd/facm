@@ -4,6 +4,12 @@ using FACM.Performance;
 
 namespace FACM.League
 {
+    internal enum LeagueBenchSwapRoute
+    {
+        Legacy,
+        TeamBuilder
+    }
+
     internal sealed class LeagueLiveSnapshot
     {
         public LeagueLiveSnapshot()
@@ -12,6 +18,7 @@ namespace FACM.League
             AllyBans = new List<int>();
             EnemyBans = new List<int>();
             BenchChampionIds = new List<int>();
+            BenchSwapRoute = LeagueBenchSwapRoute.Legacy;
         }
 
         public bool Connected { get; set; }
@@ -33,6 +40,7 @@ namespace FACM.League
         public string LocalActionType { get; set; }
         public int LocalActionChampionId { get; set; }
         public bool BenchEnabled { get; set; }
+        public LeagueBenchSwapRoute BenchSwapRoute { get; set; }
 
         public List<int> AllyBans { get; private set; }
         public List<int> EnemyBans { get; private set; }
@@ -45,12 +53,14 @@ namespace FACM.League
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();
+            SwapRoute = LeagueBenchSwapRoute.Legacy;
         }
 
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
         public int LocalPlayerCellId { get; set; }
         public int LocalChampionId { get; set; }
+        public LeagueBenchSwapRoute SwapRoute { get; set; }
         public List<int> ChampionIds { get; private set; }
     }
 

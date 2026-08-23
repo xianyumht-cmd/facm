@@ -66,10 +66,15 @@ namespace FACM.AppHost.Modules
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, cancellationToken);
         }
 
-        Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, CancellationToken cancellationToken)
+        Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(
+            int championId,
+            LeagueBenchSwapRoute route,
+            CancellationToken cancellationToken)
         {
             var writer = _benchSwapWriter;
-            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySwapAsync(championId, cancellationToken);
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySwapAsync(championId, route, cancellationToken);
         }
 
         public void Dispose()

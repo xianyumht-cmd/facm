@@ -12,6 +12,7 @@ namespace FACM.League
     internal sealed class LeagueLiveDataService
     {
         internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
+        internal const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
         internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
         internal const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
 
@@ -23,12 +24,19 @@ namespace FACM.League
         private readonly object _iconCacheSync = new object();
         private readonly Dictionary<int, byte[]> _championIconCache = new Dictionary<int, byte[]>();
         private string _lastLocalPuuid;
+        private int _lastBenchSwapRoute;
 
         public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _phaseService = new LeagueDashboardPhaseService(client, budgets);
+            _lastBenchSwapRoute = (int)LeagueBenchSwapRoute.Legacy;
+        }
+
+        internal LeagueBenchSwapRoute LastBenchSwapRouteForQuickPick
+        {
+            get { return (LeagueBenchSwapRoute)Volatile.Read(ref _lastBenchSwapRoute); }
         }
 
         public async Task<LeagueLiveSnapshot> RefreshAsync(CancellationToken cancellationToken)
@@ -74,9 +82,10 @@ namespace FACM.League
         }
 
         /// <summary>
-        /// Lightweight Champ Select bench probe used only by the visible quick-pick row. It shares
-        /// the exact same request gate as the normal live refresh so the feature cannot create
-        /// parallel LCU reads inside this module.
+        /// Lightweight Champ Select bench probe used only by the visible quick-pick row. Current
+        /// ARAM/Mayhem sessions expose benchChampions; old clients may expose benchChampionIds.
+        /// Team Builder is queried only as a narrow compatibility fallback when the generic session
+        /// identifies a Team Builder bench but does not expose the actual bench list.
         /// </summary>
         public async Task<LeagueBenchQuickPickState> RefreshBenchAsync(CancellationToken cancellationToken)
         {
@@ -87,7 +96,27 @@ namespace FACM.League
                 {
                     timeout.CancelAfter(TimeSpan.FromSeconds(2));
                     var bytes = await _client.TryGetBytesAsync(ChampSelectSessionPath, timeout.Token).ConfigureAwait(false);
-                    return ParseBenchState(bytes);
+                    var state = ParseBenchState(bytes);
+
+                    var shouldTryTeamBuilder = state == null ||
+                                               !state.SessionAvailable ||
+                                               (state.BenchEnabled &&
+                                                state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder &&
+                                                state.ChampionIds.Count == 0);
+                    if (!shouldTryTeamBuilder) return state;
+
+                    var teamBuilderBytes = await _client.TryGetBytesAsync(
+                        TeamBuilderChampSelectSessionPath,
+                        timeout.Token).ConfigureAwait(false);
+                    var teamBuilderState = ParseBenchState(teamBuilderBytes);
+                    if (teamBuilderState != null && teamBuilderState.SessionAvailable)
+                    {
+                        teamBuilderState.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
+                        RememberBenchSwapRoute(LeagueBenchSwapRoute.TeamBuilder);
+                        return teamBuilderState;
+                    }
+
+                    return state ?? new LeagueBenchQuickPickState();
                 }
             }
             finally
@@ -156,7 +185,9 @@ namespace FACM.League
             AppendInts(snapshot.EnemyBans, ReadValue(bans, "theirTeamBans"));
 
             snapshot.BenchEnabled = ReadBool(data, "benchEnabled");
-            AppendInts(snapshot.BenchChampionIds, ReadValue(data, "benchChampionIds"));
+            snapshot.BenchSwapRoute = ResolveBenchSwapRoute(data);
+            RememberBenchSwapRoute(snapshot.BenchSwapRoute);
+            AppendBenchChampionIds(snapshot.BenchChampionIds, data);
 
             AppendChampSelectTeam(snapshot, ReadValue(data, "myTeam"), "ally");
             AppendChampSelectTeam(snapshot, ReadValue(data, "theirTeam"), "enemy");
@@ -181,7 +212,9 @@ namespace FACM.League
             state.SessionAvailable = true;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
-            AppendInts(state.ChampionIds, ReadValue(data, "benchChampionIds"));
+            state.SwapRoute = ResolveBenchSwapRoute(data);
+            RememberBenchSwapRoute(state.SwapRoute);
+            AppendBenchChampionIds(state.ChampionIds, data);
 
             foreach (var member in EnumerateDictionaries(ReadValue(data, "myTeam")))
             {
@@ -273,6 +306,42 @@ namespace FACM.League
                     snapshot.LocalActionChampionId = ReadInt(action, "championId");
                     return;
                 }
+            }
+        }
+
+        private void RememberBenchSwapRoute(LeagueBenchSwapRoute route)
+        {
+            Volatile.Write(ref _lastBenchSwapRoute, (int)route);
+        }
+
+        private static LeagueBenchSwapRoute ResolveBenchSwapRoute(Dictionary<string, object> source)
+        {
+            object value;
+            if (source != null && source.TryGetValue("isLegacyChampSelect", out value))
+            {
+                bool isLegacy;
+                if (value != null && bool.TryParse(Convert.ToString(value), out isLegacy))
+                    return isLegacy ? LeagueBenchSwapRoute.Legacy : LeagueBenchSwapRoute.TeamBuilder;
+            }
+            return LeagueBenchSwapRoute.Legacy;
+        }
+
+        private static void AppendBenchChampionIds(ICollection<int> target, Dictionary<string, object> source)
+        {
+            if (target == null || source == null) return;
+            var seen = new HashSet<int>(target);
+
+            foreach (var benchChampion in EnumerateDictionaries(ReadValue(source, "benchChampions")))
+            {
+                var championId = ReadInt(benchChampion, "championId");
+                if (championId > 0 && seen.Add(championId)) target.Add(championId);
+            }
+
+            foreach (var value in EnumerateValues(ReadValue(source, "benchChampionIds")))
+            {
+                int championId;
+                if (value != null && int.TryParse(Convert.ToString(value), out championId) && championId > 0 && seen.Add(championId))
+                    target.Add(championId);
             }
         }
 
