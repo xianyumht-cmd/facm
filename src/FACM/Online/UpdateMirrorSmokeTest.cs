@@ -22,19 +22,28 @@ namespace FACM.Online
         private static void Validate()
         {
             var builtIns = UpdateMirrorRouter.GetBuiltInSources();
-            Require(builtIns.Length >= 4, "Expected at least three mirrors plus direct GitHub.");
+            var mirrorCount = builtIns.Count(item =>
+                !string.Equals(item.Name, "github", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(item.Prefix));
+            Require(mirrorCount >= 10, "Expected at least ten built-in mirrors plus direct GitHub.");
+            Require(builtIns.Where(item => !string.IsNullOrWhiteSpace(item.Prefix))
+                    .Select(item => item.Prefix.TrimEnd('/'))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count() >= 10,
+                "Built-in mirror prefixes must contain at least ten unique HTTPS routes.");
             Require(builtIns.Any(item => item.Name == "github" && string.IsNullOrEmpty(item.Prefix)),
                 "Direct GitHub fallback is missing.");
+            Require(builtIns.Any(item => item.Name == "gh-dpik" && item.Prefix == "https://gh.dpik.top/"),
+                "Primary health-checked mirror is missing.");
 
             var rawOrigin = "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/version.json";
-            var releaseOrigin = "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.5/FACM.exe";
+            var releaseOrigin = "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe";
 
             var ghfast = new UpdateMirrorSource
             {
                 Name = "ghfast",
                 Prefix = "https://ghfast.top/",
                 Enabled = true,
-                Priority = 10
+                Priority = 15
             };
             Require(
                 UpdateMirrorRouter.BuildUrl(ghfast, rawOrigin) ==
@@ -42,7 +51,7 @@ namespace FACM.Online
                 "Raw GitHub mirror URL was not composed correctly.");
             Require(
                 UpdateMirrorRouter.BuildUrl(ghfast, releaseOrigin) ==
-                "https://ghfast.top/https://github.com/xianyumht-cmd/facm/releases/download/v3.4.5/FACM.exe",
+                "https://ghfast.top/https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe",
                 "Release mirror URL was not composed correctly.");
 
             Require(!UpdateMirrorRouter.IsSafeMirrorPrefix("http://mirror.example/"),

@@ -51,8 +51,10 @@ namespace FACM.League
             try
             {
                 owner.CloseMenu();
-                using (var form = _module.CreateForm(UiTextCatalog.Load()))
+                var ui = UiTextCatalog.Load();
+                using (var form = _module.CreateForm(ui))
                 {
+                    FACM.HoverDescriptionEnhancer.ApplyLeagueHub(form, ui);
                     form.ShowDialog(owner);
                 }
             }

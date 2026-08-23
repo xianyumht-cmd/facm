@@ -23,9 +23,8 @@ namespace FACM
             _installed = true;
             UiTextRuntime.Install();
 
-            // The enhancer is now deliberately infrastructure-only. Shell actions belong to the
-            // bounded information architecture in CompactMenuForm/MainForm; modules and compatibility
-            // shims must not grow the novice-facing control center after it is constructed.
+            // Shell actions stay bounded in CompactMenuForm/MainForm. This enhancer only applies
+            // presentation/runtime behavior such as compact hover descriptions and outside-click close.
             Application.AddMessageFilter(MessageFilter);
             Application.Idle += ApplyToOpenForms;
             Application.ApplicationExit += delegate
@@ -66,6 +65,7 @@ namespace FACM
             if (handle != IntPtr.Zero && AppliedHandles.Contains(handle)) return true;
             if (Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed) == null) return false;
 
+            HoverDescriptionEnhancer.ApplyCompactMenu(menu);
             menu.PerformLayout();
             menu.Invalidate(true);
             if (!menu.IsHandleCreated) return true;
