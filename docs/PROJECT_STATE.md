@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.7
-- GitHub Release：v3.4.7
+- 版本：FACM 3.4.8
+- GitHub Release：v3.4.8
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：3ffef89b8927c9711e61f122f8c36ace28ce7971
-- 发布元数据提交：782300b783eaa2003a88ff105b4cd4f1a1905e6f
-- Release FACM.exe SHA-256：7EEEFE3017B296300698FC1BD8F7D27717525293CEA0FCB2D39F343ECF1B81D9
-- published_at：2026-08-23T11:28:15.0117385+00:00
-- release_notes：FACM 3.4.7：根据 2026-08-23 实机日志修复一批高频但可恢复的问题。召唤师技能写入改为有上限的渐进回读窗口，首次观察到目标值后再稳定确认，避免腾讯 LCU 读回稍慢导致误判并重复写入；真正未生效时仍最多只重试一次并诚实报告失败。符文页已满继续安全跳过且绝不覆盖用户页面，只复用 FACM 自有页面，并补充释放一个自定义符文页后重试的诊断提示。公告元数据超时改为非关键 INFO，不再污染 ERROR；修复正常退出或自更新时桌宠 UI 线程误判造成的 stop skipped 噪声。更新镜像池移除实机返回异常内容的 mirror.houlang.cloud，仍保留 13 条镜像线路与 GitHub 原站兜底。
+- 发布基础 main：41f8271ee26b3c4025fd8ad5c7ac6997a5320d70
+- 发布元数据提交：168b1cbd13a99b93a9f1447076cad7db37977753
+- Release FACM.exe SHA-256：765F22967B8C08EAF0E93438E7C8E8BAE5E96D0A7A520F433DCF5EB960AE5E78
+- published_at：2026-08-23T13:09:26.0951000+00:00
+- release_notes：FACM 3.4.8：控制中心功能区改为更接近 Windows 桌面/开始菜单的稀疏图标入口，去掉三条横向卡片、箭头和单独的长“更多设置”按钮，保留工作目录、清理环境与底部说明区；现有修复工具、英雄联盟、个性化和更多设置业务入口不变，并新增“在线状态”快捷入口。在线状态支持在线、离开、勿扰、手机在线、隐身和显示为游戏中，复用现有单一 League Client 会话，通过 GET/PUT /lol-chat/v1/me 修改好友展示 presence；每次用户点击最多一次写入，完整保留其它 presence 字段并进行两次短间隔读回验证，若腾讯客户端恢复实际状态则明确提示且不后台循环强制覆盖。专用写入器硬限制为 PUT /lol-chat/v1/me，Gate 2、匹配、选人和 Bench 写边界保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
