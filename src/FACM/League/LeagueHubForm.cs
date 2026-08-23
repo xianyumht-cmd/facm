@@ -14,6 +14,7 @@ namespace FACM.League
         private readonly Dictionary<string, Func<UiTextCatalog, Form>> _factories;
         private readonly Dictionary<string, Button> _sectionButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
         private readonly Dictionary<string, Button> _viewButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        private readonly Label _headerHint;
         private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
         private Form _currentChild;
@@ -29,7 +30,8 @@ namespace FACM.League
             Func<UiTextCatalog, Form> live,
             Func<UiTextCatalog, Form> mayhem,
             Func<UiTextCatalog, Form> recommendation,
-            Func<UiTextCatalog, Form> efficiency)
+            Func<UiTextCatalog, Form> efficiency,
+            Func<UiTextCatalog, Form> presence)
         {
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _factories = new Dictionary<string, Func<UiTextCatalog, Form>>(StringComparer.Ordinal)
@@ -39,7 +41,8 @@ namespace FACM.League
                 { LeagueHubNavigation.Live, live ?? throw new ArgumentNullException(nameof(live)) },
                 { LeagueHubNavigation.Mayhem, mayhem ?? throw new ArgumentNullException(nameof(mayhem)) },
                 { LeagueHubNavigation.Recommendation, recommendation ?? throw new ArgumentNullException(nameof(recommendation)) },
-                { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) }
+                { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) },
+                { LeagueHubNavigation.Presence, presence ?? throw new ArgumentNullException(nameof(presence)) }
             };
 
             Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
@@ -66,14 +69,15 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
             });
-            header.Controls.Add(new Label
+            _headerHint = new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
                 Location = new Point(30, 50),
                 Size = new Size(930, 23),
                 ForeColor = Color.FromArgb(138, 158, 194),
                 BackColor = Color.Transparent
-            });
+            };
+            header.Controls.Add(_headerHint);
 
             var sidebar = new HubSidebarPanel
             {
@@ -82,21 +86,9 @@ namespace FACM.League
                 Padding = new Padding(14, 18, 14, 14),
                 BackColor = Color.FromArgb(12, 19, 32)
             };
-            AddSectionButton(
-                sidebar,
-                LeagueHubUiTextKeys.SectionMatch,
-                LeagueHubUiTextKeys.SectionMatchHint,
-                20);
-            AddSectionButton(
-                sidebar,
-                LeagueHubUiTextKeys.SectionRecommend,
-                LeagueHubUiTextKeys.SectionRecommendHint,
-                104);
-            AddSectionButton(
-                sidebar,
-                LeagueHubUiTextKeys.SectionEfficiency,
-                LeagueHubUiTextKeys.SectionEfficiencyHint,
-                188);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.SectionMatchHint, 20);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.SectionRecommendHint, 82);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.SectionEfficiencyHint, 144);
 
             var body = new Panel
             {
@@ -116,7 +108,7 @@ namespace FACM.League
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(10, 15, 25),
-                Padding = new Padding(0)
+                Padding = Padding.Empty
             };
             body.Controls.Add(_content);
             body.Controls.Add(_subnav);
@@ -143,25 +135,31 @@ namespace FACM.League
         {
             var button = new Button
             {
-                Text = LeagueHubText.Get(_ui, sectionKey) + "\r\n" + LeagueHubText.Get(_ui, hintKey),
+                Text = LeagueHubText.Get(_ui, sectionKey),
                 Location = new Point(14, top),
-                Size = new Size(150, 70),
+                Size = new Size(150, 50),
                 FlatStyle = FlatStyle.Flat,
                 FlatAppearance = { BorderSize = 1 },
                 BackColor = Color.FromArgb(17, 27, 44),
                 ForeColor = Color.FromArgb(210, 222, 242),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 3, 8, 3),
+                Padding = new Padding(14, 0, 8, 0),
                 Cursor = Cursors.Hand,
-                TabStop = false
+                TabStop = false,
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold)
             };
             button.Click += delegate { ShowSection(sectionKey); };
             button.MouseEnter += delegate
             {
+                _headerHint.Text = LeagueHubText.Get(_ui, hintKey);
                 if (!string.Equals(_currentSectionKey, sectionKey, StringComparison.Ordinal))
                     button.BackColor = Color.FromArgb(23, 36, 58);
             };
-            button.MouseLeave += delegate { UpdateSectionSelection(); };
+            button.MouseLeave += delegate
+            {
+                UpdateSectionSelection();
+                UpdateHeaderHint(_currentSectionKey);
+            };
             sidebar.Controls.Add(button);
             _sectionButtons[sectionKey] = button;
         }
@@ -175,9 +173,23 @@ namespace FACM.League
             _currentSectionKey = sectionKey;
             RebuildSubnav(views);
             UpdateSectionSelection();
+            UpdateHeaderHint(sectionKey);
 
             var target = views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal)) ?? views[0];
             ShowView(target.Id, false);
+        }
+
+        private void UpdateHeaderHint(string sectionKey)
+        {
+            if (_headerHint == null || _headerHint.IsDisposed) return;
+            if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionMatch, StringComparison.Ordinal))
+                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionMatchHint);
+            else if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionRecommend, StringComparison.Ordinal))
+                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionRecommendHint);
+            else if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionEfficiency, StringComparison.Ordinal))
+                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionEfficiencyHint);
+            else
+                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint);
         }
 
         private void RebuildSubnav(IReadOnlyList<LeagueHubViewDefinition> views)
@@ -206,7 +218,7 @@ namespace FACM.League
                 {
                     Text = ResolveViewText(captured.Id, captured.TextKey),
                     AutoSize = false,
-                    Size = new Size(126, 32),
+                    Size = new Size(112, 32),
                     Margin = new Padding(0, 0, 8, 0),
                     FlatStyle = FlatStyle.Flat,
                     FlatAppearance = { BorderSize = 1 },
@@ -230,10 +242,6 @@ namespace FACM.League
 
         private string ResolveViewText(string viewId, string textKey)
         {
-            if (string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
-                return LeagueEfficiencyText.Get(_ui, textKey);
-            if (string.Equals(viewId, LeagueHubNavigation.Recommendation, StringComparison.Ordinal))
-                return LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Recommendation);
             if (LeagueHubText.DefaultsForSmokeTest().ContainsKey(textKey))
                 return LeagueHubText.Get(_ui, textKey);
             return _ui.Get(textKey);
@@ -262,7 +270,7 @@ namespace FACM.League
             try
             {
                 child = factory(_ui);
-                if (child == null) throw new InvalidOperationException("League Hub view factory returned no form: " + viewId);
+                if (child == null) throw new InvalidOperationException("LOL helper view factory returned no form: " + viewId);
 
                 child.TopLevel = false;
                 child.FormBorderStyle = FormBorderStyle.None;
@@ -280,6 +288,7 @@ namespace FACM.League
                 _currentSectionKey = definition.SectionKey;
                 UpdateSectionSelection();
                 UpdateViewSelection();
+                UpdateHeaderHint(_currentSectionKey);
                 child.Show();
             }
             catch

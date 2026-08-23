@@ -27,6 +27,7 @@ namespace FACM.League
         public const string Mayhem = "mayhem";
         public const string Recommendation = "recommendation";
         public const string Efficiency = "efficiency";
+        public const string Presence = "presence";
 
         // Legacy view IDs remain stable for old code/tests, but are no longer novice-facing Hub tabs.
         public const string Advisor = "advisor";
@@ -36,11 +37,12 @@ namespace FACM.League
         private static readonly IReadOnlyList<LeagueHubViewDefinition> Definitions = new[]
         {
             new LeagueHubViewDefinition(Dashboard, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Dashboard),
-            new LeagueHubViewDefinition(Player, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.LeaguePlayerMenu),
-            new LeagueHubViewDefinition(Live, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.LeagueLiveMenu),
-            new LeagueHubViewDefinition(Mayhem, LeagueHubUiTextKeys.SectionMatch, UiTextKeys.MayhemRanking),
+            new LeagueHubViewDefinition(Player, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Player),
+            new LeagueHubViewDefinition(Live, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Live),
+            new LeagueHubViewDefinition(Mayhem, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Mayhem),
             new LeagueHubViewDefinition(Recommendation, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.Recommendation),
-            new LeagueHubViewDefinition(Efficiency, LeagueHubUiTextKeys.SectionEfficiency, LeagueEfficiencyUiTextKeys.Menu)
+            new LeagueHubViewDefinition(Efficiency, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.Efficiency),
+            new LeagueHubViewDefinition(Presence, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.Presence)
         };
 
         public static IReadOnlyList<LeagueHubViewDefinition> Views
@@ -57,12 +59,12 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (Definitions.Count != 6)
-                throw new InvalidOperationException("League Hub must expose four match views plus one recommendation center and one efficiency view.");
+            if (Definitions.Count != 7)
+                throw new InvalidOperationException("LOL helper must expose four match views, recommendation, shortcuts and presence.");
             if (Definitions.Any(item => string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.SectionKey) || string.IsNullOrWhiteSpace(item.TextKey)))
-                throw new InvalidOperationException("League Hub navigation contains an empty contract field.");
+                throw new InvalidOperationException("LOL helper navigation contains an empty contract field.");
             if (Definitions.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != Definitions.Count)
-                throw new InvalidOperationException("League Hub navigation contains duplicate view IDs.");
+                throw new InvalidOperationException("LOL helper navigation contains duplicate view IDs.");
 
             var sections = Definitions.Select(item => item.SectionKey).Distinct(StringComparer.Ordinal).ToArray();
             var expected = new[]
@@ -72,18 +74,25 @@ namespace FACM.League
                 LeagueHubUiTextKeys.SectionEfficiency
             };
             if (sections.Length != expected.Length || expected.Any(key => !sections.Contains(key, StringComparer.Ordinal)))
-                throw new InvalidOperationException("League Hub must keep exactly three novice-facing sections: match, recommendation and efficiency.");
+                throw new InvalidOperationException("LOL helper must keep exactly three plain-language sections: match, recommendation and tools.");
 
             if (ViewsForSection(LeagueHubUiTextKeys.SectionRecommend).Count != 1 ||
                 !string.Equals(ViewsForSection(LeagueHubUiTextKeys.SectionRecommend)[0].Id, Recommendation, StringComparison.Ordinal))
-                throw new InvalidOperationException("Recommendation must be a single unified Hub surface.");
+                throw new InvalidOperationException("Recommendation must stay as one unified surface.");
+
+            var tools = ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency);
+            if (tools.Count != 2 ||
+                !tools.Any(item => string.Equals(item.Id, Efficiency, StringComparison.Ordinal)) ||
+                !tools.Any(item => string.Equals(item.Id, Presence, StringComparison.Ordinal)))
+                throw new InvalidOperationException("Tools must expose shortcuts and online status inside the LOL helper.");
 
             var defaults = LeagueHubText.DefaultsForSmokeTest();
             if (expected.Any(key => !defaults.ContainsKey(key)) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.WindowTitle) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Title) ||
+                !defaults.ContainsKey(LeagueHubUiTextKeys.Presence) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Recommendation))
-                throw new InvalidOperationException("League Hub UI text defaults are incomplete.");
+                throw new InvalidOperationException("LOL helper UI text defaults are incomplete.");
 
             foreach (var pair in LeagueRecommendationText.DefaultsForSmokeTest())
             {
