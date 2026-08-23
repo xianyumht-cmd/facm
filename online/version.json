@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.4.9",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.9/FACM.exe",
   "sha256": "4338547E9E6EA1B66E442C5057D84E545EA368561C1C5B9DAD5D8A9E58445C77",
   "release_notes": "FACM 3.4.9：紧急修复 3.4.8 控制中心闪退。3.4.8 的桌面快捷图标在 WinForms 透明背景样式尚未启用时先设置透明 BackColor，打开控制中心会抛出‘控件不支持透明的背景色’并终止主消息循环。3.4.9 调整桌面图标初始化顺序，先启用 SupportsTransparentBackColor 再设置透明背景；桌面快捷区改为完整构建成功后才隐藏旧入口，并为控制中心呈现增强层增加异常隔离，未来视觉层异常只记录并安全回退，不再允许导致 FACM 主程序闪退。在线状态、英雄联盟、Bench、更新等其它业务边界不变。",
-  "published_at": "2026-08-23T13:47:35.2822788+00:00"
+  "published_at": "2026-08-23T13:47:44.8412983+00:00"
 }
