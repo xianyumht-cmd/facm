@@ -1,6 +1,6 @@
 {
   "schema": "facm-update-mirrors.v1",
-  "updated_at": "2026-08-23T18:27:00+08:00",
+  "updated_at": "2026-08-23T19:11:00+08:00",
   "sources": [
     { "name": "gh-dpik", "prefix": "https://gh.dpik.top/", "enabled": true, "priority": 5 },
     { "name": "gh-felicity", "prefix": "https://gh.felicity.ac.cn/", "enabled": true, "priority": 8 },
@@ -11,7 +11,6 @@
     { "name": "gh-ddlc", "prefix": "https://gh.ddlc.top/", "enabled": true, "priority": 30 },
     { "name": "gh-xmly", "prefix": "https://gh.xmly.dev/", "enabled": true, "priority": 35 },
     { "name": "cors-isteed", "prefix": "https://cors.isteed.cc/", "enabled": true, "priority": 40 },
-    { "name": "houlang", "prefix": "https://mirror.houlang.cloud/", "enabled": true, "priority": 45 },
     { "name": "ghproxy-cc", "prefix": "https://ghproxy.cc/", "enabled": true, "priority": 50 },
     { "name": "ghfile-geekertao", "prefix": "https://ghfile.geekertao.top/", "enabled": true, "priority": 55 },
     { "name": "dockerproxy-link", "prefix": "https://dockerproxy.link/", "enabled": true, "priority": 60 },
