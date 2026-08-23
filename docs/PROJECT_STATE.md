@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.2
-- GitHub Release：v3.4.2
+- 版本：FACM 3.4.3
+- GitHub Release：v3.4.3
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：bc2603976dd9691172401778656b50429864dfed
-- 发布元数据提交：252ae023428bfa0a57dcbbd4ec273953ebf49440
-- Release FACM.exe SHA-256：B0F31DA0F158301507EFA6567F3115CF3893B34FD07717508E5743A2FF1FF5D1
-- published_at：2026-08-17T18:30:02.4206560+00:00
-- release_notes：FACM 3.4.2：继续修复英雄联盟推荐中心一键应用。符文不再每次都新建一个 FACM 自定义页，而是优先复用同名 [FACM] 页；自定义符文页容量已满时，也只复用 FACM 自有页，绝不覆盖普通用户符文页。同时补齐符文与召唤师技能的一键应用实机日志，可明确记录准备、跳过、阻止以及最终 rune/spell 状态。3.4.1 的游戏内一键退出修复继续保留。
+- 发布基础 main：3e816f33507e90fbacf0fcd74b136bcbfc91ac87
+- 发布元数据提交：d13e5face98ea528699422112e53714f6e506c16
+- Release FACM.exe SHA-256：4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47
+- published_at：2026-08-23T04:27:10.6909405+00:00
+- release_notes：FACM 3.4.3：新增海克斯大乱斗 / 大乱斗选人阶段的可用英雄快速选择。进入英雄联盟 → 对局 → 实时对局后，可实时查看客户端可用英雄并点击立即切换；点击前会重新确认英雄仍可用，切换后再校验实际结果，避免被队友先拿走时误报成功。该能力只由用户手动点击触发，不做自动抢英雄、自动选人、禁用、重随、秒退或皮肤操作；同时继续保留现有性能节流与最小 LCU 写权限边界。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.2` 与 `online/version.json` 为准。3.4.0 / 3.4.1 的回归与修复记录属于历史，不再描述为当前进行中状态。
