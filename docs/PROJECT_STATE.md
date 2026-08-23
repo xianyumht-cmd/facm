@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.9
-- GitHub Release：v3.4.9
+- 版本：FACM 3.5.0
+- GitHub Release：v3.5.0
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：d5ebb1d48b773a8ca96b6d4b62b29390d1237d29
-- 发布元数据提交：675784df2ea70e866ff9c1d4925cedb9fff72e64
-- Release FACM.exe SHA-256：4338547E9E6EA1B66E442C5057D84E545EA368561C1C5B9DAD5D8A9E58445C77
-- published_at：2026-08-23T13:47:44.8412983+00:00
-- release_notes：FACM 3.4.9：紧急修复 3.4.8 控制中心闪退。3.4.8 的桌面快捷图标在 WinForms 透明背景样式尚未启用时先设置透明 BackColor，打开控制中心会抛出‘控件不支持透明的背景色’并终止主消息循环。3.4.9 调整桌面图标初始化顺序，先启用 SupportsTransparentBackColor 再设置透明背景；桌面快捷区改为完整构建成功后才隐藏旧入口，并为控制中心呈现增强层增加异常隔离，未来视觉层异常只记录并安全回退，不再允许导致 FACM 主程序闪退。在线状态、英雄联盟、Bench、更新等其它业务边界不变。
+- 发布基础 main：a258650eeb1bdd57ac85e48927feb55fb429b24a
+- 发布元数据提交：5452af762a37d6b38c864eb68dce65a01da20ef2
+- Release FACM.exe SHA-256：B79434C5FFDAE6D38922E585ED37B14C5762FE55AF2DA2202EB47CE6E11C1CB1
+- published_at：2026-08-23T21:25:28.2257671+00:00
+- release_notes：FACM 3.5.0：控制中心视觉布局进一步收束为更接近 Windows 工具箱/桌面快捷方式的紧凑顺序图标区。功能入口固定为三列并从左上自然排列，当前五个入口按‘修复工具、英雄联盟、在线状态、个性化、更多设置’顺序放置，第二行第三格和后续区域主动留空，不再为了排版把按钮摊满整个控制面板；以后新增功能直接补下一个空位，无需重新平衡现有按钮。实现改为紧凑 FlowLayoutPanel 自动换行，图标尺寸和横纵间距同步收紧，强渐变按钮感改为更扁平的系统快捷方式视觉，悬停仅提供轻量背景与焦点反馈；底部功能说明区、工作目录、清理环境以及 3.4.9 的控制中心异常安全回退机制保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。

@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.0",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.0/FACM.exe",
   "sha256": "B79434C5FFDAE6D38922E585ED37B14C5762FE55AF2DA2202EB47CE6E11C1CB1",
   "release_notes": "FACM 3.5.0：控制中心视觉布局进一步收束为更接近 Windows 工具箱/桌面快捷方式的紧凑顺序图标区。功能入口固定为三列并从左上自然排列，当前五个入口按‘修复工具、英雄联盟、在线状态、个性化、更多设置’顺序放置，第二行第三格和后续区域主动留空，不再为了排版把按钮摊满整个控制面板；以后新增功能直接补下一个空位，无需重新平衡现有按钮。实现改为紧凑 FlowLayoutPanel 自动换行，图标尺寸和横纵间距同步收紧，强渐变按钮感改为更扁平的系统快捷方式视觉，悬停仅提供轻量背景与焦点反馈；底部功能说明区、工作目录、清理环境以及 3.4.9 的控制中心异常安全回退机制保持不变。",
-  "published_at": "2026-08-23T21:25:20.5802134+00:00"
+  "published_at": "2026-08-23T21:25:28.2257671+00:00"
 }
