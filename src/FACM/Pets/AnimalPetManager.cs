@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Windows.Forms;
 using FACM.Services;
 
@@ -11,6 +12,7 @@ namespace FACM.Pets
         private static Action _clicked;
         private static Action _rightClicked;
         private static Action _ready;
+        private static int _uiThreadId;
 
         public static bool IsActive
         {
@@ -89,6 +91,12 @@ namespace FACM.Pets
 
         public static void Stop()
         {
+            // Host disposal also runs after Application.Run returns. If no pet state was ever created,
+            // stopping is a true no-op and must not manufacture a false UI-thread warning.
+            if (_host == null && (_window == null || _window.IsDisposed) &&
+                _clicked == null && _rightClicked == null && _ready == null)
+                return;
+
             EnsureUiThread();
             StopHost();
             StopSpriteWindow();
@@ -173,7 +181,17 @@ namespace FACM.Pets
 
         private static void EnsureUiThread()
         {
-            if (Application.MessageLoop) return;
+            var currentThreadId = Thread.CurrentThread.ManagedThreadId;
+            if (Application.MessageLoop)
+            {
+                Interlocked.CompareExchange(ref _uiThreadId, currentThreadId, 0);
+                if (_uiThreadId == currentThreadId) return;
+            }
+
+            // Application.MessageLoop becomes false after the main loop exits even though module
+            // disposal is still running on the same STA/UI thread. Remember that owner so shutdown
+            // and self-update can close an active pet cleanly instead of logging a false skip.
+            if (_uiThreadId != 0 && _uiThreadId == currentThreadId) return;
             throw new InvalidOperationException("Animal pet operations must run on the FACM UI thread.");
         }
     }
