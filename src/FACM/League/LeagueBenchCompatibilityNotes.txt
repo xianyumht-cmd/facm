@@ -1,1 +1,0 @@
-Temporary marker for ARAM Mayhem bench compatibility work. Remove before release.
