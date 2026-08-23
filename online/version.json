@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.4.5",
+  "enabled": false,
+  "version": "3.4.6",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.5/FACM.exe",
-  "sha256": "A4E9A8E77A035F651D38D19E0380A49398DE3FB6FF78A6764A05F2FBDDCBED41",
-  "release_notes": "FACM 3.4.5：将在线更新改为多镜像自动容灾。检查更新会在多个 GitHub 镜像与 GitHub 原站之间自动选择可用线路，并缓存远程镜像列表和本机线路健康数据；下载新版本时按线路顺序失败自动切换，不再依赖单一 GitHub 下载链。更新文件仍必须通过正式 SHA-256、与当前 FACM 相同的发布签名、Windows Authenticode 完整性以及文件版本校验后才会安装。GitHub 原站始终保留为兜底线路。",
-  "published_at": "2026-08-23T10:06:18.8772095+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe",
+  "sha256": "9EA4B5F255C2DBC3EDFF939CE095E1C74E627862486BC4E69AFF2725FE5F2306",
+  "release_notes": "FACM 3.4.6：控制中心进一步收束信息密度。修复工具、英雄联盟、个性化默认只保留入口名称，鼠标悬停时在稳定说明区显示功能摘要；英雄联盟中心的对局、推荐、效率及顶部二级入口同样使用悬停说明，清理环境的安全提示继续常驻。在线更新启动级与动态镜像池扩展为 14 条公开 HTTPS GitHub 加速线路，并继续保留 GitHub 原站兜底、本机线路健康评分、3 路更新检查竞速与下载失败自动切换。更新文件仍需通过 SHA-256、发布证书、Windows Authenticode 和文件版本校验后才会安装。",
+  "published_at": "2026-08-23T10:44:36.0743144+00:00"
 }
