@@ -24,12 +24,19 @@ namespace FACM.League
         private readonly object _iconCacheSync = new object();
         private readonly Dictionary<int, byte[]> _championIconCache = new Dictionary<int, byte[]>();
         private string _lastLocalPuuid;
+        private int _lastBenchSwapRoute;
 
         public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _phaseService = new LeagueDashboardPhaseService(client, budgets);
+            _lastBenchSwapRoute = (int)LeagueBenchSwapRoute.Legacy;
+        }
+
+        internal LeagueBenchSwapRoute LastBenchSwapRouteForQuickPick
+        {
+            get { return (LeagueBenchSwapRoute)Volatile.Read(ref _lastBenchSwapRoute); }
         }
 
         public async Task<LeagueLiveSnapshot> RefreshAsync(CancellationToken cancellationToken)
@@ -105,6 +112,7 @@ namespace FACM.League
                     if (teamBuilderState != null && teamBuilderState.SessionAvailable)
                     {
                         teamBuilderState.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
+                        RememberBenchSwapRoute(LeagueBenchSwapRoute.TeamBuilder);
                         return teamBuilderState;
                     }
 
@@ -178,6 +186,7 @@ namespace FACM.League
 
             snapshot.BenchEnabled = ReadBool(data, "benchEnabled");
             snapshot.BenchSwapRoute = ResolveBenchSwapRoute(data);
+            RememberBenchSwapRoute(snapshot.BenchSwapRoute);
             AppendBenchChampionIds(snapshot.BenchChampionIds, data);
 
             AppendChampSelectTeam(snapshot, ReadValue(data, "myTeam"), "ally");
@@ -204,6 +213,7 @@ namespace FACM.League
             state.BenchEnabled = ReadBool(data, "benchEnabled");
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
             state.SwapRoute = ResolveBenchSwapRoute(data);
+            RememberBenchSwapRoute(state.SwapRoute);
             AppendBenchChampionIds(state.ChampionIds, data);
 
             foreach (var member in EnumerateDictionaries(ReadValue(data, "myTeam")))
@@ -297,6 +307,11 @@ namespace FACM.League
                     return;
                 }
             }
+        }
+
+        private void RememberBenchSwapRoute(LeagueBenchSwapRoute route)
+        {
+            Volatile.Write(ref _lastBenchSwapRoute, (int)route);
         }
 
         private static LeagueBenchSwapRoute ResolveBenchSwapRoute(Dictionary<string, object> source)
