@@ -37,56 +37,55 @@ namespace FACM.Online
             {
                 var sources = UpdateMirrorRouter.LoadCachedAndBuiltInSources();
 
-                // The mirror catalog is transport configuration only. It may add or reprioritize
-                // HTTPS proxy prefixes, but UpdateMirrorRouter always keeps the built-in GitHub
-                // fallback. A bad catalog therefore cannot remove the official origin path.
-                var catalogResult = await TryDownloadFromMirrorsAsync<UpdateMirrorCatalog>(
+                // Refresh transport configuration and fetch the required version manifest in
+                // parallel. A slow mirrors.json or a blocked GitHub announcement must never hold
+                // up a version check that has already succeeded through another mirror.
+                var catalogTask = TryDownloadFromMirrorsAsync<UpdateMirrorCatalog>(
                     UpdateMirrorRouter.CatalogOriginUrl,
                     sources,
                     MetadataRaceWidth,
                     cancellationToken,
-                    UpdateMirrorRouter.IsValidCatalog).ConfigureAwait(false);
-                if (catalogResult.Value != null)
-                {
-                    UpdateMirrorRouter.SaveCatalog(catalogResult.Value);
-                    sources = UpdateMirrorRouter.MergeWithBuiltIns(catalogResult.Value.Sources);
-                }
-
-                var updateResult = await TryDownloadFromMirrorsAsync<UpdateManifest>(
+                    UpdateMirrorRouter.IsValidCatalog);
+                var updateTask = TryDownloadFromMirrorsAsync<UpdateManifest>(
                     UpdateManifestUrl,
                     sources,
                     MetadataRaceWidth,
                     cancellationToken,
-                    IsValidUpdateManifest).ConfigureAwait(false);
+                    IsValidUpdateManifest);
+                var announcementTask = TryDownloadAnnouncementAsync(cancellationToken);
+
+                var updateResult = await updateTask.ConfigureAwait(false);
                 if (updateResult.Value == null)
                 {
                     throw new HttpRequestException("No update metadata source returned a valid FACM manifest.");
+                }
+
+                // If the dynamic catalog finished while the required version request was running,
+                // use it immediately and cache it. Otherwise keep the already cached/bootstrap pool
+                // for this check; the catalog request is deliberately not on the critical path.
+                if (catalogTask.IsCompleted)
+                {
+                    try
+                    {
+                        var catalogResult = await catalogTask.ConfigureAwait(false);
+                        if (catalogResult.Value != null)
+                        {
+                            UpdateMirrorRouter.SaveCatalog(catalogResult.Value);
+                            sources = UpdateMirrorRouter.MergeWithBuiltIns(catalogResult.Value.Sources);
+                        }
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                    }
                 }
 
                 snapshot.Update = updateResult.Value;
                 snapshot.Update.ResolvedSources = sources;
                 snapshot.MetadataSourceName = updateResult.SourceName;
 
-                // Announcements can contain human-readable text and links, so do not accept them
-                // from an unauthenticated third-party proxy. A temporary GitHub announcement
-                // failure must never make update discovery fail.
-                try
+                if (announcementTask.IsCompleted)
                 {
-                    using (var client = CreateClient(TimeSpan.FromSeconds(8)))
-                    {
-                        snapshot.Announcement = await DownloadJsonAsync<AnnouncementManifest>(
-                            client,
-                            AnnouncementManifestUrl,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Error("Announcement metadata request failed", exception);
+                    snapshot.Announcement = await announcementTask.ConfigureAwait(false);
                 }
 
                 Version latest;
@@ -113,6 +112,32 @@ namespace FACM.Online
             }
 
             return snapshot;
+        }
+
+        private static async Task<AnnouncementManifest> TryDownloadAnnouncementAsync(
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Announcements can contain human-readable text and links, so do not accept them
+                // from an unauthenticated third-party proxy. Failure is intentionally best-effort.
+                using (var client = CreateClient(TimeSpan.FromSeconds(8)))
+                {
+                    return await DownloadJsonAsync<AnnouncementManifest>(
+                        client,
+                        AnnouncementManifestUrl,
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Announcement metadata request failed", exception);
+                return null;
+            }
         }
 
         private static async Task<MirrorFetchResult<T>> TryDownloadFromMirrorsAsync<T>(
@@ -281,7 +306,10 @@ namespace FACM.Online
                 !string.Equals(download.Host, "github.com", StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            var expectedPrefix = "/xianyumht-cmd/facm/releases/download/v" + manifest.Version.Trim().TrimStart('v', 'V') + "/";
+            var normalizedVersion = manifest.Version.Trim();
+            if (normalizedVersion.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                normalizedVersion = normalizedVersion.Substring(1);
+            var expectedPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
             if (!download.AbsolutePath.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase)) return false;
 
             if (string.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64) return false;
