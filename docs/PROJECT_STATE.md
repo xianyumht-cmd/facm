@@ -15,19 +15,24 @@
 - release_notes：FACM 3.4.3：新增海克斯大乱斗 / 大乱斗选人阶段的可用英雄快速选择。进入英雄联盟 → 对局 → 实时对局后，可实时查看客户端可用英雄并点击立即切换；点击前会重新确认英雄仍可用，切换后再校验实际结果，避免被队友先拿走时误报成功。该能力只由用户手动点击触发，不做自动抢英雄、自动选人、禁用、重随、秒退或皮肤操作；同时继续保留现有性能节流与最小 LCU 写权限边界。
 <!-- FACM_RELEASE_STATE_END -->
 
-> 当前生产事实以 GitHub Release `v3.4.2` 与 `online/version.json` 为准。3.4.0 / 3.4.1 的回归与修复记录属于历史，不再描述为当前进行中状态。
+> 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
 
-## 当前开发：海克斯大乱斗可用英雄快速选择（Issue #134 / Draft PR #135）
+## 3.4.3 海克斯大乱斗可用英雄快速选择 — RELEASED
 
-- 目标：在 `对局 → 实时对局` 内提供类似 OP.GG Champion Select 的 **可用英雄快速选择**，直接映射客户端 Champ Select Bench。
-- 读取现有 `/lol-champ-select/v1/session` 的 `benchEnabled` / `benchChampionIds`，不建立第二套 LCU discovery / auth / session。
+- Issue #134：`海克斯大乱斗：可用英雄快速选择（Bench Swap）`。
+- PR #135：`海克斯大乱斗：可用英雄快速选择`，已合并到 `main`，merge commit `5d4cb6861d130ae6525a6f9ab1eb5a8ce61e551e`。
+- PR #135 HEAD `033665701bc79f10f94b25768c9dc52468f8dfe7`：FACM UI Text Contract #239 SUCCESS；FACM Windows Build #1118 SUCCESS。
+- 发布请求 PR #136 已合并，merge commit `3e816f33507e90fbacf0fcd74b136bcbfc91ac87`。
+- 发布元数据 commit：`d13e5face98ea528699422112e53714f6e506c16`。
+- 在线更新启用 commit：`956da4966e6500a57339922bae3f28c062b3e2c7`。
+- GitHub Release：`v3.4.3`；`online/version.json` 已启用 3.4.3，SHA-256 `4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47`。
+- 功能位于 `对局 → 实时对局`：读取现有 `/lol-champ-select/v1/session` 的 `benchEnabled` / `benchChampionIds`，不建立第二套 LCU discovery / auth / session。
 - Bench 激活且页面可见时，使用 session-only 轻量刷新追踪可用英雄；正常 Live Champ Select 刷新保持原 2 秒节奏，InGame / 最小化继续节流。
 - 英雄头像仅按需从本地 LCU `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取并缓存，不请求外网、不做后台预取。
 - 用户点击英雄后才执行一次 `POST /lol-champ-select/v1/session/bench/swap/{championId}`；写前重新确认目标仍在 Bench，目标已被别人拿走则不发送 POST。
 - 每次点击最多一次 swap POST；2xx 后只做有界只读 settled verification，未真正切换到目标英雄不得误报成功。
 - Bench swap 使用独立最小 writer；Gate2 writer 不放宽，仍拒绝 bench swap 与 `/lol-champ-select/v1/session/actions/{id}`。
 - **不做自动抢英雄**：不监控指定目标后自动 swap，不做自动 pick / ban / reroll / dodge / skin；“抢英雄”只指用户在 FACM 里手动点击得更快。
-- 当前仍是 Draft 候选，未合并 `main`、未修改正式 Release / online manifest；CI 全绿后先做腾讯/国服真实 ARAM Mayhem 实机验收。
 
 ## 3.4.2 发布与回归证据
 
@@ -107,16 +112,16 @@
 
 ## League 主线状态
 
-原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7 的运行时能力均已收口并进入正式版本。当前没有把 3.4.0 的旧 #124 / #129 开发态当作进行中工作。
+原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7 以及 3.4.3 手动 Bench quick-pick 的运行时能力均已收口并进入正式版本。
 
-若 3.4.2 后续腾讯实机仍报告一键应用异常，优先读取 3.4.2 新增的 Gate2 prepare / blocked / skip / rune / spell 日志，再决定是否开新的独立 Issue / task branch。
+若 3.4.3 后续腾讯实机报告 Bench 快速选择异常，优先保留当前最小 writer 边界并读取实际 Champ Select session / 状态结果，再开新的独立 Issue；不得直接扩大到自动 pick/ban/actions writer。
 
 ## 性能与权限冻结边界
 
 - 唯一 `LeagueClientModule + LeagueClientSessionProvider`，不新增第二套 discovery / auth connector。
 - 自动化默认关闭。
 - 不做游戏内 Overlay / 注入。
-- 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；Issue #134 的手动 Bench swap 是用户点击触发的独立例外。
+- 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；3.4.3 的手动 Bench swap 是用户点击触发的独立能力。
 - Gate2 / Bench swap / 赛后 / 匹配继续使用彼此独立的最小 writer 边界，不互相放宽 allowlist。
 - `LeagueEfficiencyModule` 复用 Dashboard gameflow，不新增第二个常驻 monitor。
 - League Hub 只保留当前内容页，不把访问过的旧页隐藏常驻。
@@ -126,6 +131,6 @@
 
 ## 冻结的稳定系统
 
-没有真实缺陷或新独立需求时，不重新设计：Modular Host、Performance Contract、UI Text Contract、Single-instance Ensure Open、Flying Runtime / VPet / PetHost、Cleanup 安全语义、Mayhem 多源容灾、Online Release 事务，以及已验收 League runtime / Gate2-Gate7 writer / service 边界。
+没有真实缺陷或新独立需求时，不重新设计：Modular Host、Performance Contract、UI Text Contract、Single-instance Ensure Open、Flying Runtime / VPet / PetHost、Cleanup 安全语义、Mayhem 多源容灾、Online Release 事务，以及已验收 League runtime / Gate2-Gate7 / Bench writer / service 边界。
 
 旧 Issue #33 / Draft PR #35 机器猫继续暂停。历史任务分支不删除，除非用户另行明确授权。
