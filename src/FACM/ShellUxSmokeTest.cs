@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using FACM.League;
 
 namespace FACM
@@ -9,23 +10,26 @@ namespace FACM
         {
             // PerformanceContractSmokeTest runs before Application.EnableVisualStyles/Application.Run.
             // Keep this contract smoke pure: runtime menu objects are validated by MainForm, while CI
-            // validates the fixed Shell roots, desktop-launcher composition and League Hub information architecture.
+            // validates the fixed Shell roots, desktop-launcher composition and LOL helper information architecture.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
             DesktopLauncherEnhancer.ValidateDefinitionForSmokeTest();
             LeagueHubNavigation.ValidateForSmokeTest();
 
-            Require(DesktopLauncherEnhancer.TileCount == 5,
-                "Control center must expose five sparse desktop-style primary shortcuts.");
-            Require(LeagueHubNavigation.Views.Count == 6,
-                "League Hub must expose four match detail views plus one recommendation center and one efficiency page.");
+            Require(DesktopLauncherEnhancer.TileCount == 4,
+                "Control center must expose four sparse desktop-style primary shortcuts; presence belongs inside LOL helper.");
+            Require(LeagueHubNavigation.Views.Count == 7,
+                "LOL helper must expose four match views plus recommendation, shortcuts and presence.");
             Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard,
-                "League Hub must open from Overview/Dashboard.");
+                "LOL helper must open from current status/dashboard.");
             Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend).Count == 1 &&
                     LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend)[0].Id == LeagueHubNavigation.Recommendation,
-                "League Hub recommendation must stay consolidated into one novice-facing surface.");
-            Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency).Count == 1 &&
-                    LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency)[0].Id == LeagueHubNavigation.Efficiency,
-                "League Hub efficiency page must remain reachable from the unified window.");
+                "LOL helper recommendation must stay consolidated into one surface.");
+
+            var tools = LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionEfficiency);
+            Require(tools.Count == 2 &&
+                    tools.Any(item => item.Id == LeagueHubNavigation.Efficiency) &&
+                    tools.Any(item => item.Id == LeagueHubNavigation.Presence),
+                "LOL helper tools must expose shortcuts and online status in the unified window.");
         }
 
         private static void Require(bool condition, string message)
