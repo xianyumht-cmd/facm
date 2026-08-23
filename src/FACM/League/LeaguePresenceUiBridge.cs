@@ -9,7 +9,7 @@ namespace FACM.League
 {
     /// <summary>
     /// Keeps the presence dialog behind the already-initialized League Dashboard module so the
-    /// control center can launch it without creating another LCU connector or reaching into MainForm.
+    /// control center can launch it without creating another LCU connector or reaching into MainForm internals.
     /// </summary>
     internal static class LeaguePresenceUiBridge
     {
@@ -35,6 +35,7 @@ namespace FACM.League
             _dialogOpen = true;
             try
             {
+                owner.CloseMenu();
                 using (var form = _module.CreatePresenceForm(UiTextCatalog.Load(), theme))
                 {
                     form.TopMost = true;
