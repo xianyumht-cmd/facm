@@ -76,7 +76,9 @@ namespace FACM.Performance
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PATCH", "/lol-champ-select/v1/session/actions/1"),
                 "Gate 2 transport must hard-block pick/ban action writes.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-champ-select/v1/session/bench/swap/55"),
-                "Gate 2 transport must not absorb the manual bench-swap capability.");
+                "Gate 2 transport must not absorb the legacy manual bench-swap capability.");
+            Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/55"),
+                "Gate 2 transport must not absorb the Team Builder manual bench-swap capability.");
             Require(!FACM.League.LeagueClientWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-perks/v1/pages/77?force=true"),
                 "Gate 2 transport must reject rune-page paths with query-string escape hatches.");
 
@@ -84,8 +86,10 @@ namespace FACM.Performance
                 "Bench writer blocked a valid champion id.");
             Require(!FACM.League.LeagueBenchSwapWriteApiClient.IsValidChampionIdForSmokeTest(0),
                 "Bench writer accepted an invalid champion id.");
-            Require(FACM.League.LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55) == "/lol-champ-select/v1/session/bench/swap/55",
-                "Bench writer must remain fenced to the dedicated bench/swap endpoint.");
+            Require(FACM.League.LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55, FACM.League.LeagueBenchSwapRoute.Legacy) == "/lol-champ-select/v1/session/bench/swap/55",
+                "Legacy bench writer must remain fenced to its dedicated bench/swap endpoint.");
+            Require(FACM.League.LeagueBenchSwapWriteApiClient.BuildPathForSmokeTest(55, FACM.League.LeagueBenchSwapRoute.TeamBuilder) == "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/55",
+                "Team Builder bench writer must remain fenced to its dedicated bench/swap endpoint.");
 
             var provider = new PerformanceBudgetProvider();
             var changes = 0;
