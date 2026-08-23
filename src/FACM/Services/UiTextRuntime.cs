@@ -46,24 +46,51 @@ namespace FACM.Services
 
         /// <summary>
         /// Resolve a stable UI Text Contract key to the current configured value.
-        /// The catalog owns the default copy, so callers never need to duplicate user-visible fallback text.
+        /// Existing user custom text wins; only unchanged legacy defaults are simplified.
         /// </summary>
         public static string Text(string key)
         {
             if (_catalog == null) ReloadCatalog();
-            return _catalog == null ? string.Empty : _catalog.Get(key);
+            return _catalog == null ? string.Empty : ResolveFriendlyDefault(_catalog.Get(key));
         }
 
         public static string Translate(string text)
         {
             if (_catalog == null) ReloadCatalog();
-            return _catalog == null ? (text ?? string.Empty) : _catalog.Translate(text);
+            return _catalog == null ? (text ?? string.Empty) : TranslateCurrent(text);
         }
 
         public static void Apply(System.Windows.Forms.ContextMenuStrip menu)
         {
             if (menu == null || menu.IsDisposed) return;
             ApplyToolStripItems(menu.Items);
+        }
+
+        private static string TranslateCurrent(string text)
+        {
+            if (_catalog == null) return text ?? string.Empty;
+            return ResolveFriendlyDefault(_catalog.Translate(text));
+        }
+
+        private static string ResolveFriendlyDefault(string text)
+        {
+            var value = text ?? string.Empty;
+            switch (value)
+            {
+                case "模式 1": return "立即修复窗口";
+                case "模式 2": return "自动修复窗口";
+                case "模式 3": return "跳过卡结算";
+                case "模式 4": return "热重载客户端";
+                case "英雄联盟": return "LOL 助手";
+                case "英雄联盟面板": return "当前状态";
+                case "League Dashboard": return "当前状态";
+                case "玩家主页": return "我的战绩";
+                case "Player": return "我的战绩";
+                case "Champ Select / Current Game": return "实时对局";
+                case "OP.GG Build Advisor": return "出装推荐";
+                case "OP.GG Loadout Apply": return "应用推荐";
+                default: return value;
+            }
         }
 
         private static void ReloadWhenChanged()
@@ -200,7 +227,7 @@ namespace FACM.Services
                 }
             }
             if (string.IsNullOrEmpty(text)) return;
-            e.Value = _catalog.Translate(_catalog.Canonicalize(text));
+            e.Value = TranslateCurrent(_catalog.Canonicalize(text));
         }
 
         private static void ApplyToolStripItems(ToolStripItemCollection items)
@@ -228,7 +255,7 @@ namespace FACM.Services
                     {
                         var icon = field.GetValue(form) as NotifyIcon;
                         if (icon == null) continue;
-                        var translated = _catalog.Translate(_catalog.Canonicalize(icon.Text ?? string.Empty));
+                        var translated = TranslateCurrent(_catalog.Canonicalize(icon.Text ?? string.Empty));
                         if (!string.Equals(icon.Text, translated, StringComparison.Ordinal))
                         {
                             try { icon.Text = translated.Length <= 63 ? translated : translated.Substring(0, 63); } catch { }
@@ -254,7 +281,7 @@ namespace FACM.Services
             var current = toolTip.GetToolTip(root);
             if (!string.IsNullOrEmpty(current))
             {
-                var translated = _catalog.Translate(_catalog.Canonicalize(current));
+                var translated = TranslateCurrent(_catalog.Canonicalize(current));
                 if (!string.Equals(current, translated, StringComparison.Ordinal)) toolTip.SetToolTip(root, translated);
             }
             foreach (Control child in root.Controls) ApplyToolTips(child, toolTip);
@@ -288,7 +315,7 @@ namespace FACM.Services
 
             if (state.Revision == _revision && string.Equals(current, state.LastApplied, StringComparison.Ordinal)) return;
 
-            var translated = _catalog.Translate(state.Source);
+            var translated = TranslateCurrent(state.Source);
             if (!string.Equals(current, translated, StringComparison.Ordinal)) setter(translated);
             state.LastApplied = translated;
             state.Revision = _revision;
@@ -322,7 +349,7 @@ namespace FACM.Services
             var builder = new StringBuilder(length + 2);
             if (GetWindowText(handle, builder, builder.Capacity) <= 0) return;
             var current = builder.ToString();
-            var translated = _catalog.Translate(_catalog.Canonicalize(current));
+            var translated = TranslateCurrent(_catalog.Canonicalize(current));
             if (!string.Equals(current, translated, StringComparison.Ordinal)) SetWindowText(handle, translated);
         }
 

@@ -16,6 +16,7 @@ namespace FACM.League
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
+        private readonly Label _help;
         private readonly Label _status;
         private bool _loading = true;
 
@@ -26,8 +27,8 @@ namespace FACM.League
 
             Text = T(LeagueEfficiencyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(720, 735);
-            MinimumSize = new Size(680, 650);
+            ClientSize = new Size(720, 680);
+            MinimumSize = new Size(680, 610);
             BackColor = Color.FromArgb(17, 24, 39);
             ForeColor = Color.FromArgb(241, 245, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -42,17 +43,17 @@ namespace FACM.League
                 AutoScroll = true
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -63,13 +64,15 @@ namespace FACM.League
                 ForeColor = ForeColor,
                 TextAlign = ContentAlignment.MiddleLeft
             }, 0, 0);
-            root.Controls.Add(new Label
+            _help = new Label
             {
                 Text = T(LeagueEfficiencyUiTextKeys.Hint),
                 Dock = DockStyle.Fill,
                 ForeColor = Color.FromArgb(148, 163, 184),
-                TextAlign = ContentAlignment.TopLeft
-            }, 0, 1);
+                TextAlign = ContentAlignment.TopLeft,
+                AutoEllipsis = true
+            };
+            root.Controls.Add(_help, 0, 1);
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.HotkeySection)), 0, 2);
 
             _exitGame = AddHotkeyRow(root, 3, T(LeagueEfficiencyUiTextKeys.ExitGame), T(LeagueEfficiencyUiTextKeys.ExitGameHint), _module.ExitGameHotkey);
@@ -131,25 +134,25 @@ namespace FACM.League
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount = 2,
+                RowCount = 1,
                 Margin = new Padding(0, 4, 0, 4),
                 BackColor = Color.FromArgb(24, 33, 49),
-                Padding = new Padding(12, 8, 12, 8)
+                Padding = new Padding(12, 7, 12, 7)
             };
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
-            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            panel.Controls.Add(new Label
+
+            var titleLabel = new Label
             {
                 Text = title,
                 Dock = DockStyle.Fill,
                 Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
                 ForeColor = ForeColor,
                 TextAlign = ContentAlignment.MiddleLeft
-            }, 0, 0);
+            };
+            panel.Controls.Add(titleLabel, 0, 0);
 
             var box = new TextBox
             {
@@ -178,16 +181,11 @@ namespace FACM.League
             clear.Click += delegate { box.Text = string.Empty; };
             panel.Controls.Add(clear, 3, 0);
 
-            var hintLabel = new Label
-            {
-                Text = hint,
-                Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
-                TextAlign = ContentAlignment.TopLeft,
-                AutoEllipsis = true
-            };
-            panel.Controls.Add(hintLabel, 0, 1);
-            panel.SetColumnSpan(hintLabel, 4);
+            WireHelp(panel, hint);
+            WireHelp(titleLabel, hint);
+            WireHelp(box, hint);
+            WireHelp(capture, hint);
+            WireHelp(clear, hint);
             parent.Controls.Add(panel, 0, row);
             return box;
         }
@@ -198,13 +196,11 @@ namespace FACM.League
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 2,
+                RowCount = 1,
                 Margin = new Padding(0, 4, 0, 4),
                 BackColor = Color.FromArgb(24, 33, 49),
-                Padding = new Padding(12, 7, 12, 6)
+                Padding = new Padding(12, 7, 12, 7)
             };
-            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             var check = new CheckBox
             {
                 Text = title,
@@ -215,15 +211,23 @@ namespace FACM.League
                 AutoSize = false
             };
             panel.Controls.Add(check, 0, 0);
-            panel.Controls.Add(new Label
-            {
-                Text = hint,
-                Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
-                TextAlign = ContentAlignment.TopLeft
-            }, 0, 1);
+            WireHelp(panel, hint);
+            WireHelp(check, hint);
             parent.Controls.Add(panel, 0, row);
             return check;
+        }
+
+        private void WireHelp(Control control, string text)
+        {
+            if (control == null) return;
+            control.MouseEnter += delegate
+            {
+                if (_help != null && !_help.IsDisposed) _help.Text = text;
+            };
+            control.MouseLeave += delegate
+            {
+                if (_help != null && !_help.IsDisposed) _help.Text = T(LeagueEfficiencyUiTextKeys.Hint);
+            };
         }
 
         private Button CreateButton(string text, int width)
