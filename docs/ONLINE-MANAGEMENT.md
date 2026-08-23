@@ -23,7 +23,6 @@ FACM 不再把 GitHub 原站当作唯一网络线路。3.4.6 起客户端内置�
 - `gh.ddlc.top`
 - `gh.xmly.dev`
 - `cors.isteed.cc`
-- `mirror.houlang.cloud`
 - `ghproxy.cc`
 - `ghfile.geekertao.top`
 - `dockerproxy.link`
@@ -32,10 +31,12 @@ FACM 不再把 GitHub 原站当作唯一网络线路。3.4.6 起客户端内置�
 
 这些第三方线路不被假定为永久可用。客户端会记录本机成功率与延迟，失败线路自动降权；某条线路失效不会阻止继续尝试其它镜像和 GitHub 原站。
 
+3.4.7 维护时根据实机日志移除了 `mirror.houlang.cloud`：该线路曾对 FACM 元数据请求返回无法反序列化的内容。动态池和内置池同时移除，仍保留 13 条镜像线路和 GitHub 原站兜底。
+
 镜像使用标准前缀方式代理完整 GitHub URL。例如：
 
 ```text
-https://ghfast.top/https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe
+https://ghfast.top/https://github.com/xianyumht-cmd/facm/releases/download/v3.4.7/FACM.exe
 ```
 
 更新检查的 JSON 很小，客户端会按本机历史线路质量排序，并以最多 3 路为一组竞速请求。拿到第一个结构有效的更新清单后继续处理，失败线路自动降级到下一组。
@@ -69,7 +70,7 @@ runtime/cache/update-mirror-health.json
 
 其中任意一项失败，该镜像下载结果都会被丢弃并尝试下一条线路，不会安装。
 
-公告包含可点击链接，因此当前仍只从 GitHub 原始地址读取，不接受第三方镜像返回的公告内容。公告读取失败不会影响版本检查。
+公告包含可点击链接，因此当前仍只从 GitHub 原始地址读取，不接受第三方镜像返回的公告内容。公告读取失败不会影响版本检查。3.4.7 起公告超时或临时不可达按 best-effort 事件记录，不再作为程序级 `ERROR` 污染日志。
 
 ## 维护镜像池
 
@@ -78,6 +79,16 @@ runtime/cache/update-mirror-health.json
 建议每次维护时至少保留 10 条近期有公开可用证据的不同域名线路，并移除已明确失效的线路。客户端仍会用自己的健康评分处理不同运营商、地区下的实际差异。
 
 如果所有内置线路和缓存线路同时失效，旧客户端无法凭空知道一个从未见过的新域名，因此仍可能需要人工更新一次。这也是同时保留较大的 bootstrap 镜像池和 GitHub 原站的原因。
+
+## 3.4.7 日志问题治理
+
+根据 2026-08-23 实机日志，本版针对高频但可恢复的问题做了收敛：
+
+- 召唤师技能写入不再在首次 180ms 读回仍是旧值时立即判失败；改为有上限的渐进回读窗口，首次观察到目标值后再做一次稳定确认，只有整个窗口都未稳定才执行原有的一次重试。写入次数边界仍保持“初次 + 最多一次重试”。
+- 符文页已满时继续 fail-closed：优先复用 FACM 自己创建的页面，找不到 FACM 页面时跳过符文，不覆盖用户已有符文页，并在日志给出释放一个自定义符文页后重试的动作提示。
+- 桌宠停止逻辑区分“从未启用的无状态 Stop”和“主消息循环结束后仍在同一 STA/UI 线程上的清理”，避免正常退出或自更新时出现 `Pets module stop skipped` 假警报。
+- 公告请求超时属于非关键联网能力，不影响版本检查和本地功能，因此降为普通信息日志。
+- `mirror.houlang.cloud` 因实机返回内容无法解析，从内置与动态镜像池移除。
 
 ## 控制中心信息密度
 
@@ -96,7 +107,7 @@ runtime/cache/update-mirror-health.json
 2. 选择 **FACM Publish Release**。
 3. 点击 **Run workflow**。
 4. 填写：
-   - `version`：新版本，例如 `3.4.6`。
+   - `version`：新版本，例如 `3.4.7`。
    - `minimum_version`：允许继续运行的最低版本。
    - `force_update`：是否要求旧版本必须更新。
    - `prerelease`：是否为预发布。
