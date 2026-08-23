@@ -16,14 +16,25 @@ namespace FACM.Online
         internal const string CatalogOriginUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/mirrors.json";
 
-        private const int MaxRemoteSources = 12;
+        private const int MaxRemoteSources = 16;
         private const long MaxCatalogBytes = 64 * 1024;
         private static readonly object CacheSync = new object();
         private static readonly UpdateMirrorSource[] BuiltInSourcesValue =
         {
-            new UpdateMirrorSource { Name = "ghfast", Prefix = "https://ghfast.top/", Enabled = true, Priority = 10 },
+            new UpdateMirrorSource { Name = "gh-dpik", Prefix = "https://gh.dpik.top/", Enabled = true, Priority = 5 },
+            new UpdateMirrorSource { Name = "gh-felicity", Prefix = "https://gh.felicity.ac.cn/", Enabled = true, Priority = 8 },
+            new UpdateMirrorSource { Name = "gh-bugdey", Prefix = "https://gh.bugdey.us.kg/", Enabled = true, Priority = 10 },
+            new UpdateMirrorSource { Name = "ghfast", Prefix = "https://ghfast.top/", Enabled = true, Priority = 15 },
             new UpdateMirrorSource { Name = "ghproxy-net", Prefix = "https://ghproxy.net/", Enabled = true, Priority = 20 },
-            new UpdateMirrorSource { Name = "gh-proxy", Prefix = "https://gh-proxy.com/", Enabled = true, Priority = 30 },
+            new UpdateMirrorSource { Name = "gh-proxy", Prefix = "https://gh-proxy.com/", Enabled = true, Priority = 25 },
+            new UpdateMirrorSource { Name = "gh-ddlc", Prefix = "https://gh.ddlc.top/", Enabled = true, Priority = 30 },
+            new UpdateMirrorSource { Name = "gh-xmly", Prefix = "https://gh.xmly.dev/", Enabled = true, Priority = 35 },
+            new UpdateMirrorSource { Name = "cors-isteed", Prefix = "https://cors.isteed.cc/", Enabled = true, Priority = 40 },
+            new UpdateMirrorSource { Name = "houlang", Prefix = "https://mirror.houlang.cloud/", Enabled = true, Priority = 45 },
+            new UpdateMirrorSource { Name = "ghproxy-cc", Prefix = "https://ghproxy.cc/", Enabled = true, Priority = 50 },
+            new UpdateMirrorSource { Name = "ghfile-geekertao", Prefix = "https://ghfile.geekertao.top/", Enabled = true, Priority = 55 },
+            new UpdateMirrorSource { Name = "dockerproxy-link", Prefix = "https://dockerproxy.link/", Enabled = true, Priority = 60 },
+            new UpdateMirrorSource { Name = "dockerproxy-net", Prefix = "https://dockerproxy.net/", Enabled = true, Priority = 65 },
             new UpdateMirrorSource { Name = "github", Prefix = string.Empty, Enabled = true, Priority = 100 }
         };
 
