@@ -1,8 +1,8 @@
 {
-  "request_id": "facm-3-4-4-20260823",
-  "version": "3.4.4",
+  "request_id": "facm-3-4-5-20260823",
+  "version": "3.4.5",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.4.4：修复 3.4.3 在国服海克斯大乱斗 / 大乱斗选人阶段可用英雄区域为空、无法点击的问题。新版本适配当前 Champ Select 的 benchChampions 数据结构，并根据 isLegacyChampSelect 自动选择普通 Champ Select 或 Team Builder 的 Bench 切换接口；点击英雄后直接发起一次手动切换，不再先做额外读取，降低抢英雄延迟。切换成功仍会读取客户端实际英雄状态进行确认，404/409 会按英雄已被别人拿走处理。可用英雄存在时刷新周期优化到约 100ms，进入游戏、最小化或无可用英雄时继续节流。"
+  "release_notes": "FACM 3.4.5：将在线更新改为多镜像自动容灾。检查更新会在多个 GitHub 镜像与 GitHub 原站之间自动选择可用线路，并缓存远程镜像列表和本机线路健康数据；下载新版本时按线路顺序失败自动切换，不再依赖单一 GitHub 下载链。更新文件仍必须通过正式 SHA-256、与当前 FACM 相同的发布签名、Windows Authenticode 完整性以及文件版本校验后才会安装。GitHub 原站始终保留为兜底线路。"
 }
