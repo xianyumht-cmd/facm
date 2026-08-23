@@ -133,9 +133,14 @@ namespace FACM.Online
             {
                 return null;
             }
+            catch (TaskCanceledException)
+            {
+                AppLog.Info("Announcement metadata request skipped: timeout");
+                return null;
+            }
             catch (Exception exception)
             {
-                AppLog.Error("Announcement metadata request failed", exception);
+                AppLog.Info("Announcement metadata request skipped: " + exception.GetType().Name);
                 return null;
             }
         }

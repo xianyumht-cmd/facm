@@ -30,7 +30,6 @@ namespace FACM.Online
             new UpdateMirrorSource { Name = "gh-ddlc", Prefix = "https://gh.ddlc.top/", Enabled = true, Priority = 30 },
             new UpdateMirrorSource { Name = "gh-xmly", Prefix = "https://gh.xmly.dev/", Enabled = true, Priority = 35 },
             new UpdateMirrorSource { Name = "cors-isteed", Prefix = "https://cors.isteed.cc/", Enabled = true, Priority = 40 },
-            new UpdateMirrorSource { Name = "houlang", Prefix = "https://mirror.houlang.cloud/", Enabled = true, Priority = 45 },
             new UpdateMirrorSource { Name = "ghproxy-cc", Prefix = "https://ghproxy.cc/", Enabled = true, Priority = 50 },
             new UpdateMirrorSource { Name = "ghfile-geekertao", Prefix = "https://ghfile.geekertao.top/", Enabled = true, Priority = 55 },
             new UpdateMirrorSource { Name = "dockerproxy-link", Prefix = "https://dockerproxy.link/", Enabled = true, Priority = 60 },

@@ -16,6 +16,7 @@ namespace FACM.League
         {
             ValidatePreparationIsReadOnly();
             ValidateHappyPathAndFlashSlot();
+            ValidateDelayedSpellSettlementDoesNotRetry();
             ValidateRuneCapacityFailsClosed();
             ValidateContextDriftBlocksAllWrites();
             ValidateRuneFalseSuccessIsRejected();
@@ -60,6 +61,26 @@ namespace FACM.League
                                                call.Path.IndexOf("reroll", StringComparison.OrdinalIgnoreCase) < 0 &&
                                                call.Path.IndexOf("skin", StringComparison.OrdinalIgnoreCase) < 0),
                     "Gate 2 touched a forbidden Champ Select endpoint.");
+            }
+        }
+
+        private static void ValidateDelayedSpellSettlementDoesNotRetry()
+        {
+            var lcu = new FakeLeagueApi
+            {
+                Spell1Id = 4,
+                Spell2Id = 14,
+                SpellApplyAfterSelectionReads = 3
+            };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "success" && result.SpellsApplied,
+                    "A delayed Tencent my-selection readback was falsely reported as a failed spell write.");
+                Require(lcu.Spell1Id == 4 && lcu.Spell2Id == 11,
+                    "Delayed spell fixture did not eventually publish the requested selection.");
+                Require(lcu.Writes.Count(call => call.Method == "PATCH" && call.Path == LeagueBuildApplyService.MySelectionPath) == 1,
+                    "A settling spell write must be observed within the bounded verification window before retrying PATCH.");
             }
         }
 
@@ -215,6 +236,9 @@ namespace FACM.League
             public const int CreatedPageId = 77;
             private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
             private string _runePageJson;
+            private int _pendingSpell1Id;
+            private int _pendingSpell2Id;
+            private int _pendingSpellReads;
 
             public string Phase { get; set; } = "ChampSelect";
             public int ChampionId { get; set; } = 157;
@@ -225,6 +249,7 @@ namespace FACM.League
             public bool CanAddCustomPage { get; set; } = true;
             public bool IgnoreCurrentPageSelection { get; set; }
             public bool AcceptSpellPatchWithoutApplying { get; set; }
+            public int SpellApplyAfterSelectionReads { get; set; }
             public readonly List<string> ReadPaths = new List<string>();
             public readonly List<WriteCall> Writes = new List<WriteCall>();
 
@@ -236,7 +261,19 @@ namespace FACM.League
                 if (path == LeagueLiveDataService.ChampSelectSessionPath)
                     return Bytes("{\"gameId\":123,\"queueId\":" + QueueId + ",\"localPlayerCellId\":1,\"myTeam\":[{\"cellId\":1,\"puuid\":\"local\",\"assignedPosition\":\"MIDDLE\",\"championId\":" + ChampionId + ",\"championPickIntent\":" + ChampionId + "}],\"theirTeam\":[],\"actions\":[]}");
                 if (path == LeagueBuildApplyService.PerkInventoryPath) return Bytes("{\"canAddCustomPage\":" + (CanAddCustomPage ? "true" : "false") + "}");
-                if (path == LeagueBuildApplyService.MySelectionPath) return Bytes("{\"spell1Id\":" + Spell1Id + ",\"spell2Id\":" + Spell2Id + "}");
+                if (path == LeagueBuildApplyService.MySelectionPath)
+                {
+                    if (_pendingSpellReads > 0)
+                    {
+                        _pendingSpellReads--;
+                        if (_pendingSpellReads == 0)
+                        {
+                            Spell1Id = _pendingSpell1Id;
+                            Spell2Id = _pendingSpell2Id;
+                        }
+                    }
+                    return Bytes("{\"spell1Id\":" + Spell1Id + ",\"spell2Id\":" + Spell2Id + "}");
+                }
                 if (path == LeagueBuildApplyService.PerkPagesPath) return Bytes(_runePageJson == null ? "[]" : "[" + _runePageJson + "]");
                 if (path == LeagueBuildApplyService.PerkCurrentPagePath)
                     return Bytes(CurrentRunePageId == CreatedPageId && _runePageJson != null ? _runePageJson : "{\"id\":" + CurrentRunePageId + "}");
@@ -264,8 +301,19 @@ namespace FACM.League
                     if (!AcceptSpellPatchWithoutApplying)
                     {
                         var parsed = _json.DeserializeObject(json) as Dictionary<string, object>;
-                        Spell1Id = ReadInt(parsed, "spell1Id");
-                        Spell2Id = ReadInt(parsed, "spell2Id");
+                        var spell1 = ReadInt(parsed, "spell1Id");
+                        var spell2 = ReadInt(parsed, "spell2Id");
+                        if (SpellApplyAfterSelectionReads > 0)
+                        {
+                            _pendingSpell1Id = spell1;
+                            _pendingSpell2Id = spell2;
+                            _pendingSpellReads = SpellApplyAfterSelectionReads;
+                        }
+                        else
+                        {
+                            Spell1Id = spell1;
+                            Spell2Id = spell2;
+                        }
                     }
                     return Success("{}");
                 }
