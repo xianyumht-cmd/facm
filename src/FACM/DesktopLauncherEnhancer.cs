@@ -20,6 +20,10 @@ namespace FACM
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
         private const string LauncherName = "FACM.DesktopLauncher";
+        private const ControlStyles DesktopTileStyles =
+            ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
+            ControlStyles.Selectable;
 
         private static readonly FieldInfo ThemeField = typeof(CompactMenuForm).GetField(
             "_theme", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -41,8 +45,6 @@ namespace FACM
             var footerHint = Descendants(menu).OfType<Label>()
                 .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellSimpleHint), StringComparison.Ordinal));
             if (footerHint == null) return false;
-
-            HideLegacyFeatureRows(menu, ui);
 
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
@@ -84,6 +86,9 @@ namespace FACM
             AddTile(launcher, theme, sx, sy, "⋯", moreTitle, ui.Get(UiTextKeys.ShellSimpleHint), 192, 139,
                 tile => InvokeLegacy(menu, MoreMethod, tile), footerHint, ui);
 
+            // Only hide the legacy controls after the complete replacement surface has been built.
+            // If tile construction ever fails, the old controls stay visible instead of leaving a blank panel.
+            HideLegacyFeatureRows(menu, ui);
             menu.Controls.Add(launcher);
             launcher.BringToFront();
             return true;
@@ -94,6 +99,8 @@ namespace FACM
             if (TileCount != 5) throw new InvalidOperationException("Control-center launcher must expose exactly five primary desktop shortcuts.");
             if (ThemeField == null || RepairMethod == null || PersonalizationMethod == null || MoreMethod == null)
                 throw new InvalidOperationException("Desktop launcher lost access to the existing bounded control-center actions.");
+            if ((DesktopTileStyles & ControlStyles.SupportsTransparentBackColor) == 0)
+                throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
         }
 
         private static void HideLegacyFeatureRows(CompactMenuForm menu, UiTextCatalog ui)
@@ -178,12 +185,14 @@ namespace FACM
                 _theme = theme;
                 _glyph = glyph ?? string.Empty;
                 Text = title ?? string.Empty;
-                BackColor = Color.Transparent;
                 Cursor = Cursors.Hand;
                 TabStop = true;
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
-                         ControlStyles.Selectable, true);
+
+                // SupportsTransparentBackColor must be enabled before assigning Color.Transparent.
+                // WinForms throws ArgumentException if the assignment happens first.
+                SetStyle(DesktopTileStyles, true);
+                BackColor = Color.Transparent;
+
                 MouseEnter += delegate { _hovered = true; Invalidate(); };
                 MouseLeave += delegate { _hovered = false; _pressed = false; Invalidate(); };
                 MouseDown += delegate(object sender, MouseEventArgs e)
