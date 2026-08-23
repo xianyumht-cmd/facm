@@ -47,7 +47,7 @@ namespace FACM
             {
                 var menu = form as CompactMenuForm;
                 if (menu == null || menu.IsDisposed || !menu.IsHandleCreated) continue;
-                Apply(menu);
+                SafeApply(menu);
             }
         }
 
@@ -55,7 +55,23 @@ namespace FACM
         {
             if (handle == IntPtr.Zero) return false;
             var menu = Control.FromHandle(handle) as CompactMenuForm;
-            return menu != null && !menu.IsDisposed && Apply(menu);
+            return menu != null && !menu.IsDisposed && SafeApply(menu);
+        }
+
+        private static bool SafeApply(CompactMenuForm menu)
+        {
+            try
+            {
+                return Apply(menu);
+            }
+            catch (Exception exception)
+            {
+                // Presentation enhancers must never be able to terminate the FACM message loop.
+                // DesktopLauncherEnhancer keeps legacy controls visible until its replacement is complete,
+                // so a future visual regression falls back instead of becoming an application crash.
+                AppLog.Error("Control center presentation enhancer failed; legacy controls remain available", exception);
+                return false;
+            }
         }
 
         private static bool Apply(CompactMenuForm menu)
