@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.4.7",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.7/FACM.exe",
   "sha256": "7EEEFE3017B296300698FC1BD8F7D27717525293CEA0FCB2D39F343ECF1B81D9",
   "release_notes": "FACM 3.4.7：根据 2026-08-23 实机日志修复一批高频但可恢复的问题。召唤师技能写入改为有上限的渐进回读窗口，首次观察到目标值后再稳定确认，避免腾讯 LCU 读回稍慢导致误判并重复写入；真正未生效时仍最多只重试一次并诚实报告失败。符文页已满继续安全跳过且绝不覆盖用户页面，只复用 FACM 自有页面，并补充释放一个自定义符文页后重试的诊断提示。公告元数据超时改为非关键 INFO，不再污染 ERROR；修复正常退出或自更新时桌宠 UI 线程误判造成的 stop skipped 噪声。更新镜像池移除实机返回异常内容的 mirror.houlang.cloud，仍保留 13 条镜像线路与 GitHub 原站兜底。",
-  "published_at": "2026-08-23T11:28:05.2504158+00:00"
+  "published_at": "2026-08-23T11:28:15.0117385+00:00"
 }
