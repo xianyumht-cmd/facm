@@ -67,7 +67,12 @@ namespace FACM.League
             return _live.LoadChampionIconAsync(championId, cancellationToken);
         }
 
-        public async Task<LeagueBenchSwapResult> TrySwapAsync(
+        public Task<LeagueBenchSwapResult> TrySwapAsync(int championId, CancellationToken cancellationToken)
+        {
+            return TrySwapAsync(championId, _live.LastBenchSwapRouteForQuickPick, cancellationToken);
+        }
+
+        internal async Task<LeagueBenchSwapResult> TrySwapAsync(
             int championId,
             LeagueBenchSwapRoute route,
             CancellationToken cancellationToken)
