@@ -91,6 +91,8 @@
     <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" />
     <Message Importance="High" Text="Validating FACM performance budget contract." />
     <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" />
+    <Message Importance="High" Text="Validating FACM update mirror routing, de-duplication and GitHub fallback." />
+    <Exec Command="&quot;$(TargetPath)&quot; --update-mirror-test" />
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
     <Message Importance="High" Text="Validating duplicate-launch activation channel." />
