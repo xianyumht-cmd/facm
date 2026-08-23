@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.4.2",
+  "enabled": false,
+  "version": "3.4.3",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.2/FACM.exe",
-  "sha256": "B0F31DA0F158301507EFA6567F3115CF3893B34FD07717508E5743A2FF1FF5D1",
-  "release_notes": "FACM 3.4.2：继续修复英雄联盟推荐中心一键应用。符文不再每次都新建一个 FACM 自定义页，而是优先复用同名 [FACM] 页；自定义符文页容量已满时，也只复用 FACM 自有页，绝不覆盖普通用户符文页。同时补齐符文与召唤师技能的一键应用实机日志，可明确记录准备、跳过、阻止以及最终 rune/spell 状态。3.4.1 的游戏内一键退出修复继续保留。",
-  "published_at": "2026-08-17T18:30:02.4206560+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.3/FACM.exe",
+  "sha256": "4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47",
+  "release_notes": "FACM 3.4.3：新增海克斯大乱斗 / 大乱斗选人阶段的可用英雄快速选择。进入英雄联盟 → 对局 → 实时对局后，可实时查看客户端可用英雄并点击立即切换；点击前会重新确认英雄仍可用，切换后再校验实际结果，避免被队友先拿走时误报成功。该能力只由用户手动点击触发，不做自动抢英雄、自动选人、禁用、重随、秒退或皮肤操作；同时继续保留现有性能节流与最小 LCU 写权限边界。",
+  "published_at": "2026-08-23T04:27:02.9173939+00:00"
 }
