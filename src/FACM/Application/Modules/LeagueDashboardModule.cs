@@ -5,6 +5,7 @@ using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.AppHost.Modules
 {
@@ -36,6 +37,7 @@ namespace FACM.AppHost.Modules
         {
             _monitor = new LeagueGameflowMonitor(_leagueClient, _performance.Budgets);
             _monitor.StateChanged += ForwardGameflowState;
+            LeaguePresenceUiBridge.Install(this);
             Application.Idle += StartMonitor;
         }
 
@@ -56,9 +58,18 @@ namespace FACM.AppHost.Modules
             return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui);
         }
 
+        public Form CreatePresenceForm(UiTextCatalog ui, ThemeDefinition theme)
+        {
+            return new LeaguePresenceForm(
+                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient),
+                ui,
+                theme);
+        }
+
         public void Dispose()
         {
             Application.Idle -= StartMonitor;
+            LeaguePresenceUiBridge.Uninstall(this);
             if (_monitor != null)
             {
                 _monitor.StateChanged -= ForwardGameflowState;

@@ -9,10 +9,13 @@ namespace FACM
         {
             // PerformanceContractSmokeTest runs before Application.EnableVisualStyles/Application.Run.
             // Keep this contract smoke pure: runtime menu objects are validated by MainForm, while CI
-            // validates the fixed Shell roots and the novice-facing League Hub information architecture.
+            // validates the fixed Shell roots, desktop-launcher composition and League Hub information architecture.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
+            DesktopLauncherEnhancer.ValidateDefinitionForSmokeTest();
             LeagueHubNavigation.ValidateForSmokeTest();
 
+            Require(DesktopLauncherEnhancer.TileCount == 5,
+                "Control center must expose five sparse desktop-style primary shortcuts.");
             Require(LeagueHubNavigation.Views.Count == 6,
                 "League Hub must expose four match detail views plus one recommendation center and one efficiency page.");
             Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard,
