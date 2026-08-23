@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.4.3
-- GitHub Release：v3.4.3
+- 版本：FACM 3.4.4
+- GitHub Release：v3.4.4
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：3e816f33507e90fbacf0fcd74b136bcbfc91ac87
-- 发布元数据提交：d13e5face98ea528699422112e53714f6e506c16
-- Release FACM.exe SHA-256：4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47
-- published_at：2026-08-23T04:27:10.6909405+00:00
-- release_notes：FACM 3.4.3：新增海克斯大乱斗 / 大乱斗选人阶段的可用英雄快速选择。进入英雄联盟 → 对局 → 实时对局后，可实时查看客户端可用英雄并点击立即切换；点击前会重新确认英雄仍可用，切换后再校验实际结果，避免被队友先拿走时误报成功。该能力只由用户手动点击触发，不做自动抢英雄、自动选人、禁用、重随、秒退或皮肤操作；同时继续保留现有性能节流与最小 LCU 写权限边界。
+- 发布基础 main：6ca0894be8ad6812bcde00a40e23a1042de4c0ed
+- 发布元数据提交：85bdafdd472f4cf9fdb0b0d79ebc8f2b195310c2
+- Release FACM.exe SHA-256：F5F8792ACAA017B3A83E2D90714C635B12944CA9D8FE0466163EDB57BE3C7C62
+- published_at：2026-08-23T06:08:04.8933807+00:00
+- release_notes：FACM 3.4.4：修复 3.4.3 在国服海克斯大乱斗 / 大乱斗选人阶段可用英雄区域为空、无法点击的问题。新版本适配当前 Champ Select 的 benchChampions 数据结构，并根据 isLegacyChampSelect 自动选择普通 Champ Select 或 Team Builder 的 Bench 切换接口；点击英雄后直接发起一次手动切换，不再先做额外读取，降低抢英雄延迟。切换成功仍会读取客户端实际英雄状态进行确认，404/409 会按英雄已被别人拿走处理。可用英雄存在时刷新周期优化到约 100ms，进入游戏、最小化或无可用英雄时继续节流。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
