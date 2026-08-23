@@ -17,6 +17,18 @@
 
 > 当前生产事实以 GitHub Release `v3.4.2` 与 `online/version.json` 为准。3.4.0 / 3.4.1 的回归与修复记录属于历史，不再描述为当前进行中状态。
 
+## 当前开发：海克斯大乱斗可用英雄快速选择（Issue #134 / Draft PR #135）
+
+- 目标：在 `对局 → 实时对局` 内提供类似 OP.GG Champion Select 的 **可用英雄快速选择**，直接映射客户端 Champ Select Bench。
+- 读取现有 `/lol-champ-select/v1/session` 的 `benchEnabled` / `benchChampionIds`，不建立第二套 LCU discovery / auth / session。
+- Bench 激活且页面可见时，使用 session-only 轻量刷新追踪可用英雄；正常 Live Champ Select 刷新保持原 2 秒节奏，InGame / 最小化继续节流。
+- 英雄头像仅按需从本地 LCU `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取并缓存，不请求外网、不做后台预取。
+- 用户点击英雄后才执行一次 `POST /lol-champ-select/v1/session/bench/swap/{championId}`；写前重新确认目标仍在 Bench，目标已被别人拿走则不发送 POST。
+- 每次点击最多一次 swap POST；2xx 后只做有界只读 settled verification，未真正切换到目标英雄不得误报成功。
+- Bench swap 使用独立最小 writer；Gate2 writer 不放宽，仍拒绝 bench swap 与 `/lol-champ-select/v1/session/actions/{id}`。
+- **不做自动抢英雄**：不监控指定目标后自动 swap，不做自动 pick / ban / reroll / dodge / skin；“抢英雄”只指用户在 FACM 里手动点击得更快。
+- 当前仍是 Draft 候选，未合并 `main`、未修改正式 Release / online manifest；CI 全绿后先做腾讯/国服真实 ARAM Mayhem 实机验收。
+
 ## 3.4.2 发布与回归证据
 
 - 3.4.1 腾讯 Windows 实机回归中，用户确认 `一键退出游戏` 已恢复可用；新触发链在日志中产生成功记录。
@@ -104,8 +116,8 @@
 - 唯一 `LeagueClientModule + LeagueClientSessionProvider`，不新增第二套 discovery / auth connector。
 - 自动化默认关闭。
 - 不做游戏内 Overlay / 注入。
-- 不做自动 pick / ban / swap / reroll / dodge / skin。
-- Gate2 / 赛后 / 匹配继续使用各自最小 writer allowlist。
+- 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；Issue #134 的手动 Bench swap 是用户点击触发的独立例外。
+- Gate2 / Bench swap / 赛后 / 匹配继续使用彼此独立的最小 writer 边界，不互相放宽 allowlist。
 - `LeagueEfficiencyModule` 复用 Dashboard gameflow，不新增第二个常驻 monitor。
 - League Hub 只保留当前内容页，不把访问过的旧页隐藏常驻。
 - 全局快捷键不引入低级键盘钩子或高频键盘轮询。
