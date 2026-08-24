@@ -123,13 +123,15 @@ namespace FACM.Mayhem
         private static void ValidateRichAugmentFixture()
         {
             const string html = "<script>{\"augments\":[" +
-                "{\"id\":\"1001\",\"rank\":1,\"name\":\"测试棱彩\",\"rarity\":\"prismatic\",\"performance\":0.6123,\"popular\":0.2234,\"games\":12345,\"description\":\"造成额外伤害\",\"icon\":\"https://raw.communitydragon.org/latest/game/assets/test.png\"}," +
-                "{\"id\":\"1002\",\"rank\":2,\"name\":\"测试黄金\",\"rarity\":\"gold\",\"performance\":57.2,\"popular\":19.8,\"games\":8888,\"description\":\"获得额外属性\"}," +
-                "{\"id\":\"1003\",\"rank\":3,\"name\":\"测试白银\",\"rarity\":\"silver\",\"performance\":0.544,\"popular\":0.31,\"games\":6000,\"description\":\"提高容错\"}]} </script>";
+                "{\"id\":\"1001\",\"rank\":1,\"name\":\"测试棱彩\",\"rarity\":\"prismatic\",\"performance\":0.6123,\"popular\":0.2234,\"games\":12345,\"description\":\"造成额外伤害\",\"largeIcon\":\"https://raw.communitydragon.org/latest/game/assets/test.png\"}," +
+                "{\"id\":\"1002\",\"rank\":2,\"name\":\"测试黄金\",\"rarity\":\"gold\",\"performance\":57.2,\"popular\":19.8,\"sampleCount\":8888,\"description\":\"获得额外属性\",\"smallIcon\":\"https://raw.communitydragon.org/latest/game/assets/test2.png\"}," +
+                "{\"id\":\"1003\",\"rank\":3,\"name\":\"测试白银\",\"rarity\":\"silver\",\"performance\":0.544,\"popular\":0.31,\"totalGames\":6000,\"description\":\"提高容错\",\"icon\":\"https://raw.communitydragon.org/latest/game/assets/test3.png\"}]} </script>";
             var rows = MayhemRankedAugmentService.ParseOpggRowsForSmokeTest(html);
             if (rows.Count != 3) throw new InvalidOperationException("Rich augment fixture did not parse three rows.");
             if (rows[0].Rarity != "棱彩" || !rows[0].WinRate.HasValue || Math.Abs(rows[0].WinRate.Value - 61.23) > 0.01)
                 throw new InvalidOperationException("Rich augment rarity or percentage normalization failed.");
+            if (string.IsNullOrWhiteSpace(rows[0].IconUrl) || string.IsNullOrWhiteSpace(rows[1].IconUrl) || rows[1].Games != 8888 || rows[2].Games != 6000)
+                throw new InvalidOperationException("Rich augment OP.GG icon or sample aliases failed.");
             var result = new MayhemChampionResult();
             if (MayhemRankedAugmentService.ApplyFromHtmlForSmokeTest(result, html) != 3)
                 throw new InvalidOperationException("Rich augment fixture was not applied.");
