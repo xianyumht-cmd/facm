@@ -219,25 +219,25 @@ namespace FACM.Mayhem
             var stable = usable.OrderByDescending(row => Score(row, 0.72, 0.28)).First();
             routes.Add(new MayhemDecisionRoute
             {
-                Title = "稳健首选",
+                Title = MayhemUiCopy.StableRoute,
                 AugmentName = stable.Name,
-                Hint = "胜率和热门度都不错，没把握时优先考虑",
+                Hint = MayhemUiCopy.StableRouteHint,
                 Score = Score(stable, 0.72, 0.28)
             });
             var ceiling = usable.OrderByDescending(row => row.WinRate ?? -1).First();
             routes.Add(new MayhemDecisionRoute
             {
-                Title = "高胜上限",
+                Title = MayhemUiCopy.HighWinRoute,
                 AugmentName = ceiling.Name,
-                Hint = "单强化胜率更突出，适合追求强度",
+                Hint = MayhemUiCopy.HighWinRouteHint,
                 Score = ceiling.WinRate ?? 0
             });
             var popular = usable.OrderByDescending(row => row.PickRate ?? -1).First();
             routes.Add(new MayhemDecisionRoute
             {
-                Title = "热门容错",
+                Title = MayhemUiCopy.PopularRoute,
                 AugmentName = popular.Name,
-                Hint = "选择率更高，实战更常见",
+                Hint = MayhemUiCopy.PopularRouteHint,
                 Score = popular.PickRate ?? 0
             });
             return routes.GroupBy(route => route.Title).Select(group => group.First()).ToList();
@@ -266,7 +266,7 @@ namespace FACM.Mayhem
                     Slug = pick.Slug,
                     WinRate = pick.WinRate,
                     IconUrl = pick.IconUrl,
-                    Rarity = "未知"
+                    Rarity = MayhemUiCopy.Unknown
                 });
             }
             result.AugmentRoutes = BuildRoutes(result.AugmentRows);
@@ -377,10 +377,10 @@ namespace FACM.Mayhem
         private static string NormalizeRarity(string value)
         {
             var text = (value ?? string.Empty).Trim().ToLowerInvariant();
-            if (text.Contains("prismatic") || text.Contains("prism") || text.Contains("棱彩")) return "棱彩";
-            if (text.Contains("gold") || text.Contains("黄金") || text.Contains("金")) return "黄金";
-            if (text.Contains("silver") || text.Contains("白银") || text.Contains("银")) return "白银";
-            return string.IsNullOrWhiteSpace(value) ? "未知" : value.Trim();
+            if (text.Contains("prismatic") || text.Contains("prism") || text.Contains(MayhemUiCopy.Prism)) return MayhemUiCopy.Prism;
+            if (text.Contains("gold") || text.Contains(MayhemUiCopy.Gold) || text.Contains("金")) return MayhemUiCopy.Gold;
+            if (text.Contains("silver") || text.Contains(MayhemUiCopy.Silver) || text.Contains("银")) return MayhemUiCopy.Silver;
+            return string.IsNullOrWhiteSpace(value) ? MayhemUiCopy.Unknown : value.Trim();
         }
 
         private static string CleanDescription(string value)
