@@ -16,6 +16,7 @@ namespace FACM.Mayhem
             {
                 LeaguePublicDataTransport.ValidateForSmokeTest();
                 ValidateRichAugmentFixture();
+                ValidateBuildDetailsFixture();
 
                 var noLeagueClient = new NoLeagueClientApi();
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
@@ -95,14 +96,21 @@ namespace FACM.Mayhem
                         throw new InvalidOperationException("Augment decision routes are incomplete despite available statistics.");
                     if (!hasDecisionStats && result.AugmentRoutes != null && result.AugmentRoutes.Count != 0)
                         throw new InvalidOperationException("Augment decision routes must stay empty when live statistics are absent.");
+                    if (result.AugmentRoutes != null &&
+                        result.AugmentRoutes.Select(route => route.AugmentName).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase).Count() != result.AugmentRoutes.Count)
+                        throw new InvalidOperationException("Augment decision routes must not repeat the same augment.");
 
                     if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
                         throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
 
                     using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
                     {
-                        if (image.Width != MayhemCardRenderer.CardWidth || image.Height != MayhemCardRenderer.CardHeight)
-                            throw new InvalidOperationException("Mayhem image card dimensions are invalid.");
+                        // Height is intentionally content-driven now: rarity groups and the route panel
+                        // should only occupy space when they have data. Width remains fixed for compact
+                        // QQ/desktop sharing, while height stays inside a sane high-density range.
+                        if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 600 || image.Height > 1700)
+                            throw new InvalidOperationException(
+                                "Mayhem compact image card dimensions are invalid: " + image.Width + "x" + image.Height + ".");
                         using (var stream = new MemoryStream())
                         {
                             image.Save(stream, ImageFormat.Png);
@@ -137,6 +145,42 @@ namespace FACM.Mayhem
                 throw new InvalidOperationException("Rich augment fixture was not applied.");
             if (result.AugmentRoutes.Count != 3 || result.Augments[0] != "测试棱彩")
                 throw new InvalidOperationException("Rich augment decision routes or names are invalid.");
+            if (result.AugmentRoutes.Select(route => route.AugmentName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
+                throw new InvalidOperationException("Rich augment fixture routes are not distinct.");
+        }
+
+        private static void ValidateBuildDetailsFixture()
+        {
+            const string html =
+                "core_items_0" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3072.png\" alt=\"Bloodthirster\">" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3031.png\" alt=\"Infinity Edge\">" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3006.png\" alt=\"Berserker Greaves\">" +
+                "core_items_1" +
+                "<img src=\"https://opgg-static.akamaized.net/item/6673.png\" alt=\"Immortal Shieldbow\">" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3031.png\" alt=\"Infinity Edge\">" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3072.png\" alt=\"Bloodthirster\">" +
+                "starter_items_0" +
+                "<img src=\"https://opgg-static.akamaized.net/item/1055.png\" alt=\"Doran Blade\">" +
+                "<img src=\"https://opgg-static.akamaized.net/item/2003.png\" alt=\"Health Potion\">" +
+                "boots_0" +
+                "<img src=\"https://opgg-static.akamaized.net/item/3006.png\" alt=\"Berserker Greaves\">" +
+                "SummonerSpells Table" +
+                "<img src=\"https://opgg-static.akamaized.net/images/lol/spell/SummonerFlash.png\" alt=\"Flash\">" +
+                "<img src=\"https://opgg-static.akamaized.net/images/lol/spell/SummonerSnowball.png\" alt=\"Mark\">" +
+                "SkillOrder Table" +
+                "<img alt=\"Steel Tempest\" src=\"https://opgg-static.akamaized.net/images/lol/spell/YasuoQ.png\"><strong>Q</strong>" +
+                "<img alt=\"Sweeping Blade\" src=\"https://opgg-static.akamaized.net/images/lol/spell/YasuoE.png\"><strong>E</strong>" +
+                "<img alt=\"Wind Wall\" src=\"https://opgg-static.akamaized.net/images/lol/spell/YasuoW.png\"><strong>W</strong>";
+
+            var result = new MayhemChampionResult { SkillOrder = "Q > E > W" };
+            MayhemBuildDetailsService.ApplyHtmlForSmokeTest(result, html);
+            if (result.CoreBuilds == null || result.CoreBuilds.Count != 2 || result.CoreBuilds.Any(build => build.Items.Count < 3))
+                throw new InvalidOperationException("Compact build fixture did not parse two core paths.");
+            if (result.StarterItems.Count < 2 || result.BootItems.Count != 1 || result.SummonerSpells.Count != 2)
+                throw new InvalidOperationException("Compact build fixture starter/boots/summoner projection is incomplete.");
+            if (result.SkillPriority.Count != 3 || string.Join(string.Empty, result.SkillPriority.Select(skill => skill.Key)) != "QEW")
+                throw new InvalidOperationException("Compact build fixture skill priority is incomplete.");
         }
 
         private sealed class NoLeagueClientApi : ILeagueClientApi
