@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.2
-- GitHub Release：v3.5.2
+- 版本：FACM 3.5.3
+- GitHub Release：v3.5.3
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：d2373c269d56798eccff129d562c7c96e20b8b98
-- 发布元数据提交：b709fbb301baa017ee7081f27f6e9c3c388a4a6b
-- Release FACM.exe SHA-256：4E03C1A301974AC30F8EC32B1AE19D46B6029880CA54155973096C4A4BB750AA
-- published_at：2026-08-23T21:56:49.4396913+00:00
-- release_notes：FACM 3.5.2：继续按实机反馈精简 LOL 助手和快捷工具界面。快捷工具页去掉每个按钮、开关旁边重复的长说明，改为紧凑单行布局，详细用途统一在页面顶部随鼠标悬停显示；原‘游戏效率’改名为‘快捷工具’，常用功能改成更直白的‘跳过卡结算、快速关闭大厅、随机点赞队友、自动回大厅、自动开始排队、自动接受对局’。对局推荐页由‘推荐中心’改为‘对局推荐’，符文、召唤师技能、推荐装备按钮只保留功能名称，原重复说明集中到顶部。旧 UiText 默认词也做白话兼容：模式 1/2/3/4 对应显示为‘立即修复窗口、自动修复窗口、跳过卡结算、热重载客户端’，旧的 League Dashboard、Player、Champ Select 等默认标题显示为对应功能名；已经自定义过的界面文字不被覆盖。在线状态继续位于 LOL 助手的‘工具’分类，与快捷工具并列，不再作为控制中心一级入口，原有单一 League Client 会话和写入安全边界保持不变。
+- 发布基础 main：7ca3257d76053ed42d606abc63bc2060c5215ec2
+- 发布元数据提交：9a6989ec113c5581b2690f0771c0c48557c8f818
+- Release FACM.exe SHA-256：C1E3E5BECB7C6556462D5B502E168FD50F5E2C60D5D8747044215F8613CD36A9
+- published_at：2026-08-24T01:05:08.6750162+00:00
+- release_notes：FACM 3.5.3：重点增强赛后‘随机点赞队友’的可靠性与可验证性。结算后最长等待约 12 秒获取真实点赞名单，优先使用当前 Honor V2 接口并携带 gameId、summonerId、puuid、honorType 等完整上下文；提交后不再只看 HTTP 成功，而是通过 team-choices、ballot 的 honoredPlayers/numVotes 状态回读确认，vote-completion 仅作辅助诊断。响应丢失但客户端已经记票时不会重复提交；只有请求未成功且同一局 ballot 持续证明目标仍可点赞、票数未变化时，才允许一次安全重试。Honor V2 明确返回 404/405 时才回退旧点赞链，避免盲目双写；旧链请求体同时对齐当前 puuid + honorType 结构。兼容 eligibleAllies/eligiblePlayers、summonerId/summonerID 和旧 votePool 形状。快捷工具‘赛后处理’标题右侧新增紧凑的上局点赞结果（成功/未执行/已提交未确认/失败）；日志记录 gameId、使用路线、HTTP 状态、尝试次数和验证结果，PUUID 仅记录后缀。继续保证一局只启动一次点赞事务、不点赞自己/对手/机器人，并复用唯一 LeagueClientModule/LCU 会话。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
