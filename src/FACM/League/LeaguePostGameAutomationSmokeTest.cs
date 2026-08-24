@@ -47,16 +47,21 @@ namespace FACM.League
             var write = new FakePostGameWriteApi();
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
             {
-                var modern = controller.ParseBallot(Bytes(BallotJson(1, true, true)));
+                var modern = controller.ParseBallot(Bytes(BallotJson(1, true, true, null)));
                 Require(modern != null && modern.GameId == 123 && modern.Votes == 1 && modern.HasVoteCount,
-                    "Modern Honor V2 ballot metadata did not parse.");
-                Require(modern.Allies.Count == 3 && modern.Allies.Any(item => item.SummonerId == 101) && modern.Allies.Any(item => item.BotPlayer),
-                    "Modern eligibleAllies/summonerId did not parse.");
+                    "Current Honor V2 numVotes/gameId did not parse.");
+                Require(modern.Allies.Count == 2 && modern.Allies.Any(item => item.SummonerId == 101),
+                    "Current eligibleAllies/summonerId did not parse.");
+                Require(modern.HonoredPuuids.Count == 0, "Empty honoredPlayers should stay empty.");
+
+                var honored = controller.ParseBallot(Bytes(BallotJson(0, true, true, "ally-a")));
+                Require(honored != null && honored.HonoredPuuids.Contains("ally-a"),
+                    "Current honoredPlayers readback did not parse.");
 
                 var legacyShape = controller.ParseBallot(Bytes(
-                    "{\"gameId\":456,\"eligiblePlayers\":[{\"puuid\":\"ally-old\",\"summonerID\":202,\"botPlayer\":false}]}"));
-                Require(legacyShape != null && legacyShape.GameId == 456 && legacyShape.Votes == 1 && !legacyShape.HasVoteCount,
-                    "Compatible Honor ballot without votePool did not receive a safe single-vote default.");
+                    "{\"gameId\":456,\"votePool\":{\"votes\":1},\"eligiblePlayers\":[{\"puuid\":\"ally-old\",\"summonerID\":202,\"botPlayer\":false}]}"));
+                Require(legacyShape != null && legacyShape.GameId == 456 && legacyShape.Votes == 1 && legacyShape.HasVoteCount,
+                    "Compatible votePool/eligiblePlayers ballot did not parse.");
                 Require(legacyShape.Allies.Count == 1 && legacyShape.Allies[0].SummonerId == 202,
                     "eligiblePlayers/summonerID compatibility parsing failed.");
             }
@@ -67,8 +72,11 @@ namespace FACM.League
         private static void ValidateV2VerifiedByTeamChoices()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
             var write = new FakePostGameWriteApi();
+            write.OnV2Call = count =>
+            {
+                if (count == 1) read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[\"ally-a\"]");
+            };
             LeagueHonorAttemptStatus result = null;
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
             {
@@ -80,20 +88,23 @@ namespace FACM.League
             Require(calls.Count == 1, "Honor V2 success must emit exactly one write.");
             Require(calls[0].Json.Contains("\"summonerId\":101") && calls[0].Json.Contains("\"gameId\":123"),
                 "Honor V2 request lost summonerId/gameId context.");
-            Require(calls[0].Json.Contains("ally-a") && calls[0].Json.Contains("\"honorType\":\"HEART\""),
-                "Honor V2 request lost target or honor category.");
+            Require(calls[0].Json.Contains("\"puuid\":\"ally-a\"") && calls[0].Json.Contains("\"honorType\":\"HEART\""),
+                "Honor V2 request lost puuid or honor category.");
             Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.HonorPath),
                 "Verified Honor V2 must not also write the legacy route.");
             Require(result != null && result.State == "success" && result.Route == "v2" && result.Attempts == 1,
-                "Team-choices verification did not produce a confirmed Honor V2 result.");
+                "team-choices verification did not produce a confirmed Honor V2 result.");
         }
 
         private static void ValidateResponseLostButAppliedDoesNotRetry()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
             var write = new FakePostGameWriteApi();
             write.V2Statuses.Enqueue(null);
+            write.OnV2Call = count =>
+            {
+                if (count == 1) read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, "ally-a"));
+            };
             LeagueHonorAttemptStatus result = null;
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
             {
@@ -102,21 +113,20 @@ namespace FACM.League
             }
 
             Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1,
-                "A lost HTTP response with positive readback must never trigger a duplicate vote.");
-            Require(result != null && result.State == "success" && result.HttpStatus == 0,
-                "Positive readback must win over an ambiguous transport result.");
+                "A lost HTTP response with positive ballot readback must never trigger a duplicate vote.");
+            Require(result != null && result.State == "success" && result.HttpStatus == 0 && result.Detail == "ballot-honored-player-confirmed",
+                "Positive ballot readback must win over an ambiguous transport result.");
         }
 
         private static void ValidateSafeRetryAfterReadbackProvesNotApplied()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[]");
             var write = new FakePostGameWriteApi();
             write.V2Statuses.Enqueue(500);
             write.V2Statuses.Enqueue(204);
             write.OnV2Call = count =>
             {
-                if (count == 2) read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
+                if (count == 2) read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, "ally-a"));
             };
             LeagueHonorAttemptStatus result = null;
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
@@ -126,7 +136,7 @@ namespace FACM.League
             }
 
             Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 2,
-                "An explicit failed submit plus unchanged authoritative readback must get exactly one safe retry.");
+                "Explicit failed submit plus unchanged same-game ballot must get exactly one safe retry.");
             Require(result != null && result.State == "success" && result.Attempts == 2 && result.Detail.Contains("safe-retry"),
                 "Safe retry did not finish as a verified success.");
         }
@@ -134,12 +144,11 @@ namespace FACM.League
         private static void ValidateV2UnsupportedFallsBackToLegacy()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[]");
             var write = new FakePostGameWriteApi();
             write.V2Statuses.Enqueue(404);
             write.OnBallotSubmit = delegate
             {
-                read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, false, false));
+                read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, "ally-a"));
             };
             LeagueHonorAttemptStatus result = null;
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
@@ -150,8 +159,9 @@ namespace FACM.League
 
             Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1,
                 "Unsupported Honor V2 route must be attempted once.");
-            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorPath) == 1,
-                "Honor V2 404/405 must fall back to the legacy honor route once.");
+            var legacy = write.Calls.Single(call => call.Path == LeaguePostGameWriteApiClient.HonorPath);
+            Require(legacy.Json.Contains("\"puuid\":\"ally-a\"") && !legacy.Json.Contains("recipientPuuid"),
+                "Legacy fallback must use the current V3 puuid + honorType body shape.");
             Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorBallotSubmitPath) == 1,
                 "Legacy fallback must submit its ballot once.");
             Require(result != null && result.State == "success" && result.Route == "legacy",
@@ -161,7 +171,7 @@ namespace FACM.League
         private static void ValidateNoVoteSkipsWrite()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true));
+            read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, null));
             var write = new FakePostGameWriteApi();
             LeagueHonorAttemptStatus result = null;
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
@@ -169,7 +179,7 @@ namespace FACM.League
                 controller.HonorAttemptCompleted += status => result = status;
                 controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
             }
-            Require(write.Calls.Count == 0, "No-vote ballot must not emit any honor write.");
+            Require(write.Calls.Count == 0, "numVotes=0 ballot must not emit any honor write.");
             Require(result != null && result.State == "skipped" && result.Detail == "no-votes",
                 "No-vote ballot did not produce an observable skipped result.");
         }
@@ -177,8 +187,8 @@ namespace FACM.League
         private static void ValidateExactlyOnceCycle()
         {
             var read = StandardRead();
-            read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
             var write = new FakePostGameWriteApi();
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[\"ally-a\"]");
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
             {
                 controller.Configure(true, false);
@@ -191,6 +201,7 @@ namespace FACM.League
                     "Repeated post-game phase observations must not start a second honor transaction in the same game.");
 
                 controller.ObserveForSmokeTestAsync(State("Lobby")).GetAwaiter().GetResult();
+                read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[]");
                 controller.ObserveForSmokeTestAsync(end).GetAwaiter().GetResult();
                 Require(write.Calls.Count > afterFirst,
                     "Leaving post-game must reset the exactly-once cycle for the next game.");
@@ -227,7 +238,7 @@ namespace FACM.League
         private static FakeReadApi StandardRead()
         {
             var read = new FakeReadApi();
-            read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(1, true, true));
+            read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(1, true, true, null));
             read.Set(LeaguePostGameAutomationController.CurrentSummonerPath, "{\"puuid\":\"self\"}");
             read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[]");
             read.Set(LeaguePostGameAutomationController.VoteCompletionPath, "{\"fullTeamVote\":false,\"gameId\":123}");
@@ -239,17 +250,20 @@ namespace FACM.League
             return new LeagueDashboardPhaseState { Connected = true, Phase = phase };
         }
 
-        private static string BallotJson(int votes, bool includeSelf, bool includeAlly)
+        private static string BallotJson(int votes, bool includeSelf, bool includeAlly, string honoredPuuid)
         {
             var rows = new List<string>();
-            if (includeSelf) rows.Add("{\"botPlayer\":false,\"puuid\":\"self\",\"summonerId\":100}");
-            if (includeAlly) rows.Add("{\"botPlayer\":false,\"puuid\":\"ally-a\",\"summonerId\":101}");
-            rows.Add("{\"botPlayer\":true,\"puuid\":\"bot\",\"summonerId\":999}");
+            if (includeSelf) rows.Add("{\"puuid\":\"self\",\"summonerId\":100,\"summonerName\":\"self\",\"championName\":\"A\",\"skinSplashPath\":\"\"}");
+            if (includeAlly) rows.Add("{\"puuid\":\"ally-a\",\"summonerId\":101,\"summonerName\":\"ally\",\"championName\":\"B\",\"skinSplashPath\":\"\"}");
+            var honored = string.IsNullOrWhiteSpace(honoredPuuid)
+                ? string.Empty
+                : "{\"puuid\":\"" + honoredPuuid + "\",\"honorType\":\"HEART\"}";
             return "{" +
                 "\"gameId\":123," +
-                "\"votePool\":{\"votes\":" + votes + "}," +
+                "\"numVotes\":" + votes + "," +
                 "\"eligibleAllies\":[" + string.Join(",", rows) + "]," +
-                "\"eligibleOpponents\":[{\"botPlayer\":false,\"puuid\":\"enemy\",\"summonerId\":777}]" +
+                "\"eligibleOpponents\":[{\"puuid\":\"enemy\",\"summonerId\":777}]," +
+                "\"honoredPlayers\":[" + honored + "]" +
                 "}";
         }
 
