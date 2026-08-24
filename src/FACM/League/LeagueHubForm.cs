@@ -17,6 +17,9 @@ namespace FACM.League
         private readonly Label _headerHint;
         private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
+        private readonly Panel _contextRail;
+        private readonly Label _contextCurrent;
+        private readonly FlowLayoutPanel _contextActions;
         private Form _currentChild;
         private string _currentViewId;
         private string _currentSectionKey;
@@ -47,8 +50,8 @@ namespace FACM.League
 
             Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(1160, 820);
-            MinimumSize = new Size(1000, 720);
+            ClientSize = new Size(1360, 840);
+            MinimumSize = new Size(1060, 720);
             BackColor = Color.FromArgb(8, 13, 23);
             ForeColor = Color.FromArgb(238, 243, 252);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -73,7 +76,9 @@ namespace FACM.League
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
                 Location = new Point(30, 50),
-                Size = new Size(930, 23),
+                Size = new Size(1120, 23),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                AutoEllipsis = true,
                 ForeColor = Color.FromArgb(138, 158, 194),
                 BackColor = Color.Transparent
             };
@@ -82,8 +87,8 @@ namespace FACM.League
             var sidebar = new HubSidebarPanel
             {
                 Dock = DockStyle.Left,
-                Width = 184,
-                Padding = new Padding(14, 18, 14, 14),
+                Width = 174,
+                Padding = new Padding(12, 18, 12, 14),
                 BackColor = Color.FromArgb(12, 19, 32)
             };
             AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.SectionMatchHint, 20);
@@ -91,6 +96,12 @@ namespace FACM.League
             AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.SectionEfficiencyHint, 144);
 
             var body = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(9, 14, 24)
+            };
+
+            var mainArea = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(9, 14, 24)
@@ -110,14 +121,67 @@ namespace FACM.League
                 BackColor = Color.FromArgb(10, 15, 25),
                 Padding = Padding.Empty
             };
-            body.Controls.Add(_content);
-            body.Controls.Add(_subnav);
+            mainArea.Controls.Add(_content);
+            mainArea.Controls.Add(_subnav);
+
+            _contextRail = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = 238,
+                Padding = new Padding(16, 18, 16, 16),
+                BackColor = Color.FromArgb(12, 19, 32)
+            };
+            var contextTitle = new Label
+            {
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
+                Dock = DockStyle.Top,
+                Height = 30,
+                ForeColor = Color.White,
+                Font = new Font(Font.FontFamily, 12F, FontStyle.Bold)
+            };
+            _contextCurrent = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 28,
+                ForeColor = Color.FromArgb(88, 222, 255),
+                Font = new Font(Font.FontFamily, 9F, FontStyle.Bold),
+                AutoEllipsis = true
+            };
+            var contextHint = new Label
+            {
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextHint),
+                Dock = DockStyle.Top,
+                Height = 62,
+                ForeColor = Color.FromArgb(137, 156, 189),
+                AutoEllipsis = true
+            };
+            _contextActions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                Padding = new Padding(0, 10, 0, 0),
+                BackColor = Color.Transparent
+            };
+            _contextRail.Controls.Add(_contextActions);
+            _contextRail.Controls.Add(contextHint);
+            _contextRail.Controls.Add(_contextCurrent);
+            _contextRail.Controls.Add(contextTitle);
+
+            body.Controls.Add(mainArea);
+            body.Controls.Add(_contextRail);
 
             Controls.Add(body);
             Controls.Add(sidebar);
             Controls.Add(header);
 
-            Shown += delegate { ShowSection(LeagueHubUiTextKeys.SectionMatch); };
+            Resize += delegate { UpdateContextRailVisibility(); };
+            Shown += delegate
+            {
+                UpdateContextRailVisibility();
+                ShowSection(LeagueHubUiTextKeys.SectionMatch);
+            };
             FormClosing += HandleHubClosing;
         }
 
@@ -136,8 +200,8 @@ namespace FACM.League
             var button = new Button
             {
                 Text = LeagueHubText.Get(_ui, sectionKey),
-                Location = new Point(14, top),
-                Size = new Size(150, 50),
+                Location = new Point(12, top),
+                Size = new Size(148, 50),
                 FlatStyle = FlatStyle.Flat,
                 FlatAppearance = { BorderSize = 1 },
                 BackColor = Color.FromArgb(17, 27, 44),
@@ -216,7 +280,7 @@ namespace FACM.League
                 var captured = definition;
                 var button = new Button
                 {
-                    Text = ResolveViewText(captured.Id, captured.TextKey),
+                    Text = ResolveViewText(captured.TextKey),
                     AutoSize = false,
                     Size = new Size(112, 32),
                     Margin = new Padding(0, 0, 8, 0),
@@ -240,7 +304,7 @@ namespace FACM.League
             UpdateViewSelection();
         }
 
-        private string ResolveViewText(string viewId, string textKey)
+        private string ResolveViewText(string textKey)
         {
             if (LeagueHubText.DefaultsForSmokeTest().ContainsKey(textKey))
                 return LeagueHubText.Get(_ui, textKey);
@@ -255,11 +319,16 @@ namespace FACM.League
 
             if (ensureSection && !string.Equals(_currentSectionKey, definition.SectionKey, StringComparison.Ordinal))
             {
-                ShowSection(definition.SectionKey);
-                return;
+                _currentSectionKey = definition.SectionKey;
+                RebuildSubnav(LeagueHubNavigation.ViewsForSection(definition.SectionKey));
+                UpdateSectionSelection();
+                UpdateHeaderHint(definition.SectionKey);
             }
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) && _currentChild != null && !_currentChild.IsDisposed)
+            {
+                UpdateContextRail();
                 return;
+            }
 
             Func<UiTextCatalog, Form> factory;
             if (!_factories.TryGetValue(viewId, out factory)) return;
@@ -289,6 +358,7 @@ namespace FACM.League
                 UpdateSectionSelection();
                 UpdateViewSelection();
                 UpdateHeaderHint(_currentSectionKey);
+                UpdateContextRail();
                 child.Show();
             }
             catch
@@ -301,7 +371,64 @@ namespace FACM.League
                 _currentChild = null;
                 _currentViewId = null;
                 UpdateViewSelection();
+                UpdateContextRail();
                 throw;
+            }
+        }
+
+        private void UpdateContextRailVisibility()
+        {
+            if (_contextRail == null || _contextRail.IsDisposed) return;
+            _contextRail.Visible = ClientSize.Width >= 1320;
+        }
+
+        private void UpdateContextRail()
+        {
+            if (_contextActions == null || _contextActions.IsDisposed) return;
+
+            while (_contextActions.Controls.Count > 0)
+            {
+                var control = _contextActions.Controls[0];
+                _contextActions.Controls.RemoveAt(0);
+                control.Dispose();
+            }
+
+            var current = LeagueHubNavigation.Views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal));
+            _contextCurrent.Text = current == null
+                ? string.Empty
+                : LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextCurrent) + " · " + ResolveViewText(current.TextKey);
+
+            foreach (var related in LeagueHubNavigation.RelatedViews(_currentViewId))
+            {
+                var captured = related;
+                var button = new Button
+                {
+                    Text = ResolveViewText(captured.TextKey),
+                    Size = new Size(198, 48),
+                    Margin = new Padding(0, 0, 0, 9),
+                    FlatStyle = FlatStyle.Flat,
+                    FlatAppearance = { BorderSize = 1 },
+                    BackColor = Color.FromArgb(18, 29, 47),
+                    ForeColor = Color.FromArgb(218, 230, 248),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Padding = new Padding(12, 0, 8, 0),
+                    Cursor = Cursors.Hand,
+                    TabStop = false,
+                    Font = new Font(Font.FontFamily, 9F, FontStyle.Bold)
+                };
+                button.FlatAppearance.BorderColor = Color.FromArgb(47, 66, 93);
+                button.Click += delegate { ShowView(captured.Id, true); };
+                button.MouseEnter += delegate
+                {
+                    button.BackColor = Color.FromArgb(27, 48, 79);
+                    button.FlatAppearance.BorderColor = Color.FromArgb(77, 213, 255);
+                };
+                button.MouseLeave += delegate
+                {
+                    button.BackColor = Color.FromArgb(18, 29, 47);
+                    button.FlatAppearance.BorderColor = Color.FromArgb(47, 66, 93);
+                };
+                _contextActions.Controls.Add(button);
             }
         }
 

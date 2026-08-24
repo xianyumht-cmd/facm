@@ -23,29 +23,35 @@ namespace FACM.League
         public const string Recommendation = "LeagueHubRecommendation";
         public const string Efficiency = "LeagueHubEfficiency";
         public const string Presence = "LeagueHubPresence";
+        public const string ContextTitle = "LeagueHubContextTitle";
+        public const string ContextHint = "LeagueHubContextHint";
+        public const string ContextCurrent = "LeagueHubContextCurrent";
     }
 
     internal static class LeagueHubText
     {
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { LeagueHubUiTextKeys.WindowTitle, "FACM · LOL 助手" },
-            { LeagueHubUiTextKeys.Title, "LOL 助手" },
-            { LeagueHubUiTextKeys.Hint, "查战绩、看实时、用推荐、改在线状态。" },
-            { LeagueHubUiTextKeys.LauncherHint, "战绩、实时、推荐、在线状态" },
-            { LeagueHubUiTextKeys.SectionMatch, "对局" },
-            { LeagueHubUiTextKeys.SectionMatchHint, "账号、战绩、实时对局、海斗攻略" },
-            { LeagueHubUiTextKeys.SectionRecommend, "推荐" },
-            { LeagueHubUiTextKeys.SectionRecommendHint, "符文、技能、装备，一处查看和应用" },
-            { LeagueHubUiTextKeys.SectionEfficiency, "工具" },
-            { LeagueHubUiTextKeys.SectionEfficiencyHint, "快捷键、赛后、自动下一局、在线状态" },
+            { LeagueHubUiTextKeys.WindowTitle, "FACM · LOL 工作台" },
+            { LeagueHubUiTextKeys.Title, "LOL 工作台" },
+            { LeagueHubUiTextKeys.Hint, "状态、战绩、实时、海斗、推荐和自动化都在这里接着做。" },
+            { LeagueHubUiTextKeys.LauncherHint, "一个工作台处理战绩、海斗、推荐和对局工具" },
+            { LeagueHubUiTextKeys.SectionMatch, "比赛" },
+            { LeagueHubUiTextKeys.SectionMatchHint, "从当前状态继续看战绩、实时对局或海斗攻略" },
+            { LeagueHubUiTextKeys.SectionRecommend, "攻略" },
+            { LeagueHubUiTextKeys.SectionRecommendHint, "符文、技能、装备和自动应用放在同一条使用链里" },
+            { LeagueHubUiTextKeys.SectionEfficiency, "自动化" },
+            { LeagueHubUiTextKeys.SectionEfficiencyHint, "快捷键、赛后、自动下一局和在线状态集中管理" },
             { LeagueHubUiTextKeys.Dashboard, "当前状态" },
             { LeagueHubUiTextKeys.Player, "我的战绩" },
             { LeagueHubUiTextKeys.Live, "实时对局" },
             { LeagueHubUiTextKeys.Mayhem, "海斗攻略" },
             { LeagueHubUiTextKeys.Recommendation, "出装推荐" },
             { LeagueHubUiTextKeys.Efficiency, "快捷工具" },
-            { LeagueHubUiTextKeys.Presence, "在线状态" }
+            { LeagueHubUiTextKeys.Presence, "在线状态" },
+            { LeagueHubUiTextKeys.ContextTitle, "接着做" },
+            { LeagueHubUiTextKeys.ContextHint, "不用退回主页。这里会按当前功能给出最相关的下一步。" },
+            { LeagueHubUiTextKeys.ContextCurrent, "当前" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
