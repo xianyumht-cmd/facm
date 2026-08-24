@@ -34,6 +34,26 @@ namespace FACM.Mayhem
         public double Score { get; set; }
     }
 
+    internal sealed class MayhemBuildItem
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string IconUrl { get; set; }
+    }
+
+    internal sealed class MayhemBuildPath
+    {
+        public int Rank { get; set; }
+        public List<MayhemBuildItem> Items { get; set; } = new List<MayhemBuildItem>();
+    }
+
+    internal sealed class MayhemSkillPriority
+    {
+        public string Key { get; set; }
+        public string Name { get; set; }
+        public string IconUrl { get; set; }
+    }
+
     internal sealed class MayhemChampionResult
     {
         public string Query { get; set; }
@@ -54,6 +74,14 @@ namespace FACM.Mayhem
         public bool BaseBalanceComplete { get; set; }
         public string SkillOrder { get; set; }
         public List<string> CoreItems { get; set; } = new List<string>();
+        public List<MayhemBuildPath> CoreBuilds { get; set; } = new List<MayhemBuildPath>();
+        public List<MayhemBuildItem> StarterItems { get; set; } = new List<MayhemBuildItem>();
+        public List<MayhemBuildItem> BootItems { get; set; } = new List<MayhemBuildItem>();
+        public List<MayhemBuildItem> SummonerSpells { get; set; } = new List<MayhemBuildItem>();
+        public List<MayhemSkillPriority> SkillPriority { get; set; } = new List<MayhemSkillPriority>();
+        public string BuildSourceStatus { get; set; }
+        public string BuildSourceRoute { get; set; }
+        public bool BuildSourceStale { get; set; }
         public List<string> Augments { get; set; } = new List<string>();
         public List<MayhemAugmentRow> AugmentRows { get; set; } = new List<MayhemAugmentRow>();
         public List<MayhemDecisionRoute> AugmentRoutes { get; set; } = new List<MayhemDecisionRoute>();
