@@ -45,14 +45,16 @@ namespace FACM.AppHost.Modules
             if (_settings.Settings == null)
                 throw new InvalidOperationException("Settings module must initialize before League Build Advisor.");
 
-            _sharedOpgg = new CachingOpggBuildApi(new OpggBuildApiClient(), true);
+            // OP.GG is public web data. Keep it on the shared public-data transport so the
+            // recommendation, apply and item-set flows all benefit from the same disk cache
+            // and stale fallback without ever touching the authenticated local LCU channel.
+            _sharedOpgg = new CachingOpggBuildApi(new LeaguePublicOpggBuildApi(), true);
             _service = new LeagueBuildAdvisorDataService(
                 _leagueClient,
                 _performance.Budgets,
                 _sharedOpgg,
                 false);
             _applyService = new LeagueBuildApplyService(
-                _leagueClient,
                 _leagueClient,
                 _performance.Budgets,
                 _sharedOpgg,
@@ -84,8 +86,6 @@ namespace FACM.AppHost.Modules
             return new LeagueRecommendationForm(_service, _applyService, _itemSetService, _autoApply, ui);
         }
 
-        // Keep the accepted legacy surfaces available to deterministic tests and future deep-detail flows.
-        // League Hub no longer exposes them as separate novice-facing navigation entries.
         public Form CreateForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Build Advisor module is not initialized.");
