@@ -379,7 +379,7 @@ namespace FACM.League
         private void UpdateContextRailVisibility()
         {
             if (_contextRail == null || _contextRail.IsDisposed) return;
-            _contextRail.Visible = ClientSize.Width >= 1220;
+            _contextRail.Visible = ClientSize.Width >= 1320;
         }
 
         private void UpdateContextRail()
@@ -403,7 +403,7 @@ namespace FACM.League
                 var captured = related;
                 var button = new Button
                 {
-                    Text = "→  " + ResolveViewText(captured.TextKey),
+                    Text = ResolveViewText(captured.TextKey),
                     Size = new Size(198, 48),
                     Margin = new Padding(0, 0, 0, 9),
                     FlatStyle = FlatStyle.Flat,
