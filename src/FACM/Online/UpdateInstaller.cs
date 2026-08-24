@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
@@ -123,9 +122,7 @@ namespace FACM.Online
 
                     var total = response.Content.Headers.ContentLength;
                     if (total.HasValue && total.Value > MaximumUpdateBytes)
-                    {
                         throw new InvalidDataException("更新文件大小异常。");
-                    }
 
                     using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
                     using (var output = new FileStream(
@@ -152,9 +149,7 @@ namespace FACM.Online
 
                             await output.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
                             if (total.HasValue && total.Value > 0 && progress != null)
-                            {
                                 progress.Report((int)Math.Min(99, received * 100L / total.Value));
-                            }
                         }
                     }
                 }
@@ -192,40 +187,35 @@ namespace FACM.Online
             }
         }
 
-        public static void StartReplacement(string downloadedExecutable)
+        public static void StartReplacement(string downloadedExecutable, UpdateManifest manifest)
         {
             if (string.IsNullOrWhiteSpace(downloadedExecutable) || !File.Exists(downloadedExecutable))
-            {
                 throw new FileNotFoundException("已下载的更新文件不存在。", downloadedExecutable);
-            }
+
+            ValidateManifest(manifest);
+            var actualHash = ComputeSha256(downloadedExecutable);
+            if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("更新文件在安装前发生变化，已停止替换。");
+            SignatureInspector.ValidateUpdatePackage(downloadedExecutable, manifest.Version);
 
             RuntimePaths.Initialize();
-            var currentExecutable = Process.GetCurrentProcess().MainModule.FileName;
-            var directory = RuntimePaths.UpdatesDirectory;
-            Directory.CreateDirectory(directory);
-
-            var scriptPath = Path.Combine(directory, "apply-" + Guid.NewGuid().ToString("N") + ".ps1");
-            var script = new StringBuilder();
-            script.AppendLine("$ErrorActionPreference = 'Stop'");
-            script.AppendLine("$processId = " + Process.GetCurrentProcess().Id);
-            script.AppendLine("$source = '" + EscapePowerShellLiteral(downloadedExecutable) + "'");
-            script.AppendLine("$destination = '" + EscapePowerShellLiteral(currentExecutable) + "'");
-            script.AppendLine("try { Wait-Process -Id $processId -Timeout 120 -ErrorAction SilentlyContinue } catch { }");
-            script.AppendLine("Copy-Item -LiteralPath $source -Destination $destination -Force");
-            script.AppendLine("Start-Process -FilePath $destination");
-            script.AppendLine("Remove-Item -LiteralPath $source -Force -ErrorAction SilentlyContinue");
-            script.AppendLine("Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue");
-            File.WriteAllText(scriptPath, script.ToString(), new UTF8Encoding(true));
+            var currentProcess = Process.GetCurrentProcess();
+            var currentExecutable = currentProcess.MainModule.FileName;
+            var arguments = UpdateReplacementHost.BuildApplyArguments(
+                currentProcess.Id,
+                currentExecutable,
+                manifest.Sha256);
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = "powershell.exe",
-                Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + scriptPath + "\"",
-                WorkingDirectory = directory,
+                FileName = downloadedExecutable,
+                Arguments = arguments,
+                WorkingDirectory = RuntimePaths.UpdatesDirectory,
                 UseShellExecute = true,
-                Verb = "runas"
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
             });
-            AppLog.Info("Update replacement process started");
+            AppLog.Info("Update replacement process started; mode=self-updater; console=false");
         }
 
         private static void ValidateManifest(UpdateManifest manifest)
@@ -272,15 +262,8 @@ namespace FACM.Online
         private static string SanitizeFileName(string value)
         {
             foreach (var character in Path.GetInvalidFileNameChars())
-            {
                 value = value.Replace(character, '_');
-            }
             return value;
-        }
-
-        private static string EscapePowerShellLiteral(string value)
-        {
-            return value.Replace("'", "''");
         }
 
         private static void TryDelete(string path)
@@ -289,9 +272,7 @@ namespace FACM.Online
             {
                 if (File.Exists(path)) File.Delete(path);
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 }
