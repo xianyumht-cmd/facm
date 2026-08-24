@@ -36,6 +36,7 @@ namespace FACM.League
         public int Votes { get; set; }
         public bool HasVoteCount { get; set; }
         public List<LeagueHonorCandidate> Allies { get; private set; } = new List<LeagueHonorCandidate>();
+        public List<string> HonoredPuuids { get; private set; } = new List<string>();
     }
 
     internal sealed class LeagueHonorAttemptStatus
@@ -72,10 +73,10 @@ namespace FACM.League
         private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromSeconds(12);
         private static readonly TimeSpan[] VerificationDelays =
         {
-            TimeSpan.FromMilliseconds(150),
-            TimeSpan.FromMilliseconds(300),
-            TimeSpan.FromMilliseconds(600),
-            TimeSpan.FromMilliseconds(900)
+            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromMilliseconds(500),
+            TimeSpan.FromMilliseconds(1000),
+            TimeSpan.FromMilliseconds(1500)
         };
 
         private readonly object _sync = new object();
@@ -203,15 +204,15 @@ namespace FACM.League
                 ballot = await WaitForBallotAsync(cancellationToken).ConfigureAwait(false);
                 if (ballot == null)
                 {
-                    PublishHonorStatus(Status(0, "skipped", "none", "ballot-timeout", 0, 0, null, 0));
+                    PublishHonorStatus(Status(0, "skipped", "none", "ballot-timeout", 0, 0, null, false));
                 }
                 else if (ballot.GameId <= 0)
                 {
-                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "invalid-game", 0, 0, null, 0));
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "invalid-game", 0, 0, null, false));
                 }
                 else if (ballot.Votes <= 0)
                 {
-                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-votes", 0, 0, null, 0));
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-votes", 0, 0, null, false));
                 }
                 else
                 {
@@ -226,8 +227,8 @@ namespace FACM.League
             }
             else
             {
-                // Honor polling already owns the bounded post-game wait. Do not stack an old fallback
-                // delay on top of the new 12-second ballot window.
+                // The honor transaction already owns a bounded post-game wait. Keep only a small
+                // hand-off delay before returning to lobby instead of stacking another long timer.
                 await _clock.Delay(TimeSpan.FromMilliseconds(350), cancellationToken).ConfigureAwait(false);
             }
 
@@ -267,12 +268,13 @@ namespace FACM.League
             var candidates = ballot.Allies
                 .Where(item => item != null && !item.BotPlayer && !string.IsNullOrWhiteSpace(item.Puuid))
                 .Where(item => string.IsNullOrEmpty(selfPuuid) || !string.Equals(item.Puuid, selfPuuid, StringComparison.Ordinal))
+                .Where(item => !ballot.HonoredPuuids.Contains(item.Puuid, StringComparer.Ordinal))
                 .GroupBy(item => item.Puuid, StringComparer.Ordinal)
                 .Select(group => group.First())
                 .ToList();
             if (candidates.Count == 0)
             {
-                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-eligible-ally", 0, 0, null, 0));
+                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-eligible-ally", 0, 0, null, false));
                 return;
             }
 
@@ -322,8 +324,10 @@ namespace FACM.League
 
             var verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
             if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
-                return Status(ballot.GameId, "success", "v2", verification.Detail, StatusCode(response), attempts, selected, 1);
+                return Status(ballot.GameId, "success", "v2", verification.Detail, StatusCode(response), attempts, selected, true);
 
+            // Retry only after the post-game state itself stayed on the same game, kept the same
+            // target eligible, and kept the vote count unchanged through the whole read-back window.
             var safeRetry = !IsSuccess(response) && string.Equals(verification.State, "not-applied", StringComparison.Ordinal);
             if (safeRetry)
             {
@@ -336,13 +340,13 @@ namespace FACM.League
                     cancellationToken).ConfigureAwait(false);
                 verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
                 if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
-                    return Status(ballot.GameId, "success", "v2", verification.Detail + ";safe-retry", StatusCode(response), attempts, selected, 1);
+                    return Status(ballot.GameId, "success", "v2", verification.Detail + ";safe-retry", StatusCode(response), attempts, selected, true);
             }
 
             if (IsSuccess(response))
-                return Status(ballot.GameId, "unknown", "v2", "submitted-unverified:" + verification.Detail, StatusCode(response), attempts, selected, 1);
+                return Status(ballot.GameId, "unknown", "v2", "submitted-unverified:" + verification.Detail, StatusCode(response), attempts, selected, true);
 
-            return Status(ballot.GameId, "failed", "v2", "submit-failed:" + verification.Detail, StatusCode(response), attempts, selected, 1);
+            return Status(ballot.GameId, "failed", "v2", "submit-failed:" + verification.Detail, StatusCode(response), attempts, selected, true);
         }
 
         private async Task<LeagueHonorAttemptStatus> TryHonorLegacyAsync(
@@ -350,10 +354,11 @@ namespace FACM.League
             LeagueHonorCandidate selected,
             CancellationToken cancellationToken)
         {
+            // Current legacy endpoint uses the V3 body shape: puuid + honorType.
             var body = _json.Serialize(new Dictionary<string, object>
             {
-                { "honorType", "HEART" },
-                { "recipientPuuid", selected.Puuid }
+                { "puuid", selected.Puuid },
+                { "honorType", "HEART" }
             });
             var honorResponse = await _write.TrySendAsync(
                 "POST",
@@ -361,7 +366,7 @@ namespace FACM.League
                 body,
                 cancellationToken).ConfigureAwait(false);
             if (!IsSuccess(honorResponse))
-                return Status(ballot.GameId, "failed", "legacy", "honor-submit-failed", StatusCode(honorResponse), 1, selected, 1);
+                return Status(ballot.GameId, "failed", "legacy", "honor-submit-failed", StatusCode(honorResponse), 1, selected, true);
 
             var ballotResponse = await _write.TrySendAsync(
                 "POST",
@@ -369,13 +374,13 @@ namespace FACM.League
                 null,
                 cancellationToken).ConfigureAwait(false);
             if (!IsSuccess(ballotResponse))
-                return Status(ballot.GameId, "unknown", "legacy", "honor-sent-ballot-submit-failed", StatusCode(ballotResponse), 1, selected, 1);
+                return Status(ballot.GameId, "unknown", "legacy", "honor-sent-ballot-submit-failed", StatusCode(ballotResponse), 1, selected, true);
 
             var verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
             if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
-                return Status(ballot.GameId, "success", "legacy", verification.Detail, StatusCode(ballotResponse), 1, selected, 1);
+                return Status(ballot.GameId, "success", "legacy", verification.Detail, StatusCode(ballotResponse), 1, selected, true);
 
-            return Status(ballot.GameId, "unknown", "legacy", "submitted-unverified:" + verification.Detail, StatusCode(ballotResponse), 1, selected, 1);
+            return Status(ballot.GameId, "unknown", "legacy", "submitted-unverified:" + verification.Detail, StatusCode(ballotResponse), 1, selected, true);
         }
 
         private async Task<LeagueHonorVerificationResult> VerifyHonorAsync(
@@ -383,27 +388,24 @@ namespace FACM.League
             LeagueHonorCandidate selected,
             CancellationToken cancellationToken)
         {
-            var teamChoicesRead = false;
             var sameGameBallotSeen = false;
-            var targetStillEligible = false;
-            var voteCountUnchanged = false;
+            var targetStillEligibleOnLastRead = false;
+            var voteCountUnchangedOnLastRead = false;
             var completionSeen = false;
+            var teamChoicesRead = false;
 
             foreach (var delay in VerificationDelays)
             {
                 await _clock.Delay(delay, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (selected.SummonerId > 0)
+                var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
+                List<string> choices;
+                if (TryParseStringList(choicesBytes, out choices))
                 {
-                    var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
-                    List<long> choices;
-                    if (TryParseLongList(choicesBytes, out choices))
-                    {
-                        teamChoicesRead = true;
-                        if (choices.Contains(selected.SummonerId))
-                            return Verification("confirmed", "team-choices-confirmed");
-                    }
+                    teamChoicesRead = true;
+                    if (!string.IsNullOrWhiteSpace(selected.Puuid) && choices.Contains(selected.Puuid, StringComparer.Ordinal))
+                        return Verification("confirmed", "team-choices-confirmed");
                 }
 
                 var ballotBytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
@@ -411,16 +413,17 @@ namespace FACM.League
                 if (after != null && after.GameId == before.GameId)
                 {
                     sameGameBallotSeen = true;
-                    var stillEligible = ContainsCandidate(after, selected);
-                    if (!stillEligible)
-                        return Verification("confirmed", "ballot-target-consumed");
+                    if (!string.IsNullOrWhiteSpace(selected.Puuid) &&
+                        after.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal))
+                        return Verification("confirmed", "ballot-honored-player-confirmed");
 
-                    targetStillEligible = true;
+                    targetStillEligibleOnLastRead = ContainsCandidate(after, selected);
+                    voteCountUnchangedOnLastRead = false;
                     if (before.HasVoteCount && after.HasVoteCount)
                     {
                         if (after.Votes < before.Votes)
                             return Verification("confirmed", "ballot-vote-decreased");
-                        if (after.Votes == before.Votes) voteCountUnchanged = true;
+                        voteCountUnchangedOnLastRead = after.Votes == before.Votes;
                     }
                 }
 
@@ -431,14 +434,18 @@ namespace FACM.League
                     (completionGameId == 0 || completionGameId == before.GameId))
                 {
                     completionSeen = true;
-                    // fullTeamVote is not treated as proof that this specific FACM vote was accepted.
-                    // It is retained as a diagnostic signal while team-choices/ballot remain authoritative.
+                    // fullTeamVote describes team-wide completion, not necessarily this FACM vote.
+                    // Keep it diagnostic only; ballot/team-choices stay authoritative.
                 }
             }
 
-            if (selected.SummonerId > 0 && teamChoicesRead && sameGameBallotSeen && targetStillEligible &&
-                (!before.HasVoteCount || voteCountUnchanged))
-                return Verification("not-applied", completionSeen ? "state-unchanged;completion-readable" : "state-unchanged");
+            if (sameGameBallotSeen && targetStillEligibleOnLastRead && before.HasVoteCount && voteCountUnchangedOnLastRead)
+            {
+                var detail = "same-game-ballot-unchanged";
+                if (teamChoicesRead) detail += ";team-choices-readable";
+                if (completionSeen) detail += ";completion-readable";
+                return Verification("not-applied", detail);
+            }
 
             return Verification("unknown", completionSeen ? "no-authoritative-confirmation;completion-readable" : "no-authoritative-confirmation");
         }
@@ -456,11 +463,20 @@ namespace FACM.League
             var root = ParseObject(bytes);
             if (root == null) return null;
             var ballot = new LeagueHonorBallot { GameId = ReadLong(root, "gameId") };
-            var votePool = ReadDictionary(root, "votePool");
-            if (votePool != null && votePool.ContainsKey("votes"))
+
+            if (root.ContainsKey("numVotes"))
             {
                 ballot.HasVoteCount = true;
-                ballot.Votes = ReadInt(votePool, "votes");
+                ballot.Votes = ReadInt(root, "numVotes");
+            }
+            else
+            {
+                var votePool = ReadDictionary(root, "votePool");
+                if (votePool != null && votePool.ContainsKey("votes"))
+                {
+                    ballot.HasVoteCount = true;
+                    ballot.Votes = ReadInt(votePool, "votes");
+                }
             }
 
             var modernAllies = EnumerateDictionaries(ReadValue(root, "eligibleAllies")).ToList();
@@ -475,6 +491,13 @@ namespace FACM.League
                     SummonerId = ReadLongAny(row, "summonerId", "summonerID"),
                     BotPlayer = ReadBool(row, "botPlayer")
                 });
+            }
+
+            foreach (var row in EnumerateDictionaries(ReadValue(root, "honoredPlayers")))
+            {
+                var puuid = ReadString(row, "puuid");
+                if (!string.IsNullOrWhiteSpace(puuid) && !ballot.HonoredPuuids.Contains(puuid, StringComparer.Ordinal))
+                    ballot.HonoredPuuids.Add(puuid);
             }
 
             if (!ballot.HasVoteCount && ballot.Allies.Count > 0)
@@ -541,7 +564,7 @@ namespace FACM.League
             int httpStatus,
             int attempts,
             LeagueHonorCandidate selected,
-            int includeTarget)
+            bool includeTarget)
         {
             return new LeagueHonorAttemptStatus
             {
@@ -551,8 +574,8 @@ namespace FACM.League
                 Detail = detail,
                 HttpStatus = httpStatus,
                 Attempts = attempts,
-                TargetSummonerId = includeTarget != 0 && selected != null ? selected.SummonerId : 0,
-                TargetPuuidSuffix = includeTarget != 0 && selected != null ? MaskPuuid(selected.Puuid) : string.Empty,
+                TargetSummonerId = includeTarget && selected != null ? selected.SummonerId : 0,
+                TargetPuuidSuffix = includeTarget && selected != null ? MaskPuuid(selected.Puuid) : string.Empty,
                 CompletedAtUtc = DateTime.UtcNow
             };
         }
@@ -580,9 +603,9 @@ namespace FACM.League
                  (!string.IsNullOrWhiteSpace(selected.Puuid) && string.Equals(candidate.Puuid, selected.Puuid, StringComparison.Ordinal))));
         }
 
-        private bool TryParseLongList(byte[] bytes, out List<long> values)
+        private bool TryParseStringList(byte[] bytes, out List<string> values)
         {
-            values = new List<long>();
+            values = new List<string>();
             if (bytes == null || bytes.Length == 0) return false;
             try
             {
@@ -591,8 +614,9 @@ namespace FACM.League
                 if (enumerable == null || parsed is string) return false;
                 foreach (var item in enumerable)
                 {
-                    try { values.Add(Convert.ToInt64(item)); }
-                    catch { }
+                    if (item == null) continue;
+                    var value = Convert.ToString(item);
+                    if (!string.IsNullOrWhiteSpace(value)) values.Add(value);
                 }
                 return true;
             }
@@ -605,8 +629,8 @@ namespace FACM.League
             fullTeamVote = false;
             var root = ParseObject(bytes);
             if (root == null) return false;
-            gameId = ReadLong(root, "gameId");
-            fullTeamVote = ReadBool(root, "fullTeamVote");
+            gameId = ReadLongAny(root, "gameId", "game_id");
+            fullTeamVote = ReadBoolAny(root, "fullTeamVote", "full_team_vote");
             return true;
         }
 
@@ -662,6 +686,18 @@ namespace FACM.League
         {
             try { return Convert.ToBoolean(ReadValue(source, key)); }
             catch { return false; }
+        }
+
+        private static bool ReadBoolAny(Dictionary<string, object> source, params string[] keys)
+        {
+            if (source == null || keys == null) return false;
+            foreach (var key in keys)
+            {
+                if (string.IsNullOrEmpty(key) || !source.ContainsKey(key)) continue;
+                try { return Convert.ToBoolean(ReadValue(source, key)); }
+                catch { }
+            }
+            return false;
         }
 
         private static IEnumerable<Dictionary<string, object>> EnumerateDictionaries(object value)
