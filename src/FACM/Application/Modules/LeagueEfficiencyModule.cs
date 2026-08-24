@@ -30,10 +30,12 @@ namespace FACM.AppHost.Modules
         private readonly SettingsModule _settingsModule;
         private readonly LeagueClientModule _leagueClient;
         private readonly LeagueDashboardModule _dashboard;
+        private readonly object _honorSync = new object();
         private LeagueNativeHotkeyService _hotkeys;
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
+        private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -45,6 +47,16 @@ namespace FACM.AppHost.Modules
 
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
+
+        public event Action<LeagueHonorAttemptStatus> HonorStatusChanged;
+
+        public LeagueHonorAttemptStatus LastHonorStatus
+        {
+            get
+            {
+                lock (_honorSync) return _lastHonorStatus == null ? null : _lastHonorStatus.Clone();
+            }
+        }
 
         public void Initialize()
         {
@@ -64,6 +76,7 @@ namespace FACM.AppHost.Modules
                 AppLog.Warning("League efficiency saved hotkeys were not registered: " + error);
 
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
+            _postGame.HonorAttemptCompleted += HandleHonorAttemptCompleted;
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
             _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, (ILeagueMatchmakingWriteApi)_leagueClient);
             _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled);
@@ -147,6 +160,19 @@ namespace FACM.AppHost.Modules
             return true;
         }
 
+        private void HandleHonorAttemptCompleted(LeagueHonorAttemptStatus status)
+        {
+            if (_disposed || status == null) return;
+            var copy = status.Clone();
+            lock (_honorSync) _lastHonorStatus = copy;
+            var handler = HonorStatusChanged;
+            if (handler != null)
+            {
+                try { handler(copy.Clone()); }
+                catch (Exception exception) { AppLog.Info("League honor UI observer skipped: " + exception.Message); }
+            }
+        }
+
         private void HandleGameflowState(LeagueDashboardPhaseState state)
         {
             if (_disposed) return;
@@ -194,6 +220,7 @@ namespace FACM.AppHost.Modules
             }
             if (_postGame != null)
             {
+                _postGame.HonorAttemptCompleted -= HandleHonorAttemptCompleted;
                 _postGame.Dispose();
                 _postGame = null;
             }
@@ -203,6 +230,8 @@ namespace FACM.AppHost.Modules
                 _hotkeys.Dispose();
                 _hotkeys = null;
             }
+            lock (_honorSync) _lastHonorStatus = null;
+            HonorStatusChanged = null;
             _actions = null;
         }
     }
