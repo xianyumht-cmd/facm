@@ -315,7 +315,6 @@ namespace FACM.League
                 BeginInvoke(new Action(delegate { ApplyHonorStatus(status); }));
             }
             catch (InvalidOperationException) { }
-            catch (ObjectDisposedException) { }
         }
 
         private void ApplyHonorStatus(LeagueHonorAttemptStatus status)
