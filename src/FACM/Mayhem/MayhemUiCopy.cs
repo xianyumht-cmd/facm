@@ -1,0 +1,83 @@
+namespace FACM.Mayhem
+{
+    internal static class MayhemUiCopy
+    {
+        public const string WindowTitle = "海斗攻略";
+        public const string PageHint = "查英雄强度、强化符文和出装。强化榜会同时给胜率、选择率、样本量和选择建议。";
+        public const string Search = "查询";
+        public const string Searching = "查询中...";
+        public const string Cancel = "取消";
+        public const string SaveImage = "保存图片";
+        public const string CopyImage = "复制图片";
+        public const string Ready = "输入英雄开始查询";
+        public const string EnterChampion = "请输入英雄名称或别名。";
+        public const string ReadingHero = "正在读取英雄和版本数据";
+        public const string OrganizingAssets = "正在整理英雄图片、技能和装备";
+        public const string ReadingAugments = "正在读取强化符文决策榜";
+        public const string Rendering = "正在生成攻略图片";
+        public const string Completed = "查询完成";
+        public const string QueryCanceled = "查询已取消";
+        public const string Canceling = "正在取消...";
+        public const string Timeout = "查询超时，可稍后重试；已有缓存时会自动回退。";
+        public const string TimeoutShort = "查询超时，请稍后重试。";
+        public const string Failed = "查询失败，请稍后重试。";
+        public const string NoData = "暂时没有读取到可用数据，请稍后重试。";
+        public const string Saved = "图片已保存";
+        public const string Copied = "图片已复制到剪贴板";
+        public const string SaveFailed = "图片保存失败，请换一个位置后重试。";
+        public const string CopyFailed = "复制图片失败，请稍后重试。";
+        public const string SavePrefix = "海斗攻略";
+        public const string BasicGenerated = "基础攻略已生成";
+        public const string FreshCache = "强化榜来自最近缓存";
+        public const string StaleCache = "外网不稳定，已使用上次可用强化榜";
+        public const string LatestAugments = "强化榜已读取最新数据";
+        public const string ReadingLatest = "正在读取最新排行和推荐内容";
+        public const string Organizing = "正在整理英雄、技能、装备和排行";
+        public const string ReadingCache = "正在读取最近可用数据";
+        public const string ExternalGuide = "外部攻略";
+        public const string DataWord = "数据";
+        public const string EmptyCard = "等待查询";
+        public const string EmptyBalance = "输入英雄后，这里会生成完整攻略卡片。";
+
+        public const string CardSubtitle = "海克斯大乱斗 · 强化决策攻略";
+        public const string PatchPrefix = "版本 ";
+        public const string NoTier = "暂无梯队";
+        public const string RankPrefix = "排行 #";
+        public const string RankEmpty = "排行 —";
+        public const string HeroWinRate = "英雄胜率";
+        public const string PickRate = "选用率";
+        public const string CurrentBalance = "当前平衡";
+        public const string NoBalance = "暂无额外平衡调整";
+        public const string DecisionTitle = "这一局怎么选";
+        public const string DecisionNote = "根据单强化胜率与选择率给出方向，不代表三强化组合胜率。";
+        public const string StableRoute = "稳健首选";
+        public const string HighWinRoute = "高胜上限";
+        public const string PopularRoute = "热门容错";
+        public const string NotEnough = "暂无足够数据";
+        public const string AutoGenerate = "查询后自动生成";
+        public const string AugmentBoard = "强化符文决策榜";
+        public const string Prism = "棱彩";
+        public const string Gold = "黄金";
+        public const string Silver = "白银";
+        public const string NoAugmentRanking = "暂无强化排行，基础攻略仍可正常使用";
+        public const string Win = "胜率 ";
+        public const string Pick = "选择 ";
+        public const string GamesSuffix = " 局";
+        public const string NoDescription = "暂无效果说明";
+        public const string Unknown = "未知";
+        public const string SkillsAndBuild = "技能与出装";
+        public const string Skills = "技能";
+        public const string NoSkillOrder = "暂无加点顺序";
+        public const string CoreItems = "核心装备";
+        public const string TopFive = "版本胜率前五";
+        public const string NoRanking = "暂无数据";
+        public const string NoItems = "暂无装备数据";
+        public const string SourceEmpty = "来源：—";
+        public const string SourceFreshCache = "本地缓存 · 15 分钟内";
+        public const string SourceStaleCache = "离线缓存 · 上次可用数据";
+        public const string SourceOpgg = "OP.GG Global · 实时";
+        public const string FooterProduct = "FACM · 海斗攻略";
+        public const string FooterDisclaimer = "强化路线由单项胜率/选择率推导，仅作当前版本决策参考";
+        public const string TenThousand = "万";
+    }
+}
