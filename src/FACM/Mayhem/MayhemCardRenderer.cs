@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,25 +12,51 @@ namespace FACM.Mayhem
 {
     internal static class MayhemCardRenderer
     {
-        public const int CardWidth = 1260;
-        public const int CardHeight = 1540;
+        public const int CardWidth = 840;
+        public const int CardHeight = 1120;
 
-        private static readonly Color BackgroundA = Color.FromArgb(7, 12, 23);
-        private static readonly Color BackgroundB = Color.FromArgb(17, 27, 46);
-        private static readonly Color Panel = Color.FromArgb(18, 29, 48);
-        private static readonly Color PanelSoft = Color.FromArgb(22, 36, 59);
-        private static readonly Color Text = Color.FromArgb(241, 246, 255);
-        private static readonly Color Muted = Color.FromArgb(151, 171, 205);
-        private static readonly Color Blue = Color.FromArgb(88, 137, 255);
-        private static readonly Color Green = Color.FromArgb(91, 210, 170);
-        private static readonly Color Gold = Color.FromArgb(237, 187, 81);
-        private static readonly Color Purple = Color.FromArgb(176, 115, 255);
+        private const int Outer = 16;
+        private const int Gap = 8;
+        private const int HeroHeight = 118;
+        private const int BalanceHeight = 144;
+        private const int BuildHeight = 142;
+        private const int SectionHeaderHeight = 28;
+        private const int AugmentCardHeight = 64;
+        private const int AugmentCardGap = 6;
+        private const int RouteHeight = 96;
+        private const int FooterHeight = 38;
+
+        private static readonly Color Background = Color.FromArgb(12, 17, 30);
+        private static readonly Color Panel = Color.FromArgb(23, 31, 51);
+        private static readonly Color PanelSoft = Color.FromArgb(28, 39, 64);
+        private static readonly Color Text = Color.FromArgb(241, 246, 252);
+        private static readonly Color Muted = Color.FromArgb(155, 170, 193);
+        private static readonly Color MutedDark = Color.FromArgb(122, 139, 164);
+        private static readonly Color Line = Color.FromArgb(48, 63, 88);
+        private static readonly Color Cyan = Color.FromArgb(63, 207, 225);
+        private static readonly Color Green = Color.FromArgb(62, 211, 151);
+        private static readonly Color Gold = Color.FromArgb(247, 190, 76);
+        private static readonly Color Purple = Color.FromArgb(192, 132, 252);
+        private static readonly Color Silver = Color.FromArgb(173, 188, 209);
 
         private sealed class LoadedImage : IDisposable
         {
             public string Reference { get; set; }
             public Bitmap Bitmap { get; set; }
-            public void Dispose() { if (Bitmap != null) Bitmap.Dispose(); }
+
+            public void Dispose()
+            {
+                if (Bitmap != null) Bitmap.Dispose();
+                Bitmap = null;
+            }
+        }
+
+        private sealed class AugmentGroup
+        {
+            public string Title { get; set; }
+            public string Kind { get; set; }
+            public Color Accent { get; set; }
+            public List<MayhemAugmentRow> Items { get; set; } = new List<MayhemAugmentRow>();
         }
 
         public static async Task<Bitmap> RenderAsync(
@@ -39,435 +64,460 @@ namespace FACM.Mayhem
             ILeagueClientApi leagueClient,
             CancellationToken token)
         {
-            if (result == null) throw new ArgumentNullException(nameof(result));
-            var loaded = await LoadImagesAsync(result, leagueClient, token).ConfigureAwait(false);
+            result = result ?? new MayhemChampionResult();
+
+            var buildTask = MayhemBuildDetailsService.EnrichAsync(result, token);
+            var seedTask = LoadReferencesAsync(
+                CollectSeedReferences(result),
+                leagueClient,
+                token,
+                TimeSpan.FromMilliseconds(1150));
+
+            await Task.WhenAll(buildTask, seedTask).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+
+            var seedImages = seedTask.Result;
+            var buildImages = await LoadReferencesAsync(
+                CollectBuildReferences(result),
+                leagueClient,
+                token,
+                TimeSpan.FromMilliseconds(550)).ConfigureAwait(false);
+
+            var images = MergeImages(seedImages, buildImages);
             try
             {
-                token.ThrowIfCancellationRequested();
-                var map = loaded.Where(item => item.Bitmap != null && !string.IsNullOrWhiteSpace(item.Reference))
-                    .GroupBy(item => item.Reference, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(group => group.Key, group => group.First().Bitmap, StringComparer.OrdinalIgnoreCase);
-                return Render(result, map);
+                return Render(result, images);
             }
             finally
             {
-                foreach (var item in loaded) item.Dispose();
+                foreach (var image in images.Values) image.Dispose();
             }
         }
 
-        public static Bitmap RenderForSmokeTest(MayhemChampionResult result)
+        internal static Bitmap RenderForSmokeTest(MayhemChampionResult result)
         {
             return Render(result ?? new MayhemChampionResult(), new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase));
         }
 
-        private static async Task<List<LoadedImage>> LoadImagesAsync(
-            MayhemChampionResult result,
-            ILeagueClientApi leagueClient,
-            CancellationToken token)
-        {
-            var references = new List<string>();
-            AddReference(references, result.ChampionIconUrl);
-            AddReference(references, result.ChampionSplashUrl);
-            foreach (var pair in result.SkillIconUrls) AddReference(references, pair.Value);
-            foreach (var value in result.CoreItemIconUrls) AddReference(references, value);
-            foreach (var value in result.AugmentIconUrls) AddReference(references, value);
-            foreach (var row in result.AugmentRows ?? new List<MayhemAugmentRow>()) AddReference(references, row == null ? null : row.IconUrl);
-            foreach (var top in result.TopTen ?? new List<MayhemTopChampion>()) AddReference(references, top == null ? null : top.IconUrl);
-
-            var distinct = references.Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(48)
-                .ToArray();
-            var tasks = distinct.Select(reference => LoadOneAsync(reference, leagueClient, token)).ToArray();
-            var images = await Task.WhenAll(tasks).ConfigureAwait(false);
-            return images.ToList();
-        }
-
-        private static async Task<LoadedImage> LoadOneAsync(string reference, ILeagueClientApi leagueClient, CancellationToken token)
-        {
-            try
-            {
-                return new LoadedImage
-                {
-                    Reference = reference,
-                    Bitmap = await MayhemImageCache.GetAsync(reference, leagueClient, token).ConfigureAwait(false)
-                };
-            }
-            catch (OperationCanceledException) { throw; }
-            catch { return new LoadedImage { Reference = reference }; }
-        }
-
-        private static void AddReference(ICollection<string> list, string value)
-        {
-            if (!string.IsNullOrWhiteSpace(value)) list.Add(value);
-        }
-
         private static Bitmap Render(MayhemChampionResult result, IDictionary<string, Bitmap> images)
         {
-            var bitmap = new Bitmap(CardWidth, CardHeight, PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(bitmap))
+            EnsureRenderProjection(result);
+            var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name))
+                .OrderBy(row => row.Rank <= 0 ? int.MaxValue : row.Rank)
+                .Take(10)
+                .ToList();
+            var groups = BuildAugmentGroups(rows);
+            var routes = BuildDecisionRoutes(rows);
+            var sectionsHeight = CalculateSectionsHeight(groups);
+            var height = Outer + HeroHeight + Gap + BalanceHeight + Gap + BuildHeight + Gap + sectionsHeight;
+            if (routes.Count > 0) height += Gap + RouteHeight;
+            height += FooterHeight + Outer;
+
+            var bitmap = new Bitmap(CardWidth, Math.Max(520, height), PixelFormat.Format24bppRgb);
+            using (var graphics = Graphics.FromImage(bitmap))
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                DrawBackground(g);
-                DrawHero(g, result, images);
-                DrawDecisionRoutes(g, result);
-                DrawAugmentBoard(g, result, images);
-                DrawCompactBuild(g, result, images);
-                DrawTopRanking(g, result, images);
-                DrawFooter(g, result);
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                graphics.Clear(Background);
+
+                var y = Outer;
+                DrawHero(graphics, result, rows, groups, images, y);
+                y += HeroHeight + Gap;
+                DrawBalance(graphics, result, y);
+                y += BalanceHeight + Gap;
+                DrawBuild(graphics, result, images, y);
+                y += BuildHeight + Gap;
+                y = DrawAugmentSections(graphics, groups, images, y);
+                if (routes.Count > 0)
+                {
+                    y += Gap;
+                    DrawRoutes(graphics, routes, y);
+                }
+                DrawFooter(graphics, bitmap.Height);
             }
             return bitmap;
         }
 
-        private static void DrawBackground(Graphics g)
+        private static void DrawHero(
+            Graphics g,
+            MayhemChampionResult result,
+            IList<MayhemAugmentRow> rows,
+            IList<AugmentGroup> groups,
+            IDictionary<string, Bitmap> images,
+            int y)
         {
-            using (var brush = new LinearGradientBrush(new Rectangle(0, 0, CardWidth, CardHeight), BackgroundA, BackgroundB, 90F))
-                g.FillRectangle(brush, 0, 0, CardWidth, CardHeight);
-            using (var glow = new SolidBrush(Color.FromArgb(24, 77, 111, 255)))
+            var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, HeroHeight);
+            DrawPanel(g, rect, 14);
+            DrawSquareImage(g, images, result.ChampionIconUrl, new Rectangle(Outer + 18, y + 21, 76, 76), 12, FirstChar(result.ChampionName), Cyan);
+
+            using (var title = new Font("Microsoft YaHei UI", 24F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var subtitle = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                g.FillEllipse(glow, -160, -210, 620, 500);
-                g.FillEllipse(glow, 920, -180, 520, 430);
+                var titleX = Outer + 112;
+                var metricX = CardWidth - Outer - 196;
+                var titleWidth = metricX - titleX - 12;
+                var champion = FirstNonEmpty(result.ChampionName, result.ChampionSlug, MayhemUiCopy.EmptyCard);
+                g.DrawString(FitText(g, champion, title, titleWidth), title, new SolidBrush(Text), titleX, y + 18);
+                g.DrawString(MayhemUiCopy.CompactCardSubtitle, subtitle, new SolidBrush(Cyan), titleX, y + 51);
+
+                var rank = result.Rank.HasValue ? MayhemUiCopy.RankPrefix + result.Rank.Value : MayhemUiCopy.RankEmpty;
+                var tier = FirstNonEmpty(result.Tier, MayhemUiCopy.NoTier);
+                var summary = "TOP " + rows.Count + " · " + rank + " · " + tier + " · " + MayhemUiCopy.CompactSummarySuffix;
+                g.DrawString(FitText(g, summary, small, titleWidth), small, new SolidBrush(Muted), titleX, y + 76);
+
+                var patch = string.IsNullOrWhiteSpace(result.Patch) ? "—" : result.Patch;
+                var sourceLine = MayhemUiCopy.SourceOpggShort + " · " + MayhemUiCopy.PatchPrefix + patch;
+                g.DrawString(FitText(g, sourceLine, tiny, titleWidth), tiny, new SolidBrush(MutedDark), titleX, y + 96);
+
+                DrawMetric(g, new Rectangle(metricX, y + 20, 94, 36), MayhemUiCopy.MetricList, "TOP " + rows.Count, Cyan);
+                DrawMetric(g, new Rectangle(metricX + 102, y + 20, 94, 36), MayhemUiCopy.MetricSource, MayhemUiCopy.SourceOpggShort, Green);
+                DrawMetric(g, new Rectangle(metricX, y + 62, 94, 36), MayhemUiCopy.MetricQuality, groups.Count.ToString(), Purple);
+                DrawMetric(g, new Rectangle(metricX + 102, y + 62, 94, 36), MayhemUiCopy.MetricCache, MayhemUiCopy.CacheFifteenMinutes, Gold);
             }
         }
 
-        private static void DrawHero(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        private static void DrawBalance(Graphics g, MayhemChampionResult result, int y)
         {
-            var hero = new Rectangle(30, 28, 1200, 250);
-            using (var path = RoundedRect(hero, 26))
+            var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, BalanceHeight);
+            DrawPanel(g, rect, 12);
+            using (var head = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                g.SetClip(path);
-                Bitmap splash;
-                if (TryGet(images, result.ChampionSplashUrl, out splash)) DrawImageCover(g, splash, hero);
+                g.DrawString(MayhemUiCopy.BalanceLayers, head, new SolidBrush(Text), Outer + 14, y + 10);
+                var noteWidth = g.MeasureString(MayhemUiCopy.BalanceLayerNote, tiny).Width;
+                g.DrawString(MayhemUiCopy.BalanceLayerNote, tiny, new SolidBrush(Muted), CardWidth - Outer - 14 - noteWidth, y + 12);
+            }
+
+            var baseSummary = FirstNonEmpty(result.BaseBalanceSummary, MayhemUiCopy.NoBalance);
+            var mayhemSummary = FirstNonEmpty(result.MayhemBalanceSummary, result.BalanceSummary, MayhemUiCopy.NoBalance);
+            var baseStatus = BalanceStatus(result.BaseBalancePatch, result.BaseBalanceComplete, result.BaseBalanceStatus);
+            var mayhemStatus = BalanceStatus(FirstNonEmpty(result.RankingPatch, result.Patch), !string.IsNullOrWhiteSpace(result.RankingPatch), null);
+            DrawBalanceLayer(g, MayhemUiCopy.BaseAram, baseSummary, baseStatus, y + 35, Cyan);
+            DrawBalanceLayer(g, MayhemUiCopy.MayhemOnly, mayhemSummary, mayhemStatus, y + 87, Gold);
+        }
+
+        private static void DrawBalanceLayer(Graphics g, string labelText, string summary, string status, int y, Color accent)
+        {
+            using (var label = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var body = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString(labelText, label, new SolidBrush(accent), Outer + 14, y);
+                var statusWidth = g.MeasureString(status, tiny).Width;
+                g.DrawString(status, tiny, new SolidBrush(Muted), CardWidth - Outer - 14 - statusWidth, y);
+                var chip = new Rectangle(Outer + 14, y + 16, 520, 22);
+                using (var path = RoundedRect(chip, 6))
+                using (var fill = new SolidBrush(Color.FromArgb(31, 43, 68)))
+                {
+                    g.FillPath(fill, path);
+                }
+                g.DrawString(FitText(g, summary, body, chip.Width - 16), body, new SolidBrush(Text), chip.X + 8, chip.Y + 4);
+            }
+        }
+
+        private static void DrawBuild(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images, int y)
+        {
+            var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, BuildHeight);
+            DrawPanel(g, rect, 12);
+            using (var head = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString(MayhemUiCopy.CompactBuild, head, new SolidBrush(Text), Outer + 14, y + 10);
+                var status = BuildStatus(result);
+                var statusWidth = g.MeasureString(status, tiny).Width;
+                g.DrawString(status, tiny, new SolidBrush(Muted), CardWidth - Outer - 14 - statusWidth, y + 12);
+            }
+
+            using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                var coreY = y + 31;
+                g.DrawString(MayhemUiCopy.Core, small, new SolidBrush(Cyan), Outer + 14, coreY + 7);
+                var builds = result.CoreBuilds.Take(2).ToList();
+                if (builds.Count == 0)
+                {
+                    g.DrawString(MayhemUiCopy.NoCoreBuild, tiny, new SolidBrush(Muted), Outer + 64, coreY + 8);
+                }
                 else
                 {
-                    using (var fill = new LinearGradientBrush(hero, Color.FromArgb(36, 64, 110), Color.FromArgb(15, 25, 43), 0F))
-                        g.FillRectangle(fill, hero);
+                    for (var index = 0; index < builds.Count; index++)
+                    {
+                        var build = builds[index];
+                        var bx = Outer + 64 + index * 340;
+                        g.DrawString("#" + Math.Max(1, build.Rank), tiny, new SolidBrush(index == 0 ? Gold : Silver), bx, coreY + 7);
+                        var iconX = bx + 24;
+                        foreach (var item in build.Items.Take(5))
+                        {
+                            DrawSquareImage(g, images, item.IconUrl, new Rectangle(iconX, coreY, 30, 30), 5, FirstChar(item.Name), Line);
+                            iconX += 34;
+                        }
+                    }
                 }
-                using (var overlay = new LinearGradientBrush(hero, Color.FromArgb(238, 6, 12, 24), Color.FromArgb(84, 6, 12, 24), 0F))
-                    g.FillRectangle(overlay, hero);
-                g.ResetClip();
-                using (var pen = new Pen(Color.FromArgb(80, 119, 165, 255))) g.DrawPath(pen, path);
-            }
 
-            DrawSquareImage(g, images, result.ChampionIconUrl, new Rectangle(58, 66, 138, 138), 24, FirstChar(result.ChampionName));
-            using (var title = new Font("Microsoft YaHei UI", 30F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var subtitle = new Font("Microsoft YaHei UI", 15F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var badge = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
-            {
-                g.DrawString(FirstNonEmpty(result.ChampionName, MayhemUiCopy.EmptyCard), title, Brushes.White, 226, 60);
-                g.DrawString(MayhemUiCopy.CardSubtitle, subtitle, new SolidBrush(Color.FromArgb(197, 211, 236)), 228, 105);
-                DrawBadge(g, MayhemUiCopy.PatchPrefix + FirstNonEmpty(result.RankingPatch, result.Patch, "—"), new Point(226, 144), 126, badge, Color.FromArgb(51, 93, 166));
-                DrawBadge(g, FirstNonEmpty(result.Tier, MayhemUiCopy.NoTier), new Point(362, 144), 108, badge, Color.FromArgb(92, 66, 151));
-                DrawBadge(g, result.Rank.HasValue ? MayhemUiCopy.RankPrefix + result.Rank.Value : MayhemUiCopy.RankEmpty, new Point(480, 144), 112, badge, Color.FromArgb(35, 119, 111));
-            }
+                var dividerY = y + 70;
+                using (var pen = new Pen(Line)) g.DrawLine(pen, Outer + 14, dividerY, CardWidth - Outer - 14, dividerY);
 
-            DrawMetric(g, new Rectangle(750, 60, 202, 92), MayhemUiCopy.HeroWinRate, FormatPercent(result.WinRate), Green);
-            DrawMetric(g, new Rectangle(972, 60, 202, 92), MayhemUiCopy.PickRate, FormatPercent(result.PickRate), Blue);
-
-            using (var label = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var body = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                g.DrawString(MayhemUiCopy.CurrentBalance, label, new SolidBrush(Muted), 228, 196);
-                DrawWrappedText(g, FirstNonEmpty(result.BalanceSummary, MayhemUiCopy.NoBalance), body, Text, new RectangleF(228, 218, 930, 42), 2);
+                var groupY = y + 80;
+                DrawBuildGroup(g, MayhemUiCopy.Starter, result.StarterItems, images, Outer + 14, groupY, 3);
+                DrawBuildGroup(g, MayhemUiCopy.Boots, result.BootItems, images, Outer + 202, groupY, 1);
+                DrawBuildGroup(g, MayhemUiCopy.Summoner, result.SummonerSpells, images, Outer + 300, groupY, 2);
+                DrawSkillPriority(g, result, images, Outer + 462, groupY);
             }
         }
 
-        private static void DrawDecisionRoutes(Graphics g, MayhemChampionResult result)
+        private static void DrawBuildGroup(
+            Graphics g,
+            string label,
+            IList<MayhemBuildItem> items,
+            IDictionary<string, Bitmap> images,
+            int x,
+            int y,
+            int limit)
         {
-            var panel = new Rectangle(30, 298, 1200, 172);
-            DrawPanel(g, panel);
-            DrawSectionTitle(g, MayhemUiCopy.DecisionTitle, 56, 318);
-            using (var note = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
-                g.DrawString(MayhemUiCopy.DecisionNote, note, new SolidBrush(Muted), 218, 323);
-
-            var routes = (result.AugmentRoutes ?? new List<MayhemDecisionRoute>()).Take(3).ToList();
-            var fallbackTitles = new[] { MayhemUiCopy.StableRoute, MayhemUiCopy.HighWinRoute, MayhemUiCopy.PopularRoute };
-            for (var i = 0; i < 3; i++)
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                var rect = new Rectangle(56 + i * 382, 356, 358, 90);
-                var route = i < routes.Count ? routes[i] : null;
-                DrawRouteCard(g, rect, route, fallbackTitles[i], i);
+                g.DrawString(label, tiny, new SolidBrush(Muted), x, y);
+                var iconX = x;
+                var values = items ?? new List<MayhemBuildItem>();
+                foreach (var item in values.Take(limit))
+                {
+                    DrawSquareImage(g, images, item.IconUrl, new Rectangle(iconX, y + 18, 26, 26), 5, FirstChar(item.Name), Line);
+                    iconX += 30;
+                }
+                if (values.Count == 0) g.DrawString(MayhemUiCopy.NoValue, tiny, new SolidBrush(MutedDark), x, y + 26);
             }
         }
 
-        private static void DrawRouteCard(Graphics g, Rectangle rect, MayhemDecisionRoute route, string fallbackTitle, int index)
+        private static void DrawSkillPriority(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images, int x, int y)
         {
-            var accent = index == 0 ? Green : index == 1 ? Purple : Gold;
-            using (var path = RoundedRect(rect, 18))
-            using (var fill = new SolidBrush(Color.FromArgb(34, accent.R, accent.G, accent.B)))
-            using (var pen = new Pen(Color.FromArgb(90, accent.R, accent.G, accent.B), 1F))
+            var skills = GetSkillPriority(result);
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
+            {
+                g.DrawString(MayhemUiCopy.SkillPriority, tiny, new SolidBrush(Muted), x, y);
+                if (skills.Count == 0)
+                {
+                    g.DrawString(MayhemUiCopy.NoValue, tiny, new SolidBrush(MutedDark), x, y + 26);
+                    return;
+                }
+
+                var iconX = x;
+                for (var index = 0; index < skills.Count && index < 3; index++)
+                {
+                    var skill = skills[index];
+                    DrawSquareImage(g, images, skill.IconUrl, new Rectangle(iconX, y + 18, 26, 26), 5, skill.Key, Cyan);
+                    g.DrawString(skill.Key, tiny, new SolidBrush(Cyan), iconX + 8, y + 45);
+                    if (index < skills.Count - 1) g.DrawString(">", tiny, new SolidBrush(Muted), iconX + 31, y + 27);
+                    iconX += 42;
+                }
+                var order = string.Join(" > ", skills.Take(3).Select(skill => skill.Key));
+                var width = g.MeasureString(order, small).Width;
+                g.DrawString(order, small, new SolidBrush(Text), CardWidth - Outer - 14 - width, y + 26);
+            }
+        }
+
+        private static int DrawAugmentSections(Graphics g, IList<AugmentGroup> groups, IDictionary<string, Bitmap> images, int y)
+        {
+            if (groups.Count == 0)
+            {
+                var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, 72);
+                DrawPanel(g, rect, 12);
+                using (var font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
+                {
+                    var textSize = g.MeasureString(MayhemUiCopy.NoAugmentRanking, font);
+                    g.DrawString(MayhemUiCopy.NoAugmentRanking, font, new SolidBrush(Muted), (CardWidth - textSize.Width) / 2F, y + 27);
+                }
+                return y + 72;
+            }
+
+            foreach (var group in groups)
+            {
+                var rowCount = (group.Items.Count + 1) / 2;
+                var sectionHeight = SectionHeaderHeight + rowCount * AugmentCardHeight + Math.Max(0, rowCount - 1) * AugmentCardGap + 8;
+                var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, sectionHeight);
+                DrawPanel(g, rect, 12);
+                using (var head = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+                {
+                    g.DrawString(group.Title, head, new SolidBrush(group.Accent), Outer + 14, y + 9);
+                    var countText = group.Items.Count + MayhemUiCopy.ItemsSuffix;
+                    var width = g.MeasureString(countText, tiny).Width;
+                    g.DrawString(countText, tiny, new SolidBrush(Muted), CardWidth - Outer - 14 - width, y + 11);
+                }
+
+                var innerWidth = CardWidth - Outer * 2 - 28;
+                var columnGap = 8;
+                var cardWidth = (innerWidth - columnGap) / 2;
+                var baseY = y + SectionHeaderHeight;
+                for (var index = 0; index < group.Items.Count; index++)
+                {
+                    var rowIndex = index / 2;
+                    var column = index % 2;
+                    var x = Outer + 14 + column * (cardWidth + columnGap);
+                    var cardY = baseY + rowIndex * (AugmentCardHeight + AugmentCardGap);
+                    DrawAugmentCard(g, new Rectangle(x, cardY, cardWidth, AugmentCardHeight), group.Items[index], group.Accent, images);
+                }
+                y += sectionHeight + Gap;
+            }
+            return y - Gap;
+        }
+
+        private static void DrawAugmentCard(
+            Graphics g,
+            Rectangle rect,
+            MayhemAugmentRow row,
+            Color accent,
+            IDictionary<string, Bitmap> images)
+        {
+            using (var path = RoundedRect(rect, 10))
+            using (var fill = new SolidBrush(PanelSoft))
+            using (var pen = new Pen(Line))
             {
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
             }
-            using (var title = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var name = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var hint = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                g.DrawString(route == null ? fallbackTitle : route.Title, title, new SolidBrush(accent), rect.X + 16, rect.Y + 12);
-                g.DrawString(route == null ? MayhemUiCopy.NotEnough : Ellipsis(route.AugmentName, 18), name, Brushes.White, rect.X + 16, rect.Y + 34);
-                g.DrawString(route == null ? MayhemUiCopy.AutoGenerate : Ellipsis(route.Hint, 25), hint, new SolidBrush(Muted), rect.X + 16, rect.Y + 62);
-            }
-        }
 
-        private static void DrawAugmentBoard(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
-        {
-            var panel = new Rectangle(30, 490, 1200, 742);
-            DrawPanel(g, panel);
-            DrawSectionTitle(g, MayhemUiCopy.AugmentBoard, 56, 512);
-
-            var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
-                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name))
-                .OrderBy(row => row.Rank <= 0 ? int.MaxValue : row.Rank)
-                .Take(12)
-                .ToList();
-            var prism = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Prism, StringComparison.OrdinalIgnoreCase));
-            var gold = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Gold, StringComparison.OrdinalIgnoreCase));
-            var silver = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Silver, StringComparison.OrdinalIgnoreCase));
-            using (var summary = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                var source = SourceLabel(result);
-                g.DrawString("TOP " + rows.Count + "   ·   " + MayhemUiCopy.Prism + " " + prism + " / " + MayhemUiCopy.Gold + " " + gold + " / " + MayhemUiCopy.Silver + " " + silver + "   ·   " + source,
-                    summary, new SolidBrush(Muted), 266, 518);
-            }
-
-            if (rows.Count == 0)
-            {
-                using (var font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
-                    g.DrawString(MayhemUiCopy.NoAugmentRanking, font, new SolidBrush(Color.FromArgb(166, 181, 207)), 56, 590);
-                return;
-            }
-
-            for (var i = 0; i < rows.Count; i++)
-            {
-                var col = i % 2;
-                var rowIndex = i / 2;
-                var rect = new Rectangle(56 + col * 574, 558 + rowIndex * 106, 548, 92);
-                DrawAugmentRow(g, rect, rows[i], images);
-            }
-        }
-
-        private static void DrawAugmentRow(Graphics g, Rectangle rect, MayhemAugmentRow row, IDictionary<string, Bitmap> images)
-        {
-            using (var path = RoundedRect(rect, 15))
-            using (var brush = new SolidBrush(PanelSoft))
-            using (var pen = new Pen(Color.FromArgb(45, 136, 166, 215)))
-            {
-                g.FillPath(brush, path);
-                g.DrawPath(pen, path);
-            }
-            DrawSquareImage(g, images, row.IconUrl, new Rectangle(rect.X + 12, rect.Y + 14, 62, 62), 13, FirstChar(row.Name));
-            using (var rank = new Font("Segoe UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var name = new Font("Microsoft YaHei UI", 15F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var stat = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var desc = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                g.DrawString("#" + Math.Max(1, row.Rank), rank, new SolidBrush(Color.FromArgb(180, 196, 225)), rect.X + 84, rect.Y + 11);
-                g.DrawString(Ellipsis(row.Name, 18), name, Brushes.White, rect.X + 118, rect.Y + 9);
-                DrawRarityPill(g, row.Rarity, rect.Right - 72, rect.Y + 10);
-                var stats = MayhemUiCopy.Win + FormatPercent(row.WinRate) + "   " + MayhemUiCopy.Pick + FormatPercent(row.PickRate);
-                if (row.Games.HasValue && row.Games.Value > 0) stats += "   " + FormatGames(row.Games.Value) + MayhemUiCopy.GamesSuffix;
-                g.DrawString(stats, stat, new SolidBrush(Green), rect.X + 84, rect.Y + 35);
-                DrawWrappedText(g, FirstNonEmpty(row.Description, MayhemUiCopy.NoDescription), desc, Muted,
-                    new RectangleF(rect.X + 84, rect.Y + 56, rect.Width - 98, 28), 2);
-            }
-        }
-
-        private static void DrawRarityPill(Graphics g, string rarity, int x, int y)
-        {
-            var text = FirstNonEmpty(rarity, MayhemUiCopy.Unknown);
-            var color = string.Equals(text, MayhemUiCopy.Prism, StringComparison.OrdinalIgnoreCase)
-                ? Purple
-                : string.Equals(text, MayhemUiCopy.Gold, StringComparison.OrdinalIgnoreCase)
-                    ? Gold
-                    : string.Equals(text, MayhemUiCopy.Silver, StringComparison.OrdinalIgnoreCase)
-                        ? Color.FromArgb(172, 190, 214)
-                        : Muted;
-            using (var font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var path = RoundedRect(new Rectangle(x, y, 56, 22), 10))
-            using (var fill = new SolidBrush(Color.FromArgb(32, color.R, color.G, color.B)))
-            using (var pen = new Pen(Color.FromArgb(95, color.R, color.G, color.B)))
-            {
-                g.FillPath(fill, path);
-                g.DrawPath(pen, path);
-                var size = g.MeasureString(text, font);
-                g.DrawString(text, font, new SolidBrush(color), x + (56 - size.Width) / 2F, y + 3);
-            }
-        }
-
-        private static void DrawCompactBuild(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
-        {
-            var panel = new Rectangle(30, 1252, 760, 224);
-            DrawPanel(g, panel);
-            DrawSectionTitle(g, MayhemUiCopy.SkillsAndBuild, 56, 1272);
-            using (var label = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var body = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                g.DrawString(MayhemUiCopy.Skills, label, new SolidBrush(Muted), 56, 1310);
-                DrawSkills(g, result, images, 102, 1301);
-                DrawWrappedText(g, FirstNonEmpty(result.SkillOrder, MayhemUiCopy.NoSkillOrder), body, Text, new RectangleF(430, 1308, 330, 36), 2);
-                g.DrawString(MayhemUiCopy.CoreItems, label, new SolidBrush(Muted), 56, 1370);
-                DrawCompactItems(g, result.CoreItems, result.CoreItemIconUrls, images, 132, 1358);
-                var balance = FirstNonEmpty(result.MayhemBalanceSummary, result.BaseBalanceSummary, string.Empty);
-                if (!string.IsNullOrWhiteSpace(balance))
-                    DrawWrappedText(g, balance, body, Muted, new RectangleF(56, 1430, 694, 34), 2);
-            }
-        }
-
-        private static void DrawTopRanking(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
-        {
-            var panel = new Rectangle(810, 1252, 420, 224);
-            DrawPanel(g, panel);
-            DrawSectionTitle(g, MayhemUiCopy.TopFive, 834, 1272);
-            var top = (result.TopTen ?? new List<MayhemTopChampion>()).OrderBy(item => item.Rank).Take(5).ToList();
-            using (var font = new Font("Microsoft YaHei UI", 11.5F, FontStyle.Bold, GraphicsUnit.Pixel))
+            DrawSquareImage(g, images, row.IconUrl, new Rectangle(rect.X + 9, rect.Y + 12, 40, 40), 7, FirstChar(row.Name), accent);
+            using (var nameFont = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var body = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var stat = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                for (var i = 0; i < 5; i++)
+                var nameWidth = rect.Width - 164;
+                g.DrawString(FitText(g, row.Name, nameFont, nameWidth), nameFont, new SolidBrush(Text), rect.X + 58, rect.Y + 7);
+                var description = FirstNonEmpty(row.Description, MayhemUiCopy.NoDescription);
+                g.DrawString(FitText(g, description, body, nameWidth), body, new SolidBrush(Muted), rect.X + 58, rect.Y + 29);
+                var sampleText = row.Games.HasValue && row.Games.Value > 0
+                    ? MayhemUiCopy.Sample + " " + FormatGames(row.Games.Value)
+                    : "#" + Math.Max(1, row.Rank);
+                g.DrawString(FitText(g, sampleText, body, nameWidth), body, new SolidBrush(MutedDark), rect.X + 58, rect.Y + 47);
+
+                var statX = rect.Right - 10;
+                var winText = FormatPercent(row.WinRate);
+                var pickText = FormatPercent(row.PickRate);
+                var winWidth = g.MeasureString(winText, stat).Width;
+                var pickWidth = g.MeasureString(pickText, small).Width;
+                g.DrawString(MayhemUiCopy.Win.Trim(), body, new SolidBrush(Muted), statX - 64, rect.Y + 8);
+                g.DrawString(winText, stat, new SolidBrush(Green), statX - winWidth, rect.Y + 7);
+                g.DrawString(MayhemUiCopy.Popularity, body, new SolidBrush(Muted), statX - 64, rect.Y + 34);
+                g.DrawString(pickText, small, new SolidBrush(accent), statX - pickWidth, rect.Y + 34);
+            }
+        }
+
+        private static void DrawRoutes(Graphics g, IList<MayhemDecisionRoute> routes, int y)
+        {
+            var rect = new Rectangle(Outer, y, CardWidth - Outer * 2, RouteHeight);
+            DrawPanel(g, rect, 12);
+            using (var head = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString(MayhemUiCopy.ChoiceDirection, head, new SolidBrush(Text), Outer + 14, y + 9);
+                var noteWidth = g.MeasureString(MayhemUiCopy.SingleAugmentNote, tiny).Width;
+                g.DrawString(MayhemUiCopy.SingleAugmentNote, tiny, new SolidBrush(Muted), CardWidth - Outer - 14 - noteWidth, y + 11);
+            }
+
+            var innerWidth = CardWidth - Outer * 2 - 28;
+            var routeGap = 8;
+            var routeWidth = (innerWidth - routeGap * 2) / 3;
+            var accents = new[] { Cyan, Green, Gold };
+            for (var index = 0; index < routes.Count && index < 3; index++)
+            {
+                var route = routes[index];
+                var x = Outer + 14 + index * (routeWidth + routeGap);
+                var routeRect = new Rectangle(x, y + 29, routeWidth, 54);
+                using (var path = RoundedRect(routeRect, 9))
+                using (var fill = new SolidBrush(PanelSoft))
+                using (var pen = new Pen(Line))
                 {
-                    var y = 1307 + i * 31;
-                    if (i >= top.Count)
-                    {
-                        g.DrawString((i + 1) + "   " + MayhemUiCopy.NoRanking, small, new SolidBrush(Color.FromArgb(105, 121, 149)), 834, y + 5);
-                        continue;
-                    }
-                    var item = top[i];
-                    g.DrawString(item.Rank.ToString(CultureInfo.InvariantCulture), font, new SolidBrush(i < 3 ? Gold : Muted), 834, y + 5);
-                    DrawSquareImage(g, images, item.IconUrl, new Rectangle(864, y, 26, 26), 6, FirstChar(item.Name));
-                    g.DrawString(Ellipsis(item.Name, 11), font, Brushes.White, 900, y + 4);
-                    var win = FormatPercent(item.WinRate);
-                    var width = g.MeasureString(win, font).Width;
-                    g.DrawString(win, font, new SolidBrush(Green), 1204 - width, y + 4);
+                    g.FillPath(fill, path);
+                    g.DrawPath(pen, path);
+                }
+                using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+                using (var body = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold, GraphicsUnit.Pixel))
+                {
+                    g.DrawString(route.Title, tiny, new SolidBrush(accents[index]), x + 9, y + 36);
+                    g.DrawString(FitText(g, route.AugmentName, body, routeWidth - 18), body, new SolidBrush(Text), x + 9, y + 52);
+                    g.DrawString(FitText(g, route.Hint, tiny, routeWidth - 18), tiny, new SolidBrush(Muted), x + 9, y + 70);
                 }
             }
         }
 
-        private static void DrawSkills(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images, int x, int y)
+        private static void DrawFooter(Graphics g, int height)
         {
-            var keys = new[] { "Q", "W", "E", "R" };
-            using (var font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
+            var y = height - FooterHeight - Outer;
+            using (var pen = new Pen(Line)) g.DrawLine(pen, Outer, y, CardWidth - Outer, y);
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                for (var i = 0; i < keys.Length; i++)
-                {
-                    string reference;
-                    result.SkillIconUrls.TryGetValue(keys[i], out reference);
-                    var rect = new Rectangle(x + i * 62, y, 44, 44);
-                    DrawSquareImage(g, images, reference, rect, 9, keys[i]);
-                    g.DrawString(keys[i], font, Brushes.White, rect.Right - 10, rect.Bottom - 13);
-                }
+                g.DrawString(MayhemUiCopy.FooterProduct, tiny, new SolidBrush(Muted), Outer, y + 14);
+                var width = g.MeasureString(MayhemUiCopy.FooterDisclaimer, tiny).Width;
+                g.DrawString(MayhemUiCopy.FooterDisclaimer, tiny, new SolidBrush(Muted), CardWidth - Outer - width, y + 14);
             }
         }
 
-        private static void DrawCompactItems(Graphics g, IList<string> names, IList<string> references, IDictionary<string, Bitmap> images, int x, int y)
+        private static void DrawMetric(Graphics g, Rectangle rect, string label, string value, Color accent)
         {
-            names = names ?? new List<string>();
-            references = references ?? new List<string>();
-            for (var i = 0; i < Math.Min(5, Math.Max(names.Count, references.Count)); i++)
-            {
-                var reference = i < references.Count ? references[i] : null;
-                var name = i < names.Count ? names[i] : string.Empty;
-                DrawSquareImage(g, images, reference, new Rectangle(x + i * 74, y, 52, 52), 10, FirstChar(name));
-            }
-            if (names.Count == 0 && references.Count == 0)
-            {
-                using (var font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
-                    g.DrawString(MayhemUiCopy.NoItems, font, new SolidBrush(Muted), x, y + 17);
-            }
-        }
-
-        private static string SourceLabel(MayhemChampionResult result)
-        {
-            if (result == null) return MayhemUiCopy.SourceEmpty;
-            var route = result.AugmentSourceRoute;
-            if (string.Equals(route, "fresh-cache", StringComparison.OrdinalIgnoreCase)) return MayhemUiCopy.SourceFreshCache;
-            if (string.Equals(route, "stale-cache", StringComparison.OrdinalIgnoreCase) || result.AugmentSourceStale) return MayhemUiCopy.SourceStaleCache;
-            return MayhemUiCopy.SourceOpgg;
-        }
-
-        private static void DrawFooter(Graphics g, MayhemChampionResult result)
-        {
-            using (var font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Pixel))
-            {
-                var source = MayhemUiCopy.FooterProduct;
-                if (!string.IsNullOrWhiteSpace(result.SourceNote)) source += " · " + Ellipsis(result.SourceNote, 48);
-                g.DrawString(source, font, new SolidBrush(Color.FromArgb(116, 136, 169)), 34, 1504);
-                var note = MayhemUiCopy.FooterDisclaimer;
-                var width = g.MeasureString(note, font).Width;
-                g.DrawString(note, font, new SolidBrush(Color.FromArgb(116, 136, 169)), CardWidth - 34 - width, 1504);
-            }
-        }
-
-        private static void DrawMetric(Graphics g, Rectangle rect, string title, string value, Color accent)
-        {
-            using (var path = RoundedRect(rect, 18))
-            using (var fill = new SolidBrush(Color.FromArgb(115, 12, 23, 39)))
-            using (var pen = new Pen(Color.FromArgb(95, accent.R, accent.G, accent.B)))
+            using (var path = RoundedRect(rect, 9))
+            using (var fill = new SolidBrush(PanelSoft))
+            using (var pen = new Pen(Line))
+            using (var tiny = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var metric = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
             {
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
-            }
-            using (var label = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var number = new Font("Segoe UI", 25F, FontStyle.Bold, GraphicsUnit.Pixel))
-            {
-                g.DrawString(title, label, new SolidBrush(Muted), rect.X + 16, rect.Y + 13);
-                g.DrawString(value, number, new SolidBrush(accent), rect.X + 16, rect.Y + 38);
+                g.DrawString(label, tiny, new SolidBrush(Muted), rect.X + 9, rect.Y + 4);
+                g.DrawString(FitText(g, value, metric, rect.Width - 18), metric, new SolidBrush(accent), rect.X + 9, rect.Y + 17);
             }
         }
 
-        private static void DrawBadge(Graphics g, string text, Point point, int width, Font font, Color color)
+        private static void DrawPanel(Graphics g, Rectangle rect, int radius)
         {
-            var rect = new Rectangle(point.X, point.Y, width, 30);
-            using (var path = RoundedRect(rect, 13))
-            using (var fill = new SolidBrush(Color.FromArgb(190, color)))
-            {
-                g.FillPath(fill, path);
-                var size = g.MeasureString(text, font);
-                g.DrawString(text, font, Brushes.White, rect.X + (width - size.Width) / 2F, rect.Y + 6);
-            }
-        }
-
-        private static void DrawPanel(Graphics g, Rectangle rect)
-        {
-            using (var path = RoundedRect(rect, 22))
-            using (var fill = new SolidBrush(Color.FromArgb(222, Panel)))
-            using (var pen = new Pen(Color.FromArgb(55, 132, 163, 211)))
+            using (var path = RoundedRect(rect, radius))
+            using (var fill = new SolidBrush(Panel))
+            using (var pen = new Pen(Line))
             {
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
             }
         }
 
-        private static void DrawSectionTitle(Graphics g, string text, int x, int y)
-        {
-            using (var font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
-                g.DrawString(text, font, Brushes.White, x, y);
-        }
-
-        private static void DrawSquareImage(Graphics g, IDictionary<string, Bitmap> images, string reference, Rectangle rect, int radius, string fallback)
+        private static void DrawSquareImage(
+            Graphics g,
+            IDictionary<string, Bitmap> images,
+            string reference,
+            Rectangle rect,
+            int radius,
+            string fallback,
+            Color border)
         {
             using (var path = RoundedRect(rect, radius))
             {
                 g.SetClip(path);
-                Bitmap image;
-                if (TryGet(images, reference, out image)) DrawImageCover(g, image, rect);
+                Bitmap bitmap;
+                if (!string.IsNullOrWhiteSpace(reference) && images.TryGetValue(reference, out bitmap) && bitmap != null)
+                {
+                    DrawImageCover(g, bitmap, rect);
+                }
                 else
                 {
-                    using (var fill = new LinearGradientBrush(rect, Color.FromArgb(52, 72, 112), Color.FromArgb(31, 45, 72), 90F))
+                    using (var fill = new LinearGradientBrush(rect, Color.FromArgb(43, 54, 78), Color.FromArgb(31, 42, 66), 90F))
                         g.FillRectangle(fill, rect);
                     if (!string.IsNullOrWhiteSpace(fallback))
                     {
-                        using (var font = new Font("Microsoft YaHei UI", Math.Max(11, rect.Width / 3F), FontStyle.Bold, GraphicsUnit.Pixel))
+                        using (var font = new Font("Microsoft YaHei UI", Math.Max(9F, rect.Width / 3.2F), FontStyle.Bold, GraphicsUnit.Pixel))
                         {
-                            var size = g.MeasureString(fallback, font);
-                            g.DrawString(fallback, font, new SolidBrush(Color.FromArgb(220, 232, 249)), rect.X + (rect.Width - size.Width) / 2F, rect.Y + (rect.Height - size.Height) / 2F);
+                            var text = fallback.Substring(0, 1);
+                            var size = g.MeasureString(text, font);
+                            g.DrawString(text, font, new SolidBrush(Muted), rect.X + (rect.Width - size.Width) / 2F, rect.Y + (rect.Height - size.Height) / 2F);
                         }
                     }
                 }
                 g.ResetClip();
-                using (var pen = new Pen(Color.FromArgb(65, 156, 183, 230))) g.DrawPath(pen, path);
+                using (var pen = new Pen(border)) g.DrawPath(pen, path);
             }
         }
 
@@ -479,12 +529,6 @@ namespace FACM.Mayhem
             var height = (int)Math.Ceiling(bitmap.Height * scale);
             var target = new Rectangle(rect.X + (rect.Width - width) / 2, rect.Y + (rect.Height - height) / 2, width, height);
             g.DrawImage(bitmap, target);
-        }
-
-        private static bool TryGet(IDictionary<string, Bitmap> images, string reference, out Bitmap bitmap)
-        {
-            bitmap = null;
-            return !string.IsNullOrWhiteSpace(reference) && images != null && images.TryGetValue(reference, out bitmap) && bitmap != null;
         }
 
         private static GraphicsPath RoundedRect(Rectangle rect, int radius)
@@ -503,70 +547,257 @@ namespace FACM.Mayhem
             return path;
         }
 
-        private static void DrawWrappedText(Graphics g, string text, Font font, Color color, RectangleF rect, int maxLines)
+        private static IList<AugmentGroup> BuildAugmentGroups(IList<MayhemAugmentRow> rows)
         {
-            if (string.IsNullOrWhiteSpace(text)) return;
-            var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length <= 1) words = text.Select(ch => ch.ToString()).ToArray();
-            var lines = new List<string>();
-            var current = string.Empty;
-            foreach (var word in words)
+            var prism = new AugmentGroup { Title = MayhemUiCopy.PrismSection, Kind = "prism", Accent = Purple };
+            var gold = new AugmentGroup { Title = MayhemUiCopy.GoldSection, Kind = "gold", Accent = Gold };
+            var silver = new AugmentGroup { Title = MayhemUiCopy.SilverSection, Kind = "silver", Accent = Silver };
+            var other = new AugmentGroup { Title = MayhemUiCopy.OtherSection, Kind = "other", Accent = Cyan };
+            foreach (var row in rows)
             {
-                var candidate = current.Length == 0 ? word : (words.Length == text.Length ? current + word : current + " " + word);
-                if (g.MeasureString(candidate, font).Width <= rect.Width || current.Length == 0)
+                switch (RarityKind(row.Rarity))
                 {
-                    current = candidate;
-                }
-                else
-                {
-                    lines.Add(current);
-                    current = word;
-                    if (lines.Count >= maxLines) break;
+                    case "prism": prism.Items.Add(row); break;
+                    case "gold": gold.Items.Add(row); break;
+                    case "silver": silver.Items.Add(row); break;
+                    default: other.Items.Add(row); break;
                 }
             }
-            if (lines.Count < maxLines && current.Length > 0) lines.Add(current);
-            if (lines.Count > maxLines) lines = lines.Take(maxLines).ToList();
-            using (var brush = new SolidBrush(color))
+            return new[] { prism, gold, silver, other }.Where(group => group.Items.Count > 0).ToList();
+        }
+
+        private static string RarityKind(string rarity)
+        {
+            var value = (rarity ?? string.Empty).Trim().ToLowerInvariant();
+            if (value.Contains("prism") || value.Contains("棱") || value == MayhemUiCopy.Prism.ToLowerInvariant()) return "prism";
+            if (value.Contains("gold") || value.Contains("黄金") || value == "金") return "gold";
+            if (value.Contains("silver") || value.Contains("白银") || value == "银") return "silver";
+            return "other";
+        }
+
+        private static List<MayhemDecisionRoute> BuildDecisionRoutes(IList<MayhemAugmentRow> rows)
+        {
+            var candidates = rows.Where(row => row.WinRate.HasValue || row.PickRate.HasValue).ToList();
+            var routes = new List<MayhemDecisionRoute>();
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            TakeRoute(routes, used, candidates.OrderByDescending(row => (row.WinRate ?? 0) * 0.72 + (row.PickRate ?? 0) * 0.28), MayhemUiCopy.StableRoute, MayhemUiCopy.StableShortHint);
+            TakeRoute(routes, used, candidates.OrderByDescending(row => row.WinRate ?? -1), MayhemUiCopy.HighWinRoute, MayhemUiCopy.HighWinShortHint);
+            TakeRoute(routes, used, candidates.OrderByDescending(row => row.PickRate ?? -1), MayhemUiCopy.PopularRoute, MayhemUiCopy.PopularShortHint);
+            return routes;
+        }
+
+        private static void TakeRoute(
+            List<MayhemDecisionRoute> routes,
+            HashSet<string> used,
+            IEnumerable<MayhemAugmentRow> ordered,
+            string title,
+            string hint)
+        {
+            foreach (var row in ordered)
             {
-                var lineHeight = font.GetHeight(g) + 1;
-                for (var i = 0; i < lines.Count; i++)
-                    g.DrawString(EllipsisByWidth(g, lines[i], font, rect.Width), font, brush, rect.X, rect.Y + i * lineHeight);
+                if (string.IsNullOrWhiteSpace(row.Name) || !used.Add(row.Name)) continue;
+                routes.Add(new MayhemDecisionRoute { Title = title, AugmentName = row.Name, Hint = hint });
+                return;
             }
         }
 
-        private static string EllipsisByWidth(Graphics g, string value, Font font, float width)
+        private static int CalculateSectionsHeight(IList<AugmentGroup> groups)
         {
-            if (string.IsNullOrEmpty(value) || g.MeasureString(value, font).Width <= width) return value;
-            var text = value;
-            while (text.Length > 1 && g.MeasureString(text + "…", font).Width > width) text = text.Substring(0, text.Length - 1);
-            return text + "…";
+            if (groups.Count == 0) return 72;
+            var total = 0;
+            foreach (var group in groups)
+            {
+                var rows = (group.Items.Count + 1) / 2;
+                total += SectionHeaderHeight + rows * AugmentCardHeight + Math.Max(0, rows - 1) * AugmentCardGap + 8;
+                total += Gap;
+            }
+            return total - Gap;
+        }
+
+        private static void EnsureRenderProjection(MayhemChampionResult result)
+        {
+            if (result.CoreBuilds.Count == 0 && result.CoreItems.Count > 0)
+            {
+                var path = new MayhemBuildPath { Rank = 1 };
+                for (var index = 0; index < result.CoreItems.Count && index < 5; index++)
+                {
+                    path.Items.Add(new MayhemBuildItem
+                    {
+                        Name = result.CoreItems[index],
+                        IconUrl = index < result.CoreItemIconUrls.Count ? result.CoreItemIconUrls[index] : null
+                    });
+                }
+                result.CoreBuilds.Add(path);
+            }
+        }
+
+        private static List<MayhemSkillPriority> GetSkillPriority(MayhemChampionResult result)
+        {
+            var output = (result.SkillPriority ?? new List<MayhemSkillPriority>())
+                .Where(skill => skill != null && !string.IsNullOrWhiteSpace(skill.Key) && !string.Equals(skill.Key, "R", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(skill => skill.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .Take(3)
+                .ToList();
+            if (output.Count >= 3 || string.IsNullOrWhiteSpace(result.SkillOrder)) return output;
+
+            var seen = new HashSet<string>(output.Select(skill => skill.Key), StringComparer.OrdinalIgnoreCase);
+            foreach (var character in result.SkillOrder.ToUpperInvariant())
+            {
+                var key = character.ToString();
+                if ((key != "Q" && key != "W" && key != "E") || !seen.Add(key)) continue;
+                string icon;
+                result.SkillIconUrls.TryGetValue(key, out icon);
+                output.Add(new MayhemSkillPriority { Key = key, Name = key, IconUrl = icon });
+                if (output.Count >= 3) break;
+            }
+            return output;
+        }
+
+        private static string BalanceStatus(string patch, bool verified, string status)
+        {
+            var patchText = string.IsNullOrWhiteSpace(patch) ? "—" : MayhemUiCopy.PatchPrefix + patch;
+            var state = verified || string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase)
+                ? MayhemUiCopy.Verified
+                : MayhemUiCopy.Syncing;
+            return patchText + " · " + state;
+        }
+
+        private static string BuildStatus(MayhemChampionResult result)
+        {
+            var has = result.CoreBuilds.Count > 0 || result.StarterItems.Count > 0 || result.BootItems.Count > 0 || result.SummonerSpells.Count > 0;
+            if (!has) return MayhemUiCopy.BuildMissing;
+            if (result.BuildSourceStale || string.Equals(result.BuildSourceRoute, "stale-cache", StringComparison.OrdinalIgnoreCase)) return MayhemUiCopy.BuildCache;
+            return MayhemUiCopy.BuildLive;
         }
 
         private static string FormatPercent(double? value)
         {
-            return value.HasValue ? value.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "—";
+            return value.HasValue ? value.Value.ToString("0.##") + "%" : "—";
         }
 
         private static string FormatGames(int value)
         {
-            return value >= 10000 ? (value / 10000d).ToString("0.#", CultureInfo.InvariantCulture) + MayhemUiCopy.TenThousand : value.ToString("N0", CultureInfo.InvariantCulture);
+            if (value >= 10000) return (value / 10000D).ToString("0.#") + MayhemUiCopy.TenThousand;
+            return value.ToString();
+        }
+
+        private static string FitText(Graphics g, string value, Font font, float maxWidth)
+        {
+            var text = value ?? string.Empty;
+            if (maxWidth <= 8 || g.MeasureString(text, font).Width <= maxWidth) return text;
+            const string suffix = "...";
+            while (text.Length > 1 && g.MeasureString(text + suffix, font).Width > maxWidth)
+                text = text.Substring(0, text.Length - 1);
+            return text + suffix;
         }
 
         private static string FirstChar(string value)
         {
-            return string.IsNullOrWhiteSpace(value) ? "?" : value.Trim().Substring(0, 1).ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Substring(0, 1);
         }
 
         private static string FirstNonEmpty(params string[] values)
         {
-            return values == null ? string.Empty : values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+            return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
         }
 
-        private static string Ellipsis(string value, int max)
+        private static IEnumerable<string> CollectSeedReferences(MayhemChampionResult result)
         {
-            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
-            value = value.Trim();
-            return value.Length <= max ? value : value.Substring(0, Math.Max(1, max - 1)) + "…";
+            var values = new List<string>();
+            AddReference(values, result.ChampionIconUrl);
+            foreach (var row in (result.AugmentRows ?? new List<MayhemAugmentRow>()).Take(10)) AddReference(values, row == null ? null : row.IconUrl);
+            foreach (var pair in result.SkillIconUrls) AddReference(values, pair.Value);
+            return values.Distinct(StringComparer.OrdinalIgnoreCase).Take(28).ToList();
+        }
+
+        private static IEnumerable<string> CollectBuildReferences(MayhemChampionResult result)
+        {
+            var values = new List<string>();
+            foreach (var build in (result.CoreBuilds ?? new List<MayhemBuildPath>()).Take(2))
+                foreach (var item in build.Items.Take(5)) AddReference(values, item.IconUrl);
+            foreach (var item in (result.StarterItems ?? new List<MayhemBuildItem>()).Take(3)) AddReference(values, item.IconUrl);
+            foreach (var item in (result.BootItems ?? new List<MayhemBuildItem>()).Take(1)) AddReference(values, item.IconUrl);
+            foreach (var item in (result.SummonerSpells ?? new List<MayhemBuildItem>()).Take(2)) AddReference(values, item.IconUrl);
+            foreach (var skill in GetSkillPriority(result)) AddReference(values, skill.IconUrl);
+            return values.Distinct(StringComparer.OrdinalIgnoreCase).Take(18).ToList();
+        }
+
+        private static void AddReference(ICollection<string> values, string reference)
+        {
+            if (!string.IsNullOrWhiteSpace(reference)) values.Add(reference);
+        }
+
+        private static async Task<Dictionary<string, Bitmap>> LoadReferencesAsync(
+            IEnumerable<string> references,
+            ILeagueClientApi leagueClient,
+            CancellationToken token,
+            TimeSpan budget)
+        {
+            var values = references == null
+                ? new List<string>()
+                : references.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var output = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
+            if (values.Count == 0) return output;
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(budget);
+                var tasks = values.Select(reference => LoadOneAsync(reference, leagueClient, timeout.Token, token)).ToArray();
+                var loaded = await Task.WhenAll(tasks).ConfigureAwait(false);
+                foreach (var item in loaded)
+                {
+                    if (item == null || item.Bitmap == null || string.IsNullOrWhiteSpace(item.Reference)) continue;
+                    if (output.ContainsKey(item.Reference)) item.Dispose();
+                    else output[item.Reference] = item.Bitmap;
+                }
+            }
+            return output;
+        }
+
+        private static async Task<LoadedImage> LoadOneAsync(
+            string reference,
+            ILeagueClientApi leagueClient,
+            CancellationToken budgetToken,
+            CancellationToken userToken)
+        {
+            try
+            {
+                var bitmap = await MayhemImageCache.GetAsync(reference, leagueClient, budgetToken).ConfigureAwait(false);
+                return new LoadedImage { Reference = reference, Bitmap = bitmap };
+            }
+            catch (OperationCanceledException)
+            {
+                if (userToken.IsCancellationRequested) throw;
+                return new LoadedImage { Reference = reference };
+            }
+            catch
+            {
+                return new LoadedImage { Reference = reference };
+            }
+        }
+
+        private static Dictionary<string, Bitmap> MergeImages(
+            IDictionary<string, Bitmap> first,
+            IDictionary<string, Bitmap> second)
+        {
+            var output = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
+            if (first != null)
+            {
+                foreach (var pair in first)
+                    if (pair.Value != null) output[pair.Key] = pair.Value;
+            }
+            if (second != null)
+            {
+                foreach (var pair in second)
+                {
+                    if (pair.Value == null) continue;
+                    Bitmap existing;
+                    if (output.TryGetValue(pair.Key, out existing)) pair.Value.Dispose();
+                    else output[pair.Key] = pair.Value;
+                }
+            }
+            return output;
         }
     }
 }
