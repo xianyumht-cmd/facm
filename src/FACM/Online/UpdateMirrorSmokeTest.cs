@@ -21,6 +21,8 @@ namespace FACM.Online
 
         private static void Validate()
         {
+            UpdateInstaller.ValidateEmbeddedUpdaterForSmokeTest();
+
             var builtIns = UpdateMirrorRouter.GetBuiltInSources();
             var mirrorCount = builtIns.Count(item =>
                 !string.Equals(item.Name, "github", StringComparison.OrdinalIgnoreCase) &&
