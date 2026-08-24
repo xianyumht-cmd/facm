@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -14,6 +16,17 @@ namespace FACM.Online
     internal static class UpdateInstaller
     {
         private const long MaximumUpdateBytes = 512L * 1024L * 1024L;
+        private const string UpdaterResourceName = "FACM.Resources.FACM.Updater.exe";
+        private const string UpdaterFileName = "FACM.Updater.exe";
+        private static readonly object ReceiptSync = new object();
+        private static readonly Dictionary<string, ValidatedUpdateReceipt> ValidatedPackages =
+            new Dictionary<string, ValidatedUpdateReceipt>(StringComparer.OrdinalIgnoreCase);
+
+        private sealed class ValidatedUpdateReceipt
+        {
+            public string Version;
+            public string Sha256;
+        }
 
         public static async Task<string> DownloadAsync(
             UpdateManifest manifest,
@@ -46,17 +59,11 @@ namespace FACM.Online
                     var stopwatch = Stopwatch.StartNew();
                     try
                     {
-                        await DownloadCandidateAsync(
-                            candidate.Url,
-                            temporary,
-                            progress,
-                            cancellationToken).ConfigureAwait(false);
+                        await DownloadCandidateAsync(candidate.Url, temporary, progress, cancellationToken).ConfigureAwait(false);
 
                         var actualHash = ComputeSha256(temporary);
                         if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
-                        {
                             throw new InvalidDataException("更新文件 SHA-256 校验失败。");
-                        }
 
                         SignatureInspector.ValidateUpdatePackage(temporary, manifest.Version);
                         stopwatch.Stop();
@@ -65,6 +72,7 @@ namespace FACM.Online
 
                         if (File.Exists(destination)) File.Delete(destination);
                         File.Move(temporary, destination);
+                        RememberValidatedPackage(destination, manifest.Version, manifest.Sha256);
                         if (progress != null) progress.Report(100);
                         AppLog.Info("Update package downloaded and verified: " + Path.GetFileName(destination));
                         return destination;
@@ -78,16 +86,12 @@ namespace FACM.Online
                         stopwatch.Stop();
                         lastFailure = exception;
                         UpdateMirrorRouter.RecordFailure(candidate.SourceName, stopwatch.ElapsedMilliseconds);
-                        AppLog.Info(
-                            "Update source failed: " + candidate.SourceName + "; " +
-                            exception.GetType().Name);
+                        AppLog.Info("Update source failed: " + candidate.SourceName + "; " + exception.GetType().Name);
                         TryDelete(temporary);
                     }
                 }
 
-                throw new IOException(
-                    "所有更新线路均不可用或文件校验未通过，请稍后重试。",
-                    lastFailure);
+                throw new IOException("所有更新线路均不可用或文件校验未通过，请稍后重试。", lastFailure);
             }
             finally
             {
@@ -115,35 +119,21 @@ namespace FACM.Online
                 HttpResponseMessage response = null;
                 try
                 {
-                    response = await client.GetAsync(
-                        url,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        headerTimeout.Token).ConfigureAwait(false);
+                    response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, headerTimeout.Token).ConfigureAwait(false);
                     response.EnsureSuccessStatusCode();
 
                     var total = response.Content.Headers.ContentLength;
                     if (total.HasValue && total.Value > MaximumUpdateBytes)
-                    {
                         throw new InvalidDataException("更新文件大小异常。");
-                    }
 
                     using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    using (var output = new FileStream(
-                        temporary,
-                        FileMode.Create,
-                        FileAccess.Write,
-                        FileShare.None,
-                        81920,
-                        true))
+                    using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                     {
                         var buffer = new byte[81920];
                         long received = 0;
                         while (true)
                         {
-                            var read = await ReadWithInactivityTimeoutAsync(
-                                input,
-                                buffer,
-                                cancellationToken).ConfigureAwait(false);
+                            var read = await ReadWithInactivityTimeoutAsync(input, buffer, cancellationToken).ConfigureAwait(false);
                             if (read <= 0) break;
 
                             received += read;
@@ -152,9 +142,7 @@ namespace FACM.Online
 
                             await output.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
                             if (total.HasValue && total.Value > 0 && progress != null)
-                            {
                                 progress.Report((int)Math.Min(99, received * 100L / total.Value));
-                            }
                         }
                     }
                 }
@@ -179,11 +167,7 @@ namespace FACM.Online
                 readTimeout.CancelAfter(TimeSpan.FromSeconds(20));
                 try
                 {
-                    return await input.ReadAsync(
-                        buffer,
-                        0,
-                        buffer.Length,
-                        readTimeout.Token).ConfigureAwait(false);
+                    return await input.ReadAsync(buffer, 0, buffer.Length, readTimeout.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -195,37 +179,136 @@ namespace FACM.Online
         public static void StartReplacement(string downloadedExecutable)
         {
             if (string.IsNullOrWhiteSpace(downloadedExecutable) || !File.Exists(downloadedExecutable))
-            {
                 throw new FileNotFoundException("已下载的更新文件不存在。", downloadedExecutable);
-            }
+
+            var receipt = TakeValidatedPackage(downloadedExecutable);
+            if (receipt == null)
+                throw new InvalidDataException("更新包缺少本次下载校验凭据，已停止安装。");
+
+            var actualHash = ComputeSha256(downloadedExecutable);
+            if (!string.Equals(actualHash, receipt.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("更新文件在安装前发生变化，已停止替换。");
+            SignatureInspector.ValidateUpdatePackage(downloadedExecutable, receipt.Version);
 
             RuntimePaths.Initialize();
-            var currentExecutable = Process.GetCurrentProcess().MainModule.FileName;
-            var directory = RuntimePaths.UpdatesDirectory;
-            Directory.CreateDirectory(directory);
-
-            var scriptPath = Path.Combine(directory, "apply-" + Guid.NewGuid().ToString("N") + ".ps1");
-            var script = new StringBuilder();
-            script.AppendLine("$ErrorActionPreference = 'Stop'");
-            script.AppendLine("$processId = " + Process.GetCurrentProcess().Id);
-            script.AppendLine("$source = '" + EscapePowerShellLiteral(downloadedExecutable) + "'");
-            script.AppendLine("$destination = '" + EscapePowerShellLiteral(currentExecutable) + "'");
-            script.AppendLine("try { Wait-Process -Id $processId -Timeout 120 -ErrorAction SilentlyContinue } catch { }");
-            script.AppendLine("Copy-Item -LiteralPath $source -Destination $destination -Force");
-            script.AppendLine("Start-Process -FilePath $destination");
-            script.AppendLine("Remove-Item -LiteralPath $source -Force -ErrorAction SilentlyContinue");
-            script.AppendLine("Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue");
-            File.WriteAllText(scriptPath, script.ToString(), new UTF8Encoding(true));
+            var updaterPath = ExtractEmbeddedUpdater();
+            var currentProcess = Process.GetCurrentProcess();
+            var currentExecutable = currentProcess.MainModule.FileName;
+            var arguments = BuildUpdaterArguments(currentProcess.Id, downloadedExecutable, currentExecutable, receipt.Sha256);
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = "powershell.exe",
-                Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + scriptPath + "\"",
-                WorkingDirectory = directory,
+                FileName = updaterPath,
+                Arguments = arguments,
+                WorkingDirectory = RuntimePaths.UpdatesDirectory,
                 UseShellExecute = true,
-                Verb = "runas"
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
             });
-            AppLog.Info("Update replacement process started");
+            AppLog.Info("Update replacement process started; mode=embedded-winexe-updater; console=false");
+        }
+
+        internal static void ValidateEmbeddedUpdaterForSmokeTest()
+        {
+            var bytes = ReadEmbeddedUpdaterBytes();
+            if (bytes.Length < 1024) throw new InvalidDataException("Embedded updater is unexpectedly small.");
+            if (bytes[0] != (byte)'M' || bytes[1] != (byte)'Z')
+                throw new InvalidDataException("Embedded updater is not a PE executable.");
+
+            var root = Path.Combine(Path.GetTempPath(), "FACM-updater-smoke-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var path = Path.Combine(root, UpdaterFileName);
+                File.WriteAllBytes(path, bytes);
+                if (!string.Equals(ComputeSha256(path), ComputeSha256(bytes), StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Embedded updater extraction changed its bytes.");
+            }
+            finally
+            {
+                try { Directory.Delete(root, true); } catch { }
+            }
+        }
+
+        private static void RememberValidatedPackage(string path, string version, string sha256)
+        {
+            var fullPath = Path.GetFullPath(path);
+            lock (ReceiptSync)
+            {
+                ValidatedPackages[fullPath] = new ValidatedUpdateReceipt
+                {
+                    Version = version,
+                    Sha256 = sha256
+                };
+            }
+        }
+
+        private static ValidatedUpdateReceipt TakeValidatedPackage(string path)
+        {
+            var fullPath = Path.GetFullPath(path);
+            lock (ReceiptSync)
+            {
+                ValidatedUpdateReceipt receipt;
+                if (!ValidatedPackages.TryGetValue(fullPath, out receipt)) return null;
+                ValidatedPackages.Remove(fullPath);
+                return receipt;
+            }
+        }
+
+        private static string ExtractEmbeddedUpdater()
+        {
+            var bytes = ReadEmbeddedUpdaterBytes();
+            var destination = Path.Combine(RuntimePaths.UpdatesDirectory, UpdaterFileName);
+            var expectedHash = ComputeSha256(bytes);
+
+            if (File.Exists(destination))
+            {
+                try
+                {
+                    if (string.Equals(ComputeSha256(destination), expectedHash, StringComparison.OrdinalIgnoreCase))
+                        return destination;
+                }
+                catch { }
+            }
+
+            var temporary = destination + ".new";
+            TryDelete(temporary);
+            File.WriteAllBytes(temporary, bytes);
+            if (!string.Equals(ComputeSha256(temporary), expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                TryDelete(temporary);
+                throw new InvalidDataException("内置更新器提取校验失败。");
+            }
+
+            TryDelete(destination);
+            File.Move(temporary, destination);
+            return destination;
+        }
+
+        private static byte[] ReadEmbeddedUpdaterBytes()
+        {
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(UpdaterResourceName))
+            {
+                if (stream == null) throw new InvalidDataException("FACM 内置更新器资源缺失。");
+                using (var memory = new MemoryStream())
+                {
+                    stream.CopyTo(memory);
+                    return memory.ToArray();
+                }
+            }
+        }
+
+        private static string BuildUpdaterArguments(int parentPid, string source, string destination, string expectedHash)
+        {
+            return "--parent-pid=" + parentPid +
+                   " --source64=\"" + EncodePath(source) + "\"" +
+                   " --dest64=\"" + EncodePath(destination) + "\"" +
+                   " --sha256=" + expectedHash.ToUpperInvariant();
+        }
+
+        private static string EncodePath(string value)
+        {
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(Path.GetFullPath(value)));
         }
 
         private static void ValidateManifest(UpdateManifest manifest)
@@ -236,16 +319,10 @@ namespace FACM.Online
             if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
                 !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
-            {
                 throw new InvalidDataException("更新源地址必须指向 GitHub 的有效 HTTPS 发布文件。");
-            }
 
-            if (string.IsNullOrWhiteSpace(manifest.Sha256) ||
-                manifest.Sha256.Length != 64 ||
-                !IsHex(manifest.Sha256))
-            {
+            if (string.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64 || !IsHex(manifest.Sha256))
                 throw new InvalidDataException("更新清单缺少有效的 SHA-256。");
-            }
         }
 
         private static bool IsHex(string value)
@@ -269,18 +346,19 @@ namespace FACM.Online
             }
         }
 
+        private static string ComputeSha256(byte[] bytes)
+        {
+            using (var algorithm = SHA256.Create())
+            {
+                return BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", string.Empty);
+            }
+        }
+
         private static string SanitizeFileName(string value)
         {
             foreach (var character in Path.GetInvalidFileNameChars())
-            {
                 value = value.Replace(character, '_');
-            }
             return value;
-        }
-
-        private static string EscapePowerShellLiteral(string value)
-        {
-            return value.Replace("'", "''");
         }
 
         private static void TryDelete(string path)
@@ -289,9 +367,7 @@ namespace FACM.Online
             {
                 if (File.Exists(path)) File.Delete(path);
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 }
