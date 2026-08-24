@@ -14,16 +14,24 @@ namespace FACM.Mayhem
     internal static class MayhemCardRenderer
     {
         public const int CardWidth = 1260;
-        public const int CardHeight = 980;
+        public const int CardHeight = 1540;
+
+        private static readonly Color BackgroundA = Color.FromArgb(7, 12, 23);
+        private static readonly Color BackgroundB = Color.FromArgb(17, 27, 46);
+        private static readonly Color Panel = Color.FromArgb(18, 29, 48);
+        private static readonly Color PanelSoft = Color.FromArgb(22, 36, 59);
+        private static readonly Color Text = Color.FromArgb(241, 246, 255);
+        private static readonly Color Muted = Color.FromArgb(151, 171, 205);
+        private static readonly Color Blue = Color.FromArgb(88, 137, 255);
+        private static readonly Color Green = Color.FromArgb(91, 210, 170);
+        private static readonly Color Gold = Color.FromArgb(237, 187, 81);
+        private static readonly Color Purple = Color.FromArgb(176, 115, 255);
 
         private sealed class LoadedImage : IDisposable
         {
             public string Reference { get; set; }
             public Bitmap Bitmap { get; set; }
-            public void Dispose()
-            {
-                if (Bitmap != null) Bitmap.Dispose();
-            }
+            public void Dispose() { if (Bitmap != null) Bitmap.Dispose(); }
         }
 
         public static async Task<Bitmap> RenderAsync(
@@ -49,7 +57,7 @@ namespace FACM.Mayhem
 
         public static Bitmap RenderForSmokeTest(MayhemChampionResult result)
         {
-            return Render(result, new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase));
+            return Render(result ?? new MayhemChampionResult(), new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase));
         }
 
         private static async Task<List<LoadedImage>> LoadImagesAsync(
@@ -63,21 +71,19 @@ namespace FACM.Mayhem
             foreach (var pair in result.SkillIconUrls) AddReference(references, pair.Value);
             foreach (var value in result.CoreItemIconUrls) AddReference(references, value);
             foreach (var value in result.AugmentIconUrls) AddReference(references, value);
-            foreach (var top in result.TopTen) AddReference(references, top.IconUrl);
+            foreach (var row in result.AugmentRows ?? new List<MayhemAugmentRow>()) AddReference(references, row == null ? null : row.IconUrl);
+            foreach (var top in result.TopTen ?? new List<MayhemTopChampion>()) AddReference(references, top == null ? null : top.IconUrl);
 
             var distinct = references.Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(32)
+                .Take(48)
                 .ToArray();
             var tasks = distinct.Select(reference => LoadOneAsync(reference, leagueClient, token)).ToArray();
             var images = await Task.WhenAll(tasks).ConfigureAwait(false);
             return images.ToList();
         }
 
-        private static async Task<LoadedImage> LoadOneAsync(
-            string reference,
-            ILeagueClientApi leagueClient,
-            CancellationToken token)
+        private static async Task<LoadedImage> LoadOneAsync(string reference, ILeagueClientApi leagueClient, CancellationToken token)
         {
             try
             {
@@ -87,17 +93,11 @@ namespace FACM.Mayhem
                     Bitmap = await MayhemImageCache.GetAsync(reference, leagueClient, token).ConfigureAwait(false)
                 };
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-                return new LoadedImage { Reference = reference };
-            }
+            catch (OperationCanceledException) { throw; }
+            catch { return new LoadedImage { Reference = reference }; }
         }
 
-        private static void AddReference(List<string> list, string value)
+        private static void AddReference(ICollection<string> list, string value)
         {
             if (!string.IsNullOrWhiteSpace(value)) list.Add(value);
         }
@@ -105,139 +105,236 @@ namespace FACM.Mayhem
         private static Bitmap Render(MayhemChampionResult result, IDictionary<string, Bitmap> images)
         {
             var bitmap = new Bitmap(CardWidth, CardHeight, PixelFormat.Format32bppArgb);
-            using (var graphics = Graphics.FromImage(bitmap))
+            using (var g = Graphics.FromImage(bitmap))
             {
-                graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                DrawBackground(graphics);
-                DrawHero(graphics, result, images);
-                DrawBuildSection(graphics, result, images);
-                DrawRankingSection(graphics, result, images);
-                DrawFooter(graphics, result);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                DrawBackground(g);
+                DrawHero(g, result, images);
+                DrawDecisionRoutes(g, result);
+                DrawAugmentBoard(g, result, images);
+                DrawCompactBuild(g, result, images);
+                DrawTopRanking(g, result, images);
+                DrawFooter(g, result);
             }
             return bitmap;
         }
 
         private static void DrawBackground(Graphics g)
         {
-            using (var brush = new LinearGradientBrush(new Rectangle(0, 0, CardWidth, CardHeight),
-                Color.FromArgb(8, 14, 26), Color.FromArgb(20, 29, 48), 90F))
+            using (var brush = new LinearGradientBrush(new Rectangle(0, 0, CardWidth, CardHeight), BackgroundA, BackgroundB, 90F))
                 g.FillRectangle(brush, 0, 0, CardWidth, CardHeight);
-
-            using (var glow = new GraphicsPath())
+            using (var glow = new SolidBrush(Color.FromArgb(24, 77, 111, 255)))
             {
-                glow.AddEllipse(-180, -260, 780, 640);
-                using (var brush = new PathGradientBrush(glow))
-                {
-                    brush.CenterColor = Color.FromArgb(90, 56, 116, 255);
-                    brush.SurroundColors = new[] { Color.FromArgb(0, 56, 116, 255) };
-                    g.FillPath(brush, glow);
-                }
+                g.FillEllipse(glow, -160, -210, 620, 500);
+                g.FillEllipse(glow, 920, -180, 520, 430);
             }
         }
 
         private static void DrawHero(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
         {
-            var hero = new Rectangle(32, 30, 1196, 292);
-            using (var path = RoundedRect(hero, 28))
+            var hero = new Rectangle(30, 28, 1200, 250);
+            using (var path = RoundedRect(hero, 26))
             {
                 g.SetClip(path);
                 Bitmap splash;
-                if (TryGet(images, result.ChampionSplashUrl, out splash))
-                    DrawImageCover(g, splash, hero);
+                if (TryGet(images, result.ChampionSplashUrl, out splash)) DrawImageCover(g, splash, hero);
                 else
                 {
-                    using (var fallback = new LinearGradientBrush(hero, Color.FromArgb(37, 64, 108), Color.FromArgb(16, 27, 47), 0F))
-                        g.FillRectangle(fallback, hero);
+                    using (var fill = new LinearGradientBrush(hero, Color.FromArgb(36, 64, 110), Color.FromArgb(15, 25, 43), 0F))
+                        g.FillRectangle(fill, hero);
                 }
-                using (var overlay = new LinearGradientBrush(hero, Color.FromArgb(230, 7, 12, 24), Color.FromArgb(55, 7, 12, 24), 0F))
+                using (var overlay = new LinearGradientBrush(hero, Color.FromArgb(238, 6, 12, 24), Color.FromArgb(84, 6, 12, 24), 0F))
                     g.FillRectangle(overlay, hero);
                 g.ResetClip();
-                using (var pen = new Pen(Color.FromArgb(70, 124, 168, 255), 1F)) g.DrawPath(pen, path);
+                using (var pen = new Pen(Color.FromArgb(80, 119, 165, 255))) g.DrawPath(pen, path);
             }
 
-            var iconRect = new Rectangle(64, 74, 154, 154);
-            DrawSquareImage(g, images, result.ChampionIconUrl, iconRect, 24, FirstChar(result.ChampionName));
-
-            using (var titleFont = new Font("Microsoft YaHei UI", 27F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var subFont = new Font("Microsoft YaHei UI", 15F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var badgeFont = new Font("Microsoft YaHei UI", 16F, FontStyle.Bold, GraphicsUnit.Pixel))
+            DrawSquareImage(g, images, result.ChampionIconUrl, new Rectangle(58, 66, 138, 138), 24, FirstChar(result.ChampionName));
+            using (var title = new Font("Microsoft YaHei UI", 30F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var subtitle = new Font("Microsoft YaHei UI", 15F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var badge = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
             {
-                g.DrawString(string.IsNullOrWhiteSpace(result.ChampionName) ? "未知英雄" : result.ChampionName, titleFont, Brushes.White, 246, 79);
-                g.DrawString("海斗排行榜 · 当前版本攻略卡", subFont, new SolidBrush(Color.FromArgb(193, 207, 233)), 248, 124);
-
-                var patch = FirstNonEmpty(result.RankingPatch, result.Patch, "当前版本");
-                DrawBadge(g, "版本 " + patch, new Point(246, 164), 112, badgeFont, Color.FromArgb(52, 98, 174));
-                DrawBadge(g, result.TierOr("暂无梯队"), new Point(368, 164), 102, badgeFont, Color.FromArgb(89, 70, 155));
-                DrawBadge(g, result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行 —", new Point(480, 164), 112, badgeFont, Color.FromArgb(42, 126, 119));
+                g.DrawString(FirstNonEmpty(result.ChampionName, "等待查询"), title, Brushes.White, 226, 60);
+                g.DrawString("海克斯大乱斗 · 强化决策攻略", subtitle, new SolidBrush(Color.FromArgb(197, 211, 236)), 228, 105);
+                DrawBadge(g, "版本 " + FirstNonEmpty(result.RankingPatch, result.Patch, "—"), new Point(226, 144), 126, badge, Color.FromArgb(51, 93, 166));
+                DrawBadge(g, FirstNonEmpty(result.Tier, "暂无梯队"), new Point(362, 144), 108, badge, Color.FromArgb(92, 66, 151));
+                DrawBadge(g, result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行 —", new Point(480, 144), 112, badge, Color.FromArgb(35, 119, 111));
             }
 
-            DrawMetric(g, new Rectangle(720, 76, 218, 112), "胜率", FormatPercent(result.WinRate), Color.FromArgb(56, 169, 139));
-            DrawMetric(g, new Rectangle(956, 76, 218, 112), "选用率", FormatPercent(result.PickRate), Color.FromArgb(85, 119, 224));
+            DrawMetric(g, new Rectangle(750, 60, 202, 92), "英雄胜率", FormatPercent(result.WinRate), Green);
+            DrawMetric(g, new Rectangle(972, 60, 202, 92), "选用率", FormatPercent(result.PickRate), Blue);
 
-            using (var sectionFont = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var textFont = new Font("Microsoft YaHei UI", 14F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var label = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var body = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                g.DrawString("当前平衡调整", sectionFont, new SolidBrush(Color.FromArgb(177, 197, 232)), 246, 222);
-                var balance = string.IsNullOrWhiteSpace(result.BalanceSummary) ? "暂无额外平衡调整" : result.BalanceSummary;
-                DrawWrappedText(g, balance, textFont, Color.White, new RectangleF(246, 248, 900, 54), 2);
+                g.DrawString("当前平衡", label, new SolidBrush(Muted), 228, 196);
+                DrawWrappedText(g, FirstNonEmpty(result.BalanceSummary, "暂无额外平衡调整"), body, Text, new RectangleF(228, 218, 930, 42), 2);
             }
         }
 
-        private static void DrawBuildSection(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        private static void DrawDecisionRoutes(Graphics g, MayhemChampionResult result)
         {
-            var left = new Rectangle(32, 342, 760, 530);
-            DrawPanel(g, left);
-            DrawSectionTitle(g, "推荐玩法", 58, 366);
+            var panel = new Rectangle(30, 298, 1200, 172);
+            DrawPanel(g, panel);
+            DrawSectionTitle(g, "这一局怎么选", 56, 318);
+            using (var note = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
+                g.DrawString("根据单强化胜率与选择率给出方向，不代表三强化组合胜率。", note, new SolidBrush(Muted), 218, 323);
 
-            using (var labelFont = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var bodyFont = new Font("Microsoft YaHei UI", 14F, FontStyle.Regular, GraphicsUnit.Pixel))
+            var routes = (result.AugmentRoutes ?? new List<MayhemDecisionRoute>()).Take(3).ToList();
+            var fallbackTitles = new[] { "稳健首选", "高胜上限", "热门容错" };
+            for (var i = 0; i < 3; i++)
             {
-                g.DrawString("技能加点", labelFont, new SolidBrush(Color.FromArgb(151, 177, 221)), 58, 408);
-                DrawSkills(g, result, images, 58, 438);
-                var order = string.IsNullOrWhiteSpace(result.SkillOrder) ? "暂无加点顺序" : result.SkillOrder;
-                DrawWrappedText(g, order, bodyFont, Color.White, new RectangleF(58, 508, 690, 46), 2);
-
-                g.DrawString("核心装备", labelFont, new SolidBrush(Color.FromArgb(151, 177, 221)), 58, 574);
-                DrawIconList(g, result.CoreItems, result.CoreItemIconUrls, images, 58, 606, 5);
-
-                g.DrawString("强化符文", labelFont, new SolidBrush(Color.FromArgb(151, 177, 221)), 58, 716);
-                DrawIconList(g, result.Augments, result.AugmentIconUrls, images, 58, 748, 5);
+                var rect = new Rectangle(56 + i * 382, 356, 358, 90);
+                var route = i < routes.Count ? routes[i] : null;
+                DrawRouteCard(g, rect, route, fallbackTitles[i], i);
             }
         }
 
-        private static void DrawRankingSection(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        private static void DrawRouteCard(Graphics g, Rectangle rect, MayhemDecisionRoute route, string fallbackTitle, int index)
         {
-            var right = new Rectangle(812, 342, 416, 530);
-            DrawPanel(g, right);
-            DrawSectionTitle(g, "当前版本胜率前十", 838, 366);
-
-            using (var small = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var medium = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var number = new Font("Segoe UI", 15F, FontStyle.Bold, GraphicsUnit.Pixel))
+            var accent = index == 0 ? Green : index == 1 ? Purple : Gold;
+            using (var path = RoundedRect(rect, 18))
+            using (var fill = new SolidBrush(Color.FromArgb(34, accent.R, accent.G, accent.B)))
+            using (var pen = new Pen(Color.FromArgb(90, accent.R, accent.G, accent.B), 1F))
             {
-                var top = result.TopTen.OrderBy(item => item.Rank).Take(10).ToList();
-                for (var i = 0; i < 10; i++)
+                g.FillPath(fill, path);
+                g.DrawPath(pen, path);
+            }
+            using (var title = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var name = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var hint = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString(route == null ? fallbackTitle : route.Title, title, new SolidBrush(accent), rect.X + 16, rect.Y + 12);
+                g.DrawString(route == null ? "暂无足够数据" : Ellipsis(route.AugmentName, 18), name, Brushes.White, rect.X + 16, rect.Y + 34);
+                g.DrawString(route == null ? "查询后自动生成" : Ellipsis(route.Hint, 25), hint, new SolidBrush(Muted), rect.X + 16, rect.Y + 62);
+            }
+        }
+
+        private static void DrawAugmentBoard(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        {
+            var panel = new Rectangle(30, 490, 1200, 742);
+            DrawPanel(g, panel);
+            DrawSectionTitle(g, "强化符文决策榜", 56, 512);
+
+            var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
+                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name))
+                .OrderBy(row => row.Rank <= 0 ? int.MaxValue : row.Rank)
+                .Take(12)
+                .ToList();
+            var prism = rows.Count(row => string.Equals(row.Rarity, "棱彩", StringComparison.OrdinalIgnoreCase));
+            var gold = rows.Count(row => string.Equals(row.Rarity, "黄金", StringComparison.OrdinalIgnoreCase));
+            var silver = rows.Count(row => string.Equals(row.Rarity, "白银", StringComparison.OrdinalIgnoreCase));
+            using (var summary = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                var source = SourceLabel(result);
+                g.DrawString("TOP " + rows.Count + "   ·   棱彩 " + prism + " / 黄金 " + gold + " / 白银 " + silver + "   ·   " + source,
+                    summary, new SolidBrush(Muted), 266, 518);
+            }
+
+            if (rows.Count == 0)
+            {
+                using (var font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
+                    g.DrawString("暂无强化排行，基础攻略仍可正常使用", font, new SolidBrush(Color.FromArgb(166, 181, 207)), 56, 590);
+                return;
+            }
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var col = i % 2;
+                var rowIndex = i / 2;
+                var rect = new Rectangle(56 + col * 574, 558 + rowIndex * 106, 548, 92);
+                DrawAugmentRow(g, rect, rows[i], images);
+            }
+        }
+
+        private static void DrawAugmentRow(Graphics g, Rectangle rect, MayhemAugmentRow row, IDictionary<string, Bitmap> images)
+        {
+            using (var path = RoundedRect(rect, 15))
+            using (var brush = new SolidBrush(PanelSoft))
+            using (var pen = new Pen(Color.FromArgb(45, 136, 166, 215)))
+            {
+                g.FillPath(brush, path);
+                g.DrawPath(pen, path);
+            }
+            DrawSquareImage(g, images, row.IconUrl, new Rectangle(rect.X + 12, rect.Y + 14, 62, 62), 13, FirstChar(row.Name));
+            using (var rank = new Font("Segoe UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var name = new Font("Microsoft YaHei UI", 15F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var stat = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var desc = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString("#" + Math.Max(1, row.Rank), rank, new SolidBrush(Color.FromArgb(180, 196, 225)), rect.X + 84, rect.Y + 11);
+                g.DrawString(Ellipsis(row.Name, 18), name, Brushes.White, rect.X + 118, rect.Y + 9);
+                DrawRarityPill(g, row.Rarity, rect.Right - 72, rect.Y + 10);
+                var stats = "胜率 " + FormatPercent(row.WinRate) + "   选择 " + FormatPercent(row.PickRate);
+                if (row.Games.HasValue && row.Games.Value > 0) stats += "   " + FormatGames(row.Games.Value) + " 局";
+                g.DrawString(stats, stat, new SolidBrush(Green), rect.X + 84, rect.Y + 35);
+                DrawWrappedText(g, FirstNonEmpty(row.Description, "暂无效果说明"), desc, Muted,
+                    new RectangleF(rect.X + 84, rect.Y + 56, rect.Width - 98, 28), 2);
+            }
+        }
+
+        private static void DrawRarityPill(Graphics g, string rarity, int x, int y)
+        {
+            var text = FirstNonEmpty(rarity, "未知");
+            var color = text.Contains("棱") ? Purple : text.Contains("金") ? Gold : text.Contains("银") ? Color.FromArgb(172, 190, 214) : Muted;
+            using (var font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var path = RoundedRect(new Rectangle(x, y, 56, 22), 10))
+            using (var fill = new SolidBrush(Color.FromArgb(32, color.R, color.G, color.B)))
+            using (var pen = new Pen(Color.FromArgb(95, color.R, color.G, color.B)))
+            {
+                g.FillPath(fill, path);
+                g.DrawPath(pen, path);
+                var size = g.MeasureString(text, font);
+                g.DrawString(text, font, new SolidBrush(color), x + (56 - size.Width) / 2F, y + 3);
+            }
+        }
+
+        private static void DrawCompactBuild(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        {
+            var panel = new Rectangle(30, 1252, 760, 224);
+            DrawPanel(g, panel);
+            DrawSectionTitle(g, "技能与出装", 56, 1272);
+            using (var label = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var body = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                g.DrawString("技能", label, new SolidBrush(Muted), 56, 1310);
+                DrawSkills(g, result, images, 102, 1301);
+                DrawWrappedText(g, FirstNonEmpty(result.SkillOrder, "暂无加点顺序"), body, Text, new RectangleF(430, 1308, 330, 36), 2);
+                g.DrawString("核心装备", label, new SolidBrush(Muted), 56, 1370);
+                DrawCompactItems(g, result.CoreItems, result.CoreItemIconUrls, images, 132, 1358);
+                var balance = FirstNonEmpty(result.MayhemBalanceSummary, result.BaseBalanceSummary, string.Empty);
+                if (!string.IsNullOrWhiteSpace(balance))
+                    DrawWrappedText(g, balance, body, Muted, new RectangleF(56, 1430, 694, 34), 2);
+            }
+        }
+
+        private static void DrawTopRanking(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images)
+        {
+            var panel = new Rectangle(810, 1252, 420, 224);
+            DrawPanel(g, panel);
+            DrawSectionTitle(g, "版本胜率前五", 834, 1272);
+            var top = (result.TopTen ?? new List<MayhemTopChampion>()).OrderBy(item => item.Rank).Take(5).ToList();
+            using (var font = new Font("Microsoft YaHei UI", 11.5F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                for (var i = 0; i < 5; i++)
                 {
-                    var y = 410 + i * 43;
-                    using (var line = new Pen(Color.FromArgb(32, 255, 255, 255))) g.DrawLine(line, 838, y + 38, 1202, y + 38);
+                    var y = 1307 + i * 31;
                     if (i >= top.Count)
                     {
-                        g.DrawString((i + 1).ToString(CultureInfo.InvariantCulture), number, new SolidBrush(Color.FromArgb(98, 115, 145)), 840, y + 9);
-                        g.DrawString("暂无数据", small, new SolidBrush(Color.FromArgb(105, 119, 143)), 904, y + 12);
+                        g.DrawString((i + 1) + "   暂无数据", small, new SolidBrush(Color.FromArgb(105, 121, 149)), 834, y + 5);
                         continue;
                     }
-
-                    var champion = top[i];
-                    g.DrawString(champion.Rank.ToString(CultureInfo.InvariantCulture), number, new SolidBrush(i < 3 ? Color.FromArgb(255, 211, 111) : Color.FromArgb(181, 194, 220)), 840, y + 9);
-                    DrawSquareImage(g, images, champion.IconUrl, new Rectangle(876, y + 3, 34, 34), 8, FirstChar(champion.Name));
-                    g.DrawString(Ellipsis(champion.Name, 12), medium, Brushes.White, 920, y + 6);
-                    g.DrawString(string.IsNullOrWhiteSpace(champion.Tier) ? "—" : champion.Tier, small, new SolidBrush(Color.FromArgb(143, 165, 201)), 920, y + 23);
-                    var win = champion.WinRate.HasValue ? champion.WinRate.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "—";
-                    var size = g.MeasureString(win, medium);
-                    g.DrawString(win, medium, new SolidBrush(Color.FromArgb(111, 218, 178)), 1198 - size.Width, y + 12);
+                    var item = top[i];
+                    g.DrawString(item.Rank.ToString(CultureInfo.InvariantCulture), font, new SolidBrush(i < 3 ? Gold : Muted), 834, y + 5);
+                    DrawSquareImage(g, images, item.IconUrl, new Rectangle(864, y, 26, 26), 6, FirstChar(item.Name));
+                    g.DrawString(Ellipsis(item.Name, 11), font, Brushes.White, 900, y + 4);
+                    var win = FormatPercent(item.WinRate);
+                    var width = g.MeasureString(win, font).Width;
+                    g.DrawString(win, font, new SolidBrush(Green), 1204 - width, y + 4);
                 }
             }
         }
@@ -245,151 +342,143 @@ namespace FACM.Mayhem
         private static void DrawSkills(Graphics g, MayhemChampionResult result, IDictionary<string, Bitmap> images, int x, int y)
         {
             var keys = new[] { "Q", "W", "E", "R" };
-            using (var keyFont = new Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
             {
                 for (var i = 0; i < keys.Length; i++)
                 {
-                    var key = keys[i];
                     string reference;
-                    result.SkillIconUrls.TryGetValue(key, out reference);
-                    var rect = new Rectangle(x + i * 86, y, 58, 58);
-                    DrawSquareImage(g, images, reference, rect, 12, key);
-                    using (var badgeBrush = new SolidBrush(Color.FromArgb(225, 10, 17, 30))) g.FillEllipse(badgeBrush, rect.Right - 18, rect.Bottom - 18, 22, 22);
-                    g.DrawString(key, keyFont, Brushes.White, rect.Right - 14, rect.Bottom - 17);
+                    result.SkillIconUrls.TryGetValue(keys[i], out reference);
+                    var rect = new Rectangle(x + i * 62, y, 44, 44);
+                    DrawSquareImage(g, images, reference, rect, 9, keys[i]);
+                    g.DrawString(keys[i], font, Brushes.White, rect.Right - 10, rect.Bottom - 13);
                 }
             }
         }
 
-        private static void DrawIconList(Graphics g, IList<string> names, IList<string> references, IDictionary<string, Bitmap> images, int x, int y, int max)
+        private static void DrawCompactItems(Graphics g, IList<string> names, IList<string> references, IDictionary<string, Bitmap> images, int x, int y)
         {
-            using (var nameFont = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
+            names = names ?? new List<string>();
+            references = references ?? new List<string>();
+            for (var i = 0; i < Math.Min(5, Math.Max(names.Count, references.Count)); i++)
             {
-                var count = Math.Min(max, names == null ? 0 : names.Count);
-                if (count == 0)
-                {
-                    g.DrawString("暂无推荐", nameFont, new SolidBrush(Color.FromArgb(125, 143, 174)), x, y + 22);
-                    return;
-                }
-                for (var i = 0; i < count; i++)
-                {
-                    var itemX = x + i * 136;
-                    var reference = references != null && i < references.Count ? references[i] : null;
-                    DrawSquareImage(g, images, reference, new Rectangle(itemX, y, 54, 54), 11, FirstChar(names[i]));
-                    DrawWrappedText(g, names[i], nameFont, Color.FromArgb(224, 232, 247), new RectangleF(itemX - 5, y + 60, 116, 38), 2, StringAlignment.Center);
-                    if (i < count - 1)
-                    {
-                        using (var arrowFont = new Font("Segoe UI Symbol", 15F, FontStyle.Bold, GraphicsUnit.Pixel))
-                            g.DrawString("›", arrowFont, new SolidBrush(Color.FromArgb(91, 117, 160)), itemX + 104, y + 18);
-                    }
-                }
+                var reference = i < references.Count ? references[i] : null;
+                var name = i < names.Count ? names[i] : "";
+                DrawSquareImage(g, images, reference, new Rectangle(x + i * 74, y, 52, 52), 10, FirstChar(name));
+            }
+            if (names.Count == 0 && references.Count == 0)
+            {
+                using (var font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
+                    g.DrawString("暂无装备数据", font, new SolidBrush(Muted), x, y + 17);
             }
         }
 
-        private static void DrawMetric(Graphics g, Rectangle rect, string label, string value, Color accent)
+        private static string SourceLabel(MayhemChampionResult result)
+        {
+            if (result == null) return "来源：—";
+            var route = result.AugmentSourceRoute;
+            if (string.Equals(route, "fresh-cache", StringComparison.OrdinalIgnoreCase)) return "本地缓存 · 15 分钟内";
+            if (string.Equals(route, "stale-cache", StringComparison.OrdinalIgnoreCase) || result.AugmentSourceStale) return "离线缓存 · 上次可用数据";
+            return "OP.GG Global · 实时";
+        }
+
+        private static void DrawFooter(Graphics g, MayhemChampionResult result)
+        {
+            using (var font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Pixel))
+            {
+                var source = "FACM · 海斗攻略";
+                if (!string.IsNullOrWhiteSpace(result.SourceNote)) source += " · " + Ellipsis(result.SourceNote, 48);
+                g.DrawString(source, font, new SolidBrush(Color.FromArgb(116, 136, 169)), 34, 1504);
+                var note = "强化路线由单项胜率/选择率推导，仅作当前版本决策参考";
+                var width = g.MeasureString(note, font).Width;
+                g.DrawString(note, font, new SolidBrush(Color.FromArgb(116, 136, 169)), CardWidth - 34 - width, 1504);
+            }
+        }
+
+        private static void DrawMetric(Graphics g, Rectangle rect, string title, string value, Color accent)
         {
             using (var path = RoundedRect(rect, 18))
-            using (var fill = new SolidBrush(Color.FromArgb(165, 12, 21, 37)))
-            using (var border = new Pen(Color.FromArgb(90, accent), 1F))
+            using (var fill = new SolidBrush(Color.FromArgb(115, 12, 23, 39)))
+            using (var pen = new Pen(Color.FromArgb(95, accent.R, accent.G, accent.B)))
             {
                 g.FillPath(fill, path);
-                g.DrawPath(border, path);
+                g.DrawPath(pen, path);
             }
-            using (var labelFont = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var valueFont = new Font("Segoe UI", 28F, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var label = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var number = new Font("Segoe UI", 25F, FontStyle.Bold, GraphicsUnit.Pixel))
             {
-                g.DrawString(label, labelFont, new SolidBrush(Color.FromArgb(157, 177, 210)), rect.X + 18, rect.Y + 18);
-                g.DrawString(value, valueFont, new SolidBrush(accent), rect.X + 17, rect.Y + 49);
+                g.DrawString(title, label, new SolidBrush(Muted), rect.X + 16, rect.Y + 13);
+                g.DrawString(value, number, new SolidBrush(accent), rect.X + 16, rect.Y + 38);
             }
         }
 
-        private static void DrawSectionTitle(Graphics g, string title, int x, int y)
+        private static void DrawBadge(Graphics g, string text, Point point, int width, Font font, Color color)
         {
-            using (var font = new Font("Microsoft YaHei UI", 19F, FontStyle.Bold, GraphicsUnit.Pixel))
+            var rect = new Rectangle(point.X, point.Y, width, 30);
+            using (var path = RoundedRect(rect, 13))
+            using (var fill = new SolidBrush(Color.FromArgb(190, color)))
             {
-                g.DrawString(title, font, Brushes.White, x, y);
+                g.FillPath(fill, path);
+                var size = g.MeasureString(text, font);
+                g.DrawString(text, font, Brushes.White, rect.X + (width - size.Width) / 2F, rect.Y + 6);
             }
         }
 
         private static void DrawPanel(Graphics g, Rectangle rect)
         {
             using (var path = RoundedRect(rect, 22))
-            using (var fill = new SolidBrush(Color.FromArgb(205, 13, 21, 36)))
-            using (var pen = new Pen(Color.FromArgb(55, 122, 153, 211), 1F))
+            using (var fill = new SolidBrush(Color.FromArgb(222, Panel)))
+            using (var pen = new Pen(Color.FromArgb(55, 132, 163, 211)))
             {
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
             }
         }
 
-        private static void DrawBadge(Graphics g, string text, Point location, int width, Font font, Color color)
+        private static void DrawSectionTitle(Graphics g, string text, int x, int y)
         {
-            var rect = new Rectangle(location.X, location.Y, width, 34);
-            using (var path = RoundedRect(rect, 12))
-            using (var fill = new SolidBrush(Color.FromArgb(195, color))) g.FillPath(fill, path);
-            var size = g.MeasureString(text, font);
-            g.DrawString(text, font, Brushes.White, location.X + (width - size.Width) / 2F, location.Y + 7);
+            using (var font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
+                g.DrawString(text, font, Brushes.White, x, y);
         }
 
-        private static void DrawSquareImage(Graphics g, IDictionary<string, Bitmap> images, string reference, Rectangle rect, int radius, string placeholder)
+        private static void DrawSquareImage(Graphics g, IDictionary<string, Bitmap> images, string reference, Rectangle rect, int radius, string fallback)
         {
             using (var path = RoundedRect(rect, radius))
             {
                 g.SetClip(path);
-                Bitmap bitmap;
-                if (TryGet(images, reference, out bitmap)) DrawImageCover(g, bitmap, rect);
+                Bitmap image;
+                if (TryGet(images, reference, out image)) DrawImageCover(g, image, rect);
                 else
                 {
-                    using (var brush = new LinearGradientBrush(rect, Color.FromArgb(55, 73, 112), Color.FromArgb(32, 41, 64), 45F)) g.FillRectangle(brush, rect);
-                    using (var font = new Font("Microsoft YaHei UI", Math.Max(12, rect.Width / 3), FontStyle.Bold, GraphicsUnit.Pixel))
+                    using (var fill = new LinearGradientBrush(rect, Color.FromArgb(52, 72, 112), Color.FromArgb(31, 45, 72), 90F))
+                        g.FillRectangle(fill, rect);
+                    if (!string.IsNullOrWhiteSpace(fallback))
                     {
-                        var text = string.IsNullOrWhiteSpace(placeholder) ? "?" : placeholder;
-                        var size = g.MeasureString(text, font);
-                        g.DrawString(text, font, new SolidBrush(Color.FromArgb(196, 211, 239)), rect.X + (rect.Width - size.Width) / 2F, rect.Y + (rect.Height - size.Height) / 2F);
+                        using (var font = new Font("Microsoft YaHei UI", Math.Max(11, rect.Width / 3F), FontStyle.Bold, GraphicsUnit.Pixel))
+                        {
+                            var size = g.MeasureString(fallback, font);
+                            g.DrawString(fallback, font, new SolidBrush(Color.FromArgb(220, 232, 249)), rect.X + (rect.Width - size.Width) / 2F, rect.Y + (rect.Height - size.Height) / 2F);
+                        }
                     }
                 }
                 g.ResetClip();
-                using (var pen = new Pen(Color.FromArgb(75, 170, 193, 235), 1F)) g.DrawPath(pen, path);
+                using (var pen = new Pen(Color.FromArgb(65, 156, 183, 230))) g.DrawPath(pen, path);
             }
         }
 
-        private static void DrawImageCover(Graphics g, Image image, Rectangle target)
+        private static void DrawImageCover(Graphics g, Bitmap bitmap, Rectangle rect)
         {
-            if (image == null || image.Width <= 0 || image.Height <= 0) return;
-            var scale = Math.Max((float)target.Width / image.Width, (float)target.Height / image.Height);
-            var width = image.Width * scale;
-            var height = image.Height * scale;
-            var destination = new RectangleF(target.X + (target.Width - width) / 2F, target.Y + (target.Height - height) / 2F, width, height);
-            g.DrawImage(image, destination);
+            if (bitmap == null || bitmap.Width <= 0 || bitmap.Height <= 0) return;
+            var scale = Math.Max(rect.Width / (double)bitmap.Width, rect.Height / (double)bitmap.Height);
+            var width = (int)Math.Ceiling(bitmap.Width * scale);
+            var height = (int)Math.Ceiling(bitmap.Height * scale);
+            var target = new Rectangle(rect.X + (rect.Width - width) / 2, rect.Y + (rect.Height - height) / 2, width, height);
+            g.DrawImage(bitmap, target);
         }
 
         private static bool TryGet(IDictionary<string, Bitmap> images, string reference, out Bitmap bitmap)
         {
             bitmap = null;
             return !string.IsNullOrWhiteSpace(reference) && images != null && images.TryGetValue(reference, out bitmap) && bitmap != null;
-        }
-
-        private static void DrawFooter(Graphics g, MayhemChampionResult result)
-        {
-            using (var font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var strong = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold, GraphicsUnit.Pixel))
-            {
-                g.DrawString("FACM · 海斗排行榜", strong, new SolidBrush(Color.FromArgb(172, 191, 224)), 40, 916);
-                var patch = FirstNonEmpty(result.RankingPatch, result.Patch, "当前版本");
-                var text = "版本 " + patch + " · 查询结果会自动缓存 10 分钟";
-                var size = g.MeasureString(text, font);
-                g.DrawString(text, font, new SolidBrush(Color.FromArgb(111, 130, 161)), CardWidth - 40 - size.Width, 916);
-            }
-        }
-
-        private static void DrawWrappedText(Graphics g, string text, Font font, Color color, RectangleF bounds, int maxLines, StringAlignment alignment = StringAlignment.Near)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return;
-            var value = text.Trim();
-            using (var brush = new SolidBrush(color))
-            using (var format = new StringFormat { Alignment = alignment, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.LineLimit })
-            {
-                g.DrawString(value, font, brush, bounds, format);
-            }
         }
 
         private static GraphicsPath RoundedRect(Rectangle rect, int radius)
@@ -402,10 +491,49 @@ namespace FACM.Mayhem
             path.AddArc(arc, 270, 90);
             arc.Y = rect.Bottom - diameter;
             path.AddArc(arc, 0, 90);
-            arc.X = rect.Left;
+            arc.X = rect.X;
             path.AddArc(arc, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        private static void DrawWrappedText(Graphics g, string text, Font font, Color color, RectangleF rect, int maxLines)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 1) words = text.Select(ch => ch.ToString()).ToArray();
+            var lines = new List<string>();
+            var current = string.Empty;
+            foreach (var word in words)
+            {
+                var candidate = current.Length == 0 ? word : (words.Length == text.Length ? current + word : current + " " + word);
+                if (g.MeasureString(candidate, font).Width <= rect.Width || current.Length == 0)
+                {
+                    current = candidate;
+                }
+                else
+                {
+                    lines.Add(current);
+                    current = word;
+                    if (lines.Count >= maxLines) break;
+                }
+            }
+            if (lines.Count < maxLines && current.Length > 0) lines.Add(current);
+            if (lines.Count > maxLines) lines = lines.Take(maxLines).ToList();
+            using (var brush = new SolidBrush(color))
+            {
+                var lineHeight = font.GetHeight(g) + 1;
+                for (var i = 0; i < lines.Count; i++)
+                    g.DrawString(EllipsisByWidth(g, lines[i], font, rect.Width), font, brush, rect.X, rect.Y + i * lineHeight);
+            }
+        }
+
+        private static string EllipsisByWidth(Graphics g, string value, Font font, float width)
+        {
+            if (string.IsNullOrEmpty(value) || g.MeasureString(value, font).Width <= width) return value;
+            var text = value;
+            while (text.Length > 1 && g.MeasureString(text + "…", font).Width > width) text = text.Substring(0, text.Length - 1);
+            return text + "…";
         }
 
         private static string FormatPercent(double? value)
@@ -413,9 +541,9 @@ namespace FACM.Mayhem
             return value.HasValue ? value.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%" : "—";
         }
 
-        private static string FirstNonEmpty(params string[] values)
+        private static string FormatGames(int value)
         {
-            return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+            return value >= 10000 ? (value / 10000d).ToString("0.#", CultureInfo.InvariantCulture) + "万" : value.ToString("N0", CultureInfo.InvariantCulture);
         }
 
         private static string FirstChar(string value)
@@ -423,15 +551,16 @@ namespace FACM.Mayhem
             return string.IsNullOrWhiteSpace(value) ? "?" : value.Trim().Substring(0, 1).ToUpperInvariant();
         }
 
-        private static string Ellipsis(string value, int length)
+        private static string FirstNonEmpty(params string[] values)
         {
-            if (string.IsNullOrWhiteSpace(value)) return "未知英雄";
-            return value.Length <= length ? value : value.Substring(0, Math.Max(1, length - 1)) + "…";
+            return values == null ? string.Empty : values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
         }
 
-        private static string TierOr(this MayhemChampionResult result, string fallback)
+        private static string Ellipsis(string value, int max)
         {
-            return string.IsNullOrWhiteSpace(result.Tier) ? fallback : result.Tier + " 梯队";
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            value = value.Trim();
+            return value.Length <= max ? value : value.Substring(0, Math.Max(1, max - 1)) + "…";
         }
     }
 }
