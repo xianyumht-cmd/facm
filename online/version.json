@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.3",
+  "enabled": false,
+  "version": "3.5.4",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.3/FACM.exe",
-  "sha256": "C1E3E5BECB7C6556462D5B502E168FD50F5E2C60D5D8747044215F8613CD36A9",
-  "release_notes": "FACM 3.5.3：重点增强赛后‘随机点赞队友’的可靠性与可验证性。结算后最长等待约 12 秒获取真实点赞名单，优先使用当前 Honor V2 接口并携带 gameId、summonerId、puuid、honorType 等完整上下文；提交后不再只看 HTTP 成功，而是通过 team-choices、ballot 的 honoredPlayers/numVotes 状态回读确认，vote-completion 仅作辅助诊断。响应丢失但客户端已经记票时不会重复提交；只有请求未成功且同一局 ballot 持续证明目标仍可点赞、票数未变化时，才允许一次安全重试。Honor V2 明确返回 404/405 时才回退旧点赞链，避免盲目双写；旧链请求体同时对齐当前 puuid + honorType 结构。兼容 eligibleAllies/eligiblePlayers、summonerId/summonerID 和旧 votePool 形状。快捷工具‘赛后处理’标题右侧新增紧凑的上局点赞结果（成功/未执行/已提交未确认/失败）；日志记录 gameId、使用路线、HTTP 状态、尝试次数和验证结果，PUUID 仅记录后缀。继续保证一局只启动一次点赞事务、不点赞自己/对手/机器人，并复用唯一 LeagueClientModule/LCU 会话。",
-  "published_at": "2026-08-24T01:05:08.6750162+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.4/FACM.exe",
+  "sha256": "34158031A18F3D1E87F5CD8B859B06B2509F89438B1A11CDEBCE928F1449CBCD",
+  "release_notes": "FACM 3.5.4：根据 3.5.3 国服实机日志继续修正赛后‘随机点赞队友’的成功确认。3.5.3 已能稳定向 Honor V2 发出请求并获得 HTTP 200，但国服连续多局的 team-choices 回读没有按 PUUID 形式命中目标，导致程序只能显示‘已提交，未确认’。本版把 /lol-honor-v2/v1/team-choices 同时按 PUUID 和 summonerId 两种返回格式识别，兼容数字数组、数字字符串和文本标识；任一权威回读明确包含本次目标即可确认成功。点赞后的回读窗口由约 3.25 秒延长到约 5.5 秒，减少国服结算状态更新稍慢造成的误判。ballot 的 honoredPlayers 与 numVotes 仍作为独立确认依据，HTTP 200 本身仍不会直接被当作点赞成功。若仍无法确认，日志只记录 team-choices 的数量以及 numeric/text/mixed/empty 结构，不记录完整返回内容，方便继续定位同时避免扩大隐私暴露。原有一局一次、响应丢失不重复提交、仅在明确未生效时单次安全重试、V2 404/405 才回退旧链等保护保持不变。新增数字 summonerId team-choices 与 PUUID 两种回归测试。",
+  "published_at": "2026-08-24T03:08:47.2905903+00:00"
 }
