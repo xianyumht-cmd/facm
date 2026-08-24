@@ -27,6 +27,7 @@ namespace FACM.Mayhem
         public const string SaveFailed = "图片保存失败，请换一个位置后重试。";
         public const string CopyFailed = "复制图片失败，请稍后重试。";
         public const string SavePrefix = "海斗攻略";
+        public const string SaveFilter = "PNG 图片|*.png";
         public const string BasicGenerated = "基础攻略已生成";
         public const string FreshCache = "强化榜来自最近缓存";
         public const string StaleCache = "外网不稳定，已使用上次可用强化榜";
@@ -38,6 +39,14 @@ namespace FACM.Mayhem
         public const string DataWord = "数据";
         public const string EmptyCard = "等待查询";
         public const string EmptyBalance = "输入英雄后，这里会生成完整攻略卡片。";
+        public const string TriggerParallel = "并行读取";
+        public const string TriggerParseHero = "解析英雄";
+        public const string TriggerCache = "缓存";
+        public const string TriggerDataSource = "数据源";
+        public const string TriggerSeconds = "秒";
+        public const string TriggerUnparsed = "未返回可解析";
+        public const string TriggerOpggPage = "op.gg 当前页面";
+        public const string TriggerPageNoData = "当前页面未返回";
 
         public const string CardSubtitle = "海克斯大乱斗 · 强化决策攻略";
         public const string PatchPrefix = "版本 ";
