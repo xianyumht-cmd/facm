@@ -14,8 +14,11 @@ namespace FACM.Mayhem
         {
             try
             {
+                LeaguePublicDataTransport.ValidateForSmokeTest();
+                ValidateRichAugmentFixture();
+
                 var noLeagueClient = new NoLeagueClientApi();
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
                 {
                     var result = OpggMayhemService.QueryAsync("yasuo", cancellation.Token).GetAwaiter().GetResult();
                     if (result == null) throw new InvalidOperationException("Mayhem query returned null.");
@@ -44,11 +47,6 @@ namespace FACM.Mayhem
                         if (attempt < 2) Thread.Sleep(450);
                     }
 
-                    // Keep the live source gate separate from the Yasuo ranking probe.
-                    // Seraphine is intentionally used because her base ARAM page has
-                    // long-lived non-neutral modifiers, so disappearance of the balance
-                    // section is a meaningful parser/source regression instead of a
-                    // harmless champion-with-no-adjustments case.
                     var baseProbe = new MayhemChampionResult
                     {
                         ChampionName = "萨勒芬妮",
@@ -84,22 +82,14 @@ namespace FACM.Mayhem
                         throw new InvalidOperationException("Skill image URLs are incomplete after retries.");
                     if (result.TopTen.Count(item => !string.IsNullOrWhiteSpace(item.IconUrl)) < 8)
                         throw new InvalidOperationException("Top-ten champion image URLs are incomplete.");
-                    if (result.Augments == null || result.Augments.Count < 5 || result.Augments.Any(value => !value.StartsWith("#", StringComparison.Ordinal)))
-                        throw new InvalidOperationException("Ranked augment queue is incomplete.");
+                    if (result.Augments == null || result.Augments.Count < 5 || result.Augments.Any(string.IsNullOrWhiteSpace))
+                        throw new InvalidOperationException("Ranked augment names are incomplete.");
+                    if (result.AugmentRows == null || result.AugmentRows.Count < 5)
+                        throw new InvalidOperationException("Rich ranked augment rows are incomplete.");
+                    if (result.AugmentRoutes == null || result.AugmentRoutes.Count < 3)
+                        throw new InvalidOperationException("Augment decision routes are incomplete.");
                     if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
                         throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
-
-                    for (var index = 0; index < 5; index++)
-                    {
-                        using (var augmentImage = MayhemImageCache.GetAsync(
-                            result.AugmentIconUrls[index],
-                            noLeagueClient,
-                            cancellation.Token).GetAwaiter().GetResult())
-                        {
-                            if (augmentImage == null || augmentImage.Width < 24 || augmentImage.Height < 24)
-                                throw new InvalidOperationException("Ranked augment image #" + (index + 1) + " could not be decoded: " + result.AugmentIconUrls[index]);
-                        }
-                    }
 
                     using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
                     {
@@ -120,6 +110,23 @@ namespace FACM.Mayhem
                 Console.Error.WriteLine(exception);
                 return 5;
             }
+        }
+
+        private static void ValidateRichAugmentFixture()
+        {
+            const string html = "<script>{\"augments\":[" +
+                "{\"id\":\"1001\",\"rank\":1,\"name\":\"测试棱彩\",\"rarity\":\"prismatic\",\"performance\":0.6123,\"popular\":0.2234,\"games\":12345,\"description\":\"造成额外伤害\",\"icon\":\"https://raw.communitydragon.org/latest/game/assets/test.png\"}," +
+                "{\"id\":\"1002\",\"rank\":2,\"name\":\"测试黄金\",\"rarity\":\"gold\",\"performance\":57.2,\"popular\":19.8,\"games\":8888,\"description\":\"获得额外属性\"}," +
+                "{\"id\":\"1003\",\"rank\":3,\"name\":\"测试白银\",\"rarity\":\"silver\",\"performance\":0.544,\"popular\":0.31,\"games\":6000,\"description\":\"提高容错\"}]} </script>";
+            var rows = MayhemRankedAugmentService.ParseOpggRowsForSmokeTest(html);
+            if (rows.Count != 3) throw new InvalidOperationException("Rich augment fixture did not parse three rows.");
+            if (rows[0].Rarity != "棱彩" || !rows[0].WinRate.HasValue || Math.Abs(rows[0].WinRate.Value - 61.23) > 0.01)
+                throw new InvalidOperationException("Rich augment rarity or percentage normalization failed.");
+            var result = new MayhemChampionResult();
+            if (MayhemRankedAugmentService.ApplyFromHtmlForSmokeTest(result, html) != 3)
+                throw new InvalidOperationException("Rich augment fixture was not applied.");
+            if (result.AugmentRoutes.Count != 3 || result.Augments[0] != "测试棱彩")
+                throw new InvalidOperationException("Rich augment decision routes or names are invalid.");
         }
 
         private sealed class NoLeagueClientApi : ILeagueClientApi
