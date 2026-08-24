@@ -157,21 +157,21 @@ namespace FACM.Mayhem
             using (var subtitle = new Font("Microsoft YaHei UI", 15F, FontStyle.Regular, GraphicsUnit.Pixel))
             using (var badge = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
             {
-                g.DrawString(FirstNonEmpty(result.ChampionName, "等待查询"), title, Brushes.White, 226, 60);
-                g.DrawString("海克斯大乱斗 · 强化决策攻略", subtitle, new SolidBrush(Color.FromArgb(197, 211, 236)), 228, 105);
-                DrawBadge(g, "版本 " + FirstNonEmpty(result.RankingPatch, result.Patch, "—"), new Point(226, 144), 126, badge, Color.FromArgb(51, 93, 166));
-                DrawBadge(g, FirstNonEmpty(result.Tier, "暂无梯队"), new Point(362, 144), 108, badge, Color.FromArgb(92, 66, 151));
-                DrawBadge(g, result.Rank.HasValue ? "排行 #" + result.Rank.Value : "排行 —", new Point(480, 144), 112, badge, Color.FromArgb(35, 119, 111));
+                g.DrawString(FirstNonEmpty(result.ChampionName, MayhemUiCopy.EmptyCard), title, Brushes.White, 226, 60);
+                g.DrawString(MayhemUiCopy.CardSubtitle, subtitle, new SolidBrush(Color.FromArgb(197, 211, 236)), 228, 105);
+                DrawBadge(g, MayhemUiCopy.PatchPrefix + FirstNonEmpty(result.RankingPatch, result.Patch, "—"), new Point(226, 144), 126, badge, Color.FromArgb(51, 93, 166));
+                DrawBadge(g, FirstNonEmpty(result.Tier, MayhemUiCopy.NoTier), new Point(362, 144), 108, badge, Color.FromArgb(92, 66, 151));
+                DrawBadge(g, result.Rank.HasValue ? MayhemUiCopy.RankPrefix + result.Rank.Value : MayhemUiCopy.RankEmpty, new Point(480, 144), 112, badge, Color.FromArgb(35, 119, 111));
             }
 
-            DrawMetric(g, new Rectangle(750, 60, 202, 92), "英雄胜率", FormatPercent(result.WinRate), Green);
-            DrawMetric(g, new Rectangle(972, 60, 202, 92), "选用率", FormatPercent(result.PickRate), Blue);
+            DrawMetric(g, new Rectangle(750, 60, 202, 92), MayhemUiCopy.HeroWinRate, FormatPercent(result.WinRate), Green);
+            DrawMetric(g, new Rectangle(972, 60, 202, 92), MayhemUiCopy.PickRate, FormatPercent(result.PickRate), Blue);
 
             using (var label = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var body = new Font("Microsoft YaHei UI", 13F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                g.DrawString("当前平衡", label, new SolidBrush(Muted), 228, 196);
-                DrawWrappedText(g, FirstNonEmpty(result.BalanceSummary, "暂无额外平衡调整"), body, Text, new RectangleF(228, 218, 930, 42), 2);
+                g.DrawString(MayhemUiCopy.CurrentBalance, label, new SolidBrush(Muted), 228, 196);
+                DrawWrappedText(g, FirstNonEmpty(result.BalanceSummary, MayhemUiCopy.NoBalance), body, Text, new RectangleF(228, 218, 930, 42), 2);
             }
         }
 
@@ -179,12 +179,12 @@ namespace FACM.Mayhem
         {
             var panel = new Rectangle(30, 298, 1200, 172);
             DrawPanel(g, panel);
-            DrawSectionTitle(g, "这一局怎么选", 56, 318);
+            DrawSectionTitle(g, MayhemUiCopy.DecisionTitle, 56, 318);
             using (var note = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
-                g.DrawString("根据单强化胜率与选择率给出方向，不代表三强化组合胜率。", note, new SolidBrush(Muted), 218, 323);
+                g.DrawString(MayhemUiCopy.DecisionNote, note, new SolidBrush(Muted), 218, 323);
 
             var routes = (result.AugmentRoutes ?? new List<MayhemDecisionRoute>()).Take(3).ToList();
-            var fallbackTitles = new[] { "稳健首选", "高胜上限", "热门容错" };
+            var fallbackTitles = new[] { MayhemUiCopy.StableRoute, MayhemUiCopy.HighWinRoute, MayhemUiCopy.PopularRoute };
             for (var i = 0; i < 3; i++)
             {
                 var rect = new Rectangle(56 + i * 382, 356, 358, 90);
@@ -208,8 +208,8 @@ namespace FACM.Mayhem
             using (var hint = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
                 g.DrawString(route == null ? fallbackTitle : route.Title, title, new SolidBrush(accent), rect.X + 16, rect.Y + 12);
-                g.DrawString(route == null ? "暂无足够数据" : Ellipsis(route.AugmentName, 18), name, Brushes.White, rect.X + 16, rect.Y + 34);
-                g.DrawString(route == null ? "查询后自动生成" : Ellipsis(route.Hint, 25), hint, new SolidBrush(Muted), rect.X + 16, rect.Y + 62);
+                g.DrawString(route == null ? MayhemUiCopy.NotEnough : Ellipsis(route.AugmentName, 18), name, Brushes.White, rect.X + 16, rect.Y + 34);
+                g.DrawString(route == null ? MayhemUiCopy.AutoGenerate : Ellipsis(route.Hint, 25), hint, new SolidBrush(Muted), rect.X + 16, rect.Y + 62);
             }
         }
 
@@ -217,27 +217,27 @@ namespace FACM.Mayhem
         {
             var panel = new Rectangle(30, 490, 1200, 742);
             DrawPanel(g, panel);
-            DrawSectionTitle(g, "强化符文决策榜", 56, 512);
+            DrawSectionTitle(g, MayhemUiCopy.AugmentBoard, 56, 512);
 
             var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
                 .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name))
                 .OrderBy(row => row.Rank <= 0 ? int.MaxValue : row.Rank)
                 .Take(12)
                 .ToList();
-            var prism = rows.Count(row => string.Equals(row.Rarity, "棱彩", StringComparison.OrdinalIgnoreCase));
-            var gold = rows.Count(row => string.Equals(row.Rarity, "黄金", StringComparison.OrdinalIgnoreCase));
-            var silver = rows.Count(row => string.Equals(row.Rarity, "白银", StringComparison.OrdinalIgnoreCase));
+            var prism = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Prism, StringComparison.OrdinalIgnoreCase));
+            var gold = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Gold, StringComparison.OrdinalIgnoreCase));
+            var silver = rows.Count(row => string.Equals(row.Rarity, MayhemUiCopy.Silver, StringComparison.OrdinalIgnoreCase));
             using (var summary = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
                 var source = SourceLabel(result);
-                g.DrawString("TOP " + rows.Count + "   ·   棱彩 " + prism + " / 黄金 " + gold + " / 白银 " + silver + "   ·   " + source,
+                g.DrawString("TOP " + rows.Count + "   ·   " + MayhemUiCopy.Prism + " " + prism + " / " + MayhemUiCopy.Gold + " " + gold + " / " + MayhemUiCopy.Silver + " " + silver + "   ·   " + source,
                     summary, new SolidBrush(Muted), 266, 518);
             }
 
             if (rows.Count == 0)
             {
                 using (var font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold, GraphicsUnit.Pixel))
-                    g.DrawString("暂无强化排行，基础攻略仍可正常使用", font, new SolidBrush(Color.FromArgb(166, 181, 207)), 56, 590);
+                    g.DrawString(MayhemUiCopy.NoAugmentRanking, font, new SolidBrush(Color.FromArgb(166, 181, 207)), 56, 590);
                 return;
             }
 
@@ -268,18 +268,24 @@ namespace FACM.Mayhem
                 g.DrawString("#" + Math.Max(1, row.Rank), rank, new SolidBrush(Color.FromArgb(180, 196, 225)), rect.X + 84, rect.Y + 11);
                 g.DrawString(Ellipsis(row.Name, 18), name, Brushes.White, rect.X + 118, rect.Y + 9);
                 DrawRarityPill(g, row.Rarity, rect.Right - 72, rect.Y + 10);
-                var stats = "胜率 " + FormatPercent(row.WinRate) + "   选择 " + FormatPercent(row.PickRate);
-                if (row.Games.HasValue && row.Games.Value > 0) stats += "   " + FormatGames(row.Games.Value) + " 局";
+                var stats = MayhemUiCopy.Win + FormatPercent(row.WinRate) + "   " + MayhemUiCopy.Pick + FormatPercent(row.PickRate);
+                if (row.Games.HasValue && row.Games.Value > 0) stats += "   " + FormatGames(row.Games.Value) + MayhemUiCopy.GamesSuffix;
                 g.DrawString(stats, stat, new SolidBrush(Green), rect.X + 84, rect.Y + 35);
-                DrawWrappedText(g, FirstNonEmpty(row.Description, "暂无效果说明"), desc, Muted,
+                DrawWrappedText(g, FirstNonEmpty(row.Description, MayhemUiCopy.NoDescription), desc, Muted,
                     new RectangleF(rect.X + 84, rect.Y + 56, rect.Width - 98, 28), 2);
             }
         }
 
         private static void DrawRarityPill(Graphics g, string rarity, int x, int y)
         {
-            var text = FirstNonEmpty(rarity, "未知");
-            var color = text.Contains("棱") ? Purple : text.Contains("金") ? Gold : text.Contains("银") ? Color.FromArgb(172, 190, 214) : Muted;
+            var text = FirstNonEmpty(rarity, MayhemUiCopy.Unknown);
+            var color = string.Equals(text, MayhemUiCopy.Prism, StringComparison.OrdinalIgnoreCase)
+                ? Purple
+                : string.Equals(text, MayhemUiCopy.Gold, StringComparison.OrdinalIgnoreCase)
+                    ? Gold
+                    : string.Equals(text, MayhemUiCopy.Silver, StringComparison.OrdinalIgnoreCase)
+                        ? Color.FromArgb(172, 190, 214)
+                        : Muted;
             using (var font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var path = RoundedRect(new Rectangle(x, y, 56, 22), 10))
             using (var fill = new SolidBrush(Color.FromArgb(32, color.R, color.G, color.B)))
@@ -296,14 +302,14 @@ namespace FACM.Mayhem
         {
             var panel = new Rectangle(30, 1252, 760, 224);
             DrawPanel(g, panel);
-            DrawSectionTitle(g, "技能与出装", 56, 1272);
+            DrawSectionTitle(g, MayhemUiCopy.SkillsAndBuild, 56, 1272);
             using (var label = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var body = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                g.DrawString("技能", label, new SolidBrush(Muted), 56, 1310);
+                g.DrawString(MayhemUiCopy.Skills, label, new SolidBrush(Muted), 56, 1310);
                 DrawSkills(g, result, images, 102, 1301);
-                DrawWrappedText(g, FirstNonEmpty(result.SkillOrder, "暂无加点顺序"), body, Text, new RectangleF(430, 1308, 330, 36), 2);
-                g.DrawString("核心装备", label, new SolidBrush(Muted), 56, 1370);
+                DrawWrappedText(g, FirstNonEmpty(result.SkillOrder, MayhemUiCopy.NoSkillOrder), body, Text, new RectangleF(430, 1308, 330, 36), 2);
+                g.DrawString(MayhemUiCopy.CoreItems, label, new SolidBrush(Muted), 56, 1370);
                 DrawCompactItems(g, result.CoreItems, result.CoreItemIconUrls, images, 132, 1358);
                 var balance = FirstNonEmpty(result.MayhemBalanceSummary, result.BaseBalanceSummary, string.Empty);
                 if (!string.IsNullOrWhiteSpace(balance))
@@ -315,7 +321,7 @@ namespace FACM.Mayhem
         {
             var panel = new Rectangle(810, 1252, 420, 224);
             DrawPanel(g, panel);
-            DrawSectionTitle(g, "版本胜率前五", 834, 1272);
+            DrawSectionTitle(g, MayhemUiCopy.TopFive, 834, 1272);
             var top = (result.TopTen ?? new List<MayhemTopChampion>()).OrderBy(item => item.Rank).Take(5).ToList();
             using (var font = new Font("Microsoft YaHei UI", 11.5F, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var small = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Pixel))
@@ -325,7 +331,7 @@ namespace FACM.Mayhem
                     var y = 1307 + i * 31;
                     if (i >= top.Count)
                     {
-                        g.DrawString((i + 1) + "   暂无数据", small, new SolidBrush(Color.FromArgb(105, 121, 149)), 834, y + 5);
+                        g.DrawString((i + 1) + "   " + MayhemUiCopy.NoRanking, small, new SolidBrush(Color.FromArgb(105, 121, 149)), 834, y + 5);
                         continue;
                     }
                     var item = top[i];
@@ -362,33 +368,33 @@ namespace FACM.Mayhem
             for (var i = 0; i < Math.Min(5, Math.Max(names.Count, references.Count)); i++)
             {
                 var reference = i < references.Count ? references[i] : null;
-                var name = i < names.Count ? names[i] : "";
+                var name = i < names.Count ? names[i] : string.Empty;
                 DrawSquareImage(g, images, reference, new Rectangle(x + i * 74, y, 52, 52), 10, FirstChar(name));
             }
             if (names.Count == 0 && references.Count == 0)
             {
                 using (var font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Pixel))
-                    g.DrawString("暂无装备数据", font, new SolidBrush(Muted), x, y + 17);
+                    g.DrawString(MayhemUiCopy.NoItems, font, new SolidBrush(Muted), x, y + 17);
             }
         }
 
         private static string SourceLabel(MayhemChampionResult result)
         {
-            if (result == null) return "来源：—";
+            if (result == null) return MayhemUiCopy.SourceEmpty;
             var route = result.AugmentSourceRoute;
-            if (string.Equals(route, "fresh-cache", StringComparison.OrdinalIgnoreCase)) return "本地缓存 · 15 分钟内";
-            if (string.Equals(route, "stale-cache", StringComparison.OrdinalIgnoreCase) || result.AugmentSourceStale) return "离线缓存 · 上次可用数据";
-            return "OP.GG Global · 实时";
+            if (string.Equals(route, "fresh-cache", StringComparison.OrdinalIgnoreCase)) return MayhemUiCopy.SourceFreshCache;
+            if (string.Equals(route, "stale-cache", StringComparison.OrdinalIgnoreCase) || result.AugmentSourceStale) return MayhemUiCopy.SourceStaleCache;
+            return MayhemUiCopy.SourceOpgg;
         }
 
         private static void DrawFooter(Graphics g, MayhemChampionResult result)
         {
             using (var font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Pixel))
             {
-                var source = "FACM · 海斗攻略";
+                var source = MayhemUiCopy.FooterProduct;
                 if (!string.IsNullOrWhiteSpace(result.SourceNote)) source += " · " + Ellipsis(result.SourceNote, 48);
                 g.DrawString(source, font, new SolidBrush(Color.FromArgb(116, 136, 169)), 34, 1504);
-                var note = "强化路线由单项胜率/选择率推导，仅作当前版本决策参考";
+                var note = MayhemUiCopy.FooterDisclaimer;
                 var width = g.MeasureString(note, font).Width;
                 g.DrawString(note, font, new SolidBrush(Color.FromArgb(116, 136, 169)), CardWidth - 34 - width, 1504);
             }
@@ -543,7 +549,7 @@ namespace FACM.Mayhem
 
         private static string FormatGames(int value)
         {
-            return value >= 10000 ? (value / 10000d).ToString("0.#", CultureInfo.InvariantCulture) + "万" : value.ToString("N0", CultureInfo.InvariantCulture);
+            return value >= 10000 ? (value / 10000d).ToString("0.#", CultureInfo.InvariantCulture) + MayhemUiCopy.TenThousand : value.ToString("N0", CultureInfo.InvariantCulture);
         }
 
         private static string FirstChar(string value)
