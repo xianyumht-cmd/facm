@@ -56,6 +56,7 @@ namespace FACM.AppHost.Modules
                 false);
             _applyService = new LeagueBuildApplyService(
                 _leagueClient,
+                _leagueClient,
                 _performance.Budgets,
                 _sharedOpgg,
                 false);
