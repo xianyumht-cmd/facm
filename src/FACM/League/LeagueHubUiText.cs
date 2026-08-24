@@ -34,7 +34,7 @@ namespace FACM.League
             { LeagueHubUiTextKeys.Hint, "查战绩、看实时、用推荐、改在线状态。" },
             { LeagueHubUiTextKeys.LauncherHint, "战绩、实时、推荐、在线状态" },
             { LeagueHubUiTextKeys.SectionMatch, "对局" },
-            { LeagueHubUiTextKeys.SectionMatchHint, "账号、战绩、实时对局、海斗榜" },
+            { LeagueHubUiTextKeys.SectionMatchHint, "账号、战绩、实时对局、海斗攻略" },
             { LeagueHubUiTextKeys.SectionRecommend, "推荐" },
             { LeagueHubUiTextKeys.SectionRecommendHint, "符文、技能、装备，一处查看和应用" },
             { LeagueHubUiTextKeys.SectionEfficiency, "工具" },
@@ -42,7 +42,7 @@ namespace FACM.League
             { LeagueHubUiTextKeys.Dashboard, "当前状态" },
             { LeagueHubUiTextKeys.Player, "我的战绩" },
             { LeagueHubUiTextKeys.Live, "实时对局" },
-            { LeagueHubUiTextKeys.Mayhem, "海斗榜" },
+            { LeagueHubUiTextKeys.Mayhem, "海斗攻略" },
             { LeagueHubUiTextKeys.Recommendation, "出装推荐" },
             { LeagueHubUiTextKeys.Efficiency, "快捷工具" },
             { LeagueHubUiTextKeys.Presence, "在线状态" }
