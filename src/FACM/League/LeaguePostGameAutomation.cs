@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -76,7 +77,8 @@ namespace FACM.League
             TimeSpan.FromMilliseconds(250),
             TimeSpan.FromMilliseconds(500),
             TimeSpan.FromMilliseconds(1000),
-            TimeSpan.FromMilliseconds(1500)
+            TimeSpan.FromMilliseconds(1500),
+            TimeSpan.FromMilliseconds(2250)
         };
 
         private readonly object _sync = new object();
@@ -227,8 +229,6 @@ namespace FACM.League
             }
             else
             {
-                // The honor transaction already owns a bounded post-game wait. Keep only a small
-                // hand-off delay before returning to lobby instead of stacking another long timer.
                 await _clock.Delay(TimeSpan.FromMilliseconds(350), cancellationToken).ConfigureAwait(false);
             }
 
@@ -326,8 +326,6 @@ namespace FACM.League
             if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
                 return Status(ballot.GameId, "success", "v2", verification.Detail, StatusCode(response), attempts, selected, true);
 
-            // Retry only after the post-game state itself stayed on the same game, kept the same
-            // target eligible, and kept the vote count unchanged through the whole read-back window.
             var safeRetry = !IsSuccess(response) && string.Equals(verification.State, "not-applied", StringComparison.Ordinal);
             if (safeRetry)
             {
@@ -354,7 +352,6 @@ namespace FACM.League
             LeagueHonorCandidate selected,
             CancellationToken cancellationToken)
         {
-            // Current legacy endpoint uses the V3 body shape: puuid + honorType.
             var body = _json.Serialize(new Dictionary<string, object>
             {
                 { "puuid", selected.Puuid },
@@ -393,6 +390,8 @@ namespace FACM.League
             var voteCountUnchangedOnLastRead = false;
             var completionSeen = false;
             var teamChoicesRead = false;
+            var teamChoicesCount = 0;
+            var teamChoicesShape = "none";
 
             foreach (var delay in VerificationDelays)
             {
@@ -401,11 +400,15 @@ namespace FACM.League
 
                 var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
                 List<string> choices;
-                if (TryParseStringList(choicesBytes, out choices))
+                string shape;
+                if (TryParseTeamChoices(choicesBytes, out choices, out shape))
                 {
                     teamChoicesRead = true;
-                    if (!string.IsNullOrWhiteSpace(selected.Puuid) && choices.Contains(selected.Puuid, StringComparer.Ordinal))
-                        return Verification("confirmed", "team-choices-confirmed");
+                    teamChoicesCount = choices.Count;
+                    teamChoicesShape = shape;
+                    string matchKind;
+                    if (MatchesTeamChoice(choices, selected, out matchKind))
+                        return Verification("confirmed", "team-choices-confirmed:" + matchKind);
                 }
 
                 var ballotBytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
@@ -434,20 +437,18 @@ namespace FACM.League
                     (completionGameId == 0 || completionGameId == before.GameId))
                 {
                     completionSeen = true;
-                    // fullTeamVote describes team-wide completion, not necessarily this FACM vote.
-                    // Keep it diagnostic only; ballot/team-choices stay authoritative.
                 }
             }
 
-            if (sameGameBallotSeen && targetStillEligibleOnLastRead && before.HasVoteCount && voteCountUnchangedOnLastRead)
-            {
-                var detail = "same-game-ballot-unchanged";
-                if (teamChoicesRead) detail += ";team-choices-readable";
-                if (completionSeen) detail += ";completion-readable";
-                return Verification("not-applied", detail);
-            }
+            var diagnostic = teamChoicesRead
+                ? ";team-choices-count=" + teamChoicesCount + ";team-choices-shape=" + teamChoicesShape
+                : ";team-choices-unreadable";
+            if (completionSeen) diagnostic += ";completion-readable";
 
-            return Verification("unknown", completionSeen ? "no-authoritative-confirmation;completion-readable" : "no-authoritative-confirmation");
+            if (sameGameBallotSeen && targetStillEligibleOnLastRead && before.HasVoteCount && voteCountUnchangedOnLastRead)
+                return Verification("not-applied", "same-game-ballot-unchanged" + diagnostic);
+
+            return Verification("unknown", "no-authoritative-confirmation" + diagnostic);
         }
 
         private async Task<string> TryReadSelfPuuidAsync(CancellationToken cancellationToken)
@@ -603,24 +604,56 @@ namespace FACM.League
                  (!string.IsNullOrWhiteSpace(selected.Puuid) && string.Equals(candidate.Puuid, selected.Puuid, StringComparison.Ordinal))));
         }
 
-        private bool TryParseStringList(byte[] bytes, out List<string> values)
+        private bool TryParseTeamChoices(byte[] bytes, out List<string> values, out string shape)
         {
             values = new List<string>();
+            shape = "none";
             if (bytes == null || bytes.Length == 0) return false;
             try
             {
                 var parsed = _json.DeserializeObject(Encoding.UTF8.GetString(bytes));
                 var enumerable = parsed as IEnumerable;
                 if (enumerable == null || parsed is string) return false;
+                var numeric = 0;
+                var text = 0;
                 foreach (var item in enumerable)
                 {
                     if (item == null) continue;
-                    var value = Convert.ToString(item);
-                    if (!string.IsNullOrWhiteSpace(value)) values.Add(value);
+                    var value = Convert.ToString(item, CultureInfo.InvariantCulture);
+                    if (string.IsNullOrWhiteSpace(value)) continue;
+                    values.Add(value);
+                    long number;
+                    if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) numeric++;
+                    else text++;
                 }
+                if (values.Count == 0) shape = "empty";
+                else if (numeric == values.Count) shape = "numeric";
+                else if (text == values.Count) shape = "text";
+                else shape = "mixed";
                 return true;
             }
             catch { return false; }
+        }
+
+        private static bool MatchesTeamChoice(List<string> choices, LeagueHonorCandidate selected, out string matchKind)
+        {
+            matchKind = null;
+            if (choices == null || selected == null) return false;
+            if (!string.IsNullOrWhiteSpace(selected.Puuid) && choices.Contains(selected.Puuid, StringComparer.Ordinal))
+            {
+                matchKind = "puuid";
+                return true;
+            }
+            if (selected.SummonerId > 0)
+            {
+                var summonerId = selected.SummonerId.ToString(CultureInfo.InvariantCulture);
+                if (choices.Contains(summonerId, StringComparer.Ordinal))
+                {
+                    matchKind = "summoner-id";
+                    return true;
+                }
+            }
+            return false;
         }
 
         private bool TryParseVoteCompletion(byte[] bytes, out long gameId, out bool fullTeamVote)
