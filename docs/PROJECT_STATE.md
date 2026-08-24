@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.4
-- GitHub Release：v3.5.4
+- 版本：FACM 3.5.5
+- GitHub Release：v3.5.5
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：11a25d73795e7bda64fc5b34519824da254f88b5
-- 发布元数据提交：86f46a8ab56868a26a4f0d9f4d4fbb20974d1e6e
-- Release FACM.exe SHA-256：34158031A18F3D1E87F5CD8B859B06B2509F89438B1A11CDEBCE928F1449CBCD
-- published_at：2026-08-24T03:08:55.9028778+00:00
-- release_notes：FACM 3.5.4：根据 3.5.3 国服实机日志继续修正赛后‘随机点赞队友’的成功确认。3.5.3 已能稳定向 Honor V2 发出请求并获得 HTTP 200，但国服连续多局的 team-choices 回读没有按 PUUID 形式命中目标，导致程序只能显示‘已提交，未确认’。本版把 /lol-honor-v2/v1/team-choices 同时按 PUUID 和 summonerId 两种返回格式识别，兼容数字数组、数字字符串和文本标识；任一权威回读明确包含本次目标即可确认成功。点赞后的回读窗口由约 3.25 秒延长到约 5.5 秒，减少国服结算状态更新稍慢造成的误判。ballot 的 honoredPlayers 与 numVotes 仍作为独立确认依据，HTTP 200 本身仍不会直接被当作点赞成功。若仍无法确认，日志只记录 team-choices 的数量以及 numeric/text/mixed/empty 结构，不记录完整返回内容，方便继续定位同时避免扩大隐私暴露。原有一局一次、响应丢失不重复提交、仅在明确未生效时单次安全重试、V2 404/405 才回退旧链等保护保持不变。新增数字 summonerId team-choices 与 PUUID 两种回归测试。
+- 发布基础 main：3800bb2deff3710640bb531c3ac93e567dd8dace
+- 发布元数据提交：8d5c57b1ce1553097d6383e54a1cd32a7fdc1550
+- Release FACM.exe SHA-256：98E8B217F84F4BBEBE60AEEFAC5E120F8138E74C079949D374B596E750D97BD9
+- published_at：2026-08-24T04:56:35.8433151+00:00
+- release_notes：FACM 3.5.5：自动更新替换链正式从 PowerShell 脚本迁移到内置无控制台 WinExe 更新器。FACM.Updater 直接嵌入 FACM.exe，运行时从已签名主程序资源提取，不再生成 .ps1，也不启动 powershell/cmd。下载阶段继续执行 GitHub HTTPS 清单、SHA-256 与发布签名校验；下载完成后把本次已验证版本和 SHA 作为进程内安装凭据，安装前再次校验，避免下载校验与真正替换之间被换包。更新器等待旧 FACM 退出后先复制并校验同目录暂存文件，优先使用 File.Replace 原子替换并保留 .facm-old 回滚副本；不支持原子替换的文件系统才进入带备份的兼容回退。新版启动后由更新器观察约 5 秒，若很快退出会恢复旧版并重新启动，稳定运行后才删除下载包与回滚副本。更新过程新增 logs/update-installer.log，记录替换、重启、回滚和清理结果。CI 同时校验内置更新器确实为 PE 文件且嵌入/提取字节一致。注意：从 3.5.4 升级到 3.5.5 的这一跳仍由 3.5.4 自己的旧 PowerShell 更新器完成；安装 3.5.5 后，后续版本更新开始不再出现 PowerShell 黑窗。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。

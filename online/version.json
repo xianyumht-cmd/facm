@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.5",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.5/FACM.exe",
   "sha256": "98E8B217F84F4BBEBE60AEEFAC5E120F8138E74C079949D374B596E750D97BD9",
   "release_notes": "FACM 3.5.5：自动更新替换链正式从 PowerShell 脚本迁移到内置无控制台 WinExe 更新器。FACM.Updater 直接嵌入 FACM.exe，运行时从已签名主程序资源提取，不再生成 .ps1，也不启动 powershell/cmd。下载阶段继续执行 GitHub HTTPS 清单、SHA-256 与发布签名校验；下载完成后把本次已验证版本和 SHA 作为进程内安装凭据，安装前再次校验，避免下载校验与真正替换之间被换包。更新器等待旧 FACM 退出后先复制并校验同目录暂存文件，优先使用 File.Replace 原子替换并保留 .facm-old 回滚副本；不支持原子替换的文件系统才进入带备份的兼容回退。新版启动后由更新器观察约 5 秒，若很快退出会恢复旧版并重新启动，稳定运行后才删除下载包与回滚副本。更新过程新增 logs/update-installer.log，记录替换、重启、回滚和清理结果。CI 同时校验内置更新器确实为 PE 文件且嵌入/提取字节一致。注意：从 3.5.4 升级到 3.5.5 的这一跳仍由 3.5.4 自己的旧 PowerShell 更新器完成；安装 3.5.5 后，后续版本更新开始不再出现 PowerShell 黑窗。",
-  "published_at": "2026-08-24T04:56:25.7708219+00:00"
+  "published_at": "2026-08-24T04:56:35.8433151+00:00"
 }
