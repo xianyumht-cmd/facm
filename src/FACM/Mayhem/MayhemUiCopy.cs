@@ -60,8 +60,11 @@ namespace FACM.Mayhem
         public const string DecisionTitle = "这一局怎么选";
         public const string DecisionNote = "根据单强化胜率与选择率给出方向，不代表三强化组合胜率。";
         public const string StableRoute = "稳健首选";
+        public const string StableRouteHint = "胜率和热门度都不错，没把握时优先考虑";
         public const string HighWinRoute = "高胜上限";
+        public const string HighWinRouteHint = "单强化胜率更突出，适合追求强度";
         public const string PopularRoute = "热门容错";
+        public const string PopularRouteHint = "选择率更高，实战更常见";
         public const string NotEnough = "暂无足够数据";
         public const string AutoGenerate = "查询后自动生成";
         public const string AugmentBoard = "强化符文决策榜";
