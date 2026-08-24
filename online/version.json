@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.6",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.6/FACM.exe",
   "sha256": "131BDC12334697B6C8152E9320D14B5009F898DB020CBD55552B2AC0180F94CD",
   "release_notes": "FACM 3.5.6：对 LOL 助手的海斗功能做品质级升级，并新增统一的 LOL 公共数据读取层。原“海斗榜”升级为“海斗攻略”，查询界面改为纵向自适应攻略预览；攻略卡重新组织为英雄概览、强化决策路线、最多 12 条强化信息、技能与核心装备、版本英雄排行。强化解析对齐 OP.GG 当前页面字段，支持 largeIcon/smallIcon、稀有度、胜率、选择率、sampleCount/totalGames 等样本字段和效果说明；当上游实际提供单强化胜率/选择率时生成“稳健首选 / 高胜上限 / 热门容错”三条路线，当统计字段缺失时只展示可验证信息，不补造胜率，也不把单强化统计冒充三强化组合胜率。新增 LOL 公共数据统一读取层，海斗与 OP.GG 出装/符文推荐共同使用安全的公开 HTTPS 读取、15 分钟新鲜磁盘缓存和最长 24 小时最近成功快照回退，提升国际线路不稳定时的可用性；该层明确拒绝 localhost、IP、LCU、认证信息和写请求，因此不会代理或暴露本地 League Client 会话。当前没有接入来源不明的 OP.GG 第三方代理，未来真正的中继加速只接受 FACM 可控/可信 relay，OP.GG 直连始终保留兜底。",
-  "published_at": "2026-08-24T08:16:26.6673998+00:00"
+  "published_at": "2026-08-24T08:16:34.9163861+00:00"
 }
