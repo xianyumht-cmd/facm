@@ -26,6 +26,7 @@ namespace FACM.League
     internal sealed class LeagueHonorCandidate
     {
         public string Puuid { get; set; }
+        public long SummonerId { get; set; }
         public bool BotPlayer { get; set; }
     }
 
@@ -33,16 +34,49 @@ namespace FACM.League
     {
         public long GameId { get; set; }
         public int Votes { get; set; }
+        public bool HasVoteCount { get; set; }
         public List<LeagueHonorCandidate> Allies { get; private set; } = new List<LeagueHonorCandidate>();
+    }
+
+    internal sealed class LeagueHonorAttemptStatus
+    {
+        public long GameId { get; set; }
+        public string State { get; set; }
+        public string Route { get; set; }
+        public string Detail { get; set; }
+        public int HttpStatus { get; set; }
+        public int Attempts { get; set; }
+        public long TargetSummonerId { get; set; }
+        public string TargetPuuidSuffix { get; set; }
+        public DateTime CompletedAtUtc { get; set; }
+
+        public LeagueHonorAttemptStatus Clone()
+        {
+            return (LeagueHonorAttemptStatus)MemberwiseClone();
+        }
+    }
+
+    internal sealed class LeagueHonorVerificationResult
+    {
+        public string State { get; set; }
+        public string Detail { get; set; }
     }
 
     internal sealed class LeaguePostGameAutomationController : IDisposable
     {
-        internal const string BallotPath = "/lol-honor-v2/v1/ballot/";
+        internal const string BallotPath = "/lol-honor-v2/v1/ballot";
+        internal const string TeamChoicesPath = "/lol-honor-v2/v1/team-choices";
+        internal const string VoteCompletionPath = "/lol-honor-v2/v1/vote-completion";
         internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
-        private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(650);
-        private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromMilliseconds(3250);
-        private static readonly TimeSpan WaitingForStatsFallbackRemainder = TimeSpan.FromMilliseconds(6750);
+        private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(600);
+        private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromSeconds(12);
+        private static readonly TimeSpan[] VerificationDelays =
+        {
+            TimeSpan.FromMilliseconds(150),
+            TimeSpan.FromMilliseconds(300),
+            TimeSpan.FromMilliseconds(600),
+            TimeSpan.FromMilliseconds(900)
+        };
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
@@ -51,6 +85,7 @@ namespace FACM.League
         private readonly Func<int, int> _chooseIndex;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _cycleCancellation;
+        private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoHonor;
         private bool _autoReturn;
         private bool _insidePostGame;
@@ -72,6 +107,16 @@ namespace FACM.League
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _chooseIndex = chooseIndex ?? throw new ArgumentNullException(nameof(chooseIndex));
+        }
+
+        public event Action<LeagueHonorAttemptStatus> HonorAttemptCompleted;
+
+        public LeagueHonorAttemptStatus LastHonorStatus
+        {
+            get
+            {
+                lock (_sync) return _lastHonorStatus == null ? null : _lastHonorStatus.Clone();
+            }
         }
 
         public void Configure(bool autoHonor, bool autoReturn)
@@ -156,8 +201,22 @@ namespace FACM.League
             if (honor)
             {
                 ballot = await WaitForBallotAsync(cancellationToken).ConfigureAwait(false);
-                if (ballot != null && ballot.GameId > 0 && ballot.Votes > 0)
+                if (ballot == null)
+                {
+                    PublishHonorStatus(Status(0, "skipped", "none", "ballot-timeout", 0, 0, null, 0));
+                }
+                else if (ballot.GameId <= 0)
+                {
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "invalid-game", 0, 0, null, 0));
+                }
+                else if (ballot.Votes <= 0)
+                {
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-votes", 0, 0, null, 0));
+                }
+                else
+                {
                     await TryHonorOneAllyAsync(ballot, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             if (!playAgain) return;
@@ -165,15 +224,11 @@ namespace FACM.League
             {
                 await _clock.Delay(ResolveReturnDelay(initialPhase), cancellationToken).ConfigureAwait(false);
             }
-            else if (ballot != null)
+            else
             {
-                await _clock.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
-            }
-            else if (string.Equals(initialPhase, "WaitingForStats", StringComparison.OrdinalIgnoreCase))
-            {
-                // Akari keeps a 10s WaitingForStats fallback. FACM spends at most the first 3.25s
-                // looking for an honor ballot, then only waits the remaining 6.75s before returning.
-                await _clock.Delay(WaitingForStatsFallbackRemainder, cancellationToken).ConfigureAwait(false);
+                // Honor polling already owns the bounded post-game wait. Do not stack an old fallback
+                // delay on top of the new 12-second ballot window.
+                await _clock.Delay(TimeSpan.FromMilliseconds(350), cancellationToken).ConfigureAwait(false);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -215,11 +270,86 @@ namespace FACM.League
                 .GroupBy(item => item.Puuid, StringComparer.Ordinal)
                 .Select(group => group.First())
                 .ToList();
-            if (candidates.Count == 0) return;
+            if (candidates.Count == 0)
+            {
+                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-eligible-ally", 0, 0, null, 0));
+                return;
+            }
 
             var index = _chooseIndex(candidates.Count);
             if (index < 0 || index >= candidates.Count) index = 0;
             var selected = candidates[index];
+
+            if (selected.SummonerId > 0)
+            {
+                var v2 = await TryHonorV2Async(ballot, selected, cancellationToken).ConfigureAwait(false);
+                if (v2 != null)
+                {
+                    PublishHonorStatus(v2);
+                    return;
+                }
+            }
+
+            var legacy = await TryHonorLegacyAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
+            PublishHonorStatus(legacy);
+        }
+
+        private async Task<LeagueHonorAttemptStatus> TryHonorV2Async(
+            LeagueHonorBallot ballot,
+            LeagueHonorCandidate selected,
+            CancellationToken cancellationToken)
+        {
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "summonerId", selected.SummonerId },
+                { "puuid", selected.Puuid },
+                { "honorType", "HEART" },
+                { "gameId", ballot.GameId }
+            });
+
+            var attempts = 1;
+            var response = await _write.TrySendAsync(
+                "POST",
+                LeaguePostGameWriteApiClient.HonorV2Path,
+                body,
+                cancellationToken).ConfigureAwait(false);
+
+            if (response != null && (response.StatusCode == 404 || response.StatusCode == 405))
+            {
+                AppLog.Info("League auto honor V2 unavailable; falling back to legacy honor route. status=" + response.StatusCode);
+                return null;
+            }
+
+            var verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
+                return Status(ballot.GameId, "success", "v2", verification.Detail, StatusCode(response), attempts, selected, 1);
+
+            var safeRetry = !IsSuccess(response) && string.Equals(verification.State, "not-applied", StringComparison.Ordinal);
+            if (safeRetry)
+            {
+                await _clock.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+                attempts++;
+                response = await _write.TrySendAsync(
+                    "POST",
+                    LeaguePostGameWriteApiClient.HonorV2Path,
+                    body,
+                    cancellationToken).ConfigureAwait(false);
+                verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
+                if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
+                    return Status(ballot.GameId, "success", "v2", verification.Detail + ";safe-retry", StatusCode(response), attempts, selected, 1);
+            }
+
+            if (IsSuccess(response))
+                return Status(ballot.GameId, "unknown", "v2", "submitted-unverified:" + verification.Detail, StatusCode(response), attempts, selected, 1);
+
+            return Status(ballot.GameId, "failed", "v2", "submit-failed:" + verification.Detail, StatusCode(response), attempts, selected, 1);
+        }
+
+        private async Task<LeagueHonorAttemptStatus> TryHonorLegacyAsync(
+            LeagueHonorBallot ballot,
+            LeagueHonorCandidate selected,
+            CancellationToken cancellationToken)
+        {
             var body = _json.Serialize(new Dictionary<string, object>
             {
                 { "honorType", "HEART" },
@@ -230,18 +360,87 @@ namespace FACM.League
                 LeaguePostGameWriteApiClient.HonorPath,
                 body,
                 cancellationToken).ConfigureAwait(false);
-            if (honorResponse == null || !honorResponse.IsSuccessStatusCode)
-            {
-                AppLog.Info("League auto honor teammate: failed");
-                return;
-            }
+            if (!IsSuccess(honorResponse))
+                return Status(ballot.GameId, "failed", "legacy", "honor-submit-failed", StatusCode(honorResponse), 1, selected, 1);
 
             var ballotResponse = await _write.TrySendAsync(
                 "POST",
                 LeaguePostGameWriteApiClient.HonorBallotSubmitPath,
                 null,
                 cancellationToken).ConfigureAwait(false);
-            AppLog.Info("League auto honor teammate: " + (ballotResponse != null && ballotResponse.IsSuccessStatusCode ? "success" : "ballot-submit-failed"));
+            if (!IsSuccess(ballotResponse))
+                return Status(ballot.GameId, "unknown", "legacy", "honor-sent-ballot-submit-failed", StatusCode(ballotResponse), 1, selected, 1);
+
+            var verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
+                return Status(ballot.GameId, "success", "legacy", verification.Detail, StatusCode(ballotResponse), 1, selected, 1);
+
+            return Status(ballot.GameId, "unknown", "legacy", "submitted-unverified:" + verification.Detail, StatusCode(ballotResponse), 1, selected, 1);
+        }
+
+        private async Task<LeagueHonorVerificationResult> VerifyHonorAsync(
+            LeagueHonorBallot before,
+            LeagueHonorCandidate selected,
+            CancellationToken cancellationToken)
+        {
+            var teamChoicesRead = false;
+            var sameGameBallotSeen = false;
+            var targetStillEligible = false;
+            var voteCountUnchanged = false;
+            var completionSeen = false;
+
+            foreach (var delay in VerificationDelays)
+            {
+                await _clock.Delay(delay, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (selected.SummonerId > 0)
+                {
+                    var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
+                    List<long> choices;
+                    if (TryParseLongList(choicesBytes, out choices))
+                    {
+                        teamChoicesRead = true;
+                        if (choices.Contains(selected.SummonerId))
+                            return Verification("confirmed", "team-choices-confirmed");
+                    }
+                }
+
+                var ballotBytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
+                var after = ParseBallot(ballotBytes);
+                if (after != null && after.GameId == before.GameId)
+                {
+                    sameGameBallotSeen = true;
+                    var stillEligible = ContainsCandidate(after, selected);
+                    if (!stillEligible)
+                        return Verification("confirmed", "ballot-target-consumed");
+
+                    targetStillEligible = true;
+                    if (before.HasVoteCount && after.HasVoteCount)
+                    {
+                        if (after.Votes < before.Votes)
+                            return Verification("confirmed", "ballot-vote-decreased");
+                        if (after.Votes == before.Votes) voteCountUnchanged = true;
+                    }
+                }
+
+                var completionBytes = await _read.TryGetBytesAsync(VoteCompletionPath, cancellationToken).ConfigureAwait(false);
+                long completionGameId;
+                bool fullTeamVote;
+                if (TryParseVoteCompletion(completionBytes, out completionGameId, out fullTeamVote) &&
+                    (completionGameId == 0 || completionGameId == before.GameId))
+                {
+                    completionSeen = true;
+                    // fullTeamVote is not treated as proof that this specific FACM vote was accepted.
+                    // It is retained as a diagnostic signal while team-choices/ballot remain authoritative.
+                }
+            }
+
+            if (selected.SummonerId > 0 && teamChoicesRead && sameGameBallotSeen && targetStillEligible &&
+                (!before.HasVoteCount || voteCountUnchanged))
+                return Verification("not-applied", completionSeen ? "state-unchanged;completion-readable" : "state-unchanged");
+
+            return Verification("unknown", completionSeen ? "no-authoritative-confirmation;completion-readable" : "no-authoritative-confirmation");
         }
 
         private async Task<string> TryReadSelfPuuidAsync(CancellationToken cancellationToken)
@@ -258,15 +457,28 @@ namespace FACM.League
             if (root == null) return null;
             var ballot = new LeagueHonorBallot { GameId = ReadLong(root, "gameId") };
             var votePool = ReadDictionary(root, "votePool");
-            ballot.Votes = ReadInt(votePool, "votes");
-            foreach (var row in EnumerateDictionaries(ReadValue(root, "eligibleAllies")))
+            if (votePool != null && votePool.ContainsKey("votes"))
+            {
+                ballot.HasVoteCount = true;
+                ballot.Votes = ReadInt(votePool, "votes");
+            }
+
+            var modernAllies = EnumerateDictionaries(ReadValue(root, "eligibleAllies")).ToList();
+            var rows = modernAllies.Count > 0
+                ? modernAllies
+                : EnumerateDictionaries(ReadValue(root, "eligiblePlayers")).ToList();
+            foreach (var row in rows)
             {
                 ballot.Allies.Add(new LeagueHonorCandidate
                 {
                     Puuid = ReadString(row, "puuid"),
+                    SummonerId = ReadLongAny(row, "summonerId", "summonerID"),
                     BotPlayer = ReadBool(row, "botPlayer")
                 });
             }
+
+            if (!ballot.HasVoteCount && ballot.Allies.Count > 0)
+                ballot.Votes = 1;
             return ballot;
         }
 
@@ -292,6 +504,110 @@ namespace FACM.League
         private bool IsStillEnabledForReturn()
         {
             lock (_sync) return !_disposed && _insidePostGame && _autoReturn;
+        }
+
+        private void PublishHonorStatus(LeagueHonorAttemptStatus status)
+        {
+            if (status == null) return;
+            Action<LeagueHonorAttemptStatus> handler;
+            lock (_sync)
+            {
+                _lastHonorStatus = status.Clone();
+                handler = HonorAttemptCompleted;
+            }
+
+            AppLog.Info(
+                "League auto honor result: gameId=" + status.GameId +
+                "; state=" + (status.State ?? string.Empty) +
+                "; route=" + (status.Route ?? string.Empty) +
+                "; targetSummonerId=" + status.TargetSummonerId +
+                "; targetPuuid=" + (status.TargetPuuidSuffix ?? string.Empty) +
+                "; http=" + status.HttpStatus +
+                "; attempts=" + status.Attempts +
+                "; detail=" + (status.Detail ?? string.Empty));
+
+            if (handler != null)
+            {
+                try { handler(status.Clone()); }
+                catch (Exception exception) { AppLog.Info("League honor status observer skipped: " + exception.Message); }
+            }
+        }
+
+        private static LeagueHonorAttemptStatus Status(
+            long gameId,
+            string state,
+            string route,
+            string detail,
+            int httpStatus,
+            int attempts,
+            LeagueHonorCandidate selected,
+            int includeTarget)
+        {
+            return new LeagueHonorAttemptStatus
+            {
+                GameId = gameId,
+                State = state,
+                Route = route,
+                Detail = detail,
+                HttpStatus = httpStatus,
+                Attempts = attempts,
+                TargetSummonerId = includeTarget != 0 && selected != null ? selected.SummonerId : 0,
+                TargetPuuidSuffix = includeTarget != 0 && selected != null ? MaskPuuid(selected.Puuid) : string.Empty,
+                CompletedAtUtc = DateTime.UtcNow
+            };
+        }
+
+        private static LeagueHonorVerificationResult Verification(string state, string detail)
+        {
+            return new LeagueHonorVerificationResult { State = state, Detail = detail };
+        }
+
+        private static int StatusCode(LeagueClientWriteResponse response)
+        {
+            return response == null ? 0 : response.StatusCode;
+        }
+
+        private static bool IsSuccess(LeagueClientWriteResponse response)
+        {
+            return response != null && response.IsSuccessStatusCode;
+        }
+
+        private static bool ContainsCandidate(LeagueHonorBallot ballot, LeagueHonorCandidate selected)
+        {
+            if (ballot == null || selected == null) return false;
+            return ballot.Allies.Any(candidate => candidate != null &&
+                ((selected.SummonerId > 0 && candidate.SummonerId == selected.SummonerId) ||
+                 (!string.IsNullOrWhiteSpace(selected.Puuid) && string.Equals(candidate.Puuid, selected.Puuid, StringComparison.Ordinal))));
+        }
+
+        private bool TryParseLongList(byte[] bytes, out List<long> values)
+        {
+            values = new List<long>();
+            if (bytes == null || bytes.Length == 0) return false;
+            try
+            {
+                var parsed = _json.DeserializeObject(Encoding.UTF8.GetString(bytes));
+                var enumerable = parsed as IEnumerable;
+                if (enumerable == null || parsed is string) return false;
+                foreach (var item in enumerable)
+                {
+                    try { values.Add(Convert.ToInt64(item)); }
+                    catch { }
+                }
+                return true;
+            }
+            catch { return false; }
+        }
+
+        private bool TryParseVoteCompletion(byte[] bytes, out long gameId, out bool fullTeamVote)
+        {
+            gameId = 0;
+            fullTeamVote = false;
+            var root = ParseObject(bytes);
+            if (root == null) return false;
+            gameId = ReadLong(root, "gameId");
+            fullTeamVote = ReadBool(root, "fullTeamVote");
+            return true;
         }
 
         private Dictionary<string, object> ParseObject(byte[] bytes)
@@ -324,6 +640,18 @@ namespace FACM.League
             catch { return 0; }
         }
 
+        private static long ReadLongAny(Dictionary<string, object> source, params string[] keys)
+        {
+            if (source == null || keys == null) return 0;
+            foreach (var key in keys)
+            {
+                if (string.IsNullOrEmpty(key) || !source.ContainsKey(key)) continue;
+                try { return Convert.ToInt64(ReadValue(source, key)); }
+                catch { }
+            }
+            return 0;
+        }
+
         private static int ReadInt(Dictionary<string, object> source, string key)
         {
             try { return Convert.ToInt32(ReadValue(source, key)); }
@@ -353,6 +681,13 @@ namespace FACM.League
             return new Random(unchecked(Environment.TickCount * 31 + Thread.CurrentThread.ManagedThreadId)).Next(count);
         }
 
+        private static string MaskPuuid(string puuid)
+        {
+            var value = (puuid ?? string.Empty).Trim();
+            if (value.Length == 0) return string.Empty;
+            return value.Length <= 8 ? "..." + value : "..." + value.Substring(value.Length - 8);
+        }
+
         private void CancelCycleLocked()
         {
             var cancellation = _cycleCancellation;
@@ -372,6 +707,7 @@ namespace FACM.League
                 if (_disposed) return;
                 _disposed = true;
                 CancelCycleLocked();
+                HonorAttemptCompleted = null;
             }
         }
     }
