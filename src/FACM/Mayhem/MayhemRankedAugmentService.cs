@@ -178,10 +178,10 @@ namespace FACM.Mayhem
             var popular = FirstNumber(item, "popular", "pickRate", "pick_rate", "popularity");
             var id = FirstText(item, "id", "augmentId", "augment_id");
             var slug = FirstText(item, "slug", "key");
-            var icon = FirstText(item, "icon", "iconUrl", "image", "imageUrl");
+            var icon = FirstText(item, "largeIcon", "smallIcon", "icon", "iconUrl", "image", "imageUrl");
             var rarity = NormalizeRarity(FirstText(item, "rarity", "grade", "tier"));
             var description = CleanDescription(FirstText(item, "description", "desc", "tooltip"));
-            var games = FirstInteger(item, "games", "gameCount", "sampleSize", "count");
+            var games = FirstInteger(item, "games", "gameCount", "sampleCount", "sampleSize", "totalGames", "count");
             var rank = FirstInteger(item, "rank", "order") ?? fallbackRank;
             if (string.IsNullOrWhiteSpace(slug)) slug = Slugify(name);
             if (string.IsNullOrWhiteSpace(icon) && !string.IsNullOrWhiteSpace(slug))
