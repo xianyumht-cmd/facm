@@ -30,6 +30,11 @@ namespace FACM.Mayhem
         public static async Task EnrichAsync(MayhemChampionResult result, CancellationToken token)
         {
             if (result == null) return;
+
+            // The optional OP.GG build page is independent from the augment page. Start it here so
+            // item/skill details are fetched in parallel with the slower augment request instead of
+            // extending the visible render path by another network round-trip.
+            var buildTask = MayhemBuildDetailsService.EnrichAsync(result, token);
             var slug = (result.ChampionSlug ?? string.Empty).Trim().ToLowerInvariant();
             if (!string.IsNullOrWhiteSpace(slug))
             {
@@ -48,6 +53,7 @@ namespace FACM.Mayhem
                         result.AugmentSourceUrl = url;
                         result.AugmentSourceRoute = response.Route;
                         result.AugmentSourceStale = response.IsStale;
+                        await buildTask.ConfigureAwait(false);
                         AppLog.Info("Mayhem rich augments loaded: count=" + rows.Count + "; route=" + response.Route + "; stale=" + response.IsStale);
                         return;
                     }
@@ -63,6 +69,7 @@ namespace FACM.Mayhem
             }
 
             await ApplyLegacyFallbackAsync(result, token).ConfigureAwait(false);
+            await buildTask.ConfigureAwait(false);
         }
 
         internal static int ApplyFromHtmlForSmokeTest(MayhemChampionResult result, string html)
@@ -115,6 +122,7 @@ namespace FACM.Mayhem
             if (string.IsNullOrWhiteSpace(html)) return Enumerable.Empty<MayhemAugmentRow>();
             var normalized = NormalizeEscapedHtml(html);
             var best = new List<MayhemAugmentRow>();
+            var bestScore = -1;
             var searchFrom = 0;
             while (searchFrom < normalized.Length)
             {
@@ -130,10 +138,23 @@ namespace FACM.Mayhem
                 }
                 var json = normalized.Substring(open, close - open + 1);
                 var parsed = ParseArray(json);
-                if (parsed.Count > best.Count) best = parsed;
+                var score = ScoreRows(parsed);
+                if (score > bestScore)
+                {
+                    best = parsed;
+                    bestScore = score;
+                }
                 searchFrom = close + 1;
             }
             return best;
+        }
+
+        private static int ScoreRows(IList<MayhemAugmentRow> rows)
+        {
+            if (rows == null || rows.Count == 0) return 0;
+            var stats = rows.Count(row => row.WinRate.HasValue || row.PickRate.HasValue);
+            var samples = rows.Count(row => row.Games.HasValue && row.Games.Value > 0);
+            return rows.Count * 10 + stats * 4 + samples;
         }
 
         private static int FindNextArrayMarker(string text, int start)
@@ -179,13 +200,17 @@ namespace FACM.Mayhem
             var id = FirstText(item, "id", "augmentId", "augment_id");
             var slug = FirstText(item, "slug", "key");
             var icon = FirstText(item, "largeIcon", "smallIcon", "icon", "iconUrl", "image", "imageUrl");
+
+            // Rich OP.GG rows are only accepted when OP.GG itself supplied an icon. Generic arrays in
+            // the Next.js payload can contain similarly named objects without usable assets; accepting
+            // those was the reason the card intermittently lost all augment artwork.
+            if (string.IsNullOrWhiteSpace(icon)) return null;
+
             var rarity = NormalizeRarity(FirstText(item, "rarity", "grade", "tier"));
             var description = CleanDescription(FirstText(item, "description", "desc", "tooltip"));
             var games = FirstInteger(item, "games", "gameCount", "sampleCount", "sampleSize", "totalGames", "count");
             var rank = FirstInteger(item, "rank", "order") ?? fallbackRank;
             if (string.IsNullOrWhiteSpace(slug)) slug = Slugify(name);
-            if (string.IsNullOrWhiteSpace(icon) && !string.IsNullOrWhiteSpace(slug))
-                icon = KiwiIconBase + NormalizeName(slug) + "_small.png";
             return new MayhemAugmentRow
             {
                 Id = id,
@@ -197,7 +222,7 @@ namespace FACM.Mayhem
                 PickRate = NormalizePercent(popular),
                 Games = games,
                 Description = description,
-                IconUrl = icon
+                IconUrl = CleanIconUrl(icon)
             };
         }
 
@@ -216,31 +241,36 @@ namespace FACM.Mayhem
             var routes = new List<MayhemDecisionRoute>();
             if (usable.Count == 0) return routes;
 
-            var stable = usable.OrderByDescending(row => Score(row, 0.72, 0.28)).First();
-            routes.Add(new MayhemDecisionRoute
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddRoute(routes, used, usable.OrderByDescending(row => Score(row, 0.72, 0.28)), MayhemUiCopy.StableRoute, MayhemUiCopy.StableRouteHint, 0);
+            AddRoute(routes, used, usable.OrderByDescending(row => row.WinRate ?? -1), MayhemUiCopy.HighWinRoute, MayhemUiCopy.HighWinRouteHint, 1);
+            AddRoute(routes, used, usable.OrderByDescending(row => row.PickRate ?? -1), MayhemUiCopy.PopularRoute, MayhemUiCopy.PopularRouteHint, 2);
+            return routes;
+        }
+
+        private static void AddRoute(
+            ICollection<MayhemDecisionRoute> routes,
+            ISet<string> used,
+            IEnumerable<MayhemAugmentRow> ordered,
+            string title,
+            string hint,
+            int scoreKind)
+        {
+            foreach (var row in ordered)
             {
-                Title = MayhemUiCopy.StableRoute,
-                AugmentName = stable.Name,
-                Hint = MayhemUiCopy.StableRouteHint,
-                Score = Score(stable, 0.72, 0.28)
-            });
-            var ceiling = usable.OrderByDescending(row => row.WinRate ?? -1).First();
-            routes.Add(new MayhemDecisionRoute
-            {
-                Title = MayhemUiCopy.HighWinRoute,
-                AugmentName = ceiling.Name,
-                Hint = MayhemUiCopy.HighWinRouteHint,
-                Score = ceiling.WinRate ?? 0
-            });
-            var popular = usable.OrderByDescending(row => row.PickRate ?? -1).First();
-            routes.Add(new MayhemDecisionRoute
-            {
-                Title = MayhemUiCopy.PopularRoute,
-                AugmentName = popular.Name,
-                Hint = MayhemUiCopy.PopularRouteHint,
-                Score = popular.PickRate ?? 0
-            });
-            return routes.GroupBy(route => route.Title).Select(group => group.First()).ToList();
+                if (row == null || string.IsNullOrWhiteSpace(row.Name) || !used.Add(row.Name)) continue;
+                var score = scoreKind == 0
+                    ? Score(row, 0.72, 0.28)
+                    : scoreKind == 1 ? row.WinRate ?? 0 : row.PickRate ?? 0;
+                routes.Add(new MayhemDecisionRoute
+                {
+                    Title = title,
+                    AugmentName = row.Name,
+                    Hint = hint,
+                    Score = score
+                });
+                return;
+            }
         }
 
         private static double Score(MayhemAugmentRow row, double winWeight, double pickWeight)
@@ -370,8 +400,9 @@ namespace FACM.Mayhem
         {
             if (!value.HasValue) return null;
             var number = value.Value;
-            if (number >= 0 && number <= 1.00001) number *= 100.0;
-            return number;
+            if (double.IsNaN(number) || double.IsInfinity(number) || number < 0) return null;
+            if (number <= 1.00001) number *= 100.0;
+            return number <= 100.00001 ? number : (double?)null;
         }
 
         private static string NormalizeRarity(string value)
@@ -388,6 +419,14 @@ namespace FACM.Mayhem
             if (string.IsNullOrWhiteSpace(value)) return null;
             var text = Regex.Replace(NormalizeEscapedHtml(value), "<[^>]+>", " ");
             return Regex.Replace(WebUtility.HtmlDecode(text), "\\s+", " ").Trim();
+        }
+
+        private static string CleanIconUrl(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var clean = WebUtility.HtmlDecode(value).Trim().Replace("\\/", "/");
+            var imageIndex = clean.IndexOf("?image=", StringComparison.OrdinalIgnoreCase);
+            return imageIndex > 0 ? clean.Substring(0, imageIndex) : clean;
         }
 
         private static string Slugify(string value)
