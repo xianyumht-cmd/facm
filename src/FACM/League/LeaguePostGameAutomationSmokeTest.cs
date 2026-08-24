@@ -50,7 +50,7 @@ namespace FACM.League
                 var modern = controller.ParseBallot(Bytes(BallotJson(1, true, true)));
                 Require(modern != null && modern.GameId == 123 && modern.Votes == 1 && modern.HasVoteCount,
                     "Modern Honor V2 ballot metadata did not parse.");
-                Require(modern.Allies.Count == 2 && modern.Allies.Any(item => item.SummonerId == 101),
+                Require(modern.Allies.Count == 3 && modern.Allies.Any(item => item.SummonerId == 101) && modern.Allies.Any(item => item.BotPlayer),
                     "Modern eligibleAllies/summonerId did not parse.");
 
                 var legacyShape = controller.ParseBallot(Bytes(
