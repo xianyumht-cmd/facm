@@ -18,6 +18,7 @@ namespace FACM.League
         private readonly CheckBox _autoAccept;
         private readonly Label _help;
         private readonly Label _status;
+        private readonly Label _honorStatus;
         private bool _loading = true;
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
@@ -100,7 +101,15 @@ namespace FACM.League
             hotkeyFooter.Controls.Add(save, 1, 0);
             root.Controls.Add(hotkeyFooter, 0, 5);
 
-            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.PostGameSection)), 0, 6);
+            _honorStatus = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = Color.FromArgb(148, 163, 184),
+                TextAlign = ContentAlignment.MiddleRight,
+                AutoEllipsis = true,
+                Text = FormatHonorStatus(_module.LastHonorStatus)
+            };
+            root.Controls.Add(CreatePostGameHeader(), 0, 6);
             _autoHonor = AddAutomationRow(root, 7, T(LeagueEfficiencyUiTextKeys.AutoHonor), T(LeagueEfficiencyUiTextKeys.AutoHonorHint), _module.AutoHonorEnabled);
             _autoReturn = AddAutomationRow(root, 8, T(LeagueEfficiencyUiTextKeys.AutoReturn), T(LeagueEfficiencyUiTextKeys.AutoReturnHint), _module.AutoReturnLobbyEnabled);
             _autoHonor.CheckedChanged += PostGameSettingChanged;
@@ -112,8 +121,27 @@ namespace FACM.League
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
 
+            _module.HonorStatusChanged += HandleHonorStatusChanged;
+            FormClosed += HandleFormClosed;
             Controls.Add(root);
             _loading = false;
+        }
+
+        private Control CreatePostGameHeader()
+        {
+            var panel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = BackColor,
+                Margin = Padding.Empty
+            };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            panel.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.PostGameSection)), 0, 0);
+            panel.Controls.Add(_honorStatus, 1, 0);
+            return panel;
         }
 
         private Label SectionLabel(string text)
@@ -276,6 +304,52 @@ namespace FACM.League
             _module.UpdateMatchmakingSettings(_autoSearch.Checked, _autoAccept.Checked);
             _status.ForeColor = Color.FromArgb(134, 239, 172);
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void HandleHonorStatusChanged(LeagueHonorAttemptStatus status)
+        {
+            if (IsDisposed || Disposing) return;
+            try
+            {
+                if (!IsHandleCreated) return;
+                BeginInvoke(new Action(delegate { ApplyHonorStatus(status); }));
+            }
+            catch (InvalidOperationException) { }
+        }
+
+        private void ApplyHonorStatus(LeagueHonorAttemptStatus status)
+        {
+            if (_honorStatus == null || _honorStatus.IsDisposed) return;
+            _honorStatus.Text = FormatHonorStatus(status);
+            var state = status == null ? string.Empty : status.State ?? string.Empty;
+            if (string.Equals(state, "success", StringComparison.Ordinal))
+                _honorStatus.ForeColor = Color.FromArgb(134, 239, 172);
+            else if (string.Equals(state, "failed", StringComparison.Ordinal))
+                _honorStatus.ForeColor = Color.FromArgb(253, 186, 116);
+            else if (string.Equals(state, "unknown", StringComparison.Ordinal))
+                _honorStatus.ForeColor = Color.FromArgb(253, 224, 71);
+            else
+                _honorStatus.ForeColor = Color.FromArgb(148, 163, 184);
+        }
+
+        private string FormatHonorStatus(LeagueHonorAttemptStatus status)
+        {
+            if (status == null) return T(LeagueEfficiencyUiTextKeys.HonorLastNone);
+            var time = status.CompletedAtUtc == default(DateTime)
+                ? DateTime.Now.ToString("HH:mm")
+                : status.CompletedAtUtc.ToLocalTime().ToString("HH:mm");
+            if (string.Equals(status.State, "success", StringComparison.Ordinal))
+                return string.Format(T(LeagueEfficiencyUiTextKeys.HonorLastSuccess), time);
+            if (string.Equals(status.State, "skipped", StringComparison.Ordinal))
+                return string.Format(T(LeagueEfficiencyUiTextKeys.HonorLastSkipped), time);
+            if (string.Equals(status.State, "unknown", StringComparison.Ordinal))
+                return string.Format(T(LeagueEfficiencyUiTextKeys.HonorLastUnknown), time);
+            return string.Format(T(LeagueEfficiencyUiTextKeys.HonorLastFailed), time);
+        }
+
+        private void HandleFormClosed(object sender, FormClosedEventArgs e)
+        {
+            _module.HonorStatusChanged -= HandleHonorStatusChanged;
         }
 
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
