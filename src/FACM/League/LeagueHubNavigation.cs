@@ -45,6 +45,21 @@ namespace FACM.League
             new LeagueHubViewDefinition(Presence, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.Presence)
         };
 
+        // Context links are intentionally product-oriented rather than section-oriented. They let a user
+        // continue the same task without returning to the Hub index, mirroring related-content links in a
+        // document. Keep the list short enough to read as recommendations, not another navigation menu.
+        private static readonly IReadOnlyDictionary<string, string[]> Related =
+            new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                { Dashboard, new[] { Player, Live, Mayhem, Recommendation } },
+                { Player, new[] { Live, Recommendation, Mayhem, Dashboard } },
+                { Live, new[] { Recommendation, Mayhem, Efficiency, Player } },
+                { Mayhem, new[] { Recommendation, Live, Player, Dashboard } },
+                { Recommendation, new[] { Mayhem, Live, Efficiency, Player } },
+                { Efficiency, new[] { Dashboard, Live, Recommendation, Presence } },
+                { Presence, new[] { Efficiency, Dashboard, Player } }
+            };
+
         public static IReadOnlyList<LeagueHubViewDefinition> Views
         {
             get { return Definitions; }
@@ -54,6 +69,18 @@ namespace FACM.League
         {
             return Definitions
                 .Where(item => string.Equals(item.SectionKey, sectionKey, StringComparison.Ordinal))
+                .ToArray();
+        }
+
+        public static IReadOnlyList<LeagueHubViewDefinition> RelatedViews(string viewId)
+        {
+            string[] ids;
+            if (string.IsNullOrWhiteSpace(viewId) || !Related.TryGetValue(viewId, out ids) || ids == null)
+                return new LeagueHubViewDefinition[0];
+
+            return ids
+                .Select(id => Definitions.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+                .Where(item => item != null)
                 .ToArray();
         }
 
@@ -86,12 +113,31 @@ namespace FACM.League
                 !tools.Any(item => string.Equals(item.Id, Presence, StringComparison.Ordinal)))
                 throw new InvalidOperationException("Tools must expose shortcuts and online status inside the LOL helper.");
 
+            var knownIds = new HashSet<string>(Definitions.Select(item => item.Id), StringComparer.Ordinal);
+            foreach (var pair in Related)
+            {
+                if (!knownIds.Contains(pair.Key))
+                    throw new InvalidOperationException("LOL workbench context map has an unknown source view: " + pair.Key);
+                if (pair.Value == null || pair.Value.Length == 0 || pair.Value.Length > 4)
+                    throw new InvalidOperationException("LOL workbench context links must contain one to four actions.");
+                if (pair.Value.Any(string.IsNullOrWhiteSpace) || pair.Value.Any(id => !knownIds.Contains(id)))
+                    throw new InvalidOperationException("LOL workbench context map contains an unknown target view.");
+                if (pair.Value.Any(id => string.Equals(id, pair.Key, StringComparison.Ordinal)))
+                    throw new InvalidOperationException("LOL workbench context map cannot link a view to itself.");
+                if (pair.Value.Distinct(StringComparer.Ordinal).Count() != pair.Value.Length)
+                    throw new InvalidOperationException("LOL workbench context map contains duplicate targets.");
+            }
+            if (Related.Count != Definitions.Count)
+                throw new InvalidOperationException("Every novice-facing LOL workbench view must expose contextual next actions.");
+
             var defaults = LeagueHubText.DefaultsForSmokeTest();
             if (expected.Any(key => !defaults.ContainsKey(key)) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.WindowTitle) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Title) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Presence) ||
-                !defaults.ContainsKey(LeagueHubUiTextKeys.Recommendation))
+                !defaults.ContainsKey(LeagueHubUiTextKeys.Recommendation) ||
+                !defaults.ContainsKey(LeagueHubUiTextKeys.ContextTitle) ||
+                !defaults.ContainsKey(LeagueHubUiTextKeys.ContextHint))
                 throw new InvalidOperationException("LOL helper UI text defaults are incomplete.");
 
             foreach (var pair in LeagueRecommendationText.DefaultsForSmokeTest())
