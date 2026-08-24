@@ -312,7 +312,7 @@ namespace FACM.Mayhem
                     var skill = skills[index];
                     DrawSquareImage(g, images, skill.IconUrl, new Rectangle(iconX, y + 18, 26, 26), 5, skill.Key, Cyan);
                     g.DrawString(skill.Key, tiny, new SolidBrush(Cyan), iconX + 8, y + 45);
-                    if (index < skills.Count - 1) g.DrawString(">", tiny, new SolidBrush(Muted), iconX + 31, y + 27);
+                    if (index < skills.Count - 1) g.DrawString(MayhemUiCopy.SkillSeparator, tiny, new SolidBrush(Muted), iconX + 31, y + 27);
                     iconX += 42;
                 }
                 var order = string.Join(" > ", skills.Take(3).Select(skill => skill.Key));
@@ -569,9 +569,9 @@ namespace FACM.Mayhem
         private static string RarityKind(string rarity)
         {
             var value = (rarity ?? string.Empty).Trim().ToLowerInvariant();
-            if (value.Contains("prism") || value.Contains("棱") || value == MayhemUiCopy.Prism.ToLowerInvariant()) return "prism";
-            if (value.Contains("gold") || value.Contains("黄金") || value == "金") return "gold";
-            if (value.Contains("silver") || value.Contains("白银") || value == "银") return "silver";
+            if (value.Contains("prism") || value.Contains("棱") || value == MayhemUiCopy.Prism.ToLowerInvariant()) return "prism"; // ui-text-contract: allow
+            if (value.Contains("gold") || value.Contains("黄金") || value == "金") return "gold"; // ui-text-contract: allow
+            if (value.Contains("silver") || value.Contains("白银") || value == "银") return "silver"; // ui-text-contract: allow
             return "other";
         }
 
