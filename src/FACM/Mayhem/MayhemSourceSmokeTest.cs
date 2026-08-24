@@ -86,8 +86,16 @@ namespace FACM.Mayhem
                         throw new InvalidOperationException("Ranked augment names are incomplete.");
                     if (result.AugmentRows == null || result.AugmentRows.Count < 5)
                         throw new InvalidOperationException("Rich ranked augment rows are incomplete.");
-                    if (result.AugmentRoutes == null || result.AugmentRoutes.Count < 3)
-                        throw new InvalidOperationException("Augment decision routes are incomplete.");
+
+                    // The current ARAM Mayhem page can expose the full augment catalog while omitting
+                    // per-augment performance/popularity. In that state FACM must keep the rich list
+                    // and deliberately show no inferred decision route rather than inventing statistics.
+                    var hasDecisionStats = result.AugmentRows.Any(row => row != null && (row.WinRate.HasValue || row.PickRate.HasValue));
+                    if (hasDecisionStats && (result.AugmentRoutes == null || result.AugmentRoutes.Count < 3))
+                        throw new InvalidOperationException("Augment decision routes are incomplete despite available statistics.");
+                    if (!hasDecisionStats && result.AugmentRoutes != null && result.AugmentRoutes.Count != 0)
+                        throw new InvalidOperationException("Augment decision routes must stay empty when live statistics are absent.");
+
                     if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
                         throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
 
