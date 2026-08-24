@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSettings();
             ValidateProcessActions();
             ValidateUiContract();
+            LeaguePostGameAutomationSmokeTest.Validate();
         }
 
         private static void ValidateHotkeys()
