@@ -17,6 +17,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
+    <UpdaterAssembly>$(MSBuildProjectDirectory)\..\FACM.Updater\bin\$(Configuration)\net48\FACM.Updater.exe</UpdaterAssembly>
     <PetHostBundlePath Condition="'$(PetHostBundlePath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.zip</PetHostBundlePath>
   </PropertyGroup>
 
@@ -35,6 +36,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\FACM.Updater\FACM.Updater.csproj" ReferenceOutputAssembly="false" />
     <None Include="Resources\FACM-Canva.png" />
 
     <!--
@@ -52,6 +54,15 @@
     -->
     <EmbeddedResource Include="$(ToolBundleAssembly)"
                       LogicalName="FACM.Resources.FACM.ToolBundle.dll"
+                      Type="Non-Resx"
+                      WithCulture="false" />
+
+    <!--
+      无窗口更新器同样嵌入 FACM.exe。运行时只从已签名 FACM 主程序的内置资源
+      提取，避免依赖 PowerShell/cmd，也让单 EXE 在线更新保持可用。
+    -->
+    <EmbeddedResource Include="$(UpdaterAssembly)"
+                      LogicalName="FACM.Resources.FACM.Updater.exe"
                       Type="Non-Resx"
                       WithCulture="false" />
 
@@ -75,6 +86,15 @@
              Text="Embedding FACM.ToolBundle.dll as FACM.Resources.FACM.ToolBundle.dll" />
   </Target>
 
+  <Target Name="VerifyUpdaterBeforeCompile"
+          BeforeTargets="PrepareResourceNames"
+          DependsOnTargets="ResolveProjectReferences">
+    <Error Condition="!Exists('$(UpdaterAssembly)')"
+           Text="FACM.Updater.exe was not built: $(UpdaterAssembly)" />
+    <Message Importance="High"
+             Text="Embedding FACM.Updater.exe as FACM.Resources.FACM.Updater.exe" />
+  </Target>
+
   <Target Name="VerifyPetHostBundleBeforeCompile"
           BeforeTargets="PrepareResourceNames">
     <Error Condition="'$(RequirePetHostBundle)' == 'true' and !Exists('$(PetHostBundlePath)')"
@@ -91,7 +111,7 @@
     <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" />
     <Message Importance="High" Text="Validating FACM performance budget contract." />
     <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" />
-    <Message Importance="High" Text="Validating FACM update mirror routing, de-duplication and GitHub fallback." />
+    <Message Importance="High" Text="Validating FACM update mirror routing, embedded updater and GitHub fallback." />
     <Exec Command="&quot;$(TargetPath)&quot; --update-mirror-test" />
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
