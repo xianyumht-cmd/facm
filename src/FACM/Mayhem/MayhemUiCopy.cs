@@ -49,6 +49,7 @@ namespace FACM.Mayhem
         public const string TriggerPageNoData = "当前页面未返回";
 
         public const string CardSubtitle = "海克斯大乱斗 · 强化决策攻略";
+        public const string CompactCardSubtitle = "海克斯大乱斗 · 海符决策";
         public const string PatchPrefix = "版本 ";
         public const string NoTier = "暂无梯队";
         public const string RankPrefix = "排行 #";
@@ -91,5 +92,43 @@ namespace FACM.Mayhem
         public const string FooterProduct = "FACM · 海斗攻略";
         public const string FooterDisclaimer = "强化路线仅由上游实际提供的单项统计推导，不补造缺失数据";
         public const string TenThousand = "万";
+
+        public const string CompactSummarySuffix = "强化 + 出装 + 技能";
+        public const string MetricList = "榜单";
+        public const string MetricSource = "来源";
+        public const string MetricQuality = "品质";
+        public const string MetricCache = "缓存";
+        public const string SourceOpggShort = "OPGG";
+        public const string CacheFifteenMinutes = "15m";
+        public const string BalanceLayers = "英雄平衡修正";
+        public const string BalanceLayerNote = "基础 ARAM / Mayhem 分层 · 不将数值相加";
+        public const string BaseAram = "基础 ARAM";
+        public const string MayhemOnly = "Mayhem 专属";
+        public const string Verified = "已校验";
+        public const string Syncing = "同步中";
+        public const string CompactBuild = "出装与技能";
+        public const string BuildLive = "OP.GG 实时出装";
+        public const string BuildCache = "OP.GG 出装缓存";
+        public const string BuildMissing = "出装数据暂缺";
+        public const string Core = "核心";
+        public const string Starter = "出门";
+        public const string Boots = "鞋子";
+        public const string Summoner = "召唤师";
+        public const string SkillPriority = "技能加点";
+        public const string SkillSeparator = ">";
+        public const string NoCoreBuild = "暂无核心出装";
+        public const string NoValue = "暂无";
+        public const string PrismSection = "棱镜强化";
+        public const string GoldSection = "金强化";
+        public const string SilverSection = "银强化";
+        public const string OtherSection = "其他强化";
+        public const string ItemsSuffix = " 项";
+        public const string Popularity = "热度";
+        public const string Sample = "样本";
+        public const string ChoiceDirection = "选符方向";
+        public const string SingleAugmentNote = "单符数据推导 · 非三符组合实测";
+        public const string StableShortHint = "胜率与热度兼顾";
+        public const string HighWinShortHint = "优先当前单符胜率";
+        public const string PopularShortHint = "优先高选用率";
     }
 }
