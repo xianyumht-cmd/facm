@@ -121,7 +121,7 @@ namespace FACM.Mayhem
             var output = new List<MayhemBuildItem>();
             foreach (Match match in Regex.Matches(
                 segment ?? string.Empty,
-                "\\\"metaId\\\"\\s*:\\s*(?<id>\\d+).*?\\\"src\\\"\\s*:\\s*\\\"(?<src>[^\\\"]+)\\\".*?\\\"alt\\\"\\s*:\\s*\\\"(?<name>[^\\\"]+)\\\"",
+                "\"metaId\"\\s*:\\s*(?<id>\\d+).*?\"src\"\\s*:\\s*\"(?<src>[^\"]+)\".*?\"alt\"\\s*:\\s*\"(?<name>[^\"]+)\"",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline))
             {
                 var item = BuildItem(match.Groups["id"].Value, match.Groups["name"].Value, match.Groups["src"].Value);
@@ -174,6 +174,20 @@ namespace FACM.Mayhem
                 output.Add(item);
                 if (output.Count >= 2) break;
             }
+
+            if (output.Count < 2)
+            {
+                foreach (Match match in Regex.Matches(
+                    segment,
+                    "\"src\"\\s*:\\s*\"(?<src>[^\"]*/spell/Summoner[^\"]+)\".*?\"alt\"\\s*:\\s*\"(?<name>[^\"]+)\"",
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline))
+                {
+                    var item = BuildItem(null, match.Groups["name"].Value, match.Groups["src"].Value);
+                    if (!IsUsefulItem(item, false) || ContainsItem(output, item)) continue;
+                    output.Add(item);
+                    if (output.Count >= 2) break;
+                }
+            }
             return output;
         }
 
@@ -190,24 +204,57 @@ namespace FACM.Mayhem
                 AddSkillMatches(output, segment,
                     "<img\\b[^>]*src\\s*=\\s*[\\\"'](?<src>[^\\\"']*/spell/[^\\\"']+)[\\\"'][^>]*alt\\s*=\\s*[\\\"'](?<name>[^\\\"']+)[\\\"'][^>]*>.*?<strong[^>]*>\\s*(?<key>[QWER])\\s*</strong>");
             }
+            if (output.Count < 3) AddSerializedSkillRows(output, segment);
+            if (output.Count < 3)
+            {
+                AddSkillMatches(output, segment,
+                    "\"src\"\\s*:\\s*\"(?<src>[^\"]*/spell/[^\"]+)\".*?\"alt\"\\s*:\\s*\"(?<name>[^\"]+)\".*?\"children\"\\s*:\\s*\"(?<key>[QWER])\"");
+            }
             return output.Take(3).ToList();
+        }
+
+        private static void AddSerializedSkillRows(List<MayhemSkillPriority> output, string segment)
+        {
+            for (var index = 0; index < 3 && output.Count < 3; index++)
+            {
+                var marker = "skill_" + index;
+                var start = segment.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (start < 0) continue;
+                var nextMarker = "skill_" + (index + 1);
+                var next = segment.IndexOf(nextMarker, start + marker.Length, StringComparison.OrdinalIgnoreCase);
+                var length = next > start ? next - start : Math.Min(2800, segment.Length - start);
+                if (length <= 0) continue;
+                var part = segment.Substring(start, Math.Min(length, 2800));
+                var keyMatch = Regex.Match(part, "\"extraData\"\\s*:\\s*\"(?<key>[QWER])\"", RegexOptions.IgnoreCase);
+                var iconMatch = Regex.Match(
+                    part,
+                    "\"src\"\\s*:\\s*\"(?<src>[^\"]*/spell/[^\"]+)\".*?\"alt\"\\s*:\\s*\"(?<name>[^\"]+)\"",
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                if (!keyMatch.Success || !iconMatch.Success) continue;
+                AddSkill(output, keyMatch.Groups["key"].Value, iconMatch.Groups["name"].Value, iconMatch.Groups["src"].Value);
+            }
         }
 
         private static void AddSkillMatches(List<MayhemSkillPriority> output, string segment, string pattern)
         {
             foreach (Match match in Regex.Matches(segment ?? string.Empty, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline))
             {
-                var key = (match.Groups["key"].Value ?? string.Empty).Trim().ToUpperInvariant();
-                if (key == "R" || (key != "Q" && key != "W" && key != "E")) continue;
-                if (output.Any(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))) continue;
-                output.Add(new MayhemSkillPriority
-                {
-                    Key = key,
-                    Name = CleanValue(match.Groups["name"].Value),
-                    IconUrl = CleanUrl(match.Groups["src"].Value)
-                });
+                AddSkill(output, match.Groups["key"].Value, match.Groups["name"].Value, match.Groups["src"].Value);
                 if (output.Count >= 3) return;
             }
+        }
+
+        private static void AddSkill(List<MayhemSkillPriority> output, string keyValue, string name, string src)
+        {
+            var key = (keyValue ?? string.Empty).Trim().ToUpperInvariant();
+            if (key == "R" || (key != "Q" && key != "W" && key != "E")) return;
+            if (output.Any(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))) return;
+            output.Add(new MayhemSkillPriority
+            {
+                Key = key,
+                Name = CleanValue(name),
+                IconUrl = CleanUrl(src)
+            });
         }
 
         private static string SegmentAfter(string html, string[] markers, int maxLength)
