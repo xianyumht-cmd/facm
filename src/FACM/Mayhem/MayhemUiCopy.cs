@@ -115,6 +115,7 @@ namespace FACM.Mayhem
         public const string Boots = "鞋子";
         public const string Summoner = "召唤师";
         public const string SkillPriority = "技能加点";
+        public const string SkillSeparator = ">";
         public const string NoCoreBuild = "暂无核心出装";
         public const string NoValue = "暂无";
         public const string PrismSection = "棱镜强化";
