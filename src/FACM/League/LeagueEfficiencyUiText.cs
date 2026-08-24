@@ -27,6 +27,11 @@ namespace FACM.League
         public const string PostGameSection = "LeagueEfficiencyPostGameSection";
         public const string AutoHonor = "LeagueEfficiencyAutoHonor";
         public const string AutoHonorHint = "LeagueEfficiencyAutoHonorHint";
+        public const string HonorLastNone = "LeagueEfficiencyHonorLastNone";
+        public const string HonorLastSuccess = "LeagueEfficiencyHonorLastSuccess";
+        public const string HonorLastSkipped = "LeagueEfficiencyHonorLastSkipped";
+        public const string HonorLastUnknown = "LeagueEfficiencyHonorLastUnknown";
+        public const string HonorLastFailed = "LeagueEfficiencyHonorLastFailed";
         public const string AutoReturn = "LeagueEfficiencyAutoReturn";
         public const string AutoReturnHint = "LeagueEfficiencyAutoReturnHint";
         public const string PostGameSaved = "LeagueEfficiencyPostGameSaved";
@@ -62,9 +67,14 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.SaveFailed, "快捷键没有修改：{0}" },
             { LeagueEfficiencyUiTextKeys.PostGameSection, "赛后处理" },
             { LeagueEfficiencyUiTextKeys.AutoHonor, "随机点赞队友" },
-            { LeagueEfficiencyUiTextKeys.AutoHonorHint, "结算时从可点赞队友里随机选 1 人，不点赞对手，也不会把多张票一次用完。" },
+            { LeagueEfficiencyUiTextKeys.AutoHonorHint, "结算后会等待可点赞名单，优先走新版点赞接口；提交后再读回确认，只有明确没生效时才安全重试一次。" },
+            { LeagueEfficiencyUiTextKeys.HonorLastNone, "上局点赞：暂无记录" },
+            { LeagueEfficiencyUiTextKeys.HonorLastSuccess, "上局点赞：成功 · {0}" },
+            { LeagueEfficiencyUiTextKeys.HonorLastSkipped, "上局点赞：未执行 · {0}" },
+            { LeagueEfficiencyUiTextKeys.HonorLastUnknown, "上局点赞：已提交，未确认 · {0}" },
+            { LeagueEfficiencyUiTextKeys.HonorLastFailed, "上局点赞：失败 · {0}" },
             { LeagueEfficiencyUiTextKeys.AutoReturn, "自动回大厅" },
-            { LeagueEfficiencyUiTextKeys.AutoReturnHint, "结算时短暂等待点赞机会后自动返回大厅；点赞失败也不会一直卡住。" },
+            { LeagueEfficiencyUiTextKeys.AutoReturnHint, "结算时先给点赞流程留出机会，再自动返回大厅；点赞失败也不会一直卡住。" },
             { LeagueEfficiencyUiTextKeys.PostGameSaved, "赛后处理设置已保存。" },
             { LeagueEfficiencyUiTextKeys.NextGameSection, "下一局" },
             { LeagueEfficiencyUiTextKeys.AutoMatchmaking, "自动开始排队" },
