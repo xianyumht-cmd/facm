@@ -3,7 +3,7 @@ namespace FACM.Mayhem
     internal static class MayhemUiCopy
     {
         public const string WindowTitle = "海斗攻略";
-        public const string PageHint = "查英雄强度、强化符文和出装。强化榜会同时给胜率、选择率、样本量和选择建议。";
+        public const string PageHint = "查英雄强度、强化符文和出装。强化榜优先展示胜率、选择率、样本量和效果；上游未提供统计时只展示可验证信息。";
         public const string Search = "查询";
         public const string Searching = "查询中...";
         public const string Cancel = "取消";
@@ -58,7 +58,7 @@ namespace FACM.Mayhem
         public const string CurrentBalance = "当前平衡";
         public const string NoBalance = "暂无额外平衡调整";
         public const string DecisionTitle = "这一局怎么选";
-        public const string DecisionNote = "根据单强化胜率与选择率给出方向，不代表三强化组合胜率。";
+        public const string DecisionNote = "仅在上游提供单强化统计时生成路线，不代表三强化组合胜率。";
         public const string StableRoute = "稳健首选";
         public const string StableRouteHint = "胜率和热门度都不错，没把握时优先考虑";
         public const string HighWinRoute = "高胜上限";
@@ -66,7 +66,7 @@ namespace FACM.Mayhem
         public const string PopularRoute = "热门容错";
         public const string PopularRouteHint = "选择率更高，实战更常见";
         public const string NotEnough = "暂无足够数据";
-        public const string AutoGenerate = "查询后自动生成";
+        public const string AutoGenerate = "有可用统计时自动生成";
         public const string AugmentBoard = "强化符文决策榜";
         public const string Prism = "棱彩";
         public const string Gold = "黄金";
@@ -89,7 +89,7 @@ namespace FACM.Mayhem
         public const string SourceStaleCache = "离线缓存 · 上次可用数据";
         public const string SourceOpgg = "OP.GG Global · 实时";
         public const string FooterProduct = "FACM · 海斗攻略";
-        public const string FooterDisclaimer = "强化路线由单项胜率/选择率推导，仅作当前版本决策参考";
+        public const string FooterDisclaimer = "强化路线仅由上游实际提供的单项统计推导，不补造缺失数据";
         public const string TenThousand = "万";
     }
 }
