@@ -14,6 +14,7 @@ namespace FACM.League
             ValidateTransportFence();
             ValidateBallotCompatibility();
             ValidateV2VerifiedByTeamChoices();
+            ValidateV2VerifiedByNumericTeamChoices();
             ValidateResponseLostButAppliedDoesNotRetry();
             ValidateSafeRetryAfterReadbackProvesNotApplied();
             ValidateV2UnsupportedFallsBackToLegacy();
@@ -92,8 +93,31 @@ namespace FACM.League
                 "Honor V2 request lost puuid or honor category.");
             Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.HonorPath),
                 "Verified Honor V2 must not also write the legacy route.");
-            Require(result != null && result.State == "success" && result.Route == "v2" && result.Attempts == 1,
-                "team-choices verification did not produce a confirmed Honor V2 result.");
+            Require(result != null && result.State == "success" && result.Route == "v2" && result.Attempts == 1 &&
+                    result.Detail == "team-choices-confirmed:puuid",
+                "PUUID team-choices verification did not produce a confirmed Honor V2 result.");
+        }
+
+        private static void ValidateV2VerifiedByNumericTeamChoices()
+        {
+            var read = StandardRead();
+            var write = new FakePostGameWriteApi();
+            write.OnV2Call = count =>
+            {
+                if (count == 1) read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
+            };
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+
+            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1,
+                "Numeric team-choices verification must not duplicate Honor V2 writes.");
+            Require(result != null && result.State == "success" && result.Route == "v2" &&
+                    result.Detail == "team-choices-confirmed:summoner-id",
+                "Numeric summonerId team-choices verification did not confirm the Honor V2 vote.");
         }
 
         private static void ValidateResponseLostButAppliedDoesNotRetry()
@@ -188,7 +212,7 @@ namespace FACM.League
         {
             var read = StandardRead();
             var write = new FakePostGameWriteApi();
-            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[\"ally-a\"]");
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
             using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
             {
                 controller.Configure(true, false);
