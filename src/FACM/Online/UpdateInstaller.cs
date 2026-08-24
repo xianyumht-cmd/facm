@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -17,6 +18,15 @@ namespace FACM.Online
         private const long MaximumUpdateBytes = 512L * 1024L * 1024L;
         private const string UpdaterResourceName = "FACM.Resources.FACM.Updater.exe";
         private const string UpdaterFileName = "FACM.Updater.exe";
+        private static readonly object ReceiptSync = new object();
+        private static readonly Dictionary<string, ValidatedUpdateReceipt> ValidatedPackages =
+            new Dictionary<string, ValidatedUpdateReceipt>(StringComparer.OrdinalIgnoreCase);
+
+        private sealed class ValidatedUpdateReceipt
+        {
+            public string Version;
+            public string Sha256;
+        }
 
         public static async Task<string> DownloadAsync(
             UpdateManifest manifest,
@@ -49,11 +59,7 @@ namespace FACM.Online
                     var stopwatch = Stopwatch.StartNew();
                     try
                     {
-                        await DownloadCandidateAsync(
-                            candidate.Url,
-                            temporary,
-                            progress,
-                            cancellationToken).ConfigureAwait(false);
+                        await DownloadCandidateAsync(candidate.Url, temporary, progress, cancellationToken).ConfigureAwait(false);
 
                         var actualHash = ComputeSha256(temporary);
                         if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
@@ -66,6 +72,7 @@ namespace FACM.Online
 
                         if (File.Exists(destination)) File.Delete(destination);
                         File.Move(temporary, destination);
+                        RememberValidatedPackage(destination, manifest.Version, manifest.Sha256);
                         if (progress != null) progress.Report(100);
                         AppLog.Info("Update package downloaded and verified: " + Path.GetFileName(destination));
                         return destination;
@@ -112,10 +119,7 @@ namespace FACM.Online
                 HttpResponseMessage response = null;
                 try
                 {
-                    response = await client.GetAsync(
-                        url,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        headerTimeout.Token).ConfigureAwait(false);
+                    response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, headerTimeout.Token).ConfigureAwait(false);
                     response.EnsureSuccessStatusCode();
 
                     var total = response.Content.Headers.ContentLength;
@@ -123,13 +127,7 @@ namespace FACM.Online
                         throw new InvalidDataException("更新文件大小异常。");
 
                     using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    using (var output = new FileStream(
-                        temporary,
-                        FileMode.Create,
-                        FileAccess.Write,
-                        FileShare.None,
-                        81920,
-                        true))
+                    using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                     {
                         var buffer = new byte[81920];
                         long received = 0;
@@ -178,26 +176,25 @@ namespace FACM.Online
             }
         }
 
-        public static void StartReplacement(string downloadedExecutable, UpdateManifest manifest)
+        public static void StartReplacement(string downloadedExecutable)
         {
             if (string.IsNullOrWhiteSpace(downloadedExecutable) || !File.Exists(downloadedExecutable))
                 throw new FileNotFoundException("已下载的更新文件不存在。", downloadedExecutable);
 
-            ValidateManifest(manifest);
+            var receipt = TakeValidatedPackage(downloadedExecutable);
+            if (receipt == null)
+                throw new InvalidDataException("更新包缺少本次下载校验凭据，已停止安装。");
+
             var actualHash = ComputeSha256(downloadedExecutable);
-            if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(actualHash, receipt.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("更新文件在安装前发生变化，已停止替换。");
-            SignatureInspector.ValidateUpdatePackage(downloadedExecutable, manifest.Version);
+            SignatureInspector.ValidateUpdatePackage(downloadedExecutable, receipt.Version);
 
             RuntimePaths.Initialize();
             var updaterPath = ExtractEmbeddedUpdater();
             var currentProcess = Process.GetCurrentProcess();
             var currentExecutable = currentProcess.MainModule.FileName;
-            var arguments = BuildUpdaterArguments(
-                currentProcess.Id,
-                downloadedExecutable,
-                currentExecutable,
-                manifest.Sha256);
+            var arguments = BuildUpdaterArguments(currentProcess.Id, downloadedExecutable, currentExecutable, receipt.Sha256);
 
             Process.Start(new ProcessStartInfo
             {
@@ -230,6 +227,31 @@ namespace FACM.Online
             finally
             {
                 try { Directory.Delete(root, true); } catch { }
+            }
+        }
+
+        private static void RememberValidatedPackage(string path, string version, string sha256)
+        {
+            var fullPath = Path.GetFullPath(path);
+            lock (ReceiptSync)
+            {
+                ValidatedPackages[fullPath] = new ValidatedUpdateReceipt
+                {
+                    Version = version,
+                    Sha256 = sha256
+                };
+            }
+        }
+
+        private static ValidatedUpdateReceipt TakeValidatedPackage(string path)
+        {
+            var fullPath = Path.GetFullPath(path);
+            lock (ReceiptSync)
+            {
+                ValidatedUpdateReceipt receipt;
+                if (!ValidatedPackages.TryGetValue(fullPath, out receipt)) return null;
+                ValidatedPackages.Remove(fullPath);
+                return receipt;
             }
         }
 
