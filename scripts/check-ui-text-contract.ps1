@@ -23,6 +23,10 @@ foreach ($row in $diff) {
     if ($source -match 'ui-text-contract:\s*allow') { continue }
     if ($source.TrimStart().StartsWith('//')) { continue }
 
+    # Pure rank/typography tokens are not translatable copy. Keep the guard strict for
+    # actual English/Chinese labels while allowing visual composition like TOP 12 and #1.
+    if ($source -match 'DrawString\s*\(\s*"(?:TOP |#)"\s*\+') { continue }
+
     $uiFile = $path -match '(Form|Menu|Window|Dialog|Picker|Renderer)\.cs$' -or
               $path -match '(MainForm|CompactMenuEnhancer|LayeredFloatingBall|ContextMenuStrip)\.cs$'
     $literal = '(?:\$@|@\$|\$|@)?"'

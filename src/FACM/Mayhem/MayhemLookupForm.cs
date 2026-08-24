@@ -25,13 +25,13 @@ namespace FACM.Mayhem
         private readonly System.Windows.Forms.Timer _elapsedTimer;
         private CancellationTokenSource _queryCancellation;
         private DateTime _queryStartedAt;
-        private string _stageText = "准备查询";
+        private string _stageText = MayhemUiCopy.Ready;
         private bool _busy;
 
         public MayhemLookupForm(ILeagueClientApi leagueClient)
         {
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
-            Text = "海斗排行榜查询";
+            Text = MayhemUiCopy.WindowTitle;
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(920, 700);
             ClientSize = new Size(1120, 820);
@@ -41,24 +41,24 @@ namespace FACM.Mayhem
 
             var title = new Label
             {
-                Text = "海斗排行榜查询",
-                Location = new Point(24, 18),
+                Text = MayhemUiCopy.WindowTitle,
+                Location = new Point(24, 16),
                 AutoSize = true,
                 Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold),
                 ForeColor = Color.White
             };
             var hint = new Label
             {
-                Text = "输入英雄中文名、英文名或常见简称，查询完成后会生成一张完整图片卡片。",
-                Location = new Point(26, 56),
-                Size = new Size(720, 24),
+                Text = MayhemUiCopy.PageHint,
+                Location = new Point(26, 54),
+                Size = new Size(980, 24),
                 ForeColor = Color.FromArgb(150, 166, 196)
             };
 
             _query = new TextBox
             {
-                Location = new Point(24, 92),
-                Size = new Size(470, 36),
+                Location = new Point(24, 90),
+                Size = new Size(510, 36),
                 Font = new Font("Microsoft YaHei UI", 11F),
                 BackColor = Color.FromArgb(28, 37, 56),
                 ForeColor = Color.White,
@@ -66,46 +66,36 @@ namespace FACM.Mayhem
             };
             _query.KeyDown += QueryKeyDown;
 
-            _search = CreateButton("查询", new Rectangle(506, 90, 100, 40), Color.FromArgb(69, 112, 255));
+            _search = CreateButton(MayhemUiCopy.Search, new Rectangle(546, 88, 100, 40), Color.FromArgb(69, 112, 255));
             _search.Click += async delegate { await SearchAsync(); };
-
-            _cancel = CreateButton("取消", new Rectangle(616, 90, 92, 40), Color.FromArgb(53, 62, 82));
+            _cancel = CreateButton(MayhemUiCopy.Cancel, new Rectangle(656, 88, 92, 40), Color.FromArgb(53, 62, 82));
             _cancel.Enabled = false;
             _cancel.Click += delegate { CancelCurrentQuery(); };
-
-            _saveImage = CreateButton("保存图片", new Rectangle(738, 90, 108, 40), Color.FromArgb(43, 126, 102));
+            _saveImage = CreateButton(MayhemUiCopy.SaveImage, new Rectangle(778, 88, 108, 40), Color.FromArgb(43, 126, 102));
             _saveImage.Enabled = false;
             _saveImage.Click += SaveImage;
-
-            _copyImage = CreateButton("复制图片", new Rectangle(856, 90, 108, 40), Color.FromArgb(73, 83, 112));
+            _copyImage = CreateButton(MayhemUiCopy.CopyImage, new Rectangle(896, 88, 108, 40), Color.FromArgb(73, 83, 112));
             _copyImage.Enabled = false;
             _copyImage.Click += CopyImage;
 
-            var examples = new Label
-            {
-                Text = "示例：寒冰 / 艾希 / Ashe / 琴女 / Yasuo",
-                Location = new Point(976, 97),
-                Size = new Size(128, 34),
-                ForeColor = Color.FromArgb(126, 144, 177)
-            };
-
             _progress = new ProgressBar
             {
-                Location = new Point(24, 140),
+                Location = new Point(24, 139),
                 Size = new Size(1080, 5),
                 Style = ProgressBarStyle.Blocks,
                 Minimum = 0,
                 Maximum = 100,
-                Value = 0
+                Value = 0,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
-
             _status = new Label
             {
-                Text = "准备查询",
+                Text = _stageText,
                 Location = new Point(24, 151),
                 Size = new Size(1080, 26),
                 ForeColor = Color.FromArgb(99, 205, 166),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
             _imageHost = new Panel
@@ -117,18 +107,16 @@ namespace FACM.Mayhem
                 BackColor = Color.FromArgb(15, 22, 35),
                 BorderStyle = BorderStyle.FixedSingle
             };
-
             _resultImage = new PictureBox
             {
                 Location = new Point(12, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(15, 22, 35),
-                Size = CalculatePreviewSize()
+                BackColor = Color.FromArgb(15, 22, 35)
             };
             _imageHost.Controls.Add(_resultImage);
             _imageHost.Resize += delegate { ResizePreview(); };
-
             _resultImage.Image = CreateEmptyCard();
+            ResizePreview();
 
             Controls.Add(title);
             Controls.Add(hint);
@@ -137,14 +125,12 @@ namespace FACM.Mayhem
             Controls.Add(_cancel);
             Controls.Add(_saveImage);
             Controls.Add(_copyImage);
-            Controls.Add(examples);
             Controls.Add(_progress);
             Controls.Add(_status);
             Controls.Add(_imageHost);
 
             _elapsedTimer = new System.Windows.Forms.Timer { Interval = 250 };
             _elapsedTimer.Tick += UpdateElapsed;
-
             AcceptButton = _search;
             FormClosing += delegate { CancelCurrentQuery(); };
             FormClosed += delegate
@@ -164,17 +150,16 @@ namespace FACM.Mayhem
             var text = _query.Text.Trim();
             if (text.Length == 0)
             {
-                MessageBox.Show("请输入英雄名称或别名。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(MayhemUiCopy.EnterChampion, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _query.Focus();
                 return;
             }
 
             DisposeCancellation();
-            _queryCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            _queryCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(13));
             _queryStartedAt = DateTime.UtcNow;
-            _stageText = "正在开始查询";
+            _stageText = MayhemUiCopy.ReadingHero;
             SetBusy(true);
-
             var progress = new Progress<string>(message =>
             {
                 _stageText = CleanProgressText(message);
@@ -194,16 +179,16 @@ namespace FACM.Mayhem
                     return;
                 }
 
-                _stageText = "正在整理英雄图片和推荐内容";
+                _stageText = MayhemUiCopy.OrganizingAssets;
                 UpdateStatusText();
                 await RiotGameDataService.EnrichAsync(result, _leagueClient, token);
 
-                _stageText = "正在整理强化排行图片";
+                _stageText = MayhemUiCopy.ReadingAugments;
                 UpdateStatusText();
                 await MayhemRankedAugmentService.EnrichAsync(result, token);
                 SanitizeResult(result);
 
-                _stageText = "正在生成图片卡片";
+                _stageText = MayhemUiCopy.Rendering;
                 UpdateStatusText();
                 var image = await MayhemCardRenderer.RenderAsync(result, _leagueClient, token);
                 if (IsDisposed)
@@ -214,7 +199,7 @@ namespace FACM.Mayhem
                 SetResultImage(image);
                 _saveImage.Enabled = true;
                 _copyImage.Enabled = true;
-                _stageText = "查询完成 · 图片卡片已生成";
+                _stageText = MayhemUiCopy.Completed + " · " + DescribeAugmentSource(result);
                 _status.ForeColor = Color.FromArgb(99, 205, 166);
                 UpdateStatusText(false);
             }
@@ -223,10 +208,8 @@ namespace FACM.Mayhem
                 if (!IsDisposed)
                 {
                     var elapsed = DateTime.UtcNow - _queryStartedAt;
-                    _stageText = elapsed.TotalSeconds >= 7.5 ? "查询超时，请稍后重试。" : "查询已取消";
-                    _status.ForeColor = elapsed.TotalSeconds >= 7.5
-                        ? Color.FromArgb(255, 155, 120)
-                        : Color.FromArgb(170, 180, 200);
+                    _stageText = elapsed.TotalSeconds >= 12.5 ? MayhemUiCopy.Timeout : MayhemUiCopy.QueryCanceled;
+                    _status.ForeColor = elapsed.TotalSeconds >= 12.5 ? Color.FromArgb(255, 155, 120) : Color.FromArgb(170, 180, 200);
                     UpdateStatusText(false);
                 }
             }
@@ -235,7 +218,7 @@ namespace FACM.Mayhem
                 Services.AppLog.Error("Mayhem card rendering failed", exception);
                 if (!IsDisposed)
                 {
-                    _stageText = "查询失败，请稍后重试。";
+                    _stageText = MayhemUiCopy.Failed;
                     _status.ForeColor = Color.FromArgb(255, 155, 120);
                     UpdateStatusText(false);
                 }
@@ -250,6 +233,7 @@ namespace FACM.Mayhem
         {
             var old = _resultImage.Image;
             _resultImage.Image = bitmap;
+            _imageHost.AutoScrollPosition = Point.Empty;
             ResizePreview();
             if (old != null) old.Dispose();
         }
@@ -257,14 +241,13 @@ namespace FACM.Mayhem
         private void ResizePreview()
         {
             if (_imageHost == null || _resultImage == null) return;
-            _resultImage.Size = CalculatePreviewSize();
-        }
-
-        private Size CalculatePreviewSize()
-        {
-            var availableWidth = Math.Max(420, (_imageHost == null ? 1080 : _imageHost.ClientSize.Width) - 28);
-            var height = (int)Math.Round(availableWidth * (MayhemCardRenderer.CardHeight / (double)MayhemCardRenderer.CardWidth));
-            return new Size(availableWidth, Math.Max(360, height));
+            var availableWidth = Math.Max(420, _imageHost.ClientSize.Width - 42);
+            var image = _resultImage.Image;
+            var ratio = image != null && image.Width > 0
+                ? image.Height / (double)image.Width
+                : MayhemCardRenderer.CardHeight / (double)MayhemCardRenderer.CardWidth;
+            var height = Math.Max(360, (int)Math.Round(availableWidth * ratio));
+            _resultImage.Size = new Size(availableWidth, height);
         }
 
         private void SaveImage(object sender, EventArgs e)
@@ -272,24 +255,24 @@ namespace FACM.Mayhem
             if (_resultImage.Image == null) return;
             using (var dialog = new SaveFileDialog
             {
-                Filter = "PNG 图片|*.png",
+                Filter = MayhemUiCopy.SaveFilter,
                 DefaultExt = "png",
                 AddExtension = true,
-                FileName = "FACM-海斗排行榜-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png"
+                FileName = "FACM-" + MayhemUiCopy.SavePrefix + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png"
             })
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 try
                 {
                     _resultImage.Image.Save(dialog.FileName, ImageFormat.Png);
-                    _stageText = "图片已保存";
+                    _stageText = MayhemUiCopy.Saved;
                     _status.ForeColor = Color.FromArgb(99, 205, 166);
                     UpdateStatusText(false);
                 }
                 catch (Exception exception)
                 {
                     Services.AppLog.Error("Save Mayhem card failed", exception);
-                    MessageBox.Show("图片保存失败，请换一个位置后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(MayhemUiCopy.SaveFailed, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -300,14 +283,14 @@ namespace FACM.Mayhem
             try
             {
                 using (var clone = new Bitmap(_resultImage.Image)) Clipboard.SetImage(clone);
-                _stageText = "图片已复制到剪贴板";
+                _stageText = MayhemUiCopy.Copied;
                 _status.ForeColor = Color.FromArgb(99, 205, 166);
                 UpdateStatusText(false);
             }
             catch (Exception exception)
             {
                 Services.AppLog.Error("Copy Mayhem card failed", exception);
-                MessageBox.Show("复制图片失败，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(MayhemUiCopy.CopyFailed, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -318,31 +301,46 @@ namespace FACM.Mayhem
             if (LooksLikeTechnicalFallback(result.SkillOrder)) result.SkillOrder = null;
             result.CoreItems = result.CoreItems.Where(value => !LooksLikeTechnicalFallback(value)).Take(5).ToList();
             result.Augments = result.Augments.Where(value => !LooksLikeTechnicalFallback(value)).Take(5).ToList();
+            result.AugmentRows = result.AugmentRows
+                .Where(value => value != null && !LooksLikeTechnicalFallback(value.Name))
+                .Take(12)
+                .ToList();
             while (result.CoreItemIconUrls.Count > result.CoreItems.Count) result.CoreItemIconUrls.RemoveAt(result.CoreItemIconUrls.Count - 1);
             while (result.AugmentIconUrls.Count > result.Augments.Count) result.AugmentIconUrls.RemoveAt(result.AugmentIconUrls.Count - 1);
+        }
+
+        private static string DescribeAugmentSource(MayhemChampionResult result)
+        {
+            if (result == null || result.AugmentRows.Count == 0) return MayhemUiCopy.BasicGenerated;
+            if (string.Equals(result.AugmentSourceRoute, "fresh-cache", StringComparison.OrdinalIgnoreCase)) return MayhemUiCopy.FreshCache;
+            if (string.Equals(result.AugmentSourceRoute, "stale-cache", StringComparison.OrdinalIgnoreCase) || result.AugmentSourceStale) return MayhemUiCopy.StaleCache;
+            return MayhemUiCopy.LatestAugments;
         }
 
         private static bool LooksLikeTechnicalFallback(string value)
         {
             if (string.IsNullOrWhiteSpace(value)) return false;
             var text = value.ToLowerInvariant();
-            return text.Contains("数据源") || text.Contains("未返回可解析") || text.Contains("op.gg 当前页面") || text.Contains("当前页面未返回");
+            return text.Contains(MayhemUiCopy.TriggerDataSource) ||
+                   text.Contains(MayhemUiCopy.TriggerUnparsed) ||
+                   text.Contains(MayhemUiCopy.TriggerOpggPage) ||
+                   text.Contains(MayhemUiCopy.TriggerPageNoData);
         }
 
         private static string CleanProgressText(string message)
         {
-            if (string.IsNullOrWhiteSpace(message)) return "正在查询";
-            if (message.Contains("并行读取")) return "正在读取最新排行和推荐内容";
-            if (message.Contains("解析英雄")) return "正在整理英雄、技能、装备和排行";
-            if (message.Contains("缓存")) return "已读取最近查询结果";
-            return message.Replace("OP.GG", "最新").Replace("数据源", "数据");
+            if (string.IsNullOrWhiteSpace(message)) return MayhemUiCopy.Search;
+            if (message.Contains(MayhemUiCopy.TriggerParallel)) return MayhemUiCopy.ReadingLatest;
+            if (message.Contains(MayhemUiCopy.TriggerParseHero)) return MayhemUiCopy.Organizing;
+            if (message.Contains(MayhemUiCopy.TriggerCache)) return MayhemUiCopy.ReadingCache;
+            return message.Replace("OP.GG", MayhemUiCopy.ExternalGuide).Replace(MayhemUiCopy.TriggerDataSource, MayhemUiCopy.DataWord);
         }
 
         private static string CleanErrorText(string message)
         {
-            if (string.IsNullOrWhiteSpace(message)) return "查询失败，请稍后重试。";
-            if (message.Contains("7 秒")) return "查询超时，请稍后重试。";
-            if (message.Contains("数据源")) return "暂时没有读取到可用数据，请稍后重试。";
+            if (string.IsNullOrWhiteSpace(message)) return MayhemUiCopy.Failed;
+            if (message.Contains(MayhemUiCopy.TriggerSeconds)) return MayhemUiCopy.TimeoutShort;
+            if (message.Contains(MayhemUiCopy.TriggerDataSource)) return MayhemUiCopy.NoData;
             return message;
         }
 
@@ -352,11 +350,10 @@ namespace FACM.Mayhem
             _search.Enabled = !busy;
             _query.Enabled = !busy;
             _cancel.Enabled = busy;
-            _search.Text = busy ? "查询中..." : "查询";
+            _search.Text = busy ? MayhemUiCopy.Searching : MayhemUiCopy.Search;
             _progress.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             _progress.MarqueeAnimationSpeed = busy ? 24 : 0;
             if (!busy) _progress.Value = 0;
-
             if (busy)
             {
                 _status.ForeColor = Color.FromArgb(112, 165, 255);
@@ -373,7 +370,7 @@ namespace FACM.Mayhem
         private void CancelCurrentQuery()
         {
             if (_queryCancellation == null || _queryCancellation.IsCancellationRequested) return;
-            _stageText = "正在取消...";
+            _stageText = MayhemUiCopy.Canceling;
             _queryCancellation.Cancel();
             _cancel.Enabled = false;
             UpdateStatusText();
@@ -386,10 +383,7 @@ namespace FACM.Mayhem
             _queryCancellation = null;
         }
 
-        private void UpdateElapsed(object sender, EventArgs e)
-        {
-            UpdateStatusText();
-        }
+        private void UpdateElapsed(object sender, EventArgs e) { UpdateStatusText(); }
 
         private void UpdateStatusText(bool includeElapsed = true)
         {
@@ -397,12 +391,9 @@ namespace FACM.Mayhem
             if (includeElapsed && _busy)
             {
                 var elapsed = DateTime.UtcNow - _queryStartedAt;
-                _status.Text = _stageText + "  ·  " + elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " 秒";
+                _status.Text = _stageText + "  ·  " + elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
             }
-            else
-            {
-                _status.Text = _stageText;
-            }
+            else _status.Text = _stageText;
         }
 
         private void QueryKeyDown(object sender, KeyEventArgs e)
@@ -433,10 +424,10 @@ namespace FACM.Mayhem
         {
             var result = new MayhemChampionResult
             {
-                ChampionName = "等待查询",
+                ChampionName = MayhemUiCopy.EmptyCard,
                 Patch = "—",
                 Tier = "—",
-                BalanceSummary = "输入英雄后，这里会生成完整图片卡片。"
+                BalanceSummary = MayhemUiCopy.EmptyBalance
             };
             return MayhemCardRenderer.RenderForSmokeTest(result);
         }

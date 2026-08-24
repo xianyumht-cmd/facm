@@ -12,6 +12,28 @@ namespace FACM.Mayhem
         public string IconUrl { get; set; }
     }
 
+    internal sealed class MayhemAugmentRow
+    {
+        public string Id { get; set; }
+        public int Rank { get; set; }
+        public string Name { get; set; }
+        public string Slug { get; set; }
+        public string Rarity { get; set; }
+        public double? WinRate { get; set; }
+        public double? PickRate { get; set; }
+        public int? Games { get; set; }
+        public string Description { get; set; }
+        public string IconUrl { get; set; }
+    }
+
+    internal sealed class MayhemDecisionRoute
+    {
+        public string Title { get; set; }
+        public string AugmentName { get; set; }
+        public string Hint { get; set; }
+        public double Score { get; set; }
+    }
+
     internal sealed class MayhemChampionResult
     {
         public string Query { get; set; }
@@ -33,6 +55,8 @@ namespace FACM.Mayhem
         public string SkillOrder { get; set; }
         public List<string> CoreItems { get; set; } = new List<string>();
         public List<string> Augments { get; set; } = new List<string>();
+        public List<MayhemAugmentRow> AugmentRows { get; set; } = new List<MayhemAugmentRow>();
+        public List<MayhemDecisionRoute> AugmentRoutes { get; set; } = new List<MayhemDecisionRoute>();
         public List<MayhemTopChampion> TopTen { get; set; } = new List<MayhemTopChampion>();
         public string ChampionIconUrl { get; set; }
         public string ChampionSplashUrl { get; set; }
@@ -41,6 +65,9 @@ namespace FACM.Mayhem
         public List<string> AugmentIconUrls { get; set; } = new List<string>();
         public string SourceUrl { get; set; }
         public string RankingSourceUrl { get; set; }
+        public string AugmentSourceUrl { get; set; }
+        public string AugmentSourceRoute { get; set; }
+        public bool AugmentSourceStale { get; set; }
         public string SourceNote { get; set; }
         public string ErrorMessage { get; set; }
     }
