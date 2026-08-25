@@ -27,9 +27,23 @@ namespace FACM.AppHost.Modules
         {
         }
 
-        public Task<OnlineSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken)
+        public async Task<OnlineSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken)
         {
-            return OnlineService.FetchSnapshotAsync(cancellationToken);
+            var snapshot = await OnlineService.FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+            // A release announcement must never masquerade as an available update. MainForm treats
+            // Announcement.Popup as a request to open the full Online Center, so normalize that flag
+            // away whenever the installed binary is already current. The announcement itself remains
+            // enabled and will still be surfaced by the normal tray notification path.
+            if (snapshot != null &&
+                !snapshot.UpdateAvailable &&
+                !snapshot.ForceUpdateRequired &&
+                snapshot.Announcement != null)
+            {
+                snapshot.Announcement.Popup = false;
+            }
+
+            return snapshot;
         }
 
         public void Dispose()
