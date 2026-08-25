@@ -33,11 +33,16 @@
 
 根因不是版本比较错误：3.5.10 的 `online/announcement.json` 设置了 `popup=true`，启动流程会把“未读且要求 popup 的公告”也视为需要打开完整 Online Center。
 
-本轮将普通 3.5.10 正式版公告改为 `popup=false`：
+本轮做两层处理：
+
+- 当前 3.5.10 普通正式版公告改为 `popup=false`，合入 `main` 后立即止血。
+- `OnlineModule.FetchSnapshotAsync` 增加防复发归一化：当 `UpdateAvailable=false` 且 `ForceUpdateRequired=false` 时，即使远端公告误配 `popup=true`，也会在返回给 Shell 前清掉该弹窗请求；公告内容本身仍保留并走托盘轻提示。
+
+最终行为：
 
 - 真正有新版本/强制更新时仍按原逻辑打开更新中心。
-- 普通正式版公告不再让已经是最新版的用户启动即看到“检查更新”完整窗口。
-- 手动点击检查更新仍可正常打开完整更新页面。
+- 普通公告不会让已经是最新版的用户启动即看到“检查更新”完整窗口。
+- 手动点击检查更新仍可正常打开完整更新页面并看到公告内容。
 
 ## 架构边界
 
@@ -45,6 +50,7 @@
 - 不新增第二套 LCU session/gameflow monitor。
 - `LeagueLiveModule` 继续只负责实时数据和 Bench 快速换英雄；其依赖图保持原样。
 - 自动浮出属于 League Hub 的页面编排/导航体验，不进入底层业务服务。
+- 更新防复发逻辑放在 `OnlineModule` 的快照边界，不改 `MainForm` 的窗口职责。
 - `Program.cs` 与原有模块构造依赖保持不变。
 
 ## 实机验收清单
