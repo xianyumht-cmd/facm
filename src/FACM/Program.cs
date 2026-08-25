@@ -128,7 +128,7 @@ namespace FACM
                 var leagueClient = new LeagueClientModule();
                 var leagueDashboard = new LeagueDashboardModule(leagueClient, performance);
                 var leaguePlayer = new LeaguePlayerModule(leagueClient, performance);
-                var leagueLive = new LeagueLiveModule(leagueClient, performance);
+                var leagueLive = new LeagueLiveModule(leagueClient, performance, leagueDashboard);
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
                 var mayhem = new MayhemModule(leagueClient);
