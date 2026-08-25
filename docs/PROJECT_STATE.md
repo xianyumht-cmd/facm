@@ -15,7 +15,7 @@
 - release_notes：FACM 3.5.8：海斗攻略从“数据展示卡”继续升级为更直接的实战决策卡。结果顶部新增“先看结论”，只使用上游可验证字段直接汇总当前梯队/排行/英雄胜率、首看强化和首套核心装备，让玩家不用先读完整榜单才能知道这一局优先看什么；如果单强化胜率/选择率缺失，则退回榜单顺序，不伪造统计结论。出装区重新设计为两套核心方案同时展示装备名称和图标，出门装、鞋子、召唤师技能和技能加点也保留文字名称，因此远程图片超时或被拦时不再只剩单字占位。强化 TOP10 卡片新增明确的优先级信息，继续展示真实单符胜率、热度、样本和效果说明；选符方向改为更贴近玩家语言的“稳定赢法 / 高上限玩法 / 热门好上手”，底层排序语义仍分别来自胜率+热度、单符胜率和选择率。版本修正继续严格区分基础 ARAM 与 Mayhem 专属数值，不把两层数值相加。免责声明缩短并弱化到页脚，但仍明确单符统计不代表三符组合胜率。查询网络和图片预算保持 3.5.7 的低等待策略，不增加新的常驻后台任务。
 <!-- FACM_RELEASE_STATE_END -->
 
-> 当前生产事实以 GitHub Release `v3.4.3` 与 `online/version.json` 为准。3.4.2 及更早版本的回归与修复记录属于历史，不再描述为当前进行中状态。
+> 当前生产事实以 GitHub Release `v3.5.8` 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据，不再描述为当前进行中状态。
 
 ## 3.4.3 海克斯大乱斗可用英雄快速选择 — RELEASED
 
@@ -25,8 +25,8 @@
 - 发布请求 PR #136 已合并，merge commit `3e816f33507e90fbacf0fcd74b136bcbfc91ac87`。
 - 发布元数据 commit：`d13e5face98ea528699422112e53714f6e506c16`。
 - 在线更新启用 commit：`956da4966e6500a57339922bae3f28c062b3e2c7`。
-- GitHub Release：`v3.4.3`；`online/version.json` 已启用 3.4.3，SHA-256 `4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47`。
-- 功能位于 `对局 → 实时对局`：读取现有 `/lol-champ-select/v1/session` 的 `benchEnabled` / `benchChampionIds`，不建立第二套 LCU discovery / auth / session。
+- GitHub Release：`v3.4.3`；`online/version.json` 当时启用 3.4.3，SHA-256 `4B477BDE7B8D4D99134A11A5D461E5DFA32CEA477A2133CA9D8B3CE00DB7FE47`。
+- 功能位于 `比赛 → 实时对局`：读取现有 `/lol-champ-select/v1/session` 的 `benchEnabled` / `benchChampionIds`，不建立第二套 LCU discovery / auth / session。
 - Bench 激活且页面可见时，使用 session-only 轻量刷新追踪可用英雄；正常 Live Champ Select 刷新保持原 2 秒节奏，InGame / 最小化继续节流。
 - 英雄头像仅按需从本地 LCU `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取并缓存，不请求外网、不做后台预取。
 - 用户点击英雄后才执行一次 `POST /lol-champ-select/v1/session/bench/swap/{championId}`；写前重新确认目标仍在 Bench，目标已被别人拿走则不发送 POST。
@@ -53,23 +53,34 @@
 - GitHub Release：`v3.4.2`。
 - 正式下载：`https://github.com/xianyumht-cmd/facm/releases/download/v3.4.2/FACM.exe`。
 - Release FACM.exe SHA-256：`B0F31DA0F158301507EFA6567F3115CF3893B34FD07717508E5743A2FF1FF5D1`。
-- `online/version.json`：enabled=true / version=3.4.2 / minimum_version=3.0.0 / force_update=false，下载地址与 SHA 和 Release asset 一致。
+- `online/version.json` 当时为 enabled=true / version=3.4.2 / minimum_version=3.0.0 / force_update=false。
 
 ## 当前 League 产品状态
 
-### 单按钮 / 单面板 League Hub — RELEASED
+### 单入口 LOL 工作台 — RELEASED
 
-当前正式版已完成 League Hub 收束：
+当前正式版已完成 League 产品入口收束并在 3.5.7 继续做上下文化：
 
 - 托盘与控制中心对 League 只保留一个 `英雄联盟` 主入口。
-- 点击后进入唯一的 `英雄联盟中心`，不再把 Dashboard / Player / Live / OP.GG / Efficiency 分散为多个 Shell 按钮。
-- 左侧用户概念收束为 **对局 / 推荐 / 效率**。
-- `对局` 下保留概览、玩家主页、实时对局、海斗等子入口。
-- `推荐` 使用统一推荐中心，不再要求用户分别理解 OP.GG 对局助手 / 一键应用 / 推荐装备集三个旧入口。
-- 推荐中心同屏提供 **符文 / 召唤师技能 / 推荐装备集**，并统一预览与应用。
+- 点击后进入唯一的 `LOL 工作台`，不再把 Dashboard / Player / Live / OP.GG / Efficiency 分散为多个 Shell 按钮。
+- 左侧用户概念为 **比赛 / 攻略 / 自动化**。
+- 工作台右侧提供「接着做」上下文栏，按当前功能给出 3～4 个强相关下一步；海斗、出装、实时、战绩和快捷工具可在同一工作台连续切换，不额外打开一层功能窗口。
+- 窗口较窄时相关栏自动隐藏，空间优先留给主内容。
 - `LeagueHubModule` 只负责导航与页面组合，不拥有第二套 LCU session、gameflow monitor 或 writer。
-- Hub 切页正常释放旧内容页，避免 Timer / CancellationToken 在后台累积。
+- Hub 仍只保留当前子 Form；切页正常 Close/Dispose，避免 Timer / CancellationToken 在后台累积。
 - 视觉使用静态蓝 / 青 / 紫灯带、描边和选中状态，不增加动画 RGB Timer 或新的高频常驻刷新。
+
+### 海斗实战决策卡 — RELEASED in 3.5.8
+
+- PR #168：`海斗升级为实战决策助手`，已 squash 合并到 `main`，merge commit `0125c69f6f3cd3d0fb38de93e995835996790b74`。
+- PR HEAD `b15ad6d84fa457f71099811377f6675ddf0aa580`：FACM UI Text Contract #341 SUCCESS；FACM Windows Build #1220 SUCCESS；FACM Mayhem Source Probe #357 SUCCESS。
+- 顶部「先看结论」只从真实 `Tier / Rank / WinRate`、单符排行统计和核心装备名称投影，不额外发明玩法标签。
+- 首看强化存在真实胜率/选择率时使用既有稳定评分；统计缺失时仅退回榜单首位，不伪造胜率。
+- 两套核心出装、出门、鞋子、召唤师技能同时显示文字名称和图标，图片慢或加载失败时仍可读。
+- 强化 TOP10 显示 `优先级 #N`、真实单符胜率、热度、样本和效果说明。
+- 三条方向改为 `稳定赢法 / 高上限玩法 / 热门好上手`，底层排序语义分别保持胜率+热度、单符胜率、选择率。
+- 基础 ARAM 与 Mayhem 专属修正继续分层显示、不相加；页脚继续明确单符统计不代表三符组合胜率。
+- 继续沿用 3.5.7 的公网/图片时间预算，不增加新请求、常驻 Timer 或后台预取。
 
 ### OP.GG / FACM 推荐 — RELEASED；3.4.2 加固
 
@@ -112,16 +123,16 @@
 
 ## League 主线状态
 
-原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7 以及 3.4.3 手动 Bench quick-pick 的运行时能力均已收口并进入正式版本。
+原 League 五阶段：**5/5 DONE**。扩展 Gate2 / Gate3 / Gate4 / Gate5 / Gate6 / Gate7、手动 Bench quick-pick、LOL 工作台与海斗实战决策卡均已收口并进入正式版本。
 
-若 3.4.3 后续腾讯实机报告 Bench 快速选择异常，优先保留当前最小 writer 边界并读取实际 Champ Select session / 状态结果，再开新的独立 Issue；不得直接扩大到自动 pick/ban/actions writer。
+若后续腾讯实机报告 Bench 快速选择异常，优先保留当前最小 writer 边界并读取实际 Champ Select session / 状态结果，再开新的独立 Issue；不得直接扩大到自动 pick/ban/actions writer。
 
 ## 性能与权限冻结边界
 
 - 唯一 `LeagueClientModule + LeagueClientSessionProvider`，不新增第二套 discovery / auth connector。
 - 自动化默认关闭。
 - 不做游戏内 Overlay / 注入。
-- 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；3.4.3 的手动 Bench swap 是用户点击触发的独立能力。
+- 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；手动 Bench swap 是用户点击触发的独立能力。
 - Gate2 / Bench swap / 赛后 / 匹配继续使用彼此独立的最小 writer 边界，不互相放宽 allowlist。
 - `LeagueEfficiencyModule` 复用 Dashboard gameflow，不新增第二个常驻 monitor。
 - League Hub 只保留当前内容页，不把访问过的旧页隐藏常驻。
