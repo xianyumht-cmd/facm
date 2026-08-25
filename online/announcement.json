@@ -4,7 +4,7 @@
   "title": "FACM 3.5.10 正式发布",
   "body": "FACM 3.5.10 已正式上线：继续修复海斗攻略在外网不可用、只能走兜底链路时的显示问题。新版优先读取国服客户端 LCU 的本地中文与强化图标字段，兼容 cherry-augments.json 的对象/数组两种结构，并补强稳定 ID、apiName 和图标文件 token 匹配。现在即使外网不可用，只要英雄联盟客户端已连接，海斗结果也会尽量使用官方中文强化名和客户端本地图标，减少 Draw Your Sword、Jeweled Gauntlet 等英文和首字母占位；胜率、热度、样本与推荐排序不变。",
   "level": "info",
-  "popup": true,
-  "updated_at": "2026-08-25T14:15:00+08:00",
+  "popup": false,
+  "updated_at": "2026-08-25T23:58:00+08:00",
   "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.10"
 }
