@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.9",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.9/FACM.exe",
   "sha256": "FC63394045FE15814BEFE0783C4A0833ACA193B566D038B2487640F547D1B522",
   "release_notes": "FACM 3.5.9：修复 3.5.8 海斗攻略实机结果中大量图标退化为首字母占位、强化名称与路线仍出现英文的问题。海斗现在在 OP.GG rich 数据完成后，再使用国服客户端 / Riot CommunityDragon 的 zh_CN 游戏数据做最终投影：强化优先按稳定 ID 对齐官方中文名称、说明以及 iconLarge/iconSmall 图标，ID 缺失时再按 slug/apiName 安全回退；两套核心装备、出门装、鞋子、召唤师技能、英雄头像与技能图标同样优先回填国服本地 LCU 资源，LCU 资源不可用时再走既有 CommunityDragon 公网回退。CommunityDragon 的 assets/... 路径会规范化为稳定的 lcu:/lol-game-data/assets/...，避免错误的双 assets 路径。中文与图标投影不修改胜率、热度、样本量或选符推荐算法，不人工编造未知译名；本地化目录使用短时内存缓存与有界预算，不新增常驻线程、Timer 或后台预取。新增 deterministic smoke 覆盖英文 OP.GG 装备/强化转为官方中文、强化路线同步改名，以及装备/强化/召唤师/英雄/技能的 LCU 图标路径。",
-  "published_at": "2026-08-25T05:40:56.5038663+00:00"
+  "published_at": "2026-08-25T05:41:16.1248743+00:00"
 }
