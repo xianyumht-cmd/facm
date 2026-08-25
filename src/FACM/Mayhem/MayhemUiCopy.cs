@@ -49,7 +49,7 @@ namespace FACM.Mayhem
         public const string TriggerPageNoData = "当前页面未返回";
 
         public const string CardSubtitle = "海克斯大乱斗 · 强化决策攻略";
-        public const string CompactCardSubtitle = "海克斯大乱斗 · 海符决策";
+        public const string CompactCardSubtitle = "海克斯大乱斗 · 实战决策";
         public const string PatchPrefix = "版本 ";
         public const string NoTier = "暂无梯队";
         public const string RankPrefix = "排行 #";
@@ -60,11 +60,11 @@ namespace FACM.Mayhem
         public const string NoBalance = "暂无额外平衡调整";
         public const string DecisionTitle = "这一局怎么选";
         public const string DecisionNote = "仅在上游提供单强化统计时生成路线，不代表三强化组合胜率。";
-        public const string StableRoute = "稳健首选";
+        public const string StableRoute = "稳定赢法";
         public const string StableRouteHint = "胜率和热门度都不错，没把握时优先考虑";
-        public const string HighWinRoute = "高胜上限";
+        public const string HighWinRoute = "高上限玩法";
         public const string HighWinRouteHint = "单强化胜率更突出，适合追求强度";
-        public const string PopularRoute = "热门容错";
+        public const string PopularRoute = "热门好上手";
         public const string PopularRouteHint = "选择率更高，实战更常见";
         public const string NotEnough = "暂无足够数据";
         public const string AutoGenerate = "有可用统计时自动生成";
@@ -90,18 +90,18 @@ namespace FACM.Mayhem
         public const string SourceStaleCache = "离线缓存 · 上次可用数据";
         public const string SourceOpgg = "OP.GG Global · 实时";
         public const string FooterProduct = "FACM · 海斗攻略";
-        public const string FooterDisclaimer = "强化路线仅由上游实际提供的单项统计推导，不补造缺失数据";
+        public const string FooterDisclaimer = "单符统计推导 · 不代表三符组合胜率";
         public const string TenThousand = "万";
 
-        public const string CompactSummarySuffix = "强化 + 出装 + 技能";
+        public const string CompactSummarySuffix = "先选强化 · 再看出装技能";
         public const string MetricList = "榜单";
         public const string MetricSource = "来源";
         public const string MetricQuality = "品质";
         public const string MetricCache = "缓存";
         public const string SourceOpggShort = "OPGG";
         public const string CacheFifteenMinutes = "15m";
-        public const string BalanceLayers = "英雄平衡修正";
-        public const string BalanceLayerNote = "基础 ARAM / Mayhem 分层 · 不将数值相加";
+        public const string BalanceLayers = "版本修正";
+        public const string BalanceLayerNote = "基础 ARAM / Mayhem 分层 · 数值不叠加";
         public const string BaseAram = "基础 ARAM";
         public const string MayhemOnly = "Mayhem 专属";
         public const string Verified = "已校验";
@@ -125,10 +125,24 @@ namespace FACM.Mayhem
         public const string ItemsSuffix = " 项";
         public const string Popularity = "热度";
         public const string Sample = "样本";
-        public const string ChoiceDirection = "选符方向";
-        public const string SingleAugmentNote = "单符数据推导 · 非三符组合实测";
+        public const string ChoiceDirection = "这局怎么选";
+        public const string SingleAugmentNote = "真实单符统计 · 非三符组合实测";
         public const string StableShortHint = "胜率与热度兼顾";
-        public const string HighWinShortHint = "优先当前单符胜率";
-        public const string PopularShortHint = "优先高选用率";
+        public const string HighWinShortHint = "当前单符胜率更高";
+        public const string PopularShortHint = "当前选择率更高";
+
+        public const string AtAGlance = "先看结论";
+        public const string StrengthPosition = "强度位置";
+        public const string PriorityAugment = "首看强化";
+        public const string FirstCorePath = "首套核心";
+        public const string RankedFirst = "榜单首位";
+        public const string StatsFirst = "统计首选";
+        public const string NoDecisionStats = "暂无单符统计";
+        public const string BuildPlanPrefix = "方案 #";
+        public const string PriorityPrefix = "优先级 #";
+        public const string CoreArrow = " → ";
+        public const string SeparatorDot = " · ";
+        public const string WinShort = "胜 ";
+        public const string PickShort = "选 ";
     }
 }
