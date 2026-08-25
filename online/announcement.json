@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "id": "announcement-20260825-358",
-  "title": "FACM 3.5.8 正式发布",
-  "body": "FACM 3.5.8 已正式上线：海斗攻略从数据卡升级为更直接的实战决策卡。顶部新增「先看结论」，直接给出强度位置、首看强化和首套核心；两套核心出装、出门装、鞋子和召唤师技能现在同时显示名称和图标，即使远程图片慢或加载失败也能看懂。强化 TOP10 新增明确优先级，选符方向改为「稳定赢法 / 高上限玩法 / 热门好上手」，仍只使用真实单符统计，不补造三符组合胜率。查询与图片预算保持 3.5.7 的低等待策略。",
+  "id": "announcement-20260825-3510",
+  "title": "FACM 3.5.10 正式发布",
+  "body": "FACM 3.5.10 已正式上线：继续修复海斗攻略在外网不可用、只能走兜底链路时的显示问题。新版优先读取国服客户端 LCU 的本地中文与强化图标字段，兼容 cherry-augments.json 的对象/数组两种结构，并补强稳定 ID、apiName 和图标文件 token 匹配。现在即使外网不可用，只要英雄联盟客户端已连接，海斗结果也会尽量使用官方中文强化名和客户端本地图标，减少 Draw Your Sword、Jeweled Gauntlet 等英文和首字母占位；胜率、热度、样本与推荐排序不变。",
   "level": "info",
   "popup": true,
-  "updated_at": "2026-08-25T09:02:00+08:00",
-  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.8"
+  "updated_at": "2026-08-25T14:15:00+08:00",
+  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.10"
 }
