@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
@@ -17,6 +18,7 @@ namespace FACM.Mayhem
                 LeaguePublicDataTransport.ValidateForSmokeTest();
                 ValidateRichAugmentFixture();
                 ValidateBuildDetailsFixture();
+                ValidateLocalizedProjectionFixture();
 
                 var noLeagueClient = new NoLeagueClientApi();
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
@@ -204,6 +206,82 @@ namespace FACM.Mayhem
                 if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 650 || image.Height > 1750)
                     throw new InvalidOperationException("Decision-card build fixture rendered invalid dimensions.");
             }
+        }
+
+        private static void ValidateLocalizedProjectionFixture()
+        {
+            var result = new MayhemChampionResult
+            {
+                ChampionName = "亚索",
+                ChampionSlug = "yasuo",
+                CoreBuilds = new List<MayhemBuildPath>
+                {
+                    new MayhemBuildPath
+                    {
+                        Rank = 1,
+                        Items = new List<MayhemBuildItem>
+                        {
+                            new MayhemBuildItem { Id = "3031", Name = "Infinity Edge", IconUrl = "https://opgg-static.akamaized.net/item/3031.png" }
+                        }
+                    }
+                },
+                StarterItems = new List<MayhemBuildItem>
+                {
+                    new MayhemBuildItem { Id = "3031", Name = "Infinity Edge", IconUrl = "https://opgg-static.akamaized.net/item/3031.png" }
+                },
+                SummonerSpells = new List<MayhemBuildItem>
+                {
+                    new MayhemBuildItem { Name = "Flash", IconUrl = "https://opgg-static.akamaized.net/images/lol/spell/SummonerFlash.png" }
+                },
+                SkillPriority = new List<MayhemSkillPriority>
+                {
+                    new MayhemSkillPriority { Key = "Q", Name = "Steel Tempest", IconUrl = "https://opgg-static.akamaized.net/images/lol/spell/YasuoQ.png" }
+                },
+                AugmentRows = new List<MayhemAugmentRow>
+                {
+                    new MayhemAugmentRow
+                    {
+                        Id = "195",
+                        Rank = 1,
+                        Name = "Draw Your Sword",
+                        Slug = "draw-your-sword",
+                        WinRate = 63.38,
+                        IconUrl = "https://opgg-static.akamaized.net/augment/draw-your-sword.png"
+                    }
+                },
+                AugmentRoutes = new List<MayhemDecisionRoute>
+                {
+                    new MayhemDecisionRoute { Title = MayhemUiCopy.StableRoute, AugmentName = "Draw Your Sword" }
+                }
+            };
+
+            const string itemsJson = "[{\"id\":3031,\"name\":\"无尽之刃\",\"iconPath\":\"/lol-game-data/assets/v1/items/icons2d/3031.png\"}]";
+            const string augmentsJson = "[{\"id\":195,\"apiName\":\"Augment_DrawYourSword\",\"name\":\"拔剑出鞘\",\"desc\":\"测试中文说明\",\"iconLarge\":\"assets/ux/kiwi/augments/icons/drawyoursword.png\"}]";
+            const string summonersJson = "[{\"id\":4,\"name\":\"闪现\",\"iconPath\":\"/lol-game-data/assets/v1/summoner-spells/icons2d/summonerflash.png\"}]";
+            const string championSummaryJson = "[{\"id\":157,\"alias\":\"Yasuo\",\"name\":\"亚索\",\"squarePortraitPath\":\"/lol-game-data/assets/v1/champion-icons/157.png\"}]";
+            const string championDetailJson = "{\"spells\":[{\"spellKey\":\"Q\",\"name\":\"斩钢闪\",\"abilityIconPath\":\"/lol-game-data/assets/ASSETS/Characters/Yasuo/HUD/Icons2D/YasuoQ.png\"}]}";
+
+            MayhemDecisionLocalizationService.ApplyFixtureForSmokeTest(
+                result,
+                itemsJson,
+                augmentsJson,
+                summonersJson,
+                championSummaryJson,
+                championDetailJson);
+
+            if (result.CoreBuilds[0].Items[0].Name != "无尽之刃" || !result.CoreBuilds[0].Items[0].IconUrl.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Localized item projection did not replace the OP.GG English item and icon.");
+            if (result.AugmentRows[0].Name != "拔剑出鞘" || !result.AugmentRows[0].IconUrl.StartsWith("lcu:/lol-game-data/assets/ux/", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Localized augment projection did not use zh_CN name and normalized LCU iconLarge path.");
+            if (result.AugmentRoutes[0].AugmentName != "拔剑出鞘")
+                throw new InvalidOperationException("Localized augment route kept the stale English augment name.");
+            if (result.SummonerSpells[0].Name != "闪现" || !result.SummonerSpells[0].IconUrl.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Localized summoner spell projection is incomplete.");
+            if (!result.ChampionIconUrl.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase) ||
+                !result.SkillIconUrls.ContainsKey("Q") || !result.SkillIconUrls["Q"].StartsWith("lcu:", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Localized champion or skill image projection is incomplete.");
+            if (result.Augments.Count == 0 || result.Augments[0] != "拔剑出鞘" || result.AugmentIconUrls.Count == 0 || !result.AugmentIconUrls[0].StartsWith("lcu:", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Localized legacy augment projection was not synchronized for rendering.");
         }
 
         private sealed class NoLeagueClientApi : ILeagueClientApi
