@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.10
-- GitHub Release：v3.5.10
+- 版本：FACM 3.5.11
+- GitHub Release：v3.5.11
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：4c2e4092cfed1773ae572558f994697740ec8fd7
-- 发布元数据提交：911eea691ee44656698976b10eaa251a2f508ff8
-- Release FACM.exe SHA-256：DADD174BBA334A97EC8531F07F48F5F802AC7B6F221A758AA0746588D9EAC722
-- published_at：2026-08-25T06:14:42.7054979+00:00
-- release_notes：FACM 3.5.10：继续修复海斗攻略在外网不可用、只能走兜底链路时的显示问题。3.5.9 已能部分回填装备图标，但国服客户端 LCU 的 cherry-augments.json 实际使用 nameTRA/descTRA/augmentSmallIconPath/augmentIconPath 等字段，且部分版本会以对象而不是数组返回，导致 Draw Your Sword、Jeweled Gauntlet、Critical Missile 等强化仍保留英文并退化为首字母占位。3.5.10 现在优先读取国服 LCU 本地目录的真实中文字段与强化图标字段，兼容对象/数组两种目录结构，并在稳定 ID、apiName 之外增加图标文件 token 回退匹配；装备、召唤师技能和英雄技能也优先读取本地翻译字段。该修复不增加新的外网请求，也不修改胜率、热度、样本量或推荐算法；目标是在外网不可用但英雄联盟客户端已连接时，海斗结果仍尽量使用官方中文名称和客户端本地图标，而不是英文与字母占位。
+- 发布基础 main：73fe96bcb3336ddbe2df6ad9ca3d2b42a1be80d9
+- 发布元数据提交：6c10ae4a28d2c33cfae1aed518909c86b020f52a
+- Release FACM.exe SHA-256：CB7610BEB57CC598BCD0958D9023D6A8FD2B910A4319BE5A7531EE0BBAE8C435
+- published_at：2026-08-25T16:20:34.2727879+00:00
+- release_notes：FACM 3.5.11：重构 League 工作台体验。统一 Hub 与内联页面的轻磨砂视觉，降低硬边、高对比和过度锐化观感，并让圆角随窗口尺寸变化自动重算；继续保持单一 League Hub 和按需加载，不拆散现有稳定业务逻辑。进入 Champ Select 时会复用 Dashboard 现有 gameflow 缓存自动弹出实时对局/Bench 快速换英雄面板，手动关闭后本轮不重复弹出，离开选人阶段自动收起，下一局重新允许弹出；如果 Hub 已停留在实时对局页则直接使用现有页面，不创建重复窗口。同步修复已是最新版时普通公告仍会启动即打开完整更新中心的问题，并在 Online 快照边界加入防复发处理：没有真实更新或强制更新时，普通公告只走轻提示。该版本不新增第二套 LCU 轮询，不使用 Overlay、Hook 或游戏注入。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.5.8` 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据，不再描述为当前进行中状态。
