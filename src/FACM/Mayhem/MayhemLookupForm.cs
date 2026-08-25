@@ -186,6 +186,7 @@ namespace FACM.Mayhem
                 _stageText = MayhemUiCopy.ReadingAugments;
                 UpdateStatusText();
                 await MayhemRankedAugmentService.EnrichAsync(result, token);
+                await MayhemDecisionLocalizationService.EnrichAsync(result, _leagueClient, token);
                 SanitizeResult(result);
 
                 _stageText = MayhemUiCopy.Rendering;
