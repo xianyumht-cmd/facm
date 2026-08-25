@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.10",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.10/FACM.exe",
   "sha256": "DADD174BBA334A97EC8531F07F48F5F802AC7B6F221A758AA0746588D9EAC722",
   "release_notes": "FACM 3.5.10：继续修复海斗攻略在外网不可用、只能走兜底链路时的显示问题。3.5.9 已能部分回填装备图标，但国服客户端 LCU 的 cherry-augments.json 实际使用 nameTRA/descTRA/augmentSmallIconPath/augmentIconPath 等字段，且部分版本会以对象而不是数组返回，导致 Draw Your Sword、Jeweled Gauntlet、Critical Missile 等强化仍保留英文并退化为首字母占位。3.5.10 现在优先读取国服 LCU 本地目录的真实中文字段与强化图标字段，兼容对象/数组两种目录结构，并在稳定 ID、apiName 之外增加图标文件 token 回退匹配；装备、召唤师技能和英雄技能也优先读取本地翻译字段。该修复不增加新的外网请求，也不修改胜率、热度、样本量或推荐算法；目标是在外网不可用但英雄联盟客户端已连接时，海斗结果仍尽量使用官方中文名称和客户端本地图标，而不是英文与字母占位。",
-  "published_at": "2026-08-25T06:14:32.6631789+00:00"
+  "published_at": "2026-08-25T06:14:42.7054979+00:00"
 }
