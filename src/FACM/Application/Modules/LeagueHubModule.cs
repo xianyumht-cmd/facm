@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.AppHost.Modules
