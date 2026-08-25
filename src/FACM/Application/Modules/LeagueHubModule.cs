@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -25,6 +26,12 @@ namespace FACM.AppHost.Modules
         private readonly LeagueBuildAdvisorModule _advisor;
         private readonly LeagueEfficiencyModule _efficiency;
         private readonly MayhemModule _mayhem;
+        private LeagueHubForm _hubForm;
+        private Timer _champSelectPopupTimer;
+        private Form _automaticLivePopup;
+        private bool _champSelectEpisode;
+        private bool _dismissedForEpisode;
+        private bool _closingAutomaticPopup;
 
         public LeagueHubModule(
             LeagueDashboardModule dashboard,
@@ -50,12 +57,16 @@ namespace FACM.AppHost.Modules
         {
             LeagueHubNavigation.ValidateForSmokeTest();
             LeagueHubUiBridge.Install(this);
+
+            // UI-only observer: it reads LeagueDashboardModule's cached phase and never creates a
+            // second LCU session/gameflow monitor. LeagueHub remains the owner of League navigation.
+            Application.Idle += StartChampSelectPopupObserver;
         }
 
         public Form CreateForm(UiTextCatalog ui)
         {
             if (ui == null) throw new ArgumentNullException(nameof(ui));
-            return LeagueSoftGlassSkin.Apply(new LeagueHubForm(
+            var form = LeagueSoftGlassSkin.Apply(new LeagueHubForm(
                 ui,
                 CreateDashboard,
                 CreatePlayer,
@@ -64,11 +75,14 @@ namespace FACM.AppHost.Modules
                 CreateRecommendation,
                 CreateEfficiency,
                 CreatePresence));
+            _hubForm = form;
+            form.FormClosed += HandleHubFormClosed;
+            return form;
         }
 
         private Form CreateDashboard(UiTextCatalog ui) { return Skin(_dashboard.CreateDashboardForm(ui)); }
         private Form CreatePlayer(UiTextCatalog ui) { return Skin(_player.CreatePlayerForm(ui)); }
-        private Form CreateLive(UiTextCatalog ui) { return Skin(_live.CreateLiveForm(ui)); }
+        private Form CreateLive(UiTextCatalog ui) { return _live.CreateLiveForm(ui); }
         private Form CreateMayhem(UiTextCatalog ui) { return Skin(_mayhem.CreateLookupForm()); }
         private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
         private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
@@ -79,8 +93,132 @@ namespace FACM.AppHost.Modules
             return LeagueSoftGlassSkin.Apply(form);
         }
 
+        private void HandleHubFormClosed(object sender, FormClosedEventArgs e)
+        {
+            var form = sender as LeagueHubForm;
+            if (form != null) form.FormClosed -= HandleHubFormClosed;
+            if (ReferenceEquals(_hubForm, form)) _hubForm = null;
+        }
+
+        private void StartChampSelectPopupObserver(object sender, EventArgs e)
+        {
+            Application.Idle -= StartChampSelectPopupObserver;
+            if (_champSelectPopupTimer != null) return;
+
+            _champSelectPopupTimer = new Timer { Interval = 650 };
+            _champSelectPopupTimer.Tick += HandleChampSelectPopupTick;
+            _champSelectPopupTimer.Start();
+            HandleChampSelectPopupTick(null, EventArgs.Empty);
+        }
+
+        private void HandleChampSelectPopupTick(object sender, EventArgs e)
+        {
+            var state = _dashboard.CurrentGameflowState;
+            var inChampSelect = state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
+
+            if (!inChampSelect)
+            {
+                _champSelectEpisode = false;
+                _dismissedForEpisode = false;
+                CloseAutomaticLivePopup();
+                return;
+            }
+
+            if (!_champSelectEpisode)
+            {
+                _champSelectEpisode = true;
+                _dismissedForEpisode = false;
+            }
+
+            if (_hubForm != null && !_hubForm.IsDisposed &&
+                string.Equals(_hubForm.CurrentViewIdForSmokeTest, LeagueHubNavigation.Live, StringComparison.Ordinal))
+            {
+                CloseAutomaticLivePopup();
+                if (!_hubForm.Visible) _hubForm.Show();
+                _hubForm.BringToFront();
+                return;
+            }
+
+            if (_dismissedForEpisode || _automaticLivePopup != null) return;
+            ShowAutomaticLivePopup();
+        }
+
+        private void ShowAutomaticLivePopup()
+        {
+            Form form = null;
+            try
+            {
+                var ui = UiTextCatalog.Load();
+                form = CreateLive(ui);
+                form.Text = ui.Get(UiTextKeys.LeagueLiveWindowTitle) + " · 选人快捷";
+                form.TopMost = true;
+                form.ShowInTaskbar = false;
+                form.StartPosition = FormStartPosition.Manual;
+                form.ClientSize = new Size(820, 620);
+
+                var area = Screen.FromPoint(Cursor.Position).WorkingArea;
+                form.Location = new Point(
+                    Math.Max(area.Left + 12, area.Right - form.Width - 18),
+                    area.Top + 18);
+
+                form.FormClosed += HandleAutomaticLivePopupClosed;
+                _automaticLivePopup = form;
+                form.Show();
+                form.BringToFront();
+                AppLog.Info("League Live popup opened for ChampSelect episode.");
+            }
+            catch (Exception exception)
+            {
+                if (form != null && !form.IsDisposed) form.Dispose();
+                _automaticLivePopup = null;
+                _dismissedForEpisode = true;
+                AppLog.Info("League Live automatic popup skipped: " + exception.Message);
+            }
+        }
+
+        private void HandleAutomaticLivePopupClosed(object sender, FormClosedEventArgs e)
+        {
+            var form = sender as Form;
+            if (form != null) form.FormClosed -= HandleAutomaticLivePopupClosed;
+            if (ReferenceEquals(_automaticLivePopup, form)) _automaticLivePopup = null;
+            if (!_closingAutomaticPopup && _champSelectEpisode)
+                _dismissedForEpisode = true;
+        }
+
+        private void CloseAutomaticLivePopup()
+        {
+            var form = _automaticLivePopup;
+            _automaticLivePopup = null;
+            if (form == null) return;
+
+            _closingAutomaticPopup = true;
+            try
+            {
+                form.FormClosed -= HandleAutomaticLivePopupClosed;
+                if (!form.IsDisposed) form.Close();
+                if (!form.IsDisposed) form.Dispose();
+            }
+            finally
+            {
+                _closingAutomaticPopup = false;
+            }
+        }
+
         public void Dispose()
         {
+            Application.Idle -= StartChampSelectPopupObserver;
+            if (_champSelectPopupTimer != null)
+            {
+                _champSelectPopupTimer.Stop();
+                _champSelectPopupTimer.Tick -= HandleChampSelectPopupTick;
+                _champSelectPopupTimer.Dispose();
+                _champSelectPopupTimer = null;
+            }
+
+            CloseAutomaticLivePopup();
+            if (_hubForm != null)
+                _hubForm.FormClosed -= HandleHubFormClosed;
+            _hubForm = null;
             LeagueHubUiBridge.Uninstall();
         }
     }
