@@ -396,10 +396,28 @@ namespace FACM.Mayhem
         private static string AssetReference(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
-            if (path.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return path;
-            if (!path.StartsWith("/", StringComparison.Ordinal)) path = "/lol-game-data/assets/" + path.TrimStart('/');
-            return "lcu:" + path;
+            var value = path.Trim().Replace('\\', '/');
+            if (value.StartsWith("lcu:", StringComparison.OrdinalIgnoreCase)) return value;
+
+            if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                var marker = "/game/assets/";
+                var index = value.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (index < 0)
+                {
+                    marker = "/global/default/";
+                    index = value.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                }
+                if (index < 0) return value;
+                value = value.Substring(index + marker.Length);
+            }
+
+            value = value.TrimStart('/');
+            if (value.StartsWith("lol-game-data/assets/", StringComparison.OrdinalIgnoreCase))
+                return "lcu:/" + value;
+            if (value.StartsWith("assets/", StringComparison.OrdinalIgnoreCase))
+                value = value.Substring("assets/".Length);
+            return "lcu:/lol-game-data/assets/" + value;
         }
 
         private static bool TryGetCache(string key, out object value)
