@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "id": "announcement-20260825-3510",
-  "title": "FACM 3.5.10 正式发布",
-  "body": "FACM 3.5.10 已正式上线：继续修复海斗攻略在外网不可用、只能走兜底链路时的显示问题。新版优先读取国服客户端 LCU 的本地中文与强化图标字段，兼容 cherry-augments.json 的对象/数组两种结构，并补强稳定 ID、apiName 和图标文件 token 匹配。现在即使外网不可用，只要英雄联盟客户端已连接，海斗结果也会尽量使用官方中文强化名和客户端本地图标，减少 Draw Your Sword、Jeweled Gauntlet 等英文和首字母占位；胜率、热度、样本与推荐排序不变。",
+  "id": "announcement-20260826-3511",
+  "title": "FACM 3.5.11 正式发布",
+  "body": "FACM 3.5.11 已正式上线：League 工作台统一为更柔和的轻磨砂视觉，降低硬边、高对比和过度锐化观感，并继续保持单一 Hub 内联结构。进入 Champ Select 时会自动弹出实时对局/Bench 快速换英雄面板，手动关闭后本轮不重复弹出，离开选人阶段自动收起，下一局重新允许弹出；如果已经停留在实时对局页则不会重复开窗。同时修复已是最新版时普通公告仍可能打开完整更新中心的问题，并加入防复发保护。",
   "level": "info",
   "popup": false,
-  "updated_at": "2026-08-25T23:58:00+08:00",
-  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.10"
+  "updated_at": "2026-08-26T00:20:32+08:00",
+  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.11"
 }
