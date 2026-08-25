@@ -194,7 +194,7 @@ namespace FACM.Mayhem
                 if (localized == null) continue;
 
                 var name = ReadString(localized, "name");
-                var icon = FirstText(localized, "iconPath", "icon");
+                var icon = FirstText(localized, "iconLarge", "iconSmall", "iconPath", "icon");
                 var description = CleanDescription(FirstText(localized, "description", "desc", "tooltip"));
                 if (!string.IsNullOrWhiteSpace(name) && ContainsCjk(name)) row.Name = name.Trim();
                 if (!string.IsNullOrWhiteSpace(icon)) row.IconUrl = AssetReference(icon);
@@ -230,7 +230,10 @@ namespace FACM.Mayhem
             {
                 var apiName = NormalizeKey(FirstText(candidate, "apiName", "internalName", "slug"));
                 var display = NormalizeKey(ReadString(candidate, "name"));
-                return apiName == sourceKey || display == sourceKey;
+                if (apiName == sourceKey || display == sourceKey) return true;
+                if (sourceKey.Length < 5 || apiName.Length == 0) return false;
+                return apiName.EndsWith(sourceKey, StringComparison.OrdinalIgnoreCase) ||
+                       apiName.IndexOf(sourceKey, StringComparison.OrdinalIgnoreCase) >= 0;
             });
         }
 
