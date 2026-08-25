@@ -88,9 +88,6 @@ namespace FACM.Mayhem
                     if (result.AugmentRows == null || result.AugmentRows.Count < 5)
                         throw new InvalidOperationException("Rich ranked augment rows are incomplete.");
 
-                    // The current ARAM Mayhem page can expose the full augment catalog while omitting
-                    // per-augment performance/popularity. In that state FACM must keep the rich list
-                    // and deliberately show no inferred decision route rather than inventing statistics.
                     var hasDecisionStats = result.AugmentRows.Any(row => row != null && (row.WinRate.HasValue || row.PickRate.HasValue));
                     if (hasDecisionStats && (result.AugmentRoutes == null || result.AugmentRoutes.Count < 3))
                         throw new InvalidOperationException("Augment decision routes are incomplete despite available statistics.");
@@ -103,12 +100,16 @@ namespace FACM.Mayhem
                     if (result.AugmentIconUrls == null || result.AugmentIconUrls.Count < 5 || result.AugmentIconUrls.Any(string.IsNullOrWhiteSpace))
                         throw new InvalidOperationException("Ranked augment image URLs are incomplete.");
 
+                    var liveStrength = MayhemCardRenderer.BuildStrengthTextForSmokeTest(result);
+                    if (string.IsNullOrWhiteSpace(liveStrength) || liveStrength.IndexOf("#", StringComparison.Ordinal) < 0)
+                        throw new InvalidOperationException("Decision-card strength projection is incomplete.");
+                    var liveCore = MayhemCardRenderer.BuildCorePathTextForSmokeTest(result);
+                    if (string.IsNullOrWhiteSpace(liveCore) || string.Equals(liveCore, MayhemUiCopy.NoCoreBuild, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Decision-card core-build projection is incomplete.");
+
                     using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
                     {
-                        // Height is intentionally content-driven now: rarity groups and the route panel
-                        // should only occupy space when they have data. Width remains fixed for compact
-                        // QQ/desktop sharing, while height stays inside a sane high-density range.
-                        if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 600 || image.Height > 1700)
+                        if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 650 || image.Height > 1750)
                             throw new InvalidOperationException(
                                 "Mayhem compact image card dimensions are invalid: " + image.Width + "x" + image.Height + ".");
                         using (var stream = new MemoryStream())
@@ -140,13 +141,25 @@ namespace FACM.Mayhem
                 throw new InvalidOperationException("Rich augment rarity or percentage normalization failed.");
             if (string.IsNullOrWhiteSpace(rows[0].IconUrl) || string.IsNullOrWhiteSpace(rows[1].IconUrl) || rows[1].Games != 8888 || rows[2].Games != 6000)
                 throw new InvalidOperationException("Rich augment OP.GG icon or sample aliases failed.");
-            var result = new MayhemChampionResult();
+            var result = new MayhemChampionResult
+            {
+                Tier = "S+",
+                Rank = 6,
+                WinRate = 55.83
+            };
             if (MayhemRankedAugmentService.ApplyFromHtmlForSmokeTest(result, html) != 3)
                 throw new InvalidOperationException("Rich augment fixture was not applied.");
             if (result.AugmentRoutes.Count != 3 || result.Augments[0] != "测试棱彩")
                 throw new InvalidOperationException("Rich augment decision routes or names are invalid.");
             if (result.AugmentRoutes.Select(route => route.AugmentName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
                 throw new InvalidOperationException("Rich augment fixture routes are not distinct.");
+
+            var primary = MayhemCardRenderer.BuildPrimaryAugmentTextForSmokeTest(result);
+            if (primary.IndexOf("测试棱彩", StringComparison.Ordinal) < 0 || primary.IndexOf("61.23%", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("Decision-card primary augment projection lost the top statistical augment.");
+            var strength = MayhemCardRenderer.BuildStrengthTextForSmokeTest(result);
+            if (strength.IndexOf("S+", StringComparison.Ordinal) < 0 || strength.IndexOf("#6", StringComparison.Ordinal) < 0 || strength.IndexOf("55.83%", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("Decision-card strength projection lost source-backed tier/rank/winrate.");
         }
 
         private static void ValidateBuildDetailsFixture()
@@ -181,6 +194,16 @@ namespace FACM.Mayhem
                 throw new InvalidOperationException("Compact build fixture starter/boots/summoner projection is incomplete.");
             if (result.SkillPriority.Count != 3 || string.Join(string.Empty, result.SkillPriority.Select(skill => skill.Key)) != "QEW")
                 throw new InvalidOperationException("Compact build fixture skill priority is incomplete.");
+
+            var coreText = MayhemCardRenderer.BuildCorePathTextForSmokeTest(result);
+            if (coreText.IndexOf("Bloodthirster", StringComparison.OrdinalIgnoreCase) < 0 || coreText.IndexOf("Infinity Edge", StringComparison.OrdinalIgnoreCase) < 0)
+                throw new InvalidOperationException("Decision-card core path must remain readable even when item images are unavailable.");
+
+            using (var image = MayhemCardRenderer.RenderForSmokeTest(result))
+            {
+                if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 650 || image.Height > 1750)
+                    throw new InvalidOperationException("Decision-card build fixture rendered invalid dimensions.");
+            }
         }
 
         private sealed class NoLeagueClientApi : ILeagueClientApi
