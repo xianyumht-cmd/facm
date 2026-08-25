@@ -161,7 +161,7 @@ namespace FACM.Mayhem
                 if (item == null) continue;
                 var row = FindItem(catalog, item);
                 if (row == null) continue;
-                var name = ReadString(row, "name");
+                var name = FirstText(row, "nameTRA", "name");
                 var icon = FirstText(row, "iconPath", "icon");
                 if (!string.IsNullOrWhiteSpace(name) && ContainsCjk(name)) item.Name = name.Trim();
                 if (!string.IsNullOrWhiteSpace(icon)) item.IconUrl = AssetReference(icon);
@@ -179,7 +179,8 @@ namespace FACM.Mayhem
                 if (byId != null) return byId;
             }
             var key = NormalizeKey(item.Name);
-            return catalog.OfType<Dictionary<string, object>>().FirstOrDefault(row => NormalizeKey(ReadString(row, "name")) == key && key.Length > 0);
+            return catalog.OfType<Dictionary<string, object>>().FirstOrDefault(row =>
+                (NormalizeKey(ReadString(row, "name")) == key || NormalizeKey(ReadString(row, "nameTRA")) == key) && key.Length > 0);
         }
 
         private static void ApplyAugments(MayhemChampionResult result, object[] catalog)
@@ -193,13 +194,28 @@ namespace FACM.Mayhem
                 var localized = FindAugment(catalog, row);
                 if (localized == null) continue;
 
-                var name = ReadString(localized, "name");
-                var icon = FirstText(localized, "iconLarge", "iconSmall", "iconPath", "icon");
-                var description = CleanDescription(FirstText(localized, "description", "desc", "tooltip"));
+                var name = FirstText(localized, "nameTRA", "name");
+                var icon = FirstText(
+                    localized,
+                    "augmentSmallIconPath",
+                    "augmentIconPath",
+                    "augmentLargeIconPath",
+                    "iconSmall",
+                    "iconLarge",
+                    "smallIconPath",
+                    "iconPath",
+                    "icon");
+                var description = CleanDescription(FirstText(
+                    localized,
+                    "descTRA",
+                    "descriptionTRA",
+                    "description",
+                    "desc",
+                    "tooltip"));
                 if (!string.IsNullOrWhiteSpace(name) && ContainsCjk(name)) row.Name = name.Trim();
                 if (!string.IsNullOrWhiteSpace(icon)) row.IconUrl = AssetReference(icon);
                 if (!string.IsNullOrWhiteSpace(description)) row.Description = description;
-                if (string.IsNullOrWhiteSpace(row.Id)) row.Id = ReadString(localized, "id");
+                if (string.IsNullOrWhiteSpace(row.Id)) row.Id = FirstText(localized, "id", "augmentId", "apiName");
                 if (!string.Equals(oldName, row.Name, StringComparison.OrdinalIgnoreCase)) renamed[oldName] = row.Name;
             }
 
@@ -224,16 +240,51 @@ namespace FACM.Mayhem
                 if (byId != null) return byId;
             }
 
-            var sourceKey = NormalizeKey(FirstNonEmpty(row.Slug, row.Name));
-            if (sourceKey.Length == 0) return null;
+            var sourceKeys = new[]
+            {
+                NormalizeKey(row.Slug),
+                NormalizeKey(row.Name)
+            }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+            if (sourceKeys.Length == 0) return null;
+
             return catalog.OfType<Dictionary<string, object>>().FirstOrDefault(candidate =>
             {
-                var apiName = NormalizeKey(FirstText(candidate, "apiName", "internalName", "slug"));
-                var display = NormalizeKey(ReadString(candidate, "name"));
-                if (apiName == sourceKey || display == sourceKey) return true;
-                if (sourceKey.Length < 5 || apiName.Length == 0) return false;
-                return apiName.EndsWith(sourceKey, StringComparison.OrdinalIgnoreCase) ||
-                       apiName.IndexOf(sourceKey, StringComparison.OrdinalIgnoreCase) >= 0;
+                var candidateKeys = new[]
+                {
+                    NormalizeKey(FirstText(candidate, "apiName", "internalName", "slug")),
+                    NormalizeKey(ReadString(candidate, "name")),
+                    NormalizeKey(ReadString(candidate, "nameTRA")),
+                    NormalizeKey(FileToken(FirstText(
+                        candidate,
+                        "augmentSmallIconPath",
+                        "augmentIconPath",
+                        "augmentLargeIconPath",
+                        "iconSmall",
+                        "iconLarge",
+                        "smallIconPath",
+                        "iconPath",
+                        "icon")))
+                }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+                foreach (var sourceKey in sourceKeys)
+                {
+                    foreach (var candidateKey in candidateKeys)
+                    {
+                        if (candidateKey == sourceKey) return true;
+                        if (sourceKey.Length < 5 || candidateKey.Length < 5) continue;
+                        if (candidateKey.EndsWith(sourceKey, StringComparison.OrdinalIgnoreCase) ||
+                            candidateKey.IndexOf(sourceKey, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            sourceKey.EndsWith(candidateKey, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                }
+                return false;
             });
         }
 
@@ -252,7 +303,7 @@ namespace FACM.Mayhem
                     return (fileKey.Length > 0 && iconKey == fileKey) || (sourceName.Length > 0 && apiKey == sourceName);
                 });
                 if (localized == null) continue;
-                var name = ReadString(localized, "name");
+                var name = FirstText(localized, "nameTRA", "name");
                 var icon = FirstText(localized, "iconPath", "icon");
                 if (!string.IsNullOrWhiteSpace(name) && ContainsCjk(name)) spell.Name = name.Trim();
                 if (!string.IsNullOrWhiteSpace(icon)) spell.IconUrl = AssetReference(icon);
@@ -269,7 +320,7 @@ namespace FACM.Mayhem
                 var key = (ReadString(spell, "spellKey") ?? string.Empty).Trim().ToUpperInvariant();
                 if (key != "Q" && key != "W" && key != "E" && key != "R") continue;
                 var icon = FirstText(spell, "abilityIconPath", "iconPath");
-                var name = ReadString(spell, "name");
+                var name = FirstText(spell, "nameTRA", "name");
                 if (!string.IsNullOrWhiteSpace(icon)) result.SkillIconUrls[key] = AssetReference(icon);
                 if (result.SkillPriority == null) continue;
                 foreach (var priority in result.SkillPriority.Where(value => value != null && string.Equals(value.Key, key, StringComparison.OrdinalIgnoreCase)))
@@ -288,7 +339,7 @@ namespace FACM.Mayhem
             return champions.OfType<Dictionary<string, object>>().FirstOrDefault(row =>
             {
                 var alias = NormalizeKey(ReadString(row, "alias"));
-                var display = NormalizeKey(ReadString(row, "name"));
+                var display = NormalizeKey(FirstText(row, "nameTRA", "name"));
                 return (slugKey.Length > 0 && alias == slugKey) || (nameKey.Length > 0 && display == nameKey);
             });
         }
@@ -318,7 +369,13 @@ namespace FACM.Mayhem
 
         private static object[] ParseArray(string json) { return AsArray(TryDeserialize(json)); }
         private static Dictionary<string, object> ParseDictionary(string json) { return TryDeserialize(json) as Dictionary<string, object>; }
-        private static object[] AsArray(object value) { return value as object[]; }
+        private static object[] AsArray(object value)
+        {
+            var array = value as object[];
+            if (array != null) return array;
+            var dictionary = value as Dictionary<string, object>;
+            return dictionary == null ? null : dictionary.Values.ToArray();
+        }
 
         private static object ReadObject(Dictionary<string, object> source, string key)
         {
