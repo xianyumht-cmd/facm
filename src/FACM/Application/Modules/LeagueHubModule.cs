@@ -30,6 +30,7 @@ namespace FACM.AppHost.Modules
         private Timer _champSelectPopupTimer;
         private Form _automaticLivePopup;
         private bool _champSelectEpisode;
+        private bool _surfacePresentedForEpisode;
         private bool _dismissedForEpisode;
         private bool _closingAutomaticPopup;
 
@@ -119,6 +120,7 @@ namespace FACM.AppHost.Modules
             if (!inChampSelect)
             {
                 _champSelectEpisode = false;
+                _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = false;
                 CloseAutomaticLivePopup();
                 return;
@@ -127,6 +129,7 @@ namespace FACM.AppHost.Modules
             if (!_champSelectEpisode)
             {
                 _champSelectEpisode = true;
+                _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = false;
             }
 
@@ -134,12 +137,16 @@ namespace FACM.AppHost.Modules
                 string.Equals(_hubForm.CurrentViewIdForSmokeTest, LeagueHubNavigation.Live, StringComparison.Ordinal))
             {
                 CloseAutomaticLivePopup();
-                if (!_hubForm.Visible) _hubForm.Show();
-                _hubForm.BringToFront();
+                if (!_surfacePresentedForEpisode)
+                {
+                    if (!_hubForm.Visible) _hubForm.Show();
+                    _hubForm.BringToFront();
+                    _surfacePresentedForEpisode = true;
+                }
                 return;
             }
 
-            if (_dismissedForEpisode || _automaticLivePopup != null) return;
+            if (_dismissedForEpisode || _automaticLivePopup != null || _surfacePresentedForEpisode) return;
             ShowAutomaticLivePopup();
         }
 
@@ -163,6 +170,7 @@ namespace FACM.AppHost.Modules
 
                 form.FormClosed += HandleAutomaticLivePopupClosed;
                 _automaticLivePopup = form;
+                _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
                 AppLog.Info("League Live popup opened for ChampSelect episode.");
@@ -171,6 +179,7 @@ namespace FACM.AppHost.Modules
             {
                 if (form != null && !form.IsDisposed) form.Dispose();
                 _automaticLivePopup = null;
+                _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = true;
                 AppLog.Info("League Live automatic popup skipped: " + exception.Message);
             }
