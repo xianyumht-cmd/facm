@@ -15,6 +15,7 @@ namespace FACM.League
         public static T Apply<T>(T form) where T : Form
         {
             if (form == null) return null;
+            LeagueCompactDensity.Apply(form);
             InstallRecursive(form);
             return form;
         }
@@ -33,6 +34,7 @@ namespace FACM.League
 
         private static void HandleControlAdded(object sender, ControlEventArgs e)
         {
+            LeagueCompactDensity.ApplyAdded(e.Control);
             InstallRecursive(e.Control);
         }
 
