@@ -36,6 +36,13 @@ namespace FACM.League
             InstallRecursive(e.Control);
         }
 
+        private static void HandleButtonResize(object sender, EventArgs e)
+        {
+            var button = sender as Button;
+            if (button == null || button.IsDisposed) return;
+            Round(button, button.Height >= 44 ? 12 : 10);
+        }
+
         private static void Soften(Control control)
         {
             var button = control as Button;
@@ -46,6 +53,8 @@ namespace FACM.League
                 button.FlatAppearance.BorderColor = Blend(button.BackColor, Color.FromArgb(122, 151, 194), 0.34F);
                 button.FlatAppearance.MouseOverBackColor = Blend(button.BackColor, Color.White, 0.08F);
                 button.FlatAppearance.MouseDownBackColor = Blend(button.BackColor, Color.White, 0.13F);
+                button.Resize -= HandleButtonResize;
+                button.Resize += HandleButtonResize;
                 Round(button, button.Height >= 44 ? 12 : 10);
                 return;
             }
@@ -62,12 +71,7 @@ namespace FACM.League
             if (panel != null && panel.BackColor != Color.Transparent)
             {
                 panel.BackColor = Mist(panel.BackColor, 0.035F);
-                return;
             }
-
-            var flow = control as FlowLayoutPanel;
-            if (flow != null && flow.BackColor != Color.Transparent)
-                flow.BackColor = Mist(flow.BackColor, 0.035F);
         }
 
         private static Color Mist(Color source, float amount)
