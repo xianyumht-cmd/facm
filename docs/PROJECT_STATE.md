@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.11
-- GitHub Release：v3.5.11
+- 版本：FACM 3.5.12
+- GitHub Release：v3.5.12
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：73fe96bcb3336ddbe2df6ad9ca3d2b42a1be80d9
-- 发布元数据提交：6c10ae4a28d2c33cfae1aed518909c86b020f52a
-- Release FACM.exe SHA-256：CB7610BEB57CC598BCD0958D9023D6A8FD2B910A4319BE5A7531EE0BBAE8C435
-- published_at：2026-08-25T16:20:34.2727879+00:00
-- release_notes：FACM 3.5.11：重构 League 工作台体验。统一 Hub 与内联页面的轻磨砂视觉，降低硬边、高对比和过度锐化观感，并让圆角随窗口尺寸变化自动重算；继续保持单一 League Hub 和按需加载，不拆散现有稳定业务逻辑。进入 Champ Select 时会复用 Dashboard 现有 gameflow 缓存自动弹出实时对局/Bench 快速换英雄面板，手动关闭后本轮不重复弹出，离开选人阶段自动收起，下一局重新允许弹出；如果 Hub 已停留在实时对局页则直接使用现有页面，不创建重复窗口。同步修复已是最新版时普通公告仍会启动即打开完整更新中心的问题，并在 Online 快照边界加入防复发处理：没有真实更新或强制更新时，普通公告只走轻提示。该版本不新增第二套 LCU 轮询，不使用 Overlay、Hook 或游戏注入。
+- 发布基础 main：d3664ceff63fd51b1e7d9996a4d026d053317dc2
+- 发布元数据提交：3535ee5ab8fc9940ac21ab5f9ea880890c60fc50
+- Release FACM.exe SHA-256：55ACE95A2B1A3B6CF8BCF742A944981517124D5B8EAAC51EA2A9F29EA9FF3B0D
+- published_at：2026-08-25T16:53:14.9770797+00:00
+- release_notes：FACM 3.5.12：进一步压缩 LOL 工作台整体界面密度，重点解决页面像‘楼层太高但内容没住满’一样的无效留白。新增统一 League 紧凑密度层，在保留 3.5.11 轻磨砂风格和正文可读性的前提下，收紧 Hub 顶部标题区、左侧分区导航、右侧‘接着做’栏、二级页签，以及各业务页常见的固定行高、Padding、Margin 和大尺寸按钮；动态创建的快捷入口也会自动应用相同规则，切页后不会恢复松散。默认工作台窗口同步缩到更合理的 1280×760，最低尺寸降到 980×640，在 1366×768 等常见分辨率下可显示更多有效内容、减少滚动和空白。大数据/图表区域只做保守压缩，不整体缩小 9pt 正文字号，也不改变 League 业务逻辑、LCU 轮询、选人实时面板或自动化行为。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.5.8` 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据，不再描述为当前进行中状态。

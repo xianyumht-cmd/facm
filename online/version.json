@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.12",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.12/FACM.exe",
   "sha256": "55ACE95A2B1A3B6CF8BCF742A944981517124D5B8EAAC51EA2A9F29EA9FF3B0D",
   "release_notes": "FACM 3.5.12：进一步压缩 LOL 工作台整体界面密度，重点解决页面像‘楼层太高但内容没住满’一样的无效留白。新增统一 League 紧凑密度层，在保留 3.5.11 轻磨砂风格和正文可读性的前提下，收紧 Hub 顶部标题区、左侧分区导航、右侧‘接着做’栏、二级页签，以及各业务页常见的固定行高、Padding、Margin 和大尺寸按钮；动态创建的快捷入口也会自动应用相同规则，切页后不会恢复松散。默认工作台窗口同步缩到更合理的 1280×760，最低尺寸降到 980×640，在 1366×768 等常见分辨率下可显示更多有效内容、减少滚动和空白。大数据/图表区域只做保守压缩，不整体缩小 9pt 正文字号，也不改变 League 业务逻辑、LCU 轮询、选人实时面板或自动化行为。",
-  "published_at": "2026-08-25T16:53:02.8037833+00:00"
+  "published_at": "2026-08-25T16:53:14.9770797+00:00"
 }
