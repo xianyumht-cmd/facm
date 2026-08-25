@@ -55,7 +55,7 @@ namespace FACM.AppHost.Modules
         public Form CreateForm(UiTextCatalog ui)
         {
             if (ui == null) throw new ArgumentNullException(nameof(ui));
-            return new LeagueHubForm(
+            return LeagueSoftGlassSkin.Apply(new LeagueHubForm(
                 ui,
                 CreateDashboard,
                 CreatePlayer,
@@ -63,16 +63,21 @@ namespace FACM.AppHost.Modules
                 CreateMayhem,
                 CreateRecommendation,
                 CreateEfficiency,
-                CreatePresence);
+                CreatePresence));
         }
 
-        private Form CreateDashboard(UiTextCatalog ui) { return _dashboard.CreateDashboardForm(ui); }
-        private Form CreatePlayer(UiTextCatalog ui) { return _player.CreatePlayerForm(ui); }
-        private Form CreateLive(UiTextCatalog ui) { return _live.CreateLiveForm(ui); }
-        private Form CreateMayhem(UiTextCatalog ui) { return _mayhem.CreateLookupForm(); }
-        private Form CreateRecommendation(UiTextCatalog ui) { return _advisor.CreateRecommendationForm(ui); }
-        private Form CreateEfficiency(UiTextCatalog ui) { return _efficiency.CreateForm(ui); }
-        private Form CreatePresence(UiTextCatalog ui) { return _dashboard.CreatePresenceForm(ui, null); }
+        private Form CreateDashboard(UiTextCatalog ui) { return Skin(_dashboard.CreateDashboardForm(ui)); }
+        private Form CreatePlayer(UiTextCatalog ui) { return Skin(_player.CreatePlayerForm(ui)); }
+        private Form CreateLive(UiTextCatalog ui) { return Skin(_live.CreateLiveForm(ui)); }
+        private Form CreateMayhem(UiTextCatalog ui) { return Skin(_mayhem.CreateLookupForm()); }
+        private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
+        private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
+        private Form CreatePresence(UiTextCatalog ui) { return Skin(_dashboard.CreatePresenceForm(ui, null)); }
+
+        private static Form Skin(Form form)
+        {
+            return LeagueSoftGlassSkin.Apply(form);
+        }
 
         public void Dispose()
         {
