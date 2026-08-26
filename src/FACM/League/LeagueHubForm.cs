@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -12,13 +12,11 @@ namespace FACM.League
     {
         private readonly UiTextCatalog _ui;
         private readonly Dictionary<string, Func<UiTextCatalog, Form>> _factories;
-        private readonly Dictionary<string, Button> _sectionButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
-        private readonly Dictionary<string, Button> _viewButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        private readonly Dictionary<string, FacmNavButton> _sectionButtons = new Dictionary<string, FacmNavButton>(StringComparer.Ordinal);
+        private readonly Dictionary<string, FacmPillButton> _viewButtons = new Dictionary<string, FacmPillButton>(StringComparer.Ordinal);
         private readonly Label _headerHint;
         private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
-        private readonly Panel _contextRail;
-        private readonly Label _contextCurrent;
         private readonly FlowLayoutPanel _contextActions;
         private Form _currentChild;
         private string _currentViewId;
@@ -50,136 +48,140 @@ namespace FACM.League
 
             Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(1360, 840);
-            MinimumSize = new Size(1060, 720);
-            BackColor = Color.FromArgb(8, 13, 23);
-            ForeColor = Color.FromArgb(238, 243, 252);
+            ClientSize = new Size(1180, 700);
+            MinimumSize = new Size(960, 620);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
             Font = new Font("Microsoft YaHei UI", 9F);
             DoubleBuffered = true;
+            Padding = new Padding(10);
 
-            var header = new HubHeaderPanel
+            var header = new FacmGlassPanel
             {
                 Dock = DockStyle.Top,
-                Height = 86,
-                BackColor = Color.FromArgb(12, 19, 32)
+                Height = 72,
+                Radius = 14,
+                AccentGlow = true,
+                Padding = Padding.Empty
             };
-            header.Controls.Add(new Label
+
+            var eyebrow = new Label
+            {
+                Text = _ui.AppName + "  ·  " + _ui.Get(UiTextKeys.ShellLeague),
+                Location = new Point(20, 8),
+                Size = new Size(280, 16),
+                ForeColor = FacmDesignSystem.Accent,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 7.7F, FontStyle.Bold)
+            };
+            var title = new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
-                Location = new Point(28, 14),
-                Size = new Size(500, 34),
+                Location = new Point(18, 22),
+                Size = new Size(420, 27),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
-            });
+                Font = new Font(Font.FontFamily, 15.5F, FontStyle.Bold)
+            };
             _headerHint = new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
-                Location = new Point(30, 50),
-                Size = new Size(1120, 23),
+                Location = new Point(20, 49),
+                Size = new Size(580, 18),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(138, 158, 194),
-                BackColor = Color.Transparent
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 8.1F)
             };
-            header.Controls.Add(_headerHint);
 
-            var sidebar = new HubSidebarPanel
+            _contextActions = new FlowLayoutPanel
             {
-                Dock = DockStyle.Left,
-                Width = 174,
-                Padding = new Padding(12, 18, 12, 14),
-                BackColor = Color.FromArgb(12, 19, 32)
+                Dock = DockStyle.Right,
+                Width = 438,
+                Height = 54,
+                Padding = new Padding(0, 18, 14, 0),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                AutoScroll = false
             };
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.SectionMatchHint, 20);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.SectionRecommendHint, 82);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.SectionEfficiencyHint, 144);
+
+            header.Controls.Add(_contextActions);
+            header.Controls.Add(eyebrow);
+            header.Controls.Add(title);
+            header.Controls.Add(_headerHint);
 
             var body = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(9, 14, 24)
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 10, 0, 0)
             };
 
-            var mainArea = new Panel
+            var sidebar = new FacmGlassPanel
+            {
+                Dock = DockStyle.Left,
+                Width = 138,
+                Radius = 12,
+                Padding = new Padding(8, 12, 8, 10)
+            };
+            sidebar.Controls.Add(new Label
+            {
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
+                Location = new Point(12, 12),
+                Size = new Size(100, 18),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 8F, FontStyle.Bold)
+            });
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.SectionMatchHint, 38);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.SectionRecommendHint, 84);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.SectionEfficiencyHint, 130);
+
+            var mainShell = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(9, 14, 24)
+                BackColor = Color.Transparent,
+                Padding = new Padding(10, 0, 0, 0)
             };
+            var mainCard = new FacmGlassPanel
+            {
+                Dock = DockStyle.Fill,
+                Radius = 12,
+                Padding = Padding.Empty
+            };
+
             _subnav = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 54,
-                Padding = new Padding(24, 10, 18, 6),
+                Height = 44,
+                Padding = new Padding(14, 7, 10, 5),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
-                BackColor = Color.FromArgb(11, 18, 30)
+                BackColor = Color.Transparent,
+                AutoScroll = false
             };
             _content = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(10, 15, 25),
+                BackColor = FacmDesignSystem.CanvasRaised,
                 Padding = Padding.Empty
             };
-            mainArea.Controls.Add(_content);
-            mainArea.Controls.Add(_subnav);
 
-            _contextRail = new Panel
-            {
-                Dock = DockStyle.Right,
-                Width = 238,
-                Padding = new Padding(16, 18, 16, 16),
-                BackColor = Color.FromArgb(12, 19, 32)
-            };
-            var contextTitle = new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
-                Dock = DockStyle.Top,
-                Height = 30,
-                ForeColor = Color.White,
-                Font = new Font(Font.FontFamily, 12F, FontStyle.Bold)
-            };
-            _contextCurrent = new Label
-            {
-                Dock = DockStyle.Top,
-                Height = 28,
-                ForeColor = Color.FromArgb(88, 222, 255),
-                Font = new Font(Font.FontFamily, 9F, FontStyle.Bold),
-                AutoEllipsis = true
-            };
-            var contextHint = new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextHint),
-                Dock = DockStyle.Top,
-                Height = 62,
-                ForeColor = Color.FromArgb(137, 156, 189),
-                AutoEllipsis = true
-            };
-            _contextActions = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.TopDown,
-                WrapContents = false,
-                AutoScroll = true,
-                Padding = new Padding(0, 10, 0, 0),
-                BackColor = Color.Transparent
-            };
-            _contextRail.Controls.Add(_contextActions);
-            _contextRail.Controls.Add(contextHint);
-            _contextRail.Controls.Add(_contextCurrent);
-            _contextRail.Controls.Add(contextTitle);
-
-            body.Controls.Add(mainArea);
-            body.Controls.Add(_contextRail);
+            mainCard.Controls.Add(_content);
+            mainCard.Controls.Add(_subnav);
+            mainShell.Controls.Add(mainCard);
+            body.Controls.Add(mainShell);
+            body.Controls.Add(sidebar);
 
             Controls.Add(body);
-            Controls.Add(sidebar);
             Controls.Add(header);
 
-            Resize += delegate { UpdateContextRailVisibility(); };
+            Resize += delegate { UpdateResponsiveChrome(); };
             Shown += delegate
             {
-                UpdateContextRailVisibility();
+                UpdateResponsiveChrome();
                 ShowSection(LeagueHubUiTextKeys.SectionMatch);
             };
             FormClosing += HandleHubClosing;
@@ -197,33 +199,15 @@ namespace FACM.League
 
         private void AddSectionButton(Panel sidebar, string sectionKey, string hintKey, int top)
         {
-            var button = new Button
+            var button = new FacmNavButton
             {
                 Text = LeagueHubText.Get(_ui, sectionKey),
-                Location = new Point(12, top),
-                Size = new Size(148, 50),
-                FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 1 },
-                BackColor = Color.FromArgb(17, 27, 44),
-                ForeColor = Color.FromArgb(210, 222, 242),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 0, 8, 0),
-                Cursor = Cursors.Hand,
-                TabStop = false,
-                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold)
+                Location = new Point(8, top),
+                Size = new Size(122, 38)
             };
             button.Click += delegate { ShowSection(sectionKey); };
-            button.MouseEnter += delegate
-            {
-                _headerHint.Text = LeagueHubText.Get(_ui, hintKey);
-                if (!string.Equals(_currentSectionKey, sectionKey, StringComparison.Ordinal))
-                    button.BackColor = Color.FromArgb(23, 36, 58);
-            };
-            button.MouseLeave += delegate
-            {
-                UpdateSectionSelection();
-                UpdateHeaderHint(_currentSectionKey);
-            };
+            button.MouseEnter += delegate { _headerHint.Text = LeagueHubText.Get(_ui, hintKey); };
+            button.MouseLeave += delegate { UpdateHeaderHint(_currentSectionKey); };
             sidebar.Controls.Add(button);
             _sectionButtons[sectionKey] = button;
         }
@@ -274,30 +258,18 @@ namespace FACM.League
             }
 
             _subnav.Visible = true;
-            _subnav.Height = 54;
+            _subnav.Height = 44;
             foreach (var definition in views)
             {
                 var captured = definition;
-                var button = new Button
+                var button = new FacmPillButton
                 {
                     Text = ResolveViewText(captured.TextKey),
                     AutoSize = false,
-                    Size = new Size(112, 32),
-                    Margin = new Padding(0, 0, 8, 0),
-                    FlatStyle = FlatStyle.Flat,
-                    FlatAppearance = { BorderSize = 1 },
-                    BackColor = Color.FromArgb(18, 28, 45),
-                    ForeColor = Color.FromArgb(190, 207, 235),
-                    Cursor = Cursors.Hand,
-                    TabStop = false
+                    Size = new Size(104, 30),
+                    Margin = new Padding(0, 0, 7, 0)
                 };
                 button.Click += delegate { ShowView(captured.Id, true); };
-                button.MouseEnter += delegate
-                {
-                    if (!string.Equals(_currentViewId, captured.Id, StringComparison.Ordinal))
-                        button.BackColor = Color.FromArgb(24, 39, 62);
-                };
-                button.MouseLeave += delegate { UpdateViewSelection(); };
                 _subnav.Controls.Add(button);
                 _viewButtons[captured.Id] = button;
             }
@@ -326,7 +298,7 @@ namespace FACM.League
             }
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) && _currentChild != null && !_currentChild.IsDisposed)
             {
-                UpdateContextRail();
+                UpdateContextActions();
                 return;
             }
 
@@ -341,6 +313,7 @@ namespace FACM.League
                 child = factory(_ui);
                 if (child == null) throw new InvalidOperationException("LOL helper view factory returned no form: " + viewId);
 
+                FacmDesignSystem.ApplyLeagueSurface(child);
                 child.TopLevel = false;
                 child.FormBorderStyle = FormBorderStyle.None;
                 child.Dock = DockStyle.Fill;
@@ -358,7 +331,7 @@ namespace FACM.League
                 UpdateSectionSelection();
                 UpdateViewSelection();
                 UpdateHeaderHint(_currentSectionKey);
-                UpdateContextRail();
+                UpdateContextActions();
                 child.Show();
             }
             catch
@@ -371,18 +344,18 @@ namespace FACM.League
                 _currentChild = null;
                 _currentViewId = null;
                 UpdateViewSelection();
-                UpdateContextRail();
+                UpdateContextActions();
                 throw;
             }
         }
 
-        private void UpdateContextRailVisibility()
+        private void UpdateResponsiveChrome()
         {
-            if (_contextRail == null || _contextRail.IsDisposed) return;
-            _contextRail.Visible = ClientSize.Width >= 1320;
+            if (_contextActions == null || _contextActions.IsDisposed) return;
+            _contextActions.Visible = ClientSize.Width >= 1080;
         }
 
-        private void UpdateContextRail()
+        private void UpdateContextActions()
         {
             if (_contextActions == null || _contextActions.IsDisposed) return;
 
@@ -393,41 +366,30 @@ namespace FACM.League
                 control.Dispose();
             }
 
-            var current = LeagueHubNavigation.Views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal));
-            _contextCurrent.Text = current == null
-                ? string.Empty
-                : LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextCurrent) + " · " + ResolveViewText(current.TextKey);
+            if (string.IsNullOrWhiteSpace(_currentViewId)) return;
+
+            _contextActions.Controls.Add(new Label
+            {
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
+                Size = new Size(58, 28),
+                Margin = new Padding(0, 0, 5, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 7.8F, FontStyle.Bold)
+            });
 
             foreach (var related in LeagueHubNavigation.RelatedViews(_currentViewId))
             {
                 var captured = related;
-                var button = new Button
+                var button = new FacmPillButton
                 {
                     Text = ResolveViewText(captured.TextKey),
-                    Size = new Size(198, 48),
-                    Margin = new Padding(0, 0, 0, 9),
-                    FlatStyle = FlatStyle.Flat,
-                    FlatAppearance = { BorderSize = 1 },
-                    BackColor = Color.FromArgb(18, 29, 47),
-                    ForeColor = Color.FromArgb(218, 230, 248),
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Padding = new Padding(12, 0, 8, 0),
-                    Cursor = Cursors.Hand,
-                    TabStop = false,
-                    Font = new Font(Font.FontFamily, 9F, FontStyle.Bold)
+                    Size = new Size(78, 28),
+                    Margin = new Padding(0, 0, 5, 0),
+                    Font = new Font(Font.FontFamily, 7.7F, FontStyle.Bold)
                 };
-                button.FlatAppearance.BorderColor = Color.FromArgb(47, 66, 93);
                 button.Click += delegate { ShowView(captured.Id, true); };
-                button.MouseEnter += delegate
-                {
-                    button.BackColor = Color.FromArgb(27, 48, 79);
-                    button.FlatAppearance.BorderColor = Color.FromArgb(77, 213, 255);
-                };
-                button.MouseLeave += delegate
-                {
-                    button.BackColor = Color.FromArgb(18, 29, 47);
-                    button.FlatAppearance.BorderColor = Color.FromArgb(47, 66, 93);
-                };
                 _contextActions.Controls.Add(button);
             }
         }
@@ -471,69 +433,13 @@ namespace FACM.League
         private void UpdateSectionSelection()
         {
             foreach (var pair in _sectionButtons)
-            {
-                var selected = string.Equals(pair.Key, _currentSectionKey, StringComparison.Ordinal);
-                pair.Value.BackColor = selected ? Color.FromArgb(27, 48, 84) : Color.FromArgb(17, 27, 44);
-                pair.Value.ForeColor = selected ? Color.White : Color.FromArgb(210, 222, 242);
-                pair.Value.FlatAppearance.BorderColor = selected ? Color.FromArgb(73, 218, 255) : Color.FromArgb(37, 52, 74);
-            }
+                pair.Value.Selected = string.Equals(pair.Key, _currentSectionKey, StringComparison.Ordinal);
         }
 
         private void UpdateViewSelection()
         {
             foreach (var pair in _viewButtons)
-            {
-                var selected = string.Equals(pair.Key, _currentViewId, StringComparison.Ordinal);
-                pair.Value.BackColor = selected ? Color.FromArgb(45, 66, 143) : Color.FromArgb(18, 28, 45);
-                pair.Value.ForeColor = selected ? Color.White : Color.FromArgb(190, 207, 235);
-                pair.Value.FlatAppearance.BorderColor = selected ? Color.FromArgb(139, 92, 246) : Color.FromArgb(43, 58, 80);
-            }
-        }
-
-        private sealed class HubHeaderPanel : Panel
-        {
-            public HubHeaderPanel()
-            {
-                DoubleBuffered = true;
-            }
-
-            protected override void OnPaint(PaintEventArgs e)
-            {
-                base.OnPaint(e);
-                if (Width <= 0 || Height <= 0) return;
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-                using (var cyan = new SolidBrush(Color.FromArgb(22, 65, 214, 255)))
-                    e.Graphics.FillEllipse(cyan, Width - 360, -90, 300, 180);
-                using (var violet = new SolidBrush(Color.FromArgb(18, 151, 71, 255)))
-                    e.Graphics.FillEllipse(violet, Width - 180, -70, 240, 160);
-                using (var bar = new LinearGradientBrush(
-                    new Rectangle(0, Height - 4, Width, 4),
-                    Color.FromArgb(58, 216, 255),
-                    Color.FromArgb(145, 76, 255),
-                    LinearGradientMode.Horizontal))
-                    e.Graphics.FillRectangle(bar, 0, Height - 4, Width, 4);
-            }
-        }
-
-        private sealed class HubSidebarPanel : Panel
-        {
-            public HubSidebarPanel()
-            {
-                DoubleBuffered = true;
-            }
-
-            protected override void OnPaint(PaintEventArgs e)
-            {
-                base.OnPaint(e);
-                if (Height <= 0) return;
-                using (var bar = new LinearGradientBrush(
-                    new Rectangle(Width - 2, 0, 2, Height),
-                    Color.FromArgb(58, 216, 255),
-                    Color.FromArgb(111, 74, 255),
-                    LinearGradientMode.Vertical))
-                    e.Graphics.FillRectangle(bar, Width - 2, 0, 2, Height);
-            }
+                pair.Value.Selected = string.Equals(pair.Key, _currentViewId, StringComparison.Ordinal);
         }
     }
 }
