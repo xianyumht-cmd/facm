@@ -67,7 +67,7 @@ namespace FACM.League
 
             var eyebrow = new Label
             {
-                Text = "FACM  ·  LEAGUE",
+                Text = _ui.AppName + "  ·  " + _ui.Get(UiTextKeys.ShellLeague),
                 Location = new Point(20, 8),
                 Size = new Size(280, 16),
                 ForeColor = FacmDesignSystem.Accent,
@@ -128,7 +128,7 @@ namespace FACM.League
             };
             sidebar.Controls.Add(new Label
             {
-                Text = "工作台",
+                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
                 Location = new Point(12, 12),
                 Size = new Size(100, 18),
                 ForeColor = FacmDesignSystem.TextMuted,
