@@ -116,6 +116,15 @@ FACM 的功能数量允许增长，但托盘一级决策数量固定。
 - League Hub 只懒加载当前页；切到另一页时先正常 `Close()` 旧页，让其 `FormClosed` 清理 Timer / CancellationToken，再释放控件；禁止把访问过的多个页面长期隐藏常驻；
 - 不为“统一面板”重写已验收业务逻辑，也不把页面合并成一个新的万能 controller。
 
+### FACM 视觉设计系统
+
+- `FACM.Theming.FacmDesignSystem` 是新的共享 WinForms/GDI+ 视觉 token 与材质入口，统一 Canvas / Surface / Border / Accent / Text、圆角、Hover、Nav 与 Pill 交互；
+- `FacmGlassPanel`、`FacmNavButton`、`FacmPillButton` 是轻量原生控件，不依赖桌面截图、DWM Acrylic、游戏 Overlay、Hook 或高频动画 Timer；
+- `LeagueSoftGlassSkin` 保留为兼容入口：旧业务 Form 先走保守 `LeagueCompactDensity`，再由 `FacmDesignSystem` 统一材质；新 `LeagueHubForm` 本身已经按紧凑密度设计，不再被二次压缩；
+- LOL 工作台默认 `1180×700`、最小 `960×620`。左侧只保留三分区导航，原常驻右侧「接着做」栏已取消，上下文下一步改为顶部紧凑动作，主内容区不再长期损失约 200px 宽度；窗口较窄时顶部上下文动作自动隐藏，优先保证业务内容；
+- 控制中心继续使用既有 `ThemeCatalog` / `CompactMenuForm` 主题体系，不重写已经成熟的业务布局；各主题通过 `WindowSize` 统一缩小，默认「深海玻璃」从 `430×700` 收到 `390×620`，布局仍按既有基准尺寸等比缩放；
+- 视觉优化不得扩大 League 网络请求、LCU writer、磁盘预取或 InGame 后台预算；材质层必须保持纯 UI、无业务副作用。
+
 控制中心其它区域继续使用渐进披露：主页只保留目录状态/管理、清理主动作、修复工具、英雄联盟、个性化、更多设置，不允许模块再次动态插入一级按钮。
 
 `ShellMenuGroups.ValidateRootContract()`、`ShellUxSmokeTest` 与 `LeagueHubNavigation.ValidateForSmokeTest()` 共同守住单入口/三分区边界。
@@ -244,7 +253,7 @@ LeagueAutoAcceptEnabled=False
 - Gate 3 item-set filesystem transaction；
 - Gate 4 auto apply state machine/cache；
 - Shell 一级 5 项 contract；
-- League Hub 单入口、8 个 accepted view、3 个 novice-facing section 导航 contract；
+- League Hub 单入口、7 个 accepted view、3 个 novice-facing section 导航 contract；
 - 游戏效率全局 hotkey contract；
 - 赛后 automation；
 - Tencent-style 缺失 partyId/lobbyId/queueId 的 matchmaking automation fixture。
