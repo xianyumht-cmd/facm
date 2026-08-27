@@ -22,8 +22,9 @@
 - Gate 3：COMPLETE，#191 / PR #192，`main@138940ccb1f0c4f72bb3325b64a3b94638ee2891`。
 - Gate 4：COMPLETE，#193 / PR #195，`main@31f867f10f2019004695d5a696c1177a079cef20`。
 - Gate 5：COMPLETE，#196 / PR #197，`main@2e42218685b7cecd49a16676c85bf093bcf1ce1b`。
-- Gate 6：IMPLEMENTATION VERIFIED，#198 / PR #199，implementation head `f256bd60804a1f0f1e2818d8c7012303ad1d984c`；canonical 文档提交后需 latest-head CI 再确认再合入。
-- Gate 7～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
+- Gate 6：COMPLETE，#198 / PR #199，`main@2ca0f98b8c6a7241594ac4037d0c0a6f293593da`。
+- Gate 7：IMPLEMENTATION VERIFIED，#200 / PR #201，implementation head `997083eeef5b7385ef473e24d349cea14a752606`；canonical 文档提交后需 latest-head CI 再确认再合入。
+- Gate 8～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
 
 ## 已冻结的 4.0 基线
 
@@ -63,72 +64,82 @@ Gate 4 final：Foundation #56 / Windows Build #1318 / UI Text #439 SUCCESS；mer
 
 Gate 5 final latest head `9883a70c...`：Foundation #73 / Windows Build #1323 / UI Text #444 SUCCESS；随后 squash merge 到 `main@2e42218685b7cecd49a16676c85bf093bcf1ce1b`。
 
-## Gate 6 — WinUI 3 Design System + Shell：IMPLEMENTATION VERIFIED
+## Gate 6 — WinUI 3 Design System + Shell：COMPLETE
 
-Tracking：Issue #198，branch `feat/facm-4-gate6-design-shell`，PR #199。
+- `FacmTokens.xaml` 使用 WinUI semantic theme resources，不在 FACM.App XAML 保存产品硬编码 hex palette；Light/Dark/High Contrast 由平台资源系统负责。
+- `FacmControls.xaml` 统一 PageTitle / SectionTitle / CardTitle / Body / Muted / Card / StatusChip / PrimaryButton / NavigationItem styles。
+- `MainWindow` 固定 one main Window / one AppTitleBar / one NavigationView / one Frame / exactly four product entries：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`。
+- Shell user-visible copy 通过 `IUiTextProvider + UiTextKeys`，`FileUiTextProvider` 支持稳定 `ui-text.ini` override/fallback。
+- `scripts/check-facm4-shell.ps1` 守四入口、单 Shell tree、semantic tokens/shared styles、UI Text coverage、无 legacy Form host、FACM.App XAML 无硬编码产品色。
 
-### Design System
+Gate 6 final latest head `5b9b34f2...`：Foundation #97 / Windows Build #1328 / UI Text #449 SUCCESS；随后 squash merge 到 `main@2ca0f98b8c6a7241594ac4037d0c0a6f293593da`。
 
-- `FacmTokens.xaml` 不再保存 FACM 产品硬编码 hex palette；semantic brushes alias WinUI platform theme resources，随 Light/Dark/High Contrast resource system变化。
-- 新增统一 spacing/radius/layout tokens。
-- 新增 `FacmControls.xaml`，统一 PageTitle / SectionTitle / CardTitle / Body / Muted / Card / StatusChip / PrimaryButton / NavigationItem styles。
-- `App.xaml` 只在 application resource root 合并 tokens + shared controls；页面不复制主题资源。
+## Gate 7 — Desktop Shell / F 悬浮入口 / Anchor Placement：IMPLEMENTATION VERIFIED
 
-### 正式 Shell contract
+Tracking：Issue #200，branch `feat/facm-4-gate7-desktop-anchor`，PR #201。
 
-`MainWindow` 当前固定：
+### Core placement contract
+
+`FACM.Core.Desktop` 新增纯几何 contract：
 
 ```text
-one main Window
-one AppTitleBar owner
-one NavigationView
-one Frame
-exactly four product entries:
-  清理与修复
-  LOL 工作台
-  个性化
-  更多设置
+DesktopPoint / DesktopSize / DesktopRect / DesktopWorkArea
+DesktopAnchor: Auto / Left / Right / Top / Bottom / four corners
+AnchorPlacementRequest / AnchorPlacementResult
+AnchorPlacementService
+IDesktopWorkAreaProvider
 ```
 
-- 移除 Gate 1 临时 `控制中心/home` 导航项。
-- LOL 面向用户 IA 继续写为 `比赛 / 攻略 / 自动化`，不暴露内部模块边界。
-- `ExtendsContentIntoTitleBar=true` + `SetTitleBar(AppTitleBar)`，TitleBar 属于同一 Shell visual tree。
-- 不引入 Form-in-Form / WindowsFormsHost / Z-order / timer / reflection patch。
+- Core 不引用 WinUI/WinForms/Win32。
+- 支持主屏 fallback、preferred point、负坐标、左/右/上/下屏、最近 work-area、edge/corner anchor、margin/clamp、off-screen recovery。
+- preferred position 使用 physical desktop pixels；不会把负坐标错误截成 0。
 
-### UI Text / boundary
+### Windows monitor / DPI facts
 
-- MainWindow XAML/code-behind 不含硬编码中文用户文案；四入口、subtitle、status、overview/state 卡片均通过 `IUiTextProvider + UiTextKeys`。
-- `FileUiTextProvider` 在 Infrastructure 读取稳定 `ui-text.ini`；IO/权限失败使用 defaults，不让 cosmetic override 阻断启动。
-- `ControlCenterViewModel` 输出 status key，不输出硬编码 UI copy。
-- Shell/ViewModel 不创建第二 League runtime、不 new HttpClient、不直接操作 settings/diagnostic file。
+`WindowsDesktopWorkAreaProvider`：
 
-### Gate 6 deterministic evidence
+- `EnumDisplayMonitors + GetMonitorInfo` 获取真实 Windows work-area physical pixel bounds；
+- `GetDpiForMonitor` 获取 effective per-monitor DPI，缺失时安全 fallback 到 96 DPI；
+- Platform.Windows 只负责 facts，placement 算法仍在 Core。
 
-implementation head `f256bd60804a1f0f1e2818d8c7012303ad1d984c`：
+### F desktop surface / lifecycle
 
-- `FACM 4.0 Foundation` #91：SUCCESS；architecture gate / Shell source gate / restore / WinUI build / FoundationSmoke / WindowsSmoke / single-file publish 全 SUCCESS。
-- `FACM Windows Build` #1325：SUCCESS。
-- `FACM UI Text Contract` #446：SUCCESS。
-- artifact `facm4-x64` id `9639633952`，ZIP `88,217,477` bytes，digest `sha256:f6bf0f03a16160873d576fecab7d93d13b4a079e5b380a3dc3db36b84f9ba9cd`。
-- `scripts/check-facm4-shell.ps1` 自动守四入口、单 TitleBar/NavigationView/Frame、semantic tokens/shared styles、UI Text default coverage、无 legacy Form host、FACM.App XAML 无硬编码 hex 色。
-- `Gate6Smoke` 验所有 Shell text defaults 与 `ui-text.ini` override/fallback。
+- 新增独立 `FloatingWindow`，64 DIP surface / 56 DIP F button，共用 Gate 6 semantic resources 与 shared button style。
+- `FloatingWindow` 只依赖 `IDesktopWorkAreaProvider + IUiTextProvider + EnsureMainWindow callback`；不拥有 League、settings、HTTP、diagnostic runtime。
+- `App.xaml.cs` 仍只创建一个 `WindowsLeagueTransportSessionSource` 和一个 shared `LeagueHttpGateway`。
+- MainWindow 关闭后 F surface 保留；点击 F = create-or-activate MainWindow，保持 **Ensure Open / Activate**，不是 toggle。
+- 关闭 F 才进入真正 shutdown/dispose。
+- Settings 2.0 `Pets.BallX/BallY` 只作为 preferred top-left；`int.MinValue` 表示无偏好；无效/越界位置 deterministic recovery。
 
-## Gate 7 — NEXT：Desktop Shell / F 悬浮入口 / Theme / Anchor Placement
+### Gate 7 validation
 
-Gate 6 合入后从最新 main 新开 Issue/branch/PR。固定目标：
+implementation head `997083eeef5b7385ef473e24d349cea14a752606`：
 
-1. Core 建纯几何 `AnchorPlacementService`，输入 desktop/work-area/anchor size/margin，输出可验证 position；支持负坐标、四边/角、clamp。
-2. Platform.Windows 提供 monitor/work-area/DPI adapter；几何算法不依赖 WinUI/WinForms。
-3. 新建独立 floating desktop surface，共用 Gate 6 application semantic theme resources；它是辅助 surface，不复制 Main Shell NavigationView/TitleBar owner。
-4. Single Instance 保持 Ensure Open / Activate；全局快捷键只使用 RegisterHotKey，不引入 low-level hook/polling。
-5. floating surface 不创建 League runtime、network client、settings store；只发 Core intent/激活 Main Shell。
-6. deterministic smoke 覆盖负坐标、左右/上下多屏 work area、edge anchoring、margin/clamp、theme/resource sharing。
-7. Gate 10/12 再补真实 mixed-DPI/multi-monitor 硬件证据；Gate 7 不伪造真实 DPI 验收。
+- `FACM 4.0 Foundation` #114：SUCCESS；architecture / Shell / desktop source gates / restore / build / FoundationSmoke / WindowsSmoke / WinUI single-file publish / output verify / artifact upload 全 SUCCESS。
+- `FACM Windows Build` #1331：SUCCESS。
+- `FACM UI Text Contract` #452：SUCCESS。
+- artifact `facm4-x64` id `9640719680`，ZIP `88,237,787` bytes，digest `sha256:57b9c54ffdd149f38c7ebf7e1b41a3a9a7a3989ab4da22f6d23bfedc20fcaa81`。
+- `Gate7Smoke` 覆盖左侧负坐标屏、上方屏、nearest monitor、四角/edge anchor、margin/clamp、off-screen recovery、空 work-area fail-fast。
+- `FACM.WindowsSmoke` 在 hosted Windows runner 上真实枚举 work-area / primary / DPI facts，并验证 placement 保持在工作区内。
+- `scripts/check-facm4-desktop.ps1` 禁止 FloatingWindow 创建第二 League runtime、HttpClient、settings/diagnostic file runtime、low-level keyboard hook/polling，并验证共享 Design System 与 Ensure Open/Activate source contract。
+
+Hosted runner 证据只证明 Win32 adapter/API 与 deterministic placement 在 CI 环境可工作；**不替代** Gate 10/12 的真实双屏、负坐标、100～200% mixed-DPI 硬件矩阵。
+
+## Gate 8 — NEXT：LOL 工作台状态驱动 UX
+
+Gate 7 合入后从最新 main 新开 Issue/branch/PR。固定目标：
+
+1. 迁移 legacy `LeagueGameflowMonitor` 的**唯一循环 owner 职责**到 4.0，不允许 Page/ViewModel 再建独立 polling loop。
+2. 复用 Gate 3 的同一个 `ILeagueReadGateway / LeagueHttpGateway / WindowsLeagueTransportSessionSource`；不创建第二 LCU session/HttpClient runtime。
+3. Core 建 deterministic gameflow phase -> `LeagueProductState` + `LeagueActivityLevel` mapping，至少覆盖 Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / disconnected/error。
+4. 唯一 gameflow owner 将事实发布到 Gate 5 `ProductStateStore`，Performance Budget 同源更新；UI 只订阅 state。
+5. LOL Workbench 面向用户固定三分区：`比赛 / 攻略 / 自动化`；旧 8 个 novice-facing view 收口为三层 IA，不直接照搬 legacy tab tree。
+6. action 只通过 Core capability/intent 暴露，禁止 ViewModel/Page 传 raw LCU path；Bench 仍为用户显式手动动作，不做后台自动抢英雄。
+7. deterministic smoke 覆盖 phase mapping、poll cadence、duplicate state suppression、Performance Budget、Workbench IA、单 owner source gate。
 8. legacy Build/UI Text/4.0 Foundation latest-head 全绿；production release controls 不动。
 
-## Gate 8 → Gate 13 固定顺序
+## Gate 9 → Gate 13 固定顺序
 
-- Gate 8：LOL 工作台状态驱动 UX。
 - Gate 9：诊断中心与脱敏诊断包。
 - Gate 10：DPI / 多屏 / Accessibility。
 - Gate 11：Recovery / Feature Flags / 更新保障。
@@ -151,4 +162,4 @@ Gate 6 合入后从最新 main 新开 Issue/branch/PR。固定目标：
 
 ## 新对话接续
 
-读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对最新 main / 当前 Gate Issue+PR+CI 后直接继续；不要要求用户逐 Gate回复“继续”。生产 release 与 destructive Git 操作仍遵守 `AGENTS.md` 的 fresh safety check。
+读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对最新 main / 当前 Gate Issue+PR+CI 后直接继续；不要要求用户逐 Gate 回复“继续”。生产 release 与 destructive Git 操作仍遵守 `AGENTS.md` 的 fresh safety check。
