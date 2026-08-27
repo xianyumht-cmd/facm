@@ -13,16 +13,11 @@ namespace FACM.Services
             Start(executable, string.Empty);
         }
 
+        [Obsolete("League game repair is FACM-native. Use LeagueGameRepairModule instead.")]
         public static void RunFixLcu(int mode)
         {
             if (mode < 1 || mode > 4) throw new ArgumentOutOfRangeException(nameof(mode));
-
-            // The scripts are bundled and released with the matching mode resource.
-            // FACM invokes the executable directly so the selected mode is explicit.
-            ToolBundleLoader.Extract("mode-script-" + mode);
-            var executable = ToolBundleLoader.Extract("mode-tool");
-            AppLog.Info("Run built-in mode " + mode);
-            Start(executable, "--mode " + mode);
+            throw new NotSupportedException("旧 Fix-LCU-Window 外部进程已停用，请使用 FACM 的原生“游戏修复”。");
         }
 
         private static void Start(string executable, string arguments)

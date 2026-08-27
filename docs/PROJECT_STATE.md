@@ -15,18 +15,21 @@
 - release_notes：FACM 3.5.14：统一普通顶层窗口为 FACM 自绘外壳，移除系统原生标题栏按钮，统一关闭、最小化、最大化、拖动、缩放与圆角行为；临时窗口支持点击窗口外桌面或切换到其它程序时关闭，窗口内部空白不关闭，同一 FACM 进程的子对话框不会误关父窗口，并修复自绘最小化被外部关闭逻辑误判的问题。LOL 工作台进一步收紧为 1120×640 默认尺寸、900×580 最低尺寸，并把当前状态、快捷工具、在线状态等稀疏页面的宽屏空白改为真实上下文区，展示客户端连接、对局阶段与相关快捷入口。上下文状态只复用现有 LeagueDashboard gameflow 缓存，不新增 LCU session、轮询、writer、网络请求或动画 Timer。
 <!-- FACM_RELEASE_STATE_END -->
 
-> 当前生产事实以 GitHub Release `v3.5.14` 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据，不再描述为当前进行中状态。
+> 当前生产事实始终以上方发布工作流维护区块、GitHub Release 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据。
 
-## 当前未发布代码状态 — PR #182 产品与界面重构
+## 3.5.15 产品变更基线
 
-- 控制中心收束为四个桌面式主入口：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`；工作目录、清理状态和步骤说明不再占控制中心第一层。
-- `清理与修复` 成为环境级完整流程页：游戏目录 → 驱动修复 / 环境清理（先后不限，建议各执行一次）→ 重启电脑 → WEGAME → 英雄联盟 → 修复游戏。FACM 不伪造 WEGAME 最终修复完成状态。
-- 游戏运行期间的大厅/客户端异常归入 `LOL 工作台 → 自动化 → 游戏修复`，界面复用现有 fix-lcu mode 1～4：`立即修复窗口 / 自动修复窗口 / 跳过卡结算 / 重置客户端`；`fix-lcu-window` 内部实现没有在本轮现代化，留作下一独立任务。
-- 进程级 `一键结束游戏` 与 `跳过卡结算` 恢复为两个不同功能；真实赛后 `自动回大厅` 保持原有行为和名称。
-- LOL 工作台删除内部重复标题/提示条，当前页提示进入 FACM 自绘标题栏副标题；标题固定、提示单行省略，不额外占一整行内容高度。
-- `ThemeCatalog` 继续作为唯一主题目录；新增进程级 `FacmThemeRuntime`，`FacmDesignSystem` 与自绘标题栏读取同一全局主题。已打开 FACM 自有 WinForms 窗口会刷新，新窗口继承当前主题；系统文件选择器和 UAC 保持系统外观。
-- 本轮只调整产品组织、UI 与已有动作入口，不新增 LCU session、writer、网络请求、轮询或动画 Timer，也不扩大既有写权限边界。
-- 本轮不修改 `release/request.json` 或 `online/version.json`，不发布正式版本；生产仍为 FACM 3.5.14。
+- PR #182 已完成控制中心与修复信息架构重构：控制中心只保留 `清理与修复 / LOL 工作台 / 个性化 / 更多设置` 四个桌面式入口；工作目录、环境状态与步骤说明进入 `清理与修复` 页面。
+- `清理与修复` 统一环境级流程：游戏目录 → 驱动修复 / 环境清理（先后不限，建议各执行一次）→ 重启电脑 → WEGAME → 英雄联盟 → 修复游戏；FACM 不伪造 WEGAME 最终修复完成状态。
+- LOL 工作台删除重复内容区提示条，当前页提示进入 FACM 自绘标题栏副标题；`ThemeCatalog + FacmThemeRuntime + FacmDesignSystem` 统一 FACM 自有窗口主题。
+- 游戏运行期间的大厅/客户端异常归入 `LOL 工作台 → 自动化 → 游戏修复`。PR #183 将原 `fix-lcu-window` mode 1～4 正式迁为 FACM 原生实现，不再从 UI 启动旧 `Fix-LCU-Window.exe`。
+- `立即修复窗口`：按 LeagueClientUx 实际所在显示器和 WorkingArea 处理多屏/负坐标；16:9 判断使用容差；优先恢复最近合理尺寸或保留可信宽/高，不再固定 `PrimaryScreen + 1280×720×zoom`。
+- `自动修复窗口`：改为 WinEvent `EVENT_OBJECT_LOCATIONCHANGE` + 380ms debounce + 2s cooldown；默认关闭，仅本次 FACM 进程会话有效；不再启动独立 console，也没有 1500ms 常驻轮询。
+- `跳过卡结算`：复用现有 Gate 6 `/lol-lobby/v2/play-again` writer；`重启客户端界面`：使用只暴露 `POST /riotclient/kill-and-restart-ux` 的专用窄 writer；二者都复用唯一 `LeagueClientModule + LeagueClientSessionProvider`。
+- `一键结束游戏` 继续使用原进程级动作，与跳过卡结算、真实赛后自动回大厅保持独立语义。
+- `FACM.ToolBundle` 不再嵌入旧 Fix-LCU-Window EXE 与 mode scripts；历史工具输入可以保留在源码仓库作为来源/回归证据，但不进入正式 FACM 游戏修复运行路径。
+- `--facm-host-test` 增加原生修复纯离线回归：合理/异常窗口、可信宽度恢复、最近合理尺寸、负坐标显示器 clamp、Client UX writer allowlist 与既有 play-again writer 边界。
+- 下一阶段的 `.NET 8+ / WinUI 3` 技术栈升级不属于本变更，不与 3.5.15 混做。
 
 ## 3.4.3 海克斯大乱斗可用英雄快速选择 — RELEASED
 
@@ -144,8 +147,9 @@
 - 自动化默认关闭。
 - 不做游戏内 Overlay / 注入。
 - 不做自动 pick / ban / 自动 Bench swap / reroll / dodge / skin；手动 Bench swap 是用户点击触发的独立能力。
-- Gate2 / Bench swap / 赛后 / 匹配继续使用彼此独立的最小 writer 边界，不互相放宽 allowlist。
+- Gate2 / Bench swap / 赛后 / 匹配 / Client UX repair 继续使用最小 writer 边界，不互相放宽 allowlist。
 - `LeagueEfficiencyModule` 复用 Dashboard gameflow，不新增第二个常驻 monitor。
+- 游戏修复自动模式只监听 LeagueClient 窗口 location-change 事件并做 debounce/cooldown，不新增 LCU 网络轮询。
 - League Hub 只保留当前内容页，不把访问过的旧页隐藏常驻。
 - 全局快捷键不引入低级键盘钩子或高频键盘轮询。
 - 静态霓虹视觉只在正常 WinForms Paint 中绘制，不新增高频动画 Timer。

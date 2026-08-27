@@ -1,5 +1,34 @@
 # FACM 技术决策
 
+## 2026-08-27：fix-lcu-window 能力转为 FACM 原生游戏修复，不保留第二套 LCU runtime
+
+### 决策
+
+`LeagueTavern/fix-lcu-window` 继续作为历史来源与行为参考，但正式 FACM 不再通过 `Fix-LCU-Window.exe --mode 1..4` 执行 LOL 客户端修复。四类能力迁入 FACM 自有模块：
+
+- `LeagueGameRepairModule / LeagueGameRepairService` 成为游戏运行期修复 owner；
+- `立即修复窗口` 使用 FACM 原生 Win32 窗口检测/恢复，目标显示器取 `Screen.FromHandle`，不再固定主屏；
+- 窗口尺寸异常判断使用容差与工作区可见性，不再用精确 `16:9` 浮点比较；恢复优先最近一次合理尺寸，其次保留可信宽/高，最后才按当前显示器与 LCU zoom 安全回退，不再无条件重置为 `1280×720×zoom`；
+- `自动修复窗口` 使用 `SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE)` + debounce/cooldown，只在真实窗口变化后检查，不再启动独立 console 或每 1500ms 永久轮询；
+- `跳过卡结算` 复用现有 Gate 6 post-game writer 的 `/lol-lobby/v2/play-again`，不增加新 session；
+- `重启客户端界面` 使用新的最小 `ILeagueClientUxRepairWriteApi`，对调用方不暴露任意 path，唯一允许行为是 `POST /riotclient/kill-and-restart-ux`；
+- `LeagueClientModule + LeagueClientSessionProvider` 继续是唯一 LCU discovery/auth/session owner；
+- ToolBundle 不再嵌入旧 Fix-LCU-Window EXE 与 mode scripts；遗留 launcher 只保留明确退役兼容入口，不再是正式 UI 运行路径。
+
+### 原因
+
+- 上游实现把自己的一套进程发现、LCU client、窗口恢复和常驻轮询都带进 FACM，会破坏“唯一 League session owner”和低后台占用边界；
+- `Screen.PrimaryScreen + 1280×720×zoom` 无法正确覆盖多显示器、混合 DPI 和用户原本较大客户端窗口，上游公开 issue 也已经暴露“修复后回到最小 720 大小”的问题；
+- 游戏修复已经成为 LOL 工作台的一等功能，继续把按钮解释成“启动一个第三方 console mode”不利于诊断、测试和长期维护；
+- `play-again` 与 `kill-and-restart-ux` 都是明确写操作，必须继续通过窄 writer 边界而不是通用 LCU 请求器。
+
+### 后果
+
+- 后续 LOL 窗口修复缺陷只在 `LeagueGameRepairService` 内演进，不重新引入独立 Fix-LCU-Window 进程；
+- 自动修复默认仍为关闭，开启状态只存在于本次 FACM 进程会话，模块释放时必须解除 WinEvent hook 和 Timer；
+- 新修复逻辑必须继续通过离线尺寸规划、多屏负坐标和 writer allowlist smoke，不能靠“能启动”作为验收；
+- 旧 2026-08-27“UI 重组时暂不现代化 fix-lcu”的决定只描述上一任务的边界；本条决定正式取代其中关于 fix-lcu 运行实现的部分。
+
 ## 2026-08-27：控制中心只负责启动，环境恢复与游戏运行修复分流，全局主题统一
 
 ### 决策

@@ -12,6 +12,7 @@ FACM.exe  (.NET Framework 4.8 / WinForms)
 ├─ Performance Contract
 ├─ League Client / Dashboard / Player / Live / Build Advisor
 ├─ League Efficiency
+├─ League Game Repair
 ├─ League Hub
 └─ Mayhem
 
@@ -48,15 +49,23 @@ SettingsModule
 ├─ AppSettings
 └─ FacmThemeRuntime  ← 初始化全局主题
 
-ToolsModule            ← 现有 ToolBundle / fix-lcu 入口，不在本轮重写内部实现
+ToolsModule            ← 仅保留驱动修复/独立工具；不再承载 LOL 游戏修复
 PerformanceModule
 LeagueClientModule     ← 唯一 LCU session owner
    ├─ LeagueDashboardModule + Performance
    ├─ LeaguePlayerModule + Performance
    ├─ LeagueLiveModule + Performance
    ├─ LeagueBuildAdvisorModule + Settings + Performance
+   ├─ LeagueGameRepairModule
    ├─ MayhemModule
    └─ LeagueEfficiencyModule + Settings + LeagueDashboard
+
+LeagueGameRepairModule
+└─ LeagueGameRepairService
+   ├─ Win32 League window detection / repair
+   ├─ WinEvent auto-repair controller
+   ├─ existing post-game writer → play-again
+   └─ narrow client-UX repair writer → kill-and-restart-ux
 
 LeagueHubModule
 ├─ LeagueDashboardModule
@@ -65,14 +74,14 @@ LeagueHubModule
 ├─ LeagueBuildAdvisorModule
 ├─ LeagueEfficiencyModule
 ├─ MayhemModule
-└─ ToolsModule          ← 仅复用既有游戏修复动作入口
+└─ LeagueGameRepairModule
 
 ShellModule
 ├─ LeagueHubModule
 └─ MainForm / CompactMenuForm
 ```
 
-`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。`LeagueHubModule` 只拥有 **导航/页面组合**；加入 `ToolsModule` 依赖只是为了在 `游戏修复` 页面复用既有 fix-lcu mode 入口，不让 Hub 拥有第二套 League runtime、LCU session 或自动化状态机。
+`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。`LeagueGameRepairModule` 复用 `LeagueClientModule` 的唯一 session/provider；窗口检测只读取本机 Win32 窗口/显示器状态。`LeagueHubModule` 仍只拥有 **导航/页面组合**，不拥有第二套 League runtime、LCU session 或自动化状态机。
 
 ## 3. Shell、清理修复与 League Hub 信息架构
 
@@ -128,22 +137,32 @@ LOL 工作台
 └─ 在线状态
 ```
 
-`游戏修复` 页面只重新组织既有动作入口：
+`游戏修复` 已由 FACM 原生运行层接管：
 
 ```text
-立即修复窗口   → fix-lcu mode 1
-自动修复窗口   → fix-lcu mode 2
-跳过卡结算     → fix-lcu mode 3
-重置客户端     → fix-lcu mode 4
+立即修复窗口   → LeagueGameRepairService 原生 Win32 修复
+自动修复窗口   → WinEvent location-change + debounce/cooldown
+跳过卡结算     → 复用既有 post-game play-again writer
+重启客户端界面 → 专用窄 writer：POST /riotclient/kill-and-restart-ux
 一键结束游戏   → 既有 LeagueEfficiency 进程级动作
 ```
 
-这里的 `fix-lcu-window` 内部实现仍是既有实现；专项现代化必须作为下一独立任务处理，不能借 UI 重组扩大当前修改面。真实赛后 `自动回大厅` 仍属于赛后自动化，不与 `跳过卡结算` 混淆。
+旧 `Fix-LCU-Window.exe --mode 1..4` 不再是正式运行路径，ToolBundle 也不再嵌入该 EXE 与 mode scripts。历史工具文件可以暂留仓库作为来源/回归证据，但正式 FACM 不启动它们。真实赛后 `自动回大厅` 仍属于赛后自动化，不与手动 `跳过卡结算` 混淆。
+
+### 原生窗口修复边界
+
+- 只枚举本机 `LeagueClientUx` 所属的 `RCLIENT` 顶层窗口及其 `CefBrowserWindow`；不做进程注入；
+- 以客户端**实际所在显示器**的 `WorkingArea` 为边界，不再强制使用 `Screen.PrimaryScreen`；支持负坐标和多显示器布局；
+- DPI 只用于诊断和正确理解当前显示器环境，不通过补丁篡改 League 窗口过程；
+- 16:9 判断使用容差，不再依赖精确浮点相等；同时拒绝极小、极大或大面积离屏的异常矩形；
+- 恢复尺寸优先级：最近一次合理尺寸 → 保留当前可信宽度/高度推导另一边 → 当前显示器 + LCU zoom 的安全回退；不再无条件重置为 `1280×720×zoom`；
+- 自动修复使用 `SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE)`，380ms debounce，修复后 2s cooldown；正常空闲时没有 1.5 秒常驻轮询，也没有第二个 LCU 网络轮询器；
+- 自动修复为当前 FACM 进程会话状态，模块 Dispose 时解除 WinEvent hook 和 Timer。
 
 ### League UI ownership
 
 - `LeagueHubModule` 是 Shell 层唯一的 League 导航 owner；
-- Dashboard / Player / Live / Build Advisor / Efficiency 等业务模块只提供已经验收的 Form/service，不再自行向 Shell 注册入口；
+- Dashboard / Player / Live / Build Advisor / Efficiency / Game Repair 等业务模块只提供业务 Form/service，不自行向 Shell 注册入口；
 - 旧 UiBridge 源码可以暂时保留兼容编译，但运行时不得重新建立 League 多按钮 submenu；`ShellMenuGroups.AddLeagueAction` 是明确的 no-op 防回归边界；
 - League Hub 只懒加载当前页；切到另一页时先正常 `Close()` 旧页，让其 `FormClosed` 清理 Timer / CancellationToken，再释放控件；禁止把访问过的多个页面长期隐藏常驻；
 - 不为“统一面板”重写已验收业务逻辑，也不把页面合并成一个新的万能 controller。
@@ -170,7 +189,7 @@ LOL 工作台
 - 共享 read transport；
 - 各能力专用的最小 write transport。
 
-不得为 Dashboard、OP.GG、赛后、匹配自动化或 League Hub 创建第二套 LCU discovery/auth/session。
+不得为 Dashboard、OP.GG、赛后、匹配自动化、游戏修复或 League Hub 创建第二套 LCU discovery/auth/session。
 
 ### 写权限分离
 
@@ -178,10 +197,11 @@ LOL 工作台
 
 - Gate 2 符文/召唤师技能 writer：只允许 `my-selection` 与 FACM 自建 rune page/current page 路径；
 - ARAM / ARAM Mayhem 手动 Bench writer：调用者只提交正整数 `championId`，transport 自行构造并只允许 `POST /lol-champ-select/v1/session/bench/swap/{championId}`；
-- 赛后 writer：只允许 honor / honor ballot / `play-again`；
-- 匹配 writer：只允许 matchmaking search / ready-check accept。
+- 赛后 writer：只允许 honor / honor ballot / `play-again`；手动“跳过卡结算”复用其中既有 `play-again` 路径；
+- 匹配 writer：只允许 matchmaking search / ready-check accept；
+- Client UX repair writer：不接受任意 path，只暴露 `TryRestartUxAsync()`，内部唯一目标是 `POST /riotclient/kill-and-restart-ux`。
 
-Gate 2 writer 继续硬拒绝 ready-check、Bench swap 与 Champ Select action 路径；Bench writer 不接受任意 path，因此不能被借用执行 `/lol-champ-select/v1/session/actions/{id}`、pick / ban / reroll / dodge / skin；匹配自动化也不能借其它 writer 越权。
+Gate 2 writer 继续硬拒绝 ready-check、Bench swap 与 Champ Select action 路径；Bench writer 不接受任意 path，因此不能被借用执行 `/lol-champ-select/v1/session/actions/{id}`、pick / ban / reroll / dodge / skin；Client UX repair writer 同样不能被借用执行其它 LCU 写操作。
 
 ### Champ Select Bench 快速选择
 
@@ -271,11 +291,11 @@ LeagueAutoMatchmakingEnabled=False
 LeagueAutoAcceptEnabled=False
 ```
 
-主题设置同样由 `settings.ini` 中的 `ThemeId` 持久化；运行时映射由 `ThemeCatalog + FacmThemeRuntime` 负责。所有自动化默认关闭。正式 settings 不存储账号、密码或 credential hotkey。
+主题设置同样由 `settings.ini` 中的 `ThemeId` 持久化；运行时映射由 `ThemeCatalog + FacmThemeRuntime` 负责。游戏修复的“自动修复窗口”当前只保持在本次 FACM 进程会话中，不新增持久化默认开启项。所有自动化默认关闭。正式 settings 不存储账号、密码或 credential hotkey。
 
 ## 8. Performance Contract
 
-核心 CI `--performance-contract-test` 同时验证：
+核心 CI `--performance-contract-test` / `--facm-host-test` 共同验证：
 
 - 既有 Desktop / Client / Queueing / Champ Select / In Game budgets；
 - Dashboard / Player / Live / Build Advisor；
@@ -287,10 +307,11 @@ LeagueAutoAcceptEnabled=False
 - Shell 一级 contract；
 - League Hub 单入口、8 个 accepted view、3 个 novice-facing section 导航 contract；
 - 游戏效率全局 hotkey contract；
+- 原生游戏修复的尺寸规划、负坐标多屏 clamp、Client UX writer allowlist 与既有 play-again writer 复用边界；
 - 赛后 automation；
 - Tencent-style 缺失 partyId/lobbyId/queueId 的 matchmaking automation fixture。
 
-In Game 预算仍优先于窗口可见性：network/image/disk/background CPU 并发 1、prefetch 0、非必要后台维护/视觉增强关闭。
+In Game 预算仍优先于窗口可见性：network/image/disk/background CPU 并发 1、prefetch 0、非必要后台维护/视觉增强关闭。游戏修复自动模式不建立 LCU 网络轮询；只有真实窗口 location-change 事件经过 debounce 后才执行一次必要检查。
 
 ## 9. 发布边界
 

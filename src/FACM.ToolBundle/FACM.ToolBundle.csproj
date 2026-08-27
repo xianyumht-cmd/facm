@@ -19,20 +19,5 @@
     <EmbeddedResource Include="..\..\tools\clean driver.exe">
       <LogicalName>FACM.ToolBundle.Resources.ToolA</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="..\..\tools\Fix-LCU-Window.exe">
-      <LogicalName>FACM.ToolBundle.Resources.ModeTool</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\..\tools\fix-mode-1.bat">
-      <LogicalName>FACM.ToolBundle.Resources.ModeScript1</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\..\tools\fix-mode-2.bat">
-      <LogicalName>FACM.ToolBundle.Resources.ModeScript2</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\..\tools\fix-mode-3.bat">
-      <LogicalName>FACM.ToolBundle.Resources.ModeScript3</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\..\tools\fix-mode-4.bat">
-      <LogicalName>FACM.ToolBundle.Resources.ModeScript4</LogicalName>
-    </EmbeddedResource>
   </ItemGroup>
 </Project>
