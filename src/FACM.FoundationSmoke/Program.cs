@@ -24,7 +24,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("gate6 design system and shell text", Gate6Smoke.RunAsync),
     ("gate7 desktop anchor placement", Gate7Smoke.RunAsync),
     ("gate8 state-driven League Workbench", Gate8Smoke.RunAsync),
-    ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync)
+    ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
+    ("gate10 DPI and mixed-monitor accessibility contract", Gate10Smoke.RunAsync)
 };
 
 foreach (var test in tests)
