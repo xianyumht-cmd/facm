@@ -2,6 +2,7 @@ namespace FACM
 {
     internal static class CleanupRepairUiText
     {
+        public const string LauncherTitle = "清理与修复";
         public const string WindowTitle = "FACM · 清理与修复";
         public const string WindowHint = "环境处理与完整修复流程";
         public const string GameDirectory = "游戏目录";
