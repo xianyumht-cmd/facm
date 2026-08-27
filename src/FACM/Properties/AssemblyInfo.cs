@@ -8,9 +8,10 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCopyright("Copyright © 2026 FACM")]
 [assembly: ComVisible(false)]
 [assembly: Guid("9e0afd05-17e7-4c6a-a8d3-09d45c8d8ec7")]
-[assembly: AssemblyVersion("3.5.13.0")]
-[assembly: AssemblyFileVersion("3.5.13.0")]
-[assembly: AssemblyInformationalVersion("3.5.13")]
+[assembly: AssemblyVersion("3.5.14.0")]
+[assembly: AssemblyFileVersion("3.5.14.0")]
+[assembly: AssemblyInformationalVersion("3.5.14")]
+
 
 
 
