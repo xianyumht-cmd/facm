@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeaguePresenceWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeaguePresenceWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -19,6 +19,7 @@ namespace FACM.AppHost.Modules
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
         private LeaguePresenceWriteApiClient _presenceWriter;
+        private LeagueClientUxRepairWriteApiClient _uxRepairWriter;
 
         public LeagueClientModule() : this(new ResilientLeagueClientSessionDiscovery()) { }
 
@@ -41,6 +42,7 @@ namespace FACM.AppHost.Modules
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
             _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
+            _uxRepairWriter = new LeagueClientUxRepairWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
@@ -68,10 +70,7 @@ namespace FACM.AppHost.Modules
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, cancellationToken);
         }
 
-        Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(
-            int championId,
-            LeagueBenchSwapRoute route,
-            CancellationToken cancellationToken)
+        Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken cancellationToken)
         {
             var writer = _benchSwapWriter;
             return writer == null
@@ -79,9 +78,7 @@ namespace FACM.AppHost.Modules
                 : writer.TrySwapAsync(championId, route, cancellationToken);
         }
 
-        Task<LeagueClientWriteResponse> ILeaguePresenceWriteApi.TrySetPresenceAsync(
-            string json,
-            CancellationToken cancellationToken)
+        Task<LeagueClientWriteResponse> ILeaguePresenceWriteApi.TrySetPresenceAsync(string json, CancellationToken cancellationToken)
         {
             var writer = _presenceWriter;
             return writer == null
@@ -89,14 +86,24 @@ namespace FACM.AppHost.Modules
                 : writer.TrySetPresenceAsync(json, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueClientUxRepairWriteApi.TryRestartUxAsync(CancellationToken cancellationToken)
+        {
+            var writer = _uxRepairWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryRestartUxAsync(cancellationToken);
+        }
+
         public void Dispose()
         {
+            var uxRepairWriter = _uxRepairWriter;
             var presenceWriter = _presenceWriter;
             var benchSwapWriter = _benchSwapWriter;
             var matchmakingWriter = _matchmakingWriter;
             var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
+            _uxRepairWriter = null;
             _presenceWriter = null;
             _benchSwapWriter = null;
             _matchmakingWriter = null;
@@ -104,6 +111,7 @@ namespace FACM.AppHost.Modules
             _writer = null;
             _api = null;
             _sessions = null;
+            if (uxRepairWriter != null) uxRepairWriter.Dispose();
             if (presenceWriter != null) presenceWriter.Dispose();
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
