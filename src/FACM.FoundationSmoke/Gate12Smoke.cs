@@ -6,6 +6,20 @@ using FACM.Core.State;
 
 internal static class Gate12Smoke
 {
+    private static readonly string[] MandatoryExternalEvidenceIds =
+    [
+        "compat.non-admin-uac-cancel",
+        "security.defender-smartscreen",
+        "compat.windows-10-1809",
+        "compat.windows-10-22h2",
+        "compat.windows-11",
+        "display.real-mixed-dpi-multimonitor",
+        "accessibility.real-machine",
+        "migration.settings-3.5.15-to-4.0",
+        "update.interrupted-replacement-rollback",
+        "release.final-signature-package"
+    ];
+
     public static async Task RunAsync()
     {
         VerifyPerformanceBudgets();
@@ -97,21 +111,20 @@ internal static class Gate12Smoke
             PropertyNameCaseInsensitive = true
         }) ?? throw new InvalidDataException("Release evidence matrix deserialized to null.");
         var summary = ReleaseEvidenceEvaluator.Evaluate(document);
+        var byId = document.Items.ToDictionary(item => item.Id, StringComparer.Ordinal);
 
-        True(!summary.ReleaseReady, "repository matrix must remain release blocked while real evidence is missing");
-        foreach (var id in new[]
+        foreach (var id in MandatoryExternalEvidenceIds)
         {
-            "compat.non-admin-uac-cancel",
-            "security.defender-smartscreen",
-            "compat.windows-10-1809",
-            "display.real-mixed-dpi-multimonitor",
-            "accessibility.real-machine",
-            "migration.settings-3.5.15-to-4.0",
-            "update.interrupted-replacement-rollback",
-            "release.final-signature-package"
-        })
+            True(byId.TryGetValue(id, out var item), "mandatory external evidence missing: " + id);
+            True(item!.RequiredForRelease, "mandatory external evidence must be required: " + id);
+        }
+
+        var required = document.Items.Where(item => item.RequiredForRelease).ToArray();
+        Equal(required.All(item => item.Status == ReleaseEvidenceStatus.Passed), summary.ReleaseReady, "derived release-ready state");
+        foreach (var item in required)
         {
-            True(summary.BlockingIds.Contains(id, StringComparer.Ordinal), "required release blocker missing: " + id);
+            var isBlocking = summary.BlockingIds.Contains(item.Id, StringComparer.Ordinal);
+            Equal(item.Status != ReleaseEvidenceStatus.Passed, isBlocking, "blocking membership: " + item.Id);
         }
     }
 
