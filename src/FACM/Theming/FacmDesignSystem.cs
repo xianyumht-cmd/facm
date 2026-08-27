@@ -6,28 +6,33 @@ using System.Windows.Forms;
 namespace FACM.Theming
 {
     /// <summary>
-    /// Shared FACM visual primitives. The implementation stays entirely inside WinForms/GDI+
-    /// so the shell remains fast on Windows 10 and older GPUs, while every product surface can
-    /// share the same material, spacing and interaction language.
+    /// Shared FACM visual primitives. ThemeCatalog is the palette source and FacmThemeRuntime
+    /// supplies the process-wide active theme so every FACM-owned WinForms surface reads the same
+    /// semantic colors without creating a second theme engine.
     /// </summary>
     internal static class FacmDesignSystem
     {
-        public static readonly Color Canvas = Color.FromArgb(7, 12, 22);
-        public static readonly Color CanvasRaised = Color.FromArgb(10, 17, 30);
-        public static readonly Color Surface = Color.FromArgb(16, 25, 42);
-        public static readonly Color SurfaceRaised = Color.FromArgb(21, 33, 54);
-        public static readonly Color SurfaceHover = Color.FromArgb(28, 43, 68);
-        public static readonly Color Border = Color.FromArgb(46, 64, 88);
-        public static readonly Color BorderSoft = Color.FromArgb(33, 48, 68);
-        public static readonly Color Text = Color.FromArgb(240, 245, 252);
-        public static readonly Color TextMuted = Color.FromArgb(142, 159, 184);
-        public static readonly Color Accent = Color.FromArgb(78, 210, 255);
-        public static readonly Color AccentSecondary = Color.FromArgb(139, 92, 246);
-        public static readonly Color Success = Color.FromArgb(78, 225, 174);
+        private static ThemeDefinition Theme { get { return FacmThemeRuntime.Current; } }
 
-        public const int WindowRadius = 14;
-        public const int CardRadius = 12;
-        public const int ControlRadius = 9;
+        public static Color Canvas { get { return Theme.Background; } }
+        public static Color CanvasRaised { get { return Theme.BackgroundSecondary; } }
+        public static Color Surface { get { return Theme.Surface; } }
+        public static Color SurfaceRaised { get { return Theme.SurfaceSecondary; } }
+        public static Color SurfaceHover { get { return Blend(Theme.SurfaceSecondary, Theme.Accent, Theme.IsLight ? 0.08F : 0.16F); } }
+        public static Color Border { get { return Theme.Border; } }
+        public static Color BorderSoft { get { return Blend(Theme.Border, Theme.Background, Theme.IsLight ? 0.40F : 0.48F); } }
+        public static Color Text { get { return Theme.TextPrimary; } }
+        public static Color TextMuted { get { return Theme.TextMuted; } }
+        public static Color Accent { get { return Theme.Accent; } }
+        public static Color AccentSecondary { get { return Theme.AccentSecondary; } }
+        public static Color Success { get { return Theme.Success; } }
+        public static Color Warning { get { return Theme.Warning; } }
+        public static Color Error { get { return Theme.IsLight ? Color.FromArgb(196, 53, 67) : Color.FromArgb(238, 92, 106); } }
+        public static Color Disabled { get { return Blend(Theme.TextMuted, Theme.Background, 0.35F); } }
+
+        public static int WindowRadius { get { return Math.Max(0, Theme.Radius); } }
+        public static int CardRadius { get { return Math.Max(0, Math.Min(Theme.Radius, 14)); } }
+        public static int ControlRadius { get { return Math.Max(0, Math.Min(Theme.ButtonRadius, 10)); } }
 
         public static Color Blend(Color source, Color target, float amount)
         {
@@ -41,8 +46,16 @@ namespace FACM.Theming
 
         public static void Round(Control control, int radius)
         {
-            if (control == null || control.IsDisposed || control.Width <= 1 || control.Height <= 1 || radius <= 0)
+            if (control == null || control.IsDisposed || control.Width <= 1 || control.Height <= 1)
                 return;
+
+            if (radius <= 0)
+            {
+                var previous = control.Region;
+                control.Region = null;
+                if (previous != null) previous.Dispose();
+                return;
+            }
 
             using (var path = RoundedRectangle(new Rectangle(0, 0, control.Width - 1, control.Height - 1), radius))
             {
@@ -76,8 +89,9 @@ namespace FACM.Theming
             if (form == null || form.IsDisposed) return;
             form.BackColor = Canvas;
             form.ForeColor = Text;
-            if (form.Font == null || !string.Equals(form.Font.FontFamily.Name, "Microsoft YaHei UI", StringComparison.OrdinalIgnoreCase))
-                form.Font = new Font("Microsoft YaHei UI", 9F);
+            var fontName = Theme.FontName;
+            if (form.Font == null || !string.Equals(form.Font.FontFamily.Name, fontName, StringComparison.OrdinalIgnoreCase))
+                form.Font = new Font(fontName, 9F);
             ApplyRecursive(form);
         }
 
@@ -101,13 +115,44 @@ namespace FACM.Theming
         {
             var button = sender as Button;
             if (button != null && !button.IsDisposed)
-                Round(button, button.Height >= 42 ? 10 : 8);
+                Round(button, ResolveButtonRadius(button));
+        }
+
+        internal static int ResolveButtonRadius(Button button)
+        {
+            if (button == null) return ControlRadius;
+            if (ControlRadius <= 0) return 0;
+            return button.Height >= 42 ? Math.Max(6, ControlRadius) : Math.Max(5, ControlRadius - 1);
         }
 
         private static void Soften(Control control)
         {
-            if (control is FacmGlassPanel || control is FacmNavButton || control is FacmPillButton)
+            var glass = control as FacmGlassPanel;
+            if (glass != null)
+            {
+                glass.Radius = CardRadius;
+                glass.BackColor = Surface;
+                glass.Invalidate();
                 return;
+            }
+
+            var nav = control as FacmNavButton;
+            if (nav != null)
+            {
+                nav.ForeColor = TextMuted;
+                nav.Font = new Font(Theme.FontName, 9.2F, FontStyle.Bold);
+                nav.Invalidate();
+                return;
+            }
+
+            var pill = control as FacmPillButton;
+            if (pill != null)
+            {
+                pill.ForeColor = TextMuted;
+                pill.Font = new Font(Theme.FontName, 8.6F, FontStyle.Bold);
+                pill.Invalidate();
+                return;
+            }
 
             var button = control as Button;
             if (button != null)
@@ -121,7 +166,7 @@ namespace FACM.Theming
                 button.ForeColor = Text;
                 button.Resize -= HandleButtonResize;
                 button.Resize += HandleButtonResize;
-                Round(button, button.Height >= 42 ? 10 : 8);
+                Round(button, ResolveButtonRadius(button));
                 return;
             }
 
@@ -219,7 +264,7 @@ namespace FACM.Theming
             Padding = new Padding(14, 0, 8, 0);
             Cursor = Cursors.Hand;
             TabStop = false;
-            Font = new Font("Microsoft YaHei UI", 9.2F, FontStyle.Bold);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.2F, FontStyle.Bold);
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         }
 
@@ -252,10 +297,10 @@ namespace FACM.Theming
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var path = FacmDesignSystem.RoundedRectangle(bounds, 10))
+            using (var path = FacmDesignSystem.RoundedRectangle(bounds, FacmDesignSystem.ControlRadius))
             {
                 var fill = _selected
-                    ? Color.FromArgb(32, 70, 105)
+                    ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceRaised, FacmDesignSystem.Accent, 0.24F)
                     : _hover ? FacmDesignSystem.SurfaceHover : Color.FromArgb(8, FacmDesignSystem.Surface);
                 using (var brush = new SolidBrush(fill))
                     e.Graphics.FillPath(brush, path);
@@ -290,7 +335,7 @@ namespace FACM.Theming
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             TabStop = false;
-            Font = new Font("Microsoft YaHei UI", 8.6F, FontStyle.Bold);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold);
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         }
 
@@ -323,10 +368,11 @@ namespace FACM.Theming
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var path = FacmDesignSystem.RoundedRectangle(bounds, Math.Max(6, Height / 2)))
+            var radius = FacmDesignSystem.ControlRadius <= 0 ? 0 : Math.Min(Height / 2, Math.Max(6, FacmDesignSystem.ControlRadius + 4));
+            using (var path = FacmDesignSystem.RoundedRectangle(bounds, radius))
             {
                 var fill = _selected
-                    ? Color.FromArgb(42, 74, 123)
+                    ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceRaised, FacmDesignSystem.Accent, 0.24F)
                     : _hover ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface;
                 var border = _selected ? FacmDesignSystem.Accent : FacmDesignSystem.Border;
                 using (var brush = new SolidBrush(fill)) e.Graphics.FillPath(brush, path);

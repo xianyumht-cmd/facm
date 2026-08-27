@@ -132,7 +132,7 @@ namespace FACM
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
                 var mayhem = new MayhemModule(leagueClient);
-                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem);
+                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, tools);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
                 using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueHub, cleanup, shell))

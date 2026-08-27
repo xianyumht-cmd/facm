@@ -52,8 +52,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.Title, "快捷工具" },
             { LeagueEfficiencyUiTextKeys.Hint, "常用操作都放这里；把鼠标移到选项上方可查看说明。" },
             { LeagueEfficiencyUiTextKeys.HotkeySection, "快捷操作" },
-            { LeagueEfficiencyUiTextKeys.ExitGame, "跳过卡结算" },
-            { LeagueEfficiencyUiTextKeys.ExitGameHint, "水晶爆炸后如果结算一直转圈，可用快捷键结束本局游戏进程并快速回到大厅。" },
+            { LeagueEfficiencyUiTextKeys.ExitGame, "一键结束游戏" },
+            { LeagueEfficiencyUiTextKeys.ExitGameHint, "立即结束当前英雄联盟游戏进程；与“跳过卡结算”是两个不同功能。" },
             { LeagueEfficiencyUiTextKeys.CloseLobby, "快速关闭大厅" },
             { LeagueEfficiencyUiTextKeys.CloseLobbyHint, "直接关闭英雄联盟大厅进程；游戏正在运行时也可以执行。" },
             { LeagueEfficiencyUiTextKeys.Capture, "设置" },
@@ -88,7 +88,21 @@ namespace FACM.League
         {
             string fallback;
             if (!Defaults.TryGetValue(key ?? string.Empty, out fallback)) fallback = string.Empty;
-            return ui == null ? fallback : ui.Get(key, fallback);
+            var resolved = ui == null ? fallback : ui.Get(key, fallback);
+
+            // Earlier builds accidentally shipped two unrelated labels for the exit-game action.
+            // Migrate only those known defaults so user-created custom wording remains untouched.
+            if (string.Equals(key, LeagueEfficiencyUiTextKeys.ExitGame, StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(resolved, "跳过卡结算", StringComparison.Ordinal) ||
+                 string.Equals(resolved, "自动返回大厅", StringComparison.Ordinal)))
+                return fallback;
+
+            if (string.Equals(key, LeagueEfficiencyUiTextKeys.ExitGameHint, StringComparison.OrdinalIgnoreCase) &&
+                (resolved.IndexOf("结算一直转圈", StringComparison.Ordinal) >= 0 ||
+                 resolved.IndexOf("快速回到大厅", StringComparison.Ordinal) >= 0))
+                return fallback;
+
+            return resolved;
         }
 
         internal static IReadOnlyDictionary<string, string> DefaultsForSmokeTest()

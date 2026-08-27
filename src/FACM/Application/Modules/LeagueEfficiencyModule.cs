@@ -103,6 +103,13 @@ namespace FACM.AppHost.Modules
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
 
+        public Task<LeagueEfficiencyActionResult> RunExitGameAsync()
+        {
+            ThrowIfDisposed();
+            if (_actions == null) throw new InvalidOperationException("League Efficiency action service is not initialized.");
+            return _actions.ExitGameAsync();
+        }
+
         public bool TryUpdateBindings(string exitGame, string closeLobby, out string error)
         {
             return TryApplyBindings(exitGame, closeLobby, true, out error);

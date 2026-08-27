@@ -8,6 +8,7 @@
 FACM.exe  (.NET Framework 4.8 / WinForms)
 ├─ FACM Shell / 控制中心 / 托盘
 ├─ Settings / Online / Cleanup / Tools
+├─ Theming / FacmThemeRuntime / FacmWindowChrome
 ├─ Performance Contract
 ├─ League Client / Dashboard / Player / Live / Build Advisor
 ├─ League Efficiency
@@ -44,8 +45,12 @@ Dispose()
 
 ```text
 SettingsModule
+├─ AppSettings
+└─ FacmThemeRuntime  ← 初始化全局主题
+
+ToolsModule            ← 现有 ToolBundle / fix-lcu 入口，不在本轮重写内部实现
 PerformanceModule
-LeagueClientModule  ← 唯一 LCU session owner
+LeagueClientModule     ← 唯一 LCU session owner
    ├─ LeagueDashboardModule + Performance
    ├─ LeaguePlayerModule + Performance
    ├─ LeagueLiveModule + Performance
@@ -59,54 +64,81 @@ LeagueHubModule
 ├─ LeagueLiveModule
 ├─ LeagueBuildAdvisorModule
 ├─ LeagueEfficiencyModule
-└─ MayhemModule
+├─ MayhemModule
+└─ ToolsModule          ← 仅复用既有游戏修复动作入口
 
 ShellModule
 ├─ LeagueHubModule
 └─ MainForm / CompactMenuForm
 ```
 
-`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。`LeagueHubModule` 只拥有 **导航/页面组合**，不拥有第二套 League runtime、LCU session 或自动化状态机。
+`LeagueEfficiencyModule` 复用 `LeagueDashboardModule` 已有 gameflow 状态，不新增第二个常驻 gameflow monitor。`LeagueHubModule` 只拥有 **导航/页面组合**；加入 `ToolsModule` 依赖只是为了在 `游戏修复` 页面复用既有 fix-lcu mode 入口，不让 Hub 拥有第二套 League runtime、LCU session 或自动化状态机。
 
-## 3. 小白 Shell 与 League Hub 信息架构
+## 3. Shell、清理修复与 League Hub 信息架构
 
-FACM 的功能数量允许增长，但托盘一级决策数量固定。
+FACM 的一级产品概念固定为“入口少、业务页完整”，不把内部模块边界直接暴露给普通用户。
 
-一级菜单契约恰好 5 项：
+### 控制中心
+
+控制中心是桌面式启动器，只保留四个主入口：
 
 ```text
-打开控制中心
-清理环境
-英雄联盟
-更多 >
-退出程序
+清理与修复
+LOL 工作台
+个性化
+更多设置
 ```
 
-其中 **英雄联盟是单一直接入口**，不再展开 Dashboard / Player / Live / OP.GG / Efficiency 等多个 Shell 子按钮。控制中心中的「英雄联盟」行也必须路由到同一个 League Hub。
+图标按从左到右流式排列，默认宽度优先同排，空间不足才自然换行。游戏目录、清理状态和下一步说明不再占控制中心主页；这些信息进入对应产品页。
 
-统一 `英雄联盟中心` 只有三个用户概念：
+托盘仍承担系统级快捷入口与退出等后台 Shell 能力，但控制中心不再复制所有托盘动作。
+
+### 清理与修复
+
+环境级恢复流程统一为：
 
 ```text
-对局
-├─ 概览
-├─ 玩家主页
+驱动修复 ─┐
+           ├─→ 重启电脑 → WEGAME → 英雄联盟 → 修复游戏
+环境清理 ─┘
+```
+
+- 驱动修复和环境清理先后不限，建议两项各执行一次；
+- 环境清理继续走 `CleanupModule → SafeCleanupService → CleanupReviewForm`，保留目录识别、相关进程阻止、UAC、精确预览、规则重验证与 reparse-point 防护；
+- FACM 不把外部 WEGAME 最终修复伪装成 FACM 可验证状态；
+- 游戏运行期间的客户端/大厅异常不属于此页。
+
+### LOL 工作台
+
+`LOL 工作台` 只有三个用户概念：
+
+```text
+比赛
+├─ 当前状态
+├─ 我的战绩
 ├─ 实时对局
-└─ 海斗
+└─ 海斗攻略
 
-推荐
-├─ OP.GG 对局助手
-├─ OP.GG 一键应用
-└─ FACM / OP.GG 推荐装备集
+攻略
+└─ 出装推荐
 
-效率
-└─ 游戏效率
-   ├─ 一键结束游戏
-   ├─ 一键关闭大厅
-   ├─ 随机点赞
-   ├─ 自动返回大厅
-   ├─ 自动寻找对局
-   └─ 自动接受
+自动化
+├─ 快捷工具
+├─ 游戏修复
+└─ 在线状态
 ```
+
+`游戏修复` 页面只重新组织既有动作入口：
+
+```text
+立即修复窗口   → fix-lcu mode 1
+自动修复窗口   → fix-lcu mode 2
+跳过卡结算     → fix-lcu mode 3
+重置客户端     → fix-lcu mode 4
+一键结束游戏   → 既有 LeagueEfficiency 进程级动作
+```
+
+这里的 `fix-lcu-window` 内部实现仍是既有实现；专项现代化必须作为下一独立任务处理，不能借 UI 重组扩大当前修改面。真实赛后 `自动回大厅` 仍属于赛后自动化，不与 `跳过卡结算` 混淆。
 
 ### League UI ownership
 
@@ -116,18 +148,18 @@ FACM 的功能数量允许增长，但托盘一级决策数量固定。
 - League Hub 只懒加载当前页；切到另一页时先正常 `Close()` 旧页，让其 `FormClosed` 清理 Timer / CancellationToken，再释放控件；禁止把访问过的多个页面长期隐藏常驻；
 - 不为“统一面板”重写已验收业务逻辑，也不把页面合并成一个新的万能 controller。
 
-### FACM 视觉设计系统
+### FACM 视觉与全局主题系统
 
-- `FACM.Theming.FacmDesignSystem` 是新的共享 WinForms/GDI+ 视觉 token 与材质入口，统一 Canvas / Surface / Border / Accent / Text、圆角、Hover、Nav 与 Pill 交互；
+- `ThemeCatalog` 是唯一主题目录；`FacmThemeRuntime` 保存进程内当前主题并负责刷新已打开的 FACM 自有 WinForms 界面；
+- `FACM.Theming.FacmDesignSystem` 从 `FacmThemeRuntime.Current` 读取 Canvas / Surface / Border / Accent / Text / Success / Warning / Error / Disabled 等语义 token；禁止另建平行主题引擎；
+- `FacmWindowChrome` 使用相同全局主题绘制 FACM 自绘标题栏，并支持稳定标题 + 单行副标题。LOL 工作台当前页提示使用标题栏副标题，不再在内容区保留重复提示条；
 - `FacmGlassPanel`、`FacmNavButton`、`FacmPillButton` 是轻量原生控件，不依赖桌面截图、DWM Acrylic、游戏 Overlay、Hook 或高频动画 Timer；
 - `LeagueSoftGlassSkin` 保留为兼容入口：旧业务 Form 先走保守 `LeagueCompactDensity`，再由 `FacmDesignSystem` 统一材质；新 `LeagueHubForm` 本身已经按紧凑密度设计，不再被二次压缩；
-- LOL 工作台默认 `1180×700`、最小 `960×620`。左侧只保留三分区导航，原常驻右侧「接着做」栏已取消，上下文下一步改为顶部紧凑动作，主内容区不再长期损失约 200px 宽度；窗口较窄时顶部上下文动作自动隐藏，优先保证业务内容；
-- 控制中心继续使用既有 `ThemeCatalog` / `CompactMenuForm` 主题体系，不重写已经成熟的业务布局；各主题通过 `WindowSize` 统一缩小，默认「深海玻璃」从 `430×700` 收到 `390×620`，布局仍按既有基准尺寸等比缩放；
+- LOL 工作台默认 `1120×640`、最小 `900×580`。稀疏页在宽屏时使用真实上下文区展示已有客户端连接、gameflow 阶段和相关快捷入口；不为填空白新增 LCU session、网络请求、writer 或动画 Timer；
+- 主题切换后已打开的 FACM 自有窗口刷新，新窗口继承当前主题；Windows 文件选择器、UAC 等系统拥有窗口继续使用系统外观；
 - 视觉优化不得扩大 League 网络请求、LCU writer、磁盘预取或 InGame 后台预算；材质层必须保持纯 UI、无业务副作用。
 
-控制中心其它区域继续使用渐进披露：主页只保留目录状态/管理、清理主动作、修复工具、英雄联盟、个性化、更多设置，不允许模块再次动态插入一级按钮。
-
-`ShellMenuGroups.ValidateRootContract()`、`ShellUxSmokeTest` 与 `LeagueHubNavigation.ValidateForSmokeTest()` 共同守住单入口/三分区边界。
+`ShellMenuGroups.ValidateRootContract()`、`ShellUxSmokeTest` 与 `LeagueHubNavigation.ValidateForSmokeTest()` 共同守住单入口/三分区和当前 8 个 novice-facing view 的边界。
 
 ## 4. League Client 单一连接边界
 
@@ -153,7 +185,7 @@ Gate 2 writer 继续硬拒绝 ready-check、Bench swap 与 Champ Select action �
 
 ### Champ Select Bench 快速选择
 
-`LeagueLiveModule` 在现有 `对局 → 实时对局` 页面内提供可用英雄快速选择，不新增 Shell / Hub 顶级入口，也不新增第二个 LCU session owner：
+`LeagueLiveModule` 在现有 `比赛 → 实时对局` 页面内提供可用英雄快速选择，不新增 Shell / Hub 顶级入口，也不新增第二个 LCU session owner：
 
 - `LeagueLiveDataService` 继续读取同一个 `/lol-champ-select/v1/session`，解析 `benchEnabled`、`benchChampionIds` 与本地玩家当前英雄；
 - 正常 Live Champ Select 刷新仍保持 2 秒节奏；仅 Bench 条可见且激活时增加 session-only 轻量读取，目标周期约 250ms；未激活时降到约 750ms，InGame / 最小化继续节流；
@@ -239,7 +271,7 @@ LeagueAutoMatchmakingEnabled=False
 LeagueAutoAcceptEnabled=False
 ```
 
-所有自动化默认关闭。正式 settings 不存储账号、密码或 credential hotkey。
+主题设置同样由 `settings.ini` 中的 `ThemeId` 持久化；运行时映射由 `ThemeCatalog + FacmThemeRuntime` 负责。所有自动化默认关闭。正式 settings 不存储账号、密码或 credential hotkey。
 
 ## 8. Performance Contract
 
@@ -252,8 +284,8 @@ LeagueAutoAcceptEnabled=False
 - Gate 2 手动应用；
 - Gate 3 item-set filesystem transaction；
 - Gate 4 auto apply state machine/cache；
-- Shell 一级 5 项 contract；
-- League Hub 单入口、7 个 accepted view、3 个 novice-facing section 导航 contract；
+- Shell 一级 contract；
+- League Hub 单入口、8 个 accepted view、3 个 novice-facing section 导航 contract；
 - 游戏效率全局 hotkey contract；
 - 赛后 automation；
 - Tencent-style 缺失 partyId/lobbyId/queueId 的 matchmaking automation fixture。
