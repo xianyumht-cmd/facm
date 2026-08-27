@@ -19,13 +19,14 @@ Legacy gates：`FACM Windows Build` + `FACM UI Text Contract`。
 2. setup .NET 10
 3. scripts/check-facm4-architecture.ps1
 4. scripts/check-facm4-shell.ps1
-5. dotnet restore FACM4.sln -p:Platform=x64
-6. dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
-7. FACM.FoundationSmoke
-8. FACM.WindowsSmoke
-9. publish FACM.App win-x64 self-contained single-file
-10. verify FACM.App.exe + no DLL leaks
-11. upload `facm4-x64`
+5. scripts/check-facm4-desktop.ps1
+6. dotnet restore FACM4.sln -p:Platform=x64
+7. dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
+8. FACM.FoundationSmoke
+9. FACM.WindowsSmoke
+10. publish FACM.App win-x64 self-contained single-file
+11. verify FACM.App.exe + no DLL leaks
+12. upload `facm4-x64`
 ```
 
 `TreatWarningsAsErrors=true` 持续开启。遇到 warning/XAML error 修类型或实现，不降低门禁。
@@ -36,25 +37,28 @@ Legacy gates：`FACM Windows Build` + `FACM UI Text Contract`。
 
 ### Shell design gate
 
-`scripts/check-facm4-shell.ps1` 必须拒绝：
+`scripts/check-facm4-shell.ps1` 必须拒绝：MainWindow 不是 exactly one NavigationView + one Frame；四入口不是 `repair / league / personalization / settings` exactly once；恢复 Gate 1 临时 home item；没有 exactly one AppTitleBar；MainWindow 用户 copy 硬编码；Shell 直接 new League runtime/HttpClient/File IO；FACM.App XAML 硬编码产品色；semantic tokens/shared styles/UI Text defaults 缺失。
 
-- MainWindow 不是 exactly one NavigationView + one Frame；
-- 四入口不是 `repair / league / personalization / settings` exactly once；
-- 恢复 Gate 1 临时 `home` item；
-- 没有 exactly one `AppTitleBar` + `SetTitleBar(AppTitleBar)`；
-- MainWindow XAML/code-behind 出现硬编码中文用户文案；
-- Shell 直接 new League runtime/HttpClient 或直接 File/Directory IO；
-- FACM.App XAML 出现硬编码 hex product color；
-- semantic tokens/shared styles/App merged dictionaries 缺失；
-- Shell UI Text key 缺 default。
+### Desktop surface gate
 
-注意：该 gate 只约束 **Main Shell owner**。Gate 7 允许新增独立 floating desktop surface，不应把 source gate 扩成“整个 App 永远只能有一个 Window”。
+`scripts/check-facm4-desktop.ps1` 必须拒绝：
+
+- Core placement 引用 WinUI/WinForms/Win32；
+- Windows work-area adapter 缺 `EnumDisplayMonitors / GetMonitorInfo / GetDpiForMonitor`；
+- FloatingWindow 复制 NavigationView/Frame 或硬编码产品色；
+- FloatingWindow 创建 League runtime、HttpClient、Settings2Repository、diagnostic sink、File/Directory IO；
+- FloatingWindow 引入 low-level keyboard hook/GetAsyncKeyState/polling Timer；
+- App 不再保持 exactly one `WindowsLeagueTransportSessionSource`；
+- F surface 不再使用 Ensure Main Window / Activate 语义。
+
+注意：Gate 6 的 one Window 是 one **main Shell owner**。F 是允许的窄 desktop surface，但不能变成第二业务 Shell。
 
 ## 3. 本地 4.0 验证
 
 ```powershell
 pwsh ./scripts/check-facm4-architecture.ps1
 pwsh ./scripts/check-facm4-shell.ps1
+pwsh ./scripts/check-facm4-desktop.ps1
 dotnet restore FACM4.sln -p:Platform=x64
 dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
 dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
@@ -82,7 +86,9 @@ GitHub hosted runner 是 deterministic engineering evidence，不替代 Gate 10/
 
 legacy INI Gate 13 前不删除/覆盖。v2 malformed/future schema fail closed。保存使用 same-dir temp + flush-to-disk + replace/move。
 
-Gate 6 Main Shell 用户 copy 必须通过 `IUiTextProvider`。`FileUiTextProvider` 读取失败时使用 defaults；cosmetic text override 不能阻止启动。
+Main Shell 与 desktop entry 用户 copy 必须通过 `IUiTextProvider`。`FileUiTextProvider` 读取失败时使用 defaults；cosmetic text override 不能阻止启动。
+
+Gate 7 使用 `Pets.BallX/BallY` 作为 F preferred top-left。`int.MinValue` = no preference；越界时 Core placement recovery，不覆盖旧 INI。
 
 ## 6. Product State / Diagnostics
 
@@ -94,36 +100,79 @@ Diagnostics 默认 `<distribution>/logs/facm4-events.jsonl`，bounded + rotation
 
 League：exactly one discovery/auth/session owner；read/write share source；credential loopback-only；writer capability exact allowlist；Bench manual only；InGame 工作不超过 Performance Contract。
 
+Gate 8 gameflow owner 必须复用 shared `ILeagueReadGateway`，不允许 Page/ViewModel 直接轮询 LCU phase。Gameflow state 和 Performance activity 必须同源更新。
+
 Cleanup：validated root -> preview plan -> explicit confirm -> UAC if needed -> allowlist/reparse guard -> execution-time revalidation -> per-target result。UI dialog 不拥有删除规则。
 
-## 8. Main Shell / Gate 7 desktop surface
+## 8. Desktop Surface 操作规则
 
-Gate 6 Main Shell 已固定：one AppTitleBar + one NavigationView + one Frame + 四入口。
+### 坐标与 DPI
 
-Gate 7 floating surface：
+- Core placement 单位 = Windows desktop physical pixels。
+- `EnumDisplayMonitors/GetMonitorInfo` 的 work-area 与 `AppWindow.MoveAndResize` 使用相同坐标空间。
+- F nominal size = 64 DIP；先按目标 monitor DPI scale 转 physical pixels，再传 Core placement。
+- 不把负 X/Y clamp 到 0；左/上方 monitor 必须保留负坐标。
+- probe 在所有 work-area 外时选择 nearest monitor，再执行 deterministic recovery。
 
-- 必须共享 application semantic resources；
-- 不复制 Main Shell navigation/titlebar；
-- 不创建 League/HTTP/settings runtime；
-- placement 算法先在 Core 纯几何 deterministic 测试；
-- Windows monitor/work-area/DPI 只在 Platform.Windows adapter；
-- 负坐标、多屏几何自动验证，mixed-DPI 真机证据留 Gate 10/12。
+### 生命周期
 
-Single Instance = Ensure Open/Activate；hotkey = RegisterHotKey；不使用 low-level hook/polling。PetHost 保持独立进程。
+- 启动时 MainWindow + F surface 可同时存在。
+- 关闭 MainWindow：仅关闭主 Shell；F/runtime 继续。
+- 点击 F：create-or-activate MainWindow，**不是 toggle**。
+- 关闭 F：进入真正 runtime shutdown/dispose。
 
-## 9. Updater / 发布事务
+### CI 与真机边界
+
+`Gate7Smoke` 覆盖 synthetic left/top/negative/off-screen/edge/corner geometry；`FACM.WindowsSmoke` 在 hosted runner 上验证真实 work-area/primary/DPI API。
+
+Hosted runner 不是 mixed-DPI 双屏证明。Gate 10/12 仍需真实：100/125/150/175/200%、左右/上下多屏、负坐标、不同 DPI 屏间移动。
+
+## 9. Gate 8 Gameflow / Workbench 操作规则
+
+3.5.15 的 `LeagueGameflowMonitor` 是单循环 owner；当前 legacy cadence 是：
+
+```text
+disconnected/unknown  10s
+ChampSelect             2s
+Queueing                3s
+InGame                 10s
+other connected         5s
+```
+
+4.0 可调整实现方式，但必须保持“一个 owner + state-based cadence + Performance Contract”，不允许三块 Workbench 页面各自轮询。
+
+目标链：
+
+```text
+shared LeagueHttpGateway
+-> one gameflow owner
+-> Core deterministic phase mapper
+-> ProductStateStore + Performance activity
+-> Workbench ViewModel subscribes
+-> 比赛 / 攻略 / 自动化 UI
+```
+
+Raw `/lol-gameflow/...` path 只允许在 adapter/owner 内部；Page/ViewModel 不知道 LCU path/auth。Bench 继续只允许用户显式动作。
+
+## 10. Single Instance / Hotkey / PetHost
+
+Single Instance = Ensure Open/Activate。Gate 7 已建立 F -> MainWindow create-or-activate 行为；后续 process-wide activation broker 也必须遵守该语义。
+
+Hotkey = RegisterHotKey；不使用 low-level hook/GetAsyncKeyState/polling。PetHost 保持独立进程。
+
+## 11. Updater / 发布事务
 
 必须持续保持：size limit、mirror fallback、SHA-256、signature/package validation、validated receipt、wait-exit、独立提升替换、失败保旧版、rollback/recovery。
 
 Gate 13 cutover 前必须 fresh safety check，且 Gates 0～12 + settings migration + real-machine matrix + updater rollback evidence 全成立后才允许改 production pointer。
 
-## 10. Gate 13 前真实矩阵
+## 12. Gate 13 前真实矩阵
 
 GitHub runner 不能替代：non-admin UAC + cancel、Win10 1809/22H2、Win11、100/125/150/175/200% DPI、dual/mixed DPI/negative coordinates、keyboard/focus/high contrast/text scaling/screen reader、Defender/SmartScreen、3.5.15 -> 4.0 settings migration、interrupted updater replacement/rollback。
 
 这些可不阻塞早期 engineering Gate，但未关闭不得声称 Gate 12/13 release-ready。
 
-## 11. 每个 Gate 关闭流程
+## 13. 每个 Gate 关闭流程
 
 1. latest `main` -> Issue + short-lived branch + PR；
 2. 同 branch 完代码、tests、canonical docs；
