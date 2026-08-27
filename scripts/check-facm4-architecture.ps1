@@ -18,7 +18,7 @@ foreach ($token in @('ProjectReference', 'PackageReference', 'UseWinUI', 'UseWPF
     if ($coreProjectText -match $token) { Fail "FACM.Core must not contain $token." }
 }
 
-$forbiddenSource = @(
+$coreForbidden = @(
     'System\.Windows\.Forms',
     'Microsoft\.UI\.Xaml',
     'System\.Drawing',
@@ -27,8 +27,33 @@ $forbiddenSource = @(
 )
 foreach ($file in Get-ChildItem $core -Recurse -Filter '*.cs') {
     $text = Get-Content $file.FullName -Raw
-    foreach ($pattern in $forbiddenSource) {
+    foreach ($pattern in $coreForbidden) {
         if ($text -match $pattern) { Fail "Core UI-framework dependency detected in $($file.FullName): $pattern" }
+    }
+}
+
+$viewModels = Join-Path $Root 'src/FACM.App/ViewModels'
+if (Test-Path $viewModels) {
+    $viewModelForbidden = @(
+        'FACM\.Infrastructure',
+        'FACM\.Platform\.Windows',
+        'System\.Net\.Http',
+        'System\.IO',
+        'System\.Diagnostics',
+        'Microsoft\.UI\.Xaml',
+        'LeagueClientSession',
+        'HttpClient',
+        'File\.',
+        'Directory\.',
+        'Process\.',
+        'Registry\.',
+        'https?://'
+    )
+    foreach ($file in Get-ChildItem $viewModels -Recurse -Filter '*.cs') {
+        $text = Get-Content $file.FullName -Raw
+        foreach ($pattern in $viewModelForbidden) {
+            if ($text -match $pattern) { Fail "ViewModel crossed the Core intent/state boundary in $($file.FullName): $pattern" }
+        }
     }
 }
 
