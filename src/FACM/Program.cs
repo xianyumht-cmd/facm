@@ -94,10 +94,6 @@ namespace FACM
 
                 try
                 {
-                    // Only create the tiny writable runtime skeleton before the message loop starts.
-                    // ToolBundle/PetHost hashing and extraction are deliberately deferred until the
-                    // floating FACM shell has had a chance to paint, so a heavy optional runtime can
-                    // never make the application look like it failed to launch.
                     RuntimePaths.Initialize();
                 }
                 catch (Exception exception)
@@ -131,11 +127,12 @@ namespace FACM
                 var leagueLive = new LeagueLiveModule(leagueClient, performance);
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
+                var leagueGameRepair = new LeagueGameRepairModule(leagueClient);
                 var mayhem = new MayhemModule(leagueClient);
-                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, tools);
+                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueGameRepair);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueHub, cleanup, shell))
+                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, leagueGameRepair, mayhem, leagueHub, cleanup, shell))
                 {
                     try
                     {
@@ -184,6 +181,7 @@ namespace FACM
             LeagueLiveModule leagueLive,
             LeagueBuildAdvisorModule leagueAdvisor,
             LeagueEfficiencyModule leagueEfficiency,
+            LeagueGameRepairModule leagueGameRepair,
             MayhemModule mayhem,
             LeagueHubModule leagueHub,
             CleanupModule cleanup,
@@ -202,6 +200,7 @@ namespace FACM
             host.Register(leagueLive);
             host.Register(leagueAdvisor);
             host.Register(leagueEfficiency);
+            host.Register(leagueGameRepair);
             host.Register(mayhem);
             host.Register(leagueHub);
             host.Register(cleanup);
