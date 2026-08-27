@@ -88,20 +88,36 @@ both missing
   -> atomic save settings.v2.json
 ```
 
-禁止：
-
-- migration 成功后删除/改写 `settings.ini`；
-- v2 损坏时静默用 defaults 覆盖；
-- future/unknown schema 被旧程序自动降级写回；
-- Page/ViewModel 自己读写 JSON/INI/File。
-
-### Atomic save
+禁止 migration 成功后删除/改写 `settings.ini`；禁止 v2 损坏时静默用 defaults 覆盖；future/unknown schema 不允许旧程序自动降级写回；Page/ViewModel 不自己读写 JSON/INI/File。
 
 `PhysicalSettings2FileStore`：目标同目录 temp -> write -> flush -> flush-to-disk -> replace/move。异常/取消时旧目标保持，temp 仅 best-effort 清理。
 
-Gate 4 deterministic smoke 必须覆盖：15-key migration、legacy unchanged、round-trip、corrupt JSON、unsupported schema、invalid-before-write、simulated write failure preservation、真实 Windows replace/temp cleanup。
+## 6. Product State / Diagnostics 操作规则
 
-## 6. League 验证规则
+`ProductStateStore` 是进程内统一 product-state 聚合 store。它只接受 owner 发布的事实，不主动发现 League、不发网络、不拥有 writer。Page/ViewModel 通过 `IProductStateReader` 读取/订阅；不要为页面新增第二套 polling/state cache。
+
+状态发布规则：
+
+- 只有值真正变化时增加 revision；
+- subscriber 在 store lock 外执行；
+- League gameflow 事实后续必须来自 Gate 3 的唯一 runtime/session 链；
+- diagnostics/state 失败不得扩大 League write 权限。
+
+4.0 structured diagnostics 默认文件：`<distribution>/logs/facm4-events.jsonl`。当前 sink 默认 4 MiB，超限 rotate 到 `.1`。
+
+写诊断必须遵守：
+
+1. 优先通过 `DiagnosticEventFactory` 创建事件；
+2. 必须包含 ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion / Timestamp；
+3. token/password/passwd/cookie/authorization/secret/credential/auth 等敏感数据不允许明文；
+4. sink 落盘前再次 redaction；
+5. 不把完整 LCU lockfile、auth header、cookie、用户 secret 放入 Reason/Data；
+6. diagnostics 是 best-effort，日志 IO 失败不得阻止主程序启动或业务退出；
+7. Gate 9 导出诊断包只能消费脱敏后的 source，不读取 secret-bearing runtime 对象。
+
+Gate 5 deterministic smoke 覆盖：state transition、duplicate suppression、subscriber lock boundary、parallel revision/snapshot、required diagnostic fields、free-text/key redaction、并发 JSONL write、bounded rotation。
+
+## 7. League 验证规则
 
 - exactly one League discovery/auth/session owner；
 - session secret 不进入公共 descriptor/log/diagnostic；
@@ -113,26 +129,17 @@ Gate 4 deterministic smoke 必须覆盖：15-key migration、legacy unchanged、
 
 第三方实时 source probe 与 deterministic build 分离；公网故障不得让核心 compile CI 随机失败。
 
-## 7. Cleanup 验证规则
+## 8. Cleanup 验证规则
 
-必须证明：
+必须证明：selected path -> validated game root；先 plan 再 explicit confirm；系统目录操作需要 UAC；target 在允许 root/rule 内；reparse/junction/symlink 不穿透白名单；执行前重新验证；failure 逐项返回；UI progress/dialog 不拥有删除逻辑。
 
-1. selected path -> validated game root；
-2. 先 plan，再 explicit confirm；
-3. 系统目录操作需要 UAC；
-4. target 必须在允许 root/rule 内；
-5. reparse/junction/symlink 不穿透白名单；
-6. 执行前重新验证；
-7. failure 逐项返回；
-8. UI progress/dialog 不拥有删除逻辑。
-
-## 8. PetHost / Single Instance / Hotkey
+## 9. PetHost / Single Instance / Hotkey
 
 - PetHost 继续独立 win-x64 helper，保留 asset/bootstrap self-test、parent-pid/IPC/Job Object 生命周期；故障不能拖垮 Shell。
 - Single Instance = Ensure Open / Activate，不是 Toggle。
 - 快捷键 = RegisterHotKey，不引入低级键盘 hook 或永久 polling。
 
-## 9. Updater / 发布事务
+## 10. Updater / 发布事务
 
 正式更新必须继续满足：
 
@@ -152,24 +159,13 @@ Updater 必须保留：下载大小上限、多源/镜像 fallback、SHA-256、�
 
 Gate 13 正式切换前必须 fresh safety check；没有 Gates 0～12 + settings migration + real-machine matrix + updater rollback 证据，不得修改生产 release controls。
 
-## 10. 真机发布矩阵
+## 11. 真机发布矩阵
 
-GitHub runner 不能替代：
-
-- 普通非管理员 -> runas UAC -> elevated child，包括取消；
-- Windows 10 1809/22H2；
-- Windows 11；
-- 100/125/150/175/200% DPI；
-- 双屏左右/上下、负坐标、混合 DPI；
-- keyboard-only、Tab/Enter/Esc、focus；
-- Light/Dark/High Contrast/Text Scaling/basic screen reader；
-- Defender/SmartScreen 冷启动与误报；
-- 3.5.15 -> 4.0 settings migration；
-- interrupted updater replacement/rollback。
+GitHub runner 不能替代：普通非管理员 -> runas UAC -> elevated child（含取消）；Windows 10 1809/22H2；Windows 11；100/125/150/175/200% DPI；双屏左右/上下、负坐标、混合 DPI；keyboard-only、Tab/Enter/Esc、focus；Light/Dark/High Contrast/Text Scaling/basic screen reader；Defender/SmartScreen 冷启动与误报；3.5.15 -> 4.0 settings migration；interrupted updater replacement/rollback。
 
 这些可不阻塞前面的工程 Gate，但未关闭时不得声称 Gate 12/13 release-ready。
 
-## 11. 每个 Gate 关闭流程
+## 12. 每个 Gate 关闭流程
 
 1. 从最新 `main` 开一个 task branch；
 2. 一个 Issue + 一个 short-lived branch + 一个 reviewable PR；
