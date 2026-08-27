@@ -1,4 +1,5 @@
 using FACM.App.ViewModels;
+using FACM.Core.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -7,13 +8,34 @@ namespace FACM.App;
 public sealed partial class MainWindow : Window
 {
     private readonly ControlCenterViewModel _controlCenter;
+    private readonly IUiTextProvider _text;
 
-    public MainWindow(ControlCenterViewModel controlCenter)
+    public MainWindow(ControlCenterViewModel controlCenter, IUiTextProvider text)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
+        _text = text ?? throw new ArgumentNullException(nameof(text));
         InitializeComponent();
-        RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
+        ApplyStaticText();
+        RootNavigation.SelectedItem = RepairNav;
         RootNavigation.Loaded += OnRootNavigationLoaded;
+    }
+
+    private void ApplyStaticText()
+    {
+        var appName = _text.Get(UiTextKeys.AppName);
+        Title = appName + " 4.0";
+        ProductTitle.Text = appName + " 4.0";
+        RepairNav.Content = _text.Get(UiTextKeys.ShellRepairTools);
+        LeagueNav.Content = _text.Get(UiTextKeys.ShellLeague);
+        PersonalizationNav.Content = _text.Get(UiTextKeys.ShellPersonalization);
+        SettingsNav.Content = _text.Get(UiTextKeys.ShellMoreSettings);
+        StatusLabel.Text = _text.Get(UiTextKeys.ShellStatusLabel);
+        OverviewTitle.Text = _text.Get(UiTextKeys.ShellOverviewTitle);
+        OverviewBody.Text = _text.Get(UiTextKeys.ShellOverviewBody);
+        StateTitle.Text = _text.Get(UiTextKeys.ShellStateTitle);
+        StateBody.Text = _text.Get(UiTextKeys.ShellStateBody);
+        ApplySection("repair");
+        ApplyStatus(UiTextKeys.ShellStatusReady);
     }
 
     private async void OnRootNavigationLoaded(object sender, RoutedEventArgs e)
@@ -23,29 +45,35 @@ public sealed partial class MainWindow : Window
         {
             var currentVersion = typeof(App).Assembly.GetName().Version ?? new Version(4, 0, 0);
             await _controlCenter.RefreshAsync(currentVersion);
-            SectionSubtitle.Text = _controlCenter.StatusText;
+            ApplyStatus(_controlCenter.StatusTextKey);
         }
         catch (Exception)
         {
-            // Gate 2 keeps UI ownership narrow: startup state failure is presented as unavailable,
-            // while transport/logging policy lands in later gates.
-            SectionSubtitle.Text = "状态暂不可用";
+            ApplyStatus(UiTextKeys.ShellStatusUnavailable);
         }
     }
 
     private void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItemContainer is not NavigationViewItem item) return;
-        var tag = item.Tag?.ToString() ?? "home";
-        var (title, subtitle) = tag switch
+        ApplySection(item.Tag?.ToString() ?? "repair");
+    }
+
+    private void ApplySection(string tag)
+    {
+        var (titleKey, subtitleKey) = tag switch
         {
-            "repair" => ("清理与修复", "环境级恢复入口；正式能力将在后续 Gate 从 legacy orchestration 抽离。"),
-            "league" => ("LOL 工作台", "比赛 / 攻略 / 自动化；唯一 League runtime 契约保持不变。"),
-            "personalization" => ("个性化", "FACM 全局 Theme Resources 的统一入口。"),
-            "settings" => ("更多设置", "typed settings、诊断与更新能力将在对应 Gate 接入。"),
-            _ => ("控制中心", _controlCenter.StatusText)
+            "league" => (UiTextKeys.ShellLeague, UiTextKeys.ShellLeagueSubtitle),
+            "personalization" => (UiTextKeys.ShellPersonalization, UiTextKeys.ShellPersonalizationSubtitle),
+            "settings" => (UiTextKeys.ShellMoreSettings, UiTextKeys.ShellMoreSettingsSubtitle),
+            _ => (UiTextKeys.ShellRepairTools, UiTextKeys.ShellRepairSubtitle)
         };
-        SectionTitle.Text = title;
-        SectionSubtitle.Text = subtitle;
+        SectionTitle.Text = _text.Get(titleKey);
+        SectionSubtitle.Text = _text.Get(subtitleKey);
+    }
+
+    private void ApplyStatus(string key)
+    {
+        StatusValue.Text = _text.Get(key);
     }
 }
