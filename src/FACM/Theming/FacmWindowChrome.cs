@@ -65,6 +65,11 @@ namespace FACM.Theming
             state.AttachIfPossible();
         }
 
+        internal static bool IsManaged(Form form)
+        {
+            return form != null && States.ContainsKey(form);
+        }
+
         public static void EnableOutsideClose(Form form, bool closeOnEscape = true)
         {
             if (form == null || form.IsDisposed) return;
