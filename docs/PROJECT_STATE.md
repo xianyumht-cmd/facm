@@ -3,16 +3,16 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.13
-- GitHub Release：v3.5.13
+- 版本：FACM 3.5.14
+- GitHub Release：v3.5.14
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：437cb2815863c6f7a441b0ba47ebc1434d7d0e52
-- 发布元数据提交：3b7545d881d5cad459bc64f47a45e4651345a07b
-- Release FACM.exe SHA-256：1AE8D078C9FFF3B2A0AAA0B01D180A90A8489B50D5664684BD7B1C0BC6DADA35
-- published_at：2026-08-26T12:32:54.7319765+00:00
-- release_notes：FACM 3.5.13：完成正式视觉体系升级。新增共享 FACM WinForms/GDI+ 设计系统，统一深色材质、Surface 层级、细描边、圆角、Hover、导航和胶囊按钮语言；LOL 工作台由旧式多栏外壳重构为更紧凑的 1180×700 主界面，最低尺寸 960×620，取消长期占宽的右侧‘接着做’栏，将相关下一步收进顶部紧凑动作区，主内容可用宽度更大；控制中心保留现有成熟布局，但所有主题整体缩小，默认‘深海玻璃’由 430×700 收到 390×620。League 查询、推荐、海斗、实时对局、Bench 快速换英雄、自动化和 LCU writer 边界均未改动，也没有新增 DWM Acrylic、桌面截图、Overlay、Hook、动画 Timer 或额外网络请求。
+- 发布基础 main：5a517aef63c9cca5a48ed1dcc8fe1fbdf1ab0203
+- 发布元数据提交：053b0f8ed3f6bc722c05ebfbbf46e1ec47c2b4f5
+- Release FACM.exe SHA-256：0F63F634AEF2AC5AC74B78BE4DDAC430DDF7AF5D937D805BD8067057E60BD8ED
+- published_at：2026-08-27T03:07:57.9488993+00:00
+- release_notes：FACM 3.5.14：统一普通顶层窗口为 FACM 自绘外壳，移除系统原生标题栏按钮，统一关闭、最小化、最大化、拖动、缩放与圆角行为；临时窗口支持点击窗口外桌面或切换到其它程序时关闭，窗口内部空白不关闭，同一 FACM 进程的子对话框不会误关父窗口，并修复自绘最小化被外部关闭逻辑误判的问题。LOL 工作台进一步收紧为 1120×640 默认尺寸、900×580 最低尺寸，并把当前状态、快捷工具、在线状态等稀疏页面的宽屏空白改为真实上下文区，展示客户端连接、对局阶段与相关快捷入口。上下文状态只复用现有 LeagueDashboard gameflow 缓存，不新增 LCU session、轮询、writer、网络请求或动画 Timer。
 <!-- FACM_RELEASE_STATE_END -->
 
 > 当前生产事实以 GitHub Release `v3.5.8` 与 `online/version.json` 为准。更早版本记录仅作为历史回归证据，不再描述为当前进行中状态。
