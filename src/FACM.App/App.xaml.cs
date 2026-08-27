@@ -6,6 +6,7 @@ using FACM.Infrastructure.League;
 using FACM.Infrastructure.Observability;
 using FACM.Infrastructure.Online;
 using FACM.Infrastructure.Settings;
+using FACM.Infrastructure.Text;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
 using Microsoft.UI.Xaml;
@@ -38,15 +39,16 @@ public partial class App : Application
         _diagnostics = new BoundedJsonLinesDiagnosticSink(Path.Combine(layout.LogsDirectory, "facm4-events.jsonl"));
 
         var settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
+        var uiText = new FileUiTextProvider(layout.UiTextPath);
         _updateManifestSource = new HttpUpdateManifestSource();
 
-        // Exactly one League discovery/auth/session owner for the 4.0 process. Product State and
-        // diagnostics observe/publish facts only; they do not create another League connector.
+        // Exactly one League discovery/auth/session owner for the 4.0 process. Product State,
+        // diagnostics and the Shell consume facts/contracts only; they never create another one.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
 
         var controlCenter = new ControlCenterViewModel(settings, _updateManifestSource, _productState);
-        _window = new MainWindow(controlCenter);
+        _window = new MainWindow(controlCenter, uiText);
         _window.Closed += OnMainWindowClosed;
         _window.Activate();
 
