@@ -32,6 +32,7 @@ public static class UiTextKeys
     public const string ShellOverviewBody = "ShellOverviewBody";
     public const string ShellStateTitle = "ShellStateTitle";
     public const string ShellStateBody = "ShellStateBody";
+    public const string DesktopOpenShell = "DesktopOpenShell";
 }
 
 public static class FoundationUiTextDefaults
@@ -62,7 +63,8 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.ShellOverviewTitle] = "统一控制中心",
         [UiTextKeys.ShellOverviewBody] = "一个窗口承载四个产品入口，业务能力继续由 Core 与平台 owner 管理。",
         [UiTextKeys.ShellStateTitle] = "状态驱动",
-        [UiTextKeys.ShellStateBody] = "界面只消费 Product State 与 Core intent，不创建第二套 League、网络或文件运行时。"
+        [UiTextKeys.ShellStateBody] = "界面只消费 Product State 与 Core intent，不创建第二套 League、网络或文件运行时。",
+        [UiTextKeys.DesktopOpenShell] = "打开 FACM 控制中心"
     };
 
     public static string Get(string key) => Values.TryGetValue(key, out var value) ? value : key;
