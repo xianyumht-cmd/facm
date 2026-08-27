@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.Mayhem;
+using FACM.Theming;
 
 namespace FACM.AppHost.Modules
 {
@@ -37,7 +38,9 @@ namespace FACM.AppHost.Modules
 
         public Form CreateLookupForm()
         {
-            return new MayhemLookupForm(_leagueClient);
+            var form = new MayhemLookupForm(_leagueClient);
+            FacmWindowChrome.Prepare(form);
+            return form;
         }
 
         public void Dispose()
