@@ -99,8 +99,10 @@ public static class LegacySettingsCodec
 
     private static void Normalize(LegacySettingsSnapshot result)
     {
-        result.ThemeId = KnownThemeIds.Contains(result.ThemeId ?? string.Empty) ? result.ThemeId : LegacySettingsSnapshot.DefaultThemeId;
-        result.PetStyleId = KnownPetIds.Contains(result.PetStyleId ?? string.Empty) ? result.PetStyleId : LegacySettingsSnapshot.DefaultPetId;
+        var themeId = result.ThemeId ?? string.Empty;
+        var petStyleId = result.PetStyleId ?? string.Empty;
+        result.ThemeId = KnownThemeIds.Contains(themeId) ? themeId : LegacySettingsSnapshot.DefaultThemeId;
+        result.PetStyleId = KnownPetIds.Contains(petStyleId) ? petStyleId : LegacySettingsSnapshot.DefaultPetId;
         result.GamePath = Sanitize(result.GamePath);
         result.LastAnnouncementId = Sanitize(result.LastAnnouncementId);
         result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
