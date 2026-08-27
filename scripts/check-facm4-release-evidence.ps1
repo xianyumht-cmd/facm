@@ -43,7 +43,7 @@ foreach ($item in $items) {
     if ($ids.ContainsKey($id)) { Fail "Duplicate release evidence id: $id" }
     $ids[$id] = $item
     if ([string]::IsNullOrWhiteSpace([string]$item.category)) { Fail "Evidence category is missing: $id" }
-    if ($allowedStatuses -notcontains [string]$item.status) { Fail "Invalid evidence status for $id: $($item.status)" }
+    if ($allowedStatuses -notcontains [string]$item.status) { Fail "Invalid evidence status for ${id}: $($item.status)" }
     if ([string]$item.status -eq 'Passed' -and [string]::IsNullOrWhiteSpace([string]$item.evidence)) {
         Fail "Passed evidence must cite proof: $id"
     }
