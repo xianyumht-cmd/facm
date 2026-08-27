@@ -27,6 +27,7 @@ FACM.App (.NET 10 + WinUI 3)
 FACM.Core (net10.0, UI/platform neutral)
 ├─ module lifecycle / performance policy
 ├─ Settings 2.0 + legacy migration contracts
+├─ Product State + observability contracts
 ├─ UI text contracts
 ├─ cleanup intents/results
 ├─ League session/read/write capability contracts
@@ -34,10 +35,10 @@ FACM.Core (net10.0, UI/platform neutral)
         ↓
 FACM.Infrastructure (net10.0)          FACM.Platform.Windows (net10.0-windows)
 ├─ settings/text persistence           ├─ distribution executable identity
-├─ HTTP/public data                    ├─ League process/lockfile discovery
-├─ League HTTP transport               ├─ window/monitor/DPI/filesystem/UAC
-├─ update metadata/download            ├─ single-instance/RegisterHotKey
-└─ cache/diagnostic persistence         └─ child process/replacement integration
+├─ bounded diagnostic persistence      ├─ League process/lockfile discovery
+├─ HTTP/public data                    ├─ window/monitor/DPI/filesystem/UAC
+├─ League HTTP transport               ├─ single-instance/RegisterHotKey
+└─ update metadata/download             └─ child process/replacement integration
 ```
 
 `FACM4.sln` 是 4.0 并行 solution；旧 `FACM.sln` 在 Gate 13 前持续作为 rollback baseline。
@@ -68,7 +69,7 @@ Infrastructure / Platform.Windows adapters
     ↑ wired only at App composition root
 ```
 
-禁止：Core 引用 WinUI/WinForms/WPF/GDI；ViewModel 直接引用 Infrastructure/Platform/HttpClient/File/Process/Registry/具体 League session/URL；Page/Form 自行创建第二套 League session、settings store 或 updater runtime。
+禁止：Core 引用 WinUI/WinForms/WPF/GDI；ViewModel 直接引用 Infrastructure/Platform/HttpClient/File/Process/Registry/具体 League session/URL；Page/Form 自行创建第二套 League session、settings store、diagnostic file reader 或 updater runtime。
 
 `scripts/check-facm4-architecture.ps1` 自动守 project/UI boundary，并禁止迁移 PR 修改生产 release controls。
 
@@ -167,7 +168,41 @@ Platform.Windows + Updater: UAC / wait / replace / rollback
 
 Updater replacement target 只能来自 distribution executable path。正式更新继续保留 max size、SHA-256、signature/package validation、validated receipt、独立替换、失败保留旧 EXE。
 
-## 8. WinUI composition root
+## 8. Product State / Observability
+
+### Product State owner
+
+`FACM.Core.State.ProductStateStore` 是 4.0 唯一 product-state 聚合 store。它不发现 League、不发 HTTP、不写 LCU，只接收其他 owner 发布的事实。
+
+```text
+ProductStateSnapshot
+├─ Revision
+├─ TimestampUtc
+├─ Application: Starting / Ready / Degraded / ShuttingDown
+├─ League: NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck /
+│          ChampSelect / InGame / PostGame / ClientError
+├─ Environment: DistributionDirectory / IsElevated / NetworkAvailable
+└─ Services: UpdateMetadata / LeagueTransport / PetHost health
+```
+
+相同状态不增长 revision、不发 event。state mutation 在 lock 内完成，但 `Changed` subscriber 必须在 lock 外调用，避免 UI/logging 回调形成 lock-order coupling。Page/ViewModel 只消费 `IProductStateReader`；后续 Gate 8 将现有唯一 League runtime/gameflow 的事实映射进 store，不建立第二轮询器。
+
+### Observability owner
+
+Core `DiagnosticEvent` 固定字段：
+
+```text
+TimestampUtc / ActionId / Module / DurationMs / Result /
+Reason / LeagueState / ClientVersion / Data
+```
+
+`DiagnosticEventFactory` 创建事件后立即 redaction；Infrastructure sink 落盘前再次 redaction。`DiagnosticRedactor` 对 token/password/passwd/cookie/authorization/secret/credential/auth 等敏感 key 直接 `[redacted]`，并处理自由文本 `key=value` assignment。
+
+`BoundedJsonLinesDiagnosticSink` 只拥有诊断持久化能力：默认 4 MiB current JSONL，超限 rotate 到 `.1`，并发写通过 `SemaphoreSlim` 串行化；单条事件超过容量时 fail closed。Diagnostics sink 不获得 League writer、网络控制、settings mutation 或 updater 权限。
+
+Gate 9 诊断中心只能消费这些脱敏 contract/文件，不重新发明一套未脱敏日志源。
+
+## 9. WinUI composition root
 
 `FACM.App/App.xaml.cs` 是 concrete adapter composition root，目前创建：
 
@@ -176,23 +211,19 @@ Updater replacement target 只能来自 distribution executable path。正式更
 - `HttpUpdateManifestSource`；
 - exactly one `WindowsLeagueTransportSessionSource`；
 - one shared `LeagueHttpGateway`；
+- one `ProductStateStore`；
+- one bounded diagnostic sink under stable logs directory；
 - ViewModels/MainWindow。
 
-具体 adapter 不得下沉回 ViewModel/Page。
+具体 adapter 不得下沉回 ViewModel/Page。Product State 与 diagnostics 只观察/发布事实，不复制 League owner。
 
-## 9. Shell / Desktop / PetHost
+## 10. Shell / Desktop / PetHost
 
 控制中心固定四入口：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`；LOL 工作台面向用户固定 `比赛 / 攻略 / 自动化`。
 
 Gate 6 继续构建单 main Window / 单 TitleBar owner / 单 navigation visual tree 的 Design System；Gate 7 的桌面浮动入口属于独立 desktop surface，不恢复 Form-in-Form。
 
 Single Instance = Ensure Open/Activate；快捷键 = RegisterHotKey，不引入低级键盘 hook/永久轮询。PetHost 保持独立进程、IPC、Job Object/parent-pid 生命周期。
-
-## 10. Product State / Observability 目标
-
-Gate 5 引入统一 Product State：Application / League / Environment / Services。League 至少覆盖 `NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`。
-
-页面订阅 state，不复制轮询。结构化诊断至少携带 `ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion / Timestamp`，且不得包含 token/password/cookie。
 
 ## 11. 测试与发布边界
 

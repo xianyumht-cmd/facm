@@ -19,7 +19,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("online update decision", () => { TestUpdateDecision(); return Task.CompletedTask; }),
     ("settings repository adapter", TestSettingsRepositoryAsync),
     ("gate3 runtime and transport", Gate3Smoke.RunAsync),
-    ("gate4 Settings 2.0 migration and atomic persistence", Settings2Smoke.RunAsync)
+    ("gate4 Settings 2.0 migration and atomic persistence", Settings2Smoke.RunAsync),
+    ("gate5 Product State and observability", Gate5Smoke.RunAsync)
 };
 
 foreach (var test in tests)

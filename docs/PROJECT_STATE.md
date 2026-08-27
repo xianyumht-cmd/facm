@@ -20,8 +20,9 @@
 - Gate 1：COMPLETE，#187 / PR #188，`main@22c6f55d5c84ff3b55720653dacbac6d49aa0934`。
 - Gate 2：COMPLETE，#189 / PR #190，`main@34578e688cfc85d8934b7dd14dd423e31e098e38`。
 - Gate 3：COMPLETE，#191 / PR #192，`main@138940ccb1f0c4f72bb3325b64a3b94638ee2891`。
-- Gate 4：DELIVERY，#193 / PR #195；Settings 2.0 implementation 已通过完整工程验证。
-- Gate 5～13：继续按固定顺序推进，不要求用户逐 Gate 回复“继续”。
+- Gate 4：COMPLETE，#193 / PR #195，`main@31f867f10f2019004695d5a696c1177a079cef20`。
+- Gate 5：IMPLEMENTATION VERIFIED，#196 / PR #197，implementation head `6684a7050efefbc4a4ab1e7b16d5e0c193f4d679`；canonical 文档提交后需 latest-head CI 再确认再合入。
+- Gate 6～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
 
 ## 已冻结的 4.0 基线
 
@@ -53,20 +54,16 @@ Gate 2 最终：Foundation #27 / Windows Build #1307 / UI Text #428 全 SUCCESS�
 
 - `LeagueTransportSession` 保存 transport secret；公共 descriptor/诊断不含 password/token。
 - `LeagueTransportSessionParser` 支持 lockfile/command-line；`WindowsLeagueTransportSessionSource` 是 4.0 唯一 League discovery/auth/session owner。
-- `LeagueHttpGateway` 的 read/write 共用同一个 session source；write target 必须来自 `LeagueWriteTargetPolicy`；LCU credential 只允许 loopback。
+- `LeagueHttpGateway` read/write 共用同一 session source；write target 必须来自 `LeagueWriteTargetPolicy`；LCU credential 只允许 loopback。
 - `HttpUpdateManifestSource`：默认 7s timeout、linked cancellation、128 KiB metadata cap、严格 GitHub Release URL/version/SHA-256 validation。
 - `RuntimePathLayout` 从 distribution executable 推导持久目录。
 - `FACM.WindowsSmoke` 加入 4.0 Foundation workflow。
 
 Gate 3 merge 前 latest head：Foundation #34 / Windows Build #1310 / UI Text #431 全 SUCCESS。
 
-## Gate 4 — Settings 2.0
+## Gate 4 — Settings 2.0：COMPLETE
 
-Tracking：Issue #193，branch `feat/facm-4-gate4-settings2`，PR #195。
-
-### Schema / ownership
-
-Settings 2.0 当前 schema version 固定为 `2`，Core typed sections：
+Settings 2.0 schema version 固定为 `2`，Core typed sections：
 
 ```text
 Environment -> GamePath
@@ -76,51 +73,70 @@ Pets        -> BallX / BallY / StyleId / Enabled
 League      -> AutoApplyRecommended / hotkeys / honor / return-lobby / matchmaking / auto-accept
 ```
 
-这些 section 合计无损覆盖 3.5.15 的 15 个稳定 INI key。默认主题仍为 `glass-blue`，默认宠物仍为 `greenfly`，自动化默认仍为关闭。
+- distribution EXE 同目录新文件 `settings.v2.json`；legacy `settings.ini` Gate 13 前保留，只读迁移、不删除、不覆盖。
+- legacy 15 键无损映射；默认主题 `glass-blue`、默认宠物 `greenfly`、自动化默认关闭。
+- malformed / invalid / future schema fail closed，禁止静默重置覆盖用户配置。
+- `PhysicalSettings2FileStore`：same-directory temp -> flush -> flush-to-disk -> replace/move，写失败保持旧文件。
+- ViewModel 只依赖 Core `ISettings2Repository`。
 
-### Migration / rollback
+Gate 4 final latest head：Foundation #56 / Windows Build #1318 / UI Text #439 全 SUCCESS；随后 squash merge 到 `main@31f867f10f2019004695d5a696c1177a079cef20`。
 
-- 新文件：distribution EXE 同目录 `settings.v2.json`。
-- legacy 文件：同目录 `settings.ini`，Gate 13 前保留；Settings 2.0 迁移只读它，不删除、不覆盖。
-- 无 v2 且有 legacy：`LegacySettingsCodec -> Settings2Migration -> validated v2 -> atomic save`。
-- 无 v2 且无 legacy：建立 validated defaults。
-- 已有 v2 JSON 损坏、section 缺失、值非法或 schema 不是当前版本：fail closed；禁止静默回退默认值并覆盖用户文件。
+## Gate 5 — Product State + Observability：IMPLEMENTATION VERIFIED
 
-### Atomic persistence
+Tracking：Issue #196，branch `feat/facm-4-gate5-state-observability`，PR #197。
 
-`PhysicalSettings2FileStore` 使用同目录临时文件：write -> flush -> flush-to-disk -> replace/move；失败时 best-effort 清理 temp，旧目标文件保持可用。保存前必须通过 `Settings2Validator`。
+### Product State
 
-### UI boundary
+Core `ProductStateStore` 是统一 state store，快照覆盖：
 
-`ControlCenterViewModel` 已切到 Core `ISettings2Repository`；`App.xaml.cs` composition root 从 `RuntimePathLayout.Settings2Path + SettingsPath` 注入 `Settings2Repository`。ViewModel/Page 不知道 JSON/INI/File 路径。
+- Application：`Starting / Ready / Degraded / ShuttingDown`；
+- League：`NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`；
+- Environment：distribution directory / elevation / network facts；
+- Services：UpdateMetadata / LeagueTransport / PetHost health。
 
-### Gate 4 verified implementation evidence
+快照带 `Revision + TimestampUtc`；相同状态不产生无意义 revision/event；subscriber 在 state lock 外通知。它只发布事实，不拥有第二套 League runtime、轮询器或 writer。
 
-implementation head `183668370e8d84bfa6bd87953b8316e84846585c`：
+### Observability
 
-- `FACM 4.0 Foundation` #48：SUCCESS；architecture / restore / build / FoundationSmoke / WindowsSmoke / WinUI single-file publish 全 SUCCESS。
-- `FACM Windows Build` #1314：SUCCESS。
-- `FACM UI Text Contract` #435：SUCCESS。
-- artifact id `9638082999`，ZIP `88,214,200` bytes，digest `sha256:fe4ec3913ae25487cb34ca334013f8c754e3e4cf079ad30d583cb83ed46fd8a5`。
-- smoke 覆盖：15-key migration、legacy preservation、v2 round-trip、corrupt JSON rejection、future schema rejection、invalid-before-write、simulated atomic failure preservation、physical Windows atomic save/temp cleanup。
-- workflow artifact 名从 Gate 专用名收束为稳定 `facm4-x64`，后续 Gate 不再为 artifact 名重复改 CI。
+Core `DiagnosticEvent` 固定结构字段：`TimestampUtc / ActionId / Module / DurationMs / Result / Reason / LeagueState / ClientVersion / Data`。
 
-## Gate 5 — NEXT：Product State + Observability
+`DiagnosticRedactor` 在写入前处理敏感 key 与自由文本 assignment，覆盖 token/password/passwd/cookie/authorization/secret/credential/auth 等；敏感内容替换为 `[redacted]`。Diagnostics contract 没有 League/网络/业务写权限。
 
-Gate 4 合入后从最新 main 新开独立 Issue/branch/PR。固定目标：
+Infrastructure `BoundedJsonLinesDiagnosticSink`：
 
-1. Core 建统一 Product State：Application / League / Environment / Services。
-2. League state 至少覆盖 `NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`，页面订阅 state，不自己重复轮询。
-3. 建 framework-neutral state store/snapshot/change notification；具体 League/Windows adapter 只发布事实，不复制 runtime owner。
-4. 结构化诊断事件至少包含 `ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion / Timestamp`。
-5. observability 不记录 token/password/cookie，不让 diagnostics 获得新的业务写权限。
-6. Infrastructure 提供 bounded structured sink/persistence；Gate 9 诊断中心只消费该 contract。
-7. deterministic smoke 覆盖 state transition、subscriber、concurrency/snapshot、structured fields、secret redaction。
-8. legacy Build/UI Text/4.0 Foundation 继续 green；生产 release controls 不动。
+- 默认 4 MiB current file；
+- 超限 rotate 到 `.1`；
+- `SemaphoreSlim` 串行化并发写；
+- JSONL 落盘前再次 redaction；
+- 单条事件超过容量时 fail closed。
 
-## Gate 6 → Gate 13 固定顺序
+App composition root 创建唯一 `ProductStateStore` 与 diagnostic sink；`ControlCenterViewModel` 只消费 Core `IProductStateReader`，不直接读取日志文件或创建 runtime。
 
-- Gate 6：WinUI 3 Design System + Shell。
+### Gate 5 verified implementation evidence
+
+implementation head `6684a7050efefbc4a4ab1e7b16d5e0c193f4d679`：
+
+- `FACM 4.0 Foundation` #67：SUCCESS；architecture / restore / build / FoundationSmoke / WindowsSmoke / WinUI single-file publish 全 SUCCESS。
+- `FACM Windows Build` #1320：SUCCESS。
+- `FACM UI Text Contract` #441：SUCCESS。
+- artifact `facm4-x64` id `9639131618`，ZIP `88,219,299` bytes，digest `sha256:031482a2744c8221999b79a3784c12eb3a2db0b578fb65963fe3824ca8e115d0`。
+- smoke 覆盖 state transition、duplicate suppression、subscriber lock boundary、parallel revisions/snapshots、required diagnostic fields、key/text redaction、并发 physical JSONL write 与 bounded rotation。
+
+## Gate 6 — NEXT：WinUI 3 Design System + Shell
+
+Gate 5 合入后从最新 main 新开独立 Issue/branch/PR。固定目标：
+
+1. 扩展 `Themes/FacmTokens.xaml` 为 semantic design tokens，Light/Dark/High Contrast 不依赖页面硬编码色值。
+2. 建统一 Card / Button / Status / Chip / Section / Navigation visual contract。
+3. Shell 继续保持 one Window / one TitleBar owner / one NavigationView / one Frame，不引入 Form-in-Form/Z-order/timer/reflection patching。
+4. 控制中心固定四入口：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`；LOL 用户分区仍为 `比赛 / 攻略 / 自动化`。
+5. Page/ViewModel 只消费 Core state/intents；Shell 不 new League runtime、HttpClient、settings file、diagnostic file。
+6. user-visible text 优先走 UI Text contract；新增 source lint/smoke 防止设计系统回退成散落硬编码。
+7. source/deterministic smoke 验 one-shell tree、semantic token presence、四入口、无 legacy Form host。
+8. legacy Build/UI Text/4.0 Foundation latest-head 全绿；生产 release controls 不动。
+
+## Gate 7 → Gate 13 固定顺序
+
 - Gate 7：Desktop Shell / F 悬浮球 / Theme / Anchor Placement。
 - Gate 8：LOL 工作台状态驱动 UX。
 - Gate 9：诊断中心与脱敏诊断包。
