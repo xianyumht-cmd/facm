@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM.App", "src\FACM.App\FA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM.FoundationSmoke", "src\FACM.FoundationSmoke\FACM.FoundationSmoke.csproj", "{55555555-5555-4555-8555-555555555555}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FACM.WindowsSmoke", "src\FACM.WindowsSmoke\FACM.WindowsSmoke.csproj", "{66666666-6666-4666-8666-666666666666}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -38,5 +40,9 @@ Global
 		{55555555-5555-4555-8555-555555555555}.Debug|x64.Build.0 = Debug|Any CPU
 		{55555555-5555-4555-8555-555555555555}.Release|x64.ActiveCfg = Release|Any CPU
 		{55555555-5555-4555-8555-555555555555}.Release|x64.Build.0 = Release|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Debug|x64.Build.0 = Debug|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Release|x64.ActiveCfg = Release|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

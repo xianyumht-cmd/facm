@@ -41,6 +41,7 @@ if (Test-Path $viewModels) {
         'System\.IO',
         'System\.Diagnostics',
         'Microsoft\.UI\.Xaml',
+        'LeagueTransportSession',
         'LeagueClientSession',
         'HttpClient',
         'File\.',
@@ -83,9 +84,14 @@ foreach ($required in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windo
 if ($appRefs.Count -ne 3) { Fail "FACM.App has unexpected project references: $($appRefs -join ',')" }
 
 $solution = Get-Content (Join-Path $Root 'FACM4.sln') -Raw
-foreach ($project in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows', 'FACM.App', 'FACM.FoundationSmoke')) {
+foreach ($project in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows', 'FACM.App', 'FACM.FoundationSmoke', 'FACM.WindowsSmoke')) {
     if ($solution -notmatch [regex]::Escape($project)) { Fail "FACM4.sln missing $project." }
 }
+
+$appComposition = Get-Content (Join-Path $Root 'src/FACM.App/App.xaml.cs') -Raw
+if ($appComposition -match 'UnavailableUpdateManifestSource') { Fail 'Gate 3 App must use a real update manifest adapter.' }
+$leagueOwnerCount = ([regex]::Matches($appComposition, 'new\s+WindowsLeagueTransportSessionSource\s*\(')).Count
+if ($leagueOwnerCount -ne 1) { Fail "Gate 3 composition root must create exactly one League session owner; actual=$leagueOwnerCount" }
 
 $changed = @(git -C $Root diff --name-only origin/main...HEAD 2>$null)
 if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare Gate branch with origin/main.' }
