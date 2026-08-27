@@ -14,7 +14,6 @@ namespace FACM.League
         private readonly Dictionary<string, Func<UiTextCatalog, Form>> _factories;
         private readonly Dictionary<string, FacmNavButton> _sectionButtons = new Dictionary<string, FacmNavButton>(StringComparer.Ordinal);
         private readonly Dictionary<string, FacmPillButton> _viewButtons = new Dictionary<string, FacmPillButton>(StringComparer.Ordinal);
-        private readonly Label _headerHint;
         private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
         private readonly FacmGlassPanel _contextDock;
@@ -36,6 +35,7 @@ namespace FACM.League
             Func<UiTextCatalog, Form> mayhem,
             Func<UiTextCatalog, Form> recommendation,
             Func<UiTextCatalog, Form> efficiency,
+            Func<UiTextCatalog, Form> repair,
             Func<UiTextCatalog, Form> presence)
         {
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -47,6 +47,7 @@ namespace FACM.League
                 { LeagueHubNavigation.Mayhem, mayhem ?? throw new ArgumentNullException(nameof(mayhem)) },
                 { LeagueHubNavigation.Recommendation, recommendation ?? throw new ArgumentNullException(nameof(recommendation)) },
                 { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) },
+                { LeagueHubNavigation.Repair, repair ?? throw new ArgumentNullException(nameof(repair)) },
                 { LeagueHubNavigation.Presence, presence ?? throw new ArgumentNullException(nameof(presence)) }
             };
 
@@ -56,45 +57,19 @@ namespace FACM.League
             MinimumSize = new Size(900, 580);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
             DoubleBuffered = true;
             Padding = new Padding(8);
 
-            var header = new FacmGlassPanel
-            {
-                Dock = DockStyle.Top,
-                Height = 52,
-                Radius = 12,
-                AccentGlow = true,
-                Padding = Padding.Empty
-            };
-            header.Controls.Add(new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
-                Location = new Point(16, 7),
-                Size = new Size(150, 20),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 11F, FontStyle.Bold)
-            });
-            _headerHint = new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint),
-                Location = new Point(17, 28),
-                Size = new Size(1040, 17),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                AutoEllipsis = true,
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.9F)
-            };
-            header.Controls.Add(_headerHint);
+            // The old 52px in-content title/hint strip was redundant with FACM custom chrome and
+            // could overlap secondary navigation. Page context now lives in the single-line chrome subtitle.
+            FacmWindowChrome.SetSubtitle(this, LeagueHubSubtitleText.ForSection(_ui, LeagueHubUiTextKeys.SectionMatch));
 
             var body = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent,
-                Padding = new Padding(0, 8, 0, 0)
+                Padding = Padding.Empty
             };
 
             var sidebar = new FacmGlassPanel
@@ -162,9 +137,7 @@ namespace FACM.League
             mainShell.Controls.Add(mainCard);
             body.Controls.Add(mainShell);
             body.Controls.Add(sidebar);
-
             Controls.Add(body);
-            Controls.Add(header);
 
             Resize += delegate { UpdateResponsiveChrome(); };
             Shown += delegate
@@ -205,7 +178,7 @@ namespace FACM.League
             else if (state.ClientProcessDetected || state.GameProcessDetected)
             {
                 _contextConnection.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextClientDetected);
-                _contextConnection.ForeColor = Color.FromArgb(244, 181, 94);
+                _contextConnection.ForeColor = FacmDesignSystem.Warning;
             }
             else
             {
@@ -342,8 +315,8 @@ namespace FACM.League
                 Size = new Size(116, 36)
             };
             button.Click += delegate { ShowSection(sectionKey); };
-            button.MouseEnter += delegate { _headerHint.Text = LeagueHubText.Get(_ui, hintKey); };
-            button.MouseLeave += delegate { UpdateHeaderHint(_currentSectionKey); };
+            button.MouseEnter += delegate { FacmWindowChrome.SetSubtitle(this, LeagueHubText.Get(_ui, hintKey)); };
+            button.MouseLeave += delegate { UpdateChromeSubtitle(); };
             sidebar.Controls.Add(button);
             _sectionButtons[sectionKey] = button;
         }
@@ -357,23 +330,17 @@ namespace FACM.League
             _currentSectionKey = sectionKey;
             RebuildSubnav(views);
             UpdateSectionSelection();
-            UpdateHeaderHint(sectionKey);
 
             var target = views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal)) ?? views[0];
             ShowView(target.Id, false);
         }
 
-        private void UpdateHeaderHint(string sectionKey)
+        private void UpdateChromeSubtitle()
         {
-            if (_headerHint == null || _headerHint.IsDisposed) return;
-            if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionMatch, StringComparison.Ordinal))
-                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionMatchHint);
-            else if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionRecommend, StringComparison.Ordinal))
-                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionRecommendHint);
-            else if (string.Equals(sectionKey, LeagueHubUiTextKeys.SectionEfficiency, StringComparison.Ordinal))
-                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.SectionEfficiencyHint);
-            else
-                _headerHint.Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Hint);
+            var subtitle = !string.IsNullOrWhiteSpace(_currentViewId)
+                ? LeagueHubSubtitleText.ForView(_ui, _currentViewId)
+                : LeagueHubSubtitleText.ForSection(_ui, _currentSectionKey);
+            FacmWindowChrome.SetSubtitle(this, subtitle);
         }
 
         private void RebuildSubnav(IReadOnlyList<LeagueHubViewDefinition> views)
@@ -406,6 +373,8 @@ namespace FACM.League
                     Margin = new Padding(0, 0, 6, 0)
                 };
                 button.Click += delegate { ShowView(captured.Id, true); };
+                button.MouseEnter += delegate { FacmWindowChrome.SetSubtitle(this, LeagueHubSubtitleText.ForView(_ui, captured.Id)); };
+                button.MouseLeave += delegate { UpdateChromeSubtitle(); };
                 _subnav.Controls.Add(button);
                 _viewButtons[captured.Id] = button;
             }
@@ -430,10 +399,10 @@ namespace FACM.League
                 _currentSectionKey = definition.SectionKey;
                 RebuildSubnav(LeagueHubNavigation.ViewsForSection(definition.SectionKey));
                 UpdateSectionSelection();
-                UpdateHeaderHint(definition.SectionKey);
             }
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) && _currentChild != null && !_currentChild.IsDisposed)
             {
+                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 return;
@@ -467,7 +436,7 @@ namespace FACM.League
                 _currentSectionKey = definition.SectionKey;
                 UpdateSectionSelection();
                 UpdateViewSelection();
-                UpdateHeaderHint(_currentSectionKey);
+                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 child.Show();
@@ -482,6 +451,7 @@ namespace FACM.League
                 _currentChild = null;
                 _currentViewId = null;
                 UpdateViewSelection();
+                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 throw;
@@ -493,6 +463,7 @@ namespace FACM.League
             if (_contextDock == null || _contextDock.IsDisposed) return;
             var sparseView = string.Equals(_currentViewId, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
                              string.Equals(_currentViewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal) ||
+                             string.Equals(_currentViewId, LeagueHubNavigation.Repair, StringComparison.Ordinal) ||
                              string.Equals(_currentViewId, LeagueHubNavigation.Presence, StringComparison.Ordinal);
             _contextDock.Visible = sparseView && ClientSize.Width >= 1040;
         }
