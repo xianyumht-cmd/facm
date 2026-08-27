@@ -1,6 +1,7 @@
 using FACM.Core.Online;
 using FACM.Core.Settings;
 using FACM.Core.State;
+using FACM.Core.Text;
 
 namespace FACM.App.ViewModels;
 
@@ -20,7 +21,7 @@ public sealed class ControlCenterViewModel
         _productState = productState ?? throw new ArgumentNullException(nameof(productState));
     }
 
-    public string StatusText { get; private set; } = "准备就绪";
+    public string StatusTextKey { get; private set; } = UiTextKeys.ShellStatusReady;
     public UpdateDecision? Update { get; private set; }
     public ProductStateSnapshot ProductState => _productState.Current;
 
@@ -34,6 +35,8 @@ public sealed class ControlCenterViewModel
         Update = autoUpdateEnabled
             ? UpdateDecisionService.Evaluate(currentVersion, manifest)
             : new UpdateDecision(currentVersion, null, false, false, "auto-update-disabled");
-        StatusText = Update.UpdateAvailable ? "发现可用更新" : "准备就绪";
+        StatusTextKey = Update.UpdateAvailable
+            ? UiTextKeys.ShellStatusUpdateAvailable
+            : UiTextKeys.ShellStatusReady;
     }
 }
