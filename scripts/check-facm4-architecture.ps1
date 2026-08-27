@@ -32,33 +32,43 @@ foreach ($file in Get-ChildItem $core -Recurse -Filter '*.cs') {
     }
 }
 
-function Get-ProjectRefs([string]$Path) {
+function Get-ProjectRefNames([string]$Path) {
     [xml]$xml = Get-Content $Path -Raw
-    return @($xml.Project.ItemGroup.ProjectReference | ForEach-Object { [string]$_.Include })
+    $refs = @()
+    foreach ($group in @($xml.Project.ItemGroup)) {
+        foreach ($reference in @($group.ProjectReference)) {
+            if ($null -eq $reference) { continue }
+            $include = [string]$reference.Include
+            if ([string]::IsNullOrWhiteSpace($include)) { continue }
+            $refs += [System.IO.Path]::GetFileNameWithoutExtension($include)
+        }
+    }
+    return @($refs)
 }
 
-$infraRefs = Get-ProjectRefs (Join-Path $Root 'src/FACM.Infrastructure/FACM.Infrastructure.csproj')
-$platformRefs = Get-ProjectRefs (Join-Path $Root 'src/FACM.Platform.Windows/FACM.Platform.Windows.csproj')
-$appRefs = Get-ProjectRefs (Join-Path $Root 'src/FACM.App/FACM.App.csproj')
+$infraRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.Infrastructure/FACM.Infrastructure.csproj'))
+$platformRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.Platform.Windows/FACM.Platform.Windows.csproj'))
+$appRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.App/FACM.App.csproj'))
 
-if (($infraRefs.Count -ne 1) -or ($infraRefs[0] -notmatch 'FACM\.Core')) { Fail 'Infrastructure may reference only FACM.Core in Gate 1.' }
-if (($platformRefs.Count -ne 1) -or ($platformRefs[0] -notmatch 'FACM\.Core')) { Fail 'Platform.Windows may reference only FACM.Core in Gate 1.' }
+if (($infraRefs.Count -ne 1) -or ($infraRefs[0] -ne 'FACM.Core')) { Fail "Infrastructure references must equal FACM.Core; actual=$($infraRefs -join ',')" }
+if (($platformRefs.Count -ne 1) -or ($platformRefs[0] -ne 'FACM.Core')) { Fail "Platform.Windows references must equal FACM.Core; actual=$($platformRefs -join ',')" }
 foreach ($required in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows')) {
-    if (-not ($appRefs | Where-Object { $_ -match [regex]::Escape($required) })) { Fail "FACM.App missing reference to $required." }
+    if ($appRefs -notcontains $required) { Fail "FACM.App missing reference to $required; actual=$($appRefs -join ',')" }
 }
+if ($appRefs.Count -ne 3) { Fail "FACM.App has unexpected project references: $($appRefs -join ',')" }
 
 $solution = Get-Content (Join-Path $Root 'FACM4.sln') -Raw
 foreach ($project in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows', 'FACM.App', 'FACM.FoundationSmoke')) {
     if ($solution -notmatch [regex]::Escape($project)) { Fail "FACM4.sln missing $project." }
 }
 
-try {
-    $changed = @(git -C $Root diff --name-only origin/main...HEAD 2>$null)
-    foreach ($protected in @('online/version.json', 'release/request.json')) {
-        if ($changed -contains $protected) { Fail "Gate migration must not modify production release control: $protected" }
-    }
-} catch {
-    Write-Warning 'git diff release-control check skipped because origin/main is unavailable.'
+$changed = @(git -C $Root diff --name-only origin/main...HEAD 2>$null)
+if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare Gate branch with origin/main.' }
+foreach ($protected in @('online/version.json', 'release/request.json')) {
+    if ($changed -contains $protected) { Fail "Gate migration must not modify production release control: $protected" }
 }
 
+Write-Host "Infrastructure refs: $($infraRefs -join ', ')"
+Write-Host "Platform refs: $($platformRefs -join ', ')"
+Write-Host "App refs: $($appRefs -join ', ')"
 Write-Host 'FACM 4.0 architecture contract: SUCCESS'
