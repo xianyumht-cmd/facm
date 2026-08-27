@@ -14,9 +14,14 @@ var expectedDistribution = Path.GetDirectoryName(Path.GetFullPath(executablePath
 Equal(expectedDistribution, layout.DistributionDirectory, "distribution path provider");
 Equal(Path.Combine(expectedDistribution, "settings.ini"), layout.SettingsPath, "stable legacy settings path");
 Equal(Path.Combine(expectedDistribution, "settings.v2.json"), layout.Settings2Path, "stable Settings 2.0 path");
+Equal(Path.Combine(expectedDistribution, "runtime", "recovery"), layout.RecoveryDirectory, "stable recovery directory");
+Equal(Path.Combine(expectedDistribution, "runtime", "recovery", "state.json"), layout.RecoveryStatePath, "stable recovery state path");
 True(!layout.Settings2Path.StartsWith(Path.GetFullPath(executablePaths.BaseDirectory), StringComparison.OrdinalIgnoreCase) ||
      layout.Settings2Path.StartsWith(expectedDistribution, StringComparison.OrdinalIgnoreCase),
      "Settings 2.0 must derive from distribution path, not self-extract base directory");
+True(!layout.RecoveryStatePath.StartsWith(Path.GetFullPath(executablePaths.BaseDirectory), StringComparison.OrdinalIgnoreCase) ||
+     layout.RecoveryStatePath.StartsWith(expectedDistribution, StringComparison.OrdinalIgnoreCase),
+     "Recovery metadata must derive from distribution path, not self-extract base directory");
 
 VerifyWindowsDesktopFacts();
 await VerifyPhysicalSettings2PersistenceAsync();

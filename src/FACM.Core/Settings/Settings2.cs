@@ -4,7 +4,9 @@ public enum SettingsLoadOrigin
 {
     ExistingV2,
     MigratedLegacy,
-    Defaults
+    Defaults,
+    RecoveredLastKnownGood,
+    RecoveryDefaults
 }
 
 public enum SettingsSectionOwner

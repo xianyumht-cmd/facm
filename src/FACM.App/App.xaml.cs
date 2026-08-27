@@ -1,7 +1,9 @@
 using FACM.App.ViewModels;
 using FACM.Core.Desktop;
 using FACM.Core.Observability;
+using FACM.Core.Online;
 using FACM.Core.Performance;
+using FACM.Core.Recovery;
 using FACM.Core.Runtime;
 using FACM.Core.Settings;
 using FACM.Core.State;
@@ -9,8 +11,10 @@ using FACM.Core.Text;
 using FACM.Infrastructure.League;
 using FACM.Infrastructure.Observability;
 using FACM.Infrastructure.Online;
+using FACM.Infrastructure.Recovery;
 using FACM.Infrastructure.Settings;
 using FACM.Infrastructure.Text;
+using FACM.Infrastructure.Time;
 using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
@@ -26,8 +30,9 @@ public partial class App : Application
     private LeagueWorkbenchViewModel? _leagueWorkbench;
     private DiagnosticsCenterViewModel? _diagnosticsCenter;
     private IUiTextProvider? _uiText;
-    private Settings2Repository? _settings;
-    private HttpUpdateManifestSource? _updateManifestSource;
+    private ISettings2Repository? _settings;
+    private HttpUpdateManifestSource? _httpUpdateManifestSource;
+    private IUpdateManifestSource? _updateManifestSource;
     private LeagueHttpGateway? _leagueGateway;
     private WindowsLeagueTransportSessionSource? _leagueSessions;
     private LeagueGameflowMonitor? _gameflow;
@@ -36,6 +41,8 @@ public partial class App : Application
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
     private IDiagnosticsSnapshotSource? _diagnosticsSource;
     private IDiagnosticsBundleExporter? _diagnosticsExporter;
+    private IFeaturePolicy? _featurePolicy;
+    private RecoveryCoordinator? _recovery;
     private bool _shuttingDown;
 
     public App()
@@ -48,8 +55,32 @@ public partial class App : Application
         var executablePaths = new WindowsExecutablePathProvider();
         var layout = RuntimePathLayout.From(executablePaths);
         var appVersion = typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown";
+        var clock = new SystemClock();
+        _recovery = TryBeginRecovery(layout, appVersion, clock);
+
+        try
+        {
+            LaunchCore(layout, appVersion);
+            TryMarkRecoveryRunning();
+        }
+        catch (Exception exception)
+        {
+            TryMarkRecoveryFailed("launch-" + exception.GetType().Name);
+            throw;
+        }
+    }
+
+    private void LaunchCore(RuntimePathLayout layout, string appVersion)
+    {
         var diagnosticLogPath = Path.Combine(layout.LogsDirectory, "facm4-events.jsonl");
         var diagnosticsPolicy = DiagnosticsExportPolicy.Default;
+        var killSwitchLoad = new FeatureKillSwitchFileSource(layout.FeatureKillSwitchPath)
+            .LoadAsync()
+            .GetAwaiter()
+            .GetResult();
+        _featurePolicy = FeaturePolicyEvaluator.Evaluate(
+            FeatureBaseline.GetApprovedCapabilities(),
+            killSwitchLoad.KillSwitch);
 
         _productState = new ProductStateStore();
         _productState.SetEnvironment(
@@ -62,13 +93,17 @@ public partial class App : Application
             diagnosticLogPath,
             appVersion,
             diagnosticsPolicy);
-        _diagnosticsExporter = new DiagnosticsBundleExporter(
+        var rawDiagnosticsExporter = new DiagnosticsBundleExporter(
             Path.Combine(layout.RuntimeDirectory, "diagnostics"),
             diagnosticsPolicy);
+        _diagnosticsExporter = new FeatureGatedDiagnosticsBundleExporter(rawDiagnosticsExporter, _featurePolicy);
 
-        _settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
+        var strictSettings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
+        var settingsRecovery = new JsonSettings2RecoveryStore(layout.Settings2LastKnownGoodPath);
+        _settings = new RecoveringSettings2Repository(strictSettings, settingsRecovery);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
-        _updateManifestSource = new HttpUpdateManifestSource();
+        _httpUpdateManifestSource = new HttpUpdateManifestSource();
+        _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
 
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
         // Read/write transport, Product State, performance and the Workbench all consume the same facts.
@@ -100,6 +135,21 @@ public partial class App : Application
 
         _productState.SetApplication(ApplicationProductState.Ready, "main-window-activated");
         QueueDiagnostic(DiagnosticEventFactory.Create(
+            "feature.policy",
+            "FACM.Recovery",
+            0,
+            killSwitchLoad.Origin == FeatureKillSwitchLoadOrigin.FailClosed
+                ? DiagnosticResult.Failure
+                : DiagnosticResult.Success,
+            killSwitchLoad.Reason,
+            _productState.Current.League,
+            appVersion,
+            new Dictionary<string, string>
+            {
+                ["enabledCount"] = _featurePolicy.EnabledCapabilitiesCount().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["origin"] = killSwitchLoad.Origin.ToString()
+            }));
+        QueueDiagnostic(DiagnosticEventFactory.Create(
             "app.launch",
             "FACM.App",
             0,
@@ -107,6 +157,54 @@ public partial class App : Application
             "main-window-activated",
             _productState.Current.League,
             appVersion));
+    }
+
+    private static RecoveryCoordinator? TryBeginRecovery(
+        RuntimePathLayout layout,
+        string appVersion,
+        SystemClock clock)
+    {
+        try
+        {
+            var coordinator = new RecoveryCoordinator(
+                new JsonRecoveryStateStore(layout.RecoveryStatePath, clock),
+                clock);
+            _ = coordinator.BeginStartAsync(appVersion).GetAwaiter().GetResult();
+            return coordinator;
+        }
+        catch
+        {
+            // Recovery metadata is defense-in-depth and must never prevent the stable app from starting.
+            return null;
+        }
+    }
+
+    private void TryMarkRecoveryRunning()
+    {
+        var recovery = _recovery;
+        if (recovery is null) return;
+        try
+        {
+            _ = recovery.MarkRunningAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // A recovery metadata write failure must not turn a successful product launch into a crash.
+        }
+    }
+
+    private void TryMarkRecoveryFailed(string reason)
+    {
+        var recovery = _recovery;
+        if (recovery is null) return;
+        try
+        {
+            _ = recovery.MarkFailedAsync(reason).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Preserve the original launch failure; recovery logging may never mask it.
+        }
     }
 
     private void EnsureMainWindow()
@@ -210,7 +308,8 @@ public partial class App : Application
         _leagueGateway = null;
         _leagueSessions = null;
         _performance = null;
-        _updateManifestSource?.Dispose();
+        _httpUpdateManifestSource?.Dispose();
+        _httpUpdateManifestSource = null;
         _updateManifestSource = null;
         _diagnostics?.Dispose();
         _diagnostics = null;
@@ -219,6 +318,8 @@ public partial class App : Application
         _settings = null;
         _controlCenter = null;
         _uiText = null;
+        _featurePolicy = null;
+        _recovery = null;
         _productState = null;
     }
 
@@ -238,4 +339,10 @@ public partial class App : Application
             }
         });
     }
+}
+
+internal static class FeaturePolicyExtensions
+{
+    public static int EnabledCapabilitiesCount(this IFeaturePolicy policy) =>
+        FeatureBaseline.GetApprovedCapabilities().Count(policy.IsEnabled);
 }
