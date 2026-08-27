@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation">
-    <Grid Background="{StaticResource FacmBackgroundBrush}">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />
@@ -13,8 +13,8 @@
             x:Name="AppTitleBar"
             Grid.Row="0"
             Padding="16,0"
-            Background="{StaticResource FacmSurfaceBrush}"
-            BorderBrush="{StaticResource FacmStrokeBrush}"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
             BorderThickness="0,0,0,1">
             <TextBlock
                 x:Name="TitleBarText"
