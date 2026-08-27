@@ -1,10 +1,18 @@
 # FACM 内置主题
 
-FACM 3.1 内置 10 套控制面板主题。主题选择会保存到程序目录的 `settings.ini`：
+FACM 内置 10 套主题。主题选择保存到程序目录的 `settings.ini`：
 
 ```ini
 ThemeId=glass-blue
 ```
+
+## 当前主题边界
+
+主题不再只描述控制中心。`ThemeCatalog` 是唯一主题目录，`FacmThemeRuntime` 保存进程内当前主题，`FacmDesignSystem` 与 `FacmWindowChrome` 从同一组语义颜色读取外观。
+
+FACM 自己拥有的 WinForms 界面应继承当前主题，包括控制中心、LOL 工作台、清理与修复、设置/工具页和 FACM 自绘临时窗口。切换主题时已打开的 FACM 窗口会刷新，新打开的窗口直接继承当前主题；Windows 文件选择器、UAC 等系统拥有的窗口继续使用系统外观。
+
+语义颜色优先使用背景、Surface、Border、Accent、Text、Success、Warning、Error、Disabled 等角色，不应在新页面中复制另一套硬编码主题引擎。
 
 ## 主题列表
 
@@ -23,6 +31,6 @@ ThemeId=glass-blue
 
 ## 切换方式
 
-打开控制面板，点击底部的 **主题设置**。选择主题后点击 **应用主题**，控制面板会自动关闭并按新主题重新打开，悬浮球配色也同步更新。
+打开控制中心 → **个性化** → **全局主题**，选择后点击 **应用主题**。当前进程中的 FACM 自有窗口会刷新，选择结果同时保存到 `settings.ini`，下次启动继续沿用。
 
-主题选择窗口中的 **编辑界面文字** 可以打开 `ui-text.ini`。主题和文字配置互不冲突。
+主题和 `ui-text.ini` 的界面文字配置互不冲突。
