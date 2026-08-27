@@ -117,12 +117,12 @@ namespace FACM.Theming
 
         private static void QueueOutsideClose(Form form)
         {
-            if (form == null || form.IsDisposed || !form.IsHandleCreated) return;
+            if (form == null || form.IsDisposed || !form.IsHandleCreated || form.WindowState == FormWindowState.Minimized) return;
             try
             {
                 form.BeginInvoke(new Action(delegate
                 {
-                    if (form.IsDisposed || !form.Visible || form.ContainsFocus) return;
+                    if (form.IsDisposed || !form.Visible || form.ContainsFocus || form.WindowState == FormWindowState.Minimized) return;
                     var foreground = GetForegroundWindow();
                     if (foreground == IntPtr.Zero) return;
                     uint processId;
