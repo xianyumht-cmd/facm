@@ -12,29 +12,28 @@
 - `published_at`：2026-08-27T05:28:50.9137418+00:00
 <!-- FACM_RELEASE_STATE_END -->
 
-> 生产事实以 GitHub Release 与 `online/version.json` 为准。FACM 4.0 迁移在正式 Gate 13 release 前不得修改生产更新指向。
+> 生产事实以 GitHub Release 与 `online/version.json` 为准。FACM 4.0 在 Gate 13 release 前不得修改生产更新指向。
 
-## 当前主线：FACM 4.0
+## FACM 4.0 总进度
 
-### Gate 0 — COMPLETE
+- Gate 0：COMPLETE，Issue #185 / PR #186，合入 `main@4eda40956a8f7394c1f588d441993e7eb9a4e3e3`。
+- Gate 1：COMPLETE，Issue #187 / PR #188，合入 `main@22c6f55d5c84ff3b55720653dacbac6d49aa0934`。
+- Gate 2：COMPLETE ON VERIFIED PR HEAD，Issue #189 / PR #190，最终实现 head `f11f4830507fa17d93de79816cd1066c2f8d25c3`；等待本 PR canonical 文档提交的 latest-head CI 后合入。
+- Gate 3～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
 
-- Issue #185；PR #186。
-- 已合入 `main`：`4eda40956a8f7394c1f588d441993e7eb9a4e3e3`。
-- 产物：`docs/FACM-4-MIGRATION-CONTRACT.md`、隔离 WinUI deployment probe、Windows CI。
-- 技术基线：.NET 10 LTS + WinUI 3 + Windows App SDK Stable 2.4.0。
-- Gate 0 真实证据：unpackaged/self-contained/single-file 可 publish/启动；空壳单 EXE 227,426,290 bytes；首次 CI 启动约 2340 ms，第二次约 293 ms。
-- `Environment.ProcessPath` 指向分发 EXE；`AppContext.BaseDirectory` 位于 `%TEMP%/.net/...` 自解包目录。Updater 必须替换前者，禁止把 self-extract BaseDirectory 当安装目录。
+## Gate 0 — Migration Contract / Deployment Probe
 
-### Gate 1 — COMPLETE / delivery PR #188
+已冻结 3.5.15 迁移不变量并建立 `docs/FACM-4-MIGRATION-CONTRACT.md`。技术路线：.NET 10 LTS + WinUI 3 + Windows App SDK Stable 2.4.0，先 x64。
 
-Tracking：
+Gate 0 真实 deployment probe 证明 unpackaged + self-contained + single-file 可 publish/启动；同时证明：
 
-- Issue #187：`FACM 4.0 Gate 1：并行 Solution、Core/Platform/App 骨架与架构门禁`
-- branch：`feat/facm-4-gate1-foundation`
-- PR #188：`FACM 4.0 Gate 1：并行 Solution 与 WinUI Foundation`
-- 最终 Gate 1 head：`f869b27ef91b722ff217912833257136230c4d43`
+- `Environment.ProcessPath` 指向分发 EXE；
+- `AppContext.BaseDirectory` 位于 `%TEMP%/.net/...` self-extract 目录；
+- Updater、settings、cache、PetHost、runtime 数据不得把 self-extract BaseDirectory 当稳定安装目录。
 
-已建立正式并行 4.0 foundation：
+## Gate 1 — Parallel Foundation
+
+4.0 正式并行 solution：
 
 ```text
 FACM4.sln
@@ -42,49 +41,91 @@ FACM4.sln
 ├─ FACM.Infrastructure        net10.0 -> Core
 ├─ FACM.Platform.Windows      net10.0-windows -> Core
 ├─ FACM.App                   WinUI 3 -> Core + Infrastructure + Platform.Windows
-└─ FACM.FoundationSmoke       deterministic foundation smoke
+└─ FACM.FoundationSmoke       deterministic smoke
 ```
 
-Gate 1 已完成：
+Gate 1 已建立：
 
-- legacy `FACM.sln` / `src/FACM` / Updater / ToolBundle / PetHost 保持原样可构建，仍是 3.5.15 rollback baseline；
-- `FACM.Core` 无 WinForms / WinUI / WPF / `System.Drawing` / package/project dependency；
-- 抽离 `FacmHost` 生命周期契约：拓扑初始化、依赖缺失/循环拒绝、失败模块释放、已初始化模块反向 rollback、反向 Dispose、timing report；
-- 抽离 Performance Budget / Policy，保持 Desktop/Client/Queueing/ChampSelect/InGame/Background 原预算，并保持 InGame/ChampSelect 优先于窗口可见性的规则；
-- 建 3.5.15 `settings.ini` compatibility codec，保持 15 个稳定键、默认 `glass-blue` 主题、默认 `greenfly` 宠物及旧 ID fallback；
-- 建框架无关 `IUiTextProvider` 与 foundation text key/default adapter；
-- `FACM.Platform.Windows` 首个路径契约明确区分 distribution executable 与 self-extract base directory；
-- `FACM.App` 已是一个 Window / 一个 NavigationView / 一个 Frame / 一个 ResourceDictionary foundation，不建立第二套 League runtime；
-- `scripts/check-facm4-architecture.ps1` 自动拒绝 Core UI framework 依赖、错误项目引用方向、迁移分支修改生产 release controls；
-- `.github/workflows/facm4-foundation.yml` 自动 restore/build/smoke/publish x64 self-contained single-file candidate。
+- framework-neutral `FacmHost` 生命周期；
+- Performance Budget / Policy；
+- 3.5.15 15 键 `settings.ini` compatibility codec；
+- `IUiTextProvider` foundation adapter；
+- WinUI 单 Window / 单 NavigationView / 单 Frame / 单 ResourceDictionary；
+- `WindowsExecutablePathProvider`；
+- architecture check 与 4.0 CI；
+- legacy `FACM.sln` / WinForms 3.5.15 构建链继续 green。
 
-Gate 1 最终 CI：
+Gate 1 最终 merge 前 latest-head 验证：Foundation #12、Windows Build #1300、UI Text #421 全 SUCCESS。
 
-- `FACM 4.0 Foundation` #6：SUCCESS；
-- `FACM Windows Build` #1297：SUCCESS；
-- `FACM UI Text Contract` #418：SUCCESS；
-- artifact：`facm4-gate1-x64`，artifact id `9636175208`，ZIP size 88,182,972 bytes，digest `sha256:e574ec965f7b3dffa3f473f01e0312ca2a5432a366e40d62aa1fd07737f5e81a`。
+## Gate 2 — Core / UI Decoupling：COMPLETE ON VERIFIED PR HEAD
 
-Gate 1 CI 过程中修正过两类 foundation 问题：
+Tracking：
 
-1. 架构脚本最初用 regex 判断 Windows ProjectReference 路径，误报合法 `Infrastructure -> Core`；已改为解析 XML 后比较规范化项目名。
-2. `TreatWarningsAsErrors` 抓到 legacy settings normalization 两处 nullable 赋值；保留严格编译策略并修正类型安全，没有关闭 warning gate。
+- Issue #189：`FACM 4.0 Gate 2：Core/UI 解耦与业务能力契约`
+- branch：`feat/facm-4-gate2-decouple`
+- PR #190：`FACM 4.0 Gate 2：Core/UI 解耦与业务能力契约`
+- verified implementation head：`f11f4830507fa17d93de79816cd1066c2f8d25c3`
 
-## Gate 2 — NEXT：Core / UI 解耦
+### 已完成边界
 
-按以下顺序直接推进，不等待用户逐 Gate 回复：
+Cleanup：
 
-1. 把 Cleanup 的 plan/result/application intent 从 `SafeCleanupService` 中的 WinForms progress UI 分离；Core 不引用 `Application.MessageLoop` / Form。
-2. 建 League framework-neutral session/read/write capability contracts；唯一 `LeagueClientModule + LeagueClientSessionProvider` 仍是 discovery/auth/session owner，不新增连接器。
-3. 把 Online/update 的 manifest/check/install intent 与 UI 分离；下载/校验/替换继续归 Infrastructure/Platform/Updater owner。
-4. Settings 先通过 compatibility repository contract 读写现有 INI；Gate 2 不提前切 Settings 2.0 schema。
-5. WinUI Page/ViewModel 只发 intent/订阅 state，不直接找进程、读写 settings、创建 HttpClient 或构造 LCU session。
-6. legacy WinForms 继续工作；必要时通过 adapter 消费新 Core，不以删除 legacy 作为解耦手段。
-7. deterministic smoke 覆盖依赖方向、Cleanup orchestration、League capability allowlist、settings/text compatibility。
+- `FACM.Core.Cleanup` 拥有 `CleanupPlan / CleanupResult / CleanupProgress`；
+- `CleanupApplicationService` 只做 preview/confirmed execute orchestration；
+- 未确认执行确定性拒绝；Core 不引用 WinForms progress/dialog/filesystem implementation。
 
-## Gate 3 → Gate 13 固定顺序
+League：
 
-- Gate 3：主业务迁 `.NET 10`，专项处理 Win32/PInvoke、Registry、Process、NamedPipe、HttpClient、资源与线程模型；不顺手重画 UI。
+- `FACM.Core.League` 建立 session/read/write capability contracts；
+- 写请求从 `LeagueWriteCapability` 映射到固定 method/path；调用方不能传任意 LCU URL/path；
+- 当前 Gate 2 capability 只覆盖现有 my-selection / perk-page writer 范围；Bench/Matchmaking/PostGame/Presence/Client UX Repair 等旧窄 writer 不被合并成 generic writer；
+- legacy `LeagueClientModule + LeagueClientSessionProvider` 仍是唯一实际 discovery/auth/session owner，Gate 2 没有创建第二连接器。
+
+Online / Settings：
+
+- Core 拥有 update manifest snapshot / decision / installer intent；
+- `ISettingsRepository` + `IniSettingsRepository` 继续读写 3.5.15 15 键格式；Gate 2 不切 Settings 2.0；
+- WinUI composition root 使用 `WindowsExecutablePathProvider.ExecutablePath` 的目录定位 `settings.ini`，保持 3.5.15 当前“分发 EXE 同目录”路径语义；明确禁止使用 `AppContext.BaseDirectory` 持久化配置；
+- Gate 2 使用 `UnavailableUpdateManifestSource` 明确表示网络 transport 尚未迁入，而不是从 ViewModel 偷建 HttpClient。
+
+WinUI intent boundary：
+
+- `ControlCenterViewModel` 只依赖 Core `ISettingsRepository / IUpdateManifestSource` contract；
+- `App.xaml.cs` 是 composition root，负责具体 Infrastructure / Platform adapter 注入；
+- architecture gate 自动拒绝 `src/FACM.App/ViewModels` 直接引用 Infrastructure、Platform.Windows、HttpClient、System.IO、Process、Registry、具体 League session 或 URL。
+
+### Gate 2 deterministic evidence
+
+Foundation smoke 新增并已验证：
+
+- Cleanup explicit-confirmation orchestration；
+- League write capability exact allowlist；
+- Online update decision；
+- INI settings repository round-trip。
+
+verified implementation head `f11f4830...`：
+
+- `FACM 4.0 Foundation` #23：SUCCESS；
+- `FACM Windows Build` #1305：SUCCESS；
+- `FACM UI Text Contract` #426：SUCCESS；
+- artifact `facm4-gate1-x64` id `9636874721`，ZIP size `88,192,643` bytes，digest `sha256:90000506bb5b8b32ca8ca4bd2ade71aacf5522668d4b82ccb24c27ebf4b3ce60`。
+
+## Gate 3 — NEXT：.NET 10 Runtime / Transport Migration
+
+Gate 2 合入后从最新 main 新开单独 Issue/branch/PR。Gate 3 只迁 runtime/transport/platform implementation，不顺手重画 UI、不切 Settings 2.0、不发布 4.0。
+
+优先顺序：
+
+1. League session descriptor/parser + Windows process/lockfile discovery adapter，保持唯一 owner 模型；
+2. authenticated LCU read/write transport consume Core contracts，写 transport 必须再次校验 capability target；
+3. Online update manifest HTTP adapter：有限 timeout、cancellation、大小上限、manifest validation；mirror/download/replace 继续分层；
+4. Runtime path layout 统一从 distribution executable 推导稳定目录；禁止 `.net/...` self-extract 路径泄漏；
+5. Windows-only process/registry/native handle 代码归 `FACM.Platform.Windows`；network/file persistence 归 Infrastructure；
+6. deterministic smoke 覆盖 lockfile/command-line parser、auth header、writer capability fence、manifest parser/size/timeout、stable runtime paths；
+7. legacy 3.5.15 Build/UI Text 继续 green。
+
+## Gate 4 → Gate 13 固定顺序
+
 - Gate 4：Settings 2.0，typed/versioned/validated/atomic-save/migration/defaults/module ownership；3.5.15 INI 无损迁移。
 - Gate 5：Product State + Observability；统一 Application/League/Environment/Services 状态与结构化日志。
 - Gate 6：WinUI 3 Design System + Shell；semantic tokens、统一控件、单 Window/TitleBar/navigation visual tree。
@@ -96,30 +137,30 @@ Gate 1 CI 过程中修正过两类 foundation 问题：
 - Gate 12：全量兼容 / 性能 / 发布矩阵；现有 deterministic smoke 必须迁移或由更强验证替代。
 - Gate 13：Legacy 删除与 FACM 4.0 正式切换；只有前面 Gate 全绿且配置迁移、更新链、Windows 实机矩阵成立后才允许发布 4.0.0。
 
-## FACM 4.0 必须持续保护的不变量
+## 持续保护的不变量
 
-- 唯一 League discovery/auth/session owner。
-- Gate2～Gate7、Bench、Matchmaking、PostGame、Presence、Client UX Repair 等写能力继续使用最小 allowlist writer；不得扩权。
-- Bench 只允许用户手动快速选择，不变成自动抢英雄。
-- Mayhem/OP.GG 保留 fallback、超时、正文取消、缓存与 InGame 性能预算。
-- Game Repair 保留原生 Win32、多屏/负坐标、WinEvent debounce/cooldown、窄 restart-ux writer。
-- Cleanup 保留预览、UAC、路径白名单、reparse-point 防护和规则重验证。
-- Updater 保留下载限制、SHA-256、签名/package validation、validated receipt、独立替换、失败保旧版。
-- Single Instance = Ensure Open，不是 Toggle；快捷键继续 RegisterHotKey，不引入低级键盘 Hook/轮询。
-- PetHost 保持独立进程、IPC、Job Object/parent-pid 生命周期。
+- Exactly one League discovery/auth/session owner。
+- 所有 League writer 保持最小 capability allowlist；Bench 仍为用户手动动作。
+- Mayhem/OP.GG 保留 fallback、timeout、body cancellation、cache、Performance Budget。
+- Game Repair 保留 native Win32、多屏/负坐标、WinEvent debounce/cooldown、窄 restart-ux writer；不恢复旧 Fix-LCU runtime。
+- Cleanup 保留 preview、explicit confirm、UAC、path allowlist、reparse-point guard、执行前规则重验证。
+- Updater 保留 size limit、SHA-256、signature/package validation、validated receipt、独立 replacement、失败保旧版。
+- Single Instance = Ensure Open；快捷键 = RegisterHotKey；不引入低级 Hook/轮询。
+- PetHost 保持独立进程与 parent/job 生命周期。
 - Performance Contract、UI Text Contract、deterministic smoke 不得静默删除。
 
-## 尚需真实 Windows 机器关闭的发布风险
+## Gate 13 前必须补齐的真实 Windows 证据
 
-这些不阻塞前面的工程 Gate，但会阻止 Gate 13 正式发布，直到证据齐全：
+这些不阻塞前面工程 Gate，但会阻止正式 4.0 cutover：
 
-- 普通非管理员用户下 runas/UAC 提升、取消和重启路径；
-- Defender / SmartScreen 对 self-extract 单 EXE 的首次扫描、误报与冷启动；
-- Windows 10 1809/22H2 与 Windows 11 真机；
+- 普通非管理员 runas/UAC 提升与取消；
+- Defender / SmartScreen 对 self-extract EXE；
+- Windows 10 1809/22H2 + Windows 11；
 - 100/125/150/175/200% DPI、双屏、负坐标、上下/左右排列、混合 DPI；
 - keyboard-only / focus / high contrast / text scaling / basic screen reader；
-- updater interrupted replacement / rollback 与 3.5.15 -> 4.0 settings migration 真机升级。
+- updater interrupted replacement / rollback；
+- 3.5.15 -> 4.0 settings 真机升级。
 
 ## 新对话接续规则
 
-读取 `AGENTS.md + docs/PROJECT_STATE.md` 后，优先核对最新 `main`、当前未合并 FACM 4.0 PR/Issue 与 CI。不要要求用户逐 Gate 回复“继续”；在安全门禁允许时按 Gate 顺序自动推进。生产 release、 destructive Git 操作仍需按 `AGENTS.md` 做即时安全检查。
+读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对最新 `main`、当前 FACM 4.0 Issue/PR/CI 后直接从当前 Gate 继续；不要要求用户逐 Gate 回复“继续”。生产 release 与 destructive Git 操作仍按 `AGENTS.md` 做即时安全检查。
