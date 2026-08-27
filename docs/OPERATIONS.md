@@ -24,6 +24,8 @@ DPI/Accessibility source gate
 Recovery/Feature policy source gate
 Release evidence/Performance source gate
 Production cutover source guard
+Real-machine evidence collector source gate
+Windows PowerShell 5.1 collector self-test
 restore FACM4.sln
 build Release x64
 FACM.FoundationSmoke (cumulative Gates 1-13)
@@ -47,6 +49,8 @@ pwsh ./scripts/check-facm4-accessibility.ps1
 pwsh ./scripts/check-facm4-recovery.ps1
 pwsh ./scripts/check-facm4-release-evidence.ps1
 pwsh ./scripts/check-facm4-cutover.ps1
+pwsh ./scripts/check-facm4-real-machine-evidence.ps1
+powershell.exe -NoProfile -File ./scripts/collect-facm4-real-machine-evidence.ps1 -SelfTest
 dotnet restore FACM4.sln -p:Platform=x64
 dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
 dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
@@ -227,3 +231,62 @@ Gate13Smoke 已证明：当前 repository matrix 即使提供形式正确授权�
 8. 更新 evidence、canonical docs、Issue #213。
 
 当前不满足第 1～3 条，因此 Gate 13 状态是 **GUARD VERIFIED / CUTOVER BLOCKED**，生产继续 FACM 3.5.15。
+
+## 12. 一键真机 Release Evidence 采集
+
+入口：仓库根目录 `FACM-4.0-真机证据采集.bat`。它固定调用系统自带 Windows PowerShell 5.1，不申请管理员权限，不联网，不修改注册表，不执行更新/重启/删除，也不修改 production pointer。
+
+### 最简单用法
+
+把待验证的最终 `FACM.App.exe` 直接拖到 BAT 上。也可以双击 BAT；如果同目录没有 candidate，则仍会采集机器、显示器、UAC/Defender/Accessibility 基本事实，并把 candidate 标为 missing。
+
+命令行等价：
+
+```bat
+FACM-4.0-真机证据采集.bat "D:\FACM\FACM.App.exe" General
+```
+
+迁移证据建议同一台机器分阶段采集：
+
+```bat
+FACM-4.0-真机证据采集.bat "D:\FACM\FACM.App.exe" MigrationBaseline
+FACM-4.0-真机证据采集.bat "D:\FACM\FACM.App.exe" MigrationAfter
+```
+
+Updater 受控中断/rollback 试验使用：
+
+```bat
+FACM-4.0-真机证据采集.bat "D:\FACM\FACM.App.exe" UpdaterRollback
+```
+
+### 输出
+
+每次采集生成：
+
+```text
+FACM-4.0-Evidence-YYYYMMDD-HHMMSS/
+├─ evidence.json
+├─ README.txt
+└─ collector.log
+FACM-4.0-Evidence-YYYYMMDD-HHMMSS.zip
+```
+
+`evidence.json` 只保存稳定机器/文件事实、相对 settings 路径和文件名；默认脱敏用户名、UserProfile、Windows/UNC 路径、Basic/Bearer/token/password/secret/cookie/authorization。不会把完整 candidate 路径或个人目录写进 bundle。
+
+自动采集内容包括：Windows edition/build/architecture、管理员态/UAC policy 基本事实、Defender/SmartScreen 配置事实、candidate SHA-256/version/AuthentiCode、显示器 bounds/DPI/scale/负坐标/mixed-DPI observation、High Contrast/text scale、settings/recovery 文件大小/时间/哈希。
+
+### 自动观察不等于 PASS
+
+collector 只负责**采集证据**，不会直接编辑 `evidence/facm4-release-evidence.json`。以下项目仍必须真实交互并人工审核：
+
+- standard-user + UAC cancel；
+- SmartScreen 实际 reputation/UI；
+- mixed-DPI 跨屏真实拖动；
+- keyboard focus / screen reader；
+- Settings 3.5.15 -> 4.0 migration/relaunch/rollback；
+- interrupted updater replacement/rollback；
+- final signing/package identity。
+
+因此 bundle 内会使用 `manual_required`、`observed_requires_interaction`、`observed_requires_review`，不会生成“Passed”。只有审核确认 bundle 与目标 candidate、机器、交互结果匹配后，才能由独立 evidence import/review 任务更新 canonical matrix。
+
+CI 只执行 `-SelfTest`：验证 PS5.1 语法、脱敏、8 个 evidence slots、JSON roundtrip、ZIP 创建及 ZIP 固定条目。Hosted runner 的 self-test/机器信息**永远不能**替代真实 release evidence。
