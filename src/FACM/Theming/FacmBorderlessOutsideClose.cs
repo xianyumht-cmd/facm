@@ -30,6 +30,7 @@ namespace FACM.Theming
             {
                 if (form == null || form.IsDisposed || !form.TopLevel || !form.Visible) continue;
                 if (form.FormBorderStyle != FormBorderStyle.None) continue;
+                if (FacmWindowChrome.IsManaged(form)) continue;
                 if (IsPersistentSurface(form)) continue;
                 FacmWindowChrome.EnableOutsideClose(form);
             }
