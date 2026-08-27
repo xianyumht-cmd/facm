@@ -21,8 +21,11 @@ namespace FACM.Theming
 
         private static void HandleIdle(object sender, EventArgs e)
         {
-            var forms = new Form[Application.OpenForms.Count];
-            Application.OpenForms.CopyTo(forms, 0);
+            var count = Application.OpenForms.Count;
+            var forms = new Form[count];
+            for (var index = 0; index < count; index++)
+                forms[index] = Application.OpenForms[index];
+
             foreach (var form in forms)
             {
                 if (form == null || form.IsDisposed || !form.TopLevel || !form.Visible) continue;
