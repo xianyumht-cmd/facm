@@ -10,6 +10,7 @@
     <StaticResource x:Key="FacmTextPrimaryBrush" ResourceKey="TextFillColorPrimaryBrush" />
     <StaticResource x:Key="FacmTextMutedBrush" ResourceKey="TextFillColorSecondaryBrush" />
     <StaticResource x:Key="FacmAccentBrush" ResourceKey="AccentFillColorDefaultBrush" />
+    <StaticResource x:Key="FacmAccentTextBrush" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
     <StaticResource x:Key="FacmStrokeBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
 
     <CornerRadius x:Key="FacmCardCornerRadius">16</CornerRadius>

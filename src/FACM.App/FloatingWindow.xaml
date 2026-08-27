@@ -1,0 +1,27 @@
+<Window
+    x:Class="FACM.App.FloatingWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
+    <Grid
+        Width="64"
+        Height="64"
+        Background="Transparent">
+        <Button
+            x:Name="FloatingButton"
+            Width="56"
+            Height="56"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Padding="0"
+            CornerRadius="28"
+            Style="{StaticResource FacmPrimaryButtonStyle}"
+            automation:AutomationProperties.AutomationId="FACM.Desktop.OpenShell">
+            <TextBlock
+                Text="F"
+                FontSize="22"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource FacmAccentTextBrush}" />
+        </Button>
+    </Grid>
+</Window>

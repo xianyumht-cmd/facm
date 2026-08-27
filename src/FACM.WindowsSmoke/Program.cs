@@ -1,7 +1,9 @@
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.Runtime;
 using FACM.Core.Settings;
 using FACM.Infrastructure.Settings;
+using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
 
@@ -16,6 +18,7 @@ True(!layout.Settings2Path.StartsWith(Path.GetFullPath(executablePaths.BaseDirec
      layout.Settings2Path.StartsWith(expectedDistribution, StringComparison.OrdinalIgnoreCase),
      "Settings 2.0 must derive from distribution path, not self-extract base directory");
 
+VerifyWindowsDesktopFacts();
 await VerifyPhysicalSettings2PersistenceAsync();
 
 var discovered = new LeagueTransportSession(
@@ -39,6 +42,32 @@ Equal(2, discovery.Calls, "forced refresh discovery count");
 
 Console.WriteLine("FACM 4.0 Windows runtime smoke: SUCCESS");
 return;
+
+static void VerifyWindowsDesktopFacts()
+{
+    var provider = new WindowsDesktopWorkAreaProvider();
+    var areas = provider.GetWorkingAreas();
+    True(areas.Count > 0, "Windows desktop must expose at least one work area");
+    True(areas.Any(area => area.IsPrimary), "Windows desktop must expose a primary work area");
+    foreach (var area in areas)
+    {
+        True(!string.IsNullOrWhiteSpace(area.Id), "desktop work area id");
+        True(area.Bounds.IsValid, "desktop work area bounds");
+        True(area.DpiScaleX > 0 && double.IsFinite(area.DpiScaleX), "desktop DPI scale X");
+        True(area.DpiScaleY > 0 && double.IsFinite(area.DpiScaleY), "desktop DPI scale Y");
+    }
+
+    var primary = AnchorPlacementService.SelectWorkArea(areas, null);
+    var placement = AnchorPlacementService.Place(new AnchorPlacementRequest(
+        [primary],
+        new DesktopSize(64 * primary.DpiScaleX, 64 * primary.DpiScaleY),
+        null,
+        DesktopAnchor.BottomRight,
+        12 * primary.DpiScaleX));
+    True(primary.Bounds.Contains(new DesktopPoint(
+        placement.TopLeft.X + 1,
+        placement.TopLeft.Y + 1)), "Windows placement must remain in primary work area");
+}
 
 static async Task VerifyPhysicalSettings2PersistenceAsync()
 {
