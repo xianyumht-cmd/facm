@@ -17,32 +17,32 @@ namespace FACM.Theming
             _selectedThemeId = ThemeCatalog.Get(currentThemeId).Id;
             var current = ThemeCatalog.Get(_selectedThemeId);
 
-            Text = "FACM 主题";
+            Text = ThemePickerUiText.WindowTitle;
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
             ClientSize = new Size(680, 590);
-            BackColor = Color.FromArgb(12, 17, 28);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
-                Text = "选择控制面板主题",
+                Text = ThemePickerUiText.Title,
                 Location = new Point(24, 18),
                 AutoSize = true,
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
             };
             var hint = new Label
             {
-                Text = "选择喜欢的界面风格，应用后立即生效。",
+                Text = ThemePickerUiText.Hint,
                 Location = new Point(26, 54),
                 Size = new Size(620, 24),
-                ForeColor = Color.FromArgb(155, 169, 196),
-                Font = new Font("Microsoft YaHei UI", 9F)
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
             _list = new FlowLayoutPanel
@@ -53,7 +53,7 @@ namespace FACM.Theming
                 WrapContents = true,
                 FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(3),
-                BackColor = Color.FromArgb(8, 12, 21)
+                BackColor = FacmDesignSystem.CanvasRaised
             };
 
             foreach (var theme in ThemeCatalog.All)
@@ -76,8 +76,8 @@ namespace FACM.Theming
                 Text = BuildSelectedText(current),
                 Location = new Point(24, 520),
                 Size = new Size(420, 44),
-                ForeColor = Color.FromArgb(195, 208, 232),
-                Font = new Font("Microsoft YaHei UI", 8.6F)
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F)
             };
 
             var cancel = new Button
@@ -86,13 +86,13 @@ namespace FACM.Theming
                 Location = new Point(480, 523),
                 Size = new Size(78, 38),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(31, 41, 61),
-                ForeColor = Color.White,
+                BackColor = FacmDesignSystem.SurfaceRaised,
+                ForeColor = FacmDesignSystem.Text,
                 Cursor = Cursors.Hand,
                 DialogResult = DialogResult.Cancel,
                 TabStop = false
             };
-            cancel.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
+            cancel.FlatAppearance.BorderColor = FacmDesignSystem.Border;
 
             _applyButton = new Button
             {
@@ -100,12 +100,12 @@ namespace FACM.Theming
                 Location = new Point(566, 523),
                 Size = new Size(92, 38),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(70, 113, 255),
+                BackColor = current.Accent,
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
-            _applyButton.FlatAppearance.BorderColor = Color.FromArgb(112, 151, 255);
+            _applyButton.FlatAppearance.BorderColor = current.AccentSecondary;
             _applyButton.Click += delegate { ApplySelection(); };
 
             Controls.Add(title);
@@ -144,6 +144,7 @@ namespace FACM.Theming
 
         private void ApplySelection()
         {
+            FacmThemeRuntime.SetCurrent(_selectedThemeId);
             DialogResult = DialogResult.OK;
             Close();
         }
