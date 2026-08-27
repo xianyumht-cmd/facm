@@ -23,9 +23,10 @@
 - Gate 4：COMPLETE，#193 / PR #195，`main@31f867f10f2019004695d5a696c1177a079cef20`。
 - Gate 5：COMPLETE，#196 / PR #197，`main@2e42218685b7cecd49a16676c85bf093bcf1ce1b`。
 - Gate 6：COMPLETE，#198 / PR #199，`main@2ca0f98b8c6a7241594ac4037d0c0a6f293593da`。
-- Gate 7：COMPLETE，#200 / PR #201，squash merge `main@95f2ce66f2d5e058c0bc2052d619ce9473cf1aa9`。当前 Gate 8 基线 `main@812a5bdb9136eee7392e4feb3afb5a07f81aa7cb` 与该 Gate 7 merge tree 文件差异为 0。
-- Gate 8：IMPLEMENTATION VERIFIED，#202 / PR #203，implementation head `7d108193d2b19d3cc3224f92177edb3b01522b40`；canonical docs 提交后需 latest-head CI 再确认再合入。
-- Gate 9～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
+- Gate 7：COMPLETE，#200 / PR #201，Gate merge `95f2ce66f2d5e058c0bc2052d619ce9473cf1aa9`；其后的透明 NOOP 新增/纠正提交文件差异为 0。
+- Gate 8：COMPLETE，#202 / PR #203，`main@0aebcc6d31cf715b012cf2725deb40b6dacdb25e`。
+- Gate 9：IMPLEMENTATION VERIFIED，#204 / PR #205；implementation head `26d049bdd99dba20c85039d3a3980aeadd8ae05d` 三线全绿，canonical docs 提交后需 latest-head CI 再确认再合入。
+- Gate 10～13：按既定顺序连续推进，不要求用户逐 Gate 回复“继续”。
 
 ## 已冻结的 4.0 基线
 
@@ -33,81 +34,91 @@
 - `FACM4.sln` 与 legacy `FACM.sln` 并行；Gate 13 前 legacy 持续作为 rollback baseline。
 - single-file 分发以 `Environment.ProcessPath` 作为 distribution EXE identity；`AppContext.BaseDirectory` 可能是 `%TEMP%/.net/...`，不得作为 settings/cache/log/runtime/PetHost/update replacement 根目录。
 - UI 通过 ViewModel -> Core intent/state contract；Infrastructure / Platform.Windows adapter 只在 App composition root 组装。
-- exactly one League discovery/auth/session owner；所有 writer 继续使用最小 capability allowlist。
+- exactly one League discovery/auth/session owner；exactly one gameflow polling owner；所有 writer 继续使用最小 capability allowlist。
 - production `online/version.json` / `release/request.json` Gate 13 前保持 FACM 3.5.15。
 
-## Gate 1～Gate 6 摘要
+## Gates 1～6 摘要
 
-Gate 1：并行 .NET 10 solution、Core/Infrastructure/Platform.Windows/App/Smoke、Performance Contract、legacy settings codec、UI Text foundation、architecture gate。
-
-Gate 2：Cleanup/League/Online/Settings Core contracts、ViewModel intent boundary、League exact write-target policy。
-
-Gate 3：唯一 `WindowsLeagueTransportSessionSource`、shared `LeagueHttpGateway`、secret-safe session parser、strict update metadata、distribution-based `RuntimePathLayout`、`FACM.WindowsSmoke`。
-
-Gate 4：Settings 2.0 schema v2，Environment / Online / Appearance / Pets / League typed sections；legacy INI deterministic migration；same-directory atomic save；legacy `settings.ini` Gate 13 前只读保留。
-
-Gate 5：`ProductStateStore` + structured observability；同状态不增加 revision；subscriber lock 外通知；`DiagnosticRedactor` + bounded JSONL sink 双层脱敏。
-
-Gate 6：WinUI semantic Design System + one Main Shell：one AppTitleBar / one NavigationView / one Frame / exactly four product entries `清理与修复 / LOL 工作台 / 个性化 / 更多设置`；用户 copy 全部走 UI Text contract。
+- Gate 1：并行 .NET 10 solution、Core/Infrastructure/Platform.Windows/App/Smoke、Performance Contract、legacy settings codec、UI Text foundation、architecture gate。
+- Gate 2：Cleanup/League/Online/Settings Core contracts、ViewModel intent boundary、League exact write-target policy。
+- Gate 3：唯一 `WindowsLeagueTransportSessionSource`、shared `LeagueHttpGateway`、secret-safe session parser、strict update metadata、distribution-based `RuntimePathLayout`、`FACM.WindowsSmoke`。
+- Gate 4：Settings 2.0 schema v2，Environment / Online / Appearance / Pets / League typed sections；legacy INI deterministic migration；same-directory atomic save；legacy `settings.ini` Gate 13 前只读保留。
+- Gate 5：`ProductStateStore` + structured observability；同状态不增加 revision；subscriber lock 外通知；`DiagnosticRedactor` + bounded JSONL sink 双层脱敏。
+- Gate 6：WinUI semantic Design System + one Main Shell：one AppTitleBar / one NavigationView / one Frame / exactly four product entries；用户 copy 走 UI Text contract。
 
 ## Gate 7 — Desktop Shell / F 悬浮入口：COMPLETE
 
 - Core `AnchorPlacementService`：纯几何、负坐标、主屏 fallback、nearest work-area、edge/corner anchor、margin/clamp、off-screen recovery。
-- `WindowsDesktopWorkAreaProvider`：EnumDisplayMonitors/GetMonitorInfo + per-monitor DPI fact；Core 不依赖 Win32。
-- 独立 `FloatingWindow` 共享 Gate 6 semantic resources，只做 F desktop entry / Ensure MainWindow；不拥有 League/settings/HTTP/diagnostic runtime。
+- `WindowsDesktopWorkAreaProvider`：`EnumDisplayMonitors/GetMonitorInfo` + per-monitor DPI facts；Core 不依赖 Win32。
+- `FloatingWindow` 共享 semantic resources，只做 F desktop entry / Ensure MainWindow；不拥有 League/settings/HTTP/diagnostic runtime。
 - MainWindow 关闭后 F 保留；F 点击 = create-or-activate，Single Instance 语义仍是 Ensure Open / Activate，不是 toggle。
-- Settings 2.0 Pets BallX/BallY 仅作为 preferred top-left；invalid/off-screen deterministic recovery。
-- Gate 7 final latest-head：Foundation #120 / Windows Build #1334 / UI Text #455 SUCCESS；squash merge `main@95f2ce66f2d5e058c0bc2052d619ce9473cf1aa9`。
+- Gate 7 final：Foundation #120 / Windows Build #1334 / UI Text #455 SUCCESS。
 - hosted runner work-area/DPI 只算工程证据，不替代 Gate 10/12 mixed-DPI 真机矩阵。
 
-## Gate 8 — LOL 工作台状态驱动 UX：IMPLEMENTATION VERIFIED
-
-Tracking：Issue #202，branch `feat/facm-4-gate8-league-workbench`，PR #203。
-
-### Gameflow / ownership
+## Gate 8 — LOL 工作台状态驱动 UX：COMPLETE
 
 - Core `LeagueGameflowPhaseMapper` 一次映射 LCU phase -> `LeagueProductState + LeagueActivityLevel`。
-- Product State 覆盖：NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError。
-- legacy phase 基线保持：Matchmaking、ReadyCheck、ChampSelect、InProgress、WatchInProgress、Reconnect、GameStart、WaitingForStats、PreEndOfGame、EndOfGame。
+- Product State：NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError。
 - `LeagueGameflowCadence`：ChampSelect 2s；Matchmaking/ReadyCheck 3s；InGame 10s；connected other 5s；disconnected/connecting/error 10s。
-- `LeagueGameflowMonitor` 是 4.0 **唯一 gameflow polling owner**；只依赖 shared `ILeagueReadGateway + ILeagueSessionAccessor`，不创建第二 HttpClient/session source。
-- 同一个 mapping 同源更新 `ProductStateStore` 和 `PerformanceBudgetProvider`；UI 不维护第二份 phase/poll cache。
+- `LeagueGameflowMonitor` 是 4.0 唯一 gameflow polling owner；复用 shared `ILeagueReadGateway + ILeagueSessionAccessor`，同源更新 Product State + Performance Budget。
+- Workbench IA exactly 3：`比赛 / 攻略 / 自动化`；ViewModel 不知道 raw `/lol-*` path、HTTP、session、polling 或 writer。
+- Bench 仍为用户显式手动动作；Gate 8 未扩大任何后台 writer 权限。
+- Gate 8 latest-head：Foundation #145 / Windows Build #1341 / UI Text #462 SUCCESS；squash merge `main@0aebcc6d31cf715b012cf2725deb40b6dacdb25e`。
 
-### Workbench UX
+## Gate 9 — Diagnostics Center / 脱敏诊断包：IMPLEMENTATION VERIFIED
 
-- 用户 IA exactly 3：`比赛 / 攻略 / 自动化`，不照搬 legacy 8-tab tree。
-- `LeagueWorkbenchViewModel` 只订阅 `IProductStateReader + PerformanceBudgetProvider`；不知道 raw `/lol-*` path、HTTP、session discovery、polling 或 writer。
-- `MainWindow` 仅在 LOL 入口显示三分区 panel；后台 state 变化通过 WinUI DispatcherQueue 回 UI thread。
-- 主 Shell 关闭/重开只重建轻量 ViewModel；唯一 League session/gameflow owner 持续由 App composition 管理。
-- Gate 8 不增加后台抢英雄权限；Bench 仍为用户显式手动动作；writer 仍走 Core capability contract。
+Tracking：Issue #204，branch `feat/facm-4-gate9-diagnostics`，PR #205。
 
-### Gate 8 deterministic evidence
+### Read-only diagnostics contract
 
-implementation head `7d108193d2b19d3cc3224f92177edb3b01522b40`：
+- 复用 Gate 5 `DiagnosticEvent / DiagnosticRedactor / BoundedJsonLinesDiagnosticSink`，没有第二日志系统。
+- Core 新增 `DiagnosticsSnapshot / DiagnosticsExportPolicy / DiagnosticsExportReceipt / IDiagnosticsSnapshotSource / IDiagnosticsBundleExporter`。
+- `DiagnosticsSummaryFormatter` 生成 deterministic summary；summary/bundle 出口都再次调用更严格的 `DiagnosticsExportSanitizer`。
+- snapshot 输入 allowlist 固定为：内存 `ProductStateSnapshot`、`<distribution>/logs/facm4-events.jsonl`、可选 `.1` rotation。
+- 默认禁止 settings、League lockfile、环境变量、Registry、browser cookies、任意目录递归、crash dump/raw memory。
 
-- `FACM 4.0 Foundation` #139：SUCCESS；architecture / Shell / desktop / League Workbench source gates、restore/build、FoundationSmoke、WindowsSmoke、single-file publish、output verify、artifact upload 全 SUCCESS。
-- `FACM Windows Build` #1338：SUCCESS。
-- `FACM UI Text Contract` #459：SUCCESS。
-- artifact `facm4-x64` id `9642227564`，ZIP `88,253,721` bytes，digest `sha256:4ab3219658deb6263484dc772563c4835dbd08ddb55b2cea9db8df3d0c04965a`。
-- `Gate8Smoke` 覆盖完整 phase mapping、legacy cadence、同状态 monitor event suppression、Product State revision suppression、Performance Budget 同源更新、Workbench exactly-three IA 与 UI Text defaults。
-- `scripts/check-facm4-league-workbench.ps1` 自动守 exactly-one session/gameflow/performance composition，并拒绝 Workbench/ViewModel raw LCU polling、HttpClient、第二 runtime/monitor 或 writer 越层。
+### Sanitizer / bounds
 
-## Gate 9 — NEXT：Diagnostics Center / 脱敏诊断包
+- Gate 5 token/password/passwd/cookie/authorization/secret/credential/auth 脱敏继续保留。
+- Gate 9 再处理 Basic/Bearer credentials、Windows absolute path、UNC path；Product State distribution directory 也转换成 `[path]`。
+- malformed JSONL 只增加 skipped 计数，不把原始脏行写入 summary/bundle。
+- 默认 bounds：500 events；单输入文件 4 MiB；总输入 8 MiB；3 ZIP entries；单 entry 4 MiB；bundle 8 MiB；summary 64 Ki chars。
+- ZIP allowlist exactly 3：`summary.txt / events.jsonl / manifest.json`；export 先写 temp，再 move 到 final。
+- diagnostics output 只落在 `<distribution>/runtime/diagnostics`，UI 不传任意输出目录。
 
-Gate 8 合入后从最新 main 新开 Issue/branch/PR。固定目标：
+### Diagnostics Center UI / ownership
 
-1. 复用 Gate 5 `DiagnosticEvent / DiagnosticRedactor / BoundedJsonLinesDiagnosticSink`，不建立第二日志系统。
-2. Core 建 diagnostics snapshot/summary/export contracts：当前 Product State、版本、runtime facts、近期结构化事件摘要；不包含 credential/raw lockfile secret。
-3. Infrastructure 建 bounded reader/exporter：只读允许的 FACM 诊断文件，逐行/逐字段再次 redaction，限制总文件数/单文件/总包大小。
-4. 导出 ZIP 至 distribution 下稳定 diagnostics/export 或用户显式目标；文件名无用户名/机器名等隐私字段。
-5. WinUI `更多设置` 下增加 Diagnostics Center：可复制 summary、导出脱敏 bundle；UI 只调用 Core intent/service contract，不直接读文件。
-6. summary 与 bundle 不得包含 token/password/cookie/authorization/secret/credential/auth、LCU Basic auth、lockfile password；用户路径按策略收敛/替换。
-7. deterministic smoke 覆盖 secret redaction、malformed JSONL、size/file-count bounds、zip entries allowlist、summary determinism；source gate 禁止 diagnostics 获得业务写权限。
-8. legacy Build/UI Text/4.0 Foundation latest-head 全绿；production release controls 不动。
+- `更多设置` 下新增 Diagnostics Center：刷新摘要、复制摘要、导出脱敏 bundle。
+- `DiagnosticsCenterViewModel` 只依赖 Core diagnostics contracts；不直接 File/Directory/ZipArchive，也没有 League/Cleanup/Updater writer。
+- Clipboard 是 WinUI code-behind 的窄平台动作；日志读取与 ZIP 写入只在 Infrastructure adapter。
+- `scripts/check-facm4-diagnostics.ps1` 自动守只读 ownership、输入/ZIP allowlist、UI boundary、exactly-one snapshot source/exporter composition。
 
-## Gate 10 → Gate 13 固定顺序
+### Gate 9 evidence
 
-- Gate 10：DPI / 多屏 / Accessibility。
+implementation head `26d049bdd99dba20c85039d3a3980aeadd8ae05d`：
+
+- `FACM 4.0 Foundation` #162：SUCCESS；architecture / Shell / desktop / League Workbench / Diagnostics source gates、restore/build、FoundationSmoke、WindowsSmoke、single-file publish、output verify、artifact upload 全 SUCCESS。
+- `FACM Windows Build` #1344：SUCCESS。
+- `FACM UI Text Contract` #465：SUCCESS。
+- artifact `facm4-x64` id `9643007237`，ZIP `88,292,608` bytes，digest `sha256:8a85ba1bbe8daf7cf481984aae2a83386aca011b3121f98c44b69012ec98cc7a`。
+- 首轮 CI 暴露 `DiagnosticsExportPolicy.Default` target-typed `new(...).Validate()` 的 C# 目标类型错误；已改为显式 `new DiagnosticsExportPolicy(...)`，没有降低 warning/source gate。
+- `Gate9Smoke` 覆盖 valid/malformed JSONL、Basic/Bearer + secret + Windows path 二次脱敏、summary determinism、input/event/bundle bounds、ZIP exact allowlist、bundle 无原始 secret/path。
+
+## Gate 10 — NEXT：DPI / 多屏 / Accessibility
+
+Gate 9 合入后从最新 main 新开 Issue/branch/PR。已确认当前 4.0 `app.manifest` 只有 `asInvoker + supportedOS`，尚未显式声明 PerMonitorV2；Gate 10 第一项工程修复是建立明确 DPI-awareness contract，而不是依赖隐式默认。
+
+固定目标：
+
+1. manifest/Windows runtime 明确 PerMonitorV2，继续使用 physical desktop coordinate facts；禁止 UI 再做第二次坐标缩放。
+2. automated source/smoke：100/125/150/175/200% scale math、负坐标/左右/上下 work-area、mixed-DPI placement conversion、off-screen recovery。
+3. Main Shell/F/Diagnostics/Workbench 交互元素建立 keyboard focus、AutomationProperties Name/HelpText（通过 UI Text）、合理 tab sequence 与可见 focus；不靠 mouse-only path。
+4. semantic theme resources 持续负责 Light/Dark/High Contrast；用户可见文字避免固定像素高度裁剪，允许 text scaling/wrap。
+5. hosted Windows runner 验证 manifest/source/API 和 synthetic geometry；**真实 mixed-DPI 双屏、keyboard-only、High Contrast、text scaling、basic screen reader 仍是 Gate 10/12 外部证据**。
+6. 不因缺少真实硬件证据伪称 release-ready；工程 Gate 可把未完成真机矩阵记录为 Gate 12/13 blocker。
+
+## Gate 11 → Gate 13 固定顺序
+
 - Gate 11：Recovery / Feature Flags / 更新保障。
 - Gate 12：全量兼容 / 性能 / 发布矩阵。
 - Gate 13：legacy 退休与 FACM 4.0 cutover；真实 release blockers 未关闭时不得发布 4.0.0。
