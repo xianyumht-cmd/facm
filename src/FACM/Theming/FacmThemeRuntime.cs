@@ -120,9 +120,9 @@ namespace FACM.Theming
                 Math.Abs(control.Font.Size - size) < 0.05F && control.Font.Style == style)
                 return;
 
-            var previousFont = control.Font;
+            // Do not dispose control.Font here. WinForms may expose an inherited/shared Font object;
+            // replacing the control font is safe, but disposing an inherited instance can break siblings.
             control.Font = new Font(fontName, size, style);
-            if (previousFont != null) previousFont.Dispose();
         }
 
         private static Color Remap(Color value, ThemeDefinition previous, ThemeDefinition next, bool background)
