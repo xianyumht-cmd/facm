@@ -70,13 +70,13 @@ public static partial class DiagnosticsExportSanitizer
     private const string Redacted = "[redacted]";
     private const string PathRedacted = "[path]";
 
-    [GeneratedRegex(@"(?i)\b(Basic|Bearer)\s+[A-Za-z0-9._~+/=-]+", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""(?i)\b(Basic|Bearer)\s+[A-Za-z0-9._~+/=-]+""", RegexOptions.CultureInvariant)]
     private static partial Regex AuthorizationRegex();
 
-    [GeneratedRegex(@"(?i)(?<![A-Za-z0-9])[A-Z]:\\(?:[^\\/:*?\""<>|\r\n]+\\)*[^\\/:*?\""<>|\r\n]*", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""(?i)(?<![A-Za-z0-9])[A-Z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n]*""", RegexOptions.CultureInvariant)]
     private static partial Regex WindowsPathRegex();
 
-    [GeneratedRegex(@"\\\\[^\\\s]+\\[^\r\n;,|\""<>]+", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""\\\\[^\\\s]+\\[^\r\n;,|"<>]+""", RegexOptions.CultureInvariant)]
     private static partial Regex UncPathRegex();
 
     public static string ScrubText(string? value)
@@ -121,9 +121,15 @@ public static partial class DiagnosticsExportSanitizer
                 pair => ScrubText(pair.Value),
                 StringComparer.Ordinal);
         var events = snapshot.Events.Select(ScrubEvent).ToArray();
+        var environment = snapshot.ProductState.Environment with
+        {
+            DistributionDirectory = ScrubText(snapshot.ProductState.Environment.DistributionDirectory)
+        };
+        var productState = snapshot.ProductState with { Environment = environment };
         return snapshot with
         {
             AppVersion = ScrubText(snapshot.AppVersion),
+            ProductState = productState,
             RuntimeFacts = facts,
             Events = events
         };
