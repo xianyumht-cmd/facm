@@ -119,5 +119,5 @@ public static class DiagnosticRedactor
     }
 
     private static bool IsDelimiter(char value) =>
-        char.IsWhiteSpace(value) || value is ';' or '&' or ',' or '|' or '\r' or '\n';
+        value is ';' or '&' or ',' or '|' or '\r' or '\n';
 }
