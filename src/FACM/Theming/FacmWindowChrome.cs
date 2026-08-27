@@ -80,8 +80,11 @@ namespace FACM.Theming
 
         private static void HandleApplicationIdle(object sender, EventArgs e)
         {
-            var forms = new Form[Application.OpenForms.Count];
-            Application.OpenForms.CopyTo(forms, 0);
+            var count = Application.OpenForms.Count;
+            var forms = new Form[count];
+            for (var index = 0; index < count; index++)
+                forms[index] = Application.OpenForms[index];
+
             foreach (var form in forms)
             {
                 if (form == null || form.IsDisposed || !form.TopLevel || !form.Visible) continue;
@@ -206,7 +209,8 @@ namespace FACM.Theming
                 _attached = true;
                 var titleHeight = Math.Max(34, _options.TitleBarHeight);
                 var controls = new Control[_form.Controls.Count];
-                _form.Controls.CopyTo(controls, 0);
+                for (var index = 0; index < controls.Length; index++)
+                    controls[index] = _form.Controls[index];
 
                 var content = new Panel
                 {
@@ -276,7 +280,7 @@ namespace FACM.Theming
 
                 var badge = new Label
                 {
-                    Text = "F",
+                    Text = "F", // ui-text-contract: allow brand glyph
                     Location = new Point(10, 7),
                     Size = new Size(28, 28),
                     TextAlign = ContentAlignment.MiddleCenter,
