@@ -18,7 +18,8 @@ namespace FACM.AppHost.Modules
             LeagueLiveModule.ModuleId,
             LeagueBuildAdvisorModule.ModuleId,
             LeagueEfficiencyModule.ModuleId,
-            MayhemModule.ModuleId
+            MayhemModule.ModuleId,
+            ToolsModule.ModuleId
         };
 
         private readonly LeagueDashboardModule _dashboard;
@@ -27,6 +28,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueBuildAdvisorModule _advisor;
         private readonly LeagueEfficiencyModule _efficiency;
         private readonly MayhemModule _mayhem;
+        private readonly ToolsModule _tools;
         private LeagueHubForm _hubForm;
         private Timer _champSelectPopupTimer;
         private Form _automaticLivePopup;
@@ -41,7 +43,8 @@ namespace FACM.AppHost.Modules
             LeagueLiveModule live,
             LeagueBuildAdvisorModule advisor,
             LeagueEfficiencyModule efficiency,
-            MayhemModule mayhem)
+            MayhemModule mayhem,
+            ToolsModule tools)
         {
             _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
             _player = player ?? throw new ArgumentNullException(nameof(player));
@@ -49,6 +52,7 @@ namespace FACM.AppHost.Modules
             _advisor = advisor ?? throw new ArgumentNullException(nameof(advisor));
             _efficiency = efficiency ?? throw new ArgumentNullException(nameof(efficiency));
             _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
+            _tools = tools ?? throw new ArgumentNullException(nameof(tools));
         }
 
         public const string ModuleId = "league-hub";
@@ -76,6 +80,7 @@ namespace FACM.AppHost.Modules
                 CreateMayhem,
                 CreateRecommendation,
                 CreateEfficiency,
+                CreateRepair,
                 CreatePresence));
             _hubForm = form;
             form.UpdateGameflowContext(_dashboard.CurrentGameflowState);
@@ -89,6 +94,7 @@ namespace FACM.AppHost.Modules
         private Form CreateMayhem(UiTextCatalog ui) { return Skin(_mayhem.CreateLookupForm()); }
         private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
         private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
+        private Form CreateRepair(UiTextCatalog ui) { return Skin(new LeagueGameRepairForm(_tools, _efficiency)); }
         private Form CreatePresence(UiTextCatalog ui) { return Skin(_dashboard.CreatePresenceForm(ui, null)); }
 
         private static Form Skin(Form form)
