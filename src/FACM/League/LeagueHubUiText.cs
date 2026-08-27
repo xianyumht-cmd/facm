@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.League
@@ -26,6 +27,18 @@ namespace FACM.League
         public const string ContextTitle = "LeagueHubContextTitle";
         public const string ContextHint = "LeagueHubContextHint";
         public const string ContextCurrent = "LeagueHubContextCurrent";
+        public const string ContextStatus = "LeagueHubContextStatus";
+        public const string ContextQuick = "LeagueHubContextQuick";
+        public const string ContextClientConnected = "LeagueHubContextClientConnected";
+        public const string ContextClientDetected = "LeagueHubContextClientDetected";
+        public const string ContextClientDisconnected = "LeagueHubContextClientDisconnected";
+        public const string ContextPhasePrefix = "LeagueHubContextPhasePrefix";
+        public const string ContextChampSelectHint = "LeagueHubContextChampSelectHint";
+        public const string ActivityNone = "LeagueHubActivityNone";
+        public const string ActivityClient = "LeagueHubActivityClient";
+        public const string ActivityQueueing = "LeagueHubActivityQueueing";
+        public const string ActivityChampSelect = "LeagueHubActivityChampSelect";
+        public const string ActivityInGame = "LeagueHubActivityInGame";
     }
 
     internal static class LeagueHubText
@@ -50,8 +63,20 @@ namespace FACM.League
             { LeagueHubUiTextKeys.Efficiency, "快捷工具" },
             { LeagueHubUiTextKeys.Presence, "在线状态" },
             { LeagueHubUiTextKeys.ContextTitle, "接着做" },
-            { LeagueHubUiTextKeys.ContextHint, "不用退回主页。这里会按当前功能给出最相关的下一步。" },
-            { LeagueHubUiTextKeys.ContextCurrent, "当前" }
+            { LeagueHubUiTextKeys.ContextHint, "把空闲空间留给当前状态和真正相关的下一步，而不是装饰。" },
+            { LeagueHubUiTextKeys.ContextCurrent, "当前" },
+            { LeagueHubUiTextKeys.ContextStatus, "对局状态" },
+            { LeagueHubUiTextKeys.ContextQuick, "快捷操作" },
+            { LeagueHubUiTextKeys.ContextClientConnected, "客户端 · 已连接" },
+            { LeagueHubUiTextKeys.ContextClientDetected, "客户端 · 已发现进程" },
+            { LeagueHubUiTextKeys.ContextClientDisconnected, "客户端 · 等待连接" },
+            { LeagueHubUiTextKeys.ContextPhasePrefix, "阶段" },
+            { LeagueHubUiTextKeys.ContextChampSelectHint, "进入选人阶段会自动打开实时对局快捷面板。" },
+            { LeagueHubUiTextKeys.ActivityNone, "空闲" },
+            { LeagueHubUiTextKeys.ActivityClient, "客户端" },
+            { LeagueHubUiTextKeys.ActivityQueueing, "排队 / 接受" },
+            { LeagueHubUiTextKeys.ActivityChampSelect, "选人中" },
+            { LeagueHubUiTextKeys.ActivityInGame, "游戏中" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
@@ -59,6 +84,18 @@ namespace FACM.League
             string fallback;
             if (!Defaults.TryGetValue(key ?? string.Empty, out fallback)) fallback = string.Empty;
             return ui == null ? fallback : ui.Get(key, fallback);
+        }
+
+        public static string Activity(UiTextCatalog ui, LeagueActivityLevel activity)
+        {
+            switch (activity)
+            {
+                case LeagueActivityLevel.Client: return Get(ui, LeagueHubUiTextKeys.ActivityClient);
+                case LeagueActivityLevel.Queueing: return Get(ui, LeagueHubUiTextKeys.ActivityQueueing);
+                case LeagueActivityLevel.ChampSelect: return Get(ui, LeagueHubUiTextKeys.ActivityChampSelect);
+                case LeagueActivityLevel.InGame: return Get(ui, LeagueHubUiTextKeys.ActivityInGame);
+                default: return Get(ui, LeagueHubUiTextKeys.ActivityNone);
+            }
         }
 
         internal static IReadOnlyDictionary<string, string> DefaultsForSmokeTest()

@@ -78,6 +78,7 @@ namespace FACM.AppHost.Modules
                 CreateEfficiency,
                 CreatePresence));
             _hubForm = form;
+            form.UpdateGameflowContext(_dashboard.CurrentGameflowState);
             form.FormClosed += HandleHubFormClosed;
             return form;
         }
@@ -116,6 +117,9 @@ namespace FACM.AppHost.Modules
         private void HandleChampSelectPopupTick(object sender, EventArgs e)
         {
             var state = _dashboard.CurrentGameflowState;
+            if (_hubForm != null && !_hubForm.IsDisposed)
+                _hubForm.UpdateGameflowContext(state);
+
             var inChampSelect = state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
 
             if (!inChampSelect)
