@@ -65,6 +65,25 @@ namespace FACM.Theming
             state.AttachIfPossible();
         }
 
+        /// <summary>
+        /// Sets muted, single-line context text beside the stable window title. The value may be
+        /// supplied before the top-level form gets a handle; it is retained until chrome attaches.
+        /// </summary>
+        public static void SetSubtitle(Form form, string subtitle)
+        {
+            if (form == null || form.IsDisposed) return;
+            Prepare(form);
+            ChromeState state;
+            if (States.TryGetValue(form, out state)) state.SetSubtitle(subtitle);
+        }
+
+        public static void RefreshTheme(Form form)
+        {
+            if (form == null || form.IsDisposed) return;
+            ChromeState state;
+            if (States.TryGetValue(form, out state)) state.RefreshTheme();
+        }
+
         internal static bool IsManaged(Form form)
         {
             return form != null && States.ContainsKey(form);
@@ -154,8 +173,13 @@ namespace FACM.Theming
             private readonly bool _showMinimize;
             private readonly bool _showMaximize;
             private Label _titleLabel;
+            private Label _subtitleLabel;
+            private Label _badge;
+            private Panel _titleBar;
+            private Panel _content;
             private FacmChromeButton _maximizeButton;
             private BorderlessResizeWindow _resizeWindow;
+            private string _subtitle = string.Empty;
             private bool _attached;
 
             public ChromeState(Form form, FacmWindowChromeOptions options)
@@ -184,6 +208,29 @@ namespace FACM.Theming
             public void HandleLoad(object sender, EventArgs e)
             {
                 AttachIfPossible();
+            }
+
+            public void SetSubtitle(string subtitle)
+            {
+                _subtitle = (subtitle ?? string.Empty).Trim();
+                UpdateTitleLayout();
+            }
+
+            public void RefreshTheme()
+            {
+                if (!_attached || _form.IsDisposed) return;
+                _form.BackColor = FacmDesignSystem.BorderSoft;
+                if (_content != null && !_content.IsDisposed) _content.BackColor = FacmDesignSystem.Canvas;
+                if (_titleBar != null && !_titleBar.IsDisposed) _titleBar.BackColor = FacmDesignSystem.CanvasRaised;
+                if (_titleLabel != null && !_titleLabel.IsDisposed) _titleLabel.ForeColor = FacmDesignSystem.Text;
+                if (_subtitleLabel != null && !_subtitleLabel.IsDisposed) _subtitleLabel.ForeColor = FacmDesignSystem.TextMuted;
+                if (_badge != null && !_badge.IsDisposed)
+                {
+                    _badge.BackColor = FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.Accent, 0.18F);
+                    _badge.ForeColor = Color.White;
+                }
+                if (_titleBar != null) _titleBar.Invalidate(true);
+                UpdateRegion();
             }
 
             public void AttachIfPossible()
@@ -217,11 +264,11 @@ namespace FACM.Theming
                 for (var index = 0; index < controls.Length; index++)
                     controls[index] = _form.Controls[index];
 
-                var content = new Panel
+                _content = new Panel
                 {
                     Dock = DockStyle.Fill,
                     Padding = _originalPadding,
-                    BackColor = _form.BackColor
+                    BackColor = FacmDesignSystem.Canvas
                 };
 
                 _form.SuspendLayout();
@@ -230,10 +277,10 @@ namespace FACM.Theming
                     foreach (var control in controls)
                     {
                         _form.Controls.Remove(control);
-                        content.Controls.Add(control);
+                        _content.Controls.Add(control);
                     }
                     for (var index = 0; index < controls.Length; index++)
-                        content.Controls.SetChildIndex(controls[index], index);
+                        _content.Controls.SetChildIndex(controls[index], index);
 
                     _form.FormBorderStyle = FormBorderStyle.None;
                     _form.ControlBox = false;
@@ -247,10 +294,10 @@ namespace FACM.Theming
                     if (!_originalMaximumSize.IsEmpty)
                         _form.MaximumSize = new Size(_originalMaximumSize.Width, _originalMaximumSize.Height + titleHeight);
 
-                    var titleBar = BuildTitleBar(titleHeight);
-                    _form.Controls.Add(content);
-                    _form.Controls.Add(titleBar);
-                    _form.Controls.SetChildIndex(titleBar, 0);
+                    _titleBar = BuildTitleBar(titleHeight);
+                    _form.Controls.Add(_content);
+                    _form.Controls.Add(_titleBar);
+                    _form.Controls.SetChildIndex(_titleBar, 0);
                 }
                 finally
                 {
@@ -268,6 +315,8 @@ namespace FACM.Theming
                     _resizeWindow = new BorderlessResizeWindow(_form);
                     _resizeWindow.AssignHandle(_form.Handle);
                 }
+                RefreshTheme();
+                UpdateTitleLayout();
                 UpdateRegion();
             }
 
@@ -283,7 +332,7 @@ namespace FACM.Theming
                 bar.MouseDown += BeginDrag;
                 bar.DoubleClick += ToggleMaximize;
 
-                var badge = new Label
+                _badge = new Label
                 {
                     Text = "F", // ui-text-contract: allow brand glyph
                     Location = new Point(10, 7),
@@ -293,8 +342,8 @@ namespace FACM.Theming
                     BackColor = FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.Accent, 0.18F),
                     Font = new Font("Segoe UI", 10F, FontStyle.Bold)
                 };
-                FacmDesignSystem.Round(badge, 8);
-                badge.MouseDown += BeginDrag;
+                FacmDesignSystem.Round(_badge, 8);
+                _badge.MouseDown += BeginDrag;
 
                 _titleLabel = new Label
                 {
@@ -305,11 +354,23 @@ namespace FACM.Theming
                     TextAlign = ContentAlignment.MiddleLeft,
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
-                    Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                    Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
                 };
                 _titleLabel.MouseDown += BeginDrag;
                 _titleLabel.DoubleClick += ToggleMaximize;
+
+                _subtitleLabel = new Label
+                {
+                    Text = _subtitle,
+                    Height = height,
+                    AutoEllipsis = true,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    ForeColor = FacmDesignSystem.TextMuted,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular)
+                };
+                _subtitleLabel.MouseDown += BeginDrag;
+                _subtitleLabel.DoubleClick += ToggleMaximize;
 
                 var right = 8;
                 if (_showClose)
@@ -342,10 +403,35 @@ namespace FACM.Theming
                     right += minimize.Width + 4;
                 }
 
-                _titleLabel.Width = Math.Max(80, _form.ClientSize.Width - 54 - right);
-                bar.Controls.Add(badge);
+                _titleLabel.Tag = right;
+                bar.Controls.Add(_badge);
                 bar.Controls.Add(_titleLabel);
+                bar.Controls.Add(_subtitleLabel);
                 return bar;
+            }
+
+            private void UpdateTitleLayout()
+            {
+                if (!_attached || _titleLabel == null || _titleLabel.IsDisposed || _subtitleLabel == null || _subtitleLabel.IsDisposed) return;
+                var right = _titleLabel.Tag is int ? (int)_titleLabel.Tag : 8;
+                var available = Math.Max(80, _form.ClientSize.Width - 54 - right);
+                var hasSubtitle = !string.IsNullOrWhiteSpace(_subtitle);
+                _subtitleLabel.Text = _subtitle;
+                _subtitleLabel.Visible = hasSubtitle;
+
+                if (!hasSubtitle || available < 260)
+                {
+                    _titleLabel.Location = new Point(46, 0);
+                    _titleLabel.Width = available;
+                    _subtitleLabel.Width = 0;
+                    return;
+                }
+
+                var titleWidth = Math.Max(120, Math.Min(220, available / 3));
+                _titleLabel.Location = new Point(46, 0);
+                _titleLabel.Width = titleWidth;
+                _subtitleLabel.Location = new Point(46 + titleWidth + 10, 0);
+                _subtitleLabel.Width = Math.Max(60, available - titleWidth - 10);
             }
 
             private static FacmChromeButton CreateChromeButton(string text, ChromeButtonKind kind)
@@ -388,6 +474,7 @@ namespace FACM.Theming
             {
                 if (_maximizeButton != null && !_maximizeButton.IsDisposed)
                     _maximizeButton.Text = _form.WindowState == FormWindowState.Maximized ? "❐" : "□";
+                UpdateTitleLayout();
                 UpdateRegion();
             }
 
@@ -456,7 +543,7 @@ namespace FACM.Theming
             protected override void OnPaint(PaintEventArgs e)
             {
                 var fill = _hover
-                    ? (Kind == ChromeButtonKind.Close ? Color.FromArgb(184, 58, 72) : FacmDesignSystem.SurfaceHover)
+                    ? (Kind == ChromeButtonKind.Close ? FacmDesignSystem.Error : FacmDesignSystem.SurfaceHover)
                     : Color.Transparent;
                 using (var brush = new SolidBrush(fill)) e.Graphics.FillRectangle(brush, ClientRectangle);
                 TextRenderer.DrawText(
