@@ -12,6 +12,7 @@ namespace FACM.Theming
         public bool? CloseOnDeactivate { get; set; }
         public bool? CloseOnEscape { get; set; }
         public bool? AllowResize { get; set; }
+        public bool? ShowClose { get; set; }
         public bool? ShowMinimize { get; set; }
         public bool? ShowMaximize { get; set; }
         public int TitleBarHeight { get; set; } = 42;
@@ -40,23 +41,55 @@ namespace FACM.Theming
         private const int HTBOTTOMRIGHT = 17;
 
         private static readonly Dictionary<Form, ChromeState> States = new Dictionary<Form, ChromeState>();
+        private static bool _globalInstalled;
+
+        public static void InstallGlobal()
+        {
+            if (_globalInstalled) return;
+            _globalInstalled = true;
+            Application.Idle += HandleApplicationIdle;
+        }
 
         public static void Prepare(Form form, FacmWindowChromeOptions options = null)
         {
-            if (form == null || form.IsDisposed || States.ContainsKey(form)) return;
+            if (form == null || form.IsDisposed) return;
 
-            var state = new ChromeState(form, options ?? new FacmWindowChromeOptions());
-            States[form] = state;
-            form.Load += state.HandleLoad;
-            form.FormClosed += state.HandleClosed;
+            ChromeState state;
+            if (!States.TryGetValue(form, out state))
+            {
+                state = new ChromeState(form, options ?? new FacmWindowChromeOptions());
+                States[form] = state;
+                form.Load += state.HandleLoad;
+                form.FormClosed += state.HandleClosed;
+            }
+            state.AttachIfPossible();
         }
 
         public static void EnableOutsideClose(Form form, bool closeOnEscape = true)
         {
             if (form == null || form.IsDisposed) return;
             form.KeyPreview = true;
+            form.Deactivate -= HandleExistingChromeDeactivate;
             form.Deactivate += HandleExistingChromeDeactivate;
-            if (closeOnEscape) form.KeyDown += HandleExistingChromeKeyDown;
+            if (closeOnEscape)
+            {
+                form.KeyDown -= HandleExistingChromeKeyDown;
+                form.KeyDown += HandleExistingChromeKeyDown;
+            }
+        }
+
+        private static void HandleApplicationIdle(object sender, EventArgs e)
+        {
+            var forms = new Form[Application.OpenForms.Count];
+            Application.OpenForms.CopyTo(forms, 0);
+            foreach (var form in forms)
+            {
+                if (form == null || form.IsDisposed || !form.TopLevel || !form.Visible) continue;
+                // MainForm, CompactMenuForm, CleanupReviewForm and desktop-pet surfaces already
+                // own a purposeful borderless shell; never wrap one custom chrome inside another.
+                if (form.FormBorderStyle == FormBorderStyle.None) continue;
+                Prepare(form);
+            }
         }
 
         private static void HandleExistingChromeDeactivate(object sender, EventArgs e)
@@ -109,9 +142,9 @@ namespace FACM.Theming
             private readonly bool _allowResize;
             private readonly bool _closeOnDeactivate;
             private readonly bool _closeOnEscape;
+            private readonly bool _showClose;
             private readonly bool _showMinimize;
             private readonly bool _showMaximize;
-            private Panel _titleBar;
             private Label _titleLabel;
             private FacmChromeButton _maximizeButton;
             private BorderlessResizeWindow _resizeWindow;
@@ -133,6 +166,7 @@ namespace FACM.Theming
                 var originallyResizable = _originalBorderStyle == FormBorderStyle.Sizable ||
                                           _originalBorderStyle == FormBorderStyle.SizableToolWindow;
                 _allowResize = options.AllowResize ?? originallyResizable;
+                _showClose = options.ShowClose ?? _originalControlBox;
                 _showMinimize = options.ShowMinimize ?? (_originalControlBox && _originalMinimizeBox && form.ShowInTaskbar);
                 _showMaximize = options.ShowMaximize ?? (_originalControlBox && _originalMaximizeBox && _allowResize);
                 _closeOnDeactivate = options.CloseOnDeactivate ?? _originalControlBox;
@@ -141,7 +175,13 @@ namespace FACM.Theming
 
             public void HandleLoad(object sender, EventArgs e)
             {
-                if (_attached || _form.IsDisposed || !_form.TopLevel) return;
+                AttachIfPossible();
+            }
+
+            public void AttachIfPossible()
+            {
+                if (_attached || _form.IsDisposed || !_form.TopLevel || _originalBorderStyle == FormBorderStyle.None) return;
+                if (!_form.IsHandleCreated && !_form.Visible) return;
                 Attach();
             }
 
@@ -198,10 +238,10 @@ namespace FACM.Theming
                     if (!_originalMaximumSize.IsEmpty)
                         _form.MaximumSize = new Size(_originalMaximumSize.Width, _originalMaximumSize.Height + titleHeight);
 
-                    _titleBar = BuildTitleBar(titleHeight);
+                    var titleBar = BuildTitleBar(titleHeight);
                     _form.Controls.Add(content);
-                    _form.Controls.Add(_titleBar);
-                    _form.Controls.SetChildIndex(_titleBar, 0);
+                    _form.Controls.Add(titleBar);
+                    _form.Controls.SetChildIndex(titleBar, 0);
                 }
                 finally
                 {
@@ -263,12 +303,15 @@ namespace FACM.Theming
                 _titleLabel.DoubleClick += ToggleMaximize;
 
                 var right = 8;
-                var close = CreateChromeButton("×", ChromeButtonKind.Close);
-                close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                close.Location = new Point(Math.Max(0, _form.ClientSize.Width - right - close.Width), 5);
-                close.Click += delegate { _form.Close(); };
-                bar.Controls.Add(close);
-                right += close.Width + 4;
+                if (_showClose)
+                {
+                    var close = CreateChromeButton("×", ChromeButtonKind.Close);
+                    close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                    close.Location = new Point(Math.Max(0, _form.ClientSize.Width - right - close.Width), 5);
+                    close.Click += delegate { _form.Close(); };
+                    bar.Controls.Add(close);
+                    right += close.Width + 4;
+                }
 
                 if (_showMaximize)
                 {
@@ -309,7 +352,12 @@ namespace FACM.Theming
 
             private void BeginDrag(object sender, MouseEventArgs e)
             {
-                if (e.Button != MouseButtons.Left || _form.WindowState == FormWindowState.Maximized) return;
+                if (e.Button != MouseButtons.Left) return;
+                if (_form.WindowState == FormWindowState.Maximized)
+                {
+                    if (_showMaximize) ToggleMaximize(null, EventArgs.Empty);
+                    return;
+                }
                 ReleaseCapture();
                 SendMessage(_form.Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
             }
@@ -423,7 +471,8 @@ namespace FACM.Theming
                 if (m.Msg != WM_NCHITTEST || _form.IsDisposed || _form.WindowState != FormWindowState.Normal) return;
                 if ((int)m.Result != HTCLIENT) return;
 
-                var screen = new Point((short)(m.LParam.ToInt32() & 0xffff), (short)((m.LParam.ToInt32() >> 16) & 0xffff));
+                var packed = unchecked((int)m.LParam.ToInt64());
+                var screen = new Point((short)(packed & 0xffff), (short)((packed >> 16) & 0xffff));
                 var point = _form.PointToClient(screen);
                 const int grip = 7;
                 var left = point.X <= grip;
