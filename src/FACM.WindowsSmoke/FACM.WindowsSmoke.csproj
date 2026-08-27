@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FACM.Core\FACM.Core.csproj" />
+    <ProjectReference Include="..\FACM.Infrastructure\FACM.Infrastructure.csproj" />
     <ProjectReference Include="..\FACM.Platform.Windows\FACM.Platform.Windows.csproj" />
   </ItemGroup>
 </Project>

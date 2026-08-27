@@ -3,6 +3,7 @@ namespace FACM.Core.Runtime;
 public sealed record RuntimePathLayout(
     string DistributionDirectory,
     string SettingsPath,
+    string Settings2Path,
     string UiTextPath,
     string LogsDirectory,
     string RuntimeDirectory,
@@ -20,6 +21,7 @@ public sealed record RuntimePathLayout(
         return new RuntimePathLayout(
             distributionDirectory,
             Path.Combine(distributionDirectory, "settings.ini"),
+            Path.Combine(distributionDirectory, "settings.v2.json"),
             Path.Combine(distributionDirectory, "ui-text.ini"),
             Path.Combine(distributionDirectory, "logs"),
             runtime,

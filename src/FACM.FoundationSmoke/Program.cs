@@ -18,7 +18,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("league write capability boundary", () => { TestLeagueWritePolicy(); return Task.CompletedTask; }),
     ("online update decision", () => { TestUpdateDecision(); return Task.CompletedTask; }),
     ("settings repository adapter", TestSettingsRepositoryAsync),
-    ("gate3 runtime and transport", Gate3Smoke.RunAsync)
+    ("gate3 runtime and transport", Gate3Smoke.RunAsync),
+    ("gate4 Settings 2.0 migration and atomic persistence", Settings2Smoke.RunAsync)
 };
 
 foreach (var test in tests)

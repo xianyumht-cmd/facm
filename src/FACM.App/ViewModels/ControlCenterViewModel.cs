@@ -5,10 +5,10 @@ namespace FACM.App.ViewModels;
 
 public sealed class ControlCenterViewModel
 {
-    private readonly ISettingsRepository _settings;
+    private readonly ISettings2Repository _settings;
     private readonly IUpdateManifestSource _updates;
 
-    public ControlCenterViewModel(ISettingsRepository settings, IUpdateManifestSource updates)
+    public ControlCenterViewModel(ISettings2Repository settings, IUpdateManifestSource updates)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
@@ -19,11 +19,12 @@ public sealed class ControlCenterViewModel
 
     public async Task RefreshAsync(Version currentVersion, CancellationToken cancellationToken = default)
     {
-        var settings = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var manifest = settings.AutoUpdateEnabled
+        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var autoUpdateEnabled = loaded.Settings.Online.AutoUpdateEnabled;
+        var manifest = autoUpdateEnabled
             ? await _updates.GetAsync(cancellationToken).ConfigureAwait(false)
             : null;
-        Update = settings.AutoUpdateEnabled
+        Update = autoUpdateEnabled
             ? UpdateDecisionService.Evaluate(currentVersion, manifest)
             : new UpdateDecision(currentVersion, null, false, false, "auto-update-disabled");
         StatusText = Update.UpdateAvailable ? "发现可用更新" : "准备就绪";
