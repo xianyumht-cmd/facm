@@ -77,9 +77,10 @@ namespace FACM.AppHost.Modules
                 throw new InvalidOperationException("Settings module must initialize before shell.");
 
             // Normal top-level FACM windows share one borderless shell. Existing purposeful
-            // borderless surfaces (floating ball, compact control center, cleanup review, pets)
-            // are skipped, so they keep their own specialized rendering.
+            // borderless surfaces keep their own rendering, but transient ones still inherit the
+            // same desktop/outside-click close behavior as the compact control center.
             FacmWindowChrome.InstallGlobal();
+            FacmBorderlessOutsideClose.InstallGlobal();
 
             MainForm = new MainForm(
                 _settings.Settings,
