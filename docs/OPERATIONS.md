@@ -23,9 +23,10 @@ Diagnostics source gate
 DPI/Accessibility source gate
 Recovery/Feature policy source gate
 Release evidence/Performance source gate
+Production cutover source guard
 restore FACM4.sln
 build Release x64
-FACM.FoundationSmoke (cumulative Gates 1-12)
+FACM.FoundationSmoke (cumulative Gates 1-13)
 FACM.WindowsSmoke
 publish win-x64 self-contained single-file
 verify EXE + no DLL leaks
@@ -45,6 +46,7 @@ pwsh ./scripts/check-facm4-diagnostics.ps1
 pwsh ./scripts/check-facm4-accessibility.ps1
 pwsh ./scripts/check-facm4-recovery.ps1
 pwsh ./scripts/check-facm4-release-evidence.ps1
+pwsh ./scripts/check-facm4-cutover.ps1
 dotnet restore FACM4.sln -p:Platform=x64
 dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
 dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
@@ -118,7 +120,7 @@ Background  1/1/1/1 history0  poll60s false
 
 Gameflow cadence：ChampSelect 2s；Matchmaking/ReadyCheck 3s；InGame 10s；Lobby/PostGame 5s；NotRunning/Connecting/ClientError 10s。
 
-## 8. Gate 12 release evidence runbook
+## 8. Release evidence runbook
 
 Canonical matrix：`evidence/facm4-release-evidence.json`。
 
@@ -142,22 +144,22 @@ notes
 - `RELEASE BLOCKED` 是合法状态，不等于 CI failure；
 - source/evidence schema 造假、runtime owner 变多、Performance/cadence/Smoke 消失才让 CI fail。
 
-Gate 12 implementation candidate：
+Gate 12 已合入 `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。
+
+Gate 13 Guard implementation evidence：
 
 ```text
-head cb7c928691977e464d2e52af28ac33bb8a7c2597
-Foundation #223 SUCCESS
-Windows Build #1360 SUCCESS
-UI Text #481 SUCCESS
-FACM.App.exe 227,786,375 bytes
-artifact 9666206475
-artifact ZIP 88,319,814 bytes
-digest sha256:9a1274592e891c8fc3c5c21dfc522fe315179331933d11d61ab63f0758ded559
+head 71d82ea060f393f271048102bc4eff77d0707305
+Foundation #240 SUCCESS
+Windows Build #1366 SUCCESS
+UI Text #487 SUCCESS
+FACM.App.exe 227,794,567 bytes
+artifact 9666591196
+artifact ZIP 88,321,030 bytes
+digest sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69
 ```
 
-Evidence closeout 后再跑 final-head CI；matrix candidate identity 保留产生上述 artifact 的 implementation head，避免每次改 evidence/docs 后无限追逐新 artifact。
-
-当前 matrix：21 required / 11 Passed / 10 Blocked => **ReleaseReady=false**。
+`gate13.cutover-guard` 已晋升 Passed。当前 matrix：**22 required / 12 Passed / 10 Blocked => ReleaseReady=false**。
 
 ## 9. Current external blockers
 
@@ -174,26 +176,54 @@ Evidence closeout 后再跑 final-head CI；matrix candidate identity 保留产�
 9. interrupted updater replacement/rollback；
 10. final signing/package verification。
 
-## 10. Gate 13 cutover transaction
+## 10. Gate 13 cutover guard
 
-Gate 13 先执行 cutover guard，而不是直接发布：
+正式切换不是“CI 绿就发布”，而是双门：
 
 ```text
 matrix validate
--> ReleaseEvidenceEvaluator.ReleaseReady must be true
--> fresh production/destructive authorization must exist
+-> ReleaseEvidenceEvaluator.ReleaseReady == true
+-> fresh production/destructive authorization
 -> fresh production safety checks
 -> only then permit production pointer / release / legacy retirement transaction
 ```
 
-任何一步不满足 => `CUTOVER BLOCKED`，不得修改 `online/version.json` / `release/request.json`、deploy/restart、删除 legacy/branch/tag。
+Authorization 必须满足：
 
-普通“继续工程”不是 production/destructive authorization。
+```text
+Granted = true
+Scope = FACM4ProductionCutover
+CandidateSha = evidence candidate headSha
+IssuedAtUtc <= now
+now - IssuedAtUtc <= 30 minutes
+ExpiresAtUtc >= now
+ExpiresAtUtc - IssuedAtUtc <= 30 minutes
+```
 
-## 11. 每个 Gate 关闭流程
+Gate13Smoke 已证明：当前 repository matrix 即使提供形式正确授权仍返回 `ReleaseEvidenceBlocked`；synthetic all-pass matrix 在 missing/not-granted/wrong scope/wrong candidate/future/expired/stale/overlong authorization 下全部拒绝，只有 fresh matching authorization 才允许。
 
-1. latest main -> Issue + branch + PR；
-2. 同 branch 完代码/tests/evidence/canonical docs；
-3. legacy + 4.0 latest-head gates 全绿；
-4. merge main 并 verify；
-5. 直接进入下一 Gate。
+`check-facm4-cutover.ps1` 当前 `ReleaseReady=false` 时必须：
+
+- 输出 `CUTOVER BLOCKED` 但 source gate 本身 SUCCESS；
+- 确认 `FACM.sln`、`src/FACM`、`src/FACM.Updater`、`src/FACM.ToolBundle` 仍存在；
+- 检查 Gate 13 diff 未修改 `online/version.json` / `release/request.json`；
+- 禁止 application source 持久化/硬编码 production authorization。
+
+任何条件不满足 => 不得修改 production pointer、deploy/restart、退休 legacy、删除 branch/tag。
+
+普通“继续工程”不是 production/destructive authorization。Issue #213 在真实 production cutover 完成前保持 OPEN。
+
+## 11. Gate 13 真正完成 / cutover transaction
+
+只有 matrix 所有 required item 都 Passed 后，才进入 fresh release transaction：
+
+1. 重新核对 final signed candidate identity、SHA-256/package/signature；
+2. 重新跑 latest-head CI 与真实 Windows evidence，确认没有过期/换包；
+3. 获得**当次**明确 production/destructive authorization；
+4. fresh safety check：当前 production version/pointer、rollback artifact、main SHA、release request；
+5. 执行受控 production cutover；
+6. 验证 4.0.0 启动/更新/rollback/online pointer；
+7. 仅在 cutover 验证通过后处理 legacy retirement；
+8. 更新 evidence、canonical docs、Issue #213。
+
+当前不满足第 1～3 条，因此 Gate 13 状态是 **GUARD VERIFIED / CUTOVER BLOCKED**，生产继续 FACM 3.5.15。
