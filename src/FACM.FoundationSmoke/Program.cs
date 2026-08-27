@@ -20,7 +20,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("settings repository adapter", TestSettingsRepositoryAsync),
     ("gate3 runtime and transport", Gate3Smoke.RunAsync),
     ("gate4 Settings 2.0 migration and atomic persistence", Settings2Smoke.RunAsync),
-    ("gate5 Product State and observability", Gate5Smoke.RunAsync)
+    ("gate5 Product State and observability", Gate5Smoke.RunAsync),
+    ("gate6 design system and shell text", Gate6Smoke.RunAsync)
 };
 
 foreach (var test in tests)
@@ -94,7 +95,7 @@ static void TestUiText()
     var overrides = LegacyUiTextOverrideCodec.Parse(["[Text]", "ControlCenter=我的中心", "[Replace]", "ControlCenter=bad"]);
     var provider = new DictionaryUiTextProvider(overrides);
     Equal("我的中心", provider.Get(UiTextKeys.ControlCenter), "text override");
-    Equal("英雄联盟", provider.Get(UiTextKeys.ShellLeague), "text fallback");
+    Equal("LOL 工作台", provider.Get(UiTextKeys.ShellLeague), "text fallback");
 }
 
 static async Task TestCleanupAsync()
