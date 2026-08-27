@@ -1,5 +1,7 @@
 using FACM.Core.League;
 using FACM.Core.Runtime;
+using FACM.Core.Settings;
+using FACM.Infrastructure.Settings;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
 
@@ -8,7 +10,13 @@ var layout = RuntimePathLayout.From(executablePaths);
 var expectedDistribution = Path.GetDirectoryName(Path.GetFullPath(executablePaths.ExecutablePath))
     ?? throw new InvalidOperationException("Distribution directory unavailable.");
 Equal(expectedDistribution, layout.DistributionDirectory, "distribution path provider");
-Equal(Path.Combine(expectedDistribution, "settings.ini"), layout.SettingsPath, "stable settings path");
+Equal(Path.Combine(expectedDistribution, "settings.ini"), layout.SettingsPath, "stable legacy settings path");
+Equal(Path.Combine(expectedDistribution, "settings.v2.json"), layout.Settings2Path, "stable Settings 2.0 path");
+True(!layout.Settings2Path.StartsWith(Path.GetFullPath(executablePaths.BaseDirectory), StringComparison.OrdinalIgnoreCase) ||
+     layout.Settings2Path.StartsWith(expectedDistribution, StringComparison.OrdinalIgnoreCase),
+     "Settings 2.0 must derive from distribution path, not self-extract base directory");
+
+await VerifyPhysicalSettings2PersistenceAsync();
 
 var discovered = new LeagueTransportSession(
     new LeagueSessionDescriptor(41, 29999, "https", "windows-smoke", "HN1", "HN"),
@@ -31,6 +39,35 @@ Equal(2, discovery.Calls, "forced refresh discovery count");
 
 Console.WriteLine("FACM 4.0 Windows runtime smoke: SUCCESS");
 return;
+
+static async Task VerifyPhysicalSettings2PersistenceAsync()
+{
+    var root = Path.Combine(Path.GetTempPath(), "facm4-settings2-windows-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var legacyPath = Path.Combine(root, "settings.ini");
+    var v2Path = Path.Combine(root, "settings.v2.json");
+    var legacyText = "BallX=9\r\nBallY=10\r\nThemeId=glass-blue\r\nPetStyleId=greenfly\r\nAutoUpdateEnabled=True\r\n";
+    try
+    {
+        await File.WriteAllTextAsync(legacyPath, legacyText);
+        var repository = new Settings2Repository(v2Path, legacyPath);
+        var migrated = await repository.LoadAsync();
+        Equal(SettingsLoadOrigin.MigratedLegacy, migrated.Origin, "physical migration origin");
+        Equal(9, migrated.Settings.Pets.BallX, "physical migration BallX");
+        Equal(legacyText, await File.ReadAllTextAsync(legacyPath), "legacy INI must remain unchanged");
+
+        migrated.Settings.Online.AutoUpdateEnabled = false;
+        await repository.SaveAsync(migrated.Settings);
+        var reloaded = await repository.LoadAsync();
+        Equal(SettingsLoadOrigin.ExistingV2, reloaded.Origin, "physical second load origin");
+        True(!reloaded.Settings.Online.AutoUpdateEnabled, "physical atomic replacement value");
+        Equal(0, Directory.GetFiles(root, "*.tmp", SearchOption.TopDirectoryOnly).Length, "atomic temp cleanup");
+    }
+    finally
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
 
 static void Equal<T>(T expected, T actual, string name)
 {
