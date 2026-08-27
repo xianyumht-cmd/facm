@@ -14,7 +14,7 @@ public sealed record DiagnosticsExportPolicy(
     long MaxBundleBytes,
     int MaxSummaryChars)
 {
-    public static DiagnosticsExportPolicy Default { get; } = new(
+    public static DiagnosticsExportPolicy Default { get; } = new DiagnosticsExportPolicy(
         MaxEvents: 500,
         MaxInputFileBytes: 4 * 1024 * 1024,
         MaxTotalInputBytes: 8 * 1024 * 1024,
