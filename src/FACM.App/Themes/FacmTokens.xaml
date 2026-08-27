@@ -1,0 +1,11 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="FacmBackgroundBrush" Color="#FF071022" />
+    <SolidColorBrush x:Key="FacmSurfaceBrush" Color="#FF1C274E" />
+    <SolidColorBrush x:Key="FacmSurfaceSecondaryBrush" Color="#FF253466" />
+    <SolidColorBrush x:Key="FacmTextPrimaryBrush" Color="#FFF6F9FF" />
+    <SolidColorBrush x:Key="FacmTextMutedBrush" Color="#FFA2B2E0" />
+    <SolidColorBrush x:Key="FacmAccentBrush" Color="#FF3D69FF" />
+    <CornerRadius x:Key="FacmCardCornerRadius">18</CornerRadius>
+</ResourceDictionary>

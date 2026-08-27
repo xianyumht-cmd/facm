@@ -1,0 +1,52 @@
+<Window
+    x:Class="FACM.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="FACM 4.0">
+    <Grid Background="{StaticResource FacmBackgroundBrush}">
+        <NavigationView
+            x:Name="RootNavigation"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            PaneDisplayMode="LeftCompact"
+            SelectionChanged="OnSelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="控制中心" Tag="home" />
+                <NavigationViewItem Content="清理与修复" Tag="repair" />
+                <NavigationViewItem Content="LOL 工作台" Tag="league" />
+                <NavigationViewItem Content="个性化" Tag="personalization" />
+                <NavigationViewItem Content="更多设置" Tag="settings" />
+            </NavigationView.MenuItems>
+            <Frame x:Name="ContentFrame">
+                <ScrollViewer>
+                    <StackPanel Padding="32" Spacing="18" MaxWidth="920" HorizontalAlignment="Left">
+                        <TextBlock Text="FACM 4.0" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock
+                            x:Name="SectionTitle"
+                            Text="控制中心"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource FacmTextPrimaryBrush}" />
+                        <TextBlock
+                            x:Name="SectionSubtitle"
+                            Text="并行 WinUI 3 Shell 已建立；业务仍由 Core / Platform owner 管理。"
+                            TextWrapping="Wrap"
+                            Foreground="{StaticResource FacmTextMutedBrush}" />
+                        <Border
+                            Padding="20"
+                            CornerRadius="{StaticResource FacmCardCornerRadius}"
+                            Background="{StaticResource FacmSurfaceBrush}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Gate 1 Foundation" FontWeight="SemiBold" Foreground="{StaticResource FacmTextPrimaryBrush}" />
+                                <TextBlock
+                                    Text="一个 Window、一个 NavigationView、一个 Frame。这里不建立第二套 League runtime，也不直接访问进程、文件或网络。"
+                                    TextWrapping="Wrap"
+                                    Foreground="{StaticResource FacmTextMutedBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Frame>
+        </NavigationView>
+    </Grid>
+</Window>
