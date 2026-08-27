@@ -126,6 +126,30 @@
                                 </Border>
                             </Grid>
                         </StackPanel>
+
+                        <StackPanel x:Name="DiagnosticsPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="DiagnosticsTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                    <TextBlock x:Name="DiagnosticsSubtitle" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="DiagnosticsSummaryLabel" Style="{StaticResource FacmBodyTextStyle}" />
+                                    <TextBox
+                                        x:Name="DiagnosticsSummaryText"
+                                        IsReadOnly="True"
+                                        AcceptsReturn="True"
+                                        TextWrapping="Wrap"
+                                        MinHeight="180" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button x:Name="DiagnosticsRefreshButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsRefreshClick" />
+                                        <Button x:Name="DiagnosticsCopyButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsCopyClick" />
+                                        <Button x:Name="DiagnosticsExportButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsExportClick" />
+                                    </StackPanel>
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="DiagnosticsStatus" Style="{StaticResource FacmBodyTextStyle}" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Frame>

@@ -4,6 +4,7 @@ using FACM.Core.League;
 using FACM.Core.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace FACM.App;
 
@@ -11,16 +12,21 @@ public sealed partial class MainWindow : Window
 {
     private readonly ControlCenterViewModel _controlCenter;
     private readonly LeagueWorkbenchViewModel _leagueWorkbench;
+    private readonly DiagnosticsCenterViewModel _diagnosticsCenter;
     private readonly IUiTextProvider _text;
     private bool _closed;
+    private bool _diagnosticsLoaded;
+    private bool _diagnosticsBusy;
 
     public MainWindow(
         ControlCenterViewModel controlCenter,
         LeagueWorkbenchViewModel leagueWorkbench,
+        DiagnosticsCenterViewModel diagnosticsCenter,
         IUiTextProvider text)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _leagueWorkbench = leagueWorkbench ?? throw new ArgumentNullException(nameof(leagueWorkbench));
+        _diagnosticsCenter = diagnosticsCenter ?? throw new ArgumentNullException(nameof(diagnosticsCenter));
         _text = text ?? throw new ArgumentNullException(nameof(text));
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
@@ -64,6 +70,14 @@ public sealed partial class MainWindow : Window
             LeagueAutomationTitle,
             LeagueAutomationDescription);
 
+        DiagnosticsTitle.Text = _text.Get(UiTextKeys.DiagnosticsTitle);
+        DiagnosticsSubtitle.Text = _text.Get(UiTextKeys.DiagnosticsSubtitle);
+        DiagnosticsSummaryLabel.Text = _text.Get(UiTextKeys.DiagnosticsSummaryLabel);
+        DiagnosticsRefreshButton.Content = _text.Get(UiTextKeys.DiagnosticsRefresh);
+        DiagnosticsCopyButton.Content = _text.Get(UiTextKeys.DiagnosticsCopySummary);
+        DiagnosticsExportButton.Content = _text.Get(UiTextKeys.DiagnosticsExportBundle);
+        DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusReady);
+
         ApplySection("repair");
         ApplyStatus(UiTextKeys.ShellStatusReady);
     }
@@ -101,6 +115,7 @@ public sealed partial class MainWindow : Window
     private void ApplySection(string tag)
     {
         var isLeague = string.Equals(tag, "league", StringComparison.Ordinal);
+        var isSettings = string.Equals(tag, "settings", StringComparison.Ordinal);
         var (titleKey, subtitleKey) = tag switch
         {
             "league" => (UiTextKeys.ShellLeague, UiTextKeys.ShellLeagueSubtitle),
@@ -112,7 +127,9 @@ public sealed partial class MainWindow : Window
         SectionSubtitle.Text = _text.Get(subtitleKey);
         GeneralOverviewGrid.Visibility = isLeague ? Visibility.Collapsed : Visibility.Visible;
         LeagueWorkbenchPanel.Visibility = isLeague ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsPanel.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
         if (isLeague) ApplyLeagueRuntimeState();
+        if (isSettings && !_diagnosticsLoaded) _ = RefreshDiagnosticsAsync();
     }
 
     private void OnLeagueWorkbenchPropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -134,6 +151,77 @@ public sealed partial class MainWindow : Window
         if (_closed) return;
         LeagueStateValue.Text = _text.Get(_leagueWorkbench.LeagueStateTextKey);
         LeagueBudgetValue.Text = _leagueWorkbench.BudgetName;
+    }
+
+    private async void OnDiagnosticsRefreshClick(object sender, RoutedEventArgs args) =>
+        await RefreshDiagnosticsAsync();
+
+    private async void OnDiagnosticsCopyClick(object sender, RoutedEventArgs args)
+    {
+        if (_diagnosticsBusy) return;
+        if (!_diagnosticsLoaded) await RefreshDiagnosticsAsync();
+        if (string.IsNullOrWhiteSpace(_diagnosticsCenter.Summary)) return;
+
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(_diagnosticsCenter.Summary);
+            Clipboard.SetContent(package);
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusCopied);
+        }
+        catch (Exception)
+        {
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+        }
+    }
+
+    private async void OnDiagnosticsExportClick(object sender, RoutedEventArgs args)
+    {
+        if (_diagnosticsBusy) return;
+        SetDiagnosticsBusy(true);
+        try
+        {
+            _ = await _diagnosticsCenter.ExportAsync();
+            _diagnosticsLoaded = true;
+            DiagnosticsSummaryText.Text = _diagnosticsCenter.Summary;
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusExported);
+        }
+        catch (Exception)
+        {
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+        }
+        finally
+        {
+            SetDiagnosticsBusy(false);
+        }
+    }
+
+    private async Task RefreshDiagnosticsAsync()
+    {
+        if (_diagnosticsBusy) return;
+        SetDiagnosticsBusy(true);
+        try
+        {
+            DiagnosticsSummaryText.Text = await _diagnosticsCenter.RefreshAsync();
+            _diagnosticsLoaded = true;
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusRefreshed);
+        }
+        catch (Exception)
+        {
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+        }
+        finally
+        {
+            SetDiagnosticsBusy(false);
+        }
+    }
+
+    private void SetDiagnosticsBusy(bool busy)
+    {
+        _diagnosticsBusy = busy;
+        DiagnosticsRefreshButton.IsEnabled = !busy;
+        DiagnosticsCopyButton.IsEnabled = !busy;
+        DiagnosticsExportButton.IsEnabled = !busy;
     }
 
     private void ApplyStatus(string key)

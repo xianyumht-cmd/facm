@@ -52,6 +52,18 @@ public static class UiTextKeys
     public const string LeagueStateInGame = "LeagueStateInGame";
     public const string LeagueStatePostGame = "LeagueStatePostGame";
     public const string LeagueStateClientError = "LeagueStateClientError";
+
+    public const string DiagnosticsTitle = "DiagnosticsTitle";
+    public const string DiagnosticsSubtitle = "DiagnosticsSubtitle";
+    public const string DiagnosticsSummaryLabel = "DiagnosticsSummaryLabel";
+    public const string DiagnosticsRefresh = "DiagnosticsRefresh";
+    public const string DiagnosticsCopySummary = "DiagnosticsCopySummary";
+    public const string DiagnosticsExportBundle = "DiagnosticsExportBundle";
+    public const string DiagnosticsStatusReady = "DiagnosticsStatusReady";
+    public const string DiagnosticsStatusRefreshed = "DiagnosticsStatusRefreshed";
+    public const string DiagnosticsStatusCopied = "DiagnosticsStatusCopied";
+    public const string DiagnosticsStatusExported = "DiagnosticsStatusExported";
+    public const string DiagnosticsStatusFailed = "DiagnosticsStatusFailed";
 }
 
 public static class FoundationUiTextDefaults
@@ -102,7 +114,19 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.LeagueStateChampSelect] = "英雄选择",
         [UiTextKeys.LeagueStateInGame] = "游戏中",
         [UiTextKeys.LeagueStatePostGame] = "赛后",
-        [UiTextKeys.LeagueStateClientError] = "客户端连接异常"
+        [UiTextKeys.LeagueStateClientError] = "客户端连接异常",
+
+        [UiTextKeys.DiagnosticsTitle] = "诊断中心",
+        [UiTextKeys.DiagnosticsSubtitle] = "生成只读状态摘要并导出经过再次脱敏的诊断包，不包含设置文件、LCU 凭据或任意目录扫描。",
+        [UiTextKeys.DiagnosticsSummaryLabel] = "脱敏摘要",
+        [UiTextKeys.DiagnosticsRefresh] = "刷新摘要",
+        [UiTextKeys.DiagnosticsCopySummary] = "复制摘要",
+        [UiTextKeys.DiagnosticsExportBundle] = "导出诊断包",
+        [UiTextKeys.DiagnosticsStatusReady] = "诊断中心已就绪",
+        [UiTextKeys.DiagnosticsStatusRefreshed] = "摘要已刷新",
+        [UiTextKeys.DiagnosticsStatusCopied] = "摘要已复制",
+        [UiTextKeys.DiagnosticsStatusExported] = "脱敏诊断包已导出",
+        [UiTextKeys.DiagnosticsStatusFailed] = "诊断操作失败"
     };
 
     public static string Get(string key) => Values.TryGetValue(key, out var value) ? value : key;
