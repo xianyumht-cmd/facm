@@ -11,6 +11,11 @@ public sealed record RuntimePathLayout(
     string PetHostDataDirectory,
     string UpdatesDirectory)
 {
+    public string RecoveryDirectory => Path.Combine(RuntimeDirectory, "recovery");
+    public string RecoveryStatePath => Path.Combine(RecoveryDirectory, "state.json");
+    public string Settings2LastKnownGoodPath => Path.Combine(RecoveryDirectory, "settings.v2.lkg.json");
+    public string FeatureKillSwitchPath => Path.Combine(RecoveryDirectory, "feature-kill-switch.json");
+
     public static RuntimePathLayout From(IExecutablePathProvider executablePaths)
     {
         ArgumentNullException.ThrowIfNull(executablePaths);
