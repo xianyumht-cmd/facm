@@ -2,12 +2,12 @@
 
 ## 1. 双轨迁移
 
-FACM 3.5.15 WinForms 仍是生产/回滚基线；FACM 4.0 使用 .NET 10 + WinUI 3 并行迁移。Gate 13 前不退休 legacy、不修改生产 release controls。
+FACM 3.5.15 WinForms 仍是生产/回滚基线；FACM 4.0 使用 .NET 10 + WinUI 3 并行迁移。Gate 13 前不退休 legacy、不修改 production release controls。
 
 ```text
 FACM.App (.NET 10 + WinUI 3)
 ├─ MainWindow: one AppTitleBar + one NavigationView + one Frame
-├─ FloatingWindow: narrow F desktop entry surface
+├─ FloatingWindow: narrow F desktop entry
 ├─ ViewModels: Core intents/state only
 └─ composition root
         ↓
@@ -17,19 +17,19 @@ FACM.Core (platform/UI neutral)
 ├─ Product State / observability
 ├─ Desktop placement geometry
 ├─ Cleanup
-├─ League capability/session contracts
+├─ League gameflow/capability/session contracts
 └─ Online/update contracts
         ↓
 FACM.Infrastructure                 FACM.Platform.Windows
 ├─ settings/text/diagnostic IO      ├─ executable/runtime identity
 ├─ HTTP/League transport            ├─ League discovery/session owner
-└─ update metadata                  ├─ monitor/work-area/DPI facts
-                                    └─ UAC/hotkey/process integration
+├─ one Gameflow monitor             ├─ monitor/work-area/DPI facts
+└─ update metadata                  └─ UAC/hotkey/process integration
 ```
 
 固定 project direction：App -> Core/Infrastructure/Platform.Windows；Infrastructure -> Core；Platform.Windows -> Core；Core 不引用 UI/platform implementation。
 
-## 2. UI Intent Boundary
+## 2. UI Intent / State Boundary
 
 ```text
 Window/Page -> ViewModel -> Core intent/state
@@ -38,35 +38,42 @@ Window/Page -> ViewModel -> Core intent/state
             wired only in App composition root
 ```
 
-禁止 ViewModel/Page 直接 new HttpClient、League runtime、settings/diagnostic file store、Process/Registry/Win32 implementation。`scripts/check-facm4-architecture.ps1` 自动守依赖方向和 production release-control protection。
+禁止 ViewModel/Page 直接 new HttpClient、League runtime、settings/diagnostic file store、Process/Registry/Win32 implementation。页面不得自己维护 LCU polling/state cache。
+
+`scripts/check-facm4-architecture.ps1` 守 project direction / ViewModel boundary / production release-control protection；Gate-specific source gates继续叠加更窄 ownership 约束。
 
 ## 3. Host / Performance
 
 `FacmHost` 继续守拓扑初始化、缺失/重复/循环拒绝、timing、失败反向 rollback、正常反向 Dispose。
 
-Performance owner 在 Core；状态优先级保持 `InGame > ChampSelect > hidden/background > Queueing > Client > Desktop`。隐藏窗口不能成为游戏中增加后台工作的理由。
+Performance owner 在 Core；优先级保持 `InGame > ChampSelect > hidden/background > Queueing > Client > Desktop`。隐藏窗口不能成为游戏中增加后台工作的理由。
 
-Gate 8 后 gameflow state 与 Performance activity 必须来自同一个 gameflow owner；禁止 UI 页面根据自己轮询到的 phase 单独改预算。
+Gate 8 起，League gameflow Product State 与 Performance activity 必须来自**同一个 gameflow mapping**；禁止 UI 根据自己轮询到的 phase 单独修改 performance budget。
 
-## 4. Settings 2.0 / UI Text
+## 4. Settings 2.0 / UI Text / Runtime Paths
 
-- legacy：`<distribution>/settings.ini`
-- 4.0：`<distribution>/settings.v2.json`
-- UI text override：`<distribution>/ui-text.ini`
+稳定路径：
 
-所有稳定路径只从 distribution executable 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
+```text
+<distribution>/settings.ini      legacy rollback/migration source
+<distribution>/settings.v2.json  FACM 4.0 typed settings
+<distribution>/ui-text.ini       optional text override
+<distribution>/logs/...          diagnostics
+```
 
-Settings 2.0 schema v2 覆盖 Environment / Online / Appearance / Pets / League；legacy 15-key import 后旧 INI 仍保留。坏 JSON、非法值、future schema fail closed；atomic save 使用同目录 temp + flush-to-disk + replace/move。
+所有稳定路径只从 distribution executable (`Environment.ProcessPath`) 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
 
-`IUiTextProvider` 是用户可见文字 contract。Main Shell 与 F desktop entry 均通过 `UiTextKeys`；`FileUiTextProvider` 读取 optional `ui-text.ini`，失败 fallback defaults。
+Settings 2.0 schema v2 覆盖 Environment / Online / Appearance / Pets / League；legacy 15-key import 后旧 INI 仍保留。坏 JSON、非法值、future schema fail closed；atomic save 使用 same-directory temp + flush-to-disk + replace/move。
 
-`Pets.BallX/BallY` 在 Gate 7 作为 F surface preferred top-left 输入，坐标语义是 Windows desktop physical pixels；`int.MinValue` 表示无偏好。placement 不会删除/重写 legacy migration source。
+`IUiTextProvider` 是用户可见文字 contract。Main Shell、F desktop entry、LOL Workbench copy 均通过 `UiTextKeys`；`FileUiTextProvider` 失败 fallback defaults。
 
 ## 5. League runtime / capability ownership
 
-4.0 exactly one 真实 discovery/auth/session owner：`WindowsLeagueTransportSessionSource`。`LeagueHttpGateway` read/write 共用它；secret 不进入公共 descriptor/diagnostic；credential 只发 loopback。
+### Session / transport owner
 
-当前 write targets 只能由 capability policy 产生：
+4.0 exactly one discovery/auth/session owner：`WindowsLeagueTransportSessionSource`。`LeagueHttpGateway` read/write 共用它；secret 不进入公共 descriptor/Product State/diagnostics；credential 只发 loopback。
+
+当前 Core write policy：
 
 ```text
 ApplyMySelection      -> PATCH /lol-champ-select/v1/session/my-selection
@@ -75,33 +82,109 @@ UpdatePerkPage(id)    -> PUT   /lol-perks/v1/pages/{positive-id}
 SetCurrentPerkPage    -> PUT   /lol-perks/v1/currentpage
 ```
 
-Bench、Matchmaking、PostGame、Presence、Client UX Repair 等继续保持窄 capability；Bench 仍是用户显式手动动作。
+Bench、Matchmaking、PostGame、Presence、Client UX Repair 等 legacy writer 仍保持窄 capability；Bench 仍为用户显式手动动作。4.0 Gate 8 没有扩大 writer 权限。
 
-Gate 8 的 gameflow owner 必须复用同一个 `ILeagueReadGateway / LeagueHttpGateway / WindowsLeagueTransportSessionSource`。页面/ViewModel 不得创建第二 session、第二 HttpClient 或第二 phase polling loop。
+### One Gameflow owner
 
-## 6. Cleanup / Update
+Gate 8 固定：
 
-Cleanup Core 只拥有 preview/plan/confirm orchestration；Windows implementation 后续持续守 validated root、path allowlist、reparse/junction/symlink guard、UAC、执行前重验证和逐项 failure。
+```text
+WindowsLeagueTransportSessionSource     <- exactly one session/auth owner
+              ↓
+LeagueHttpGateway                       <- shared read/write transport
+              ↓ read
+LeagueGameflowMonitor                   <- exactly one polling owner
+              ↓
+LeagueGameflowPhaseMapper               <- pure Core mapping
+        ┌─────┴─────┐
+        ↓           ↓
+ProductStateStore   PerformanceBudgetProvider
+        ↓           ↓
+        LeagueWorkbenchViewModel
+```
+
+`LeagueGameflowMonitor` 只依赖 `ILeagueReadGateway + ILeagueSessionAccessor + IProductStateWriter + PerformanceBudgetProvider`。它不 new HttpClient、不 new session source、不拥有 writer。
+
+phase mapping：
+
+- disconnected -> NotRunning；connecting -> Connecting；transport/read failure -> ClientError；
+- Matchmaking -> Matchmaking / Queueing；ReadyCheck -> ReadyCheck / Queueing；
+- ChampSelect -> ChampSelect；
+- InProgress / WatchInProgress / Reconnect / GameStart -> InGame；
+- WaitingForStats / PreEndOfGame / EndOfGame -> PostGame；
+- 其它 connected idle/unknown -> Lobby / Client。
+
+cadence 保持 legacy 性能基线：ChampSelect 2s、Matchmaking/ReadyCheck 3s、InGame 10s、connected other 5s、disconnected/connecting/error 10s。
+
+同一 mapping 同源驱动 Product State + Performance；等价 snapshot 不重复发布 monitor Changed，ProductStateStore 本身也抑制相同状态 revision。
+
+## 6. LOL Workbench UX
+
+用户 IA 固定：
+
+```text
+LOL 工作台
+├─ 比赛
+├─ 攻略
+└─ 自动化
+```
+
+旧 dashboard/player/live/mayhem/recommendation/efficiency/repair/presence 八个 novice-facing view 不直接搬成八个 WinUI tab。
+
+`LeagueWorkbenchCatalog` 是 exactly-three Core IA contract；`LeagueWorkbenchViewModel` 只消费 `IProductStateReader + PerformanceBudgetProvider`。
+
+`MainWindow` 选择 LOL 入口后显示三分区 panel；后台 state 通过 DispatcherQueue 回 UI thread。MainWindow 关闭后只 Dispose ViewModel subscription；全进程唯一 League session/gameflow owner 不随页面重建。
+
+页面/ViewModel 禁止 raw `/lol-*` path、HttpClient、Task.Delay polling、session discovery、`LeagueWriteCommand`。后续业务动作必须通过 Core intent/capability contract 暴露。
+
+`scripts/check-facm4-league-workbench.ps1` 自动守 exactly-one session/gameflow/performance composition、phase baseline、three-section IA、UI Text coverage 与 UI no-raw-LCU boundary。
+
+## 7. Cleanup / Update
+
+Cleanup Core 只拥有 preview/plan/confirm orchestration；Windows implementation 持续守 validated root、path allowlist、reparse/junction/symlink guard、UAC、执行前重验证和逐项 failure。
 
 Update metadata 已是 bounded .NET 10 transport。正式 updater replacement 仍必须保留 size/hash/signature/package validation、validated receipt、等待退出、独立替换、失败保旧版和 rollback；replacement target 来自 distribution EXE。
 
-## 7. Product State / Observability
+## 8. Product State / Observability
 
-`ProductStateStore` 是唯一 product-state 聚合 store，覆盖 Application / League / Environment / Services。相同状态不增加 revision；subscriber 在 lock 外调用。它本身不拥有 League runtime 或轮询器。
+`ProductStateStore` 是唯一 product-state 聚合 store，覆盖 Application / League / Environment / Services。相同状态不增加 revision；subscriber 在 lock 外调用。它不拥有业务 runtime。
 
 `DiagnosticEvent` 固定 `TimestampUtc / ActionId / Module / DurationMs / Result / Reason / LeagueState / ClientVersion / Data`。敏感 key/free-text assignment 在 factory 和 bounded JSONL sink 两层 redaction。Diagnostics 没有业务写权限。
 
-Gate 8 的 gameflow owner 只把已解析事实发布进 Product State，不把 LCU secret/raw auth headers 放入 state 或 diagnostics。
+Gate 8 gameflow 只发布枚举状态，不把 phase auth/LCU credential 写入 Product State 或 diagnostics。
 
-## 8. Design System / Main Shell
+### Gate 9 diagnostics target boundary
 
-### Semantic resources
+Gate 9 必须**复用**现有 observability：
 
-`FacmTokens.xaml` 只定义 FACM semantic aliases/metrics；颜色 alias 到 WinUI platform theme resources，不在 FACM.App XAML 中保存产品 hex palette。Light/Dark/High Contrast 由 WinUI theme resource system提供基础适配。
+```text
+ProductStateStore + bounded diagnostic JSONL
+            ↓ read-only
+Diagnostics snapshot/summary service
+            ↓
+bounded redacted exporter
+            ↓
+summary text / sanitized ZIP
+            ↓
+Diagnostics Center ViewModel
+```
 
-`FacmControls.xaml` 是共享 visual contract，统一 PageTitle / SectionTitle / CardTitle / Body / Muted / Card / StatusChip / PrimaryButton / NavigationItem。
+规则：
 
-### Main Shell visual tree
+- Diagnostics Center 不获得 League/Cleanup/Updater 等业务 writer；
+- 导出前再次 `DiagnosticRedactor`，不能假设落盘内容一定安全；
+- reader/exporter 只读明确 allowlist 文件，不递归打包 distribution 任意目录；
+- 需要限制 event 数、单文件大小、总输入大小、ZIP entry 数与总输出大小；
+- lockfile、settings secrets、raw auth header、cookies 不进入 bundle；
+- 用户路径按稳定 placeholder 策略收敛，bundle 文件名不包含用户名/机器名。
+
+## 9. Design System / Main Shell
+
+`FacmTokens.xaml` 只定义 FACM semantic aliases/metrics，颜色 alias 到 WinUI platform theme resources；FACM.App XAML 不保存硬编码产品 palette。
+
+`FacmControls.xaml` 统一 PageTitle / SectionTitle / CardTitle / Body / Muted / Card / StatusChip / PrimaryButton / NavigationItem。
+
+Main Shell 固定：
 
 ```text
 MainWindow
@@ -114,96 +197,22 @@ MainWindow
    └─ Frame                   <- exactly one
 ```
 
-- `ExtendsContentIntoTitleBar=true`，`SetTitleBar(AppTitleBar)`。
-- MainWindow XAML/code-behind 不携带中文 UI literals；用户 copy 由 `IUiTextProvider` 注入。
-- Shell 不创建第二 League runtime、HttpClient、settings/diagnostic IO。
-- 禁止 Form-in-Form / WindowsFormsHost / Z-order / timer/reflection UI patch。
+MainWindow 不携带硬编码中文 copy；禁止 Form-in-Form / WindowsFormsHost / Z-order / timer/reflection patch。
 
-`scripts/check-facm4-shell.ps1` 自动验证四入口、单 TitleBar/NavigationView/Frame、semantic token/shared style presence、UI Text defaults、无 hardcoded FACM.App XAML hex colors、无 legacy Form host。
+## 10. Desktop Surface / Placement
 
-## 9. Gate 7 Desktop Surface / Placement
+`FACM.Core.Desktop.AnchorPlacementService` 是 desktop placement 的唯一纯几何 owner，支持 preferred point、负坐标、nearest monitor、edge/corner、margin/clamp、off-screen recovery。
 
-### Core geometry
+`WindowsDesktopWorkAreaProvider` 提供 physical-pixel work-area + per-monitor effective DPI facts。64 DIP F surface 在 App 根据目标 monitor DPI 转 physical size，再交 Core placement；`AppWindow.MoveAndResize` 使用同一坐标系。
 
-`FACM.Core.Desktop.AnchorPlacementService` 是 desktop placement 的唯一几何 owner：
+`FloatingWindow` 只依赖 `IDesktopWorkAreaProvider + IUiTextProvider + EnsureMainWindow callback`。关闭 MainWindow 不关闭 F；F 点击 create-or-activate MainWindow；关闭 F 才 shutdown runtime。
 
-```text
-DesktopPoint / DesktopSize / DesktopRect / DesktopWorkArea
-DesktopAnchor
-AnchorPlacementRequest -> AnchorPlacementResult
-```
+Single Instance 语义固定 Ensure Open / Activate；全局快捷键只能 RegisterHotKey，不引入 low-level hook/polling。PetHost 保持独立进程、IPC、parent/job 生命周期。
 
-Core 只处理 physical desktop coordinate facts，支持：
+## 11. 测试与发布边界
 
-- 主屏 fallback；
-- preferred top-left；
-- 负坐标与位于主屏左/上方的 work-area；
-- probe 不在任何屏时 nearest monitor；
-- left/right/top/bottom + four corners；
-- margin / clamp；
-- off-screen recovery。
+持续维护：`FACM Windows Build`、`FACM UI Text Contract`、`FACM 4.0 Foundation`、`FACM.WindowsSmoke`、各 Gate deterministic smoke/source gate。已有 smoke 只能迁移或由更强验证替代。
 
-Core 不引用 Win32/WinUI，避免 monitor API 与 placement policy 相互污染。
+Hosted Windows runner 是 engineering evidence，不替代 Gate 10/12 真机 multi-monitor/mixed-DPI/accessibility matrix。
 
-### Windows facts
-
-`WindowsDesktopWorkAreaProvider` 在 Platform.Windows 使用 `EnumDisplayMonitors + GetMonitorInfo` 获取 work-area physical pixel bounds，使用 `GetDpiForMonitor` 获取 effective DPI scale；96 DPI 是 API 不可用时的安全 fallback。
-
-64 DIP F surface 在 App 层根据目标 monitor DPI 转成 physical pixel size，再交给 Core placement；`AppWindow.MoveAndResize` 使用相同 physical coordinate space，避免二次缩放。
-
-### FloatingWindow ownership
-
-```text
-FloatingWindow
-├─ one F button
-├─ shared Gate 6 semantic resources
-├─ IDesktopWorkAreaProvider
-├─ IUiTextProvider
-└─ EnsureMainWindow callback
-```
-
-它不得拥有 League runtime、HttpClient、Settings2Repository、diagnostic sink、文件 IO、NavigationView/Frame、low-level keyboard hook 或 polling timer。
-
-MainWindow 关闭后 F surface 可继续存在；点击 F = create-or-activate MainWindow。关闭 F 才触发 4.0 runtime shutdown。这个行为固定为 **Ensure Open / Activate**，不是 toggle。
-
-`scripts/check-facm4-desktop.ps1` 自动守 Core/platform boundary、Win32 fact adapter、FloatingWindow 最小 ownership、shared Design System、单 League owner 和无 low-level hooks。
-
-## 10. Gate 8 Workbench target
-
-3.5.15 legacy Hub 曾有 dashboard/player/live/mayhem/recommendation/efficiency/repair/presence 八个 novice-facing view，并已经内部归类为 match/recommendation/tools。4.0 不照搬八标签，而是收口为固定三分区：
-
-```text
-LOL 工作台
-├─ 比赛
-├─ 攻略
-└─ 自动化
-```
-
-旧 `LeagueGameflowMonitor` 的关键职责是唯一循环 owner，并按状态调整 cadence（ChampSelect 2s、Queueing 3s、InGame 10s、connected default 5s、disconnected 10s）。Gate 8 应迁移**职责和不变量**，不是复制 WinForms class。
-
-4.0 target：
-
-```text
-one gameflow owner
-    -> shared ILeagueReadGateway
-    -> deterministic phase mapper
-    -> ProductStateStore.League
-    -> Performance activity/budget
-    -> Workbench ViewModel subscribes state
-```
-
-Page/ViewModel 只消费 Core state/intents；不得直接 GET `/lol-gameflow/...` 或自己计时 polling。
-
-## 11. Single Instance / Hotkey / PetHost
-
-Single Instance 语义固定为 Ensure Open / Activate。Gate 7 F surface 已保持 UI 侧 create-or-activate；若后续补 process-wide activation broker，也必须保持同一语义，不得变 toggle。
-
-全局快捷键只能 RegisterHotKey，不引入 low-level keyboard hook/GetAsyncKeyState/polling。PetHost 保持独立进程、IPC、parent/job 生命周期。
-
-## 12. 测试与发布边界
-
-持续维护：`FACM Windows Build`、`FACM UI Text Contract`、`FACM 4.0 Foundation`、`FACM.WindowsSmoke`、各 Gate deterministic smoke。已有 smoke 只能迁移或由更强验证替代。
-
-Hosted Windows runner 能验证 Win32 work-area/DPI API 与 placement contract，但不能替代真实 multi-monitor/mixed-DPI matrix。Gate 10/12 仍需要 Windows 10/11、负坐标、100～200% DPI、左右/上下双屏等真实硬件证据。
-
-Gate 13 前 production `online/version.json` / `release/request.json` 继续指向 3.5.15。正式 4.0 cutover 还需要 settings 真机迁移、Updater rollback、DPI/多屏/accessibility、Defender/SmartScreen 等真实证据。
+Gate 13 前 production `online/version.json` / `release/request.json` 继续指向 3.5.15。正式 4.0 cutover 还需要 settings 真机迁移、Updater rollback、Win10/11、DPI/多屏/accessibility、Defender/SmartScreen 等真实证据。
