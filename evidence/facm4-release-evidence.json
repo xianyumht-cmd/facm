@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "candidate": {
+    "headSha": "4b4850a741cbc1b2168e68256969e6d48c689994",
+    "artifactId": 9644493557,
+    "artifactDigest": "sha256:f2be6992d274f9696e0eef9ee2560d1467c5c04b6da641207c606a42ed8f2330",
+    "artifactSizeBytes": 88317124
+  },
+  "items": [
+    {
+      "id": "engineering.facm4-foundation",
+      "category": "engineering",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate 11 latest-head FACM 4.0 Foundation #210 SUCCESS; includes source gates, Release x64 build, deterministic FoundationSmoke, WindowsSmoke, single-file publish/output verification.",
+      "notes": "Cumulative automation baseline through Gate 11."
+    },
+    {
+      "id": "engineering.legacy-build",
+      "category": "engineering",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate 11 latest-head FACM Windows Build #1357 SUCCESS.",
+      "notes": "FACM 3.5.15 rollback build remains healthy."
+    },
+    {
+      "id": "engineering.ui-text",
+      "category": "engineering",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate 11 latest-head FACM UI Text Contract #478 SUCCESS.",
+      "notes": "UI Text contract remains present."
+    },
+    {
+      "id": "performance.budget-contract",
+      "category": "performance",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "FoundationSmoke #210 includes PerformancePolicy deterministic checks; Gate 12 adds exact-value regression coverage.",
+      "notes": "Concurrency, prefetch, poll and degradation semantics remain code-owned."
+    },
+    {
+      "id": "performance.gameflow-cadence",
+      "category": "performance",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate8Smoke remains in cumulative FoundationSmoke #210; ChampSelect 2s, Matchmaking/ReadyCheck 3s, InGame 10s, connected-other 5s, disconnected/error 10s.",
+      "notes": "Gate 12 adds exact cadence regression coverage."
+    },
+    {
+      "id": "architecture.runtime-ownership",
+      "category": "architecture",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Cumulative architecture/League Workbench source gates in Foundation #210 enforce one process-wide League session owner and one gameflow owner; App composition uses shared state/performance owners.",
+      "notes": "Gate 12 source gate adds explicit construction-count assertions."
+    },
+    {
+      "id": "recovery.monotonic-flags",
+      "category": "recovery",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate11Smoke in Foundation #210 verifies disable-only feature policy, unknown fail-closed and zero underlying writer calls when disabled.",
+      "notes": "Kill switch cannot expand writer permission."
+    },
+    {
+      "id": "recovery.settings-lkg",
+      "category": "recovery",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate11Smoke in Foundation #210 verifies corrupt Settings 2.0 primary is preserved and validator-backed LKG/safe defaults are used.",
+      "notes": "Legacy settings.ini remains untouched."
+    },
+    {
+      "id": "diagnostics.redaction",
+      "category": "security",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate9Smoke remains in cumulative FoundationSmoke #210 and verifies Basic/Bearer, sensitive fields, paths and malformed lines cannot escape sanitized bundle.",
+      "notes": "Diagnostics has no business writer."
+    },
+    {
+      "id": "deployment.single-file",
+      "category": "deployment",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Foundation #210 published win-x64 self-contained single-file candidate and verified FACM.App.exe with no leaked DLLs; artifact 9644493557 digest sha256:f2be6992d274f9696e0eef9ee2560d1467c5c04b6da641207c606a42ed8f2330.",
+      "notes": "This proves CI packaging shape, not SmartScreen/signing UX."
+    },
+    {
+      "id": "gate12.latest-head-ci",
+      "category": "engineering",
+      "requiredForRelease": true,
+      "status": "NotRun",
+      "evidence": "",
+      "notes": "Gate 12 latest-head CI has not run yet; update this item only after the final Gate 12 head is fully green."
+    },
+    {
+      "id": "compat.non-admin-uac-cancel",
+      "category": "compatibility",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Needs real non-admin Windows launch and explicit UAC-cancel evidence; hosted runner is elevated."
+    },
+    {
+      "id": "security.defender-smartscreen",
+      "category": "security",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Needs real Defender/SmartScreen reputation and execution evidence for final signed candidate."
+    },
+    {
+      "id": "compat.windows-10-1809",
+      "category": "compatibility",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Windows App SDK minimum is compatible on paper, but real Win10 1809 execution evidence is missing."
+    },
+    {
+      "id": "compat.windows-10-22h2",
+      "category": "compatibility",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Real Win10 22H2 launch/runtime evidence is missing."
+    },
+    {
+      "id": "compat.windows-11",
+      "category": "compatibility",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Hosted windows-latest build is useful engineering evidence but does not replace controlled real-user Win11 release evidence."
+    },
+    {
+      "id": "display.real-mixed-dpi-multimonitor",
+      "category": "display",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Needs real 100/125/150/175/200% and left/right/top/negative-coordinate mixed-DPI monitor movement evidence."
+    },
+    {
+      "id": "accessibility.real-machine",
+      "category": "accessibility",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Needs keyboard-only/focus, High Contrast, text scaling and basic screen-reader evidence on real Windows."
+    },
+    {
+      "id": "migration.settings-3.5.15-to-4.0",
+      "category": "migration",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Deterministic migration smoke exists, but a real 3.5.15 user settings directory upgrade/relaunch/rollback exercise is missing."
+    },
+    {
+      "id": "update.interrupted-replacement-rollback",
+      "category": "update",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Needs real interrupted replacement/failed replacement/rollback evidence with old EXE retained."
+    },
+    {
+      "id": "release.final-signature-package",
+      "category": "release",
+      "requiredForRelease": true,
+      "status": "Blocked",
+      "evidence": "",
+      "notes": "Final FACM 4.0 candidate signing/package verification is intentionally deferred until Gate 13 cutover authorization."
+    }
+  ]
+}
