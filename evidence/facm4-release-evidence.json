@@ -93,7 +93,15 @@
       "requiredForRelease": true,
       "status": "Passed",
       "evidence": "Gate 12 implementation head cb7c928691977e464d2e52af28ac33bb8a7c2597: Foundation #223 SUCCESS, Windows Build #1360 SUCCESS, UI Text #481 SUCCESS; candidate artifact 9666206475.",
-      "notes": "A final regression will run after evidence/canonical-doc closeout; candidate identity intentionally remains the implementation head that produced this artifact to avoid circular artifact chasing."
+      "notes": "Final Gate 12 regression also passed Foundation #231 / Windows Build #1364 / UI Text #485. Candidate identity intentionally remains the implementation head that produced the recorded artifact."
+    },
+    {
+      "id": "gate13.cutover-guard",
+      "category": "release",
+      "requiredForRelease": true,
+      "status": "Passed",
+      "evidence": "Gate 13 implementation head 71d82ea060f393f271048102bc4eff77d0707305: Foundation #240 SUCCESS, Windows Build #1366 SUCCESS, UI Text #487 SUCCESS. Cutover source guard reported 22 required / 11 passed / 11 blocking before this item was promoted; Gate13Smoke passed. Engineering artifact 9666591196 ZIP 88321030 bytes, digest sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69; FACM.App.exe 227794567 bytes.",
+      "notes": "Guard engineering is verified. The remaining 10 external/final-release items still keep ReleaseReady=false, so formal production cutover remains blocked."
     },
     {
       "id": "compat.non-admin-uac-cancel",
@@ -173,7 +181,7 @@
       "requiredForRelease": true,
       "status": "Blocked",
       "evidence": "",
-      "notes": "Final FACM 4.0 candidate signing/package verification is intentionally deferred until Gate 13 cutover authorization."
+      "notes": "Final FACM 4.0 candidate signing/package verification is intentionally deferred until release evidence is otherwise complete and fresh cutover authorization exists."
     }
   ]
 }

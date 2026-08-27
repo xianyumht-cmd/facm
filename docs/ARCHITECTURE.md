@@ -18,6 +18,7 @@ FACM.Core
 ├─ Desktop geometry + DPI
 ├─ Recovery / Feature policy
 ├─ Release evidence evaluator
+├─ Production cutover decision guard
 └─ Cleanup / League / Online contracts
         ↓
 FACM.Infrastructure                 FACM.Platform.Windows
@@ -63,7 +64,7 @@ Workbench 只有 `比赛 / 攻略 / 自动化` 三层 IA；Bench 仍手动；wri
 <distribution>/runtime/recovery/feature-kill-switch.json
 ```
 
-Gate 12 release evidence 本身是 repository evidence：`evidence/facm4-release-evidence.json`。它不是 runtime 配置，也不是 production pointer。
+Release evidence 是 repository file `evidence/facm4-release-evidence.json`。它不是 runtime 配置，也不是 production pointer。
 
 ## 4. Settings / Diagnostics / Recovery
 
@@ -145,7 +146,9 @@ ReleaseReady = all(required item.status == Passed)
 
 因此 CI 可以在 matrix 合法时 SUCCESS，同时正确输出 `RELEASE BLOCKED`。Blocked 不是 CI 失败；伪造/缺失 evidence contract 才是 CI 失败。
 
-Gate 12 implementation candidate `cb7c928691977e464d2e52af28ac33bb8a7c2597` 的 Foundation #223、Windows Build #1360、UI Text #481 已通过。当前 matrix 为 21 required / 11 Passed / 10 Blocked。
+Gate 12 已完成并合入 `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。Gate 13 guard implementation head `71d82ea060f393f271048102bc4eff77d0707305` 已通过 Foundation #240、Windows Build #1366、UI Text #487；Gate13Smoke 与 WindowsSmoke 均 SUCCESS。
+
+当前 matrix 为 **22 required / 12 Passed / 10 Blocked**，`ReleaseReady=false`。
 
 ## 9. Current external blockers
 
@@ -162,18 +165,39 @@ Gate 12 implementation candidate `cb7c928691977e464d2e52af28ac33bb8a7c2597` 的 
 
 Hosted CI 不得把这些项目改成 Passed。
 
-## 10. Gate 13 cutover guard
+## 10. Gate 13 production cutover guard
 
-Gate 13 的安全条件是双门：
+Gate 13 已验证的安全条件是双门：
 
 ```text
 CutoverAllowed = ReleaseEvidenceEvaluator.ReleaseReady
                  AND FreshProductionDestructiveAuthorization
 ```
 
-缺任意一个条件都必须拒绝 production pointer 修改、legacy retirement、production deploy/restart。
+Core `CutoverDecisionService` 的判定顺序固定：**先 release evidence，后 authorization**。只要 required evidence 尚未全部 Passed，任何授权对象都不能覆盖 `ReleaseEvidenceBlocked`。
 
-当前 `ReleaseReady=false`，所以可以实现/合并 cutover guard，但不能执行正式 4.0.0 切换。普通“继续做工程”不等于 production/destructive authorization。
+Production authorization 约束：
+
+- `Granted=true`；
+- scope 精确为 `FACM4ProductionCutover`；
+- candidate SHA 与 evidence candidate 精确匹配；
+- issued 时间不得来自未来；
+- 最大 freshness 30 分钟；
+- 最大授权窗口 30 分钟；
+- 不在 repository/runtime config 中持久化 token/secret/authorization。
+
+Gate13Smoke 已验证 missing/not-granted/wrong-scope/wrong-candidate/future/expired/stale/overlong authorization 全部拒绝；只有 synthetic all-pass evidence + fresh matching authorization 才允许。
+
+`check-facm4-cutover.ps1` 在当前 `ReleaseReady=false` 时同时冻结：
+
+- `online/version.json`；
+- `release/request.json`；
+- legacy `FACM.sln`；
+- `src/FACM`；
+- `src/FACM.Updater`；
+- `src/FACM.ToolBundle`。
+
+当前状态是 **GUARD VERIFIED / CUTOVER BLOCKED**。普通“继续做工程”不等于 production/destructive authorization。
 
 ## 11. Persistent invariants
 
