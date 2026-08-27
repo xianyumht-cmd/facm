@@ -18,10 +18,10 @@ namespace FACM.League
         private readonly FlowLayoutPanel _subnav;
         private readonly Panel _content;
         private readonly FacmGlassPanel _contextDock;
-        private readonly FlowLayoutPanel _contextActions;
-        private readonly Label _contextCurrent;
-        private readonly Label _contextConnection;
-        private readonly Label _contextPhase;
+        private FlowLayoutPanel _contextActions;
+        private Label _contextCurrent;
+        private Label _contextConnection;
+        private Label _contextPhase;
         private Form _currentChild;
         private string _currentViewId;
         private string _currentSectionKey;
@@ -227,96 +227,110 @@ namespace FACM.League
                 Padding = Padding.Empty,
                 Visible = false
             };
-            dock.Controls.Add(new Label
+
+            var layout = new TableLayoutPanel
             {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
-                Location = new Point(13, 12),
-                Size = new Size(202, 20),
-                ForeColor = Color.White,
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 12,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
-            });
-            _contextCurrent = new Label
-            {
-                Location = new Point(13, 36),
-                Size = new Size(202, 22),
-                AutoEllipsis = true,
-                ForeColor = FacmDesignSystem.Accent,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
+                Padding = new Padding(12, 10, 10, 10),
+                Margin = Padding.Empty
             };
-            dock.Controls.Add(_contextCurrent);
-            dock.Controls.Add(new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextStatus),
-                Location = new Point(13, 74),
-                Size = new Size(202, 20),
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.8F, FontStyle.Bold)
-            });
-            _contextConnection = new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextClientDisconnected),
-                Location = new Point(13, 99),
-                Size = new Size(202, 20),
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
-            };
-            _contextPhase = new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextPhasePrefix) + " · " + LeagueHubText.Activity(_ui, FACM.Performance.LeagueActivityLevel.None),
-                Location = new Point(13, 123),
-                Size = new Size(202, 20),
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8.2F)
-            };
-            dock.Controls.Add(_contextConnection);
-            dock.Controls.Add(_contextPhase);
-            dock.Controls.Add(new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextQuick),
-                Location = new Point(13, 160),
-                Size = new Size(202, 20),
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.8F, FontStyle.Bold)
-            });
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 10F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 152F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
+
+            layout.Controls.Add(CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
+                Color.White,
+                10F,
+                FontStyle.Bold), 0, 0);
+
+            _contextCurrent = CreateContextLabel(string.Empty, FacmDesignSystem.Accent, 8.2F, FontStyle.Bold);
+            _contextCurrent.AutoEllipsis = true;
+            layout.Controls.Add(_contextCurrent, 0, 1);
+
+            layout.Controls.Add(CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextStatus),
+                FacmDesignSystem.TextMuted,
+                7.8F,
+                FontStyle.Bold), 0, 3);
+
+            _contextConnection = CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextClientDisconnected),
+                FacmDesignSystem.TextMuted,
+                8.2F,
+                FontStyle.Bold);
+            layout.Controls.Add(_contextConnection, 0, 4);
+
+            _contextPhase = CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextPhasePrefix) + " · " + LeagueHubText.Activity(_ui, FACM.Performance.LeagueActivityLevel.None),
+                FacmDesignSystem.Text,
+                8.2F,
+                FontStyle.Regular);
+            layout.Controls.Add(_contextPhase, 0, 5);
+
+            layout.Controls.Add(CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextQuick),
+                FacmDesignSystem.TextMuted,
+                7.8F,
+                FontStyle.Bold), 0, 7);
+
             _contextActions = new FlowLayoutPanel
             {
-                Location = new Point(11, 185),
-                Size = new Size(210, 164),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
                 AutoScroll = false,
                 BackColor = Color.Transparent,
-                Padding = Padding.Empty
+                Padding = Padding.Empty,
+                Margin = Padding.Empty
             };
-            dock.Controls.Add(_contextActions);
-            dock.Controls.Add(new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextChampSelectHint),
-                Location = new Point(13, 365),
-                Size = new Size(202, 54),
-                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.8F)
-            });
-            dock.Controls.Add(new Label
-            {
-                Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextHint),
-                Location = new Point(13, 430),
-                Size = new Size(202, 62),
-                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.5F)
-            });
+            layout.Controls.Add(_contextActions, 0, 8);
+
+            var champHint = CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextChampSelectHint),
+                FacmDesignSystem.TextMuted,
+                7.8F,
+                FontStyle.Regular);
+            champHint.TextAlign = ContentAlignment.BottomLeft;
+            layout.Controls.Add(champHint, 0, 10);
+
+            var contextHint = CreateContextLabel(
+                LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextHint),
+                FacmDesignSystem.TextMuted,
+                7.5F,
+                FontStyle.Regular);
+            contextHint.TextAlign = ContentAlignment.TopLeft;
+            layout.Controls.Add(contextHint, 0, 11);
+
+            dock.Controls.Add(layout);
             return dock;
+        }
+
+        private Label CreateContextLabel(string text, Color color, float fontSize, FontStyle style)
+        {
+            return new Label
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
+                ForeColor = color,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, fontSize, style),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
         }
 
         private void AddSectionButton(Panel sidebar, string sectionKey, string hintKey, int top)
@@ -505,7 +519,7 @@ namespace FACM.League
                 var button = new FacmPillButton
                 {
                     Text = ResolveViewText(captured.TextKey),
-                    Size = new Size(204, 30),
+                    Size = new Size(196, 30),
                     Margin = new Padding(0, 0, 0, 6),
                     Font = new Font(Font.FontFamily, 8F, FontStyle.Bold)
                 };
