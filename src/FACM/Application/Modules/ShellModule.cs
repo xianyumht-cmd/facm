@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FACM.AppHost;
+using FACM.Theming;
 
 namespace FACM.AppHost.Modules
 {
@@ -74,6 +75,11 @@ namespace FACM.AppHost.Modules
         {
             if (_settings.Settings == null || _settings.UiText == null)
                 throw new InvalidOperationException("Settings module must initialize before shell.");
+
+            // Normal top-level FACM windows share one borderless shell. Existing purposeful
+            // borderless surfaces (floating ball, compact control center, cleanup review, pets)
+            // are skipped, so they keep their own specialized rendering.
+            FacmWindowChrome.InstallGlobal();
 
             MainForm = new MainForm(
                 _settings.Settings,
