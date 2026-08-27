@@ -40,9 +40,16 @@ public static class UpdateDecisionService
 
         var available = latest > currentVersion;
         var minimum = ParseVersion(manifest.MinimumVersion);
-        var force = manifest.ForceUpdate && minimum is not null && currentVersion < minimum;
+        var belowMinimum = minimum is not null && currentVersion < minimum;
+        var force = available && (manifest.ForceUpdate || belowMinimum);
         return new(currentVersion, latest, available, force, available ? "update-available" : "up-to-date");
     }
 
-    private static Version? ParseVersion(string? value) => Version.TryParse(value, out var version) ? version : null;
+    public static Version? ParseVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Trim();
+        if (normalized.StartsWith('v') || normalized.StartsWith('V')) normalized = normalized[1..];
+        return Version.TryParse(normalized, out var version) ? version : null;
+    }
 }
