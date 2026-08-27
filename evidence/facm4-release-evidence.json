@@ -99,9 +99,9 @@
       "id": "gate13.cutover-guard",
       "category": "release",
       "requiredForRelease": true,
-      "status": "NotRun",
-      "evidence": "",
-      "notes": "Gate 13 cutover guard engineering CI has not completed yet. It must prove blocked evidence cannot be overridden by authorization and production controls remain untouched."
+      "status": "Passed",
+      "evidence": "Gate 13 implementation head 71d82ea060f393f271048102bc4eff77d0707305: Foundation #240 SUCCESS, Windows Build #1366 SUCCESS, UI Text #487 SUCCESS. Cutover source guard reported 22 required / 11 passed / 11 blocking before this item was promoted; Gate13Smoke passed. Engineering artifact 9666591196 ZIP 88321030 bytes, digest sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69; FACM.App.exe 227794567 bytes.",
+      "notes": "Guard engineering is verified. The remaining 10 external/final-release items still keep ReleaseReady=false, so formal production cutover remains blocked."
     },
     {
       "id": "compat.non-admin-uac-cancel",
