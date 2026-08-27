@@ -1,20 +1,28 @@
 using FACM.Core.Application;
+using FACM.Core.Cleanup;
+using FACM.Core.League;
+using FACM.Core.Online;
 using FACM.Core.Performance;
 using FACM.Core.Settings;
 using FACM.Core.Text;
+using FACM.Infrastructure.Settings;
 using FACM.Infrastructure.Text;
 
-var tests = new (string Name, Action Run)[]
+var tests = new (string Name, Func<Task> Run)[]
 {
-    ("module host topology and rollback", TestHost),
-    ("performance contract", TestPerformance),
-    ("settings.ini compatibility", TestSettings),
-    ("ui text adapter", TestUiText)
+    ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
+    ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
+    ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
+    ("ui text adapter", () => { TestUiText(); return Task.CompletedTask; }),
+    ("cleanup application boundary", TestCleanupAsync),
+    ("league write capability boundary", () => { TestLeagueWritePolicy(); return Task.CompletedTask; }),
+    ("online update decision", () => { TestUpdateDecision(); return Task.CompletedTask; }),
+    ("settings repository adapter", TestSettingsRepositoryAsync)
 };
 
 foreach (var test in tests)
 {
-    test.Run();
+    await test.Run();
     Console.WriteLine("PASS: " + test.Name);
 }
 Console.WriteLine("FACM 4.0 foundation smoke: SUCCESS");
@@ -72,8 +80,7 @@ static void TestSettings()
     Equal("obsidian-gold", parsed.ThemeId, "ThemeId");
     Equal("vpet", parsed.PetStyleId, "PetStyleId");
     True(parsed.LeagueAutoAcceptEnabled, "LeagueAutoAcceptEnabled");
-    var serialized = LegacySettingsCodec.Serialize(parsed);
-    Equal(15, serialized.Count, "stable key count");
+    Equal(15, LegacySettingsCodec.Serialize(parsed).Count, "stable key count");
     var fallback = LegacySettingsCodec.Parse(["ThemeId=unknown", "PetStyleId=unknown"]);
     Equal(LegacySettingsSnapshot.DefaultThemeId, fallback.ThemeId, "unknown theme fallback");
     Equal(LegacySettingsSnapshot.DefaultPetId, fallback.PetStyleId, "unknown pet fallback");
@@ -85,6 +92,68 @@ static void TestUiText()
     var provider = new DictionaryUiTextProvider(overrides);
     Equal("我的中心", provider.Get(UiTextKeys.ControlCenter), "text override");
     Equal("英雄联盟", provider.Get(UiTextKeys.ShellLeague), "text fallback");
+}
+
+static async Task TestCleanupAsync()
+{
+    var planner = new FakeCleanupPlanner();
+    var executor = new FakeCleanupExecutor();
+    var service = new CleanupApplicationService(planner, executor);
+    var plan = await service.PreviewAsync("C:\\League");
+    Equal(1, plan.DeletableTargets.Count, "deletable target count");
+    try
+    {
+        await service.ExecuteConfirmedAsync(plan, false);
+        throw new Exception("Unconfirmed cleanup should fail.");
+    }
+    catch (InvalidOperationException) { }
+    await service.ExecuteConfirmedAsync(plan, true);
+    Equal(1, executor.Calls, "confirmed cleanup call count");
+}
+
+static void TestLeagueWritePolicy()
+{
+    var selection = new LeagueWriteCommand(LeagueWriteCapability.ApplyMySelection, null, "{}");
+    True(LeagueWriteTargetPolicy.Matches(selection, "PATCH", "/lol-champ-select/v1/session/my-selection"), "selection allowlist");
+    True(!LeagueWriteTargetPolicy.Matches(selection, "POST", "/lol-champ-select/v1/session/actions/1"), "selection must reject arbitrary action");
+    var page = new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 42, "{}");
+    True(LeagueWriteTargetPolicy.Matches(page, "PUT", "/lol-perks/v1/pages/42"), "perk page allowlist");
+    try
+    {
+        LeagueWriteTargetPolicy.Resolve(new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 0, "{}"));
+        throw new Exception("Invalid perk page id should fail.");
+    }
+    catch (ArgumentException) { }
+}
+
+static void TestUpdateDecision()
+{
+    var manifest = new UpdateManifestSnapshot(true, "4.0.0", "4.0.0", true, "https://example.invalid/facm.exe", "ABC", "test", "2026-08-27");
+    var decision = UpdateDecisionService.Evaluate(new Version(3, 5, 15), manifest);
+    True(decision.UpdateAvailable, "update available");
+    True(decision.ForceUpdateRequired, "force update below minimum");
+    var disabled = UpdateDecisionService.Evaluate(new Version(3, 5, 15), manifest with { Enabled = false });
+    True(!disabled.UpdateAvailable, "disabled update must not surface availability");
+}
+
+static async Task TestSettingsRepositoryAsync()
+{
+    var root = Path.Combine(Path.GetTempPath(), "facm4-smoke-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var path = Path.Combine(root, "settings.ini");
+        var repository = new IniSettingsRepository(path);
+        var settings = new LegacySettingsSnapshot { BallX = 77, ThemeId = "obsidian-gold" };
+        await repository.SaveAsync(settings);
+        var loaded = await repository.LoadAsync();
+        Equal(77, loaded.BallX, "repository BallX");
+        Equal("obsidian-gold", loaded.ThemeId, "repository ThemeId");
+        Equal(15, File.ReadAllLines(path).Length, "repository stable line count");
+    }
+    finally
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+    }
 }
 
 static void Equal<T>(T expected, T actual, string name)
@@ -108,4 +177,29 @@ sealed class TestModule(string id, IReadOnlyList<string> dependencies, List<stri
         if (fail) throw new InvalidOperationException("planned failure");
     }
     public void Dispose() => events.Add("dispose:" + Id);
+}
+
+sealed class FakeCleanupPlanner : ICleanupPlanner
+{
+    public Task<CleanupPlan> CreatePlanAsync(string selectedPath, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CleanupTarget[] targets =
+        [
+            new(Path.Combine(selectedPath, "Logs", "a.log"), "日志", CleanupRuleKind.LogFile, CleanupTargetKind.File, 20, 1, 0, false, string.Empty),
+            new(Path.Combine(selectedPath, "keep"), "保护", CleanupRuleKind.ContainerChild, CleanupTargetKind.Directory, 0, 0, 0, true, "blocked")
+        ];
+        return Task.FromResult(new CleanupPlan(selectedPath, targets));
+    }
+}
+
+sealed class FakeCleanupExecutor : ICleanupExecutor
+{
+    public int Calls { get; private set; }
+    public Task<CleanupResult> ExecuteAsync(CleanupPlan plan, IProgress<CleanupProgress>? progress, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Calls++;
+        return Task.FromResult(new CleanupResult(1, 0, Array.Empty<string>()));
+    }
 }
