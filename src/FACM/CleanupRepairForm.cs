@@ -326,8 +326,16 @@ namespace FACM
                         MessageBoxButtons.OKCancel,
                         MessageBoxIcon.Information);
                     if (confirm != DialogResult.OK) return;
-                    if (!_cleanup.RestartElevatedForCleanup())
+
+                    if (_cleanup.RestartElevatedForCleanup())
+                    {
+                        Close();
+                        _ownerBall.ExitApplication();
+                    }
+                    else
+                    {
                         MessageBox.Show(CleanupRepairUiText.ElevationFailed, CleanupRepairUiText.Facm, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                     return;
                 }
 
