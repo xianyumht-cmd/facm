@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "id": "announcement-20260827-3514",
-  "title": "FACM 3.5.14 正式发布",
-  "body": "FACM 3.5.14 已正式上线：普通顶层窗口统一改为 FACM 自绘外壳，关闭、最小化、最大化、拖动、缩放与圆角行为保持一致；临时窗口支持点击窗口外桌面或切换到其它程序时关闭，窗口内部空白不会触发关闭，同一 FACM 进程的子对话框不会误关父窗口，并修复自绘最小化被外部关闭逻辑误判的问题。LOL 工作台进一步缩小默认与最低尺寸，并把当前状态、快捷工具、在线状态等稀疏页面的宽屏空白改为真实上下文区，显示客户端连接、对局阶段与相关快捷入口。League 查询、推荐、海斗、实时对局、Bench 快速换英雄和自动化逻辑不变，也没有新增 LCU session、轮询、writer、网络请求或动画 Timer。",
+  "id": "announcement-20260827-3515",
+  "title": "FACM 3.5.15 正式发布",
+  "body": "FACM 3.5.15 已正式上线：控制中心改为四个桌面式入口，清理与修复整合游戏目录、驱动修复、环境清理及重启后 WEGAME 修复流程；LOL 工作台提示进入自绘标题栏，全局主题覆盖 FACM 自有窗口。LOL 游戏修复已从旧 Fix-LCU-Window 外部程序迁为 FACM 原生实现：窗口修复按客户端实际显示器与工作区处理多屏场景，自动修复改为窗口事件驱动，不再常驻 1.5 秒轮询；跳过卡结算与重启客户端界面复用 FACM 唯一 League 会话和最小写权限边界，正式包不再携带旧 Fix-LCU-Window EXE/mode scripts。",
   "level": "info",
   "popup": false,
-  "updated_at": "2026-08-27T11:03:00+08:00",
-  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.14"
+  "updated_at": "2026-08-27T13:23:00+08:00",
+  "link_url": "https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.15"
 }
