@@ -33,6 +33,7 @@ public static class UiTextKeys
     public const string ShellStateTitle = "ShellStateTitle";
     public const string ShellStateBody = "ShellStateBody";
     public const string DesktopOpenShell = "DesktopOpenShell";
+    public const string DesktopOpenShellHelp = "DesktopOpenShellHelp";
 
     public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
     public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
@@ -59,6 +60,9 @@ public static class UiTextKeys
     public const string DiagnosticsRefresh = "DiagnosticsRefresh";
     public const string DiagnosticsCopySummary = "DiagnosticsCopySummary";
     public const string DiagnosticsExportBundle = "DiagnosticsExportBundle";
+    public const string DiagnosticsRefreshHelp = "DiagnosticsRefreshHelp";
+    public const string DiagnosticsCopySummaryHelp = "DiagnosticsCopySummaryHelp";
+    public const string DiagnosticsExportBundleHelp = "DiagnosticsExportBundleHelp";
     public const string DiagnosticsStatusReady = "DiagnosticsStatusReady";
     public const string DiagnosticsStatusRefreshed = "DiagnosticsStatusRefreshed";
     public const string DiagnosticsStatusCopied = "DiagnosticsStatusCopied";
@@ -96,6 +100,7 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.ShellStateTitle] = "状态驱动",
         [UiTextKeys.ShellStateBody] = "界面只消费 Product State 与 Core intent，不创建第二套 League、网络或文件运行时。",
         [UiTextKeys.DesktopOpenShell] = "打开 FACM 控制中心",
+        [UiTextKeys.DesktopOpenShellHelp] = "打开或激活 FACM 主窗口。",
 
         [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
         [UiTextKeys.LeagueWorkbenchMatch] = "比赛",
@@ -122,6 +127,9 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.DiagnosticsRefresh] = "刷新摘要",
         [UiTextKeys.DiagnosticsCopySummary] = "复制摘要",
         [UiTextKeys.DiagnosticsExportBundle] = "导出诊断包",
+        [UiTextKeys.DiagnosticsRefreshHelp] = "重新读取允许的诊断事件并生成脱敏摘要。",
+        [UiTextKeys.DiagnosticsCopySummaryHelp] = "把当前脱敏摘要复制到剪贴板。",
+        [UiTextKeys.DiagnosticsExportBundleHelp] = "导出只包含允许条目的脱敏诊断压缩包。",
         [UiTextKeys.DiagnosticsStatusReady] = "诊断中心已就绪",
         [UiTextKeys.DiagnosticsStatusRefreshed] = "摘要已刷新",
         [UiTextKeys.DiagnosticsStatusCopied] = "摘要已复制",

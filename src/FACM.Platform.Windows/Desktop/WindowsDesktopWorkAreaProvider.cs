@@ -9,7 +9,6 @@ public sealed class WindowsDesktopWorkAreaProvider : IDesktopWorkAreaProvider
 {
     private const uint MonitorInfoPrimary = 0x00000001;
     private const uint MonitorDpiTypeEffective = 0;
-    private const double DefaultDpi = 96d;
 
     public IReadOnlyList<DesktopWorkArea> GetWorkingAreas()
     {
@@ -26,8 +25,8 @@ public sealed class WindowsDesktopWorkAreaProvider : IDesktopWorkAreaProvider
                 monitor.ToInt64().ToString("X", CultureInfo.InvariantCulture),
                 new DesktopRect(work.Left, work.Top, work.Right - work.Left, work.Bottom - work.Top),
                 (info.Flags & MonitorInfoPrimary) != 0,
-                dpi.X / DefaultDpi,
-                dpi.Y / DefaultDpi));
+                DesktopDpi.ScaleFromDpi(dpi.X),
+                DesktopDpi.ScaleFromDpi(dpi.Y)));
             return true;
         };
 
@@ -54,7 +53,7 @@ public sealed class WindowsDesktopWorkAreaProvider : IDesktopWorkAreaProvider
         {
         }
 
-        return (DefaultDpi, DefaultDpi);
+        return (DesktopDpi.DefaultDpi, DesktopDpi.DefaultDpi);
     }
 
     private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, IntPtr monitorRect, IntPtr data);

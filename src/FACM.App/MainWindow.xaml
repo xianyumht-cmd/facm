@@ -1,7 +1,8 @@
 <Window
     x:Class="FACM.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
     <Grid Background="{StaticResource FacmBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
@@ -30,10 +31,10 @@
             PaneDisplayMode="Left"
             SelectionChanged="OnSelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="RepairNav" Tag="repair" Style="{StaticResource FacmNavigationItemStyle}" />
-                <NavigationViewItem x:Name="LeagueNav" Tag="league" Style="{StaticResource FacmNavigationItemStyle}" />
-                <NavigationViewItem x:Name="PersonalizationNav" Tag="personalization" Style="{StaticResource FacmNavigationItemStyle}" />
-                <NavigationViewItem x:Name="SettingsNav" Tag="settings" Style="{StaticResource FacmNavigationItemStyle}" />
+                <NavigationViewItem x:Name="RepairNav" Tag="repair" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Repair" />
+                <NavigationViewItem x:Name="LeagueNav" Tag="league" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.League" />
+                <NavigationViewItem x:Name="PersonalizationNav" Tag="personalization" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Personalization" />
+                <NavigationViewItem x:Name="SettingsNav" Tag="settings" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Settings" />
             </NavigationView.MenuItems>
 
             <Frame x:Name="ContentFrame">
@@ -45,16 +46,16 @@
                         HorizontalAlignment="Stretch">
 
                         <StackPanel Spacing="6">
-                            <TextBlock x:Name="ProductTitle" Style="{StaticResource FacmPageTitleTextStyle}" />
-                            <TextBlock x:Name="SectionTitle" Style="{StaticResource FacmSectionTitleTextStyle}" />
-                            <TextBlock x:Name="SectionSubtitle" Style="{StaticResource FacmMutedTextStyle}" />
+                            <TextBlock x:Name="ProductTitle" Style="{StaticResource FacmPageTitleTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SectionTitle" Style="{StaticResource FacmSectionTitleTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SectionSubtitle" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <Border Style="{StaticResource FacmCardBorderStyle}">
                             <StackPanel Spacing="10">
-                                <TextBlock x:Name="StatusLabel" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                <TextBlock x:Name="StatusLabel" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                 <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
-                                    <TextBlock x:Name="StatusValue" Style="{StaticResource FacmBodyTextStyle}" />
+                                    <TextBlock x:Name="StatusValue" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
                                 </Border>
                             </StackPanel>
                         </Border>
@@ -67,15 +68,15 @@
 
                             <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="8">
-                                    <TextBlock x:Name="OverviewTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
-                                    <TextBlock x:Name="OverviewBody" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="OverviewTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="OverviewBody" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="8">
-                                    <TextBlock x:Name="StateTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
-                                    <TextBlock x:Name="StateBody" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="StateTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="StateBody" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -88,14 +89,14 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="8">
-                                        <TextBlock x:Name="LeagueStateLabel" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueStateLabel" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                         <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
-                                            <TextBlock x:Name="LeagueStateValue" Style="{StaticResource FacmBodyTextStyle}" />
+                                            <TextBlock x:Name="LeagueStateValue" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="8">
-                                        <TextBlock x:Name="LeagueBudgetLabel" Style="{StaticResource FacmCardTitleTextStyle}" />
-                                        <TextBlock x:Name="LeagueBudgetValue" Style="{StaticResource FacmMutedTextStyle}" />
+                                        <TextBlock x:Name="LeagueBudgetLabel" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueBudgetValue" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -108,19 +109,19 @@
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
-                                        <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock x:Name="LeagueMatchDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
-                                        <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock x:Name="LeagueStrategyDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
-                                        <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock x:Name="LeagueAutomationDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
@@ -130,22 +131,23 @@
                         <StackPanel x:Name="DiagnosticsPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
                             <Border Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="12">
-                                    <TextBlock x:Name="DiagnosticsTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                    <TextBlock x:Name="DiagnosticsTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="DiagnosticsSubtitle" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="DiagnosticsSummaryLabel" Style="{StaticResource FacmBodyTextStyle}" />
+                                    <TextBlock x:Name="DiagnosticsSummaryLabel" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
                                     <TextBox
                                         x:Name="DiagnosticsSummaryText"
+                                        automation:AutomationProperties.AutomationId="FACM.Diagnostics.Summary"
                                         IsReadOnly="True"
                                         AcceptsReturn="True"
                                         TextWrapping="Wrap"
                                         MinHeight="180" />
                                     <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Button x:Name="DiagnosticsRefreshButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsRefreshClick" />
-                                        <Button x:Name="DiagnosticsCopyButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsCopyClick" />
-                                        <Button x:Name="DiagnosticsExportButton" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsExportClick" />
+                                        <Button x:Name="DiagnosticsRefreshButton" automation:AutomationProperties.AutomationId="FACM.Diagnostics.Refresh" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsRefreshClick" />
+                                        <Button x:Name="DiagnosticsCopyButton" automation:AutomationProperties.AutomationId="FACM.Diagnostics.Copy" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsCopyClick" />
+                                        <Button x:Name="DiagnosticsExportButton" automation:AutomationProperties.AutomationId="FACM.Diagnostics.Export" Style="{StaticResource FacmPrimaryButtonStyle}" Click="OnDiagnosticsExportClick" />
                                     </StackPanel>
                                     <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
-                                        <TextBlock x:Name="DiagnosticsStatus" Style="{StaticResource FacmBodyTextStyle}" />
+                                        <TextBlock x:Name="DiagnosticsStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
                                     </Border>
                                 </StackPanel>
                             </Border>

@@ -4,44 +4,35 @@
 
 FACM 3.5.15 是正式生产版本。Gate 13 前：
 
-- 不因 4.0 migration 修改 `online/version.json` / `release/request.json`；
-- legacy `FACM.sln` / Updater / ToolBundle / PetHost 必须持续可构建；
-- 4.0 缺陷只在对应 task branch/PR 修，不拿生产线试验。
+- 不修改 production `online/version.json` / `release/request.json`；
+- legacy `FACM.sln` / Updater / ToolBundle / PetHost 持续可构建；
+- 4.0 只在对应 task branch/PR 验证。
 
 Legacy gates：`FACM Windows Build` + `FACM UI Text Contract`。
 
 ## 2. FACM 4.0 Foundation CI
 
-`.github/workflows/facm4-foundation.yml` 当前顺序：
+当前顺序：
 
 ```text
-1. checkout full history
-2. setup .NET 10
-3. scripts/check-facm4-architecture.ps1
-4. scripts/check-facm4-shell.ps1
-5. scripts/check-facm4-desktop.ps1
-6. scripts/check-facm4-league-workbench.ps1
-7. scripts/check-facm4-diagnostics.ps1
-8. dotnet restore FACM4.sln -p:Platform=x64
-9. dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
-10. FACM.FoundationSmoke
-11. FACM.WindowsSmoke
-12. publish FACM.App win-x64 self-contained single-file
-13. verify FACM.App.exe + no DLL leaks
-14. upload `facm4-x64`
+architecture source gate
+Shell source gate
+desktop source gate
+League Workbench source gate
+Diagnostics source gate
+DPI/Accessibility source gate
+restore FACM4.sln
+build Release x64
+FACM.FoundationSmoke
+FACM.WindowsSmoke
+publish WinUI win-x64 self-contained single-file
+verify EXE + no DLL leaks
+upload facm4-x64
 ```
 
-`TreatWarningsAsErrors=true` 持续开启。warning/XAML error 修类型或实现，不降低门禁。
+`TreatWarningsAsErrors=true` 持续开启；不为通过 Gate 降低 warning/source gate。
 
-### Source gates
-
-- architecture：拒绝 Core UI/platform dependency、错误 ProjectReference、ViewModel 越层、migration PR 改 production release controls。
-- shell：守 one AppTitleBar / one NavigationView / one Frame / four product entries / semantic resources / UI Text。
-- desktop：守 Core geometry、Windows work-area/DPI facts、F minimal ownership、Ensure Open/Activate、无 low-level hook/polling。
-- League Workbench：守 exactly-one session/gameflow/performance owner、shared gateway、three-section IA、UI no raw LCU/polling/writer。
-- diagnostics：守只读 input allowlist、exact ZIP allowlist、UI no File/Directory/ZipArchive、no League/Cleanup/Updater writer、no directory enumeration/network runtime。
-
-## 3. 本地 4.0 验证
+本地等价命令：
 
 ```powershell
 pwsh ./scripts/check-facm4-architecture.ps1
@@ -49,174 +40,136 @@ pwsh ./scripts/check-facm4-shell.ps1
 pwsh ./scripts/check-facm4-desktop.ps1
 pwsh ./scripts/check-facm4-league-workbench.ps1
 pwsh ./scripts/check-facm4-diagnostics.ps1
+pwsh ./scripts/check-facm4-accessibility.ps1
 dotnet restore FACM4.sln -p:Platform=x64
 dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
 dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
 dotnet run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release
-dotnet publish src/FACM.App/FACM.App.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -o artifacts/facm4
 ```
 
-GitHub hosted runner 是 deterministic engineering evidence，不替代 Gate 10/12 真机矩阵。
+## 3. Stable runtime paths
 
-## 4. Runtime path / single-file
+`Environment.ProcessPath` = distribution EXE；`AppContext.BaseDirectory` 可是 `%TEMP%/.net/...`。settings / ui-text / logs / runtime / diagnostics / PetHost / update replacement 只能从 distribution EXE 推导。
 
-- `Environment.ProcessPath` = distribution EXE。
-- `AppContext.BaseDirectory` 可是 `%TEMP%/.net/...` self-extract 目录。
-- settings / UI text / logs / cache / runtime / diagnostics / PetHost / updates / replacement target 只从 distribution EXE 推导。
+## 4. Runtime owners
 
-若真实 Defender/SmartScreen/体积/更新 UX 证明 self-extract 不可接受，批准 fallback 是 signed installer EXE -> self-contained folder payload，不退回 WinForms。
-
-## 5. Settings / UI Text
+固定 exactly one：
 
 ```text
-<distribution>/settings.ini      legacy rollback/migration source
-<distribution>/settings.v2.json  FACM 4.0 typed settings
-<distribution>/ui-text.ini       optional UI copy overrides
+WindowsLeagueTransportSessionSource
+LeagueHttpGateway
+LeagueGameflowMonitor
+PerformanceBudgetProvider
+ProductStateStore
 ```
 
-legacy INI Gate 13 前不删除/覆盖。v2 malformed/future schema fail closed。保存使用 same-dir temp + flush-to-disk + replace/move。
+MainWindow/F/ViewModel 不新建第二 runtime。League gameflow cadence 与 Product State/Performance 同源。Bench 手动；writer 只通过 capability。
 
-Main Shell、desktop entry、Workbench、Diagnostics Center 用户 copy 必须通过 `IUiTextProvider`；override 失败使用 defaults。
+## 5. Diagnostics runbook
 
-## 6. Product State / League runtime
+只读输入：Product State、`facm4-events.jsonl`、`.1`。禁止 settings/lockfile/env/Registry/browser cookies/目录递归/crash dump。
 
-`ProductStateStore` 只聚合 facts，不拥有业务 runtime。相同 state 不产生无意义 revision；页面不新增第二 polling/state cache。
+导出前二次 scrub secret/Basic/Bearer/Windows/UNC path；malformed line 只计数丢弃。ZIP exactly `summary.txt/events.jsonl/manifest.json`；bounded；temp -> final；输出固定 `<distribution>/runtime/diagnostics`。
 
-4.0 固定：
+## 6. Gate 10 DPI runbook
+
+### Manifest
+
+必须同时保持：
 
 ```text
-one WindowsLeagueTransportSessionSource
-one shared LeagueHttpGateway
-one LeagueGameflowMonitor
-one PerformanceBudgetProvider
+requestedExecutionLevel = asInvoker
+dpiAware = true/pm
+dpiAwareness = PerMonitorV2, PerMonitor
 ```
 
-Gameflow monitor 使用 shared read gateway，不创建第二 HttpClient/session source。MainWindow 关闭/重开只重建 ViewModel subscriptions。
+### Coordinate rules
 
-Gameflow cadence：NotRunning/Connecting/error 10s；Lobby 5s；Matchmaking/ReadyCheck 3s；ChampSelect 2s；InGame 10s；PostGame 5s。Product State + Performance activity 必须同源。
+- work-area 与 `AppWindow.MoveAndResize` 都是 Windows desktop physical pixels。
+- Core `DesktopDpi.DefaultDpi = 96`。
+- DPI->scale 与 DIP->physical pixel 只走 `DesktopDpi`。
+- Windows adapter 负责采集 DPI facts，不拥有换算 policy。
+- FloatingWindow 不允许恢复 `SurfaceSideDip * selected.DpiScale...` 之类重复计算。
+- 负 X/Y 不 clamp 到 0；nearest/off-screen recovery 保留。
 
-Workbench 用户 IA only：`比赛 / 攻略 / 自动化`。Bench 继续手动；后续 actions 只能通过 Core capability/intent。
+### Deterministic matrix
 
-## 7. Desktop Surface / coordinate rule
-
-- Core placement 单位 = Windows desktop physical pixels。
-- `EnumDisplayMonitors/GetMonitorInfo` work-area 与 `AppWindow.MoveAndResize` 使用同一坐标空间。
-- F nominal size 64 DIP，按目标 monitor DPI scale 转 physical pixels后交 Core placement。
-- 负 X/Y 不 clamp 到 0；左/上方 monitor 保留负坐标；屏外 probe 选 nearest monitor 后 recovery。
-- 关闭 MainWindow 只关主 Shell；F/runtime 继续。点击 F = create-or-activate；关闭 F = runtime shutdown。
-
-## 8. Gate 9 Diagnostics Center runbook
-
-### 输入 allowlist
-
-只允许：
-
-- 当前内存 `ProductStateSnapshot`；
-- `<distribution>/logs/facm4-events.jsonl`；
-- `<distribution>/logs/facm4-events.jsonl.1`（存在时）。
-
-禁止默认读取/打包：settings、League lockfile、环境变量、Registry、browser cookies、用户目录递归、crash dump/raw memory。
-
-### Bounds
-
-默认：
+Gate10Smoke 必须覆盖：
 
 ```text
-MaxEvents          500
-MaxInputFileBytes  4 MiB
-MaxTotalInputBytes 8 MiB
-MaxZipEntries      3
-MaxEntryBytes      4 MiB
-MaxBundleBytes     8 MiB
-MaxSummaryChars    64 Ki chars
+96  DPI = 100% = 1.00
+120 DPI = 125% = 1.25
+144 DPI = 150% = 1.50
+168 DPI = 175% = 1.75
+192 DPI = 200% = 2.00
 ```
 
-输入文件超过 bound：skip + counter；事件超过 bound：truncate + receipt/summary flag。不能无限读或无限压缩。
+同时覆盖 64 DIP physical conversion、mixed X/Y scale、left/right/top/negative work areas、off-screen recovery、invalid DPI fail closed。
 
-### Redaction
+## 7. Gate 10 Accessibility runbook
 
-落盘 JSONL 始终视为 untrusted input。Exporter 再次执行更严格 sanitizer：
+- Main navigation、Diagnostics actions、F entry 必须有稳定 AutomationId。
+- Name/HelpText 必须来自 UI Text provider/defaults。
+- 主要动作使用 Button/NavigationView keyboard behavior；禁止 pointer-only gesture。
+- 不通过 `IsTabStop=False` 移出主要 keyboard path。
+- 长正文/说明/状态允许 Wrap；关键 TextBlock 禁止固定高度裁剪。
+- theme colors 继续 alias WinUI platform resources；High Contrast 不加私有硬编码 palette。
 
-- token/password/passwd/cookie/authorization/secret/credential/auth；
-- Basic/Bearer credentials；
-- Windows absolute paths；
-- UNC paths；
-- Product State distribution directory。
+`scripts/check-facm4-accessibility.ps1` 是自动 source contract。
 
-malformed JSONL 只增加 `MalformedLinesSkipped`，**不能**把原始脏行放进 summary/bundle。
+## 8. Gate 10 evidence boundary
 
-### ZIP contract
+Hosted runner 可以证明 source/API/manifest/geometry/WinUI wiring，但**不能**替代以下真实 evidence：
 
-ZIP entries exactly：
-
-```text
-summary.txt
-events.jsonl
-manifest.json
-```
-
-Exporter 写 `<distribution>/runtime/diagnostics`，先 temp，再 final move。UI 不提供任意输出路径。文件名不包含用户名/机器名。
-
-### UI
-
-`更多设置 -> Diagnostics Center` 提供：刷新摘要、复制摘要、导出 bundle。ViewModel 只调用 `IDiagnosticsSnapshotSource / IDiagnosticsBundleExporter`；Clipboard 是 MainWindow 窄 WinUI 动作；UI 不直接 File/Directory/ZipArchive。
-
-### Gate 9 deterministic evidence
-
-implementation head `26d049bdd99dba20c85039d3a3980aeadd8ae05d`：Foundation #162 / Windows Build #1344 / UI Text #465 SUCCESS。Gate9Smoke 验证 valid/malformed JSONL、secret/path 二次脱敏、summary determinism、bounds、ZIP exact allowlist、bundle 无原始 secret/path。
-
-## 9. Gate 10 DPI / 多屏 / Accessibility runbook
-
-当前 Gate 9 基线 manifest 尚未显式声明 PerMonitorV2。Gate 10 工程顺序：
-
-```text
-manifest PerMonitorV2 contract
--> DPI scale pure mapping tests (96/120/144/168/192)
--> mixed-DPI synthetic placement tests
--> WinUI accessibility source contract
--> AutomationProperties + keyboard focus
--> text scaling/wrap/high-contrast source checks
--> WindowsSmoke manifest/API evidence
-```
-
-Hosted runner 可以证明 manifest/source/API/synthetic geometry，但不能替代真实双屏/混合 DPI/Accessibility 体验。
-
-真实 Gate 10/12 matrix 必须记录：
-
-- Windows 10 1809 / 22H2 + Windows 11；
-- 100/125/150/175/200% DPI；
-- 左右/上下双屏、负坐标、不同 DPI 屏间移动；
+- Win10 1809 / 22H2 + Win11；
+- 100/125/150/175/200% 真机；
+- 左右/上下 dual monitor、负坐标、mixed DPI 屏间移动；
 - keyboard-only/tab/focus；
 - High Contrast；
 - text scaling；
 - basic screen reader。
 
-没有真实证据时记录 blocker，不得把 hosted runner 标成真机通过。
+缺证据时写 Gate 12/13 blocker，不得声称 release-ready。
 
-## 10. Cleanup / Updater / Recovery
+## 9. Gate 11 Recovery / Feature Flags runbook
 
-Cleanup：validated root -> preview -> explicit confirm -> UAC if needed -> allowlist/reparse guard -> execution-time revalidation -> per-target result。
+工程顺序：
 
-Updater 必须持续保持 size limit、mirror fallback、SHA-256、signature/package validation、validated receipt、wait-exit、独立提升替换、失败保旧版、rollback/recovery。
+```text
+Core typed feature catalog
+-> local allowed policy
+-> remote kill-switch restriction
+-> effective monotonic evaluator
+-> current/candidate/LKG recovery contracts
+-> validated promote only
+-> deterministic recovery/flag smoke
+-> source gate
+```
 
-Gate 11 feature flags/kill switch 只能减少/禁用功能，不能扩大 writer permission。
+规则：
 
-## 11. Single Instance / Hotkey / PetHost
+- unknown feature = disabled；
+- risky/nonessential feature default safe；
+- effective feature = local allowed AND remote allowed AND recovery allowed；
+- remote kill switch 只能关，不能开；
+- feature flag 不得创建新 `LeagueWriteCapability`；
+- candidate validation 失败不得覆盖 current/LKG；
+- recovery 可以 disable/degrade，不能提升业务写权限。
 
-Single Instance = Ensure Open/Activate。Hotkey = RegisterHotKey，不使用 low-level hook/GetAsyncKeyState/polling。PetHost 保持独立进程。
+Updater 继续保持 size limit、SHA-256、signature/package validation、validated receipt、wait-exit、separate replacement、failure keeps old、rollback。Gate 11 不修改 production pointer。
 
-## 12. Gate 13 前真实矩阵
+## 10. Release matrix / Gate 13
 
-GitHub runner 不能替代：non-admin UAC + cancel、Win10 1809/22H2、Win11、100/125/150/175/200% DPI、dual/mixed DPI/negative coordinates、keyboard/focus/high contrast/text scaling/screen reader、Defender/SmartScreen、3.5.15 -> 4.0 settings migration、interrupted updater replacement/rollback。
+Gate 12 汇总自动 + 真机 evidence，包括 non-admin UAC/cancel、Defender/SmartScreen、Win10/11、DPI/multi-monitor/accessibility、3.5.15->4.0 settings migration、interrupted updater rollback。
 
-这些可不阻塞早期 engineering Gate，但未关闭不得声称 Gate 12/13 release-ready。
+Gate 13 cutover 前必须 fresh safety check + production/destructive authorization。证据未闭环时只能标 `release blocked`，不能退休 legacy 或修改 production pointer。
 
-## 13. 每个 Gate 关闭流程
+## 11. 每个 Gate 关闭流程
 
-1. latest `main` -> Issue + short-lived branch + PR；
-2. 同 branch 完代码、tests、canonical docs；
+1. latest main -> Issue + branch + PR；
+2. 同 branch 完代码/tests/canonical docs；
 3. legacy + 4.0 latest-head gates 全绿；
-4. merge `main` 并 verify；
-5. 直接进入下一 Gate，不要求用户回复“继续”。
+4. merge main 并 verify；
+5. 直接进入下一 Gate。
 
-branch/tag 删除、production deploy/restart 属于 destructive/production 操作，仍需 `AGENTS.md` fresh safety check，不自动执行。
+branch/tag 删除、production deploy/restart 不自动执行。
