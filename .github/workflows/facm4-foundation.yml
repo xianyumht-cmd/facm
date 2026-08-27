@@ -58,6 +58,14 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-cutover.ps1
 
+      - name: Verify real-machine evidence collector contract
+        shell: pwsh
+        run: ./scripts/check-facm4-real-machine-evidence.ps1
+
+      - name: Run Windows PowerShell 5.1 evidence collector self-test
+        shell: powershell
+        run: .\scripts\collect-facm4-real-machine-evidence.ps1 -SelfTest
+
       - name: Restore FACM 4.0 solution
         shell: pwsh
         run: dotnet restore FACM4.sln -p:Platform=x64

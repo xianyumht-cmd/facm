@@ -29,7 +29,8 @@
 - Gate 10：COMPLETE，#206 / PR #207，`main@c8eebe414f332cb524069395c3d74b51c12bdaa0`。
 - Gate 11：COMPLETE，#208 / PR #209，`main@977da451c2cf67fdda7c161b4caf56222d96941f`。
 - Gate 12：COMPLETE，#210 / PR #212，merge `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。
-- Gate 13：**GUARD VERIFIED / CUTOVER BLOCKED**，Issue #213 保持 OPEN，PR #214 为 guard engineering PR；正式 4.0.0 cutover 尚未完成。
+- Gate 13：**GUARD VERIFIED / CUTOVER BLOCKED**，#213 保持 OPEN；Guard PR #214 已合入 `main@c54cc1f87cb7069daf9e045008320a7d0ac7feac`。
+- Gate 13 evidence harness：#215 / PR #216，active；目标是把 10 个真实 blocker 的采集流程压缩为 Windows 一键 evidence bundle，不自动把 blocker 改为 Passed。
 
 ## 已冻结的 4.0 基线
 
@@ -100,7 +101,7 @@ Gate 12 final docs/evidence head 也通过 Foundation #231 / Windows Build #1364
 
 ## Gate 13：Cutover Guard — GUARD VERIFIED / CUTOVER BLOCKED
 
-Tracking：Issue #213（保持 OPEN），branch `feat/facm-4-gate13-cutover-guard`，PR #214。
+Tracking：Issue #213 保持 OPEN。Guard PR #214 已 squash 合入 `main@c54cc1f87cb7069daf9e045008320a7d0ac7feac`。
 
 ### 双门规则
 
@@ -123,27 +124,26 @@ CutoverAllowed = ReleaseEvidenceEvaluator.ReleaseReady
 
 **Evidence 先判断。** 当前 evidence BLOCKED 时，即使提供形式上有效的 authorization，也返回 `ReleaseEvidenceBlocked`。
 
-授权对象不落盘、不含 token；source gate 禁止 application source 硬编码 `ProductionCutoverAuthorization`。
+### Guard final evidence
 
-### Guard engineering evidence
+PR #214 final head `756add72129c091e31beedf6ca6b33983dbdc759`：
 
-Gate 13 implementation head `71d82ea060f393f271048102bc4eff77d0707305`：
-
-- Foundation #240：SUCCESS；
-- Windows Build #1366：SUCCESS；
-- UI Text #487：SUCCESS；
-- Gate13Smoke：SUCCESS；
-- WindowsSmoke：SUCCESS；
-- cutover source guard：SUCCESS，并输出 `CUTOVER BLOCKED`；
+- Foundation #247 SUCCESS；
+- Windows Build #1370 SUCCESS；
+- UI Text #491 SUCCESS；
+- Gate1-13 cumulative FoundationSmoke SUCCESS；
+- WindowsSmoke SUCCESS；
+- final evidence evaluator：22 required / 12 Passed / 10 Blocked；
+- cutover source guard：`CUTOVER BLOCKED`；
 - `FACM.App.exe`：227,794,567 bytes；
-- engineering artifact：9666591196；ZIP 88,321,030 bytes；
-- digest：`sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69`。
+- artifact 9667132912；ZIP 88,321,043 bytes；
+- digest `sha256:2aecd9b5c7b69b80b93b3e37d042c180586f2152cfd6aa6b7bd7a655a7512945`。
 
-`gate13.cutover-guard` 已在 evidence matrix 中晋升 Passed。
+Merge 后 main push 也再次通过 Foundation #249 / Windows Build #1371 / UI Text #492。
 
 ### 当前 readiness
 
-Matrix 当前：**22 required / 12 Passed / 10 Blocked**，所以 `ReleaseReady=false`。
+Matrix：**22 required / 12 Passed / 10 Blocked**，所以 `ReleaseReady=false`。
 
 剩余 10 个 required blockers：
 
@@ -158,7 +158,23 @@ Matrix 当前：**22 required / 12 Passed / 10 Blocked**，所以 `ReleaseReady=
 9. interrupted updater replacement/rollback；
 10. final signing/package verification。
 
-因此 **正式 Gate 13 没有完成，FACM 4.0.0 没有发布**。工程 guard 可以合入 main，但 Issue #213 必须保持 OPEN/BLOCKED，直到这 10 项真实 evidence 闭环，并获得 fresh、明确的 production/destructive authorization。
+因此 **正式 Gate 13 没有完成，FACM 4.0.0 没有发布**。Issue #213 必须保持 OPEN/BLOCKED，直到这 10 项真实 evidence 闭环，并获得 fresh、明确的 production/destructive authorization。
+
+## Gate 13：一键真机 Evidence Harness — ACTIVE
+
+Tracking：Issue #215，branch `feat/facm-4-gate13-real-machine-evidence`，PR #216。
+
+目标不是替代真机验证，而是把真机材料采集标准化：
+
+- 根目录 `FACM-4.0-真机证据采集.bat`，显式调用 Windows PowerShell 5.1；
+- collector 只读，不联网、不提权、不写注册表、不执行 update/restart/delete；
+- 自动采集 OS/build/UAC/Defender/SmartScreen 配置、candidate SHA-256/version/AuthentiCode、display bounds/DPI、High Contrast/text scale、settings/recovery 文件元数据与哈希；
+- bundle 默认脱敏 username/UserProfile/Windows/UNC path/Basic/Bearer/token/password/secret/cookie/authorization；
+- UAC cancel、SmartScreen 实际 UI、mixed-DPI 拖动、keyboard/screen-reader、Settings migration、Updater rollback、final signing review 保持 `manual_required` / review 状态；
+- collector 不修改 canonical matrix，automatic observation 不等于 Passed；
+- CI 必须用 Windows PowerShell 5.1 跑 `-SelfTest`，验证脱敏、8 个 evidence slots、JSON roundtrip、ZIP 创建和固定 ZIP entries。
+
+第一版 source gate + PS5.1 self-test 已在 PR #216 的早期 head 真实通过；v1.1 将 ZIP 正常路径也纳入 self-test，待 latest-head CI 通过后再合并。
 
 ## 当前禁止自动执行
 
@@ -172,4 +188,4 @@ Matrix 当前：**22 required / 12 Passed / 10 Blocked**，所以 `ReleaseReady=
 
 ## 新对话接续
 
-读取 `AGENTS.md + docs/PROJECT_STATE.md` 后先核对 main、PR #214、Issue #213 与 latest-head CI。若 guard PR 已合入，则后续工作不是继续写迁移代码，而是补齐 matrix 中 10 个真实 release blockers；在它们全部 Passed 之前不得 cutover。
+读取 `AGENTS.md + docs/PROJECT_STATE.md` 后先核对 `main@c54cc1f87cb7069daf9e045008320a7d0ac7feac`、Issue #213、Issue #215 / PR #216 与 latest-head CI。Evidence harness 合入后，工程侧就进入真实机器边界；后续只能采集/审核 10 个真实 blocker，在它们全部 Passed 前不得 cutover。
