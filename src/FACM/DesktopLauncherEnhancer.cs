@@ -92,9 +92,9 @@ namespace FACM
             };
 
             AddTile(launcher, theme, sx, sy, "◈", CleanupRepairUiText.LauncherTitle,
-                delegate { OpenCleanupRepair(menu); });
+                (Action)delegate { OpenCleanupRepair(menu); });
             AddTile(launcher, theme, sx, sy, "L", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title),
-                delegate { LeagueHubUiBridge.RequestOpen(); });
+                (Action)delegate { LeagueHubUiBridge.RequestOpen(); });
             AddTile(launcher, theme, sx, sy, "✦", ui.Get(UiTextKeys.ShellPersonalization),
                 tile => InvokeLegacy(menu, PersonalizationMethod, tile));
             AddTile(launcher, theme, sx, sy, "⋯", ui.Get(UiTextKeys.ShellMoreSettings),
