@@ -59,7 +59,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Grid ColumnSpacing="16">
+                        <Grid x:Name="GeneralOverviewGrid" ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -79,6 +79,53 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
+
+                        <StackPanel x:Name="LeagueWorkbenchPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <Grid ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="8">
+                                        <TextBlock x:Name="LeagueStateLabel" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                            <TextBlock x:Name="LeagueStateValue" Style="{StaticResource FacmBodyTextStyle}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="8">
+                                        <TextBlock x:Name="LeagueBudgetLabel" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueBudgetValue" Style="{StaticResource FacmMutedTextStyle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueMatchDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueStrategyDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                                        <TextBlock x:Name="LeagueAutomationDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Frame>
