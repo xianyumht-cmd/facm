@@ -1,5 +1,6 @@
 using FACM.Core.Online;
 using FACM.Core.Settings;
+using FACM.Core.State;
 
 namespace FACM.App.ViewModels;
 
@@ -7,15 +8,21 @@ public sealed class ControlCenterViewModel
 {
     private readonly ISettings2Repository _settings;
     private readonly IUpdateManifestSource _updates;
+    private readonly IProductStateReader _productState;
 
-    public ControlCenterViewModel(ISettings2Repository settings, IUpdateManifestSource updates)
+    public ControlCenterViewModel(
+        ISettings2Repository settings,
+        IUpdateManifestSource updates,
+        IProductStateReader productState)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
+        _productState = productState ?? throw new ArgumentNullException(nameof(productState));
     }
 
     public string StatusText { get; private set; } = "准备就绪";
     public UpdateDecision? Update { get; private set; }
+    public ProductStateSnapshot ProductState => _productState.Current;
 
     public async Task RefreshAsync(Version currentVersion, CancellationToken cancellationToken = default)
     {
