@@ -109,14 +109,14 @@ namespace FACM
                     RefreshState();
                 });
             driver.Margin = new Padding(0, 0, 8, 0);
-            var cleanup = BuildAction(
+            var cleanupAction = BuildAction(
                 CleanupRepairUiText.EnvironmentCleanup,
                 CleanupRepairUiText.CleanupHint,
                 out _cleanupState,
                 ExecuteCleanup);
-            cleanup.Margin = new Padding(8, 0, 0, 0);
+            cleanupAction.Margin = new Padding(8, 0, 0, 0);
             actions.Controls.Add(driver, 0, 0);
-            actions.Controls.Add(cleanup, 1, 0);
+            actions.Controls.Add(cleanupAction, 1, 0);
             root.Controls.Add(actionsCard, 0, 1);
 
             var statusCard = CreateCard();
