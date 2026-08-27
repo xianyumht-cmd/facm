@@ -71,17 +71,17 @@ public static class AnchorPlacementService
         if (!double.IsFinite(request.Margin) || request.Margin < 0)
             throw new ArgumentOutOfRangeException(nameof(request), "Margin must be finite and non-negative.");
 
-        foreach (var area in request.WorkingAreas)
+        foreach (var workArea in request.WorkingAreas)
         {
-            if (area is null || !area.Bounds.IsValid)
+            if (workArea is null || !workArea.Bounds.IsValid)
                 throw new ArgumentException("Every desktop work area must have valid bounds.", nameof(request));
-            if (!double.IsFinite(area.DpiScaleX) || !double.IsFinite(area.DpiScaleY) ||
-                area.DpiScaleX <= 0 || area.DpiScaleY <= 0)
+            if (!double.IsFinite(workArea.DpiScaleX) || !double.IsFinite(workArea.DpiScaleY) ||
+                workArea.DpiScaleX <= 0 || workArea.DpiScaleY <= 0)
                 throw new ArgumentException("Every desktop work area must have positive finite DPI scales.", nameof(request));
         }
 
         var preferred = request.PreferredTopLeft is { IsFinite: true } value ? value : (DesktopPoint?)null;
-        var probe = preferred is null
+        DesktopPoint? probe = preferred is null
             ? null
             : new DesktopPoint(
                 preferred.Value.X + (request.SurfaceSize.Width / 2d),
