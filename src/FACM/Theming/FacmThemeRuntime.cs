@@ -63,13 +63,35 @@ namespace FACM.Theming
             if (control.BackColor != Color.Transparent)
                 control.BackColor = Remap(control.BackColor, previous, next, true);
 
+            var glass = control as FacmGlassPanel;
+            if (glass != null)
+            {
+                glass.Radius = FacmDesignSystem.CardRadius;
+                glass.BackColor = next.Surface;
+            }
+
+            var nav = control as FacmNavButton;
+            if (nav != null)
+            {
+                nav.ForeColor = next.TextMuted;
+                ReplaceFont(nav, next.FontName, 9.2F, FontStyle.Bold);
+            }
+
+            var pill = control as FacmPillButton;
+            if (pill != null)
+            {
+                pill.ForeColor = next.TextMuted;
+                ReplaceFont(pill, next.FontName, 8.6F, FontStyle.Bold);
+            }
+
             var button = control as Button;
-            if (button != null && !(button is FacmNavButton) && !(button is FacmPillButton))
+            if (button != null && nav == null && pill == null)
             {
                 button.ForeColor = next.TextPrimary;
                 button.FlatAppearance.BorderColor = next.Border;
                 button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
                 button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, next.Accent, 0.12F);
+                FacmDesignSystem.Round(button, FacmDesignSystem.ResolveButtonRadius(button));
             }
 
             var textBox = control as TextBoxBase;
@@ -88,6 +110,19 @@ namespace FACM.Theming
 
             control.Invalidate();
             foreach (Control child in control.Controls) ApplyControl(child, previous, next);
+        }
+
+        private static void ReplaceFont(Control control, string fontName, float size, FontStyle style)
+        {
+            if (control == null || control.IsDisposed || string.IsNullOrWhiteSpace(fontName)) return;
+            if (control.Font != null &&
+                string.Equals(control.Font.FontFamily.Name, fontName, StringComparison.OrdinalIgnoreCase) &&
+                Math.Abs(control.Font.Size - size) < 0.05F && control.Font.Style == style)
+                return;
+
+            var previousFont = control.Font;
+            control.Font = new Font(fontName, size, style);
+            if (previousFont != null) previousFont.Dispose();
         }
 
         private static Color Remap(Color value, ThemeDefinition previous, ThemeDefinition next, bool background)
