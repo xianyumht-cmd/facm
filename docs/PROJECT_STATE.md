@@ -25,13 +25,13 @@
 - 发布工作流 `FACM Publish Release` run #33 / run id `33042472043` 已 SUCCESS。
 - 除非出现崩溃、无法启动、数据损坏、更新失效或严重核心功能不可用，3.5.15 不再做大规模 WinForms UI 修补。
 
-## 当前主线：FACM 4.0 Gate 0
+## 当前主线：FACM 4.0 Gate 0 — COMPLETE
 
 ### Tracking
 
 - Issue：#185 `FACM 4.0 Gate 0：迁移契约、全仓审计与 WinUI 部署原型`
 - task branch：`feat/facm-4-gate0`
-- Draft PR：#186 `FACM 4.0 Gate 0：迁移契约与 WinUI 部署探针`
+- delivery PR：#186 `FACM 4.0 Gate 0：迁移契约与 WinUI 部署探针`
 - Gate 0 基线：`main@1f7d5d5f9e4a16daac68673d8ce387241af4417d`
 - Gate 0 不发布 4.0，不修改 `online/version.json` / `release/request.json`，不删除 legacy，不把 WinUI 原型加入正式 `FACM.sln`。
 
@@ -83,8 +83,8 @@ Gate 0 probe 使用：
 ### Run
 
 - workflow：`FACM 4.0 WinUI Deployment Probe`
-- push run #1 / run id：`33044929707`
-- head：`f5c42b4b67a9b112a70ea3218c0acf6b9d5efa08`
+- 首次取证 run #1 / run id：`33044929707`
+- 最终 PR head 门禁：WinUI Deployment Probe #3 SUCCESS、FACM Windows Build #1292 SUCCESS、FACM UI Text Contract #413 SUCCESS。
 - Windows runner：`Microsoft Windows 10.0.26100` / X64
 - restore：SUCCESS
 - publish：SUCCESS
@@ -115,7 +115,7 @@ CI smoke（不是正式产品性能预算）：
 - **Updater 只能把 `Environment.ProcessPath` 对应的分发 EXE 作为替换目标；不得把 `AppContext.BaseDirectory` 当作安装目录或长期资源目录。**
 - Runtime/config/cache/update/package/PetHost 数据目录不得依赖 `.net/...` 自解包路径稳定存在。
 - FACM 自有内嵌资源继续通过 assembly/resource API 访问，不能通过自解包目录相对路径猜测。
-- single-file 技术上可进入 Gate 1，但 约 217 MiB 的空壳体积和首次自解包成本已经证明“单 EXE”并不等于轻量；Gate 1 必须继续测真实主程序体积、首启/二启、Defender/SmartScreen 与下载/更新体验。
+- single-file 技术上可进入 Gate 1，但约 217 MiB 的空壳体积和首次自解包成本已经证明“单 EXE”并不等于轻量；Gate 1 必须继续测真实主程序体积、首启/二启、Defender/SmartScreen 与下载/更新体验。
 - GitHub hosted runner 本次 `is_elevated=true`，因此它**不能替代普通用户桌面的 UAC 提升验证**。`--request-elevation-probe` 只证明代码路径可构建；普通权限 -> runas -> elevated child 必须在后续集中 Windows 实机验收中验证。
 
 ## Gate 0 结论 / 当前默认路线
@@ -126,7 +126,7 @@ CI smoke（不是正式产品性能预算）：
 
 > .NET 10 LTS + WinUI 3 + Windows App SDK Stable + unpackaged + self-contained + single-file x64
 
-理由：Gate 0 已证明它能在干净的 Windows CI 环境 restore、publish、单 EXE 输出、启动、自解包并读取内嵌资源；同时分发路径与 temp extraction 路径可明确区分。
+理由：Gate 0 已证明它能在 Windows CI 环境 restore、publish、单 EXE 输出、启动、自解包并读取内嵌资源；同时分发路径与 temp extraction 路径可明确区分。
 
 ### 已批准 fallback
 
@@ -182,10 +182,10 @@ CI smoke（不是正式产品性能预算）：
 - [x] unpackaged + self-contained + single-file publish 已在 Windows CI 通过。
 - [x] 单 EXE真实输出、首次/二次启动、分发路径/解包路径、embedded resource 已取证。
 - [x] rollback line 与 single-installer fallback 已写明。
-- [ ] PR #186 上所有既有 required checks 最终 green。
-- [ ] Gate 0 canonical docs / PR 状态最终收束并合入 main。
+- [x] PR #186 最终 head 的 FACM Windows Build / UI Text Contract / WinUI Deployment Probe 全部 green。
+- [x] Gate 0 状态、迁移契约、风险与 Gate 1 入口已收束，可直接合入并进入 Gate 1。
 
-## 下一步：Gate 1（等 Gate 0 PR green/merge 后直接开始，不需要用户逐步回复“继续”）
+## 下一步：Gate 1（Gate 0 delivery PR 合入后直接开始，不需要用户逐步回复“继续”）
 
 Gate 1 的目标不是“马上做完整 UI”，而是建立可长期迁移的并行 4.0 solution foundation：
 
