@@ -24,6 +24,7 @@ public partial class App : Application
     private FloatingWindow? _floatingWindow;
     private ControlCenterViewModel? _controlCenter;
     private LeagueWorkbenchViewModel? _leagueWorkbench;
+    private DiagnosticsCenterViewModel? _diagnosticsCenter;
     private IUiTextProvider? _uiText;
     private Settings2Repository? _settings;
     private HttpUpdateManifestSource? _updateManifestSource;
@@ -33,6 +34,8 @@ public partial class App : Application
     private PerformanceBudgetProvider? _performance;
     private ProductStateStore? _productState;
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
+    private IDiagnosticsSnapshotSource? _diagnosticsSource;
+    private IDiagnosticsBundleExporter? _diagnosticsExporter;
     private bool _shuttingDown;
 
     public App()
@@ -44,13 +47,24 @@ public partial class App : Application
     {
         var executablePaths = new WindowsExecutablePathProvider();
         var layout = RuntimePathLayout.From(executablePaths);
+        var appVersion = typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown";
+        var diagnosticLogPath = Path.Combine(layout.LogsDirectory, "facm4-events.jsonl");
+        var diagnosticsPolicy = DiagnosticsExportPolicy.Default;
 
         _productState = new ProductStateStore();
         _productState.SetEnvironment(
             new ProductEnvironmentState(layout.DistributionDirectory, null, null),
             "runtime-layout-ready");
         _performance = new PerformanceBudgetProvider();
-        _diagnostics = new BoundedJsonLinesDiagnosticSink(Path.Combine(layout.LogsDirectory, "facm4-events.jsonl"));
+        _diagnostics = new BoundedJsonLinesDiagnosticSink(diagnosticLogPath);
+        _diagnosticsSource = new FileDiagnosticsSnapshotSource(
+            _productState,
+            diagnosticLogPath,
+            appVersion,
+            diagnosticsPolicy);
+        _diagnosticsExporter = new DiagnosticsBundleExporter(
+            Path.Combine(layout.RuntimeDirectory, "diagnostics"),
+            diagnosticsPolicy);
 
         _settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
@@ -92,7 +106,7 @@ public partial class App : Application
             DiagnosticResult.Success,
             "main-window-activated",
             _productState.Current.League,
-            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
+            appVersion));
     }
 
     private void EnsureMainWindow()
@@ -103,9 +117,12 @@ public partial class App : Application
             var controlCenter = _controlCenter ?? throw new InvalidOperationException("Control center is unavailable.");
             var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
             var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+            var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
+            var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
             var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
             _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
-            _window = new MainWindow(controlCenter, _leagueWorkbench, text);
+            _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
+            _window = new MainWindow(controlCenter, _leagueWorkbench, _diagnosticsCenter, text);
             _window.Closed += OnMainWindowClosed;
         }
         _window.Activate();
@@ -117,8 +134,9 @@ public partial class App : Application
         _window = null;
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
+        _diagnosticsCenter = null;
         // Closing the main shell does not toggle or terminate the desktop entry. Clicking F later
-        // recreates only the state-consuming ViewModel/window; the one League runtime keeps its owner.
+        // recreates only state-consuming ViewModels/window; process-wide runtime owners remain shared.
     }
 
     private void OnFloatingWindowClosed(object sender, WindowEventArgs args)
@@ -187,6 +205,7 @@ public partial class App : Application
         _gameflow = null;
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
+        _diagnosticsCenter = null;
         _leagueGateway?.Dispose();
         _leagueGateway = null;
         _leagueSessions = null;
@@ -195,6 +214,8 @@ public partial class App : Application
         _updateManifestSource = null;
         _diagnostics?.Dispose();
         _diagnostics = null;
+        _diagnosticsSource = null;
+        _diagnosticsExporter = null;
         _settings = null;
         _controlCenter = null;
         _uiText = null;
