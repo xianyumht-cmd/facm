@@ -1,182 +1,125 @@
 # FACM 架构
 
-## 1. 双轨迁移与依赖方向
+## 1. 双轨迁移
 
-FACM 3.5.15 WinForms 仍是生产/回滚基线；FACM 4.0 使用 .NET 10 + WinUI 3 并行迁移。Gate 13 前不退休 legacy、不修改 production release controls。
+FACM 3.5.15 WinForms 仍是 production/rollback baseline；FACM 4.0 使用 .NET 10 + WinUI 3。Gate 13 前不退休 legacy、不修改 production release controls。
 
 ```text
-FACM.App (.NET 10 + WinUI 3)
-├─ MainWindow: one AppTitleBar + one NavigationView + one Frame
+FACM.App
+├─ MainWindow: one AppTitleBar + NavigationView + Frame
 ├─ FloatingWindow: narrow F desktop entry
 ├─ ViewModels: Core intents/state only
 └─ composition root
         ↓
-FACM.Core (platform/UI neutral)
-├─ module lifecycle / performance
+FACM.Core
+├─ Performance / Product State / Feature contracts
 ├─ Settings 2.0 / UI Text
-├─ Product State / observability / diagnostics contracts
-├─ Desktop placement geometry
-├─ Cleanup
-├─ League gameflow/capability/session contracts
-└─ Online/update contracts
+├─ Observability / Diagnostics
+├─ Desktop geometry + DPI conversion
+├─ Cleanup / League / Online contracts
         ↓
 FACM.Infrastructure                 FACM.Platform.Windows
-├─ settings/text/diagnostic IO      ├─ executable/runtime identity
-├─ diagnostics reader/exporter      ├─ League discovery/session owner
+├─ settings/diagnostic IO           ├─ executable/runtime identity
+├─ diagnostics reader/exporter      ├─ League session owner
 ├─ HTTP/League transport            ├─ monitor/work-area/DPI facts
-├─ one Gameflow monitor             └─ UAC/hotkey/process integration
+├─ one Gameflow monitor             └─ Windows integration
 └─ update metadata
 ```
 
-固定 direction：App -> Core/Infrastructure/Platform.Windows；Infrastructure -> Core；Platform.Windows -> Core；Core 不引用 UI/platform implementation。
+Direction 固定：App -> Core/Infrastructure/Platform.Windows；Infrastructure -> Core；Platform.Windows -> Core；Core 不引用 UI/platform implementation。
 
-## 2. UI Intent / State Boundary
+## 2. UI 与 runtime ownership
 
-```text
-Window/Page -> ViewModel -> Core intent/state
-                            ↑
-            Infrastructure / Platform adapters
-            wired only in App composition root
-```
+Window/Page -> ViewModel -> Core intent/state。具体 adapter 只在 App composition root 组装。禁止 ViewModel/Page 创建 HttpClient、League runtime、settings/diagnostic file store、Process/Registry/Win32 implementation 或第二 polling loop。
 
-禁止 ViewModel/Page 直接 new HttpClient、League runtime、settings/diagnostic file store、Process/Registry/Win32 implementation。页面不得自己维护 LCU polling/state cache。
+4.0 exactly one `WindowsLeagueTransportSessionSource`、one shared `LeagueHttpGateway`、one `LeagueGameflowMonitor`、one `PerformanceBudgetProvider`。Workbench 只有 `比赛 / 攻略 / 自动化` 三层 IA；Bench 仍手动；writer 只能走 Core capability allowlist。
 
-## 3. Runtime paths / Settings / UI Text
+## 3. Stable paths / Settings / Diagnostics
+
+所有稳定路径只从 distribution EXE (`Environment.ProcessPath`) 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
 
 ```text
-<distribution>/settings.ini             legacy rollback/migration source
-<distribution>/settings.v2.json         FACM 4.0 typed settings
-<distribution>/ui-text.ini              optional text override
-<distribution>/logs/facm4-events.jsonl  bounded diagnostics log
-<distribution>/runtime/diagnostics/     sanitized diagnostic bundles
+<distribution>/settings.ini
+<distribution>/settings.v2.json
+<distribution>/ui-text.ini
+<distribution>/logs/facm4-events.jsonl
+<distribution>/runtime/diagnostics/
 ```
 
-稳定路径只从 `Environment.ProcessPath` 的 distribution executable 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
+Settings 2.0 legacy import 后旧 INI Gate 13 前保留；save same-dir temp + flush-to-disk + replace/move。
 
-Settings 2.0 schema v2 覆盖 Environment / Online / Appearance / Pets / League；legacy 15-key import 后旧 INI 仍保留。坏 JSON/非法值/future schema fail closed；atomic save 使用 same-directory temp + flush-to-disk + replace/move。
+Diagnostics 复用 Gate 5 JSONL；Gate 9 只读 Product State + current JSONL + `.1`，再次 scrub secret/Basic/Bearer/Windows/UNC path，ZIP exactly `summary.txt/events.jsonl/manifest.json`。Diagnostics 无业务 writer。
 
-`IUiTextProvider` 是用户可见文字 contract。Main Shell、F entry、Workbench、Diagnostics Center 都通过 `UiTextKeys`；读取 override 失败时 fallback defaults。
+## 4. Desktop coordinate / DPI contract
 
-## 4. League ownership / performance
+Core `AnchorPlacementService` 是 physical desktop geometry owner；支持负坐标、nearest monitor、edge/corner、margin/clamp、off-screen recovery。
 
-4.0 exactly one discovery/auth/session owner：`WindowsLeagueTransportSessionSource`；`LeagueHttpGateway` read/write 共用它。secret 不进入公共 descriptor/Product State/diagnostics，credential 只发 loopback。
-
-当前 Core write allowlist：
+Gate 10 新增 Core `DesktopDpi`：
 
 ```text
-ApplyMySelection      -> PATCH /lol-champ-select/v1/session/my-selection
-CreatePerkPage        -> POST  /lol-perks/v1/pages
-UpdatePerkPage(id)    -> PUT   /lol-perks/v1/pages/{positive-id}
-SetCurrentPerkPage    -> PUT   /lol-perks/v1/currentpage
+DPI 96  -> scale 1.00
+DPI 120 -> scale 1.25
+DPI 144 -> scale 1.50
+DPI 168 -> scale 1.75
+DPI 192 -> scale 2.00
 ```
 
-Bench 仍是用户显式手动动作；后续 writer 只能收窄，不能由 UI raw path 扩权。
+`DesktopDpi` 是 DPI->scale 与 DIP->physical pixel 的唯一计算 contract。`WindowsDesktopWorkAreaProvider` 只采集 work-area + effective DPI facts，再调用 Core helper；`FloatingWindow` 也调用 Core helper，禁止 UI 再写第二套 `dip * scale`。
 
-Gate 8 固定 one Gameflow owner：
+`EnumDisplayMonitors/GetMonitorInfo` work-area 与 `AppWindow.MoveAndResize` 都使用 Windows desktop physical pixels。F nominal 64 DIP 根据目标 monitor scale 转 physical size 后才交给 Core placement。
+
+## 5. DPI awareness
+
+`FACM.App/app.manifest` 显式声明：
 
 ```text
-WindowsLeagueTransportSessionSource
-              ↓
-LeagueHttpGateway
-              ↓ read
-LeagueGameflowMonitor
-              ↓
-LeagueGameflowPhaseMapper
-        ┌─────┴─────┐
-        ↓           ↓
-ProductStateStore   PerformanceBudgetProvider
-        ↓           ↓
-        LeagueWorkbenchViewModel
+legacy fallback: dpiAware = true/pm
+modern: dpiAwareness = PerMonitorV2, PerMonitor
+execution: asInvoker
 ```
 
-cadence：ChampSelect 2s、Matchmaking/ReadyCheck 3s、InGame 10s、connected other 5s、disconnected/connecting/error 10s。Product State 与 Performance 必须来自同一个 mapping。
+DPI-awareness 不得暗中改成 always-elevated；也不得为了 DPI 问题退回 WinForms。
 
-## 5. Workbench / Main Shell
+## 6. Accessibility contract
 
-用户 League IA exactly 3：`比赛 / 攻略 / 自动化`。旧 dashboard/player/live/mayhem/recommendation/efficiency/repair/presence 不直接搬成八个 WinUI tab。
+Main Shell/F/Diagnostics 的 actionable controls 使用稳定 AutomationId。Accessible Name/HelpText 通过 `IUiTextProvider + UiTextKeys`，不维护第二套硬编码 accessibility 文案。
 
-`LeagueWorkbenchViewModel` 只消费 Product State + Performance；禁止 raw `/lol-*` path、HttpClient、Task.Delay polling、session discovery、writer。
+- NavigationViewItem / Button 保持 keyboard-capable 默认行为；禁止 pointer-only action path。
+- source contract 禁止 `IsTabStop=False` 把主要 action 移出键盘导航。
+- 长正文/状态/说明允许 `TextWrapping=Wrap`；关键 TextBlock 不使用固定高度裁剪。
+- semantic colors alias WinUI platform theme resources；High Contrast 不增加 FACM 自有硬编码 palette。
+- Floating F button具有 AutomationId + provider-driven Name/HelpText。
 
-Main Shell 固定 one AppTitleBar / one NavigationView / one Frame / four product entries：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`。用户 copy 走 UI Text。禁止 Form-in-Form / WindowsFormsHost / Z-order / timer/reflection patch。
+`scripts/check-facm4-accessibility.ps1` 守 manifest、Core DPI ownership、5 档 DPI smoke、mixed-DPI fixtures、AutomationProperties、keyboard/text scaling/semantic theme contract。
 
-## 6. Product State / structured observability
+## 7. Engineering evidence vs real-machine evidence
 
-`ProductStateStore` 是唯一 product-state 聚合 store，覆盖 Application / League / Environment / Services；相同状态不增加 revision，subscriber 在 lock 外调用。它不拥有业务 runtime。
+Gate 10 hosted CI 能证明：manifest/source contract 可编译、Core DPI math、synthetic mixed-DPI geometry、Windows runner monitor/DPI API、WinUI accessibility API wiring。
 
-`DiagnosticEvent` 固定 `TimestampUtc / ActionId / Module / DurationMs / Result / Reason / LeagueState / ClientVersion / Data`。Gate 5 factory + bounded JSONL sink 两层 `DiagnosticRedactor`，日志 IO best-effort 且不能阻止启动/退出。
+它**不能**证明真实用户体验。以下仍需 Gate 12/13 evidence：Win10 1809/22H2 + Win11；100/125/150/175/200%；左右/上下 dual monitor、负坐标、mixed DPI 屏间移动；keyboard-only/focus；High Contrast；text scaling；basic screen reader。
 
-## 7. Gate 9 Diagnostics Center：只读架构
+## 8. Gate 11 Recovery / Feature Flags boundary
 
-Gate 9 **复用** Gate 5 observability，不建第二日志系统：
+Gate 11 的 Feature Flags 必须是 Core typed contract，default-safe。Remote/local kill switch 只能做集合交集式收缩：
 
 ```text
-ProductStateStore + facm4-events.jsonl + optional .1
-                    ↓ read-only bounded
-          FileDiagnosticsSnapshotSource
-                    ↓
- DiagnosticsSnapshot / DiagnosticsSummaryFormatter
-                    ↓ second sanitize
-          DiagnosticsBundleExporter
-                    ↓
- summary.txt / events.jsonl / manifest.json
-                    ↓
-        DiagnosticsCenterViewModel
-                    ↓
-            MainWindow surface
+EffectiveEnabled = LocalAllowed AND RemoteAllowed AND RecoveryAllows
 ```
 
-固定输入 allowlist：内存 Product State、当前 JSONL、`.1` rotation。禁止 settings、League lockfile、环境变量、Registry、browser cookies、crash dump/raw memory、目录递归。
+任何 remote/kill-switch 输入都不能把本地 false 变 true，也不能新增 `LeagueWriteCapability` 或其它 writer permission。unknown flags fail closed。
 
-`DiagnosticsExportSanitizer` 在 Gate 5 redactor 之上再次处理 Basic/Bearer auth、敏感 assignment、Windows/UNC absolute paths；Product State distribution path 也改成 `[path]`。malformed JSONL 只计数并丢弃，不传播原始行。
+Recovery/LKG 必须区分 current/candidate/last-known-good；candidate 只有通过 validation 后才能 promote。坏 settings/update candidate 不覆盖 LKG。
 
-默认 export policy：500 events；单输入 4 MiB；总输入 8 MiB；ZIP exactly 3 entries；单 entry 4 MiB；bundle 8 MiB；summary 64 Ki chars。
+Updater 继续守 size limit、SHA-256、signature/package validation、validated receipt、wait-exit、separate replacement、failure keeps old、rollback。Gate 11 不修改 production update pointer。
 
-ZIP allowlist exactly：`summary.txt / events.jsonl / manifest.json`。Exporter 使用 temp -> final move；输出目录由 composition root 固定 `<distribution>/runtime/diagnostics`，UI 不能传任意路径。
+## 9. Persistent invariants
 
-`DiagnosticsCenterViewModel` 只依赖 `IDiagnosticsSnapshotSource + IDiagnosticsBundleExporter`；不持有 File/Directory/ZipArchive/League writer/Cleanup executor/Updater installer。Clipboard 是 MainWindow 的窄 WinUI 动作。
+- Cleanup：preview -> explicit confirm -> UAC -> allowlist/reparse guard -> execution-time revalidation。
+- Single Instance = Ensure Open / Activate。
+- Hotkey = RegisterHotKey；不使用 low-level hook/GetAsyncKeyState/polling。
+- PetHost 保持独立进程。
+- Performance Contract、UI Text Contract、deterministic smoke/source gates 不得静默删除。
 
-`scripts/check-facm4-diagnostics.ps1` 自动守只读 ownership、输入/ZIP allowlist、UI boundary 与 exactly-one source/exporter composition。
+## 10. Release boundary
 
-## 8. Desktop Surface / DPI coordinate boundary
-
-`AnchorPlacementService` 是纯 Core geometry owner：preferred point、负坐标、nearest monitor、edge/corner、margin/clamp、off-screen recovery。
-
-`WindowsDesktopWorkAreaProvider` 提供 physical-pixel work-area + per-monitor DPI facts。64 DIP F surface 先按目标 monitor DPI 转 physical size，再交 Core；`AppWindow.MoveAndResize` 使用同一 physical coordinate space，禁止 UI 第二次缩放。
-
-`FloatingWindow` 只依赖 `IDesktopWorkAreaProvider + IUiTextProvider + EnsureMainWindow callback`。关闭 MainWindow 不关闭 F；F 点击 create-or-activate；关闭 F 才 shutdown。
-
-## 9. Gate 10 DPI / 多屏 / Accessibility boundary
-
-当前 `FACM.App/app.manifest` 已有 `asInvoker + supportedOS`，但 Gate 9 时尚未显式声明 PerMonitorV2。Gate 10 必须把 DPI-awareness 变成明确 contract，并验证与 Gate 7 physical-pixel geometry 一致。
-
-工程可自动验证：
-
-- manifest PerMonitorV2；
-- 96/120/144/168/192 DPI 对应 100/125/150/175/200% scale math；
-- mixed-DPI synthetic monitor placement、负坐标/左右/上下屏、off-screen recovery；
-- actionable WinUI controls 的 keyboard focus + AutomationProperties；
-- UI Text 驱动 accessible names/help text；
-- semantic theme resources、高对比依赖平台资源；
-- text wrapping/无固定高度裁剪等 source rules。
-
-不能由 hosted runner 冒充的证据：真实 mixed-DPI 双屏移动、keyboard-only、High Contrast、125～200% text scaling、basic screen reader、Win10/11 真机视觉/焦点检查。这些若未获得，进入 Gate 12/13 blocker，而不是伪称通过。
-
-## 10. Cleanup / Update / Recovery invariants
-
-Cleanup：validated root -> preview -> explicit confirm -> UAC -> allowlist/reparse guard -> execution-time revalidation -> per-target result。
-
-Updater：size limit、mirror fallback、SHA-256、signature/package validation、validated receipt、wait-exit、独立提升替换、失败保旧版、rollback/recovery；replacement target 来自 distribution EXE。
-
-Gate 11 feature flags/kill switch 只能减少或禁用功能，不能扩大 writer permission。
-
-## 11. Single Instance / Hotkey / PetHost
-
-Single Instance = Ensure Open / Activate。全局快捷键只能 RegisterHotKey，不引入 low-level keyboard hook/GetAsyncKeyState/polling。PetHost 保持独立进程、IPC、parent/job 生命周期。
-
-## 12. 测试与发布边界
-
-持续维护：`FACM Windows Build`、`FACM UI Text Contract`、`FACM 4.0 Foundation`、`FACM.WindowsSmoke`、各 Gate deterministic smoke/source gate。已有 smoke 只能迁移或由更强验证替代。
-
-Hosted Windows runner 是 engineering evidence，不替代 Gate 10/12 真机 multi-monitor/mixed-DPI/accessibility matrix。
-
-Gate 13 前 production `online/version.json` / `release/request.json` 继续指向 3.5.15。正式 4.0 cutover 还需要 settings 真机迁移、Updater rollback、Win10/11、DPI/多屏/accessibility、Defender/SmartScreen 等真实证据。
+Gate 12 汇总兼容/性能/真实设备 evidence。Gate 13 只有在 Gates 0～12 闭环并获得 fresh production/destructive authorization 后才能退休 legacy、改 production pointer、发布 4.0.0；否则必须保持 release blocked。
