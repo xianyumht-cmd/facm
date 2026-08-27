@@ -12,7 +12,7 @@
 - `published_at`：2026-08-27T05:28:50.9137418+00:00
 <!-- FACM_RELEASE_STATE_END -->
 
-> FACM 4.0 当前仍是迁移候选。没有 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、退休 legacy 或执行生产发布。
+> FACM 4.0 的工程迁移已推进到 Gate 13 Cutover Guard，但**生产仍是 3.5.15**。没有 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、退休 legacy、deploy/restart 或发布 4.0.0。
 
 ## FACM 4.0 总进度
 
@@ -28,8 +28,8 @@
 - Gate 9：COMPLETE，#204 / PR #205。
 - Gate 10：COMPLETE，#206 / PR #207，`main@c8eebe414f332cb524069395c3d74b51c12bdaa0`。
 - Gate 11：COMPLETE，#208 / PR #209，`main@977da451c2cf67fdda7c161b4caf56222d96941f`。
-- Gate 12：IMPLEMENTATION VERIFIED，#210 / PR #212；implementation candidate `cb7c928691977e464d2e52af28ac33bb8a7c2597`。canonical/evidence closeout 后需 latest-head CI 再确认再合入。
-- Gate 13：NEXT，但当前 release evidence = **BLOCKED**；可以继续做 cutover guard，不能正式切生产。
+- Gate 12：COMPLETE，#210 / PR #212，merge `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。
+- Gate 13：**GUARD VERIFIED / CUTOVER BLOCKED**，Issue #213 保持 OPEN，PR #214 为 guard engineering PR；正式 4.0.0 cutover 尚未完成。
 
 ## 已冻结的 4.0 基线
 
@@ -70,21 +70,20 @@
 - Recovery：Clean/Starting/Running/Failed/Recovering；bounded atomic metadata；previous-start-incomplete 检测。
 - strict Settings2 不放宽；外层 validator-backed LKG；无 LKG 使用 `AutoUpdateEnabled=false` 的安全内存默认；坏 primary 保留。
 - Update recovery 继续要求 validated receipt + old-version preservation；replacement failure keeps old。
-- latest-head Foundation #210 / Windows Build #1357 / UI Text #478 SUCCESS；merge `main@977da451c2cf67fdda7c161b4caf56222d96941f`。
+- latest-head Foundation #210 / Windows Build #1357 / UI Text #478 SUCCESS。
 
-## Gate 12：Release Evidence / Performance Matrix — IMPLEMENTATION VERIFIED
+## Gate 12：Release Evidence / Performance Matrix — COMPLETE
 
-Tracking：Issue #210，branch `feat/facm-4-gate12-release-evidence`，PR #212。
+Canonical matrix：`evidence/facm4-release-evidence.json`。
 
-### Machine-readable evidence
-
-- canonical matrix：`evidence/facm4-release-evidence.json`。
 - status 仅允许 `Passed / Blocked / NotRun / Failed`。
 - `Passed` 必须有 evidence；required 非 Passed 必须有 blocker notes。
-- JSON **不存 `releaseReady` 布尔值**；Core `ReleaseEvidenceEvaluator` 每次从 required item 推导 readiness，无法靠手改 summary 绕过 blocker。
+- JSON 不存可手改的 `releaseReady`；Core `ReleaseEvidenceEvaluator` 从 required statuses 推导 readiness。
 - candidate identity 必须是 full 40-char Git SHA + positive artifact id/size + SHA-256 digest。
+- Gate12Smoke 逐字段锁定 6 套 Performance Budget、Gameflow cadence 与 readiness 语义。
+- release-evidence source gate 锁定 mandatory evidence、runtime owner construction count、Performance/cadence 与累计 smoke。
 
-当前 implementation candidate：
+Gate 12 implementation candidate：
 
 ```text
 head: cb7c928691977e464d2e52af28ac33bb8a7c2597
@@ -92,50 +91,85 @@ Foundation: #223 SUCCESS
 Windows Build: #1360 SUCCESS
 UI Text: #481 SUCCESS
 FACM.App.exe: 227,786,375 bytes
-artifact facm4-x64: 9666206475
+artifact: 9666206475
 artifact ZIP: 88,319,814 bytes
 digest: sha256:9a1274592e891c8fc3c5c21dfc522fe315179331933d11d61ab63f0758ded559
 ```
 
-### Performance / ownership regression
+Gate 12 final docs/evidence head 也通过 Foundation #231 / Windows Build #1364 / UI Text #485，并已合入 `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。
 
-Gate12Smoke + `check-facm4-release-evidence.ps1` 现在锁定：
+## Gate 13：Cutover Guard — GUARD VERIFIED / CUTOVER BLOCKED
 
-- Desktop：4/2/2/2，history 20，poll 15s；
-- Client：3/2/2/2，history 12，poll 20s；
-- Queueing：2/1/1/1，history 4，poll 30s；
-- ChampSelect：2/1/1/1，history 0，poll 45s；
-- InGame / Background：1/1/1/1，history 0，poll 60s；
-- ChampSelect 2s、Matchmaking/ReadyCheck 3s、InGame 10s、connected other 5s、disconnected/error 10s；
-- App composition 中五个 process-wide owner 各恰好构造一次。
+Tracking：Issue #213（保持 OPEN），branch `feat/facm-4-gate13-cutover-guard`，PR #214。
+
+### 双门规则
+
+Core `CutoverDecisionService` 固定：
+
+```text
+CutoverAllowed = ReleaseEvidenceEvaluator.ReleaseReady
+                 AND FreshProductionDestructiveAuthorization
+```
+
+授权必须同时满足：
+
+- `Granted=true`；
+- scope 精确为 `FACM4ProductionCutover`；
+- candidate SHA 与 evidence candidate 精确匹配；
+- issued time 不在未来；
+- 未过期；
+- freshness <= 30 分钟；
+- authorization window <= 30 分钟。
+
+**Evidence 先判断。** 当前 evidence BLOCKED 时，即使提供形式上有效的 authorization，也返回 `ReleaseEvidenceBlocked`。
+
+授权对象不落盘、不含 token；source gate 禁止 application source 硬编码 `ProductionCutoverAuthorization`。
+
+### Guard engineering evidence
+
+Gate 13 implementation head `71d82ea060f393f271048102bc4eff77d0707305`：
+
+- Foundation #240：SUCCESS；
+- Windows Build #1366：SUCCESS；
+- UI Text #487：SUCCESS；
+- Gate13Smoke：SUCCESS；
+- WindowsSmoke：SUCCESS；
+- cutover source guard：SUCCESS，并输出 `CUTOVER BLOCKED`；
+- `FACM.App.exe`：227,794,567 bytes；
+- engineering artifact：9666591196；ZIP 88,321,030 bytes；
+- digest：`sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69`。
+
+`gate13.cutover-guard` 已在 evidence matrix 中晋升 Passed。
 
 ### 当前 readiness
 
-matrix 当前是 **21 required / 11 Passed / 10 Blocked**，因此 `ReleaseReady=false`。
+Matrix 当前：**22 required / 12 Passed / 10 Blocked**，所以 `ReleaseReady=false`。
 
-仍未闭环的 required evidence：
+剩余 10 个 required blockers：
 
 1. non-admin 启动 + UAC cancel；
 2. Defender / SmartScreen；
 3. Win10 1809；
 4. Win10 22H2；
-5. Win11 controlled real-user evidence；
+5. controlled real-user Win11；
 6. real 100/125/150/175/200% mixed-DPI multi-monitor；
 7. keyboard-only/focus + High Contrast + text scaling + basic screen reader；
 8. real 3.5.15 -> 4.0 Settings migration/relaunch/rollback；
 9. interrupted updater replacement/rollback；
 10. final signing/package verification。
 
-Gate 12 engineering 完成不等于 release-ready；source gate 正确允许 CI SUCCESS 同时输出 `RELEASE BLOCKED`。
+因此 **正式 Gate 13 没有完成，FACM 4.0.0 没有发布**。工程 guard 可以合入 main，但 Issue #213 必须保持 OPEN/BLOCKED，直到这 10 项真实 evidence 闭环，并获得 fresh、明确的 production/destructive authorization。
 
-## Gate 13：Cutover boundary
+## 当前禁止自动执行
 
-下一步可以安全实现 **cutover guard**：只有 `ReleaseEvidenceEvaluator.ReleaseReady == true` 且同时存在 fresh production/destructive authorization，才允许进入 production pointer / legacy retirement / deploy transaction。
+- production `online/version.json` / `release/request.json` 修改；
+- production deploy/restart；
+- 发布/切换 4.0.0；
+- legacy retirement/deletion；
+- branch/tag 删除。
 
-当前 matrix 不 READY，所以 Gate 13 必须拒绝正式 cutover。当前用户的普通“继续”只授权继续工程工作，不等于生产发布/破坏性授权。
-
-禁止自动执行：branch/tag 删除、production deploy/restart、production pointer 修改、legacy 删除。
+当前用户的普通“继续”只代表继续工程，不等于上述授权。
 
 ## 新对话接续
 
-读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对 latest main / 当前 Gate Issue+PR+CI 后直接继续，不要求用户逐 Gate回复“继续”。
+读取 `AGENTS.md + docs/PROJECT_STATE.md` 后先核对 main、PR #214、Issue #213 与 latest-head CI。若 guard PR 已合入，则后续工作不是继续写迁移代码，而是补齐 matrix 中 10 个真实 release blockers；在它们全部 Passed 之前不得 cutover。
