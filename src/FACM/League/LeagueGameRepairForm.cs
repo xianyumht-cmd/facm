@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
@@ -10,13 +11,14 @@ namespace FACM.League
 {
     internal sealed class LeagueGameRepairForm : Form
     {
-        private readonly ToolsModule _tools;
+        private readonly LeagueGameRepairService _repair;
         private readonly LeagueEfficiencyModule _efficiency;
         private readonly Label _status;
+        private Button _autoButton;
 
-        public LeagueGameRepairForm(ToolsModule tools, LeagueEfficiencyModule efficiency)
+        public LeagueGameRepairForm(LeagueGameRepairService repair, LeagueEfficiencyModule efficiency)
         {
-            _tools = tools ?? throw new ArgumentNullException(nameof(tools));
+            _repair = repair ?? throw new ArgumentNullException(nameof(repair));
             _efficiency = efficiency ?? throw new ArgumentNullException(nameof(efficiency));
 
             Text = LeagueGameRepairUiText.Title;
@@ -47,7 +49,7 @@ namespace FACM.League
             title.Size = new Size(180, 26);
             var hint = Label(LeagueGameRepairUiText.Hint, 8.5F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             hint.Location = new Point(2, 28);
-            hint.Size = new Size(660, 22);
+            hint.Size = new Size(690, 22);
             intro.Controls.Add(title);
             intro.Controls.Add(hint);
             root.Controls.Add(intro, 0, 0);
@@ -57,8 +59,8 @@ namespace FACM.League
             windowTitle.Location = new Point(16, 12);
             windowTitle.Size = new Size(180, 22);
             windowCard.Controls.Add(windowTitle);
-            windowCard.Controls.Add(ActionButton(LeagueGameRepairUiText.FixNow, LeagueGameRepairUiText.FixNowHint, 16, 42, delegate { RunFixMode(1, LeagueGameRepairUiText.FixNow); }));
-            windowCard.Controls.Add(ActionButton(LeagueGameRepairUiText.FixAuto, LeagueGameRepairUiText.FixAutoHint, 350, 42, delegate { RunFixMode(2, LeagueGameRepairUiText.FixAuto); }));
+            windowCard.Controls.Add(ActionButton(LeagueGameRepairUiText.FixNow, LeagueGameRepairUiText.FixNowHint, 16, 42, RepairWindowAsync, null));
+            windowCard.Controls.Add(ActionButton(LeagueGameRepairUiText.FixAuto, LeagueGameRepairUiText.FixAutoHint, 350, 42, ToggleAutoRepairAsync, delegate(Button button) { _autoButton = button; }));
             root.Controls.Add(windowCard, 0, 1);
 
             var lobbyCard = new FacmGlassPanel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 10), DrawBorder = true };
@@ -66,9 +68,9 @@ namespace FACM.League
             lobbyTitle.Location = new Point(16, 12);
             lobbyTitle.Size = new Size(180, 22);
             lobbyCard.Controls.Add(lobbyTitle);
-            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.SkipSettlement, LeagueGameRepairUiText.SkipSettlementHint, 16, 42, delegate { RunFixMode(3, LeagueGameRepairUiText.SkipSettlement); }));
-            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.RestartUx, LeagueGameRepairUiText.RestartUxHint, 350, 42, delegate { RunFixMode(4, LeagueGameRepairUiText.RestartUx); }));
-            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.ExitGame, LeagueGameRepairUiText.ExitGameHint, 16, 106, async delegate { await ExitGameAsync(); }));
+            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.SkipSettlement, LeagueGameRepairUiText.SkipSettlementHint, 16, 42, SkipSettlementAsync, null));
+            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.RestartUx, LeagueGameRepairUiText.RestartUxHint, 350, 42, RestartUxAsync, null));
+            lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.ExitGame, LeagueGameRepairUiText.ExitGameHint, 16, 106, ExitGameAsync, null));
             root.Controls.Add(lobbyCard, 0, 2);
 
             var statusCard = new FacmGlassPanel { Dock = DockStyle.Fill, DrawBorder = true };
@@ -78,10 +80,18 @@ namespace FACM.League
             statusCard.Controls.Add(_status);
             root.Controls.Add(statusCard, 0, 3);
 
+            Shown += delegate { RefreshAutoButton(); };
+            VisibleChanged += delegate { if (Visible) RefreshAutoButton(); };
             FacmDesignSystem.ApplyLeagueSurface(this);
         }
 
-        private Control ActionButton(string title, string hint, int x, int y, Action action)
+        private Control ActionButton(
+            string title,
+            string hint,
+            int x,
+            int y,
+            Func<Task> action,
+            Action<Button> capture)
         {
             var panel = new Panel
             {
@@ -101,7 +111,23 @@ namespace FACM.League
                 TabStop = false
             };
             button.FlatAppearance.BorderColor = FacmDesignSystem.Border;
-            button.Click += delegate { if (action != null) action(); };
+            button.Click += async delegate
+            {
+                if (action == null || button.IsDisposed) return;
+                button.Enabled = false;
+                try { await action().ConfigureAwait(true); }
+                catch (Exception exception)
+                {
+                    AppLog.Error("League native game repair action failed", exception);
+                    SetStatus(LeagueGameRepairUiText.ActionFailed, FacmDesignSystem.Error);
+                }
+                finally
+                {
+                    if (!button.IsDisposed) button.Enabled = true;
+                }
+            };
+            if (capture != null) capture(button);
+
             var description = Label(hint, 7.8F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             description.Location = new Point(136, 0);
             description.Size = new Size(178, 55);
@@ -110,20 +136,30 @@ namespace FACM.League
             return panel;
         }
 
-        private void RunFixMode(int mode, string title)
+        private async Task RepairWindowAsync()
         {
-            try
-            {
-                _tools.RunFixLcu(mode);
-                _status.Text = string.Format(LeagueGameRepairUiText.Launched, title);
-                _status.ForeColor = FacmDesignSystem.Success;
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("League game repair tool launch failed; mode=" + mode, exception);
-                _status.Text = string.Format(LeagueGameRepairUiText.ToolFailed, exception.Message);
-                _status.ForeColor = FacmDesignSystem.Error;
-            }
+            var result = await _repair.RepairWindowAsync(CancellationToken.None).ConfigureAwait(true);
+            ShowRepairResult(result);
+        }
+
+        private Task ToggleAutoRepairAsync()
+        {
+            var result = _repair.SetAutoRepairEnabled(!_repair.AutoRepairEnabled);
+            RefreshAutoButton();
+            ShowRepairResult(result);
+            return Task.CompletedTask;
+        }
+
+        private async Task SkipSettlementAsync()
+        {
+            var result = await _repair.SkipSettlementAsync(CancellationToken.None).ConfigureAwait(true);
+            ShowRepairResult(result);
+        }
+
+        private async Task RestartUxAsync()
+        {
+            var result = await _repair.RestartClientUxAsync(CancellationToken.None).ConfigureAwait(true);
+            ShowRepairResult(result);
         }
 
         private async Task ExitGameAsync()
@@ -133,33 +169,50 @@ namespace FACM.League
                 var result = await _efficiency.RunExitGameAsync().ConfigureAwait(true);
                 if (result == null)
                 {
-                    _status.Text = LeagueGameRepairUiText.ExitFailed;
-                    _status.ForeColor = FacmDesignSystem.Error;
+                    SetStatus(LeagueGameRepairUiText.ExitFailed, FacmDesignSystem.Error);
                     return;
                 }
 
                 if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
-                {
-                    _status.Text = LeagueGameRepairUiText.ExitSuccess;
-                    _status.ForeColor = FacmDesignSystem.Success;
-                }
+                    SetStatus(LeagueGameRepairUiText.ExitSuccess, FacmDesignSystem.Success);
                 else if (string.Equals(result.Status, "no-target", StringComparison.OrdinalIgnoreCase))
-                {
-                    _status.Text = LeagueGameRepairUiText.ExitNoTarget;
-                    _status.ForeColor = FacmDesignSystem.Warning;
-                }
+                    SetStatus(LeagueGameRepairUiText.ExitNoTarget, FacmDesignSystem.Warning);
                 else
-                {
-                    _status.Text = LeagueGameRepairUiText.ExitFailed;
-                    _status.ForeColor = FacmDesignSystem.Error;
-                }
+                    SetStatus(LeagueGameRepairUiText.ExitFailed, FacmDesignSystem.Error);
             }
             catch (Exception exception)
             {
                 AppLog.Error("League one-click exit game failed", exception);
-                _status.Text = LeagueGameRepairUiText.ExitFailed;
-                _status.ForeColor = FacmDesignSystem.Error;
+                SetStatus(LeagueGameRepairUiText.ExitFailed, FacmDesignSystem.Error);
             }
+        }
+
+        private void RefreshAutoButton()
+        {
+            if (_autoButton == null || _autoButton.IsDisposed) return;
+            _autoButton.Text = _repair.AutoRepairEnabled
+                ? LeagueGameRepairUiText.FixAutoDisable
+                : LeagueGameRepairUiText.FixAuto;
+        }
+
+        private void ShowRepairResult(LeagueGameRepairResult result)
+        {
+            if (result == null)
+            {
+                SetStatus(LeagueGameRepairUiText.ActionFailed, FacmDesignSystem.Error);
+                return;
+            }
+            var color = result.Success
+                ? (result.Changed ? FacmDesignSystem.Success : FacmDesignSystem.TextMuted)
+                : FacmDesignSystem.Warning;
+            SetStatus(result.Message, color);
+        }
+
+        private void SetStatus(string text, Color color)
+        {
+            if (_status == null || _status.IsDisposed) return;
+            _status.Text = text ?? string.Empty;
+            _status.ForeColor = color;
         }
 
         private static Label Label(string text, float size, FontStyle style, Color color)
