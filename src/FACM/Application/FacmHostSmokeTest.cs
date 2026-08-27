@@ -120,7 +120,7 @@ namespace FACM.AppHost
             var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
             var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
             var mayhem = new MayhemModule(leagueClient);
-            var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem);
+            var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, tools);
             var cleanup = new CleanupModule();
             var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
 
@@ -143,8 +143,9 @@ namespace FACM.AppHost
                 LeagueLiveModule.ModuleId,
                 LeagueBuildAdvisorModule.ModuleId,
                 LeagueEfficiencyModule.ModuleId,
-                MayhemModule.ModuleId
-            }), "League Hub must aggregate accepted League UI modules without owning a second client/runtime stack.");
+                MayhemModule.ModuleId,
+                ToolsModule.ModuleId
+            }), "League Hub must aggregate accepted League UI modules plus existing tool entrypoints without owning a second client/runtime stack.");
 
             var expected = new[]
             {
