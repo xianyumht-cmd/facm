@@ -1,8 +1,8 @@
 {
-  "request_id": "facm-3-5-14-20260827",
-  "version": "3.5.14",
+  "request_id": "facm-3-5-15-20260827-native-game-repair",
+  "version": "3.5.15",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.5.14：统一普通顶层窗口为 FACM 自绘外壳，移除系统原生标题栏按钮，统一关闭、最小化、最大化、拖动、缩放与圆角行为；临时窗口支持点击窗口外桌面或切换到其它程序时关闭，窗口内部空白不关闭，同一 FACM 进程的子对话框不会误关父窗口，并修复自绘最小化被外部关闭逻辑误判的问题。LOL 工作台进一步收紧为 1120×640 默认尺寸、900×580 最低尺寸，并把当前状态、快捷工具、在线状态等稀疏页面的宽屏空白改为真实上下文区，展示客户端连接、对局阶段与相关快捷入口。上下文状态只复用现有 LeagueDashboard gameflow 缓存，不新增 LCU session、轮询、writer、网络请求或动画 Timer。"
+  "release_notes": "FACM 3.5.15：控制中心收束为“清理与修复 / LOL 工作台 / 个性化 / 更多设置”四个桌面式入口，新增清理与修复完整流程，LOL 工作台页面提示并入自绘标题栏，个性化主题升级为 FACM 全局主题。LOL 游戏修复同时完成原生现代化：不再启动旧 Fix-LCU-Window 外部 mode，窗口修复按客户端实际所在显示器与工作区处理多屏/负坐标，优先恢复合理尺寸；自动修复改为 WinEvent 事件驱动并带 debounce/cooldown，不再每 1500ms 常驻轮询；跳过卡结算复用既有 play-again writer，重启客户端界面使用专用最小权限 writer，并停止在正式 ToolBundle 中打包旧 Fix-LCU-Window EXE 与 mode scripts。"
 }
