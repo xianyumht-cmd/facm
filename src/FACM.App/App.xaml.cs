@@ -1,6 +1,9 @@
 using FACM.App.ViewModels;
+using FACM.Core.Observability;
 using FACM.Core.Runtime;
+using FACM.Core.State;
 using FACM.Infrastructure.League;
+using FACM.Infrastructure.Observability;
 using FACM.Infrastructure.Online;
 using FACM.Infrastructure.Settings;
 using FACM.Platform.Windows.League;
@@ -15,6 +18,8 @@ public partial class App : Application
     private HttpUpdateManifestSource? _updateManifestSource;
     private LeagueHttpGateway? _leagueGateway;
     private WindowsLeagueTransportSessionSource? _leagueSessions;
+    private ProductStateStore? _productState;
+    private BoundedJsonLinesDiagnosticSink? _diagnostics;
 
     public App()
     {
@@ -26,28 +31,63 @@ public partial class App : Application
         var executablePaths = new WindowsExecutablePathProvider();
         var layout = RuntimePathLayout.From(executablePaths);
 
-        // Settings 2.0 is stored beside the distribution executable. The legacy settings.ini is
-        // migration input only and is deliberately preserved so FACM 3.5.15 remains rollback-safe.
+        _productState = new ProductStateStore();
+        _productState.SetEnvironment(
+            new ProductEnvironmentState(layout.DistributionDirectory, null, null),
+            "runtime-layout-ready");
+        _diagnostics = new BoundedJsonLinesDiagnosticSink(Path.Combine(layout.LogsDirectory, "facm4-events.jsonl"));
+
         var settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
         _updateManifestSource = new HttpUpdateManifestSource();
 
-        // Gate 3 establishes exactly one real League discovery/auth/session owner for the 4.0
-        // process. Read and write gateway capabilities share this same source instance.
+        // Exactly one League discovery/auth/session owner for the 4.0 process. Product State and
+        // diagnostics observe/publish facts only; they do not create another League connector.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
 
-        var controlCenter = new ControlCenterViewModel(settings, _updateManifestSource);
+        var controlCenter = new ControlCenterViewModel(settings, _updateManifestSource, _productState);
         _window = new MainWindow(controlCenter);
         _window.Closed += OnMainWindowClosed;
         _window.Activate();
+
+        _productState.SetApplication(ApplicationProductState.Ready, "main-window-activated");
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "app.launch",
+            "FACM.App",
+            0,
+            DiagnosticResult.Success,
+            "main-window-activated",
+            _productState.Current.League,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
     }
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
+        _productState?.SetApplication(ApplicationProductState.ShuttingDown, "main-window-closed");
         _leagueGateway?.Dispose();
         _leagueGateway = null;
         _leagueSessions = null;
         _updateManifestSource?.Dispose();
         _updateManifestSource = null;
+        _diagnostics?.Dispose();
+        _diagnostics = null;
+        _productState = null;
+    }
+
+    private void QueueDiagnostic(DiagnosticEvent diagnosticEvent)
+    {
+        var sink = _diagnostics;
+        if (sink is null) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await sink.WriteAsync(diagnosticEvent).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Diagnostics are best-effort and may never make the product fail to launch.
+            }
+        });
     }
 }
