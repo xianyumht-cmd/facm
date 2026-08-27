@@ -3,6 +3,7 @@ using FACM.App.ViewModels;
 using FACM.Core.League;
 using FACM.Core.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -42,13 +43,27 @@ public sealed partial class MainWindow : Window
     private void ApplyStaticText()
     {
         var appName = _text.Get(UiTextKeys.AppName);
+        var repairText = _text.Get(UiTextKeys.ShellRepairTools);
+        var leagueText = _text.Get(UiTextKeys.ShellLeague);
+        var personalizationText = _text.Get(UiTextKeys.ShellPersonalization);
+        var settingsText = _text.Get(UiTextKeys.ShellMoreSettings);
+
         Title = appName + " 4.0";
         TitleBarText.Text = appName;
         ProductTitle.Text = appName + " 4.0";
-        RepairNav.Content = _text.Get(UiTextKeys.ShellRepairTools);
-        LeagueNav.Content = _text.Get(UiTextKeys.ShellLeague);
-        PersonalizationNav.Content = _text.Get(UiTextKeys.ShellPersonalization);
-        SettingsNav.Content = _text.Get(UiTextKeys.ShellMoreSettings);
+        RepairNav.Content = repairText;
+        LeagueNav.Content = leagueText;
+        PersonalizationNav.Content = personalizationText;
+        SettingsNav.Content = settingsText;
+        AutomationProperties.SetName(RepairNav, repairText);
+        AutomationProperties.SetHelpText(RepairNav, _text.Get(UiTextKeys.ShellRepairSubtitle));
+        AutomationProperties.SetName(LeagueNav, leagueText);
+        AutomationProperties.SetHelpText(LeagueNav, _text.Get(UiTextKeys.ShellLeagueSubtitle));
+        AutomationProperties.SetName(PersonalizationNav, personalizationText);
+        AutomationProperties.SetHelpText(PersonalizationNav, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
+        AutomationProperties.SetName(SettingsNav, settingsText);
+        AutomationProperties.SetHelpText(SettingsNav, _text.Get(UiTextKeys.ShellMoreSettingsSubtitle));
+
         StatusLabel.Text = _text.Get(UiTextKeys.ShellStatusLabel);
         OverviewTitle.Text = _text.Get(UiTextKeys.ShellOverviewTitle);
         OverviewBody.Text = _text.Get(UiTextKeys.ShellOverviewBody);
@@ -70,13 +85,25 @@ public sealed partial class MainWindow : Window
             LeagueAutomationTitle,
             LeagueAutomationDescription);
 
+        var diagnosticsSummaryLabel = _text.Get(UiTextKeys.DiagnosticsSummaryLabel);
+        var diagnosticsRefresh = _text.Get(UiTextKeys.DiagnosticsRefresh);
+        var diagnosticsCopy = _text.Get(UiTextKeys.DiagnosticsCopySummary);
+        var diagnosticsExport = _text.Get(UiTextKeys.DiagnosticsExportBundle);
         DiagnosticsTitle.Text = _text.Get(UiTextKeys.DiagnosticsTitle);
         DiagnosticsSubtitle.Text = _text.Get(UiTextKeys.DiagnosticsSubtitle);
-        DiagnosticsSummaryLabel.Text = _text.Get(UiTextKeys.DiagnosticsSummaryLabel);
-        DiagnosticsRefreshButton.Content = _text.Get(UiTextKeys.DiagnosticsRefresh);
-        DiagnosticsCopyButton.Content = _text.Get(UiTextKeys.DiagnosticsCopySummary);
-        DiagnosticsExportButton.Content = _text.Get(UiTextKeys.DiagnosticsExportBundle);
+        DiagnosticsSummaryLabel.Text = diagnosticsSummaryLabel;
+        DiagnosticsRefreshButton.Content = diagnosticsRefresh;
+        DiagnosticsCopyButton.Content = diagnosticsCopy;
+        DiagnosticsExportButton.Content = diagnosticsExport;
         DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusReady);
+        AutomationProperties.SetName(DiagnosticsSummaryText, diagnosticsSummaryLabel);
+        AutomationProperties.SetHelpText(DiagnosticsSummaryText, _text.Get(UiTextKeys.DiagnosticsSubtitle));
+        AutomationProperties.SetName(DiagnosticsRefreshButton, diagnosticsRefresh);
+        AutomationProperties.SetHelpText(DiagnosticsRefreshButton, _text.Get(UiTextKeys.DiagnosticsRefreshHelp));
+        AutomationProperties.SetName(DiagnosticsCopyButton, diagnosticsCopy);
+        AutomationProperties.SetHelpText(DiagnosticsCopyButton, _text.Get(UiTextKeys.DiagnosticsCopySummaryHelp));
+        AutomationProperties.SetName(DiagnosticsExportButton, diagnosticsExport);
+        AutomationProperties.SetHelpText(DiagnosticsExportButton, _text.Get(UiTextKeys.DiagnosticsExportBundleHelp));
 
         ApplySection("repair");
         ApplyStatus(UiTextKeys.ShellStatusReady);
