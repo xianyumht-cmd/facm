@@ -1,0 +1,74 @@
+param(
+    [string]$Root = (Split-Path -Parent $PSScriptRoot)
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Fail([string]$Message) {
+    Write-Error $Message
+    exit 1
+}
+
+$core = Join-Path $Root 'src/FACM.Core'
+$coreProject = Join-Path $core 'FACM.Core.csproj'
+if (-not (Test-Path $coreProject)) { Fail 'FACM.Core project is missing.' }
+
+$coreProjectText = Get-Content $coreProject -Raw
+foreach ($token in @('ProjectReference', 'PackageReference', 'UseWinUI', 'UseWPF', 'UseWindowsForms')) {
+    if ($coreProjectText -match $token) { Fail "FACM.Core must not contain $token." }
+}
+
+$forbiddenSource = @(
+    'System\.Windows\.Forms',
+    'Microsoft\.UI\.Xaml',
+    'System\.Drawing',
+    'System\.Windows\.Controls',
+    'Windows\.UI\.Xaml'
+)
+foreach ($file in Get-ChildItem $core -Recurse -Filter '*.cs') {
+    $text = Get-Content $file.FullName -Raw
+    foreach ($pattern in $forbiddenSource) {
+        if ($text -match $pattern) { Fail "Core UI-framework dependency detected in $($file.FullName): $pattern" }
+    }
+}
+
+function Get-ProjectRefNames([string]$Path) {
+    [xml]$xml = Get-Content $Path -Raw
+    $refs = @()
+    foreach ($group in @($xml.Project.ItemGroup)) {
+        foreach ($reference in @($group.ProjectReference)) {
+            if ($null -eq $reference) { continue }
+            $include = [string]$reference.Include
+            if ([string]::IsNullOrWhiteSpace($include)) { continue }
+            $refs += [System.IO.Path]::GetFileNameWithoutExtension($include)
+        }
+    }
+    return @($refs)
+}
+
+$infraRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.Infrastructure/FACM.Infrastructure.csproj'))
+$platformRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.Platform.Windows/FACM.Platform.Windows.csproj'))
+$appRefs = @(Get-ProjectRefNames (Join-Path $Root 'src/FACM.App/FACM.App.csproj'))
+
+if (($infraRefs.Count -ne 1) -or ($infraRefs[0] -ne 'FACM.Core')) { Fail "Infrastructure references must equal FACM.Core; actual=$($infraRefs -join ',')" }
+if (($platformRefs.Count -ne 1) -or ($platformRefs[0] -ne 'FACM.Core')) { Fail "Platform.Windows references must equal FACM.Core; actual=$($platformRefs -join ',')" }
+foreach ($required in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows')) {
+    if ($appRefs -notcontains $required) { Fail "FACM.App missing reference to $required; actual=$($appRefs -join ',')" }
+}
+if ($appRefs.Count -ne 3) { Fail "FACM.App has unexpected project references: $($appRefs -join ',')" }
+
+$solution = Get-Content (Join-Path $Root 'FACM4.sln') -Raw
+foreach ($project in @('FACM.Core', 'FACM.Infrastructure', 'FACM.Platform.Windows', 'FACM.App', 'FACM.FoundationSmoke')) {
+    if ($solution -notmatch [regex]::Escape($project)) { Fail "FACM4.sln missing $project." }
+}
+
+$changed = @(git -C $Root diff --name-only origin/main...HEAD 2>$null)
+if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare Gate branch with origin/main.' }
+foreach ($protected in @('online/version.json', 'release/request.json')) {
+    if ($changed -contains $protected) { Fail "Gate migration must not modify production release control: $protected" }
+}
+
+Write-Host "Infrastructure refs: $($infraRefs -join ', ')"
+Write-Host "Platform refs: $($platformRefs -join ', ')"
+Write-Host "App refs: $($appRefs -join ', ')"
+Write-Host 'FACM 4.0 architecture contract: SUCCESS'

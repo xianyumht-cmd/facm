@@ -1,0 +1,66 @@
+name: FACM 4.0 Foundation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'feat/facm-4-*'
+
+jobs:
+  foundation:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify architecture contract
+        shell: pwsh
+        run: ./scripts/check-facm4-architecture.ps1
+
+      - name: Restore FACM 4.0 solution
+        shell: pwsh
+        run: dotnet restore FACM4.sln -p:Platform=x64
+
+      - name: Build FACM 4.0 solution
+        shell: pwsh
+        run: dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
+
+      - name: Run deterministic foundation smoke
+        shell: pwsh
+        run: dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
+
+      - name: Publish WinUI x64 self-contained candidate
+        shell: pwsh
+        run: >-
+          dotnet publish src/FACM.App/FACM.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:Platform=x64
+          -p:PublishSingleFile=true
+          -o artifacts/facm4
+
+      - name: Verify publish output
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'artifacts/facm4/FACM.App.exe'
+          if (-not (Test-Path $exe)) { throw 'FACM.App.exe was not published.' }
+          $dlls = @(Get-ChildItem (Split-Path $exe) -Filter '*.dll' -File)
+          if ($dlls.Count -gt 0) { throw "Single-file candidate leaked $($dlls.Count) DLL(s)." }
+          Write-Host "FACM.App.exe bytes=$((Get-Item $exe).Length)"
+
+      - name: Upload FACM 4.0 candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: facm4-gate1-x64
+          path: artifacts/facm4/
+          if-no-files-found: error
