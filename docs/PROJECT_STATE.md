@@ -29,7 +29,174 @@
 - `一键结束游戏` 继续使用原进程级动作，与跳过卡结算、真实赛后自动回大厅保持独立语义。
 - `FACM.ToolBundle` 不再嵌入旧 Fix-LCU-Window EXE 与 mode scripts；历史工具输入可以保留在源码仓库作为来源/回归证据，但不进入正式 FACM 游戏修复运行路径。
 - `--facm-host-test` 增加原生修复纯离线回归：合理/异常窗口、可信宽度恢复、最近合理尺寸、负坐标显示器 clamp、Client UX writer allowlist 与既有 play-again writer 边界。
-- 下一阶段的 `.NET 8+ / WinUI 3` 技术栈升级不属于本变更，不与 3.5.15 混做。
+- 3.5.15 本身仍是 `.NET Framework 4.8 + WinForms` 主程序；下一阶段技术栈迁移不与 3.5.15 混做，当前规划目标已收束为 **FACM 4.0 / .NET 10 LTS + WinUI 3**，正式开工前由 Gate 0 再核实 Microsoft 当前支持生命周期与 Windows App SDK stable 版本。
+
+## FACM 4.0 迁移交接 — NEXT TASK / NOT STARTED
+
+> **新对话从这里继续。** 这是 3.5.15 正式发布并完成 `fix-lcu-window` 原生现代化后的下一主线。当前没有创建 4.0 代码分支、没有迁移项目、没有修改正式在线更新。先执行 Gate 0，不要直接开始画 WinUI 页面。
+
+### 当前已完成 / 已验证
+
+- PR #182 `重构控制中心、清理修复流程与全局主题` 已合并，merge commit `dc05558bfb63e3cf2b4db9bd5762c480c4198298`。
+- PR #183 `原生现代化 LOL 客户端游戏修复` 已合并，merge commit `29793a05435b42644e4c407bf2ff6e75b3c8b437`。旧 Fix-LCU-Window 外部 mode 1～4 已退出正式运行路径，**这一项已经完成，4.0 不要再重做**。
+- PR #184 `发布 FACM 3.5.15` 已合并，merge commit `908d5782e6eb5b30fee0e4d5794c312d70ac0e36`。
+- 发布工作流 `FACM Publish Release` run #33 / run id `33042472043` 已 SUCCESS；正式 Release、签名/构建链、disabled manifest → enable manifest 事务均完成。
+- Release tag `v3.5.15` 已发布；正式 `FACM.exe` SHA-256 为 `E3B415375E204212EE2D7A36D4A038708DC75694CD9B6FD28F2761BBF1FD01CE`。
+- `online/version.json` 当前 `enabled=true / version=3.5.15 / minimum_version=3.0.0 / force_update=false`，在线更新已启用；公告 `popup=false`。
+- 当前 canonical `main` 在发布工作流最终启用在线更新后为 `23556f19fc13ec0710f956a5b76ec9c8335739ce`。
+- PR #183 CI：Windows Build #1286 SUCCESS、UI Text Contract #407 SUCCESS、Mayhem Source Probe #393 SUCCESS；合并 main 后 Windows Build #1287 / UI Text #408 / Mayhem #394 也通过。
+- 发布 PR #184：Windows Build #1288 SUCCESS、UI Text Contract #409 SUCCESS；随后正式发布 run #33 SUCCESS。
+
+### 当前代码 / 技术环境事实
+
+- `src/FACM/FACM.csproj`：当前正式主程序仍为 `net48`、`UseWindowsForms=true`、`WinExe`、AnyCPU（Prefer32Bit=false）。正式 FACM.exe 继续内嵌 ToolBundle、无窗口 Updater 和 PetHost ZIP，现有单 EXE 在线更新链是 4.0 必须保护的资产。
+- `src/FACM.PetHost/FACM.PetHost.csproj`：当前为 `net8.0-windows`、WPF + WinForms、x64，依赖 `VPet-Simulator.Core 1.1.0.66`；PetHost 是独立辅助进程并有现成 IPC / 生命周期边界。
+- 主业务现有稳定资产包括：Modular Host、唯一 `LeagueClientModule + LeagueClientSessionProvider`、Gate2～Gate7 最小 writer、Bench Swap、OP.GG/Mayhem、原生 League Game Repair、Cleanup 安全边界、GameLocator、Updater、Single Instance、Hotkey、PetHost IPC、Performance Contract、UI Text Contract、事务式 Release。
+- 用户本轮体验截图来自 Windows 10 桌面。截图时 LOL 当前状态页显示“未检测到客户端/等待连接”，因此这些截图只能证明 UI/Shell 布局问题，**不能据此判断 LCU/游戏修复功能失败**。当前未提供多屏/DPI 数值，4.0 Gate 0/后续兼容矩阵必须单独验证。
+
+### 本轮实机观察到、明确暂不在 3.5.x 修的 UI 问题
+
+1. LOL 工作台顶部偶发内容被遮挡/重叠。用户怀疑可能与内置 iFarm/标题栏冲突，但**根因尚未被代码证据确认**；更可能是当前自绘 Chrome、导航、嵌入子 Form/旧标题区域的布局/Z-order 所有权互相竞争。
+2. 默认悬浮球不在桌面顶部时，点击后控制中心与悬浮球距离明显偏远；悬浮球靠近顶部时才偶然贴合。当前定位更像“绝对坐标 + WorkingArea clamp”，不是稳定 anchor placement。
+3. “全局主题”目前未完整作用于默认 `F` 悬浮球，视觉上与控制中心/工作台割裂。4.0 应把默认 Shell/F 球纳入同一 Theme Resource。
+4. 菜单/工作台偶发出现不明矩形或文字遮挡。第五张体验图能看到左上内容互相覆盖；当前不通过补丁式 `BringToFront`/坐标偏移去掩盖。
+
+这些问题被视为 **FACM 3.x Legacy UI 已知缺陷**。除非演变为崩溃、无法启动、数据损坏、更新失效或严重核心功能不可用，否则 3.5.15 只做必要 Hotfix，不再投入大规模 WinForms UI 修补。
+
+### 已否定 / 失败 / 不要重复的路线
+
+- **不要恢复旧 Fix-LCU-Window EXE/mode runtime。** `PrimaryScreen + 1280×720×zoom`、独立 LCU client、1500ms 永久轮询已经由 PR #183 原生实现取代；4.0 只迁移/保留现有 FACM 原生 `LeagueGameRepair` 边界。
+- **不要为当前遮挡继续堆 WinForms 补丁。** 不采用“再加 `BringToFront()` / `Top += N` / `Visible=false/true` / 新 Timer / 新反射 Enhancer”作为 4.0 前置修复。历史上首次绘制后 Idle+反射补布局已经出现旧像素/hover 后才恢复的问题；这条路线会继续扩大 Z-order 和生命周期债务。
+- **不要继续保留 Form-in-Form 作为新 UI 架构。** 3.x `LeagueHub` 当前只保留一个子 Form 是低占用折中，不是 4.0 目标。WinUI 3 应使用一个 Shell + Frame/Navigation/Page visual tree，避免标题栏和内容区有多个 owner。
+- **不要直接把当前 `FACM.csproj` 一把改成 WinUI 3 再修几百个编译错误。** 先并行建立新 Core/Platform/App 工程，抽离业务，再迁 runtime，再切 Shell；否则所有稳定业务与 UI 回归同时爆炸，定位困难。
+- **不要创建一个长期 `rewrite-everything` 巨型分支。** 用户接受“产品层面大爆炸换代”，但工程实施必须 Gate 化：每 Gate 一个短分支/PR、可编译/可验证、合入 main；最终只在所有 Gate green 后切正式 4.0。
+- **不要照搬 3.x 像素坐标/卡片尺寸。** 保留信息架构与行为契约，不迁移 `Rectangle(...)`、反射布局、手写像素定位历史债。
+- **不要把页面变成新的 LCU owner。** WinUI Page/ViewModel 不创建第二套 discovery/auth/session、HttpClient、Gameflow monitor 或任意 writer；UI 只读 ViewModel/Product State、发送 Intent。
+- **不要让各页面各自轮询当前状态。** 4.0 建统一 Product State/State Engine，页面订阅；避免重复 LCU/Timer/网络。
+- **不要为了技术统一强行重写 PetHost。** PetHost 当前独立 WPF/VPet 边界有隔离价值；4.0 主 Shell 迁 WinUI 3 不等于必须把 PetHost 迁 WinUI 或塞回单进程。
+- **不要把 .NET 8 作为新的 FACM 主程序长期基线。** 当前规划直接以 `.NET 10 LTS` 为目标；Gate 0 必须再次核实当时官方生命周期和依赖兼容性，若事实变化再记录决策。
+- **不要为了 WinUI 3 让普通用户手工安装一串运行时。** Gate 0 必须做真实部署 prototype：优先维持自包含/低摩擦更新体验；若单 EXE + unpackaged/self-contained 方案不可靠，再选择单安装器 + 应用目录的方案，而不是让用户手动补 .NET/Windows App Runtime/DLL。
+- **不要在 4.0 首发阶段追游戏内 Overlay 大全。** FACM 核心优势仍是腾讯服兼容、轻量 LCU 自动化、客户端/环境修复、海斗/ARAM、诊断与可靠性；OP.GG/Blitz/Mobalytics 主要用于学习状态驱动 UX，不照抄广告/Overlay 产品形态。
+
+### FACM 4.0 已认可的产品 / 技术目标
+
+产品定位继续向“腾讯英雄联盟桌面控制与智能辅助中心”推进，而不是回退成按钮工具箱。对标采用分层参考：
+
+- League Akari：LCU 生命周期、League 功能模块化、客户端连接/重连、状态与能力结合；不照搬 Electron/TypeScript 技术栈。
+- Microsoft PowerToys / FancyZones：Windows 工程、多显示器、DPI、窗口生命周期、模块/设置/诊断、可靠性；不把 FACM 做得同样重。
+- Windows 11 / Fluent：主题、键盘、焦点、高对比度、文本缩放、Accessibility、现代设置体验。
+- OP.GG / Mobalytics / Blitz：赛前→选人→游戏中→赛后/异常的状态驱动 Companion 思路；不追求 Overlay 功能堆砌。
+
+4.0 目标架构：
+
+```text
+FACM.App            (.NET 10 LTS + WinUI 3 / Windows App SDK Stable)
+  ├─ Shell / Navigation
+  ├─ Pages / Dialogs / Flyouts
+  ├─ ViewModels
+  └─ Theme Resources
+          ↓ intents/state
+FACM.Core
+  ├─ League Runtime
+  ├─ Cleanup
+  ├─ Settings
+  ├─ Online
+  ├─ Automation
+  └─ Product State
+          ↓
+FACM.Platform.Windows / Infrastructure
+  ├─ Process / Window / DPI / Monitor
+  ├─ Hotkey / IPC / Registry / Filesystem
+  ├─ HTTP / Update / Feature Flags
+  └─ Diagnostics / Structured Logs
+
+FACM.PetHost
+  └─ 继续独立辅助进程，除非后续有独立证据要求改边界
+```
+
+核心原则：**UI 不拥有业务。** Page 只显示 ViewModel 并发送用户 Intent；LCU/session/writer、文件系统、进程、网络、更新、诊断由 Core/Platform owner 管理。
+
+### FACM 4.0 Gate 规划（按顺序推进，最终一次正式切换）
+
+**Gate 0 — Migration Contract / 全仓审计 / Prototype**
+- 从最新 main 读取 `AGENTS.md` 与全部 canonical docs，创建一个 4.0 Gate0 短分支；不要先改正式项目。
+- 建立“保留 / 抽离 / 重写 / 删除 / 延后”清单，覆盖 FACM、ToolBundle、Updater、PetHost、League、Cleanup、Online、Settings、资源嵌入、发布工作流和 deterministic smoke。
+- 冻结 3.5.15 行为契约：唯一 League session、Gate2～Gate7 writer、Bench、Mayhem/OP.GG、Game Repair、Cleanup 安全、更新器、单实例、快捷键、PetHost、Performance/UI Text Contract。
+- 核实 `.NET 10 LTS`、WinUI 3、Windows App SDK 当前 stable 支持矩阵，验证 Windows 10/11 最低版本。
+- 做最小 WinUI 3 部署 prototype：验证 unpackaged/self-contained、单 EXE 可行性、Windows App SDK runtime、管理员/UAC、Updater 替换、资源嵌入、启动时间和 Defender 影响；如果单 EXE不稳，明确转为单安装器方案。
+- 产出 4.0 Migration Contract、项目边界、验收矩阵和回滚线；Gate 0 **不发布版本、不修 3.x UI**。
+
+**Gate 1 — 新 Solution / 并行骨架**
+- 保留当前 `src/FACM` legacy 可构建，新增 `FACM.Core / FACM.Platform.Windows / FACM.Infrastructure / FACM.App`（最终命名在 Gate0 定）。
+- 新旧结构短期并存；不能先删除 legacy，再追编译错误。
+- 建立依赖方向和 analyzer/smoke，禁止 Core 引用 WinForms/WinUI UI 类型。
+
+**Gate 2 — Core/UI 解耦**
+- 从 Form/Enhancer 中抽离业务 orchestration；稳定 League/Cleanup/Online/Updater 能力尽量迁移而不是重写。
+- 建立 Application Service / Intent / Result 边界；UI 不直接找进程、不直接读写 settings、不直接创建 LCU/HttpClient。
+
+**Gate 3 — 主业务迁 `.NET 10`**
+- 把可复用 Core/Platform/Infrastructure 移到 `net10.0-windows`（必要的纯逻辑库可用更通用 TFM，Gate0 决定）。
+- 专项处理 `System.Drawing`、Win32/PInvoke、Registry、Process、NamedPipe、HttpClient、资源嵌入、Configuration、Threading/Timer、旧框架 API。
+- 不在此 Gate 顺手重画产品 UI。
+
+**Gate 4 — Settings 2.0**
+- 引入 typed / versioned / validated / atomic-save / migration / defaults / module-owned settings。
+- 3.5.15 `settings.ini` 必须有一次性无损迁移；用户升级 4.0 不重新配置。
+- 配置格式（JSON/其它）是实现细节，Schema 与 Migration 才是契约。
+
+**Gate 5 — Product State + Observability**
+- 建统一 Application/League/Environment/Services 状态模型：League 至少覆盖 `NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`。
+- 页面订阅状态，不重复轮询。
+- 日志升级为结构化记录：`ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion` 等，供诊断中心消费。
+
+**Gate 6 — WinUI 3 Design System + Shell**
+- 先建 semantic design tokens、ResourceDictionary、统一 Button/Card/Nav/Status/Dialog/TitleBar/EmptyState/SettingRow，再做页面。
+- 一个 Window / 一个 TitleBar owner / 一个 Shell navigation visual tree；不复刻 Form-in-Form。
+- 控制中心继续“我要打开什么”的四入口原则；LOL 工作台继续 `比赛 / 攻略 / 自动化` 信息架构。
+
+**Gate 7 — Desktop Shell / F 悬浮球 / 全局 Theme**
+- 默认 `F` 悬浮球纳入全局主题，和控制中心、LOL 工作台、清理与修复、设置、FACM 自有弹窗使用同一 Theme Resources。
+- 新建 Anchor Placement Service：按悬浮球所在边/显示器选择菜单展开方向，先保持固定视觉间距，再做 WorkingArea clamp；支持负坐标/多屏/混合 DPI。
+- 解决当前“悬浮球只有在顶部时菜单才贴近”的结构性问题，而不是移植旧坐标算法。
+
+**Gate 8 — LOL 工作台状态驱动 UX**
+- 保留唯一 League runtime，围绕 Gameflow 重组现有能力，而不是继续增加菜单层。
+- NotRunning：启动/环境/攻略相关；Lobby：召唤师、战绩、段位、快捷工具；ChampSelect：英雄攻略、符文/技能/装备、Bench、一键应用；InGame：低占用；PostGame：赛后摘要/点赞/下一局；ClientError：修复建议。
+- `fix-lcu-window` 已完成原生现代化，本 Gate 只消费 `LeagueGameRepair` 状态/动作，不再专项重写。
+
+**Gate 9 — 诊断中心**
+- 展示应用版本/权限/更新、LeagueClient/LCU/Gameflow/腾讯客户端、窗口/显示器/DPI、主要数据源、自动化 gate 状态。
+- 提供“复制诊断摘要 / 导出脱敏诊断包”；不得包含 token、cookie、密码等秘密。
+- 目标是以后“按钮没反应”优先由诊断证据定位，而不是截图猜测。
+
+**Gate 10 — DPI / 多屏 / Accessibility 发布门槛**
+- 覆盖 100/125/150/175/200% DPI、单屏/双屏、左右/上下/负坐标、混合 DPI。
+- 覆盖 Keyboard-only、Tab/Enter/Esc、Focus、Light/Dark/High Contrast、Text Scaling、可访问名称/屏幕阅读器基础。
+
+**Gate 11 — Recovery / Feature Flags / 更新保障**
+- 保留并统一已有自动恢复：LCU reconnect、League restart session rebuild、数据源 fallback、PetHost 不拖垮 Shell、online last-known-good、更新失败保留旧版本。
+- 增加服务端 Feature Kill Switch，只允许关闭/降级能力或切换数据源，不能远程扩大写权限或静默开启自动化。
+- 4.0 架构预留 Stable / Preview 双通道，但首个 4.0 正式发布默认只向普通用户开放 Stable；不因为有 Preview 架构就强迫本轮制作候选版。
+
+**Gate 12 — 全量兼容 / 性能 / 发布矩阵**
+- Windows 10/11、不同 DPI/多屏、League 未启动/重启/Token 更新、网络断开、OP.GG/Mayhem 故障、PetHost、Updater、UAC、Single Instance 全覆盖。
+- InGame 继续守 Performance Contract：network/image/disk/background CPU concurrency、prefetch、Timer/monitor 数量必须有明确预算。
+- 所有现有 deterministic smoke 要么迁移并继续守门，要么以等价/更强测试替代，不能静默删除。
+
+**Gate 13 — Legacy 删除与 FACM 4.0 正式切换**
+- 只有前面 Gate 全部 green、3.5.15 配置迁移通过、正式更新链通过、Windows 兼容矩阵通过后，才删除/退休 Legacy WinForms Shell/Form/Enhancer。
+- 最终用户层面是一次 FACM 4.0.0 大换代；工程层面不是长期巨型分支。
+- 正式发布沿用事务式 Release 思路；是否仍为单 FACM.exe 取决于 Gate0 部署 prototype 结论。
+
+### 下一对话第一步（严格顺序）
+
+1. **不要修本轮截图里的 3.x UI 遮挡。**
+2. **不要再做 fix-lcu-window。** 它已在 3.5.15 完成并发布。
+3. 读取最新 `main`、`AGENTS.md`、`PROJECT_STATE.md`、`DECISIONS.md`、`PITFALLS.md`、`ARCHITECTURE.md`、`OPERATIONS.md`、`AI_WORKSTYLE.md`，确认没有新提交覆盖本交接。
+4. 确认 3.5.15 Release/online 仍正常；若用户没有要求 Hotfix，生产基线冻结。
+5. 开 **FACM 4.0 Gate 0 — Migration Contract / Repository Audit / WinUI Deployment Prototype** 独立短任务。
+6. Gate0 先研究并产出决策，不发布 4.0、不切在线更新；完成 Gate0 后再进入 Gate1。
 
 ## 3.4.3 海克斯大乱斗可用英雄快速选择 — RELEASED
 
