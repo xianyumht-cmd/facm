@@ -12,7 +12,7 @@
 - `published_at`：2026-08-27T05:28:50.9137418+00:00
 <!-- FACM_RELEASE_STATE_END -->
 
-> FACM 4.0 Gate 13 前不得修改生产 `online/version.json` / `release/request.json` 指向。
+> FACM 4.0 当前仍是迁移候选。没有 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、退休 legacy 或执行生产发布。
 
 ## FACM 4.0 总进度
 
@@ -24,119 +24,118 @@
 - Gate 5：COMPLETE，#196 / PR #197。
 - Gate 6：COMPLETE，#198 / PR #199。
 - Gate 7：COMPLETE，#200 / PR #201。
-- Gate 8：COMPLETE，#202 / PR #203，`main@0aebcc6d31cf715b012cf2725deb40b6dacdb25e`。
-- Gate 9：COMPLETE，#204 / PR #205，`main@1ad8ddf9365dd60954188f04e630c2eb22e15e5e`。
+- Gate 8：COMPLETE，#202 / PR #203。
+- Gate 9：COMPLETE，#204 / PR #205。
 - Gate 10：COMPLETE，#206 / PR #207，`main@c8eebe414f332cb524069395c3d74b51c12bdaa0`。
-- Gate 11：IMPLEMENTATION VERIFIED，#208 / PR #209，implementation head `c98432b287690813f6a82b04db924e67525e4940`；canonical docs 后需 latest-head CI 再确认再合入。
-- Gate 12～13：继续顺序推进；不要求用户逐 Gate 回复“继续”。
+- Gate 11：COMPLETE，#208 / PR #209，`main@977da451c2cf67fdda7c161b4caf56222d96941f`。
+- Gate 12：IMPLEMENTATION VERIFIED，#210 / PR #212；implementation candidate `cb7c928691977e464d2e52af28ac33bb8a7c2597`。canonical/evidence closeout 后需 latest-head CI 再确认再合入。
+- Gate 13：NEXT，但当前 release evidence = **BLOCKED**；可以继续做 cutover guard，不能正式切生产。
 
 ## 已冻结的 4.0 基线
 
 - .NET 10 LTS + WinUI 3 + Windows App SDK 2.4.0，x64 first。
-- `FACM4.sln` 与 legacy `FACM.sln` 并行；Gate 13 前 3.5.15 始终是 production rollback baseline。
-- single-file 稳定路径只从 `Environment.ProcessPath` 推导；不得把 `%TEMP%/.net/...` self-extract `AppContext.BaseDirectory` 当安装/配置/更新根。
+- `FACM4.sln` 与 legacy `FACM.sln` 并行；3.5.15 仍是 production/rollback baseline。
+- stable path 只从 `Environment.ProcessPath` 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
 - UI -> ViewModel -> Core intent/state；Infrastructure / Platform.Windows adapter 只在 App composition root 组装。
-- exactly one League discovery/auth/session owner；exactly one gameflow polling owner；writer 只能使用最小 capability。
-- Bench 仍为用户显式手动动作。
-- Performance Contract、UI Text Contract、deterministic smoke/source gates 不得静默删除。
+- process-wide exactly one：League session source、shared gateway、gameflow monitor、performance provider、product-state store。
+- Bench 仍为显式手动动作；writer 只通过最小 capability。
+- Performance Contract、UI Text Contract、所有 deterministic smoke/source gates 不得静默删除。
 
 ## Gates 1～9 摘要
 
-- Gate 1：并行 .NET 10 solution、Core/Infrastructure/Platform/App/Smoke foundation。
-- Gate 2：Cleanup/League/Online/Settings Core contracts、ViewModel intent boundary、League exact write-target policy。
-- Gate 3：唯一 Windows League session owner、shared `LeagueHttpGateway`、distribution runtime path、bounded update metadata、WindowsSmoke。
-- Gate 4：Settings 2.0 schema v2、legacy 15-key deterministic migration、same-directory atomic save；旧 INI Gate 13 前保留。
-- Gate 5：`ProductStateStore` + structured observability + bounded redacted JSONL。
-- Gate 6：semantic WinUI Design System；one AppTitleBar / NavigationView / Frame；四产品入口；UI Text 驱动 copy。
-- Gate 7：Core desktop anchor geometry + F Ensure Open / Activate；负坐标/nearest/off-screen recovery。
-- Gate 8：one Gameflow owner；Product State + Performance 同源；Workbench exactly `比赛 / 攻略 / 自动化`。
-- Gate 9：只读 Diagnostics Center；bounded input/ZIP + 二次 secret/path scrub；无业务 writer。
+- Gate 1：并行 .NET 10 solution + architecture foundation。
+- Gate 2：Cleanup/League/Online/Settings Core contracts + UI intent boundary。
+- Gate 3：唯一 League session owner/shared transport/runtime path/WindowsSmoke。
+- Gate 4：Settings 2.0 + legacy 15-key deterministic migration + atomic persistence。
+- Gate 5：Product State + structured observability + bounded redacted JSONL。
+- Gate 6：semantic WinUI Design System + one Shell + UI Text。
+- Gate 7：negative-coordinate/multi-monitor desktop placement + F Ensure Open / Activate。
+- Gate 8：one Gameflow owner + Product State/Performance same-source + `比赛 / 攻略 / 自动化`。
+- Gate 9：只读、二次脱敏、bounded Diagnostics Center。
 
-## Gate 10 — DPI / 多屏 / Accessibility：COMPLETE
+## Gate 10：DPI / 多屏 / Accessibility — COMPLETE
 
-- `app.manifest` 显式 `PerMonitorV2, PerMonitor` + legacy `true/pm`，仍 `asInvoker`。
-- Core `DesktopDpi` 是 DPI -> scale / DIP -> physical pixel 单一 contract。
-- deterministic 覆盖 96/120/144/168/192 DPI = 100/125/150/175/200%，mixed X/Y scale、左/右/上/负坐标、多屏与 off-screen recovery。
-- Main navigation、Diagnostics、F entry 有稳定 AutomationId；Name/HelpText 走 UI Text；主要 action 保持 keyboard-capable；正文允许 Wrap；semantic theme 继续依赖 WinUI platform resources。
-- latest-head：Foundation #188 / Windows Build #1352 / UI Text #473 SUCCESS；squash merge `main@c8eebe414f332cb524069395c3d74b51c12bdaa0`。
-- hosted runner 仍不替代 mixed-DPI / High Contrast / screen reader 等真机 evidence。
+- manifest：`PerMonitorV2, PerMonitor` + legacy `true/pm`，仍 `asInvoker`。
+- Core `DesktopDpi` 是唯一 DPI/DIP physical-pixel 计算 contract。
+- deterministic 覆盖 100/125/150/175/200%、mixed DPI、负坐标/off-screen recovery。
+- stable AutomationId；Name/HelpText 走 UI Text；keyboard-capable action；正文 Wrap；semantic platform theme resources。
+- latest-head Foundation #188 / Windows Build #1352 / UI Text #473 SUCCESS。
+- hosted runner 不替代真实 mixed-DPI / High Contrast / screen reader 证据。
 
-## Gate 11 — Recovery / Feature Flags / 更新保障：IMPLEMENTATION VERIFIED
+## Gate 11：Recovery / Feature Flags — COMPLETE
 
-Tracking：Issue #208，branch `feat/facm-4-gate11-recovery-flags`，PR #209。
+- Feature baseline 为 Core 手写 approved list；kill switch 只有 disable set，不存在 remote/local enable override。
+- unknown field/capability、坏 schema/JSON、读取异常均 fail closed。
+- League/Cleanup/Update/Diagnostics gated wrappers 在底层调用前拒绝 disabled capability。
+- Recovery：Clean/Starting/Running/Failed/Recovering；bounded atomic metadata；previous-start-incomplete 检测。
+- strict Settings2 不放宽；外层 validator-backed LKG；无 LKG 使用 `AutoUpdateEnabled=false` 的安全内存默认；坏 primary 保留。
+- Update recovery 继续要求 validated receipt + old-version preservation；replacement failure keeps old。
+- latest-head Foundation #210 / Windows Build #1357 / UI Text #478 SUCCESS；merge `main@977da451c2cf67fdda7c161b4caf56222d96941f`。
 
-### Feature policy
+## Gate 12：Release Evidence / Performance Matrix — IMPLEMENTATION VERIFIED
 
-- Core `FacmFeatureCapability` 显式白名单：Cleanup execute、Update check/install、Diagnostics export、现有四个 League write capability。
-- `FeatureBaseline` 是手写 approved list；禁止 `Enum.GetValues()` 自动放行未来 enum。
-- kill switch 数据模型只有 `disabled` set；effective policy = approved baseline 减 disabled。没有 remote/local enable override。
-- `FeaturePolicyEvaluator.IsNoMorePermissive` + Gate11Smoke 证明 reduced policy 永远是 baseline 子集。
-- `FeatureGatedLeagueWriteGateway / CleanupExecutor / UpdateManifestSource / UpdateInstaller / DiagnosticsBundleExporter` 在调用底层前 fail closed。
-- App 已实际让 Update check 与 Diagnostics export 受 feature policy 控制；当前 WinUI 尚未暴露 League/Cleanup/UpdateInstall 新 writer surface。
+Tracking：Issue #210，branch `feat/facm-4-gate12-release-evidence`，PR #212。
 
-### Kill switch source
+### Machine-readable evidence
 
-稳定路径：`<distribution>/runtime/recovery/feature-kill-switch.json`。
+- canonical matrix：`evidence/facm4-release-evidence.json`。
+- status 仅允许 `Passed / Blocked / NotRun / Failed`。
+- `Passed` 必须有 evidence；required 非 Passed 必须有 blocker notes。
+- JSON **不存 `releaseReady` 布尔值**；Core `ReleaseEvidenceEvaluator` 每次从 required item 推导 readiness，无法靠手改 summary 绕过 blocker。
+- candidate identity 必须是 full 40-char Git SHA + positive artifact id/size + SHA-256 digest。
 
-- 32 KiB bounded；schema v1。
-- JSON 只允许 `schemaVersion` 与 `disabled`。
-- unknown property / unknown capability / bad JSON / read failure => `FeatureKillSwitch.DisableAllApproved()`。
-- 不枚举目录、不访问网络、不获得业务 writer。
-
-### Recovery / Settings LKG
-
-稳定路径：
+当前 implementation candidate：
 
 ```text
-<distribution>/runtime/recovery/state.json
-<distribution>/runtime/recovery/settings.v2.lkg.json
+head: cb7c928691977e464d2e52af28ac33bb8a7c2597
+Foundation: #223 SUCCESS
+Windows Build: #1360 SUCCESS
+UI Text: #481 SUCCESS
+FACM.App.exe: 227,786,375 bytes
+artifact facm4-x64: 9666206475
+artifact ZIP: 88,319,814 bytes
+digest: sha256:9a1274592e891c8fc3c5c21dfc522fe315179331933d11d61ab63f0758ded559
 ```
 
-- Recovery phase：Clean / Starting / Running / Failed / Recovering。
-- 上一轮停在 `Starting` 会识别为 `previous-start-incomplete`；成功 Running 后刷新 last-known-good app version 并清 failure count。
-- recovery metadata 64 KiB bounded，same-directory temp + WriteThrough + flush-to-disk + replace；malformed/oversized metadata 回安全 initial state。
-- 严格 `Settings2Repository` 没放宽：corrupt/future schema 仍抛 `InvalidDataException`。
-- 外层 `RecoveringSettings2Repository` 仅在 strict load 失败后读取 validator-backed LKG；有 LKG -> `RecoveredLastKnownGood`；无 LKG -> `RecoveryDefaults`，并强制 `AutoUpdateEnabled=false`。
-- corrupt primary 不自动覆盖，保留给 Diagnostics/人工判断；有效 primary/load/save 才 best-effort 刷新 LKG。
+### Performance / ownership regression
 
-### Update recovery contract
+Gate12Smoke + `check-facm4-release-evidence.ps1` 现在锁定：
 
-- `UpdateRecoveryPolicy` 不替代正式 updater，只约束 recovery 决策。
-- candidate 没有 `ValidatedReceipt` 时禁止 replacement。
-- replacement 前必须显式考虑 `OldVersionPreserved`；replacement failed 时 `KeepCurrentVersion=true`，有 rollback evidence 时要求 rollback path。
-- 原 updater 的 size limit、SHA-256、signature/package validation、wait-exit、separate replacement、failure keeps old、rollback 不得被 Gate 11 绕过。
-- production update pointer 完全未改。
+- Desktop：4/2/2/2，history 20，poll 15s；
+- Client：3/2/2/2，history 12，poll 20s；
+- Queueing：2/1/1/1，history 4，poll 30s；
+- ChampSelect：2/1/1/1，history 0，poll 45s；
+- InGame / Background：1/1/1/1，history 0，poll 60s；
+- ChampSelect 2s、Matchmaking/ReadyCheck 3s、InGame 10s、connected other 5s、disconnected/error 10s；
+- App composition 中五个 process-wide owner 各恰好构造一次。
 
-### Gate 11 implementation evidence
+### 当前 readiness
 
-implementation head `c98432b287690813f6a82b04db924e67525e4940`：
+matrix 当前是 **21 required / 11 Passed / 10 Blocked**，因此 `ReleaseReady=false`。
 
-- `FACM 4.0 Foundation` #204：SUCCESS；architecture / Shell / desktop / Workbench / Diagnostics / DPI-Accessibility / Recovery source gates、restore/build、Gate11Smoke、WindowsSmoke、single-file publish/output/artifact 全 SUCCESS。
-- `FACM Windows Build` #1354：SUCCESS。
-- `FACM UI Text Contract` #475：SUCCESS。
-- artifact `facm4-x64` id `9644291683`，ZIP `88,317,150` bytes，digest `sha256:b2d4e30551ae15ba2fd7345edf61d74cab12ffe4983e6aec109e4492d00547aa`。
-- Gate11Smoke 实际覆盖 unknown feature fail-closed、disabled writer zero-call、malformed/oversized recovery metadata、previous-start-incomplete、Settings LKG/default fallback + corrupt primary 保留、unvalidated update block、replacement failure keeps old。
+仍未闭环的 required evidence：
 
-## Gate 12 — NEXT：全量兼容 / 性能 / 发布矩阵
+1. non-admin 启动 + UAC cancel；
+2. Defender / SmartScreen；
+3. Win10 1809；
+4. Win10 22H2；
+5. Win11 controlled real-user evidence；
+6. real 100/125/150/175/200% mixed-DPI multi-monitor；
+7. keyboard-only/focus + High Contrast + text scaling + basic screen reader；
+8. real 3.5.15 -> 4.0 Settings migration/relaunch/rollback；
+9. interrupted updater replacement/rollback；
+10. final signing/package verification。
 
-Gate 11 合入后从最新 main 新开 Issue/branch/PR。Gate 12 要把**自动化工程证据**与**真实 Windows 设备证据**拆开记录，不允许用 hosted CI 冒充真机。
+Gate 12 engineering 完成不等于 release-ready；source gate 正确允许 CI SUCCESS 同时输出 `RELEASE BLOCKED`。
 
-自动化工程范围：
+## Gate 13：Cutover boundary
 
-1. 聚合 Gates 1～11 所有 source/smoke 为 release candidate matrix，不允许已有 deterministic smoke 静默消失。
-2. 建 machine-readable release evidence manifest：OS/DPI/accessibility/UAC/Defender/updater/settings migration 等项目必须有 `passed / blocked / not-run` 与 evidence source。
-3. 性能回归：Performance Contract 各 League phase、poll cadence、并发上限、启动/idle/in-game budget 不得比冻结基线更激进。
-4. distribution candidate 记录 EXE/hash/size/artifact digest；production pointer 仍冻结 3.5.15。
-5. Gate 12 可以把缺少的真实 evidence 标 `BLOCKED`，但不得伪造 PASS。
+下一步可以安全实现 **cutover guard**：只有 `ReleaseEvidenceEvaluator.ReleaseReady == true` 且同时存在 fresh production/destructive authorization，才允许进入 production pointer / legacy retirement / deploy transaction。
 
-当前必须保留为真实 external blockers：non-admin UAC + cancel、Defender/SmartScreen、Win10 1809/22H2 + Win11、100/125/150/175/200% DPI、dual/mixed DPI/negative coordinates、keyboard-only/focus、High Contrast、text scaling、basic screen reader、3.5.15 -> 4.0 settings 真机升级、interrupted updater replacement/rollback。
+当前 matrix 不 READY，所以 Gate 13 必须拒绝正式 cutover。当前用户的普通“继续”只授权继续工程工作，不等于生产发布/破坏性授权。
 
-## Gate 13 release boundary
-
-Gate 13 只有在 Gates 0～12 证据闭环并获得 fresh production/destructive authorization 后，才可退休 legacy / 改 production pointer / 发布 4.0.0；否则状态必须保持 **release blocked**。
-
-branch/tag 删除、生产 deploy/restart、production pointer 修改都不自动执行。
+禁止自动执行：branch/tag 删除、production deploy/restart、production pointer 修改、legacy 删除。
 
 ## 新对话接续
 
-读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对最新 main / 当前 Gate Issue+PR+CI 后直接继续；不要要求用户逐 Gate 回复“继续”。
+读取 `AGENTS.md + docs/PROJECT_STATE.md`，核对 latest main / 当前 Gate Issue+PR+CI 后直接继续，不要求用户逐 Gate回复“继续”。
