@@ -25,12 +25,7 @@ namespace FACM.ToolBundle
         private static readonly Dictionary<string, Descriptor> Tools =
             new Dictionary<string, Descriptor>(StringComparer.OrdinalIgnoreCase)
             {
-                { "tool-a", new Descriptor("FACM.ToolBundle.Resources.ToolA", "FACM-Tool-A.exe", "4180BAE46BED95661D63DC8D08DD458AE866CC107AB0F00AFC647B9BEB8B4ECA") },
-                { "mode-tool", new Descriptor("FACM.ToolBundle.Resources.ModeTool", "FACM-Mode-Tool.exe", "A30E8ABD86AF01746EC63E2B51F80B83703965D5F1001768236F8BE3B5A3B935") },
-                { "mode-script-1", new Descriptor("FACM.ToolBundle.Resources.ModeScript1", "FACM-Mode-1.cmd", "6AA4FD59A1BDD9D262123ABA1673A6C255E98AE2BC0BBC0ECFC1A839936A8535") },
-                { "mode-script-2", new Descriptor("FACM.ToolBundle.Resources.ModeScript2", "FACM-Mode-2.cmd", "5574C930E21604C660FA52B294A974D184BC07561F19CF6548186F66A7E4B51C") },
-                { "mode-script-3", new Descriptor("FACM.ToolBundle.Resources.ModeScript3", "FACM-Mode-3.cmd", "35DE4B643CBCCF867F2533D257754A55877B414EA7D341B208AF8F7B3D9D4447") },
-                { "mode-script-4", new Descriptor("FACM.ToolBundle.Resources.ModeScript4", "FACM-Mode-4.cmd", "48F6ED8E06B3F96CF4791AF4FE9105327FC230267801A1DEC731784D0CA859E1") }
+                { "tool-a", new Descriptor("FACM.ToolBundle.Resources.ToolA", "FACM-Tool-A.exe", "4180BAE46BED95661D63DC8D08DD458AE866CC107AB0F00AFC647B9BEB8B4ECA") }
             };
 
         public static string Extract(string toolId)
