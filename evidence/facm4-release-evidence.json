@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "headSha": "4b4850a741cbc1b2168e68256969e6d48c689994",
-    "artifactId": 9644493557,
-    "artifactDigest": "sha256:f2be6992d274f9696e0eef9ee2560d1467c5c04b6da641207c606a42ed8f2330",
-    "artifactSizeBytes": 88317124
+    "headSha": "cb7c928691977e464d2e52af28ac33bb8a7c2597",
+    "artifactId": 9666206475,
+    "artifactDigest": "sha256:9a1274592e891c8fc3c5c21dfc522fe315179331933d11d61ab63f0758ded559",
+    "artifactSizeBytes": 88319814
   },
   "items": [
     {
@@ -12,15 +12,15 @@
       "category": "engineering",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate 11 latest-head FACM 4.0 Foundation #210 SUCCESS; includes source gates, Release x64 build, deterministic FoundationSmoke, WindowsSmoke, single-file publish/output verification.",
-      "notes": "Cumulative automation baseline through Gate 11."
+      "evidence": "Gate 12 implementation head FACM 4.0 Foundation #223 SUCCESS; all Gates 1-12 source gates, Release x64 build, cumulative FoundationSmoke including Gate12Smoke, WindowsSmoke, single-file publish/output verification succeeded.",
+      "notes": "Cumulative engineering baseline through Gate 12."
     },
     {
       "id": "engineering.legacy-build",
       "category": "engineering",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate 11 latest-head FACM Windows Build #1357 SUCCESS.",
+      "evidence": "Gate 12 implementation head FACM Windows Build #1360 SUCCESS.",
       "notes": "FACM 3.5.15 rollback build remains healthy."
     },
     {
@@ -28,7 +28,7 @@
       "category": "engineering",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate 11 latest-head FACM UI Text Contract #478 SUCCESS.",
+      "evidence": "Gate 12 implementation head FACM UI Text Contract #481 SUCCESS.",
       "notes": "UI Text contract remains present."
     },
     {
@@ -36,31 +36,31 @@
       "category": "performance",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "FoundationSmoke #210 includes PerformancePolicy deterministic checks; Gate 12 adds exact-value regression coverage.",
-      "notes": "Concurrency, prefetch, poll and degradation semantics remain code-owned."
+      "evidence": "Gate12Smoke in Foundation #223 verifies exact Desktop/Client/Queueing/ChampSelect/InGame/Background concurrency, history-prefetch, polling and feature-degradation values plus monotonicity.",
+      "notes": "Performance budgets remain code-owned and no more aggressive than frozen baseline."
     },
     {
       "id": "performance.gameflow-cadence",
       "category": "performance",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate8Smoke remains in cumulative FoundationSmoke #210; ChampSelect 2s, Matchmaking/ReadyCheck 3s, InGame 10s, connected-other 5s, disconnected/error 10s.",
-      "notes": "Gate 12 adds exact cadence regression coverage."
+      "evidence": "Gate12Smoke in Foundation #223 verifies ChampSelect 2s, Matchmaking/ReadyCheck 3s, InGame 10s, connected Lobby/PostGame 5s, and NotRunning/Connecting/ClientError 10s.",
+      "notes": "One gameflow owner remains responsible for cadence."
     },
     {
       "id": "architecture.runtime-ownership",
       "category": "architecture",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Cumulative architecture/League Workbench source gates in Foundation #210 enforce one process-wide League session owner and one gameflow owner; App composition uses shared state/performance owners.",
-      "notes": "Gate 12 source gate adds explicit construction-count assertions."
+      "evidence": "Gate 12 release-evidence source gate in Foundation #223 verifies App composition constructs exactly one WindowsLeagueTransportSessionSource, LeagueHttpGateway, LeagueGameflowMonitor, PerformanceBudgetProvider and ProductStateStore.",
+      "notes": "Page/ViewModel code cannot create a second process-wide runtime owner."
     },
     {
       "id": "recovery.monotonic-flags",
       "category": "recovery",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate11Smoke in Foundation #210 verifies disable-only feature policy, unknown fail-closed and zero underlying writer calls when disabled.",
+      "evidence": "Gate11Smoke remains in cumulative FoundationSmoke #223 and verifies disable-only feature policy, unknown fail-closed and zero underlying writer calls when disabled.",
       "notes": "Kill switch cannot expand writer permission."
     },
     {
@@ -68,7 +68,7 @@
       "category": "recovery",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate11Smoke in Foundation #210 verifies corrupt Settings 2.0 primary is preserved and validator-backed LKG/safe defaults are used.",
+      "evidence": "Gate11Smoke remains in cumulative FoundationSmoke #223 and verifies corrupt Settings 2.0 primary is preserved and validator-backed LKG/safe defaults are used.",
       "notes": "Legacy settings.ini remains untouched."
     },
     {
@@ -76,7 +76,7 @@
       "category": "security",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Gate9Smoke remains in cumulative FoundationSmoke #210 and verifies Basic/Bearer, sensitive fields, paths and malformed lines cannot escape sanitized bundle.",
+      "evidence": "Gate9Smoke remains in cumulative FoundationSmoke #223 and verifies Basic/Bearer, sensitive fields, paths and malformed lines cannot escape sanitized bundle.",
       "notes": "Diagnostics has no business writer."
     },
     {
@@ -84,16 +84,16 @@
       "category": "deployment",
       "requiredForRelease": true,
       "status": "Passed",
-      "evidence": "Foundation #210 published win-x64 self-contained single-file candidate and verified FACM.App.exe with no leaked DLLs; artifact 9644493557 digest sha256:f2be6992d274f9696e0eef9ee2560d1467c5c04b6da641207c606a42ed8f2330.",
-      "notes": "This proves CI packaging shape, not SmartScreen/signing UX."
+      "evidence": "Foundation #223 published FACM.App.exe as win-x64 self-contained single-file with no leaked DLLs; EXE 227786375 bytes. Artifact 9666206475 ZIP 88319814 bytes, digest sha256:9a1274592e891c8fc3c5c21dfc522fe315179331933d11d61ab63f0758ded559.",
+      "notes": "This proves CI packaging shape, not final signing/SmartScreen UX."
     },
     {
       "id": "gate12.latest-head-ci",
       "category": "engineering",
       "requiredForRelease": true,
-      "status": "NotRun",
-      "evidence": "",
-      "notes": "Gate 12 latest-head CI has not run yet; update this item only after the final Gate 12 head is fully green."
+      "status": "Passed",
+      "evidence": "Gate 12 implementation head cb7c928691977e464d2e52af28ac33bb8a7c2597: Foundation #223 SUCCESS, Windows Build #1360 SUCCESS, UI Text #481 SUCCESS; candidate artifact 9666206475.",
+      "notes": "A final regression will run after evidence/canonical-doc closeout; candidate identity intentionally remains the implementation head that produced this artifact to avoid circular artifact chasing."
     },
     {
       "id": "compat.non-admin-uac-cancel",
@@ -133,7 +133,7 @@
       "requiredForRelease": true,
       "status": "Blocked",
       "evidence": "",
-      "notes": "Hosted windows-latest build is useful engineering evidence but does not replace controlled real-user Win11 release evidence."
+      "notes": "Hosted windows-latest engineering evidence does not replace controlled real-user Win11 release evidence."
     },
     {
       "id": "display.real-mixed-dpi-multimonitor",
