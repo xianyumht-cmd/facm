@@ -26,7 +26,9 @@ public partial class App : Application
         var executablePaths = new WindowsExecutablePathProvider();
         var layout = RuntimePathLayout.From(executablePaths);
 
-        var settings = new IniSettingsRepository(layout.SettingsPath);
+        // Settings 2.0 is stored beside the distribution executable. The legacy settings.ini is
+        // migration input only and is deliberately preserved so FACM 3.5.15 remains rollback-safe.
+        var settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
         _updateManifestSource = new HttpUpdateManifestSource();
 
         // Gate 3 establishes exactly one real League discovery/auth/session owner for the 4.0
