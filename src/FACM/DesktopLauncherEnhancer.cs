@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using FACM.AppHost.Modules;
 using FACM.League;
 using FACM.Services;
 using FACM.Theming;
@@ -11,26 +12,22 @@ using FACM.Theming;
 namespace FACM
 {
     /// <summary>
-    /// Replaces the card/table-looking feature rows with a compact desktop-style launcher while
-    /// leaving the header, directory and cleanup card untouched. Descriptions live beside the
-    /// launcher heading instead of filling the bottom of the control panel.
+    /// Turns CompactMenuForm into a launcher surface: the control center answers only “what do I
+    /// want to open?”. Business state, directory selection and repair guidance live inside their
+    /// product pages. Shortcuts flow left-to-right like desktop icons and wrap only when needed.
     /// </summary>
     internal static class DesktopLauncherEnhancer
     {
         internal const int TileCount = 4;
-        internal const int LauncherColumns = 3;
+        internal const int LauncherColumns = 4;
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
-        private const int LauncherBaseWidth = 300;
-        private const int LauncherBaseHeight = 188;
-        private const int FlowBaseWidth = 286;
-        private const int FlowBaseHeight = 154;
-        private const int TileBaseWidth = 80;
-        private const int TileBaseHeight = 70;
-        private const int TileGapX = 12;
+        private const int CompactBaseHeight = 236;
+        private const int TileBaseWidth = 82;
+        private const int TileBaseHeight = 84;
+        private const int TileGapX = 7;
         private const int TileGapY = 8;
         private const string LauncherName = "FACM.DesktopLauncher";
-        private const string DefaultHoverHint = "悬停图标看说明";
         private const ControlStyles DesktopTileStyles =
             ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
             ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
@@ -38,8 +35,12 @@ namespace FACM
 
         private static readonly FieldInfo ThemeField = typeof(CompactMenuForm).GetField(
             "_theme", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly MethodInfo RepairMethod = typeof(CompactMenuForm).GetMethod(
-            "OpenRepairMenu", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo OwnerField = typeof(CompactMenuForm).GetField(
+            "_ownerBall", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo SettingsField = typeof(CompactMenuForm).GetField(
+            "_settings", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo CleanupField = typeof(CompactMenuForm).GetField(
+            "_cleanup", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo PersonalizationMethod = typeof(CompactMenuForm).GetMethod(
             "OpenPersonalizationMenu", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo MoreMethod = typeof(CompactMenuForm).GetMethod(
@@ -59,64 +60,46 @@ namespace FACM
             Func<int, int> sx = value => Math.Max(1, (int)Math.Round(value * scaleX));
             Func<int, int> sy = value => Math.Max(1, (int)Math.Round(value * scaleY));
 
-            var launcher = new Panel
+            var header = menu.Controls.Cast<Control>()
+                .Where(control => control.Top <= sy(2) && control.Height <= sy(86))
+                .OrderByDescending(control => control.Width)
+                .FirstOrDefault();
+
+            foreach (Control control in menu.Controls)
+            {
+                if (!ReferenceEquals(control, header)) control.Visible = false;
+            }
+
+            var compactHeight = Math.Max(sy(210), sy(CompactBaseHeight));
+            menu.ClientSize = new Size(menu.ClientSize.Width, compactHeight);
+            if (header != null)
+            {
+                header.Visible = true;
+                header.Width = menu.ClientSize.Width;
+            }
+
+            var launcher = new LauncherFlowPanel
             {
                 Name = LauncherName,
-                Location = new Point(sx(18), sy(258)),
-                Size = new Size(sx(LauncherBaseWidth), sy(LauncherBaseHeight)),
-                BackColor = Color.Transparent
-            };
-            var caption = new Label
-            {
-                Text = ui.Get(UiTextKeys.ShellFeatureCenter),
-                Location = new Point(sx(2), sy(2)),
-                Size = new Size(sx(72), sy(22)),
-                ForeColor = theme.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(theme.FontName, Math.Max(7F, 8.2F * Math.Min(scaleX, scaleY)), FontStyle.Bold)
-            };
-            var hoverHint = new Label
-            {
-                Text = DefaultHoverHint,
-                Location = new Point(sx(76), sy(2)),
-                Size = new Size(sx(210), sy(22)),
-                AutoEllipsis = true,
-                TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = theme.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(theme.FontName, Math.Max(6.8F, 7.4F * Math.Min(scaleX, scaleY)))
-            };
-            launcher.Controls.Add(caption);
-            launcher.Controls.Add(hoverHint);
-
-            var flow = new LauncherFlowPanel
-            {
-                Location = new Point(0, sy(28)),
-                Size = new Size(sx(FlowBaseWidth), sy(FlowBaseHeight)),
+                Location = new Point(sx(16), sy(82)),
+                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), Math.Max(sy(98), compactHeight - sy(98))),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 AutoScroll = false,
                 Padding = Padding.Empty,
-                Margin = Padding.Empty
+                Margin = Padding.Empty,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
-            launcher.Controls.Add(flow);
 
-            var repairTitle = ui.Get(UiTextKeys.ShellRepairTools);
-            var leagueTitle = LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title);
-            var personalizeTitle = ui.Get(UiTextKeys.ShellPersonalization);
-            var moreTitle = ui.Get(UiTextKeys.ShellMoreSettings);
+            AddTile(launcher, theme, sx, sy, "◈", CleanupRepairUiText.LauncherTitle,
+                delegate { OpenCleanupRepair(menu); });
+            AddTile(launcher, theme, sx, sy, "L", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title),
+                delegate { LeagueHubUiBridge.RequestOpen(); });
+            AddTile(launcher, theme, sx, sy, "✦", ui.Get(UiTextKeys.ShellPersonalization),
+                tile => InvokeLegacy(menu, PersonalizationMethod, tile));
+            AddTile(launcher, theme, sx, sy, "⋯", ui.Get(UiTextKeys.ShellMoreSettings),
+                tile => InvokeLegacy(menu, MoreMethod, tile));
 
-            AddTile(flow, theme, sx, sy, "⚙", repairTitle, "修驱动、窗口和客户端问题",
-                tile => InvokeLegacy(menu, RepairMethod, tile), hoverHint);
-            AddTile(flow, theme, sx, sy, "L", leagueTitle, LeagueHubText.Get(ui, LeagueHubUiTextKeys.LauncherHint),
-                tile => LeagueHubUiBridge.RequestOpen(), hoverHint);
-            AddTile(flow, theme, sx, sy, "✦", personalizeTitle, "主题、悬浮球和桌宠",
-                tile => InvokeLegacy(menu, PersonalizationMethod, tile), hoverHint);
-            AddTile(flow, theme, sx, sy, "⋯", moreTitle, "更新、日志和程序设置",
-                tile => InvokeLegacy(menu, MoreMethod, tile), hoverHint);
-
-            HideLegacyFeatureRows(menu, ui);
-            SimplifyFooter(menu, ui);
             menu.Controls.Add(launcher);
             launcher.BringToFront();
             return true;
@@ -125,37 +108,37 @@ namespace FACM
         internal static void ValidateDefinitionForSmokeTest()
         {
             if (TileCount != 4) throw new InvalidOperationException("Control-center launcher must expose exactly four primary desktop shortcuts.");
-            if (LauncherColumns != 3) throw new InvalidOperationException("Control-center launcher must keep the three-column growth contract.");
-            if (ThemeField == null || RepairMethod == null || PersonalizationMethod == null || MoreMethod == null)
-                throw new InvalidOperationException("Desktop launcher lost access to the existing bounded control-center actions.");
+            if (LauncherColumns != 4) throw new InvalidOperationException("Control-center launcher must prefer four left-to-right desktop shortcuts before wrapping.");
+            if (ThemeField == null || OwnerField == null || SettingsField == null || CleanupField == null ||
+                PersonalizationMethod == null || MoreMethod == null)
+                throw new InvalidOperationException("Desktop launcher lost access to its bounded control-center actions.");
             if ((DesktopTileStyles & ControlStyles.SupportsTransparentBackColor) == 0)
                 throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
-            if (FlowBaseWidth < (LauncherColumns * TileBaseWidth) + ((LauncherColumns - 1) * TileGapX))
-                throw new InvalidOperationException("Compact launcher flow width can no longer hold three natural columns.");
+            if ((4 * TileBaseWidth) + (3 * TileGapX) > BaseWidth - 32)
+                throw new InvalidOperationException("Default control-center width can no longer hold four natural desktop shortcuts.");
         }
 
-        private static void HideLegacyFeatureRows(CompactMenuForm menu, UiTextCatalog ui)
+        private static void OpenCleanupRepair(CompactMenuForm menu)
         {
-            var featureCaption = Descendants(menu).OfType<Label>()
-                .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellFeatureCenter), StringComparison.Ordinal));
-            var featureCard = featureCaption == null ? null : featureCaption.Parent;
-            if (featureCard != null) featureCard.Visible = false;
+            if (menu == null || menu.IsDisposed) return;
+            try
+            {
+                var owner = OwnerField.GetValue(menu) as MainForm;
+                var settings = SettingsField.GetValue(menu) as AppSettings;
+                var cleanup = CleanupField.GetValue(menu) as CleanupModule;
+                if (owner == null || settings == null || cleanup == null) return;
 
-            var moreText = ui.Get(UiTextKeys.ShellMoreSettings) + "  " + ui.Get(UiTextKeys.ShellArrow);
-            var legacyMore = menu.Controls.Cast<Control>()
-                .FirstOrDefault(control => string.Equals(control.Text, moreText, StringComparison.Ordinal));
-            if (legacyMore != null) legacyMore.Visible = false;
-        }
-
-        private static void SimplifyFooter(CompactMenuForm menu, UiTextCatalog ui)
-        {
-            var footerHint = Descendants(menu).OfType<Label>()
-                .FirstOrDefault(label => string.Equals(label.Text, ui.Get(UiTextKeys.ShellSimpleHint), StringComparison.Ordinal));
-            if (footerHint == null || footerHint.Parent == null) return;
-
-            var footer = footerHint.Parent;
-            foreach (var label in footer.Controls.OfType<Label>().Where(label => label.Top >= footerHint.Top).ToArray())
-                label.Visible = false;
+                using (var form = new CleanupRepairForm(owner, settings, cleanup))
+                {
+                    form.TopMost = true;
+                    menu.Close();
+                    form.ShowDialog();
+                }
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Cleanup/repair launcher action failed", exception);
+            }
         }
 
         private static void AddTile(
@@ -165,26 +148,27 @@ namespace FACM
             Func<int, int> sy,
             string glyph,
             string title,
-            string hint,
-            Action<Control> click,
-            Label hoverHint)
+            Action click)
+        {
+            AddTile(parent, theme, sx, sy, glyph, title, delegate(Control control) { if (click != null) click(); });
+        }
+
+        private static void AddTile(
+            FlowLayoutPanel parent,
+            ThemeDefinition theme,
+            Func<int, int> sx,
+            Func<int, int> sy,
+            string glyph,
+            string title,
+            Action<Control> click)
         {
             var tile = new DesktopTile(theme, glyph, title)
             {
                 Size = new Size(sx(TileBaseWidth), sy(TileBaseHeight)),
                 Margin = new Padding(0, 0, sx(TileGapX), sy(TileGapY)),
-                AccessibleName = title,
-                AccessibleDescription = hint
+                AccessibleName = title
             };
             tile.Click += delegate { if (click != null) click(tile); };
-            tile.MouseEnter += delegate
-            {
-                if (!hoverHint.IsDisposed) hoverHint.Text = hint;
-            };
-            tile.MouseLeave += delegate
-            {
-                if (!hoverHint.IsDisposed) hoverHint.Text = DefaultHoverHint;
-            };
             parent.Controls.Add(tile);
         }
 
@@ -199,16 +183,6 @@ namespace FACM
             catch (Exception exception)
             {
                 AppLog.Error("Desktop launcher action failed", exception);
-            }
-        }
-
-        private static System.Collections.Generic.IEnumerable<Control> Descendants(Control root)
-        {
-            if (root == null) yield break;
-            foreach (Control child in root.Controls)
-            {
-                yield return child;
-                foreach (var nested in Descendants(child)) yield return nested;
             }
         }
 
@@ -235,7 +209,6 @@ namespace FACM
                 Text = title ?? string.Empty;
                 Cursor = Cursors.Hand;
                 TabStop = true;
-
                 SetStyle(DesktopTileStyles, true);
                 BackColor = Color.Transparent;
 
@@ -268,19 +241,19 @@ namespace FACM
                 var full = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
                 if (_hovered || _pressed || Focused)
                 {
-                    using (var hoverPath = RoundedPath(full, 10))
+                    using (var hoverPath = RoundedPath(full, Math.Max(6, _theme.ButtonRadius + 4)))
                     using (var hoverBrush = new SolidBrush(Color.FromArgb(_pressed ? 46 : 24, _theme.TextPrimary)))
                         e.Graphics.FillPath(hoverBrush, hoverPath);
 
                     if (Focused)
                     {
-                        using (var focusPath = RoundedPath(full, 10))
+                        using (var focusPath = RoundedPath(full, Math.Max(6, _theme.ButtonRadius + 4)))
                         using (var focusPen = new Pen(Color.FromArgb(150, _theme.AccentSecondary), 1F))
                             e.Graphics.DrawPath(focusPen, focusPath);
                     }
                 }
 
-                var iconSize = Math.Max(30, Math.Min(36, Height / 2));
+                var iconSize = Math.Max(32, Math.Min(40, Height / 2));
                 var icon = new Rectangle((Width - iconSize) / 2, 4, iconSize, iconSize);
                 using (var iconPath = RoundedPath(icon, Math.Max(7, Math.Min(10, _theme.ButtonRadius + 4))))
                 using (var iconBrush = new SolidBrush(_theme.Accent))
@@ -304,7 +277,7 @@ namespace FACM
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 }
 
-                var titleBounds = new Rectangle(2, icon.Bottom + 6, Math.Max(1, Width - 4), Math.Max(1, Height - icon.Bottom - 7));
+                var titleBounds = new Rectangle(2, icon.Bottom + 7, Math.Max(1, Width - 4), Math.Max(1, Height - icon.Bottom - 8));
                 using (var titleFont = new Font(_theme.FontName, 8.1F, FontStyle.Bold))
                 {
                     TextRenderer.DrawText(
