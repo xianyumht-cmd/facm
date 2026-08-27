@@ -1,6 +1,7 @@
 using FACM.App.ViewModels;
 using FACM.Core.Desktop;
 using FACM.Core.Observability;
+using FACM.Core.Performance;
 using FACM.Core.Runtime;
 using FACM.Core.Settings;
 using FACM.Core.State;
@@ -22,11 +23,14 @@ public partial class App : Application
     private MainWindow? _window;
     private FloatingWindow? _floatingWindow;
     private ControlCenterViewModel? _controlCenter;
+    private LeagueWorkbenchViewModel? _leagueWorkbench;
     private IUiTextProvider? _uiText;
     private Settings2Repository? _settings;
     private HttpUpdateManifestSource? _updateManifestSource;
     private LeagueHttpGateway? _leagueGateway;
     private WindowsLeagueTransportSessionSource? _leagueSessions;
+    private LeagueGameflowMonitor? _gameflow;
+    private PerformanceBudgetProvider? _performance;
     private ProductStateStore? _productState;
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
     private bool _shuttingDown;
@@ -45,18 +49,25 @@ public partial class App : Application
         _productState.SetEnvironment(
             new ProductEnvironmentState(layout.DistributionDirectory, null, null),
             "runtime-layout-ready");
+        _performance = new PerformanceBudgetProvider();
         _diagnostics = new BoundedJsonLinesDiagnosticSink(Path.Combine(layout.LogsDirectory, "facm4-events.jsonl"));
 
         _settings = new Settings2Repository(layout.Settings2Path, layout.SettingsPath);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
         _updateManifestSource = new HttpUpdateManifestSource();
 
-        // Exactly one League discovery/auth/session owner for the 4.0 process. Product State,
-        // diagnostics, Main Shell and the desktop surface consume facts/contracts only.
+        // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
+        // Read/write transport, Product State, performance and the Workbench all consume the same facts.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
+        _gameflow = new LeagueGameflowMonitor(
+            _leagueGateway,
+            _leagueSessions,
+            _productState,
+            _performance);
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
+        _gameflow.Start();
         EnsureMainWindow();
 
         var workAreas = new WindowsDesktopWorkAreaProvider();
@@ -90,8 +101,11 @@ public partial class App : Application
         if (_window is null)
         {
             var controlCenter = _controlCenter ?? throw new InvalidOperationException("Control center is unavailable.");
+            var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
+            var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
             var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
-            _window = new MainWindow(controlCenter, text);
+            _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
+            _window = new MainWindow(controlCenter, _leagueWorkbench, text);
             _window.Closed += OnMainWindowClosed;
         }
         _window.Activate();
@@ -99,9 +113,12 @@ public partial class App : Application
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
-        if (ReferenceEquals(sender, _window)) _window = null;
+        if (!ReferenceEquals(sender, _window)) return;
+        _window = null;
+        _leagueWorkbench?.Dispose();
+        _leagueWorkbench = null;
         // Closing the main shell does not toggle or terminate the desktop entry. Clicking F later
-        // recreates the shell and activates it, preserving Ensure Open / Activate semantics.
+        // recreates only the state-consuming ViewModel/window; the one League runtime keeps its owner.
     }
 
     private void OnFloatingWindowClosed(object sender, WindowEventArgs args)
@@ -166,9 +183,14 @@ public partial class App : Application
 
     private void DisposeRuntime()
     {
+        _gameflow?.Dispose();
+        _gameflow = null;
+        _leagueWorkbench?.Dispose();
+        _leagueWorkbench = null;
         _leagueGateway?.Dispose();
         _leagueGateway = null;
         _leagueSessions = null;
+        _performance = null;
         _updateManifestSource?.Dispose();
         _updateManifestSource = null;
         _diagnostics?.Dispose();

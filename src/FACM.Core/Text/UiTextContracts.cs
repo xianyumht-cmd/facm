@@ -33,6 +33,25 @@ public static class UiTextKeys
     public const string ShellStateTitle = "ShellStateTitle";
     public const string ShellStateBody = "ShellStateBody";
     public const string DesktopOpenShell = "DesktopOpenShell";
+
+    public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
+    public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
+    public const string LeagueWorkbenchMatchDescription = "LeagueWorkbenchMatchDescription";
+    public const string LeagueWorkbenchStrategy = "LeagueWorkbenchStrategy";
+    public const string LeagueWorkbenchStrategyDescription = "LeagueWorkbenchStrategyDescription";
+    public const string LeagueWorkbenchAutomation = "LeagueWorkbenchAutomation";
+    public const string LeagueWorkbenchAutomationDescription = "LeagueWorkbenchAutomationDescription";
+    public const string LeagueWorkbenchStateLabel = "LeagueWorkbenchStateLabel";
+    public const string LeagueWorkbenchBudgetLabel = "LeagueWorkbenchBudgetLabel";
+    public const string LeagueStateNotRunning = "LeagueStateNotRunning";
+    public const string LeagueStateConnecting = "LeagueStateConnecting";
+    public const string LeagueStateLobby = "LeagueStateLobby";
+    public const string LeagueStateMatchmaking = "LeagueStateMatchmaking";
+    public const string LeagueStateReadyCheck = "LeagueStateReadyCheck";
+    public const string LeagueStateChampSelect = "LeagueStateChampSelect";
+    public const string LeagueStateInGame = "LeagueStateInGame";
+    public const string LeagueStatePostGame = "LeagueStatePostGame";
+    public const string LeagueStateClientError = "LeagueStateClientError";
 }
 
 public static class FoundationUiTextDefaults
@@ -64,7 +83,26 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.ShellOverviewBody] = "一个窗口承载四个产品入口，业务能力继续由 Core 与平台 owner 管理。",
         [UiTextKeys.ShellStateTitle] = "状态驱动",
         [UiTextKeys.ShellStateBody] = "界面只消费 Product State 与 Core intent，不创建第二套 League、网络或文件运行时。",
-        [UiTextKeys.DesktopOpenShell] = "打开 FACM 控制中心"
+        [UiTextKeys.DesktopOpenShell] = "打开 FACM 控制中心",
+
+        [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
+        [UiTextKeys.LeagueWorkbenchMatch] = "比赛",
+        [UiTextKeys.LeagueWorkbenchMatchDescription] = "对局状态、实时信息与比赛相关能力集中在这里。",
+        [UiTextKeys.LeagueWorkbenchStrategy] = "攻略",
+        [UiTextKeys.LeagueWorkbenchStrategyDescription] = "英雄、符文、出装与推荐能力按当前对局阶段提供。",
+        [UiTextKeys.LeagueWorkbenchAutomation] = "自动化",
+        [UiTextKeys.LeagueWorkbenchAutomationDescription] = "只展示已授权的自动化能力；高风险写操作继续遵守窄 capability。",
+        [UiTextKeys.LeagueWorkbenchStateLabel] = "客户端状态",
+        [UiTextKeys.LeagueWorkbenchBudgetLabel] = "性能档位",
+        [UiTextKeys.LeagueStateNotRunning] = "客户端未运行",
+        [UiTextKeys.LeagueStateConnecting] = "正在连接客户端",
+        [UiTextKeys.LeagueStateLobby] = "大厅",
+        [UiTextKeys.LeagueStateMatchmaking] = "匹配中",
+        [UiTextKeys.LeagueStateReadyCheck] = "等待接受",
+        [UiTextKeys.LeagueStateChampSelect] = "英雄选择",
+        [UiTextKeys.LeagueStateInGame] = "游戏中",
+        [UiTextKeys.LeagueStatePostGame] = "赛后",
+        [UiTextKeys.LeagueStateClientError] = "客户端连接异常"
     };
 
     public static string Get(string key) => Values.TryGetValue(key, out var value) ? value : key;
