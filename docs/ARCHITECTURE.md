@@ -2,7 +2,7 @@
 
 ## 1. 当前双轨架构
 
-FACM 正处于 3.5.15 -> 4.0 的受控迁移期。生产实现与 4.0 foundation 并行存在，直到 Gate 13 release 条件满足才允许退休 legacy。
+FACM 正处于 3.5.15 -> 4.0 的受控迁移期。生产 WinForms 与 4.0 WinUI 并行存在，直到 Gate 13 release 条件满足才允许退休 legacy。
 
 ```text
 Production / rollback baseline
@@ -15,32 +15,32 @@ FACM.exe (.NET Framework 4.8 / WinForms)
 └─ Mayhem
 
 FACM.PetHost.exe (.NET 8 x64 / WPF / VPet Core)
-└─ 独立辅助进程
+└─ independent helper process
 
-FACM 4.0 parallel architecture
+FACM 4.0
 FACM.App (.NET 10 + WinUI 3)
-├─ one Window / NavigationView / Frame
+├─ one main Window / NavigationView / Frame
 ├─ Pages / dialogs
 ├─ ViewModels: Core intents/state only
 └─ composition root: concrete adapter wiring
         ↓ contracts
-FACM.Core (net10.0, UI/framework/platform neutral)
-├─ module lifecycle
-├─ performance policy
-├─ settings/text contracts
+FACM.Core (net10.0, UI/platform neutral)
+├─ module lifecycle / performance policy
+├─ Settings 2.0 + legacy migration contracts
+├─ UI text contracts
 ├─ cleanup intents/results
 ├─ League session/read/write capability contracts
-└─ update manifest/decision/install intents
+└─ online/update contracts
         ↓
 FACM.Infrastructure (net10.0)          FACM.Platform.Windows (net10.0-windows)
-├─ settings persistence                ├─ distribution executable identity
-├─ text/config persistence             ├─ process/window/monitor/DPI
-├─ HTTP/public data                    ├─ filesystem/registry/WMI/UAC
+├─ settings/text persistence           ├─ distribution executable identity
+├─ HTTP/public data                    ├─ League process/lockfile discovery
+├─ League HTTP transport               ├─ window/monitor/DPI/filesystem/UAC
 ├─ update metadata/download            ├─ single-instance/RegisterHotKey
 └─ cache/diagnostic persistence         └─ child process/replacement integration
 ```
 
-`FACM4.sln` 是 4.0 并行 solution；旧 `FACM.sln` 在 Gate 13 前持续作为可构建 rollback baseline。
+`FACM4.sln` 是 4.0 并行 solution；旧 `FACM.sln` 在 Gate 13 前持续作为 rollback baseline。
 
 ## 2. 依赖方向与 UI Intent Boundary
 
@@ -55,7 +55,7 @@ FACM.Platform.Windows -> FACM.Core
 FACM.Core -> no UI/platform implementation
 ```
 
-App 内再分一层：
+App 内：
 
 ```text
 Page / Window
@@ -68,99 +68,69 @@ Infrastructure / Platform.Windows adapters
     ↑ wired only at App composition root
 ```
 
-禁止：
+禁止：Core 引用 WinUI/WinForms/WPF/GDI；ViewModel 直接引用 Infrastructure/Platform/HttpClient/File/Process/Registry/具体 League session/URL；Page/Form 自行创建第二套 League session、settings store 或 updater runtime。
 
-- Core -> WinUI / WinForms / WPF / System.Drawing；
-- Core -> Windows process/filesystem/registry implementation；
-- Infrastructure -> App/WinUI；
-- Platform.Windows -> App/WinUI；
-- ViewModel -> Infrastructure / Platform.Windows / HttpClient / File / Directory / Process / Registry / URL / concrete League session；
-- Page/Form 自行创建第二套 League session、HttpClient、settings store 或 updater runtime。
+`scripts/check-facm4-architecture.ps1` 自动守 project/UI boundary，并禁止迁移 PR 修改生产 release controls。
 
-`scripts/check-facm4-architecture.ps1` 自动检查 Core framework boundary、project references、ViewModel forbidden dependencies 与 migration branch production release-control changes。
+## 3. Host / Performance
 
-## 3. Core 模块生命周期
+`FACM.Core.Application.FacmHost` 保持拓扑初始化、缺失/重复/循环拒绝、timing、失败反向 rollback、正常反向 Dispose。UI 不拥有模块生命周期。
 
-`FACM.Core.Application.IFacmModule`：
+`FACM.Core.Performance` 是性能预算 owner；优先级固定 `InGame > ChampSelect > hidden/background > Queueing > Client > Desktop`，窗口不可见不能成为游戏中增加后台工作的理由。
 
-```text
-Id
-Dependencies
-Initialize()
-Dispose()
-```
+## 4. Settings 2.0 / UI Text
 
-`FacmHost` 保持 3.5.15 已验收语义：依赖拓扑、重复/缺失/循环拒绝、逐模块 timing、失败模块释放、已初始化模块反向 rollback、正常反向 Dispose。UI 不拥有模块生命周期。
+### 文件与路径
 
-## 4. Performance owner
+3.5.15 legacy：distribution EXE 同目录 `settings.ini`。
 
-`FACM.Core.Performance` 是 4.0 性能预算 owner：
+4.0 Settings 2.0：distribution EXE 同目录 `settings.v2.json`。
 
-| State | Network | Image | Disk | CPU | Prefetch | Poll |
-|---|---:|---:|---:|---:|---:|---:|
-| Desktop | 4 | 2 | 2 | 2 | 20 | 15s |
-| League Client | 3 | 2 | 2 | 2 | 12 | 20s |
-| Queueing | 2 | 1 | 1 | 1 | 4 | 30s |
-| Champ Select | 2 | 1 | 1 | 1 | 0 | 45s |
-| In Game | 1 | 1 | 1 | 1 | 0 | 60s |
-| Background | 1 | 1 | 1 | 1 | 0 | 60s |
+两者都必须从 `WindowsExecutablePathProvider.ExecutablePath -> RuntimePathLayout` 推导。禁止使用 `AppContext.BaseDirectory` 作为持久路径，因为 WinUI single-file 可把它指到 `%TEMP%/.net/...`。
 
-优先级：`InGame > ChampSelect > hidden/background > Queueing > Client > Desktop`。窗口不可见不能成为游戏中增加后台工作的理由。
+### Schema ownership
 
-## 5. Settings / UI Text
-
-### Gate 2 compatibility state
-
-Gate 2 继续使用 3.5.15 schema，不提前切 Settings 2.0：
-
-- `LegacySettingsCodec` 读写 15 个稳定键；
-- `ISettingsRepository` 是 Core persistence contract；
-- `IniSettingsRepository` 是 Infrastructure adapter；
-- 默认主题 `glass-blue`，默认宠物 `greenfly`；
-- `IUiTextProvider` 是 framework-neutral 文字入口；
-- Gate 4 才引入 versioned typed schema / validation / atomic save / migration。
-
-3.5.15 当前 `settings.ini` 的正式路径语义是 **distribution EXE 同目录**；旧 `%LOCALAPPDATA%\FACM\settings.ini` 只是 legacy migration source。
-
-WinUI single-file 下持久化路径必须这样推导：
+当前 schema version = `2`：
 
 ```text
-WindowsExecutablePathProvider.ExecutablePath
-    -> Path.GetDirectoryName(distribution exe)
-    -> settings.ini / future stable runtime layout
+Environment -> GamePath
+Online      -> AutoUpdateEnabled / LastAnnouncementId
+Appearance  -> ThemeId
+Pets        -> BallX / BallY / StyleId / Enabled
+League      -> AutoApplyRecommended / ExitGameHotkey / CloseLobbyHotkey /
+               AutoHonorTeammate / AutoReturnLobby / AutoMatchmaking / AutoAccept
 ```
 
-禁止：
+`Settings2Document / Settings2Validator / Settings2Migration / ISettings2Repository` 在 Core；JSON/file implementation 在 Infrastructure。
+
+### Migration contract
 
 ```text
-AppContext.BaseDirectory -> persistent settings/cache/runtime
+no settings.v2.json
+    ├─ settings.ini exists -> parse legacy 15 keys -> typed v2 -> validate -> atomic save
+    └─ no legacy          -> validated defaults -> atomic save
+
+settings.v2.json exists
+    -> deserialize -> exact schema validation -> use
 ```
 
-因为 single-file 会把 `AppContext.BaseDirectory` 指到 `%TEMP%/.net/...` self-extract 目录。
+已有 v2 损坏、section 缺失、非法 value 或 future/unknown schema 时 **fail closed**；禁止静默生成默认值覆盖原文件。Gate 13 前 legacy INI 只读保留，迁移成功也不删除，以保证 3.5.15 rollback。
 
-## 6. League ownership / capability model
+### Atomic persistence
 
-### 唯一连接所有者
+`PhysicalSettings2FileStore` 在目标同目录创建唯一 temp：写入 -> flush -> flush-to-disk -> `File.Move(... overwrite:true)`；失败清理 temp 且不主动破坏旧目标。所有 save 在 IO 前先经过 validator。
 
-整个迁移期继续只有一个 League discovery/auth/session owner。Gate 2 只建立 Core contract，没有建立第二实际 connector；当前实际 owner 仍为 legacy `LeagueClientModule + LeagueClientSessionProvider`。
+### UI Text
 
-Gate 3 移动实现时必须是“移动 owner”，不是复制 owner。Dashboard、Player、Live、OP.GG、Mayhem、Efficiency、Game Repair、Matchmaking/PostGame/Presence 等只能消费同一个 session/runtime。
+`IUiTextProvider` 仍是 framework-neutral 文字 contract；legacy `ui-text.ini` 稳定 key 不因 Settings 2.0 改变。
 
-### Core contracts
+## 5. League runtime / capability ownership
 
-Gate 2 已建立：
+4.0 只有一个真实 League discovery/auth/session owner：`WindowsLeagueTransportSessionSource`。`LeagueTransportSession` 内部持有 transport secret，公共 `LeagueSessionDescriptor`/诊断不含 password/token。
 
-```text
-ILeagueSessionAccessor
-ILeagueReadGateway
-ILeagueWriteGateway
-LeagueSessionDescriptor
-LeagueWriteCommand
-LeagueWriteCapability
-LeagueWriteTargetPolicy
-```
+`LeagueHttpGateway` 的 read/write 共用同一 source；credential 只发给 loopback；read 拒绝 absolute URL；write target 必须由 `LeagueWriteTargetPolicy` 从 capability 产生。
 
-`LeagueWriteCommand` 不携带任意 URL/path。`LeagueWriteTargetPolicy` 根据 capability 产生 exact target；当前迁移范围：
+当前迁移 capability：
 
 ```text
 ApplyMySelection      -> PATCH /lol-champ-select/v1/session/my-selection
@@ -169,113 +139,65 @@ UpdatePerkPage(id)    -> PUT   /lol-perks/v1/pages/{positive-id}
 SetCurrentPerkPage    -> PUT   /lol-perks/v1/currentpage
 ```
 
-后续 Bench、Matchmaking、PostGame、Presence、Client UX Repair 等继续各自窄 capability，不允许为了迁移方便变成 `Send(method, path, json)` 公共 API。
+Bench、Matchmaking、PostGame、Presence、Client UX Repair 等继续保持各自窄 capability。Bench 仍是用户显式手动动作，不变成后台自动抢英雄。
 
-Bench 仍是用户点击触发的手动快速选择，不允许升级成后台自动抢英雄。
+Game Repair 继续保持 native Win32、实际 monitor/working area、多屏/负坐标、WinEvent debounce/cooldown；不恢复 Fix-LCU 第二 runtime。
 
-### Game Repair
-
-正式实现保持 native Windows：实际显示器/working area、多屏/负坐标、WinEvent location-change + debounce/cooldown；play-again 复用 post-game writer；restart UX 使用专用最小 writer。禁止恢复第二个 Fix-LCU runtime。
-
-## 7. Cleanup ownership
-
-Gate 2 已把 UI-independent orchestration 抽入 Core：
+## 6. Cleanup
 
 ```text
-Page / ViewModel
-    -> CleanupApplicationService
-       -> ICleanupPlanner
-       -> ICleanupExecutor
-    <- CleanupPlan / CleanupResult / CleanupProgress
+Page/ViewModel -> CleanupApplicationService
+                  -> ICleanupPlanner / ICleanupExecutor
+               <- CleanupPlan / Result / Progress
 ```
 
-`CleanupApplicationService` 要求 explicit confirmation 才执行；Core 不引用 WinForms progress dialog 或 filesystem implementation。
+Core 要求 preview + explicit confirmation；Windows adapter 最终必须继续守游戏根目录验证、path allowlist、reparse/junction guard、UAC、执行前重验证、取消与逐项 failure。UI dialog 不拥有删除规则。
 
-Gate 3/后续 Windows adapter 仍必须保留：游戏根目录验证、path allowlist、reparse-point/junction 防护、UAC、执行前规则重验证、取消、failure per target。UI review dialog 只是展示/确认 owner，不拥有删除规则。
+## 7. Online / Update
 
-## 8. Online / Update ownership
+`HttpUpdateManifestSource` 已迁到 .NET 10 Infrastructure：有限 timeout/cancellation、128 KiB metadata cap、strict GitHub Release URL/version/SHA-256 validation。
 
-Gate 2 Core 已建立：
+所有权：
 
 ```text
-IUpdateManifestSource
-IUpdateInstaller
-UpdateManifestSnapshot
-UpdateDecision
-UpdateDecisionService
+Core: manifest / decision / install intent
+Infrastructure: HTTP metadata / mirror / bounded download / validation acquisition
+Platform.Windows + Updater: UAC / wait / replace / rollback
 ```
 
-当前 WinUI composition root 使用 `UnavailableUpdateManifestSource`，表示 **transport 尚未迁入**；它不是静默关闭更新架构，也不允许 ViewModel 直接发网络请求。
+Updater replacement target 只能来自 distribution executable path。正式更新继续保留 max size、SHA-256、signature/package validation、validated receipt、独立替换、失败保留旧 EXE。
 
-目标所有权：
+## 8. WinUI composition root
 
-```text
-Core
-  manifest/decision/install intent
-        ↓
-Infrastructure
-  HTTP metadata / mirror routing / bounded download / hash-package acquisition
-        ↓
-Platform.Windows + FACM.Updater
-  UAC / wait / replace / rollback / keep old executable
-```
+`FACM.App/App.xaml.cs` 是 concrete adapter composition root，目前创建：
 
-Gate 0 已证明 single-file self-extract 下 `Environment.ProcessPath` = distribution EXE、`AppContext.BaseDirectory` = temporary extraction directory。Updater replacement target 只能来自前者。
+- `WindowsExecutablePathProvider` + `RuntimePathLayout`；
+- `Settings2Repository(layout.Settings2Path, layout.SettingsPath)`；
+- `HttpUpdateManifestSource`；
+- exactly one `WindowsLeagueTransportSessionSource`；
+- one shared `LeagueHttpGateway`；
+- ViewModels/MainWindow。
 
-更新安全持续保留：max size、SHA-256、signature/package validation、validated receipt、independent replacement、failure keeps old executable runnable。
+具体 adapter 不得下沉回 ViewModel/Page。
 
-## 9. WinUI composition root
+## 9. Shell / Desktop / PetHost
 
-`FACM.App/App.xaml.cs` 是具体 adapter composition root。Gate 2 当前负责：
+控制中心固定四入口：`清理与修复 / LOL 工作台 / 个性化 / 更多设置`；LOL 工作台面向用户固定 `比赛 / 攻略 / 自动化`。
 
-- 创建 `WindowsExecutablePathProvider`；
-- 从 distribution EXE directory 创建 `IniSettingsRepository`；
-- 注入 update manifest source；
-- 创建 `ControlCenterViewModel`；
-- 创建唯一 `MainWindow`。
+Gate 6 继续构建单 main Window / 单 TitleBar owner / 单 navigation visual tree 的 Design System；Gate 7 的桌面浮动入口属于独立 desktop surface，不恢复 Form-in-Form。
 
-`MainWindow` 只消费 ViewModel state；它不解析 settings path、不 new HttpClient、不发现 League process。
+Single Instance = Ensure Open/Activate；快捷键 = RegisterHotKey，不引入低级键盘 hook/永久轮询。PetHost 保持独立进程、IPC、Job Object/parent-pid 生命周期。
 
-后续 Gate 可以把 composition root 拆成更正式的 bootstrapper，但不得把 concrete adapter creation 下沉回 ViewModel/Page。
+## 10. Product State / Observability 目标
 
-## 10. Shell 信息架构
+Gate 5 引入统一 Product State：Application / League / Environment / Services。League 至少覆盖 `NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`。
 
-控制中心固定四入口：
+页面订阅 state，不复制轮询。结构化诊断至少携带 `ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion / Timestamp`，且不得包含 token/password/cookie。
 
-```text
-清理与修复
-LOL 工作台
-个性化
-更多设置
-```
+## 11. 测试与发布边界
 
-LOL 工作台用户分区保持 `比赛 / 攻略 / 自动化`。WinUI Shell 采用单 Window / 单 TitleBar owner / 单 navigation visual tree，禁止复制旧 Form-in-Form 模式。
+迁移期间持续维护：legacy `FACM Windows Build`、`FACM UI Text Contract`、`FACM 4.0 Foundation`、`FACM.WindowsSmoke` 与各业务 deterministic smoke。已有 smoke 只能迁移或被等价/更强验证替代。
 
-## 11. Desktop Shell / PetHost
+workflow 上传稳定 artifact 名 `facm4-x64`；具体 digest/id 记录在 `PROJECT_STATE.md`，不通过分支名承担历史归档职责。
 
-- 默认 `F` 悬浮入口后续由 Gate 7 纳入全局 Theme Resources；
-- Anchor Placement Service 必须按所在显示器/边缘/working area 放置，支持负坐标和混合 DPI；
-- Single Instance = **Ensure Open / Activate**，不是 toggle；
-- 快捷键使用 RegisterHotKey，不引入低级键盘 Hook/永久轮询；
-- PetHost 保持独立进程、IPC、Job Object/parent-pid 生命周期，不因 WinUI 迁移并入主 UI 进程。
-
-## 12. 状态与可观测性目标
-
-Gate 5 引入统一 Product State：Application / League / Environment / Services。League 至少覆盖：
-
-`NotRunning / Connecting / Lobby / Matchmaking / ReadyCheck / ChampSelect / InGame / PostGame / ClientError`。
-
-页面订阅 state，不重复轮询。结构化诊断至少携带 `ActionId / Module / Duration / Result / Reason / LeagueState / ClientVersion`，供 Gate 9 诊断中心消费。
-
-## 13. 测试与发布边界
-
-迁移期间同时维护：
-
-- legacy `FACM Windows Build`；
-- `FACM UI Text Contract`；
-- `FACM 4.0 Foundation`；
-- 各业务 deterministic smoke。
-
-已有 smoke 只能迁移或被等价/更强验证替代，不能静默删除。
-
-Gate 13 之前 `online/version.json` / `release/request.json` 保持生产 3.5.15。只有 Gates 0～12 全绿、3.5.15 配置迁移、Updater rollback、Windows 10/11 + DPI/多屏/accessibility 实机矩阵通过后，才允许退休 legacy 并切 FACM 4.0.0。
+Gate 13 之前 `online/version.json` / `release/request.json` 保持生产 3.5.15。只有 Gates 0～12、settings 迁移、Updater rollback、Windows 10/11 + DPI/多屏/accessibility 真机矩阵成立后，才允许退休 legacy 并切 FACM 4.0.0。
