@@ -74,6 +74,7 @@ public static class ReleaseEvidenceEvaluator
         if (document.SchemaVersion != ReleaseEvidenceDocument.CurrentSchemaVersion)
             throw new InvalidDataException($"Unsupported release evidence schema: {document.SchemaVersion}.");
         if (document.Candidate is null) throw new InvalidDataException("Candidate identity is missing.");
+        ValidateCandidate(document.Candidate);
         if (document.Items is null || document.Items.Count == 0)
             throw new InvalidDataException("Release evidence matrix is empty.");
 
@@ -89,5 +90,21 @@ public static class ReleaseEvidenceEvaluator
             if (item.RequiredForRelease && item.Status != ReleaseEvidenceStatus.Passed && string.IsNullOrWhiteSpace(item.Notes))
                 throw new InvalidDataException("Required blocker must explain why it is not passed: " + item.Id);
         }
+    }
+
+    private static void ValidateCandidate(ReleaseCandidateIdentity candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate.HeadSha) || candidate.HeadSha.Length != 40 ||
+            candidate.HeadSha.Any(character => !Uri.IsHexDigit(character)))
+            throw new InvalidDataException("Candidate head SHA must be a full 40-character Git SHA.");
+        if (candidate.ArtifactId is null or <= 0)
+            throw new InvalidDataException("Candidate artifact id must be positive.");
+        if (candidate.ArtifactSizeBytes is null or <= 0)
+            throw new InvalidDataException("Candidate artifact size must be positive.");
+        if (string.IsNullOrWhiteSpace(candidate.ArtifactDigest) ||
+            !candidate.ArtifactDigest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) ||
+            candidate.ArtifactDigest.Length != 71 ||
+            candidate.ArtifactDigest[7..].Any(character => !Uri.IsHexDigit(character)))
+            throw new InvalidDataException("Candidate artifact digest must be a SHA-256 digest.");
     }
 }
