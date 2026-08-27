@@ -15,6 +15,8 @@ public sealed partial class MainWindow : Window
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _text = text ?? throw new ArgumentNullException(nameof(text));
         InitializeComponent();
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
         ApplyStaticText();
         RootNavigation.SelectedItem = RepairNav;
         RootNavigation.Loaded += OnRootNavigationLoaded;
@@ -24,6 +26,7 @@ public sealed partial class MainWindow : Window
     {
         var appName = _text.Get(UiTextKeys.AppName);
         Title = appName + " 4.0";
+        TitleBarText.Text = appName;
         ProductTitle.Text = appName + " 4.0";
         RepairNav.Content = _text.Get(UiTextKeys.ShellRepairTools);
         LeagueNav.Content = _text.Get(UiTextKeys.ShellLeague);
