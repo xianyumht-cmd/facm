@@ -27,6 +27,7 @@ public sealed partial class FloatingWindow : Window
         InitializeComponent();
         Title = text.Get(UiTextKeys.AppName);
         AutomationProperties.SetName(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
+        AutomationProperties.SetHelpText(FloatingButton, text.Get(UiTextKeys.DesktopOpenShellHelp));
         FloatingButton.Click += OnFloatingButtonClick;
         ConfigurePresenter();
     }
@@ -35,10 +36,10 @@ public sealed partial class FloatingWindow : Window
     {
         var areas = _workAreas.GetWorkingAreas();
         var selected = AnchorPlacementService.SelectWorkArea(areas, preferredTopLeft);
-        var size = new DesktopSize(
-            SurfaceSideDip * selected.DpiScaleX,
-            SurfaceSideDip * selected.DpiScaleY);
-        var margin = MarginDip * Math.Max(selected.DpiScaleX, selected.DpiScaleY);
+        var size = DesktopDpi.DipsToPixels(
+            new DesktopSize(SurfaceSideDip, SurfaceSideDip),
+            selected);
+        var margin = DesktopDpi.UniformDipsToPixels(MarginDip, selected);
         var placement = AnchorPlacementService.Place(new AnchorPlacementRequest(
             [selected],
             size,
