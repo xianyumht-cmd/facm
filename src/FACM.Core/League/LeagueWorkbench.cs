@@ -1,3 +1,5 @@
+using FACM.Core.Text;
+
 namespace FACM.Core.League;
 
 public sealed record LeagueWorkbenchSection(string Id, string TitleTextKey, string DescriptionTextKey);
@@ -10,9 +12,9 @@ public static class LeagueWorkbenchCatalog
 
     private static readonly IReadOnlyList<LeagueWorkbenchSection> Values =
     [
-        new(Match, "LeagueWorkbenchMatch", "LeagueWorkbenchMatchDescription"),
-        new(Strategy, "LeagueWorkbenchStrategy", "LeagueWorkbenchStrategyDescription"),
-        new(Automation, "LeagueWorkbenchAutomation", "LeagueWorkbenchAutomationDescription")
+        new(Match, UiTextKeys.LeagueWorkbenchMatch, UiTextKeys.LeagueWorkbenchMatchDescription),
+        new(Strategy, UiTextKeys.LeagueWorkbenchStrategy, UiTextKeys.LeagueWorkbenchStrategyDescription),
+        new(Automation, UiTextKeys.LeagueWorkbenchAutomation, UiTextKeys.LeagueWorkbenchAutomationDescription)
     ];
 
     public static IReadOnlyList<LeagueWorkbenchSection> Sections => Values;
