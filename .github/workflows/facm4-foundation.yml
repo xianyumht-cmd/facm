@@ -42,6 +42,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
 
+      - name: Verify DPI and accessibility contract
+        shell: pwsh
+        run: ./scripts/check-facm4-accessibility.ps1
+
       - name: Restore FACM 4.0 solution
         shell: pwsh
         run: dotnet restore FACM4.sln -p:Platform=x64
