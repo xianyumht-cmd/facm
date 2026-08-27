@@ -21,7 +21,7 @@
                 Text="F"
                 FontSize="22"
                 FontWeight="SemiBold"
-                Foreground="{StaticResource FacmAccentTextBrush}" />
+                Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
         </Button>
     </Grid>
 </Window>
