@@ -30,6 +30,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-shell.ps1
 
+      - name: Verify desktop surface contract
+        shell: pwsh
+        run: ./scripts/check-facm4-desktop.ps1
+
       - name: Restore FACM 4.0 solution
         shell: pwsh
         run: dotnet restore FACM4.sln -p:Platform=x64
