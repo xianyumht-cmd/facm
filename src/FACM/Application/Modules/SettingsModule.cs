@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using FACM.AppHost;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.AppHost.Modules
 {
@@ -28,6 +29,7 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             Settings = AppSettings.Load();
+            FacmThemeRuntime.Initialize(Settings.ThemeId);
             UiText = UiTextCatalog.Load();
         }
 
