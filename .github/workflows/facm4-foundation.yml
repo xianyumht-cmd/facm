@@ -38,6 +38,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-league-workbench.ps1
 
+      - name: Verify Diagnostics Center contract
+        shell: pwsh
+        run: ./scripts/check-facm4-diagnostics.ps1
+
       - name: Restore FACM 4.0 solution
         shell: pwsh
         run: dotnet restore FACM4.sln -p:Platform=x64
