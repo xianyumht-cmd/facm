@@ -23,6 +23,7 @@ namespace FACM.League
         public const string Mayhem = "LeagueHubMayhem";
         public const string Recommendation = "LeagueHubRecommendation";
         public const string Efficiency = "LeagueHubEfficiency";
+        public const string Repair = "LeagueHubRepair";
         public const string Presence = "LeagueHubPresence";
         public const string ContextTitle = "LeagueHubContextTitle";
         public const string ContextHint = "LeagueHubContextHint";
@@ -54,13 +55,14 @@ namespace FACM.League
             { LeagueHubUiTextKeys.SectionRecommend, "攻略" },
             { LeagueHubUiTextKeys.SectionRecommendHint, "符文、技能、装备和自动应用放在同一条使用链里" },
             { LeagueHubUiTextKeys.SectionEfficiency, "自动化" },
-            { LeagueHubUiTextKeys.SectionEfficiencyHint, "快捷键、赛后、自动下一局和在线状态集中管理" },
+            { LeagueHubUiTextKeys.SectionEfficiencyHint, "快捷键、游戏修复、赛后、自动下一局和在线状态集中管理" },
             { LeagueHubUiTextKeys.Dashboard, "当前状态" },
             { LeagueHubUiTextKeys.Player, "我的战绩" },
             { LeagueHubUiTextKeys.Live, "实时对局" },
             { LeagueHubUiTextKeys.Mayhem, "海斗攻略" },
             { LeagueHubUiTextKeys.Recommendation, "出装推荐" },
             { LeagueHubUiTextKeys.Efficiency, "快捷工具" },
+            { LeagueHubUiTextKeys.Repair, "游戏修复" },
             { LeagueHubUiTextKeys.Presence, "在线状态" },
             { LeagueHubUiTextKeys.ContextTitle, "接着做" },
             { LeagueHubUiTextKeys.ContextHint, "把空闲空间留给当前状态和真正相关的下一步，而不是装饰。" },
