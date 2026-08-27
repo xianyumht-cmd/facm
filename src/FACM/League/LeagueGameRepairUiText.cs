@@ -12,8 +12,8 @@ namespace FACM.League
         public const string FixAutoHint = "启动现有自动检测模式，在窗口尺寸异常时处理。";
         public const string SkipSettlement = "跳过卡结算";
         public const string SkipSettlementHint = "跳过卡住、持续转圈的结算页面。";
-        public const string RestartUx = "重启客户端界面";
-        public const string RestartUxHint = "热重载 LeagueClient UX，不表示重装或重置游戏。";
+        public const string RestartUx = "重置客户端";
+        public const string RestartUxHint = "执行现有客户端重置操作，用于大厅或客户端异常。";
         public const string ExitGame = "一键结束游戏";
         public const string ExitGameHint = "结束当前英雄联盟游戏进程；与“跳过卡结算”是两个不同功能。";
         public const string Ready = "准备就绪";
