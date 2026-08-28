@@ -18,7 +18,7 @@ public sealed partial class FloatingWindow : Window
 
     private readonly IDesktopWorkAreaProvider _workAreas;
     private readonly WindowsFloatingSurfacePlatform _platform;
-    private readonly Action _ensureMainWindow;
+    private readonly Action _toggleCompactLauncher;
     private readonly Func<DesktopPoint, Task> _persistPlacement;
     private readonly IntPtr _windowHandle;
     private readonly PointerEventHandler _pointerPressedHandler;
@@ -40,13 +40,13 @@ public sealed partial class FloatingWindow : Window
         IDesktopWorkAreaProvider workAreas,
         WindowsFloatingSurfacePlatform platform,
         IUiTextProvider text,
-        Action ensureMainWindow,
+        Action toggleCompactLauncher,
         Func<DesktopPoint, Task> persistPlacement)
     {
         _workAreas = workAreas ?? throw new ArgumentNullException(nameof(workAreas));
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
         ArgumentNullException.ThrowIfNull(text);
-        _ensureMainWindow = ensureMainWindow ?? throw new ArgumentNullException(nameof(ensureMainWindow));
+        _toggleCompactLauncher = toggleCompactLauncher ?? throw new ArgumentNullException(nameof(toggleCompactLauncher));
         _persistPlacement = persistPlacement ?? throw new ArgumentNullException(nameof(persistPlacement));
 
         InitializeComponent();
@@ -131,6 +131,13 @@ public sealed partial class FloatingWindow : Window
             false);
     }
 
+    public DesktopRect GetCurrentBounds()
+    {
+        var position = AppWindow.Position;
+        var size = AppWindow.Size;
+        return new DesktopRect(position.X, position.Y, size.Width, size.Height);
+    }
+
     private void ConfigurePresenter()
     {
         ExtendsContentIntoTitleBar = true;
@@ -145,10 +152,11 @@ public sealed partial class FloatingWindow : Window
 
     private void OnFloatingButtonClick(object sender, RoutedEventArgs e)
     {
-        // Pointer clicks are completed explicitly by OnFloatingPointerReleased so drag and click
-        // cannot race each other. This path remains for keyboard/accessibility activation.
-        if (_pointerActive || Environment.TickCount64 <= _suppressClickUntilTick) return;
-        _ensureMainWindow();
+        // WinUI Button raises Click during its own PointerReleased class handling. Do not reject the
+        // click merely because our root observer has not reset _pointerActive yet. A real drag marks
+        // suppression as soon as it crosses the 3.5 threshold, so only click-like releases get here.
+        if (_dragMoved || Environment.TickCount64 <= _suppressClickUntilTick) return;
+        _toggleCompactLauncher();
     }
 
     private void OnFloatingPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -191,7 +199,14 @@ public sealed partial class FloatingWindow : Window
             return;
         }
 
-        _dragMoved = true;
+        if (!_dragMoved)
+        {
+            _dragMoved = true;
+            // Button.Click can be raised before our root PointerReleased observer. Suppress it as soon
+            // as movement becomes a drag instead of waiting until release.
+            _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
+        }
+
         var proposed = new DesktopPoint(
             _dragWindowStart.X + currentCursor.X - _dragCursorStart.X,
             _dragWindowStart.Y + currentCursor.Y - _dragCursorStart.Y);
@@ -219,17 +234,15 @@ public sealed partial class FloatingWindow : Window
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
 
         var moved = _dragMoved;
-        _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
         ResetPointerState();
-        e.Handled = true;
-
-        if (moved)
+        if (!moved)
         {
-            await PersistCurrentPlacementAsync();
+            // Leave the release unhandled so the WinUI Button completes its normal Click path.
             return;
         }
 
-        _ensureMainWindow();
+        e.Handled = true;
+        await PersistCurrentPlacementAsync();
     }
 
     private async void OnFloatingPointerCanceled(object sender, PointerRoutedEventArgs e)
