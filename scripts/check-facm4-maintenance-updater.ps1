@@ -129,6 +129,7 @@ foreach ($required in @(
 foreach ($required in @(
     'ValidateControlledUpdaterLaunchAsync', 'observed!.UseShellExecute && observed.Verb == "runas"',
     'RuntimePathLayout.UpdatesDirectory', 'Rejected outside package still reached Process.Start',
+    'new Win32Exception(1223', 'Updater UAC cancellation must keep the current FACM instance alive',
     'BaseDirectory'
 )) {
     Require-Text $windowsSmoke $required "Windows updater smoke is missing: $required"
@@ -147,7 +148,7 @@ if ((Count-Matches $windowsProgram 'MaintenanceWindowsSmoke\.RunAsync') -ne 1) {
 Write-Host 'P6 updater download: fixed validated manifest + 512 MiB cap + bounded header/inactivity timeouts'
 Write-Host 'P6 updater receipt: SHA/length/version/path bound + identity verification after download and before launch'
 Write-Host 'P6 updater identity: same Authenticode signer + WinVerifyTrust + manifest release version'
-Write-Host 'P6 updater UAC: controlled embedded helper + updates-directory source + UAC cancel keeps FACM alive'
+Write-Host 'P6 updater UAC: controlled embedded helper + updates-directory source + deterministic UAC-cancel keep-alive smoke'
 Write-Host 'P6 updater apply: 120s parent wait + staging/backup + hash checks + early-start rollback'
 Write-Host 'P6 updater smoke: download/tamper/receipt/identity/UAC-launch boundaries execute in CI'
 Write-Host 'FACM 4.0 P6 updater replacement contract: SUCCESS'
