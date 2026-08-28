@@ -39,22 +39,17 @@ public static class FloatingSurfaceDragService
     public static DesktopPoint DefaultLegacyBallTopLeft(
         DesktopWorkArea workArea,
         DesktopSize surfaceSize,
-        double rightMarginDip = 18d)
+        double rightMarginPixels)
     {
-        if (!workArea.Bounds.IsValid ||
-            !double.IsFinite(workArea.DpiScaleX) || workArea.DpiScaleX <= 0 ||
-            !double.IsFinite(workArea.DpiScaleY) || workArea.DpiScaleY <= 0)
-        {
+        if (!workArea.Bounds.IsValid)
             throw new ArgumentException("Desktop work area is invalid.", nameof(workArea));
-        }
         if (!surfaceSize.IsValid)
             throw new ArgumentException("Surface size must be finite and positive.", nameof(surfaceSize));
-        if (!double.IsFinite(rightMarginDip) || rightMarginDip < 0)
-            throw new ArgumentOutOfRangeException(nameof(rightMarginDip));
+        if (!double.IsFinite(rightMarginPixels) || rightMarginPixels < 0)
+            throw new ArgumentOutOfRangeException(nameof(rightMarginPixels));
 
-        var marginX = rightMarginDip * workArea.DpiScaleX;
         return new DesktopPoint(
-            workArea.Bounds.Right - surfaceSize.Width - marginX,
+            workArea.Bounds.Right - surfaceSize.Width - rightMarginPixels,
             workArea.Bounds.Top + Math.Max(0d, (workArea.Bounds.Height - surfaceSize.Height) / 2d));
     }
 
