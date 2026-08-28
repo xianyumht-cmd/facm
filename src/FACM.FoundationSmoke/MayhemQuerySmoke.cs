@@ -12,6 +12,7 @@ internal static class MayhemQuerySmoke
         await ValidateEmptyQueryIsLocalAsync();
         await MayhemAugmentSmoke.RunAsync();
         await MayhemBuildDetailsSmoke.RunAsync();
+        await MayhemBaseBalanceSmoke.RunAsync();
     }
 
     private static void ValidateAliasCompatibility()
