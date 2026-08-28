@@ -424,8 +424,9 @@ public sealed partial class MainWindow : Window
         });
         try
         {
-            var result = await _cleanupCenter.ExecuteConfirmedAsync(progress);
+            var result = await _cleanupCenter.ExecuteConfirmedAsync(confirmed: true, progress);
             ApplyCleanupRuntimeState();
+            if (result is null) return;
             var resultDialog = new ContentDialog
             {
                 XamlRoot = Content.XamlRoot,
