@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using FACM.Core.Maintenance;
@@ -113,9 +114,10 @@ internal static class MaintenanceWindowsSmoke
         var starts = 0;
         try
         {
+            var executablePaths = new FakeExecutablePathProvider(destination);
             var launcher = new WindowsUpdateReplacementLauncher(
                 layout,
-                new FakeExecutablePathProvider(destination),
+                executablePaths,
                 () => updaterBytes,
                 startInfo =>
                 {
@@ -152,6 +154,14 @@ internal static class MaintenanceWindowsSmoke
             {
                 Require(starts == 1, "Rejected outside package still reached Process.Start.");
             }
+
+            var cancelledLauncher = new WindowsUpdateReplacementLauncher(
+                layout,
+                executablePaths,
+                () => updaterBytes,
+                _ => throw new Win32Exception(1223, "The operation was canceled by the user."));
+            Require(!await cancelledLauncher.StartAsync(package, expectedHash, "4.0.1"),
+                "Updater UAC cancellation must keep the current FACM instance alive.");
         }
         finally
         {
