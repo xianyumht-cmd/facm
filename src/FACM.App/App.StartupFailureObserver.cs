@@ -21,7 +21,16 @@ internal sealed partial class StartupFailureObserver
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs args)
     {
-        if (args.ExceptionObject is not Exception exception) return;
+        if (args.ExceptionObject is Exception exception)
+        {
+            TryWrite(exception, "launch-failure.txt", args.IsTerminating);
+        }
+    }
+
+    internal static void TryWrite(Exception exception, string fileName, bool isTerminating = false)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (fileName is not ("launch-failure.txt" or "main-window-xaml-failure.txt")) return;
 
         try
         {
@@ -33,7 +42,7 @@ internal sealed partial class StartupFailureObserver
 
             var recoveryDirectory = Path.Combine(distributionDirectory, "runtime", "recovery");
             Directory.CreateDirectory(recoveryDirectory);
-            var target = Path.Combine(recoveryDirectory, "launch-failure.txt");
+            var target = Path.Combine(recoveryDirectory, fileName);
 
             var message = Sanitize(exception.Message);
             var inner = exception.InnerException;
@@ -47,7 +56,7 @@ internal sealed partial class StartupFailureObserver
             builder.Append("innerType=").AppendLine(inner?.GetType().FullName ?? string.Empty);
             builder.Append("innerHresult=").AppendLine(inner is null ? string.Empty : "0x" + inner.HResult.ToString("X8"));
             builder.Append("innerMessage=").AppendLine(inner is null ? string.Empty : Sanitize(inner.Message));
-            builder.Append("terminating=").AppendLine(args.IsTerminating ? "true" : "false");
+            builder.Append("terminating=").AppendLine(isTerminating ? "true" : "false");
 
             File.WriteAllText(target, builder.ToString(), new UTF8Encoding(false));
         }
