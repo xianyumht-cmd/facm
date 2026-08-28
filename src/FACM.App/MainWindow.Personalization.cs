@@ -1,4 +1,3 @@
-using FACM.App.Personalization;
 using FACM.App.ViewModels;
 using FACM.Core.Personalization;
 using FACM.Core.Text;
@@ -23,10 +22,10 @@ public sealed partial class MainWindow
 
     private void InitializePersonalizationSurface()
     {
-        var themeRuntime = new WinUiThemeRuntime(Application.Current.Resources);
-        var viewModel = _controlCenter.CreatePersonalization(themeRuntime);
-        viewModel.InitializeForStartup();
+        var app = Application.Current as App ?? throw new InvalidOperationException("FACM App composition root is unavailable.");
+        var viewModel = app.CreatePersonalizationViewModel(_controlCenter);
         ConfigurePersonalization(viewModel);
+        _ = app.InitializeDesktopPetAfterLauncherReadyAsync(viewModel);
     }
 
     internal void ConfigurePersonalization(PersonalizationViewModel viewModel)
@@ -174,9 +173,11 @@ public sealed partial class MainWindow
 
         _themeDescription.Text = viewModel.SelectedTheme.Description;
         _petDescription.Text = viewModel.SelectedPet.Description;
+        var failed = viewModel.Status.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     viewModel.Status.Contains("unsupported", StringComparison.OrdinalIgnoreCase);
         _personalizationStatus.Text = viewModel.IsRecoveryReadOnly
             ? _text.Get(UiTextKeys.CleanupPathRecoveryReadOnly)
-            : _text.Get(viewModel.Status == "failed" ? UiTextKeys.ShellStatusUnavailable : UiTextKeys.ShellStatusReady);
+            : _text.Get(failed ? UiTextKeys.ShellStatusUnavailable : UiTextKeys.ShellStatusReady);
         _themePicker.IsEnabled = !viewModel.IsBusy;
         _petPicker.IsEnabled = !viewModel.IsBusy;
     }
