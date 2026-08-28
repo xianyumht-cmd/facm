@@ -12,17 +12,18 @@
     <StaticResource x:Key="FacmPlatformAccentTextBrush" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
     <StaticResource x:Key="FacmPlatformStrokeBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
 
-    <!-- FACM theme brushes must be FACM-owned mutable instances. Do not alias these keys directly to
-         WinUI theme brushes: WinUI may expose protected SolidColorBrush instances whose Color setter
-         returns E_ACCESSDENIED on real Windows machines. The runtime only mutates these owned brushes. -->
-    <SolidColorBrush x:Key="FacmBackgroundBrush" Color="#070E22" />
-    <SolidColorBrush x:Key="FacmSurfaceBrush" Color="#1C274E" />
-    <SolidColorBrush x:Key="FacmSurfaceSecondaryBrush" Color="#253466" />
-    <SolidColorBrush x:Key="FacmTextPrimaryBrush" Color="#F6F9FF" />
-    <SolidColorBrush x:Key="FacmTextMutedBrush" Color="#A2B2E0" />
-    <SolidColorBrush x:Key="FacmAccentBrush" Color="#3D69FF" />
-    <SolidColorBrush x:Key="FacmAccentTextBrush" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="FacmStrokeBrush" Color="#6784FF" />
+    <!-- FACM theme brushes are FACM-owned mutable instances. Their colors are supplied by
+         WinUiThemeRuntime at startup or copied from the current platform palette in High Contrast.
+         Never alias these keys directly to WinUI brushes: protected WinRT brush instances can reject
+         Color mutation with E_ACCESSDENIED on real Windows machines. -->
+    <SolidColorBrush x:Key="FacmBackgroundBrush" />
+    <SolidColorBrush x:Key="FacmSurfaceBrush" />
+    <SolidColorBrush x:Key="FacmSurfaceSecondaryBrush" />
+    <SolidColorBrush x:Key="FacmTextPrimaryBrush" />
+    <SolidColorBrush x:Key="FacmTextMutedBrush" />
+    <SolidColorBrush x:Key="FacmAccentBrush" />
+    <SolidColorBrush x:Key="FacmAccentTextBrush" />
+    <SolidColorBrush x:Key="FacmStrokeBrush" />
 
     <CornerRadius x:Key="FacmCardCornerRadius">22</CornerRadius>
     <CornerRadius x:Key="FacmControlCornerRadius">14</CornerRadius>
