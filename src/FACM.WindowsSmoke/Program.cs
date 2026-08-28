@@ -25,6 +25,7 @@ True(!layout.RecoveryStatePath.StartsWith(Path.GetFullPath(executablePaths.BaseD
 
 VerifyWindowsDesktopFacts();
 await VerifyPhysicalSettings2PersistenceAsync();
+await MaintenanceWindowsSmoke.RunAsync();
 await CleanupSmoke.RunAsync();
 RepairWindowsSmoke.Run();
 await PetHostBundleSmoke.RunAsync();
