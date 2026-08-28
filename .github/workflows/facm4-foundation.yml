@@ -111,6 +111,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-mayhem-winui.ps1
 
+      - name: Verify P6 maintenance foundation contract
+        shell: pwsh
+        run: ./scripts/check-facm4-maintenance.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
