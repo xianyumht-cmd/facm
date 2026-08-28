@@ -10,7 +10,7 @@ namespace FACM.Infrastructure.League;
 /// The single FACM 4.0 gameflow polling owner. It reuses the shared League read gateway/session
 /// accessor and publishes one mapping to Product State + Performance; UI layers never poll LCU.
 /// </summary>
-public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
+public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, IDisposable
 {
     private const string PhaseResourceKey = "/lol-gameflow/v1/gameflow-phase";
 
@@ -51,6 +51,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
     }
 
     public event EventHandler<LeagueGameflowChangedEventArgs>? Changed;
+    public event EventHandler<LeagueGameflowChangedEventArgs>? Observed;
 
     public void Start()
     {
@@ -135,16 +136,23 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
             mapping.Activity);
 
         LeagueGameflowSnapshot? previous;
-        EventHandler<LeagueGameflowChangedEventArgs>? handler = null;
+        EventHandler<LeagueGameflowChangedEventArgs>? changedHandler;
+        EventHandler<LeagueGameflowChangedEventArgs>? observedHandler;
+        var changed = false;
         lock (_sync)
         {
             previous = _current;
-            if (Equivalent(previous, next)) return previous!;
+            changed = !Equivalent(previous, next);
+            // Keep Current fresh even when the semantic phase did not change. Consumers that need a
+            // heartbeat use Observed; consumers that only care about transitions keep using Changed.
             _current = next;
-            handler = Changed;
+            changedHandler = changed ? Changed : null;
+            observedHandler = Observed;
         }
 
-        handler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, next));
+        var args = new LeagueGameflowChangedEventArgs(previous, next);
+        changedHandler?.Invoke(this, args);
+        observedHandler?.Invoke(this, args);
         return next;
     }
 
