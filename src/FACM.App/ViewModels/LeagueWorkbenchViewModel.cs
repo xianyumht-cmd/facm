@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using FACM.Core.League;
 using FACM.Core.Performance;
+using FACM.Core.Settings;
 using FACM.Core.State;
 using FACM.Core.Text;
 
@@ -14,6 +15,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly SemaphoreSlim _advisorUiGate = new(1, 1);
     private readonly SemaphoreSlim _itemSetUiGate = new(1, 1);
+    private readonly SemaphoreSlim _automationSettingsGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private LeagueProductState _leagueState;
     private string _budgetName;
@@ -25,10 +27,13 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     private string _itemSetStatus = "not-ready";
     private ILeagueBuildAdvisorService? _buildAdvisorService;
     private ILeagueItemSetService? _itemSetService;
+    private ISettings2Repository? _automationSettings;
+    private ILeagueMatchmakingAutomationService? _matchmakingAutomation;
     private bool _ownsProductServices;
     private bool _isRefreshing;
     private bool _isAdvisorRefreshing;
     private bool _isItemSetBusy;
+    private bool _isAutomationSettingsBusy;
     private bool _disposed;
 
     public LeagueWorkbenchViewModel(
@@ -60,8 +65,12 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     public bool IsRefreshing => _isRefreshing;
     public bool IsAdvisorRefreshing => _isAdvisorRefreshing;
     public bool IsItemSetBusy => _isItemSetBusy;
+    public bool IsAutomationSettingsBusy => _isAutomationSettingsBusy;
     public bool HasRealDataSource => _dataSource is not null;
     public bool HasProductServices => _buildAdvisorService is not null && _itemSetService is not null;
+    public bool HasMatchmakingAutomation => _automationSettings is not null && _matchmakingAutomation is not null;
+    public bool AutoMatchmakingEnabled => _matchmakingAutomation?.AutoSearchEnabled ?? false;
+    public bool AutoAcceptEnabled => _matchmakingAutomation?.AutoAcceptEnabled ?? false;
     public bool CanPrepareItemSet =>
         !_isItemSetBusy &&
         _itemSetService is not null &&
@@ -85,6 +94,22 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         _ownsProductServices = ownsServices;
         OnPropertyChanged(nameof(HasProductServices));
         OnPropertyChanged(nameof(CanPrepareItemSet));
+    }
+
+    internal void ConfigureMatchmakingAutomation(
+        ISettings2Repository settings,
+        ILeagueMatchmakingAutomationService automation)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(automation);
+        if (HasMatchmakingAutomation) return;
+
+        _automationSettings = settings;
+        _matchmakingAutomation = automation;
+        OnPropertyChanged(nameof(HasMatchmakingAutomation));
+        OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+        OnPropertyChanged(nameof(AutoAcceptEnabled));
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -254,6 +279,62 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         }
     }
 
+    public Task<bool> SetAutoMatchmakingEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        SaveAutomationSettingsAsync(enabled, null, cancellationToken);
+
+    public Task<bool> SetAutoAcceptEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        SaveAutomationSettingsAsync(null, enabled, cancellationToken);
+
+    private async Task<bool> SaveAutomationSettingsAsync(
+        bool? autoMatchmaking,
+        bool? autoAccept,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var settings = _automationSettings;
+        var automation = _matchmakingAutomation;
+        if (settings is null || automation is null) return false;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await _automationSettingsGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            SetAutomationSettingsBusy(true);
+            var loaded = await settings.LoadAsync(linked.Token).ConfigureAwait(false);
+            if (autoMatchmaking.HasValue)
+                loaded.Settings.League.AutoMatchmakingEnabled = autoMatchmaking.Value;
+            if (autoAccept.HasValue)
+                loaded.Settings.League.AutoAcceptEnabled = autoAccept.Value;
+
+            await settings.SaveAsync(loaded.Settings, linked.Token).ConfigureAwait(false);
+            automation.Configure(
+                loaded.Settings.League.AutoMatchmakingEnabled,
+                loaded.Settings.League.AutoAcceptEnabled);
+            OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+            OnPropertyChanged(nameof(AutoAcceptEnabled));
+            return true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception)
+        {
+            OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+            OnPropertyChanged(nameof(AutoAcceptEnabled));
+            return false;
+        }
+        finally
+        {
+            SetAutomationSettingsBusy(false);
+            _automationSettingsGate.Release();
+        }
+    }
+
     private void OnProductStateChanged(object? sender, ProductStateChangedEventArgs args)
     {
         if (args.Previous.League == args.Current.League) return;
@@ -301,6 +382,13 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         OnPropertyChanged(nameof(CanPrepareItemSet));
     }
 
+    private void SetAutomationSettingsBusy(bool busy)
+    {
+        if (_isAutomationSettingsBusy == busy) return;
+        _isAutomationSettingsBusy = busy;
+        OnPropertyChanged(nameof(IsAutomationSettingsBusy));
+    }
+
     private void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
@@ -333,11 +421,14 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         }
         _itemSetService = null;
         _buildAdvisorService = null;
+        _automationSettings = null;
+        _matchmakingAutomation = null;
         _preparedItemSet = null;
 
         _refreshGate.Dispose();
         _advisorUiGate.Dispose();
         _itemSetUiGate.Dispose();
+        _automationSettingsGate.Dispose();
         _lifetime.Dispose();
     }
 }
