@@ -177,6 +177,9 @@ internal static class MaintenanceWindowsSmoke
 
     private sealed class FakeExecutablePathProvider(string executablePath) : IExecutablePathProvider
     {
-        public string ExecutablePath { get; } = executablePath;
+        public string ExecutablePath { get; } = Path.GetFullPath(executablePath);
+        public string BaseDirectory { get; } =
+            Path.GetDirectoryName(Path.GetFullPath(executablePath))
+            ?? throw new InvalidOperationException("Fake executable base directory is unavailable.");
     }
 }
