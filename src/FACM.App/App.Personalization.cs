@@ -1,6 +1,8 @@
 using FACM.App.Personalization;
 using FACM.App.ViewModels;
+using FACM.Core.Observability;
 using FACM.Core.Personalization;
+using FACM.Core.State;
 using FACM.Platform.Windows.Personalization;
 using Microsoft.UI.Xaml;
 
@@ -13,6 +15,7 @@ public partial class App
     private WindowsVPetRuntime? _desktopPetRuntime;
     private DesktopPetPreferenceService? _desktopPetPreferences;
     private bool _desktopPetCloseHookAttached;
+    private bool _desktopPetRuntimeStateHookAttached;
 
     internal PersonalizationViewModel CreatePersonalizationViewModel(ControlCenterViewModel controlCenter)
     {
@@ -43,6 +46,11 @@ public partial class App
             () => RunOnDesktopUi(ToggleCompactLauncher),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync);
+        if (!_desktopPetRuntimeStateHookAttached)
+        {
+            _desktopPetRuntime.StateChanged += OnDesktopPetRuntimeStateChanged;
+            _desktopPetRuntimeStateHookAttached = true;
+        }
         _desktopPetPreferences ??= new DesktopPetPreferenceService(settings, _desktopPetRuntime);
         viewModel.ConfigureDesktopPetService(_desktopPetPreferences);
         return viewModel;
@@ -58,17 +66,77 @@ public partial class App
             {
                 AttachDesktopPetCloseHook(floating);
                 await viewModel.InitializeDesktopPetAsync().ConfigureAwait(false);
-
-                // The desktop-pet bootstrap runs off the UI thread and toggles PersonalizationViewModel.IsBusy.
-                // If the user opens Personalization during that window, the controls are rendered disabled.
-                // Re-sync on the WinUI dispatcher once bootstrap completes so the page cannot remain stale.
-                var window = _window;
-                if (window is not null && !_shuttingDown)
-                    _ = window.DispatcherQueue.TryEnqueue(window.RefreshPersonalizationSurfaceFromRuntime);
                 return;
             }
             await Task.Delay(20).ConfigureAwait(false);
         }
+    }
+
+    internal void ReportPersonalizationAction(string reason, bool success, string petId, string detail = "")
+    {
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "personalization.pet",
+            "FACM.Personalization",
+            0,
+            success ? DiagnosticResult.Success : DiagnosticResult.Failure,
+            reason,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["petId"] = petId ?? string.Empty,
+                ["detail"] = detail ?? string.Empty
+            }));
+    }
+
+    internal void ReportPersonalizationState(PersonalizationViewModel viewModel, string propertyName)
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        var detail = viewModel.Status ?? string.Empty;
+        var failed = detail.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("unsupported", StringComparison.OrdinalIgnoreCase);
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "personalization.state",
+            "FACM.Personalization",
+            0,
+            failed ? DiagnosticResult.Failure : DiagnosticResult.Success,
+            "viewmodel-state",
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["property"] = propertyName ?? string.Empty,
+                ["busy"] = viewModel.IsBusy ? "true" : "false",
+                ["petId"] = viewModel.SelectedPet.Id,
+                ["petEnabled"] = viewModel.IsPetEnabled ? "true" : "false",
+                ["status"] = detail
+            }));
+    }
+
+    private void OnDesktopPetRuntimeStateChanged(object? sender, DesktopPetRuntimeState state)
+    {
+        var detail = state.Detail ?? string.Empty;
+        var failed = detail.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                     detail.Contains("unsupported", StringComparison.OrdinalIgnoreCase);
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "personalization.pet-runtime",
+            "FACM.Personalization",
+            0,
+            failed ? DiagnosticResult.Failure : DiagnosticResult.Success,
+            "runtime-state",
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["petId"] = state.ActivePetId ?? string.Empty,
+                ["startRequested"] = state.StartRequested ? "true" : "false",
+                ["petVisible"] = state.PetVisible ? "true" : "false",
+                ["detail"] = detail
+            }));
     }
 
     private void AttachDesktopPetCloseHook(FloatingWindow floating)
@@ -83,6 +151,11 @@ public partial class App
         if (sender is FloatingWindow floating)
             floating.Closed -= OnDesktopPetFloatingWindowClosed;
         _desktopPetCloseHookAttached = false;
+        if (_desktopPetRuntime is not null && _desktopPetRuntimeStateHookAttached)
+        {
+            _desktopPetRuntime.StateChanged -= OnDesktopPetRuntimeStateChanged;
+            _desktopPetRuntimeStateHookAttached = false;
+        }
         _desktopPetRuntime?.Dispose();
         _desktopPetRuntime = null;
         _desktopPetPreferences = null;
