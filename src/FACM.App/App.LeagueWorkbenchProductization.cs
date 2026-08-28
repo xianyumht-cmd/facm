@@ -8,38 +8,75 @@ public partial class App
 {
     private LeaguePostGameAutomationService? _postGameAutomation;
     private bool _postGameProcessExitHooked;
+    private LeagueRecommendedAutoApplyService? _recommendedAutoApply;
+    private bool _recommendedAutoApplyProcessExitHooked;
 
     /// <summary>
     /// Completes the per-shell League Workbench composition without creating another League runtime.
     /// The ViewModel already owns the one Workbench data source created over the process-wide gateway
-    /// and gameflow owner; Build Advisor / Item Sets and automation controls reuse those process owners.
+    /// and gameflow owner; Build Advisor / Item Sets / Loadout and automation controls reuse those facts.
     /// </summary>
     internal void ConfigureLeagueWorkbenchProductization(LeagueWorkbenchViewModel viewModel)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
+        var dataSource = viewModel.DataSource
+            ?? throw new InvalidOperationException("League Workbench data source is unavailable.");
+        var gateway = _leagueGateway
+            ?? throw new InvalidOperationException("League read gateway is unavailable.");
+        var performance = _performance
+            ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+        var settings = _settings
+            ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
+        var gameflow = _gameflow
+            ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
+
         if (!viewModel.HasProductServices)
         {
-            var dataSource = viewModel.DataSource
-                ?? throw new InvalidOperationException("League Workbench data source is unavailable.");
-            var gateway = _leagueGateway
-                ?? throw new InvalidOperationException("League read gateway is unavailable.");
-            var performance = _performance
-                ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
-
             var advisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
             var itemSets = new LeagueItemSetService(dataSource, gateway);
-            viewModel.ConfigureProductServices(advisor, itemSets, ownsServices: true);
+            var loadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
+            viewModel.ConfigureProductServices(advisor, itemSets, loadout, ownsServices: true);
         }
 
         if (!viewModel.HasMatchmakingAutomation)
         {
-            var settings = _settings
-                ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
             var automation = _matchmakingAutomation
                 ?? throw new InvalidOperationException("League matchmaking automation is unavailable.");
             viewModel.ConfigureMatchmakingAutomation(settings, automation);
         }
+
+        if (_recommendedAutoApply is null)
+        {
+            // Auto-apply is process scoped so it keeps working when the detailed shell is closed. It
+            // consumes the same shared gameflow heartbeat and gateway; no second phase loop is created.
+            var autoAdvisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
+            var autoItemSets = new LeagueItemSetService(dataSource, gateway);
+            var autoLoadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
+            var autoApply = new LeagueRecommendedAutoApplyService(
+                autoAdvisor,
+                autoLoadout,
+                autoItemSets,
+                gameflow);
+            try
+            {
+                var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+                autoApply.Configure(loaded.Settings.League.AutoApplyRecommended);
+            }
+            catch
+            {
+                autoApply.Configure(false);
+            }
+
+            _recommendedAutoApply = autoApply;
+            if (!_recommendedAutoApplyProcessExitHooked)
+            {
+                _recommendedAutoApplyProcessExitHooked = true;
+                AppDomain.CurrentDomain.ProcessExit += OnLeagueRecommendedAutoApplyProcessExit;
+            }
+        }
+
+        viewModel.ConfigureRecommendedAutoApply(settings, _recommendedAutoApply);
     }
 
     /// <summary>
@@ -91,6 +128,14 @@ public partial class App
         }
 
         return new LeaguePostGameAutomationSettingsViewModel(settings, _postGameAutomation);
+    }
+
+    private void OnLeagueRecommendedAutoApplyProcessExit(object? sender, EventArgs args)
+    {
+        AppDomain.CurrentDomain.ProcessExit -= OnLeagueRecommendedAutoApplyProcessExit;
+        _recommendedAutoApplyProcessExitHooked = false;
+        _recommendedAutoApply?.Dispose();
+        _recommendedAutoApply = null;
     }
 
     private void OnLeaguePostGameProcessExit(object? sender, EventArgs args)
