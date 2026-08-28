@@ -90,6 +90,73 @@
                             </Border>
 
                             <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="RepairGameTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RepairGameDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Grid ColumnSpacing="12" RowSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                            <Button
+                                                x:Name="RepairFixWindowButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.WindowNow"
+                                                Style="{StaticResource FacmPrimaryButtonStyle}"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairFixWindowClick" />
+                                            <TextBlock x:Name="RepairFixWindowHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                            <Button
+                                                x:Name="RepairAutoWindowButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.AutoWindow"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairAutoWindowClick" />
+                                            <TextBlock x:Name="RepairAutoWindowHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                            <Button
+                                                x:Name="RepairSkipSettlementButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.SkipSettlement"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairSkipSettlementClick" />
+                                            <TextBlock x:Name="RepairSkipSettlementHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                            <Button
+                                                x:Name="RepairRestartClientUxButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.RestartClientUx"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairRestartClientUxClick" />
+                                            <TextBlock x:Name="RepairRestartClientUxHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="6">
+                                            <Button
+                                                x:Name="RepairExitGameButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.ExitGame"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairExitGameClick" />
+                                            <TextBlock x:Name="RepairExitGameHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock
+                                            x:Name="RepairGameStatus"
+                                            automation:AutomationProperties.AutomationId="FACM.Repair.GameStatus"
+                                            Style="{StaticResource FacmBodyTextStyle}"
+                                            TextWrapping="Wrap" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock x:Name="CleanupDirectoryTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="CleanupDirectoryDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
