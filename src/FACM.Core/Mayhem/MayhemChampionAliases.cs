@@ -79,7 +79,11 @@ public static class MayhemChampionAliases
         if (string.IsNullOrWhiteSpace(input)) return false;
 
         var normalized = Normalize(input);
-        if (Aliases.TryGetValue(normalized, out slug!)) return true;
+        if (Aliases.TryGetValue(normalized, out var mapped))
+        {
+            slug = mapped;
+            return true;
+        }
 
         if (!IsLikelySlug(input)) return false;
         slug = Slugify(input);
