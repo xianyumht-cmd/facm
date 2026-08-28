@@ -158,10 +158,14 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
         await _replacementGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var receiptId = package.ReceiptId;
+            if (string.IsNullOrWhiteSpace(receiptId))
+                return new UpdateReplacementResult(false, "receipt-missing");
+
             Receipt receipt;
             lock (_receiptSync)
             {
-                if (!_receipts.TryGetValue(package.ReceiptId ?? string.Empty, out receipt!))
+                if (!_receipts.TryGetValue(receiptId, out receipt!))
                     return new UpdateReplacementResult(false, "receipt-missing");
             }
 
@@ -185,7 +189,7 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
                 .ConfigureAwait(false);
             if (!started) return new UpdateReplacementResult(false, "launcher-not-started");
 
-            lock (_receiptSync) _receipts.Remove(package.ReceiptId);
+            lock (_receiptSync) _receipts.Remove(receiptId);
             return new UpdateReplacementResult(true, "replacement-started");
         }
         finally
