@@ -40,7 +40,9 @@ public enum LeagueWriteCapability
     SubmitHonorBallotLegacy,
     PlayAgain,
     SetPresence,
-    RestartClientUx
+    RestartClientUx,
+    SwapBenchChampionLegacy,
+    SwapBenchChampionTeamBuilder
 }
 
 public sealed record LeagueWriteCommand(LeagueWriteCapability Capability, long? ResourceId, string? Json);
@@ -76,6 +78,14 @@ public static class LeagueWriteTargetPolicy
             LeagueWriteCapability.PlayAgain => new("POST", "/lol-lobby/v2/play-again"),
             LeagueWriteCapability.SetPresence => new("PUT", "/lol-chat/v1/me"),
             LeagueWriteCapability.RestartClientUx => new("POST", "/riotclient/kill-and-restart-ux"),
+            LeagueWriteCapability.SwapBenchChampionLegacy when command.ResourceId is > 0 =>
+                new("POST", "/lol-champ-select/v1/session/bench/swap/" + command.ResourceId.Value),
+            LeagueWriteCapability.SwapBenchChampionLegacy =>
+                throw new ArgumentException("SwapBenchChampionLegacy requires a positive champion ID.", nameof(command)),
+            LeagueWriteCapability.SwapBenchChampionTeamBuilder when command.ResourceId is > 0 =>
+                new("POST", "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/" + command.ResourceId.Value),
+            LeagueWriteCapability.SwapBenchChampionTeamBuilder =>
+                throw new ArgumentException("SwapBenchChampionTeamBuilder requires a positive champion ID.", nameof(command)),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
     }
