@@ -111,10 +111,11 @@ public sealed partial class FloatingWindow : Window
         var defaultSize = DesktopDpi.DipsToPixels(
             new DesktopSize(SurfaceSideDip, SurfaceSideDip),
             defaultArea);
+        var defaultRightMarginPixels = DesktopDpi.UniformDipsToPixels(DefaultRightMarginDip, defaultArea);
         var defaultTopLeft = FloatingSurfaceDragService.DefaultLegacyBallTopLeft(
             defaultArea,
             defaultSize,
-            DefaultRightMarginDip);
+            defaultRightMarginPixels);
         var defaultWidth = Math.Max(1, ToInt32(defaultSize.Width));
         var defaultHeight = Math.Max(1, ToInt32(defaultSize.Height));
         AppWindow.MoveAndResize(new RectInt32(
