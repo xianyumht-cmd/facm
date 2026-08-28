@@ -37,6 +37,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetHelpText(RepairExitGameButton, _text.Get(UiTextKeys.RepairExitGameHint));
 
         ApplyGameRepairState();
+        InitializePersonalizationSurface();
     }
 
     private async void OnRepairFixWindowClick(object sender, RoutedEventArgs args) =>

@@ -27,6 +27,7 @@ VerifyWindowsDesktopFacts();
 await VerifyPhysicalSettings2PersistenceAsync();
 await CleanupSmoke.RunAsync();
 RepairWindowsSmoke.Run();
+await PetHostBundleSmoke.RunAsync();
 
 var discovered = new LeagueTransportSession(
     new LeagueSessionDescriptor(41, 29999, "https", "windows-smoke", "HN1", "HN"),
