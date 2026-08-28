@@ -12,6 +12,7 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
     private FacmThemeDefinition _selectedTheme = FacmThemeCatalog.Get(FacmThemeCatalog.DefaultThemeId);
     private bool _isBusy;
     private bool _isRecoveryReadOnly;
+    private bool _initialized;
     private string _status = string.Empty;
 
     public PersonalizationViewModel(ISettings2Repository settings, IFacmThemeRuntime themes)
@@ -42,26 +43,50 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         private set => SetField(ref _isRecoveryReadOnly, value);
     }
 
+    public bool IsInitialized => _initialized;
+
     public string Status
     {
         get => _status;
         private set => SetField(ref _status, value);
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    public void InitializeForStartup()
     {
-        if (IsBusy) return;
+        if (_initialized || IsBusy) return;
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-            IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
-            SelectedTheme = FacmThemeCatalog.Get(loaded.Settings.Appearance.ThemeId);
+            var loaded = _settings.LoadAsync().GetAwaiter().GetResult();
+            ApplyLoadedSettings(loaded);
+        }
+        catch
+        {
+            SelectedTheme = FacmThemeCatalog.Get(FacmThemeCatalog.DefaultThemeId);
             _themes.Apply(SelectedTheme);
-            Status = IsRecoveryReadOnly ? "recovery-read-only" : "ready";
+            Status = "fallback-default";
         }
         finally
         {
+            _initialized = true;
+            OnPropertyChanged(nameof(IsInitialized));
+            IsBusy = false;
+        }
+    }
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        if (_initialized || IsBusy) return;
+        IsBusy = true;
+        try
+        {
+            var loaded = await _settings.LoadAsync(cancellationToken);
+            ApplyLoadedSettings(loaded);
+        }
+        finally
+        {
+            _initialized = true;
+            OnPropertyChanged(nameof(IsInitialized));
             IsBusy = false;
         }
     }
@@ -73,7 +98,7 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var loaded = await _settings.LoadAsync(cancellationToken);
             IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
             SelectedTheme = selected;
             _themes.Apply(selected);
@@ -85,7 +110,7 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
             }
 
             loaded.Settings.Appearance.ThemeId = selected.Id;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            await _settings.SaveAsync(loaded.Settings, cancellationToken);
             Status = "saved";
             return true;
         }
@@ -105,6 +130,14 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         }
     }
 
+    private void ApplyLoadedSettings(Settings2LoadResult loaded)
+    {
+        IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
+        SelectedTheme = FacmThemeCatalog.Get(loaded.Settings.Appearance.ThemeId);
+        _themes.Apply(SelectedTheme);
+        Status = IsRecoveryReadOnly ? "recovery-read-only" : "ready";
+    }
+
     private static bool IsRecoveryOrigin(SettingsLoadOrigin origin) =>
         origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
 
@@ -112,7 +145,10 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        OnPropertyChanged(propertyName);
         return true;
     }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
