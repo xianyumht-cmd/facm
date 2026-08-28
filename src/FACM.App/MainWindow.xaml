@@ -62,6 +62,34 @@
 
                         <StackPanel x:Name="CleanupPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
                             <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="RepairToolsTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RepairToolsDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock x:Name="RepairPrivilegeLabel" Style="{StaticResource FacmBodyTextStyle}" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                            <TextBlock
+                                                x:Name="RepairPrivilegeStatus"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.Privilege"
+                                                Style="{StaticResource FacmBodyTextStyle}"
+                                                TextWrapping="Wrap" />
+                                        </Border>
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="RepairDriverCleanupButton"
+                                        automation:AutomationProperties.AutomationId="FACM.Repair.DriverCleanup"
+                                        Style="{StaticResource FacmPrimaryButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        Click="OnRepairDriverCleanupClick" />
+                                    <TextBlock x:Name="RepairDriverCleanupHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="RepairToolStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                    <TextBlock x:Name="RepairToolDetail" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock x:Name="CleanupDirectoryTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="CleanupDirectoryDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
