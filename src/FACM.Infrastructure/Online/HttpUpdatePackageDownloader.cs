@@ -46,7 +46,7 @@ public sealed class HttpUpdatePackageDownloader : IUpdatePackageDownloader, IDis
         var destination = Path.Combine(_updatesDirectory, "FACM-" + SanitizeFileName(version) + ".exe");
         var temporary = destination + ".download";
         TryDelete(temporary);
-        progress?.Report(new UpdateDownloadProgress(0, null));
+        progress?.Report(new UpdateDownloadProgress(0, null, 0, "connecting"));
 
         try
         {
@@ -75,7 +75,10 @@ public sealed class HttpUpdatePackageDownloader : IUpdatePackageDownloader, IDis
                     if (received > MaximumUpdateBytes)
                         throw new InvalidDataException("FACM update package exceeded the 512 MiB limit.");
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                    progress?.Report(new UpdateDownloadProgress(received, total));
+                    var percent = total is > 0
+                        ? (int)Math.Min(99, received * 100L / total.Value)
+                        : 0;
+                    progress?.Report(new UpdateDownloadProgress(received, total, percent, "downloading"));
                 }
                 await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -95,7 +98,7 @@ public sealed class HttpUpdatePackageDownloader : IUpdatePackageDownloader, IDis
             ValidatePortableExecutable(temporary);
 
             File.Move(temporary, destination, overwrite: true);
-            progress?.Report(new UpdateDownloadProgress(length, length));
+            progress?.Report(new UpdateDownloadProgress(length, length, 100, "prepared"));
             return new ValidatedUpdatePackage(
                 destination,
                 version,
