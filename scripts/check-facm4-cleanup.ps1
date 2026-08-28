@@ -9,19 +9,34 @@ function Fail([string]$Message) {
     exit 1
 }
 
+function Count-Matches([string]$Text, [string]$Pattern) {
+    return @([regex]::Matches($Text, $Pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+}
+
 $coreContractsPath = Join-Path $Root 'src/FACM.Core/Cleanup/CleanupContracts.cs'
 $coreProfilePath = Join-Path $Root 'src/FACM.Core/Cleanup/CleanupProfileContract.cs'
 $environmentPath = Join-Path $Root 'src/FACM.Platform.Windows/Cleanup/WindowsCleanupEnvironment.cs'
 $enginePath = Join-Path $Root 'src/FACM.Platform.Windows/Cleanup/WindowsCleanupEngine.cs'
+$viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/CleanupViewModel.cs'
+$mainXamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
+$mainCodePath = Join-Path $Root 'src/FACM.App/MainWindow.xaml.cs'
+$appPath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/CleanupSmoke.cs'
 
-foreach ($path in @($coreContractsPath, $coreProfilePath, $environmentPath, $enginePath, $windowsSmokePath)) {
+foreach ($path in @(
+    $coreContractsPath, $coreProfilePath, $environmentPath, $enginePath,
+    $viewModelPath, $mainXamlPath, $mainCodePath, $appPath, $windowsSmokePath
+)) {
     if (-not (Test-Path $path)) { Fail "Cleanup contract file missing: $path" }
 }
 
 $core = (Get-Content $coreContractsPath -Raw) + "`n" + (Get-Content $coreProfilePath -Raw)
 $environment = Get-Content $environmentPath -Raw
 $engine = Get-Content $enginePath -Raw
+$viewModel = Get-Content $viewModelPath -Raw
+$mainXaml = Get-Content $mainXamlPath -Raw
+$mainCode = Get-Content $mainCodePath -Raw
+$app = Get-Content $appPath -Raw
 $smoke = Get-Content $windowsSmokePath -Raw
 
 foreach ($forbidden in @('Microsoft\.UI', 'System\.Windows\.Forms', 'Microsoft\.Win32', 'Process\.GetProcesses', 'Environment\.SpecialFolder', 'DllImport', 'LibraryImport')) {
@@ -36,10 +51,6 @@ foreach ($required in @(
 )) {
     if ($core -notmatch [regex]::Escape($required)) { Fail "Core cleanup contract missing: $required" }
 }
-
-foreach ($required in @(
-    'GetCursorPos' # sentinel replaced below to keep regex arrays uniform
-)) { }
 
 foreach ($required in @(
     'WindowsCleanupEnvironment', 'FindGameRootAsync', 'ResolveGameRootAsync',
@@ -72,6 +83,66 @@ foreach ($forbidden in @(
     if ($engine -match $forbidden) { Fail "Cleanup engine contains forbidden broad/destructive behavior: $forbidden" }
 }
 
+foreach ($forbidden in @(
+    'System\.Windows\.Forms', 'Microsoft\.Win32', '\bFile\.', '\bDirectory\.',
+    'Process\.GetProcesses', 'Environment\.SpecialFolder', 'DllImport', 'LibraryImport',
+    'WindowsCleanupEngine', 'WindowsCleanupEnvironment'
+)) {
+    if ($viewModel -match $forbidden) { Fail "CleanupViewModel crossed UI/platform ownership boundary: $forbidden" }
+}
+foreach ($required in @(
+    'CleanupViewModel', 'ISettings2Repository', 'CleanupApplicationService', 'ICleanupEnvironment',
+    'InitializeAsync', 'DetectAsync', 'SetSelectedPathAsync', 'PreviewAsync',
+    'ExecuteConfirmedAsync', 'GetRunningRelatedProcesses', 'RequiresElevation',
+    'Environment.GamePath', 'RecoveredLastKnownGood', 'RecoveryDefaults', 'SaveAsync'
+)) {
+    if ($viewModel -notmatch [regex]::Escape($required)) { Fail "CleanupViewModel contract missing: $required" }
+}
+
+foreach ($id in @(
+    'FACM.Cleanup.GamePath', 'FACM.Cleanup.Detect', 'FACM.Cleanup.Select',
+    'FACM.Cleanup.Preview', 'FACM.Cleanup.Progress'
+)) {
+    if ($mainXaml -notmatch [regex]::Escape($id)) { Fail "Cleanup WinUI AutomationId missing: $id" }
+}
+if ($mainXaml -notmatch 'x:Name="CleanupPanel"') { Fail 'Main Shell cleanup panel is missing.' }
+if ($mainXaml -match '#[0-9A-Fa-f]{6,8}') { Fail 'Cleanup WinUI must use semantic design resources, not hard-coded colors.' }
+
+foreach ($forbidden in @(
+    'Microsoft\.Win32', '\bFile\.', '\bDirectory\.', 'Process\.GetProcesses',
+    'WindowsCleanupEngine', 'WindowsCleanupEnvironment', 'Directory\.Delete', 'File\.Delete'
+)) {
+    if ($mainCode -match $forbidden) { Fail "MainWindow cleanup presentation owns forbidden platform/delete behavior: $forbidden" }
+}
+foreach ($required in @(
+    'CleanupViewModel', 'FolderPicker', 'ContentDialog', 'ShowCleanupReviewAsync',
+    'CleanupConfirmTitle', 'CleanupConfirmPrimary', 'CleanupCancel',
+    'CurrentPlan', 'DeletableTargets', 'BlockedTargets', 'RequiresElevation',
+    'RestartElevatedForCleanup', 'ExecuteConfirmedAsync(confirmed: true',
+    'Progress<CleanupProgress>', 'CleanupPathText', 'CleanupOperationStatus'
+)) {
+    if ($mainCode -notmatch [regex]::Escape($required)) { Fail "MainWindow cleanup presentation missing: $required" }
+}
+if ($mainCode -match '(?s)OnCleanupPreviewClick.*File\.Delete|(?s)OnCleanupPreviewClick.*Directory\.Delete') {
+    Fail 'Cleanup preview button must never directly delete filesystem entries.'
+}
+
+if ((Count-Matches $app 'new\s+WindowsCleanupEnvironment\s*\(') -ne 1) {
+    Fail 'FACM.App must compose exactly one Windows cleanup environment.'
+}
+if ((Count-Matches $app 'new\s+WindowsCleanupEngine\s*\(') -ne 1) {
+    Fail 'FACM.App must compose exactly one Windows cleanup engine.'
+}
+if ((Count-Matches $app 'new\s+CleanupViewModel\s*\(') -ne 1) {
+    Fail 'FACM.App must compose exactly one CleanupViewModel.'
+}
+foreach ($required in @(
+    'FeatureGatedCleanupExecutor', 'CleanupApplicationService', 'CleanupViewModel',
+    'cleanupCenter', 'new MainWindow(controlCenter, cleanupCenter', '--cleanup'
+)) {
+    if ($app -notmatch [regex]::Escape($required)) { Fail "FACM.App cleanup composition missing: $required" }
+}
+
 foreach ($required in @(
     'unconfirmed cleanup must not delete data',
     'process guard must reject before deletion',
@@ -86,5 +157,7 @@ foreach ($required in @(
 Write-Host 'Cleanup Core profile/confirmation boundary: OK'
 Write-Host 'Cleanup Windows path/process/elevation boundary: OK'
 Write-Host 'Cleanup allowlist/reparse/execution-time revalidation: OK'
+Write-Host 'Cleanup ViewModel Settings 2.0/recovery boundary: OK'
+Write-Host 'Cleanup WinUI preview/confirm/progress presentation boundary: OK'
 Write-Host 'Cleanup deterministic no-unrelated-delete smoke: OK'
 Write-Host 'FACM 4.0 Cleanup contract: SUCCESS'
