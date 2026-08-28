@@ -63,6 +63,18 @@ internal static class PersonalizationSmoke
         Equal(1, failingRepo.SaveCalls, "failed pet startup persists fallback");
         Equal(2, failingRuntime.ApplyCalls, "failed pet startup invokes explicit stop fallback");
 
+        var runtimeLossSettings = Settings2Document.CreateDefault();
+        runtimeLossSettings.Pets.Enabled = true;
+        runtimeLossSettings.Pets.StyleId = "vpet";
+        var runtimeLossRepo = new FakeSettingsRepository(runtimeLossSettings, SettingsLoadOrigin.ExistingV2);
+        var runtimeLossRuntime = new FakeDesktopPetRuntime();
+        var runtimeLossService = new DesktopPetPreferenceService(runtimeLossRepo, runtimeLossRuntime);
+        var runtimeReady = await runtimeLossService.InitializeAsync();
+        True(runtimeReady.Enabled, "ready pet startup keeps enabled preference");
+        runtimeLossRuntime.TriggerRuntimeFailure();
+        True(!runtimeLossRepo.Document.Pets.Enabled, "post-ready runtime failure repairs enabled preference");
+        Equal(1, runtimeLossRepo.SaveCalls, "post-ready runtime failure persists launcher fallback");
+
         var recoverySettings = Settings2Document.CreateDefault();
         recoverySettings.Pets.StyleId = "greenfly";
         var recoveryRepo = new FakeSettingsRepository(recoverySettings, SettingsLoadOrigin.RecoveredLastKnownGood);
@@ -146,6 +158,12 @@ internal static class PersonalizationSmoke
                 : new(false, false, string.Empty, "default-launcher");
             StateChanged?.Invoke(this, Current);
             return Task.FromResult(new DesktopPetModeResult(true, Current.PetVisible, Current.Detail));
+        }
+
+        public void TriggerRuntimeFailure()
+        {
+            Current = new(false, false, string.Empty, "runtime-failed:planned-exit");
+            StateChanged?.Invoke(this, Current);
         }
 
         public Task ResetPositionAsync(CancellationToken cancellationToken = default)
