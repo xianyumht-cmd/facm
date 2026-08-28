@@ -73,14 +73,14 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 
     private async void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
     {
-        if (_syncing || _viewModel is null) return;
+        if (_syncing || _viewModel is null || _viewModel.ForceUpdateRequired) return;
         await _viewModel.SetAutoUpdateEnabledAsync(AutoUpdateToggle.IsOn);
         ApplyState();
     }
 
     private async void OnCheckNowClick(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null) return;
+        if (_viewModel is null || _viewModel.ForceUpdateRequired) return;
         try { await _viewModel.ManualCheckAsync(); } catch (OperationCanceledException) { }
         ApplyState();
     }
@@ -116,6 +116,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 
     private async void OnAnnouncementDetailClick(object sender, RoutedEventArgs e)
     {
+        if (_viewModel?.ForceUpdateRequired == true) return;
         var uri = _viewModel?.AnnouncementDetailUri;
         if (uri is null) return;
         await Windows.System.Launcher.LaunchUriAsync(uri);
@@ -125,7 +126,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 
     private async void OnOpenLogClick(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null) return;
+        if (_viewModel is null || _viewModel.ForceUpdateRequired) return;
         await _viewModel.OpenLogAsync();
         ApplyState();
     }
@@ -137,17 +138,19 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         _syncing = true;
         try
         {
+            var force = vm.ForceUpdateRequired;
             AutoUpdateToggle.IsOn = vm.AutoUpdateEnabled;
+            AutoUpdateToggle.IsEnabled = !force && !vm.IsBusy;
             CurrentVersionText.Text = vm.CurrentVersion;
             LatestVersionText.Text = string.IsNullOrWhiteSpace(vm.LatestVersion) ? "—" : vm.LatestVersion;
-            UpdateStatusText.Text = StatusText(vm.Status, vm.ForceUpdateRequired);
+            UpdateStatusText.Text = StatusText(vm.Status, force);
             ReleaseNotesText.Text = vm.ReleaseNotes;
             ReleaseNotesText.Visibility = string.IsNullOrWhiteSpace(vm.ReleaseNotes) ? Visibility.Collapsed : Visibility.Visible;
-            CheckNowButton.IsEnabled = !vm.IsBusy;
+            CheckNowButton.IsEnabled = !force && !vm.IsBusy;
             DownloadButton.IsEnabled = vm.CanPrepareUpdate;
             CancelDownloadButton.IsEnabled = vm.IsBusy && vm.UpdateProgressStage is "connecting" or "downloading" or "verifying";
             InstallButton.IsEnabled = vm.HasPreparedUpdate && !vm.IsBusy;
-            ForceExitButton.Visibility = vm.ForceUpdateRequired ? Visibility.Visible : Visibility.Collapsed;
+            ForceExitButton.Visibility = force ? Visibility.Visible : Visibility.Collapsed;
             ForceExitButton.IsEnabled = !vm.IsBusy;
             UpdateProgressBar.Value = vm.UpdateProgressPercent;
             UpdateProgressBar.Visibility = vm.UpdateProgressPercent > 0 || vm.IsBusy ? Visibility.Visible : Visibility.Collapsed;
@@ -157,9 +160,9 @@ public sealed partial class MaintenanceSettingsControl : UserControl
             var announcement = vm.Announcement;
             AnnouncementTitleText.Text = announcement?.Title ?? "暂无公告";
             AnnouncementBodyText.Text = announcement?.Body ?? string.Empty;
-            AnnouncementDetailButton.IsEnabled = vm.AnnouncementDetailUri is not null;
+            AnnouncementDetailButton.IsEnabled = !force && vm.AnnouncementDetailUri is not null;
             AnnouncementDetailButton.Visibility = vm.AnnouncementDetailUri is null ? Visibility.Collapsed : Visibility.Visible;
-            OpenLogButton.IsEnabled = vm.CanOpenLog && !vm.IsBusy;
+            OpenLogButton.IsEnabled = !force && vm.CanOpenLog && !vm.IsBusy;
         }
         finally
         {
