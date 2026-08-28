@@ -81,7 +81,12 @@ public sealed class WindowsUpdatePackageIdentityVerifier : IUpdatePackageIdentit
     {
         try
         {
+            // X509CertificateLoader loads certificate files (PEM/DER/PFX), not the signer embedded in
+            // an Authenticode-signed PE. Keep the dedicated signed-file API narrowly isolated here;
+            // WinVerifyTrust below remains the authoritative integrity verification boundary.
+#pragma warning disable SYSLIB0057
             return X509Certificate.CreateFromSignedFile(path);
+#pragma warning restore SYSLIB0057
         }
         catch (Exception exception)
         {
