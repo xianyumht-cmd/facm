@@ -24,14 +24,16 @@ internal static class MayhemAugmentSmoke
         };
         var routes = MayhemAugmentDecisionPolicy.BuildRoutes(rows);
         Require(routes.Count == 3, "Augment decision policy must keep three distinct 3.5 routes when data allows it.");
-        Require(routes[0].Title == "稳定赢法" && routes[0].AugmentName == "A",
+        Require(routes[0].Title == "稳定赢法" && routes[0].AugmentName == "C",
             "Stable route lost the FACM 3.5 72/28 win/popularity weighting.");
         Require(routes[1].Title == "高上限玩法" && routes[1].AugmentName == "B",
             "High-win route did not choose the highest remaining win-rate augment.");
-        Require(routes[2].Title == "热门好上手" && routes[2].AugmentName == "C",
-            "Popular route did not choose the highest remaining pick-rate augment.");
+        Require(routes[2].Title == "热门好上手" && routes[2].AugmentName == "A",
+            "Popular route did not choose the highest remaining pick-rate augment after route de-duplication.");
         Require(Math.Abs(MayhemAugmentDecisionPolicy.StableScore(rows[0]) - 44.48d) < 0.0001d,
             "Stable route score no longer uses 0.72 win + 0.28 pick.");
+        Require(Math.Abs(MayhemAugmentDecisionPolicy.StableScore(rows[2]) - 45.8d) < 0.0001d,
+            "Stable route fixture no longer proves the weighted winner.");
     }
 
     private static void ValidateRichParserRequiresIcon()
