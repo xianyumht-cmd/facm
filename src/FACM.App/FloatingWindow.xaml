@@ -4,17 +4,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation">
     <Grid
+        x:Name="FloatingRoot"
         Width="64"
         Height="64"
         Background="Transparent">
         <Button
             x:Name="FloatingButton"
-            Width="56"
-            Height="56"
+            Width="64"
+            Height="64"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Padding="0"
-            CornerRadius="28"
+            BorderThickness="0"
+            CornerRadius="32"
             Style="{StaticResource FacmPrimaryButtonStyle}"
             automation:AutomationProperties.AutomationId="FACM.Desktop.OpenShell">
             <TextBlock
