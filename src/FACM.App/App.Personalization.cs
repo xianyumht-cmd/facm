@@ -21,7 +21,16 @@ public partial class App
 
         _facmThemeRuntime ??= new WinUiThemeRuntime(Resources);
         var viewModel = controlCenter.CreatePersonalization(_facmThemeRuntime);
-        viewModel.InitializeForStartup();
+        try
+        {
+            viewModel.InitializeForStartup();
+        }
+        catch
+        {
+            // Personalization is optional during product startup. A platform theme-resource failure must
+            // never prevent the launcher or the repair/League/settings surfaces from becoming usable.
+            // StartupCrashDiagnostics still records first-chance access-denied evidence when relevant.
+        }
 
         _petHostBundleStore ??= new WindowsPetHostBundleStore(
             FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider()),
