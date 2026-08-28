@@ -139,6 +139,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-p7-settings-parity.ps1
 
+      - name: Verify P7 entry and lifecycle closeout contract
+        shell: pwsh
+        run: ./scripts/check-facm4-p7-closeout.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
