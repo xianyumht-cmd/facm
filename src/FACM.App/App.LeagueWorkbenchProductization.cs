@@ -1,6 +1,7 @@
 using FACM.App.ViewModels;
 using FACM.Core.League;
 using FACM.Infrastructure.League;
+using FACM.Platform.Windows.League;
 
 namespace FACM.App;
 
@@ -10,6 +11,8 @@ public partial class App
     private bool _postGameProcessExitHooked;
     private LeagueRecommendedAutoApplyService? _recommendedAutoApply;
     private bool _recommendedAutoApplyProcessExitHooked;
+    private LeagueEfficiencyRuntime? _leagueEfficiencyRuntime;
+    private bool _leagueEfficiencyProcessExitHooked;
 
     /// <summary>
     /// Completes the per-shell League Workbench composition without creating another League runtime.
@@ -46,6 +49,7 @@ public partial class App
         }
 
         EnsureLeagueRecommendedAutoApply(dataSource, gateway, gateway, performance, settings, gameflow);
+        EnsureLeagueEfficiencyRuntime(settings);
     }
 
     internal ILeagueBuildLoadoutService CreateLeagueBuildLoadoutService(ILeagueWorkbenchDataSource dataSource)
@@ -64,6 +68,8 @@ public partial class App
             ?? throw new InvalidOperationException("League recommended auto apply is unavailable.");
         return new LeagueRecommendedAutoApplySettingsViewModel(settings, automation);
     }
+
+    internal ILeagueEfficiencyRuntime? GetLeagueEfficiencyRuntime() => _leagueEfficiencyRuntime;
 
     private void EnsureLeagueRecommendedAutoApply(
         ILeagueWorkbenchDataSource dataSource,
@@ -100,6 +106,36 @@ public partial class App
         {
             _recommendedAutoApplyProcessExitHooked = true;
             AppDomain.CurrentDomain.ProcessExit += OnLeagueRecommendedAutoApplyProcessExit;
+        }
+    }
+
+    private void EnsureLeagueEfficiencyRuntime(FACM.Core.Settings.ISettings2Repository settings)
+    {
+        if (_leagueEfficiencyRuntime is not null) return;
+
+        LeagueEfficiencyRuntime? runtime = null;
+        try
+        {
+            runtime = new LeagueEfficiencyRuntime(
+                settings,
+                new WindowsLeagueEfficiencyActionService(),
+                new WindowsLeagueGlobalHotkeyService());
+            runtime.InitializeAsync().GetAwaiter().GetResult();
+            _leagueEfficiencyRuntime = runtime;
+            runtime = null;
+
+            if (!_leagueEfficiencyProcessExitHooked)
+            {
+                _leagueEfficiencyProcessExitHooked = true;
+                AppDomain.CurrentDomain.ProcessExit += OnLeagueEfficiencyProcessExit;
+            }
+        }
+        catch
+        {
+            runtime?.Dispose();
+            _leagueEfficiencyRuntime = null;
+            // Global hotkeys are an optional efficiency feature. A Win32 registration/thread failure
+            // must not prevent the League Workbench or the FACM desktop entry from starting.
         }
     }
 
@@ -160,6 +196,14 @@ public partial class App
         _recommendedAutoApplyProcessExitHooked = false;
         _recommendedAutoApply?.Dispose();
         _recommendedAutoApply = null;
+    }
+
+    private void OnLeagueEfficiencyProcessExit(object? sender, EventArgs args)
+    {
+        AppDomain.CurrentDomain.ProcessExit -= OnLeagueEfficiencyProcessExit;
+        _leagueEfficiencyProcessExitHooked = false;
+        _leagueEfficiencyRuntime?.Dispose();
+        _leagueEfficiencyRuntime = null;
     }
 
     private void OnLeaguePostGameProcessExit(object? sender, EventArgs args)
