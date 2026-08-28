@@ -22,6 +22,11 @@ public sealed partial class FloatingWindow : Window
     private readonly Action _ensureMainWindow;
     private readonly Func<DesktopPoint, Task> _persistPlacement;
     private readonly IntPtr _windowHandle;
+    private readonly PointerEventHandler _pointerPressedHandler;
+    private readonly PointerEventHandler _pointerMovedHandler;
+    private readonly PointerEventHandler _pointerReleasedHandler;
+    private readonly PointerEventHandler _pointerCanceledHandler;
+    private readonly PointerEventHandler _pointerCaptureLostHandler;
 
     private IReadOnlyList<DesktopWorkArea>? _dragWorkAreas;
     private bool _pointerActive;
@@ -51,12 +56,20 @@ public sealed partial class FloatingWindow : Window
         AutomationProperties.SetName(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
         AutomationProperties.SetHelpText(FloatingButton, text.Get(UiTextKeys.DesktopOpenShellHelp));
 
+        _pointerPressedHandler = new PointerEventHandler(OnFloatingPointerPressed);
+        _pointerMovedHandler = new PointerEventHandler(OnFloatingPointerMoved);
+        _pointerReleasedHandler = new PointerEventHandler(OnFloatingPointerReleased);
+        _pointerCanceledHandler = new PointerEventHandler(OnFloatingPointerCanceled);
+        _pointerCaptureLostHandler = new PointerEventHandler(OnFloatingPointerCaptureLost);
+
+        // Button owns low-level pointer routing for its pressed/click visual states. Listen at the
+        // root with handledEventsToo so drag semantics still receive the full press/move/release chain.
+        FloatingRoot.AddHandler(UIElement.PointerPressedEvent, _pointerPressedHandler, handledEventsToo: true);
+        FloatingRoot.AddHandler(UIElement.PointerMovedEvent, _pointerMovedHandler, handledEventsToo: true);
+        FloatingRoot.AddHandler(UIElement.PointerReleasedEvent, _pointerReleasedHandler, handledEventsToo: true);
+        FloatingRoot.AddHandler(UIElement.PointerCanceledEvent, _pointerCanceledHandler, handledEventsToo: true);
+        FloatingRoot.AddHandler(UIElement.PointerCaptureLostEvent, _pointerCaptureLostHandler, handledEventsToo: true);
         FloatingButton.Click += OnFloatingButtonClick;
-        FloatingButton.PointerPressed += OnFloatingPointerPressed;
-        FloatingButton.PointerMoved += OnFloatingPointerMoved;
-        FloatingButton.PointerReleased += OnFloatingPointerReleased;
-        FloatingButton.PointerCanceled += OnFloatingPointerCanceled;
-        FloatingButton.PointerCaptureLost += OnFloatingPointerCaptureLost;
         AppWindow.Changed += OnAppWindowChanged;
         Closed += OnClosed;
 
@@ -123,6 +136,8 @@ public sealed partial class FloatingWindow : Window
 
     private void ConfigurePresenter()
     {
+        ExtendsContentIntoTitleBar = true;
+        AppWindow.IsShownInSwitchers = false;
         if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsAlwaysOnTop = true;
@@ -133,6 +148,8 @@ public sealed partial class FloatingWindow : Window
 
     private void OnFloatingButtonClick(object sender, RoutedEventArgs e)
     {
+        // Pointer clicks are completed explicitly by OnFloatingPointerReleased so drag and click
+        // cannot race each other. This path remains for keyboard/accessibility activation.
         if (_pointerActive || Environment.TickCount64 <= _suppressClickUntilTick) return;
         _ensureMainWindow();
     }
@@ -161,7 +178,7 @@ public sealed partial class FloatingWindow : Window
         _dragWorkAreas = areas;
         _dragPointerStart = GetPointerScreenPoint(e);
         _dragWindowStart = new DesktopPoint(AppWindow.Position.X, AppWindow.Position.Y);
-        _ = FloatingButton.CapturePointer(e.Pointer);
+        _ = FloatingRoot.CapturePointer(e.Pointer);
     }
 
     private void OnFloatingPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -205,37 +222,42 @@ public sealed partial class FloatingWindow : Window
     private async void OnFloatingPointerReleased(object sender, PointerRoutedEventArgs e)
     {
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
-        var moved = _dragMoved;
-        FloatingButton.ReleasePointerCapture(e.Pointer);
-        ResetPointerState();
-        if (!moved) return;
 
+        var moved = _dragMoved;
+        var pointer = e.Pointer;
         _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
+        ResetPointerState();
+        FloatingRoot.ReleasePointerCapture(pointer);
         e.Handled = true;
-        await PersistCurrentPlacementAsync();
+
+        if (moved)
+        {
+            await PersistCurrentPlacementAsync();
+            return;
+        }
+
+        _ensureMainWindow();
     }
 
     private async void OnFloatingPointerCanceled(object sender, PointerRoutedEventArgs e)
     {
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
-        var moved = _dragMoved;
-        FloatingButton.ReleasePointerCapture(e.Pointer);
-        ResetPointerState();
-        if (!moved) return;
 
-        _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
-        await PersistCurrentPlacementAsync();
+        var moved = _dragMoved;
+        var pointer = e.Pointer;
+        ResetPointerState();
+        FloatingRoot.ReleasePointerCapture(pointer);
+        e.Handled = true;
+        if (moved) await PersistCurrentPlacementAsync();
     }
 
     private async void OnFloatingPointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
+
         var moved = _dragMoved;
         ResetPointerState();
-        if (!moved) return;
-
-        _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
-        await PersistCurrentPlacementAsync();
+        if (moved) await PersistCurrentPlacementAsync();
     }
 
     private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
@@ -293,12 +315,12 @@ public sealed partial class FloatingWindow : Window
         _closed = true;
         ResetPointerState();
 
+        FloatingRoot.RemoveHandler(UIElement.PointerPressedEvent, _pointerPressedHandler);
+        FloatingRoot.RemoveHandler(UIElement.PointerMovedEvent, _pointerMovedHandler);
+        FloatingRoot.RemoveHandler(UIElement.PointerReleasedEvent, _pointerReleasedHandler);
+        FloatingRoot.RemoveHandler(UIElement.PointerCanceledEvent, _pointerCanceledHandler);
+        FloatingRoot.RemoveHandler(UIElement.PointerCaptureLostEvent, _pointerCaptureLostHandler);
         FloatingButton.Click -= OnFloatingButtonClick;
-        FloatingButton.PointerPressed -= OnFloatingPointerPressed;
-        FloatingButton.PointerMoved -= OnFloatingPointerMoved;
-        FloatingButton.PointerReleased -= OnFloatingPointerReleased;
-        FloatingButton.PointerCanceled -= OnFloatingPointerCanceled;
-        FloatingButton.PointerCaptureLost -= OnFloatingPointerCaptureLost;
         AppWindow.Changed -= OnAppWindowChanged;
         Closed -= OnClosed;
     }
