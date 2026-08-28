@@ -1,4 +1,5 @@
 using FACM.App.ViewModels;
+using FACM.Core.League;
 using FACM.Infrastructure.League;
 
 namespace FACM.App;
@@ -39,6 +40,17 @@ public partial class App
                 ?? throw new InvalidOperationException("League matchmaking automation is unavailable.");
             viewModel.ConfigureMatchmakingAutomation(settings, automation);
         }
+    }
+
+    /// <summary>
+    /// Presence is user-directed and stateless between clicks, so each shell can hold this light
+    /// service while still sharing the one process-wide authenticated League gateway.
+    /// </summary>
+    internal ILeaguePresenceService CreateLeaguePresenceService()
+    {
+        var gateway = _leagueGateway
+            ?? throw new InvalidOperationException("League gateway is unavailable.");
+        return new LeaguePresenceService(gateway, gateway);
     }
 
     /// <summary>
