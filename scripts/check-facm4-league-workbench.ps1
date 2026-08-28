@@ -13,6 +13,7 @@ function Count-Matches([string]$Text, [string]$Pattern) {
     return @([regex]::Matches($Text, $Pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
 }
 
+$coreContractsPath = Join-Path $Root 'src/FACM.Core/League/LeagueContracts.cs'
 $coreGameflowPath = Join-Path $Root 'src/FACM.Core/League/LeagueGameflow.cs'
 $coreWorkbenchPath = Join-Path $Root 'src/FACM.Core/League/LeagueWorkbench.cs'
 $coreWorkbenchDataPath = Join-Path $Root 'src/FACM.Core/League/LeagueWorkbenchData.cs'
@@ -22,6 +23,7 @@ $monitorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueGameflowMon
 $dataSourcePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueWorkbenchDataSource.cs'
 $advisorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBuildAdvisorService.cs'
 $itemSetPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueItemSetService.cs'
+$matchmakingPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueMatchmakingAutomationService.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/LeagueWorkbenchViewModel.cs'
 $appPath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $productCompositionPath = Join-Path $Root 'src/FACM.App/App.LeagueWorkbenchProductization.cs'
@@ -32,14 +34,15 @@ $productActionsPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchAc
 $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
-    $coreGameflowPath, $coreWorkbenchPath, $coreWorkbenchDataPath, $coreBuildAdvisorPath, $coreItemSetPath,
-    $monitorPath, $dataSourcePath, $advisorPath, $itemSetPath,
-    $viewModelPath, $appPath, $productCompositionPath, $mainXamlPath, $mainCodePath,
-    $runtimeUiPath, $productActionsPath, $textPath
+    $coreContractsPath, $coreGameflowPath, $coreWorkbenchPath, $coreWorkbenchDataPath,
+    $coreBuildAdvisorPath, $coreItemSetPath, $monitorPath, $dataSourcePath, $advisorPath,
+    $itemSetPath, $matchmakingPath, $viewModelPath, $appPath, $productCompositionPath,
+    $mainXamlPath, $mainCodePath, $runtimeUiPath, $productActionsPath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "League Workbench contract file missing: $path" }
 }
 
+$coreContracts = Get-Content $coreContractsPath -Raw
 $coreGameflow = Get-Content $coreGameflowPath -Raw
 $coreWorkbench = Get-Content $coreWorkbenchPath -Raw
 $coreWorkbenchData = Get-Content $coreWorkbenchDataPath -Raw
@@ -49,6 +52,7 @@ $monitor = Get-Content $monitorPath -Raw
 $dataSource = Get-Content $dataSourcePath -Raw
 $advisor = Get-Content $advisorPath -Raw
 $itemSet = Get-Content $itemSetPath -Raw
+$matchmaking = Get-Content $matchmakingPath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
 $app = Get-Content $appPath -Raw
 $productComposition = Get-Content $productCompositionPath -Raw
@@ -58,6 +62,15 @@ $runtimeUi = Get-Content $runtimeUiPath -Raw
 $productActions = Get-Content $productActionsPath -Raw
 $text = Get-Content $textPath -Raw
 
+foreach ($required in @(
+    'LeagueWriteCapability.StartMatchmaking', 'LeagueWriteCapability.AcceptReadyCheck',
+    '/lol-lobby/v2/lobby/matchmaking/search', '/lol-matchmaking/v1/ready-check/accept'
+)) {
+    if ($coreContracts -notmatch [regex]::Escape($required)) {
+        Fail "League narrow write contract is missing: $required"
+    }
+}
+
 foreach ($state in @('NotRunning', 'Connecting', 'Lobby', 'Matchmaking', 'ReadyCheck', 'ChampSelect', 'InGame', 'PostGame', 'ClientError')) {
     if ($coreGameflow -notmatch ('LeagueProductState\.' + [regex]::Escape($state))) {
         Fail "Gameflow mapper is missing Product State: $state"
@@ -66,6 +79,11 @@ foreach ($state in @('NotRunning', 'Connecting', 'Lobby', 'Matchmaking', 'ReadyC
 foreach ($phase in @('Matchmaking', 'ReadyCheck', 'ChampSelect', 'InProgress', 'WatchInProgress', 'Reconnect', 'GameStart', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame')) {
     if ($coreGameflow -notmatch ('"' + [regex]::Escape($phase) + '"')) {
         Fail "Gameflow mapper is missing legacy phase coverage: $phase"
+    }
+}
+foreach ($required in @('ILeagueGameflowObservationSource', 'event EventHandler<LeagueGameflowChangedEventArgs>? Observed')) {
+    if ($coreGameflow -notmatch [regex]::Escape($required)) {
+        Fail "Gameflow shared observation contract is missing: $required"
     }
 }
 
@@ -103,7 +121,11 @@ foreach ($required in @(
     }
 }
 
-foreach ($required in @('ILeagueReadGateway', 'ILeagueSessionAccessor', 'IProductStateWriter', 'PerformanceBudgetProvider', 'LeagueGameflowPhaseMapper.Map', 'LeagueGameflowCadence.Resolve')) {
+foreach ($required in @(
+    'ILeagueReadGateway', 'ILeagueSessionAccessor', 'IProductStateWriter', 'PerformanceBudgetProvider',
+    'LeagueGameflowPhaseMapper.Map', 'LeagueGameflowCadence.Resolve',
+    'ILeagueGameflowObservationSource', 'Observed', 'observedHandler'
+)) {
     if ($monitor -notmatch [regex]::Escape($required)) { Fail "Gameflow owner is missing required shared contract: $required" }
 }
 foreach ($forbidden in @('new\s+HttpClient', 'new\s+WindowsLeagueTransportSessionSource', 'ProcessLockfileLeagueSessionDiscovery', 'ILeagueWriteGateway', 'LeagueWriteCommand')) {
@@ -168,11 +190,35 @@ foreach ($forbidden in @(
     }
 }
 
+foreach ($required in @(
+    'ILeagueReadGateway', 'ILeagueWriteGateway', 'ILeagueGameflowObservationSource',
+    '_gameflow.Observed += OnGameflowObserved', 'EvaluateObservationAsync',
+    'LobbyPath = "/lol-lobby/v2/lobby"', 'SearchStatePath = "/lol-matchmaking/v1/search"',
+    'LeagueWriteCapability.StartMatchmaking', 'LeagueWriteCapability.AcceptReadyCheck',
+    'canStartActivity', 'isLeader', 'isBot', 'isSpectator', 'Fingerprint',
+    'Accepted', 'Declined', '_acceptAttemptedThisReadyCheck'
+)) {
+    if ($matchmaking -notmatch [regex]::Escape($required)) {
+        Fail "Matchmaking automation is missing required shared-heartbeat behavior: $required"
+    }
+}
+foreach ($forbidden in @(
+    'Task\.Delay', 'new\s+HttpClient', 'new\s+WindowsLeagueTransportSessionSource',
+    'new\s+LeagueGameflowMonitor', 'ProcessLockfileLeagueSessionDiscovery'
+)) {
+    if ($matchmaking -match $forbidden) {
+        Fail "Matchmaking automation created a second polling/transport owner: $forbidden"
+    }
+}
+
 if ((Count-Matches $app 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
     Fail 'App composition must create exactly one League session owner.'
 }
 if ((Count-Matches $app 'new\s+LeagueGameflowMonitor\s*\(') -ne 1) {
     Fail 'App composition must create exactly one Gameflow monitor.'
+}
+if ((Count-Matches $app 'new\s+LeagueMatchmakingAutomationService\s*\(') -ne 1) {
+    Fail 'App composition must create exactly one matchmaking automation consumer.'
 }
 if ((Count-Matches $app 'new\s+PerformanceBudgetProvider\s*\(') -ne 1) {
     Fail 'App composition must create exactly one PerformanceBudgetProvider.'
@@ -182,6 +228,14 @@ if ((Count-Matches $app 'new\s+LeagueWorkbenchDataSource\s*\(') -ne 1) {
 }
 if ((Count-Matches $app '\.Start\s*\(\s*\)') -lt 1 -or $app -notmatch '_gameflow\.Start\s*\(\s*\)') {
     Fail 'App composition must start the one Gameflow monitor.'
+}
+foreach ($required in @(
+    'ConfigureLeagueAutomationFromSettings', 'AutoMatchmakingEnabled', 'AutoAcceptEnabled',
+    '_matchmakingAutomation?.Dispose()'
+)) {
+    if ($app -notmatch [regex]::Escape($required)) {
+        Fail "App composition is missing matchmaking settings/lifetime wiring: $required"
+    }
 }
 
 foreach ($required in @(
@@ -254,9 +308,10 @@ foreach ($constant in @(
     }
 }
 
-Write-Host 'League Gameflow owner: exactly one composition instance'
+Write-Host 'League Gameflow owner: exactly one composition instance + shared observation heartbeat'
 Write-Host 'League Workbench data source: shared read gateway + shared gameflow owner'
 Write-Host 'League Workbench real surface: dashboard / player / live snapshots'
 Write-Host 'League Build Advisor: user-driven OP.GG + in-game cache-only'
 Write-Host 'League Item Sets: explicit-confirmation + FACM4-owned atomic write'
+Write-Host 'League Matchmaking: shared heartbeat + leader/member eligibility + one-shot ReadyCheck accept'
 Write-Host 'FACM 4.0 League Workbench contract: SUCCESS'
