@@ -19,6 +19,7 @@ $coreWorkbenchPath = Join-Path $Root 'src/FACM.Core/League/LeagueWorkbench.cs'
 $coreWorkbenchDataPath = Join-Path $Root 'src/FACM.Core/League/LeagueWorkbenchData.cs'
 $coreBuildAdvisorPath = Join-Path $Root 'src/FACM.Core/League/LeagueBuildAdvisor.cs'
 $coreItemSetPath = Join-Path $Root 'src/FACM.Core/League/LeagueItemSet.cs'
+$coreMatchmakingPath = Join-Path $Root 'src/FACM.Core/League/LeagueMatchmakingAutomation.cs'
 $monitorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueGameflowMonitor.cs'
 $dataSourcePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueWorkbenchDataSource.cs'
 $advisorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBuildAdvisorService.cs'
@@ -31,13 +32,15 @@ $mainXamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
 $mainCodePath = Join-Path $Root 'src/FACM.App/MainWindow.xaml.cs'
 $runtimeUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchRuntime.cs'
 $productActionsPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchActions.cs'
+$automationUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueAutomation.cs'
 $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
     $coreContractsPath, $coreGameflowPath, $coreWorkbenchPath, $coreWorkbenchDataPath,
-    $coreBuildAdvisorPath, $coreItemSetPath, $monitorPath, $dataSourcePath, $advisorPath,
-    $itemSetPath, $matchmakingPath, $viewModelPath, $appPath, $productCompositionPath,
-    $mainXamlPath, $mainCodePath, $runtimeUiPath, $productActionsPath, $textPath
+    $coreBuildAdvisorPath, $coreItemSetPath, $coreMatchmakingPath, $monitorPath, $dataSourcePath,
+    $advisorPath, $itemSetPath, $matchmakingPath, $viewModelPath, $appPath,
+    $productCompositionPath, $mainXamlPath, $mainCodePath, $runtimeUiPath,
+    $productActionsPath, $automationUiPath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "League Workbench contract file missing: $path" }
 }
@@ -48,6 +51,7 @@ $coreWorkbench = Get-Content $coreWorkbenchPath -Raw
 $coreWorkbenchData = Get-Content $coreWorkbenchDataPath -Raw
 $coreBuildAdvisor = Get-Content $coreBuildAdvisorPath -Raw
 $coreItemSet = Get-Content $coreItemSetPath -Raw
+$coreMatchmaking = Get-Content $coreMatchmakingPath -Raw
 $monitor = Get-Content $monitorPath -Raw
 $dataSource = Get-Content $dataSourcePath -Raw
 $advisor = Get-Content $advisorPath -Raw
@@ -60,6 +64,7 @@ $mainXaml = Get-Content $mainXamlPath -Raw
 $mainCode = Get-Content $mainCodePath -Raw
 $runtimeUi = Get-Content $runtimeUiPath -Raw
 $productActions = Get-Content $productActionsPath -Raw
+$automationUi = Get-Content $automationUiPath -Raw
 $text = Get-Content $textPath -Raw
 
 foreach ($required in @(
@@ -84,6 +89,17 @@ foreach ($phase in @('Matchmaking', 'ReadyCheck', 'ChampSelect', 'InProgress', '
 foreach ($required in @('ILeagueGameflowObservationSource', 'event EventHandler<LeagueGameflowChangedEventArgs>? Observed')) {
     if ($coreGameflow -notmatch [regex]::Escape($required)) {
         Fail "Gameflow shared observation contract is missing: $required"
+    }
+}
+
+foreach ($required in @('ILeagueMatchmakingAutomationService', 'AutoSearchEnabled', 'AutoAcceptEnabled', 'Configure')) {
+    if ($coreMatchmaking -notmatch [regex]::Escape($required)) {
+        Fail "Matchmaking Core control contract is missing: $required"
+    }
+}
+foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'HttpClient', '/lol-')) {
+    if ($coreMatchmaking -match $forbidden) {
+        Fail "Matchmaking Core control contract leaked implementation detail: $forbidden"
     }
 }
 
@@ -191,9 +207,10 @@ foreach ($forbidden in @(
 }
 
 foreach ($required in @(
-    'ILeagueReadGateway', 'ILeagueWriteGateway', 'ILeagueGameflowObservationSource',
-    '_gameflow.Observed += OnGameflowObserved', 'EvaluateObservationAsync',
-    'LobbyPath = "/lol-lobby/v2/lobby"', 'SearchStatePath = "/lol-matchmaking/v1/search"',
+    'ILeagueMatchmakingAutomationService', 'ILeagueReadGateway', 'ILeagueWriteGateway',
+    'ILeagueGameflowObservationSource', '_gameflow.Observed += OnGameflowObserved',
+    'EvaluateObservationAsync', 'LobbyPath = "/lol-lobby/v2/lobby"',
+    'SearchStatePath = "/lol-matchmaking/v1/search"',
     'LeagueWriteCapability.StartMatchmaking', 'LeagueWriteCapability.AcceptReadyCheck',
     'canStartActivity', 'isLeader', 'isBot', 'isSpectator', 'Fingerprint',
     'Accepted', 'Declined', '_acceptAttemptedThisReadyCheck'
@@ -240,7 +257,8 @@ foreach ($required in @(
 
 foreach ($required in @(
     'viewModel.DataSource', '_leagueGateway', '_performance',
-    'new LeagueBuildAdvisorService', 'new LeagueItemSetService', 'ConfigureProductServices'
+    'new LeagueBuildAdvisorService', 'new LeagueItemSetService', 'ConfigureProductServices',
+    '_settings', '_matchmakingAutomation', 'ConfigureMatchmakingAutomation'
 )) {
     if ($productComposition -notmatch [regex]::Escape($required)) {
         Fail "League product composition is missing shared-runtime wiring: $required"
@@ -248,14 +266,15 @@ foreach ($required in @(
 }
 foreach ($forbidden in @(
     'new\s+LeagueWorkbenchDataSource', 'new\s+WindowsLeagueTransportSessionSource',
-    'new\s+LeagueGameflowMonitor', 'ProcessLockfileLeagueSessionDiscovery'
+    'new\s+LeagueGameflowMonitor', 'new\s+LeagueMatchmakingAutomationService',
+    'ProcessLockfileLeagueSessionDiscovery'
 )) {
     if ($productComposition -match $forbidden) {
         Fail "League product composition created a duplicate runtime owner: $forbidden"
     }
 }
 
-$uiBoundary = $viewModel + "`n" + $mainCode + "`n" + $runtimeUi + "`n" + $productActions
+$uiBoundary = $viewModel + "`n" + $mainCode + "`n" + $runtimeUi + "`n" + $productActions + "`n" + $automationUi
 foreach ($forbidden in @(
     'FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'System\.Net\.Http', 'HttpClient',
     'WindowsLeagueTransportSessionSource', 'LeagueGameflowMonitor', 'Task\.Delay',
@@ -269,7 +288,10 @@ foreach ($required in @(
     'LeagueMatchDescription.Text', 'LeagueStrategyDescription.Text', 'LeagueAutomationDescription.Text',
     'ILeagueBuildAdvisorService', 'ILeagueItemSetService', 'RefreshBuildAdvisorAsync',
     'PrepareItemSetAsync', 'ApplyItemSetAsync', 'ContentDialog',
-    'FACM.League.RefreshBuildAdvisor', 'FACM.League.ApplyItemSet'
+    'ILeagueMatchmakingAutomationService', 'ConfigureMatchmakingAutomation',
+    'SetAutoMatchmakingEnabledAsync', 'SetAutoAcceptEnabledAsync',
+    'ApplyLeagueAutomationSettingsSurface', 'FACM.League.RefreshBuildAdvisor',
+    'FACM.League.ApplyItemSet'
 )) {
     if ($uiBoundary -notmatch [regex]::Escape($required)) {
         Fail "League Workbench real UI/product intent binding is missing: $required"
@@ -278,16 +300,34 @@ foreach ($required in @(
 if ($productActions -notmatch 'ContentDialogResult\.Primary') {
     Fail 'Item Set UI must require explicit primary confirmation before ApplyItemSetAsync.'
 }
-if ($runtimeUi -notmatch 'ConfigureLeagueWorkbenchProductization' -or $runtimeUi -notmatch 'InitializeLeagueWorkbenchProductActions') {
-    Fail 'League runtime surface must initialize product services and product actions.'
+if ($runtimeUi -notmatch 'ConfigureLeagueWorkbenchProductization' -or
+    $runtimeUi -notmatch 'InitializeLeagueWorkbenchProductActions' -or
+    $runtimeUi -notmatch 'InitializeLeagueAutomationSurface') {
+    Fail 'League runtime surface must initialize product services, product actions and automation controls.'
+}
+foreach ($required in @(
+    'LeagueAutoMatchmakingToggle.IsOn', 'LeagueAutoAcceptToggle.IsOn',
+    'LeagueAutomationSettingsSaved', 'LeagueAutomationSettingsFailed',
+    'AutomationProperties.SetName', 'AutomationProperties.SetHelpText'
+)) {
+    if ($automationUi -notmatch [regex]::Escape($required)) {
+        Fail "League automation WinUI control behavior is missing: $required"
+    }
 }
 
 foreach ($name in @(
     'LeagueWorkbenchPanel', 'LeagueMatchTitle', 'LeagueStrategyTitle', 'LeagueAutomationTitle',
-    'LeagueStateValue', 'LeagueBudgetValue'
+    'LeagueStateValue', 'LeagueBudgetValue', 'LeagueAutoMatchmakingToggle',
+    'LeagueAutoMatchmakingHint', 'LeagueAutoAcceptToggle', 'LeagueAutoAcceptHint',
+    'LeagueAutomationSettingsStatus'
 )) {
     if ((Count-Matches $mainXaml ('x:Name="' + [regex]::Escape($name) + '"')) -ne 1) {
         Fail "League Workbench XAML surface is missing or duplicated: $name"
+    }
+}
+foreach ($automationId in @('FACM.League.AutoMatchmaking', 'FACM.League.AutoAccept', 'FACM.League.AutomationSettingsStatus')) {
+    if ((Count-Matches $mainXaml ('AutomationId="' + [regex]::Escape($automationId) + '"')) -ne 1) {
+        Fail "League Workbench automation id is missing or duplicated: $automationId"
     }
 }
 
@@ -298,7 +338,10 @@ foreach ($constant in @(
     'LeagueWorkbenchStateLabel', 'LeagueWorkbenchBudgetLabel',
     'LeagueStateNotRunning', 'LeagueStateConnecting', 'LeagueStateLobby',
     'LeagueStateMatchmaking', 'LeagueStateReadyCheck', 'LeagueStateChampSelect',
-    'LeagueStateInGame', 'LeagueStatePostGame', 'LeagueStateClientError'
+    'LeagueStateInGame', 'LeagueStatePostGame', 'LeagueStateClientError',
+    'LeagueAutoMatchmaking', 'LeagueAutoMatchmakingHint', 'LeagueAutoAccept',
+    'LeagueAutoAcceptHint', 'LeagueAutomationSettingsReady',
+    'LeagueAutomationSettingsSaved', 'LeagueAutomationSettingsFailed'
 )) {
     if ($text -notmatch ('public const string\s+' + [regex]::Escape($constant) + '\s*=')) {
         Fail "League Workbench UI Text key missing: $constant"
@@ -314,4 +357,5 @@ Write-Host 'League Workbench real surface: dashboard / player / live snapshots'
 Write-Host 'League Build Advisor: user-driven OP.GG + in-game cache-only'
 Write-Host 'League Item Sets: explicit-confirmation + FACM4-owned atomic write'
 Write-Host 'League Matchmaking: shared heartbeat + leader/member eligibility + one-shot ReadyCheck accept'
+Write-Host 'League Matchmaking controls: Settings 2.0 persisted WinUI toggles through Core intent boundary'
 Write-Host 'FACM 4.0 League Workbench contract: SUCCESS'
