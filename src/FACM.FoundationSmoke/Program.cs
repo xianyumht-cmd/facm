@@ -28,6 +28,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("productization League item sets", LeagueItemSetSmoke.RunAsync),
     ("productization League matchmaking automation", LeagueMatchmakingAutomationSmoke.RunAsync),
     ("productization League post-game automation", LeaguePostGameAutomationSmoke.RunAsync),
+    ("productization League presence", LeaguePresenceSmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
@@ -139,6 +140,8 @@ static void TestLeagueWritePolicy()
     True(LeagueWriteTargetPolicy.Matches(search, "POST", "/lol-lobby/v2/lobby/matchmaking/search"), "matchmaking search allowlist");
     var accept = new LeagueWriteCommand(LeagueWriteCapability.AcceptReadyCheck, null, null);
     True(LeagueWriteTargetPolicy.Matches(accept, "POST", "/lol-matchmaking/v1/ready-check/accept"), "ready-check accept allowlist");
+    var presence = new LeagueWriteCommand(LeagueWriteCapability.SetPresence, null, "{}");
+    True(LeagueWriteTargetPolicy.Matches(presence, "PUT", "/lol-chat/v1/me"), "presence allowlist");
     try
     {
         LeagueWriteTargetPolicy.Resolve(new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 0, "{}"));
