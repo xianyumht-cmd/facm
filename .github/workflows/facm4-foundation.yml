@@ -75,6 +75,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-league-recommended.ps1
 
+      - name: Verify League efficiency contract
+        shell: pwsh
+        run: ./scripts/check-facm4-league-efficiency.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
