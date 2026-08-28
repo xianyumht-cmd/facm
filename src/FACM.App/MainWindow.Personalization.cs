@@ -35,6 +35,7 @@ public sealed partial class MainWindow
     {
         if (_personalizationCenter is not null) return;
         _personalizationCenter = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _personalizationCenter.PropertyChanged += OnPersonalizationViewModelPropertyChanged;
         _overviewDefaultChildren = GeneralOverviewGrid.Children.Cast<UIElement>().ToArray();
         _personalizationPanel = BuildPersonalizationPanel(viewModel);
         Grid.SetColumnSpan(_personalizationPanel, 2);
@@ -250,15 +251,25 @@ public sealed partial class MainWindow
 
     private async void OnPetSelectionChanged(object sender, SelectionChangedEventArgs args)
     {
-        if (_syncingPetSelection || _personalizationCenter is null || _petPicker?.SelectedItem is not FacmPetDefinition selected)
+        var viewModel = _personalizationCenter;
+        if (_syncingPetSelection || viewModel is null || _petPicker?.SelectedItem is not FacmPetDefinition selected)
             return;
+        if (viewModel.IsBusy)
+        {
+            TracePersonalizationPetAction("pet-select-busy-rejected", false, selected.Id, viewModel.Status);
+            SyncPersonalizationSurface();
+            return;
+        }
 
+        TracePersonalizationPetAction("pet-select-start", true, selected.Id, viewModel.Status);
         try
         {
-            await _personalizationCenter.SelectPetAsync(selected.Id);
+            var success = await viewModel.SelectPetAsync(selected.Id);
+            TracePersonalizationPetAction(success ? "pet-select-finish" : "pet-select-failed", success, selected.Id, viewModel.Status);
         }
         catch (OperationCanceledException)
         {
+            TracePersonalizationPetAction("pet-select-cancelled", false, selected.Id, viewModel.Status);
         }
         finally
         {
@@ -270,12 +281,23 @@ public sealed partial class MainWindow
     {
         var viewModel = _personalizationCenter;
         if (viewModel is null) return;
+        var petId = viewModel.SelectedPet.Id;
+        if (viewModel.IsBusy)
+        {
+            TracePersonalizationPetAction("pet-enable-busy-rejected", false, petId, viewModel.Status);
+            SyncPersonalizationSurface();
+            return;
+        }
+
+        TracePersonalizationPetAction("pet-enable-start", true, petId, viewModel.Status);
         try
         {
-            await viewModel.EnableSelectedPetAsync();
+            var success = await viewModel.EnableSelectedPetAsync();
+            TracePersonalizationPetAction(success ? "pet-enable-finish" : "pet-enable-failed", success, petId, viewModel.Status);
         }
         catch (OperationCanceledException)
         {
+            TracePersonalizationPetAction("pet-enable-cancelled", false, petId, viewModel.Status);
         }
         finally
         {
@@ -287,12 +309,18 @@ public sealed partial class MainWindow
     {
         var viewModel = _personalizationCenter;
         if (viewModel is null) return;
+        var petId = viewModel.SelectedPet.Id;
+        if (viewModel.IsBusy)
+        {
+            TracePersonalizationPetAction("pet-restore-busy-rejected", false, petId, viewModel.Status);
+            return;
+        }
+
+        TracePersonalizationPetAction("pet-restore-start", true, petId, viewModel.Status);
         try
         {
             await viewModel.RestoreDefaultLauncherAsync();
-        }
-        catch (OperationCanceledException)
-        {
+            TracePersonalizationPetAction("pet-restore-finish", true, petId, viewModel.Status);
         }
         finally
         {
@@ -304,12 +332,18 @@ public sealed partial class MainWindow
     {
         var viewModel = _personalizationCenter;
         if (viewModel is null) return;
+        var petId = viewModel.SelectedPet.Id;
+        if (viewModel.IsBusy)
+        {
+            TracePersonalizationPetAction("pet-reset-position-busy-rejected", false, petId, viewModel.Status);
+            return;
+        }
+
+        TracePersonalizationPetAction("pet-reset-position-start", true, petId, viewModel.Status);
         try
         {
             await viewModel.ResetDesktopPositionAsync();
-        }
-        catch (OperationCanceledException)
-        {
+            TracePersonalizationPetAction("pet-reset-position-finish", true, petId, viewModel.Status);
         }
         finally
         {
@@ -321,6 +355,8 @@ public sealed partial class MainWindow
     {
         RootNavigation.SelectionChanged -= OnPersonalizationNavigationChanged;
         Closed -= OnPersonalizationClosed;
+        if (_personalizationCenter is not null)
+            _personalizationCenter.PropertyChanged -= OnPersonalizationViewModelPropertyChanged;
         if (_themePicker is not null) _themePicker.SelectionChanged -= OnThemeSelectionChanged;
         if (_petPicker is not null) _petPicker.SelectionChanged -= OnPetSelectionChanged;
         if (_petEnableButton is not null) _petEnableButton.Click -= OnEnablePetClicked;
