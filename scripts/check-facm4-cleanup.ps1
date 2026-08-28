@@ -65,7 +65,7 @@ if ($environment -match 'System\.Windows\.Forms|Microsoft\.UI\.Xaml') {
 
 foreach ($required in @(
     'WindowsCleanupEngine', 'CreatePlanAsync', 'ExecuteAsync', 'CollapseNestedTargets',
-    'RevalidateTarget', 'EnsureNotReparsePoint', 'FileAttributes.ReparsePoint',
+    'RevalidateTarget', 'EnsureNotReparsePoint', 'EnsureNoReparsePointInPath', 'FileAttributes.ReparsePoint',
     'CombineInsideRoot', 'PreservedChildFolderName', 'CleanupRuleKind.ProgramFilesDirectory',
     'CleanupRuleKind.ProgramDataDirectory', 'CleanupRuleKind.ContainerChild',
     'CleanupRuleKind.ExtraDirectory', 'CleanupRuleKind.LogFile',
@@ -147,6 +147,9 @@ foreach ($required in @(
     'unconfirmed cleanup must not delete data',
     'process guard must reject before deletion',
     'execution-time allowlist must reject forged target',
+    'parent reparse guard must block preview through junction',
+    'execution-time parent reparse guard must reject post-preview junction swap',
+    'parent reparse guard must protect external data',
     'preserved DATA directory must survive execution',
     'non-log sibling must survive cleanup',
     'unrelated file must survive valid cleanup'
@@ -156,7 +159,7 @@ foreach ($required in @(
 
 Write-Host 'Cleanup Core profile/confirmation boundary: OK'
 Write-Host 'Cleanup Windows path/process/elevation boundary: OK'
-Write-Host 'Cleanup allowlist/reparse/execution-time revalidation: OK'
+Write-Host 'Cleanup allowlist/reparse/ancestor-chain execution-time revalidation: OK'
 Write-Host 'Cleanup ViewModel Settings 2.0/recovery boundary: OK'
 Write-Host 'Cleanup WinUI preview/confirm/progress presentation boundary: OK'
 Write-Host 'Cleanup deterministic no-unrelated-delete smoke: OK'
