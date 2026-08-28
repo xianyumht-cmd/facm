@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FACM.Core.Cleanup;
 using FACM.Platform.Windows.Cleanup;
 
@@ -72,6 +73,41 @@ internal static class CleanupSmoke
             True(maliciousResult.Failures.Count == 1, "execution-time allowlist must reject forged target");
             True(File.Exists(outside), "execution-time revalidation must leave unrelated file untouched");
 
+            var launcherPath = Path.Combine(gameRoot, "Launcher");
+            var launcherBackup = Path.Combine(gameRoot, "Launcher.original");
+            var junctionOutside = Path.Combine(root, "junction-outside");
+            var junctionOutsideTarget = Path.Combine(junctionOutside, "AntiCheatExpert");
+            var junctionOutsideFile = Path.Combine(junctionOutsideTarget, "must-survive.bin");
+            var launcherTarget = plan.DeletableTargets.Single(target =>
+                target.Rule == CleanupRuleKind.ExtraDirectory &&
+                string.Equals(target.Path, Path.Combine(launcherPath, "AntiCheatExpert"), StringComparison.OrdinalIgnoreCase));
+
+            Directory.CreateDirectory(junctionOutsideTarget);
+            File.WriteAllText(junctionOutsideFile, "must-survive-parent-junction");
+            Directory.Move(launcherPath, launcherBackup);
+            CreateDirectoryJunction(launcherPath, junctionOutside);
+            try
+            {
+                var junctionPreview = await service.PreviewAsync(gameRoot);
+                var blockedJunctionTarget = junctionPreview.Targets.Single(target =>
+                    target.Rule == CleanupRuleKind.ExtraDirectory &&
+                    string.Equals(target.Path, Path.Combine(launcherPath, "AntiCheatExpert"), StringComparison.OrdinalIgnoreCase));
+                True(blockedJunctionTarget.Blocked,
+                    "parent reparse guard must block preview through junction");
+
+                var mutationPlan = new CleanupPlan(gameRoot, [launcherTarget]);
+                var mutationResult = await service.ExecuteConfirmedAsync(mutationPlan, confirmed: true);
+                True(mutationResult.Failures.Count == 1,
+                    "execution-time parent reparse guard must reject post-preview junction swap");
+                True(File.Exists(junctionOutsideFile),
+                    "parent reparse guard must protect external data");
+            }
+            finally
+            {
+                RemoveDirectoryJunction(launcherPath);
+                Directory.Move(launcherBackup, launcherPath);
+            }
+
             var result = await service.ExecuteConfirmedAsync(plan, confirmed: true);
             True(result.Failures.Count == 0, "valid configured cleanup should complete without failures");
             True(Directory.Exists(Path.Combine(gameRoot, "Game", "DATA")), "preserved DATA directory must survive execution");
@@ -83,9 +119,11 @@ internal static class CleanupSmoke
             True(!File.Exists(Path.Combine(gameRoot, "LeagueClient", "delete.log")), "configured top-level log should be deleted");
             True(File.Exists(Path.Combine(gameRoot, "LeagueClient", "keep.txt")), "non-log sibling must survive cleanup");
             True(File.Exists(outside), "unrelated file must survive valid cleanup");
+            True(File.Exists(junctionOutsideFile), "junction external file must survive valid cleanup");
         }
         finally
         {
+            TryRemoveDirectoryJunction(Path.Combine(gameRoot, "Launcher"));
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
@@ -120,6 +158,49 @@ internal static class CleanupSmoke
         File.WriteAllText(Path.Combine(gameRoot, "LeagueClient", "AntiCheatExpert", "b.bin"), "delete");
         File.WriteAllText(Path.Combine(gameRoot, "LeagueClient", "delete.log"), "delete");
         File.WriteAllText(Path.Combine(gameRoot, "LeagueClient", "keep.txt"), "keep");
+    }
+
+    private static void CreateDirectoryJunction(string junctionPath, string targetPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/d /c mklink /J \"{junctionPath}\" \"{targetPath}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("failed to start mklink");
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"mklink /J failed ({process.ExitCode}): {output} {error}");
+        True((File.GetAttributes(junctionPath) & FileAttributes.ReparsePoint) != 0,
+            "junction smoke setup must create a reparse point");
+    }
+
+    private static void RemoveDirectoryJunction(string junctionPath)
+    {
+        if (!Directory.Exists(junctionPath)) return;
+        True((File.GetAttributes(junctionPath) & FileAttributes.ReparsePoint) != 0,
+            "junction cleanup path must still be a reparse point");
+        Directory.Delete(junctionPath, recursive: false);
+    }
+
+    private static void TryRemoveDirectoryJunction(string junctionPath)
+    {
+        try
+        {
+            if (!Directory.Exists(junctionPath)) return;
+            if ((File.GetAttributes(junctionPath) & FileAttributes.ReparsePoint) == 0) return;
+            Directory.Delete(junctionPath, recursive: false);
+        }
+        catch
+        {
+            // Best effort only so the main smoke failure remains visible.
+        }
     }
 
     private static void True(bool value, string name)
