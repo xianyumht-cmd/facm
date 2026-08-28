@@ -13,6 +13,7 @@ internal static class MayhemQuerySmoke
         await MayhemAugmentSmoke.RunAsync();
         await MayhemBuildDetailsSmoke.RunAsync();
         await MayhemBaseBalanceSmoke.RunAsync();
+        await MayhemLocalizationSmoke.RunAsync();
     }
 
     private static void ValidateAliasCompatibility()
