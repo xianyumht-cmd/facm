@@ -1,9 +1,18 @@
 using System.Runtime.InteropServices;
+using FACM.Core.Desktop;
 
 namespace FACM.Platform.Windows.Desktop;
 
 public sealed class WindowsFloatingSurfacePlatform
 {
+    public bool TryGetCursorPosition(out DesktopPoint position)
+    {
+        position = default;
+        if (!GetCursorPos(out var point)) return false;
+        position = new DesktopPoint(point.X, point.Y);
+        return position.IsFinite;
+    }
+
     public bool TryApplyCircularRegion(IntPtr windowHandle, int fallbackWidthPixels, int fallbackHeightPixels)
     {
         if (windowHandle == IntPtr.Zero || fallbackWidthPixels <= 0 || fallbackHeightPixels <= 0) return false;
@@ -96,4 +105,8 @@ public sealed class WindowsFloatingSurfacePlatform
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ClientToScreen(IntPtr windowHandle, ref NativePoint point);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint point);
 }
