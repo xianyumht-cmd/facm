@@ -39,6 +39,7 @@ public enum LeagueWriteCapability
     HonorPlayerLegacy,
     SubmitHonorBallotLegacy,
     PlayAgain,
+    SetPresence,
     RestartClientUx
 }
 
@@ -73,6 +74,7 @@ public static class LeagueWriteTargetPolicy
             LeagueWriteCapability.HonorPlayerLegacy => new("POST", "/lol-honor/v1/honor"),
             LeagueWriteCapability.SubmitHonorBallotLegacy => new("POST", "/lol-honor/v1/ballot"),
             LeagueWriteCapability.PlayAgain => new("POST", "/lol-lobby/v2/play-again"),
+            LeagueWriteCapability.SetPresence => new("PUT", "/lol-chat/v1/me"),
             LeagueWriteCapability.RestartClientUx => new("POST", "/riotclient/kill-and-restart-ux"),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
