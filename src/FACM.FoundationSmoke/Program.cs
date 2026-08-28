@@ -51,7 +51,7 @@ static void TestHost()
         host.Register(new TestModule("consumer", ["core"], events));
         host.Register(new TestModule("core", [], events));
         host.Initialize();
-        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder, "topological init order"));
+        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder), "topological init order");
     }
     Equal("init:core,init:consumer,dispose:consumer,dispose:core", string.Join(',', events), "reverse dispose order");
 
