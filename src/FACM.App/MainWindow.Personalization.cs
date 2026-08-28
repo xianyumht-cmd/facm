@@ -1,4 +1,3 @@
-using FACM.App.Personalization;
 using FACM.App.ViewModels;
 using FACM.Core.Personalization;
 using FACM.Core.Text;
@@ -18,17 +17,18 @@ public sealed partial class MainWindow
     private UIElement[]? _overviewDefaultChildren;
     private bool _syncingThemeSelection;
 
-    private void InitializePersonalizationSurface()
+    internal void ConfigurePersonalization(PersonalizationViewModel viewModel)
     {
-        var themeRuntime = new WinUiThemeRuntime(Application.Current.Resources);
-        _personalizationCenter = _controlCenter.CreatePersonalization(themeRuntime);
-        _personalizationCenter.InitializeForStartup();
-
+        if (_personalizationCenter is not null) return;
+        _personalizationCenter = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _overviewDefaultChildren = GeneralOverviewGrid.Children.Cast<UIElement>().ToArray();
-        _personalizationPanel = BuildPersonalizationPanel(_personalizationCenter);
+        _personalizationPanel = BuildPersonalizationPanel(viewModel);
         Grid.SetColumnSpan(_personalizationPanel, 2);
         _personalizationPanel.Visibility = Visibility.Collapsed;
         GeneralOverviewGrid.Children.Add(_personalizationPanel);
+        RootNavigation.SelectionChanged += OnPersonalizationNavigationChanged;
+        Closed += OnPersonalizationClosed;
+        SetPersonalizationVisible(IsPersonalizationSelected());
         SyncPersonalizationSurface();
     }
 
@@ -82,6 +82,16 @@ public sealed partial class MainWindow
         return panel;
     }
 
+    private void OnPersonalizationNavigationChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        var selected = args.SelectedItemContainer as NavigationViewItem;
+        SetPersonalizationVisible(string.Equals(selected?.Tag?.ToString(), "personalization", StringComparison.Ordinal));
+    }
+
+    private bool IsPersonalizationSelected() =>
+        RootNavigation.SelectedItem is NavigationViewItem item &&
+        string.Equals(item.Tag?.ToString(), "personalization", StringComparison.Ordinal);
+
     private void SetPersonalizationVisible(bool visible)
     {
         if (_personalizationPanel is null || _overviewDefaultChildren is null) return;
@@ -132,8 +142,10 @@ public sealed partial class MainWindow
         }
     }
 
-    private void DisposePersonalizationSurface()
+    private void OnPersonalizationClosed(object sender, WindowEventArgs args)
     {
+        RootNavigation.SelectionChanged -= OnPersonalizationNavigationChanged;
+        Closed -= OnPersonalizationClosed;
         if (_themePicker is not null) _themePicker.SelectionChanged -= OnThemeSelectionChanged;
         _themePicker = null;
         _themeDescription = null;
