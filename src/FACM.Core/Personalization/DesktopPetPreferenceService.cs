@@ -13,11 +13,13 @@ public sealed class DesktopPetPreferenceService
 {
     private readonly ISettings2Repository _settings;
     private readonly IDesktopPetRuntime _runtime;
+    private readonly SemaphoreSlim _failureRepairGate = new(1, 1);
 
     public DesktopPetPreferenceService(ISettings2Repository settings, IDesktopPetRuntime runtime)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _runtime.StateChanged += OnRuntimeStateChanged;
     }
 
     public event EventHandler<DesktopPetRuntimeState>? RuntimeStateChanged
@@ -105,6 +107,48 @@ public sealed class DesktopPetPreferenceService
         loaded.Settings.Pets.BallX = int.MinValue;
         loaded.Settings.Pets.BallY = int.MinValue;
         await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void OnRuntimeStateChanged(object? sender, DesktopPetRuntimeState state)
+    {
+        if (state.StartRequested || state.PetVisible ||
+            !state.Detail.StartsWith("runtime-failed:", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        _ = RepairFailedRuntimePreferenceAsync(state);
+    }
+
+    private async Task RepairFailedRuntimePreferenceAsync(DesktopPetRuntimeState failedState)
+    {
+        await _failureRepairGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var current = _runtime.Current;
+            if (current.StartRequested || current.PetVisible || !string.Equals(current.Detail, failedState.Detail, StringComparison.Ordinal))
+                return;
+
+            var loaded = await _settings.LoadAsync().ConfigureAwait(false);
+            if (IsRecoveryReadOnly(loaded.Origin) || !loaded.Settings.Pets.Enabled) return;
+
+            // Re-check after the async settings read so a user re-enable racing this recovery does not get
+            // overwritten by an older process-exit notification.
+            current = _runtime.Current;
+            if (current.StartRequested || current.PetVisible || !string.Equals(current.Detail, failedState.Detail, StringComparison.Ordinal))
+                return;
+
+            loaded.Settings.Pets.Enabled = false;
+            await _settings.SaveAsync(loaded.Settings).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Runtime recovery already restored the always-available F entry. A settings repair failure
+            // must not turn that fail-soft path into a process failure.
+        }
+        finally
+        {
+            _failureRepairGate.Release();
+        }
     }
 
     private DesktopPetPreferenceSnapshot Snapshot(
