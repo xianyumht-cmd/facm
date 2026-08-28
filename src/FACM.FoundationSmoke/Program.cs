@@ -24,6 +24,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("gate6 design system and shell text", Gate6Smoke.RunAsync),
     ("gate7 desktop anchor placement", Gate7Smoke.RunAsync),
     ("gate8 state-driven League Workbench", Gate8Smoke.RunAsync),
+    ("productization League Build Advisor", LeagueBuildAdvisorSmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
