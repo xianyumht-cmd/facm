@@ -16,8 +16,10 @@ $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/PersonalizationViewMod
 $runtimePath = Join-Path $Root 'src/FACM.App/Personalization/WinUiThemeRuntime.cs'
 $surfacePath = Join-Path $Root 'src/FACM.App/MainWindow.Personalization.cs'
 $controlCenterPath = Join-Path $Root 'src/FACM.App/ViewModels/ControlCenterViewModel.cs'
+$smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/PersonalizationSmoke.cs'
+$foundationProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 
-foreach ($path in @($coreCatalogPath, $coreContractsPath, $settingsPath, $viewModelPath, $runtimePath, $surfacePath, $controlCenterPath)) {
+foreach ($path in @($coreCatalogPath, $coreContractsPath, $settingsPath, $viewModelPath, $runtimePath, $surfacePath, $controlCenterPath, $smokePath, $foundationProgramPath)) {
     if (-not (Test-Path $path)) { Fail "Personalization contract file missing: $path" }
 }
 
@@ -27,6 +29,8 @@ $viewModel = Get-Content $viewModelPath -Raw
 $runtime = Get-Content $runtimePath -Raw
 $surface = Get-Content $surfacePath -Raw
 $controlCenter = Get-Content $controlCenterPath -Raw
+$smoke = Get-Content $smokePath -Raw
+$foundationProgram = Get-Content $foundationProgramPath -Raw
 
 foreach ($forbidden in @('Microsoft\.UI', 'Windows\.UI', 'System\.Windows\.Forms', 'System\.Drawing', 'System\.Diagnostics', 'DllImport', 'LibraryImport')) {
     if ($core -match $forbidden) { Fail "Core personalization contract crossed platform/UI boundary: $forbidden" }
@@ -73,10 +77,21 @@ foreach ($required in @('FACM.Personalization.ThemePicker', 'DisplayMemberPath',
 if ($surface -match 'System\.Diagnostics|HttpClient|\bFile\.|\bDirectory\.') { Fail 'Personalization Shell presentation owns platform/data access.' }
 if ($controlCenter -notmatch 'CreatePersonalization') { Fail 'Existing Settings 2.0 owner must compose the personalization ViewModel.' }
 
+foreach ($required in @(
+    'stable theme count', 'unknown theme fallback', 'unique theme ids',
+    'stable default pet id', 'unknown pet fallback', 'visible VPet Core route',
+    'legacy pet id compatibility', 'new installs must not auto-enable desktop pet',
+    'unsupported theme rejection', 'unsupported pet rejection'
+)) {
+    if ($smoke -notmatch [regex]::Escape($required)) { Fail "Personalization smoke missing assertion: $required" }
+}
+if ($foundationProgram -notmatch 'PersonalizationSmoke\.Run\(\)') { Fail 'Foundation smoke runner does not execute personalization smoke.' }
+
 Write-Host 'Personalization stable theme catalog: OK'
 Write-Host 'Personalization stable pet compatibility catalog: OK'
 Write-Host 'Settings 2.0 shared catalog ownership: OK'
 Write-Host 'Theme ViewModel recovery/persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
 Write-Host 'Personalization Shell theme picker: OK'
+Write-Host 'Personalization deterministic catalog smoke: OK'
 Write-Host 'FACM 4.0 Personalization foundation contract: SUCCESS'
