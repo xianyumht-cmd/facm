@@ -16,6 +16,16 @@ public sealed partial class MainWindow
     {
         if (_leagueWorkbenchRuntimeConfigured) return;
         _leagueWorkbenchRuntimeConfigured = true;
+
+        // Product helpers are optional and fail-soft. They reuse the Workbench's existing shared
+        // data source/gateway; a provider problem must never prevent Dashboard/Player/Live from working.
+        if (Application.Current is App app)
+        {
+            try { app.ConfigureLeagueWorkbenchProductization(_leagueWorkbench); }
+            catch { }
+        }
+        InitializeLeagueWorkbenchProductActions();
+
         RootNavigation.SelectionChanged += OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchRuntimePropertyChanged;
         Closed += OnLeagueWorkbenchRuntimeClosed;
@@ -42,7 +52,14 @@ public sealed partial class MainWindow
             nameof(LeagueWorkbenchViewModel.Dashboard) or
             nameof(LeagueWorkbenchViewModel.Player) or
             nameof(LeagueWorkbenchViewModel.Live) or
-            nameof(LeagueWorkbenchViewModel.IsRefreshing);
+            nameof(LeagueWorkbenchViewModel.Advisor) or
+            nameof(LeagueWorkbenchViewModel.ItemSetStatus) or
+            nameof(LeagueWorkbenchViewModel.PreparedItemSet) or
+            nameof(LeagueWorkbenchViewModel.IsRefreshing) or
+            nameof(LeagueWorkbenchViewModel.IsAdvisorRefreshing) or
+            nameof(LeagueWorkbenchViewModel.IsItemSetBusy) or
+            nameof(LeagueWorkbenchViewModel.CanPrepareItemSet) or
+            nameof(LeagueWorkbenchViewModel.HasProductServices);
         if (!render) return;
 
         _ = DispatcherQueue.TryEnqueue(() =>
@@ -79,6 +96,7 @@ public sealed partial class MainWindow
         LeagueMatchDescription.Text = BuildDashboardSummary(_leagueWorkbench.Dashboard, _leagueWorkbench.Live);
         LeagueStrategyDescription.Text = BuildPlayerSummary(_leagueWorkbench.Player);
         LeagueAutomationDescription.Text = BuildLiveSummary(_leagueWorkbench.Live, _leagueWorkbench.IsRefreshing);
+        SyncLeagueWorkbenchProductActions();
     }
 
     private bool IsLeagueWorkbenchSelected() =>
@@ -212,5 +230,6 @@ public sealed partial class MainWindow
         RootNavigation.SelectionChanged -= OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchRuntimePropertyChanged;
         Closed -= OnLeagueWorkbenchRuntimeClosed;
+        DisposeLeagueWorkbenchProductActions();
     }
 }
