@@ -11,26 +11,46 @@ function Fail([string]$Message) {
 
 $coreCatalogPath = Join-Path $Root 'src/FACM.Core/Personalization/PersonalizationCatalog.cs'
 $coreContractsPath = Join-Path $Root 'src/FACM.Core/Personalization/PersonalizationContracts.cs'
+$preferencePath = Join-Path $Root 'src/FACM.Core/Personalization/DesktopPetPreferenceService.cs'
 $settingsPath = Join-Path $Root 'src/FACM.Core/Settings/Settings2.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/PersonalizationViewModel.cs'
 $runtimePath = Join-Path $Root 'src/FACM.App/Personalization/WinUiThemeRuntime.cs'
 $surfacePath = Join-Path $Root 'src/FACM.App/MainWindow.Personalization.cs'
+$appPersonalizationPath = Join-Path $Root 'src/FACM.App/App.Personalization.cs'
+$appProjectPath = Join-Path $Root 'src/FACM.App/FACM.App.csproj'
 $controlCenterPath = Join-Path $Root 'src/FACM.App/ViewModels/ControlCenterViewModel.cs'
+$bundleStorePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsPetHostBundleStore.cs'
+$vpetRuntimePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsVPetRuntime.cs'
+$jobPath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsChildProcessJob.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/PersonalizationSmoke.cs'
 $foundationProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
+$windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
+$workflowPath = Join-Path $Root '.github/workflows/facm4-foundation.yml'
 
-foreach ($path in @($coreCatalogPath, $coreContractsPath, $settingsPath, $viewModelPath, $runtimePath, $surfacePath, $controlCenterPath, $smokePath, $foundationProgramPath)) {
+foreach ($path in @(
+    $coreCatalogPath, $coreContractsPath, $preferencePath, $settingsPath, $viewModelPath, $runtimePath,
+    $surfacePath, $appPersonalizationPath, $appProjectPath, $controlCenterPath, $bundleStorePath,
+    $vpetRuntimePath, $jobPath, $smokePath, $foundationProgramPath, $windowsSmokePath, $workflowPath
+)) {
     if (-not (Test-Path $path)) { Fail "Personalization contract file missing: $path" }
 }
 
 $core = (Get-Content $coreCatalogPath -Raw) + "`n" + (Get-Content $coreContractsPath -Raw)
+$preference = Get-Content $preferencePath -Raw
 $settings = Get-Content $settingsPath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
 $runtime = Get-Content $runtimePath -Raw
 $surface = Get-Content $surfacePath -Raw
+$appPersonalization = Get-Content $appPersonalizationPath -Raw
+$appProject = Get-Content $appProjectPath -Raw
 $controlCenter = Get-Content $controlCenterPath -Raw
+$bundleStore = Get-Content $bundleStorePath -Raw
+$vpetRuntime = Get-Content $vpetRuntimePath -Raw
+$job = Get-Content $jobPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $foundationProgram = Get-Content $foundationProgramPath -Raw
+$windowsSmoke = Get-Content $windowsSmokePath -Raw
+$workflow = Get-Content $workflowPath -Raw
 
 foreach ($forbidden in @('Microsoft\.UI', 'Windows\.UI', 'System\.Windows\.Forms', 'System\.Drawing', 'System\.Diagnostics', 'DllImport', 'LibraryImport')) {
     if ($core -match $forbidden) { Fail "Core personalization contract crossed platform/UI boundary: $forbidden" }
@@ -64,12 +84,17 @@ foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'Mic
 }
 foreach ($required in @(
     'ISettings2Repository', 'IFacmThemeRuntime', 'InitializeForStartup', 'SelectThemeAsync', 'SelectPetAsync',
+    'InitializeDesktopPetAsync', 'EnableSelectedPetAsync', 'RestoreDefaultLauncherAsync', 'ResetDesktopPositionAsync',
     'RecoveredLastKnownGood', 'RecoveryDefaults', 'Appearance.ThemeId', 'Pets.StyleId', 'Pets.Enabled', 'SaveAsync'
 )) {
     if ($viewModel -notmatch [regex]::Escape($required)) { Fail "PersonalizationViewModel behavior missing: $required" }
 }
 if ($viewModel -match 'Pets\.Enabled\s*=\s*true') {
-    Fail 'Pet style selection must not silently enable desktop pet mode before a real desktop-pet runtime succeeds.'
+    Fail 'Pet style selection must not silently enable desktop pet mode before an explicit runtime intent.'
+}
+
+foreach ($required in @('DesktopPetPreferenceService', 'Pets.Enabled = true', 'Pets.Enabled = false', 'ApplyAsync(true', 'ApplyAsync(false', 'RecoveryDefaults', 'ResetPositionAsync')) {
+    if ($preference -notmatch [regex]::Escape($required)) { Fail "Desktop pet settings/runtime coordinator missing: $required" }
 }
 
 foreach ($required in @('WinUiThemeRuntime', 'AccessibilitySettings', 'HighContrast', 'FacmBackgroundBrush', 'FacmSurfaceBrush', 'FacmTextPrimaryBrush', 'FacmAccentBrush', 'FacmStrokeBrush')) {
@@ -79,12 +104,42 @@ if ($runtime -match '\bFile\.|\bDirectory\.|Settings2Repository') { Fail 'WinUI 
 
 foreach ($required in @(
     'FACM.Personalization.ThemePicker', 'FACM.Personalization.PetPicker', 'DisplayMemberPath',
-    'SelectThemeAsync', 'SelectPetAsync', 'ConfigurePersonalization', 'OnPersonalizationNavigationChanged'
+    'SelectThemeAsync', 'SelectPetAsync', 'ConfigurePersonalization', 'OnPersonalizationNavigationChanged',
+    'CreatePersonalizationViewModel', 'InitializeDesktopPetAfterLauncherReadyAsync'
 )) {
     if ($surface -notmatch [regex]::Escape($required)) { Fail "Personalization Shell surface missing: $required" }
 }
 if ($surface -match 'System\.Diagnostics|HttpClient|\bFile\.|\bDirectory\.') { Fail 'Personalization Shell presentation owns platform/data access.' }
 if ($controlCenter -notmatch 'CreatePersonalization') { Fail 'Existing Settings 2.0 owner must compose the personalization ViewModel.' }
+
+foreach ($required in @(
+    'CreatePersonalizationViewModel', 'WinUiThemeRuntime', 'WindowsPetHostBundleStore', 'WindowsVPetRuntime',
+    'GetManifestResourceStream', 'ConfigureDesktopPetService', 'InitializeDesktopPetAfterLauncherReadyAsync',
+    'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync'
+)) {
+    if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "App personalization composition missing: $required" }
+}
+
+foreach ($required in @('FACM.Resources.PetHost.zip', 'PetHostBundlePath', 'RequirePetHostBundle', 'EmbeddedResource')) {
+    if ($appProject -notmatch [regex]::Escape($required)) { Fail "FACM.App controlled PetHost embedding missing: $required" }
+}
+
+foreach ($required in @('WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal', 'CriticalPayloadFiles')) {
+    if ($bundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled PetHost bundle store missing: $required" }
+}
+foreach ($required in @('IDesktopPetRuntime', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign', 'activate|', 'event|', 'ready', 'runtime-failed', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)')) {
+    if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "VPet runtime owner missing: $required" }
+}
+foreach ($required in @('JobObjectLimitKillOnJobClose', 'AssignProcessToJobObject', 'SetInformationJobObject')) {
+    if ($job -notmatch [regex]::Escape($required)) { Fail "PetHost Job Object containment missing: $required" }
+}
+
+foreach ($required in @('Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive', 'PetHostBundle.zip', 'RequirePetHostBundle=true')) {
+    if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow PetHost packaging missing: $required" }
+}
+foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'path traversal', 'BundleSha256')) {
+    if ($windowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows controlled PetHost smoke missing: $required" }
+}
 
 foreach ($required in @(
     'stable theme count', 'unknown theme fallback', 'unique theme ids',
@@ -101,6 +156,9 @@ Write-Host 'Personalization stable pet compatibility catalog: OK'
 Write-Host 'Settings 2.0 shared catalog ownership: OK'
 Write-Host 'Theme/pet selection recovery and persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
-Write-Host 'Personalization Shell theme and pet pickers: OK'
-Write-Host 'Personalization deterministic catalog smoke: OK'
+Write-Host 'App-owned theme and desktop pet composition: OK'
+Write-Host 'Controlled PetHost bundle SHA/extraction boundary: OK'
+Write-Host 'VPet named-pipe and Job Object runtime boundary: OK'
+Write-Host 'Foundation PetHost packaging/self-test contract: OK'
+Write-Host 'Personalization deterministic catalog and Windows bundle smoke: OK'
 Write-Host 'FACM 4.0 Personalization foundation contract: SUCCESS'
