@@ -77,10 +77,9 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             var client = GetOrCreateClient(session);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(_requestTimeout);
-            using var request = new HttpRequestMessage(new HttpMethod(target.Method), target.Path)
-            {
-                Content = new StringContent(command.Json ?? string.Empty, Encoding.UTF8, "application/json")
-            };
+            using var request = new HttpRequestMessage(new HttpMethod(target.Method), target.Path);
+            if (command.Json is not null)
+                request.Content = new StringContent(command.Json, Encoding.UTF8, "application/json");
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) _sessions.Invalidate(session);
             var body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
