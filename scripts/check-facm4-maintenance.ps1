@@ -15,28 +15,39 @@ function Require-Text([string]$Text, [string]$Needle, [string]$Message) {
 
 $coreAnnouncementPath = Join-Path $Root 'src/FACM.Core/Online/AnnouncementContracts.cs'
 $coreMaintenancePath = Join-Path $Root 'src/FACM.Core/Online/MaintenanceApplicationService.cs'
+$corePlatformPath = Join-Path $Root 'src/FACM.Core/Maintenance/MaintenancePlatformContracts.cs'
 $manifestPath = Join-Path $Root 'src/FACM.Infrastructure/Online/HttpUpdateManifestSource.cs'
 $announcementPath = Join-Path $Root 'src/FACM.Infrastructure/Online/HttpAnnouncementSource.cs'
+$singleInstancePath = Join-Path $Root 'src/FACM.Platform.Windows/Runtime/WindowsSingleInstanceGate.cs'
+$logOpenerPath = Join-Path $Root 'src/FACM.Platform.Windows/Runtime/WindowsLogFileOpener.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/MaintenanceViewModel.cs'
 $settingsPath = Join-Path $Root 'src/FACM.Core/Settings/Settings2.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/MaintenanceSmoke.cs'
 $smokeProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
+$windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/MaintenanceWindowsSmoke.cs'
+$windowsSmokeProgramPath = Join-Path $Root 'src/FACM.WindowsSmoke/Program.cs'
 
 foreach ($path in @(
-    $coreAnnouncementPath, $coreMaintenancePath, $manifestPath, $announcementPath,
-    $viewModelPath, $settingsPath, $smokePath, $smokeProgramPath
+    $coreAnnouncementPath, $coreMaintenancePath, $corePlatformPath, $manifestPath, $announcementPath,
+    $singleInstancePath, $logOpenerPath, $viewModelPath, $settingsPath, $smokePath, $smokeProgramPath,
+    $windowsSmokePath, $windowsSmokeProgramPath
 )) {
     if (-not (Test-Path $path)) { Fail "P6 maintenance contract file missing: $path" }
 }
 
 $coreAnnouncement = Get-Content $coreAnnouncementPath -Raw
 $coreMaintenance = Get-Content $coreMaintenancePath -Raw
+$corePlatform = Get-Content $corePlatformPath -Raw
 $manifest = Get-Content $manifestPath -Raw
 $announcement = Get-Content $announcementPath -Raw
+$singleInstance = Get-Content $singleInstancePath -Raw
+$logOpener = Get-Content $logOpenerPath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
 $settings = Get-Content $settingsPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $smokeProgram = Get-Content $smokeProgramPath -Raw
+$windowsSmoke = Get-Content $windowsSmokePath -Raw
+$windowsSmokeProgram = Get-Content $windowsSmokeProgramPath -Raw
 
 foreach ($required in @(
     'AnnouncementSnapshot', 'IAnnouncementSource', 'OnlineUriPolicy',
@@ -64,6 +75,13 @@ foreach ($forbidden in @('HttpClient', 'HttpRequestMessage', 'Process\.', 'Micro
     if ($coreMaintenance -match $forbidden) { Fail "Maintenance Core crossed platform boundary: $forbidden" }
 }
 
+foreach ($required in @('ILogFileOpener', 'LogOpenResult', 'ISingleInstanceGate', 'SingleInstanceDisposition', 'EnterNormal')) {
+    Require-Text $corePlatform $required "Maintenance platform Core contract is missing: $required"
+}
+foreach ($forbidden in @('System\.Threading\.Mutex', 'EventWaitHandle', 'Process\.Start', 'File\.', 'Directory\.', 'Microsoft\.UI')) {
+    if ($corePlatform -match $forbidden) { Fail "Maintenance Core platform contract leaked Windows implementation: $forbidden" }
+}
+
 foreach ($required in @(
     'ProductionAnnouncementUri',
     'https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/announcement.json',
@@ -82,6 +100,29 @@ foreach ($required in @(
     'manifest.Sha256.Length != 64', 'TimeSpan.FromSeconds(7)'
 )) {
     Require-Text $manifest $required "Existing update manifest security contract regressed: $required"
+}
+
+foreach ($required in @(
+    'DefaultMutexName = @"Local\FACM-2C429A53-6710-48BC-A57C-32BEA688B25D"',
+    'DefaultActivationEventName = @"Local\FACM-Activate-2C429A53-6710-48BC-A57C-32BEA688B25D"',
+    'DefaultSignalTimeout = TimeSpan.FromMilliseconds(1600)',
+    'new Mutex(initiallyOwned: true', 'EventResetMode.AutoReset', 'ThreadPool.RegisterWaitForSingleObject',
+    'TrySignalExisting', 'WaitHandleCannotBeOpenedException', 'ExistingUnresponsive'
+)) {
+    Require-Text $singleInstance $required "Windows single-instance parity is missing: $required"
+}
+foreach ($forbidden in @('Process\.GetProcesses', 'Process\.Kill', 'MainWindowTitle', 'FindWindow', 'GetProcessesByName')) {
+    if ($singleInstance -match $forbidden) { Fail "Single-instance implementation used forbidden takeover/window/process discovery: $forbidden" }
+}
+
+foreach ($required in @(
+    'WindowsLogFileOpener', 'LogFileName = "facm4-events.jsonl"', 'layout.LogsDirectory',
+    'Directory.CreateDirectory', 'FileMode.CreateNew', 'UseShellExecute = true', 'LogOpenResult'
+)) {
+    Require-Text $logOpener $required "Controlled Windows log opener is missing: $required"
+}
+if ($logOpener -match 'public\s+WindowsLogFileOpener\s*\([^)]*string') {
+    Fail 'Log opener public surface must not accept an arbitrary path.'
 }
 
 foreach ($required in @(
@@ -119,9 +160,22 @@ if (@([regex]::Matches($smokeProgram, 'MaintenanceSmoke\.RunAsync')).Count -ne 1
     Fail 'Foundation smoke must register MaintenanceSmoke exactly once.'
 }
 
+foreach ($required in @(
+    'ValidateSingleInstanceActivation', 'ExistingSignaled', 'callbackCount) == 1',
+    'ValidateMissingActivationListenerIsBounded', 'ExistingUnresponsive',
+    'ValidateControlledLogOpenAsync', 'WindowsLogFileOpener.LogFileName', 'shellCalls == 1'
+)) {
+    Require-Text $windowsSmoke $required "P6 Windows maintenance smoke is missing: $required"
+}
+if (@([regex]::Matches($windowsSmokeProgram, 'MaintenanceWindowsSmoke\.RunAsync')).Count -ne 1) {
+    Fail 'Windows smoke must register MaintenanceWindowsSmoke exactly once.'
+}
+
 Write-Host 'P6 Settings: AutoUpdateEnabled/LastAnnouncementId reuse Settings 2.0 ownership'
 Write-Host 'P6 Manual check: explicit user check bypasses automatic-startup toggle'
 Write-Host 'P6 Announcement: fixed GitHub raw origin, 128 KiB cap, 8s timeout, HTTPS detail only'
 Write-Host 'P6 Recovery: load is read-only; explicit user changes may rebuild primary settings'
+Write-Host 'P6 Single instance: legacy mutex/event names + 1600ms bounded signal + AutoReset callback'
+Write-Host 'P6 Log opener: controlled runtime/logs/facm4-events.jsonl + separable Windows Shell launch'
 Write-Host 'P6 App boundary: no direct network/file/process/registry maintenance behavior in ViewModel'
 Write-Host 'FACM 4.0 P6 maintenance foundation contract: SUCCESS'
