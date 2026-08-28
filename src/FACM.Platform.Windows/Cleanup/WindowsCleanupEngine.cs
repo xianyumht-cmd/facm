@@ -48,6 +48,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
         var normalizedRoot = NormalizePath(gameRoot);
         if (!_environment.IsValidGameRoot(normalizedRoot))
             throw new InvalidOperationException("清理预览前安装根目录再次校验失败。");
+        EnsureNoReparsePointInPath(normalizedRoot, isDirectory: true);
 
         var candidates = new List<CleanupTarget>();
         AddDirectoryCandidate(
@@ -70,6 +71,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
                 nameof(_profile.CleanupContainerRelativePath)));
         if (Directory.Exists(container))
         {
+            EnsureNoReparsePointInPath(container, isDirectory: true);
             foreach (var entry in Directory.EnumerateFileSystemEntries(container, "*", SearchOption.TopDirectoryOnly))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -95,6 +97,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
             CleanupProfileContract.NormalizeRelativePath(_profile.LogFolderRelativePath, nameof(_profile.LogFolderRelativePath)));
         if (Directory.Exists(logDirectory))
         {
+            EnsureNoReparsePointInPath(logDirectory, isDirectory: true);
             foreach (var log in Directory.EnumerateFiles(logDirectory, _profile.LogSearchPattern, SearchOption.TopDirectoryOnly))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -117,6 +120,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
         CleanupProfileContract.Validate(_profile);
         if (!_environment.IsValidGameRoot(plan.GameRoot))
             throw new InvalidOperationException("清理执行前安装根目录再次校验失败。");
+        EnsureNoReparsePointInPath(plan.GameRoot, isDirectory: true);
 
         var running = _environment.GetRunningRelatedProcesses();
         if (running.Count > 0)
@@ -150,7 +154,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
                 if (target.Kind == CleanupTargetKind.File)
                 {
                     if (!File.Exists(target.Path)) continue;
-                    EnsureNotReparsePoint(target.Path, isDirectory: false);
+                    EnsureNoReparsePointInPath(target.Path, isDirectory: false);
                     File.SetAttributes(target.Path, FileAttributes.Normal);
                     File.Delete(target.Path);
                     deletedFiles++;
@@ -158,6 +162,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
                 else
                 {
                     if (!Directory.Exists(target.Path)) continue;
+                    EnsureNoReparsePointInPath(target.Path, isDirectory: true);
                     DeleteDirectoryTree(target.Path, cancellationToken);
                     deletedFiles += target.FileCount;
                     deletedDirectories += Math.Max(1, target.DirectoryCount);
@@ -202,21 +207,13 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
         long bytes = 0;
         try
         {
-            var attributes = File.GetAttributes(full);
-            if ((attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                blocked = true;
-                detail = "检测到重解析点，已阻止";
-            }
-            else
-            {
-                bytes = new FileInfo(full).Length;
-            }
+            EnsureNoReparsePointInPath(full, isDirectory: false);
+            bytes = new FileInfo(full).Length;
         }
         catch (Exception exception)
         {
             blocked = true;
-            detail = "无法读取：" + exception.Message;
+            detail = "路径安全校验失败：" + exception.Message;
         }
 
         targets.Add(new CleanupTarget(full, group, rule, CleanupTargetKind.File, bytes, 1, 0, blocked, detail));
@@ -231,7 +228,20 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
     {
         if (!Directory.Exists(path)) return;
         var full = NormalizePath(path);
-        var inspection = InspectDirectory(full, cancellationToken);
+        DirectoryInspection inspection;
+        try
+        {
+            EnsureNoReparsePointInPath(full, isDirectory: true);
+            inspection = InspectDirectory(full, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            inspection = new DirectoryInspection(0, 0, 1, true, "路径安全校验失败：" + exception.Message);
+        }
         targets.Add(new CleanupTarget(
             full,
             group,
@@ -374,6 +384,7 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
     private static void DeleteDirectoryTree(string root, CancellationToken cancellationToken)
     {
         var normalizedRoot = NormalizePath(root);
+        EnsureNoReparsePointInPath(normalizedRoot, isDirectory: true);
         var stack = new Stack<(string Path, bool ChildrenVisited)>();
         stack.Push((normalizedRoot, false));
         while (stack.Count > 0)
@@ -405,6 +416,27 @@ public sealed class WindowsCleanupEngine : ICleanupPlanner, ICleanupExecutor
                 File.SetAttributes(item.Path, FileAttributes.Normal);
                 Directory.Delete(item.Path, recursive: false);
             }
+        }
+    }
+
+    private static void EnsureNoReparsePointInPath(string path, bool isDirectory)
+    {
+        var full = NormalizePath(path);
+        if (File.Exists(full) || Directory.Exists(full))
+            EnsureNotReparsePoint(full, isDirectory);
+
+        var current = isDirectory
+            ? Directory.GetParent(full)?.FullName
+            : Path.GetDirectoryName(full);
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            if (Directory.Exists(current))
+                EnsureNotReparsePoint(current, isDirectory: true);
+
+            var parent = Directory.GetParent(current)?.FullName;
+            if (string.IsNullOrWhiteSpace(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
         }
     }
 
