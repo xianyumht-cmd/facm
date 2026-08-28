@@ -60,6 +60,57 @@
                             </StackPanel>
                         </Border>
 
+                        <StackPanel x:Name="CleanupPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock x:Name="CleanupDirectoryTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupDirectoryDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock
+                                        x:Name="CleanupPathText"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.GamePath"
+                                        Style="{StaticResource FacmBodyTextStyle}"
+                                        TextWrapping="Wrap" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="CleanupDirectoryStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                    <TextBlock x:Name="CleanupDirectoryDetail" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button
+                                            x:Name="CleanupDetectButton"
+                                            automation:AutomationProperties.AutomationId="FACM.Cleanup.Detect"
+                                            Style="{StaticResource FacmPrimaryButtonStyle}"
+                                            Click="OnCleanupDetectClick" />
+                                        <Button
+                                            x:Name="CleanupSelectButton"
+                                            automation:AutomationProperties.AutomationId="FACM.Cleanup.Select"
+                                            Click="OnCleanupSelectClick" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="CleanupPreviewTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupPreviewDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupSafetyHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Button
+                                        x:Name="CleanupPreviewButton"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.Preview"
+                                        Style="{StaticResource FacmPrimaryButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        Click="OnCleanupPreviewClick" />
+                                    <ProgressBar
+                                        x:Name="CleanupProgressBar"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.Progress"
+                                        Visibility="Collapsed"
+                                        IsIndeterminate="True" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="CleanupOperationStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <Grid x:Name="GeneralOverviewGrid" ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
