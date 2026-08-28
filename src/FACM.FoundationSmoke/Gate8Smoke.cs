@@ -13,6 +13,7 @@ internal static class Gate8Smoke
         TestCadence();
         TestWorkbenchCatalogAndText();
         await TestSingleMonitorPublicationAsync();
+        await TestWorkbenchDataSourceAsync();
     }
 
     private static void TestPhaseMapping()
@@ -130,6 +131,53 @@ internal static class Gate8Smoke
         Equal("desktop", performance.Current.Name, "not-running desktop performance");
     }
 
+    private static async Task TestWorkbenchDataSourceAsync()
+    {
+        var gateway = new FakeLeagueReadGateway();
+        gateway.Responses[LeagueWorkbenchDataSource.CurrentSummonerPath] = Utf8("""
+            {"puuid":"PUUID-1","summonerId":42,"accountId":9,"gameName":"FACM","tagLine":"CN1","displayName":"FACM","summonerLevel":88,"profileIconId":123}
+            """);
+        gateway.Responses[LeagueWorkbenchDataSource.GameflowSessionPath] = Utf8("""
+            {"gameData":{"queue":{"id":450,"name":"ARAM","gameMode":"ARAM"}}}
+            """);
+        gateway.Responses[LeagueWorkbenchDataSource.LobbyPath] = Utf8("""
+            {"members":[{"puuid":"PUUID-1","summonerId":42,"gameName":"FACM"},{"puuid":"PUUID-2","summonerId":43,"gameName":"Teammate"}]}
+            """);
+        gateway.Responses[LeagueWorkbenchDataSource.ReadyCheckPath] = Utf8("""
+            {"state":"InProgress","playerResponse":"Accepted","timer":8000}
+            """);
+        gateway.Responses[LeagueWorkbenchDataSource.RankedStatsPath] = Utf8("""
+            {"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","division":"II","leaguePoints":55,"wins":12,"losses":8}]}
+            """);
+        gateway.Responses["/lol-match-history/v1/products/lol/PUUID-1/matches?begIndex=0&endIndex=9"] = Utf8("""
+            {"games":{"gameCount":1,"games":[{"gameId":101,"gameCreation":1700000000000,"gameDuration":1800,"gameMode":"CLASSIC","queueId":420,"participantIdentities":[{"participantId":3,"player":{"puuid":"PUUID-1","summonerId":42}}],"participants":[{"participantId":3,"championId":99,"stats":{"kills":10,"deaths":2,"assists":7,"totalMinionsKilled":150,"neutralMinionsKilled":12,"win":true}}]}]}}
+            """);
+
+        var source = new LeagueWorkbenchDataSource(gateway);
+        var dashboard = await source.LoadDashboardAsync();
+        Equal(LeagueWorkbenchDataState.Ready, dashboard.State, "workbench dashboard ready");
+        Equal("FACM#CN1", dashboard.Account?.AccountName, "workbench account name");
+        Equal(450, dashboard.Queue?.QueueId, "workbench queue id");
+        Equal(2, dashboard.LobbyMembers.Count, "workbench lobby count");
+        True(dashboard.LobbyMembers[0].IsLocalPlayer, "workbench local lobby member");
+        Equal("Accepted", dashboard.ReadyCheck?.PlayerResponse, "workbench ready-check response");
+
+        var player = await source.LoadCurrentPlayerAsync();
+        Equal(LeagueWorkbenchDataState.Ready, player.State, "workbench player ready");
+        Equal("GOLD", player.Ranked?.Tier, "workbench ranked tier");
+        Equal(55, player.Ranked?.LeaguePoints ?? 0, "workbench ranked lp");
+        Equal(1, player.RecentMatches.Count, "workbench match count");
+        Equal(99, player.RecentMatches[0].ChampionId, "workbench champion id");
+        Equal(10, player.RecentMatches[0].Kills, "workbench kills");
+        Equal(162, player.RecentMatches[0].CreepScore, "workbench creep score");
+        True(player.RecentMatches[0].Win, "workbench win");
+        True(player.RecentMatches[0].ParticipantResolved, "workbench participant resolution");
+        True(!player.HasMoreMatches, "workbench finite page");
+
+        var unavailable = await new LeagueWorkbenchDataSource(new FakeLeagueReadGateway()).LoadDashboardAsync();
+        Equal(LeagueWorkbenchDataState.Unavailable, unavailable.State, "workbench fail-soft unavailable");
+    }
+
     private static LeagueGameflowMapping Map(string? phase, LeagueConnectionState connection, bool succeeded) =>
         LeagueGameflowPhaseMapper.Map(phase, connection, succeeded);
 
@@ -152,10 +200,12 @@ internal static class Gate8Smoke
     private sealed class FakeLeagueReadGateway : ILeagueReadGateway
     {
         public byte[]? Next { get; set; }
+        public Dictionary<string, byte[]> Responses { get; } = new(StringComparer.Ordinal);
+
         public Task<byte[]?> TryGetBytesAsync(string resourceKey, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Next);
+            return Task.FromResult(Responses.TryGetValue(resourceKey, out var response) ? response : Next);
         }
     }
 
