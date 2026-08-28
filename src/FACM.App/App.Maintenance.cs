@@ -52,7 +52,8 @@ public partial class App
             currentVersion);
         var executablePaths = new WindowsExecutablePathProvider();
         var launcher = new WindowsUpdateReplacementLauncher(layout, executablePaths);
-        var installer = new HttpPreparedUpdateInstaller(layout, launcher);
+        var identityVerifier = new WindowsUpdatePackageIdentityVerifier(executablePaths);
+        var installer = new HttpPreparedUpdateInstaller(layout, launcher, identityVerifier);
         var logOpener = new WindowsLogFileOpener(layout);
         _maintenanceCenter = new MaintenanceViewModel(service, installer, logOpener);
     }
