@@ -1,3 +1,4 @@
+using FACM.App.Personalization;
 using FACM.App.ViewModels;
 using FACM.Core.Personalization;
 using FACM.Core.Text;
@@ -16,6 +17,14 @@ public sealed partial class MainWindow
     private TextBlock? _personalizationStatus;
     private UIElement[]? _overviewDefaultChildren;
     private bool _syncingThemeSelection;
+
+    private void InitializePersonalizationSurface()
+    {
+        var themeRuntime = new WinUiThemeRuntime(Application.Current.Resources);
+        var viewModel = _controlCenter.CreatePersonalization(themeRuntime);
+        viewModel.InitializeForStartup();
+        ConfigurePersonalization(viewModel);
+    }
 
     internal void ConfigurePersonalization(PersonalizationViewModel viewModel)
     {
