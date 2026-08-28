@@ -62,8 +62,9 @@ public sealed partial class FloatingWindow : Window
         _pointerCanceledHandler = new PointerEventHandler(OnFloatingPointerCanceled);
         _pointerCaptureLostHandler = new PointerEventHandler(OnFloatingPointerCaptureLost);
 
-        // Button owns low-level pointer routing for its pressed/click visual states. Listen at the
-        // root with handledEventsToo so drag semantics still receive the full press/move/release chain.
+        // Button controls mark low-level pointer events handled for their own pressed/click visual
+        // states. Listen at the root with handledEventsToo so drag semantics still receive the full
+        // press/move/release chain; pointer clicks are completed explicitly on release below.
         FloatingRoot.AddHandler(UIElement.PointerPressedEvent, _pointerPressedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerMovedEvent, _pointerMovedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerReleasedEvent, _pointerReleasedHandler, handledEventsToo: true);
