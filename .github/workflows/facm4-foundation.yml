@@ -31,9 +31,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path (Split-Path $bundle) | Out-Null
           dotnet publish src/FACM.PetHost/FACM.PetHost.csproj -c Release -r win-x64 --self-contained true -o $publish
           if ($LASTEXITCODE -ne 0) { throw 'FACM.PetHost publish failed.' }
-          $host = Join-Path $publish 'FACM.PetHost.exe'
-          if (-not (Test-Path $host)) { throw 'FACM.PetHost.exe was not published.' }
-          & $host --self-test
+          $petHostExe = Join-Path $publish 'FACM.PetHost.exe'
+          if (-not (Test-Path $petHostExe)) { throw 'FACM.PetHost.exe was not published.' }
+          & $petHostExe --self-test
           if ($LASTEXITCODE -ne 0) { throw "FACM.PetHost self-test failed: $LASTEXITCODE" }
           foreach ($critical in @('FACM.PetHost.dll','FACM.PetHost.deps.json','hostfxr.dll','hostpolicy.dll','VPet-Simulator.Core.dll','PresentationFramework.dll','WindowsBase.dll','wpfgfx_cor3.dll')) {
             if (-not (Test-Path (Join-Path $publish $critical))) { throw "PetHost critical payload missing: $critical" }
