@@ -13,7 +13,6 @@ public sealed partial class MainWindow
     private TextBox? _leagueCloseLobbyHotkey;
     private Button? _leagueEfficiencySaveButton;
     private TextBlock? _leagueEfficiencyStatus;
-    private bool _leagueEfficiencyUiApplying;
 
     private void InitializeLeagueEfficiencySurface()
     {
@@ -195,18 +194,10 @@ public sealed partial class MainWindow
         }
 
         var state = runtime.State;
-        _leagueEfficiencyUiApplying = true;
-        try
-        {
-            if (_leagueExitGameHotkey is not null && !_leagueExitGameHotkey.FocusState.HasFlag(FocusState.Keyboard))
-                _leagueExitGameHotkey.Text = state.ExitGameHotkey;
-            if (_leagueCloseLobbyHotkey is not null && !_leagueCloseLobbyHotkey.FocusState.HasFlag(FocusState.Keyboard))
-                _leagueCloseLobbyHotkey.Text = state.CloseLobbyHotkey;
-        }
-        finally
-        {
-            _leagueEfficiencyUiApplying = false;
-        }
+        if (_leagueExitGameHotkey is not null && _leagueExitGameHotkey.FocusState != FocusState.Keyboard)
+            _leagueExitGameHotkey.Text = state.ExitGameHotkey;
+        if (_leagueCloseLobbyHotkey is not null && _leagueCloseLobbyHotkey.FocusState != FocusState.Keyboard)
+            _leagueCloseLobbyHotkey.Text = state.CloseLobbyHotkey;
 
         if (_leagueEfficiencySaveButton is not null) _leagueEfficiencySaveButton.IsEnabled = !state.IsBusy;
         if (_leagueExitGameHotkey is not null) _leagueExitGameHotkey.IsEnabled = !state.IsBusy;
