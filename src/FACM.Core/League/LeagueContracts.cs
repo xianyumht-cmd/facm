@@ -33,6 +33,8 @@ public enum LeagueWriteCapability
     CreatePerkPage,
     UpdatePerkPage,
     SetCurrentPerkPage,
+    StartMatchmaking,
+    AcceptReadyCheck,
     PlayAgain,
     RestartClientUx
 }
@@ -62,6 +64,8 @@ public static class LeagueWriteTargetPolicy
             LeagueWriteCapability.SetCurrentPerkPage => new("PUT", "/lol-perks/v1/currentpage"),
             LeagueWriteCapability.UpdatePerkPage when command.ResourceId is > 0 => new("PUT", "/lol-perks/v1/pages/" + command.ResourceId.Value),
             LeagueWriteCapability.UpdatePerkPage => throw new ArgumentException("UpdatePerkPage requires a positive resource ID.", nameof(command)),
+            LeagueWriteCapability.StartMatchmaking => new("POST", "/lol-lobby/v2/lobby/matchmaking/search"),
+            LeagueWriteCapability.AcceptReadyCheck => new("POST", "/lol-matchmaking/v1/ready-check/accept"),
             LeagueWriteCapability.PlayAgain => new("POST", "/lol-lobby/v2/play-again"),
             LeagueWriteCapability.RestartClientUx => new("POST", "/riotclient/kill-and-restart-ux"),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
