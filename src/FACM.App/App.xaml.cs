@@ -64,6 +64,7 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         var executablePaths = new WindowsExecutablePathProvider();
+        if (!TryEnterSingleInstance(executablePaths)) return;
         var layout = RuntimePathLayout.From(executablePaths);
         var appVersion = typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown";
         var clock = new SystemClock();
@@ -115,6 +116,7 @@ public partial class App : Application
         _uiText = new FileUiTextProvider(layout.UiTextPath);
         _httpUpdateManifestSource = new HttpUpdateManifestSource();
         _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
+        ComposeMaintenance(layout, appVersion);
 
         _cleanupEnvironment = new WindowsCleanupEnvironment();
         var cleanupEngine = new WindowsCleanupEngine(_cleanupEnvironment);
@@ -145,6 +147,7 @@ public partial class App : Application
         // Keep MainWindow XAML constructed during startup so Win10 resource regressions still fail fast,
         // but do not activate the large shell. FACM 3.5's proven default UX is launcher-first.
         PrepareMainWindow();
+        _ = InitializeMaintenanceAsync();
 
         _desktopWorkAreas = new WindowsDesktopWorkAreaProvider();
         var floatingPlatform = new WindowsFloatingSurfacePlatform();
@@ -290,6 +293,7 @@ public partial class App : Application
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
         _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.ConfigureGameRepair(gameRepair);
+        ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
         return _window;
     }
@@ -500,6 +504,7 @@ public partial class App : Application
 
     private void DisposeRuntime()
     {
+        DisposeMaintenanceRuntime();
         _matchmakingAutomation?.Dispose();
         _matchmakingAutomation = null;
         _gameflow?.Dispose();
