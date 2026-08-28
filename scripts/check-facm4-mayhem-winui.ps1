@@ -27,7 +27,9 @@ $product = Get-Content $productPath -Raw
 
 foreach ($required in @(
     'IMayhemQueryService', 'QueryAsync', 'Cancel', 'CancellationTokenSource', 'IsBusy',
-    'CanQuery', 'CanCancel', 'Result', '查询已取消'
+    'CanQuery', 'CanCancel', 'Result', '查询已取消',
+    'QueryTimeout = TimeSpan.FromSeconds(13)', 'CancelAfter(QueryTimeout)',
+    '_userCancellationRequested', '查询超时，请稍后重试。'
 )) {
     if ($vm -notmatch [regex]::Escape($required)) { Fail "Mayhem ViewModel missing behavior: $required" }
 }
@@ -40,18 +42,35 @@ foreach ($forbidden in @(
 
 foreach ($required in @(
     'FACM.League.Mayhem.Query', 'FACM.League.Mayhem.Search', 'FACM.League.Mayhem.Cancel',
+    'FACM.League.Mayhem.SaveImage', 'FACM.League.Mayhem.CopyImage', 'FACM.League.Mayhem.ExportCard',
     'FACM.League.Mayhem.Progress', 'FACM.League.Mayhem.Status', 'FACM.League.Mayhem.Results',
     '海斗攻略', '版本修正', '基础 ARAM', 'Mayhem 专属', '两层独立展示，不做数值叠加',
     '这一局怎么选', '强化符文决策榜', '技能与出装', '版本胜率前十',
-    'OnMayhemQueryClick', 'OnMayhemCancelClick', 'DisposeMayhemSurface'
+    'VirtualKey.Enter', 'OnMayhemQueryKeyDown', 'RunMayhemQueryAsync',
+    'MayhemExportWidth = 840', 'RenderTargetBitmap', 'FileSavePicker',
+    'BitmapEncoder.PngEncoderId', 'RandomAccessStreamReference.CreateFromStream',
+    'Clipboard.SetContent', 'Clipboard.Flush', 'EncodeMayhemResultPngAsync',
+    'OnMayhemSaveImageClick', 'OnMayhemCopyImageClick', 'DisposeMayhemSurface'
 )) {
     if ($ui -notmatch [regex]::Escape($required)) { Fail "Mayhem WinUI surface missing: $required" }
 }
 foreach ($forbidden in @(
     'HttpClient', 'HttpRequestMessage', 'System\.IO\.File', 'System\.IO\.Directory',
-    'LeagueWriteCommand', 'ILeagueWriteGateway', 'Process\.', 'RegisterHotKey'
+    'LeagueWriteCommand', 'ILeagueWriteGateway', 'Process\.', 'RegisterHotKey',
+    'System\.Drawing', 'System\.Windows\.Forms'
 )) {
-    if ($ui -match $forbidden) { Fail "Mayhem WinUI owns forbidden network/write/platform detail: $forbidden" }
+    if ($ui -match $forbidden) { Fail "Mayhem WinUI owns forbidden network/write/legacy-render detail: $forbidden" }
+}
+
+if ($ui -notmatch '_mayhemQueryBox\.KeyDown\s*\+=\s*OnMayhemQueryKeyDown' -or
+    $ui -notmatch '_mayhemQueryBox\.KeyDown\s*-=\s*OnMayhemQueryKeyDown') {
+    Fail 'Mayhem Enter-key handler must be attached and detached with the WinUI surface lifecycle.'
+}
+if ($ui -notmatch '_mayhemSaveImageButton\.Click\s*\+=\s*OnMayhemSaveImageClick' -or
+    $ui -notmatch '_mayhemSaveImageButton\.Click\s*-=\s*OnMayhemSaveImageClick' -or
+    $ui -notmatch '_mayhemCopyImageButton\.Click\s*\+=\s*OnMayhemCopyImageClick' -or
+    $ui -notmatch '_mayhemCopyImageButton\.Click\s*-=\s*OnMayhemCopyImageClick') {
+    Fail 'Mayhem image export handlers must be attached and detached with the WinUI surface lifecycle.'
 }
 
 if ($runtime -notmatch 'InitializeMayhemSurface\(\)' -or $runtime -notmatch 'DisposeMayhemSurface\(\)') {
@@ -79,8 +98,9 @@ if ($product -match 'ILeagueWriteGateway|LeagueWriteCommand|System\.Drawing|Syst
     Fail 'Mayhem product pipeline crossed query/presentation/write boundary.'
 }
 
-Write-Host 'Mayhem WinUI: user-driven query/cancel/busy surface with stable AutomationIds'
+Write-Host 'Mayhem WinUI: user-driven query/cancel + 13s total timeout + Enter-to-query'
 Write-Host 'Mayhem presentation: summary / split balance / decisions / augments / build / top-ten'
+Write-Host 'Mayhem export: 840px WinUI result-card PNG + SaveFilePicker + Clipboard bitmap'
 Write-Host 'Mayhem composition: one product query service + shared League read gateway + runtime cache'
-Write-Host 'Mayhem boundary: App/WinUI has no direct HTTP, file deletion, process, hotkey or League write ownership'
-Write-Host 'FACM 4.0 Mayhem WinUI query surface contract: SUCCESS'
+Write-Host 'Mayhem boundary: no direct HTTP, File/Directory IO, League write, process/hotkey or legacy GDI/WinForms rendering'
+Write-Host 'FACM 4.0 Mayhem WinUI query/export surface contract: SUCCESS'
