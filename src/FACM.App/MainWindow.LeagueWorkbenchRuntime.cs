@@ -26,6 +26,7 @@ public sealed partial class MainWindow
         }
         InitializeLeagueWorkbenchProductActions();
         InitializeLeagueAutomationSurface();
+        InitializeLeaguePresenceSurface();
 
         RootNavigation.SelectionChanged += OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchRuntimePropertyChanged;
@@ -43,6 +44,7 @@ public sealed partial class MainWindow
         if (!string.Equals(selected?.Tag?.ToString(), "league", StringComparison.Ordinal)) return;
         ApplyLeagueWorkbenchRuntimeSurface();
         _ = RefreshLeagueWorkbenchRuntimeAsync();
+        _ = RefreshLeaguePresenceAsync();
     }
 
     private void OnLeagueWorkbenchRuntimePropertyChanged(object? sender, PropertyChangedEventArgs args)
