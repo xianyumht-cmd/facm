@@ -1,4 +1,5 @@
 using FACM.App.ViewModels;
+using FACM.Core.Cleanup;
 using FACM.Core.Desktop;
 using FACM.Core.Observability;
 using FACM.Core.Online;
@@ -15,6 +16,7 @@ using FACM.Infrastructure.Recovery;
 using FACM.Infrastructure.Settings;
 using FACM.Infrastructure.Text;
 using FACM.Infrastructure.Time;
+using FACM.Platform.Windows.Cleanup;
 using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
@@ -31,6 +33,8 @@ public partial class App : Application
     private FloatingWindow? _floatingWindow;
     private IDesktopWorkAreaProvider? _desktopWorkAreas;
     private ControlCenterViewModel? _controlCenter;
+    private CleanupViewModel? _cleanupCenter;
+    private WindowsCleanupEnvironment? _cleanupEnvironment;
     private LeagueWorkbenchViewModel? _leagueWorkbench;
     private DiagnosticsCenterViewModel? _diagnosticsCenter;
     private IUiTextProvider? _uiText;
@@ -109,6 +113,12 @@ public partial class App : Application
         _httpUpdateManifestSource = new HttpUpdateManifestSource();
         _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
 
+        _cleanupEnvironment = new WindowsCleanupEnvironment();
+        var cleanupEngine = new WindowsCleanupEngine(_cleanupEnvironment);
+        var cleanupExecutor = new FeatureGatedCleanupExecutor(cleanupEngine, _featurePolicy);
+        var cleanupService = new CleanupApplicationService(cleanupEngine, cleanupExecutor);
+        _cleanupCenter = new CleanupViewModel(_settings, cleanupService, _cleanupEnvironment);
+
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
         // Read/write transport, Product State, performance and the Workbench all consume the same facts.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
@@ -170,6 +180,13 @@ public partial class App : Application
             "desktop-launcher-ready",
             _productState.Current.League,
             appVersion));
+
+        if (Environment.GetCommandLineArgs().Any(argument =>
+                string.Equals(argument, "--cleanup", StringComparison.OrdinalIgnoreCase)))
+        {
+            OpenMainWindowSection("repair");
+            QueueCleanupDiagnostic("elevated-cleanup-entry");
+        }
     }
 
     private static RecoveryCoordinator? TryBeginRecovery(
@@ -226,6 +243,7 @@ public partial class App : Application
         if (_window is not null) return _window;
 
         var controlCenter = _controlCenter ?? throw new InvalidOperationException("Control center is unavailable.");
+        var cleanupCenter = _cleanupCenter ?? throw new InvalidOperationException("Cleanup center is unavailable.");
         var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
         var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
         var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
@@ -233,7 +251,7 @@ public partial class App : Application
         var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
         _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
-        _window = new MainWindow(controlCenter, _leagueWorkbench, _diagnosticsCenter, text);
+        _window = new MainWindow(controlCenter, cleanupCenter, _leagueWorkbench, _diagnosticsCenter, text);
         _window.Closed += OnMainWindowClosed;
         return _window;
     }
@@ -430,6 +448,18 @@ public partial class App : Application
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
     }
 
+    private void QueueCleanupDiagnostic(string reason, DiagnosticResult result = DiagnosticResult.Success)
+    {
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "cleanup.flow",
+            "FACM.Cleanup",
+            0,
+            result,
+            reason,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
+    }
+
     private void DisposeRuntime()
     {
         _gameflow?.Dispose();
@@ -437,6 +467,8 @@ public partial class App : Application
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
         _diagnosticsCenter = null;
+        _cleanupCenter = null;
+        _cleanupEnvironment = null;
         _leagueGateway?.Dispose();
         _leagueGateway = null;
         _leagueSessions = null;
