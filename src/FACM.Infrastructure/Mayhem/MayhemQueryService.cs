@@ -540,7 +540,7 @@ public sealed class MayhemQueryService : IMayhemQueryService, IDisposable
         "shielding" => "护盾",
         "tenacity" => "韧性",
         "minion damage" => "对小兵伤害",
-        _ => value.Trim()
+        _ => (value ?? string.Empty).Trim()
     };
 
     private static string BuildSourceNote(bool hexdata, bool ranking, bool opgg)
