@@ -92,13 +92,15 @@ foreach ($required in @(
     'FloatingSurfaceDragService', 'ApplyPlacement', '_ensureMainWindow', '_persistPlacement',
     'MoveAndResize', 'AppWindow.Move', 'PointerPressedEvent', 'PointerMovedEvent', 'PointerReleasedEvent',
     'PointerCanceledEvent', 'PointerCaptureLostEvent', 'AddHandler', 'handledEventsToo: true',
-    'CapturePointer', 'ReleasePointerCapture', 'RasterizationScale', 'TryApplyCircularRegion',
-    'ExtendsContentIntoTitleBar', 'IsShownInSwitchers'
+    'RasterizationScale', 'TryApplyCircularRegion', 'ExtendsContentIntoTitleBar', 'IsShownInSwitchers'
 )) {
     if ($floatingCode -notmatch [regex]::Escape($required)) { Fail "FloatingWindow desktop behavior missing: $required" }
 }
 if ($floatingCode -match 'FloatingButton\.PointerPressed\s*\+=|FloatingButton\.PointerMoved\s*\+=|FloatingButton\.PointerReleased\s*\+=') {
     Fail 'Floating drag must not rely on Button default pointer routing; root handledEventsToo routing is required.'
+}
+if ($floatingCode -match 'FloatingRoot\.CapturePointer|FloatingRoot\.ReleasePointerCapture') {
+    Fail 'Floating root must not steal pointer capture from the Button control.'
 }
 
 if ((Count-Matches $appCode 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
