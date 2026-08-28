@@ -48,6 +48,28 @@ public sealed partial class MainWindow : Window
         RootNavigation.Loaded += OnRootNavigationLoaded;
     }
 
+    public void NavigateToSection(string section)
+    {
+        if (_closed) return;
+        var normalized = section switch
+        {
+            "league" => "league",
+            "personalization" => "personalization",
+            "settings" => "settings",
+            _ => "repair"
+        };
+
+        var target = normalized switch
+        {
+            "league" => LeagueNav,
+            "personalization" => PersonalizationNav,
+            "settings" => SettingsNav,
+            _ => RepairNav
+        };
+        RootNavigation.SelectedItem = target;
+        ApplySection(normalized);
+    }
+
     private void ApplyStaticText()
     {
         var appName = _text.Get(UiTextKeys.AppName);
