@@ -8,14 +8,28 @@ namespace FACM.App.Personalization;
 
 public sealed class WinUiThemeRuntime : IFacmThemeRuntime
 {
+    private static readonly (string OwnedKey, string PlatformKey)[] SemanticBrushes =
+    [
+        ("FacmBackgroundBrush", "FacmPlatformBackgroundBrush"),
+        ("FacmSurfaceBrush", "FacmPlatformSurfaceBrush"),
+        ("FacmSurfaceSecondaryBrush", "FacmPlatformSurfaceSecondaryBrush"),
+        ("FacmTextPrimaryBrush", "FacmPlatformTextPrimaryBrush"),
+        ("FacmTextMutedBrush", "FacmPlatformTextMutedBrush"),
+        ("FacmAccentBrush", "FacmPlatformAccentBrush"),
+        ("FacmAccentTextBrush", "FacmPlatformAccentTextBrush"),
+        ("FacmStrokeBrush", "FacmPlatformStrokeBrush")
+    ];
+
     private readonly ResourceDictionary _resources;
     private readonly Dictionary<string, SolidColorBrush> _brushes = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Color> _originalColors = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Color> _platformColors = new(StringComparer.Ordinal);
     private string _currentThemeId = FacmThemeCatalog.DefaultThemeId;
 
     public WinUiThemeRuntime(ResourceDictionary resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
+        CaptureOwnedSemanticBrushes();
+        RefreshPlatformColors();
     }
 
     public string CurrentThemeId => _currentThemeId;
@@ -26,7 +40,8 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         ArgumentNullException.ThrowIfNull(theme);
         _currentThemeId = theme.Id;
 
-        CaptureSemanticBrushes();
+        CaptureOwnedSemanticBrushes();
+        RefreshPlatformColors();
         if (IsHighContrast())
         {
             RestorePlatformPalette();
@@ -43,30 +58,61 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         SetBrush("FacmAccentTextBrush", "#FFFFFFFF");
         SetBrush("FacmStrokeBrush", theme.Border);
 
-        // FACM semantic brush aliases resolve to mutable WinUI brush instances. Mutating those exact
-        // instances keeps every already-open FACM surface on the same palette without rebuilding a
-        // second visual tree. High Contrast never enters this path and restores captured platform colors.
+        // These keys are FACM-owned resources. Never mutate a SolidColorBrush obtained from a WinUI
+        // platform alias: real Win10 can expose protected WinRT brush instances whose Color setter
+        // returns E_ACCESSDENIED. StaticResource consumers keep the same owned brush instances, so
+        // changing Color updates already-created FACM surfaces without rebuilding the visual tree.
         _resources["FacmCardCornerRadius"] = new CornerRadius(theme.CardRadius);
         _resources["FacmControlCornerRadius"] = new CornerRadius(theme.ControlRadius);
         CustomPaletteActive = true;
     }
 
-    private void CaptureSemanticBrushes()
+    private void CaptureOwnedSemanticBrushes()
     {
-        foreach (var key in new[]
+        foreach (var (ownedKey, platformKey) in SemanticBrushes)
         {
-            "FacmBackgroundBrush", "FacmSurfaceBrush", "FacmSurfaceSecondaryBrush",
-            "FacmTextPrimaryBrush", "FacmTextMutedBrush", "FacmAccentBrush",
-            "FacmAccentTextBrush", "FacmStrokeBrush"
-        })
-        {
-            if (_brushes.ContainsKey(key)) continue;
-            SolidColorBrush? brush = null;
-            try { brush = _resources[key] as SolidColorBrush; }
+            if (_brushes.ContainsKey(ownedKey)) continue;
+
+            SolidColorBrush? owned = null;
+            try { owned = _resources[ownedKey] as SolidColorBrush; }
             catch { }
-            if (brush is null) continue;
-            _brushes[key] = brush;
-            _originalColors[key] = brush.Color;
+
+            if (owned is null)
+            {
+                var color = TryGetPlatformColor(platformKey) ?? Colors.Transparent;
+                owned = new SolidColorBrush(color);
+                _resources[ownedKey] = owned;
+            }
+
+            _brushes[ownedKey] = owned;
+        }
+    }
+
+    private void RefreshPlatformColors()
+    {
+        foreach (var (ownedKey, platformKey) in SemanticBrushes)
+        {
+            var color = TryGetPlatformColor(platformKey);
+            if (color is not null)
+            {
+                _platformColors[ownedKey] = color.Value;
+            }
+            else if (!_platformColors.ContainsKey(ownedKey) && _brushes.TryGetValue(ownedKey, out var owned))
+            {
+                _platformColors[ownedKey] = owned.Color;
+            }
+        }
+    }
+
+    private Color? TryGetPlatformColor(string platformKey)
+    {
+        try
+        {
+            return (_resources[platformKey] as SolidColorBrush)?.Color;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -79,12 +125,13 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
             _resources[key] = brush;
             return;
         }
+
         brush.Color = ParseColor(hex);
     }
 
     private void RestorePlatformPalette()
     {
-        foreach (var pair in _originalColors)
+        foreach (var pair in _platformColors)
         {
             if (_brushes.TryGetValue(pair.Key, out var brush)) brush.Color = pair.Value;
         }
