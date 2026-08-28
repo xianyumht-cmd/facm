@@ -103,6 +103,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-mayhem-base-balance.ps1
 
+      - name: Verify ARAM Mayhem localization parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-localization.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
