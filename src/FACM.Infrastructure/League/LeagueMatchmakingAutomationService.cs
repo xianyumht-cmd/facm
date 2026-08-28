@@ -7,7 +7,7 @@ namespace FACM.Infrastructure.League;
 /// FACM 4.0 matchmaking automation. It never owns a phase polling loop: every evaluation is driven
 /// by the one process-wide LeagueGameflowMonitor heartbeat and all writes go through narrow capabilities.
 /// </summary>
-public sealed class LeagueMatchmakingAutomationService : IDisposable
+public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutomationService, IDisposable
 {
     internal const string LobbyPath = "/lol-lobby/v2/lobby";
     internal const string SearchStatePath = "/lol-matchmaking/v1/search";
@@ -313,7 +313,9 @@ public sealed class LeagueMatchmakingAutomationService : IDisposable
         _gameflow.Observed -= OnGameflowObserved;
         _lifetime.Cancel();
         _lifetime.Dispose();
-        _evaluationGate.Dispose();
+        // Do not dispose _evaluationGate here: an in-flight heartbeat may still be unwinding and
+        // releasing it after cancellation. The service is process-scoped, so retaining this tiny
+        // managed semaphore until GC avoids a shutdown race without retaining external resources.
     }
 }
 
