@@ -19,12 +19,15 @@ $platformPath = Join-Path $Root 'src/FACM.Platform.Windows/Desktop/WindowsDeskto
 $floatingPlatformPath = Join-Path $Root 'src/FACM.Platform.Windows/Desktop/WindowsFloatingSurfacePlatform.cs'
 $floatingXamlPath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml'
 $floatingCodePath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml.cs'
+$compactXamlPath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml'
+$compactCodePath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml.cs'
 $appCodePath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
     $corePath, $dragCorePath, $platformPath, $floatingPlatformPath,
-    $floatingXamlPath, $floatingCodePath, $appCodePath, $textPath
+    $floatingXamlPath, $floatingCodePath, $compactXamlPath, $compactCodePath,
+    $appCodePath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "Desktop contract file missing: $path" }
 }
@@ -35,6 +38,8 @@ $platform = Get-Content $platformPath -Raw
 $floatingPlatform = Get-Content $floatingPlatformPath -Raw
 $floatingXaml = Get-Content $floatingXamlPath -Raw
 $floatingCode = Get-Content $floatingCodePath -Raw
+$compactXaml = Get-Content $compactXamlPath -Raw
+$compactCode = Get-Content $compactCodePath -Raw
 $appCode = Get-Content $appCodePath -Raw
 $text = Get-Content $textPath -Raw
 
@@ -91,8 +96,8 @@ foreach ($forbidden in @(
 }
 foreach ($required in @(
     'IDesktopWorkAreaProvider', 'WindowsFloatingSurfacePlatform', 'AnchorPlacementService',
-    'FloatingSurfaceDragService', 'ApplyPlacement', '_ensureMainWindow', '_persistPlacement',
-    'MoveAndResize', 'AppWindow.Move', 'PointerPressedEvent', 'PointerMovedEvent', 'PointerReleasedEvent',
+    'FloatingSurfaceDragService', 'ApplyPlacement', '_toggleCompactLauncher', '_persistPlacement',
+    'GetCurrentBounds', 'MoveAndResize', 'AppWindow.Move', 'PointerPressedEvent', 'PointerMovedEvent', 'PointerReleasedEvent',
     'PointerCanceledEvent', 'PointerCaptureLostEvent', 'AddHandler', 'handledEventsToo: true',
     'TryGetCursorPosition', 'HasExceededLegacyBallThreshold', 'ClampLegacyBallTopLeft',
     'DefaultLegacyBallTopLeft', '_dragCursorStart', '_dragWindowStart',
@@ -109,17 +114,54 @@ if ($floatingCode -match 'FloatingButton\.PointerPressed\s*\+=|FloatingButton\.P
 if ($floatingCode -match 'FloatingRoot\.CapturePointer|FloatingRoot\.ReleasePointerCapture') {
     Fail 'Floating root must not steal pointer capture from the Button control.'
 }
+if ($floatingCode -notmatch '(?s)OnFloatingButtonClick.*_toggleCompactLauncher\s*\(') {
+    Fail 'Ordinary WinUI Button.Click must toggle the compact launcher.'
+}
+if ($floatingCode -match '(?s)OnFloatingPointerReleased.*_toggleCompactLauncher\s*\(') {
+    Fail 'PointerReleased must not race Button.Click for compact launcher ownership.'
+}
+
+if ($compactXaml -match '<NavigationView(?:\s|>)' -or $compactXaml -match '<Frame(?:\s|>)') {
+    Fail 'Compact launcher must remain a lightweight 3.5-style entry surface, not duplicate Main Shell navigation.'
+}
+if ($compactXaml -match '#[0-9A-Fa-f]{6,8}') { Fail 'Compact launcher must use semantic theme resources.' }
+foreach ($id in @('FACM.Compact.Repair', 'FACM.Compact.League', 'FACM.Compact.Personalization', 'FACM.Compact.Settings')) {
+    if ($compactXaml -notmatch [regex]::Escape($id)) { Fail "Compact launcher AutomationId missing: $id" }
+}
+foreach ($required in @(
+    'BaseWidthDip = 420d', 'BaseHeightDip = 680d', 'ShowNextTo',
+    'DesktopDpi.DipsToPixels', 'DesktopDpi.UniformDipsToPixels',
+    'AppWindow.MoveAndResize', 'IsShownInSwitchers', 'OpenSection'
+)) {
+    if ($compactCode -notmatch [regex]::Escape($required)) { Fail "Compact launcher behavior missing: $required" }
+}
+foreach ($forbidden in @(
+    'WindowsLeagueTransportSessionSource', 'LeagueHttpGateway', 'HttpClient',
+    'Settings2Repository', 'BoundedJsonLinesDiagnosticSink', 'DllImport', 'LibraryImport',
+    'SetWindowsHookEx', 'GetAsyncKeyState', 'LowLevelKeyboardProc'
+)) {
+    if ($compactCode -match $forbidden) { Fail "Compact launcher gained forbidden runtime/platform ownership: $forbidden" }
+}
 
 if ((Count-Matches $appCode 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
     Fail 'FACM.App must still create exactly one League session owner.'
 }
 if ((Count-Matches $appCode 'new\s+FloatingWindow\s*\(') -ne 1) { Fail 'App must create exactly one floating desktop surface.' }
+if ((Count-Matches $appCode 'new\s+CompactLauncherWindow\s*\(') -ne 1) { Fail 'App must own exactly one compact launcher construction path.' }
 if ((Count-Matches $appCode 'new\s+WindowsFloatingSurfacePlatform\s*\(') -ne 1) {
     Fail 'App must compose exactly one Windows floating-surface platform adapter.'
 }
-if ($appCode -notmatch 'void\s+EnsureMainWindow\s*\(') { Fail 'App must implement EnsureMainWindow semantics.' }
-if ($appCode -notmatch 'new\s+MainWindow\s*\(' -or $appCode -notmatch '_window\.Activate\s*\(') {
-    Fail 'EnsureMainWindow must create-or-activate the Main Shell.'
+foreach ($required in @(
+    'PrepareMainWindow', 'EnsureMainWindow', 'OpenMainWindowSection', 'ToggleCompactLauncher',
+    'GetOrCreateMainWindow', 'NavigateToSection', 'desktop-launcher-ready', 'desktop.launcher'
+)) {
+    if ($appCode -notmatch [regex]::Escape($required)) { Fail "App compact-launcher composition missing: $required" }
+}
+if ($appCode -notmatch 'new\s+MainWindow\s*\(' -or $appCode -notmatch 'window\.Activate\s*\(') {
+    Fail 'Detailed Main Shell must still be create-or-activate capable from the compact launcher.'
+}
+if ($appCode -match '(?m)^\s*EnsureMainWindow\(\);\s*$') {
+    Fail 'FACM 4.0 startup must not automatically activate the large Main Shell; launcher-first parity is required.'
 }
 if ($appCode -notmatch 'PersistFloatingPlacementAsync' -or
     $appCode -notmatch 'Pets\.BallX\s*=' -or
@@ -143,6 +185,7 @@ if ($text -notmatch '\[UiTextKeys\.DesktopOpenShell\]\s*=') { Fail 'DesktopOpenS
 Write-Host 'Core desktop placement/drag boundary: OK'
 Write-Host 'Windows work-area/DPI adapter: OK'
 Write-Host 'FACM 3.5-compatible absolute cursor drag model on WinUI: OK'
+Write-Host 'WinUI Button.Click owns compact launcher toggle: OK'
+Write-Host '420x680 compact launcher parity surface: OK'
 Write-Host 'Circular floating-surface client alignment: OK'
-Write-Host 'Handled pointer routing/click-drag ownership: OK'
 Write-Host 'FACM 4.0 Desktop contract: SUCCESS'
