@@ -522,66 +522,40 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void ApplyLeagueRuntimeState()
-    {
-        var snapshot = _leagueWorkbench.Snapshot;
-        LeagueStateValue.Text = _text.Get(LeagueWorkbenchTextKeys.ForState(snapshot.League));
-        LeagueBudgetValue.Text = snapshot.Budget.Name + " · " + snapshot.Budget.RefreshInterval.TotalMilliseconds.ToString("F0") + " ms";
-        QueueLeagueWorkbenchSurfaceRefresh();
-    }
-
-    private void OnLeagueWorkbenchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnLeagueWorkbenchPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (_closed) return;
-        if (DispatcherQueue.HasThreadAccess)
+        if (args.PropertyName is not (
+            nameof(LeagueWorkbenchViewModel.LeagueState) or
+            nameof(LeagueWorkbenchViewModel.LeagueStateTextKey) or
+            nameof(LeagueWorkbenchViewModel.BudgetName)))
         {
-            ApplyLeagueRuntimeState();
             return;
         }
 
-        _ = DispatcherQueue.TryEnqueue(() =>
-        {
-            if (!_closed) ApplyLeagueRuntimeState();
-        });
+        _ = DispatcherQueue.TryEnqueue(ApplyLeagueRuntimeState);
     }
 
-    private void ApplyStatus(string textKey)
+    private void ApplyLeagueRuntimeState()
     {
-        StatusValue.Text = _text.Get(textKey);
+        if (_closed) return;
+        LeagueStateValue.Text = _text.Get(_leagueWorkbench.LeagueStateTextKey);
+        LeagueBudgetValue.Text = _leagueWorkbench.BudgetName;
     }
 
-    private async Task RefreshDiagnosticsAsync()
-    {
-        if (_diagnosticsBusy || _closed) return;
-        _diagnosticsBusy = true;
-        try
-        {
-            await _diagnosticsCenter.RefreshAsync();
-            _diagnosticsLoaded = true;
-            ApplyDiagnosticsRuntimeState();
-        }
-        catch (Exception)
-        {
-            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
-        }
-        finally
-        {
-            _diagnosticsBusy = false;
-            ApplyDiagnosticsBusyState();
-        }
-    }
-
-    private async void OnDiagnosticsRefreshClick(object sender, RoutedEventArgs args)
-    {
+    private async void OnDiagnosticsRefreshClick(object sender, RoutedEventArgs args) =>
         await RefreshDiagnosticsAsync();
-    }
 
-    private void OnDiagnosticsCopyClick(object sender, RoutedEventArgs args)
+    private async void OnDiagnosticsCopyClick(object sender, RoutedEventArgs args)
     {
+        if (_diagnosticsBusy) return;
+        if (!_diagnosticsLoaded) await RefreshDiagnosticsAsync();
+        if (string.IsNullOrWhiteSpace(_diagnosticsCenter.Summary)) return;
+
         try
         {
             var package = new DataPackage();
-            package.SetText(_diagnosticsCenter.SummaryText);
+            package.SetText(_diagnosticsCenter.Summary);
             Clipboard.SetContent(package);
             DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusCopied);
         }
@@ -594,13 +568,13 @@ public sealed partial class MainWindow : Window
     private async void OnDiagnosticsExportClick(object sender, RoutedEventArgs args)
     {
         if (_diagnosticsBusy) return;
-        _diagnosticsBusy = true;
+        SetDiagnosticsBusy(true);
         try
         {
-            var result = await _diagnosticsCenter.ExportAsync();
-            DiagnosticsStatus.Text = result.Success
-                ? _text.Get(UiTextKeys.DiagnosticsStatusExported) + " · " + result.BundlePath
-                : _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+            _ = await _diagnosticsCenter.ExportAsync();
+            _diagnosticsLoaded = true;
+            DiagnosticsSummaryText.Text = _diagnosticsCenter.Summary;
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusExported);
         }
         catch (Exception)
         {
@@ -608,33 +582,50 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            _diagnosticsBusy = false;
-            ApplyDiagnosticsBusyState();
+            SetDiagnosticsBusy(false);
         }
     }
 
-    private void ApplyDiagnosticsRuntimeState()
+    private async Task RefreshDiagnosticsAsync()
     {
-        DiagnosticsSummaryText.Text = _diagnosticsCenter.SummaryText;
-        DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusRefreshed);
+        if (_diagnosticsBusy) return;
+        SetDiagnosticsBusy(true);
+        try
+        {
+            DiagnosticsSummaryText.Text = await _diagnosticsCenter.RefreshAsync();
+            _diagnosticsLoaded = true;
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusRefreshed);
+        }
+        catch (Exception)
+        {
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+        }
+        finally
+        {
+            SetDiagnosticsBusy(false);
+        }
     }
 
-    private void ApplyDiagnosticsBusyState()
+    private void SetDiagnosticsBusy(bool busy)
     {
-        var enabled = !_diagnosticsBusy;
-        DiagnosticsRefreshButton.IsEnabled = enabled;
-        DiagnosticsCopyButton.IsEnabled = enabled;
-        DiagnosticsExportButton.IsEnabled = enabled;
+        _diagnosticsBusy = busy;
+        DiagnosticsRefreshButton.IsEnabled = !busy;
+        DiagnosticsCopyButton.IsEnabled = !busy;
+        DiagnosticsExportButton.IsEnabled = !busy;
+    }
+
+    private void ApplyStatus(string key)
+    {
+        StatusValue.Text = _text.Get(key);
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed) return;
         _closed = true;
-        Closed -= OnClosed;
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;
-        _leagueWorkbench.Dispose();
+        Closed -= OnClosed;
     }
 }
