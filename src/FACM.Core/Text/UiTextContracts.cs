@@ -62,6 +62,32 @@ public static class UiTextKeys
     public const string CleanupInvalidDirectory = "CleanupInvalidDirectory";
     public const string CleanupPathRecoveryReadOnly = "CleanupPathRecoveryReadOnly";
 
+    public const string RepairToolsTitle = "RepairToolsTitle";
+    public const string RepairToolsDescription = "RepairToolsDescription";
+    public const string RepairToolsReady = "RepairToolsReady";
+    public const string RepairPrivilegeLabel = "RepairPrivilegeLabel";
+    public const string RepairPrivilegeAdministrator = "RepairPrivilegeAdministrator";
+    public const string RepairPrivilegeStandard = "RepairPrivilegeStandard";
+    public const string RepairDriverCleanup = "RepairDriverCleanup";
+    public const string RepairDriverCleanupHint = "RepairDriverCleanupHint";
+    public const string RepairDriverCleanupStarted = "RepairDriverCleanupStarted";
+    public const string RepairDriverCleanupCancelled = "RepairDriverCleanupCancelled";
+    public const string RepairDriverCleanupFailed = "RepairDriverCleanupFailed";
+    public const string RepairGameRepair = "RepairGameRepair";
+    public const string RepairGameRepairHint = "RepairGameRepairHint";
+    public const string RepairFixWindow = "RepairFixWindow";
+    public const string RepairFixWindowHint = "RepairFixWindowHint";
+    public const string RepairAutoWindow = "RepairAutoWindow";
+    public const string RepairAutoWindowDisable = "RepairAutoWindowDisable";
+    public const string RepairAutoWindowHint = "RepairAutoWindowHint";
+    public const string RepairSkipSettlement = "RepairSkipSettlement";
+    public const string RepairSkipSettlementHint = "RepairSkipSettlementHint";
+    public const string RepairRestartClientUx = "RepairRestartClientUx";
+    public const string RepairRestartClientUxHint = "RepairRestartClientUxHint";
+    public const string RepairExitGame = "RepairExitGame";
+    public const string RepairExitGameHint = "RepairExitGameHint";
+    public const string RepairGameRepairReady = "RepairGameRepairReady";
+
     public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
     public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
     public const string LeagueWorkbenchMatchDescription = "LeagueWorkbenchMatchDescription";
@@ -155,6 +181,32 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.CleanupSafetyHint] = "FACM 不会结束进程、停止服务或删除白名单之外的文件。",
         [UiTextKeys.CleanupInvalidDirectory] = "所选目录无法解析为有效英雄联盟安装目录。",
         [UiTextKeys.CleanupPathRecoveryReadOnly] = "设置当前处于恢复模式，本次目录只用于运行，不覆盖损坏的主设置文件。",
+
+        [UiTextKeys.RepairToolsTitle] = "修复工具",
+        [UiTextKeys.RepairToolsDescription] = "沿用 FACM 3.5.15 已验证的修复行为；旧 Fix-LCU 外部模式不会在 4.0 重新启用。",
+        [UiTextKeys.RepairToolsReady] = "修复工具已就绪",
+        [UiTextKeys.RepairPrivilegeLabel] = "当前权限",
+        [UiTextKeys.RepairPrivilegeAdministrator] = "管理员模式",
+        [UiTextKeys.RepairPrivilegeStandard] = "标准权限",
+        [UiTextKeys.RepairDriverCleanup] = "驱动清理",
+        [UiTextKeys.RepairDriverCleanupHint] = "启动内置驱动清理工具。工具释放前会校验固定 SHA-256，是否提权由 Windows / 工具自身决定。",
+        [UiTextKeys.RepairDriverCleanupStarted] = "驱动清理工具已启动",
+        [UiTextKeys.RepairDriverCleanupCancelled] = "已取消驱动清理工具",
+        [UiTextKeys.RepairDriverCleanupFailed] = "驱动清理工具启动失败",
+        [UiTextKeys.RepairGameRepair] = "游戏修复",
+        [UiTextKeys.RepairGameRepairHint] = "游戏运行期间遇到客户端窗口、大厅或结算异常时使用。",
+        [UiTextKeys.RepairFixWindow] = "立即修复窗口",
+        [UiTextKeys.RepairFixWindowHint] = "按当前显示器、窗口状态与合理尺寸原生修复客户端窗口。",
+        [UiTextKeys.RepairAutoWindow] = "自动修复窗口",
+        [UiTextKeys.RepairAutoWindowDisable] = "关闭自动修复",
+        [UiTextKeys.RepairAutoWindowHint] = "监听客户端窗口变化；仅在检测到异常后处理，不常驻轮询。",
+        [UiTextKeys.RepairSkipSettlement] = "跳过卡结算",
+        [UiTextKeys.RepairSkipSettlementHint] = "通过 FACM 当前客户端连接跳过卡住、持续转圈的结算页面。",
+        [UiTextKeys.RepairRestartClientUx] = "重启客户端界面",
+        [UiTextKeys.RepairRestartClientUxHint] = "重新加载 LeagueClient UX；不结束正在进行的游戏进程。",
+        [UiTextKeys.RepairExitGame] = "一键结束游戏",
+        [UiTextKeys.RepairExitGameHint] = "结束当前英雄联盟游戏进程；与“跳过卡结算”是两个不同功能。",
+        [UiTextKeys.RepairGameRepairReady] = "准备就绪 · 游戏修复已由 FACM 原生接管",
 
         [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
         [UiTextKeys.LeagueWorkbenchMatch] = "比赛",

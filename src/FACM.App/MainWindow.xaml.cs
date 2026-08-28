@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly ControlCenterViewModel _controlCenter;
     private readonly CleanupViewModel _cleanupCenter;
+    private readonly RepairToolsViewModel _repairTools;
     private readonly LeagueWorkbenchViewModel _leagueWorkbench;
     private readonly DiagnosticsCenterViewModel _diagnosticsCenter;
     private readonly IUiTextProvider _text;
@@ -27,12 +28,14 @@ public sealed partial class MainWindow : Window
     public MainWindow(
         ControlCenterViewModel controlCenter,
         CleanupViewModel cleanupCenter,
+        RepairToolsViewModel repairTools,
         LeagueWorkbenchViewModel leagueWorkbench,
         DiagnosticsCenterViewModel diagnosticsCenter,
         IUiTextProvider text)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _cleanupCenter = cleanupCenter ?? throw new ArgumentNullException(nameof(cleanupCenter));
+        _repairTools = repairTools ?? throw new ArgumentNullException(nameof(repairTools));
         _leagueWorkbench = leagueWorkbench ?? throw new ArgumentNullException(nameof(leagueWorkbench));
         _diagnosticsCenter = diagnosticsCenter ?? throw new ArgumentNullException(nameof(diagnosticsCenter));
         _text = text ?? throw new ArgumentNullException(nameof(text));
@@ -50,6 +53,7 @@ public sealed partial class MainWindow : Window
         ApplyStaticText();
         ApplyLeagueRuntimeState();
         ApplyCleanupRuntimeState();
+        ApplyRepairToolsState();
         _cleanupCenter.PropertyChanged += OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchPropertyChanged;
         Closed += OnClosed;
@@ -108,6 +112,14 @@ public sealed partial class MainWindow : Window
         OverviewBody.Text = _text.Get(UiTextKeys.ShellOverviewBody);
         StateTitle.Text = _text.Get(UiTextKeys.ShellStateTitle);
         StateBody.Text = _text.Get(UiTextKeys.ShellStateBody);
+
+        RepairToolsTitle.Text = _text.Get(UiTextKeys.RepairToolsTitle);
+        RepairToolsDescription.Text = _text.Get(UiTextKeys.RepairToolsDescription);
+        RepairPrivilegeLabel.Text = _text.Get(UiTextKeys.RepairPrivilegeLabel);
+        RepairDriverCleanupButton.Content = _text.Get(UiTextKeys.RepairDriverCleanup);
+        RepairDriverCleanupHint.Text = _text.Get(UiTextKeys.RepairDriverCleanupHint);
+        AutomationProperties.SetName(RepairDriverCleanupButton, _text.Get(UiTextKeys.RepairDriverCleanup));
+        AutomationProperties.SetHelpText(RepairDriverCleanupButton, _text.Get(UiTextKeys.RepairDriverCleanupHint));
 
         CleanupDirectoryTitle.Text = _text.Get(UiTextKeys.CleanupDirectoryTitle);
         CleanupDirectoryDescription.Text = _text.Get(UiTextKeys.CleanupDirectoryDescription);
@@ -210,7 +222,11 @@ public sealed partial class MainWindow : Window
         GeneralOverviewGrid.Visibility = !isRepair && !isLeague ? Visibility.Visible : Visibility.Collapsed;
         LeagueWorkbenchPanel.Visibility = isLeague ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsPanel.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
-        if (isRepair) _ = EnsureCleanupInitializedAsync();
+        if (isRepair)
+        {
+            ApplyRepairToolsState();
+            _ = EnsureCleanupInitializedAsync();
+        }
         if (isLeague) ApplyLeagueRuntimeState();
         if (isSettings && !_diagnosticsLoaded) _ = RefreshDiagnosticsAsync();
     }
@@ -231,7 +247,27 @@ public sealed partial class MainWindow : Window
         {
             _cleanupUiBusy = false;
             ApplyCleanupRuntimeState();
+            ApplyRepairToolsState();
         }
+    }
+
+    private void OnRepairDriverCleanupClick(object sender, RoutedEventArgs args)
+    {
+        if (_repairTools.IsBusy) return;
+        _ = _repairTools.LaunchDriverCleanup();
+        ApplyRepairToolsState();
+    }
+
+    private void ApplyRepairToolsState()
+    {
+        if (_closed) return;
+        RepairPrivilegeStatus.Text = _text.Get(
+            _cleanupCenter.IsAdministrator
+                ? UiTextKeys.RepairPrivilegeAdministrator
+                : UiTextKeys.RepairPrivilegeStandard);
+        RepairToolStatus.Text = _text.Get(_repairTools.StatusTextKey);
+        RepairToolDetail.Text = _repairTools.StatusDetail;
+        RepairDriverCleanupButton.IsEnabled = !_repairTools.IsBusy;
     }
 
     private async void OnCleanupDetectClick(object sender, RoutedEventArgs args)
@@ -442,6 +478,7 @@ public sealed partial class MainWindow : Window
         CleanupDetectButton.IsEnabled = !busy;
         CleanupSelectButton.IsEnabled = !busy;
         CleanupPreviewButton.IsEnabled = !busy && _cleanupCenter.IsGamePathValid;
+        ApplyRepairToolsState();
     }
 
     private string TranslateCleanupDetail(string detail) =>

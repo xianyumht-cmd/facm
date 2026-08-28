@@ -19,6 +19,7 @@ using FACM.Infrastructure.Time;
 using FACM.Platform.Windows.Cleanup;
 using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
+using FACM.Platform.Windows.Repair;
 using FACM.Platform.Windows.Runtime;
 using Microsoft.UI.Xaml;
 
@@ -36,6 +37,7 @@ public partial class App : Application
     private CleanupViewModel? _cleanupCenter;
     private WindowsCleanupEnvironment? _cleanupEnvironment;
     private LeagueWorkbenchViewModel? _leagueWorkbench;
+    private WindowsLeagueGameRepairService? _leagueGameRepairService;
     private DiagnosticsCenterViewModel? _diagnosticsCenter;
     private IUiTextProvider? _uiText;
     private ISettings2Repository? _settings;
@@ -120,9 +122,10 @@ public partial class App : Application
         _cleanupCenter = new CleanupViewModel(_settings, cleanupService, _cleanupEnvironment);
 
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
-        // Read/write transport, Product State, performance and the Workbench all consume the same facts.
+        // Read/write transport, Product State, performance, repair and the Workbench all consume the same facts.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
+        _leagueGameRepairService = new WindowsLeagueGameRepairService(_leagueGateway, _leagueGateway);
         _gameflow = new LeagueGameflowMonitor(
             _leagueGateway,
             _leagueSessions,
@@ -246,12 +249,16 @@ public partial class App : Application
         var cleanupCenter = _cleanupCenter ?? throw new InvalidOperationException("Cleanup center is unavailable.");
         var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
         var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+        var gameRepairService = _leagueGameRepairService ?? throw new InvalidOperationException("League game repair is unavailable.");
         var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
         var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
         var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
+        var repairTools = new RepairToolsViewModel(new WindowsRepairToolService());
+        var gameRepair = new LeagueGameRepairViewModel(gameRepairService);
         _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
-        _window = new MainWindow(controlCenter, cleanupCenter, _leagueWorkbench, _diagnosticsCenter, text);
+        _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
+        _window.ConfigureGameRepair(gameRepair);
         _window.Closed += OnMainWindowClosed;
         return _window;
     }
@@ -466,6 +473,8 @@ public partial class App : Application
         _gameflow = null;
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
+        _leagueGameRepairService?.Dispose();
+        _leagueGameRepairService = null;
         _diagnosticsCenter = null;
         _cleanupCenter = null;
         _cleanupEnvironment = null;

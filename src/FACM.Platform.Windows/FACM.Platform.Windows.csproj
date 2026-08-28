@@ -9,4 +9,9 @@
   <ItemGroup>
     <ProjectReference Include="..\FACM.Core\FACM.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\tools\clean driver.exe">
+      <LogicalName>FACM.Platform.Windows.Resources.DriverCleanup</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

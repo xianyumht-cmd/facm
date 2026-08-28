@@ -32,10 +32,12 @@ public enum LeagueWriteCapability
     ApplyMySelection,
     CreatePerkPage,
     UpdatePerkPage,
-    SetCurrentPerkPage
+    SetCurrentPerkPage,
+    PlayAgain,
+    RestartClientUx
 }
 
-public sealed record LeagueWriteCommand(LeagueWriteCapability Capability, long? ResourceId, string Json);
+public sealed record LeagueWriteCommand(LeagueWriteCapability Capability, long? ResourceId, string? Json);
 public sealed record LeagueWriteResult(int StatusCode, byte[] Body)
 {
     public bool IsSuccessStatusCode => StatusCode is >= 200 and <= 299;
@@ -60,6 +62,8 @@ public static class LeagueWriteTargetPolicy
             LeagueWriteCapability.SetCurrentPerkPage => new("PUT", "/lol-perks/v1/currentpage"),
             LeagueWriteCapability.UpdatePerkPage when command.ResourceId is > 0 => new("PUT", "/lol-perks/v1/pages/" + command.ResourceId.Value),
             LeagueWriteCapability.UpdatePerkPage => throw new ArgumentException("UpdatePerkPage requires a positive resource ID.", nameof(command)),
+            LeagueWriteCapability.PlayAgain => new("POST", "/lol-lobby/v2/play-again"),
+            LeagueWriteCapability.RestartClientUx => new("POST", "/riotclient/kill-and-restart-ux"),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
     }
