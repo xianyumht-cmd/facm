@@ -249,13 +249,16 @@ public partial class App : Application
         var cleanupCenter = _cleanupCenter ?? throw new InvalidOperationException("Cleanup center is unavailable.");
         var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
         var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+        var leagueGateway = _leagueGateway ?? throw new InvalidOperationException("League read gateway is unavailable.");
+        var gameflow = _gameflow ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
         var gameRepairService = _leagueGameRepairService ?? throw new InvalidOperationException("League game repair is unavailable.");
         var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
         var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
         var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
         var repairTools = new RepairToolsViewModel(new WindowsRepairToolService());
         var gameRepair = new LeagueGameRepairViewModel(gameRepairService);
-        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
+        var workbenchData = new LeagueWorkbenchDataSource(leagueGateway, gameflow);
+        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance, workbenchData);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
         _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.ConfigureGameRepair(gameRepair);
