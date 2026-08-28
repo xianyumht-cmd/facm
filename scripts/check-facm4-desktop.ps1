@@ -55,7 +55,10 @@ foreach ($required in @('EnumDisplayMonitors', 'GetMonitorInfo', 'GetDpiForMonit
 }
 if ($platform -match 'Microsoft\.UI\.Xaml') { Fail 'Windows work-area adapter must not own WinUI controls.' }
 
-foreach ($required in @('WindowsFloatingSurfacePlatform', 'CreateEllipticRgn', 'SetWindowRgn', 'DeleteObject')) {
+foreach ($required in @(
+    'WindowsFloatingSurfacePlatform', 'CreateEllipticRgn', 'SetWindowRgn', 'DeleteObject',
+    'GetWindowRect', 'GetClientRect', 'ClientToScreen', 'TryGetClientBoundsInWindow'
+)) {
     if ($floatingPlatform -notmatch ('\b' + [regex]::Escape($required) + '\b')) {
         Fail "Windows floating-surface adapter missing native shape API: $required"
     }
@@ -67,8 +70,10 @@ if ($floatingXaml -match '<NavigationView(?:\s|>)' -or $floatingXaml -match '<Fr
     Fail 'FloatingWindow must not duplicate the Main Shell navigation tree.'
 }
 if ($floatingXaml -match '#[0-9A-Fa-f]{6,8}') { Fail 'FloatingWindow must use semantic theme resources, not hard-coded colors.' }
-if ($floatingXaml -notmatch 'FacmPrimaryButtonStyle' -or $floatingXaml -notmatch 'FacmAccentTextBrush') {
-    Fail 'FloatingWindow must reuse the shared FACM design system.'
+if ($floatingXaml -notmatch 'FacmPrimaryButtonStyle' -or
+    $floatingXaml -notmatch 'FacmAccentBrush' -or
+    $floatingXaml -notmatch 'FacmAccentTextBrush') {
+    Fail 'FloatingWindow must reuse the shared FACM design system and fill its shaped client surface.'
 }
 if ($floatingXaml -notmatch 'Width="64"' -or $floatingXaml -notmatch 'Height="64"' -or $floatingXaml -notmatch 'CornerRadius="32"') {
     Fail 'FloatingWindow primary control must fill the circular 64-DIP host surface.'
@@ -78,17 +83,22 @@ foreach ($forbidden in @(
     'WindowsLeagueTransportSessionSource', 'LeagueHttpGateway', 'HttpClient',
     'Settings2Repository', 'BoundedJsonLinesDiagnosticSink', '\bFile\.', '\bDirectory\.',
     'SetWindowsHookEx', 'GetAsyncKeyState', 'LowLevelKeyboardProc', '\bTimer\b',
-    'DllImport', 'LibraryImport', 'CreateEllipticRgn', 'SetWindowRgn'
+    'DllImport', 'LibraryImport', 'CreateEllipticRgn', 'SetWindowRgn', 'GetClientRect', 'ClientToScreen'
 )) {
     if ($floatingCode -match $forbidden) { Fail "FloatingWindow gained forbidden runtime/platform ownership: $forbidden" }
 }
 foreach ($required in @(
     'IDesktopWorkAreaProvider', 'WindowsFloatingSurfacePlatform', 'AnchorPlacementService',
     'FloatingSurfaceDragService', 'ApplyPlacement', '_ensureMainWindow', '_persistPlacement',
-    'MoveAndResize', 'AppWindow.Move', 'PointerPressed', 'PointerMoved', 'PointerReleased',
-    'CapturePointer', 'RasterizationScale', 'TryApplyCircularRegion'
+    'MoveAndResize', 'AppWindow.Move', 'PointerPressedEvent', 'PointerMovedEvent', 'PointerReleasedEvent',
+    'PointerCanceledEvent', 'PointerCaptureLostEvent', 'AddHandler', 'handledEventsToo: true',
+    'CapturePointer', 'ReleasePointerCapture', 'RasterizationScale', 'TryApplyCircularRegion',
+    'ExtendsContentIntoTitleBar', 'IsShownInSwitchers'
 )) {
     if ($floatingCode -notmatch [regex]::Escape($required)) { Fail "FloatingWindow desktop behavior missing: $required" }
+}
+if ($floatingCode -match 'FloatingButton\.PointerPressed\s*\+=|FloatingButton\.PointerMoved\s*\+=|FloatingButton\.PointerReleased\s*\+=') {
+    Fail 'Floating drag must not rely on Button default pointer routing; root handledEventsToo routing is required.'
 }
 
 if ((Count-Matches $appCode 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
@@ -123,6 +133,6 @@ if ($text -notmatch '\[UiTextKeys\.DesktopOpenShell\]\s*=') { Fail 'DesktopOpenS
 
 Write-Host 'Core desktop placement/drag boundary: OK'
 Write-Host 'Windows work-area/DPI adapter: OK'
-Write-Host 'Circular floating-surface native adapter: OK'
-Write-Host 'Floating click/drag/persistence ownership: OK'
+Write-Host 'Circular floating-surface client alignment: OK'
+Write-Host 'Handled pointer routing/click-drag ownership: OK'
 Write-Host 'FACM 4.0 Desktop contract: SUCCESS'
