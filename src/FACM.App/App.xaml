@@ -5,6 +5,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="ms-appx:///Themes/FacmTokens.xaml" />
                 <ResourceDictionary Source="ms-appx:///Themes/FacmControls.xaml" />
             </ResourceDictionary.MergedDictionaries>
