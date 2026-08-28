@@ -12,9 +12,8 @@ namespace FACM.App;
 public sealed partial class FloatingWindow : Window
 {
     private const double SurfaceSideDip = 64d;
-    private const double MarginDip = 12d;
-    private const double DragMarginDip = 4d;
-    private const double DragThresholdDip = 4d;
+    private const double DefaultRightMarginDip = 18d;
+    private const double LegacyDragThresholdPixels = 4d;
     private const long DragClickSuppressionMilliseconds = 350;
 
     private readonly IDesktopWorkAreaProvider _workAreas;
@@ -32,7 +31,7 @@ public sealed partial class FloatingWindow : Window
     private bool _pointerActive;
     private bool _dragMoved;
     private uint _activePointerId;
-    private DesktopPoint _dragPointerStart;
+    private DesktopPoint _dragCursorStart;
     private DesktopPoint _dragWindowStart;
     private long _suppressClickUntilTick;
     private bool _closed;
@@ -62,9 +61,9 @@ public sealed partial class FloatingWindow : Window
         _pointerCanceledHandler = new PointerEventHandler(OnFloatingPointerCanceled);
         _pointerCaptureLostHandler = new PointerEventHandler(OnFloatingPointerCaptureLost);
 
-        // Button controls mark low-level pointer events handled for their own pressed/click visual
-        // states and manage pointer capture themselves. Listen at the root with handledEventsToo so
-        // drag semantics receive the full chain without stealing capture from the Button.
+        // Keep WinUI as the presentation/input layer, but mirror FACM 3.5's proven interaction model:
+        // the Button may handle routed pointer events itself, so observe them at the root; actual drag
+        // deltas come from a frozen absolute screen cursor origin, never from the moving WinUI window.
         FloatingRoot.AddHandler(UIElement.PointerPressedEvent, _pointerPressedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerMovedEvent, _pointerMovedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerReleasedEvent, _pointerReleasedHandler, handledEventsToo: true);
@@ -87,15 +86,11 @@ public sealed partial class FloatingWindow : Window
             var size = DesktopDpi.DipsToPixels(
                 new DesktopSize(SurfaceSideDip, SurfaceSideDip),
                 selected);
-            var probe = new DesktopPoint(
-                saved.X + (size.Width / 2d),
-                saved.Y + (size.Height / 2d));
-            var restored = FloatingSurfaceDragService.ClampTopLeft(
+            var restored = FloatingSurfaceDragService.ClampLegacyBallTopLeft(
                 areas,
                 size,
                 saved,
-                probe,
-                DragMarginDip);
+                saved);
             var recovered = restored.TopLeft != saved;
             var width = Math.Max(1, ToInt32(size.Width));
             var height = Math.Max(1, ToInt32(size.Height));
@@ -116,23 +111,23 @@ public sealed partial class FloatingWindow : Window
         var defaultSize = DesktopDpi.DipsToPixels(
             new DesktopSize(SurfaceSideDip, SurfaceSideDip),
             defaultArea);
-        var margin = DesktopDpi.UniformDipsToPixels(MarginDip, defaultArea);
-        var placement = AnchorPlacementService.Place(new AnchorPlacementRequest(
-            [defaultArea],
+        var defaultTopLeft = FloatingSurfaceDragService.DefaultLegacyBallTopLeft(
+            defaultArea,
             defaultSize,
-            null,
-            DesktopAnchor.Auto,
-            margin));
-
+            DefaultRightMarginDip);
         var defaultWidth = Math.Max(1, ToInt32(defaultSize.Width));
         var defaultHeight = Math.Max(1, ToInt32(defaultSize.Height));
         AppWindow.MoveAndResize(new RectInt32(
-            ToInt32(placement.TopLeft.X),
-            ToInt32(placement.TopLeft.Y),
+            ToInt32(defaultTopLeft.X),
+            ToInt32(defaultTopLeft.Y),
             defaultWidth,
             defaultHeight));
         ApplyWindowShape(defaultWidth, defaultHeight);
-        return placement;
+        return new AnchorPlacementResult(
+            defaultTopLeft,
+            defaultArea,
+            DesktopAnchor.Right,
+            false);
     }
 
     private void ConfigurePresenter()
@@ -162,6 +157,7 @@ public sealed partial class FloatingWindow : Window
         var properties = point.Properties;
         var primaryContact = properties.IsLeftButtonPressed || (!properties.IsRightButtonPressed && point.IsInContact);
         if (!primaryContact) return;
+        if (!_platform.TryGetCursorPosition(out var cursor)) return;
 
         IReadOnlyList<DesktopWorkArea> areas;
         try
@@ -177,37 +173,35 @@ public sealed partial class FloatingWindow : Window
         _dragMoved = false;
         _activePointerId = e.Pointer.PointerId;
         _dragWorkAreas = areas;
-        _dragPointerStart = GetPointerScreenPoint(e);
+        _dragCursorStart = cursor;
         _dragWindowStart = new DesktopPoint(AppWindow.Position.X, AppWindow.Position.Y);
     }
 
     private void OnFloatingPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId || _dragWorkAreas is null) return;
+        if (!_platform.TryGetCursorPosition(out var currentCursor)) return;
 
-        var current = GetPointerScreenPoint(e);
-        var scale = GetRasterizationScale();
-        if (!_dragMoved && !FloatingSurfaceDragService.HasExceededThreshold(
-                _dragPointerStart,
-                current,
-                DragThresholdDip * scale))
+        if (!_dragMoved && !FloatingSurfaceDragService.HasExceededLegacyBallThreshold(
+                _dragCursorStart,
+                currentCursor,
+                LegacyDragThresholdPixels))
         {
             return;
         }
 
         _dragMoved = true;
         var proposed = new DesktopPoint(
-            _dragWindowStart.X + current.X - _dragPointerStart.X,
-            _dragWindowStart.Y + current.Y - _dragPointerStart.Y);
+            _dragWindowStart.X + currentCursor.X - _dragCursorStart.X,
+            _dragWindowStart.Y + currentCursor.Y - _dragCursorStart.Y);
 
         try
         {
-            var placement = FloatingSurfaceDragService.ClampTopLeft(
+            var placement = FloatingSurfaceDragService.ClampLegacyBallTopLeft(
                 _dragWorkAreas,
                 new DesktopSize(AppWindow.Size.Width, AppWindow.Size.Height),
                 proposed,
-                current,
-                DragMarginDip);
+                currentCursor);
             AppWindow.Move(new PointInt32(
                 ToInt32(placement.TopLeft.X),
                 ToInt32(placement.TopLeft.Y)));
@@ -215,7 +209,7 @@ public sealed partial class FloatingWindow : Window
         }
         catch
         {
-            // Pointer movement is best-effort. Keep the last valid window position on transient DPI/display errors.
+            // Pointer movement is best-effort. Keep the last valid window position on transient display errors.
         }
     }
 
@@ -260,21 +254,6 @@ public sealed partial class FloatingWindow : Window
     {
         if (_closed || !args.DidSizeChange) return;
         ApplyWindowShape(sender.Size.Width, sender.Size.Height);
-    }
-
-    private DesktopPoint GetPointerScreenPoint(PointerRoutedEventArgs e)
-    {
-        var relative = e.GetCurrentPoint(FloatingRoot).Position;
-        var scale = GetRasterizationScale();
-        return new DesktopPoint(
-            AppWindow.Position.X + (relative.X * scale),
-            AppWindow.Position.Y + (relative.Y * scale));
-    }
-
-    private double GetRasterizationScale()
-    {
-        var scale = FloatingRoot.XamlRoot?.RasterizationScale ?? 1d;
-        return double.IsFinite(scale) && scale > 0 ? scale : 1d;
     }
 
     private async Task PersistCurrentPlacementAsync()
