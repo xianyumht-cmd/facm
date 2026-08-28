@@ -25,6 +25,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("gate7 desktop anchor placement", Gate7Smoke.RunAsync),
     ("gate8 state-driven League Workbench", Gate8Smoke.RunAsync),
     ("productization League Build Advisor", LeagueBuildAdvisorSmoke.RunAsync),
+    ("productization League item sets", LeagueItemSetSmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
@@ -50,7 +51,7 @@ static void TestHost()
         host.Register(new TestModule("consumer", ["core"], events));
         host.Register(new TestModule("core", [], events));
         host.Initialize();
-        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder), "topological init order");
+        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder, "topological init order"));
     }
     Equal("init:core,init:consumer,dispose:consumer,dispose:core", string.Join(',', events), "reverse dispose order");
 
