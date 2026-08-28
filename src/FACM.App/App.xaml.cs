@@ -24,6 +24,8 @@ namespace FACM.App;
 
 public partial class App : Application
 {
+    private readonly SemaphoreSlim _floatingPlacementSaveGate = new(1, 1);
+
     private MainWindow? _window;
     private FloatingWindow? _floatingWindow;
     private ControlCenterViewModel? _controlCenter;
@@ -120,7 +122,13 @@ public partial class App : Application
         EnsureMainWindow();
 
         var workAreas = new WindowsDesktopWorkAreaProvider();
-        _floatingWindow = new FloatingWindow(workAreas, _uiText, EnsureMainWindow);
+        var floatingPlatform = new WindowsFloatingSurfacePlatform();
+        _floatingWindow = new FloatingWindow(
+            workAreas,
+            floatingPlatform,
+            _uiText,
+            EnsureMainWindow,
+            PersistFloatingPlacementAsync);
         _floatingWindow.Closed += OnFloatingWindowClosed;
         try
         {
@@ -287,6 +295,51 @@ public partial class App : Application
         }
     }
 
+    private async Task PersistFloatingPlacementAsync(DesktopPoint topLeft)
+    {
+        var settings = _settings;
+        if (settings is null || _shuttingDown || !topLeft.IsFinite) return;
+
+        await _floatingPlacementSaveGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(settings, _settings) || _shuttingDown) return;
+            var loaded = await settings.LoadAsync();
+            if (loaded.Origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults)
+            {
+                QueueDiagnostic(DiagnosticEventFactory.Create(
+                    "desktop.place",
+                    "FACM.Desktop",
+                    0,
+                    DiagnosticResult.Success,
+                    "drag-position-not-persisted-recovery",
+                    _productState?.Current.League ?? LeagueProductState.NotRunning,
+                    typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
+                return;
+            }
+
+            loaded.Settings.Pets.BallX = ToPersistedCoordinate(topLeft.X);
+            loaded.Settings.Pets.BallY = ToPersistedCoordinate(topLeft.Y);
+            await settings.SaveAsync(loaded.Settings);
+            QueueDiagnostic(DiagnosticEventFactory.Create(
+                "desktop.place",
+                "FACM.Desktop",
+                0,
+                DiagnosticResult.Success,
+                "drag-position-saved",
+                _productState?.Current.League ?? LeagueProductState.NotRunning,
+                typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
+        }
+        catch (Exception exception)
+        {
+            QueueDiagnostic(CreateDesktopPlacementDiagnostic("drag-position-save-failed", exception));
+        }
+        finally
+        {
+            _floatingPlacementSaveGate.Release();
+        }
+    }
+
     private DiagnosticEvent CreateDesktopPlacementDiagnostic(string reason, Exception exception) =>
         DiagnosticEventFactory.Create(
             "desktop.place",
@@ -338,6 +391,13 @@ public partial class App : Application
                 // Diagnostics are best-effort and may never make the product fail to launch.
             }
         });
+    }
+
+    private static int ToPersistedCoordinate(double value)
+    {
+        if (!double.IsFinite(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        var rounded = Math.Round(value, MidpointRounding.AwayFromZero);
+        return (int)Math.Clamp(rounded, int.MinValue, int.MaxValue);
     }
 }
 
