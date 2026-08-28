@@ -101,7 +101,7 @@
       "requiredForRelease": true,
       "status": "Passed",
       "evidence": "Gate 13 implementation head 71d82ea060f393f271048102bc4eff77d0707305: Foundation #240 SUCCESS, Windows Build #1366 SUCCESS, UI Text #487 SUCCESS. Cutover source guard reported 22 required / 11 passed / 11 blocking before this item was promoted; Gate13Smoke passed. Engineering artifact 9666591196 ZIP 88321030 bytes, digest sha256:dc6a80aa80f1032af7dbb55721a1d19a02c72d1b4a01b49530c48252ffc4ab69; FACM.App.exe 227794567 bytes.",
-      "notes": "Guard engineering is verified. The remaining 10 external/final-release items still keep ReleaseReady=false, so formal production cutover remains blocked."
+      "notes": "Guard engineering is verified. Win10 22H2 real-machine evidence has since passed, but the remaining 9 external/final-release items still keep ReleaseReady=false, so formal production cutover remains blocked."
     },
     {
       "id": "compat.non-admin-uac-cancel",
@@ -131,9 +131,9 @@
       "id": "compat.windows-10-22h2",
       "category": "compatibility",
       "requiredForRelease": true,
-      "status": "Blocked",
-      "evidence": "",
-      "notes": "Real Win10 22H2 launch/runtime evidence is missing."
+      "status": "Passed",
+      "evidence": "2026-08-28 real Windows 10 Pro 22H2 / build 19045 validation of formal styled candidate b14c30ec70c40afc506788176e49fd3dc7a13564 (PR #218, artifact 9670340820): Main Shell rendered, all four NavigationView entries switched normally, F desktop surface rendered, Recovery reached phase=2/reason=running/consecutiveFailures=0, and no new XamlParseException/launch failure occurred. See evidence/real-machine/win10-22h2-19045-20260828.md.",
+      "notes": "This passes Win10 22H2 launch/runtime compatibility only; floating-surface product polish and business-page completeness are tracked separately and do not substitute for the remaining release-evidence items."
     },
     {
       "id": "compat.windows-11",
