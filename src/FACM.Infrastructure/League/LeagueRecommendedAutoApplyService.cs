@@ -132,10 +132,13 @@ public sealed class LeagueRecommendedAutoApplyService : ILeagueRecommendedAutoAp
         }
     }
 
-    internal Task EvaluateForSmokeTestAsync(
+    internal async Task EvaluateForSmokeTestAsync(
         LeagueGameflowSnapshot observation,
-        CancellationToken cancellationToken = default) =>
-        EvaluateObservationAsync(observation, cancellationToken, waitForGate: true);
+        CancellationToken cancellationToken = default)
+    {
+        if (!PrepareObservation(observation)) return;
+        await EvaluateObservationAsync(observation, cancellationToken, waitForGate: true).ConfigureAwait(false);
+    }
 
     private async Task EvaluateObservationAsync(
         LeagueGameflowSnapshot observation,
