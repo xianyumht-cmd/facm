@@ -79,7 +79,7 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
 
             if (owned is null)
             {
-                var color = TryGetPlatformColor(platformKey) ?? Colors.Transparent;
+                var color = TryGetPlatformColor(platformKey) ?? Color.FromArgb(0, 0, 0, 0);
                 owned = new SolidColorBrush(color);
                 _resources[ownedKey] = owned;
             }
