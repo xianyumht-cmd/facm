@@ -67,26 +67,57 @@ public sealed partial class FloatingWindow : Window
     public AnchorPlacementResult ApplyPlacement(DesktopPoint? preferredTopLeft)
     {
         var areas = _workAreas.GetWorkingAreas();
-        var selected = AnchorPlacementService.SelectWorkArea(areas, preferredTopLeft);
-        var size = DesktopDpi.DipsToPixels(
+        if (preferredTopLeft is { IsFinite: true } saved)
+        {
+            var selected = AnchorPlacementService.SelectWorkArea(areas, saved);
+            var size = DesktopDpi.DipsToPixels(
+                new DesktopSize(SurfaceSideDip, SurfaceSideDip),
+                selected);
+            var probe = new DesktopPoint(
+                saved.X + (size.Width / 2d),
+                saved.Y + (size.Height / 2d));
+            var restored = FloatingSurfaceDragService.ClampTopLeft(
+                areas,
+                size,
+                saved,
+                probe,
+                DragMarginDip);
+            var recovered = restored.TopLeft != saved;
+            var width = Math.Max(1, ToInt32(size.Width));
+            var height = Math.Max(1, ToInt32(size.Height));
+            AppWindow.MoveAndResize(new RectInt32(
+                ToInt32(restored.TopLeft.X),
+                ToInt32(restored.TopLeft.Y),
+                width,
+                height));
+            ApplyWindowShape(width, height);
+            return new AnchorPlacementResult(
+                restored.TopLeft,
+                restored.WorkArea,
+                DesktopAnchor.Auto,
+                recovered);
+        }
+
+        var defaultArea = AnchorPlacementService.SelectWorkArea(areas, null);
+        var defaultSize = DesktopDpi.DipsToPixels(
             new DesktopSize(SurfaceSideDip, SurfaceSideDip),
-            selected);
-        var margin = DesktopDpi.UniformDipsToPixels(MarginDip, selected);
+            defaultArea);
+        var margin = DesktopDpi.UniformDipsToPixels(MarginDip, defaultArea);
         var placement = AnchorPlacementService.Place(new AnchorPlacementRequest(
-            [selected],
-            size,
-            preferredTopLeft,
+            [defaultArea],
+            defaultSize,
+            null,
             DesktopAnchor.Auto,
             margin));
 
-        var width = Math.Max(1, ToInt32(size.Width));
-        var height = Math.Max(1, ToInt32(size.Height));
+        var defaultWidth = Math.Max(1, ToInt32(defaultSize.Width));
+        var defaultHeight = Math.Max(1, ToInt32(defaultSize.Height));
         AppWindow.MoveAndResize(new RectInt32(
             ToInt32(placement.TopLeft.X),
             ToInt32(placement.TopLeft.Y),
-            width,
-            height));
-        ApplyWindowShape(width, height);
+            defaultWidth,
+            defaultHeight));
+        ApplyWindowShape(defaultWidth, defaultHeight);
         return placement;
     }
 
