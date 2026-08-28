@@ -13,6 +13,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
+    ("P7 production 3.5.15 settings key parity", LegacySettingsParitySmoke.RunAsync),
     ("ui text adapter", () => { TestUiText(); return Task.CompletedTask; }),
     ("cleanup application boundary", TestCleanupAsync),
     ("league write capability boundary", () => { TestLeagueWritePolicy(); return Task.CompletedTask; }),
