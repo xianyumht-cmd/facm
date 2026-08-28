@@ -1,12 +1,5 @@
 namespace FACM.Core.Online;
 
-public sealed record UpdateDownloadProgress(long BytesReceived, long? TotalBytes)
-{
-    public int Percent => TotalBytes is > 0
-        ? (int)Math.Clamp(BytesReceived * 100L / TotalBytes.Value, 0, 99)
-        : 0;
-}
-
 public sealed record ValidatedUpdatePackage(
     string FilePath,
     string Version,
@@ -14,6 +7,11 @@ public sealed record ValidatedUpdatePackage(
     string DownloadUrl,
     long Length);
 
+/// <summary>
+/// Lower-level verified package download boundary retained for deterministic package validation.
+/// Progress uses the canonical UpdateDownloadProgress contract owned by UpdateInstallationContracts.
+/// Product replacement is owned by IPreparedUpdateInstaller so there is only one launcher contract.
+/// </summary>
 public interface IUpdatePackageDownloader
 {
     Task<ValidatedUpdatePackage> DownloadAsync(
@@ -23,10 +21,3 @@ public interface IUpdatePackageDownloader
 }
 
 public sealed record UpdateReplacementStartResult(bool Started, string Reason);
-
-public interface IUpdateReplacementLauncher
-{
-    Task<UpdateReplacementStartResult> StartAsync(
-        ValidatedUpdatePackage package,
-        CancellationToken cancellationToken = default);
-}
