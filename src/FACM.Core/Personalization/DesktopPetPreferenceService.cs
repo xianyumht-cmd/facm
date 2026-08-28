@@ -64,16 +64,32 @@ public sealed class DesktopPetPreferenceService
 
         if (!recoveryReadOnly)
         {
-            // Match 3.5.15: remember the user's explicit choice before the async runtime starts. If the
-            // runtime immediately rejects it, the service repairs Enabled=false below so F stays usable.
+            // Persist the explicit style choice immediately, but do not claim the desktop pet is enabled
+            // until the controlled PetHost has actually reached ready. This prevents an interrupted/slow
+            // first extraction from leaving Settings2 enabled while no pet is visible.
             loaded.Settings.Pets.StyleId = pet.Id;
-            loaded.Settings.Pets.Enabled = true;
+            loaded.Settings.Pets.Enabled = false;
             await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
         }
 
         var result = await _runtime.ApplyAsync(true, pet, cancellationToken).ConfigureAwait(false);
         if (result.Success)
+        {
+            if (!recoveryReadOnly)
+            {
+                loaded.Settings.Pets.Enabled = true;
+                try
+                {
+                    await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
+                    throw;
+                }
+            }
             return Snapshot(true, pet, recoveryReadOnly, recoveryReadOnly ? "session-only:" + result.Detail : result.Detail);
+        }
 
         _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
         if (!recoveryReadOnly)
