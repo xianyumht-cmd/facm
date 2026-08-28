@@ -118,10 +118,13 @@ foreach ($required in @(
     'CleanupViewModel', 'FolderPicker', 'ContentDialog', 'ShowCleanupReviewAsync',
     'CleanupConfirmTitle', 'CleanupConfirmPrimary', 'CleanupCancel',
     'CurrentPlan', 'DeletableTargets', 'BlockedTargets', 'RequiresElevation',
-    'RestartElevatedForCleanup', 'ExecuteConfirmedAsync(confirmed: true',
+    'RestartElevatedForCleanup', 'Application.Current.Exit()', 'ExecuteConfirmedAsync(confirmed: true',
     'Progress<CleanupProgress>', 'CleanupPathText', 'CleanupOperationStatus'
 )) {
     if ($mainCode -notmatch [regex]::Escape($required)) { Fail "MainWindow cleanup presentation missing: $required" }
+}
+if ($mainCode -notmatch '(?s)var\s+started\s*=\s*_cleanupCenter\.RestartElevatedForCleanup\(\);.*if\s*\(!started\).*return;.*Application\.Current\.Exit\(\)') {
+    Fail 'Original non-elevated instance must exit only after elevated cleanup relaunch succeeds.'
 }
 if ($mainCode -match '(?s)OnCleanupPreviewClick.*File\.Delete|(?s)OnCleanupPreviewClick.*Directory\.Delete') {
     Fail 'Cleanup preview button must never directly delete filesystem entries.'
@@ -160,6 +163,7 @@ foreach ($required in @(
 Write-Host 'Cleanup Core profile/confirmation boundary: OK'
 Write-Host 'Cleanup Windows path/process/elevation boundary: OK'
 Write-Host 'Cleanup allowlist/reparse/ancestor-chain execution-time revalidation: OK'
+Write-Host 'Cleanup UAC handoff lifecycle: OK'
 Write-Host 'Cleanup ViewModel Settings 2.0/recovery boundary: OK'
 Write-Host 'Cleanup WinUI preview/confirm/progress presentation boundary: OK'
 Write-Host 'Cleanup deterministic no-unrelated-delete smoke: OK'
