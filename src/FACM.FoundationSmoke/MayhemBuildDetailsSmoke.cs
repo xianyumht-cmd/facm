@@ -115,6 +115,7 @@ internal static class MayhemBuildDetailsSmoke
         {"metaId":2001,"src":"https://cdn.test/item/2001.png","alt":"Alt A"}
         {"metaId":2002,"src":"https://cdn.test/item/2002.png","alt":"Alt B"}
         {"metaId":2003,"src":"https://cdn.test/item/2003.png","alt":"Alt C"}
+        core_items_2
         starter_items_0
         {"metaId":3001,"src":"https://cdn.test/item/3001.png","alt":"Starter A"}
         {"metaId":3002,"src":"https://cdn.test/item/3002.png","alt":"Starter B"}
