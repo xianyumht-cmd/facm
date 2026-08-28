@@ -360,9 +360,14 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
         var started = _cleanupCenter.RestartElevatedForCleanup();
-        CleanupOperationStatus.Text = started
-            ? _text.Get(UiTextKeys.CleanupRequiresAdmin)
-            : _text.Get(UiTextKeys.CleanupFailed);
+        if (!started)
+        {
+            CleanupOperationStatus.Text = _text.Get(UiTextKeys.CleanupFailed);
+            return;
+        }
+
+        CleanupOperationStatus.Text = _text.Get(UiTextKeys.CleanupRequiresAdmin);
+        _ = DispatcherQueue.TryEnqueue(() => Application.Current.Exit());
     }
 
     private async Task ExecuteCleanupAsync()
