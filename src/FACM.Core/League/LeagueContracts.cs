@@ -37,7 +37,7 @@ public enum LeagueWriteCapability
     RestartClientUx
 }
 
-public sealed record LeagueWriteCommand(LeagueWriteCapability Capability, long? ResourceId, string Json);
+public sealed record LeagueWriteCommand(LeagueWriteCapability Capability, long? ResourceId, string? Json);
 public sealed record LeagueWriteResult(int StatusCode, byte[] Body)
 {
     public bool IsSuccessStatusCode => StatusCode is >= 200 and <= 299;
