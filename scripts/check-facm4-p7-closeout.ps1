@@ -18,13 +18,16 @@ $mainCodePath = Join-Path $Root 'src/FACM.App/MainWindow.xaml.cs'
 $personalizationPath = Join-Path $Root 'src/FACM.App/MainWindow.Personalization.cs'
 $maintenanceWindowPath = Join-Path $Root 'src/FACM.App/MainWindow.Maintenance.cs'
 $appPath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
+$appProjectPath = Join-Path $Root 'src/FACM.App/FACM.App.csproj'
+$startupCrashPath = Join-Path $Root 'src/FACM.App/StartupCrashDiagnostics.cs'
 $appMaintenancePath = Join-Path $Root 'src/FACM.App/App.Maintenance.cs'
 $appPersonalizationPath = Join-Path $Root 'src/FACM.App/App.Personalization.cs'
 $appLeagueProductPath = Join-Path $Root 'src/FACM.App/App.LeagueWorkbenchProductization.cs'
 
 foreach ($path in @(
     $mainXamlPath, $mainCodePath, $personalizationPath, $maintenanceWindowPath,
-    $appPath, $appMaintenancePath, $appPersonalizationPath, $appLeagueProductPath
+    $appPath, $appProjectPath, $startupCrashPath, $appMaintenancePath,
+    $appPersonalizationPath, $appLeagueProductPath
 )) {
     if (-not (Test-Path $path)) { Fail "P7 closeout file missing: $path" }
 }
@@ -34,6 +37,8 @@ $mainCode = Get-Content $mainCodePath -Raw
 $personalization = Get-Content $personalizationPath -Raw
 $maintenanceWindow = Get-Content $maintenanceWindowPath -Raw
 $app = Get-Content $appPath -Raw
+$appProject = Get-Content $appProjectPath -Raw
+$startupCrash = Get-Content $startupCrashPath -Raw
 $appMaintenance = Get-Content $appMaintenancePath -Raw
 $appPersonalization = Get-Content $appPersonalizationPath -Raw
 $appLeagueProduct = Get-Content $appLeagueProductPath -Raw
@@ -112,6 +117,25 @@ foreach ($required in @(
     if ($app -notmatch [regex]::Escape($required)) { Fail "P7 App lifecycle missing: $required" }
 }
 
+# Startup access-denied diagnostics must not depend on the normal logs sink. The first-chance record
+# is bounded to the startup window, redacts stable/local paths, and falls back to the portable root.
+foreach ($required in @(
+    '[ModuleInitializer]', 'FirstChanceException', 'UnauthorizedAccessException',
+    'UnhandledException', 'StartupWindow = TimeSpan.FromMinutes(2)',
+    'runtime", "recovery", CrashFileName', 'startup-crash.json',
+    'exception.HResult', 'exception.ToString()', '%FACM_ROOT%', '%USERPROFILE%', '%TEMP%'
+)) {
+    if ($startupCrash -notmatch [regex]::Escape($required)) { Fail "P7 startup crash diagnostic contract missing: $required" }
+}
+foreach ($forbidden in @('HttpClient', 'Registry.', 'Process.Start(', 'File.Delete(path)', 'Directory.Delete(')) {
+    if ($startupCrash -match [regex]::Escape($forbidden)) { Fail "P7 startup crash diagnostics may not add side effects: $forbidden" }
+}
+foreach ($required in @(
+    '<Version>4.0.0</Version>', '<AssemblyVersion>4.0.0.0</AssemblyVersion>', '<FileVersion>4.0.0.0</FileVersion>'
+)) {
+    if ($appProject -notmatch [regex]::Escape($required)) { Fail "P7 FACM.App candidate version metadata missing: $required" }
+}
+
 # Maintenance/single-instance shutdown is explicit and idempotent.
 foreach ($required in @(
     'WindowsSingleInstanceGate', 'SingleInstanceDisposition.Primary',
@@ -155,4 +179,5 @@ Write-Host 'P7 primary navigation: Repair / League / Personalization / Settings 
 Write-Host 'P7 placeholder audit: no user-visible development placeholder on primary surfaces'
 Write-Host 'P7 lifecycle: one floating owner + one League session/gateway/gameflow owner'
 Write-Host 'P7 lifecycle: maintenance/single-instance, PetHost and process-scoped League automation dispose paths retained'
+Write-Host 'P7 startup diagnostics: access-denied first-chance/unhandled fallback + 4.0.0.0 candidate version metadata retained'
 Write-Host 'FACM 4.0 P7 entry/lifecycle closeout contract: SUCCESS'
