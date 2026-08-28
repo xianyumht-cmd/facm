@@ -15,9 +15,13 @@ internal static class Program
         if (args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))
             return PetHostSelfTest.Run();
 
-        VPetAssetCacheValidator.InvalidateBrokenCompletionMarkers();
+        var runtime = ReadArgument(args, "--runtime");
+        var flying = string.Equals(runtime, "flying", StringComparison.OrdinalIgnoreCase);
+        if (!flying)
+            VPetAssetCacheValidator.InvalidateBrokenCompletionMarkers();
 
         var pipeName = ReadArgument(args, "--pipe");
+        var petId = ReadArgument(args, "--pet-id");
         var parentPidText = ReadArgument(args, "--parent-pid");
         _ = int.TryParse(parentPidText, out var parentPid);
 
@@ -27,7 +31,9 @@ internal static class Program
         };
 
         var ipc = new PetHostIpc(pipeName);
-        var window = new PetHostWindow(ipc);
+        System.Windows.Window window = flying
+            ? new FlyingPetHostWindow(ipc, petId)
+            : new PetHostWindow(ipc);
         application.MainWindow = window;
 
         DispatcherTimer? parentTimer = null;
@@ -89,6 +95,16 @@ internal static class PetHostSelfTest
                 throw new InvalidOperationException("VPet 上游固定提交格式无效。");
             if (PetHostIpc.Escape("a|b\\c\r\nd") != "a\\pb\\\\c\\r\\nd")
                 throw new InvalidOperationException("PetHost IPC 转义协议自检失败。");
+
+            var expectedFlyingIds = new[] { "greenfly", "bee", "real-bee", "dragonfly", "butterfly", "moth" };
+            if (expectedFlyingIds.Any(id => !FlyingPetProfiles.Contains(id)))
+                throw new InvalidOperationException("Flying PetHost 配置不完整。");
+            var greenfly = FlyingPetProfiles.Get("greenfly");
+            if (greenfly.MinBaseSpeed != 82 || greenfly.MaxBaseSpeed != 140 || greenfly.VelocityResponse != 7.5)
+                throw new InvalidOperationException("Flying PetHost 3.5 行为基线发生漂移。");
+            var realBee = FlyingPetProfiles.Get("real-bee");
+            if (realBee.MinBaseSpeed != 48 || realBee.MaxBaseSpeed != 82)
+                throw new InvalidOperationException("真实蜜蜂必须继续复用 3.5 蜜蜂轨迹基线。");
 
             Directory.CreateDirectory(PetHostPaths.RootDirectory);
             Directory.CreateDirectory(PetHostPaths.CacheDirectory);
