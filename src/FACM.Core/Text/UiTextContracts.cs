@@ -62,6 +62,20 @@ public static class UiTextKeys
     public const string CleanupInvalidDirectory = "CleanupInvalidDirectory";
     public const string CleanupPathRecoveryReadOnly = "CleanupPathRecoveryReadOnly";
 
+    public const string RepairToolsTitle = "RepairToolsTitle";
+    public const string RepairToolsDescription = "RepairToolsDescription";
+    public const string RepairToolsReady = "RepairToolsReady";
+    public const string RepairPrivilegeLabel = "RepairPrivilegeLabel";
+    public const string RepairPrivilegeAdministrator = "RepairPrivilegeAdministrator";
+    public const string RepairPrivilegeStandard = "RepairPrivilegeStandard";
+    public const string RepairDriverCleanup = "RepairDriverCleanup";
+    public const string RepairDriverCleanupHint = "RepairDriverCleanupHint";
+    public const string RepairDriverCleanupStarted = "RepairDriverCleanupStarted";
+    public const string RepairDriverCleanupCancelled = "RepairDriverCleanupCancelled";
+    public const string RepairDriverCleanupFailed = "RepairDriverCleanupFailed";
+    public const string RepairGameRepair = "RepairGameRepair";
+    public const string RepairGameRepairHint = "RepairGameRepairHint";
+
     public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
     public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
     public const string LeagueWorkbenchMatchDescription = "LeagueWorkbenchMatchDescription";
@@ -155,6 +169,20 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.CleanupSafetyHint] = "FACM 不会结束进程、停止服务或删除白名单之外的文件。",
         [UiTextKeys.CleanupInvalidDirectory] = "所选目录无法解析为有效英雄联盟安装目录。",
         [UiTextKeys.CleanupPathRecoveryReadOnly] = "设置当前处于恢复模式，本次目录只用于运行，不覆盖损坏的主设置文件。",
+
+        [UiTextKeys.RepairToolsTitle] = "修复工具",
+        [UiTextKeys.RepairToolsDescription] = "沿用 FACM 3.5.15 已验证的修复行为；旧 Fix-LCU 外部模式不会在 4.0 重新启用。",
+        [UiTextKeys.RepairToolsReady] = "修复工具已就绪",
+        [UiTextKeys.RepairPrivilegeLabel] = "当前权限",
+        [UiTextKeys.RepairPrivilegeAdministrator] = "管理员模式",
+        [UiTextKeys.RepairPrivilegeStandard] = "标准权限",
+        [UiTextKeys.RepairDriverCleanup] = "驱动清理",
+        [UiTextKeys.RepairDriverCleanupHint] = "启动内置驱动清理工具。工具释放前会校验固定 SHA-256，是否提权由 Windows / 工具自身决定。",
+        [UiTextKeys.RepairDriverCleanupStarted] = "驱动清理工具已启动",
+        [UiTextKeys.RepairDriverCleanupCancelled] = "已取消驱动清理工具",
+        [UiTextKeys.RepairDriverCleanupFailed] = "驱动清理工具启动失败",
+        [UiTextKeys.RepairGameRepair] = "游戏修复",
+        [UiTextKeys.RepairGameRepairHint] = "窗口修复、跳过卡结算、重启客户端界面等 3.5.15 原生能力将在这里复现。",
 
         [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
         [UiTextKeys.LeagueWorkbenchMatch] = "比赛",
