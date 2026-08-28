@@ -56,6 +56,69 @@ internal static class Gate7Smoke
         Equal(DesktopAnchor.Right, rightAuto.ResolvedAnchor, "auto nearest right edge");
         Equal(1844d, rightAuto.TopLeft.X, "auto right edge placement");
 
+        True(!FloatingSurfaceDragService.HasExceededThreshold(
+            new DesktopPoint(100, 100),
+            new DesktopPoint(103, 102),
+            4), "sub-threshold pointer movement must remain a click");
+        True(FloatingSurfaceDragService.HasExceededThreshold(
+            new DesktopPoint(100, 100),
+            new DesktopPoint(104, 101),
+            4), "pointer movement past threshold must become a drag");
+
+        var dragOnLeft = FloatingSurfaceDragService.ClampTopLeft(
+            areas,
+            new DesktopSize(64, 64),
+            new DesktopPoint(-20, 1060),
+            new DesktopPoint(-200, 700),
+            4);
+        Equal("left", dragOnLeft.WorkArea.Id, "drag pointer selects negative-coordinate monitor");
+        Equal(-69d, dragOnLeft.TopLeft.X, "drag clamps right edge using monitor DPI margin");
+        Equal(1011d, dragOnLeft.TopLeft.Y, "drag clamps bottom edge using monitor DPI margin");
+
+        var dragOnTop = FloatingSurfaceDragService.ClampTopLeft(
+            areas,
+            new DesktopSize(96, 96),
+            new DesktopPoint(400, -1400),
+            new DesktopPoint(500, -900),
+            4);
+        Equal("top", dragOnTop.WorkArea.Id, "drag pointer selects monitor above primary");
+        Equal(-1194d, dragOnTop.TopLeft.Y, "drag clamps negative top edge using DPI margin");
+
+        // FACM 4.0 launcher keeps WinUI, but its interaction contract intentionally mirrors the
+        // proven 3.5 floating-ball behavior: absolute screen cursor deltas and >4px Manhattan intent.
+        True(!FloatingSurfaceDragService.HasExceededLegacyBallThreshold(
+            new DesktopPoint(100, 100),
+            new DesktopPoint(102, 102),
+            4), "legacy 4px Manhattan movement remains a click");
+        True(FloatingSurfaceDragService.HasExceededLegacyBallThreshold(
+            new DesktopPoint(100, 100),
+            new DesktopPoint(103, 102),
+            4), "legacy movement over 4px becomes a drag");
+
+        var legacyDefault = FloatingSurfaceDragService.DefaultLegacyBallTopLeft(
+            primary,
+            new DesktopSize(64, 64),
+            18);
+        Equal(1838d, legacyDefault.X, "legacy default right margin");
+        Equal(488d, legacyDefault.Y, "legacy default vertical center");
+
+        var legacyLeft = FloatingSurfaceDragService.ClampLegacyBallTopLeft(
+            areas,
+            new DesktopSize(60, 60),
+            new DesktopPoint(-10, 1060),
+            new DesktopPoint(-200, 700));
+        Equal("left", legacyLeft.WorkArea.Id, "legacy drag selects cursor monitor");
+        Equal(-40d, legacyLeft.TopLeft.X, "legacy right-edge partial overhang");
+        Equal(1020d, legacyLeft.TopLeft.Y, "legacy drag keeps full vertical visibility");
+
+        var legacyTop = FloatingSurfaceDragService.ClampLegacyBallTopLeft(
+            areas,
+            new DesktopSize(90, 90),
+            new DesktopPoint(300, -1400),
+            new DesktopPoint(500, -900));
+        Equal("top", legacyTop.WorkArea.Id, "legacy drag selects monitor above primary");
+        Equal(-1200d, legacyTop.TopLeft.Y, "legacy top clamp preserves monitor top edge");
+
         var topLeft = AnchorPlacementService.Place(new AnchorPlacementRequest(
             [top],
             new DesktopSize(96, 96),
@@ -71,6 +134,18 @@ internal static class Gate7Smoke
             throw new InvalidOperationException("empty work areas should fail");
         }
         catch (ArgumentException)
+        {
+        }
+
+        try
+        {
+            _ = FloatingSurfaceDragService.HasExceededThreshold(
+                new DesktopPoint(0, 0),
+                new DesktopPoint(1, 1),
+                -1);
+            throw new InvalidOperationException("negative drag threshold should fail");
+        }
+        catch (ArgumentOutOfRangeException)
         {
         }
 
