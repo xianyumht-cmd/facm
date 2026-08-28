@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UpdaterPayloadPath Condition="'$(UpdaterPayloadPath)' == ''">$(MSBuildProjectDirectory)\..\..\out\FACM.Updater.exe</UpdaterPayloadPath>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FACM.Core\FACM.Core.csproj" />
@@ -13,5 +14,15 @@
     <EmbeddedResource Include="..\..\tools\clean driver.exe">
       <LogicalName>FACM.Platform.Windows.Resources.DriverCleanup</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="$(UpdaterPayloadPath)"
+                      Condition="Exists('$(UpdaterPayloadPath)')"
+                      LogicalName="FACM.Platform.Windows.Resources.FACM.Updater.exe" />
   </ItemGroup>
+  <Target Name="VerifyUpdaterPayloadBeforeCompile" BeforeTargets="PrepareResourceNames">
+    <Error Condition="'$(RequireUpdaterPayload)' == 'true' and !Exists('$(UpdaterPayloadPath)')"
+           Text="Required FACM updater payload was not built: $(UpdaterPayloadPath)" />
+    <Message Condition="Exists('$(UpdaterPayloadPath)')"
+             Importance="High"
+             Text="Embedding FACM updater payload: $(UpdaterPayloadPath)" />
+  </Target>
 </Project>
