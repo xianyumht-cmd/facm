@@ -10,6 +10,7 @@ internal static class MayhemOfficialPatchSmoke
         ValidateCurrentPatchNoSpecificCorrection();
         ValidateUnavailableOfficialSourceDegradesCleanly();
         await ValidateCompositeQueryAsync();
+        await MayhemPublicDataTransportSmoke.RunAsync();
     }
 
     private static void ValidateChampionChangeLookup()
