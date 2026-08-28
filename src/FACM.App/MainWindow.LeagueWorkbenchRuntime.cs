@@ -29,6 +29,7 @@ public sealed partial class MainWindow
         InitializeLeaguePresenceSurface();
         InitializeLeagueEfficiencySurface();
         InitializeLeagueBenchQuickPickSurface();
+        InitializeMayhemSurface();
 
         RootNavigation.SelectionChanged += OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchRuntimePropertyChanged;
@@ -240,6 +241,7 @@ public sealed partial class MainWindow
         RootNavigation.SelectionChanged -= OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchRuntimePropertyChanged;
         Closed -= OnLeagueWorkbenchRuntimeClosed;
+        DisposeMayhemSurface();
         DisposeLeagueBenchQuickPickSurface();
         DisposeLeagueEfficiencySurface();
         DisposeLeagueWorkbenchProductActions();
