@@ -32,6 +32,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("productization League recommended setup", LeagueRecommendedAutoApplySmoke.RunAsync),
     ("productization League efficiency", LeagueEfficiencySmoke.RunAsync),
     ("productization League bench quick-pick", LeagueBenchQuickPickSmoke.RunAsync),
+    ("productization ARAM Mayhem base query", MayhemQuerySmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
