@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
         ApplyLeagueRuntimeState();
         ApplyCleanupRuntimeState();
         ApplyRepairToolsState();
+        InitializePersonalizationSurface();
         _cleanupCenter.PropertyChanged += OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchPropertyChanged;
         Closed += OnClosed;
@@ -417,19 +418,22 @@ public sealed partial class MainWindow : Window
         CleanupProgressBar.Visibility = Visibility.Visible;
         var progress = new Progress<CleanupProgress>(item =>
         {
-            if (_closed) return;
-            _ = DispatcherQueue.TryEnqueue(() =>
-            {
-                CleanupProgressBar.Value = Math.Clamp(item.CompletedTargets, 0, Math.Max(1, item.TotalTargets));
-                CleanupOperationStatus.Text = _text.Get(UiTextKeys.CleanupExecuting) + " " + item.CurrentTarget;
-            });
+            CleanupProgressBar.Maximum = Math.Max(1, item.TotalTargets);
+            CleanupProgressBar.Value = Math.Min(item.CompletedTargets, item.TotalTargets);
+            CleanupOperationStatus.Text = item.CurrentTarget;
         });
         try
         {
-            var result = await _cleanupCenter.ExecuteConfirmedAsync(confirmed: true, progress);
+            var result = await _cleanupCenter.ExecuteConfirmedAsync(progress);
             ApplyCleanupRuntimeState();
-            if (result is null) return;
-            await ShowCleanupResultAsync(result);
+            var resultDialog = new ContentDialog
+            {
+                XamlRoot = Content.XamlRoot,
+                Title = result.Success ? _text.Get(UiTextKeys.CleanupComplete) : _text.Get(UiTextKeys.CleanupFailed),
+                Content = BuildCleanupResult(result),
+                CloseButtonText = _text.Get(UiTextKeys.CleanupConfirmPrimary)
+            };
+            await resultDialog.ShowAsync();
         }
         catch (OperationCanceledException)
         {
@@ -442,107 +446,141 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task ShowCleanupResultAsync(CleanupResult result)
-    {
-        var body = result.Failures.Count == 0
-            ? $"{_text.Get(UiTextKeys.CleanupComplete)}\n{result.DeletedFiles} files / {result.DeletedDirectories} folders"
-            : $"{_text.Get(UiTextKeys.CleanupFailed)}\n{string.Join(Environment.NewLine, result.Failures.Take(12))}";
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Content.XamlRoot,
-            Title = result.Failures.Count == 0
-                ? _text.Get(UiTextKeys.CleanupComplete)
-                : _text.Get(UiTextKeys.CleanupFailed),
-            Content = body,
-            CloseButtonText = _text.Get(UiTextKeys.CleanupConfirmPrimary)
-        };
-        await dialog.ShowAsync();
-    }
-
-    private void OnCleanupPropertyChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        if (_closed) return;
-        _ = DispatcherQueue.TryEnqueue(ApplyCleanupRuntimeState);
-    }
-
-    private void ApplyCleanupRuntimeState()
-    {
-        if (_closed) return;
-        CleanupPathText.Text = string.IsNullOrWhiteSpace(_cleanupCenter.GamePath)
-            ? _text.Get(UiTextKeys.CleanupDirectoryMissing)
-            : _cleanupCenter.GamePath;
-        CleanupDirectoryStatus.Text = _text.Get(_cleanupCenter.StatusTextKey);
-        CleanupDirectoryDetail.Text = TranslateCleanupDetail(_cleanupCenter.StatusDetail);
-        CleanupOperationStatus.Text = _text.Get(_cleanupCenter.StatusTextKey);
-        var busy = _cleanupUiBusy || _cleanupCenter.IsBusy;
-        CleanupDetectButton.IsEnabled = !busy;
-        CleanupSelectButton.IsEnabled = !busy;
-        CleanupPreviewButton.IsEnabled = !busy && _cleanupCenter.IsGamePathValid;
-        ApplyRepairToolsState();
-    }
-
-    private string TranslateCleanupDetail(string detail) =>
-        string.Equals(detail, UiTextKeys.CleanupPathRecoveryReadOnly, StringComparison.Ordinal)
-            ? _text.Get(UiTextKeys.CleanupPathRecoveryReadOnly)
-            : detail;
-
     private string BuildCleanupSummary(CleanupPlan plan)
     {
         var summary = plan.Summary;
-        return $"{_text.Get(UiTextKeys.CleanupTargetSummary)}: {summary.TargetCount} targets / {summary.FileCount} files / {summary.DirectoryCount} folders / {FormatBytes(summary.EstimatedBytes)}\n{_text.Get(UiTextKeys.CleanupBlocked)}: {plan.BlockedTargets.Count}";
+        var parts = new[]
+        {
+            $"{summary.TargetCount} {_text.Get(UiTextKeys.CleanupTargetSummary)}",
+            $"{summary.FileCount} files / {summary.DirectoryCount} folders",
+            FormatBytes(summary.EstimatedBytes),
+            $"{summary.BlockedCount} {_text.Get(UiTextKeys.CleanupBlocked)}"
+        };
+        return string.Join(" · ", parts);
     }
 
-    private string FormatCleanupTarget(CleanupTarget target)
+    private static string FormatCleanupTarget(CleanupTarget target)
     {
-        var prefix = target.Blocked ? $"[{_text.Get(UiTextKeys.CleanupBlocked)}] " : string.Empty;
-        return $"{prefix}{target.Group}\n{target.Path}\n{target.FileCount} files / {target.DirectoryCount} folders / {FormatBytes(target.EstimatedBytes)} · {target.Detail}";
+        var detail = target.IsBlocked
+            ? $"BLOCKED · {target.BlockedReason}"
+            : $"{target.FileCount} files · {target.DirectoryCount} folders · {FormatBytes(target.EstimatedBytes)}";
+        return $"{target.FullPath}\n{detail}";
+    }
+
+    private string BuildCleanupResult(CleanupResult result)
+    {
+        var lines = new List<string>
+        {
+            $"Deleted files: {result.DeletedFiles}",
+            $"Deleted folders: {result.DeletedDirectories}"
+        };
+        if (result.Failures.Count > 0)
+        {
+            lines.Add($"Failures: {result.Failures.Count}");
+            lines.AddRange(result.Failures);
+        }
+        return string.Join(Environment.NewLine, lines);
     }
 
     private static string FormatBytes(long bytes)
     {
-        if (bytes < 1024) return $"{Math.Max(0, bytes)} B";
-        var value = bytes / 1024d;
-        if (value < 1024) return $"{value:0.0} KB";
-        value /= 1024d;
-        if (value < 1024) return $"{value:0.0} MB";
-        value /= 1024d;
-        return $"{value:0.00} GB";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024L * 1024L) return $"{bytes / 1024d:F1} KB";
+        if (bytes < 1024L * 1024L * 1024L) return $"{bytes / (1024d * 1024d):F1} MB";
+        return $"{bytes / (1024d * 1024d * 1024d):F2} GB";
     }
 
-    private void OnLeagueWorkbenchPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void ApplyCleanupRuntimeState()
+    {
+        CleanupPathText.Text = string.IsNullOrWhiteSpace(_cleanupCenter.GamePath)
+            ? _text.Get(UiTextKeys.CleanupDirectoryMissing)
+            : _cleanupCenter.GamePath;
+        CleanupDirectoryStatus.Text = _text.Get(_cleanupCenter.StatusTextKey);
+        CleanupDirectoryDetail.Text = _cleanupCenter.StatusDetail;
+        CleanupOperationStatus.Text = _text.Get(_cleanupCenter.StatusTextKey);
+        CleanupDetectButton.IsEnabled = !_cleanupUiBusy && !_cleanupCenter.IsBusy;
+        CleanupSelectButton.IsEnabled = !_cleanupUiBusy && !_cleanupCenter.IsBusy;
+        CleanupPreviewButton.IsEnabled = !_cleanupUiBusy && !_cleanupCenter.IsBusy && _cleanupCenter.IsGamePathValid;
+    }
+
+    private void OnCleanupPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_closed) return;
-        if (args.PropertyName is not (
-            nameof(LeagueWorkbenchViewModel.LeagueState) or
-            nameof(LeagueWorkbenchViewModel.LeagueStateTextKey) or
-            nameof(LeagueWorkbenchViewModel.BudgetName)))
+        if (DispatcherQueue.HasThreadAccess)
         {
+            ApplyCleanupRuntimeState();
+            ApplyRepairToolsState();
             return;
         }
 
-        _ = DispatcherQueue.TryEnqueue(ApplyLeagueRuntimeState);
+        _ = DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_closed) return;
+            ApplyCleanupRuntimeState();
+            ApplyRepairToolsState();
+        });
     }
 
     private void ApplyLeagueRuntimeState()
     {
-        if (_closed) return;
-        LeagueStateValue.Text = _text.Get(_leagueWorkbench.LeagueStateTextKey);
-        LeagueBudgetValue.Text = _leagueWorkbench.BudgetName;
+        var snapshot = _leagueWorkbench.Snapshot;
+        LeagueStateValue.Text = _text.Get(LeagueWorkbenchTextKeys.ForState(snapshot.League));
+        LeagueBudgetValue.Text = snapshot.Budget.Name + " · " + snapshot.Budget.RefreshInterval.TotalMilliseconds.ToString("F0") + " ms";
+        QueueLeagueWorkbenchSurfaceRefresh();
     }
 
-    private async void OnDiagnosticsRefreshClick(object sender, RoutedEventArgs args) =>
-        await RefreshDiagnosticsAsync();
-
-    private async void OnDiagnosticsCopyClick(object sender, RoutedEventArgs args)
+    private void OnLeagueWorkbenchPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_diagnosticsBusy) return;
-        if (!_diagnosticsLoaded) await RefreshDiagnosticsAsync();
-        if (string.IsNullOrWhiteSpace(_diagnosticsCenter.Summary)) return;
+        if (_closed) return;
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            ApplyLeagueRuntimeState();
+            return;
+        }
 
+        _ = DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_closed) ApplyLeagueRuntimeState();
+        });
+    }
+
+    private void ApplyStatus(string textKey)
+    {
+        StatusValue.Text = _text.Get(textKey);
+    }
+
+    private async Task RefreshDiagnosticsAsync()
+    {
+        if (_diagnosticsBusy || _closed) return;
+        _diagnosticsBusy = true;
+        try
+        {
+            await _diagnosticsCenter.RefreshAsync();
+            _diagnosticsLoaded = true;
+            ApplyDiagnosticsRuntimeState();
+        }
+        catch (Exception)
+        {
+            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
+        }
+        finally
+        {
+            _diagnosticsBusy = false;
+            ApplyDiagnosticsBusyState();
+        }
+    }
+
+    private async void OnDiagnosticsRefreshClick(object sender, RoutedEventArgs args)
+    {
+        await RefreshDiagnosticsAsync();
+    }
+
+    private void OnDiagnosticsCopyClick(object sender, RoutedEventArgs args)
+    {
         try
         {
             var package = new DataPackage();
-            package.SetText(_diagnosticsCenter.Summary);
+            package.SetText(_diagnosticsCenter.SummaryText);
             Clipboard.SetContent(package);
             DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusCopied);
         }
@@ -555,13 +593,13 @@ public sealed partial class MainWindow : Window
     private async void OnDiagnosticsExportClick(object sender, RoutedEventArgs args)
     {
         if (_diagnosticsBusy) return;
-        SetDiagnosticsBusy(true);
+        _diagnosticsBusy = true;
         try
         {
-            _ = await _diagnosticsCenter.ExportAsync();
-            _diagnosticsLoaded = true;
-            DiagnosticsSummaryText.Text = _diagnosticsCenter.Summary;
-            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusExported);
+            var result = await _diagnosticsCenter.ExportAsync();
+            DiagnosticsStatus.Text = result.Success
+                ? _text.Get(UiTextKeys.DiagnosticsStatusExported) + " · " + result.BundlePath
+                : _text.Get(UiTextKeys.DiagnosticsStatusFailed);
         }
         catch (Exception)
         {
@@ -569,49 +607,33 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            SetDiagnosticsBusy(false);
+            _diagnosticsBusy = false;
+            ApplyDiagnosticsBusyState();
         }
     }
 
-    private async Task RefreshDiagnosticsAsync()
+    private void ApplyDiagnosticsRuntimeState()
     {
-        if (_diagnosticsBusy) return;
-        SetDiagnosticsBusy(true);
-        try
-        {
-            DiagnosticsSummaryText.Text = await _diagnosticsCenter.RefreshAsync();
-            _diagnosticsLoaded = true;
-            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusRefreshed);
-        }
-        catch (Exception)
-        {
-            DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusFailed);
-        }
-        finally
-        {
-            SetDiagnosticsBusy(false);
-        }
+        DiagnosticsSummaryText.Text = _diagnosticsCenter.SummaryText;
+        DiagnosticsStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusRefreshed);
     }
 
-    private void SetDiagnosticsBusy(bool busy)
+    private void ApplyDiagnosticsBusyState()
     {
-        _diagnosticsBusy = busy;
-        DiagnosticsRefreshButton.IsEnabled = !busy;
-        DiagnosticsCopyButton.IsEnabled = !busy;
-        DiagnosticsExportButton.IsEnabled = !busy;
-    }
-
-    private void ApplyStatus(string key)
-    {
-        StatusValue.Text = _text.Get(key);
+        var enabled = !_diagnosticsBusy;
+        DiagnosticsRefreshButton.IsEnabled = enabled;
+        DiagnosticsCopyButton.IsEnabled = enabled;
+        DiagnosticsExportButton.IsEnabled = enabled;
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed) return;
         _closed = true;
+        Closed -= OnClosed;
+        RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;
-        Closed -= OnClosed;
+        _leagueWorkbench.Dispose();
     }
 }
