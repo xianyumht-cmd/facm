@@ -71,6 +71,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-league-workbench.ps1
 
+      - name: Verify League recommended setup contract
+        shell: pwsh
+        run: ./scripts/check-facm4-league-recommended.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
