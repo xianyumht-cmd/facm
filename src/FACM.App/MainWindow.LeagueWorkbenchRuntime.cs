@@ -27,6 +27,7 @@ public sealed partial class MainWindow
         InitializeLeagueWorkbenchProductActions();
         InitializeLeagueAutomationSurface();
         InitializeLeaguePresenceSurface();
+        InitializeLeagueEfficiencySurface();
 
         RootNavigation.SelectionChanged += OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchRuntimePropertyChanged;
@@ -238,6 +239,7 @@ public sealed partial class MainWindow
         RootNavigation.SelectionChanged -= OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchRuntimePropertyChanged;
         Closed -= OnLeagueWorkbenchRuntimeClosed;
+        DisposeLeagueEfficiencySurface();
         DisposeLeagueWorkbenchProductActions();
     }
 }
