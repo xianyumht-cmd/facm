@@ -22,6 +22,27 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Prepare controlled PetHost payload
+        shell: pwsh
+        run: |
+          $publish = Join-Path $PWD 'artifacts/pethost'
+          $bundle = Join-Path $PWD 'out/PetHostBundle.zip'
+          New-Item -ItemType Directory -Force -Path $publish | Out-Null
+          New-Item -ItemType Directory -Force -Path (Split-Path $bundle) | Out-Null
+          dotnet publish src/FACM.PetHost/FACM.PetHost.csproj -c Release -r win-x64 --self-contained true -o $publish
+          if ($LASTEXITCODE -ne 0) { throw 'FACM.PetHost publish failed.' }
+          $host = Join-Path $publish 'FACM.PetHost.exe'
+          if (-not (Test-Path $host)) { throw 'FACM.PetHost.exe was not published.' }
+          & $host --self-test
+          if ($LASTEXITCODE -ne 0) { throw "FACM.PetHost self-test failed: $LASTEXITCODE" }
+          foreach ($critical in @('FACM.PetHost.dll','FACM.PetHost.deps.json','hostfxr.dll','hostpolicy.dll','VPet-Simulator.Core.dll','PresentationFramework.dll','WindowsBase.dll','wpfgfx_cor3.dll')) {
+            if (-not (Test-Path (Join-Path $publish $critical))) { throw "PetHost critical payload missing: $critical" }
+          }
+          if (Test-Path $bundle) { Remove-Item $bundle -Force }
+          Compress-Archive -Path (Join-Path $publish '*') -DestinationPath $bundle -CompressionLevel Optimal
+          if (-not (Test-Path $bundle)) { throw 'PetHostBundle.zip was not created.' }
+          Write-Host "PetHostBundle.zip bytes=$((Get-Item $bundle).Length)"
+
       - name: Verify architecture contract
         shell: pwsh
         run: ./scripts/check-facm4-architecture.ps1
@@ -84,7 +105,7 @@ jobs:
 
       - name: Build FACM 4.0 solution
         shell: pwsh
-        run: dotnet build FACM4.sln -c Release -p:Platform=x64 --no-restore
+        run: dotnet build FACM4.sln -c Release -p:Platform=x64 -p:RequirePetHostBundle=true --no-restore
 
       - name: Run deterministic foundation smoke
         shell: pwsh
@@ -103,6 +124,7 @@ jobs:
           --self-contained true
           -p:Platform=x64
           -p:PublishSingleFile=true
+          -p:RequirePetHostBundle=true
           -o artifacts/facm4
 
       - name: Verify publish output
