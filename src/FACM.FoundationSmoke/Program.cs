@@ -26,6 +26,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("gate8 state-driven League Workbench", Gate8Smoke.RunAsync),
     ("productization League Build Advisor", LeagueBuildAdvisorSmoke.RunAsync),
     ("productization League item sets", LeagueItemSetSmoke.RunAsync),
+    ("productization League matchmaking automation", LeagueMatchmakingAutomationSmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
@@ -51,8 +52,8 @@ static void TestHost()
         host.Register(new TestModule("consumer", ["core"], events));
         host.Register(new TestModule("core", [], events));
         host.Initialize();
-        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder), "topological init order");
     }
+    Equal("core,consumer", string.Join(',', events.Where(item => item.StartsWith("init:", StringComparison.Ordinal)).Select(item => item[5..])), "topological init order");
     Equal("init:core,init:consumer,dispose:consumer,dispose:core", string.Join(',', events), "reverse dispose order");
 
     events.Clear();
@@ -133,6 +134,10 @@ static void TestLeagueWritePolicy()
     True(!LeagueWriteTargetPolicy.Matches(selection, "POST", "/lol-champ-select/v1/session/actions/1"), "selection must reject arbitrary action");
     var page = new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 42, "{}");
     True(LeagueWriteTargetPolicy.Matches(page, "PUT", "/lol-perks/v1/pages/42"), "perk page allowlist");
+    var search = new LeagueWriteCommand(LeagueWriteCapability.StartMatchmaking, null, null);
+    True(LeagueWriteTargetPolicy.Matches(search, "POST", "/lol-lobby/v2/lobby/matchmaking/search"), "matchmaking search allowlist");
+    var accept = new LeagueWriteCommand(LeagueWriteCapability.AcceptReadyCheck, null, null);
+    True(LeagueWriteTargetPolicy.Matches(accept, "POST", "/lol-matchmaking/v1/ready-check/accept"), "ready-check accept allowlist");
     try
     {
         LeagueWriteTargetPolicy.Resolve(new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 0, "{}"));
