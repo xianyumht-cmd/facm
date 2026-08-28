@@ -137,7 +137,7 @@ foreach ($required in @('JobObjectLimitKillOnJobClose', 'AssignProcessToJobObjec
 foreach ($required in @('Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive', 'PetHostBundle.zip', 'RequirePetHostBundle=true')) {
     if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow PetHost packaging missing: $required" }
 }
-foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'path traversal', 'BundleSha256')) {
+foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256')) {
     if ($windowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows controlled PetHost smoke missing: $required" }
 }
 
