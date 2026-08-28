@@ -128,7 +128,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         _productState.SetLeague(mapping.ProductState, "gameflow:" + mapping.ProductState);
         _performance.UpdateLeagueActivity(mapping.Activity);
 
-        var next = new LeagueGameflowSnapshot(
+        var observed = new LeagueGameflowSnapshot(
             _utcNow(),
             mapping.ConnectionState,
             mapping.Phase,
@@ -136,24 +136,34 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
             mapping.Activity);
 
         LeagueGameflowSnapshot? previous;
+        LeagueGameflowSnapshot published;
         EventHandler<LeagueGameflowChangedEventArgs>? changedHandler;
         EventHandler<LeagueGameflowChangedEventArgs>? observedHandler;
         var changed = false;
         lock (_sync)
         {
             previous = _current;
-            changed = !Equivalent(previous, next);
-            // Keep Current fresh even when the semantic phase did not change. Consumers that need a
-            // heartbeat use Observed; consumers that only care about transitions keep using Changed.
-            _current = next;
-            changedHandler = changed ? Changed : null;
+            changed = !Equivalent(previous, observed);
+            if (changed)
+            {
+                _current = observed;
+                published = observed;
+                changedHandler = Changed;
+            }
+            else
+            {
+                // Preserve the stable snapshot identity contract for state consumers. Heartbeat
+                // consumers receive the fresh observation below without mutating Current.
+                published = previous!;
+                changedHandler = null;
+            }
             observedHandler = Observed;
         }
 
-        var args = new LeagueGameflowChangedEventArgs(previous, next);
-        changedHandler?.Invoke(this, args);
-        observedHandler?.Invoke(this, args);
-        return next;
+        if (changed)
+            changedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
+        observedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
+        return published;
     }
 
     private static bool Equivalent(LeagueGameflowSnapshot? left, LeagueGameflowSnapshot right) =>
