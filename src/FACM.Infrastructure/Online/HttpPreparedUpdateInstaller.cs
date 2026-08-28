@@ -9,7 +9,7 @@ namespace FACM.Infrastructure.Online;
 /// <summary>
 /// Downloads only a manifest already valid for the fixed FACM GitHub release layout. A successful
 /// download is represented by an opaque process-local receipt. Replacement re-checks the receipt,
-/// file identity, byte length and SHA-256 before delegating to the Windows launcher.
+/// file identity, byte length, SHA-256 and release identity before delegating to the Windows launcher.
 /// </summary>
 public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDisposable
 {
@@ -21,6 +21,7 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
 
     private readonly string _updatesDirectory;
     private readonly IUpdateReplacementLauncher _launcher;
+    private readonly IUpdatePackageIdentityVerifier _identityVerifier;
     private readonly HttpClient _client;
     private readonly Dictionary<string, Receipt> _receipts = new(StringComparer.Ordinal);
     private readonly object _receiptSync = new();
@@ -30,10 +31,12 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
     public HttpPreparedUpdateInstaller(
         RuntimePathLayout layout,
         IUpdateReplacementLauncher launcher,
+        IUpdatePackageIdentityVerifier identityVerifier,
         HttpMessageHandler? handler = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
         _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        _identityVerifier = identityVerifier ?? throw new ArgumentNullException(nameof(identityVerifier));
         _updatesDirectory = Path.GetFullPath(layout.UpdatesDirectory);
         handler ??= new SocketsHttpHandler
         {
@@ -130,6 +133,7 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
             var actualHash = ComputeSha256(temporary);
             if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Update package SHA-256 validation failed.");
+            _identityVerifier.Validate(temporary, version);
 
             File.Move(temporary, destination, overwrite: true);
             var fullPath = Path.GetFullPath(destination);
@@ -185,6 +189,15 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
                 return new UpdateReplacementResult(false, "package-hash-changed");
 
             cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                _identityVerifier.Validate(receipt.Path, receipt.Version);
+            }
+            catch (InvalidDataException)
+            {
+                return new UpdateReplacementResult(false, "package-identity-changed");
+            }
+
             var started = await _launcher.StartAsync(receipt.Path, receipt.Sha256, receipt.Version, cancellationToken)
                 .ConfigureAwait(false);
             if (!started) return new UpdateReplacementResult(false, "launcher-not-started");
