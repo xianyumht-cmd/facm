@@ -87,6 +87,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-mayhem.ps1
 
+      - name: Verify ARAM Mayhem cached public-data contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-public-data.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
