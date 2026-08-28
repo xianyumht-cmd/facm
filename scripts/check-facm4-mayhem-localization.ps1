@@ -72,7 +72,7 @@ foreach ($required in @('public interface ILeagueReadGateway', 'TryGetBytesAsync
 foreach ($required in @(
     'CommunityDragonItems', 'CommunityDragonAugments', 'CommunityDragonSummonerSpells',
     'CommunityDragonChampionSummary', 'CommunityDragonChampionDetail',
-    'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_cn/v1/'
+    'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_cn/v1'
 )) {
     if ($transport -notmatch [regex]::Escape($required)) {
         Fail "Typed CommunityDragon resource missing: $required"
