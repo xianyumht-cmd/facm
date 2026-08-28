@@ -24,7 +24,12 @@ public sealed record CleanupTarget(
     int FileCount,
     int DirectoryCount,
     bool Blocked,
-    string Detail);
+    string Detail)
+{
+    public string FullPath => Path;
+    public bool IsBlocked => Blocked;
+    public string BlockedReason => Detail;
+}
 
 public sealed record CleanupPlanSummary(
     int TargetCount,
@@ -49,7 +54,10 @@ public sealed record CleanupPlan(string GameRoot, IReadOnlyList<CleanupTarget> T
         BlockedCount);
 }
 
-public sealed record CleanupResult(int DeletedFiles, int DeletedDirectories, IReadOnlyList<string> Failures);
+public sealed record CleanupResult(int DeletedFiles, int DeletedDirectories, IReadOnlyList<string> Failures)
+{
+    public bool Success => Failures.Count == 0;
+}
 
 public sealed record CleanupProgress(string Stage, int Completed, int Total, string CurrentTarget)
 {
