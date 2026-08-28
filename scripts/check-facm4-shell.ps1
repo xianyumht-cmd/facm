@@ -84,6 +84,21 @@ foreach ($resource in @('Themes/FacmTokens.xaml', 'Themes/FacmControls.xaml')) {
     if ($appXaml -notmatch [regex]::Escape($resource)) { Fail "App.xaml must merge Shell resource dictionary: $resource" }
 }
 
+if ((Count-Matches $appXaml '<XamlControlsResources(?:\s|/|>)') -ne 1) {
+    Fail 'App.xaml must merge exactly one WinUI XamlControlsResources dictionary.'
+}
+if ($appXaml -notmatch '<XamlControlsResources\s+xmlns="using:Microsoft\.UI\.Xaml\.Controls"\s*/>') {
+    Fail 'App.xaml must load XamlControlsResources from Microsoft.UI.Xaml.Controls.'
+}
+$platformResourcesIndex = $appXaml.IndexOf('<XamlControlsResources', [System.StringComparison]::OrdinalIgnoreCase)
+$facmTokensIndex = $appXaml.IndexOf('Themes/FacmTokens.xaml', [System.StringComparison]::OrdinalIgnoreCase)
+$facmControlsIndex = $appXaml.IndexOf('Themes/FacmControls.xaml', [System.StringComparison]::OrdinalIgnoreCase)
+if ($platformResourcesIndex -lt 0 -or
+    $platformResourcesIndex -gt $facmTokensIndex -or
+    $platformResourcesIndex -gt $facmControlsIndex) {
+    Fail 'WinUI XamlControlsResources must be merged before FACM custom resource dictionaries.'
+}
+
 $shellConstants = @([regex]::Matches($text, 'public const string\s+(Shell\w+)\s*=') | ForEach-Object { $_.Groups[1].Value })
 if ($shellConstants.Count -lt 16) { Fail "Unexpectedly small Shell UI text registry: $($shellConstants.Count)" }
 foreach ($constant in $shellConstants) {
