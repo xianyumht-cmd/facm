@@ -117,7 +117,13 @@ if ($floatingCode -match 'FloatingRoot\.CapturePointer|FloatingRoot\.ReleasePoin
 if ($floatingCode -notmatch '(?s)OnFloatingButtonClick.*_toggleCompactLauncher\s*\(') {
     Fail 'Ordinary WinUI Button.Click must toggle the compact launcher.'
 }
-if ($floatingCode -match '(?s)OnFloatingPointerReleased.*_toggleCompactLauncher\s*\(') {
+$releasedMethod = [regex]::Match(
+    $floatingCode,
+    '(?s)private\s+async\s+void\s+OnFloatingPointerReleased\s*\([^)]*\).*?(?=\r?\n\s*private\s+)').Value
+if ([string]::IsNullOrWhiteSpace($releasedMethod)) {
+    Fail 'PointerReleased method body could not be isolated for launcher ownership verification.'
+}
+if ($releasedMethod -match '_toggleCompactLauncher\s*\(') {
     Fail 'PointerReleased must not race Button.Click for compact launcher ownership.'
 }
 
