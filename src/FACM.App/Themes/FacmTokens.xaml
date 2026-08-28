@@ -2,19 +2,30 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Semantic aliases intentionally point at WinUI theme resources so Light/Dark/High Contrast
-         behavior stays owned by the platform rather than copied into individual pages. -->
-    <StaticResource x:Key="FacmBackgroundBrush" ResourceKey="ApplicationPageBackgroundThemeBrush" />
-    <StaticResource x:Key="FacmSurfaceBrush" ResourceKey="CardBackgroundFillColorDefaultBrush" />
-    <StaticResource x:Key="FacmSurfaceSecondaryBrush" ResourceKey="LayerFillColorDefaultBrush" />
-    <StaticResource x:Key="FacmTextPrimaryBrush" ResourceKey="TextFillColorPrimaryBrush" />
-    <StaticResource x:Key="FacmTextMutedBrush" ResourceKey="TextFillColorSecondaryBrush" />
-    <StaticResource x:Key="FacmAccentBrush" ResourceKey="AccentFillColorDefaultBrush" />
-    <StaticResource x:Key="FacmAccentTextBrush" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-    <StaticResource x:Key="FacmStrokeBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
+    <!-- Keep read-only aliases to WinUI platform brushes for Light/Dark/High Contrast fallback. -->
+    <StaticResource x:Key="FacmPlatformBackgroundBrush" ResourceKey="ApplicationPageBackgroundThemeBrush" />
+    <StaticResource x:Key="FacmPlatformSurfaceBrush" ResourceKey="CardBackgroundFillColorDefaultBrush" />
+    <StaticResource x:Key="FacmPlatformSurfaceSecondaryBrush" ResourceKey="LayerFillColorDefaultBrush" />
+    <StaticResource x:Key="FacmPlatformTextPrimaryBrush" ResourceKey="TextFillColorPrimaryBrush" />
+    <StaticResource x:Key="FacmPlatformTextMutedBrush" ResourceKey="TextFillColorSecondaryBrush" />
+    <StaticResource x:Key="FacmPlatformAccentBrush" ResourceKey="AccentFillColorDefaultBrush" />
+    <StaticResource x:Key="FacmPlatformAccentTextBrush" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
+    <StaticResource x:Key="FacmPlatformStrokeBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
 
-    <CornerRadius x:Key="FacmCardCornerRadius">16</CornerRadius>
-    <CornerRadius x:Key="FacmControlCornerRadius">10</CornerRadius>
+    <!-- FACM theme brushes must be FACM-owned mutable instances. Do not alias these keys directly to
+         WinUI theme brushes: WinUI may expose protected SolidColorBrush instances whose Color setter
+         returns E_ACCESSDENIED on real Windows machines. The runtime only mutates these owned brushes. -->
+    <SolidColorBrush x:Key="FacmBackgroundBrush" Color="#070E22" />
+    <SolidColorBrush x:Key="FacmSurfaceBrush" Color="#1C274E" />
+    <SolidColorBrush x:Key="FacmSurfaceSecondaryBrush" Color="#253466" />
+    <SolidColorBrush x:Key="FacmTextPrimaryBrush" Color="#F6F9FF" />
+    <SolidColorBrush x:Key="FacmTextMutedBrush" Color="#A2B2E0" />
+    <SolidColorBrush x:Key="FacmAccentBrush" Color="#3D69FF" />
+    <SolidColorBrush x:Key="FacmAccentTextBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="FacmStrokeBrush" Color="#6784FF" />
+
+    <CornerRadius x:Key="FacmCardCornerRadius">22</CornerRadius>
+    <CornerRadius x:Key="FacmControlCornerRadius">14</CornerRadius>
     <Thickness x:Key="FacmPagePadding">32,28,32,32</Thickness>
     <Thickness x:Key="FacmCardPadding">20</Thickness>
     <x:Double x:Key="FacmPageMaxWidth">1040</x:Double>
