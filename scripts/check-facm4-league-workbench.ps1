@@ -20,12 +20,15 @@ $coreWorkbenchDataPath = Join-Path $Root 'src/FACM.Core/League/LeagueWorkbenchDa
 $coreBuildAdvisorPath = Join-Path $Root 'src/FACM.Core/League/LeagueBuildAdvisor.cs'
 $coreItemSetPath = Join-Path $Root 'src/FACM.Core/League/LeagueItemSet.cs'
 $coreMatchmakingPath = Join-Path $Root 'src/FACM.Core/League/LeagueMatchmakingAutomation.cs'
+$corePostGamePath = Join-Path $Root 'src/FACM.Core/League/LeaguePostGameAutomation.cs'
 $monitorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueGameflowMonitor.cs'
 $dataSourcePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueWorkbenchDataSource.cs'
 $advisorPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBuildAdvisorService.cs'
 $itemSetPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueItemSetService.cs'
 $matchmakingPath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueMatchmakingAutomationService.cs'
+$postGamePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeaguePostGameAutomationService.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/LeagueWorkbenchViewModel.cs'
+$postGameSettingsVmPath = Join-Path $Root 'src/FACM.App/ViewModels/LeaguePostGameAutomationSettingsViewModel.cs'
 $appPath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $productCompositionPath = Join-Path $Root 'src/FACM.App/App.LeagueWorkbenchProductization.cs'
 $mainXamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
@@ -37,10 +40,10 @@ $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
     $coreContractsPath, $coreGameflowPath, $coreWorkbenchPath, $coreWorkbenchDataPath,
-    $coreBuildAdvisorPath, $coreItemSetPath, $coreMatchmakingPath, $monitorPath, $dataSourcePath,
-    $advisorPath, $itemSetPath, $matchmakingPath, $viewModelPath, $appPath,
-    $productCompositionPath, $mainXamlPath, $mainCodePath, $runtimeUiPath,
-    $productActionsPath, $automationUiPath, $textPath
+    $coreBuildAdvisorPath, $coreItemSetPath, $coreMatchmakingPath, $corePostGamePath,
+    $monitorPath, $dataSourcePath, $advisorPath, $itemSetPath, $matchmakingPath, $postGamePath,
+    $viewModelPath, $postGameSettingsVmPath, $appPath, $productCompositionPath, $mainXamlPath,
+    $mainCodePath, $runtimeUiPath, $productActionsPath, $automationUiPath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "League Workbench contract file missing: $path" }
 }
@@ -52,12 +55,15 @@ $coreWorkbenchData = Get-Content $coreWorkbenchDataPath -Raw
 $coreBuildAdvisor = Get-Content $coreBuildAdvisorPath -Raw
 $coreItemSet = Get-Content $coreItemSetPath -Raw
 $coreMatchmaking = Get-Content $coreMatchmakingPath -Raw
+$corePostGame = Get-Content $corePostGamePath -Raw
 $monitor = Get-Content $monitorPath -Raw
 $dataSource = Get-Content $dataSourcePath -Raw
 $advisor = Get-Content $advisorPath -Raw
 $itemSet = Get-Content $itemSetPath -Raw
 $matchmaking = Get-Content $matchmakingPath -Raw
+$postGame = Get-Content $postGamePath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
+$postGameSettingsVm = Get-Content $postGameSettingsVmPath -Raw
 $app = Get-Content $appPath -Raw
 $productComposition = Get-Content $productCompositionPath -Raw
 $mainXaml = Get-Content $mainXamlPath -Raw
@@ -69,7 +75,11 @@ $text = Get-Content $textPath -Raw
 
 foreach ($required in @(
     'LeagueWriteCapability.StartMatchmaking', 'LeagueWriteCapability.AcceptReadyCheck',
-    '/lol-lobby/v2/lobby/matchmaking/search', '/lol-matchmaking/v1/ready-check/accept'
+    '/lol-lobby/v2/lobby/matchmaking/search', '/lol-matchmaking/v1/ready-check/accept',
+    'LeagueWriteCapability.HonorPlayerV2', 'LeagueWriteCapability.HonorPlayerLegacy',
+    'LeagueWriteCapability.SubmitHonorBallotLegacy', 'LeagueWriteCapability.PlayAgain',
+    '/lol-honor-v2/v1/honor-player', '/lol-honor/v1/honor', '/lol-honor/v1/ballot',
+    '/lol-lobby/v2/play-again'
 )) {
     if ($coreContracts -notmatch [regex]::Escape($required)) {
         Fail "League narrow write contract is missing: $required"
@@ -100,6 +110,20 @@ foreach ($required in @('ILeagueMatchmakingAutomationService', 'AutoSearchEnable
 foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'HttpClient', '/lol-')) {
     if ($coreMatchmaking -match $forbidden) {
         Fail "Matchmaking Core control contract leaked implementation detail: $forbidden"
+    }
+}
+
+foreach ($required in @(
+    'ILeaguePostGameAutomationService', 'LeagueHonorAttemptStatus', 'AutoHonorEnabled',
+    'AutoReturnLobbyEnabled', 'LastHonorStatus', 'StatusChanged', 'Configure'
+)) {
+    if ($corePostGame -notmatch [regex]::Escape($required)) {
+        Fail "Post-game Core control contract is missing: $required"
+    }
+}
+foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'HttpClient', '/lol-')) {
+    if ($corePostGame -match $forbidden) {
+        Fail "Post-game Core control contract leaked implementation detail: $forbidden"
     }
 }
 
@@ -228,6 +252,29 @@ foreach ($forbidden in @(
     }
 }
 
+foreach ($required in @(
+    'ILeaguePostGameAutomationService', 'ILeagueReadGateway', 'ILeagueWriteGateway',
+    'ILeagueGameflowObservationSource', '_gameflow.Observed += OnGameflowObserved',
+    'BallotWaitLimit', 'VerificationDelays', 'IsPostGamePhase', 'ResolveReturnDelay',
+    'LeagueWriteCapability.HonorPlayerV2', 'LeagueWriteCapability.HonorPlayerLegacy',
+    'LeagueWriteCapability.SubmitHonorBallotLegacy', 'LeagueWriteCapability.PlayAgain',
+    'eligibleAllies', 'eligiblePlayers', 'honoredPlayers', 'team-choices',
+    'no-eligible-ally', 'safe-retry'
+)) {
+    if ($postGame -notmatch [regex]::Escape($required)) {
+        Fail "Post-game automation is missing bounded shared-heartbeat behavior: $required"
+    }
+}
+foreach ($forbidden in @(
+    'new\s+HttpClient', 'new\s+WindowsLeagueTransportSessionSource',
+    'new\s+LeagueGameflowMonitor', 'ProcessLockfileLeagueSessionDiscovery',
+    '/lol-gameflow/v1/gameflow-phase'
+)) {
+    if ($postGame -match $forbidden) {
+        Fail "Post-game automation created a second phase/transport owner: $forbidden"
+    }
+}
+
 if ((Count-Matches $app 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
     Fail 'App composition must create exactly one League session owner.'
 }
@@ -258,11 +305,16 @@ foreach ($required in @(
 foreach ($required in @(
     'viewModel.DataSource', '_leagueGateway', '_performance',
     'new LeagueBuildAdvisorService', 'new LeagueItemSetService', 'ConfigureProductServices',
-    '_settings', '_matchmakingAutomation', 'ConfigureMatchmakingAutomation'
+    '_settings', '_matchmakingAutomation', 'ConfigureMatchmakingAutomation',
+    'new LeaguePostGameAutomationService', 'CreateLeaguePostGameAutomationSettingsViewModel',
+    'AutoHonorTeammateEnabled', 'AutoReturnLobbyEnabled', 'ProcessExit'
 )) {
     if ($productComposition -notmatch [regex]::Escape($required)) {
         Fail "League product composition is missing shared-runtime wiring: $required"
     }
+}
+if ((Count-Matches $productComposition 'new\s+LeaguePostGameAutomationService\s*\(') -ne 1) {
+    Fail 'League product composition must contain exactly one process-wide post-game automation construction site.'
 }
 foreach ($forbidden in @(
     'new\s+LeagueWorkbenchDataSource', 'new\s+WindowsLeagueTransportSessionSource',
@@ -274,7 +326,7 @@ foreach ($forbidden in @(
     }
 }
 
-$uiBoundary = $viewModel + "`n" + $mainCode + "`n" + $runtimeUi + "`n" + $productActions + "`n" + $automationUi
+$uiBoundary = $viewModel + "`n" + $postGameSettingsVm + "`n" + $mainCode + "`n" + $runtimeUi + "`n" + $productActions + "`n" + $automationUi
 foreach ($forbidden in @(
     'FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'System\.Net\.Http', 'HttpClient',
     'WindowsLeagueTransportSessionSource', 'LeagueGameflowMonitor', 'Task\.Delay',
@@ -290,12 +342,18 @@ foreach ($required in @(
     'PrepareItemSetAsync', 'ApplyItemSetAsync', 'ContentDialog',
     'ILeagueMatchmakingAutomationService', 'ConfigureMatchmakingAutomation',
     'SetAutoMatchmakingEnabledAsync', 'SetAutoAcceptEnabledAsync',
+    'ILeaguePostGameAutomationService', 'LeaguePostGameAutomationSettingsViewModel',
+    'SetAutoHonorEnabledAsync', 'SetAutoReturnLobbyEnabledAsync',
     'ApplyLeagueAutomationSettingsSurface', 'FACM.League.RefreshBuildAdvisor',
-    'FACM.League.ApplyItemSet'
+    'FACM.League.ApplyItemSet', 'FACM.League.AutoHonor', 'FACM.League.AutoReturnLobby'
 )) {
     if ($uiBoundary -notmatch [regex]::Escape($required)) {
         Fail "League Workbench real UI/product intent binding is missing: $required"
     }
+}
+if ($postGameSettingsVm -notmatch 'SettingsLoadOrigin\.RecoveredLastKnownGood' -or
+    $postGameSettingsVm -notmatch 'SettingsLoadOrigin\.RecoveryDefaults') {
+    Fail 'Post-game settings controls must preserve recovery read-only behavior.'
 }
 if ($productActions -notmatch 'ContentDialogResult\.Primary') {
     Fail 'Item Set UI must require explicit primary confirmation before ApplyItemSetAsync.'
@@ -308,7 +366,10 @@ if ($runtimeUi -notmatch 'ConfigureLeagueWorkbenchProductization' -or
 foreach ($required in @(
     'LeagueAutoMatchmakingToggle.IsOn', 'LeagueAutoAcceptToggle.IsOn',
     'LeagueAutomationSettingsSaved', 'LeagueAutomationSettingsFailed',
-    'AutomationProperties.SetName', 'AutomationProperties.SetHelpText'
+    'AutomationProperties.SetName', 'AutomationProperties.SetHelpText',
+    'CreateLeaguePostGameAutomationSettingsViewModel', 'LeaguePostGameAutomationSettingsViewModel',
+    'FACM.League.AutoHonor', 'FACM.League.AutoReturnLobby',
+    'OnLeagueAutoHonorToggled', 'OnLeagueAutoReturnLobbyToggled'
 )) {
     if ($automationUi -notmatch [regex]::Escape($required)) {
         Fail "League automation WinUI control behavior is missing: $required"
@@ -358,4 +419,6 @@ Write-Host 'League Build Advisor: user-driven OP.GG + in-game cache-only'
 Write-Host 'League Item Sets: explicit-confirmation + FACM4-owned atomic write'
 Write-Host 'League Matchmaking: shared heartbeat + leader/member eligibility + one-shot ReadyCheck accept'
 Write-Host 'League Matchmaking controls: Settings 2.0 persisted WinUI toggles through Core intent boundary'
+Write-Host 'League PostGame: shared heartbeat + bounded honor verification + narrow play-again capability'
+Write-Host 'League PostGame controls: Settings 2.0 persisted WinUI intents; recovery remains read-only'
 Write-Host 'FACM 4.0 League Workbench contract: SUCCESS'
