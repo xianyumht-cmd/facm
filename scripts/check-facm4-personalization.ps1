@@ -158,7 +158,7 @@ foreach ($required in @('82, 140', '7.5, 10.5', '48, 82', '120, 205', '18, 38', 
 }
 foreach ($required in @(
     'DispatcherTimer', 'Interval = TimeSpan.FromMilliseconds(16)', 'Math.Abs(dx) + Math.Abs(dy) > 4',
-    'JitterXFrequency', 'JitterYFrequency', 'Free wandering', 'Mouse.Capture',
+    'JitterXFrequency', 'JitterYFrequency', 'roams freely', 'Mouse.Capture',
     'SendEventAsync("ready"', 'SendEventAsync("click"', 'SendEventAsync("right-click"',
     'case "reset"', 'AllowsTransparency = true', 'WsExToolWindow', 'WsExNoActivate'
 )) {
