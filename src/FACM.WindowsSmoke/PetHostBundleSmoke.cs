@@ -31,9 +31,14 @@ internal static class PetHostBundleSmoke
         {
             var bundle = CreateBundle(includeTraversal: false);
             var layout = CreateLayout(root);
+            var openCount = 0;
             var store = new WindowsPetHostBundleStore(
                 layout,
-                () => new MemoryStream(bundle, writable: false));
+                () =>
+                {
+                    Interlocked.Increment(ref openCount);
+                    return new MemoryStream(bundle, writable: false);
+                });
 
             var first = await store.PrepareAsync();
             True(!first.CacheHit, "first controlled PetHost extraction must create a new SHA-owned directory");
@@ -41,11 +46,13 @@ internal static class PetHostBundleSmoke
             True(first.BundleSha256.Length == 64, "controlled PetHost bundle must use SHA-256 identity");
             True(first.PayloadDirectory.StartsWith(Path.Combine(layout.RuntimeDirectory, "pethost-host"), StringComparison.OrdinalIgnoreCase),
                 "controlled PetHost payload must stay under runtime/pethost-host");
+            Equal(1, openCount, "first prepare must hash and extract from one seekable embedded bundle stream");
 
             var second = await store.PrepareAsync();
             True(second.CacheHit, "second controlled PetHost extraction must reuse the exact bundle cache");
             Equal(first.BundleSha256, second.BundleSha256, "controlled PetHost cache identity");
             Equal(first.ExecutablePath, second.ExecutablePath, "controlled PetHost cache executable path");
+            Equal(1, openCount, "process cache must avoid reopening and rehashing the large PetHost bundle on repeated switches");
         }
         finally
         {
