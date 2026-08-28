@@ -36,6 +36,22 @@ internal sealed class PetHostIpc : IDisposable
 
     public async Task SendEventAsync(string name, string? value = null)
     {
+        if (IsEnabled && _writer is null)
+        {
+            try
+            {
+                await WaitUntilConnectedAsync(_cancellation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch
+            {
+                return;
+            }
+        }
+
         var line = value == null ? "event|" + name : "event|" + name + "|" + Escape(value);
         await SendLineAsync(line).ConfigureAwait(false);
     }
