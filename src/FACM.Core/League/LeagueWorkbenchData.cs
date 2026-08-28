@@ -106,6 +106,70 @@ public sealed record LeagueWorkbenchPlayerSnapshot(
             DateTimeOffset.UtcNow);
 }
 
+public sealed record LeagueWorkbenchLivePlayer(
+    string Side,
+    int CellId,
+    bool IsLocalPlayer,
+    string PuuId,
+    long SummonerId,
+    string GameName,
+    string TagLine,
+    string DisplayName,
+    string Position,
+    string Role,
+    int ChampionId,
+    int ChampionPickIntent,
+    int Spell1Id,
+    int Spell2Id)
+{
+    public string AccountName =>
+        !string.IsNullOrWhiteSpace(GameName)
+            ? string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine
+            : DisplayName;
+}
+
+public sealed record LeagueWorkbenchLiveSnapshot(
+    LeagueWorkbenchDataState State,
+    string Phase,
+    long GameId,
+    LeagueWorkbenchQueue? Queue,
+    int MapId,
+    string MapName,
+    int LocalPlayerCellId,
+    string TimerPhase,
+    int TimerMillisecondsLeft,
+    string LocalActionType,
+    int LocalActionChampionId,
+    bool BenchEnabled,
+    IReadOnlyList<int> AllyBans,
+    IReadOnlyList<int> EnemyBans,
+    IReadOnlyList<int> BenchChampionIds,
+    IReadOnlyList<LeagueWorkbenchLivePlayer> Players,
+    string Detail,
+    DateTimeOffset UpdatedAtUtc)
+{
+    public static LeagueWorkbenchLiveSnapshot Unavailable(string phase, string detail) =>
+        new(
+            LeagueWorkbenchDataState.Unavailable,
+            phase,
+            0,
+            null,
+            0,
+            string.Empty,
+            0,
+            string.Empty,
+            0,
+            string.Empty,
+            0,
+            false,
+            Array.Empty<int>(),
+            Array.Empty<int>(),
+            Array.Empty<int>(),
+            Array.Empty<LeagueWorkbenchLivePlayer>(),
+            detail,
+            DateTimeOffset.UtcNow);
+}
+
 public interface ILeagueWorkbenchDataSource
 {
     Task<LeagueWorkbenchDashboardSnapshot> LoadDashboardAsync(CancellationToken cancellationToken = default);
@@ -113,4 +177,5 @@ public interface ILeagueWorkbenchDataSource
         int startIndex = 0,
         int count = 10,
         CancellationToken cancellationToken = default);
+    Task<LeagueWorkbenchLiveSnapshot> LoadLiveAsync(CancellationToken cancellationToken = default);
 }
