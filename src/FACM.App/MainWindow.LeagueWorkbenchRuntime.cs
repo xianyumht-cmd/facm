@@ -25,6 +25,7 @@ public sealed partial class MainWindow
             catch { }
         }
         InitializeLeagueWorkbenchProductActions();
+        InitializeLeagueAutomationSurface();
 
         RootNavigation.SelectionChanged += OnLeagueWorkbenchRuntimeNavigationChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchRuntimePropertyChanged;
@@ -59,7 +60,11 @@ public sealed partial class MainWindow
             nameof(LeagueWorkbenchViewModel.IsAdvisorRefreshing) or
             nameof(LeagueWorkbenchViewModel.IsItemSetBusy) or
             nameof(LeagueWorkbenchViewModel.CanPrepareItemSet) or
-            nameof(LeagueWorkbenchViewModel.HasProductServices);
+            nameof(LeagueWorkbenchViewModel.HasProductServices) or
+            nameof(LeagueWorkbenchViewModel.HasMatchmakingAutomation) or
+            nameof(LeagueWorkbenchViewModel.AutoMatchmakingEnabled) or
+            nameof(LeagueWorkbenchViewModel.AutoAcceptEnabled) or
+            nameof(LeagueWorkbenchViewModel.IsAutomationSettingsBusy);
         if (!render) return;
 
         _ = DispatcherQueue.TryEnqueue(() =>
@@ -97,6 +102,7 @@ public sealed partial class MainWindow
         LeagueStrategyDescription.Text = BuildPlayerSummary(_leagueWorkbench.Player);
         LeagueAutomationDescription.Text = BuildLiveSummary(_leagueWorkbench.Live, _leagueWorkbench.IsRefreshing);
         SyncLeagueWorkbenchProductActions();
+        ApplyLeagueAutomationSettingsSurface();
     }
 
     private bool IsLeagueWorkbenchSelected() =>
