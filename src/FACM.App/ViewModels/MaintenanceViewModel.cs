@@ -1,16 +1,12 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using FACM.Core.Online;
-using FACM.Core.Settings;
 
 namespace FACM.App.ViewModels;
 
 public sealed class MaintenanceViewModel : INotifyPropertyChanged
 {
-    private readonly ISettings2Repository _settings;
-    private readonly IUpdateManifestSource _updates;
-    private readonly IAnnouncementSource _announcements;
-    private readonly Version _currentVersion;
+    private readonly MaintenanceApplicationService _service;
     private bool _initialized;
     private bool _isBusy;
     private bool _autoUpdateEnabled = true;
@@ -21,22 +17,15 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
     private UpdateManifestSnapshot? _manifest;
     private AnnouncementSnapshot? _announcement;
 
-    public MaintenanceViewModel(
-        ISettings2Repository settings,
-        IUpdateManifestSource updates,
-        IAnnouncementSource announcements,
-        Version currentVersion)
+    public MaintenanceViewModel(MaintenanceApplicationService service)
     {
-        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-        _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        _announcements = announcements ?? throw new ArgumentNullException(nameof(announcements));
-        _currentVersion = currentVersion ?? throw new ArgumentNullException(nameof(currentVersion));
+        _service = service ?? throw new ArgumentNullException(nameof(service));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool IsInitialized => _initialized;
-    public string CurrentVersion => _currentVersion.ToString();
+    public string CurrentVersion => _service.CurrentVersion.ToString();
 
     public bool IsBusy
     {
@@ -112,10 +101,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken);
-            AutoUpdateEnabled = loaded.Settings.Online.AutoUpdateEnabled;
-            _lastAnnouncementId = loaded.Settings.Online.LastAnnouncementId;
-            LoadedFromRecovery = IsRecoveryOrigin(loaded.Origin);
+            ApplyPreferences(await _service.LoadPreferencesAsync(cancellationToken));
             Status = LoadedFromRecovery ? "recovery-loaded-no-save" : "ready";
         }
         finally
@@ -132,11 +118,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken);
-            loaded.Settings.Online.AutoUpdateEnabled = enabled;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken);
-            AutoUpdateEnabled = enabled;
-            LoadedFromRecovery = false;
+            ApplyPreferences(await _service.SetAutoUpdateEnabledAsync(enabled, cancellationToken));
             Status = "auto-update-saved";
             return true;
         }
@@ -156,31 +138,23 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
         }
     }
 
-    // Manual check is deliberately independent from AutoUpdateEnabled. The toggle only controls
-    // automatic startup network access; an explicit user request must always be honored.
     public async Task<UpdateDecision> ManualCheckAsync(CancellationToken cancellationToken = default)
     {
-        if (IsBusy) return Update ?? UpdateDecisionService.Evaluate(_currentVersion, null);
+        if (IsBusy) return Update ?? UpdateDecisionService.Evaluate(_service.CurrentVersion, null);
         IsBusy = true;
         Status = "checking";
         try
         {
-            Manifest = await _updates.GetAsync(cancellationToken);
-            Update = UpdateDecisionService.Evaluate(_currentVersion, Manifest);
-            Status = Update.Reason;
-            return Update;
+            var result = await _service.CheckNowAsync(cancellationToken);
+            Manifest = result.Manifest;
+            Update = result.Decision;
+            Status = result.Decision.Reason;
+            return result.Decision;
         }
         catch (OperationCanceledException)
         {
             Status = "cancelled";
             throw;
-        }
-        catch
-        {
-            Manifest = null;
-            Update = UpdateDecisionService.Evaluate(_currentVersion, null);
-            Status = Update.Reason;
-            return Update;
         }
         finally
         {
@@ -190,23 +164,8 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
 
     public async Task<bool> RefreshAnnouncementAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var announcement = await _announcements.GetAsync(cancellationToken);
-            Announcement = announcement is null
-                ? null
-                : announcement with { LinkUrl = OnlineUriPolicy.NormalizeAbsoluteHttpsString(announcement.LinkUrl) };
-            return Announcement is not null;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-        catch
-        {
-            Announcement = null;
-            return false;
-        }
+        Announcement = await _service.GetAnnouncementAsync(cancellationToken);
+        return Announcement is not null;
     }
 
     public async Task<bool> MarkAnnouncementSeenAsync(CancellationToken cancellationToken = default)
@@ -215,11 +174,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
         if (id.Length == 0 || string.Equals(id, _lastAnnouncementId, StringComparison.Ordinal)) return true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken);
-            loaded.Settings.Online.LastAnnouncementId = id;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken);
-            _lastAnnouncementId = id;
-            LoadedFromRecovery = false;
+            ApplyPreferences(await _service.MarkAnnouncementSeenAsync(id, cancellationToken));
             OnPropertyChanged(nameof(IsAnnouncementNew));
             return true;
         }
@@ -233,8 +188,13 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged
         }
     }
 
-    private static bool IsRecoveryOrigin(SettingsLoadOrigin origin) =>
-        origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
+    private void ApplyPreferences(MaintenancePreferences preferences)
+    {
+        AutoUpdateEnabled = preferences.AutoUpdateEnabled;
+        _lastAnnouncementId = preferences.LastAnnouncementId;
+        LoadedFromRecovery = preferences.LoadedFromRecovery;
+        OnPropertyChanged(nameof(IsAnnouncementNew));
+    }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
