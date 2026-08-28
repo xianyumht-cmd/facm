@@ -27,7 +27,9 @@ public partial class App : Application
     private readonly SemaphoreSlim _floatingPlacementSaveGate = new(1, 1);
 
     private MainWindow? _window;
+    private CompactLauncherWindow? _compactLauncher;
     private FloatingWindow? _floatingWindow;
+    private IDesktopWorkAreaProvider? _desktopWorkAreas;
     private ControlCenterViewModel? _controlCenter;
     private LeagueWorkbenchViewModel? _leagueWorkbench;
     private DiagnosticsCenterViewModel? _diagnosticsCenter;
@@ -119,15 +121,18 @@ public partial class App : Application
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
         _gameflow.Start();
-        EnsureMainWindow();
 
-        var workAreas = new WindowsDesktopWorkAreaProvider();
+        // Keep MainWindow XAML constructed during startup so Win10 resource regressions still fail fast,
+        // but do not activate the large shell. FACM 3.5's proven default UX is launcher-first.
+        PrepareMainWindow();
+
+        _desktopWorkAreas = new WindowsDesktopWorkAreaProvider();
         var floatingPlatform = new WindowsFloatingSurfacePlatform();
         _floatingWindow = new FloatingWindow(
-            workAreas,
+            _desktopWorkAreas,
             floatingPlatform,
             _uiText,
-            EnsureMainWindow,
+            ToggleCompactLauncher,
             PersistFloatingPlacementAsync);
         _floatingWindow.Closed += OnFloatingWindowClosed;
         try
@@ -141,7 +146,7 @@ public partial class App : Application
         _floatingWindow.Activate();
         _ = ApplyPreferredFloatingPlacementAsync(_settings, _floatingWindow);
 
-        _productState.SetApplication(ApplicationProductState.Ready, "main-window-activated");
+        _productState.SetApplication(ApplicationProductState.Ready, "desktop-launcher-ready");
         QueueDiagnostic(DiagnosticEventFactory.Create(
             "feature.policy",
             "FACM.Recovery",
@@ -162,7 +167,7 @@ public partial class App : Application
             "FACM.App",
             0,
             DiagnosticResult.Success,
-            "main-window-activated",
+            "desktop-launcher-ready",
             _productState.Current.League,
             appVersion));
     }
@@ -215,23 +220,80 @@ public partial class App : Application
         }
     }
 
-    private void EnsureMainWindow()
+    private MainWindow GetOrCreateMainWindow()
+    {
+        if (_shuttingDown) throw new InvalidOperationException("FACM is shutting down.");
+        if (_window is not null) return _window;
+
+        var controlCenter = _controlCenter ?? throw new InvalidOperationException("Control center is unavailable.");
+        var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
+        var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+        var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
+        var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
+        var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
+        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
+        _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
+        _window = new MainWindow(controlCenter, _leagueWorkbench, _diagnosticsCenter, text);
+        _window.Closed += OnMainWindowClosed;
+        return _window;
+    }
+
+    private void PrepareMainWindow() => _ = GetOrCreateMainWindow();
+
+    private void EnsureMainWindow() => OpenMainWindowSection("repair");
+
+    private void OpenMainWindowSection(string section)
     {
         if (_shuttingDown) return;
-        if (_window is null)
+        try
         {
-            var controlCenter = _controlCenter ?? throw new InvalidOperationException("Control center is unavailable.");
-            var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
-            var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
-            var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
-            var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
-            var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
-            _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
-            _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
-            _window = new MainWindow(controlCenter, _leagueWorkbench, _diagnosticsCenter, text);
-            _window.Closed += OnMainWindowClosed;
+            var window = GetOrCreateMainWindow();
+            window.NavigateToSection(section);
+            window.Activate();
+            QueueLauncherDiagnostic("main-shell-opened");
         }
-        _window.Activate();
+        catch (Exception exception)
+        {
+            QueueLauncherDiagnostic("main-shell-open-failed:" + exception.GetType().Name, DiagnosticResult.Failure);
+        }
+    }
+
+    private void ToggleCompactLauncher()
+    {
+        if (_shuttingDown) return;
+        if (_compactLauncher is not null)
+        {
+            _compactLauncher.Close();
+            return;
+        }
+
+        var floating = _floatingWindow;
+        var workAreas = _desktopWorkAreas;
+        var text = _uiText;
+        if (floating is null || workAreas is null || text is null) return;
+
+        CompactLauncherWindow? launcher = null;
+        try
+        {
+            launcher = new CompactLauncherWindow(workAreas, text, OpenMainWindowSection);
+            _compactLauncher = launcher;
+            launcher.Closed += OnCompactLauncherClosed;
+            launcher.ShowNextTo(floating.GetCurrentBounds());
+            QueueLauncherDiagnostic("compact-opened");
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(_compactLauncher, launcher)) _compactLauncher = null;
+            try { launcher?.Close(); } catch { }
+            QueueLauncherDiagnostic("compact-open-failed:" + exception.GetType().Name, DiagnosticResult.Failure);
+        }
+    }
+
+    private void OnCompactLauncherClosed(object sender, WindowEventArgs args)
+    {
+        if (!ReferenceEquals(sender, _compactLauncher)) return;
+        _compactLauncher = null;
+        QueueLauncherDiagnostic("compact-closed");
     }
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
@@ -241,8 +303,8 @@ public partial class App : Application
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
         _diagnosticsCenter = null;
-        // Closing the main shell does not toggle or terminate the desktop entry. Clicking F later
-        // recreates only state-consuming ViewModels/window; process-wide runtime owners remain shared.
+        // Closing the detailed shell does not toggle or terminate the desktop entry. Clicking F later
+        // still opens the compact launcher; detailed state-consuming ViewModels can be recreated safely.
     }
 
     private void OnFloatingWindowClosed(object sender, WindowEventArgs args)
@@ -251,6 +313,12 @@ public partial class App : Application
         _shuttingDown = true;
         _productState?.SetApplication(ApplicationProductState.ShuttingDown, "floating-window-closed");
         _floatingWindow = null;
+
+        if (_compactLauncher is not null)
+        {
+            _compactLauncher.Close();
+            _compactLauncher = null;
+        }
 
         if (_window is not null)
         {
@@ -350,6 +418,18 @@ public partial class App : Application
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown");
 
+    private void QueueLauncherDiagnostic(string reason, DiagnosticResult result = DiagnosticResult.Success)
+    {
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "desktop.launcher",
+            "FACM.Desktop",
+            0,
+            result,
+            reason,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown"));
+    }
+
     private void DisposeRuntime()
     {
         _gameflow?.Dispose();
@@ -374,6 +454,7 @@ public partial class App : Application
         _featurePolicy = null;
         _recovery = null;
         _productState = null;
+        _desktopWorkAreas = null;
     }
 
     private void QueueDiagnostic(DiagnosticEvent diagnosticEvent)
