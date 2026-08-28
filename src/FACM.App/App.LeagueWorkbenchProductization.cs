@@ -14,7 +14,7 @@ public partial class App
     /// <summary>
     /// Completes the per-shell League Workbench composition without creating another League runtime.
     /// The ViewModel already owns the one Workbench data source created over the process-wide gateway
-    /// and gameflow owner; Build Advisor / Item Sets / Loadout and automation controls reuse those facts.
+    /// and gameflow owner; Build Advisor / Item Sets and automation controls reuse those facts.
     /// </summary>
     internal void ConfigureLeagueWorkbenchProductization(LeagueWorkbenchViewModel viewModel)
     {
@@ -35,8 +35,7 @@ public partial class App
         {
             var advisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
             var itemSets = new LeagueItemSetService(dataSource, gateway);
-            var loadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
-            viewModel.ConfigureProductServices(advisor, itemSets, loadout, ownsServices: true);
+            viewModel.ConfigureProductServices(advisor, itemSets, ownsServices: true);
         }
 
         if (!viewModel.HasMatchmakingAutomation)
@@ -46,37 +45,61 @@ public partial class App
             viewModel.ConfigureMatchmakingAutomation(settings, automation);
         }
 
-        if (_recommendedAutoApply is null)
-        {
-            // Auto-apply is process scoped so it keeps working when the detailed shell is closed. It
-            // consumes the same shared gameflow heartbeat and gateway; no second phase loop is created.
-            var autoAdvisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
-            var autoItemSets = new LeagueItemSetService(dataSource, gateway);
-            var autoLoadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
-            var autoApply = new LeagueRecommendedAutoApplyService(
-                autoAdvisor,
-                autoLoadout,
-                autoItemSets,
-                gameflow);
-            try
-            {
-                var loaded = settings.LoadAsync().GetAwaiter().GetResult();
-                autoApply.Configure(loaded.Settings.League.AutoApplyRecommended);
-            }
-            catch
-            {
-                autoApply.Configure(false);
-            }
+        EnsureLeagueRecommendedAutoApply(dataSource, gateway, performance, settings, gameflow);
+    }
 
-            _recommendedAutoApply = autoApply;
-            if (!_recommendedAutoApplyProcessExitHooked)
-            {
-                _recommendedAutoApplyProcessExitHooked = true;
-                AppDomain.CurrentDomain.ProcessExit += OnLeagueRecommendedAutoApplyProcessExit;
-            }
+    internal ILeagueBuildLoadoutService CreateLeagueBuildLoadoutService(ILeagueWorkbenchDataSource dataSource)
+    {
+        ArgumentNullException.ThrowIfNull(dataSource);
+        var gateway = _leagueGateway
+            ?? throw new InvalidOperationException("League gateway is unavailable.");
+        return new LeagueBuildLoadoutService(dataSource, gateway, gateway);
+    }
+
+    internal LeagueRecommendedAutoApplySettingsViewModel CreateLeagueRecommendedAutoApplySettingsViewModel()
+    {
+        var settings = _settings
+            ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
+        var automation = _recommendedAutoApply
+            ?? throw new InvalidOperationException("League recommended auto apply is unavailable.");
+        return new LeagueRecommendedAutoApplySettingsViewModel(settings, automation);
+    }
+
+    private void EnsureLeagueRecommendedAutoApply(
+        ILeagueWorkbenchDataSource dataSource,
+        ILeagueReadGateway gateway,
+        FACM.Core.Performance.PerformanceBudgetProvider performance,
+        FACM.Core.Settings.ISettings2Repository settings,
+        ILeagueGameflowObservationSource gameflow)
+    {
+        if (_recommendedAutoApply is not null) return;
+
+        // Auto-apply is process scoped so it keeps working when the detailed shell is closed. It
+        // consumes the same shared gameflow heartbeat and gateway; no second phase loop is created.
+        var autoAdvisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
+        var autoItemSets = new LeagueItemSetService(dataSource, gateway);
+        var autoLoadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
+        var autoApply = new LeagueRecommendedAutoApplyService(
+            autoAdvisor,
+            autoLoadout,
+            autoItemSets,
+            gameflow);
+        try
+        {
+            var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+            autoApply.Configure(loaded.Settings.League.AutoApplyRecommended);
+        }
+        catch
+        {
+            autoApply.Configure(false);
         }
 
-        viewModel.ConfigureRecommendedAutoApply(settings, _recommendedAutoApply);
+        _recommendedAutoApply = autoApply;
+        if (!_recommendedAutoApplyProcessExitHooked)
+        {
+            _recommendedAutoApplyProcessExitHooked = true;
+            AppDomain.CurrentDomain.ProcessExit += OnLeagueRecommendedAutoApplyProcessExit;
+        }
     }
 
     /// <summary>
