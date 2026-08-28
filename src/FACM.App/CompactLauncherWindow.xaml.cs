@@ -36,7 +36,6 @@ public sealed partial class CompactLauncherWindow : Window
         PersonalizationButton.Click += (_, _) => OpenSection("personalization");
         SettingsButton.Click += (_, _) => OpenSection("settings");
         ControlCenterButton.Click += (_, _) => OpenSection("repair");
-        Activated += OnActivated;
         Closed += OnClosed;
     }
 
@@ -118,17 +117,10 @@ public sealed partial class CompactLauncherWindow : Window
         Close();
     }
 
-    private void OnActivated(object sender, WindowActivatedEventArgs args)
-    {
-        if (_closed || args.WindowActivationState != WindowActivationState.Deactivated) return;
-        Close();
-    }
-
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed) return;
         _closed = true;
-        Activated -= OnActivated;
         Closed -= OnClosed;
     }
 
