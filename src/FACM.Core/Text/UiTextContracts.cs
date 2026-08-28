@@ -106,6 +106,13 @@ public static class UiTextKeys
     public const string LeagueStateInGame = "LeagueStateInGame";
     public const string LeagueStatePostGame = "LeagueStatePostGame";
     public const string LeagueStateClientError = "LeagueStateClientError";
+    public const string LeagueAutoMatchmaking = "LeagueAutoMatchmaking";
+    public const string LeagueAutoMatchmakingHint = "LeagueAutoMatchmakingHint";
+    public const string LeagueAutoAccept = "LeagueAutoAccept";
+    public const string LeagueAutoAcceptHint = "LeagueAutoAcceptHint";
+    public const string LeagueAutomationSettingsReady = "LeagueAutomationSettingsReady";
+    public const string LeagueAutomationSettingsSaved = "LeagueAutomationSettingsSaved";
+    public const string LeagueAutomationSettingsFailed = "LeagueAutomationSettingsFailed";
 
     public const string DiagnosticsTitle = "DiagnosticsTitle";
     public const string DiagnosticsSubtitle = "DiagnosticsSubtitle";
@@ -226,6 +233,13 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.LeagueStateInGame] = "游戏中",
         [UiTextKeys.LeagueStatePostGame] = "赛后",
         [UiTextKeys.LeagueStateClientError] = "客户端连接异常",
+        [UiTextKeys.LeagueAutoMatchmaking] = "自动开始匹配",
+        [UiTextKeys.LeagueAutoMatchmakingHint] = "仅在你是房主、房间可开始且成员稳定时尝试一次开始匹配。",
+        [UiTextKeys.LeagueAutoAccept] = "自动接受对局",
+        [UiTextKeys.LeagueAutoAcceptHint] = "进入等待接受后只尝试一次；若你已接受或拒绝，FACM 不会覆盖你的选择。",
+        [UiTextKeys.LeagueAutomationSettingsReady] = "自动化设置已就绪",
+        [UiTextKeys.LeagueAutomationSettingsSaved] = "自动化设置已保存",
+        [UiTextKeys.LeagueAutomationSettingsFailed] = "自动化设置保存失败，已恢复原状态",
 
         [UiTextKeys.DiagnosticsTitle] = "诊断中心",
         [UiTextKeys.DiagnosticsSubtitle] = "生成只读状态摘要并导出经过再次脱敏的诊断包，不包含设置文件、LCU 凭据或任意目录扫描。",
