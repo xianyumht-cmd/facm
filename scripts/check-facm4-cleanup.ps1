@@ -117,7 +117,8 @@ foreach ($forbidden in @(
 foreach ($required in @(
     'CleanupViewModel', 'FolderPicker', 'ContentDialog', 'ShowCleanupReviewAsync',
     'CleanupConfirmTitle', 'CleanupConfirmPrimary', 'CleanupCancel',
-    'CurrentPlan', 'DeletableTargets', 'BlockedTargets', 'RequiresElevation',
+    'CurrentPlan', 'DeletableTargets', 'BuildCleanupSummary', 'Summary', 'BlockedCount',
+    'FormatCleanupTarget', 'IsBlocked', 'BlockedReason', 'RequiresElevation',
     'RestartElevatedForCleanup', 'Application.Current.Exit()', 'ExecuteConfirmedAsync(confirmed: true',
     'Progress<CleanupProgress>', 'CleanupPathText', 'CleanupOperationStatus'
 )) {
