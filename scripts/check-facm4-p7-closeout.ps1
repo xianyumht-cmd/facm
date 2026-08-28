@@ -23,11 +23,13 @@ $startupCrashPath = Join-Path $Root 'src/FACM.App/StartupCrashDiagnostics.cs'
 $appMaintenancePath = Join-Path $Root 'src/FACM.App/App.Maintenance.cs'
 $appPersonalizationPath = Join-Path $Root 'src/FACM.App/App.Personalization.cs'
 $appLeagueProductPath = Join-Path $Root 'src/FACM.App/App.LeagueWorkbenchProductization.cs'
+$themeTokensPath = Join-Path $Root 'src/FACM.App/Themes/FacmTokens.xaml'
+$themeRuntimePath = Join-Path $Root 'src/FACM.App/Personalization/WinUiThemeRuntime.cs'
 
 foreach ($path in @(
     $mainXamlPath, $mainCodePath, $personalizationPath, $maintenanceWindowPath,
     $appPath, $appProjectPath, $startupCrashPath, $appMaintenancePath,
-    $appPersonalizationPath, $appLeagueProductPath
+    $appPersonalizationPath, $appLeagueProductPath, $themeTokensPath, $themeRuntimePath
 )) {
     if (-not (Test-Path $path)) { Fail "P7 closeout file missing: $path" }
 }
@@ -42,6 +44,8 @@ $startupCrash = Get-Content $startupCrashPath -Raw
 $appMaintenance = Get-Content $appMaintenancePath -Raw
 $appPersonalization = Get-Content $appPersonalizationPath -Raw
 $appLeagueProduct = Get-Content $appLeagueProductPath -Raw
+$themeTokens = Get-Content $themeTokensPath -Raw
+$themeRuntime = Get-Content $themeRuntimePath -Raw
 
 # Four product navigation entries must stay stable and point at real feature surfaces.
 $nav = @(
@@ -76,6 +80,44 @@ foreach ($required in @(
     'FACM.Personalization.ResetDesktopPosition', 'OnPersonalizationClosed'
 )) {
     if ($personalization -notmatch [regex]::Escape($required)) { Fail "P7 personalization surface missing: $required" }
+}
+
+# Real Win10 proved that WinUI platform theme brushes can be protected WinRT objects. FACM may read
+# platform aliases for accessibility fallback, but custom themes must mutate only FACM-owned brushes.
+foreach ($required in @(
+    'FacmPlatformBackgroundBrush', 'FacmPlatformSurfaceBrush', 'FacmPlatformSurfaceSecondaryBrush',
+    'FacmPlatformTextPrimaryBrush', 'FacmPlatformTextMutedBrush', 'FacmPlatformAccentBrush',
+    'FacmPlatformAccentTextBrush', 'FacmPlatformStrokeBrush'
+)) {
+    if ($themeTokens -notmatch [regex]::Escape($required)) { Fail "P7 platform theme fallback alias missing: $required" }
+}
+foreach ($required in @(
+    '<SolidColorBrush x:Key="FacmBackgroundBrush"',
+    '<SolidColorBrush x:Key="FacmSurfaceBrush"',
+    '<SolidColorBrush x:Key="FacmSurfaceSecondaryBrush"',
+    '<SolidColorBrush x:Key="FacmTextPrimaryBrush"',
+    '<SolidColorBrush x:Key="FacmTextMutedBrush"',
+    '<SolidColorBrush x:Key="FacmAccentBrush"',
+    '<SolidColorBrush x:Key="FacmAccentTextBrush"',
+    '<SolidColorBrush x:Key="FacmStrokeBrush"'
+)) {
+    if ($themeTokens -notmatch [regex]::Escape($required)) { Fail "P7 FACM-owned mutable theme brush missing: $required" }
+}
+if ($themeTokens -match '<StaticResource\s+x:Key="Facm(?:Background|Surface|SurfaceSecondary|TextPrimary|TextMuted|Accent|AccentText|Stroke)Brush"') {
+    Fail 'P7 custom theme keys must never alias WinUI platform SolidColorBrush instances directly.'
+}
+foreach ($required in @(
+    'SemanticBrushes', 'CaptureOwnedSemanticBrushes', 'RefreshPlatformColors',
+    'TryGetPlatformColor', 'FacmPlatformBackgroundBrush', 'FacmPlatformAccentBrush',
+    '_brushes[ownedKey] = owned', 'brush.Color = ParseColor(hex)', 'RestorePlatformPalette'
+)) {
+    if ($themeRuntime -notmatch [regex]::Escape($required)) { Fail "P7 owned theme brush runtime contract missing: $required" }
+}
+foreach ($required in @(
+    'viewModel.InitializeForStartup();', 'Personalization is optional during product startup',
+    'StartupCrashDiagnostics still records first-chance access-denied evidence'
+)) {
+    if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "P7 personalization startup fail-soft contract missing: $required" }
 }
 
 # More Settings must host the real maintenance surface and dispose its window hooks.
@@ -177,6 +219,7 @@ if ((Count-Matches $appLeagueProduct 'new\s+LeaguePostGameAutomationService\s*\(
 
 Write-Host 'P7 primary navigation: Repair / League / Personalization / Settings -> real surfaces'
 Write-Host 'P7 placeholder audit: no user-visible development placeholder on primary surfaces'
+Write-Host 'P7 theme runtime: platform aliases read-only + FACM-owned mutable brushes + startup fail-soft'
 Write-Host 'P7 lifecycle: one floating owner + one League session/gateway/gameflow owner'
 Write-Host 'P7 lifecycle: maintenance/single-instance, PetHost and process-scoped League automation dispose paths retained'
 Write-Host 'P7 startup diagnostics: access-denied first-chance/unhandled fallback + 4.0.0.0 candidate version metadata retained'
