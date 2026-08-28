@@ -6,16 +6,29 @@ using FACM.Core.Mayhem;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics.Imaging;
+using Windows.Storage;
+using Windows.Storage.Pickers;
+using Windows.Storage.Streams;
+using Windows.System;
 
 namespace FACM.App;
 
 public sealed partial class MainWindow
 {
+    private const int MayhemExportWidth = 840;
+
     private MayhemViewModel? _mayhem;
     private Border? _mayhemCard;
+    private Border? _mayhemResultCard;
     private TextBox? _mayhemQueryBox;
     private Button? _mayhemQueryButton;
     private Button? _mayhemCancelButton;
+    private Button? _mayhemSaveImageButton;
+    private Button? _mayhemCopyImageButton;
     private ProgressRing? _mayhemProgress;
     private TextBlock? _mayhemStatus;
     private StackPanel? _mayhemResults;
@@ -53,6 +66,7 @@ public sealed partial class MainWindow
             MaxLength = 48
         };
         AutomationProperties.SetAutomationId(_mayhemQueryBox, "FACM.League.Mayhem.Query");
+        _mayhemQueryBox.KeyDown += OnMayhemQueryKeyDown;
         content.Children.Add(_mayhemQueryBox);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -69,6 +83,16 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_mayhemCancelButton, "FACM.League.Mayhem.Cancel");
         _mayhemCancelButton.Click += OnMayhemCancelClick;
         actions.Children.Add(_mayhemCancelButton);
+
+        _mayhemSaveImageButton = new Button { Content = "保存图片", IsEnabled = false };
+        AutomationProperties.SetAutomationId(_mayhemSaveImageButton, "FACM.League.Mayhem.SaveImage");
+        _mayhemSaveImageButton.Click += OnMayhemSaveImageClick;
+        actions.Children.Add(_mayhemSaveImageButton);
+
+        _mayhemCopyImageButton = new Button { Content = "复制图片", IsEnabled = false };
+        AutomationProperties.SetAutomationId(_mayhemCopyImageButton, "FACM.League.Mayhem.CopyImage");
+        _mayhemCopyImageButton.Click += OnMayhemCopyImageClick;
+        actions.Children.Add(_mayhemCopyImageButton);
 
         _mayhemProgress = new ProgressRing
         {
@@ -93,7 +117,15 @@ public sealed partial class MainWindow
 
         _mayhemResults = new StackPanel { Spacing = 12 };
         AutomationProperties.SetAutomationId(_mayhemResults, "FACM.League.Mayhem.Results");
-        content.Children.Add(_mayhemResults);
+        _mayhemResultCard = new Border
+        {
+            Style = (Style)Application.Current.Resources["FacmCardBorderStyle"],
+            Padding = new Thickness(16),
+            Visibility = Visibility.Collapsed,
+            Child = _mayhemResults
+        };
+        AutomationProperties.SetAutomationId(_mayhemResultCard, "FACM.League.Mayhem.ExportCard");
+        content.Children.Add(_mayhemResultCard);
 
         card.Child = content;
         _mayhemCard = card;
@@ -101,7 +133,16 @@ public sealed partial class MainWindow
         ApplyMayhemSurface();
     }
 
-    private async void OnMayhemQueryClick(object sender, RoutedEventArgs args)
+    private async void OnMayhemQueryClick(object sender, RoutedEventArgs args) => await RunMayhemQueryAsync();
+
+    private async void OnMayhemQueryKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != VirtualKey.Enter || _mayhem?.IsBusy == true) return;
+        args.Handled = true;
+        await RunMayhemQueryAsync();
+    }
+
+    private async Task RunMayhemQueryAsync()
     {
         var viewModel = _mayhem;
         if (viewModel is null || viewModel.IsBusy) return;
@@ -110,6 +151,87 @@ public sealed partial class MainWindow
     }
 
     private void OnMayhemCancelClick(object sender, RoutedEventArgs args) => _mayhem?.Cancel();
+
+    private async void OnMayhemSaveImageClick(object sender, RoutedEventArgs args)
+    {
+        if (!CanExportMayhemResult()) return;
+
+        var picker = new FileSavePicker
+        {
+            SuggestedFileName = "FACM-海斗攻略-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
+        };
+        picker.FileTypeChoices.Add("PNG 图片", new List<string> { ".png" });
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            using var stream = await file.OpenAsync(FileAccessMode.ReadWrite);
+            stream.Size = 0;
+            await EncodeMayhemResultPngAsync(stream);
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片已保存";
+        }
+        catch
+        {
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片保存失败，请换一个位置后重试。";
+        }
+    }
+
+    private async void OnMayhemCopyImageClick(object sender, RoutedEventArgs args)
+    {
+        if (!CanExportMayhemResult()) return;
+
+        try
+        {
+            using var stream = new InMemoryRandomAccessStream();
+            await EncodeMayhemResultPngAsync(stream);
+            stream.Seek(0);
+            var package = new DataPackage();
+            package.SetBitmap(RandomAccessStreamReference.CreateFromStream(stream));
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片已复制到剪贴板";
+        }
+        catch
+        {
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "复制图片失败，请稍后重试。";
+        }
+    }
+
+    private bool CanExportMayhemResult() =>
+        _mayhem?.Result?.Success == true &&
+        _mayhem.IsBusy == false &&
+        _mayhemResultCard is not null &&
+        _mayhemResultCard.Visibility == Visibility.Visible;
+
+    private async Task EncodeMayhemResultPngAsync(IRandomAccessStream stream)
+    {
+        var target = _mayhemResultCard ?? throw new InvalidOperationException("Mayhem result card is unavailable.");
+        if (target.ActualWidth < 1 || target.ActualHeight < 1)
+            throw new InvalidOperationException("Mayhem result card has not been laid out yet.");
+
+        var scaledHeight = Math.Max(1, (int)Math.Round(target.ActualHeight * MayhemExportWidth / target.ActualWidth));
+        var rendered = new RenderTargetBitmap();
+        await rendered.RenderAsync(target, MayhemExportWidth, scaledHeight);
+        var buffer = await rendered.GetPixelsAsync();
+        using var reader = DataReader.FromBuffer(buffer);
+        var pixels = new byte[checked((int)buffer.Length)];
+        reader.ReadBytes(pixels);
+
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        encoder.SetPixelData(
+            BitmapPixelFormat.Bgra8,
+            BitmapAlphaMode.Premultiplied,
+            checked((uint)rendered.PixelWidth),
+            checked((uint)rendered.PixelHeight),
+            96,
+            96,
+            pixels);
+        await encoder.FlushAsync();
+        stream.Seek(0);
+    }
 
     private void OnMayhemPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -133,6 +255,11 @@ public sealed partial class MainWindow
 
         _mayhemResults.Children.Clear();
         var result = viewModel.Result;
+        var canExport = result?.Success == true && !viewModel.IsBusy;
+        if (_mayhemSaveImageButton is not null) _mayhemSaveImageButton.IsEnabled = canExport;
+        if (_mayhemCopyImageButton is not null) _mayhemCopyImageButton.IsEnabled = canExport;
+        if (_mayhemResultCard is not null)
+            _mayhemResultCard.Visibility = result is null ? Visibility.Collapsed : Visibility.Visible;
         if (result is null) return;
 
         if (!result.Success)
@@ -265,12 +392,18 @@ public sealed partial class MainWindow
             _mayhem.Dispose();
             _mayhem = null;
         }
+        if (_mayhemQueryBox is not null) _mayhemQueryBox.KeyDown -= OnMayhemQueryKeyDown;
         if (_mayhemQueryButton is not null) _mayhemQueryButton.Click -= OnMayhemQueryClick;
         if (_mayhemCancelButton is not null) _mayhemCancelButton.Click -= OnMayhemCancelClick;
+        if (_mayhemSaveImageButton is not null) _mayhemSaveImageButton.Click -= OnMayhemSaveImageClick;
+        if (_mayhemCopyImageButton is not null) _mayhemCopyImageButton.Click -= OnMayhemCopyImageClick;
         _mayhemCard = null;
+        _mayhemResultCard = null;
         _mayhemQueryBox = null;
         _mayhemQueryButton = null;
         _mayhemCancelButton = null;
+        _mayhemSaveImageButton = null;
+        _mayhemCopyImageButton = null;
         _mayhemProgress = null;
         _mayhemStatus = null;
         _mayhemResults = null;
