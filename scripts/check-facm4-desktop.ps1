@@ -45,7 +45,8 @@ foreach ($forbidden in @('Microsoft\.UI', 'System\.Windows\.Forms', 'DllImport',
 foreach ($required in @(
     'DesktopPoint', 'DesktopSize', 'DesktopRect', 'DesktopWorkArea', 'DesktopAnchor',
     'AnchorPlacementService', 'IDesktopWorkAreaProvider', 'FloatingSurfaceDragService',
-    'HasExceededThreshold', 'ClampTopLeft'
+    'HasExceededThreshold', 'ClampTopLeft', 'HasExceededLegacyBallThreshold',
+    'ClampLegacyBallTopLeft', 'DefaultLegacyBallTopLeft'
 )) {
     if ($coreDesktop -notmatch ('\b' + [regex]::Escape($required) + '\b')) { Fail "Core desktop contract missing: $required" }
 }
@@ -57,10 +58,11 @@ if ($platform -match 'Microsoft\.UI\.Xaml') { Fail 'Windows work-area adapter mu
 
 foreach ($required in @(
     'WindowsFloatingSurfacePlatform', 'CreateEllipticRgn', 'SetWindowRgn', 'DeleteObject',
-    'GetWindowRect', 'GetClientRect', 'ClientToScreen', 'TryGetClientBoundsInWindow'
+    'GetWindowRect', 'GetClientRect', 'ClientToScreen', 'TryGetClientBoundsInWindow',
+    'GetCursorPos', 'TryGetCursorPosition'
 )) {
     if ($floatingPlatform -notmatch ('\b' + [regex]::Escape($required) + '\b')) {
-        Fail "Windows floating-surface adapter missing native shape API: $required"
+        Fail "Windows floating-surface adapter missing native behavior: $required"
     }
 }
 if ($floatingPlatform -match 'Microsoft\.UI\.Xaml') { Fail 'Windows floating-surface adapter must not own WinUI controls.' }
@@ -92,9 +94,14 @@ foreach ($required in @(
     'FloatingSurfaceDragService', 'ApplyPlacement', '_ensureMainWindow', '_persistPlacement',
     'MoveAndResize', 'AppWindow.Move', 'PointerPressedEvent', 'PointerMovedEvent', 'PointerReleasedEvent',
     'PointerCanceledEvent', 'PointerCaptureLostEvent', 'AddHandler', 'handledEventsToo: true',
-    'RasterizationScale', 'TryApplyCircularRegion', 'ExtendsContentIntoTitleBar', 'IsShownInSwitchers'
+    'TryGetCursorPosition', 'HasExceededLegacyBallThreshold', 'ClampLegacyBallTopLeft',
+    'DefaultLegacyBallTopLeft', '_dragCursorStart', '_dragWindowStart',
+    'TryApplyCircularRegion', 'ExtendsContentIntoTitleBar', 'IsShownInSwitchers'
 )) {
     if ($floatingCode -notmatch [regex]::Escape($required)) { Fail "FloatingWindow desktop behavior missing: $required" }
+}
+if ($floatingCode -match 'GetPointerScreenPoint|RasterizationScale') {
+    Fail 'Floating drag must use frozen absolute screen cursor coordinates, not moving-window-relative pointer math.'
 }
 if ($floatingCode -match 'FloatingButton\.PointerPressed\s*\+=|FloatingButton\.PointerMoved\s*\+=|FloatingButton\.PointerReleased\s*\+=') {
     Fail 'Floating drag must not rely on Button default pointer routing; root handledEventsToo routing is required.'
@@ -135,6 +142,7 @@ if ($text -notmatch '\[UiTextKeys\.DesktopOpenShell\]\s*=') { Fail 'DesktopOpenS
 
 Write-Host 'Core desktop placement/drag boundary: OK'
 Write-Host 'Windows work-area/DPI adapter: OK'
+Write-Host 'FACM 3.5-compatible absolute cursor drag model on WinUI: OK'
 Write-Host 'Circular floating-surface client alignment: OK'
 Write-Host 'Handled pointer routing/click-drag ownership: OK'
 Write-Host 'FACM 4.0 Desktop contract: SUCCESS'
