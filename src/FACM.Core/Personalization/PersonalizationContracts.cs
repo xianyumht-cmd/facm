@@ -7,12 +7,18 @@ public interface IFacmThemeRuntime
     void Apply(FacmThemeDefinition theme);
 }
 
+public sealed record DesktopPetRuntimeState(
+    bool StartRequested,
+    bool PetVisible,
+    string ActivePetId,
+    string Detail);
+
 public sealed record DesktopPetModeResult(bool Success, bool PetVisible, string Detail);
 
 public interface IDesktopPetRuntime
 {
-    bool IsPetVisible { get; }
-    string ActivePetId { get; }
+    DesktopPetRuntimeState Current { get; }
+    event EventHandler<DesktopPetRuntimeState>? StateChanged;
     Task<DesktopPetModeResult> ApplyAsync(bool enabled, FacmPetDefinition pet, CancellationToken cancellationToken = default);
     Task ResetPositionAsync(CancellationToken cancellationToken = default);
 }
