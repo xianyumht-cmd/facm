@@ -19,6 +19,7 @@ using FACM.Infrastructure.Time;
 using FACM.Platform.Windows.Cleanup;
 using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
+using FACM.Platform.Windows.Repair;
 using FACM.Platform.Windows.Runtime;
 using Microsoft.UI.Xaml;
 
@@ -249,9 +250,10 @@ public partial class App : Application
         var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
         var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
         var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
+        var repairTools = new RepairToolsViewModel(new WindowsRepairToolService());
         _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
-        _window = new MainWindow(controlCenter, cleanupCenter, _leagueWorkbench, _diagnosticsCenter, text);
+        _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.Closed += OnMainWindowClosed;
         return _window;
     }
