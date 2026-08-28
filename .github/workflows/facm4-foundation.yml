@@ -83,6 +83,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-league-bench.ps1
 
+      - name: Verify ARAM Mayhem base query contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
