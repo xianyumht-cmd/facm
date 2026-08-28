@@ -75,6 +75,18 @@ public static class UiTextKeys
     public const string RepairDriverCleanupFailed = "RepairDriverCleanupFailed";
     public const string RepairGameRepair = "RepairGameRepair";
     public const string RepairGameRepairHint = "RepairGameRepairHint";
+    public const string RepairFixWindow = "RepairFixWindow";
+    public const string RepairFixWindowHint = "RepairFixWindowHint";
+    public const string RepairAutoWindow = "RepairAutoWindow";
+    public const string RepairAutoWindowDisable = "RepairAutoWindowDisable";
+    public const string RepairAutoWindowHint = "RepairAutoWindowHint";
+    public const string RepairSkipSettlement = "RepairSkipSettlement";
+    public const string RepairSkipSettlementHint = "RepairSkipSettlementHint";
+    public const string RepairRestartClientUx = "RepairRestartClientUx";
+    public const string RepairRestartClientUxHint = "RepairRestartClientUxHint";
+    public const string RepairExitGame = "RepairExitGame";
+    public const string RepairExitGameHint = "RepairExitGameHint";
+    public const string RepairGameRepairReady = "RepairGameRepairReady";
 
     public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
     public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
@@ -182,7 +194,19 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.RepairDriverCleanupCancelled] = "已取消驱动清理工具",
         [UiTextKeys.RepairDriverCleanupFailed] = "驱动清理工具启动失败",
         [UiTextKeys.RepairGameRepair] = "游戏修复",
-        [UiTextKeys.RepairGameRepairHint] = "窗口修复、跳过卡结算、重启客户端界面等 3.5.15 原生能力将在这里复现。",
+        [UiTextKeys.RepairGameRepairHint] = "游戏运行期间遇到客户端窗口、大厅或结算异常时使用。",
+        [UiTextKeys.RepairFixWindow] = "立即修复窗口",
+        [UiTextKeys.RepairFixWindowHint] = "按当前显示器、窗口状态与合理尺寸原生修复客户端窗口。",
+        [UiTextKeys.RepairAutoWindow] = "自动修复窗口",
+        [UiTextKeys.RepairAutoWindowDisable] = "关闭自动修复",
+        [UiTextKeys.RepairAutoWindowHint] = "监听客户端窗口变化；仅在检测到异常后处理，不常驻轮询。",
+        [UiTextKeys.RepairSkipSettlement] = "跳过卡结算",
+        [UiTextKeys.RepairSkipSettlementHint] = "通过 FACM 当前客户端连接跳过卡住、持续转圈的结算页面。",
+        [UiTextKeys.RepairRestartClientUx] = "重启客户端界面",
+        [UiTextKeys.RepairRestartClientUxHint] = "重新加载 LeagueClient UX；不结束正在进行的游戏进程。",
+        [UiTextKeys.RepairExitGame] = "一键结束游戏",
+        [UiTextKeys.RepairExitGameHint] = "结束当前英雄联盟游戏进程；与“跳过卡结算”是两个不同功能。",
+        [UiTextKeys.RepairGameRepairReady] = "准备就绪 · 游戏修复已由 FACM 原生接管",
 
         [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
         [UiTextKeys.LeagueWorkbenchMatch] = "比赛",
