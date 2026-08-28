@@ -127,7 +127,7 @@ internal static class MayhemBuildDetailsSmoke
         <img alt="Mark" src="https://cdn.test/spell/SummonerSnowball.png">
         SkillOrder Table
         <img alt="Volley" src="https://cdn.test/spell/ashe-w.png"><strong>Q</strong>
-        <img src="https://cdn.test/spell/ashe-q.png" alt="Focus"><strong>W</strong>
+        <img alt="Focus" src="https://cdn.test/spell/ashe-q.png"><strong>W</strong>
         <img alt="Hawk" src="https://cdn.test/spell/ashe-e.png"><strong>E</strong>
         <img alt="Arrow" src="https://cdn.test/spell/ashe-r.png"><strong>R</strong>
         """;
