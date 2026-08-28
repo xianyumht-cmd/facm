@@ -35,6 +35,9 @@ public enum LeagueWriteCapability
     SetCurrentPerkPage,
     StartMatchmaking,
     AcceptReadyCheck,
+    HonorPlayerV2,
+    HonorPlayerLegacy,
+    SubmitHonorBallotLegacy,
     PlayAgain,
     RestartClientUx
 }
@@ -66,6 +69,9 @@ public static class LeagueWriteTargetPolicy
             LeagueWriteCapability.UpdatePerkPage => throw new ArgumentException("UpdatePerkPage requires a positive resource ID.", nameof(command)),
             LeagueWriteCapability.StartMatchmaking => new("POST", "/lol-lobby/v2/lobby/matchmaking/search"),
             LeagueWriteCapability.AcceptReadyCheck => new("POST", "/lol-matchmaking/v1/ready-check/accept"),
+            LeagueWriteCapability.HonorPlayerV2 => new("POST", "/lol-honor-v2/v1/honor-player"),
+            LeagueWriteCapability.HonorPlayerLegacy => new("POST", "/lol-honor/v1/honor"),
+            LeagueWriteCapability.SubmitHonorBallotLegacy => new("POST", "/lol-honor/v1/ballot"),
             LeagueWriteCapability.PlayAgain => new("POST", "/lol-lobby/v2/play-again"),
             LeagueWriteCapability.RestartClientUx => new("POST", "/riotclient/kill-and-restart-ux"),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
