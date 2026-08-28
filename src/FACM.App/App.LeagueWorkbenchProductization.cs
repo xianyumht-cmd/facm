@@ -5,6 +5,9 @@ namespace FACM.App;
 
 public partial class App
 {
+    private LeaguePostGameAutomationService? _postGameAutomation;
+    private bool _postGameProcessExitHooked;
+
     /// <summary>
     /// Completes the per-shell League Workbench composition without creating another League runtime.
     /// The ViewModel already owns the one Workbench data source created over the process-wide gateway
@@ -36,5 +39,53 @@ public partial class App
                 ?? throw new InvalidOperationException("League matchmaking automation is unavailable.");
             viewModel.ConfigureMatchmakingAutomation(settings, automation);
         }
+    }
+
+    /// <summary>
+    /// Returns a per-window settings presenter over one process-wide post-game automation service.
+    /// Closing the large shell only disposes the presenter; automatic honor/return remains owned by
+    /// the FACM process and continues to consume the shared gameflow heartbeat.
+    /// </summary>
+    internal LeaguePostGameAutomationSettingsViewModel CreateLeaguePostGameAutomationSettingsViewModel()
+    {
+        var settings = _settings
+            ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
+        var gateway = _leagueGateway
+            ?? throw new InvalidOperationException("League gateway is unavailable.");
+        var gameflow = _gameflow
+            ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
+
+        if (_postGameAutomation is null)
+        {
+            var automation = new LeaguePostGameAutomationService(gateway, gateway, gameflow);
+            try
+            {
+                var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+                automation.Configure(
+                    loaded.Settings.League.AutoHonorTeammateEnabled,
+                    loaded.Settings.League.AutoReturnLobbyEnabled);
+            }
+            catch
+            {
+                automation.Configure(false, false);
+            }
+
+            _postGameAutomation = automation;
+            if (!_postGameProcessExitHooked)
+            {
+                _postGameProcessExitHooked = true;
+                AppDomain.CurrentDomain.ProcessExit += OnLeaguePostGameProcessExit;
+            }
+        }
+
+        return new LeaguePostGameAutomationSettingsViewModel(settings, _postGameAutomation);
+    }
+
+    private void OnLeaguePostGameProcessExit(object? sender, EventArgs args)
+    {
+        AppDomain.CurrentDomain.ProcessExit -= OnLeaguePostGameProcessExit;
+        _postGameProcessExitHooked = false;
+        _postGameAutomation?.Dispose();
+        _postGameAutomation = null;
     }
 }
