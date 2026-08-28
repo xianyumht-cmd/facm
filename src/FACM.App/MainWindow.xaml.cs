@@ -29,7 +29,15 @@ public sealed partial class MainWindow : Window
         _leagueWorkbench = leagueWorkbench ?? throw new ArgumentNullException(nameof(leagueWorkbench));
         _diagnosticsCenter = diagnosticsCenter ?? throw new ArgumentNullException(nameof(diagnosticsCenter));
         _text = text ?? throw new ArgumentNullException(nameof(text));
-        InitializeComponent();
+        try
+        {
+            InitializeComponent();
+        }
+        catch (Exception exception)
+        {
+            StartupFailureObserver.TryWrite(exception, "main-window-xaml-failure.txt");
+            throw;
+        }
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         ApplyStaticText();
