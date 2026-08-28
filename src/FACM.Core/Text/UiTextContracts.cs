@@ -35,6 +35,33 @@ public static class UiTextKeys
     public const string DesktopOpenShell = "DesktopOpenShell";
     public const string DesktopOpenShellHelp = "DesktopOpenShellHelp";
 
+    public const string CleanupDirectoryTitle = "CleanupDirectoryTitle";
+    public const string CleanupDirectoryDescription = "CleanupDirectoryDescription";
+    public const string CleanupDirectoryMissing = "CleanupDirectoryMissing";
+    public const string CleanupDirectoryReady = "CleanupDirectoryReady";
+    public const string CleanupAutoDetect = "CleanupAutoDetect";
+    public const string CleanupSelectDirectory = "CleanupSelectDirectory";
+    public const string CleanupPreview = "CleanupPreview";
+    public const string CleanupPreviewTitle = "CleanupPreviewTitle";
+    public const string CleanupPreviewDescription = "CleanupPreviewDescription";
+    public const string CleanupNoTargets = "CleanupNoTargets";
+    public const string CleanupRunningProcesses = "CleanupRunningProcesses";
+    public const string CleanupRequiresAdmin = "CleanupRequiresAdmin";
+    public const string CleanupRestartElevated = "CleanupRestartElevated";
+    public const string CleanupConfirmTitle = "CleanupConfirmTitle";
+    public const string CleanupConfirmBody = "CleanupConfirmBody";
+    public const string CleanupConfirmPrimary = "CleanupConfirmPrimary";
+    public const string CleanupCancel = "CleanupCancel";
+    public const string CleanupScanning = "CleanupScanning";
+    public const string CleanupExecuting = "CleanupExecuting";
+    public const string CleanupComplete = "CleanupComplete";
+    public const string CleanupFailed = "CleanupFailed";
+    public const string CleanupBlocked = "CleanupBlocked";
+    public const string CleanupTargetSummary = "CleanupTargetSummary";
+    public const string CleanupSafetyHint = "CleanupSafetyHint";
+    public const string CleanupInvalidDirectory = "CleanupInvalidDirectory";
+    public const string CleanupPathRecoveryReadOnly = "CleanupPathRecoveryReadOnly";
+
     public const string LeagueWorkbenchTitle = "LeagueWorkbenchTitle";
     public const string LeagueWorkbenchMatch = "LeagueWorkbenchMatch";
     public const string LeagueWorkbenchMatchDescription = "LeagueWorkbenchMatchDescription";
@@ -101,6 +128,33 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.ShellStateBody] = "界面只消费 Product State 与 Core intent，不创建第二套 League、网络或文件运行时。",
         [UiTextKeys.DesktopOpenShell] = "打开 FACM 控制中心",
         [UiTextKeys.DesktopOpenShellHelp] = "打开或激活 FACM 主窗口。",
+
+        [UiTextKeys.CleanupDirectoryTitle] = "游戏目录",
+        [UiTextKeys.CleanupDirectoryDescription] = "先确认英雄联盟安装目录。FACM 只会按内置白名单生成清理预览。",
+        [UiTextKeys.CleanupDirectoryMissing] = "尚未识别有效游戏目录",
+        [UiTextKeys.CleanupDirectoryReady] = "游戏目录已就绪",
+        [UiTextKeys.CleanupAutoDetect] = "自动识别",
+        [UiTextKeys.CleanupSelectDirectory] = "选择目录",
+        [UiTextKeys.CleanupPreview] = "扫描并预览",
+        [UiTextKeys.CleanupPreviewTitle] = "清理预览",
+        [UiTextKeys.CleanupPreviewDescription] = "确认前不会删除任何内容。请核对完整路径、目标数量与被阻止项目。",
+        [UiTextKeys.CleanupNoTargets] = "没有发现可清理目标",
+        [UiTextKeys.CleanupRunningProcesses] = "请先退出英雄联盟与 Riot 客户端后再清理。",
+        [UiTextKeys.CleanupRequiresAdmin] = "预览包含系统目录，需要管理员权限才能执行。",
+        [UiTextKeys.CleanupRestartElevated] = "以管理员身份重新打开",
+        [UiTextKeys.CleanupConfirmTitle] = "确认执行清理",
+        [UiTextKeys.CleanupConfirmBody] = "只有预览中的白名单目标会被处理。执行时仍会逐项重新校验路径和重解析点。",
+        [UiTextKeys.CleanupConfirmPrimary] = "确认清理",
+        [UiTextKeys.CleanupCancel] = "取消",
+        [UiTextKeys.CleanupScanning] = "正在扫描清理目标…",
+        [UiTextKeys.CleanupExecuting] = "正在执行清理…",
+        [UiTextKeys.CleanupComplete] = "清理完成",
+        [UiTextKeys.CleanupFailed] = "清理未完成",
+        [UiTextKeys.CleanupBlocked] = "已阻止",
+        [UiTextKeys.CleanupTargetSummary] = "目标摘要",
+        [UiTextKeys.CleanupSafetyHint] = "FACM 不会结束进程、停止服务或删除白名单之外的文件。",
+        [UiTextKeys.CleanupInvalidDirectory] = "所选目录无法解析为有效英雄联盟安装目录。",
+        [UiTextKeys.CleanupPathRecoveryReadOnly] = "设置当前处于恢复模式，本次目录只用于运行，不覆盖损坏的主设置文件。",
 
         [UiTextKeys.LeagueWorkbenchTitle] = "LOL 工作台",
         [UiTextKeys.LeagueWorkbenchMatch] = "比赛",
