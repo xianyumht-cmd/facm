@@ -38,6 +38,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-cleanup.ps1
 
+      - name: Verify Repair parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-repair.ps1
+
       - name: Verify League Workbench contract
         shell: pwsh
         run: ./scripts/check-facm4-league-workbench.ps1
