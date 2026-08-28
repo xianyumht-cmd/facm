@@ -9,6 +9,7 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
 {
     private readonly ISettings2Repository _settings;
     private readonly IFacmThemeRuntime _themes;
+    private DesktopPetPreferenceService? _desktopPets;
     private FacmThemeDefinition _selectedTheme = FacmThemeCatalog.Get(FacmThemeCatalog.DefaultThemeId);
     private FacmPetDefinition _selectedPet = FacmPetCatalog.Get(FacmPetCatalog.DefaultPetId);
     private bool _isPetEnabled;
@@ -46,6 +47,8 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         private set => SetField(ref _isPetEnabled, value);
     }
 
+    public bool CanControlDesktopPet => _desktopPets is not null;
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -64,6 +67,12 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
     {
         get => _status;
         private set => SetField(ref _status, value);
+    }
+
+    public void ConfigureDesktopPetService(DesktopPetPreferenceService desktopPets)
+    {
+        _desktopPets = desktopPets ?? throw new ArgumentNullException(nameof(desktopPets));
+        OnPropertyChanged(nameof(CanControlDesktopPet));
     }
 
     public void InitializeForStartup()
@@ -167,6 +176,8 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
                 return true;
             }
 
+            // Style selection alone is not permission to launch a process or hide the always-available F
+            // entry. The explicit enable action below owns Pets.Enabled and runtime activation.
             loaded.Settings.Pets.StyleId = selected.Id;
             await _settings.SaveAsync(loaded.Settings, cancellationToken);
             Status = "pet-saved";
@@ -188,6 +199,94 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<bool> InitializeDesktopPetAsync(CancellationToken cancellationToken = default)
+    {
+        var service = _desktopPets;
+        if (service is null || IsBusy) return false;
+        IsBusy = true;
+        try
+        {
+            var snapshot = await service.InitializeAsync(cancellationToken);
+            ApplyDesktopPetSnapshot(snapshot);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "cancelled";
+            throw;
+        }
+        catch
+        {
+            IsPetEnabled = false;
+            Status = "pet-runtime-failed";
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> EnableSelectedPetAsync(CancellationToken cancellationToken = default)
+    {
+        var service = _desktopPets;
+        if (service is null || IsBusy) return false;
+        IsBusy = true;
+        try
+        {
+            var snapshot = await service.SelectPetAsync(SelectedPet.Id, cancellationToken);
+            ApplyDesktopPetSnapshot(snapshot);
+            return snapshot.Enabled;
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "cancelled";
+            throw;
+        }
+        catch
+        {
+            IsPetEnabled = false;
+            Status = "pet-runtime-failed";
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task RestoreDefaultLauncherAsync(CancellationToken cancellationToken = default)
+    {
+        var service = _desktopPets;
+        if (service is null || IsBusy) return;
+        IsBusy = true;
+        try
+        {
+            var snapshot = await service.RestoreDefaultLauncherAsync(cancellationToken);
+            ApplyDesktopPetSnapshot(snapshot);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task ResetDesktopPositionAsync(CancellationToken cancellationToken = default)
+    {
+        var service = _desktopPets;
+        if (service is null || IsBusy) return;
+        IsBusy = true;
+        try
+        {
+            await service.ResetPositionAsync(cancellationToken);
+            Status = "desktop-position-reset";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private void ApplyLoadedSettings(Settings2LoadResult loaded)
     {
         IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
@@ -196,6 +295,14 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         IsPetEnabled = loaded.Settings.Pets.Enabled;
         _themes.Apply(SelectedTheme);
         Status = IsRecoveryReadOnly ? "recovery-read-only" : "ready";
+    }
+
+    private void ApplyDesktopPetSnapshot(DesktopPetPreferenceSnapshot snapshot)
+    {
+        SelectedPet = snapshot.Pet;
+        IsPetEnabled = snapshot.Enabled;
+        IsRecoveryReadOnly = snapshot.RecoveryReadOnly;
+        Status = snapshot.Detail;
     }
 
     private static bool IsRecoveryOrigin(SettingsLoadOrigin origin) =>
