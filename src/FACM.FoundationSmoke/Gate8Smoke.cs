@@ -153,8 +153,8 @@ internal static class Gate8Smoke
             {"games":{"gameCount":1,"games":[{"gameId":101,"gameCreation":1700000000000,"gameDuration":1800,"gameMode":"CLASSIC","queueId":420,"participantIdentities":[{"participantId":3,"player":{"puuid":"PUUID-1","summonerId":42}}],"participants":[{"participantId":3,"championId":99,"stats":{"kills":10,"deaths":2,"assists":7,"totalMinionsKilled":150,"neutralMinionsKilled":12,"win":true}}]}]}}
             """);
 
-        var source = new LeagueWorkbenchDataSource(gateway);
-        var dashboard = await source.LoadDashboardAsync();
+        var noPhaseSource = new LeagueWorkbenchDataSource(gateway);
+        var dashboard = await noPhaseSource.LoadDashboardAsync();
         Equal(LeagueWorkbenchDataState.Ready, dashboard.State, "workbench dashboard ready");
         Equal("FACM#CN1", dashboard.Account?.AccountName, "workbench account name");
         Equal(450, dashboard.Queue?.QueueId, "workbench queue id");
@@ -162,7 +162,7 @@ internal static class Gate8Smoke
         True(dashboard.LobbyMembers[0].IsLocalPlayer, "workbench local lobby member");
         Equal("Accepted", dashboard.ReadyCheck?.PlayerResponse, "workbench ready-check response");
 
-        var player = await source.LoadCurrentPlayerAsync();
+        var player = await noPhaseSource.LoadCurrentPlayerAsync();
         Equal(LeagueWorkbenchDataState.Ready, player.State, "workbench player ready");
         Equal("GOLD", player.Ranked?.Tier, "workbench ranked tier");
         Equal(55, player.Ranked?.LeaguePoints ?? 0, "workbench ranked lp");
@@ -174,8 +174,49 @@ internal static class Gate8Smoke
         True(player.RecentMatches[0].ParticipantResolved, "workbench participant resolution");
         True(!player.HasMoreMatches, "workbench finite page");
 
+        var gameflow = new FakeGameflowReader
+        {
+            Current = new LeagueGameflowSnapshot(
+                DateTimeOffset.Parse("2026-08-28T07:00:00Z"),
+                LeagueConnectionState.Connected,
+                "ChampSelect",
+                LeagueProductState.ChampSelect,
+                LeagueActivityLevel.ChampSelect)
+        };
+        gateway.Responses[LeagueWorkbenchDataSource.ChampSelectSessionPath] = Utf8("""
+            {"gameId":202,"queueId":450,"localPlayerCellId":1,"benchEnabled":true,"timer":{"phase":"BAN_PICK","adjustedTimeLeftInPhase":12345},"bans":{"myTeamBans":[11],"theirTeamBans":[22]},"benchChampions":[{"championId":33}],"myTeam":[{"cellId":1,"puuid":"PUUID-1","summonerId":42,"gameName":"FACM","tagLine":"CN1","assignedPosition":"middle","championId":99,"spell1Id":4,"spell2Id":14}],"theirTeam":[{"cellId":6,"puuid":"PUUID-9","summonerId":99,"gameName":"Enemy","championPickIntent":55}],"actions":[[{"actorCellId":1,"isInProgress":true,"type":"pick","championId":99}]]}
+            """);
+        var liveSource = new LeagueWorkbenchDataSource(gateway, gameflow);
+        var champSelect = await liveSource.LoadLiveAsync();
+        Equal(LeagueWorkbenchDataState.Ready, champSelect.State, "workbench champ-select ready");
+        Equal(2, champSelect.Players.Count, "workbench champ-select players");
+        True(champSelect.Players[0].IsLocalPlayer, "workbench champ-select local player");
+        Equal(33, champSelect.BenchChampionIds[0], "workbench champ-select bench");
+        Equal(11, champSelect.AllyBans[0], "workbench ally ban");
+        Equal(22, champSelect.EnemyBans[0], "workbench enemy ban");
+        Equal("pick", champSelect.LocalActionType, "workbench local action");
+        Equal(99, champSelect.LocalActionChampionId, "workbench local action champion");
+
+        gameflow.Current = new LeagueGameflowSnapshot(
+            DateTimeOffset.Parse("2026-08-28T07:01:00Z"),
+            LeagueConnectionState.Connected,
+            "InProgress",
+            LeagueProductState.InGame,
+            LeagueActivityLevel.InGame);
+        gateway.Responses[LeagueWorkbenchDataSource.GameflowSessionPath] = Utf8("""
+            {"phase":"InProgress","map":{"id":11,"name":"Summoner's Rift"},"gameData":{"gameId":303,"queue":{"id":420,"name":"Ranked Solo","gameMode":"CLASSIC"},"teamOne":[{"puuid":"PUUID-1","summonerId":42,"summonerName":"FACM","selectedPosition":"MIDDLE","selectedRole":"SOLO","championId":99}],"teamTwo":[{"puuid":"PUUID-9","summonerId":99,"summonerName":"Enemy","championId":55}]}}
+            """);
+        var inGame = await liveSource.LoadLiveAsync();
+        Equal(LeagueWorkbenchDataState.Ready, inGame.State, "workbench in-game ready");
+        Equal(303L, inGame.GameId, "workbench in-game game id");
+        Equal(11, inGame.MapId, "workbench in-game map id");
+        Equal(420, inGame.Queue?.QueueId ?? 0, "workbench in-game queue");
+        Equal(2, inGame.Players.Count, "workbench in-game players");
+
         var unavailable = await new LeagueWorkbenchDataSource(new FakeLeagueReadGateway()).LoadDashboardAsync();
         Equal(LeagueWorkbenchDataState.Unavailable, unavailable.State, "workbench fail-soft unavailable");
+        var noLivePhase = await noPhaseSource.LoadLiveAsync();
+        Equal(LeagueWorkbenchDataState.Unavailable, noLivePhase.State, "workbench live requires shared phase owner");
     }
 
     private static LeagueGameflowMapping Map(string? phase, LeagueConnectionState connection, bool succeeded) =>
@@ -213,5 +254,15 @@ internal static class Gate8Smoke
     {
         public LeagueConnectionState State { get; set; }
         public LeagueSessionDescriptor? Current => null;
+    }
+
+    private sealed class FakeGameflowReader : ILeagueGameflowReader
+    {
+        public LeagueGameflowSnapshot? Current { get; set; }
+        public event EventHandler<LeagueGameflowChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
     }
 }
