@@ -46,6 +46,7 @@ public partial class App : Application
     private LeagueHttpGateway? _leagueGateway;
     private WindowsLeagueTransportSessionSource? _leagueSessions;
     private LeagueGameflowMonitor? _gameflow;
+    private LeagueMatchmakingAutomationService? _matchmakingAutomation;
     private PerformanceBudgetProvider? _performance;
     private ProductStateStore? _productState;
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
@@ -122,7 +123,8 @@ public partial class App : Application
         _cleanupCenter = new CleanupViewModel(_settings, cleanupService, _cleanupEnvironment);
 
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
-        // Read/write transport, Product State, performance, repair and the Workbench all consume the same facts.
+        // Read/write transport, Product State, performance, repair, automation and the Workbench all
+        // consume the same facts and gateway.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
         _leagueGameRepairService = new WindowsLeagueGameRepairService(_leagueGateway, _leagueGateway);
@@ -131,6 +133,11 @@ public partial class App : Application
             _leagueSessions,
             _productState,
             _performance);
+        _matchmakingAutomation = new LeagueMatchmakingAutomationService(
+            _leagueGateway,
+            _leagueGateway,
+            _gameflow);
+        ConfigureLeagueAutomationFromSettings();
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
         _gameflow.Start();
@@ -237,6 +244,27 @@ public partial class App : Application
         catch
         {
             // Preserve the original launch failure; recovery logging may never mask it.
+        }
+    }
+
+    private void ConfigureLeagueAutomationFromSettings()
+    {
+        var settings = _settings;
+        var automation = _matchmakingAutomation;
+        if (settings is null || automation is null) return;
+
+        try
+        {
+            var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+            automation.Configure(
+                loaded.Settings.League.AutoMatchmakingEnabled,
+                loaded.Settings.League.AutoAcceptEnabled);
+        }
+        catch
+        {
+            // Automation is optional and fail-soft. Corrupt/unavailable settings must not prevent the
+            // shell from starting; RecoveringSettings2Repository remains the owner of settings repair.
+            automation.Configure(false, false);
         }
     }
 
@@ -472,6 +500,8 @@ public partial class App : Application
 
     private void DisposeRuntime()
     {
+        _matchmakingAutomation?.Dispose();
+        _matchmakingAutomation = null;
         _gameflow?.Dispose();
         _gameflow = null;
         _leagueWorkbench?.Dispose();
