@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using FACM.Core.League;
 using FACM.Core.Performance;
+using FACM.Core.Settings;
 using FACM.Core.State;
 using FACM.Core.Text;
 
@@ -10,16 +11,39 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
 {
     private readonly IProductStateReader _productState;
     private readonly PerformanceBudgetProvider _performance;
+    private readonly ILeagueWorkbenchDataSource? _dataSource;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly SemaphoreSlim _advisorUiGate = new(1, 1);
+    private readonly SemaphoreSlim _itemSetUiGate = new(1, 1);
+    private readonly SemaphoreSlim _automationSettingsGate = new(1, 1);
+    private readonly CancellationTokenSource _lifetime = new();
     private LeagueProductState _leagueState;
     private string _budgetName;
+    private LeagueWorkbenchDashboardSnapshot _dashboard = LeagueWorkbenchDashboardSnapshot.Unavailable("not-loaded");
+    private LeagueWorkbenchPlayerSnapshot _player = LeagueWorkbenchPlayerSnapshot.Unavailable("not-loaded");
+    private LeagueWorkbenchLiveSnapshot _live = LeagueWorkbenchLiveSnapshot.Unavailable(string.Empty, "not-loaded");
+    private LeagueBuildAdvisorSnapshot _advisor = LeagueBuildAdvisorSnapshot.Unavailable(string.Empty, "not-loaded");
+    private LeagueItemSetPlan? _preparedItemSet;
+    private string _itemSetStatus = "not-ready";
+    private ILeagueBuildAdvisorService? _buildAdvisorService;
+    private ILeagueItemSetService? _itemSetService;
+    private ISettings2Repository? _automationSettings;
+    private ILeagueMatchmakingAutomationService? _matchmakingAutomation;
+    private bool _ownsProductServices;
+    private bool _isRefreshing;
+    private bool _isAdvisorRefreshing;
+    private bool _isItemSetBusy;
+    private bool _isAutomationSettingsBusy;
     private bool _disposed;
 
     public LeagueWorkbenchViewModel(
         IProductStateReader productState,
-        PerformanceBudgetProvider performance)
+        PerformanceBudgetProvider performance,
+        ILeagueWorkbenchDataSource? dataSource = null)
     {
         _productState = productState ?? throw new ArgumentNullException(nameof(productState));
         _performance = performance ?? throw new ArgumentNullException(nameof(performance));
+        _dataSource = dataSource;
         _leagueState = _productState.Current.League;
         _budgetName = _performance.Current.Name;
         _productState.Changed += OnProductStateChanged;
@@ -32,6 +56,284 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     public LeagueProductState LeagueState => _leagueState;
     public string LeagueStateTextKey => ResolveStateTextKey(_leagueState);
     public string BudgetName => _budgetName;
+    public LeagueWorkbenchDashboardSnapshot Dashboard => _dashboard;
+    public LeagueWorkbenchPlayerSnapshot Player => _player;
+    public LeagueWorkbenchLiveSnapshot Live => _live;
+    public LeagueBuildAdvisorSnapshot Advisor => _advisor;
+    public LeagueItemSetPlan? PreparedItemSet => _preparedItemSet;
+    public string ItemSetStatus => _itemSetStatus;
+    public bool IsRefreshing => _isRefreshing;
+    public bool IsAdvisorRefreshing => _isAdvisorRefreshing;
+    public bool IsItemSetBusy => _isItemSetBusy;
+    public bool IsAutomationSettingsBusy => _isAutomationSettingsBusy;
+    public bool HasRealDataSource => _dataSource is not null;
+    public bool HasProductServices => _buildAdvisorService is not null && _itemSetService is not null;
+    public bool HasMatchmakingAutomation => _automationSettings is not null && _matchmakingAutomation is not null;
+    public bool AutoMatchmakingEnabled => _matchmakingAutomation?.AutoSearchEnabled ?? false;
+    public bool AutoAcceptEnabled => _matchmakingAutomation?.AutoAcceptEnabled ?? false;
+    public bool CanPrepareItemSet =>
+        !_isItemSetBusy &&
+        _itemSetService is not null &&
+        _advisor.State == LeagueBuildAdvisorState.Ready &&
+        _advisor.Recommendation is not null;
+
+    internal ILeagueWorkbenchDataSource? DataSource => _dataSource;
+
+    internal void ConfigureProductServices(
+        ILeagueBuildAdvisorService buildAdvisorService,
+        ILeagueItemSetService itemSetService,
+        bool ownsServices)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(buildAdvisorService);
+        ArgumentNullException.ThrowIfNull(itemSetService);
+        if (HasProductServices) return;
+
+        _buildAdvisorService = buildAdvisorService;
+        _itemSetService = itemSetService;
+        _ownsProductServices = ownsServices;
+        OnPropertyChanged(nameof(HasProductServices));
+        OnPropertyChanged(nameof(CanPrepareItemSet));
+    }
+
+    internal void ConfigureMatchmakingAutomation(
+        ISettings2Repository settings,
+        ILeagueMatchmakingAutomationService automation)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(automation);
+        if (HasMatchmakingAutomation) return;
+
+        _automationSettings = settings;
+        _matchmakingAutomation = automation;
+        OnPropertyChanged(nameof(HasMatchmakingAutomation));
+        OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+        OnPropertyChanged(nameof(AutoAcceptEnabled));
+    }
+
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var dataSource = _dataSource;
+        if (dataSource is null) return;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        if (!await _refreshGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        try
+        {
+            SetRefreshing(true);
+            var dashboard = await dataSource.LoadDashboardAsync(linked.Token).ConfigureAwait(false);
+            LeagueWorkbenchPlayerSnapshot player;
+            if (dashboard.Account is null)
+            {
+                player = LeagueWorkbenchPlayerSnapshot.Unavailable("current-player-unavailable");
+            }
+            else
+            {
+                player = await dataSource.LoadCurrentPlayerAsync(0, 10, linked.Token).ConfigureAwait(false);
+            }
+            var live = await dataSource.LoadLiveAsync(linked.Token).ConfigureAwait(false);
+
+            _dashboard = dashboard;
+            _player = player;
+            _live = live;
+            OnPropertyChanged(nameof(Dashboard));
+            OnPropertyChanged(nameof(Player));
+            OnPropertyChanged(nameof(Live));
+
+            var advisorService = _buildAdvisorService;
+            if (advisorService is not null)
+            {
+                try
+                {
+                    SetAdvisor(await advisorService.RefreshAsync(false, linked.Token).ConfigureAwait(false));
+                }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+                {
+                }
+                catch (Exception)
+                {
+                    SetAdvisor(LeagueBuildAdvisorSnapshot.Unavailable(live.Phase, "advisor-refresh-failed"));
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            _dashboard = LeagueWorkbenchDashboardSnapshot.Unavailable("refresh-failed");
+            _player = LeagueWorkbenchPlayerSnapshot.Unavailable("refresh-failed");
+            _live = LeagueWorkbenchLiveSnapshot.Unavailable(_live.Phase, "refresh-failed");
+            OnPropertyChanged(nameof(Dashboard));
+            OnPropertyChanged(nameof(Player));
+            OnPropertyChanged(nameof(Live));
+        }
+        finally
+        {
+            SetRefreshing(false);
+            _refreshGate.Release();
+        }
+    }
+
+    public async Task RefreshBuildAdvisorAsync(
+        bool force = true,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var service = _buildAdvisorService;
+        if (service is null) return;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        if (!await _advisorUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        try
+        {
+            SetAdvisorRefreshing(true);
+            SetAdvisor(await service.RefreshAsync(force, linked.Token).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            SetAdvisor(LeagueBuildAdvisorSnapshot.Unavailable(_live.Phase, "advisor-refresh-failed"));
+        }
+        finally
+        {
+            SetAdvisorRefreshing(false);
+            _advisorUiGate.Release();
+        }
+    }
+
+    public async Task<LeagueItemSetPlan?> PrepareItemSetAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var service = _itemSetService;
+        if (service is null || !CanPrepareItemSet) return null;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        try
+        {
+            SetItemSetBusy(true);
+            var plan = await service.PrepareAsync(_advisor, linked.Token).ConfigureAwait(false);
+            _preparedItemSet = plan;
+            _itemSetStatus = plan is null ? "prepare-unavailable" : "prepared";
+            OnPropertyChanged(nameof(PreparedItemSet));
+            OnPropertyChanged(nameof(ItemSetStatus));
+            return plan;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception)
+        {
+            _preparedItemSet = null;
+            _itemSetStatus = "prepare-failed";
+            OnPropertyChanged(nameof(PreparedItemSet));
+            OnPropertyChanged(nameof(ItemSetStatus));
+            return null;
+        }
+        finally
+        {
+            SetItemSetBusy(false);
+            _itemSetUiGate.Release();
+        }
+    }
+
+    public async Task<LeagueItemSetApplyResult?> ApplyItemSetAsync(
+        LeagueItemSetPlan plan,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(plan);
+        var service = _itemSetService;
+        if (service is null) return null;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        try
+        {
+            SetItemSetBusy(true);
+            var result = await service.ApplyAsync(plan, linked.Token).ConfigureAwait(false);
+            _itemSetStatus = result.Detail;
+            OnPropertyChanged(nameof(ItemSetStatus));
+            return result;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception)
+        {
+            _itemSetStatus = "apply-failed";
+            OnPropertyChanged(nameof(ItemSetStatus));
+            return null;
+        }
+        finally
+        {
+            SetItemSetBusy(false);
+            _itemSetUiGate.Release();
+        }
+    }
+
+    public Task<bool> SetAutoMatchmakingEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        SaveAutomationSettingsAsync(enabled, null, cancellationToken);
+
+    public Task<bool> SetAutoAcceptEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        SaveAutomationSettingsAsync(null, enabled, cancellationToken);
+
+    private async Task<bool> SaveAutomationSettingsAsync(
+        bool? autoMatchmaking,
+        bool? autoAccept,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var settings = _automationSettings;
+        var automation = _matchmakingAutomation;
+        if (settings is null || automation is null) return false;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await _automationSettingsGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            SetAutomationSettingsBusy(true);
+            var loaded = await settings.LoadAsync(linked.Token).ConfigureAwait(false);
+            if (autoMatchmaking.HasValue)
+                loaded.Settings.League.AutoMatchmakingEnabled = autoMatchmaking.Value;
+            if (autoAccept.HasValue)
+                loaded.Settings.League.AutoAcceptEnabled = autoAccept.Value;
+
+            await settings.SaveAsync(loaded.Settings, linked.Token).ConfigureAwait(false);
+            automation.Configure(
+                loaded.Settings.League.AutoMatchmakingEnabled,
+                loaded.Settings.League.AutoAcceptEnabled);
+            OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+            OnPropertyChanged(nameof(AutoAcceptEnabled));
+            return true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception)
+        {
+            OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+            OnPropertyChanged(nameof(AutoAcceptEnabled));
+            return false;
+        }
+        finally
+        {
+            SetAutomationSettingsBusy(false);
+            _automationSettingsGate.Release();
+        }
+    }
 
     private void OnProductStateChanged(object? sender, ProductStateChangedEventArgs args)
     {
@@ -47,6 +349,44 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (string.Equals(_budgetName, budget.Name, StringComparison.Ordinal)) return;
         _budgetName = budget.Name;
         OnPropertyChanged(nameof(BudgetName));
+    }
+
+    private void SetAdvisor(LeagueBuildAdvisorSnapshot snapshot)
+    {
+        _advisor = snapshot ?? LeagueBuildAdvisorSnapshot.Unavailable(_live.Phase, "advisor-null");
+        if (_advisor.State != LeagueBuildAdvisorState.Ready) _preparedItemSet = null;
+        OnPropertyChanged(nameof(Advisor));
+        OnPropertyChanged(nameof(PreparedItemSet));
+        OnPropertyChanged(nameof(CanPrepareItemSet));
+    }
+
+    private void SetRefreshing(bool refreshing)
+    {
+        if (_isRefreshing == refreshing) return;
+        _isRefreshing = refreshing;
+        OnPropertyChanged(nameof(IsRefreshing));
+    }
+
+    private void SetAdvisorRefreshing(bool refreshing)
+    {
+        if (_isAdvisorRefreshing == refreshing) return;
+        _isAdvisorRefreshing = refreshing;
+        OnPropertyChanged(nameof(IsAdvisorRefreshing));
+    }
+
+    private void SetItemSetBusy(bool busy)
+    {
+        if (_isItemSetBusy == busy) return;
+        _isItemSetBusy = busy;
+        OnPropertyChanged(nameof(IsItemSetBusy));
+        OnPropertyChanged(nameof(CanPrepareItemSet));
+    }
+
+    private void SetAutomationSettingsBusy(bool busy)
+    {
+        if (_isAutomationSettingsBusy == busy) return;
+        _isAutomationSettingsBusy = busy;
+        OnPropertyChanged(nameof(IsAutomationSettingsBusy));
     }
 
     private void OnPropertyChanged(string propertyName) =>
@@ -70,7 +410,25 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     {
         if (_disposed) return;
         _disposed = true;
+        _lifetime.Cancel();
         _productState.Changed -= OnProductStateChanged;
         _performance.BudgetChanged -= OnBudgetChanged;
+
+        if (_ownsProductServices)
+        {
+            if (_itemSetService is IDisposable itemSetDisposable) itemSetDisposable.Dispose();
+            if (_buildAdvisorService is IDisposable advisorDisposable) advisorDisposable.Dispose();
+        }
+        _itemSetService = null;
+        _buildAdvisorService = null;
+        _automationSettings = null;
+        _matchmakingAutomation = null;
+        _preparedItemSet = null;
+
+        _refreshGate.Dispose();
+        _advisorUiGate.Dispose();
+        _itemSetUiGate.Dispose();
+        _automationSettingsGate.Dispose();
+        _lifetime.Dispose();
     }
 }

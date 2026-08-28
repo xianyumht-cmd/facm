@@ -102,3 +102,13 @@ public interface ILeagueGameflowReader
     LeagueGameflowSnapshot? Current { get; }
     event EventHandler<LeagueGameflowChangedEventArgs>? Changed;
 }
+
+/// <summary>
+/// Optional heartbeat view over the one process-wide gameflow monitor. Features that need to react
+/// while a phase remains unchanged (for example lobby eligibility) consume this event instead of
+/// creating their own phase polling loop.
+/// </summary>
+public interface ILeagueGameflowObservationSource : ILeagueGameflowReader
+{
+    event EventHandler<LeagueGameflowChangedEventArgs>? Observed;
+}

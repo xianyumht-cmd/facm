@@ -71,6 +71,46 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-league-workbench.ps1
 
+      - name: Verify League recommended setup contract
+        shell: pwsh
+        run: ./scripts/check-facm4-league-recommended.ps1
+
+      - name: Verify League efficiency contract
+        shell: pwsh
+        run: ./scripts/check-facm4-league-efficiency.ps1
+
+      - name: Verify League bench quick-pick contract
+        shell: pwsh
+        run: ./scripts/check-facm4-league-bench.ps1
+
+      - name: Verify ARAM Mayhem base query contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem.ps1
+
+      - name: Verify ARAM Mayhem cached public-data contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-public-data.ps1
+
+      - name: Verify ARAM Mayhem augment parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-augments.ps1
+
+      - name: Verify ARAM Mayhem detailed-build parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-build.ps1
+
+      - name: Verify ARAM Mayhem base-balance parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-base-balance.ps1
+
+      - name: Verify ARAM Mayhem localization parity contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-localization.ps1
+
+      - name: Verify ARAM Mayhem WinUI query contract
+        shell: pwsh
+        run: ./scripts/check-facm4-mayhem-winui.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1

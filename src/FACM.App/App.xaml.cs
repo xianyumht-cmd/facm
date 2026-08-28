@@ -46,6 +46,7 @@ public partial class App : Application
     private LeagueHttpGateway? _leagueGateway;
     private WindowsLeagueTransportSessionSource? _leagueSessions;
     private LeagueGameflowMonitor? _gameflow;
+    private LeagueMatchmakingAutomationService? _matchmakingAutomation;
     private PerformanceBudgetProvider? _performance;
     private ProductStateStore? _productState;
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
@@ -122,7 +123,8 @@ public partial class App : Application
         _cleanupCenter = new CleanupViewModel(_settings, cleanupService, _cleanupEnvironment);
 
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
-        // Read/write transport, Product State, performance, repair and the Workbench all consume the same facts.
+        // Read/write transport, Product State, performance, repair, automation and the Workbench all
+        // consume the same facts and gateway.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
         _leagueGateway = new LeagueHttpGateway(_leagueSessions);
         _leagueGameRepairService = new WindowsLeagueGameRepairService(_leagueGateway, _leagueGateway);
@@ -131,6 +133,11 @@ public partial class App : Application
             _leagueSessions,
             _productState,
             _performance);
+        _matchmakingAutomation = new LeagueMatchmakingAutomationService(
+            _leagueGateway,
+            _leagueGateway,
+            _gameflow);
+        ConfigureLeagueAutomationFromSettings();
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
         _gameflow.Start();
@@ -240,6 +247,27 @@ public partial class App : Application
         }
     }
 
+    private void ConfigureLeagueAutomationFromSettings()
+    {
+        var settings = _settings;
+        var automation = _matchmakingAutomation;
+        if (settings is null || automation is null) return;
+
+        try
+        {
+            var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+            automation.Configure(
+                loaded.Settings.League.AutoMatchmakingEnabled,
+                loaded.Settings.League.AutoAcceptEnabled);
+        }
+        catch
+        {
+            // Automation is optional and fail-soft. Corrupt/unavailable settings must not prevent the
+            // shell from starting; RecoveringSettings2Repository remains the owner of settings repair.
+            automation.Configure(false, false);
+        }
+    }
+
     private MainWindow GetOrCreateMainWindow()
     {
         if (_shuttingDown) throw new InvalidOperationException("FACM is shutting down.");
@@ -249,13 +277,16 @@ public partial class App : Application
         var cleanupCenter = _cleanupCenter ?? throw new InvalidOperationException("Cleanup center is unavailable.");
         var productState = _productState ?? throw new InvalidOperationException("Product State is unavailable.");
         var performance = _performance ?? throw new InvalidOperationException("Performance budget provider is unavailable.");
+        var leagueGateway = _leagueGateway ?? throw new InvalidOperationException("League read gateway is unavailable.");
+        var gameflow = _gameflow ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
         var gameRepairService = _leagueGameRepairService ?? throw new InvalidOperationException("League game repair is unavailable.");
         var diagnosticsSource = _diagnosticsSource ?? throw new InvalidOperationException("Diagnostics source is unavailable.");
         var diagnosticsExporter = _diagnosticsExporter ?? throw new InvalidOperationException("Diagnostics exporter is unavailable.");
         var text = _uiText ?? throw new InvalidOperationException("UI text provider is unavailable.");
         var repairTools = new RepairToolsViewModel(new WindowsRepairToolService());
         var gameRepair = new LeagueGameRepairViewModel(gameRepairService);
-        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance);
+        var workbenchData = new LeagueWorkbenchDataSource(leagueGateway, gameflow);
+        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance, workbenchData);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
         _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.ConfigureGameRepair(gameRepair);
@@ -469,6 +500,8 @@ public partial class App : Application
 
     private void DisposeRuntime()
     {
+        _matchmakingAutomation?.Dispose();
+        _matchmakingAutomation = null;
         _gameflow?.Dispose();
         _gameflow = null;
         _leagueWorkbench?.Dispose();

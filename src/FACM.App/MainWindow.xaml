@@ -269,6 +269,23 @@
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock x:Name="LeagueAutomationDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <ToggleSwitch
+                                            x:Name="LeagueAutoMatchmakingToggle"
+                                            automation:AutomationProperties.AutomationId="FACM.League.AutoMatchmaking"
+                                            Toggled="OnLeagueAutoMatchmakingToggled" />
+                                        <TextBlock x:Name="LeagueAutoMatchmakingHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <ToggleSwitch
+                                            x:Name="LeagueAutoAcceptToggle"
+                                            automation:AutomationProperties.AutomationId="FACM.League.AutoAccept"
+                                            Toggled="OnLeagueAutoAcceptToggled" />
+                                        <TextBlock x:Name="LeagueAutoAcceptHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                            <TextBlock
+                                                x:Name="LeagueAutomationSettingsStatus"
+                                                automation:AutomationProperties.AutomationId="FACM.League.AutomationSettingsStatus"
+                                                Style="{StaticResource FacmBodyTextStyle}"
+                                                TextWrapping="Wrap" />
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </Grid>

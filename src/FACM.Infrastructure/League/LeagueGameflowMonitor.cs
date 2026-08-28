@@ -10,7 +10,7 @@ namespace FACM.Infrastructure.League;
 /// The single FACM 4.0 gameflow polling owner. It reuses the shared League read gateway/session
 /// accessor and publishes one mapping to Product State + Performance; UI layers never poll LCU.
 /// </summary>
-public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
+public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, IDisposable
 {
     private const string PhaseResourceKey = "/lol-gameflow/v1/gameflow-phase";
 
@@ -51,6 +51,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
     }
 
     public event EventHandler<LeagueGameflowChangedEventArgs>? Changed;
+    public event EventHandler<LeagueGameflowChangedEventArgs>? Observed;
 
     public void Start()
     {
@@ -127,7 +128,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
         _productState.SetLeague(mapping.ProductState, "gameflow:" + mapping.ProductState);
         _performance.UpdateLeagueActivity(mapping.Activity);
 
-        var next = new LeagueGameflowSnapshot(
+        var observed = new LeagueGameflowSnapshot(
             _utcNow(),
             mapping.ConnectionState,
             mapping.Phase,
@@ -135,17 +136,34 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowReader, IDisposable
             mapping.Activity);
 
         LeagueGameflowSnapshot? previous;
-        EventHandler<LeagueGameflowChangedEventArgs>? handler = null;
+        LeagueGameflowSnapshot published;
+        EventHandler<LeagueGameflowChangedEventArgs>? changedHandler;
+        EventHandler<LeagueGameflowChangedEventArgs>? observedHandler;
+        var changed = false;
         lock (_sync)
         {
             previous = _current;
-            if (Equivalent(previous, next)) return previous!;
-            _current = next;
-            handler = Changed;
+            changed = !Equivalent(previous, observed);
+            if (changed)
+            {
+                _current = observed;
+                published = observed;
+                changedHandler = Changed;
+            }
+            else
+            {
+                // Preserve the stable snapshot identity contract for state consumers. Heartbeat
+                // consumers receive the fresh observation below without mutating Current.
+                published = previous!;
+                changedHandler = null;
+            }
+            observedHandler = Observed;
         }
 
-        handler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, next));
-        return next;
+        if (changed)
+            changedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
+        observedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
+        return published;
     }
 
     private static bool Equivalent(LeagueGameflowSnapshot? left, LeagueGameflowSnapshot right) =>
