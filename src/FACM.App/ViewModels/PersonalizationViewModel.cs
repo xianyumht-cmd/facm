@@ -10,6 +10,8 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
     private readonly ISettings2Repository _settings;
     private readonly IFacmThemeRuntime _themes;
     private FacmThemeDefinition _selectedTheme = FacmThemeCatalog.Get(FacmThemeCatalog.DefaultThemeId);
+    private FacmPetDefinition _selectedPet = FacmPetCatalog.Get(FacmPetCatalog.DefaultPetId);
+    private bool _isPetEnabled;
     private bool _isBusy;
     private bool _isRecoveryReadOnly;
     private bool _initialized;
@@ -24,11 +26,24 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public IReadOnlyList<FacmThemeDefinition> ThemeOptions => FacmThemeCatalog.All;
+    public IReadOnlyList<FacmPetDefinition> PetOptions => FacmPetCatalog.Visible;
 
     public FacmThemeDefinition SelectedTheme
     {
         get => _selectedTheme;
         private set => SetField(ref _selectedTheme, value);
+    }
+
+    public FacmPetDefinition SelectedPet
+    {
+        get => _selectedPet;
+        private set => SetField(ref _selectedPet, value);
+    }
+
+    public bool IsPetEnabled
+    {
+        get => _isPetEnabled;
+        private set => SetField(ref _isPetEnabled, value);
     }
 
     public bool IsBusy
@@ -63,6 +78,8 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         catch
         {
             SelectedTheme = FacmThemeCatalog.Get(FacmThemeCatalog.DefaultThemeId);
+            SelectedPet = FacmPetCatalog.Get(FacmPetCatalog.DefaultPetId);
+            IsPetEnabled = false;
             _themes.Apply(SelectedTheme);
             Status = "fallback-default";
         }
@@ -130,10 +147,53 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<bool> SelectPetAsync(string? petId, CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return false;
+        var selected = FacmPetCatalog.Get(petId);
+        if (!selected.ShowInPicker) selected = FacmPetCatalog.Get(FacmPetCatalog.DefaultPetId);
+
+        IsBusy = true;
+        try
+        {
+            var loaded = await _settings.LoadAsync(cancellationToken);
+            IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
+            SelectedPet = selected;
+            IsPetEnabled = loaded.Settings.Pets.Enabled;
+
+            if (IsRecoveryReadOnly)
+            {
+                Status = "pet-session-only";
+                return true;
+            }
+
+            loaded.Settings.Pets.StyleId = selected.Id;
+            await _settings.SaveAsync(loaded.Settings, cancellationToken);
+            Status = "pet-saved";
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "cancelled";
+            throw;
+        }
+        catch
+        {
+            Status = "failed";
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private void ApplyLoadedSettings(Settings2LoadResult loaded)
     {
         IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
         SelectedTheme = FacmThemeCatalog.Get(loaded.Settings.Appearance.ThemeId);
+        SelectedPet = FacmPetCatalog.Get(loaded.Settings.Pets.StyleId);
+        IsPetEnabled = loaded.Settings.Pets.Enabled;
         _themes.Apply(SelectedTheme);
         Status = IsRecoveryReadOnly ? "recovery-read-only" : "ready";
     }
