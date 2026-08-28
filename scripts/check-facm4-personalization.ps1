@@ -62,8 +62,14 @@ if ($settings -match 'KnownThemeIds|KnownPetIds') { Fail 'Settings 2.0 must not 
 foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'Microsoft\.UI', 'Windows\.UI', 'System\.IO', 'System\.Diagnostics', 'HttpClient', '\bFile\.', '\bDirectory\.')) {
     if ($viewModel -match $forbidden) { Fail "PersonalizationViewModel crossed Core state/intent boundary: $forbidden" }
 }
-foreach ($required in @('ISettings2Repository', 'IFacmThemeRuntime', 'InitializeForStartup', 'SelectThemeAsync', 'RecoveredLastKnownGood', 'RecoveryDefaults', 'Appearance.ThemeId', 'SaveAsync')) {
+foreach ($required in @(
+    'ISettings2Repository', 'IFacmThemeRuntime', 'InitializeForStartup', 'SelectThemeAsync', 'SelectPetAsync',
+    'RecoveredLastKnownGood', 'RecoveryDefaults', 'Appearance.ThemeId', 'Pets.StyleId', 'Pets.Enabled', 'SaveAsync'
+)) {
     if ($viewModel -notmatch [regex]::Escape($required)) { Fail "PersonalizationViewModel behavior missing: $required" }
+}
+if ($viewModel -match 'Pets\.Enabled\s*=\s*true') {
+    Fail 'Pet style selection must not silently enable desktop pet mode before a real desktop-pet runtime succeeds.'
 }
 
 foreach ($required in @('WinUiThemeRuntime', 'AccessibilitySettings', 'HighContrast', 'FacmBackgroundBrush', 'FacmSurfaceBrush', 'FacmTextPrimaryBrush', 'FacmAccentBrush', 'FacmStrokeBrush')) {
@@ -71,7 +77,10 @@ foreach ($required in @('WinUiThemeRuntime', 'AccessibilitySettings', 'HighContr
 }
 if ($runtime -match '\bFile\.|\bDirectory\.|Settings2Repository') { Fail 'WinUI theme runtime must not own settings or filesystem access.' }
 
-foreach ($required in @('FACM.Personalization.ThemePicker', 'DisplayMemberPath', 'SelectThemeAsync', 'ConfigurePersonalization', 'OnPersonalizationNavigationChanged')) {
+foreach ($required in @(
+    'FACM.Personalization.ThemePicker', 'FACM.Personalization.PetPicker', 'DisplayMemberPath',
+    'SelectThemeAsync', 'SelectPetAsync', 'ConfigurePersonalization', 'OnPersonalizationNavigationChanged'
+)) {
     if ($surface -notmatch [regex]::Escape($required)) { Fail "Personalization Shell surface missing: $required" }
 }
 if ($surface -match 'System\.Diagnostics|HttpClient|\bFile\.|\bDirectory\.') { Fail 'Personalization Shell presentation owns platform/data access.' }
@@ -90,8 +99,8 @@ if ($foundationProgram -notmatch 'PersonalizationSmoke\.Run\(\)') { Fail 'Founda
 Write-Host 'Personalization stable theme catalog: OK'
 Write-Host 'Personalization stable pet compatibility catalog: OK'
 Write-Host 'Settings 2.0 shared catalog ownership: OK'
-Write-Host 'Theme ViewModel recovery/persistence boundary: OK'
+Write-Host 'Theme/pet selection recovery and persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
-Write-Host 'Personalization Shell theme picker: OK'
+Write-Host 'Personalization Shell theme and pet pickers: OK'
 Write-Host 'Personalization deterministic catalog smoke: OK'
 Write-Host 'FACM 4.0 Personalization foundation contract: SUCCESS'
