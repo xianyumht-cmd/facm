@@ -16,6 +16,9 @@ public sealed partial class MainWindow
     private ComboBox? _petPicker;
     private TextBlock? _petDescription;
     private TextBlock? _personalizationStatus;
+    private Button? _petEnableButton;
+    private Button? _restoreLauncherButton;
+    private Button? _resetDesktopPositionButton;
     private UIElement[]? _overviewDefaultChildren;
     private bool _syncingThemeSelection;
     private bool _syncingPetSelection;
@@ -116,9 +119,45 @@ public sealed partial class MainWindow
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };
+
+        _petEnableButton = new Button
+        {
+            Content = "启用当前桌宠",
+            Style = (Style)Application.Current.Resources["FacmPrimaryButtonStyle"]
+        };
+        AutomationProperties.SetAutomationId(_petEnableButton, "FACM.Personalization.EnablePet");
+        AutomationProperties.SetName(_petEnableButton, "启用当前桌宠");
+        _petEnableButton.Click += OnEnablePetClicked;
+
+        _restoreLauncherButton = new Button
+        {
+            Content = "恢复默认 F"
+        };
+        AutomationProperties.SetAutomationId(_restoreLauncherButton, "FACM.Personalization.RestoreLauncher");
+        AutomationProperties.SetName(_restoreLauncherButton, "恢复默认 F");
+        _restoreLauncherButton.Click += OnRestoreLauncherClicked;
+
+        _resetDesktopPositionButton = new Button
+        {
+            Content = "复位桌面位置"
+        };
+        AutomationProperties.SetAutomationId(_resetDesktopPositionButton, "FACM.Personalization.ResetDesktopPosition");
+        AutomationProperties.SetName(_resetDesktopPositionButton, "复位桌面位置");
+        _resetDesktopPositionButton.Click += OnResetDesktopPositionClicked;
+
+        var petActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10
+        };
+        petActions.Children.Add(_petEnableButton);
+        petActions.Children.Add(_restoreLauncherButton);
+        petActions.Children.Add(_resetDesktopPositionButton);
+
         petContent.Children.Add(petTitle);
         petContent.Children.Add(_petPicker);
         petContent.Children.Add(_petDescription);
+        petContent.Children.Add(petActions);
         petCard.Child = petContent;
         panel.Children.Add(petCard);
         return panel;
@@ -180,6 +219,15 @@ public sealed partial class MainWindow
             : _text.Get(failed ? UiTextKeys.ShellStatusUnavailable : UiTextKeys.ShellStatusReady);
         _themePicker.IsEnabled = !viewModel.IsBusy;
         _petPicker.IsEnabled = !viewModel.IsBusy;
+        if (_petEnableButton is not null)
+        {
+            _petEnableButton.IsEnabled = !viewModel.IsBusy && viewModel.CanControlDesktopPet;
+            _petEnableButton.Content = viewModel.IsPetEnabled ? "重新应用当前桌宠" : "启用当前桌宠";
+        }
+        if (_restoreLauncherButton is not null)
+            _restoreLauncherButton.IsEnabled = !viewModel.IsBusy && viewModel.CanControlDesktopPet;
+        if (_resetDesktopPositionButton is not null)
+            _resetDesktopPositionButton.IsEnabled = !viewModel.IsBusy && viewModel.CanControlDesktopPet;
     }
 
     private async void OnThemeSelectionChanged(object sender, SelectionChangedEventArgs args)
@@ -218,17 +266,74 @@ public sealed partial class MainWindow
         }
     }
 
+    private async void OnEnablePetClicked(object sender, RoutedEventArgs e)
+    {
+        var viewModel = _personalizationCenter;
+        if (viewModel is null) return;
+        try
+        {
+            await viewModel.EnableSelectedPetAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            SyncPersonalizationSurface();
+        }
+    }
+
+    private async void OnRestoreLauncherClicked(object sender, RoutedEventArgs e)
+    {
+        var viewModel = _personalizationCenter;
+        if (viewModel is null) return;
+        try
+        {
+            await viewModel.RestoreDefaultLauncherAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            SyncPersonalizationSurface();
+        }
+    }
+
+    private async void OnResetDesktopPositionClicked(object sender, RoutedEventArgs e)
+    {
+        var viewModel = _personalizationCenter;
+        if (viewModel is null) return;
+        try
+        {
+            await viewModel.ResetDesktopPositionAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            SyncPersonalizationSurface();
+        }
+    }
+
     private void OnPersonalizationClosed(object sender, WindowEventArgs args)
     {
         RootNavigation.SelectionChanged -= OnPersonalizationNavigationChanged;
         Closed -= OnPersonalizationClosed;
         if (_themePicker is not null) _themePicker.SelectionChanged -= OnThemeSelectionChanged;
         if (_petPicker is not null) _petPicker.SelectionChanged -= OnPetSelectionChanged;
+        if (_petEnableButton is not null) _petEnableButton.Click -= OnEnablePetClicked;
+        if (_restoreLauncherButton is not null) _restoreLauncherButton.Click -= OnRestoreLauncherClicked;
+        if (_resetDesktopPositionButton is not null) _resetDesktopPositionButton.Click -= OnResetDesktopPositionClicked;
         _themePicker = null;
         _themeDescription = null;
         _petPicker = null;
         _petDescription = null;
         _personalizationStatus = null;
+        _petEnableButton = null;
+        _restoreLauncherButton = null;
+        _resetDesktopPositionButton = null;
         _personalizationPanel = null;
         _personalizationCenter = null;
         _overviewDefaultChildren = null;
