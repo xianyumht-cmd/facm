@@ -45,7 +45,7 @@ public partial class App
             viewModel.ConfigureMatchmakingAutomation(settings, automation);
         }
 
-        EnsureLeagueRecommendedAutoApply(dataSource, gateway, performance, settings, gameflow);
+        EnsureLeagueRecommendedAutoApply(dataSource, gateway, gateway, performance, settings, gameflow);
     }
 
     internal ILeagueBuildLoadoutService CreateLeagueBuildLoadoutService(ILeagueWorkbenchDataSource dataSource)
@@ -67,7 +67,8 @@ public partial class App
 
     private void EnsureLeagueRecommendedAutoApply(
         ILeagueWorkbenchDataSource dataSource,
-        ILeagueReadGateway gateway,
+        ILeagueReadGateway readGateway,
+        ILeagueWriteGateway writeGateway,
         FACM.Core.Performance.PerformanceBudgetProvider performance,
         FACM.Core.Settings.ISettings2Repository settings,
         ILeagueGameflowObservationSource gameflow)
@@ -76,9 +77,9 @@ public partial class App
 
         // Auto-apply is process scoped so it keeps working when the detailed shell is closed. It
         // consumes the same shared gameflow heartbeat and gateway; no second phase loop is created.
-        var autoAdvisor = new LeagueBuildAdvisorService(dataSource, gateway, performance);
-        var autoItemSets = new LeagueItemSetService(dataSource, gateway);
-        var autoLoadout = new LeagueBuildLoadoutService(dataSource, gateway, gateway);
+        var autoAdvisor = new LeagueBuildAdvisorService(dataSource, readGateway, performance);
+        var autoItemSets = new LeagueItemSetService(dataSource, readGateway);
+        var autoLoadout = new LeagueBuildLoadoutService(dataSource, readGateway, writeGateway);
         var autoApply = new LeagueRecommendedAutoApplyService(
             autoAdvisor,
             autoLoadout,
