@@ -38,6 +38,7 @@ public sealed partial class MainWindow
 
         ApplyGameRepairState();
         InitializePersonalizationSurface();
+        InitializeLeagueWorkbenchRuntimeSurface();
     }
 
     private async void OnRepairFixWindowClick(object sender, RoutedEventArgs args) =>
