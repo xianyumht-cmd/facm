@@ -43,6 +43,22 @@ jobs:
           if (-not (Test-Path $bundle)) { throw 'PetHostBundle.zip was not created.' }
           Write-Host "PetHostBundle.zip bytes=$((Get-Item $bundle).Length)"
 
+      - name: Prepare controlled updater payload
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD 'out'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          dotnet build src/FACM.Updater/FACM.Updater.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'FACM.Updater build failed.' }
+          $source = Join-Path $PWD 'src/FACM.Updater/bin/Release/net48/FACM.Updater.exe'
+          $payload = Join-Path $out 'FACM.Updater.exe'
+          if (-not (Test-Path $source)) { throw 'FACM.Updater.exe was not built.' }
+          Copy-Item $source $payload -Force
+          $bytes = [System.IO.File]::ReadAllBytes($payload)
+          if ($bytes.Length -lt 1024 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw 'FACM updater payload is not a valid PE file.' }
+          $hash = (Get-FileHash $payload -Algorithm SHA256).Hash
+          Write-Host "FACM.Updater.exe bytes=$($bytes.Length) sha256=$hash"
+
       - name: Verify architecture contract
         shell: pwsh
         run: ./scripts/check-facm4-architecture.ps1
@@ -111,6 +127,14 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-mayhem-winui.ps1
 
+      - name: Verify P6 maintenance foundation contract
+        shell: pwsh
+        run: ./scripts/check-facm4-maintenance.ps1
+
+      - name: Verify P6 updater replacement contract
+        shell: pwsh
+        run: ./scripts/check-facm4-maintenance-updater.ps1
+
       - name: Verify Diagnostics Center contract
         shell: pwsh
         run: ./scripts/check-facm4-diagnostics.ps1
@@ -145,15 +169,15 @@ jobs:
 
       - name: Build FACM 4.0 solution
         shell: pwsh
-        run: dotnet build FACM4.sln -c Release -p:Platform=x64 -p:RequirePetHostBundle=true --no-restore
+        run: dotnet build FACM4.sln -c Release -p:Platform=x64 -p:RequirePetHostBundle=true -p:RequireUpdaterPayload=true --no-restore
 
       - name: Run deterministic foundation smoke
         shell: pwsh
-        run: dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release
+        run: dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release -p:RequireUpdaterPayload=true
 
       - name: Run deterministic Windows runtime smoke
         shell: pwsh
-        run: dotnet run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release
+        run: dotnet run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release -p:RequireUpdaterPayload=true
 
       - name: Publish WinUI x64 self-contained candidate
         shell: pwsh
@@ -165,6 +189,7 @@ jobs:
           -p:Platform=x64
           -p:PublishSingleFile=true
           -p:RequirePetHostBundle=true
+          -p:RequireUpdaterPayload=true
           -o artifacts/facm4
 
       - name: Verify publish output
