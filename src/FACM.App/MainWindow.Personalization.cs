@@ -14,9 +14,12 @@ public sealed partial class MainWindow
     private StackPanel? _personalizationPanel;
     private ComboBox? _themePicker;
     private TextBlock? _themeDescription;
+    private ComboBox? _petPicker;
+    private TextBlock? _petDescription;
     private TextBlock? _personalizationStatus;
     private UIElement[]? _overviewDefaultChildren;
     private bool _syncingThemeSelection;
+    private bool _syncingPetSelection;
 
     private void InitializePersonalizationSurface()
     {
@@ -48,8 +51,8 @@ public sealed partial class MainWindow
         {
             Style = (Style)Application.Current.Resources["FacmCardBorderStyle"]
         };
-        var content = new StackPanel { Spacing = 10 };
-        var title = new TextBlock
+        var themeContent = new StackPanel { Spacing = 10 };
+        var themeTitle = new TextBlock
         {
             Text = _text.Get(UiTextKeys.ThemeSettings),
             TextWrapping = TextWrapping.Wrap,
@@ -82,12 +85,43 @@ public sealed partial class MainWindow
             Child = _personalizationStatus
         };
 
-        content.Children.Add(title);
-        content.Children.Add(_themePicker);
-        content.Children.Add(_themeDescription);
-        content.Children.Add(statusChip);
-        themeCard.Child = content;
+        themeContent.Children.Add(themeTitle);
+        themeContent.Children.Add(_themePicker);
+        themeContent.Children.Add(_themeDescription);
+        themeContent.Children.Add(statusChip);
+        themeCard.Child = themeContent;
         panel.Children.Add(themeCard);
+
+        var petCard = new Border
+        {
+            Style = (Style)Application.Current.Resources["FacmCardBorderStyle"]
+        };
+        var petContent = new StackPanel { Spacing = 10 };
+        var petTitle = new TextBlock
+        {
+            Text = _text.Get(UiTextKeys.DesktopPet),
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["FacmCardTitleTextStyle"]
+        };
+        _petPicker = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = viewModel.PetOptions,
+            DisplayMemberPath = nameof(FacmPetDefinition.Name)
+        };
+        AutomationProperties.SetAutomationId(_petPicker, "FACM.Personalization.PetPicker");
+        AutomationProperties.SetName(_petPicker, _text.Get(UiTextKeys.DesktopPet));
+        _petPicker.SelectionChanged += OnPetSelectionChanged;
+        _petDescription = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
+        };
+        petContent.Children.Add(petTitle);
+        petContent.Children.Add(_petPicker);
+        petContent.Children.Add(_petDescription);
+        petCard.Child = petContent;
+        panel.Children.Add(petCard);
         return panel;
     }
 
@@ -113,24 +147,38 @@ public sealed partial class MainWindow
     private void SyncPersonalizationSurface()
     {
         var viewModel = _personalizationCenter;
-        if (viewModel is null || _themePicker is null || _themeDescription is null || _personalizationStatus is null) return;
+        if (viewModel is null ||
+            _themePicker is null ||
+            _themeDescription is null ||
+            _petPicker is null ||
+            _petDescription is null ||
+            _personalizationStatus is null)
+        {
+            return;
+        }
 
         _syncingThemeSelection = true;
+        _syncingPetSelection = true;
         try
         {
             _themePicker.SelectedItem = viewModel.ThemeOptions.FirstOrDefault(theme =>
                 string.Equals(theme.Id, viewModel.SelectedTheme.Id, StringComparison.OrdinalIgnoreCase));
+            _petPicker.SelectedItem = viewModel.PetOptions.FirstOrDefault(pet =>
+                string.Equals(pet.Id, viewModel.SelectedPet.Id, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
             _syncingThemeSelection = false;
+            _syncingPetSelection = false;
         }
 
         _themeDescription.Text = viewModel.SelectedTheme.Description;
+        _petDescription.Text = viewModel.SelectedPet.Description;
         _personalizationStatus.Text = viewModel.IsRecoveryReadOnly
             ? _text.Get(UiTextKeys.CleanupPathRecoveryReadOnly)
             : _text.Get(viewModel.Status == "failed" ? UiTextKeys.ShellStatusUnavailable : UiTextKeys.ShellStatusReady);
         _themePicker.IsEnabled = !viewModel.IsBusy;
+        _petPicker.IsEnabled = !viewModel.IsBusy;
     }
 
     private async void OnThemeSelectionChanged(object sender, SelectionChangedEventArgs args)
@@ -151,13 +199,34 @@ public sealed partial class MainWindow
         }
     }
 
+    private async void OnPetSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (_syncingPetSelection || _personalizationCenter is null || _petPicker?.SelectedItem is not FacmPetDefinition selected)
+            return;
+
+        try
+        {
+            await _personalizationCenter.SelectPetAsync(selected.Id);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            SyncPersonalizationSurface();
+        }
+    }
+
     private void OnPersonalizationClosed(object sender, WindowEventArgs args)
     {
         RootNavigation.SelectionChanged -= OnPersonalizationNavigationChanged;
         Closed -= OnPersonalizationClosed;
         if (_themePicker is not null) _themePicker.SelectionChanged -= OnThemeSelectionChanged;
+        if (_petPicker is not null) _petPicker.SelectionChanged -= OnPetSelectionChanged;
         _themePicker = null;
         _themeDescription = null;
+        _petPicker = null;
+        _petDescription = null;
         _personalizationStatus = null;
         _personalizationPanel = null;
         _personalizationCenter = null;
