@@ -63,8 +63,8 @@ public sealed partial class FloatingWindow : Window
         _pointerCaptureLostHandler = new PointerEventHandler(OnFloatingPointerCaptureLost);
 
         // Button controls mark low-level pointer events handled for their own pressed/click visual
-        // states. Listen at the root with handledEventsToo so drag semantics still receive the full
-        // press/move/release chain; pointer clicks are completed explicitly on release below.
+        // states and manage pointer capture themselves. Listen at the root with handledEventsToo so
+        // drag semantics receive the full chain without stealing capture from the Button.
         FloatingRoot.AddHandler(UIElement.PointerPressedEvent, _pointerPressedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerMovedEvent, _pointerMovedHandler, handledEventsToo: true);
         FloatingRoot.AddHandler(UIElement.PointerReleasedEvent, _pointerReleasedHandler, handledEventsToo: true);
@@ -179,7 +179,6 @@ public sealed partial class FloatingWindow : Window
         _dragWorkAreas = areas;
         _dragPointerStart = GetPointerScreenPoint(e);
         _dragWindowStart = new DesktopPoint(AppWindow.Position.X, AppWindow.Position.Y);
-        _ = FloatingRoot.CapturePointer(e.Pointer);
     }
 
     private void OnFloatingPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -225,10 +224,8 @@ public sealed partial class FloatingWindow : Window
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
 
         var moved = _dragMoved;
-        var pointer = e.Pointer;
         _suppressClickUntilTick = Environment.TickCount64 + DragClickSuppressionMilliseconds;
         ResetPointerState();
-        FloatingRoot.ReleasePointerCapture(pointer);
         e.Handled = true;
 
         if (moved)
@@ -245,9 +242,7 @@ public sealed partial class FloatingWindow : Window
         if (!_pointerActive || e.Pointer.PointerId != _activePointerId) return;
 
         var moved = _dragMoved;
-        var pointer = e.Pointer;
         ResetPointerState();
-        FloatingRoot.ReleasePointerCapture(pointer);
         e.Handled = true;
         if (moved) await PersistCurrentPlacementAsync();
     }
