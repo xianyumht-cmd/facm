@@ -6,12 +6,15 @@ namespace FACM.App.ViewModels;
 
 public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
 {
+    public static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(13);
+
     private readonly IMayhemQueryService _queryService;
     private readonly bool _ownsService;
     private CancellationTokenSource? _queryCancellation;
     private string _queryText = string.Empty;
     private string _statusText = "输入英雄开始查询";
     private bool _isBusy;
+    private bool _userCancellationRequested;
     private MayhemChampionResult? _result;
     private bool _disposed;
 
@@ -70,6 +73,8 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
 
         _queryCancellation?.Dispose();
         _queryCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _queryCancellation.CancelAfter(QueryTimeout);
+        _userCancellationRequested = false;
         IsBusy = true;
         Result = null;
         StatusText = "查询中...";
@@ -87,10 +92,12 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
                 ? "查询完成"
                 : string.IsNullOrWhiteSpace(result.ErrorMessage) ? "暂时没有读取到可用数据，请稍后重试。" : result.ErrorMessage;
         }
-        catch (OperationCanceledException) when (_queryCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (_queryCancellation.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
             Result = null;
-            StatusText = "查询已取消";
+            StatusText = _userCancellationRequested || cancellationToken.IsCancellationRequested
+                ? "查询已取消"
+                : "查询超时，请稍后重试。";
         }
         catch
         {
@@ -102,12 +109,14 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
             IsBusy = false;
             _queryCancellation?.Dispose();
             _queryCancellation = null;
+            _userCancellationRequested = false;
         }
     }
 
     public void Cancel()
     {
         if (!IsBusy) return;
+        _userCancellationRequested = true;
         StatusText = "正在取消...";
         _queryCancellation?.Cancel();
     }
@@ -127,6 +136,7 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _userCancellationRequested = true;
         _queryCancellation?.Cancel();
         _queryCancellation?.Dispose();
         _queryCancellation = null;
