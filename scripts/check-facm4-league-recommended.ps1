@@ -71,7 +71,7 @@ foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'Htt
 
 foreach ($required in @(
     'ILeagueWorkbenchDataSource', 'ILeagueReadGateway', 'ILeagueWriteGateway',
-    'OwnedPagePrefix', 'PrepareAsync', 'ApplyAsync', 'PreserveFlashSlot',
+    'OwnedRunePagePrefix', 'PrepareAsync', 'ApplyAsync', 'PreserveFlashSlot',
     'champ-select-required', 'champion-changed', 'queue-changed',
     'LeagueWriteCapability.CreatePerkPage', 'LeagueWriteCapability.UpdatePerkPage',
     'LeagueWriteCapability.ApplyMySelection'
