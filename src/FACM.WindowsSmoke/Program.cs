@@ -26,6 +26,7 @@ True(!layout.RecoveryStatePath.StartsWith(Path.GetFullPath(executablePaths.BaseD
 VerifyWindowsDesktopFacts();
 await VerifyPhysicalSettings2PersistenceAsync();
 await CleanupSmoke.RunAsync();
+RepairWindowsSmoke.Run();
 
 var discovered = new LeagueTransportSession(
     new LeagueSessionDescriptor(41, 29999, "https", "windows-smoke", "HN1", "HN"),
