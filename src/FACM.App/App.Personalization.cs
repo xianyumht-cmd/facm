@@ -58,6 +58,13 @@ public partial class App
             {
                 AttachDesktopPetCloseHook(floating);
                 await viewModel.InitializeDesktopPetAsync().ConfigureAwait(false);
+
+                // The desktop-pet bootstrap runs off the UI thread and toggles PersonalizationViewModel.IsBusy.
+                // If the user opens Personalization during that window, the controls are rendered disabled.
+                // Re-sync on the WinUI dispatcher once bootstrap completes so the page cannot remain stale.
+                var window = _window;
+                if (window is not null && !_shuttingDown)
+                    _ = window.DispatcherQueue.TryEnqueue(window.RefreshPersonalizationSurfaceFromRuntime);
                 return;
             }
             await Task.Delay(20).ConfigureAwait(false);
