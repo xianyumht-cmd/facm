@@ -58,14 +58,9 @@ public sealed record LeagueBuildAdvisorSnapshot(
             DateTimeOffset.UtcNow);
 }
 
-/// <summary>
-/// User-driven Build Advisor boundary. The caller supplies the already-loaded shared Workbench live
-/// snapshot so the Advisor never creates a second League polling/read owner just to rediscover phase.
-/// </summary>
 public interface ILeagueBuildAdvisorService
 {
     Task<LeagueBuildAdvisorSnapshot> RefreshAsync(
-        LeagueWorkbenchLiveSnapshot live,
         bool force = false,
         CancellationToken cancellationToken = default);
 }
