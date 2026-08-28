@@ -12,6 +12,7 @@ internal static class MaintenanceSmoke
         await ValidateExplicitToggleRepairsPrimaryAsync();
         await ValidateManualCheckIgnoresAutoToggleAsync();
         await ValidateAnnouncementHttpsPolicyAsync();
+        await PreparedUpdateInstallerSmoke.RunAsync();
     }
 
     private static async Task ValidateRecoveryLoadDoesNotSaveAsync()
