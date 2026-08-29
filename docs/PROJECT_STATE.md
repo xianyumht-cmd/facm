@@ -30,6 +30,7 @@
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
 | P7 Unified parity closeout | #234 | code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179` | **AUTOMATED-STABILITY-GREEN / Draft** |
 
+P7 canonical-doc reconciliation head：`b5f895cdbb30f32d834a7b697a0505548f858da1`。
 Tracking Issue：#233。
 
 ## FACM 4.0 当前里程碑：自动稳定性层已收口
@@ -44,17 +45,17 @@ P7 在原功能等价收口之后又完成了一轮实际故障审查，而不�
 - **Updater interruption hardening**：fallback/rollback 不再用 `File.Copy(..., liveDestination, overwrite:true)` 流式覆盖正式 EXE；主路径保留 `File.Replace`，fallback/rollback 通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 原子交换完整 staging/backup；built helper 有实际 `--self-test`。
 - **生命周期/事务压力**：Settings2 40 轮、single-instance 24 轮、UAC cancel 24 轮、PetHost cache 24 轮、League Recommended 24 周期、League Efficiency hotkey transaction 30 轮，均进入 deterministic smoke。
 
-详细过程与逐批 head：`docs/FACM4-PLAN.md`。
+详细过程：`docs/FACM4-PLAN.md`。
 详细 parity matrix：`docs/FACM4-P7-PARITY-CLOSEOUT.md`。
 
-## 最新 same-head 自动验收
+## 最新自动验收
 
 Verified code head：`f3906b84dd0076411dcd8a4fd82610d1d6c2a179`。
 
 FACM 4.0 Foundation **#628 / run `33230830272` = SUCCESS**。同一代码 head 已通过：
 
 - controlled PetHost payload + self-test；
-- controlled Updater payload + **built helper atomic `--self-test`**；
+- controlled Updater payload + built helper atomic `--self-test`；
 - P1-P7 全部 source/product gates；
 - PowerShell 5.1 real-machine evidence collector self-test；
 - Release x64 restore/build；
@@ -64,7 +65,11 @@ FACM 4.0 Foundation **#628 / run `33230830272` = SUCCESS**。同一代码 head �
 - publish-output verification；
 - artifact upload。
 
-最新统一候选：
+Canonical-doc reconciliation head `b5f895c...` 随后由 Foundation **#629 / run `33231064160` = SUCCESS** 再跑一次完整回归。#629 是 docs-only；不替代或重新定义 #628 的 code candidate。
+
+## 最新统一候选与独立校验
+
+GitHub artifact：
 
 ```text
 artifact: facm4-x64
@@ -75,7 +80,17 @@ code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
 Foundation: #628 / 33230830272
 ```
 
-这里记录的是 GitHub artifact digest；本里程碑未把未重新计算的 EXE hash 冒充独立校验值。
+从 GitHub 下载 artifact 后独立重算：
+
+```text
+ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+ZIP bytes: 165,704,298
+FACM.App.exe bytes: 305,912,996
+FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+ZIP DLL entries: 0
+```
+
+ZIP SHA 与 GitHub artifact digest 完全一致；candidate 保持单文件 EXE，没有旁路 DLL。
 
 ## 已有真实 Win10 窄证据
 
@@ -88,8 +103,6 @@ Foundation: #628 / 33230830272
 这些 evidence **不是整个 Win10 22H2 Gate13 项通过的替代品**：主题视觉是否真实变化、PetHost 是否实际出现/移动、完整功能矩阵、DPI/accessibility、migration 等仍按对应真实验收记录。
 
 ## 当前真实边界：REAL-MACHINE / GATE13
-
-Canonical release evidence 仍是：
 
 ```text
 22 required / 12 Passed / 10 Blocked
@@ -114,9 +127,7 @@ Hosted CI、source gate、deterministic pressure smoke 或普通“继续”都�
 
 ## 下一步：一次统一真机功能验收
 
-下一动作不是继续堆功能，也不是 UI 2.0，而是使用 **#628 / artifact `9708452498`** 做统一真实 Windows 功能验收。
-
-第一轮仍以非破坏验证为主：
+使用 **#628 / artifact `9708452498`**：
 
 1. 冷启动 launcher-first F；F 拖动/持久化；compact launcher；详细 Shell。
 2. Cleanup preview/review/cancel；真实 UAC 点“否/取消”后原实例继续存在。
@@ -134,15 +145,14 @@ Hosted CI、source gate、deterministic pressure smoke 或普通“继续”都�
 
 - 统一真机功能等价验收通过后，再决定 stacked P2-P7 合并策略；CI 绿不会自动 merge。
 - **UI 2.0 只在功能等价验收之后开始。**
+- PR #234 目前仍 Draft / open / unmerged。
 - Gate13 release/cutover 是独立证据链；10 个 blocker 全部真实闭环并获得 fresh production/destructive authorization 后，才允许讨论 production cutover。
 
 ## 新对话接续
 
-未来 AI 进入仓库后：
-
 1. 先读 `AGENTS.md`、`docs/FACM4-PLAN.md`、本文件、`docs/FACM4-P7-PARITY-CLOSEOUT.md`；
 2. 核对 `main@269da6c751a8463542ed0d172300675deff9571e`；
 3. 核对 P7 verified code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`；
-4. 核对 Foundation #628 / run `33230830272` / artifact `9708452498`；
+4. 核对 Foundation #628 / run `33230830272` / artifact `9708452498` / EXE SHA-256 `d397b862...f6994`；
 5. 不重复 A-K 已完成的稳定性修复与压力工作；
 6. 从统一真机功能验收继续；真实 evidence 回来前不得 cutover，也不得提前开始 UI 2.0。

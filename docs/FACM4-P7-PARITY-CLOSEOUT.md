@@ -6,18 +6,13 @@ Stacked base: `feat/facm4-function-parity-p6-settings-maintenance@d3801a0fa4276e
 Tracking: #233 / PR #234
 Verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
 Verified Foundation: **#628 / run `33230830272` = SUCCESS**
+Docs reconciliation: `b5f895cdbb30f32d834a7b697a0505548f858da1` / Foundation #629 SUCCESS
 
 ## Purpose
 
 P7 is the final **functional-equivalence and automated-stability closeout** before one unified real-machine candidate is used for full Windows validation.
 
-P7 is not:
-
-- UI 2.0 / visual redesign;
-- permission to merge stacked P2-P7 branches;
-- a production pointer or release-channel change;
-- Gate13 cutover approval;
-- legacy retirement approval.
+P7 is not UI 2.0, permission to merge stacked P2-P7, a production pointer/release change, Gate13 cutover approval, or legacy retirement approval.
 
 The rule remains: **functional parity + automated stability first, one unified real-machine validation second, visual redesign later.**
 
@@ -37,33 +32,21 @@ P7 has met its code-side parity definition on the stacked line:
 
 ## Stability-audit findings closed after initial parity
 
-The older `3956/#595` candidate was not treated as final. P7 continued with a fault-oriented audit and closed these concrete issues:
-
-### 1. WinUI theme resource ownership
+### WinUI theme resource ownership
 
 Real Win10 startup captured `E_ACCESSDENIED` while runtime code attempted to set the color of a WinUI platform-owned `SolidColorBrush`.
 
-Current rule:
-
-- platform/system brushes are read-only inputs;
-- FACM semantic brushes are app-owned mutable objects;
-- runtime theme application only mutates FACM-owned brushes;
-- personalization startup remains fail-soft.
+Current rule: platform/system brushes are read-only inputs; FACM semantic brushes are app-owned mutable objects; runtime theme application only mutates FACM-owned brushes; personalization startup remains fail-soft.
 
 Subsequent Win10 evidence no longer showed the old brush startup failure and recovery state reached `Running`.
 
-### 2. Personalization stale Busy / permanently disabled controls
+### Personalization stale Busy / permanently disabled controls
 
 The Personalization surface manually synchronized `IsEnabled` while desktop-pet initialization was asynchronous. If the surface synced during `IsBusy=true`, there was no completion refresh and controls could remain disabled forever.
 
-Fix:
+Fix: desktop-pet initialization completion dispatches a UI-owner surface refresh. Actual Win10 follow-up persisted `mono-emerald`, `greenfly`, pet enabled=true and F coordinates, proving user intents reached Settings2 after the fix. This is narrow evidence; it does not by itself prove every theme visual or PetHost visible-runtime behavior.
 
-- desktop-pet initialization completion now dispatches a UI-owner surface refresh;
-- actual Win10 follow-up persisted `mono-emerald`, `greenfly`, pet enabled=true and F coordinates, proving user intents reached Settings2 after the fix.
-
-This is narrow evidence; it does not by itself prove every theme visual or PetHost visible-runtime behavior.
-
-### 3. Cross-feature Settings2 lost updates
+### Cross-feature Settings2 lost updates
 
 Several feature writers previously followed whole-document load/mutate/save patterns. Parallel feature actions could overwrite unrelated changes.
 
@@ -71,12 +54,12 @@ Fix:
 
 - `IAtomicSettings2Repository` / narrow `UpdateAsync` transaction boundary;
 - Recovering repository serializes latest-load -> narrow mutation -> validate -> save -> LKG;
-- normal feature mutations cannot rebuild recovery primary unless explicitly authorized by the maintenance intent;
+- normal feature mutations cannot rebuild recovery primary unless explicitly authorized by maintenance intent;
 - Cleanup, Personalization, F coordinates, League settings and other feature writers use the atomic boundary.
 
 Regression stress: 40 iterations of concurrent Theme + F position + League setting updates with read-back after every iteration.
 
-### 4. Maintenance lifecycle and retry
+### Maintenance lifecycle and retry
 
 Closed defects:
 
@@ -87,19 +70,19 @@ Closed defects:
 - Maintenance async-void handlers have final exception containment;
 - install confirmation returns to a revalidated current state before replacement intent continues.
 
-### 5. League cancellation / Window and ContentDialog teardown
+### League cancellation / Window and ContentDialog teardown
 
 Closed defects:
 
 - Refresh / Advisor / ItemSet / automation settings distinguish linked caller/lifetime cancellation from provider failure;
-- normal cancellation no longer fabricates `refresh-failed`, `advisor-refresh-failed`, `prepare-failed` or `apply-failed` states;
+- normal cancellation no longer fabricates failure states;
 - fire-and-forget MainWindow refresh is contained during Window dispose;
 - ContentDialog close/XamlRoot teardown is contained;
 - explicit `ContentDialogResult.Primary` remains mandatory before recommendation/item-set writes.
 
 A real compiler regression found during this audit (`CS0157`, leaving a finally clause) was caught by the full Release build and fixed before the final stability head.
 
-### 6. Updater interrupted-replacement primitive
+### Updater interrupted-replacement primitive
 
 The previous fallback/rollback paths could stream-copy bytes directly over the live FACM executable. A helper termination during that copy could leave a partial EXE.
 
@@ -110,9 +93,9 @@ Current contract:
 - validated candidate staging moves over destination using same-directory `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)`;
 - rollback moves the complete backup over destination using the same atomic primitive;
 - no fallback/rollback path may use `File.Copy(staging|backup, liveDestination, overwrite:true)`;
-- the built `FACM.Updater.exe --self-test` executes in Foundation and verifies backup-before-swap, complete candidate swap, complete rollback, and fallback backup integrity.
+- built `FACM.Updater.exe --self-test` executes in Foundation and verifies backup-before-swap, complete candidate swap, complete rollback, and fallback backup integrity.
 
-This materially narrows the interruption risk but does **not** convert Gate13 `update.interrupted-replacement-rollback` to Passed; real Windows controlled-termination evidence is still required.
+This materially narrows interruption risk but does **not** convert Gate13 `update.interrupted-replacement-rollback` to Passed; real Windows controlled-termination evidence is still required.
 
 ## Repeated-operation stability matrix
 
@@ -156,20 +139,11 @@ These are deterministic service/runtime tests, not substitutes for real UI/input
 
 FACM 4.0 Foundation **#628 / run `33230830272` = SUCCESS** on code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`.
 
-The same run passed:
+The same run passed controlled PetHost + Updater self-tests, all P1-P7 source/product gates, PowerShell 5.1 collector self-test, Release build, FoundationSmoke, WindowsSmoke, single-file publish, publish verification and artifact upload.
 
-- controlled PetHost payload + self-test;
-- controlled Updater payload + built-helper atomic self-test;
-- all P1-P7 source/product gates;
-- PowerShell 5.1 real-machine collector self-test;
-- Release x64 restore/build;
-- deterministic FoundationSmoke including Settings/League repeated stress;
-- deterministic WindowsSmoke including single-instance/UAC/PetHost repeated stress;
-- WinUI x64 self-contained single-file publish;
-- publish-output verification;
-- artifact upload.
+Canonical-doc reconciliation commit `b5f895cdbb30f32d834a7b697a0505548f858da1` then passed full Foundation **#629 / run `33231064160` = SUCCESS**. Because that head is docs-only, the executable candidate remains the #628 code artifact.
 
-Unified candidate:
+## Unified candidate and independent hash
 
 ```text
 artifact: facm4-x64
@@ -179,11 +153,29 @@ GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0
 code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
 ```
 
-No independent EXE hash is claimed here unless it is recomputed from the downloaded artifact.
+Independent re-hash after downloading artifact `9708452498`:
 
-## Evidence that remains outside automated parity/stability
+```text
+ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+ZIP bytes: 165,704,298
+FACM.App.exe bytes: 305,912,996
+FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+ZIP DLL entries: 0
+```
 
-P7 automated success does **not** change canonical Gate13 readiness. The following remain real-machine/release evidence:
+ZIP digest exactly matches GitHub artifact metadata and the candidate contains no DLL sidecars.
+
+## Evidence outside automated parity/stability
+
+Canonical Gate13 readiness is unchanged:
+
+```text
+22 required / 12 Passed / 10 Blocked
+ReleaseReady=false
+CUTOVER BLOCKED
+```
+
+Still real-machine/release evidence:
 
 - non-admin / real UAC-cancel behavior;
 - Defender / SmartScreen observations;
@@ -196,14 +188,6 @@ P7 automated success does **not** change canonical Gate13 readiness. The followi
 - interrupted updater replacement / rollback under controlled real termination;
 - final signed-package / release identity evidence;
 - production pointer / cutover / legacy retirement authorization.
-
-Canonical matrix remains:
-
-```text
-22 required / 12 Passed / 10 Blocked
-ReleaseReady=false
-CUTOVER BLOCKED
-```
 
 ## Unified real-machine validation boundary
 
@@ -229,3 +213,5 @@ Do not include real LOL deletion, updater replacement/kill, production pointer c
 **Code-side functional parity and automated-stability closeout are complete on `f3906b84...`.**
 
 PR #234 stays Draft and stacked P2-P7 stay unmerged until the unified real-machine functional validation is reviewed. UI 2.0 starts only after functional-equivalence validation. Gate13 cutover remains a separate evidence/authorization process.
+
+Before any future **merge-ready** claim, append the four long-lived P7 lessons listed in `docs/FACM4-PLAN.md` to canonical `docs/PITFALLS.md`.

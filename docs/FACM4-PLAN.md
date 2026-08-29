@@ -5,7 +5,9 @@ Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
 Latest verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
-Latest full Foundation: **#628 / run `33230830272` = SUCCESS**
+Canonical-doc reconciliation head: `b5f895cdbb30f32d834a7b697a0505548f858da1`
+Latest code-bearing Foundation: **#628 / run `33230830272` = SUCCESS**
+Latest docs-only regression: **#629 / run `33231064160` = SUCCESS**
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复或 CI 结论，都必须在同一批次同步更新这里。`docs/PROJECT_STATE.md` 与 `docs/FACM4-P7-PARITY-CLOSEOUT.md` 在里程碑状态变化时做 canonical reconciliation。
 
@@ -24,7 +26,7 @@ FACM 4.0 P7 的**自动化稳定性审查层已经收口**：代码级故障审�
 3. **完整 FACM 3.5.15 parity 复核** — COMPLETED on code/source gates
 4. **自动压力与重复操作 smoke** — COMPLETED on `f3906b84...`
 5. **完整 Foundation** — COMPLETED, #628 SUCCESS
-6. **只生成一个新的统一候选** — READY from #628 artifact
+6. **只生成一个新的统一候选** — COMPLETED, #628 artifact independently re-hashed
 7. **统一真机功能验收** — NEXT / real-machine evidence pending
 
 ## 稳定性审查批次
@@ -86,10 +88,6 @@ Heads：
 
 Head `4755c40c6c3ec751d27bf9cab31d74581f58f3d3`
 
-已确认旧 fallback 风险：`File.Copy(staging, destination, true)` 会流式覆盖正式 EXE，helper 如果在写入中被终止，可能留下半文件；旧 rollback 同样使用流式覆盖。
-
-修复：
-
 - `File.Replace` 继续作为主路径。
 - fallback 先保存完整 `.facm-old`，live destination 在备份期间不变。
 - 已完成 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终交换。
@@ -97,37 +95,28 @@ Head `4755c40c6c3ec751d27bf9cab31d74581f58f3d3`
 - `FACM.Updater.exe --self-test` 验证 backup-before-swap、atomic candidate swap、atomic rollback、fallback backup 完整性。
 - Foundation workflow 实际执行 built helper self-test；source gate 禁止重新出现两个 live-EXE stream-copy 路径。
 
-Foundation #627 / run `33230658026` = SUCCESS；artifact `9708400694`。Gate13 的真实 interrupted-update evidence 仍保持 Blocked，因为 hosted deterministic self-test 不能代替真实 Windows 受控终止。
+Foundation #627 / run `33230658026` = SUCCESS。真实 interrupted-update Gate13 evidence 仍保持 Blocked，因为 hosted self-test 不能代替真实 Windows 受控终止。
 
 ### Batch K — 20-50 次级重复操作压力
 
 Head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
 
-实际执行的压力项：
+实际执行：
 
-- **Settings2：40 轮**；每轮并发 Theme / F 坐标 / League setting 三路 atomic mutation，再回读验证无 lost update。
-- **Single-instance：24 轮**；primary -> secondary signal -> exactly-one callback -> primary dispose -> replacement primary。
-- **Updater UAC cancel：24 轮**；每轮 Win32 1223 都必须返回 false，不误走成功 Process.Start。
-- **PetHost bundle/cache：24 轮**重复 `PrepareAsync()`；SHA/path 不变，embedded bundle `openCount` 恒为 1。
-- **League Recommended：24 个** Lobby -> ChampSelect stabilize -> apply -> repeated observation 周期；每周期写入恰好一次，重复 observation 必须 `already-attempted`。
-- **League Efficiency：30 轮** hotkey configuration transaction；runtime 与 persisted settings 每轮一致，最终 30 次 persist / 31 次 register apply（含初始化）。
+- **Settings2：40 轮**并发 Theme / F 坐标 / League setting atomic mutation + read-back；
+- **Single-instance：24 轮** primary -> signal -> exactly-one callback -> release -> replacement primary；
+- **Updater UAC cancel：24 轮** Win32 1223 fail-safe；
+- **PetHost bundle/cache：24 轮**重复 prepare，SHA/path 稳定且 embedded openCount 恒 1；
+- **League Recommended：24 个周期**，每个 ChampSelect fingerprint/cycle 最多一次写入；
+- **League Efficiency：30 轮** hotkey transaction，registration/runtime/persistence 保持一致。
 
 Foundation #628 / run `33230830272`：**SUCCESS**。
 
-同一代码 head 上通过：
+同一代码 head 通过 built PetHost self-test、built Updater self-test、全部 source/product gates、PowerShell 5.1 collector self-test、Release build、FoundationSmoke、WindowsSmoke、single-file publish、publish verification 与 artifact upload。
 
-- built PetHost self-test；
-- built Updater atomic self-test；
-- 全部 P1-P7/source/product gates；
-- PowerShell 5.1 real-machine collector self-test；
-- Release restore/build；
-- deterministic FoundationSmoke（含上述 Settings/League 压力）；
-- deterministic WindowsSmoke（含 single-instance/UAC/PetHost 压力）；
-- WinUI x64 self-contained single-file publish；
-- publish output verification；
-- artifact upload。
+## 统一候选：#628
 
-最新统一候选 artifact：
+GitHub metadata：
 
 ```text
 artifact: facm4-x64
@@ -138,13 +127,31 @@ code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
 Foundation: #628 / 33230830272
 ```
 
-### Milestone L — canonical docs reconciliation（本批）
+下载 artifact 后独立二次校验：
 
-- `docs/FACM4-PLAN.md`：状态从稳定性审查进行中改为 automated-stability-green / real-machine-next。
-- `docs/PROJECT_STATE.md`：移除旧 `3956/#595/artifact 9695331632` 作为当前候选的描述，改指向 `f390/#628/artifact 9708452498`。
-- `docs/FACM4-P7-PARITY-CLOSEOUT.md`：补齐 Win10 brush、个性化 stale Busy、atomic Settings2、Maintenance lifecycle、League cancel/dialog、Updater atomic fallback、压力 smoke 等本轮稳定性结果。
-- Issue #233 将记录同样的里程碑结论。
-- 本批只改文档/追踪状态；不改变 production pointer、release、cutover 或 stacked PR 合并状态。
+```text
+ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+ZIP bytes: 165,704,298
+FACM.App.exe bytes: 305,912,996
+FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+ZIP DLL entries: 0
+```
+
+ZIP hash 与 GitHub artifact digest 完全一致；单文件候选内没有旁路 DLL。
+
+### Milestone L — canonical state reconciliation
+
+Docs head `b5f895cdbb30f32d834a7b697a0505548f858da1`：
+
+- `docs/FACM4-PLAN.md` 状态切换为 automated-stability-green / real-machine-next；
+- `docs/PROJECT_STATE.md` 移除旧 `3956/#595/artifact 9695331632` 当前候选描述；
+- `docs/FACM4-P7-PARITY-CLOSEOUT.md` 补齐本轮稳定性根因、修复与压力结果；
+- Issue #233 comment `5460008797` 已记录里程碑；
+- PR #234 body 已同步到 `f390/#628/artifact 9708452498`，仍保持 Draft / 未合并。
+
+Foundation #629 / run `33231064160`：**SUCCESS**。这是 docs-only reconciliation head 的完整 regression run；没有产生新的代码候选，真实候选仍以 #628 / `f3906b84...` 为准。
+
+本里程碑不改变 production pointer、release、cutover 或 stacked PR 状态。
 
 ## 下一步：统一真机功能验收
 
@@ -162,8 +169,6 @@ Foundation: #628 / 33230830272
 真实 updater kill、真实删除、production pointer、release publication、legacy retirement 仍不属于这一轮默认授权范围。
 
 ## Gate13 边界保持不变
-
-Canonical release evidence：
 
 ```text
 22 required / 12 Passed / 10 Blocked
@@ -185,6 +190,17 @@ CUTOVER BLOCKED
 10. final signature / package identity。
 
 自动稳定性全绿不会自动关闭任何仍需真实 evidence 的 blocker。
+
+## Merge-ready 前剩余文档动作
+
+在未来准备把 PR #234 从 Draft 推向 merge-ready 前，再把本轮四条长期规则合入 canonical `docs/PITFALLS.md`：
+
+- WinUI 平台 ThemeResource brush 只能读，FACM 运行时只改 app-owned semantic brush；
+- first-chance `UnauthorizedAccessException` 可能是已捕获/nonfatal，必须结合 recovery state、stack 与 lifecycle 判断；
+- 手工同步 `IsEnabled` 的 UI 若依赖 async `IsBusy`，完成时必须有 PropertyChanged/Dispatcher refresh；
+- Updater fallback/rollback 禁止 stream-copy over live executable，完整 staging/backup 后再 atomic swap。
+
+此项不阻塞当前统一真机候选，但在 merge-ready 结论前必须落入 canonical PITFALLS。
 
 ## 每批更新规则
 
