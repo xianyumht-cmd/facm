@@ -36,21 +36,36 @@ public sealed class WindowsPetHostBundleStore
     private readonly Func<Stream?> _openBundle;
     private readonly SemaphoreSlim _prepareGate = new(1, 1);
     private readonly string? _expectedBundleSha256;
+    private readonly Action<string>? _reportStage;
+    private readonly TimeSpan _prepareTimeout;
     private PetHostBundlePreparation? _cachedPreparation;
 
     public WindowsPetHostBundleStore(
         RuntimePathLayout layout,
         Func<Stream?> openBundle,
-        string? expectedBundleSha256 = null)
+        string? expectedBundleSha256 = null,
+        Action<string>? reportStage = null,
+        TimeSpan? prepareTimeout = null)
     {
         _layout = layout ?? throw new ArgumentNullException(nameof(layout));
         _openBundle = openBundle ?? throw new ArgumentNullException(nameof(openBundle));
         _expectedBundleSha256 = NormalizeBundleSha256(expectedBundleSha256);
+        _reportStage = reportStage;
+        _prepareTimeout = prepareTimeout ?? PrepareTimeout;
+        if (_prepareTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(prepareTimeout), "PetHost preparation timeout must be positive.");
     }
 
     public async Task<PetHostBundlePreparation> PrepareAsync(CancellationToken cancellationToken = default)
     {
-        await _prepareGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!await _prepareGate.WaitAsync(_prepareTimeout, cancellationToken).ConfigureAwait(false))
+        {
+            ReportStage("prepare-gate-timeout");
+            throw new TimeoutException($"PetHost payload preparation gate exceeded {_prepareTimeout.TotalSeconds:0.###} seconds.");
+        }
+
+        var releaseGate = true;
+        CancellationTokenSource? workerCancellation = null;
         try
         {
             var cached = _cachedPreparation;
@@ -61,26 +76,63 @@ public sealed class WindowsPetHostBundleStore
                     Path.Combine(cached.PayloadDirectory, CompletionMarkerName),
                     cached.BundleSha256))
             {
+                ReportStage("process-cache-hit");
                 return cached with { CacheHit = true };
             }
 
             _cachedPreparation = null;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(PrepareTimeout);
+            workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var worker = Task.Run(() => PrepareCore(workerCancellation.Token), CancellationToken.None);
             try
             {
-                var prepared = await Task.Run(() => PrepareCore(timeout.Token), CancellationToken.None).ConfigureAwait(false);
+                var prepared = await worker.WaitAsync(_prepareTimeout, cancellationToken).ConfigureAwait(false);
                 _cachedPreparation = prepared;
+                ReportStage(prepared.CacheHit ? "prepare-finish-cache-hit" : "prepare-finish-new-payload");
                 return prepared;
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (TimeoutException)
             {
-                throw new TimeoutException($"PetHost payload preparation exceeded {PrepareTimeout.TotalSeconds:0} seconds.");
+                ReportStage("prepare-timeout-worker-cancelling");
+                workerCancellation.Cancel();
+                var cancellationToDispose = workerCancellation;
+                releaseGate = false;
+                _ = worker.ContinueWith(
+                    task =>
+                    {
+                        _ = task.Exception;
+                        cancellationToDispose.Dispose();
+                        _prepareGate.Release();
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                workerCancellation = null;
+                throw new TimeoutException($"PetHost payload preparation exceeded {_prepareTimeout.TotalSeconds:0.###} seconds.");
+            }
+            catch (OperationCanceledException) when (!worker.IsCompleted)
+            {
+                ReportStage("prepare-cancelled-worker-cancelling");
+                workerCancellation.Cancel();
+                var cancellationToDispose = workerCancellation;
+                releaseGate = false;
+                _ = worker.ContinueWith(
+                    task =>
+                    {
+                        _ = task.Exception;
+                        cancellationToDispose.Dispose();
+                        _prepareGate.Release();
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                workerCancellation = null;
+                throw;
             }
         }
         finally
         {
-            _prepareGate.Release();
+            workerCancellation?.Dispose();
+            if (releaseGate) _prepareGate.Release();
         }
     }
 
@@ -95,28 +147,53 @@ public sealed class WindowsPetHostBundleStore
         // disk cache before opening/rehashing the 70+ MiB embedded ZIP. If the identity resource is
         // absent (for example a lightweight local developer build), retain the older hash-on-demand
         // fallback so the store remains safe and functional.
+        ReportStage("cache-check-start");
         if (_expectedBundleSha256 is { } expected)
         {
             var expectedDestination = Path.Combine(bundleRoot, expected);
             var expectedExecutable = Path.Combine(expectedDestination, HostExecutableName);
             var expectedMarker = Path.Combine(expectedDestination, CompletionMarkerName);
             if (IsComplete(expectedDestination, expectedExecutable, expectedMarker, expected))
+            {
+                ReportStage("disk-cache-hit-build-identity");
                 return new PetHostBundlePreparation(expectedExecutable, expected, expectedDestination, CacheHit: true);
+            }
+            ReportStage("disk-cache-miss-build-identity");
         }
 
+        ReportStage("bundle-open-start");
         using var bundle = OpenRequiredBundle();
-        var bundleSha256 = _expectedBundleSha256 ?? ComputeBundleSha256(bundle, cancellationToken);
+        ReportStage("bundle-open-finish");
+
+        string bundleSha256;
+        if (_expectedBundleSha256 is { } knownBundleSha256)
+        {
+            bundleSha256 = knownBundleSha256;
+        }
+        else
+        {
+            ReportStage("hash-start");
+            bundleSha256 = ComputeBundleSha256(bundle, cancellationToken);
+            ReportStage("hash-finish");
+        }
+
         var destination = Path.Combine(bundleRoot, bundleSha256);
         var executable = Path.Combine(destination, HostExecutableName);
         var marker = Path.Combine(destination, CompletionMarkerName);
+        ReportStage("disk-cache-check-derived");
         if (IsComplete(destination, executable, marker, bundleSha256))
+        {
+            ReportStage("disk-cache-hit-derived");
             return new PetHostBundlePreparation(executable, bundleSha256, destination, CacheHit: true);
+        }
 
         if (Directory.Exists(destination))
         {
             try
             {
+                ReportStage("incomplete-cache-clean-start");
                 Directory.Delete(destination, recursive: true);
+                ReportStage("incomplete-cache-clean-finish");
             }
             catch (Exception exception)
             {
@@ -129,6 +206,7 @@ public sealed class WindowsPetHostBundleStore
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ReportStage("extract-start");
             if (bundle.CanSeek)
             {
                 bundle.Position = 0;
@@ -136,39 +214,50 @@ public sealed class WindowsPetHostBundleStore
             }
             else
             {
+                ReportStage("bundle-reopen-for-extract-start");
                 using var extractionBundle = OpenRequiredBundle();
+                ReportStage("bundle-reopen-for-extract-finish");
                 ExtractArchive(extractionBundle, stage, cancellationToken);
             }
+            ReportStage("extract-finish");
 
             var stagedExecutable = Path.Combine(stage, HostExecutableName);
             if (!File.Exists(stagedExecutable) || new FileInfo(stagedExecutable).Length < 65536)
                 throw new InvalidDataException("Embedded PetHost payload does not contain a valid FACM.PetHost.exe.");
 
+            ReportStage("measure-start");
             var (fileCount, payloadBytes) = MeasurePayload(stage, cancellationToken);
+            ReportStage($"measure-finish:files={fileCount}:bytes={payloadBytes}");
             if (fileCount < 1 || payloadBytes < 65536)
                 throw new InvalidDataException("Embedded PetHost payload statistics are invalid.");
 
+            ReportStage("marker-write-start");
             File.WriteAllText(
                 Path.Combine(stage, CompletionMarkerName),
                 "bundle-sha256=" + bundleSha256 + Environment.NewLine +
                 "files=" + fileCount + Environment.NewLine +
                 "bytes=" + payloadBytes + Environment.NewLine);
+            ReportStage("marker-write-finish");
 
             cancellationToken.ThrowIfCancellationRequested();
             if (IsComplete(destination, executable, marker, bundleSha256))
             {
+                ReportStage("promote-raced-cache-hit");
                 Directory.Delete(stage, recursive: true);
                 return new PetHostBundlePreparation(executable, bundleSha256, destination, CacheHit: true);
             }
 
             try
             {
+                ReportStage("promote-start");
                 Directory.Move(stage, destination);
+                ReportStage("promote-finish");
             }
             catch (IOException)
             {
                 // Another FACM process may have completed the exact same bundle while this process staged it.
                 if (!IsComplete(destination, executable, marker, bundleSha256)) throw;
+                ReportStage("promote-race-cache-hit");
                 Directory.Delete(stage, recursive: true);
                 return new PetHostBundlePreparation(executable, bundleSha256, destination, CacheHit: true);
             }
@@ -208,7 +297,7 @@ public sealed class WindowsPetHostBundleStore
             "The FACM build does not contain the controlled PetHost payload resource.",
             ResourceName);
 
-    private static void ExtractArchive(Stream bundle, string stage, CancellationToken cancellationToken)
+    private void ExtractArchive(Stream bundle, string stage, CancellationToken cancellationToken)
     {
         var stageRoot = Path.GetFullPath(stage).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var stagePrefix = stageRoot + Path.DirectorySeparatorChar;
@@ -216,9 +305,11 @@ public sealed class WindowsPetHostBundleStore
         if (archive.Entries.Count < 1) throw new InvalidDataException("Embedded PetHost payload is empty.");
 
         var buffer = new byte[128 * 1024];
+        var entryIndex = 0;
         foreach (var entry in archive.Entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            entryIndex++;
             var relative = (entry.FullName ?? string.Empty)
                 .Replace('/', Path.DirectorySeparatorChar)
                 .Replace('\\', Path.DirectorySeparatorChar);
@@ -234,6 +325,14 @@ public sealed class WindowsPetHostBundleStore
             {
                 Directory.CreateDirectory(output);
                 continue;
+            }
+
+            if (entryIndex == 1 ||
+                entryIndex % 25 == 0 ||
+                entry.Length >= 8L * 1024 * 1024 ||
+                CriticalPayloadFiles.Any(name => string.Equals(name, entry.FullName, StringComparison.OrdinalIgnoreCase)))
+            {
+                ReportStage($"extract-entry:{entryIndex}/{archive.Entries.Count}:{entry.FullName}:{entry.Length}");
             }
 
             var parent = Path.GetDirectoryName(output);
@@ -296,5 +395,17 @@ public sealed class WindowsPetHostBundleStore
             bytes += new FileInfo(path).Length;
         }
         return (files, bytes);
+    }
+
+    private void ReportStage(string stage)
+    {
+        try
+        {
+            _reportStage?.Invoke(stage ?? string.Empty);
+        }
+        catch
+        {
+            // Diagnostics are best-effort and must never affect payload preparation.
+        }
     }
 }
