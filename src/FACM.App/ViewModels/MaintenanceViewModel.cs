@@ -48,7 +48,11 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
     public bool IsBusy
     {
         get => _isBusy;
-        private set => SetField(ref _isBusy, value);
+        private set
+        {
+            if (!SetField(ref _isBusy, value)) return;
+            OnPropertyChanged(nameof(CanPrepareUpdate));
+        }
     }
 
     public bool AutoUpdateEnabled
@@ -143,7 +147,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
             _initialized = true;
             OnPropertyChanged(nameof(IsInitialized));
             IsBusy = false;
-            OnPropertyChanged(nameof(CanPrepareUpdate));
         }
     }
 
@@ -171,7 +174,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsBusy = false;
-            OnPropertyChanged(nameof(CanPrepareUpdate));
         }
     }
 
@@ -199,7 +201,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsBusy = false;
-            OnPropertyChanged(nameof(CanPrepareUpdate));
         }
     }
 
@@ -277,7 +278,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsBusy = false;
-            OnPropertyChanged(nameof(CanPrepareUpdate));
         }
     }
 
@@ -319,7 +319,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsBusy = false;
-            OnPropertyChanged(nameof(CanPrepareUpdate));
         }
     }
 
@@ -352,5 +351,6 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         _downloadCancellation?.Dispose();
         _downloadCancellation = null;
         if (_installer is IDisposable disposable) disposable.Dispose();
+        PropertyChanged = null;
     }
 }

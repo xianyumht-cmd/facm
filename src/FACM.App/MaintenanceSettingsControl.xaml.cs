@@ -43,6 +43,10 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         catch (OperationCanceledException)
         {
         }
+        catch
+        {
+            // More Settings is fail-soft; a maintenance provider problem cannot escape async-void.
+        }
         finally
         {
             ApplyState();
@@ -74,22 +78,55 @@ public sealed partial class MaintenanceSettingsControl : UserControl
     private async void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
     {
         if (_syncing || _viewModel is null || _viewModel.ForceUpdateRequired) return;
-        await _viewModel.SetAutoUpdateEnabledAsync(AutoUpdateToggle.IsOn);
-        ApplyState();
+        try
+        {
+            await _viewModel.SetAutoUpdateEnabledAsync(AutoUpdateToggle.IsOn);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            ApplyState();
+        }
     }
 
     private async void OnCheckNowClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || _viewModel.ForceUpdateRequired) return;
-        try { await _viewModel.ManualCheckAsync(); } catch (OperationCanceledException) { }
-        ApplyState();
+        try
+        {
+            await _viewModel.ManualCheckAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            ApplyState();
+        }
     }
 
     private async void OnDownloadClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null) return;
-        await _viewModel.PrepareUpdateAsync();
-        ApplyState();
+        try
+        {
+            await _viewModel.PrepareUpdateAsync();
+        }
+        catch
+        {
+        }
+        finally
+        {
+            ApplyState();
+        }
     }
 
     private void OnCancelDownloadClick(object sender, RoutedEventArgs e) => _viewModel?.CancelUpdateDownload();
@@ -97,19 +134,31 @@ public sealed partial class MaintenanceSettingsControl : UserControl
     private async void OnInstallClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || !_viewModel.HasPreparedUpdate) return;
-        var dialog = new ContentDialog
+        try
         {
-            XamlRoot = XamlRoot,
-            Title = "安装 FACM 更新？",
-            Content = "将启动管理员权限更新器。只有更新器成功启动后，当前 FACM 才会退出。",
-            PrimaryButtonText = "安装并重启",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        var result = await _viewModel.StartPreparedReplacementAsync();
-        ApplyState();
-        if (result.Started) ReplacementStarted?.Invoke();
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "安装 FACM 更新？",
+                Content = "将启动管理员权限更新器。只有更新器成功启动后，当前 FACM 才会退出。",
+                PrimaryButtonText = "安装并重启",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            var viewModel = _viewModel;
+            if (viewModel is null || !viewModel.HasPreparedUpdate) return;
+            var result = await viewModel.StartPreparedReplacementAsync();
+            ApplyState();
+            if (result.Started) ReplacementStarted?.Invoke();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            ApplyState();
+        }
     }
 
     private void OnForceExitClick(object sender, RoutedEventArgs e) => ExitRequested?.Invoke();
@@ -119,16 +168,40 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         if (_viewModel?.ForceUpdateRequired == true) return;
         var uri = _viewModel?.AnnouncementDetailUri;
         if (uri is null) return;
-        await Windows.System.Launcher.LaunchUriAsync(uri);
-        if (_viewModel is not null) await _viewModel.MarkAnnouncementSeenAsync();
-        ApplyState();
+        try
+        {
+            await Windows.System.Launcher.LaunchUriAsync(uri);
+            if (_viewModel is not null) await _viewModel.MarkAnnouncementSeenAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            ApplyState();
+        }
     }
 
     private async void OnOpenLogClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || _viewModel.ForceUpdateRequired) return;
-        await _viewModel.OpenLogAsync();
-        ApplyState();
+        try
+        {
+            await _viewModel.OpenLogAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            ApplyState();
+        }
     }
 
     private void ApplyState()

@@ -90,8 +90,19 @@ public sealed partial class MainWindow
         catch (OperationCanceledException)
         {
         }
+        catch (ObjectDisposedException)
+        {
+            // Closing the detailed shell cancels/disposes its presenter; fire-and-forget refresh must
+            // never surface that expected race as an unobserved task exception.
+        }
+        catch
+        {
+            // ViewModel already maps provider faults into unavailable snapshots. This is the final
+            // containment boundary for composition/disposal races around a fire-and-forget refresh.
+        }
         finally
         {
+            if (_closed) return;
             _ = DispatcherQueue.TryEnqueue(() =>
             {
                 if (!_closed && IsLeagueWorkbenchSelected()) ApplyLeagueWorkbenchRuntimeSurface();

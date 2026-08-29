@@ -94,9 +94,12 @@ foreach ($required in @(
     'CleanupViewModel', 'ISettings2Repository', 'CleanupApplicationService', 'ICleanupEnvironment',
     'InitializeAsync', 'DetectAsync', 'SetSelectedPathAsync', 'PreviewAsync',
     'ExecuteConfirmedAsync', 'GetRunningRelatedProcesses', 'RequiresElevation',
-    'Environment.GamePath', 'RecoveredLastKnownGood', 'RecoveryDefaults', 'SaveAsync'
+    'Environment.GamePath', 'RecoveredLastKnownGood', 'RecoveryDefaults', 'UpdateAsync'
 )) {
     if ($viewModel -notmatch [regex]::Escape($required)) { Fail "CleanupViewModel contract missing: $required" }
+}
+if ($viewModel -match '\.SaveAsync\s*\(') {
+    Fail 'CleanupViewModel must use the atomic narrow Settings 2.0 mutation boundary, not whole-document SaveAsync.'
 }
 
 foreach ($id in @(
