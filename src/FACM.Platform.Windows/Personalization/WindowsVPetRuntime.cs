@@ -8,6 +8,7 @@ namespace FACM.Platform.Windows.Personalization;
 public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 {
     private static readonly TimeSpan HostReadyTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan HostProcessStartTimeout = TimeSpan.FromSeconds(15);
 
     private readonly object _stateSync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -19,6 +20,9 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     private readonly Action _contextRequested;
     private readonly Action<bool> _setLauncherVisible;
     private readonly Func<Task> _resetLauncherPosition;
+    private readonly Action<string>? _reportStage;
+    private readonly TimeSpan _hostProcessStartTimeout;
+    private readonly Func<ProcessStartInfo, Task<Process?>> _launchProcess;
 
     private DesktopPetRuntimeState _current = new(false, false, string.Empty, "launcher-only");
     private Process? _process;
@@ -37,7 +41,10 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         Action openRequested,
         Action contextRequested,
         Action<bool> setLauncherVisible,
-        Func<Task> resetLauncherPosition)
+        Func<Task> resetLauncherPosition,
+        Action<string>? reportStage = null,
+        TimeSpan? hostProcessStartTimeout = null,
+        Func<ProcessStartInfo, Task<Process?>>? launchProcess = null)
     {
         _bundleStore = bundleStore ?? throw new ArgumentNullException(nameof(bundleStore));
         _dataRoot = string.IsNullOrWhiteSpace(dataRoot) ? throw new ArgumentException("PetHost data root is required.", nameof(dataRoot)) : dataRoot;
@@ -46,6 +53,11 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         _contextRequested = contextRequested ?? throw new ArgumentNullException(nameof(contextRequested));
         _setLauncherVisible = setLauncherVisible ?? throw new ArgumentNullException(nameof(setLauncherVisible));
         _resetLauncherPosition = resetLauncherPosition ?? throw new ArgumentNullException(nameof(resetLauncherPosition));
+        _reportStage = reportStage;
+        _hostProcessStartTimeout = hostProcessStartTimeout ?? HostProcessStartTimeout;
+        if (_hostProcessStartTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(hostProcessStartTimeout), "PetHost process-start timeout must be positive.");
+        _launchProcess = launchProcess ?? LaunchProcessAsync;
     }
 
     public DesktopPetRuntimeState Current
@@ -183,13 +195,38 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             startInfo.ArgumentList.Add(_uiTextPath);
         }
 
-        var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        if (!process.Start())
+        Process? process;
+        Task<Process?> launchTask;
+        try
         {
-            process.Dispose();
+            ReportStage("process-start-start");
+            launchTask = _launchProcess(startInfo);
+            process = await launchTask.WaitAsync(_hostProcessStartTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            ReportStage("process-start-timeout");
+            if (launchTask is not null) ScheduleLateProcessCleanup(launchTask);
+            return new DesktopPetModeResult(false, false, "process-start-timeout");
+        }
+        catch (OperationCanceledException)
+        {
+            ReportStage("process-start-cancelled");
+            if (launchTask is not null) ScheduleLateProcessCleanup(launchTask);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportStage("process-start-failed:" + exception.GetType().Name);
+            return new DesktopPetModeResult(false, false, "process-start-failed:" + exception.GetType().Name);
+        }
+
+        if (process is null)
+        {
+            ReportStage("process-start-rejected");
             return new DesktopPetModeResult(false, false, "process-start-rejected");
         }
-        _ = WindowsChildProcessJob.TryAssign(process);
+        ReportStage("process-start-finish");
 
         var pipe = new NamedPipeClientStream(
             ".",
@@ -205,8 +242,10 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             // IsBusy forever after payload preparation has completed.
             using var startupTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             startupTimeout.CancelAfter(HostReadyTimeout);
+            ReportStage("pipe-connect-start");
             await pipe.ConnectAsync(startupTimeout.Token).ConfigureAwait(false);
             connected = true;
+            ReportStage("pipe-connect-finish");
 
             var reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, leaveOpen: true);
             var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
@@ -218,7 +257,9 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             _transportCancellation = transportCancellation;
             process.Exited += OnProcessExited;
 
+            ReportStage("activate-send-start");
             await TrySendAsync(writer, "activate|" + pet.Id).ConfigureAwait(false);
+            ReportStage("activate-send-finish");
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "host-starting-cache-hit" : "host-starting-new-payload"));
 
@@ -230,6 +271,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 
                 if (string.Equals(eventName, "ready", StringComparison.OrdinalIgnoreCase))
                 {
+                    ReportStage("host-ready");
                     SetLauncherVisible(false);
                     UpdateState(new DesktopPetRuntimeState(true, true, pet.Id, "ready:" + detail));
                     _readLoop = Task.Run(() => ReadLoopAsync(generation, pet.Id, reader, transportCancellation.Token));
@@ -237,7 +279,10 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
                 }
 
                 if (string.Equals(eventName, "error", StringComparison.OrdinalIgnoreCase))
+                {
+                    ReportStage("host-error:" + detail);
                     return new DesktopPetModeResult(false, false, "host-error:" + detail);
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -245,14 +290,17 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            ReportStage(connected ? "host-ready-timeout" : "pipe-connect-timeout");
             return new DesktopPetModeResult(false, false, connected ? "host-ready-timeout" : "ipc-connect-timeout");
         }
         catch (OperationCanceledException)
         {
+            ReportStage("host-start-cancelled");
             throw;
         }
         catch (Exception exception)
         {
+            ReportStage("host-start-failed:" + exception.GetType().Name);
             return new DesktopPetModeResult(false, false, "host-start-failed:" + exception.GetType().Name);
         }
         finally
@@ -261,16 +309,63 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             {
                 transportCancellation.Dispose();
                 try { pipe.Dispose(); } catch { }
+                KillAndDisposeProcess(process);
+            }
+        }
+    }
+
+    private static Task<Process?> LaunchProcessAsync(ProcessStartInfo startInfo) =>
+        Task.Run(() =>
+        {
+            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            try
+            {
+                if (!process.Start())
+                {
+                    process.Dispose();
+                    return null;
+                }
+                _ = WindowsChildProcessJob.TryAssign(process);
+                return process;
+            }
+            catch
+            {
+                process.Dispose();
+                throw;
+            }
+        });
+
+    private static void ScheduleLateProcessCleanup(Task<Process?> launchTask)
+    {
+        _ = launchTask.ContinueWith(
+            task =>
+            {
                 try
                 {
-                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                    if (task.Status == TaskStatus.RanToCompletion && task.Result is { } process)
+                        KillAndDisposeProcess(process);
+                    else
+                        _ = task.Exception;
                 }
                 catch
                 {
                 }
-                process.Dispose();
-            }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static void KillAndDisposeProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
         }
+        catch
+        {
+        }
+        try { process.Dispose(); } catch { }
     }
 
     private async Task ReadLoopAsync(
@@ -451,6 +546,11 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     {
         lock (_stateSync) _current = state;
         try { StateChanged?.Invoke(this, state); } catch { }
+    }
+
+    private void ReportStage(string stage)
+    {
+        try { _reportStage?.Invoke(stage); } catch { }
     }
 
     private static bool IsProcessAlive(Process? process)
