@@ -119,7 +119,15 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (dataSource is null) return;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        if (!await _refreshGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        try
+        {
+            if (!await _refreshGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             SetRefreshing(true);
@@ -149,7 +157,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 {
                     SetAdvisor(await advisorService.RefreshAsync(false, linked.Token).ConfigureAwait(false));
                 }
-                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+                catch (OperationCanceledException) when (linked.IsCancellationRequested)
                 {
                 }
                 catch (Exception)
@@ -158,7 +166,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 }
             }
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
         }
         catch (Exception)
@@ -186,13 +194,21 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (service is null) return;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        if (!await _advisorUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        try
+        {
+            if (!await _advisorUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             SetAdvisorRefreshing(true);
             SetAdvisor(await service.RefreshAsync(force, linked.Token).ConfigureAwait(false));
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
         }
         catch (Exception)
@@ -213,7 +229,15 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (service is null || !CanPrepareItemSet) return null;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        try
+        {
+            if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return null;
+        }
+
         try
         {
             SetItemSetBusy(true);
@@ -224,7 +248,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
             OnPropertyChanged(nameof(ItemSetStatus));
             return plan;
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
             return null;
         }
@@ -253,7 +277,15 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (service is null) return null;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        try
+        {
+            if (!await _itemSetUiGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return null;
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return null;
+        }
+
         try
         {
             SetItemSetBusy(true);
@@ -262,7 +294,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
             OnPropertyChanged(nameof(ItemSetStatus));
             return result;
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
             return null;
         }
@@ -300,7 +332,15 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         if (settings is null || automation is null) return false;
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        await _automationSettingsGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            await _automationSettingsGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return false;
+        }
+
         try
         {
             SetAutomationSettingsBusy(true);
@@ -328,7 +368,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
             OnPropertyChanged(nameof(AutoAcceptEnabled));
             return true;
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
             return false;
         }

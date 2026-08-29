@@ -102,11 +102,13 @@ public sealed partial class MainWindow
         }
         finally
         {
-            if (_closed) return;
-            _ = DispatcherQueue.TryEnqueue(() =>
+            if (!_closed)
             {
-                if (!_closed && IsLeagueWorkbenchSelected()) ApplyLeagueWorkbenchRuntimeSurface();
-            });
+                _ = DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!_closed && IsLeagueWorkbenchSelected()) ApplyLeagueWorkbenchRuntimeSurface();
+                });
+            }
         }
     }
 

@@ -203,6 +203,9 @@ public sealed partial class MainWindow
         catch (OperationCanceledException)
         {
         }
+        catch
+        {
+        }
         finally
         {
             SyncLeagueWorkbenchProductActions();
@@ -252,7 +255,18 @@ public sealed partial class MainWindow
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
+        try
+        {
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            return;
+        }
 
         _leagueLoadoutBusy = true;
         if (_leagueLoadoutStatus is not null) _leagueLoadoutStatus.Text = "正在应用并回读确认…";
@@ -287,7 +301,17 @@ public sealed partial class MainWindow
             Content = FormatLoadoutResult(result),
             CloseButtonText = "确定"
         };
-        await resultDialog.ShowAsync();
+        try
+        {
+            await resultDialog.ShowAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            // Window/XamlRoot teardown after the write result must not become an unhandled async-void failure.
+        }
     }
 
     private async void OnLeagueItemSetApplyClicked(object sender, RoutedEventArgs args)
@@ -300,6 +324,10 @@ public sealed partial class MainWindow
             plan = await _leagueWorkbench.PrepareItemSetAsync();
         }
         catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
         {
             return;
         }
@@ -318,7 +346,18 @@ public sealed partial class MainWindow
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
+        try
+        {
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            return;
+        }
 
         LeagueItemSetApplyResult? result;
         try
@@ -326,6 +365,10 @@ public sealed partial class MainWindow
             result = await _leagueWorkbench.ApplyItemSetAsync(plan);
         }
         catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
         {
             return;
         }
@@ -342,7 +385,17 @@ public sealed partial class MainWindow
             Content = BuildItemSetResult(result),
             CloseButtonText = "确定"
         };
-        await resultDialog.ShowAsync();
+        try
+        {
+            await resultDialog.ShowAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            // Closing the detailed shell can invalidate XamlRoot while the result dialog is pending.
+        }
     }
 
     private async void OnLeagueRecommendedAutoApplyToggled(object sender, RoutedEventArgs args)
@@ -354,6 +407,7 @@ public sealed partial class MainWindow
 
         try { _ = await settings.SetEnabledAsync(_recommendedAutoApplyToggle.IsOn); }
         catch (OperationCanceledException) { }
+        catch { }
         finally { SyncLeagueWorkbenchProductActions(); }
     }
 
