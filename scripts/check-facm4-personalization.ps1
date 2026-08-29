@@ -92,16 +92,22 @@ foreach ($forbidden in @('FACM\.Infrastructure', 'FACM\.Platform\.Windows', 'Mic
 foreach ($required in @(
     'ISettings2Repository', 'IFacmThemeRuntime', 'InitializeForStartup', 'SelectThemeAsync', 'SelectPetAsync',
     'InitializeDesktopPetAsync', 'EnableSelectedPetAsync', 'RestoreDefaultLauncherAsync', 'ResetDesktopPositionAsync',
-    'RecoveredLastKnownGood', 'RecoveryDefaults', 'Appearance.ThemeId', 'Pets.StyleId', 'Pets.Enabled', 'SaveAsync'
+    'RecoveredLastKnownGood', 'RecoveryDefaults', 'Appearance.ThemeId', 'Pets.StyleId', 'Pets.Enabled', 'UpdateAsync'
 )) {
     if ($viewModel -notmatch [regex]::Escape($required)) { Fail "PersonalizationViewModel behavior missing: $required" }
+}
+if ($viewModel -match '\.SaveAsync\s*\(') {
+    Fail 'PersonalizationViewModel must use the atomic narrow Settings 2.0 mutation boundary, not whole-document SaveAsync.'
 }
 if ($viewModel -match 'Pets\.Enabled\s*=\s*true') {
     Fail 'Pet style selection must not silently enable desktop pet mode before an explicit runtime intent.'
 }
 
-foreach ($required in @('DesktopPetPreferenceService', 'Pets.Enabled = true', 'Pets.Enabled = false', 'ApplyAsync(true', 'ApplyAsync(false', 'RecoveryDefaults', 'ResetPositionAsync')) {
+foreach ($required in @('DesktopPetPreferenceService', 'Pets.Enabled = true', 'Pets.Enabled = false', 'ApplyAsync(true', 'ApplyAsync(false', 'RecoveryDefaults', 'ResetPositionAsync', 'UpdateAsync')) {
     if ($preference -notmatch [regex]::Escape($required)) { Fail "Desktop pet settings/runtime coordinator missing: $required" }
+}
+if ($preference -match '\.SaveAsync\s*\(') {
+    Fail 'DesktopPetPreferenceService must not reintroduce stale whole-document Settings2 saves.'
 }
 
 foreach ($required in @('WinUiThemeRuntime', 'AccessibilitySettings', 'HighContrast', 'FacmBackgroundBrush', 'FacmSurfaceBrush', 'FacmTextPrimaryBrush', 'FacmAccentBrush', 'FacmStrokeBrush')) {
@@ -124,7 +130,7 @@ if ($controlCenter -notmatch 'CreatePersonalization') { Fail 'Existing Settings 
 foreach ($required in @(
     'CreatePersonalizationViewModel', 'WinUiThemeRuntime', 'WindowsPetHostBundleStore', 'WindowsVPetRuntime',
     'GetManifestResourceStream', 'ConfigureDesktopPetService', 'InitializeDesktopPetAfterLauncherReadyAsync',
-    'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync'
+    'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync', 'DisposePersonalizationRuntime'
 )) {
     if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "App personalization composition missing: $required" }
 }
@@ -133,13 +139,14 @@ foreach ($required in @('FACM.Resources.PetHost.zip', 'PetHostBundlePath', 'Requ
     if ($appProject -notmatch [regex]::Escape($required)) { Fail "FACM.App controlled PetHost embedding missing: $required" }
 }
 
-foreach ($required in @('WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal', 'CriticalPayloadFiles')) {
+foreach ($required in @('WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal', 'CriticalPayloadFiles', 'PrepareTimeout', '_cachedPreparation')) {
     if ($bundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled PetHost bundle store missing: $required" }
 }
 foreach ($required in @(
     'IDesktopPetRuntime', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign', 'activate|', 'event|',
     'ready', 'runtime-failed', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)',
-    'FacmPetRuntimeKind.FlyingSprite', '--runtime', '--pet-id', 'runtime-unsupported'
+    'FacmPetRuntimeKind.FlyingSprite', '--runtime', '--pet-id', 'runtime-unsupported',
+    'HostReadyTimeout', 'host-ready-timeout', '_lifetime'
 )) {
     if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled desktop PetHost runtime missing: $required" }
 }
@@ -168,7 +175,7 @@ foreach ($required in @(
 foreach ($required in @('Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive', 'PetHostBundle.zip', 'RequirePetHostBundle=true')) {
     if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow PetHost packaging missing: $required" }
 }
-foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256')) {
+foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256', 'second prepare must not reopen the embedded bundle')) {
     if ($windowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows controlled PetHost smoke missing: $required" }
 }
 
@@ -184,13 +191,13 @@ if ($foundationProgram -notmatch 'PersonalizationSmoke\.Run\(\)') { Fail 'Founda
 
 Write-Host 'Personalization stable theme catalog: OK'
 Write-Host 'Personalization stable pet compatibility catalog: OK'
-Write-Host 'Settings 2.0 shared catalog ownership: OK'
+Write-Host 'Settings 2.0 shared catalog + atomic mutation ownership: OK'
 Write-Host 'Theme/pet selection recovery and persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
 Write-Host 'App-owned theme and desktop pet composition: OK'
 Write-Host 'Explicit enable / restore F / reset-position controls: OK'
-Write-Host 'Controlled PetHost bundle SHA/extraction boundary: OK'
-Write-Host 'VPet + Flying Sprite named-pipe and Job Object runtime boundary: OK'
+Write-Host 'Controlled PetHost bundle SHA/extraction/cache/timeout boundary: OK'
+Write-Host 'VPet + Flying Sprite named-pipe ready timeout and Job Object runtime boundary: OK'
 Write-Host 'Frozen 3.5 flying movement profiles and modern PetHost window: OK'
 Write-Host 'Foundation PetHost packaging/self-test contract: OK'
 Write-Host 'Personalization deterministic catalog and Windows bundle smoke: OK'

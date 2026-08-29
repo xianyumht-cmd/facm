@@ -432,8 +432,16 @@ public partial class App : Application
         try
         {
             if (!ReferenceEquals(settings, _settings) || _shuttingDown) return;
-            var loaded = await settings.LoadAsync();
-            if (loaded.Origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults)
+            var x = ToPersistedCoordinate(topLeft.X);
+            var y = ToPersistedCoordinate(topLeft.Y);
+            var updated = await settings.UpdateAsync(
+                document =>
+                {
+                    document.Pets.BallX = x;
+                    document.Pets.BallY = y;
+                },
+                allowRecoveryRebuild: false);
+            if (!updated.Persisted)
             {
                 QueueDiagnostic(DiagnosticEventFactory.Create(
                     "desktop.place",
@@ -446,9 +454,6 @@ public partial class App : Application
                 return;
             }
 
-            loaded.Settings.Pets.BallX = ToPersistedCoordinate(topLeft.X);
-            loaded.Settings.Pets.BallY = ToPersistedCoordinate(topLeft.Y);
-            await settings.SaveAsync(loaded.Settings);
             QueueDiagnostic(DiagnosticEventFactory.Create(
                 "desktop.place",
                 "FACM.Desktop",

@@ -16,17 +16,33 @@ function Count-Matches([string]$Text, [string]$Pattern) {
 $legacyPath = Join-Path $Root 'src/FACM/Services/AppSettings.cs'
 $contractPath = Join-Path $Root 'src/FACM.Core/Settings/LegacySettingsContract.cs'
 $codecPath = Join-Path $Root 'src/FACM.Core/Settings/LegacySettings.cs'
+$mutationPath = Join-Path $Root 'src/FACM.Core/Settings/Settings2Mutation.cs'
+$recoveringRepositoryPath = Join-Path $Root 'src/FACM.Infrastructure/Settings/RecoveringSettings2Repository.cs'
 $settings2SmokePath = Join-Path $Root 'src/FACM.FoundationSmoke/Settings2Smoke.cs'
 $paritySmokePath = Join-Path $Root 'src/FACM.FoundationSmoke/LegacySettingsParitySmoke.cs'
 $programPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 
-foreach ($path in @($legacyPath, $contractPath, $codecPath, $settings2SmokePath, $paritySmokePath, $programPath)) {
+$featureWriterPaths = @(
+    (Join-Path $Root 'src/FACM.App/App.xaml.cs'),
+    (Join-Path $Root 'src/FACM.App/ViewModels/CleanupViewModel.cs'),
+    (Join-Path $Root 'src/FACM.App/ViewModels/PersonalizationViewModel.cs'),
+    (Join-Path $Root 'src/FACM.Core/Personalization/DesktopPetPreferenceService.cs'),
+    (Join-Path $Root 'src/FACM.Core/Online/MaintenanceApplicationService.cs'),
+    (Join-Path $Root 'src/FACM.App/ViewModels/LeagueWorkbenchViewModel.cs'),
+    (Join-Path $Root 'src/FACM.App/ViewModels/LeaguePostGameAutomationSettingsViewModel.cs'),
+    (Join-Path $Root 'src/FACM.App/ViewModels/LeagueRecommendedAutoApplySettingsViewModel.cs'),
+    (Join-Path $Root 'src/FACM.Infrastructure/League/LeagueEfficiencyRuntime.cs')
+)
+
+foreach ($path in @($legacyPath, $contractPath, $codecPath, $mutationPath, $recoveringRepositoryPath, $settings2SmokePath, $paritySmokePath, $programPath) + $featureWriterPaths) {
     if (-not (Test-Path $path)) { Fail "P7 settings parity file missing: $path" }
 }
 
 $legacy = Get-Content $legacyPath -Raw
 $contract = Get-Content $contractPath -Raw
 $codec = Get-Content $codecPath -Raw
+$mutation = Get-Content $mutationPath -Raw
+$recoveringRepository = Get-Content $recoveringRepositoryPath -Raw
 $settings2Smoke = Get-Content $settings2SmokePath -Raw
 $paritySmoke = Get-Content $paritySmokePath -Raw
 $program = Get-Content $programPath -Raw
@@ -81,15 +97,49 @@ foreach ($key in $expected) {
 }
 
 foreach ($required in @(
+    'Settings2UpdateResult',
+    'IAtomicSettings2Repository',
+    'UpdateAsync',
+    'allowRecoveryRebuild'
+)) {
+    if ($mutation -notmatch [regex]::Escape($required)) {
+        Fail "Settings2 atomic mutation contract is missing: $required"
+    }
+}
+foreach ($required in @(
+    'IAtomicSettings2Repository',
+    '_accessGate',
+    'LoadCoreAsync',
+    'SaveCoreAsync',
+    'UpdateAsync'
+)) {
+    if ($recoveringRepository -notmatch [regex]::Escape($required)) {
+        Fail "Recovering Settings2 transaction owner is missing: $required"
+    }
+}
+
+# Product feature owners must make narrow mutations against the latest document. Reintroducing a
+# Load -> whole-document Save sequence recreates cross-feature lost updates (F position/theme/pets/
+# League/maintenance overwriting each other), so keep direct SaveAsync out of these callers.
+foreach ($path in $featureWriterPaths) {
+    $writer = Get-Content $path -Raw
+    if ($writer -match '\.SaveAsync\s*\(') {
+        Fail "Feature settings writer bypassed atomic mutation boundary: $path"
+    }
+}
+
+foreach ($required in @(
     'MigratesAllLegacyKeysAndPreservesLegacyAsync',
     'Equal(legacyText, files.Get(legacyPath)',
     'SettingsLoadOrigin.MigratedLegacy',
     'SettingsLoadOrigin.ExistingV2',
     'RejectsCorruptionAndUnsupportedVersionAsync',
-    'FailedAtomicWritePreservesExistingAsync'
+    'FailedAtomicWritePreservesExistingAsync',
+    'ConcurrentNarrowMutationsPreserveUnrelatedFieldsAsync',
+    'RecoveryMutationRemainsReadOnlyUnlessExplicitlyRebuiltAsync'
 )) {
     if ($settings2Smoke -notmatch [regex]::Escape($required)) {
-        Fail "Settings2 migration smoke lost a required invariant: $required"
+        Fail "Settings2 migration/transaction smoke lost a required invariant: $required"
     }
 }
 
@@ -117,6 +167,7 @@ foreach ($forbidden in @('Microsoft\.UI', 'System\.Windows\.Forms', 'HttpClient'
 
 Write-Host 'P7 settings legacy source: production AppSettings.BuildLines = exact 15-key FACM 3.5.15 contract'
 Write-Host 'P7 settings Core: parse + serialize bind to one ordered LegacySettingsContract'
-Write-Host 'P7 settings migration: legacy preserved, validated V2 persisted, corruption/atomic failure remain fail-safe'
-Write-Host 'P7 settings deterministic smoke: production key order + legacy round-trip executes in Foundation'
+Write-Host 'P7 settings mutation: process-local load/mutate/save/LKG transaction prevents cross-feature lost updates'
+Write-Host 'P7 settings recovery: feature mutations stay read-only; only explicit maintenance intent may rebuild primary'
+Write-Host 'P7 settings deterministic smoke: production parity + concurrent narrow mutations execute in Foundation'
 Write-Host 'FACM 4.0 P7 settings parity contract: SUCCESS'

@@ -52,7 +52,7 @@ internal static class PetHostBundleSmoke
             True(second.CacheHit, "second controlled PetHost extraction must reuse the exact bundle cache");
             Equal(first.BundleSha256, second.BundleSha256, "controlled PetHost cache identity");
             Equal(first.ExecutablePath, second.ExecutablePath, "controlled PetHost cache executable path");
-            Equal(1, openCount, "process cache must avoid reopening and rehashing the large PetHost bundle on repeated switches");
+            Equal(1, openCount, "second prepare must not reopen the embedded bundle; process cache avoids rehashing the large payload");
         }
         finally
         {
