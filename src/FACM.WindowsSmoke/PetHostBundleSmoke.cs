@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Compression;
 using FACM.Core.Runtime;
 using FACM.Platform.Windows.Personalization;
@@ -23,6 +25,7 @@ internal static class PetHostBundleSmoke
     {
         await ExtractsExactBundleAndReusesCacheAsync();
         await ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync();
+        await BoundsNonCooperativePreparationWallTimeAsync();
         await RejectsPathTraversalAsync();
     }
 
@@ -103,6 +106,55 @@ internal static class PetHostBundleSmoke
         }
         finally
         {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task BoundsNonCooperativePreparationWallTimeAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-pethost-hard-timeout-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        using var openEntered = new ManualResetEventSlim(false);
+        using var releaseOpen = new ManualResetEventSlim(false);
+        var stages = new ConcurrentQueue<string>();
+        try
+        {
+            var bundle = CreateBundle(includeTraversal: false);
+            var store = new WindowsPetHostBundleStore(
+                CreateLayout(root),
+                () =>
+                {
+                    openEntered.Set();
+                    releaseOpen.Wait(TimeSpan.FromSeconds(5));
+                    return new MemoryStream(bundle, writable: false);
+                },
+                expectedBundleSha256: null,
+                reportStage: stages.Enqueue,
+                prepareTimeout: TimeSpan.FromMilliseconds(150));
+
+            var watch = Stopwatch.StartNew();
+            var prepare = store.PrepareAsync();
+            True(openEntered.Wait(TimeSpan.FromSeconds(2)), "blocking PetHost open delegate was not entered");
+            try
+            {
+                _ = await prepare;
+                throw new InvalidOperationException("non-cooperative PetHost preparation: expected TimeoutException");
+            }
+            catch (TimeoutException)
+            {
+            }
+            watch.Stop();
+
+            True(watch.Elapsed < TimeSpan.FromSeconds(2), "non-cooperative PetHost prepare did not release caller on hard timeout");
+            True(stages.Contains("cache-check-start"), "PetHost stage diagnostics missed cache-check-start");
+            True(stages.Contains("bundle-open-start"), "PetHost stage diagnostics missed bundle-open-start");
+            True(stages.Contains("prepare-timeout-worker-cancelling"), "PetHost hard timeout stage was not reported");
+        }
+        finally
+        {
+            releaseOpen.Set();
+            _ = SpinWait.SpinUntil(() => stages.Contains("bundle-open-finish"), TimeSpan.FromSeconds(2));
+            await Task.Delay(50);
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
