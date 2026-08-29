@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
+using FACM.Core.Personalization;
 using FACM.Core.Runtime;
 using FACM.Platform.Windows.Personalization;
 
@@ -26,6 +27,7 @@ internal static class PetHostBundleSmoke
         await ExtractsExactBundleAndReusesCacheAsync();
         await ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync();
         await BoundsNonCooperativePreparationWallTimeAsync();
+        await BoundsNonCooperativeProcessStartAndReleasesRuntimeAsync();
         await RejectsPathTraversalAsync();
     }
 
@@ -154,6 +156,54 @@ internal static class PetHostBundleSmoke
         {
             releaseOpen.Set();
             _ = SpinWait.SpinUntil(() => stages.Contains("bundle-open-finish"), TimeSpan.FromSeconds(2));
+            await Task.Delay(50);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task BoundsNonCooperativeProcessStartAndReleasesRuntimeAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-pethost-process-start-timeout-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var launch = new TaskCompletionSource<Process?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stages = new ConcurrentQueue<string>();
+        try
+        {
+            var bundle = CreateBundle(includeTraversal: false);
+            var layout = CreateLayout(root);
+            var store = new WindowsPetHostBundleStore(
+                layout,
+                () => new MemoryStream(bundle, writable: false));
+            using var runtime = new WindowsVPetRuntime(
+                store,
+                layout.PetHostDataDirectory,
+                layout.UiTextPath,
+                () => { },
+                () => { },
+                _ => { },
+                () => Task.CompletedTask,
+                stages.Enqueue,
+                TimeSpan.FromMilliseconds(150),
+                _ => launch.Task);
+
+            var watch = Stopwatch.StartNew();
+            var result = await runtime.ApplyAsync(true, FacmPetCatalog.Get("bee"));
+            watch.Stop();
+
+            True(!result.Success, "non-cooperative PetHost process start unexpectedly succeeded");
+            Equal("process-start-timeout", result.Detail, "non-cooperative PetHost process-start timeout detail");
+            True(watch.Elapsed < TimeSpan.FromSeconds(2), "non-cooperative PetHost process start kept caller busy past the hard timeout");
+            True(stages.Contains("process-start-start"), "PetHost process startup diagnostics missed process-start-start");
+            True(stages.Contains("process-start-timeout"), "PetHost process startup diagnostics missed process-start-timeout");
+            True(!runtime.Current.StartRequested && !runtime.Current.PetVisible, "PetHost timeout did not restore a non-busy launcher runtime state");
+
+            var restored = await runtime.ApplyAsync(false, FacmPetCatalog.Get("bee")).WaitAsync(TimeSpan.FromSeconds(1));
+            True(restored.Success, "PetHost runtime gate remained blocked after process-start timeout");
+            Equal("launcher-restored", restored.Detail, "PetHost process-start timeout launcher recovery detail");
+        }
+        finally
+        {
+            launch.TrySetResult(null);
             await Task.Delay(50);
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
