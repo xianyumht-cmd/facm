@@ -154,7 +154,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         catch
         {
             // A transient settings/filesystem failure must not permanently poison the presenter. Keep
-            // IsInitialized=false so startup or the More Settings surface can retry in the same process.
+            // IsInitialized=false so startup or the More Settings surface can retry in the same app session.
             Status = "initialization-failed";
             throw;
         }

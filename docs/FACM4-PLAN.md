@@ -74,62 +74,40 @@ Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
 
 ### Batch F — `856078e9f90cc4e13ee7bd09e7b0e09a7d57164a`
 
-已完成：
-
-- `LeaguePostGameAutomationSettingsViewModel` 保持 atomic `UpdateAsync`，并显式以 `RecoveredLastKnownGood / RecoveryDefaults` + `!Persisted` 标记 recovery read-only。
-- `LeagueRecommendedAutoApplySettingsViewModel` 同样补齐显式 recovery-origin 语义。
+- PostGame / Recommended automation settings 保持 atomic `UpdateAsync`，显式以 `RecoveredLastKnownGood / RecoveryDefaults` + `!Persisted` 标记 recovery read-only。
 - caller/lifetime cancellation 统一按 linked token 识别，避免正常取消落入 generic failure。
+- Foundation #623 / run `33227071835`：Architecture、Shell、Desktop、Cleanup、Repair、Personalization、League Workbench、League Recommended、League Efficiency、League Bench Quick Pick、全部 Mayhem、P6 Maintenance、P6 Updater、P7 Settings parity 全部 SUCCESS；仅 P7 lifecycle gate 因旧 `_desktopPetRuntime?.Dispose()` 字面量检查停止。
+- 复核确认桌宠实际 teardown 已封装进 `DisposePersonalizationRuntime()`，#623 属 stale lifecycle gate，不是 PetHost teardown 回归。
 
-Foundation #623 / run `33227071835`：
+### Batch G — `cd8f3051780d4af1552cd06c91f050c871b3581e`
 
-- Architecture SUCCESS
-- Shell SUCCESS
-- Desktop SUCCESS
-- Cleanup SUCCESS
-- Repair SUCCESS
-- Personalization SUCCESS
-- League Workbench SUCCESS
-- League Recommended SUCCESS
-- League Efficiency SUCCESS
-- League Bench Quick Pick SUCCESS
-- 全部 Mayhem source gates SUCCESS
-- P6 Maintenance SUCCESS
-- P6 Updater SUCCESS
-- P7 Settings parity SUCCESS
-- 仅在 **P7 entry/lifecycle closeout** 停止：旧 gate 硬编码要求 `_desktopPetRuntime?.Dispose()`。
+已完成的产品修复：
 
-根因复核：当前桌宠 teardown 已封装进 `DisposePersonalizationRuntime()`：先解绑 floating/state hooks，再对捕获的 `runtime?.Dispose()`，然后清空 `_desktopPetRuntime/_desktopPetPreferences/_petHostBundleStore`；`DisposeMaintenanceRuntime()` 正常退出时又显式调用 `DisposePersonalizationRuntime()`。因此 #623 是 stale lifecycle gate，不是 PetHost teardown 回归。
-
-### 当前 Batch G — 进行中
-
-本批已确认的产品缺陷与修复：
-
-1. **Maintenance 初始化失败会永久锁死重试**
-   - 旧 `InitializeAsync` 在 `finally` 无论成功失败都 `_initialized=true`。
-   - 改为只有 preferences 成功加载后才标记 initialized；取消/异常保持 false，并给出 `initialization-failed` 状态。
-   - `MaintenanceSettingsControl` 不再依赖一次性 Loaded latch；增加 fail-soft `RetryInitialization()`。
-   - 每次重新进入“更多设置”都会触发重试，因此短暂 Settings/磁盘/provider 故障不需要重启 FACM。
-
-2. **更新下载/安装 teardown 资源竞态**
-   - 活跃下载使用的 linked CTS 改由该 async 操作自己持有并在 `finally` 释放；App shutdown 只 cancel，不在 await 尚未退出时提前 Dispose CTS。
-   - installer 操作增加 active-operation 计数；窗口/F 关闭触发 shutdown 时，若下载或 replacement 仍在执行，installer 的 Dispose 延后到最后一个操作 `finally`，避免把底层 Http/launcher 资源从正在执行的 await 下面销毁。
-
+1. **Maintenance 初始化可重试**
+   - 只有 preferences 成功加载后才 `_initialized=true`；取消/异常保持 false。
+   - 新增 `initialization-failed` 状态。
+   - `MaintenanceSettingsControl` 改为 fail-soft `RetryInitialization()`；每次进入“更多设置”显式触发重试，不再依赖 visual-tree 的二次 `Loaded`。
+2. **更新下载/安装 teardown 安全**
+   - linked download CTS 由正在执行的 async 操作持有，在 `finally` 释放；shutdown 只 cancel。
+   - installer 增加 active-operation 计数；下载/replacement 未退出时延后 installer Dispose，避免销毁正在 await 的资源。
 3. **Maintenance async-void containment**
-   - Toggle / Check / Download / Install / Announcement / OpenLog UI handler 全部保留 final catch/finally，不让 provider/launcher 异常穿透 dispatcher。
-   - 安装确认 dialog 返回后重新检查当前 VM/PreparedUpdate，避免 dialog 等待期间窗口状态变化后继续使用陈旧状态。
+   - Toggle / Check / Download / Install / Announcement / OpenLog handler 全部有最终异常边界。
+   - install dialog 返回后重检当前 VM 与 PreparedUpdate。
+4. **P7 centralized lifecycle gate**
+   - 改为验证 `DisposePersonalizationRuntime()`、state hook 解绑、`runtime?.Dispose()`、引用清空和 `DisposeMaintenanceRuntime()` 的显式调用，不再绑定旧直接 Dispose 写法。
+5. **Maintenance source regression gate**
+   - 强制 retryable initialization、CTS ownership、deferred installer teardown、navigation retry 与 async-void containment。
 
-4. **P7 lifecycle gate 更新**
-   - 不再要求旧的 `_desktopPetRuntime?.Dispose()` 字面量。
-   - 改为验证 centralized `DisposePersonalizationRuntime()`、状态 hook 解绑、`runtime?.Dispose()`、引用清空，以及 `DisposeMaintenanceRuntime()` 对 personalization/League product teardown 的显式调用。
-   - 这是加强当前真实 lifecycle contract，不是放宽 gate。
+Foundation #624 / run `33227351798`：在 **Architecture gate** 立刻失败。根因不是代码越界，而是 `MaintenanceViewModel` 注释中的英文 `same process.` 被大小写不敏感 `Process\.` 规则误识别为平台 API。与 #618 同类；不修改/放宽架构 gate，只改注释措辞。
 
-5. **Maintenance source regression gate 加强**
-   - 强制初始化成功后才 latch `IsInitialized`。
-   - 强制下载 CTS ownership/finally dispose。
-   - 强制 installer active-operation deferred disposal。
-   - 强制 More Settings navigation retry 和 async-void containment。
+### 当前 Batch H — 进行中
 
-下一检查点：提交 Batch G，跑 Foundation 进入 Diagnostics / DPI / Recovery / Release Evidence / Gate13 guard / build / smokes / publish；同时继续审查 League caller cancellation、ContentDialog close race、updater interrupted rollback 和重复开关窗口的压力 smoke。
+- 将 `same process.` 注释改为 `same app session`，消除 #624 假阳性，不改变任何运行逻辑。
+- 继续审查 League caller cancellation：`LeagueWorkbenchViewModel` 的 Refresh/Advisor/ItemSet 路径目前只对 lifetime cancellation 特判，显式 caller cancellation 可能被 generic catch 写成 `refresh-failed / advisor-refresh-failed / prepare-failed / apply-failed`；列为下一批产品修复。
+- 继续审查 League `ContentDialog.ShowAsync()`：确认推荐配置/装备集的部分 dialog await 位于 async-void handler 的最终异常边界之外，窗口关闭/XamlRoot teardown 期间存在 dispatcher 未观察异常风险；列为下一批修复。
+- updater interruption 审查：现有 `MaintenanceWindowsSmoke` 覆盖 updater helper 的受控路径、参数、UAC cancel、包目录约束，但**没有模拟 helper 在 replacement 中途被终止**。Updater 本身有 `.facm-old` backup、hash mismatch rollback、5 秒 early-exit rollback；若 helper 自身在 replace 后到 restart/cleanup 之间被强制终止，当前 deterministic smoke 没有 resume/rollback 证据。保持 Gate13 `update.interrupted-replacement-rollback` 阻塞，后续作为稳定性审查的独立事务恢复任务处理，不能仅靠现有 updater green gate 宣称关闭。
+
+下一检查点：提交 Batch H，跑 Foundation；若 source/build 继续向后推进，则先修 League cancellation/dialog teardown，再设计 updater interruption transaction/resume smoke。所有结论继续同步本文件。
 
 ## 当前 Gate13 边界
 
