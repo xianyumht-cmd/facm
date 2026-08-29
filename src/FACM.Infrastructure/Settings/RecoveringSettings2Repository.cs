@@ -111,21 +111,90 @@ public sealed class JsonSettings2RecoveryStore : ISettings2RecoveryStore
     }
 }
 
-public sealed class RecoveringSettings2Repository(
-    ISettings2Repository primary,
-    ISettings2RecoveryStore recovery) : ISettings2Repository
+public sealed class RecoveringSettings2Repository : IAtomicSettings2Repository
 {
+    private readonly ISettings2Repository _primary;
+    private readonly ISettings2RecoveryStore _recovery;
+    private readonly SemaphoreSlim _accessGate = new(1, 1);
+
+    public RecoveringSettings2Repository(
+        ISettings2Repository primary,
+        ISettings2RecoveryStore recovery)
+    {
+        _primary = primary ?? throw new ArgumentNullException(nameof(primary));
+        _recovery = recovery ?? throw new ArgumentNullException(nameof(recovery));
+    }
+
     public async Task<Settings2LoadResult> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        await _accessGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await LoadCoreAsync(refreshRecoveryOnHealthy: true, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _accessGate.Release();
+        }
+    }
+
+    public async Task SaveAsync(Settings2Document settings, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        await _accessGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await SaveCoreAsync(settings, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _accessGate.Release();
+        }
+    }
+
+    public async Task<Settings2UpdateResult> UpdateAsync(
+        Action<Settings2Document> mutation,
+        bool allowRecoveryRebuild = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutation);
+        await _accessGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Load + narrow mutation + primary/LKG persistence is one process-local transaction. This
+            // prevents unrelated features (F drag, theme, pets, League toggles, maintenance) from
+            // overwriting each other's fields with stale whole-document snapshots.
+            var loaded = await LoadCoreAsync(refreshRecoveryOnHealthy: false, cancellationToken).ConfigureAwait(false);
+            var recoveryReadOnly = loaded.Origin is
+                SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
+            if (recoveryReadOnly && !allowRecoveryRebuild)
+                return new Settings2UpdateResult(loaded.Settings, loaded.Origin, Persisted: false);
+
+            mutation(loaded.Settings);
+            Settings2Validator.ThrowIfInvalid(loaded.Settings);
+            await SaveCoreAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            return new Settings2UpdateResult(loaded.Settings, SettingsLoadOrigin.ExistingV2, Persisted: true);
+        }
+        finally
+        {
+            _accessGate.Release();
+        }
+    }
+
+    private async Task<Settings2LoadResult> LoadCoreAsync(
+        bool refreshRecoveryOnHealthy,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var loaded = await primary.LoadAsync(cancellationToken).ConfigureAwait(false);
-            _ = await recovery.TrySaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            var loaded = await _primary.LoadAsync(cancellationToken).ConfigureAwait(false);
+            if (refreshRecoveryOnHealthy)
+                _ = await _recovery.TrySaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
             return loaded;
         }
         catch (InvalidDataException)
         {
-            var lastKnownGood = await recovery.TryLoadAsync(cancellationToken).ConfigureAwait(false);
+            var lastKnownGood = await _recovery.TryLoadAsync(cancellationToken).ConfigureAwait(false);
             if (lastKnownGood is not null)
                 return new Settings2LoadResult(lastKnownGood, SettingsLoadOrigin.RecoveredLastKnownGood);
 
@@ -136,9 +205,9 @@ public sealed class RecoveringSettings2Repository(
         }
     }
 
-    public async Task SaveAsync(Settings2Document settings, CancellationToken cancellationToken = default)
+    private async Task SaveCoreAsync(Settings2Document settings, CancellationToken cancellationToken)
     {
-        await primary.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
-        _ = await recovery.TrySaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        await _primary.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        _ = await _recovery.TrySaveAsync(settings, cancellationToken).ConfigureAwait(false);
     }
 }
