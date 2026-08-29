@@ -4,6 +4,8 @@ using FACM.Infrastructure.League;
 
 internal static class LeagueEfficiencySmoke
 {
+    private const int BindingStressIterations = 30;
+
     public static async Task RunAsync()
     {
         ValidateHotkeyGrammar();
@@ -11,6 +13,7 @@ internal static class LeagueEfficiencySmoke
         await ValidateFailedRegistrationDoesNotPersistAsync();
         await ValidateRecoveryIsReadOnlyAsync();
         await ValidateHotkeyDispatchAsync();
+        await ValidateRepeatedBindingTransactionsAsync();
     }
 
     private static void ValidateHotkeyGrammar()
@@ -131,6 +134,38 @@ internal static class LeagueEfficiencySmoke
         await actions.LobbySignal.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Equal(1, actions.ExitCalls, "close-lobby hotkey cannot dispatch exit-game");
         Equal(1, actions.LobbyCalls, "close-lobby hotkey dispatch count");
+    }
+
+    private static async Task ValidateRepeatedBindingTransactionsAsync()
+    {
+        var settings = new FakeSettingsRepository(new Settings2Document
+        {
+            League = new LeagueSettings
+            {
+                ExitGameHotkey = "Ctrl+F9",
+                CloseLobbyHotkey = "Ctrl+F10"
+            }
+        });
+        using var hotkeys = new FakeHotkeys();
+        using var runtime = new LeagueEfficiencyRuntime(settings, new FakeActions(), hotkeys);
+        await runtime.InitializeAsync();
+
+        string[] exits = ["Ctrl+F5", "Alt+F5", "Shift+F5", "Win+F5", "Ctrl+F6"];
+        string[] lobbies = ["Ctrl+F7", "Alt+F7", "Shift+F7", "Win+F7", "Ctrl+F8"];
+        for (var cycle = 0; cycle < BindingStressIterations; cycle++)
+        {
+            var exit = exits[cycle % exits.Length];
+            var lobby = lobbies[cycle % lobbies.Length];
+            True(await runtime.UpdateBindingsAsync(exit, lobby),
+                "repeated hotkey transaction failed at cycle " + cycle);
+            Equal(exit, runtime.State.ExitGameHotkey, "repeated runtime exit hotkey " + cycle);
+            Equal(lobby, runtime.State.CloseLobbyHotkey, "repeated runtime lobby hotkey " + cycle);
+            Equal(exit, settings.Document.League.ExitGameHotkey, "repeated persisted exit hotkey " + cycle);
+            Equal(lobby, settings.Document.League.CloseLobbyHotkey, "repeated persisted lobby hotkey " + cycle);
+        }
+
+        Equal(BindingStressIterations, settings.SaveCalls, "repeated hotkey settings transaction count");
+        Equal(BindingStressIterations + 1, hotkeys.ApplyCalls, "repeated hotkey registration transaction count");
     }
 
     private static void Equal<T>(T expected, T actual, string name)

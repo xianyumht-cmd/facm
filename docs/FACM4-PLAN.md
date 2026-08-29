@@ -100,48 +100,71 @@ Foundation #625 / run `33227469666`：
 
 Foundation #626 / run `33227662540`：**SUCCESS**。
 
-- 同一 head `bb9f8e88d4ed868adf602c2ae87f64663379496e` 上，所有 source gates SUCCESS。
-- Release build SUCCESS。
-- deterministic FoundationSmoke SUCCESS。
-- deterministic WindowsSmoke SUCCESS。
-- WinUI x64 self-contained single-file publish SUCCESS。
-- publish output verification SUCCESS。
-- `facm4-x64` artifact upload SUCCESS。
+- 同一 head 上所有 source gates、Release build、FoundationSmoke、WindowsSmoke、single-file publish、publish verification、artifact upload 全部 SUCCESS。
 - 这是本轮稳定性审查第一次完整穿透 source gates -> Release build -> 两层 smoke -> publish -> artifact 的全绿 head。
-- 仍不把它作为最终真机候选：Updater interruption 风险和后续 20-50 次压力批次还没闭环。
 
-### 当前 Batch J — Updater interruption hardening 进行中
+### Batch J — `4755c40c6c3ec751d27bf9cab31d74581f58f3d3`
 
-已确认的真实风险：
-
-- `File.Replace(staging, destination, backup, true)` 主路径本身具备同卷替换语义，但旧 `FallbackReplace` 在 File.Replace 不可用/IOException 时会执行 `File.Copy(staging, destination, true)`，直接流式覆盖正式 FACM EXE。
-- updater helper 如果恰好在该覆盖写期间被终止，正式 EXE 存在被截断/半写的窗口；虽然 `.facm-old` 可能存在，但损坏的新 EXE 本身可能无法再次启动去触发恢复。
-- 旧 `TryRollback` 也用 `File.Copy(backup, destination, true)` 流式覆盖正式 EXE，rollback 自身同样存在中断窗口。
-
-本批修复：
+Updater interruption hardening：
 
 1. **正式 EXE 不再被 fallback 流式覆盖**
    - 保留 `File.Replace` 为主路径。
-   - fallback 先把完整旧 EXE 复制到 `.facm-old`；在备份阶段若 helper 被终止，正式 EXE 仍完全未变。
-   - 已完整 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终目标交换。
-   - destination 原本不存在时也使用同一 atomic move primitive。
+   - fallback 先保存完整 `.facm-old`，live destination 在备份阶段完全不变。
+   - 已完整 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终交换；destination 原本不存在时也使用同一 atomic primitive。
+2. **rollback 原子化**
+   - 删除 `File.Copy(backup, destination, true)` 流式覆盖路径。
+   - `.facm-old` 通过同一 `MoveFileEx` primitive 原子替换 destination；中断点只可能留下完整 candidate 或完整 rollback。
+3. **built helper `--self-test`**
+   - 验证备份阶段不改变 live destination、atomic swap 得到完整 candidate、atomic rollback 恢复完整旧版、实际 fallback 保留完整 backup。
+   - Foundation 在 updater payload build 后直接执行编译出的 helper self-test。
+4. **source contract**
+   - 强制 MoveFileEx / REPLACE_EXISTING / WRITE_THROUGH / atomic helper / self-test。
+   - 禁止重新出现 `File.Copy(staging, destination, true)` 与 `File.Copy(backup, destination, true)`。
+   - 强制 workflow 实际执行 built helper self-test。
 
-2. **rollback 改成原子交换完整 backup**
-   - 不再 `File.Copy(backup, destination, true)`。
-   - `.facm-old` 直接通过同一个 `MoveFileEx` primitive 替换 destination；中断前后目标只会是完整 candidate 或完整 rollback，不存在流式半写阶段。
+Foundation #627 / run `33230658026`：**SUCCESS**。
 
-3. **Updater helper 自身加入 `--self-test`**
-   - 在临时目录验证：备份准备不改变 live destination；atomic swap 后 destination 等于完整 candidate；atomic rollback 后恢复完整旧版；实际 `FallbackReplace` 同时保留完整 backup。
-   - Foundation 在“Prepare controlled updater payload”阶段直接执行编译出的 `FACM.Updater.exe --self-test`，失败则立即阻止后续 build/publish。
+- Built `FACM.Updater.exe --self-test` SUCCESS。
+- Architecture / Shell / Desktop / Cleanup / Repair / Personalization / 全部 League / 全部 Mayhem / P6 Maintenance / P6-P7 Updater / P7 Settings / P7 lifecycle / Diagnostics / DPI+Accessibility / Recovery / Release Evidence / Cutover Guard / real-machine collector 全部 SUCCESS。
+- Windows PowerShell 5.1 evidence collector self-test SUCCESS。
+- Restore + Release build SUCCESS。
+- deterministic FoundationSmoke SUCCESS。
+- deterministic WindowsSmoke SUCCESS。
+- WinUI x64 self-contained single-file publish + verification SUCCESS。
+- artifact `facm4-x64` id `9708400694`，GitHub digest `sha256:8a0029416182c55b7d16351b9b91b5ea16f490cb5ee950b7c2b7765de3229b5c`。
+- Gate13 `update.interrupted-replacement-rollback` **仍保持 Blocked**：Hosted self-test 只证明事务 primitive，不替代真实 Windows 受控中断证据。
 
-4. **Updater source gate 加强**
-   - 强制 `MoveFileEx` / `REPLACE_EXISTING` / `WRITE_THROUGH` / atomic helper / self-test contract。
-   - 明确禁止重新出现 `File.Copy(staging, destination, true)` 和 `File.Copy(backup, destination, true)`。
-   - 强制 Foundation workflow 实际执行 built-helper self-test，而不是只做源码字符串检查。
+### 当前 Batch K — 20-50 次级稳定性压力 smoke 进行中
 
-边界：这批只能证明 updater 的 deterministic transaction primitive 和 CI 自检，不会自动关闭 Gate13 `update.interrupted-replacement-rollback`。该 blocker 仍需要真实 Windows 上的人为/受控中断证据。
+本批不做空循环，全部复用现有真实 service/runtime：
 
-下一检查点：提交 Batch J -> Foundation；若全绿，同步 Batch J commit/run/artifact，并进入 20-50 次重复操作压力批次。若红，按产品 defect / gate defect / environment 三类继续定位，结果继续同批写本文件。
+1. **Settings2 并发事务**
+   - 已有 `Settings2Smoke.ConcurrentNarrowMutationsPreserveUnrelatedFieldsAsync` 连续 **40 轮**，每轮并发 Theme / F 坐标 / League setting 三路 atomic `UpdateAsync`，并在每轮后回读验证无 lost update。
+   - 本批保留为跨功能 settings 压力基线。
+
+2. **Single-instance 生命周期压力**
+   - `MaintenanceWindowsSmoke` 将正常 primary -> secondary signal -> primary dispose -> replacement primary 的完整周期执行 **24 轮**。
+   - 每轮要求 secondary 只触发一次 callback，primary dispose 后 mutex 可立即被下一实例取得。
+
+3. **Updater UAC cancel 压力**
+   - 同一受控 package/launcher 连续 **24 次**模拟 Win32 1223 UAC 取消。
+   - 每次必须返回 false、保持当前 FACM 可继续运行，且不能误走成功 Process.Start 路径。
+
+4. **PetHost bundle/cache 压力**
+   - 首次受控 extraction + cache hit 后，再连续 **24 次** `PrepareAsync()`。
+   - 所有重复调用必须保持同一 SHA/executable path 且 `openCount` 恒为 1，防止重复 rehash/re-extract 或 process cache 失效。
+
+5. **League 推荐自动应用周期压力**
+   - 连续 **24 个** Lobby -> ChampSelect stabilizing -> stable apply -> repeated observation 周期。
+   - 每周期只能写一次 loadout + item set；重复稳定 observation 必须保持 `already-attempted`，进入新周期后才释放上一 fingerprint。
+
+6. **League 热键配置事务压力**
+   - 连续 **30 轮**有效 ExitGame / CloseLobby hotkey 组合更新。
+   - 每轮必须 registration 成功、runtime state 与 Settings2 持久化一致；最终要求 30 次持久化、31 次 apply（含初始化）。
+
+边界：这些自动压力 smoke 能覆盖事务、lifecycle、cache、at-most-once 和 UAC-cancel 语义；它们仍不能替代 WinUI 真机上的视觉/输入/DPI/辅助功能与真实 updater kill 证据。
+
+下一检查点：提交 Batch K -> Foundation。若全绿，则稳定性审查的自动层进入收口：更新 `PROJECT_STATE.md` / `FACM4-P7-PARITY-CLOSEOUT.md`，再决定是否生成**唯一一次**新的统一真机候选；Gate13/cutover 仍独立保持阻塞。
 
 ## 当前 Gate13 边界
 

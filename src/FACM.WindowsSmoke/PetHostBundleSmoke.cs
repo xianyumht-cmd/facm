@@ -4,6 +4,8 @@ using FACM.Platform.Windows.Personalization;
 
 internal static class PetHostBundleSmoke
 {
+    private const int CacheStressIterations = 24;
+
     private static readonly string[] CriticalPayloadFiles =
     [
         "FACM.PetHost.exe",
@@ -53,6 +55,15 @@ internal static class PetHostBundleSmoke
             Equal(first.BundleSha256, second.BundleSha256, "controlled PetHost cache identity");
             Equal(first.ExecutablePath, second.ExecutablePath, "controlled PetHost cache executable path");
             Equal(1, openCount, "second prepare must not reopen the embedded bundle; process cache avoids rehashing the large payload");
+
+            for (var cycle = 0; cycle < CacheStressIterations; cycle++)
+            {
+                var repeated = await store.PrepareAsync();
+                True(repeated.CacheHit, "repeated PetHost prepare lost process cache in stress cycle " + cycle);
+                Equal(first.BundleSha256, repeated.BundleSha256, "repeated PetHost bundle identity " + cycle);
+                Equal(first.ExecutablePath, repeated.ExecutablePath, "repeated PetHost executable path " + cycle);
+            }
+            Equal(1, openCount, "repeated PetHost prepare reopened or rehashed the embedded bundle");
         }
         finally
         {

@@ -5,6 +5,8 @@ using FACM.Infrastructure.League;
 
 internal static class LeagueRecommendedAutoApplySmoke
 {
+    private const int CycleStressIterations = 24;
+
     public static async Task RunAsync()
     {
         ValidateFlashSlotPreservation();
@@ -12,6 +14,7 @@ internal static class LeagueRecommendedAutoApplySmoke
         await ValidateDisabledDoesNoWorkAsync();
         await ValidateStableContextAppliesAtMostOnceAsync();
         await ValidateBlockedLoadoutStopsItemSetWriteAsync();
+        await ValidateRepeatedChampSelectCyclesAsync();
     }
 
     private static void ValidateFlashSlotPreservation()
@@ -131,8 +134,6 @@ internal static class LeagueRecommendedAutoApplySmoke
         Require(service.LastStatus.State == "already-attempted",
             "Repeated stable fingerprint was not recorded as already-attempted.");
 
-        // Leaving Champ Select begins a new cycle. Re-entering the same recommendation may then
-        // stabilize and apply once again, matching the 3.5 per-ChampSelect-cycle behavior.
         clock = clock.AddSeconds(1);
         gameflow.CurrentValue = Lobby(clock);
         await service.EvaluateForSmokeTestAsync(gameflow.CurrentValue);
@@ -182,6 +183,53 @@ internal static class LeagueRecommendedAutoApplySmoke
             "Item-set disk write continued after the League loadout context was blocked.");
         Require(service.LastStatus.State == "blocked" && service.LastStatus.Detail == "champion-changed",
             "Blocked recommended transaction did not surface the loadout revalidation reason.");
+    }
+
+    private static async Task ValidateRepeatedChampSelectCyclesAsync()
+    {
+        var clock = DateTimeOffset.Parse("2026-08-28T10:00:00Z");
+        var gameflow = new FakeGameflow();
+        var advisor = new FakeAdvisor { Snapshot = ReadyAdvisor() };
+        var loadout = new FakeLoadout();
+        var itemSets = new FakeItemSets();
+        using var service = new LeagueRecommendedAutoApplyService(
+            advisor,
+            loadout,
+            itemSets,
+            gameflow,
+            () => clock);
+        service.Configure(true);
+
+        for (var cycle = 0; cycle < CycleStressIterations; cycle++)
+        {
+            gameflow.CurrentValue = Lobby(clock);
+            await service.EvaluateForSmokeTestAsync(gameflow.CurrentValue);
+
+            clock = clock.AddSeconds(1);
+            gameflow.CurrentValue = Champ(clock);
+            await service.EvaluateForSmokeTestAsync(gameflow.CurrentValue);
+            Require(loadout.ApplyCalls == cycle && itemSets.ApplyCalls == cycle,
+                "Repeated Champ Select cycle wrote before stabilization at cycle " + cycle + ".");
+
+            clock = clock.AddSeconds(2);
+            gameflow.CurrentValue = Champ(clock);
+            await service.EvaluateForSmokeTestAsync(gameflow.CurrentValue);
+            Require(loadout.ApplyCalls == cycle + 1 && itemSets.ApplyCalls == cycle + 1,
+                "Repeated Champ Select cycle did not apply exactly once at cycle " + cycle + ".");
+
+            clock = clock.AddSeconds(1);
+            gameflow.CurrentValue = Champ(clock);
+            await service.EvaluateForSmokeTestAsync(gameflow.CurrentValue);
+            Require(loadout.ApplyCalls == cycle + 1 && itemSets.ApplyCalls == cycle + 1,
+                "Repeated stable observation duplicated writes at cycle " + cycle + ".");
+            Require(service.LastStatus.State == "already-attempted",
+                "Repeated stable observation lost already-attempted state at cycle " + cycle + ".");
+
+            clock = clock.AddSeconds(1);
+        }
+
+        Require(loadout.ApplyCalls == CycleStressIterations && itemSets.ApplyCalls == CycleStressIterations,
+            "Repeated Champ Select stress did not preserve one-write-per-cycle behavior.");
     }
 
     private static LeagueBuildAdvisorSnapshot ReadyAdvisor(

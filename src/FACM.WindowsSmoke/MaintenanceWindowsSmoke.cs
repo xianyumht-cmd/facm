@@ -8,6 +8,8 @@ using FACM.Platform.Windows.Runtime;
 
 internal static class MaintenanceWindowsSmoke
 {
+    private const int LifecycleStressIterations = 24;
+
     public static async Task RunAsync()
     {
         ValidateSingleInstanceActivation();
@@ -18,7 +20,13 @@ internal static class MaintenanceWindowsSmoke
 
     private static void ValidateSingleInstanceActivation()
     {
-        var suffix = Guid.NewGuid().ToString("N");
+        for (var cycle = 0; cycle < LifecycleStressIterations; cycle++)
+            ValidateSingleInstanceActivationCycle(cycle);
+    }
+
+    private static void ValidateSingleInstanceActivationCycle(int cycle)
+    {
+        var suffix = cycle.ToString("D2") + "-" + Guid.NewGuid().ToString("N");
         var mutexName = @"Local\FACM4-Smoke-Mutex-" + suffix;
         var eventName = @"Local\FACM4-Smoke-Activate-" + suffix;
         using var observed = new AutoResetEvent(false);
@@ -31,20 +39,21 @@ internal static class MaintenanceWindowsSmoke
                 Interlocked.Increment(ref callbackCount);
                 observed.Set();
             }, TimeSpan.FromMilliseconds(300));
-            Require(disposition == SingleInstanceDisposition.Primary, "First normal instance did not become primary.");
+            Require(disposition == SingleInstanceDisposition.Primary, "First normal instance did not become primary in stress cycle " + cycle + ".");
 
             using var secondary = new WindowsSingleInstanceGate(mutexName, eventName, TimeSpan.FromMilliseconds(10));
             var secondaryDisposition = secondary.EnterNormal(() => { }, TimeSpan.FromMilliseconds(300));
             Require(secondaryDisposition == SingleInstanceDisposition.ExistingSignaled,
-                "Second normal instance did not signal the existing primary.");
-            Require(observed.WaitOne(1500), "Primary activation callback was not observed.");
-            Thread.Sleep(80);
-            Require(Volatile.Read(ref callbackCount) == 1, "One activation signal must produce exactly one callback.");
+                "Second normal instance did not signal the existing primary in stress cycle " + cycle + ".");
+            Require(observed.WaitOne(1500), "Primary activation callback was not observed in stress cycle " + cycle + ".");
+            Thread.Sleep(20);
+            Require(Volatile.Read(ref callbackCount) == 1,
+                "One activation signal must produce exactly one callback in stress cycle " + cycle + ".");
         }
 
         using var replacement = new WindowsSingleInstanceGate(mutexName, eventName, TimeSpan.FromMilliseconds(10));
         Require(replacement.EnterNormal(() => { }, TimeSpan.FromMilliseconds(200)) == SingleInstanceDisposition.Primary,
-            "Disposed primary did not release the named mutex for a later normal launch.");
+            "Disposed primary did not release the named mutex in stress cycle " + cycle + ".");
     }
 
     private static void ValidateMissingActivationListenerIsBounded()
@@ -160,8 +169,12 @@ internal static class MaintenanceWindowsSmoke
                 executablePaths,
                 () => updaterBytes,
                 _ => throw new Win32Exception(1223, "The operation was canceled by the user."));
-            Require(!await cancelledLauncher.StartAsync(package, expectedHash, "4.0.1"),
-                "Updater UAC cancellation must keep the current FACM instance alive.");
+            for (var cycle = 0; cycle < LifecycleStressIterations; cycle++)
+            {
+                Require(!await cancelledLauncher.StartAsync(package, expectedHash, "4.0.1"),
+                    "Updater UAC cancellation must keep the current FACM instance alive in stress cycle " + cycle + ".");
+            }
+            Require(starts == 1, "Repeated UAC cancellation unexpectedly reached the successful Process.Start path.");
         }
         finally
         {
