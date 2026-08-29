@@ -40,7 +40,8 @@ public partial class App
         _petHostBundleStore ??= new WindowsPetHostBundleStore(
             layout,
             () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName),
-            ReadPetHostBundleSha256());
+            ReadPetHostBundleSha256(),
+            ReportPetHostBundleStage);
         _desktopPetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
             layout.PetHostDataDirectory,
@@ -139,6 +140,22 @@ public partial class App
                 ["startRequested"] = state.StartRequested ? "true" : "false",
                 ["petVisible"] = state.PetVisible ? "true" : "false",
                 ["detail"] = detail
+            }));
+    }
+
+    private void ReportPetHostBundleStage(string stage)
+    {
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "personalization.pet-bundle",
+            "FACM.Personalization",
+            0,
+            DiagnosticResult.Success,
+            "preparation-stage",
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["stage"] = stage ?? string.Empty
             }));
     }
 
