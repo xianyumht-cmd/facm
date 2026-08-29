@@ -49,7 +49,8 @@ public partial class App
             () => RunOnDesktopUi(ToggleCompactLauncher),
             () => RunOnDesktopUi(ToggleCompactLauncher),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
-            ResetFloatingEntryPositionAsync);
+            ResetFloatingEntryPositionAsync,
+            ReportPetHostRuntimeStage);
         if (!_desktopPetRuntimeStateHookAttached)
         {
             _desktopPetRuntime.StateChanged += OnDesktopPetRuntimeStateChanged;
@@ -151,6 +152,26 @@ public partial class App
             0,
             DiagnosticResult.Success,
             "preparation-stage",
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["stage"] = stage ?? string.Empty
+            }));
+    }
+
+    private void ReportPetHostRuntimeStage(string stage)
+    {
+        var failed = stage.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     stage.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                     stage.Contains("cancelled", StringComparison.OrdinalIgnoreCase) ||
+                     stage.Contains("rejected", StringComparison.OrdinalIgnoreCase);
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "personalization.pet-host",
+            "FACM.Personalization",
+            0,
+            failed ? DiagnosticResult.Failure : DiagnosticResult.Success,
+            "startup-stage",
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
             new Dictionary<string, string>
