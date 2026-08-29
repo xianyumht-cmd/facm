@@ -44,19 +44,18 @@ public sealed class LeagueRecommendedAutoApplySettingsViewModel : INotifyPropert
         try
         {
             SetBusy(true);
-            var loaded = await _settings.LoadAsync(linked.Token).ConfigureAwait(false);
-            var recoveryReadOnly = loaded.Origin is
-                SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
-            SetRecoveryReadOnly(recoveryReadOnly);
-            if (recoveryReadOnly)
+            var updated = await _settings.UpdateAsync(
+                settings => settings.League.AutoApplyRecommended = enabled,
+                allowRecoveryRebuild: false,
+                cancellationToken: linked.Token).ConfigureAwait(false);
+            SetRecoveryReadOnly(!updated.Persisted);
+            if (!updated.Persisted)
             {
                 RaiseState();
                 return false;
             }
 
-            loaded.Settings.League.AutoApplyRecommended = enabled;
-            await _settings.SaveAsync(loaded.Settings, linked.Token).ConfigureAwait(false);
-            _automation.Configure(enabled);
+            _automation.Configure(updated.Settings.League.AutoApplyRecommended);
             RaiseState();
             return true;
         }
@@ -111,7 +110,8 @@ public sealed class LeagueRecommendedAutoApplySettingsViewModel : INotifyPropert
         _disposed = true;
         _automation.StatusChanged -= OnAutomationStatusChanged;
         _lifetime.Cancel();
-        _settingsGate.Dispose();
-        _lifetime.Dispose();
+        // Keep semaphore/CTS objects alive until any in-flight save unwinds; they are managed and will
+        // be collected with this presenter after the window is gone.
+        PropertyChanged = null;
     }
 }

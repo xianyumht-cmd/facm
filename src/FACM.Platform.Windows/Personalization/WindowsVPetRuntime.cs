@@ -7,8 +7,11 @@ namespace FACM.Platform.Windows.Personalization;
 
 public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 {
+    private static readonly TimeSpan HostReadyTimeout = TimeSpan.FromSeconds(15);
+
     private readonly object _stateSync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _lifetime = new();
     private readonly WindowsPetHostBundleStore _bundleStore;
     private readonly string _dataRoot;
     private readonly string _uiTextPath;
@@ -62,7 +65,8 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     {
         ArgumentNullException.ThrowIfNull(pet);
         ThrowIfDisposed();
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await _gate.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
             if (!enabled)
@@ -95,7 +99,12 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             PetHostBundlePreparation preparation;
             try
             {
-                preparation = await _bundleStore.PrepareAsync(cancellationToken).ConfigureAwait(false);
+                preparation = await _bundleStore.PrepareAsync(operation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "runtime-disposing"));
+                return new DesktopPetModeResult(false, false, "runtime-disposing");
             }
             catch (OperationCanceledException)
             {
@@ -108,7 +117,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
                 return new DesktopPetModeResult(false, false, "payload-failed:" + exception.GetType().Name);
             }
 
-            var result = await StartPetHostLockedAsync(preparation, pet, cancellationToken).ConfigureAwait(false);
+            var result = await StartPetHostLockedAsync(preparation, pet, operation.Token).ConfigureAwait(false);
             if (!result.Success)
             {
                 await StopTransportLockedAsync().ConfigureAwait(false);
@@ -126,10 +135,12 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     public async Task ResetPositionAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await _gate.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
             if (_writer is not null) await TrySendAsync(_writer, "reset").ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             await _resetLauncherPosition().ConfigureAwait(false);
             var current = Current;
             UpdateState(current with { Detail = "desktop-position-reset" });
@@ -186,11 +197,16 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             PipeDirection.InOut,
             PipeOptions.Asynchronous);
         var transportCancellation = new CancellationTokenSource();
+        var connected = false;
         try
         {
-            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            connectTimeout.CancelAfter(TimeSpan.FromSeconds(7));
-            await pipe.ConnectAsync(connectTimeout.Token).ConfigureAwait(false);
+            // A process that connects to the pipe but never reports ready is just as unusable as one
+            // that never connects. Bound the complete host handshake so Personalization cannot remain
+            // IsBusy forever after payload preparation has completed.
+            using var startupTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            startupTimeout.CancelAfter(HostReadyTimeout);
+            await pipe.ConnectAsync(startupTimeout.Token).ConfigureAwait(false);
+            connected = true;
 
             var reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, leaveOpen: true);
             var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
@@ -206,9 +222,9 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "host-starting-cache-hit" : "host-starting-new-payload"));
 
-            while (!cancellationToken.IsCancellationRequested && generation == _generation)
+            while (!startupTimeout.Token.IsCancellationRequested && generation == _generation)
             {
-                var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                var line = await reader.ReadLineAsync(startupTimeout.Token).ConfigureAwait(false);
                 if (line is null) return new DesktopPetModeResult(false, false, "ipc-ended-before-ready");
                 if (!TryParseEvent(line, out var eventName, out var detail)) continue;
 
@@ -229,7 +245,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new DesktopPetModeResult(false, false, "ipc-connect-timeout");
+            return new DesktopPetModeResult(false, false, connected ? "host-ready-timeout" : "ipc-connect-timeout");
         }
         catch (OperationCanceledException)
         {
@@ -324,7 +340,14 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     private async Task RecoverAsync(int generation, string detail)
     {
         if (_disposed) return;
-        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await _gate.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
         try
         {
             if (_disposed || generation != _generation) return;
@@ -446,6 +469,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         if (_disposed) return;
         _disposed = true;
         ++_generation;
+        try { _lifetime.Cancel(); } catch { }
         try { _transportCancellation?.Cancel(); } catch { }
         try { _writer?.Dispose(); } catch { }
         try { _reader?.Dispose(); } catch { }
@@ -458,13 +482,14 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         {
         }
         try { _process?.Dispose(); } catch { }
-        _transportCancellation?.Dispose();
-        _gate.Dispose();
         _process = null;
         _pipe = null;
         _reader = null;
         _writer = null;
         _transportCancellation = null;
         _readLoop = null;
+        StateChanged = null;
+        // Do not dispose _gate or _lifetime here: an in-flight ApplyAsync/ResetPositionAsync may be
+        // unwinding through finally and must still be able to release the gate safely.
     }
 }

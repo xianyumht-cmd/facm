@@ -304,16 +304,26 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         try
         {
             SetAutomationSettingsBusy(true);
-            var loaded = await settings.LoadAsync(linked.Token).ConfigureAwait(false);
-            if (autoMatchmaking.HasValue)
-                loaded.Settings.League.AutoMatchmakingEnabled = autoMatchmaking.Value;
-            if (autoAccept.HasValue)
-                loaded.Settings.League.AutoAcceptEnabled = autoAccept.Value;
+            var updated = await settings.UpdateAsync(
+                document =>
+                {
+                    if (autoMatchmaking.HasValue)
+                        document.League.AutoMatchmakingEnabled = autoMatchmaking.Value;
+                    if (autoAccept.HasValue)
+                        document.League.AutoAcceptEnabled = autoAccept.Value;
+                },
+                allowRecoveryRebuild: false,
+                cancellationToken: linked.Token).ConfigureAwait(false);
+            if (!updated.Persisted)
+            {
+                OnPropertyChanged(nameof(AutoMatchmakingEnabled));
+                OnPropertyChanged(nameof(AutoAcceptEnabled));
+                return false;
+            }
 
-            await settings.SaveAsync(loaded.Settings, linked.Token).ConfigureAwait(false);
             automation.Configure(
-                loaded.Settings.League.AutoMatchmakingEnabled,
-                loaded.Settings.League.AutoAcceptEnabled);
+                updated.Settings.League.AutoMatchmakingEnabled,
+                updated.Settings.League.AutoAcceptEnabled);
             OnPropertyChanged(nameof(AutoMatchmakingEnabled));
             OnPropertyChanged(nameof(AutoAcceptEnabled));
             return true;
@@ -389,8 +399,11 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         OnPropertyChanged(nameof(IsAutomationSettingsBusy));
     }
 
-    private void OnPropertyChanged(string propertyName) =>
+    private void OnPropertyChanged(string propertyName)
+    {
+        if (_disposed) return;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 
     public static string ResolveStateTextKey(LeagueProductState state) => state switch
     {
@@ -414,21 +427,52 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         _productState.Changed -= OnProductStateChanged;
         _performance.BudgetChanged -= OnBudgetChanged;
 
-        if (_ownsProductServices)
-        {
-            if (_itemSetService is IDisposable itemSetDisposable) itemSetDisposable.Dispose();
-            if (_buildAdvisorService is IDisposable advisorDisposable) advisorDisposable.Dispose();
-        }
+        var itemSetService = _itemSetService;
+        var advisorService = _buildAdvisorService;
+        var disposeOwnedServices = _ownsProductServices;
         _itemSetService = null;
         _buildAdvisorService = null;
         _automationSettings = null;
         _matchmakingAutomation = null;
         _preparedItemSet = null;
+        PropertyChanged = null;
 
-        _refreshGate.Dispose();
-        _advisorUiGate.Dispose();
-        _itemSetUiGate.Dispose();
-        _automationSettingsGate.Dispose();
-        _lifetime.Dispose();
+        // Synchronous Window.Closed cannot await in-flight refresh/apply operations. Do not destroy
+        // semaphores underneath their finally blocks; cancel first and dispose owned transports only
+        // after all three product-operation gates have become idle.
+        if (disposeOwnedServices)
+            _ = DisposeOwnedProductServicesWhenIdleAsync(itemSetService, advisorService);
+    }
+
+    private async Task DisposeOwnedProductServicesWhenIdleAsync(
+        ILeagueItemSetService? itemSetService,
+        ILeagueBuildAdvisorService? advisorService)
+    {
+        await _refreshGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await _advisorUiGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await _itemSetUiGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    if (itemSetService is IDisposable itemSetDisposable) itemSetDisposable.Dispose();
+                    if (advisorService is IDisposable advisorDisposable) advisorDisposable.Dispose();
+                }
+                finally
+                {
+                    _itemSetUiGate.Release();
+                }
+            }
+            finally
+            {
+                _advisorUiGate.Release();
+            }
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 }

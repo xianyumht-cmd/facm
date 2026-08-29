@@ -56,27 +56,27 @@ public sealed class LeaguePostGameAutomationSettingsViewModel : INotifyPropertyC
         try
         {
             SetBusy(true);
-            var loaded = await _settings.LoadAsync(linked.Token).ConfigureAwait(false);
-            var recoveryReadOnly = loaded.Origin is
-                SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
-            SetRecoveryReadOnly(recoveryReadOnly);
-            if (recoveryReadOnly)
+            var updated = await _settings.UpdateAsync(
+                settings =>
+                {
+                    if (autoHonor.HasValue)
+                        settings.League.AutoHonorTeammateEnabled = autoHonor.Value;
+                    if (autoReturnLobby.HasValue)
+                        settings.League.AutoReturnLobbyEnabled = autoReturnLobby.Value;
+                },
+                allowRecoveryRebuild: false,
+                cancellationToken: linked.Token).ConfigureAwait(false);
+
+            SetRecoveryReadOnly(!updated.Persisted);
+            if (!updated.Persisted)
             {
-                // Match the rest of FACM 4.0 recovery semantics: never overwrite a damaged primary
-                // settings file merely because a toggle was changed while using fallback settings.
                 RaiseState();
                 return false;
             }
 
-            if (autoHonor.HasValue)
-                loaded.Settings.League.AutoHonorTeammateEnabled = autoHonor.Value;
-            if (autoReturnLobby.HasValue)
-                loaded.Settings.League.AutoReturnLobbyEnabled = autoReturnLobby.Value;
-
-            await _settings.SaveAsync(loaded.Settings, linked.Token).ConfigureAwait(false);
             _automation.Configure(
-                loaded.Settings.League.AutoHonorTeammateEnabled,
-                loaded.Settings.League.AutoReturnLobbyEnabled);
+                updated.Settings.League.AutoHonorTeammateEnabled,
+                updated.Settings.League.AutoReturnLobbyEnabled);
             RaiseState();
             return true;
         }
@@ -133,7 +133,8 @@ public sealed class LeaguePostGameAutomationSettingsViewModel : INotifyPropertyC
         _disposed = true;
         _automation.StatusChanged -= OnAutomationStatusChanged;
         _lifetime.Cancel();
-        _settingsGate.Dispose();
-        _lifetime.Dispose();
+        // Do not dispose the coordination primitives here. A toggle may already be inside an await
+        // and must be able to release its semaphore during synchronous window teardown.
+        PropertyChanged = null;
     }
 }

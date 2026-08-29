@@ -14,6 +14,7 @@ public partial class App
     private WindowsPetHostBundleStore? _petHostBundleStore;
     private WindowsVPetRuntime? _desktopPetRuntime;
     private DesktopPetPreferenceService? _desktopPetPreferences;
+    private FloatingWindow? _desktopPetCloseHookTarget;
     private bool _desktopPetCloseHookAttached;
     private bool _desktopPetRuntimeStateHookAttached;
 
@@ -35,13 +36,14 @@ public partial class App
             // StartupCrashDiagnostics still records first-chance access-denied evidence when relevant.
         }
 
+        var layout = FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider());
         _petHostBundleStore ??= new WindowsPetHostBundleStore(
-            FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider()),
+            layout,
             () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName));
         _desktopPetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
-            FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider()).PetHostDataDirectory,
-            FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider()).UiTextPath,
+            layout.PetHostDataDirectory,
+            layout.UiTextPath,
             () => RunOnDesktopUi(ToggleCompactLauncher),
             () => RunOnDesktopUi(ToggleCompactLauncher),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
@@ -141,9 +143,26 @@ public partial class App
 
     private void AttachDesktopPetCloseHook(FloatingWindow floating)
     {
-        if (_desktopPetCloseHookAttached) return;
-        _desktopPetCloseHookAttached = true;
-        _ = floating.DispatcherQueue.TryEnqueue(() => floating.Closed += OnDesktopPetFloatingWindowClosed);
+        if (_desktopPetCloseHookAttached || _shuttingDown) return;
+
+        void Attach()
+        {
+            if (_desktopPetCloseHookAttached || _shuttingDown) return;
+            floating.Closed += OnDesktopPetFloatingWindowClosed;
+            _desktopPetCloseHookTarget = floating;
+            _desktopPetCloseHookAttached = true;
+        }
+
+        if (floating.DispatcherQueue.HasThreadAccess)
+        {
+            Attach();
+            return;
+        }
+
+        // Do not mark the hook as attached until WinUI actually accepts the dispatcher work. The old
+        // code set the flag before TryEnqueue, which could permanently suppress lifecycle cleanup when
+        // the dispatcher was already shutting down.
+        _ = floating.DispatcherQueue.TryEnqueue(Attach);
     }
 
     private void OnDesktopPetFloatingWindowClosed(object sender, WindowEventArgs args)
@@ -151,12 +170,36 @@ public partial class App
         if (sender is FloatingWindow floating)
             floating.Closed -= OnDesktopPetFloatingWindowClosed;
         _desktopPetCloseHookAttached = false;
-        if (_desktopPetRuntime is not null && _desktopPetRuntimeStateHookAttached)
+        _desktopPetCloseHookTarget = null;
+        DisposePersonalizationRuntime();
+    }
+
+    internal void DisposePersonalizationRuntime()
+    {
+        var hookTarget = _desktopPetCloseHookTarget;
+        if (hookTarget is not null && _desktopPetCloseHookAttached)
         {
-            _desktopPetRuntime.StateChanged -= OnDesktopPetRuntimeStateChanged;
+            try
+            {
+                if (hookTarget.DispatcherQueue.HasThreadAccess)
+                    hookTarget.Closed -= OnDesktopPetFloatingWindowClosed;
+                else
+                    _ = hookTarget.DispatcherQueue.TryEnqueue(() => hookTarget.Closed -= OnDesktopPetFloatingWindowClosed);
+            }
+            catch
+            {
+            }
+        }
+        _desktopPetCloseHookAttached = false;
+        _desktopPetCloseHookTarget = null;
+
+        var runtime = _desktopPetRuntime;
+        if (runtime is not null && _desktopPetRuntimeStateHookAttached)
+        {
+            runtime.StateChanged -= OnDesktopPetRuntimeStateChanged;
             _desktopPetRuntimeStateHookAttached = false;
         }
-        _desktopPetRuntime?.Dispose();
+        runtime?.Dispose();
         _desktopPetRuntime = null;
         _desktopPetPreferences = null;
         _petHostBundleStore = null;

@@ -119,6 +119,12 @@ public partial class App
 
     private void DisposeMaintenanceRuntime()
     {
+        // App.DisposeRuntime enters through this hook before shared League/gameflow/gateway teardown.
+        // Explicitly stop process-scoped product features and PetHost first instead of relying on
+        // ProcessExit or a WinUI Closed callback whose ordering can vary during shutdown.
+        DisposePersonalizationRuntime();
+        DisposeLeagueProductizationRuntime();
+
         _maintenanceCenter?.Dispose();
         _maintenanceCenter = null;
         _httpAnnouncementSource?.Dispose();

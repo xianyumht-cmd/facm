@@ -190,6 +190,37 @@ public partial class App
         return new LeaguePostGameAutomationSettingsViewModel(settings, _postGameAutomation);
     }
 
+    /// <summary>
+    /// Normal FACM shutdown owns these process-scoped feature services explicitly. ProcessExit stays
+    /// only as a last-resort fallback; runtime teardown must not depend on CLR event ordering after the
+    /// shared gameflow/gateway have already been disposed.
+    /// </summary>
+    internal void DisposeLeagueProductizationRuntime()
+    {
+        if (_recommendedAutoApplyProcessExitHooked)
+        {
+            AppDomain.CurrentDomain.ProcessExit -= OnLeagueRecommendedAutoApplyProcessExit;
+            _recommendedAutoApplyProcessExitHooked = false;
+        }
+        if (_leagueEfficiencyProcessExitHooked)
+        {
+            AppDomain.CurrentDomain.ProcessExit -= OnLeagueEfficiencyProcessExit;
+            _leagueEfficiencyProcessExitHooked = false;
+        }
+        if (_postGameProcessExitHooked)
+        {
+            AppDomain.CurrentDomain.ProcessExit -= OnLeaguePostGameProcessExit;
+            _postGameProcessExitHooked = false;
+        }
+
+        _recommendedAutoApply?.Dispose();
+        _recommendedAutoApply = null;
+        _leagueEfficiencyRuntime?.Dispose();
+        _leagueEfficiencyRuntime = null;
+        _postGameAutomation?.Dispose();
+        _postGameAutomation = null;
+    }
+
     private void OnLeagueRecommendedAutoApplyProcessExit(object? sender, EventArgs args)
     {
         AppDomain.CurrentDomain.ProcessExit -= OnLeagueRecommendedAutoApplyProcessExit;

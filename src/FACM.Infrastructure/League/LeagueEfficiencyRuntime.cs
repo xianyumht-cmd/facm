@@ -120,30 +120,52 @@ public sealed class LeagueEfficiencyRuntime : ILeagueEfficiencyRuntime
                 return false;
             }
 
+            var rollbackBindings = TryParseBindings(
+                    current.ExitGameHotkey,
+                    current.CloseLobbyHotkey,
+                    out var previousBindings,
+                    out _)
+                ? previousBindings
+                : DisabledBindings();
             var exitCanonical = bindings[LeagueEfficiencyAction.ExitGame].ToString();
             var lobbyCanonical = bindings[LeagueEfficiencyAction.CloseLobby].ToString();
-            var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var recoveryReadOnly = loaded.Origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
-            if (!recoveryReadOnly)
+
+            Settings2UpdateResult updated;
+            try
             {
-                loaded.Settings.League.ExitGameHotkey = exitCanonical;
-                loaded.Settings.League.CloseLobbyHotkey = lobbyCanonical;
-                await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+                updated = await _settings.UpdateAsync(
+                    settings =>
+                    {
+                        settings.League.ExitGameHotkey = exitCanonical;
+                        settings.League.CloseLobbyHotkey = lobbyCanonical;
+                    },
+                    allowRecoveryRebuild: false,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Runtime registration and persisted settings are one user transaction. If persistence
+                // fails, restore the previous registered pair instead of leaving a hidden session-only
+                // binding that disagrees with Settings 2.0.
+                _hotkeys.TryApply(rollbackBindings, out _);
+                Publish(current with { Status = "failed", Detail = "settings-save-failed-rolled-back", IsBusy = false });
+                throw;
             }
 
             Publish(new LeagueEfficiencyRuntimeState(
                 exitCanonical,
                 lobbyCanonical,
                 "ready",
-                recoveryReadOnly ? "applied-session-only-recovery" : "registered-and-saved",
-                recoveryReadOnly,
+                updated.Persisted ? "registered-and-saved" : "applied-session-only-recovery",
+                !updated.Persisted,
                 false));
             return true;
         }
         catch
         {
             var current = State;
-            Publish(current with { Status = "failed", Detail = "settings-or-registration-failed", IsBusy = false });
+            if (current.IsBusy)
+                Publish(current with { Status = "failed", Detail = "settings-or-registration-failed", IsBusy = false });
             throw;
         }
         finally

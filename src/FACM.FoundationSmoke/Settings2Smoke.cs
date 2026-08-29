@@ -10,6 +10,8 @@ internal static class Settings2Smoke
         await RejectsInvalidSettingsBeforeWriteAsync();
         await FailedAtomicWritePreservesExistingAsync();
         await CreatesValidatedDefaultsWithoutLegacyAsync();
+        await ConcurrentNarrowMutationsPreserveUnrelatedFieldsAsync();
+        await RecoveryMutationRemainsReadOnlyUnlessExplicitlyRebuiltAsync();
     }
 
     private static async Task MigratesAllLegacyKeysAndPreservesLegacyAsync()
@@ -133,6 +135,68 @@ internal static class Settings2Smoke
         True(files.Exists(path), "validated defaults should be persisted");
     }
 
+    private static async Task ConcurrentNarrowMutationsPreserveUnrelatedFieldsAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-settings2-concurrency", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(root, "settings.v2.json");
+        var legacyPath = Path.Combine(root, "settings.ini");
+        var files = new MemorySettings2FileStore { ArtificialWriteDelayMs = 2 };
+        var strict = new Settings2Repository(path, legacyPath, files);
+        await strict.SaveAsync(Settings2Document.CreateDefault());
+        var recovery = new MemoryRecoveryStore();
+        ISettings2Repository repository = new RecoveringSettings2Repository(strict, recovery);
+
+        for (var i = 0; i < 40; i++)
+        {
+            var x = 1000 + i;
+            var y = -2000 - i;
+            var theme = i % 2 == 0 ? "obsidian-gold" : "glass-blue";
+            await Task.WhenAll(
+                repository.UpdateAsync(
+                    settings => settings.Appearance.ThemeId = theme,
+                    cancellationToken: CancellationToken.None),
+                repository.UpdateAsync(
+                    settings =>
+                    {
+                        settings.Pets.BallX = x;
+                        settings.Pets.BallY = y;
+                    },
+                    cancellationToken: CancellationToken.None),
+                repository.UpdateAsync(
+                    settings => settings.League.AutoAcceptEnabled = i % 2 == 0,
+                    cancellationToken: CancellationToken.None));
+
+            var loaded = await repository.LoadAsync();
+            Equal(theme, loaded.Settings.Appearance.ThemeId, "concurrent theme mutation " + i);
+            Equal(x, loaded.Settings.Pets.BallX, "concurrent BallX mutation " + i);
+            Equal(y, loaded.Settings.Pets.BallY, "concurrent BallY mutation " + i);
+            Equal(i % 2 == 0, loaded.Settings.League.AutoAcceptEnabled, "concurrent League mutation " + i);
+        }
+    }
+
+    private static async Task RecoveryMutationRemainsReadOnlyUnlessExplicitlyRebuiltAsync()
+    {
+        var primary = new ThrowingSettingsRepository();
+        var lkg = Settings2Document.CreateDefault();
+        lkg.Appearance.ThemeId = "obsidian-gold";
+        var recovery = new MemoryRecoveryStore(lkg);
+        ISettings2Repository repository = new RecoveringSettings2Repository(primary, recovery);
+
+        var readOnly = await repository.UpdateAsync(
+            settings => settings.Appearance.ThemeId = "cloud-light",
+            allowRecoveryRebuild: false);
+        True(!readOnly.Persisted, "recovery mutation must remain read-only by default");
+        Equal("obsidian-gold", readOnly.Settings.Appearance.ThemeId, "read-only recovery must not apply persisted mutation");
+        Equal(0, primary.SaveCalls, "read-only recovery must not rebuild primary");
+
+        var rebuilt = await repository.UpdateAsync(
+            settings => settings.Online.AutoUpdateEnabled = false,
+            allowRecoveryRebuild: true);
+        True(rebuilt.Persisted, "explicit maintenance mutation may rebuild recovery primary");
+        Equal(1, primary.SaveCalls, "explicit recovery rebuild write count");
+        True(!primary.Document!.Online.AutoUpdateEnabled, "explicit recovery rebuild value");
+    }
+
     private static async Task ThrowsAsync<TException>(Func<Task> action, string name) where TException : Exception
     {
         try
@@ -160,13 +224,26 @@ internal static class Settings2Smoke
     private sealed class MemorySettings2FileStore : ISettings2FileStore
     {
         private readonly Dictionary<string, string> _files = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _sync = new();
 
         public bool FailWrites { get; set; }
         public int SuccessfulWrites { get; private set; }
+        public int ArtificialWriteDelayMs { get; set; }
 
-        public void Seed(string path, string content) => _files[Normalize(path)] = content;
-        public string Get(string path) => _files[Normalize(path)];
-        public bool Exists(string path) => _files.ContainsKey(Normalize(path));
+        public void Seed(string path, string content)
+        {
+            lock (_sync) _files[Normalize(path)] = content;
+        }
+
+        public string Get(string path)
+        {
+            lock (_sync) return _files[Normalize(path)];
+        }
+
+        public bool Exists(string path)
+        {
+            lock (_sync) return _files.ContainsKey(Normalize(path));
+        }
 
         public Task<string> ReadTextAsync(string path, CancellationToken cancellationToken)
         {
@@ -183,15 +260,59 @@ internal static class Settings2Smoke
             return Task.FromResult(lines);
         }
 
-        public Task WriteAtomicAsync(string path, string content, CancellationToken cancellationToken)
+        public async Task WriteAtomicAsync(string path, string content, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ArtificialWriteDelayMs > 0)
+                await Task.Delay(ArtificialWriteDelayMs, cancellationToken);
             if (FailWrites) throw new IOException("planned atomic write failure");
-            _files[Normalize(path)] = content;
-            SuccessfulWrites++;
-            return Task.CompletedTask;
+            lock (_sync)
+            {
+                _files[Normalize(path)] = content;
+                SuccessfulWrites++;
+            }
         }
 
         private static string Normalize(string path) => Path.GetFullPath(path);
+    }
+
+    private sealed class MemoryRecoveryStore(Settings2Document? document = null) : ISettings2RecoveryStore
+    {
+        private Settings2Document? _document = document;
+
+        public Task<Settings2Document?> TryLoadAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_document);
+        }
+
+        public Task<bool> TrySaveAsync(Settings2Document settings, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _document = settings;
+            return Task.FromResult(true);
+        }
+    }
+
+    private sealed class ThrowingSettingsRepository : ISettings2Repository
+    {
+        public Settings2Document? Document { get; private set; }
+        public int SaveCalls { get; private set; }
+
+        public Task<Settings2LoadResult> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Document is not null)
+                return Task.FromResult(new Settings2LoadResult(Document, SettingsLoadOrigin.ExistingV2));
+            throw new InvalidDataException("planned corrupted primary");
+        }
+
+        public Task SaveAsync(Settings2Document settings, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Document = settings;
+            SaveCalls++;
+            return Task.CompletedTask;
+        }
     }
 }
