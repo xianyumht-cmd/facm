@@ -67,7 +67,10 @@ public sealed class LeaguePostGameAutomationSettingsViewModel : INotifyPropertyC
                 allowRecoveryRebuild: false,
                 cancellationToken: linked.Token).ConfigureAwait(false);
 
-            SetRecoveryReadOnly(!updated.Persisted);
+            // Persisted=false is currently only produced for recovery reads when rebuild is forbidden,
+            // but keep the origin check explicit so a future non-persist outcome is not mislabeled as
+            // recovery mode in the UI.
+            SetRecoveryReadOnly(IsRecoveryOrigin(updated.Origin) && !updated.Persisted);
             if (!updated.Persisted)
             {
                 RaiseState();
@@ -80,7 +83,7 @@ public sealed class LeaguePostGameAutomationSettingsViewModel : INotifyPropertyC
             RaiseState();
             return true;
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
             return false;
         }
@@ -95,6 +98,9 @@ public sealed class LeaguePostGameAutomationSettingsViewModel : INotifyPropertyC
             _settingsGate.Release();
         }
     }
+
+    private static bool IsRecoveryOrigin(SettingsLoadOrigin origin) =>
+        origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
 
     private void OnAutomationStatusChanged(object? sender, EventArgs args)
     {

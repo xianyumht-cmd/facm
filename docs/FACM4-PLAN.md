@@ -37,57 +37,57 @@ Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
 
 ### Batch A — `aca8aeb956a723fd0b48f77b89b747aa1cb3abd7`
 
-已完成：
-
-- 找到跨功能 Settings2 lost-update 根因：多个模块使用 `Load whole document -> 修改一个字段 -> Save whole document`，并发时后写可能覆盖主题、桌宠、F 坐标、League 开关、维护设置等其它模块刚写入的值。
-- 新增 atomic narrow Settings2 mutation contract：`Settings2UpdateResult` / `IAtomicSettings2Repository` / `UpdateAsync`，Recovering repository 串行执行 load-mutate-save-LKG transaction。
-- 多个 feature writer 开始迁移到 `UpdateAsync`。
-- PetHost 增加 ready 等待上限，避免已连接 pipe 后永久 Busy。
-- 修复 async finally 与 semaphore Dispose 的生命周期竞态。
-- process-scoped PetHost / League 自动化增加显式正常退出释放。
-- League global hotkey 在“注册成功但 Settings 持久化失败”时回滚上一组注册。
+- 找到跨功能 Settings2 lost-update 根因：多个模块使用 `Load whole document -> 修改一个字段 -> Save whole document`，并发时会互相覆盖。
+- 新增 `Settings2UpdateResult` / `IAtomicSettings2Repository` / `UpdateAsync`，Recovering repository 串行执行 load-mutate-save-LKG transaction。
+- 多个 feature writer 迁移到 `UpdateAsync`。
+- PetHost 增加 ready 等待上限；修复 semaphore/async teardown 竞态；process-scoped PetHost/League 自动化增加显式释放。
+- League global hotkey 持久化失败时回滚上一组注册。
 - Settings2 smoke 增加并发窄更新压力场景。
-
-CI：Foundation #618 被 Architecture gate 拦下；根因是大小写不敏感 `File\.` regex 误命中注释中的 `settings file.`，不是 ViewModel 真正越界。未放宽架构 gate，只修正注释。
+- Foundation #618：Architecture gate 因注释 `settings file.` 被大小写不敏感 `File\.` regex 误命中；不是实际架构越界。
 
 ### Batch B — `05ab40708536d4b8e12ae6fdadb90de8a59219c8`
 
-已完成：
-
-- 个性化 / Cleanup UI async-void 失败增加最终 containment，避免未观察异常直接穿透 UI dispatcher。
-- 修复 #618 的注释误报，不改变架构规则。
-
-CI：Foundation #619 Architecture SUCCESS，随后 Cleanup gate 失败，因为旧 gate 仍硬编码要求 `SaveAsync`。判定为 gate contract 落后于新的 atomic mutation contract。
+- 个性化 / Cleanup UI async-void 失败增加最终 containment。
+- 修复 #618 注释误报，不放宽架构 gate。
+- Foundation #619：Architecture SUCCESS；Cleanup gate 仍要求旧 `SaveAsync`，判定为 stale gate contract。
 
 ### Batch C — `0c4423d89732e77a8bd67456cefa8ac210e998b5`
 
-已完成：
-
-- Cleanup gate 改为必须走 atomic `UpdateAsync`，并禁止 feature 层重新出现 whole-document `SaveAsync`。
+- Cleanup gate 改为必须走 atomic `UpdateAsync`，并禁止 feature 层 whole-document `SaveAsync`。
 - 继续补 Cleanup / Maintenance / UI async failure boundary。
-
-CI：Foundation #620 的 Architecture / Shell / Desktop / Cleanup / Repair 均 SUCCESS；Personalization gate 随后因仍要求旧 `SaveAsync` 失败。再次判定为旧 gate contract。
+- Foundation #620：Architecture / Shell / Desktop / Cleanup / Repair SUCCESS；Personalization gate 因仍要求旧 `SaveAsync` 失败。
 
 ### Batch D — `9d7a162788c5a33e2473c070bd040968938d6c6f`
-
-已完成：
 
 - Personalization gate 升级为 `UpdateAsync` contract，并禁止直接 `SaveAsync`。
 - F 拖动坐标持久化改为 atomic narrow `UpdateAsync`，recovery 模式保持 read-only。
 - P7 Settings parity gate 升级：主要 feature settings writers 不允许绕过 atomic mutation boundary。
-- Foundation Settings smoke 强制包含 concurrent narrow mutations 与 recovery read-only 场景。
+- Foundation Settings smoke 强制 concurrent narrow mutations + recovery read-only。
+- Foundation #621 / run `33224469293`：Architecture/Shell SUCCESS；Desktop gate 仍要求旧 `settings.SaveAsync`，不是 F persistence 回归。
 
-CI：Foundation #621 / run `33224469293`：Architecture SUCCESS、Shell SUCCESS；Desktop gate 失败。实际 F 代码已经使用 `settings.UpdateAsync(... allowRecoveryRebuild:false)` 并检查 `updated.Persisted`，失败来自 Desktop gate 仍要求旧 `settings.SaveAsync`，不是 F persistence 回归。
+### Batch E — `b5c47def7ca8ae4f9570fcb5de0341eaf355548a`
 
-### 当前 Batch E — 进行中
+- Desktop source gate 改为要求 F 坐标 atomic `UpdateAsync` + `allowRecoveryRebuild:false` + `updated.Persisted` + recovery-not-persisted 分支；禁止 `settings.SaveAsync`。
+- League Efficiency gate 提前改为 `_settings.UpdateAsync` + recovery read-only + persistence-failure rollback；禁止 `_settings.SaveAsync`。
+- 建立本文件作为每批必更的 4.0 实时计划账。
+- Foundation #622 / run `33226878284`：Architecture / Shell / Desktop / Cleanup / Repair / Personalization 全部 SUCCESS；首次进入 League Workbench gate 后失败。
+- #622 失败点：PostGame settings source gate 要求显式 `RecoveredLastKnownGood / RecoveryDefaults` recovery 语义。实际 Presenter 已使用 atomic `UpdateAsync(... allowRecoveryRebuild:false)` 和 `!updated.Persisted`，功能没有退回 whole-document Save；需要把 recovery origin 语义明确化。
 
-本批处理：
+### 当前 Batch F — 进行中
 
-- Desktop source gate 跟随真实新 contract：要求 F 坐标通过 atomic `UpdateAsync`、`allowRecoveryRebuild:false`、`updated.Persisted` 和 recovery-not-persisted 分支；禁止重新出现 `settings.SaveAsync`。
-- League Efficiency source gate 提前清理同类旧假设：要求 `_settings.UpdateAsync` + recovery read-only + persistence failure rollback；禁止 `_settings.SaveAsync`。
-- 本文件从本批起成为 4.0 实时计划账；每个后续 batch 与代码/CI 结论同批更新。
+已确认并处理中：
 
-下一检查点：跑 Foundation 到更深的 gate；同时继续审查 MainWindow/League 后台刷新关闭竞态、Maintenance async handlers、single-instance/shutdown、PetHost/Updater 失败路径，并继续补重复操作压力 smoke。
+- `LeaguePostGameAutomationSettingsViewModel`：继续使用 atomic `UpdateAsync`，同时显式用 `SettingsLoadOrigin.RecoveredLastKnownGood / RecoveryDefaults` + `!Persisted` 标记 `RecoveryReadOnly`，避免未来其它 non-persist 原因被误标成 recovery。
+- `LeagueRecommendedAutoApplySettingsViewModel`：同样补显式 recovery origin 判定；其下一道 Recommended gate 有相同语义要求，提前一起闭环。
+- 两个 Presenter 的 caller/lifetime cancellation 都统一按 linked token 识别，不把正常取消落进 generic failure 路径。
+
+并行审查结论：
+
+- MainWindow League fire-and-forget refresh 已有 `OperationCanceledException` / `ObjectDisposedException` / final catch containment，关闭窗口时不会把预期 teardown race 变成未观察异常。
+- Maintenance 所有 WinUI async-void handlers 已有最终异常 containment；继续审查 ViewModel 初始化重试和 update-download CTS 生命周期。
+- single-instance 正常启动仍 fail-closed；`--cleanup` 提权子进程按设计绕过普通 mutex，原实例只在 elevated launch 成功后退出。
+
+下一检查点：提交 Batch F 并跑 Foundation 进入 Recommended / Efficiency / Mayhem / Maintenance 深层 gates；随后处理 Maintenance 初始化失败永久标记与 download CTS teardown 竞态，并补重复操作压力 smoke。
 
 ## 当前 Gate13 边界
 

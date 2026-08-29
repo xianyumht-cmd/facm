@@ -48,7 +48,9 @@ public sealed class LeagueRecommendedAutoApplySettingsViewModel : INotifyPropert
                 settings => settings.League.AutoApplyRecommended = enabled,
                 allowRecoveryRebuild: false,
                 cancellationToken: linked.Token).ConfigureAwait(false);
-            SetRecoveryReadOnly(!updated.Persisted);
+            // Keep recovery read-only semantics explicit instead of treating every hypothetical future
+            // non-persist outcome as recovery mode.
+            SetRecoveryReadOnly(IsRecoveryOrigin(updated.Origin) && !updated.Persisted);
             if (!updated.Persisted)
             {
                 RaiseState();
@@ -59,7 +61,7 @@ public sealed class LeagueRecommendedAutoApplySettingsViewModel : INotifyPropert
             RaiseState();
             return true;
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
             return false;
         }
@@ -74,6 +76,9 @@ public sealed class LeagueRecommendedAutoApplySettingsViewModel : INotifyPropert
             _settingsGate.Release();
         }
     }
+
+    private static bool IsRecoveryOrigin(SettingsLoadOrigin origin) =>
+        origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
 
     private void OnAutomationStatusChanged(object? sender, LeagueRecommendedAutoApplyStatusChangedEventArgs args)
     {
