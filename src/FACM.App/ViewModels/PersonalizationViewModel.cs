@@ -126,7 +126,7 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         {
             // Persist the user's narrow theme intent before changing the live theme in normal mode.
             // In recovery mode the mutation contract deliberately returns session-only without touching
-            // the damaged primary settings file.
+            // the damaged primary settings document.
             var updated = await _settings.UpdateAsync(
                 settings => settings.Appearance.ThemeId = selected.Id,
                 allowRecoveryRebuild: false,

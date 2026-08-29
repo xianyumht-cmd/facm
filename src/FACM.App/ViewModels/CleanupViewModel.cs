@@ -120,6 +120,19 @@ public sealed class CleanupViewModel : INotifyPropertyChanged
             StatusDetail = IsRecoveryReadOnly ? UiTextKeys.CleanupPathRecoveryReadOnly : string.Empty;
             RefreshProcessState();
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            GamePath = string.Empty;
+            IsGamePathValid = false;
+            IsRecoveryReadOnly = false;
+            CurrentPlan = null;
+            StatusTextKey = UiTextKeys.CleanupFailed;
+            StatusDetail = exception.Message;
+        }
         finally
         {
             IsBusy = false;
@@ -317,17 +330,12 @@ public sealed class CleanupViewModel : INotifyPropertyChanged
         LastResult = null;
         StatusTextKey = UiTextKeys.CleanupDirectoryReady;
 
-        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        IsRecoveryReadOnly = loaded.Origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
-        if (IsRecoveryReadOnly)
-        {
-            StatusDetail = UiTextKeys.CleanupPathRecoveryReadOnly;
-            return;
-        }
-
-        loaded.Settings.Environment.GamePath = normalized;
-        await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
-        StatusDetail = string.Empty;
+        var updated = await _settings.UpdateAsync(
+            settings => settings.Environment.GamePath = normalized,
+            allowRecoveryRebuild: false,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        IsRecoveryReadOnly = !updated.Persisted;
+        StatusDetail = IsRecoveryReadOnly ? UiTextKeys.CleanupPathRecoveryReadOnly : string.Empty;
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

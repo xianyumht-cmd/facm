@@ -214,7 +214,8 @@ public sealed partial class MainWindow
         _themeDescription.Text = viewModel.SelectedTheme.Description;
         _petDescription.Text = viewModel.SelectedPet.Description;
         var failed = viewModel.Status.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
-                     viewModel.Status.Contains("unsupported", StringComparison.OrdinalIgnoreCase);
+                     viewModel.Status.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
+                     viewModel.Status.Contains("timeout", StringComparison.OrdinalIgnoreCase);
         _personalizationStatus.Text = viewModel.IsRecoveryReadOnly
             ? _text.Get(UiTextKeys.CleanupPathRecoveryReadOnly)
             : _text.Get(failed ? UiTextKeys.ShellStatusUnavailable : UiTextKeys.ShellStatusReady);
@@ -242,6 +243,10 @@ public sealed partial class MainWindow
         }
         catch (OperationCanceledException)
         {
+        }
+        catch
+        {
+            // ViewModel is fail-soft for persistence/runtime failures; this is the final async-void guard.
         }
         finally
         {
@@ -271,6 +276,10 @@ public sealed partial class MainWindow
         {
             TracePersonalizationPetAction("pet-select-cancelled", false, selected.Id, viewModel.Status);
         }
+        catch (Exception exception)
+        {
+            TracePersonalizationPetAction("pet-select-exception", false, selected.Id, exception.GetType().Name);
+        }
         finally
         {
             SyncPersonalizationSurface();
@@ -299,6 +308,10 @@ public sealed partial class MainWindow
         {
             TracePersonalizationPetAction("pet-enable-cancelled", false, petId, viewModel.Status);
         }
+        catch (Exception exception)
+        {
+            TracePersonalizationPetAction("pet-enable-exception", false, petId, exception.GetType().Name);
+        }
         finally
         {
             SyncPersonalizationSurface();
@@ -322,6 +335,14 @@ public sealed partial class MainWindow
             await viewModel.RestoreDefaultLauncherAsync();
             TracePersonalizationPetAction("pet-restore-finish", true, petId, viewModel.Status);
         }
+        catch (OperationCanceledException)
+        {
+            TracePersonalizationPetAction("pet-restore-cancelled", false, petId, viewModel.Status);
+        }
+        catch (Exception exception)
+        {
+            TracePersonalizationPetAction("pet-restore-exception", false, petId, exception.GetType().Name);
+        }
         finally
         {
             SyncPersonalizationSurface();
@@ -344,6 +365,14 @@ public sealed partial class MainWindow
         {
             await viewModel.ResetDesktopPositionAsync();
             TracePersonalizationPetAction("pet-reset-position-finish", true, petId, viewModel.Status);
+        }
+        catch (OperationCanceledException)
+        {
+            TracePersonalizationPetAction("pet-reset-position-cancelled", false, petId, viewModel.Status);
+        }
+        catch (Exception exception)
+        {
+            TracePersonalizationPetAction("pet-reset-position-exception", false, petId, exception.GetType().Name);
         }
         finally
         {
