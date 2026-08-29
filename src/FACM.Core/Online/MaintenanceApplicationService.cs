@@ -51,10 +51,14 @@ public sealed class MaintenanceApplicationService
         bool enabled,
         CancellationToken cancellationToken = default)
     {
-        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        loaded.Settings.Online.AutoUpdateEnabled = enabled;
-        await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
-        return new MaintenancePreferences(enabled, loaded.Settings.Online.LastAnnouncementId, SettingsLoadOrigin.ExistingV2);
+        var updated = await _settings.UpdateAsync(
+            settings => settings.Online.AutoUpdateEnabled = enabled,
+            allowRecoveryRebuild: true,
+            cancellationToken).ConfigureAwait(false);
+        return new MaintenancePreferences(
+            updated.Settings.Online.AutoUpdateEnabled,
+            updated.Settings.Online.LastAnnouncementId,
+            updated.Origin);
     }
 
     // Manual check intentionally ignores AutoUpdateEnabled. That flag only gates automatic startup checks.
@@ -104,9 +108,13 @@ public sealed class MaintenanceApplicationService
         if (id.Length > 512 || id.Contains('\r') || id.Contains('\n'))
             throw new ArgumentException("Announcement id must be a single line of at most 512 characters.", nameof(announcementId));
 
-        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        loaded.Settings.Online.LastAnnouncementId = id;
-        await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
-        return new MaintenancePreferences(loaded.Settings.Online.AutoUpdateEnabled, id, SettingsLoadOrigin.ExistingV2);
+        var updated = await _settings.UpdateAsync(
+            settings => settings.Online.LastAnnouncementId = id,
+            allowRecoveryRebuild: true,
+            cancellationToken).ConfigureAwait(false);
+        return new MaintenancePreferences(
+            updated.Settings.Online.AutoUpdateEnabled,
+            updated.Settings.Online.LastAnnouncementId,
+            updated.Origin);
     }
 }
