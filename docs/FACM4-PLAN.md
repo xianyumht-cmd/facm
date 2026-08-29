@@ -7,8 +7,9 @@ Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
 Latest code fix head: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
 Latest code+plan PR head used by Foundation: `803e1ba5f9b671b0a787a8c77bb39912d4211b7d`
 Latest code-bearing Foundation: **#632 / run `33233590075` = SUCCESS**
+Latest canonical-doc full regression: **#633 / run `33233865204` = SUCCESS**
 
-> 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论或真机证据，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
+> 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论、真机证据或正式交接，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
 
 ## 当前结论
 
@@ -16,7 +17,7 @@ FACM 4.0 P7 的功能等价与自动稳定性层已完成，但 Win10 真机继�
 
 Batch M 已从根因修复：Foundation 构建 PetHost ZIP 后生成稳定 SHA identity，FACM 单文件同时嵌入 ZIP + tiny SHA resource；新进程优先用 SHA 直接检查 `runtime/pethost-host/<sha>`，完整 cache 命中时不再打开、更不再重新 hash 76.9 MB ZIP。跨进程 no-rehash smoke 已进入 WindowsSmoke。
 
-Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。下一步不是继续加功能，而是用 #632 新 artifact 做 targeted Win10 复测。
+Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。随后 canonical docs head `b7bbb24bef5670196633f65ec2bbd5e441dd5b1e` 又通过 Foundation #633 全回归。下一步不是继续加功能，而是用 #632 新 artifact 做 targeted Win10 复测。
 
 Gate13 不变：
 
@@ -126,6 +127,12 @@ FACM 4.0 Personalization foundation contract: SUCCESS
 
 同 run 还通过：P1-P7 source/product gates、PowerShell 5.1 collector self-test、Release build 0 warnings/0 errors、FoundationSmoke、WindowsSmoke、single-file publish、publish-output verification、artifact upload。
 
+## #633 canonical-doc regression
+
+Canonical docs reconciliation head：`b7bbb24bef5670196633f65ec2bbd5e441dd5b1e`。
+
+Foundation **#633 / run `33233865204` = SUCCESS**。这是 docs-only full regression，用于确认 Batch M canonical state / PR 状态记录没有破坏任何 gate/build/smoke；它不替代 #632 executable candidate。
+
 ## #632 新 targeted candidate
 
 ```text
@@ -191,3 +198,11 @@ Hosted CI、source gate、smoke、targeted bug fix 都不能自动把这些 bloc
 - async Busy 驱动的 UI 必须有 PropertyChanged/Dispatcher completion refresh。
 - Updater fallback/rollback 禁止 stream-copy over live executable。
 - 大型内嵌 payload 的跨进程 disk cache 必须有构建期稳定 identity，禁止为了判断 cache key 每个新进程先完整 hash 数十 MB payload。
+- 持久化 `enabled=true` 必须发生在外部/runtime ready 成功以后，不能预写成功意图。
+
+## 2026-08-29 交接检查点
+
+- `docs/HANDOFF-20260807.md` 已改写为当前 P7 / Batch M 完整交接，旧 #218 / XamlParse 状态不再作为新对话起点。
+- 交接覆盖：已完成、已验证、失败/不足方案及原因、禁止重复路线、当前代码/CI/artifact、测试环境、未完成问题、下一步操作和日志判定分支。
+- 新对话继续时优先读取：`AGENTS.md` -> 本计划 -> `PROJECT_STATE.md` -> `FACM4-P7-PARITY-CLOSEOUT.md` -> `HANDOFF-20260807.md`。
+- 当前唯一应继续验证的 executable 是 #632 artifact `9709261625`；#628 artifact 不再用于桌宠验收。
