@@ -124,20 +124,17 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken);
-            IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
+            // Persist the user's narrow theme intent before changing the live theme in normal mode.
+            // In recovery mode the mutation contract deliberately returns session-only without touching
+            // the damaged primary settings file.
+            var updated = await _settings.UpdateAsync(
+                settings => settings.Appearance.ThemeId = selected.Id,
+                allowRecoveryRebuild: false,
+                cancellationToken);
+            IsRecoveryReadOnly = !updated.Persisted;
             SelectedTheme = selected;
             _themes.Apply(selected);
-
-            if (IsRecoveryReadOnly)
-            {
-                Status = "applied-session-only";
-                return true;
-            }
-
-            loaded.Settings.Appearance.ThemeId = selected.Id;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken);
-            Status = "saved";
+            Status = updated.Persisted ? "saved" : "applied-session-only";
             return true;
         }
         catch (OperationCanceledException)
@@ -165,22 +162,14 @@ public sealed class PersonalizationViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var loaded = await _settings.LoadAsync(cancellationToken);
-            IsRecoveryReadOnly = IsRecoveryOrigin(loaded.Origin);
+            var updated = await _settings.UpdateAsync(
+                settings => settings.Pets.StyleId = selected.Id,
+                allowRecoveryRebuild: false,
+                cancellationToken);
+            IsRecoveryReadOnly = !updated.Persisted;
             SelectedPet = selected;
-            IsPetEnabled = loaded.Settings.Pets.Enabled;
-
-            if (IsRecoveryReadOnly)
-            {
-                Status = "pet-session-only";
-                return true;
-            }
-
-            // Style selection alone is not permission to launch a process or hide the always-available F
-            // entry. The explicit enable action below owns Pets.Enabled and runtime activation.
-            loaded.Settings.Pets.StyleId = selected.Id;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken);
-            Status = "pet-saved";
+            IsPetEnabled = updated.Settings.Pets.Enabled;
+            Status = updated.Persisted ? "pet-saved" : "pet-session-only";
             return true;
         }
         catch (OperationCanceledException)
