@@ -196,7 +196,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         }
 
         Process? process;
-        Task<Process?> launchTask;
+        Task<Process?>? launchTask = null;
         try
         {
             ReportStage("process-start-start");
