@@ -1,174 +1,169 @@
 # FACM 4.0 执行计划与实时进度
 
-Status: **STABILITY-AUDIT-IN-PROGRESS**
+Status: **AUTOMATED-STABILITY-GREEN / REAL-MACHINE-VALIDATION-NEXT**
 Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
+Latest verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
+Latest full Foundation: **#628 / run `33230830272` = SUCCESS**
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复或 CI 结论，都必须在同一批次同步更新这里。`docs/PROJECT_STATE.md` 与 `docs/FACM4-P7-PARITY-CLOSEOUT.md` 在里程碑状态变化时做 canonical reconciliation。
 
-## 当前原则
+## 当前结论
 
-- 当前不是 UI 2.0 阶段；先把 FACM 4.0 的 3.5.15 功能等价与稳定性做干净。
-- 当前不继续向用户连续投递中间测试包；代码审查、压力 smoke 与完整 Foundation 全绿之前不生成新的真机候选。
-- P2-P7 stacked PR 继续保持 Draft / 未合并。
-- 不修改 `online/version.json`、`release/request.json`，不发布 4.0.0，不做 production cutover，不退休 legacy。
-- Gate 13 仍是独立证据链；Hosted CI/source gate 不能替代真实 Windows 证据。
+FACM 4.0 P7 的**自动化稳定性审查层已经收口**：代码级故障审查、根因修复、source gates、Release build、FoundationSmoke、WindowsSmoke、Updater built-helper self-test、20-50 次级重复操作压力 smoke、single-file publish 与 artifact verification 已在同一个代码 head 上全部通过。
+
+这不等于 Gate13/release-ready。生产仍是 3.5.15，P2-P7 仍 Draft/未合并，4.0 production pointer、release、cutover、legacy retirement 均保持冻结。
+
+下一工程阶段只做一件事：用最新统一候选进行**一次完整、非破坏优先的真实 Windows 功能验收**。UI 2.0 继续排在功能等价验收之后。
 
 ## 7 步执行顺序
 
-1. **全面代码级故障审查**：Settings、async/Busy/cancel、窗口生命周期、single-instance、PetHost、League shared runtime、updater、Cleanup/UAC。
-2. **在现有 4.0 架构内批量修复**：不回退架构，不用临时补丁掩盖根因。
-3. **完整 FACM 3.5.15 parity 复核**：确保四个主入口和全部已迁移行为不是占位/死链。
-4. **自动压力与重复操作 smoke**：针对并发 Settings、重复开关窗口、重复切主题/桌宠、League 配置、取消/失败路径等做 20-50 次级别验证。
-5. **完整 Foundation**：全部 source gates + Release build + FoundationSmoke + WindowsSmoke + publish + artifact verification 同一 head 全绿。
-6. **只生成一个新的统一候选**：前五步没有未解释失败后再产出。
-7. **统一真机功能验收**：通过后才讨论 stacked merge；UI 2.0 在功能等价之后；Gate13/cutover 仍需独立授权与证据。
+1. **全面代码级故障审查** — COMPLETED
+2. **在现有 4.0 架构内批量修复** — COMPLETED
+3. **完整 FACM 3.5.15 parity 复核** — COMPLETED on code/source gates
+4. **自动压力与重复操作 smoke** — COMPLETED on `f3906b84...`
+5. **完整 Foundation** — COMPLETED, #628 SUCCESS
+6. **只生成一个新的统一候选** — READY from #628 artifact
+7. **统一真机功能验收** — NEXT / real-machine evidence pending
 
-## 稳定性审查进度
+## 稳定性审查批次
 
-### 已完成：Win10 主题资源启动根因闭环
+### Win10 启动与个性化真机根因
 
-- 真实 Win10 曾出现 `E_ACCESSDENIED`：应用运行时尝试修改 WinUI 平台拥有的系统 brush。
-- 已改成 FACM 自有可变 semantic `SolidColorBrush`；平台 brush 仅用于读取/复制 fallback/High Contrast，不再写入。
-- 个性化 startup 增加 fail-soft。
-- 后续真机 evidence 已确认旧 brush 启动崩溃链不再出现，应用可进入 `Running`。
-- 这只关闭了该启动根因，不代表整个 Win10/Gate13 已通过。
+- Win10 `E_ACCESSDENIED` 根因：运行时尝试修改 WinUI 平台拥有的系统 brush。已改成 FACM 自有可变 semantic brush；平台资源只读取，不写入。
+- 个性化控件曾永久灰掉：桌宠异步初始化把 VM 置 Busy，MainWindow 手工同步 `IsEnabled` 后没有在异步完成时刷新。已在 UI owner/Dispatcher 上补完成刷新。
+- 后续 Win10 evidence 已看到应用进入 `Running`、failure count 0，并成功持久化 `mono-emerald`、`greenfly`、pet enabled 与 F 坐标。该证据只关闭对应窄根因，不自动关闭整个 `compat.windows-10-22h2` Gate13 项。
 
-### Batch A — `aca8aeb956a723fd0b48f77b89b747aa1cb3abd7`
+### Batch A-D — Settings2 atomic mutation 与基础生命周期
 
-- 找到跨功能 Settings2 lost-update 根因：多个模块使用 `Load whole document -> 修改一个字段 -> Save whole document`，并发时会互相覆盖。
-- 新增 atomic narrow Settings2 mutation contract，Recovering repository 串行执行 load-mutate-save-LKG transaction。
-- 多个 feature writer 迁移到 `UpdateAsync`；PetHost ready timeout、异步 teardown、League hotkey rollback、Settings concurrent smoke 同批进入。
-- Foundation #618：Architecture gate 因注释 `settings file.` 被大小写不敏感 `File\.` 误命中；不是实际架构越界。
+- 找到跨功能 Settings2 lost-update 根因：feature writer 使用 `Load whole document -> 修改局部 -> Save whole document`，并发时会互相覆盖。
+- 建立 atomic narrow `UpdateAsync` transaction boundary，Recovering repository 串行 load/mutate/save/LKG。
+- Cleanup、Personalization、F 坐标及主要 feature settings writer 迁移到 atomic update；recovery 默认保持 read-only。
+- 修复 PetHost ready timeout / async teardown、League hotkey persistence rollback、多个 UI async-void containment。
+- source gates 从旧 `SaveAsync` contract 逐项升级为 atomic mutation contract，不用 stale gate 逼代码回退。
 
-### Batch B — `05ab40708536d4b8e12ae6fdadb90de8a59219c8`
+关键 heads：
+- A `aca8aeb956a723fd0b48f77b89b747aa1cb3abd7`
+- B `05ab40708536d4b8e12ae6fdadb90de8a59219c8`
+- C `0c4423d89732e77a8bd67456cefa8ac210e998b5`
+- D `9d7a162788c5a33e2473c070bd040968938d6c6f`
 
-- Personalization / Cleanup async-void 增加最终 containment。
-- #619 Architecture SUCCESS；Cleanup stale gate 仍要求旧 `SaveAsync`。
+### Batch E-F — Desktop / League settings contract
 
-### Batch C — `0c4423d89732e77a8bd67456cefa8ac210e998b5`
+- Desktop F persistence gate、League Efficiency gate 对齐 atomic update。
+- PostGame / Recommended settings 显式保留 `RecoveredLastKnownGood / RecoveryDefaults` recovery-origin 语义。
+- caller/lifetime cancellation 开始统一按 linked token 判断。
 
-- Cleanup gate 改为必须走 atomic `UpdateAsync`，并禁止 feature whole-document `SaveAsync`。
-- #620 Architecture / Shell / Desktop / Cleanup / Repair SUCCESS；Personalization stale gate 仍要求旧 Save。
+Heads：
+- E `b5c47def7ca8ae4f9570fcb5de0341eaf355548a`
+- F `856078e9f90cc4e13ee7bd09e7b0e09a7d57164a`
 
-### Batch D — `9d7a162788c5a33e2473c070bd040968938d6c6f`
+### Batch G — Maintenance 真缺陷修复
 
-- Personalization gate、F 拖动坐标、P7 Settings parity 全面迁移 atomic narrow update；Foundation Settings smoke 增加 concurrent narrow mutations。
-- #621 Architecture/Shell SUCCESS；Desktop stale gate 仍要求旧 Save。
+Head `cd8f3051780d4af1552cd06c91f050c871b3581e`
 
-### Batch E — `b5c47def7ca8ae4f9570fcb5de0341eaf355548a`
-
-- Desktop / League Efficiency gate 对齐 atomic update。
-- 建立本文件作为每批必更的 4.0 实时计划账。
-- #622 通过 Architecture / Shell / Desktop / Cleanup / Repair / Personalization；League Workbench gate 因 PostGame recovery-origin 旧语义停止。
-
-### Batch F — `856078e9f90cc4e13ee7bd09e7b0e09a7d57164a`
-
-- PostGame / Recommended automation settings 保持 atomic `UpdateAsync`，显式恢复 recovery-origin 语义；linked cancellation 语义统一。
-- #623 通过 Architecture、Shell、Desktop、Cleanup、Repair、Personalization、League Workbench、Recommended、Efficiency、Bench、全部 Mayhem、P6 Maintenance、P6 Updater、P7 Settings；仅旧 P7 lifecycle 字面量检查停止。
-- 复核确认桌宠真实 teardown 已集中到 `DisposePersonalizationRuntime()`，因此更新 gate 而不是回退生命周期实现。
-
-### Batch G — `cd8f3051780d4af1552cd06c91f050c871b3581e`
-
-- Maintenance 初始化只有成功后才 latch `IsInitialized`，失败可在同一 app session 重试。
-- More Settings 每次重新进入可 `RetryInitialization()`，不依赖 visual-tree 二次 Loaded。
+- 初始化失败不再永久 latch `IsInitialized=true`；同一 app session 可以重试。
+- More Settings 每次重新进入可 `RetryInitialization()`，不依赖 visual-tree 二次 `Loaded`。
 - update download linked CTS 由 active async operation 持有并在 finally 释放；shutdown 只 cancel。
-- installer 增加 active-operation 计数，下载/replacement 未退出时延迟 Dispose。
-- Maintenance 所有 async-void handler 增加最终异常 containment，install dialog 返回后重检当前状态。
-- P7 lifecycle gate 改为检查 centralized personalization teardown；Maintenance gate 强制 retry/CTS/deferred teardown。
-- #624 在 Architecture gate 因注释 `same process.` 被 `Process\.` regex 误报而停止；运行代码没有 Process API。
+- installer 增加 active-operation 计数，下载/replacement 未退出时延后 Dispose。
+- Maintenance async-void handlers 全部保留最终异常 containment。
+- P7 centralized personalization/League/maintenance teardown contract 固化到 gate。
 
-### Batch H — `84bf4d97589d90b578e8fdc6526691556f8741d5`
+### Batch H-I — 编译、League cancellation/dialog teardown
 
-- 注释改为 `same app session`，不放宽架构 gate、不改变运行逻辑。
-- updater interruption 审查确认：现有 helper 有 staging / `.facm-old` / hash mismatch rollback / 新进程 5 秒 early-exit rollback，但 deterministic smoke 没有模拟 updater helper 自身在 replace 中途被强制终止；Gate13 `update.interrupted-replacement-rollback` 继续保持 Blocked。
+Heads：
+- H `84bf4d97589d90b578e8fdc6526691556f8741d5`
+- I `bb9f8e88d4ed868adf602c2ae87f64663379496e`
 
-Foundation #625 / run `33227469666`：
+- 清除 architecture regex 对英文注释的假阳性，不放宽架构门禁。
+- Foundation #625 首次穿过全部 source gates 后发现真实 C# 编译错误：`finally` 内 `return` (`CS0157`)；已修复。
+- League Refresh / Advisor / ItemSet / automation settings 全部按 linked token 识别 caller/lifetime cancellation；正常取消不再伪装成 provider failure。
+- League `ContentDialog.ShowAsync()` 与 async-void handler 增加 Window/XamlRoot teardown containment；`ContentDialogResult.Primary` 写入确认门槛保持不变。
+- Foundation #626：同一 Batch I head 上 source gates -> Release build -> FoundationSmoke -> WindowsSmoke -> publish -> artifact 首次全链路 SUCCESS。
 
-- 所有 source gates SUCCESS，Release Evidence 正确保持 `22 required / 12 passed / 10 blocking`，Cutover Guard 正确 BLOCKED。
-- Restore SUCCESS。
-- Release build 发现真实编译缺陷：`MainWindow.LeagueWorkbenchRuntime.cs(105,26) CS0157`，原因是 `finally` 内 `return`；后续 WMC9999 属伴随错误。
+### Batch J — Updater interrupted-replacement hardening
 
-### Batch I — `bb9f8e88d4ed868adf602c2ae87f64663379496e`
+Head `4755c40c6c3ec751d27bf9cab31d74581f58f3d3`
 
-产品修复：
+已确认旧 fallback 风险：`File.Copy(staging, destination, true)` 会流式覆盖正式 EXE，helper 如果在写入中被终止，可能留下半文件；旧 rollback 同样使用流式覆盖。
 
-1. `RefreshLeagueWorkbenchRuntimeAsync()` 的 `finally` 不再离开 finally，改为仅在窗口仍存活时 enqueue UI refresh。
-2. League Refresh / Advisor / ItemSet / automation settings 全部按 linked token 识别 caller/lifetime cancellation；正常取消不再伪装成 provider failure。
-3. 推荐符文/技能和装备集的 `ContentDialog.ShowAsync()`、结果 dialog、async-void handler 增加 close/XamlRoot teardown containment；`ContentDialogResult.Primary` 写入门槛保持不变。
+修复：
 
-Foundation #626 / run `33227662540`：**SUCCESS**。
+- `File.Replace` 继续作为主路径。
+- fallback 先保存完整 `.facm-old`，live destination 在备份期间不变。
+- 已完成 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终交换。
+- rollback 也使用同一 atomic move primitive，不再流式覆盖正式 EXE。
+- `FACM.Updater.exe --self-test` 验证 backup-before-swap、atomic candidate swap、atomic rollback、fallback backup 完整性。
+- Foundation workflow 实际执行 built helper self-test；source gate 禁止重新出现两个 live-EXE stream-copy 路径。
 
-- 同一 head 上所有 source gates、Release build、FoundationSmoke、WindowsSmoke、single-file publish、publish verification、artifact upload 全部 SUCCESS。
-- 这是本轮稳定性审查第一次完整穿透 source gates -> Release build -> 两层 smoke -> publish -> artifact 的全绿 head。
+Foundation #627 / run `33230658026` = SUCCESS；artifact `9708400694`。Gate13 的真实 interrupted-update evidence 仍保持 Blocked，因为 hosted deterministic self-test 不能代替真实 Windows 受控终止。
 
-### Batch J — `4755c40c6c3ec751d27bf9cab31d74581f58f3d3`
+### Batch K — 20-50 次级重复操作压力
 
-Updater interruption hardening：
+Head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
 
-1. **正式 EXE 不再被 fallback 流式覆盖**
-   - 保留 `File.Replace` 为主路径。
-   - fallback 先保存完整 `.facm-old`，live destination 在备份阶段完全不变。
-   - 已完整 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终交换；destination 原本不存在时也使用同一 atomic primitive。
-2. **rollback 原子化**
-   - 删除 `File.Copy(backup, destination, true)` 流式覆盖路径。
-   - `.facm-old` 通过同一 `MoveFileEx` primitive 原子替换 destination；中断点只可能留下完整 candidate 或完整 rollback。
-3. **built helper `--self-test`**
-   - 验证备份阶段不改变 live destination、atomic swap 得到完整 candidate、atomic rollback 恢复完整旧版、实际 fallback 保留完整 backup。
-   - Foundation 在 updater payload build 后直接执行编译出的 helper self-test。
-4. **source contract**
-   - 强制 MoveFileEx / REPLACE_EXISTING / WRITE_THROUGH / atomic helper / self-test。
-   - 禁止重新出现 `File.Copy(staging, destination, true)` 与 `File.Copy(backup, destination, true)`。
-   - 强制 workflow 实际执行 built helper self-test。
+实际执行的压力项：
 
-Foundation #627 / run `33230658026`：**SUCCESS**。
+- **Settings2：40 轮**；每轮并发 Theme / F 坐标 / League setting 三路 atomic mutation，再回读验证无 lost update。
+- **Single-instance：24 轮**；primary -> secondary signal -> exactly-one callback -> primary dispose -> replacement primary。
+- **Updater UAC cancel：24 轮**；每轮 Win32 1223 都必须返回 false，不误走成功 Process.Start。
+- **PetHost bundle/cache：24 轮**重复 `PrepareAsync()`；SHA/path 不变，embedded bundle `openCount` 恒为 1。
+- **League Recommended：24 个** Lobby -> ChampSelect stabilize -> apply -> repeated observation 周期；每周期写入恰好一次，重复 observation 必须 `already-attempted`。
+- **League Efficiency：30 轮** hotkey configuration transaction；runtime 与 persisted settings 每轮一致，最终 30 次 persist / 31 次 register apply（含初始化）。
 
-- Built `FACM.Updater.exe --self-test` SUCCESS。
-- Architecture / Shell / Desktop / Cleanup / Repair / Personalization / 全部 League / 全部 Mayhem / P6 Maintenance / P6-P7 Updater / P7 Settings / P7 lifecycle / Diagnostics / DPI+Accessibility / Recovery / Release Evidence / Cutover Guard / real-machine collector 全部 SUCCESS。
-- Windows PowerShell 5.1 evidence collector self-test SUCCESS。
-- Restore + Release build SUCCESS。
-- deterministic FoundationSmoke SUCCESS。
-- deterministic WindowsSmoke SUCCESS。
-- WinUI x64 self-contained single-file publish + verification SUCCESS。
-- artifact `facm4-x64` id `9708400694`，GitHub digest `sha256:8a0029416182c55b7d16351b9b91b5ea16f490cb5ee950b7c2b7765de3229b5c`。
-- Gate13 `update.interrupted-replacement-rollback` **仍保持 Blocked**：Hosted self-test 只证明事务 primitive，不替代真实 Windows 受控中断证据。
+Foundation #628 / run `33230830272`：**SUCCESS**。
 
-### 当前 Batch K — 20-50 次级稳定性压力 smoke 进行中
+同一代码 head 上通过：
 
-本批不做空循环，全部复用现有真实 service/runtime：
+- built PetHost self-test；
+- built Updater atomic self-test；
+- 全部 P1-P7/source/product gates；
+- PowerShell 5.1 real-machine collector self-test；
+- Release restore/build；
+- deterministic FoundationSmoke（含上述 Settings/League 压力）；
+- deterministic WindowsSmoke（含 single-instance/UAC/PetHost 压力）；
+- WinUI x64 self-contained single-file publish；
+- publish output verification；
+- artifact upload。
 
-1. **Settings2 并发事务**
-   - 已有 `Settings2Smoke.ConcurrentNarrowMutationsPreserveUnrelatedFieldsAsync` 连续 **40 轮**，每轮并发 Theme / F 坐标 / League setting 三路 atomic `UpdateAsync`，并在每轮后回读验证无 lost update。
-   - 本批保留为跨功能 settings 压力基线。
+最新统一候选 artifact：
 
-2. **Single-instance 生命周期压力**
-   - `MaintenanceWindowsSmoke` 将正常 primary -> secondary signal -> primary dispose -> replacement primary 的完整周期执行 **24 轮**。
-   - 每轮要求 secondary 只触发一次 callback，primary dispose 后 mutex 可立即被下一实例取得。
+```text
+artifact: facm4-x64
+artifact id: 9708452498
+artifact ZIP bytes: 165,704,298
+GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
+Foundation: #628 / 33230830272
+```
 
-3. **Updater UAC cancel 压力**
-   - 同一受控 package/launcher 连续 **24 次**模拟 Win32 1223 UAC 取消。
-   - 每次必须返回 false、保持当前 FACM 可继续运行，且不能误走成功 Process.Start 路径。
+### Milestone L — canonical docs reconciliation（本批）
 
-4. **PetHost bundle/cache 压力**
-   - 首次受控 extraction + cache hit 后，再连续 **24 次** `PrepareAsync()`。
-   - 所有重复调用必须保持同一 SHA/executable path 且 `openCount` 恒为 1，防止重复 rehash/re-extract 或 process cache 失效。
+- `docs/FACM4-PLAN.md`：状态从稳定性审查进行中改为 automated-stability-green / real-machine-next。
+- `docs/PROJECT_STATE.md`：移除旧 `3956/#595/artifact 9695331632` 作为当前候选的描述，改指向 `f390/#628/artifact 9708452498`。
+- `docs/FACM4-P7-PARITY-CLOSEOUT.md`：补齐 Win10 brush、个性化 stale Busy、atomic Settings2、Maintenance lifecycle、League cancel/dialog、Updater atomic fallback、压力 smoke 等本轮稳定性结果。
+- Issue #233 将记录同样的里程碑结论。
+- 本批只改文档/追踪状态；不改变 production pointer、release、cutover 或 stacked PR 合并状态。
 
-5. **League 推荐自动应用周期压力**
-   - 连续 **24 个** Lobby -> ChampSelect stabilizing -> stable apply -> repeated observation 周期。
-   - 每周期只能写一次 loadout + item set；重复稳定 observation 必须保持 `already-attempted`，进入新周期后才释放上一 fingerprint。
+## 下一步：统一真机功能验收
 
-6. **League 热键配置事务压力**
-   - 连续 **30 轮**有效 ExitGame / CloseLobby hotkey 组合更新。
-   - 每轮必须 registration 成功、runtime state 与 Settings2 持久化一致；最终要求 30 次持久化、31 次 apply（含初始化）。
+使用 #628 的统一候选做一轮完整非破坏验收，优先顺序：
 
-边界：这些自动压力 smoke 能覆盖事务、lifecycle、cache、at-most-once 和 UAC-cancel 语义；它们仍不能替代 WinUI 真机上的视觉/输入/DPI/辅助功能与真实 updater kill 证据。
+1. 冷启动 launcher-first F；F 拖动/位置持久化；compact/detailed shell 生命周期。
+2. Cleanup preview/review/cancel；真实 UAC 点“否/取消”后当前实例继续存活。
+3. Repair 四项真实入口只做安全可逆/只读部分，破坏性动作另行授权。
+4. Personalization：主题视觉实际变化、greenfly/VPet 实际出现与移动、F restore/reset。
+5. 真实 LOL：Dashboard / Player / Live / Mayhem 读取链；需要写入的推荐/自动化按明确测试边界执行。
+6. Settings：auto-update toggle/manual check/announcement/log/diagnostics；不执行真实 replacement。
+7. 二次启动只 signal 现有实例；正常退出后 PetHost/League/hotkeys/maintenance runtime 清理。
+8. 收集 Settings2/recovery/event JSONL 作为统一 evidence。
 
-下一检查点：提交 Batch K -> Foundation。若全绿，则稳定性审查的自动层进入收口：更新 `PROJECT_STATE.md` / `FACM4-P7-PARITY-CLOSEOUT.md`，再决定是否生成**唯一一次**新的统一真机候选；Gate13/cutover 仍独立保持阻塞。
+真实 updater kill、真实删除、production pointer、release publication、legacy retirement 仍不属于这一轮默认授权范围。
 
-## 当前 Gate13 边界
+## Gate13 边界保持不变
 
-Canonical release evidence 仍保持：
+Canonical release evidence：
 
 ```text
 22 required / 12 Passed / 10 Blocked
@@ -189,12 +184,13 @@ CUTOVER BLOCKED
 9. interrupted updater replacement / rollback；
 10. final signature / package identity。
 
-这些项目在真实 evidence 完成前保持阻塞，不得因为当前稳定性审查或 CI 绿而自动降级/关闭。
+自动稳定性全绿不会自动关闭任何仍需真实 evidence 的 blocker。
 
-## 下一批更新规则
+## 每批更新规则
 
 每完成一个可描述的 batch：
 
-- 在本文件追加 commit/head、发现、修复、CI 结果、仍未解决项；
-- 如果状态跨越里程碑（例如稳定性审查结束、产生唯一候选、统一真机验收通过），同时更新 `docs/PROJECT_STATE.md` 与 `docs/FACM4-P7-PARITY-CLOSEOUT.md`；
-- 任何失败必须写清楚是产品 defect、测试/gate contract defect，还是环境/基础设施问题，不能用“CI 红/绿”代替根因判断。
+- 同批更新本文件的 head、发现、修复、CI 结果、仍未解决项；
+- 状态跨越里程碑时同步更新 `docs/PROJECT_STATE.md` 与 `docs/FACM4-P7-PARITY-CLOSEOUT.md`；
+- 失败必须写清楚是产品 defect、test/gate contract defect，还是 environment/infrastructure；
+- 不用 CI 绿冒充真实机器、签名或 production-ready。
