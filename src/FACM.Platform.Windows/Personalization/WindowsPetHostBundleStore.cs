@@ -13,6 +13,7 @@ public sealed record PetHostBundlePreparation(
 public sealed class WindowsPetHostBundleStore
 {
     public const string ResourceName = "FACM.Resources.PetHost.zip";
+    public const string HashResourceName = "FACM.Resources.PetHost.sha256";
 
     private const string HostExecutableName = "FACM.PetHost.exe";
     private const string CompletionMarkerName = ".facm-pethost-complete";
@@ -34,12 +35,17 @@ public sealed class WindowsPetHostBundleStore
     private readonly RuntimePathLayout _layout;
     private readonly Func<Stream?> _openBundle;
     private readonly SemaphoreSlim _prepareGate = new(1, 1);
+    private readonly string? _expectedBundleSha256;
     private PetHostBundlePreparation? _cachedPreparation;
 
-    public WindowsPetHostBundleStore(RuntimePathLayout layout, Func<Stream?> openBundle)
+    public WindowsPetHostBundleStore(
+        RuntimePathLayout layout,
+        Func<Stream?> openBundle,
+        string? expectedBundleSha256 = null)
     {
         _layout = layout ?? throw new ArgumentNullException(nameof(layout));
         _openBundle = openBundle ?? throw new ArgumentNullException(nameof(openBundle));
+        _expectedBundleSha256 = NormalizeBundleSha256(expectedBundleSha256);
     }
 
     public async Task<PetHostBundlePreparation> PrepareAsync(CancellationToken cancellationToken = default)
@@ -81,11 +87,25 @@ public sealed class WindowsPetHostBundleStore
     private PetHostBundlePreparation PrepareCore(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var bundle = OpenRequiredBundle();
-        var bundleSha256 = ComputeBundleSha256(bundle, cancellationToken);
         var bundleRoot = Path.Combine(_layout.RuntimeDirectory, "pethost-host");
         Directory.CreateDirectory(bundleRoot);
 
+        // Foundation emits the SHA-256 next to the exact embedded bundle and FACM embeds that tiny
+        // identity resource as well. On a later process launch we can therefore test the immutable
+        // disk cache before opening/rehashing the 70+ MiB embedded ZIP. If the identity resource is
+        // absent (for example a lightweight local developer build), retain the older hash-on-demand
+        // fallback so the store remains safe and functional.
+        if (_expectedBundleSha256 is { } expected)
+        {
+            var expectedDestination = Path.Combine(bundleRoot, expected);
+            var expectedExecutable = Path.Combine(expectedDestination, HostExecutableName);
+            var expectedMarker = Path.Combine(expectedDestination, CompletionMarkerName);
+            if (IsComplete(expectedDestination, expectedExecutable, expectedMarker, expected))
+                return new PetHostBundlePreparation(expectedExecutable, expected, expectedDestination, CacheHit: true);
+        }
+
+        using var bundle = OpenRequiredBundle();
+        var bundleSha256 = _expectedBundleSha256 ?? ComputeBundleSha256(bundle, cancellationToken);
         var destination = Path.Combine(bundleRoot, bundleSha256);
         var executable = Path.Combine(destination, HostExecutableName);
         var marker = Path.Combine(destination, CompletionMarkerName);
@@ -166,6 +186,13 @@ public sealed class WindowsPetHostBundleStore
             }
             throw;
         }
+    }
+
+    private static string? NormalizeBundleSha256(string? value)
+    {
+        var normalized = value?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length != 64) return null;
+        return normalized.All(Uri.IsHexDigit) ? normalized : null;
     }
 
     private static string ComputeBundleSha256(Stream bundle, CancellationToken cancellationToken)

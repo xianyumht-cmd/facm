@@ -28,6 +28,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <PetHostBundlePath Condition="'$(PetHostBundlePath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.zip</PetHostBundlePath>
+    <PetHostBundleHashPath Condition="'$(PetHostBundleHashPath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.sha256</PetHostBundleHashPath>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
@@ -44,12 +45,22 @@
                       LogicalName="FACM.Resources.PetHost.zip"
                       Type="Non-Resx"
                       WithCulture="false" />
+    <EmbeddedResource Include="$(PetHostBundleHashPath)"
+                      Condition="Exists('$(PetHostBundleHashPath)')"
+                      LogicalName="FACM.Resources.PetHost.sha256"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
   <Target Name="VerifyPetHostBundleBeforeCompile" BeforeTargets="PrepareResourceNames">
     <Error Condition="'$(RequirePetHostBundle)' == 'true' and !Exists('$(PetHostBundlePath)')"
            Text="Required FACM 4.0 PetHost bundle was not built: $(PetHostBundlePath)" />
+    <Error Condition="'$(RequirePetHostBundle)' == 'true' and !Exists('$(PetHostBundleHashPath)')"
+           Text="Required FACM 4.0 PetHost bundle identity was not built: $(PetHostBundleHashPath)" />
     <Message Condition="Exists('$(PetHostBundlePath)')"
              Importance="High"
              Text="Embedding FACM 4.0 PetHost bundle as FACM.Resources.PetHost.zip: $(PetHostBundlePath)" />
+    <Message Condition="Exists('$(PetHostBundleHashPath)')"
+             Importance="High"
+             Text="Embedding FACM 4.0 PetHost identity as FACM.Resources.PetHost.sha256: $(PetHostBundleHashPath)" />
   </Target>
 </Project>

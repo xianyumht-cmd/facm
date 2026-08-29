@@ -27,6 +27,7 @@ jobs:
         run: |
           $publish = Join-Path $PWD 'artifacts/pethost'
           $bundle = Join-Path $PWD 'out/PetHostBundle.zip'
+          $bundleHashPath = Join-Path $PWD 'out/PetHostBundle.sha256'
           New-Item -ItemType Directory -Force -Path $publish | Out-Null
           New-Item -ItemType Directory -Force -Path (Split-Path $bundle) | Out-Null
           dotnet publish src/FACM.PetHost/FACM.PetHost.csproj -c Release -r win-x64 --self-contained true -o $publish
@@ -39,9 +40,13 @@ jobs:
             if (-not (Test-Path (Join-Path $publish $critical))) { throw "PetHost critical payload missing: $critical" }
           }
           if (Test-Path $bundle) { Remove-Item $bundle -Force }
+          if (Test-Path $bundleHashPath) { Remove-Item $bundleHashPath -Force }
           Compress-Archive -Path (Join-Path $publish '*') -DestinationPath $bundle -CompressionLevel Optimal
           if (-not (Test-Path $bundle)) { throw 'PetHostBundle.zip was not created.' }
-          Write-Host "PetHostBundle.zip bytes=$((Get-Item $bundle).Length)"
+          $bundleHash = (Get-FileHash $bundle -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath $bundleHashPath -Value $bundleHash -NoNewline -Encoding ascii
+          if ((Get-Content -LiteralPath $bundleHashPath -Raw).Trim() -ne $bundleHash) { throw 'PetHostBundle.sha256 identity write failed.' }
+          Write-Host "PetHostBundle.zip bytes=$((Get-Item $bundle).Length) sha256=$bundleHash"
 
       - name: Prepare controlled updater payload
         shell: pwsh

@@ -39,7 +39,8 @@ public partial class App
         var layout = FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider());
         _petHostBundleStore ??= new WindowsPetHostBundleStore(
             layout,
-            () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName));
+            () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName),
+            ReadPetHostBundleSha256());
         _desktopPetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
             layout.PetHostDataDirectory,
@@ -203,6 +204,23 @@ public partial class App
         _desktopPetRuntime = null;
         _desktopPetPreferences = null;
         _petHostBundleStore = null;
+    }
+
+    private static string? ReadPetHostBundleSha256()
+    {
+        try
+        {
+            using var stream = typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.HashResourceName);
+            if (stream is null) return null;
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd().Trim();
+        }
+        catch
+        {
+            // Local/lightweight developer builds may omit the identity resource. The bundle store
+            // retains a safe hash-on-demand fallback for that case.
+            return null;
+        }
     }
 
     private void RunOnDesktopUi(Action action)

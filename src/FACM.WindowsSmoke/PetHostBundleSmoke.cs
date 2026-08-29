@@ -22,6 +22,7 @@ internal static class PetHostBundleSmoke
     public static async Task RunAsync()
     {
         await ExtractsExactBundleAndReusesCacheAsync();
+        await ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync();
         await RejectsPathTraversalAsync();
     }
 
@@ -64,6 +65,41 @@ internal static class PetHostBundleSmoke
                 Equal(first.ExecutablePath, repeated.ExecutablePath, "repeated PetHost executable path " + cycle);
             }
             Equal(1, openCount, "repeated PetHost prepare reopened or rehashed the embedded bundle");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-pethost-cross-process-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var bundle = CreateBundle(includeTraversal: false);
+            var layout = CreateLayout(root);
+            var firstStore = new WindowsPetHostBundleStore(
+                layout,
+                () => new MemoryStream(bundle, writable: false));
+            var prepared = await firstStore.PrepareAsync();
+
+            var nextProcessOpenCount = 0;
+            var nextProcessStore = new WindowsPetHostBundleStore(
+                layout,
+                () =>
+                {
+                    Interlocked.Increment(ref nextProcessOpenCount);
+                    return new MemoryStream(bundle, writable: false);
+                },
+                prepared.BundleSha256);
+
+            var reused = await nextProcessStore.PrepareAsync();
+            True(reused.CacheHit, "build-time PetHost identity did not reuse the completed disk cache in a new store/process");
+            Equal(prepared.BundleSha256, reused.BundleSha256, "cross-process PetHost bundle identity");
+            Equal(prepared.ExecutablePath, reused.ExecutablePath, "cross-process PetHost executable path");
+            Equal(0, nextProcessOpenCount, "cross-process cache hit must not reopen the embedded bundle");
         }
         finally
         {

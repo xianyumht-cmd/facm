@@ -31,11 +31,20 @@ public sealed partial class MainWindow
         if (!DispatcherQueue.TryEnqueue(() =>
             {
                 Interlocked.Exchange(ref _personalizationRefreshQueued, 0);
-                if (!_closed) SyncPersonalizationSurface();
+                if (_closed) return;
+                SyncPersonalizationSurface();
+                ApplyPersonalizationBusyStatus();
             }))
         {
             Interlocked.Exchange(ref _personalizationRefreshQueued, 0);
         }
+    }
+
+    private void ApplyPersonalizationBusyStatus()
+    {
+        var viewModel = _personalizationCenter;
+        if (viewModel?.IsBusy == true && _personalizationStatus is not null)
+            _personalizationStatus.Text = "正在处理，请稍候…";
     }
 
     internal void RefreshPersonalizationSurfaceFromRuntime() => QueuePersonalizationSurfaceRefresh();

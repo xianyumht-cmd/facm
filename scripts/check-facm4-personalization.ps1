@@ -16,6 +16,7 @@ $settingsPath = Join-Path $Root 'src/FACM.Core/Settings/Settings2.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/PersonalizationViewModel.cs'
 $runtimePath = Join-Path $Root 'src/FACM.App/Personalization/WinUiThemeRuntime.cs'
 $surfacePath = Join-Path $Root 'src/FACM.App/MainWindow.Personalization.cs'
+$stateSyncPath = Join-Path $Root 'src/FACM.App/MainWindow.PersonalizationStateSync.cs'
 $appPersonalizationPath = Join-Path $Root 'src/FACM.App/App.Personalization.cs'
 $appProjectPath = Join-Path $Root 'src/FACM.App/FACM.App.csproj'
 $controlCenterPath = Join-Path $Root 'src/FACM.App/ViewModels/ControlCenterViewModel.cs'
@@ -32,7 +33,7 @@ $workflowPath = Join-Path $Root '.github/workflows/facm4-foundation.yml'
 
 foreach ($path in @(
     $coreCatalogPath, $coreContractsPath, $preferencePath, $settingsPath, $viewModelPath, $runtimePath,
-    $surfacePath, $appPersonalizationPath, $appProjectPath, $controlCenterPath, $bundleStorePath,
+    $surfacePath, $stateSyncPath, $appPersonalizationPath, $appProjectPath, $controlCenterPath, $bundleStorePath,
     $vpetRuntimePath, $jobPath, $petHostProgramPath, $flyingProfilesPath, $flyingWindowPath,
     $smokePath, $foundationProgramPath, $windowsSmokePath, $workflowPath
 )) {
@@ -45,6 +46,7 @@ $settings = Get-Content $settingsPath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
 $runtime = Get-Content $runtimePath -Raw
 $surface = Get-Content $surfacePath -Raw
+$stateSync = Get-Content $stateSyncPath -Raw
 $appPersonalization = Get-Content $appPersonalizationPath -Raw
 $appProject = Get-Content $appProjectPath -Raw
 $controlCenter = Get-Content $controlCenterPath -Raw
@@ -125,21 +127,28 @@ foreach ($required in @(
     if ($surface -notmatch [regex]::Escape($required)) { Fail "Personalization Shell surface missing: $required" }
 }
 if ($surface -match 'System\.Diagnostics|HttpClient|\bFile\.|\bDirectory\.') { Fail 'Personalization Shell presentation owns platform/data access.' }
+foreach ($required in @('OnPersonalizationViewModelPropertyChanged', 'DispatcherQueue.TryEnqueue', 'ApplyPersonalizationBusyStatus', '正在处理，请稍候')) {
+    if ($stateSync -notmatch [regex]::Escape($required)) { Fail "Personalization async state refresh/busy feedback missing: $required" }
+}
 if ($controlCenter -notmatch 'CreatePersonalization') { Fail 'Existing Settings 2.0 owner must compose the personalization ViewModel.' }
 
 foreach ($required in @(
     'CreatePersonalizationViewModel', 'WinUiThemeRuntime', 'WindowsPetHostBundleStore', 'WindowsVPetRuntime',
     'GetManifestResourceStream', 'ConfigureDesktopPetService', 'InitializeDesktopPetAfterLauncherReadyAsync',
-    'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync', 'DisposePersonalizationRuntime'
+    'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync', 'DisposePersonalizationRuntime',
+    'ReadPetHostBundleSha256', 'HashResourceName'
 )) {
     if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "App personalization composition missing: $required" }
 }
 
-foreach ($required in @('FACM.Resources.PetHost.zip', 'PetHostBundlePath', 'RequirePetHostBundle', 'EmbeddedResource')) {
+foreach ($required in @('FACM.Resources.PetHost.zip', 'FACM.Resources.PetHost.sha256', 'PetHostBundlePath', 'PetHostBundleHashPath', 'RequirePetHostBundle', 'EmbeddedResource')) {
     if ($appProject -notmatch [regex]::Escape($required)) { Fail "FACM.App controlled PetHost embedding missing: $required" }
 }
 
-foreach ($required in @('WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal', 'CriticalPayloadFiles', 'PrepareTimeout', '_cachedPreparation')) {
+foreach ($required in @(
+    'WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal',
+    'CriticalPayloadFiles', 'PrepareTimeout', '_cachedPreparation', '_expectedBundleSha256', 'NormalizeBundleSha256'
+)) {
     if ($bundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled PetHost bundle store missing: $required" }
 }
 foreach ($required in @(
@@ -172,10 +181,18 @@ foreach ($required in @(
     if ($flyingWindow -notmatch [regex]::Escape($required)) { Fail "Flying PetHost behavior missing: $required" }
 }
 
-foreach ($required in @('Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive', 'PetHostBundle.zip', 'RequirePetHostBundle=true')) {
+foreach ($required in @(
+    'Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive',
+    'PetHostBundle.zip', 'PetHostBundle.sha256', 'Get-FileHash $bundle -Algorithm SHA256', 'RequirePetHostBundle=true'
+)) {
     if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow PetHost packaging missing: $required" }
 }
-foreach ($required in @('WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256', 'second prepare must not reopen the embedded bundle')) {
+foreach ($required in @(
+    'WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256',
+    'second prepare must not reopen the embedded bundle',
+    'ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync',
+    'cross-process cache hit must not reopen the embedded bundle'
+)) {
     if ($windowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows controlled PetHost smoke missing: $required" }
 }
 
@@ -196,7 +213,9 @@ Write-Host 'Theme/pet selection recovery and persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
 Write-Host 'App-owned theme and desktop pet composition: OK'
 Write-Host 'Explicit enable / restore F / reset-position controls: OK'
-Write-Host 'Controlled PetHost bundle SHA/extraction/cache/timeout boundary: OK'
+Write-Host 'Personalization PropertyChanged/Dispatcher busy feedback: OK'
+Write-Host 'Controlled PetHost build identity + extraction/cache/timeout boundary: OK'
+Write-Host 'Cross-process PetHost cache no-rehash boundary: OK'
 Write-Host 'VPet + Flying Sprite named-pipe ready timeout and Job Object runtime boundary: OK'
 Write-Host 'Frozen 3.5 flying movement profiles and modern PetHost window: OK'
 Write-Host 'Foundation PetHost packaging/self-test contract: OK'
