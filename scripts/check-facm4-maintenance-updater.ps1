@@ -26,11 +26,12 @@ $preparedSmokePath = Join-Path $Root 'src/FACM.FoundationSmoke/PreparedUpdateIns
 $windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/MaintenanceWindowsSmoke.cs'
 $foundationProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 $windowsProgramPath = Join-Path $Root 'src/FACM.WindowsSmoke/Program.cs'
+$workflowPath = Join-Path $Root '.github/workflows/facm4-foundation.yml'
 
 foreach ($path in @(
     $installerPath, $identityPath, $launcherPath, $updaterPath,
     $downloadSmokePath, $preparedSmokePath, $windowsSmokePath,
-    $foundationProgramPath, $windowsProgramPath
+    $foundationProgramPath, $windowsProgramPath, $workflowPath
 )) {
     if (-not (Test-Path $path)) { Fail "P6 updater contract file missing: $path" }
 }
@@ -44,6 +45,7 @@ $preparedSmoke = Get-Content $preparedSmokePath -Raw
 $windowsSmoke = Get-Content $windowsSmokePath -Raw
 $foundationProgram = Get-Content $foundationProgramPath -Raw
 $windowsProgram = Get-Content $windowsProgramPath -Raw
+$workflow = Get-Content $workflowPath -Raw
 
 foreach ($required in @(
     'MaximumUpdateBytes = 512L * 1024L * 1024L',
@@ -102,15 +104,27 @@ foreach ($required in @(
     'WaitForParentExit(parentPid, TimeSpan.FromSeconds(120))',
     'ReplaceFiles(source, destination, expectedHash)',
     'File.Replace(staging, destination, backup, true)', 'FallbackReplace', 'TryRollback',
+    'AtomicReplaceFromStaging', 'MoveFileEx', 'MoveFileReplaceExisting', 'MoveFileWriteThrough',
+    'Marshal.GetHRForLastWin32Error()', 'SelfTestArgument = "--self-test"', 'RunSelfTest()',
     'ComputeSha256(source)', 'ComputeSha256(staging)', 'ComputeSha256(destination)',
     'restarted.WaitForExit(5000)', 'TryRestartRollback(destination)',
     'TryDelete(source)', 'TryDelete(backup)',
     'string.Equals(updaterDirectory, sourceDirectory, StringComparison.OrdinalIgnoreCase)'
 )) {
-    Require-Text $updater $required "FACM updater helper lost bounded replacement/rollback behavior: $required"
+    Require-Text $updater $required "FACM updater helper lost bounded/atomic replacement behavior: $required"
 }
-foreach ($forbidden in @('Process\.Kill', 'taskkill', 'cmd\.exe', 'powershell\.exe', 'schtasks', 'sc\.exe')) {
-    if ($updater -match $forbidden) { Fail "FACM updater helper gained a forbidden takeover/shell path: $forbidden" }
+foreach ($forbidden in @(
+    'Process\.Kill', 'taskkill', 'cmd\.exe', 'powershell\.exe', 'schtasks', 'sc\.exe',
+    'File\.Copy\(staging,\s*destination,\s*true\)',
+    'File\.Copy\(backup,\s*destination,\s*true\)'
+)) {
+    if ($updater -match $forbidden) { Fail "FACM updater helper regained an unsafe takeover/stream-overwrite path: $forbidden" }
+}
+if ((Count-Matches $updater 'AtomicReplaceFromStaging\(backup,\s*destination\)') -ne 1) {
+    Fail 'FACM updater rollback must atomically move the complete backup over destination exactly once.'
+}
+if ((Count-Matches $updater 'AtomicReplaceFromStaging\(staging,\s*destination\)') -lt 2) {
+    Fail 'FACM updater replacement paths must converge on the atomic same-directory move primitive.'
 }
 
 foreach ($required in @(
@@ -134,6 +148,12 @@ foreach ($required in @(
 )) {
     Require-Text $windowsSmoke $required "Windows updater smoke is missing: $required"
 }
+foreach ($required in @(
+    '& $source --self-test',
+    'FACM.Updater self-test failed'
+)) {
+    Require-Text $workflow $required "Foundation workflow must execute the built updater atomic self-test: $required"
+}
 
 if ((Count-Matches $foundationProgram 'UpdatePackageSmoke\.RunAsync') -ne 1) {
     Fail 'Foundation smoke must execute UpdatePackageSmoke exactly once.'
@@ -149,6 +169,7 @@ Write-Host 'P6 updater download: fixed validated manifest + 512 MiB cap + bounde
 Write-Host 'P6 updater receipt: SHA/length/version/path bound + identity verification after download and before launch'
 Write-Host 'P6 updater identity: same Authenticode signer + WinVerifyTrust + manifest release version'
 Write-Host 'P6 updater UAC: controlled embedded helper + updates-directory source + deterministic UAC-cancel keep-alive smoke'
-Write-Host 'P6 updater apply: 120s parent wait + staging/backup + hash checks + early-start rollback'
-Write-Host 'P6 updater smoke: download/tamper/receipt/identity/UAC-launch boundaries execute in CI'
-Write-Host 'FACM 4.0 P6 updater replacement contract: SUCCESS'
+Write-Host 'P7 updater apply: staging/hash + File.Replace primary path + same-directory MoveFileEx fallback/rollback'
+Write-Host 'P7 updater interruption hardening: live executable is never stream-overwritten; built helper self-test executes in Foundation'
+Write-Host 'P6/P7 updater smoke: download/tamper/receipt/identity/UAC-launch/atomic-fallback boundaries execute in CI'
+Write-Host 'FACM 4.0 P6/P7 updater replacement contract: SUCCESS'

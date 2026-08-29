@@ -71,49 +71,77 @@ Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
 
 ### Batch G — `cd8f3051780d4af1552cd06c91f050c871b3581e`
 
-产品修复：
-
 - Maintenance 初始化只有成功后才 latch `IsInitialized`，失败可在同一 app session 重试。
 - More Settings 每次重新进入可 `RetryInitialization()`，不依赖 visual-tree 二次 Loaded。
 - update download linked CTS 由 active async operation 持有并在 finally 释放；shutdown 只 cancel。
 - installer 增加 active-operation 计数，下载/replacement 未退出时延迟 Dispose。
 - Maintenance 所有 async-void handler 增加最终异常 containment，install dialog 返回后重检当前状态。
 - P7 lifecycle gate 改为检查 centralized personalization teardown；Maintenance gate 强制 retry/CTS/deferred teardown。
-
-#624 在 Architecture gate 因注释 `same process.` 被 `Process\.` regex 误报而停止；运行代码没有 Process API。
+- #624 在 Architecture gate 因注释 `same process.` 被 `Process\.` regex 误报而停止；运行代码没有 Process API。
 
 ### Batch H — `84bf4d97589d90b578e8fdc6526691556f8741d5`
 
 - 注释改为 `same app session`，不放宽架构 gate、不改变运行逻辑。
-- updater interruption 审查确认：现有 helper 有 staging / `.facm-old` / hash mismatch rollback / 新进程 5 秒 early-exit rollback，但现有 deterministic smoke **没有模拟 updater helper 自身在 replace 中途被强制终止**；Gate13 `update.interrupted-replacement-rollback` 继续保持 Blocked。
+- updater interruption 审查确认：现有 helper 有 staging / `.facm-old` / hash mismatch rollback / 新进程 5 秒 early-exit rollback，但 deterministic smoke 没有模拟 updater helper 自身在 replace 中途被强制终止；Gate13 `update.interrupted-replacement-rollback` 继续保持 Blocked。
 
 Foundation #625 / run `33227469666`：
 
-- **所有 source gates SUCCESS**：Architecture、Shell、Desktop、Cleanup、Repair、Personalization、League Workbench、Recommended、Efficiency、Bench、全部 Mayhem、P6 Maintenance、P6 Updater、P7 Settings parity、P7 lifecycle、Diagnostics、DPI/Accessibility、Recovery、Release Evidence、Cutover Guard、real-machine evidence collector/self-test 全部通过。
-- Release Evidence 仍正确报告 `22 required / 12 passed / 10 blocking`，Cutover Guard 正确保持 BLOCKED。
+- 所有 source gates SUCCESS，Release Evidence 正确保持 `22 required / 12 passed / 10 blocking`，Cutover Guard 正确 BLOCKED。
 - Restore SUCCESS。
-- 首次进入完整 Release build 后失败于真实 C# 编译错误：`MainWindow.LeagueWorkbenchRuntime.cs(105,26) CS0157: Control cannot leave the body of a finally clause`。
-- 根因：前一批 fire-and-forget close-race containment 在 `finally` 中写了 `if (_closed) return;`。这是产品源码编译缺陷，不是环境问题，也不是 XAML 根因；后续 WMC9999 是编译失败后的伴随错误。
+- Release build 发现真实编译缺陷：`MainWindow.LeagueWorkbenchRuntime.cs(105,26) CS0157`，原因是 `finally` 内 `return`；后续 WMC9999 属伴随错误。
 
-### 当前 Batch I — 进行中
+### Batch I — `bb9f8e88d4ed868adf602c2ae87f64663379496e`
 
-本批产品修复：
+产品修复：
 
-1. **修复 #625 Release 编译错误**
-   - `RefreshLeagueWorkbenchRuntimeAsync()` 的 `finally` 不再 `return`。
-   - 改为仅在 `!_closed` 时 enqueue UI refresh，保持 close-race containment，同时合法编译。
+1. `RefreshLeagueWorkbenchRuntimeAsync()` 的 `finally` 不再离开 finally，改为仅在窗口仍存活时 enqueue UI refresh。
+2. League Refresh / Advisor / ItemSet / automation settings 全部按 linked token 识别 caller/lifetime cancellation；正常取消不再伪装成 provider failure。
+3. 推荐符文/技能和装备集的 `ContentDialog.ShowAsync()`、结果 dialog、async-void handler 增加 close/XamlRoot teardown containment；`ContentDialogResult.Primary` 写入门槛保持不变。
 
-2. **League caller cancellation 不再伪装成 provider failure**
-   - `RefreshAsync` / nested advisor refresh / `RefreshBuildAdvisorAsync` / `PrepareItemSetAsync` / `ApplyItemSetAsync` / automation settings 保存全部按 linked token 判断取消。
-   - semaphore `WaitAsync(... linked.Token)` 本身也有 cancellation boundary。
-   - 用户取消或 Window.Dispose 导致的正常 cancellation 不再落入 `refresh-failed / advisor-refresh-failed / prepare-failed / apply-failed`。
+Foundation #626 / run `33227662540`：**SUCCESS**。
 
-3. **League ContentDialog / async-void close race containment**
-   - 推荐符文/技能和装备集的确认 dialog 仍严格要求 `ContentDialogResult.Primary` 才允许写入，安全门槛不变。
-   - `ShowAsync()`、结果 dialog 和 async-void handler 增加 OperationCanceled/general containment；窗口/XamlRoot 在 await 期间关闭时不再把 teardown 异常抛出 dispatcher。
-   - Advisor refresh、ItemSet、Recommended toggle 增加最终通用异常边界。
+- 同一 head `bb9f8e88d4ed868adf602c2ae87f64663379496e` 上，所有 source gates SUCCESS。
+- Release build SUCCESS。
+- deterministic FoundationSmoke SUCCESS。
+- deterministic WindowsSmoke SUCCESS。
+- WinUI x64 self-contained single-file publish SUCCESS。
+- publish output verification SUCCESS。
+- `facm4-x64` artifact upload SUCCESS。
+- 这是本轮稳定性审查第一次完整穿透 source gates -> Release build -> 两层 smoke -> publish -> artifact 的全绿 head。
+- 仍不把它作为最终真机候选：Updater interruption 风险和后续 20-50 次压力批次还没闭环。
 
-下一检查点：提交 Batch I 并跑 Foundation。若 build/smokes 能继续推进，则进入 updater interruption transaction/resume 设计与 deterministic smoke；之后再做 20-50 次重复操作压力批次。所有结果继续同批同步本文件。
+### 当前 Batch J — Updater interruption hardening 进行中
+
+已确认的真实风险：
+
+- `File.Replace(staging, destination, backup, true)` 主路径本身具备同卷替换语义，但旧 `FallbackReplace` 在 File.Replace 不可用/IOException 时会执行 `File.Copy(staging, destination, true)`，直接流式覆盖正式 FACM EXE。
+- updater helper 如果恰好在该覆盖写期间被终止，正式 EXE 存在被截断/半写的窗口；虽然 `.facm-old` 可能存在，但损坏的新 EXE 本身可能无法再次启动去触发恢复。
+- 旧 `TryRollback` 也用 `File.Copy(backup, destination, true)` 流式覆盖正式 EXE，rollback 自身同样存在中断窗口。
+
+本批修复：
+
+1. **正式 EXE 不再被 fallback 流式覆盖**
+   - 保留 `File.Replace` 为主路径。
+   - fallback 先把完整旧 EXE 复制到 `.facm-old`；在备份阶段若 helper 被终止，正式 EXE 仍完全未变。
+   - 已完整 SHA-256 校验的 staging 只通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 做最终目标交换。
+   - destination 原本不存在时也使用同一 atomic move primitive。
+
+2. **rollback 改成原子交换完整 backup**
+   - 不再 `File.Copy(backup, destination, true)`。
+   - `.facm-old` 直接通过同一个 `MoveFileEx` primitive 替换 destination；中断前后目标只会是完整 candidate 或完整 rollback，不存在流式半写阶段。
+
+3. **Updater helper 自身加入 `--self-test`**
+   - 在临时目录验证：备份准备不改变 live destination；atomic swap 后 destination 等于完整 candidate；atomic rollback 后恢复完整旧版；实际 `FallbackReplace` 同时保留完整 backup。
+   - Foundation 在“Prepare controlled updater payload”阶段直接执行编译出的 `FACM.Updater.exe --self-test`，失败则立即阻止后续 build/publish。
+
+4. **Updater source gate 加强**
+   - 强制 `MoveFileEx` / `REPLACE_EXISTING` / `WRITE_THROUGH` / atomic helper / self-test contract。
+   - 明确禁止重新出现 `File.Copy(staging, destination, true)` 和 `File.Copy(backup, destination, true)`。
+   - 强制 Foundation workflow 实际执行 built-helper self-test，而不是只做源码字符串检查。
+
+边界：这批只能证明 updater 的 deterministic transaction primitive 和 CI 自检，不会自动关闭 Gate13 `update.interrupted-replacement-rollback`。该 blocker 仍需要真实 Windows 上的人为/受控中断证据。
+
+下一检查点：提交 Batch J -> Foundation；若全绿，同步 Batch J commit/run/artifact，并进入 20-50 次重复操作压力批次。若红，按产品 defect / gate defect / environment 三类继续定位，结果继续同批写本文件。
 
 ## 当前 Gate13 边界
 

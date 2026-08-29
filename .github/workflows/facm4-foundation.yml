@@ -53,6 +53,8 @@ jobs:
           $source = Join-Path $PWD 'src/FACM.Updater/bin/Release/net48/FACM.Updater.exe'
           $payload = Join-Path $out 'FACM.Updater.exe'
           if (-not (Test-Path $source)) { throw 'FACM.Updater.exe was not built.' }
+          & $source --self-test
+          if ($LASTEXITCODE -ne 0) { throw "FACM.Updater self-test failed: $LASTEXITCODE" }
           Copy-Item $source $payload -Force
           $bytes = [System.IO.File]::ReadAllBytes($payload)
           if ($bytes.Length -lt 1024 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw 'FACM updater payload is not a valid PE file.' }
