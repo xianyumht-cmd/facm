@@ -1,41 +1,42 @@
 # FACM 4.0 执行计划与实时进度
 
-Status: **AUTOMATED-STABILITY-GREEN / REAL-MACHINE-VALIDATION-NEXT**
+Status: **REAL-MACHINE-DEFECT-FIX / PETHOST-CACHE-CI-PENDING**
 Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
-Latest verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
+Latest real-machine defect-fix head: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
+Previous fully verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
 Canonical-doc reconciliation head: `b5f895cdbb30f32d834a7b697a0505548f858da1`
-Latest code-bearing Foundation: **#628 / run `33230830272` = SUCCESS**
-Latest docs-only regression: **#629 / run `33231064160` = SUCCESS**
+Previous code-bearing Foundation: **#628 / run `33230830272` = SUCCESS**
+Previous docs-only regression: **#629 / run `33231064160` = SUCCESS**
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复或 CI 结论，都必须在同一批次同步更新这里。`docs/PROJECT_STATE.md` 与 `docs/FACM4-P7-PARITY-CLOSEOUT.md` 在里程碑状态变化时做 canonical reconciliation。
 
 ## 当前结论
 
-FACM 4.0 P7 的**自动化稳定性审查层已经收口**：代码级故障审查、根因修复、source gates、Release build、FoundationSmoke、WindowsSmoke、Updater built-helper self-test、20-50 次级重复操作压力 smoke、single-file publish 与 artifact verification 已在同一个代码 head 上全部通过。
+FACM 4.0 P7 的自动化稳定性层曾在 `f3906b84...` / Foundation #628 全绿，但最新 Win10 22H2 真机验收抓到了一个此前 deterministic smoke 没覆盖的**跨进程 PetHost cache 性能缺陷**：每个新的 FACM 进程第一次启用桌宠时，会先完整读取并 SHA-256 约 76.9 MB 的内嵌 PetHost ZIP，然后才知道磁盘上的精确 payload cache 是否可以复用。
+
+最新真机日志证明 FACM 主 UI 没死：`pet-enable-start -> IsBusy=true -> payload-preparing` 后，F 的拖动/位置保存事件仍持续出现；但在证据窗口结束前没有 `host-starting / ready / failed / finish`，最终 LKG 仍是 `moth + enabled=false`。因此 #628 产物**不再作为最终统一候选继续验收桌宠**，先由 `6ba8c917...` 修掉跨进程 cache rehash，再跑完整 Foundation 和新一轮真机复测。
 
 这不等于 Gate13/release-ready。生产仍是 3.5.15，P2-P7 仍 Draft/未合并，4.0 production pointer、release、cutover、legacy retirement 均保持冻结。
-
-下一工程阶段只做一件事：用最新统一候选进行**一次完整、非破坏优先的真实 Windows 功能验收**。UI 2.0 继续排在功能等价验收之后。
 
 ## 7 步执行顺序
 
 1. **全面代码级故障审查** — COMPLETED
-2. **在现有 4.0 架构内批量修复** — COMPLETED
+2. **在现有 4.0 架构内批量修复** — COMPLETED，最新真机缺陷继续在同一 P7 branch 修正
 3. **完整 FACM 3.5.15 parity 复核** — COMPLETED on code/source gates
-4. **自动压力与重复操作 smoke** — COMPLETED on `f3906b84...`
-5. **完整 Foundation** — COMPLETED, #628 SUCCESS
-6. **只生成一个新的统一候选** — COMPLETED, #628 artifact independently re-hashed
-7. **统一真机功能验收** — NEXT / real-machine evidence pending
+4. **自动压力与重复操作 smoke** — COMPLETED on `f3906b84...`；cross-process PetHost cache coverage 已在 `6ba8c917...` 补上
+5. **完整 Foundation** — #628 SUCCESS；`6ba8c917...` 新回归待 CI
+6. **统一候选** — #628 已因真机 PetHost cache 缺陷 supersede；新候选只在本轮 CI 全绿后生成
+7. **统一真机功能验收** — IN PROGRESS / PetHost targeted retest pending
 
 ## 稳定性审查批次
 
 ### Win10 启动与个性化真机根因
 
 - Win10 `E_ACCESSDENIED` 根因：运行时尝试修改 WinUI 平台拥有的系统 brush。已改成 FACM 自有可变 semantic brush；平台资源只读取，不写入。
-- 个性化控件曾永久灰掉：桌宠异步初始化把 VM 置 Busy，MainWindow 手工同步 `IsEnabled` 后没有在异步完成时刷新。已在 UI owner/Dispatcher 上补完成刷新。
-- 后续 Win10 evidence 已看到应用进入 `Running`、failure count 0，并成功持久化 `mono-emerald`、`greenfly`、pet enabled 与 F 坐标。该证据只关闭对应窄根因，不自动关闭整个 `compat.windows-10-22h2` Gate13 项。
+- 个性化控件曾永久灰掉：桌宠异步初始化把 VM 置 Busy，MainWindow 手工同步 `IsEnabled` 后没有在异步完成时刷新。已改为 PropertyChanged + Dispatcher owner refresh，并记录状态诊断。
+- 后续 Win10 evidence 已看到应用进入 `Running`、failure count 0，并成功持久化个性化设置。该证据只关闭对应窄根因，不自动关闭整个 `compat.windows-10-22h2` Gate13 项。
 
 ### Batch A-D — Settings2 atomic mutation 与基础生命周期
 
@@ -106,38 +107,13 @@ Head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
 - **Settings2：40 轮**并发 Theme / F 坐标 / League setting atomic mutation + read-back；
 - **Single-instance：24 轮** primary -> signal -> exactly-one callback -> release -> replacement primary；
 - **Updater UAC cancel：24 轮** Win32 1223 fail-safe；
-- **PetHost bundle/cache：24 轮**重复 prepare，SHA/path 稳定且 embedded openCount 恒 1；
+- **PetHost bundle/cache：24 轮**同一 store/process 重复 prepare，SHA/path 稳定且 embedded openCount 恒 1；
 - **League Recommended：24 个周期**，每个 ChampSelect fingerprint/cycle 最多一次写入；
 - **League Efficiency：30 轮** hotkey transaction，registration/runtime/persistence 保持一致。
 
 Foundation #628 / run `33230830272`：**SUCCESS**。
 
 同一代码 head 通过 built PetHost self-test、built Updater self-test、全部 source/product gates、PowerShell 5.1 collector self-test、Release build、FoundationSmoke、WindowsSmoke、single-file publish、publish verification 与 artifact upload。
-
-## 统一候选：#628
-
-GitHub metadata：
-
-```text
-artifact: facm4-x64
-artifact id: 9708452498
-artifact ZIP bytes: 165,704,298
-GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
-Foundation: #628 / 33230830272
-```
-
-下载 artifact 后独立二次校验：
-
-```text
-ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-ZIP bytes: 165,704,298
-FACM.App.exe bytes: 305,912,996
-FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
-ZIP DLL entries: 0
-```
-
-ZIP hash 与 GitHub artifact digest 完全一致；单文件候选内没有旁路 DLL。
 
 ### Milestone L — canonical state reconciliation
 
@@ -149,22 +125,66 @@ Docs head `b5f895cdbb30f32d834a7b697a0505548f858da1`：
 - Issue #233 comment `5460008797` 已记录里程碑；
 - PR #234 body 已同步到 `f390/#628/artifact 9708452498`，仍保持 Draft / 未合并。
 
-Foundation #629 / run `33231064160`：**SUCCESS**。这是 docs-only reconciliation head 的完整 regression run；没有产生新的代码候选，真实候选仍以 #628 / `f3906b84...` 为准。
+Foundation #629 / run `33231064160`：**SUCCESS**。这是 docs-only reconciliation head 的完整 regression run；没有产生新的代码候选。
 
-本里程碑不改变 production pointer、release、cutover 或 stacked PR 状态。
+### Batch M — Win10 PetHost 跨进程 cache rehash 真机缺陷
 
-## 下一步：统一真机功能验收
+Fix head `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`。
 
-使用 #628 的统一候选做一轮完整非破坏验收，优先顺序：
+2026-08-29 最新 Win10 22H2 evidence：
 
-1. 冷启动 launcher-first F；F 拖动/位置持久化；compact/detailed shell 生命周期。
-2. Cleanup preview/review/cancel；真实 UAC 点“否/取消”后当前实例继续存活。
-3. Repair 四项真实入口只做安全可逆/只读部分，破坏性动作另行授权。
-4. Personalization：主题视觉实际变化、greenfly/VPet 实际出现与移动、F restore/reset。
-5. 真实 LOL：Dashboard / Player / Live / Mayhem 读取链；需要写入的推荐/自动化按明确测试边界执行。
-6. Settings：auto-update toggle/manual check/announcement/log/diagnostics；不执行真实 replacement。
-7. 二次启动只 signal 现有实例；正常退出后 PetHost/League/hotkeys/maintenance runtime 清理。
-8. 收集 Settings2/recovery/event JSONL 作为统一 evidence。
+- recovery state：`Running`，4.0.0.0，`consecutiveFailures=0`；
+- LKG：theme `glass-blue`，pet `moth`，`enabled=false`，F 坐标 `1569,576`；
+- JSONL 共 59 条，本轮记录全部 `result=0`；greenfly -> dragonfly -> moth 的纯选择流程均完成；
+- 点击启用 moth 后进入 `pet-enable-start -> IsBusy=true -> payload-preparing`；证据窗口内超过 13 秒没有 `host-starting / ready / failed / pet-enable-finish`；
+- 同时 F drag-position-saved 仍继续出现，证明 FACM 主消息循环/桌面入口仍响应，阻塞点在 PetHost payload prepare，不是整进程 UI deadlock。
+
+根因复核：Foundation #628 生成的 `PetHostBundle.zip` 为 **76,924,321 bytes**。旧 `WindowsPetHostBundleStore` 每个新 FACM 进程第一次 `PrepareAsync()` 都必须先打开这份内嵌 ZIP 并 `SHA256.HashData(bundle)`，得到 SHA 后才检查 `runtime/pethost-host/<sha>` 是否已经完整存在。此前 24 轮 smoke 全在同一个 store/process 内进行，`_cachedPreparation` 让它看起来很快，因此没有覆盖“关闭 FACM 后重新启动”的真实路径。
+
+修复：
+
+- Foundation 构建 PetHost ZIP 后同时生成 `PetHostBundle.sha256`；
+- FACM 单文件同时嵌入 ZIP 与 tiny SHA identity；`RequirePetHostBundle=true` 时两者缺一即失败；
+- App 启动只读取 tiny identity；新进程可直接检查 `pethost-host/<sha>` 完成标记与关键文件；
+- **跨进程 cache hit 不再打开、更不再重新 SHA-256 76.9 MB 内嵌 ZIP**；
+- lightweight/local build 若没有 identity resource，仍保留旧 hash-on-demand 安全 fallback；
+- WindowsSmoke 新增 fresh `WindowsPetHostBundleStore` 实例模拟新进程，要求既有 cache 命中时 `openBundle` 次数严格为 0；
+- Personalization source gate 固化 build-time identity + cross-process no-rehash contract；
+- Busy 时状态条改显示“正在处理，请稍候…”，不再出现“准备就绪但所有控件灰掉”的误导状态。
+
+当前：**代码已提交，Foundation/新 artifact 待回归。** 在本轮 CI 与真机复测前，不把此缺陷标记为 PASS，也不推进 Gate13。
+
+## 上一统一候选：#628（已被 Batch M supersede 用于桌宠验收）
+
+历史 GitHub metadata：
+
+```text
+artifact: facm4-x64
+artifact id: 9708452498
+artifact ZIP bytes: 165,704,298
+GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
+Foundation: #628 / 33230830272
+```
+
+独立二次校验：
+
+```text
+ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
+FACM.App.exe bytes: 305,912,996
+FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+ZIP DLL entries: 0
+```
+
+该 artifact 的完整性证据仍有效，但真机已经发现 PetHost cross-process prepare 性能缺陷，所以不再把它当成 P7 最终统一候选继续收口。
+
+## 下一步
+
+1. 等 `6ba8c917...` 所在最新 PR head 完整 Foundation：source gates -> Release build -> FoundationSmoke -> WindowsSmoke -> single-file publish -> artifact。
+2. CI 全绿后只生成/下载这一个新的统一候选并独立重算 ZIP/EXE hash。
+3. Win10 targeted retest：第一次启用允许必要的新 bundle extraction；关闭并重开同一个候选后再次启用必须直接命中 disk cache，不得再长时间停在 `payload-preparing`。
+4. 连续切换桌宠至少 5-10 次；每次 Busy 都必须最终回到可交互状态，并在 JSONL 看到 `host-starting/ready` 或明确 failure/timeout + finish，而不是无终态。
+5. targeted retest 通过后再继续完整非破坏统一验收：Cleanup UAC cancel、四大入口、真实 League read paths、Settings、second launch、normal shutdown。
 
 真实 updater kill、真实删除、production pointer、release publication、legacy retirement 仍不属于这一轮默认授权范围。
 
@@ -189,18 +209,17 @@ CUTOVER BLOCKED
 9. interrupted updater replacement / rollback；
 10. final signature / package identity。
 
-自动稳定性全绿不会自动关闭任何仍需真实 evidence 的 blocker。
+自动/targeted 修复不会自动关闭任何仍需真实 evidence 的 blocker。
 
 ## Merge-ready 前剩余文档动作
 
-在未来准备把 PR #234 从 Draft 推向 merge-ready 前，再把本轮四条长期规则合入 canonical `docs/PITFALLS.md`：
+在未来准备把 PR #234 从 Draft 推向 merge-ready 前，把本轮长期规则合入 canonical `docs/PITFALLS.md`：
 
 - WinUI 平台 ThemeResource brush 只能读，FACM 运行时只改 app-owned semantic brush；
 - first-chance `UnauthorizedAccessException` 可能是已捕获/nonfatal，必须结合 recovery state、stack 与 lifecycle 判断；
 - 手工同步 `IsEnabled` 的 UI 若依赖 async `IsBusy`，完成时必须有 PropertyChanged/Dispatcher refresh；
-- Updater fallback/rollback 禁止 stream-copy over live executable，完整 staging/backup 后再 atomic swap。
-
-此项不阻塞当前统一真机候选，但在 merge-ready 结论前必须落入 canonical PITFALLS。
+- Updater fallback/rollback 禁止 stream-copy over live executable，完整 staging/backup 后再 atomic swap；
+- 大型内嵌 payload 的跨进程 disk cache 必须有构建期稳定 identity；不能为了判断 cache key，在每个新进程里先完整 hash 数十 MB payload。
 
 ## 每批更新规则
 
