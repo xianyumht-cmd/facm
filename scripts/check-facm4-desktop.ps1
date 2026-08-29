@@ -172,11 +172,14 @@ if ($appCode -match '(?m)^\s*EnsureMainWindow\(\);\s*$') {
 if ($appCode -notmatch 'PersistFloatingPlacementAsync' -or
     $appCode -notmatch 'Pets\.BallX\s*=' -or
     $appCode -notmatch 'Pets\.BallY\s*=' -or
-    $appCode -notmatch 'settings\.SaveAsync') {
-    Fail 'App must persist user-dragged floating-surface coordinates through Settings 2.0.'
+    $appCode -notmatch 'settings\.UpdateAsync' -or
+    $appCode -notmatch 'allowRecoveryRebuild:\s*false' -or
+    $appCode -notmatch 'updated\.Persisted' -or
+    $appCode -notmatch 'drag-position-not-persisted-recovery') {
+    Fail 'App must persist user-dragged floating-surface coordinates through the atomic recovery-safe Settings 2.0 mutation boundary.'
 }
-if ($appCode -notmatch 'RecoveredLastKnownGood' -or $appCode -notmatch 'RecoveryDefaults') {
-    Fail 'Floating-surface persistence must preserve corrupt-primary Settings recovery semantics.'
+if ($appCode -match 'settings\.SaveAsync\s*\(') {
+    Fail 'Floating placement persistence must not reintroduce stale whole-document Settings2 saves.'
 }
 if ($appCode -match '(?is)Pets\.Enabled.{0,600}new\s+FloatingWindow') {
     Fail 'pets.enabled controls optional desktop pets, not the built-in F launcher.'
@@ -194,4 +197,5 @@ Write-Host 'FACM 3.5-compatible absolute cursor drag model on WinUI: OK'
 Write-Host 'WinUI Button.Click owns compact launcher toggle: OK'
 Write-Host '420x680 compact launcher parity surface: OK'
 Write-Host 'Circular floating-surface client alignment: OK'
+Write-Host 'Atomic recovery-safe F placement persistence: OK'
 Write-Host 'FACM 4.0 Desktop contract: SUCCESS'

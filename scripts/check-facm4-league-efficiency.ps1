@@ -108,13 +108,17 @@ foreach ($forbidden in @(
 foreach ($required in @(
     'ISettings2Repository', 'ILeagueEfficiencyActionService', 'ILeagueGlobalHotkeyService',
     'SettingsLoadOrigin.RecoveredLastKnownGood', 'SettingsLoadOrigin.RecoveryDefaults',
-    'TryParseBindings', '_hotkeys.TryApply', '_settings.SaveAsync',
+    'TryParseBindings', '_hotkeys.TryApply', '_settings.UpdateAsync', 'allowRecoveryRebuild: false',
+    'settings-save-failed-rolled-back',
     'HotkeyPressed += OnHotkeyPressed', 'RunHotkeyActionSafelyAsync',
     'LeagueEfficiencyAction.ExitGame', 'LeagueEfficiencyAction.CloseLobby'
 )) {
     if ($runtime -notmatch [regex]::Escape($required)) {
         Fail "League efficiency process runtime is missing behavior: $required"
     }
+}
+if ($runtime -match '_settings\.SaveAsync\s*\(') {
+    Fail 'League efficiency runtime must use atomic narrow Settings2 updates, not whole-document SaveAsync.'
 }
 foreach ($forbidden in @(
     'System\.Diagnostics', 'System\.Runtime\.InteropServices', 'Microsoft\.UI',
@@ -194,7 +198,7 @@ if ((Count-Matches $smokeProgram 'LeagueEfficiencySmoke\.RunAsync') -ne 1) {
 
 Write-Host 'League efficiency Core: platform-neutral hotkey grammar + two narrow actions'
 Write-Host 'League efficiency Windows: exact process allowlists + PID/name revalidation + transactional RegisterHotKey owner'
-Write-Host 'League efficiency runtime: Settings 2.0 persistence + recovery read-only + serialized action dispatch'
+Write-Host 'League efficiency runtime: atomic Settings 2.0 persistence + registration rollback + recovery read-only + serialized action dispatch'
 Write-Host 'League efficiency WinUI: intent-only edit/save/disable controls'
 Write-Host 'League efficiency deterministic smoke: grammar / rollback / recovery / dispatch'
 Write-Host 'FACM 4.0 League Efficiency contract: SUCCESS'
