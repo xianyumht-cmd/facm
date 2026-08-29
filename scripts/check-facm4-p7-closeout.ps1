@@ -178,21 +178,31 @@ foreach ($required in @(
     if ($appProject -notmatch [regex]::Escape($required)) { Fail "P7 FACM.App candidate version metadata missing: $required" }
 }
 
-# Maintenance/single-instance shutdown is explicit and idempotent.
+# Maintenance/single-instance shutdown is explicit and idempotent. It also owns orderly teardown of
+# process-scoped personalization and League product services before shared runtime owners disappear.
 foreach ($required in @(
     'WindowsSingleInstanceGate', 'SingleInstanceDisposition.Primary',
-    'DisposeMaintenanceRuntime', '_maintenanceCenter?.Dispose()',
-    '_httpAnnouncementSource?.Dispose()', '_singleInstanceGate?.Dispose()'
+    'DisposeMaintenanceRuntime', 'DisposePersonalizationRuntime()', 'DisposeLeagueProductizationRuntime()',
+    '_maintenanceCenter?.Dispose()', '_httpAnnouncementSource?.Dispose()', '_singleInstanceGate?.Dispose()'
 )) {
     if ($appMaintenance -notmatch [regex]::Escape($required)) { Fail "P7 maintenance lifecycle missing: $required" }
 }
 
-# Desktop pet stays process-scoped and is tied to the floating entry lifecycle.
+# Desktop pet stays process-scoped and is tied to the floating entry lifecycle. Teardown is intentionally
+# encapsulated instead of requiring App.xaml.cs to know runtime details: detach window/state hooks first,
+# dispose the captured runtime, then clear process-owned references.
 foreach ($required in @(
     'WindowsVPetRuntime', 'AttachDesktopPetCloseHook', 'OnDesktopPetFloatingWindowClosed',
-    '_desktopPetRuntime?.Dispose()', '_desktopPetRuntime = null'
+    'DisposePersonalizationRuntime()', 'runtime.StateChanged -= OnDesktopPetRuntimeStateChanged',
+    'runtime?.Dispose()', '_desktopPetRuntime = null', '_desktopPetPreferences = null', '_petHostBundleStore = null'
 )) {
     if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "P7 personalization lifecycle missing: $required" }
+}
+if ($appPersonalization -notmatch '(?s)OnDesktopPetFloatingWindowClosed.*DisposePersonalizationRuntime\(\)') {
+    Fail 'P7 floating-entry close must route through the centralized personalization teardown.'
+}
+if ($appPersonalization -notmatch '(?s)DisposePersonalizationRuntime\(\).*runtime\.StateChanged\s*-=.*runtime\?\.Dispose\(\).*_desktopPetRuntime\s*=\s*null') {
+    Fail 'P7 personalization teardown must detach runtime state, dispose the runtime, then clear ownership.'
 }
 
 # League automation/hotkey owners are process scoped, use the shared gameflow/gateway, and dispose on exit.
@@ -221,6 +231,6 @@ Write-Host 'P7 primary navigation: Repair / League / Personalization / Settings 
 Write-Host 'P7 placeholder audit: no user-visible development placeholder on primary surfaces'
 Write-Host 'P7 theme runtime: platform aliases read-only + FACM-owned mutable brushes + startup fail-soft'
 Write-Host 'P7 lifecycle: one floating owner + one League session/gateway/gameflow owner'
-Write-Host 'P7 lifecycle: maintenance/single-instance, PetHost and process-scoped League automation dispose paths retained'
+Write-Host 'P7 lifecycle: centralized maintenance/single-instance, PetHost and process-scoped League teardown retained'
 Write-Host 'P7 startup diagnostics: access-denied first-chance/unhandled fallback + 4.0.0.0 candidate version metadata retained'
 Write-Host 'FACM 4.0 P7 entry/lifecycle closeout contract: SUCCESS'

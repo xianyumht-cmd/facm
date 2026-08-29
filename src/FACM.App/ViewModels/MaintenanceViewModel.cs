@@ -21,6 +21,8 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
     private AnnouncementSnapshot? _announcement;
     private PreparedUpdatePackage? _preparedUpdate;
     private CancellationTokenSource? _downloadCancellation;
+    private int _activeInstallerOperations;
+    private int _installerDisposed;
     private int _updateProgressPercent;
     private string _updateProgressStage = string.Empty;
     private bool _disposed;
@@ -140,12 +142,24 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             ApplyPreferences(await _service.LoadPreferencesAsync(cancellationToken));
+            _initialized = true;
+            OnPropertyChanged(nameof(IsInitialized));
             Status = LoadedFromRecovery ? "recovery-loaded-no-save" : "ready";
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "cancelled";
+            throw;
+        }
+        catch
+        {
+            // A transient settings/filesystem failure must not permanently poison the presenter. Keep
+            // IsInitialized=false so startup or the More Settings surface can retry in the same process.
+            Status = "initialization-failed";
+            throw;
         }
         finally
         {
-            _initialized = true;
-            OnPropertyChanged(nameof(IsInitialized));
             IsBusy = false;
         }
     }
@@ -249,16 +263,22 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         Status = "update-downloading";
         UpdateProgressPercent = 0;
         UpdateProgressStage = "connecting";
+
+        // The in-flight operation owns the linked CTS. Shutdown may cancel it, but only this method's
+        // finally disposes it after installer awaits have unwound. This avoids disposing a token source
+        // underneath callbacks/registrations still used by the downloader.
         _downloadCancellation?.Dispose();
-        _downloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var downloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _downloadCancellation = downloadCancellation;
         var progress = new Progress<UpdateDownloadProgress>(item =>
         {
             UpdateProgressPercent = item.Percent;
             UpdateProgressStage = item.Stage;
         });
+        EnterInstallerOperation();
         try
         {
-            _preparedUpdate = await _installer.PrepareAsync(Manifest, progress, _downloadCancellation.Token);
+            _preparedUpdate = await _installer.PrepareAsync(Manifest, progress, downloadCancellation.Token);
             Status = "update-prepared";
             OnPropertyChanged(nameof(HasPreparedUpdate));
             return true;
@@ -277,6 +297,10 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
+            if (ReferenceEquals(_downloadCancellation, downloadCancellation))
+                _downloadCancellation = null;
+            downloadCancellation.Dispose();
+            ExitInstallerOperation();
             IsBusy = false;
         }
     }
@@ -295,6 +319,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         if (IsBusy) return new UpdateReplacementResult(false, "maintenance-busy");
         IsBusy = true;
         Status = "update-starting";
+        EnterInstallerOperation();
         try
         {
             var result = await _installer.StartReplacementAsync(_preparedUpdate, cancellationToken);
@@ -318,6 +343,7 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
+            ExitInstallerOperation();
             IsBusy = false;
         }
     }
@@ -328,6 +354,21 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
         _lastAnnouncementId = preferences.LastAnnouncementId;
         LoadedFromRecovery = preferences.LoadedFromRecovery;
         OnPropertyChanged(nameof(IsAnnouncementNew));
+    }
+
+    private void EnterInstallerOperation() => Interlocked.Increment(ref _activeInstallerOperations);
+
+    private void ExitInstallerOperation()
+    {
+        if (Interlocked.Decrement(ref _activeInstallerOperations) == 0 && _disposed)
+            DisposeInstallerOnce();
+    }
+
+    private void DisposeInstallerOnce()
+    {
+        if (_installer is not IDisposable disposable) return;
+        if (Interlocked.Exchange(ref _installerDisposed, 1) != 0) return;
+        disposable.Dispose();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -347,10 +388,16 @@ public sealed class MaintenanceViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _downloadCancellation?.Cancel();
-        _downloadCancellation?.Dispose();
+        var downloadCancellation = _downloadCancellation;
         _downloadCancellation = null;
-        if (_installer is IDisposable disposable) disposable.Dispose();
+        try { downloadCancellation?.Cancel(); } catch { }
+        // The active operation owns the CTS and installer until its finally runs. If no installer
+        // operation is active, dispose immediately; otherwise ExitInstallerOperation owns the handoff.
+        if (Volatile.Read(ref _activeInstallerOperations) == 0)
+        {
+            downloadCancellation?.Dispose();
+            DisposeInstallerOnce();
+        }
         PropertyChanged = null;
     }
 }

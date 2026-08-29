@@ -21,6 +21,8 @@ $announcementPath = Join-Path $Root 'src/FACM.Infrastructure/Online/HttpAnnounce
 $singleInstancePath = Join-Path $Root 'src/FACM.Platform.Windows/Runtime/WindowsSingleInstanceGate.cs'
 $logOpenerPath = Join-Path $Root 'src/FACM.Platform.Windows/Runtime/WindowsLogFileOpener.cs'
 $viewModelPath = Join-Path $Root 'src/FACM.App/ViewModels/MaintenanceViewModel.cs'
+$controlPath = Join-Path $Root 'src/FACM.App/MaintenanceSettingsControl.xaml.cs'
+$windowPath = Join-Path $Root 'src/FACM.App/MainWindow.Maintenance.cs'
 $settingsPath = Join-Path $Root 'src/FACM.Core/Settings/Settings2.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/MaintenanceSmoke.cs'
 $smokeProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
@@ -29,8 +31,8 @@ $windowsSmokeProgramPath = Join-Path $Root 'src/FACM.WindowsSmoke/Program.cs'
 
 foreach ($path in @(
     $coreAnnouncementPath, $coreMaintenancePath, $corePlatformPath, $manifestPath, $announcementPath,
-    $singleInstancePath, $logOpenerPath, $viewModelPath, $settingsPath, $smokePath, $smokeProgramPath,
-    $windowsSmokePath, $windowsSmokeProgramPath
+    $singleInstancePath, $logOpenerPath, $viewModelPath, $controlPath, $windowPath, $settingsPath,
+    $smokePath, $smokeProgramPath, $windowsSmokePath, $windowsSmokeProgramPath
 )) {
     if (-not (Test-Path $path)) { Fail "P6 maintenance contract file missing: $path" }
 }
@@ -43,6 +45,8 @@ $announcement = Get-Content $announcementPath -Raw
 $singleInstance = Get-Content $singleInstancePath -Raw
 $logOpener = Get-Content $logOpenerPath -Raw
 $viewModel = Get-Content $viewModelPath -Raw
+$control = Get-Content $controlPath -Raw
+$window = Get-Content $windowPath -Raw
 $settings = Get-Content $settingsPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $smokeProgram = Get-Content $smokeProgramPath -Raw
@@ -128,9 +132,24 @@ if ($logOpener -match 'public\s+WindowsLogFileOpener\s*\([^)]*string') {
 foreach ($required in @(
     'MaintenanceApplicationService', 'InitializeAsync', 'SetAutoUpdateEnabledAsync',
     'ManualCheckAsync', 'RefreshAnnouncementAsync', 'MarkAnnouncementSeenAsync',
-    'LoadedFromRecovery', 'UpdateAvailable', 'ForceUpdateRequired'
+    'LoadedFromRecovery', 'UpdateAvailable', 'ForceUpdateRequired',
+    'Status = "initialization-failed"', 'ReferenceEquals(_downloadCancellation, downloadCancellation)',
+    'EnterInstallerOperation()', 'ExitInstallerOperation()', 'DisposeInstallerOnce()',
+    'Volatile.Read(ref _activeInstallerOperations)'
 )) {
-    Require-Text $viewModel $required "Maintenance ViewModel intent surface is missing: $required"
+    Require-Text $viewModel $required "Maintenance ViewModel intent/lifecycle surface is missing: $required"
+}
+if ($viewModel -notmatch '(?s)InitializeAsync\(.*?ApplyPreferences\(await _service\.LoadPreferencesAsync.*?_initialized\s*=\s*true;') {
+    Fail 'Maintenance initialization may mark success only after preferences load succeeds.'
+}
+if ($viewModel -match '(?s)InitializeAsync\(.*?finally\s*\{[^}]*_initialized\s*=\s*true') {
+    Fail 'Maintenance initialization failure/cancellation must not permanently latch IsInitialized=true.'
+}
+if ($viewModel -notmatch '(?s)PrepareUpdateAsync\(.*?_downloadCancellation\s*=\s*downloadCancellation.*?finally.*?downloadCancellation\.Dispose\(\)') {
+    Fail 'Maintenance download operation must own and dispose its CTS only after the installer await unwinds.'
+}
+if ($viewModel -notmatch '(?s)Dispose\(\).*?downloadCancellation\?\.Cancel\(\).*?Volatile\.Read\(ref _activeInstallerOperations\)') {
+    Fail 'Maintenance teardown must cancel active download work and defer installer disposal until operations unwind.'
 }
 foreach ($forbidden in @(
     'HttpClient', 'HttpRequestMessage', 'Process\.Start', 'Registry',
@@ -138,6 +157,22 @@ foreach ($forbidden in @(
 )) {
     if ($viewModel -match $forbidden) { Fail "Maintenance ViewModel owns forbidden platform/network behavior: $forbidden" }
 }
+
+foreach ($required in @(
+    'RetryInitialization()', '_initializationInFlight', 'InitializeCoreAsync',
+    'if (viewModel.IsInitialized)', 'catch (OperationCanceledException)'
+)) {
+    Require-Text $control $required "Maintenance WinUI retry/async containment missing: $required"
+}
+foreach ($handler in @(
+    'OnAutoUpdateToggled', 'OnCheckNowClick', 'OnDownloadClick', 'OnInstallClick',
+    'OnAnnouncementDetailClick', 'OnOpenLogClick'
+)) {
+    if ($control -notmatch ('(?s)' + [regex]::Escape($handler) + '.*?catch')) {
+        Fail "Maintenance async-void handler is missing failure containment: $handler"
+    }
+}
+Require-Text $window '_maintenanceControl?.RetryInitialization()' 'Entering More Settings must retry a transiently failed maintenance initialization.'
 
 foreach ($forbidden in @('StartupEnabled', 'RunRegistry', 'StartupFolder', 'StartWithWindows', 'LaunchAtStartup')) {
     if ($settings -match $forbidden -or $viewModel -match $forbidden -or $coreMaintenance -match $forbidden) {
@@ -177,5 +212,6 @@ Write-Host 'P6 Announcement: fixed GitHub raw origin, 128 KiB cap, 8s timeout, H
 Write-Host 'P6 Recovery: load is read-only; explicit user changes may rebuild primary settings'
 Write-Host 'P6 Single instance: legacy mutex/event names + 1600ms bounded signal + AutoReset callback'
 Write-Host 'P6 Log opener: controlled runtime/logs/facm4-events.jsonl + separable Windows Shell launch'
+Write-Host 'P7 Maintenance hardening: retryable initialization + async-void containment + deferred installer/CTS teardown'
 Write-Host 'P6 App boundary: no direct network/file/process/registry maintenance behavior in ViewModel'
 Write-Host 'FACM 4.0 P6 maintenance foundation contract: SUCCESS'

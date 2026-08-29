@@ -9,7 +9,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 {
     private MaintenanceViewModel? _viewModel;
     private bool _syncing;
-    private bool _loadedOnce;
+    private bool _initializationInFlight;
 
     public MaintenanceSettingsControl()
     {
@@ -31,24 +31,35 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         ApplyState();
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e) => RetryInitialization();
+
+    internal void RetryInitialization()
     {
-        if (_loadedOnce || _viewModel is null) return;
-        _loadedOnce = true;
+        var viewModel = _viewModel;
+        if (_initializationInFlight || viewModel is null || viewModel.IsInitialized) return;
+        _initializationInFlight = true;
+        _ = InitializeCoreAsync(viewModel);
+    }
+
+    private async Task InitializeCoreAsync(MaintenanceViewModel viewModel)
+    {
         try
         {
-            await _viewModel.InitializeAsync();
-            await _viewModel.RefreshAnnouncementAsync();
+            await viewModel.InitializeAsync();
+            if (viewModel.IsInitialized)
+                await viewModel.RefreshAnnouncementAsync();
         }
         catch (OperationCanceledException)
         {
         }
         catch
         {
-            // More Settings is fail-soft; a maintenance provider problem cannot escape async-void.
+            // More Settings is fail-soft. The next navigation to this surface calls RetryInitialization
+            // again, so a transient settings/provider failure does not require a process restart.
         }
         finally
         {
+            _initializationInFlight = false;
             ApplyState();
         }
     }
@@ -246,6 +257,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
     private static string StatusText(string status, bool forceUpdateRequired) => status switch
     {
         "ready" => "维护功能已就绪",
+        "initialization-failed" => "维护设置初始化失败；重新进入更多设置时会重试",
         "recovery-loaded-no-save" => "已从恢复设置加载；未覆盖主设置",
         "checking" => "正在检查更新…",
         "update-available" when forceUpdateRequired => "发现必须更新的版本：请选择更新或退出 FACM",

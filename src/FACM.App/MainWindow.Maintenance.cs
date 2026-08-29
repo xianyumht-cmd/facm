@@ -80,6 +80,11 @@ public sealed partial class MainWindow
 
     private void OnMaintenanceNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        // The control can stay loaded while its parent panel is hidden, so a transient first-load
+        // failure cannot rely on another Loaded event. Entering More Settings explicitly retries.
+        if (ReferenceEquals(args.SelectedItem, SettingsNav))
+            _maintenanceControl?.RetryInitialization();
+
         if (_maintenanceRedirecting || _maintenanceViewModel?.ForceUpdateRequired != true) return;
         if (ReferenceEquals(args.SelectedItem, SettingsNav)) return;
 
