@@ -43,13 +43,15 @@ public sealed class DesktopPetPreferenceService
         if (result.Success)
             return Snapshot(true, pet, recoveryReadOnly, result.Detail);
 
-        // A configured pet may never make FACM disappear. If startup is rejected synchronously,
-        // return to the built-in launcher and repair the preference when the settings file is writable.
+        // A configured pet may never make FACM disappear. If startup is rejected, return to the
+        // built-in launcher and repair only Pets.Enabled without overwriting unrelated settings.
         _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
         if (!recoveryReadOnly)
         {
-            loaded.Settings.Pets.Enabled = false;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            _ = await _settings.UpdateAsync(
+                settings => settings.Pets.Enabled = false,
+                allowRecoveryRebuild: false,
+                cancellationToken).ConfigureAwait(false);
         }
         return Snapshot(false, pet, recoveryReadOnly, "pet-start-failed:" + result.Detail);
     }
@@ -59,28 +61,39 @@ public sealed class DesktopPetPreferenceService
         CancellationToken cancellationToken = default)
     {
         var pet = FacmPetCatalog.Get(petId);
-        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var recoveryReadOnly = IsRecoveryReadOnly(loaded.Origin);
 
-        if (!recoveryReadOnly)
-        {
-            // Persist the explicit style choice immediately, but do not claim the desktop pet is enabled
-            // until the controlled PetHost has actually reached ready. This prevents an interrupted/slow
-            // first extraction from leaving Settings2 enabled while no pet is visible.
-            loaded.Settings.Pets.StyleId = pet.Id;
-            loaded.Settings.Pets.Enabled = false;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
-        }
+        // Persist the explicit style choice but do not claim enabled until PetHost reaches ready.
+        // Recovery settings remain session-only and are never rebuilt by personalization.
+        var pending = await _settings.UpdateAsync(
+            settings =>
+            {
+                settings.Pets.StyleId = pet.Id;
+                settings.Pets.Enabled = false;
+            },
+            allowRecoveryRebuild: false,
+            cancellationToken).ConfigureAwait(false);
+        var recoveryReadOnly = !pending.Persisted;
 
         var result = await _runtime.ApplyAsync(true, pet, cancellationToken).ConfigureAwait(false);
         if (result.Success)
         {
             if (!recoveryReadOnly)
             {
-                loaded.Settings.Pets.Enabled = true;
                 try
                 {
-                    await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+                    var committed = await _settings.UpdateAsync(
+                        settings =>
+                        {
+                            settings.Pets.StyleId = pet.Id;
+                            settings.Pets.Enabled = true;
+                        },
+                        allowRecoveryRebuild: false,
+                        cancellationToken).ConfigureAwait(false);
+                    if (!committed.Persisted)
+                    {
+                        _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
+                        return Snapshot(false, pet, true, "pet-start-failed:settings-became-recovery-read-only");
+                    }
                 }
                 catch
                 {
@@ -94,8 +107,14 @@ public sealed class DesktopPetPreferenceService
         _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
         if (!recoveryReadOnly)
         {
-            loaded.Settings.Pets.Enabled = false;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            _ = await _settings.UpdateAsync(
+                settings =>
+                {
+                    settings.Pets.StyleId = pet.Id;
+                    settings.Pets.Enabled = false;
+                },
+                allowRecoveryRebuild: false,
+                cancellationToken).ConfigureAwait(false);
         }
         return Snapshot(false, pet, recoveryReadOnly, "pet-start-failed:" + result.Detail);
     }
@@ -109,8 +128,10 @@ public sealed class DesktopPetPreferenceService
         var result = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
         if (!recoveryReadOnly)
         {
-            loaded.Settings.Pets.Enabled = false;
-            await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+            _ = await _settings.UpdateAsync(
+                settings => settings.Pets.Enabled = false,
+                allowRecoveryRebuild: false,
+                cancellationToken).ConfigureAwait(false);
         }
         return Snapshot(false, pet, recoveryReadOnly, result.Detail);
     }
@@ -118,11 +139,14 @@ public sealed class DesktopPetPreferenceService
     public async Task ResetPositionAsync(CancellationToken cancellationToken = default)
     {
         await _runtime.ResetPositionAsync(cancellationToken).ConfigureAwait(false);
-        var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
-        if (IsRecoveryReadOnly(loaded.Origin)) return;
-        loaded.Settings.Pets.BallX = int.MinValue;
-        loaded.Settings.Pets.BallY = int.MinValue;
-        await _settings.SaveAsync(loaded.Settings, cancellationToken).ConfigureAwait(false);
+        _ = await _settings.UpdateAsync(
+            settings =>
+            {
+                settings.Pets.BallX = int.MinValue;
+                settings.Pets.BallY = int.MinValue;
+            },
+            allowRecoveryRebuild: false,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private void OnRuntimeStateChanged(object? sender, DesktopPetRuntimeState state)
@@ -147,14 +171,15 @@ public sealed class DesktopPetPreferenceService
             var loaded = await _settings.LoadAsync().ConfigureAwait(false);
             if (IsRecoveryReadOnly(loaded.Origin) || !loaded.Settings.Pets.Enabled) return;
 
-            // Re-check after the async settings read so a user re-enable racing this recovery does not get
-            // overwritten by an older process-exit notification.
+            // Re-check after the async settings read so an explicit re-enable racing this recovery does not
+            // get overwritten by an older process-exit notification.
             current = _runtime.Current;
             if (current.StartRequested || current.PetVisible || !string.Equals(current.Detail, failedState.Detail, StringComparison.Ordinal))
                 return;
 
-            loaded.Settings.Pets.Enabled = false;
-            await _settings.SaveAsync(loaded.Settings).ConfigureAwait(false);
+            _ = await _settings.UpdateAsync(
+                settings => settings.Pets.Enabled = false,
+                allowRecoveryRebuild: false).ConfigureAwait(false);
         }
         catch
         {
