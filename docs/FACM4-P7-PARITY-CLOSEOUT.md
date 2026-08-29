@@ -1,173 +1,177 @@
 # FACM 4.0 P7 Functional Parity Closeout
 
-Status: **AUTOMATED-STABILITY-GREEN / unified real-machine candidate ready**
+Status: **FUNCTIONAL-PARITY-GREEN / BATCH-M-CI-GREEN / TARGETED-REAL-MACHINE-RETEST-NEXT**
 Production baseline: FACM 3.5.15
 Stacked base: `feat/facm4-function-parity-p6-settings-maintenance@d3801a0fa4276e74514a59a6c673c4cc4efbaff8`
 Tracking: #233 / PR #234
-Verified code head: `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`
-Verified Foundation: **#628 / run `33230830272` = SUCCESS**
-Docs reconciliation: `b5f895cdbb30f32d834a7b697a0505548f858da1` / Foundation #629 SUCCESS
+Latest code fix: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
+Verified Foundation: **#632 / run `33233590075` = SUCCESS**
+Current targeted artifact: `9709261625`
 
-## Purpose
+## Purpose and boundary
 
-P7 is the final **functional-equivalence and automated-stability closeout** before one unified real-machine candidate is used for full Windows validation.
+P7 is the final functional-equivalence and stability closeout before full real-Windows validation. It is not UI 2.0, permission to merge stacked P2-P7, a production pointer/release change, Gate13 cutover approval, or legacy retirement approval.
 
-P7 is not UI 2.0, permission to merge stacked P2-P7, a production pointer/release change, Gate13 cutover approval, or legacy retirement approval.
+Production remains FACM 3.5.15.
 
-The rule remains: **functional parity + automated stability first, one unified real-machine validation second, visual redesign later.**
+## Functional parity result
 
-## Code-side parity result
+The stacked P7 line retains the code-side 3.5.15 parity contract:
 
-P7 has met its code-side parity definition on the stacked line:
-
-- production FACM 3.5.15 legacy settings contract is frozen from the real 15-key `AppSettings.BuildLines()` set/order;
-- legacy `settings.ini` migration does not rewrite the legacy file;
-- corrupt/newer Settings2 and atomic-write failure remain fail-safe;
-- Repair / League / Personalization / Settings primary entries all resolve to real WinUI functionality;
-- no user-visible `TODO`, `Coming soon`, `placeholder`, `暂未实现` or `开发测试` remains on primary surfaces;
+- production legacy Settings contract uses the real ordered 15-key `AppSettings.BuildLines()` baseline;
+- legacy `settings.ini` migration does not rewrite the source legacy file;
+- corrupt/newer Settings2 and atomic-write failures remain fail-safe;
+- Repair / League / Personalization / Settings primary entries resolve to real WinUI functionality;
+- primary surfaces contain no user-visible development placeholders;
 - Cleanup retains preview/confirmation/elevation boundaries;
-- launcher-first / F / compact launcher / MainWindow ownership remains intact;
+- launcher-first F / compact launcher / MainWindow ownership remains one product lifecycle;
 - League retains one discovery/session owner, one shared gateway and one gameflow heartbeat;
-- PetHost, global hotkeys, maintenance, single-instance and updater helper keep explicit lifecycle ownership.
+- PetHost, global hotkeys, maintenance, single-instance and updater helper retain explicit ownership/teardown.
 
-## Stability-audit findings closed after initial parity
+## Stability findings closed before Batch M
 
-### WinUI theme resource ownership
+### WinUI theme ownership
 
-Real Win10 startup captured `E_ACCESSDENIED` while runtime code attempted to set the color of a WinUI platform-owned `SolidColorBrush`.
+Real Win10 captured `E_ACCESSDENIED` while runtime attempted to mutate a platform-owned `SolidColorBrush`. Platform/system brushes are now read-only inputs; FACM semantic brushes are app-owned mutable objects. Startup remains fail-soft.
 
-Current rule: platform/system brushes are read-only inputs; FACM semantic brushes are app-owned mutable objects; runtime theme application only mutates FACM-owned brushes; personalization startup remains fail-soft.
+### Personalization async Busy
 
-Subsequent Win10 evidence no longer showed the old brush startup failure and recovery state reached `Running`.
+The surface previously synchronized controls manually while desktop-pet work was asynchronous. PropertyChanged + DispatcherQueue refresh now brings UI state back to the owner thread. Busy state has explicit “正在处理，请稍候…” feedback.
 
-### Personalization stale Busy / permanently disabled controls
+### Settings2 atomic mutation
 
-The Personalization surface manually synchronized `IsEnabled` while desktop-pet initialization was asynchronous. If the surface synced during `IsBusy=true`, there was no completion refresh and controls could remain disabled forever.
+Feature writers use a narrow atomic `UpdateAsync` boundary instead of whole-document load/mutate/save races. Recovery feature mutations remain read-only unless an explicit maintenance rebuild is authorized.
 
-Fix: desktop-pet initialization completion dispatches a UI-owner surface refresh. Actual Win10 follow-up persisted `mono-emerald`, `greenfly`, pet enabled=true and F coordinates, proving user intents reached Settings2 after the fix. This is narrow evidence; it does not by itself prove every theme visual or PetHost visible-runtime behavior.
+### Maintenance and League lifecycle
 
-### Cross-feature Settings2 lost updates
+Maintenance supports retry after failed initialization and does not Dispose linked CTS/installer ownership under active awaits. League caller/lifetime cancellation and Window/ContentDialog teardown are contained without relaxing explicit write-confirmation boundaries.
 
-Several feature writers previously followed whole-document load/mutate/save patterns. Parallel feature actions could overwrite unrelated changes.
+### Updater interrupted replacement
 
-Fix:
+`File.Replace` remains primary. Fallback/rollback use complete staging/backup plus same-directory `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` atomic swaps. No fallback path stream-copies over the live EXE. Built helper `--self-test` executes in Foundation.
 
-- `IAtomicSettings2Repository` / narrow `UpdateAsync` transaction boundary;
-- Recovering repository serializes latest-load -> narrow mutation -> validate -> save -> LKG;
-- normal feature mutations cannot rebuild recovery primary unless explicitly authorized by maintenance intent;
-- Cleanup, Personalization, F coordinates, League settings and other feature writers use the atomic boundary.
+## Repeated-operation stability
 
-Regression stress: 40 iterations of concurrent Theme + F position + League setting updates with read-back after every iteration.
-
-### Maintenance lifecycle and retry
-
-Closed defects:
-
-- failed initialization no longer permanently marks the presenter initialized;
-- More Settings can retry initialization in the same app session;
-- active download owns/disposes its linked CTS; shutdown cancels but does not dispose underneath an active await;
-- installer disposal is deferred until active download/replacement operations leave their finally blocks;
-- Maintenance async-void handlers have final exception containment;
-- install confirmation returns to a revalidated current state before replacement intent continues.
-
-### League cancellation / Window and ContentDialog teardown
-
-Closed defects:
-
-- Refresh / Advisor / ItemSet / automation settings distinguish linked caller/lifetime cancellation from provider failure;
-- normal cancellation no longer fabricates failure states;
-- fire-and-forget MainWindow refresh is contained during Window dispose;
-- ContentDialog close/XamlRoot teardown is contained;
-- explicit `ContentDialogResult.Primary` remains mandatory before recommendation/item-set writes.
-
-A real compiler regression found during this audit (`CS0157`, leaving a finally clause) was caught by the full Release build and fixed before the final stability head.
-
-### Updater interrupted-replacement primitive
-
-The previous fallback/rollback paths could stream-copy bytes directly over the live FACM executable. A helper termination during that copy could leave a partial EXE.
-
-Current contract:
-
-- `File.Replace` remains the preferred replacement path;
-- fallback first prepares a complete `.facm-old` while live destination is unchanged;
-- validated candidate staging moves over destination using same-directory `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)`;
-- rollback moves the complete backup over destination using the same atomic primitive;
-- no fallback/rollback path may use `File.Copy(staging|backup, liveDestination, overwrite:true)`;
-- built `FACM.Updater.exe --self-test` executes in Foundation and verifies backup-before-swap, complete candidate swap, complete rollback, and fallback backup integrity.
-
-This materially narrows interruption risk but does **not** convert Gate13 `update.interrupted-replacement-rollback` to Passed; real Windows controlled-termination evidence is still required.
-
-## Repeated-operation stability matrix
-
-| Area | Repetition | Required invariant | #628 result |
+| Area | Repetition | Invariant | Result |
 | --- | ---: | --- | --- |
-| Settings2 cross-feature mutation | 40 rounds | no unrelated-field lost update after concurrent narrow mutations | PASS |
-| Single-instance lifecycle | 24 rounds | one primary, one activation callback, mutex released after dispose | PASS |
-| Updater UAC cancellation | 24 rounds | Win32 1223 returns false; existing app stays usable; no success launch path | PASS |
-| PetHost bundle/cache | 24 repeated prepares | same SHA/path; no repeated embedded-bundle reopen/rehash | PASS |
-| League Recommended cycle | 24 cycles | at-most-once write per stable ChampSelect fingerprint/cycle | PASS |
-| League Efficiency hotkey transaction | 30 updates | registration/runtime/persisted settings stay in lockstep | PASS |
+| Settings2 cross-feature mutation | 40 rounds | unrelated fields not lost | PASS |
+| Single-instance lifecycle | 24 rounds | one primary / one callback / clean release | PASS |
+| Updater UAC cancellation | 24 rounds | cancel is fail-safe; no success launch | PASS |
+| PetHost same-process prepare | 24 rounds | same SHA/path; no repeated reopen | PASS |
+| League Recommended | 24 cycles | at-most-once write per stable cycle | PASS |
+| League Efficiency hotkeys | 30 updates | registration/runtime/persistence stay in lockstep | PASS |
 
-These are deterministic service/runtime tests, not substitutes for real UI/input/DPI/accessibility evidence.
+Batch M adds a separate **cross-process** PetHost disk-cache test because same-process repetition did not model FACM restart.
 
-## Final parity matrix
+## Batch M: Win10 PetHost cross-process cache defect
 
-| 3.5.15 behavior area | FACM 4 owner | P7 automated state | Remaining evidence |
-| --- | --- | --- | --- |
-| Launcher-first startup, floating F, compact launcher | App + Core Desktop + Platform.Windows | GREEN | full supported-Windows real-machine behavior |
-| Floating placement persistence / recovery-safe restore | Settings2 + Desktop platform | GREEN + 40-round settings stress | real mixed-DPI / multi-monitor |
-| Cleanup preview / confirm / elevation / safe delete | Core + Platform.Windows + WinUI | GREEN | real UAC cancel and separately authorized delete |
-| Driver cleanup + native League repair actions | Core + Platform.Windows + App | GREEN | real-machine operation |
-| Themes / flying pets / VPet / reset F / reset positions | Core + PetHost + App | GREEN + narrow Win10 evidence | full visual/PetHost real-machine behavior |
-| League Dashboard / Player / Live | Core + Infrastructure + shared gateway | GREEN | real League client behavior |
-| OP.GG advisor / ItemSet / recommended runes & spells | Core + Infrastructure + App | GREEN + repeated transaction smoke | real League write-path validation |
-| Matchmaking / ReadyCheck / PostGame / Presence | Core services + shared gameflow | GREEN | real League lifecycle |
-| Efficiency / global hotkeys | Core + Platform.Windows | GREEN + 30-round transaction smoke | real hotkey conflicts/focus behavior |
-| Bench quick-pick / swap | Core + shared gateway | GREEN | real ChampSelect behavior |
-| ARAM / Mayhem data, decisions, build, localization, balance | Core + Infrastructure | GREEN | live public-data/LCU behavior |
-| Mayhem WinUI query/cancel/save/copy | App + Core | GREEN | real save/clipboard behavior |
-| Auto update / manual check / announcements | Core + Infrastructure + App | GREEN | real network/UI behavior |
-| Update download / receipt / signer / UAC helper / rollback | Infrastructure + Platform.Windows + FACM.Updater | GREEN + atomic helper self-test | real interrupted replacement + final package identity |
-| Open diagnostic log | Platform.Windows + App | GREEN | real Shell open behavior |
-| Single-instance Ensure Open | Platform.Windows + App lifecycle | GREEN + 24-round Windows smoke | real second-launch behavior |
-| `settings.ini` -> Settings2 | Core + Infrastructure | GREEN | real 3.5.15 user-machine migration |
-| `ui-text.ini` stable TextKeys | Core + Infrastructure + App | GREEN | real-machine visual review |
-| Main navigation: Repair / League / Personalization / Settings | App | GREEN | real-machine interaction |
-| Cross-module shutdown ownership | App + platform runtimes | GREEN | real process/UAC/updater shutdown behavior |
+### Real-machine observation
 
-## Same-head CI acceptance
+2026-08-29 Win10 22H2 evidence showed:
 
-FACM 4.0 Foundation **#628 / run `33230830272` = SUCCESS** on code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`.
+- recovery state `Running`, current/LKG version 4.0.0.0, consecutive failures 0;
+- Settings2 LKG `glass-blue`, selected pet `moth`, enabled=false, F position `1569,576`;
+- disabled-selection greenfly -> dragonfly -> moth completed;
+- enable moth reached `pet-enable-start -> IsBusy=true -> payload-preparing`;
+- more than 13 seconds later no `host-starting / ready / failed / finish` had appeared;
+- F drag/persistence events continued during that window, so the main UI/message loop remained alive.
 
-The same run passed controlled PetHost + Updater self-tests, all P1-P7 source/product gates, PowerShell 5.1 collector self-test, Release build, FoundationSmoke, WindowsSmoke, single-file publish, publish verification and artifact upload.
+The evidence localized the delay to PetHost payload preparation rather than a whole-application UI deadlock.
 
-Canonical-doc reconciliation commit `b5f895cdbb30f32d834a7b697a0505548f858da1` then passed full Foundation **#629 / run `33231064160` = SUCCESS**. Because that head is docs-only, the executable candidate remains the #628 code artifact.
+### Root cause
 
-## Unified candidate and independent hash
+Old `WindowsPetHostBundleStore` needed the payload SHA to find `runtime/pethost-host/<sha>`, but computed that SHA by opening and hashing the entire embedded PetHost ZIP on the first `PrepareAsync()` of every FACM process. The bundle is about 76.9 MB. `_cachedPreparation` made repeated calls fast only inside the same process, so previous 24-round smoke missed restart behavior.
+
+### Fix
+
+Batch M fix `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`:
+
+- Foundation computes `PetHostBundle.sha256` immediately after the controlled PetHost ZIP is built;
+- FACM.App embeds both `FACM.Resources.PetHost.zip` and `FACM.Resources.PetHost.sha256`;
+- required candidate builds fail when either controlled resource is missing;
+- App reads the tiny identity resource and supplies it to the bundle store;
+- a new FACM process can check the exact disk cache before opening the large embedded ZIP;
+- complete cross-process cache hit returns without reopening or rehashing the ZIP;
+- local/lightweight builds without the identity retain the safe runtime hash fallback;
+- WindowsSmoke constructs a fresh second store to simulate a new process and requires `openBundle == 0` for an existing complete cache;
+- source gate freezes build identity + cross-process no-rehash + Busy-feedback contracts.
+
+## Batch M CI acceptance
+
+FACM 4.0 Foundation **#632 / run `33233590075` = SUCCESS**.
+
+The run checked out PR merge ref containing `803e1ba5f9b671b0a787a8c77bb39912d4211b7d`, whose parent includes Batch M code fix `6ba8c917...`.
+
+Controlled PetHost output:
+
+```text
+PetHostBundle.zip bytes=76,924,303
+PetHostBundle SHA-256=48e24e9a67f7f75dffc4bef56eeadee9c13d9cc028c38679c8fab0c651141fc4
+```
+
+Both Release build and publish logged:
+
+```text
+Embedding FACM 4.0 PetHost bundle as FACM.Resources.PetHost.zip
+Embedding FACM 4.0 PetHost identity as FACM.Resources.PetHost.sha256
+```
+
+Personalization gate logged:
+
+```text
+Personalization PropertyChanged/Dispatcher busy feedback: OK
+Controlled PetHost build identity + extraction/cache/timeout boundary: OK
+Cross-process PetHost cache no-rehash boundary: OK
+FACM 4.0 Personalization foundation contract: SUCCESS
+```
+
+The same run passed all P1-P7 source/product gates, PowerShell 5.1 collector self-test, Release build with 0 warnings/0 errors, FoundationSmoke, WindowsSmoke, WinUI x64 self-contained single-file publish, publish-output verification and artifact upload.
+
+## Current targeted candidate
 
 ```text
 artifact: facm4-x64
-artifact id: 9708452498
-artifact ZIP bytes: 165,704,298
-GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
+artifact id: 9709261625
+artifact ZIP bytes: 165,704,303
+GitHub artifact digest: sha256:32331020c0c1c3fc93ebf70991ddff99a6349deede41e7374ae063da0aa9cb0a
+Foundation: #632 / 33233590075
 ```
 
-Independent re-hash after downloading artifact `9708452498`:
+Independent re-hash:
 
 ```text
-ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-ZIP bytes: 165,704,298
+ZIP SHA-256: 32331020c0c1c3fc93ebf70991ddff99a6349deede41e7374ae063da0aa9cb0a
 FACM.App.exe bytes: 305,912,996
-FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+FACM.App.exe SHA-256: 5d65bd3f3e64a2520cb0c9514627a42e97781396d9e21013f04499fb464a9fea
 ZIP DLL entries: 0
 ```
 
-ZIP digest exactly matches GitHub artifact metadata and the candidate contains no DLL sidecars.
+Old #628 artifact `9708452498` is superseded for current PetHost validation; its earlier integrity evidence is historical only.
 
-## Evidence outside automated parity/stability
+## Parity matrix
 
-Canonical Gate13 readiness is unchanged:
+| 3.5.15 behavior area | FACM 4 owner | Automated state | Remaining real evidence |
+| --- | --- | --- | --- |
+| Launcher-first F / compact / detailed Shell | App + Desktop Core/Platform | GREEN | complete supported-Windows behavior |
+| F placement persistence | Settings2 + Desktop | GREEN | mixed-DPI / multi-monitor |
+| Cleanup preview / confirm / elevation | Core + Platform.Windows + App | GREEN | real UAC cancel; separately authorized delete |
+| Repair actions | Core + Platform.Windows + App | GREEN | real-machine operation |
+| Themes / flying pets / VPet | Core + App + PetHost | BATCH-M CI-GREEN | targeted cache/visible-runtime retest |
+| League Dashboard / Player / Live | shared League gateway/runtime | GREEN | real League client behavior |
+| Recommended setup / ItemSet | Core + Infrastructure + App | GREEN | real write-path validation |
+| Matchmaking / ReadyCheck / PostGame / Presence | shared gameflow services | GREEN | real League lifecycle |
+| Efficiency / hotkeys | Core + Platform.Windows | GREEN | real conflict/focus behavior |
+| Bench quick-pick | shared League gateway | GREEN | real ChampSelect behavior |
+| ARAM / Mayhem | Core + Infrastructure + App | GREEN | live public-data/LCU behavior |
+| Maintenance / online | Core + Infrastructure + App | GREEN | real network/UI behavior |
+| Updater replacement | Infrastructure + Platform + Updater | GREEN automated | controlled interrupted replacement + final identity |
+| Single-instance Ensure Open | Platform.Windows + App | GREEN | real second-launch behavior |
+| 3.5.15 -> Settings2 | Core + Infrastructure | GREEN automated | real user-machine migration |
+| Cross-module shutdown | App + platform runtimes | GREEN | real process/runtime shutdown |
+
+## Gate13 boundary
+
+Canonical readiness remains:
 
 ```text
 22 required / 12 Passed / 10 Blocked
@@ -175,43 +179,23 @@ ReleaseReady=false
 CUTOVER BLOCKED
 ```
 
-Still real-machine/release evidence:
+Still required: non-admin/UAC, Defender/SmartScreen, Win10 1809, complete Win10 22H2, Win11, mixed-DPI/multimonitor, accessibility, real 3.5.15 migration, controlled interrupted updater replacement/rollback, final signed-package identity.
 
-- non-admin / real UAC-cancel behavior;
-- Defender / SmartScreen observations;
-- Windows 10 1809 real-machine support;
-- Windows 10 22H2 complete real-machine support;
-- controlled real-user Windows 11 support;
-- real mixed-DPI / multi-monitor behavior;
-- real accessibility behavior;
-- real 3.5.15 -> 4.0 Settings2 migration;
-- interrupted updater replacement / rollback under controlled real termination;
-- final signed-package / release identity evidence;
-- production pointer / cutover / legacy retirement authorization.
+## Next validation
 
-## Unified real-machine validation boundary
+Use artifact `9709261625` for a focused Win10 PetHost retest first:
 
-The next P7 action is one unified functional validation on artifact `9708452498`.
+1. first enable may perform one extraction for a never-cached exact SHA, but must terminate in ready or explicit failure/timeout;
+2. exit FACM normally and relaunch the same candidate from the same directory;
+3. second process with complete cache must not spend a long interval in `payload-preparing`;
+4. while enabled, switch pets 5-10 times; every Busy episode must return to interactive state;
+5. Busy status must show “正在处理，请稍候…”;
+6. collect `facm4-events.jsonl`, `settings.v2.lkg.json`, `state.json`.
 
-Start non-destructively:
+Only after this targeted retest passes should P7 resume the broader non-destructive unified validation.
 
-1. cold start: launcher-first F appears without giant-Shell regression;
-2. F drag / persistence / compact open-close / detailed shell;
-3. all four primary entries work;
-4. Cleanup preview/review/cancel; real UAC cancel keeps original instance alive;
-5. Personalization theme visual, F restore/reset, greenfly/VPet visible runtime;
-6. League Dashboard / Player / Live / Mayhem and explicitly bounded workbench actions on a real client;
-7. Settings auto-update toggle, manual check, announcement, diagnostics/log entry;
-8. second launch signals existing instance instead of creating a second resident runtime;
-9. normal exit disposes PetHost / League / hotkeys / maintenance cleanly;
-10. collect Settings2 / recovery state / JSONL evidence.
-
-Do not include real LOL deletion, updater replacement/kill, production pointer changes, release publication or legacy retirement unless separately authorized.
+Do not execute real LOL deletion, updater kill/replacement, production pointer changes, release publication or legacy retirement without separate authorization.
 
 ## Completion boundary
 
-**Code-side functional parity and automated-stability closeout are complete on `f3906b84...`.**
-
-PR #234 stays Draft and stacked P2-P7 stay unmerged until the unified real-machine functional validation is reviewed. UI 2.0 starts only after functional-equivalence validation. Gate13 cutover remains a separate evidence/authorization process.
-
-Before any future **merge-ready** claim, append the four long-lived P7 lessons listed in `docs/FACM4-PLAN.md` to canonical `docs/PITFALLS.md`.
+Functional parity and automated stability are code-green through Batch M, but **real-machine P7 is not complete until the Batch M PetHost retest and the remaining unified functional checks are reviewed**. PR #234 stays Draft/unmerged. UI 2.0 remains after functional-equivalence validation. Gate13 remains a separate evidence/authorization process.

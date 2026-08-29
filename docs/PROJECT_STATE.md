@@ -12,14 +12,14 @@
 - `published_at`：2026-08-27T05:28:50.9137418+00:00
 <!-- FACM_RELEASE_STATE_END -->
 
-> **生产仍是 FACM 3.5.15。** FACM 4.0 当前已完成代码侧功能等价与自动稳定性收口，但不存在 4.0 production cutover 授权。没有完整 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、发布 4.0.0、退休 legacy、deploy/restart 或删除历史分支/tag。
+> **生产仍是 FACM 3.5.15。** FACM 4.0 当前只处于 stacked P7 真机验收阶段，不存在 4.0 production cutover 授权。没有完整 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、发布 4.0.0、退休 legacy、deploy/restart 或删除历史分支/tag。
 
 ## 当前 canonical / active line
 
 - canonical `main`：`269da6c751a8463542ed0d172300675deff9571e`，Merge PR #221。
-- #218 已修复 Win10 22H2 `TabViewButtonBackground` / `XamlParseException` 启动故障并合入。
-- #221 已完成 FACM 3.5 launcher-first / F / compact launcher 行为迁移并通过对应 Win10 真机验证后合入。
-- 功能迁移继续采用 stacked P2-P7；**全部保持 Draft / 未合并到 main**。
+- #218 Win10 `TabViewButtonBackground` / XamlParse startup issue 已修复并合入。
+- #221 launcher-first F / compact launcher 行为迁移已通过对应 Win10 真机验证并合入。
+- P2-P7 继续 stacked，全部保持 Draft / 未合并到 `main`。
 
 | 阶段 | PR | Head | 状态 |
 | --- | --- | --- | --- |
@@ -28,79 +28,88 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179` | **AUTOMATED-STABILITY-GREEN / Draft** |
+| P7 Unified parity closeout | #234 | code fix `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83` | **Batch M CI-green / targeted Win10 retest next / Draft** |
 
-P7 canonical-doc reconciliation head：`b5f895cdbb30f32d834a7b697a0505548f858da1`。
 Tracking Issue：#233。
 
-## FACM 4.0 当前里程碑：自动稳定性层已收口
+## FACM 4.0 当前里程碑
 
-P7 在原功能等价收口之后又完成了一轮实际故障审查，而不是直接拿旧候选继续测。主要结果：
+代码侧功能等价、自动稳定性审查与重复压力层已完成。最新真实 Win10 evidence 又发现一个跨进程 PetHost cache 性能缺陷，并已在 Batch M 根因修复：
 
-- **Settings2 lost-update 根因修复**：跨模块配置写入统一走 atomic narrow `UpdateAsync`，同一 repository transaction 内 load/mutate/save/LKG；recovery 默认只读。
-- **Win10 主题启动根因修复**：FACM 不再修改 WinUI 平台拥有的系统 brush，运行时只修改 FACM 自有 semantic brush。
-- **Personalization stale-disabled 修复**：桌宠异步初始化完成后显式回到 UI owner 刷新控件状态，不再留下永久灰色控件。
-- **Maintenance lifecycle 修复**：初始化失败可同进程重试；下载 CTS 由 active operation 持有；installer 在活跃下载/replacement 结束后再 Dispose；async-void handlers 有最终 containment。
-- **League lifecycle 修复**：caller/lifetime cancellation 不再误报 provider failure；ContentDialog/window-close teardown 竞态被 containment，同时保留 Primary-confirmation 写入门槛。
-- **Updater interruption hardening**：fallback/rollback 不再用 `File.Copy(..., liveDestination, overwrite:true)` 流式覆盖正式 EXE；主路径保留 `File.Replace`，fallback/rollback 通过同目录 `MoveFileEx(REPLACE_EXISTING | WRITE_THROUGH)` 原子交换完整 staging/backup；built helper 有实际 `--self-test`。
-- **生命周期/事务压力**：Settings2 40 轮、single-instance 24 轮、UAC cancel 24 轮、PetHost cache 24 轮、League Recommended 24 周期、League Efficiency hotkey transaction 30 轮，均进入 deterministic smoke。
+- 旧实现每个新 FACM 进程第一次启用桌宠时，会先完整 SHA-256 约 76.9 MB 内嵌 PetHost ZIP，之后才检查 disk cache；
+- 同进程重复 prepare smoke 因 `_cachedPreparation` 无法覆盖这个真实“关闭再打开 FACM”的路径；
+- 新实现由 Foundation 构建期生成 `PetHostBundle.sha256`，并与 ZIP 一起嵌入单文件；
+- 新进程优先按该稳定 SHA 检查 `runtime/pethost-host/<sha>`；完整 cache 命中时不再打开/rehash 大 ZIP；
+- WindowsSmoke 新增 fresh store 模拟新进程，要求 cross-process cache hit 的 `openBundle` 次数严格为 0；
+- Busy UI 同时改为显示“正在处理，请稍候…”，避免“准备就绪 + 全控件灰掉”的误导。
 
-详细过程：`docs/FACM4-PLAN.md`。
-详细 parity matrix：`docs/FACM4-P7-PARITY-CLOSEOUT.md`。
+详细实时账：`docs/FACM4-PLAN.md`。
 
-## 最新自动验收
+## 最新真机证据（Batch M 触发原因）
 
-Verified code head：`f3906b84dd0076411dcd8a4fd82610d1d6c2a179`。
+2026-08-29 Win10 22H2 evidence：
 
-FACM 4.0 Foundation **#628 / run `33230830272` = SUCCESS**。同一代码 head 已通过：
+- recovery state：`Running`，版本 4.0.0.0，`consecutiveFailures=0`；
+- Settings2 LKG：theme `glass-blue`，pet `moth`，`enabled=false`，F=`1569,576`；
+- greenfly -> dragonfly -> moth 的 disabled-selection 流程完成；
+- 点击启用 moth 后日志到达 `pet-enable-start -> IsBusy=true -> payload-preparing`，超过 13 秒没有 `host-starting / ready / failed / finish`；
+- 同期仍有 F drag-save，说明 FACM 主 UI/message loop 没死，长耗时点位于 PetHost payload prepare。
 
-- controlled PetHost payload + self-test；
-- controlled Updater payload + built helper atomic `--self-test`；
-- P1-P7 全部 source/product gates；
-- PowerShell 5.1 real-machine evidence collector self-test；
-- Release x64 restore/build；
-- deterministic FoundationSmoke，包括 Settings2 / League 重复压力；
-- deterministic WindowsSmoke，包括 single-instance / UAC-cancel / PetHost cache 重复压力；
-- WinUI x64 self-contained single-file publish；
-- publish-output verification；
-- artifact upload。
+这是针对一个窄缺陷的证据，不是整个 `compat.windows-10-22h2` Gate13 PASS。
 
-Canonical-doc reconciliation head `b5f895c...` 随后由 Foundation **#629 / run `33231064160` = SUCCESS** 再跑一次完整回归。#629 是 docs-only；不替代或重新定义 #628 的 code candidate。
+## Batch M 自动验收
 
-## 最新统一候选与独立校验
+Code fix head：`6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`。
+PR head used by run：`803e1ba5f9b671b0a787a8c77bb39912d4211b7d`（只比 fix 多实时计划记录）。
 
-GitHub artifact：
+FACM 4.0 Foundation **#632 / run `33233590075` = SUCCESS**。
+
+实际 CI 证据：
+
+- PetHost bundle：`76,924,303` bytes；SHA-256 `48e24e9a67f7f75dffc4bef56eeadee9c13d9cc028c38679c8fab0c651141fc4`；
+- Release build 与 publish 均明确嵌入 `FACM.Resources.PetHost.zip` 和 `FACM.Resources.PetHost.sha256`；
+- Personalization gate：PropertyChanged/Dispatcher Busy feedback、build identity、cross-process no-rehash 全部 OK；
+- P1-P7 source/product gates 全部通过；
+- Release x64 build 0 warnings / 0 errors；
+- FoundationSmoke SUCCESS；
+- WindowsSmoke SUCCESS；
+- WinUI x64 self-contained single-file publish SUCCESS；
+- publish-output verification SUCCESS；
+- artifact upload SUCCESS。
+
+## 当前 targeted candidate
 
 ```text
 artifact: facm4-x64
-artifact id: 9708452498
-artifact ZIP bytes: 165,704,298
-GitHub artifact digest: sha256:dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-code head: f3906b84dd0076411dcd8a4fd82610d1d6c2a179
-Foundation: #628 / 33230830272
+artifact id: 9709261625
+artifact ZIP bytes: 165,704,303
+GitHub digest: sha256:32331020c0c1c3fc93ebf70991ddff99a6349deede41e7374ae063da0aa9cb0a
+Foundation: #632 / 33233590075
 ```
 
-从 GitHub 下载 artifact 后独立重算：
+从 GitHub 下载后独立重算：
 
 ```text
-ZIP SHA-256: dcc5b93ae48508d73ce44e90f4f6600047090acddfef876e0a6d38cee0d92888
-ZIP bytes: 165,704,298
+ZIP SHA-256: 32331020c0c1c3fc93ebf70991ddff99a6349deede41e7374ae063da0aa9cb0a
 FACM.App.exe bytes: 305,912,996
-FACM.App.exe SHA-256: d397b862fbe7ed30fd43ee758e3b6966d56ae72dba13e4058a94a3c22a7f6994
+FACM.App.exe SHA-256: 5d65bd3f3e64a2520cb0c9514627a42e97781396d9e21013f04499fb464a9fea
 ZIP DLL entries: 0
 ```
 
-ZIP SHA 与 GitHub artifact digest 完全一致；candidate 保持单文件 EXE，没有旁路 DLL。
+ZIP SHA 与 GitHub artifact digest 完全一致。
 
-## 已有真实 Win10 窄证据
+旧 #628 artifact `9708452498` 的完整性证据仍有效，但因 Batch M 真机缺陷已被 supersede，不再作为当前桌宠验收候选。
 
-本轮稳定性审查前后已经拿到部分真实 Win10 evidence：
+## 之前已关闭的主要稳定性根因
 
-- 旧平台 brush `E_ACCESSDENIED` 启动链修复后，应用可进入 recovery state `Running`，candidate version `4.0.0.0`，consecutive failures 0。
-- launcher -> compact -> main-shell 生命周期日志正常，无 failure event。
-- Personalization 修复后 Settings2 LKG 实际出现 `themeId=mono-emerald`、`styleId=greenfly`、pet enabled=true、F position `1665,381`，证明控件不再永久 disabled 且用户意图到达 Settings2 persistence。
-
-这些 evidence **不是整个 Win10 22H2 Gate13 项通过的替代品**：主题视觉是否真实变化、PetHost 是否实际出现/移动、完整功能矩阵、DPI/accessibility、migration 等仍按对应真实验收记录。
+- Settings2 feature writes 使用 atomic narrow `UpdateAsync`，解决 cross-feature lost update；
+- Win10 theme runtime 不再修改平台拥有的 system brush；
+- Personalization async Busy 通过 PropertyChanged/Dispatcher refresh 回到可交互状态；
+- Maintenance 初始化可重试，download CTS / installer teardown 不从 active await 下提前 Dispose；
+- League caller/lifetime cancellation 与 Window/ContentDialog teardown 有 containment；
+- Updater fallback/rollback 使用完整 staging/backup + atomic move，不再 stream-copy over live EXE；
+- built Updater helper `--self-test` 实际进入 Foundation；
+- 重复压力：Settings2 40 轮、single-instance 24 轮、UAC cancel 24 轮、PetHost same-process 24 轮、League Recommended 24 周期、League Efficiency hotkey 30 轮；Batch M 又补 cross-process PetHost cache smoke。
 
 ## 当前真实边界：REAL-MACHINE / GATE13
 
@@ -110,9 +119,9 @@ ReleaseReady=false
 CUTOVER BLOCKED
 ```
 
-仍需真实 evidence 的 10 项：
+仍需真实 evidence：
 
-1. non-admin 启动 + real UAC cancel；
+1. non-admin + real UAC cancel；
 2. Defender / SmartScreen；
 3. Windows 10 1809；
 4. Windows 10 22H2；
@@ -123,36 +132,35 @@ CUTOVER BLOCKED
 9. interrupted updater replacement / rollback；
 10. final signing / package identity verification。
 
-Hosted CI、source gate、deterministic pressure smoke 或普通“继续”都不能自动把这些 evidence 改为 Passed。
+Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通“继续”都不能自动把这些 evidence 改为 Passed。
 
-## 下一步：一次统一真机功能验收
+## 下一步：targeted Win10 PetHost 复测
 
-使用 **#628 / artifact `9708452498`**：
+使用 artifact `9709261625`：
 
-1. 冷启动 launcher-first F；F 拖动/持久化；compact launcher；详细 Shell。
-2. Cleanup preview/review/cancel；真实 UAC 点“否/取消”后原实例继续存在。
-3. Repair 四个入口的安全/可逆部分；真实删除/驱动级动作另行授权。
-4. Personalization：主题视觉变化、F restore/reset、greenfly/VPet 实际启动/移动。
-5. 真实 LOL：Dashboard / Player / Live / Mayhem 读取；需要写入的推荐/自动化按明确边界验证。
-6. Settings：auto-update toggle、manual check、announcement、diagnostics/log entry；不执行真实 updater replacement。
-7. 二次启动只 signal 已有实例；不产生第二个 resident FACM runtime。
-8. 正常退出后 PetHost / League / hotkeys / maintenance runtime 有序释放。
-9. 收集 Settings2 / recovery state / JSONL 统一 evidence。
+1. 第一次启用任意桌宠；新 SHA 无 cache 时允许一次 extraction，但必须有终态。
+2. 正常退出 FACM，再从同一目录运行同一 EXE。
+3. 第二进程再次启用桌宠；已有完整 cache 时不得再次长时间停在 `payload-preparing`。
+4. enabled 状态连续切换 5-10 次；每次 Busy 都必须恢复可交互。
+5. Busy 时显示“正在处理，请稍候…”。
+6. 上传新 `facm4-events.jsonl`、`settings.v2.lkg.json`、`state.json`。
 
-真实 LOL 删除、真实 updater kill/replacement、production pointer 修改、release publication、legacy retirement 都不属于默认首轮授权。
+通过 targeted retest 后，再继续完整非破坏功能验收：Cleanup UAC cancel、四大入口、真实 League read paths、Settings、second launch、normal shutdown。
+
+真实 LOL 删除、真实 updater kill/replacement、production pointer 修改、release publication、legacy retirement 都不属于默认授权。
 
 ## 之后的阶段
 
-- 统一真机功能等价验收通过后，再决定 stacked P2-P7 合并策略；CI 绿不会自动 merge。
-- **UI 2.0 只在功能等价验收之后开始。**
-- PR #234 目前仍 Draft / open / unmerged。
-- Gate13 release/cutover 是独立证据链；10 个 blocker 全部真实闭环并获得 fresh production/destructive authorization 后，才允许讨论 production cutover。
+- targeted + 统一真机功能等价验收通过后，再决定 stacked P2-P7 合并策略；CI 绿不会自动 merge。
+- UI 2.0 只在功能等价验收之后开始。
+- PR #234 继续 Draft / open / unmerged。
+- Gate13 release/cutover 是独立证据链。
 
 ## 新对话接续
 
 1. 先读 `AGENTS.md`、`docs/FACM4-PLAN.md`、本文件、`docs/FACM4-P7-PARITY-CLOSEOUT.md`；
 2. 核对 `main@269da6c751a8463542ed0d172300675deff9571e`；
-3. 核对 P7 verified code head `f3906b84dd0076411dcd8a4fd82610d1d6c2a179`；
-4. 核对 Foundation #628 / run `33230830272` / artifact `9708452498` / EXE SHA-256 `d397b862...f6994`；
-5. 不重复 A-K 已完成的稳定性修复与压力工作；
-6. 从统一真机功能验收继续；真实 evidence 回来前不得 cutover，也不得提前开始 UI 2.0。
+3. 核对 Batch M fix `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`；
+4. 核对 Foundation #632 / run `33233590075` / artifact `9709261625` / EXE SHA-256 `5d65bd3f...a9fea`；
+5. 不重复已完成的 A-M 稳定性修复；
+6. 从 targeted Win10 PetHost retest 继续；真实 evidence 回来前不得 cutover，也不得提前开始 UI 2.0。
