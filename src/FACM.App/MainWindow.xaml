@@ -96,15 +96,15 @@
         <Grid
             x:Name="ControlMatrixSurface"
             Width="360"
-            Height="206"
+            Height="176"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Background="{StaticResource FacmBackgroundBrush}"
             Visibility="Collapsed">
             <Grid.RowDefinitions>
-                <RowDefinition Height="42" />
+                <RowDefinition Height="34" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="30" />
+                <RowDefinition Height="24" />
             </Grid.RowDefinitions>
             <Grid
                 x:Name="MatrixTitleBar"
@@ -123,8 +123,8 @@
                 <Button
                     x:Name="MatrixBackButton"
                     Grid.Column="1"
-                    Width="30"
-                    Height="30"
+                    Width="26"
+                    Height="26"
                     Padding="0"
                     Style="{StaticResource FacmCollapseButtonStyle}"
                     Click="OnSurfaceCollapseToOrbClick"
@@ -134,8 +134,8 @@
                 <Button
                     x:Name="MatrixCloseButton"
                     Grid.Column="2"
-                    Width="30"
-                    Height="30"
+                    Width="26"
+                    Height="26"
                     Margin="4,0,0,0"
                     Padding="0"
                     Style="{StaticResource FacmCloseButtonStyle}"
@@ -235,9 +235,9 @@
 
         <Grid x:Name="LegacyFeatureSurface" Background="Transparent" Visibility="Collapsed">
         <Grid.RowDefinitions>
-            <RowDefinition Height="40" />
+            <RowDefinition Height="34" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="28" />
+            <RowDefinition Height="24" />
         </Grid.RowDefinitions>
 
         <Border
@@ -255,14 +255,16 @@
                 </Grid.ColumnDefinitions>
                 <Button
                     x:Name="SurfaceBackButton"
-                    Width="30"
-                    Height="30"
+                    Width="26"
+                    Height="26"
                     Margin="0,0,8,0"
                     Padding="0"
                     Style="{StaticResource FacmToolButtonStyle}"
                     Click="OnSurfaceBackClick"
                     Visibility="Collapsed"
-                    automation:AutomationProperties.AutomationId="FACM.Surface.Back" />
+                    automation:AutomationProperties.AutomationId="FACM.Surface.Back">
+                    <FontIcon Glyph="&#xE72B;" />
+                </Button>
                 <TextBlock
                     x:Name="TitleBarText"
                     Grid.Column="1"
@@ -271,8 +273,8 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                     <Button
                         x:Name="SurfaceCollapseButton"
-                        Width="30"
-                        Height="30"
+                        Width="26"
+                        Height="26"
                         Padding="0"
                         Style="{StaticResource FacmCollapseButtonStyle}"
                         Click="OnSurfaceCollapseToOrbClick"
@@ -282,8 +284,8 @@
                     </Button>
                     <Button
                         x:Name="SurfaceCloseButton"
-                        Width="30"
-                        Height="30"
+                        Width="26"
+                        Height="26"
                         Padding="0"
                         Style="{StaticResource FacmCloseButtonStyle}"
                         Click="OnSurfaceCloseClick"

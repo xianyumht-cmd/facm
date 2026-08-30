@@ -23,15 +23,15 @@ public sealed partial class MainWindow : Window
     private const double OrbSizeDip = 36d;
     private const double OrbTransientWidthDip = 220d;
     private const double ControlMatrixWidthDip = 360d;
-    private const double ControlMatrixHeightDip = 206d;
-    private const double RepairSurfaceWidthDip = 600d;
-    private const double RepairSurfaceHeightDip = 470d;
-    private const double LeagueSurfaceWidthDip = 660d;
-    private const double LeagueSurfaceHeightDip = 500d;
-    private const double SettingsSurfaceWidthDip = 560d;
-    private const double SettingsSurfaceHeightDip = 420d;
-    private const double PersonalizationSurfaceWidthDip = 560d;
-    private const double PersonalizationSurfaceHeightDip = 460d;
+    private const double ControlMatrixHeightDip = 176d;
+    private const double RepairSurfaceWidthDip = 520d;
+    private const double RepairSurfaceHeightDip = 440d;
+    private const double LeagueSurfaceWidthDip = 540d;
+    private const double LeagueSurfaceHeightDip = 430d;
+    private const double SettingsSurfaceWidthDip = 500d;
+    private const double SettingsSurfaceHeightDip = 380d;
+    private const double PersonalizationSurfaceWidthDip = 500d;
+    private const double PersonalizationSurfaceHeightDip = 400d;
     private const double ChampSelectStripWidthDip = 560d;
     private const double ChampSelectWaitingWidthDip = 280d;
     private const double ChampSelectStripHeightDip = 56d;
@@ -180,6 +180,7 @@ public sealed partial class MainWindow : Window
         ChampSelectSurface.Visibility = Visibility.Collapsed;
         LegacyFeatureSurface.Visibility = Visibility.Visible;
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
+        RootNavigation.IsPaneVisible = true;
         RootNavigation.Background = (Brush)Application.Current.Resources["FacmBackgroundBrush"];
         RootNavigation.IsPaneToggleButtonVisible = true;
         RootNavigation.IsPaneOpen = true;
@@ -234,6 +235,7 @@ public sealed partial class MainWindow : Window
             _champSelectHasCandidates = false;
         }
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
+        RootNavigation.IsPaneVisible = false;
         RootNavigation.IsPaneOpen = false;
         RootNavigation.IsPaneToggleButtonVisible = false;
         RootNavigation.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
@@ -922,9 +924,6 @@ public sealed partial class MainWindow : Window
         MatrixPetLabel.Text = personalizationText;
         MatrixSettingsLabel.Text = settingsText;
         MatrixCleanupLabel.Text = _text.Get(UiTextKeys.Cleanup);
-        MatrixBackButton.Content = "\uE72B";
-        ChampSelectBackButton.Content = "\uE72B";
-        SurfaceBackButton.Content = "\uE72B";
         MatrixInspectorBar.Text = _text.Get(UiTextKeys.ShellStatusReady);
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectWaitingAction);

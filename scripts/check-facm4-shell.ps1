@@ -35,6 +35,15 @@ $text = Get-Content $textPath -Raw
 if ((Count-Matches $mainXaml '<NavigationView(?:\s|>)') -ne 1) { Fail 'MainWindow must contain exactly one NavigationView.' }
 if ((Count-Matches $mainXaml '<Frame(?:\s|>)') -ne 1) { Fail 'MainWindow must contain exactly one Frame.' }
 if ((Count-Matches $mainXaml '<NavigationViewItem(?:\s|>)') -ne 4) { Fail 'MainWindow must expose exactly four product navigation items.' }
+if ((Count-Matches $mainCode 'RootNavigation\.IsPaneVisible\s*=\s*true') -ne 1 -or
+    (Count-Matches $mainCode 'RootNavigation\.IsPaneVisible\s*=\s*false') -ne 1) {
+    Fail 'Legacy mode must keep its navigation pane while Morphing mode removes the pane from presentation.'
+}
+foreach ($button in @('MatrixBackButton', 'MatrixCloseButton', 'SurfaceBackButton', 'SurfaceCollapseButton', 'SurfaceCloseButton')) {
+    if ($mainXaml -notmatch ('(?s)x:Name="' + [regex]::Escape($button) + '".{0,180}?Width="2[2-8]".{0,80}?Height="2[2-8]"')) {
+        Fail "Morphing compact chrome button is outside the 22-28 DIP contract: $button"
+    }
+}
 
 foreach ($tag in @('repair', 'league', 'personalization', 'settings')) {
     if ((Count-Matches $mainXaml ('Tag="' + [regex]::Escape($tag) + '"')) -ne 1) {
