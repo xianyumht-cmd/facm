@@ -14,6 +14,88 @@ PR #234: Draft / open / unmerged
 This is a behavior and product-surface audit, not a UI 2.0 redesign and not permission to
 merge, publish, run Gate13, change the production pointers, or retire the legacy line.
 
+## UI-UPGRADE-FROZEN-CONTRACT
+
+The following behavior is frozen while the UI Upgrade is designed; the UI Upgrade must not
+change these contracts.
+
+1. **Tray:** Keep a resident `NotifyIcon`; single left-click keeps Windows/default behavior,
+   double-click toggles or opens CompactLauncher, and right-click opens the FACM tray menu.
+2. **Floating F:** Keep the F entry available as the product entry, preserve its click/drag
+   distinction, and persist and recover its position as already specified.
+3. **CompactLauncher:** Keep its existing entry routing, primary categories, outside-click
+   close timing, and modal suppression behavior.
+4. **MainWindow:** Keep the existing product routes, action semantics, lifecycle, and
+   single-instance activation target.
+5. **Outside-click:** A physical left click released outside an open FACM surface closes that
+   surface; the opening click is not reused, and protected modal/picker work is not closed.
+6. **Modal suppression:** Content dialogs and system pickers retain ownership until they finish;
+   outside-click handling must not dismiss or interfere with them.
+7. **Single-instance:** A second FACM launch activates the existing instance and must not create
+   another FACM shell or duplicate runtime ownership.
+8. **Desktop Pet:** Pet replacement remains single-owner and lifecycle-safe: switching or
+   disabling pets must not leave duplicate visible pets, hosts, or stale runtime ownership.
+9. **Settings persistence:** Existing legacy settings compatibility and Settings2 atomic,
+   validated, recoverable persistence must remain intact.
+10. **Update flow:** Update check, announcement, download, validation, replacement, rollback,
+    and safe failure behavior remain unchanged.
+11. **League session/discovery:** Lockfile/process discovery, LCU session ownership,
+    authentication containment, and safe no-session behavior remain unchanged.
+12. **League polling/cache contracts:** Shared gateway ownership, bounded polling, cache and
+    invalidation rules, cancellation, concurrency limits, and Workbench responsiveness remain
+    unchanged.
+
+## UI Upgrade surface classification
+
+### A. SAFE TO REDESIGN NOW
+
+- **Logs** — presentation may change while log opening, path ownership, and sanitized output
+  behavior remain unchanged.
+
+### B. VISUAL-ONLY, BEHAVIOR FROZEN
+
+- **Repair** — layout and presentation may change; repair actions, confirmation, privilege
+  boundaries, and failure handling stay unchanged.
+- **Cleanup** — layout and presentation may change; scan, whitelist, confirmation, UAC, and
+  execution-time revalidation stay unchanged.
+- **Settings** — layout and presentation may change; legacy/Settings2 persistence and recovery
+  contracts stay unchanged.
+- **Maintenance** — layout and presentation may change; update, announcement, log, and safe
+  failure flows stay unchanged.
+
+### C. BLOCKED UNTIL BEHAVIOR FIX/REAL-MACHINE VALIDATION
+
+- **Tray** — real supported-Windows interaction and clean lifecycle evidence remain open.
+- **Personalization** — picker, theme/pet selection, persistence, and close-path parity remain
+  open for validation.
+- **Pet Picker** — replacement and single-visible-pet behavior require the real multi-switch
+  sequence before redesign.
+- **CompactLauncher** — outside-click, modal suppression, and visible entry ownership remain
+  behavior-frozen and require acceptance.
+- **MainWindow Shell** — outside-click coverage for every owned surface and visible shell
+  lifecycle remain open.
+- **League Workbench** — click-by-click phase traces and responsiveness evidence are required
+  before changing its surface.
+- **Player** — real data shape, loading/error states, and session behavior remain open.
+- **Live** — real Champ Select/current-game data and read-only behavior remain open.
+- **Advisor** — real League context, provider/cache behavior, and unsupported/in-game rules
+  remain open.
+
+### D. 4.0-ONLY, FREE DESIGN WITH EXISTING SAFETY CONTRACTS
+
+- **Diagnostics** — it has no 3.5.15 visual parity target and may be redesigned subject to
+  existing redaction, bounded export, and credential/path-safety contracts.
+
+## Tray single-left parity correction
+
+The immutable FACM 3.5.15 source and the current 4.0 source both have no custom
+`NotifyIcon.Click`, `NotifyIcon.MouseClick`, or `MouseButtons.Left` action for the tray icon.
+The 3.5.15 contract is therefore: single left-click preserves Windows/default NotifyIcon
+behavior; double-click calls `ToggleMenu()`; right-click uses `ContextMenuStrip`. The current
+4.0 contract is equivalent: single left-click has no FACM action; double-click dispatches
+`OpenCompactLauncher`; right-click uses the tray menu. Only this row is reclassified by this
+correction; all other matrix statuses are unchanged.
+
 ## Audit method and scope
 
 The baseline was inspected directly from the immutable 3.5.15 commit with `git show` and
@@ -52,7 +134,7 @@ the active 4.0 owner, and evidence rather than counting source files as features
 | ---: | --- | --- | --- | --- |
 | 1 | Startup initialization, fail-soft startup diagnostics, and normal message-loop ownership | `FACM.App/App.xaml.cs`, `StartupCrashDiagnostics.cs` | `EXACT` | Foundation/Windows smoke and x64 rebuild pass; startup must still be exercised on the final target machine. |
 | 2 | One FACM process; a second launch activates the existing instance instead of creating another shell | `WindowsSingleInstanceGate`, `App.xaml.cs`, `RequestExternalActivation` | `EXACT` | Single-instance source/pressure checks pass; real second launch remains part of final acceptance. |
-| 3 | Runtime tray icon with left-click/double-click activation, right-click commands, and clean disposal | `WindowsTrayHost`, `App.Tray.cs`, `TrayCommandRouting` | `NEEDS-REAL-MACHINE` | Batch Q source/smoke evidence exists. Real tray left/right interaction and shell recovery still need observation. |
+| 3 | Runtime tray icon with default single-left behavior, double-click activation, right-click commands, and clean disposal | `WindowsTrayHost`, `App.Tray.cs`, `TrayCommandRouting` | `EXACT` | 3.5.15 and current 4.0 both bind no custom tray single-left action; both retain resident icon, double-click activation, and right-click menu ownership. Real icon visibility/interaction remains a separate machine-evidence concern. |
 | 4 | Default F/floating entry is visible, clickable, and acts as the product entry | `FloatingWindow`, `WindowsFloatingSurfacePlatform` | `NEEDS-REAL-MACHINE` | Pointer routing and desktop source gates pass; the final Win10 visible interaction is not yet closed. |
 | 5 | Drag F, persist its desktop position, recover off-screen placement, and reset position | `FloatingWindow`, `AnchorPlacement`, Settings2 narrow update | `EXACT` | Desktop placement and settings source checks pass; mixed-DPI and multi-monitor evidence remain Gate13 items. |
 | 6 | Compact launcher exposes the same primary product categories and can reach detailed control center | `CompactLauncherWindow`, `MainWindow`, `App.xaml.cs` | `PARTIAL` | Functional routes exist, but 3.5.15's exact compact card/menu grouping and visual states still need the X/Y audit. |
@@ -96,15 +178,18 @@ the active 4.0 owner, and evidence rather than counting source files as features
 
 | Status | Count |
 | --- | ---: |
-| `EXACT` | 11 |
+| `EXACT` | 12 |
 | `PARTIAL` | 20 |
 | `MISSING` | 0 |
 | `4.0-ONLY` | 3 |
-| `NEEDS-REAL-MACHINE` | 7 |
+| `NEEDS-REAL-MACHINE` | 6 |
 | **Total** | **41** |
 
 The totals are not a release score. `EXACT` means the source/deterministic contract is
 currently evidenced; it does not erase the real-machine items listed in the row.
+
+The corrected totals change only row 3 from `NEEDS-REAL-MACHINE` to `EXACT`; no other row is
+reclassified by the tray single-left correction.
 
 ## Batch W findings that drive the next batches
 
