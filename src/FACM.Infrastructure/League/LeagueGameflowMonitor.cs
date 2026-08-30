@@ -157,7 +157,8 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         bool? changed,
         DateTimeOffset startedUtc,
         DateTimeOffset finishedUtc,
-        long durationMs)
+        long durationMs,
+        Exception? exception = null)
     {
         try
         {
@@ -173,7 +174,12 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
                 changed,
                 startedUtc,
                 finishedUtc,
-                durationMs));
+                durationMs,
+                exception?.GetType().FullName ?? string.Empty,
+                exception is null
+                    ? string.Empty
+                    : "0x" + exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
+                Environment.CurrentManagedThreadId));
         }
         catch
         {
@@ -264,9 +270,56 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
             observedHandler = Observed;
         }
 
-        if (changed)
-            changedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
-        observedHandler?.Invoke(this, new LeagueGameflowChangedEventArgs(previous, observed));
+        var eventArgs = new LeagueGameflowChangedEventArgs(previous, observed);
+        if (changed && changedHandler is not null)
+        {
+            try
+            {
+                changedHandler(this, eventArgs);
+            }
+            catch (Exception exception)
+            {
+                ReportDiagnostic(
+                    Guid.NewGuid().ToString("N"),
+                    Guid.NewGuid().ToString("N"),
+                    "changed-handler-failed",
+                    "failure",
+                    exception.GetType().Name,
+                    observed.Phase,
+                    observed.ConnectionState,
+                    observed.ProductState,
+                    changed,
+                    observed.TimestampUtc,
+                    DateTimeOffset.UtcNow,
+                    0,
+                    exception);
+            }
+        }
+
+        if (observedHandler is not null)
+        {
+            try
+            {
+                observedHandler(this, eventArgs);
+            }
+            catch (Exception exception)
+            {
+                ReportDiagnostic(
+                    Guid.NewGuid().ToString("N"),
+                    Guid.NewGuid().ToString("N"),
+                    "observed-handler-failed",
+                    "failure",
+                    exception.GetType().Name,
+                    observed.Phase,
+                    observed.ConnectionState,
+                    observed.ProductState,
+                    changed,
+                    observed.TimestampUtc,
+                    DateTimeOffset.UtcNow,
+                    0,
+                    exception);
+            }
+        }
         return published;
     }
 

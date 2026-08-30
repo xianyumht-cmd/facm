@@ -308,7 +308,8 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         string reason,
         DateTimeOffset startedUtc,
         DateTimeOffset finishedUtc,
-        long durationMs)
+        long durationMs,
+        Exception? exception = null)
     {
         try
         {
@@ -320,7 +321,13 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 reason,
                 startedUtc,
                 finishedUtc,
-                durationMs));
+                durationMs,
+                exception?.GetType().FullName ?? string.Empty,
+                exception is null
+                    ? string.Empty
+                    : "0x" + exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
+                Environment.CurrentManagedThreadId,
+                SynchronizationContext.Current?.GetType().FullName ?? string.Empty));
         }
         catch
         {
@@ -585,7 +592,31 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     private void OnPropertyChanged(string propertyName)
     {
         if (_disposed) return;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        var handlers = PropertyChanged?.GetInvocationList();
+        if (handlers is null) return;
+
+        var args = new PropertyChangedEventArgs(propertyName);
+        foreach (var callback in handlers.OfType<PropertyChangedEventHandler>())
+        {
+            try
+            {
+                callback(this, args);
+            }
+            catch (Exception exception)
+            {
+                var now = DateTimeOffset.UtcNow;
+                ReportWorkbenchDiagnostic(
+                    LeagueDiagnosticContext.Current?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId(),
+                    "property-change-failed",
+                    "ui-notification",
+                    "failure",
+                    propertyName + ":" + (callback.Method.DeclaringType?.Name ?? "handler"),
+                    now,
+                    now,
+                    0,
+                    exception);
+            }
+        }
     }
 
     public static string ResolveStateTextKey(LeagueProductState state) => state switch

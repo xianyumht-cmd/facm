@@ -55,7 +55,12 @@ public sealed record LeagueHttpDiagnostic(
     bool SessionInvalidated,
     int InFlightAtStart,
     int InFlightAtEnd,
-    int MaxInFlightObserved);
+    int MaxInFlightObserved,
+    string NotFoundClassification = "",
+    string GameflowPhase = "",
+    string ExceptionType = "",
+    string HResult = "",
+    int ThreadId = 0);
 
 public sealed record LeagueWorkbenchDiagnostic(
     string CorrelationId,
@@ -65,7 +70,27 @@ public sealed record LeagueWorkbenchDiagnostic(
     string Reason,
     DateTimeOffset StartedUtc,
     DateTimeOffset FinishedUtc,
-    long DurationMs);
+    long DurationMs,
+    string ExceptionType = "",
+    string HResult = "",
+    int ThreadId = 0,
+    string SynchronizationContext = "",
+    string NavigationState = "",
+    string WindowState = "");
+
+public sealed record LeagueAutomationDiagnostic(
+    string CorrelationId,
+    string Feature,
+    string Phase,
+    string Event,
+    string Outcome,
+    string Reason,
+    DateTimeOffset StartedUtc,
+    DateTimeOffset FinishedUtc,
+    long DurationMs,
+    string ExceptionType = "",
+    string HResult = "",
+    int ThreadId = 0);
 
 public sealed record LeagueGameflowDiagnostic(
     string PollId,
@@ -79,7 +104,10 @@ public sealed record LeagueGameflowDiagnostic(
     bool? Changed,
     DateTimeOffset StartedUtc,
     DateTimeOffset FinishedUtc,
-    long DurationMs);
+    long DurationMs,
+    string ExceptionType = "",
+    string HResult = "",
+    int ThreadId = 0);
 
 public sealed record LeagueSessionDiscoveryDiagnostic(
     string DiscoveryId,

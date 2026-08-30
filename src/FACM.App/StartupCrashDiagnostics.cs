@@ -22,6 +22,7 @@ internal static class StartupCrashDiagnostics
     {
         AppDomain.CurrentDomain.FirstChanceException += OnFirstChanceException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
     private static void OnFirstChanceException(object? sender, FirstChanceExceptionEventArgs args)
@@ -35,6 +36,12 @@ internal static class StartupCrashDiagnostics
     {
         if (args.ExceptionObject is Exception exception)
             TryWrite("unhandled", exception);
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args)
+    {
+        args.SetObserved();
+        TryWrite("unobserved-task", args.Exception);
     }
 
     private static void TryWrite(string kind, Exception exception)

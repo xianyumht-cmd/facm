@@ -87,22 +87,33 @@ public sealed partial class MainWindow
 
     private async Task RunLeagueBenchLoopAsync(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested && !_closed)
+        try
         {
-            var hidden = !IsLeagueWorkbenchSelected();
-            var inGame = IsLeagueBenchInGame();
-            if (!hidden && !inGame && !_leagueBenchSwapping)
-                await RefreshLeagueBenchOnceAsync(cancellationToken);
+            while (!cancellationToken.IsCancellationRequested && !_closed)
+            {
+                var hidden = !IsLeagueWorkbenchSelected();
+                var inGame = IsLeagueBenchInGame();
+                if (!hidden && !inGame && !_leagueBenchSwapping)
+                    await RefreshLeagueBenchOnceAsync(cancellationToken);
 
-            var delay = LeagueBenchQuickPickPolling.ResolveDelay(_leagueBenchActive, inGame, hidden);
-            try
-            {
-                await Task.Delay(delay, cancellationToken);
+                var delay = LeagueBenchQuickPickPolling.ResolveDelay(_leagueBenchActive, inGame, hidden);
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            if (!_closed && _leagueBenchStatusText is not null)
+                _leagueBenchStatusText.Text = "英雄台后台刷新已停止；LOL 工作台其它功能不受影响。";
         }
     }
 
@@ -210,7 +221,15 @@ public sealed partial class MainWindow
     private async void OnLeagueBenchChampionClicked(object sender, RoutedEventArgs args)
     {
         if (sender is not Button { Tag: int championId }) return;
-        await SwapLeagueBenchChampionAsync(championId);
+        try
+        {
+            await SwapLeagueBenchChampionAsync(championId);
+        }
+        catch
+        {
+            if (!_closed && _leagueBenchStatusText is not null)
+                _leagueBenchStatusText.Text = $"英雄 #{championId} 交换失败。";
+        }
     }
 
     private async Task SwapLeagueBenchChampionAsync(int championId)

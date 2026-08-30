@@ -52,6 +52,18 @@ public sealed partial class MainWindow
 
     private void OnLeagueWorkbenchRuntimePropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
+        if (_closed) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => HandleLeagueWorkbenchRuntimePropertyChanged(args));
+            return;
+        }
+
+        HandleLeagueWorkbenchRuntimePropertyChanged(args);
+    }
+
+    private void HandleLeagueWorkbenchRuntimePropertyChanged(PropertyChangedEventArgs args)
+    {
         if (_closed || !IsLeagueWorkbenchSelected()) return;
         var refreshForPhase = args.PropertyName is nameof(LeagueWorkbenchViewModel.LeagueState);
         var render = refreshForPhase || args.PropertyName is
@@ -72,12 +84,8 @@ public sealed partial class MainWindow
             nameof(LeagueWorkbenchViewModel.IsAutomationSettingsBusy);
         if (!render) return;
 
-        _ = DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_closed || !IsLeagueWorkbenchSelected()) return;
-            ApplyLeagueWorkbenchRuntimeSurface();
-            if (refreshForPhase) _ = RefreshLeagueWorkbenchRuntimeAsync();
-        });
+        ApplyLeagueWorkbenchRuntimeSurface();
+        if (refreshForPhase) _ = RefreshLeagueWorkbenchRuntimeAsync();
     }
 
     private async Task RefreshLeagueWorkbenchRuntimeAsync()

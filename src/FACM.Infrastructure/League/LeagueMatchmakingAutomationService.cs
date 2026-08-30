@@ -16,6 +16,7 @@ public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutom
     private readonly ILeagueReadGateway _read;
     private readonly ILeagueWriteGateway _write;
     private readonly ILeagueGameflowObservationSource _gameflow;
+    private readonly Action<LeagueAutomationDiagnostic>? _diagnosticReporter;
     private readonly SemaphoreSlim _evaluationGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private bool _autoSearch;
@@ -28,11 +29,13 @@ public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutom
     public LeagueMatchmakingAutomationService(
         ILeagueReadGateway read,
         ILeagueWriteGateway write,
-        ILeagueGameflowObservationSource gameflow)
+        ILeagueGameflowObservationSource gameflow,
+        Action<LeagueAutomationDiagnostic>? diagnosticReporter = null)
     {
         _read = read ?? throw new ArgumentNullException(nameof(read));
         _write = write ?? throw new ArgumentNullException(nameof(write));
         _gameflow = gameflow ?? throw new ArgumentNullException(nameof(gameflow));
+        _diagnosticReporter = diagnosticReporter;
         _gameflow.Observed += OnGameflowObserved;
     }
 
@@ -94,18 +97,39 @@ public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutom
 
     private async Task EvaluateObservedSafelyAsync(LeagueGameflowSnapshot snapshot)
     {
+        var startedUtc = DateTimeOffset.UtcNow;
+        var correlationId = LeagueDiagnosticContext.CreateCorrelationId();
+        ReportDiagnostic(correlationId, "evaluation-start", snapshot.Phase, "started", "started", startedUtc, startedUtc);
         try
         {
+            using var scope = LeagueDiagnosticContext.Begin(correlationId, "automation", snapshot.Phase);
             await EvaluateObservationAsync(snapshot, _lifetime.Token).ConfigureAwait(false);
+            ReportDiagnostic(correlationId, "evaluation-complete", snapshot.Phase, "success", "completed", startedUtc, DateTimeOffset.UtcNow);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
+            ReportDiagnostic(correlationId, "evaluation-complete", snapshot.Phase, "cancelled", "cancelled", startedUtc, DateTimeOffset.UtcNow);
         }
-        catch
+        catch (Exception exception)
         {
+            ReportDiagnostic(
+                correlationId,
+                "evaluation-complete",
+                snapshot.Phase,
+                "failure",
+                exception.GetType().Name,
+                startedUtc,
+                DateTimeOffset.UtcNow,
+                exception);
             // Automation is best-effort. A malformed Tencent response or transient LCU error must
             // never destabilize the shared League runtime or FACM shell.
         }
+    }
+
+    internal Task EvaluateObservedSafelyForSmokeTestAsync(LeagueGameflowSnapshot snapshot)
+    {
+        PrepareObservation(snapshot);
+        return EvaluateObservedSafelyAsync(snapshot);
     }
 
     internal async Task EvaluateForSmokeTestAsync(
@@ -183,8 +207,19 @@ public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutom
                 return;
         }
 
+        var startedUtc = DateTimeOffset.UtcNow;
+        var correlationId = LeagueDiagnosticContext.Current?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId();
+        ReportDiagnostic(correlationId, "ready-check-read", "ReadyCheck", "started", SearchStatePath, startedUtc, startedUtc);
         var bytes = await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false);
         var response = ParseReadyCheckResponse(bytes);
+        ReportDiagnostic(
+            correlationId,
+            "ready-check-read",
+            "ReadyCheck",
+            "success",
+            response ?? "unavailable",
+            startedUtc,
+            DateTimeOffset.UtcNow);
         if (IsFinalResponse(response))
         {
             lock (_sync) _acceptAttemptedThisReadyCheck = true;
@@ -202,9 +237,53 @@ public sealed class LeagueMatchmakingAutomationService : ILeagueMatchmakingAutom
             _acceptAttemptedThisReadyCheck = true;
         }
 
-        _ = await _write.ExecuteAsync(
+        var writeStartedUtc = DateTimeOffset.UtcNow;
+        ReportDiagnostic(correlationId, "accept-ready-check", "ReadyCheck", "started", "one-shot-write", writeStartedUtc, writeStartedUtc);
+        var writeResult = await _write.ExecuteAsync(
             new LeagueWriteCommand(LeagueWriteCapability.AcceptReadyCheck, null, null),
             cancellationToken).ConfigureAwait(false);
+        ReportDiagnostic(
+            correlationId,
+            "accept-ready-check",
+            "ReadyCheck",
+            writeResult is null ? "unavailable" : writeResult.IsSuccessStatusCode ? "success" : "failure",
+            writeResult?.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "no-result",
+            writeStartedUtc,
+            DateTimeOffset.UtcNow);
+    }
+
+    private void ReportDiagnostic(
+        string correlationId,
+        string eventName,
+        string phase,
+        string outcome,
+        string reason,
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        Exception? exception = null)
+    {
+        try
+        {
+            _diagnosticReporter?.Invoke(new LeagueAutomationDiagnostic(
+                correlationId,
+                "matchmaking",
+                phase,
+                eventName,
+                outcome,
+                reason,
+                startedUtc,
+                finishedUtc,
+                Math.Max(0L, (long)(finishedUtc - startedUtc).TotalMilliseconds),
+                exception?.GetType().FullName ?? string.Empty,
+                exception is null
+                    ? string.Empty
+                    : "0x" + exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
+                Environment.CurrentManagedThreadId));
+        }
+        catch
+        {
+            // Diagnostics must never change matchmaking automation behavior.
+        }
     }
 
     internal static LeagueLobbyEligibility? ParseLobby(byte[]? bytes)

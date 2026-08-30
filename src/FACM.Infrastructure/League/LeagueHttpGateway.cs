@@ -17,6 +17,7 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
     private readonly Func<HttpMessageHandler> _handlerFactory;
     private readonly TimeSpan _requestTimeout;
     private readonly Action<LeagueHttpDiagnostic>? _diagnosticReporter;
+    private readonly Func<LeagueGameflowSnapshot?>? _gameflowProvider;
     private readonly List<HttpClient> _retiredClients = [];
     private LeagueTransportSession? _clientSession;
     private HttpClient? _client;
@@ -28,13 +29,15 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         ILeagueTransportSessionSource sessions,
         TimeSpan? requestTimeout = null,
         Func<HttpMessageHandler>? handlerFactory = null,
-        Action<LeagueHttpDiagnostic>? diagnosticReporter = null)
+        Action<LeagueHttpDiagnostic>? diagnosticReporter = null,
+        Func<LeagueGameflowSnapshot?>? gameflowProvider = null)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(2);
         if (_requestTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(requestTimeout));
         _handlerFactory = handlerFactory ?? CreateDefaultHandler;
         _diagnosticReporter = diagnosticReporter;
+        _gameflowProvider = gameflowProvider;
     }
 
     public async Task<byte[]?> TryGetBytesAsync(string resourceKey, CancellationToken cancellationToken)
@@ -44,6 +47,10 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         var outcome = "unhandled-exception";
         var statusCode = (int?)null;
         var sessionInvalidated = false;
+        var notFoundClassification = string.Empty;
+        var gameflowPhase = string.Empty;
+        var exceptionType = string.Empty;
+        var hResult = string.Empty;
 
         try
         {
@@ -69,6 +76,18 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 }
                 if (!response.IsSuccessStatusCode)
                 {
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        gameflowPhase = TryReadGameflowPhase();
+                        notFoundClassification = LeagueEndpointAvailabilityPolicy.Classify404(
+                            path,
+                            gameflowPhase,
+                            LeagueConnectionState.Connected).ToString();
+                        outcome = notFoundClassification == nameof(League404Classification.ExpectedUnavailable)
+                            ? "expected-unavailable"
+                            : "http-failure";
+                        return null;
+                    }
                     outcome = response.StatusCode switch
                     {
                         HttpStatusCode.Unauthorized => "http-unauthorized",
@@ -82,22 +101,28 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 outcome = "success";
                 return bytes;
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 InvalidateSession(session, "timeout");
                 sessionInvalidated = true;
                 outcome = "timeout";
                 return null;
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException exception)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 InvalidateSession(session, "connection-refused");
                 sessionInvalidated = true;
                 outcome = "http-exception";
                 return null;
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException exception)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 outcome = "disposed";
                 return null;
             }
@@ -107,9 +132,16 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             outcome = "caller-cancelled";
             throw;
         }
+        catch (Exception exception)
+        {
+            exceptionType = exception.GetType().Name;
+            hResult = FormatHResult(exception);
+            outcome = "unhandled-exception";
+            throw;
+        }
         finally
         {
-            EndRequest(trace, statusCode, outcome, sessionInvalidated);
+            EndRequest(trace, statusCode, outcome, sessionInvalidated, notFoundClassification, gameflowPhase, exceptionType, hResult);
         }
     }
 
@@ -121,6 +153,10 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         var outcome = "unhandled-exception";
         var statusCode = (int?)null;
         var sessionInvalidated = false;
+        var notFoundClassification = string.Empty;
+        var gameflowPhase = string.Empty;
+        var exceptionType = string.Empty;
+        var hResult = string.Empty;
 
         try
         {
@@ -149,30 +185,45 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 }
 
                 var body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    gameflowPhase = TryReadGameflowPhase();
+                    notFoundClassification = LeagueEndpointAvailabilityPolicy.Classify404(
+                        target.Path,
+                        gameflowPhase,
+                        LeagueConnectionState.Connected).ToString();
+                }
                 outcome = response.IsSuccessStatusCode ? "success" : response.StatusCode switch
                 {
                     HttpStatusCode.Unauthorized => "http-unauthorized",
                     HttpStatusCode.Forbidden => "http-forbidden",
+                    HttpStatusCode.NotFound when notFoundClassification == nameof(League404Classification.ExpectedUnavailable) => "expected-unavailable",
                     _ => "http-failure"
                 };
                 return new LeagueWriteResult((int)response.StatusCode, body);
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 InvalidateSession(session, "timeout");
                 sessionInvalidated = true;
                 outcome = "timeout";
                 return null;
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException exception)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 InvalidateSession(session, "connection-refused");
                 sessionInvalidated = true;
                 outcome = "http-exception";
                 return null;
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException exception)
             {
+                exceptionType = exception.GetType().Name;
+                hResult = FormatHResult(exception);
                 outcome = "disposed";
                 return null;
             }
@@ -182,9 +233,16 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             outcome = "caller-cancelled";
             throw;
         }
+        catch (Exception exception)
+        {
+            exceptionType = exception.GetType().Name;
+            hResult = FormatHResult(exception);
+            outcome = "unhandled-exception";
+            throw;
+        }
         finally
         {
-            EndRequest(trace, statusCode, outcome, sessionInvalidated);
+            EndRequest(trace, statusCode, outcome, sessionInvalidated, notFoundClassification, gameflowPhase, exceptionType, hResult);
         }
     }
 
@@ -222,7 +280,11 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         RequestTrace trace,
         int? statusCode,
         string outcome,
-        bool sessionInvalidated)
+        bool sessionInvalidated,
+        string notFoundClassification,
+        string gameflowPhase,
+        string exceptionType,
+        string hResult)
     {
         var finishedUtc = DateTimeOffset.UtcNow;
         var durationMs = Math.Max(0L, (long)Stopwatch.GetElapsedTime(trace.StartTimestamp).TotalMilliseconds);
@@ -235,7 +297,11 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             statusCode,
             outcome,
             sessionInvalidated,
-            inFlightAtEnd);
+            inFlightAtEnd,
+            notFoundClassification,
+            gameflowPhase,
+            exceptionType,
+            hResult);
     }
 
     private int BeginInFlight()
@@ -257,7 +323,11 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         int? statusCode,
         string outcome,
         bool sessionInvalidated,
-        int inFlightAtEnd)
+        int inFlightAtEnd,
+        string notFoundClassification = "",
+        string gameflowPhase = "",
+        string exceptionType = "",
+        string hResult = "")
     {
         try
         {
@@ -274,10 +344,15 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 durationMs,
                 statusCode,
                 outcome,
-                sessionInvalidated,
-                trace.InFlightAtStart,
-                inFlightAtEnd,
-                Volatile.Read(ref _maxInFlightObserved)));
+             sessionInvalidated,
+             trace.InFlightAtStart,
+             inFlightAtEnd,
+             Volatile.Read(ref _maxInFlightObserved),
+             notFoundClassification,
+             gameflowPhase,
+             exceptionType,
+             hResult,
+             Environment.CurrentManagedThreadId));
         }
         catch
         {
@@ -295,6 +370,19 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         DateTimeOffset StartedUtc,
         long StartTimestamp,
         int InFlightAtStart);
+
+    public int InFlightCount => Math.Max(0, Volatile.Read(ref _inFlight));
+
+    public int MaxInFlightObserved => Math.Max(0, Volatile.Read(ref _maxInFlightObserved));
+
+    private string TryReadGameflowPhase()
+    {
+        try { return _gameflowProvider?.Invoke()?.Phase ?? string.Empty; }
+        catch { return string.Empty; }
+    }
+
+    private static string FormatHResult(Exception exception) =>
+        "0x" + exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture);
 
     private HttpClient GetOrCreateClient(LeagueTransportSession session)
     {

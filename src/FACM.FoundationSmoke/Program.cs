@@ -16,6 +16,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("desktop entry click routing", () => { TestDesktopEntryInteractionPolicy(); return Task.CompletedTask; }),
     ("compact launcher outside-click state", () => { TestCompactLauncherOutsideClickState(); return Task.CompletedTask; }),
     ("league diagnostics transport and gameflow", LeagueDiagnosticsSmoke.RunAsync),
+    ("league reliability boundaries", LeagueReliabilitySmoke.RunAsync),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
     ("P7 production 3.5.15 settings key parity", LegacySettingsParitySmoke.RunAsync),

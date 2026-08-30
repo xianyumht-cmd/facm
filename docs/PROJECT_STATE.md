@@ -209,3 +209,21 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 4. 核对 Foundation #632 / run `33233590075` / artifact `9709261625` / EXE SHA-256 `5d65bd3f...a9fea`；
 5. 不重复已完成的 A-M 稳定性修复；
 6. 从 targeted Win10 PetHost retest 继续；真实 evidence 回来前不得 cutover，也不得提前开始 UI 2.0。
+
+## 2026-08-30 Live LCU Reliability + practical feature expansion
+
+本轮在 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830` 从起始 HEAD `54a134b071e40d0730b09d5dcaece496d6038417` 继续。正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`、PR #234、生产指针和 Gate13 均未移动。
+
+- Workbench 卡顿根因已由真实日志定位为：后台刷新线程同步触发 `PropertyChanged`，订阅器在非 UI 线程读取 WinUI 导航对象，抛出 `COMException`；不是 FACM 进程退出。修复为先回到 Dispatcher，再读取导航和更新界面；ViewModel、Gameflow observer、Bench loop 和推荐配置通知均增加故障边界。
+- FACM 进程生命周期诊断已覆盖 startup、main-window-created/closed、compact-opened/closed、shutdown-requested/start/complete、unhandled-ui-exception、unobserved-task-exception、fatal-process-exit；异常字段包含类型、HResult、线程和最近阶段，未记录凭据。
+- LCU 404 现在按唯一 Gameflow 快照做阶段分类：已知可选会话端点在非所属阶段为 `ExpectedUnavailable`，所属阶段或未知端点为 `UnexpectedFailure`；不增加第二套 Gateway、session 或 polling loop。
+- Diagnostics Center 增加只读 League Runtime Snapshot：连接状态、当前 phase/product state、PID、端口、session source、当前/最高并发；数据来自现有 session/Gateway/Gameflow owner。
+- 可靠性 smoke 新增 404 分类、Gameflow observer 故障边界、Auto Accept 写入失败可观察边界；已有 FoundationSmoke 全套（跳过 Gate13）继续通过。
+
+当前真实 LCU 证据：LeagueClient PID `8812`、LeagueClientUx PID `20504` / LCU `61101`，最新 FACM PID `16436` 保持 Responding；最新 Gameflow 记录为 `Lobby / Connected`。手工操作后的 App 日志累计 387 个 HTTP completed：340 个成功、83 个 ExpectedUnavailable、0 个 UnexpectedFailure，最大并发 2，HTTP p50/p95/max 为 `0/10/374 ms`。两次 automation `POST /lol-lobby/v2/lobby/matchmaking/search` 分别耗时 `109 ms`、`127 ms`，evaluation 分别为 `118 ms`、`129 ms`；未出现新的 COMException、未观察异常或 FACM 进程退出。尚未自然进入 ReadyCheck，因此 Auto Accept 的真实 ReadyCheck PASS 仍未宣称。
+
+本次自然手工操作经过 `Lobby -> ChampSelect -> Lobby -> ChampSelect -> Lobby`，没有产生 `POST /lol-matchmaking/v1/ready-check/accept`。Lobby Gameflow observation 约每 5 秒，因此秒级匹配感知延迟目前优先怀疑 detection delay，而非 HTTP 写请求；在加入精确时序证据前不得直接改变 polling cadence。当前输出目录 settings.v2.json 读到 `autoMatchmakingEnabled=false`、`autoAcceptEnabled=true`，但日志仍有两次 automation matchmaking POST，运行时配置与持久化文件的一致性仍待核对。
+
+候选功能评估：LCU Runtime Snapshot（高价值、只读、低风险，已实现）；ReadyCheck/Auto Accept outcome history（高价值、需要自然 ReadyCheck，暂不实现）；Lobby/queue session summary（中价值、已有 Dashboard 部分重复，暂不实现）；match-history performance drilldown（中价值、已有 Player 数据重复，暂不实现）；live phase health timeline（中高价值、需要持续采样，暂不引入第二轮询，暂不实现）。
+
+本轮仍不得 merge、push、release、Gate13、移动正式 P7，也不得开始完整 UI Upgrade；必须先完成自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收。

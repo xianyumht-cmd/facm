@@ -341,7 +341,17 @@ public sealed class LeagueRecommendedAutoApplyService : ILeagueRecommendedAutoAp
         _lastStatus = status;
         var handler = StatusChanged;
         if (handler is not null)
-            Task.Run(() => handler(this, new LeagueRecommendedAutoApplyStatusChangedEventArgs(status)));
+        {
+            try
+            {
+                handler(this, new LeagueRecommendedAutoApplyStatusChangedEventArgs(status));
+            }
+            catch
+            {
+                // Status observers are a UI boundary. A faulty observer must not become an
+                // unobserved Task.Run exception or interrupt the shared League evaluation gate.
+            }
+        }
     }
 
     private void ResetContextLocked(bool clearAttempt)

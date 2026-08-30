@@ -116,6 +116,7 @@ public partial class App
     private void RequestApplicationShutdown()
     {
         if (_shuttingDown) return;
+        QueueLifecycleDiagnostic("shutdown-requested", "tray-or-maintenance");
         var floating = _floatingWindow;
         if (floating is not null)
         {
@@ -124,6 +125,7 @@ public partial class App
         }
 
         _shuttingDown = true;
+        QueueLifecycleDiagnostic("shutdown-start", "tray-or-maintenance");
         try { _compactLauncher?.Close(); } catch { }
         try { _window?.Close(); } catch { }
         DisposeRuntime();

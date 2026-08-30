@@ -284,3 +284,15 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 ### 原因
 
 真实 Win10 证据显示旧实现会在 activate 写入超时后留下多个 Host，同时预显示的窗口绕过了“桌宠接管悬浮入口”的时序。把窗口显示和 IPC 命令消费绑定，并让写入取消真正到达底层 StreamWriter，能在不改变 750 ms/ready timeout 预算和既有 Runtime 分离的前提下消除这两个生命周期缺口。
+
+## 2026-08-30：Live League 可靠性先做边界与证据，不做猜测性性能重构
+
+### 决策
+
+- Workbench UI 只能在 Dispatcher 上读取/写入 WinUI 状态；后台刷新保留现有共享 Gateway/Gameflow owner，不增加第二轮询、Limiter、全局 Cache 或 Debounce。
+- 已知 LCU session-shaped 404 通过现有 Gameflow 快照做阶段分类；所属阶段的 404 保留为 UnexpectedFailure，非所属阶段记录为 ExpectedUnavailable，未知端点不做宽松归类。
+- Diagnostics Runtime Snapshot 只读取现有 session、Gameflow 和 Gateway 的当前事实，不成为新的状态 owner。
+
+### 原因
+
+真实复现显示卡顿日志对应的是后台 PropertyChanged 跨线程 COMException，而非已证实的 FACM 进程退出。当前性能数据最大并发为 2、Workbench refresh 为 56 ms，尚无证据支持引入新的调度/缓存机制。自然 ReadyCheck 证据回来前，必须保留现有 Auto Accept 的一次性写入和可观察失败边界。

@@ -497,3 +497,19 @@ Build #845 因此在 FACM 编译阶段以 CS7036 失败；PetHost publish/self-t
 
 - FACM 4.0 / PR #234 / Batch P
 - `artifacts/facm4-win10-targeted-batch-p.zip` targeted candidate
+
+## 2026-08-30：Workbench 后台 PropertyChanged 不能直接读取 WinUI
+
+### 根因
+
+`LeagueWorkbenchViewModel.RefreshAsync` 在 `ConfigureAwait(false)` 后更新快照，并同步触发 `PropertyChanged`。若 MainWindow 订阅器在回调入口读取 `NavigationView.SelectedItem`，该读取发生在后台线程，会抛出 `COMException`，使日志看起来像 Workbench refresh failure，甚至可能被误判为 FACM 崩溃。
+
+### 防回归规则
+
+- ViewModel 可以在后台线程发布数据，但所有 WinUI 导航、控件、窗口状态读取和写入必须先通过 Dispatcher。
+- PropertyChanged、Gameflow Changed/Observed 和其它后台 observer 必须逐个隔离异常；一个 observer 失败不能中止共享 monitor 或吞掉后续 observer。
+- 真实诊断必须同时检查 FACM PID 是否退出、lifecycle/fatal 事件和 Workbench stage pair；单条 `COMException` 不能直接称为进程崩溃。
+
+## 2026-08-30：验证 App 时必须确认实际输出目录
+
+FACM 工程的 Debug 构建可能输出到 `bin\Debug`，而旧测试启动器仍可能指向历史 `bin\x64\Debug`。启动前必须核对 EXE 的完整路径和修改时间，否则会把旧二进制的失败误判为新修复失败或把旧行为误判为新行为。

@@ -59,6 +59,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        AttachLifecycleHandlers();
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -100,6 +101,7 @@ public partial class App : Application
             "runtime-layout-ready");
         _performance = new PerformanceBudgetProvider();
         _diagnostics = new BoundedJsonLinesDiagnosticSink(diagnosticLogPath);
+        QueueLifecycleDiagnostic("startup", "diagnostics-ready");
         _diagnosticsSource = new FileDiagnosticsSnapshotSource(
             _productState,
             diagnosticLogPath,
@@ -132,7 +134,8 @@ public partial class App : Application
             diagnosticReporter: ReportLeagueSessionDiagnostic);
         _leagueGateway = new LeagueHttpGateway(
             _leagueSessions,
-            diagnosticReporter: ReportLeagueHttpDiagnostic);
+            diagnosticReporter: ReportLeagueHttpDiagnostic,
+            gameflowProvider: () => _gameflow?.Current);
         _leagueGameRepairService = new WindowsLeagueGameRepairService(_leagueGateway, _leagueGateway);
         _gameflow = new LeagueGameflowMonitor(
             _leagueGateway,
@@ -143,7 +146,8 @@ public partial class App : Application
         _matchmakingAutomation = new LeagueMatchmakingAutomationService(
             _leagueGateway,
             _leagueGateway,
-            _gameflow);
+            _gameflow,
+            ReportLeagueAutomationDiagnostic);
         ConfigureLeagueAutomationFromSettings();
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
@@ -176,6 +180,7 @@ public partial class App : Application
         _ = ApplyPreferredFloatingPlacementAsync(_settings, _floatingWindow);
 
         _productState.SetApplication(ApplicationProductState.Ready, "desktop-launcher-ready");
+        QueueLifecycleDiagnostic("startup", "desktop-launcher-ready");
         QueueDiagnostic(DiagnosticEventFactory.Create(
             "feature.policy",
             "FACM.Recovery",
@@ -300,11 +305,15 @@ public partial class App : Application
             performance,
             workbenchData,
             ReportLeagueWorkbenchDiagnostic);
-        _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
+        _diagnosticsCenter = new DiagnosticsCenterViewModel(
+            diagnosticsSource,
+            diagnosticsExporter,
+            CreateLeagueRuntimeFacts);
         _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
+        QueueLifecycleDiagnostic("main-window-created", "constructed");
         return _window;
     }
 
@@ -350,6 +359,7 @@ public partial class App : Application
             launcher.Closed += OnCompactLauncherClosed;
             launcher.ShowNextTo(floating.GetCurrentBounds());
             QueueLauncherDiagnostic("compact-opened");
+            QueueLifecycleDiagnostic("compact-opened", "shown");
         }
         catch (Exception exception)
         {
@@ -364,6 +374,7 @@ public partial class App : Application
         if (!ReferenceEquals(sender, _compactLauncher)) return;
         _compactLauncher = null;
         QueueLauncherDiagnostic("compact-closed");
+        QueueLifecycleDiagnostic("compact-closed", "closed");
     }
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
@@ -373,6 +384,7 @@ public partial class App : Application
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
         _diagnosticsCenter = null;
+        QueueLifecycleDiagnostic("main-window-closed", "closed");
         // Closing the detailed shell does not toggle or terminate the desktop entry. Clicking F later
         // still opens the compact launcher; detailed state-consuming ViewModels can be recreated safely.
     }
@@ -381,6 +393,8 @@ public partial class App : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+        QueueLifecycleDiagnostic("shutdown-requested", "floating-window-closed");
+        QueueLifecycleDiagnostic("shutdown-start", "floating-window-closed");
         _productState?.SetApplication(ApplicationProductState.ShuttingDown, "floating-window-closed");
         _floatingWindow = null;
 
@@ -539,6 +553,7 @@ public partial class App : Application
         _httpUpdateManifestSource?.Dispose();
         _httpUpdateManifestSource = null;
         _updateManifestSource = null;
+        QueueLifecycleDiagnostic("shutdown-complete", "runtime-disposed");
         _diagnostics?.Dispose();
         _diagnostics = null;
         _diagnosticsSource = null;
@@ -556,17 +571,21 @@ public partial class App : Application
     {
         var sink = _diagnostics;
         if (sink is null) return;
-        _ = Task.Run(async () =>
+        _ = WriteDiagnosticAsync(sink, diagnosticEvent);
+    }
+
+    private static async Task WriteDiagnosticAsync(
+        BoundedJsonLinesDiagnosticSink sink,
+        DiagnosticEvent diagnosticEvent)
+    {
+        try
         {
-            try
-            {
-                await sink.WriteAsync(diagnosticEvent).ConfigureAwait(false);
-            }
-            catch
-            {
-                // Diagnostics are best-effort and may never make the product fail to launch.
-            }
-        });
+            await sink.WriteAsync(diagnosticEvent).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Diagnostics are best-effort and may never make the product fail to launch.
+        }
     }
 
     private static int ToPersistedCoordinate(double value)

@@ -232,3 +232,11 @@ VPetCore     -> WindowsVPetRuntime     -> WindowsPetHostBundleStore     -> FACM.
 The host projects use .NET 10-compatible `ApplicationHighDpiMode=PerMonitorV2` for their WPF/WinForms analyzer contract. DPI nodes are not duplicated in the manifests. FlyingHost carries its own `FACM.FlyingHost.app` assembly identity; PetHost remains `FACM.PetHost.app`.
 
 Batch P closes the shared host lifecycle contract without merging the two runtime families: the client command write uses a cancellation-aware `WriteLineAsync`/`FlushAsync` pair with a 750 ms command budget; a timed-out transport is marked poisoned, detached, disposed and followed by bounded wait/kill/wait/dispose cleanup. A poisoned transport never receives a second graceful `stop` write. Both WPF hosts keep their dispatcher alive without calling `Show()` during process startup; only the dispatched `activate` command may emit `show`, after which `Loaded` emits `loaded` and the host emits `ready`. The server enters its command reader after pipe connection and does not pre-send a `connected` event. Runtime stage diagnostics carry the stage, generation, PID, pipe name, command and elapsed time as separate App diagnostic fields.
+
+## 2026-08-30 Live League reliability boundaries
+
+`LeagueHttpGateway` remains the single authenticated LCU transport. It may read the current `LeagueGameflowMonitor` snapshot through an optional provider solely to classify known 404 responses; it does not poll, cache a second phase, or create another client. The gateway exposes only bounded in-flight counters for the read-only Diagnostics Runtime Snapshot.
+
+`LeagueGameflowMonitor` remains the single polling owner. Changed/Observed subscribers are isolated individually so one UI or automation observer cannot terminate the loop or suppress healthy observers. Workbench property notifications likewise isolate subscriber faults, while `MainWindow` marshals all navigation/surface reads to its Dispatcher before touching WinUI objects.
+
+`App` owns the lifecycle diagnostics handlers and emits sanitized lifecycle/exception events. Diagnostics Center merges a point-in-time runtime-facts provider into its existing snapshot; it does not own League state. Matchmaking automation keeps the existing one-shot ReadyCheck write boundary and now reports evaluation/read/write outcomes through the existing diagnostic sink.
