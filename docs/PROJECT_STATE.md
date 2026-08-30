@@ -74,7 +74,7 @@ The current local candidate continues from Batch P in `D:\project2\worktrees\fac
 - Post-commit `FACM4.sln` Debug x64 build: 0 warnings / 0 errors; FoundationSmoke with `--skip-gate13`: SUCCESS; WindowsSmoke: SUCCESS.
 - The full 3.5.15 source audit is recorded in `docs/FACM35-FULL-PRODUCT-PARITY.md`: 41 behavior rows, 12 `EXACT`, 20 `PARTIAL`, 0 `MISSING`, 3 `4.0-ONLY`, and 6 `NEEDS-REAL-MACHINE`. The tray correction confirms that both 3.5.15 and current 4.0 preserve default single-left NotifyIcon behavior, with FACM actions bound to double-click and the right-click menu; the first compatibility gap remains the missing explicit mapping from the 3.5.15 UI-text key contract to the 4.0 role-scoped keys.
 
-Batch X remains in progress for the remaining shell/window/input parity and visible acceptance. Do not rank further League performance causes or add a second limiter/cache/polling loop until the real Workbench phase-by-phase trace is reviewed.
+Batch X 的源代码阶段已记录；剩余的是 shell/window/input 的真实可见验收。Morphing Surface 行为基线随后已落地，但完整视觉迁移仍未完成。Do not rank further League performance causes or add a second limiter/cache/polling loop until the real Workbench phase-by-phase trace is reviewed.
 
 ## 2026-08-30 candidate 2730 本机 Foundation 等价验证
 
@@ -230,7 +230,7 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 
 ## 2026-08-30 Morphing Surface / UI Upgrade behavior baseline
 
-本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`，当前完整 HEAD 为 `f40d7f2b596df194b1ae6f9b13f33887746557ee`。本轮只建立可运行的行为基线，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
+本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`；产品实现基线为 `f40d7f2b596df194b1ae6f9b13f33887746557ee`，当前完整 HEAD 为 `206f25b`（含本轮规范文档）。本轮只建立可运行的行为基线，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
 
 - 默认 `FACM.App` 使用一个持久 `MainWindow` 主宿主，由 `FacmSurfaceStateMachine` 管理 `Orb / ControlMatrix / FeatureSurface / LeagueSurface / ChampSelectStrip / HiddenInGame` 展示模式；旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback。
 - Orb 使用 36 DIP 锚点和现有自定义 F；ControlMatrix、Inspector、LeagueSurface 及 ChampSelectStrip 复用现有 ViewModel/service。重量级 Diagnostics、Logs、Repair、Cleanup、Settings、Maintenance、Personalization、Pet Picker、Workbench 页面当前通过宿主内适配层承载，尚不是完整的新视觉页面迁移。
