@@ -53,7 +53,9 @@ foreach ($required in @(
     'WindowsFlyingHostBundleStore',
     'FACM.FlyingHost.',
     '--pet-id',
-    'runtime-unsupported:'
+    'runtime-unsupported:',
+    'flying-activate-send-start',
+    'flying-activate-send-finish'
 )) {
     if ($flyingRuntime -notmatch [regex]::Escape($required)) { Fail "Flying runtime split guard missing: $required" }
 }
