@@ -159,7 +159,15 @@ public sealed partial class FloatingWindow : Window
         // click merely because our root observer has not reset _pointerActive yet. A real drag marks
         // suppression as soon as it crosses the 3.5 threshold, so only click-like releases get here.
         if (_dragMoved || Environment.TickCount64 <= _suppressClickUntilTick) return;
-        _toggleCompactLauncher();
+        DispatchDesktopEntryAction(DesktopEntryGesture.LeftClick);
+    }
+
+    private void DispatchDesktopEntryAction(DesktopEntryGesture gesture)
+    {
+        if (DesktopEntryInteractionPolicy.Resolve(gesture) == DesktopEntryAction.ShowTrayContextMenu)
+            _showTrayContextMenu();
+        else
+            _toggleCompactLauncher();
     }
 
     private void OnFloatingPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -170,7 +178,7 @@ public sealed partial class FloatingWindow : Window
         if (properties.IsRightButtonPressed)
         {
             e.Handled = true;
-            _showTrayContextMenu();
+            DispatchDesktopEntryAction(DesktopEntryGesture.RightClick);
             return;
         }
         var primaryContact = properties.IsLeftButtonPressed || (!properties.IsRightButtonPressed && point.IsInContact);

@@ -13,6 +13,7 @@ var tests = new (string Name, Func<Task> Run)[]
 {
     ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
     ("tray command routing and disposal", () => { TestTrayCommandRouting(); return Task.CompletedTask; }),
+    ("desktop entry click routing", () => { TestDesktopEntryInteractionPolicy(); return Task.CompletedTask; }),
     ("compact launcher outside-click state", () => { TestCompactLauncherOutsideClickState(); return Task.CompletedTask; }),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
@@ -111,6 +112,21 @@ static void TestTrayCommandRouting()
     router.Dispose();
     router.Dispose();
     True(!router.TryDispatch(TrayCommand.OpenCompactLauncher), "disposed tray router must not dispatch");
+}
+
+static void TestDesktopEntryInteractionPolicy()
+{
+    foreach (var entry in Enum.GetValues<DesktopEntryKind>())
+    {
+        Equal(
+            DesktopEntryAction.ToggleCompactLauncher,
+            DesktopEntryInteractionPolicy.Resolve(DesktopEntryGesture.LeftClick),
+            entry + " left click opens compact launcher");
+        Equal(
+            DesktopEntryAction.ShowTrayContextMenu,
+            DesktopEntryInteractionPolicy.Resolve(DesktopEntryGesture.RightClick),
+            entry + " right click opens tray context");
+    }
 }
 
 static void TestCompactLauncherOutsideClickState()

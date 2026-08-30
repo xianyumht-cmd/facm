@@ -1,5 +1,6 @@
 using FACM.App.Personalization;
 using FACM.App.ViewModels;
+using FACM.Core.Desktop;
 using FACM.Core.Observability;
 using FACM.Core.Personalization;
 using FACM.Core.State;
@@ -53,17 +54,17 @@ public partial class App
         _vpetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
             layout.PetHostDataDirectory,
-             layout.UiTextPath,
-             () => RunOnDesktopUi(ToggleCompactLauncher),
-             () => RunOnDesktopUi(ShowTrayContextMenuAtCursor),
+            layout.UiTextPath,
+            () => RequestDesktopEntryAction(DesktopEntryGesture.LeftClick),
+            () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportPetHostRuntimeStage);
         _flyingPetRuntime ??= new WindowsFlyingPetRuntime(
             _flyingHostBundleStore,
-             layout.UiTextPath,
-             () => RunOnDesktopUi(ToggleCompactLauncher),
-             () => RunOnDesktopUi(ShowTrayContextMenuAtCursor),
+            layout.UiTextPath,
+            () => RequestDesktopEntryAction(DesktopEntryGesture.LeftClick),
+            () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportFlyingHostRuntimeStage);
@@ -324,6 +325,15 @@ public partial class App
             if (!_shuttingDown) action();
         });
     }
+
+    private void RequestDesktopEntryAction(DesktopEntryGesture gesture) =>
+        RunOnDesktopUi(() =>
+        {
+            if (DesktopEntryInteractionPolicy.Resolve(gesture) == DesktopEntryAction.ShowTrayContextMenu)
+                ShowTrayContextMenuAtCursor();
+            else
+                ToggleCompactLauncher();
+        });
 
     private Task ResetFloatingEntryPositionAsync()
     {
