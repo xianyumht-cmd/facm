@@ -52,12 +52,12 @@ public sealed partial class MainWindow
 
     private StackPanel BuildPersonalizationPanel(PersonalizationViewModel viewModel)
     {
-        var panel = new StackPanel { Spacing = 18 };
+        var panel = new StackPanel { Spacing = _morphingSurfaceEnabled ? 6 : 18 };
         var themeCard = new Border
         {
             Style = (Style)Application.Current.Resources["FacmCardBorderStyle"]
         };
-        var themeContent = new StackPanel { Spacing = 10 };
+        var themeContent = new StackPanel { Spacing = _morphingSurfaceEnabled ? 6 : 10 };
         var themeTitle = new TextBlock
         {
             Text = _text.Get(UiTextKeys.ThemeSettings),
@@ -73,9 +73,11 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_themePicker, "FACM.Personalization.ThemePicker");
         AutomationProperties.SetName(_themePicker, _text.Get(UiTextKeys.ThemeSettings));
         _themePicker.SelectionChanged += OnThemeSelectionChanged;
+        AttachInspector(_themePicker, () => viewModel.SelectedTheme.Description);
 
         _themeDescription = new TextBlock
         {
+            Visibility = _morphingSurfaceEnabled ? Visibility.Collapsed : Visibility.Visible,
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };
@@ -102,7 +104,7 @@ public sealed partial class MainWindow
         {
             Style = (Style)Application.Current.Resources["FacmCardBorderStyle"]
         };
-        var petContent = new StackPanel { Spacing = 10 };
+        var petContent = new StackPanel { Spacing = _morphingSurfaceEnabled ? 6 : 10 };
         var petTitle = new TextBlock
         {
             Text = _text.Get(UiTextKeys.DesktopPet),
@@ -118,8 +120,10 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_petPicker, "FACM.Personalization.PetPicker");
         AutomationProperties.SetName(_petPicker, _text.Get(UiTextKeys.DesktopPet));
         _petPicker.SelectionChanged += OnPetSelectionChanged;
+        AttachInspector(_petPicker, () => viewModel.SelectedPet.Description);
         _petDescription = new TextBlock
         {
+            Visibility = _morphingSurfaceEnabled ? Visibility.Collapsed : Visibility.Visible,
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };
@@ -132,6 +136,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_petEnableButton, "FACM.Personalization.EnablePet");
         AutomationProperties.SetName(_petEnableButton, "启用当前桌宠");
         _petEnableButton.Click += OnEnablePetClicked;
+        AttachInspector(_petEnableButton, _text.Get(UiTextKeys.DesktopPet));
 
         _restoreLauncherButton = new Button
         {
@@ -140,6 +145,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_restoreLauncherButton, "FACM.Personalization.RestoreLauncher");
         AutomationProperties.SetName(_restoreLauncherButton, "恢复默认 F");
         _restoreLauncherButton.Click += OnRestoreLauncherClicked;
+        AttachInspector(_restoreLauncherButton, _text.Get(UiTextKeys.TrayRestoreLauncher));
 
         _resetDesktopPositionButton = new Button
         {
@@ -148,6 +154,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetAutomationId(_resetDesktopPositionButton, "FACM.Personalization.ResetDesktopPosition");
         AutomationProperties.SetName(_resetDesktopPositionButton, "复位桌面位置");
         _resetDesktopPositionButton.Click += OnResetDesktopPositionClicked;
+        AttachInspector(_resetDesktopPositionButton, _text.Get(UiTextKeys.TrayResetDesktopPosition));
 
         var petActions = new StackPanel
         {
@@ -216,6 +223,11 @@ public sealed partial class MainWindow
 
         _themeDescription.Text = viewModel.SelectedTheme.Description;
         _petDescription.Text = viewModel.SelectedPet.Description;
+        if (_morphingSurfaceEnabled)
+        {
+            _themeDescription.Visibility = Visibility.Collapsed;
+            _petDescription.Visibility = Visibility.Collapsed;
+        }
         var failed = viewModel.Status.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
                      viewModel.Status.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
                      viewModel.Status.Contains("timeout", StringComparison.OrdinalIgnoreCase);

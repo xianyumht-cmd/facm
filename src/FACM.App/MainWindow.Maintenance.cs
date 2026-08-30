@@ -36,6 +36,7 @@ public sealed partial class MainWindow
             control.ConfigureOutsideCloseSuppression(SuppressOutsideClose);
             control.ReplacementStarted += OnMaintenanceReplacementStarted;
             control.ExitRequested += OnMaintenanceExitRequested;
+            control.OpenLogRequested += OpenStructuredLogSurface;
             control.Configure(viewModel);
             _maintenanceControl = control;
             DiagnosticsPanel.Children.Insert(0, control);
@@ -163,6 +164,7 @@ public sealed partial class MainWindow
         {
             _maintenanceControl.ReplacementStarted -= OnMaintenanceReplacementStarted;
             _maintenanceControl.ExitRequested -= OnMaintenanceExitRequested;
+            _maintenanceControl.OpenLogRequested -= OpenStructuredLogSurface;
             _maintenanceControl.Detach();
             _maintenanceControl = null;
         }

@@ -59,6 +59,7 @@ public partial class App : Application
     private BoundedJsonLinesDiagnosticSink? _diagnostics;
     private IDiagnosticsSnapshotSource? _diagnosticsSource;
     private IDiagnosticsBundleExporter? _diagnosticsExporter;
+    private string _diagnosticLogPath = string.Empty;
     private IFeaturePolicy? _featurePolicy;
     private RecoveryCoordinator? _recovery;
     private bool _shuttingDown;
@@ -93,6 +94,7 @@ public partial class App : Application
     private void LaunchCore(RuntimePathLayout layout, string appVersion)
     {
         var diagnosticLogPath = Path.Combine(layout.LogsDirectory, "facm4-events.jsonl");
+        _diagnosticLogPath = diagnosticLogPath;
         var diagnosticsPolicy = DiagnosticsExportPolicy.Default;
         var killSwitchLoad = new FeatureKillSwitchFileSource(layout.FeatureKillSwitchPath)
             .LoadAsync()
@@ -327,7 +329,8 @@ public partial class App : Application
         _diagnosticsCenter = new DiagnosticsCenterViewModel(
             diagnosticsSource,
             diagnosticsExporter,
-            CreateLeagueRuntimeFacts);
+            CreateLeagueRuntimeFacts,
+            _diagnosticLogPath);
         _window = new MainWindow(controlCenter, cleanupCenter,
             repairTools,
             _leagueWorkbench,
@@ -764,6 +767,7 @@ public partial class App : Application
         _diagnostics = null;
         _diagnosticsSource = null;
         _diagnosticsExporter = null;
+        _diagnosticLogPath = string.Empty;
         _settings = null;
         _controlCenter = null;
         _uiText = null;

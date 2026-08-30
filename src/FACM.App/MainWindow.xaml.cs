@@ -276,6 +276,9 @@ public sealed partial class MainWindow : Window
         RepairSkipSettlementHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         RepairRestartClientUxHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         RepairExitGameHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairToolDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        CleanupDirectoryDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        CleanupSafetyHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         OverviewBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         StateBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsSubtitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
@@ -298,8 +301,16 @@ public sealed partial class MainWindow : Window
             var child = VisualTreeHelper.GetChild(root, index);
             if (child is Border border && ReferenceEquals(border.Style, cardStyle))
             {
-                border.Padding = new Thickness(10, 8, 10, 8);
-                border.CornerRadius = new CornerRadius(8);
+                border.Padding = new Thickness(6, 4, 6, 4);
+                border.CornerRadius = new CornerRadius(0);
+                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                border.BorderThickness = new Thickness(0, 0, 0, 1);
+            }
+            if (child is StackPanel stack && stack.Spacing > 6) stack.Spacing = 6;
+            if (child is Grid grid)
+            {
+                if (grid.ColumnSpacing > 8) grid.ColumnSpacing = 8;
+                if (grid.RowSpacing > 8) grid.RowSpacing = 8;
             }
 
             ApplyMorphingCardDensity(child);
@@ -423,6 +434,7 @@ public sealed partial class MainWindow : Window
             ChampSelectStripHeightDip),
         FacmSurfaceMode.LeagueSurface => new DesktopSize(LeagueSurfaceWidthDip, LeagueSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "repair" => new DesktopSize(RepairSurfaceWidthDip, RepairSurfaceHeightDip),
+        FacmSurfaceMode.FeatureSurface when _activeSection == "settings" && _logsSubviewVisible => new DesktopSize(560d, 420d),
         FacmSurfaceMode.FeatureSurface when _activeSection == "settings" => new DesktopSize(SettingsSurfaceWidthDip, SettingsSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "personalization" => new DesktopSize(PersonalizationSurfaceWidthDip, PersonalizationSurfaceHeightDip),
         _ => new DesktopSize(SettingsSurfaceWidthDip, SettingsSurfaceHeightDip)
@@ -936,6 +948,18 @@ public sealed partial class MainWindow : Window
         AutomationProperties.SetHelpText(MatrixSettingsButton, _text.Get(UiTextKeys.ShellMoreSettingsSubtitle));
         AutomationProperties.SetName(MatrixCleanupButton, _text.Get(UiTextKeys.Cleanup));
         AutomationProperties.SetHelpText(MatrixCleanupButton, _text.Get(UiTextKeys.CleanupPreviewDescription));
+        DiagnosticsViewButton.Content = _text.Get(UiTextKeys.DiagnosticsTitle);
+        LogsViewButton.Content = _text.Get(UiTextKeys.LogsTitle);
+        LogSearchBox.PlaceholderText = _text.Get(UiTextKeys.LogsSearch);
+        LogRefreshButton.Content = _text.Get(UiTextKeys.LogsRefresh);
+        LogOpenFolderButton.Content = _text.Get(UiTextKeys.LogsOpenFolder);
+        LogCopyPathButton.Content = _text.Get(UiTextKeys.LogsCopyPath);
+        LogTimeHeader.Text = _text.Get(UiTextKeys.LogsTime);
+        LogDomainHeader.Text = _text.Get(UiTextKeys.LogsDomain);
+        LogOperationHeader.Text = _text.Get(UiTextKeys.LogsOperation);
+        LogOutcomeHeader.Text = _text.Get(UiTextKeys.LogsOutcome);
+        LogDurationHeader.Text = _text.Get(UiTextKeys.LogsDuration);
+        LogViewerStatus.Text = _text.Get(UiTextKeys.DiagnosticsStatusReady);
         MatrixInspectorBar.Text = _text.Get(UiTextKeys.ShellStatusReady);
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectWaitingAction);
@@ -1030,6 +1054,10 @@ public sealed partial class MainWindow : Window
         AttachInspector(MatrixPetButton, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
         AttachInspector(MatrixSettingsButton, _text.Get(UiTextKeys.ShellMoreSettingsSubtitle));
         AttachInspector(MatrixCleanupButton, _text.Get(UiTextKeys.CleanupPreviewDescription));
+        AttachInspector(LogsViewButton, _text.Get(UiTextKeys.LogsTitle));
+        AttachInspector(LogRefreshButton, _text.Get(UiTextKeys.DiagnosticsRefreshHelp));
+        AttachInspector(LogOpenFolderButton, _text.Get(UiTextKeys.LogsOpenFolder));
+        AttachInspector(LogCopyPathButton, _text.Get(UiTextKeys.LogsCopyPath));
         AttachInspector(RepairNav, _text.Get(UiTextKeys.ShellRepairSubtitle));
         AttachInspector(LeagueNav, _text.Get(UiTextKeys.ShellLeagueSubtitle));
         AttachInspector(PersonalizationNav, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
@@ -1045,12 +1073,15 @@ public sealed partial class MainWindow : Window
         ApplyInspectorDefault();
     }
 
-    private void AttachInspector(UIElement element, string text)
+    private void AttachInspector(UIElement element, string text) => AttachInspector(element, () => text);
+
+    private void AttachInspector(UIElement element, Func<string> textProvider)
     {
+        ArgumentNullException.ThrowIfNull(textProvider);
         element.PointerEntered += (_, _) =>
         {
             _inspectorHoverElement = element;
-            SetInspectorText(text);
+            SetInspectorText(textProvider());
         };
         element.PointerExited += (_, _) =>
         {
@@ -1060,7 +1091,7 @@ public sealed partial class MainWindow : Window
         element.GotFocus += (_, _) =>
         {
             _inspectorFocusElement = element;
-            SetInspectorText(text);
+            SetInspectorText(textProvider());
         };
         element.LostFocus += (_, _) =>
         {
@@ -1118,6 +1149,7 @@ public sealed partial class MainWindow : Window
         var isRepair = string.Equals(tag, "repair", StringComparison.Ordinal);
         var isLeague = string.Equals(tag, "league", StringComparison.Ordinal);
         var isSettings = string.Equals(tag, "settings", StringComparison.Ordinal);
+        var isPersonalization = string.Equals(tag, "personalization", StringComparison.Ordinal);
         var (titleKey, subtitleKey) = tag switch
         {
             "league" => (UiTextKeys.ShellLeague, UiTextKeys.ShellLeagueSubtitle),
@@ -1128,7 +1160,7 @@ public sealed partial class MainWindow : Window
         SectionTitle.Text = _text.Get(titleKey);
         SectionSubtitle.Text = _text.Get(subtitleKey);
         CleanupPanel.Visibility = isRepair ? Visibility.Visible : Visibility.Collapsed;
-        GeneralOverviewGrid.Visibility = !isRepair && !isLeague ? Visibility.Visible : Visibility.Collapsed;
+        GeneralOverviewGrid.Visibility = isPersonalization ? Visibility.Visible : Visibility.Collapsed;
         LeagueWorkbenchPanel.Visibility = isLeague ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsPanel.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
         if (isRepair)

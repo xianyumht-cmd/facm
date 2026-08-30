@@ -7,26 +7,38 @@ public sealed class DiagnosticsCenterViewModel
     private readonly IDiagnosticsSnapshotSource _source;
     private readonly IDiagnosticsBundleExporter _exporter;
     private readonly Func<IReadOnlyDictionary<string, string>>? _runtimeFactsProvider;
+    private readonly string _logPath;
     private DiagnosticsSnapshot? _snapshot;
 
     public DiagnosticsCenterViewModel(
         IDiagnosticsSnapshotSource source,
         IDiagnosticsBundleExporter exporter,
-        Func<IReadOnlyDictionary<string, string>>? runtimeFactsProvider = null)
+        Func<IReadOnlyDictionary<string, string>>? runtimeFactsProvider = null,
+        string? logPath = null)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _exporter = exporter ?? throw new ArgumentNullException(nameof(exporter));
         _runtimeFactsProvider = runtimeFactsProvider;
+        _logPath = string.IsNullOrWhiteSpace(logPath) ? string.Empty : Path.GetFullPath(logPath);
     }
 
     public string Summary { get; private set; } = string.Empty;
     public DiagnosticsExportReceipt? LastExport { get; private set; }
+    public IReadOnlyList<DiagnosticEvent> Events => _snapshot?.Events ?? Array.Empty<DiagnosticEvent>();
+    public string LogPath => _logPath;
+    public string LogDirectory => _logPath.Length == 0 ? string.Empty : Path.GetDirectoryName(_logPath) ?? string.Empty;
 
     public async Task<string> RefreshAsync(CancellationToken cancellationToken = default)
     {
         _snapshot = AddRuntimeFacts(await _source.CaptureAsync(cancellationToken).ConfigureAwait(false));
         Summary = DiagnosticsSummaryFormatter.Format(_snapshot);
         return Summary;
+    }
+
+    public async Task<IReadOnlyList<DiagnosticEvent>> RefreshEventsAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshAsync(cancellationToken).ConfigureAwait(false);
+        return Events;
     }
 
     public async Task<DiagnosticsExportReceipt> ExportAsync(CancellationToken cancellationToken = default)

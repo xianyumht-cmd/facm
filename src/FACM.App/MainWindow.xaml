@@ -568,7 +568,18 @@
                         </StackPanel>
 
                         <StackPanel x:Name="DiagnosticsPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
-                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button
+                                    x:Name="DiagnosticsViewButton"
+                                    Style="{StaticResource FacmPrimaryButtonStyle}"
+                                    Click="OnDiagnosticsViewClick"
+                                    automation:AutomationProperties.AutomationId="FACM.Diagnostics.View" />
+                                <Button
+                                    x:Name="LogsViewButton"
+                                    Click="OnLogsViewClick"
+                                    automation:AutomationProperties.AutomationId="FACM.Logs.View" />
+                            </StackPanel>
+                            <Border x:Name="DiagnosticsSummarySurface" Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="12">
                                     <TextBlock x:Name="DiagnosticsTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="DiagnosticsSubtitle" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
@@ -590,6 +601,62 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
+                            <Grid
+                                x:Name="LogViewerSurface"
+                                Visibility="Collapsed"
+                                RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="112" />
+                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox
+                                        x:Name="LogSearchBox"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.Search"
+                                        TextChanged="OnLogFilterChanged" />
+                                    <ComboBox
+                                        x:Name="LogDomainFilter"
+                                        Grid.Column="1"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.DomainFilter"
+                                        SelectionChanged="OnLogFilterChanged" />
+                                    <ComboBox
+                                        x:Name="LogOutcomeFilter"
+                                        Grid.Column="2"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.OutcomeFilter"
+                                        SelectionChanged="OnLogFilterChanged" />
+                                    <Button x:Name="LogRefreshButton" Grid.Column="3" Click="OnLogRefreshClick" />
+                                    <Button x:Name="LogOpenFolderButton" Grid.Column="4" Click="OnLogOpenFolderClick" />
+                                    <Button x:Name="LogCopyPathButton" Grid.Column="5" Click="OnLogCopyPathClick" />
+                                </Grid>
+                                <Grid Grid.Row="1" Padding="6,3" ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="72" />
+                                        <ColumnDefinition Width="92" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="68" />
+                                        <ColumnDefinition Width="54" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LogTimeHeader" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogDomainHeader" Grid.Column="1" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogOperationHeader" Grid.Column="2" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogOutcomeHeader" Grid.Column="3" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogDurationHeader" Grid.Column="4" Style="{StaticResource FacmMutedTextStyle}" />
+                                </Grid>
+                                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="LogRowsPanel" Spacing="1" />
+                                </ScrollViewer>
+                                <TextBlock x:Name="LogViewerStatus" Grid.Row="3" Style="{StaticResource FacmMutedTextStyle}" />
+                            </Grid>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

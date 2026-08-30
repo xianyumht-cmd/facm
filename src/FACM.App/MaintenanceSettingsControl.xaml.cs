@@ -21,6 +21,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 
     public event Action? ReplacementStarted;
     public event Action? ExitRequested;
+    public event Action? OpenLogRequested;
 
     internal void ConfigureOutsideCloseSuppression(Func<IDisposable> suppressOutsideClose)
     {
@@ -214,6 +215,11 @@ public sealed partial class MaintenanceSettingsControl : UserControl
     private async void OnOpenLogClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || _viewModel.ForceUpdateRequired) return;
+        if (OpenLogRequested is not null)
+        {
+            OpenLogRequested.Invoke();
+            return;
+        }
         try
         {
             await _viewModel.OpenLogAsync();

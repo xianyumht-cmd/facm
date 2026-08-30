@@ -137,6 +137,21 @@ public static class UiTextKeys
     public const string DiagnosticsStatusCopied = "DiagnosticsStatusCopied";
     public const string DiagnosticsStatusExported = "DiagnosticsStatusExported";
     public const string DiagnosticsStatusFailed = "DiagnosticsStatusFailed";
+    public const string LogsTitle = "LogsTitle";
+    public const string LogsSearch = "LogsSearch";
+    public const string LogsAllDomains = "LogsAllDomains";
+    public const string LogsAllOutcomes = "LogsAllOutcomes";
+    public const string LogsRefresh = "LogsRefresh";
+    public const string LogsOpenFolder = "LogsOpenFolder";
+    public const string LogsCopyPath = "LogsCopyPath";
+    public const string LogsTime = "LogsTime";
+    public const string LogsDomain = "LogsDomain";
+    public const string LogsOperation = "LogsOperation";
+    public const string LogsOutcome = "LogsOutcome";
+    public const string LogsDuration = "LogsDuration";
+    public const string LogsNoEvents = "LogsNoEvents";
+    public const string LogsRefreshed = "LogsRefreshed";
+    public const string LogsPathCopied = "LogsPathCopied";
 }
 
 public static class FoundationUiTextDefaults
@@ -272,7 +287,22 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.DiagnosticsStatusRefreshed] = "摘要已刷新",
         [UiTextKeys.DiagnosticsStatusCopied] = "摘要已复制",
         [UiTextKeys.DiagnosticsStatusExported] = "脱敏诊断包已导出",
-        [UiTextKeys.DiagnosticsStatusFailed] = "诊断操作失败"
+        [UiTextKeys.DiagnosticsStatusFailed] = "诊断操作失败",
+        [UiTextKeys.LogsTitle] = "操作日志",
+        [UiTextKeys.LogsSearch] = "搜索日志",
+        [UiTextKeys.LogsAllDomains] = "全部领域",
+        [UiTextKeys.LogsAllOutcomes] = "全部结果",
+        [UiTextKeys.LogsRefresh] = "刷新",
+        [UiTextKeys.LogsOpenFolder] = "打开目录",
+        [UiTextKeys.LogsCopyPath] = "复制路径",
+        [UiTextKeys.LogsTime] = "时间",
+        [UiTextKeys.LogsDomain] = "领域",
+        [UiTextKeys.LogsOperation] = "操作",
+        [UiTextKeys.LogsOutcome] = "结果",
+        [UiTextKeys.LogsDuration] = "耗时",
+        [UiTextKeys.LogsNoEvents] = "没有符合当前筛选条件的日志",
+        [UiTextKeys.LogsRefreshed] = "日志已刷新",
+        [UiTextKeys.LogsPathCopied] = "日志路径已复制"
     };
 
     public static string Get(string key) => Values.TryGetValue(key, out var value) ? value : key;

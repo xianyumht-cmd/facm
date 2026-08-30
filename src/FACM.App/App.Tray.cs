@@ -106,19 +106,8 @@ public partial class App
     {
         if (_shuttingDown) return;
         OpenMainWindowSection("settings");
-        var maintenance = _maintenanceCenter;
-        if (maintenance is null) return;
-        try
-        {
-            if (!maintenance.IsInitialized) await maintenance.InitializeAsync().ConfigureAwait(false);
-            await maintenance.OpenLogAsync().ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-        }
+        _window?.OpenStructuredLogSurface();
+        await Task.CompletedTask;
     }
 
     private void ShowTrayNotificationOnce(string key, string title, string message)
