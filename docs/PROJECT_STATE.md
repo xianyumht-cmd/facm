@@ -28,7 +28,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; Batch P local fix candidate on `fc9f2376ceece94351837c9339ae9301ea7415ad` | **Batch P local IPC lifecycle fix green / real Win10 retest pending / Draft** |
+| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch U `7b925572f151d080352a68c2b397c1f47c7d429c` | **Batch U League discovery fix green / Full Product Parity audit recorded / Draft** |
 
 Tracking Issue：#233。
 
@@ -59,7 +59,7 @@ Batch P is isolated in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on temp
 
 This is a local fix candidate, not a production release. The next acceptance action is the real Win10 minimal sequence `real-bee -> butterfly -> vpet -> real-bee -> Off`; only a clean result permits the longer six-pet / ten-round retest.
 
-## 2026-08-30 local parity candidate: Batch Q-S and T1
+## 2026-08-30 local parity candidate: Batch Q-U and T1
 
 The current local candidate continues from Batch P in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on `tmp/p7-ipc-lifecycle-fix-20260830`. It remains local-only; formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`, PR #234, production pointers, and Gate13 are unchanged.
 
@@ -68,10 +68,12 @@ The current local candidate continues from Batch P in `D:\project2\worktrees\fac
 - Batch S desktop-entry parity: `03ceba4` (`fix(p7): restore desktop entry click semantics`); F/Flying/VPet left-click compact routing and right-click tray routing.
 - WinUI/WinForms build compatibility: `7b084b0`; the App keeps WinUI XAML targets and references Windows Forms without enabling the conflicting WPF desktop target.
 - Batch T1 League diagnostics: `5600d94` (`diag(p7): add League trace instrumentation`); shared Gateway request pairs, Gameflow poll pairs, Workbench stage pairs, correlation IDs, duration/status/outcome, in-flight peak, endpoint redaction, and cancellation/timeout classification. No T2 limiter/cache/debounce/dedup/timeout/session-invalidation/UI-thread behavior change was made.
+- Batch U League session discovery: `7b92557` (`fix(p7): unblock League session discovery`); lockfile-first discovery with LeagueClientUx process-command-line fallback, bounded asynchronous process discovery, positive/negative cache, single-flight joining, reasoned session invalidation, and redacted discovery diagnostics. Deterministic smoke, full Debug x64 build, FoundationSmoke, WindowsSmoke, and live League HTTP/Gameflow evidence pass.
 - Local SDK `10.0.400` is installed under `D:\project2\dotnet10`; TEMP/TMP, NuGet packages, and CLI home used for this verification are under `D:\project2`.
 - Post-commit `FACM4.sln` Debug x64 build: 0 warnings / 0 errors; FoundationSmoke with `--skip-gate13`: SUCCESS; WindowsSmoke: SUCCESS.
+- The full 3.5.15 source audit is recorded in `docs/FACM35-FULL-PRODUCT-PARITY.md`: 41 behavior rows, 11 `EXACT`, 19 `PARTIAL`, 1 `MISSING`, 3 `4.0-ONLY`, and 7 `NEEDS-REAL-MACHINE`. The first active-product implementation gap is a unified outside-click policy for all FACM-owned surfaces; the first compatibility gap is the missing explicit mapping from the 3.5.15 UI-text key contract to the 4.0 role-scoped keys.
 
-The next evidence action is a real League trace on this candidate. Do not rank root causes or implement T2 performance changes until the user supplies the phase-by-phase trace from the running app.
+The next implementation batch is Batch X: shell/window/input parity, beginning with the unified outside-click contract. Do not rank further League performance causes or add a second limiter/cache/polling loop until the real Workbench phase-by-phase trace is reviewed.
 
 ## 2026-08-30 candidate 2730 本机 Foundation 等价验证
 
