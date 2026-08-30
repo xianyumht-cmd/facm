@@ -382,11 +382,10 @@ public sealed partial class MainWindow : Window
         ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "orb-left-click", true);
     }
 
-    private void OnOrbTransientRailTapped(object sender, TappedRoutedEventArgs e)
+    private void OnOrbTransientRailClick(object sender, RoutedEventArgs e)
     {
         if (!_morphingSurfaceEnabled || _surfaceStateMachine.Mode != FacmSurfaceMode.Orb) return;
         ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "orb-transient-left-click", true);
-        e.Handled = true;
     }
 
     private void OnSurfacePointerPressed(object sender, PointerRoutedEventArgs e)

@@ -15,7 +15,7 @@
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Visibility="Collapsed">
-            <Border
+            <Button
                 x:Name="OrbTransientRail"
                 Width="178"
                 Height="30"
@@ -26,7 +26,10 @@
                 BorderBrush="{StaticResource FacmStrokeBrush}"
                 BorderThickness="1"
                 CornerRadius="9"
-                Tapped="OnOrbTransientRailTapped"
+                Padding="0"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Click="OnOrbTransientRailClick"
                 automation:AutomationProperties.AutomationId="FACM.Surface.OrbTransientRail">
                 <TextBlock
                     x:Name="OrbTransientRailText"
@@ -34,7 +37,7 @@
                     VerticalAlignment="Center"
                     Style="{StaticResource FacmInspectorTextStyle}"
                     TextTrimming="CharacterEllipsis" />
-            </Border>
+            </Button>
             <Grid
                 x:Name="OrbSurface"
                 Width="36"

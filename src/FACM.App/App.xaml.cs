@@ -328,9 +328,7 @@ public partial class App : Application
             diagnosticsSource,
             diagnosticsExporter,
             CreateLeagueRuntimeFacts);
-        _window = new MainWindow(
-            controlCenter,
-            cleanupCenter,
+        _window = new MainWindow(controlCenter, cleanupCenter,
             repairTools,
             _leagueWorkbench,
             _diagnosticsCenter,

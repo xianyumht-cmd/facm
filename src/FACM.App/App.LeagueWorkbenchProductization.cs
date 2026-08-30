@@ -172,36 +172,37 @@ public partial class App
     /// </summary>
     private void InitializeLeaguePostGameAutomationFromSettings()
     {
-        if (_postGameAutomation is not null) return;
+        if (_postGameAutomation is null)
+        {
+            var settings = _settings
+                ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
+            var gateway = _leagueGateway
+                ?? throw new InvalidOperationException("League gateway is unavailable.");
+            var gameflow = _gameflow
+                ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
+            var automation = new LeaguePostGameAutomationService(
+                gateway,
+                gateway,
+                gameflow,
+                diagnosticReporter: ReportLeaguePostGameDiagnostic);
+            try
+            {
+                var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+                automation.Configure(
+                    loaded.Settings.League.AutoHonorTeammateEnabled,
+                    loaded.Settings.League.AutoReturnLobbyEnabled);
+            }
+            catch
+            {
+                automation.Configure(false, false);
+            }
 
-        var settings = _settings
-            ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
-        var gateway = _leagueGateway
-            ?? throw new InvalidOperationException("League gateway is unavailable.");
-        var gameflow = _gameflow
-            ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
-        var automation = new LeaguePostGameAutomationService(
-            gateway,
-            gateway,
-            gameflow,
-            diagnosticReporter: ReportLeaguePostGameDiagnostic);
-        try
-        {
-            var loaded = settings.LoadAsync().GetAwaiter().GetResult();
-            automation.Configure(
-                loaded.Settings.League.AutoHonorTeammateEnabled,
-                loaded.Settings.League.AutoReturnLobbyEnabled);
-        }
-        catch
-        {
-            automation.Configure(false, false);
-        }
-
-        _postGameAutomation = automation;
-        if (!_postGameProcessExitHooked)
-        {
-            _postGameProcessExitHooked = true;
-            AppDomain.CurrentDomain.ProcessExit += OnLeaguePostGameProcessExit;
+            _postGameAutomation = automation;
+            if (!_postGameProcessExitHooked)
+            {
+                _postGameProcessExitHooked = true;
+                AppDomain.CurrentDomain.ProcessExit += OnLeaguePostGameProcessExit;
+            }
         }
     }
 
