@@ -290,3 +290,13 @@ collector 只负责**采集证据**，不会直接编辑 `evidence/facm4-release
 因此 bundle 内会使用 `manual_required`、`observed_requires_interaction`、`observed_requires_review`，不会生成“Passed”。只有审核确认 bundle 与目标 candidate、机器、交互结果匹配后，才能由独立 evidence import/review 任务更新 canonical matrix。
 
 CI 只执行 `-SelfTest`：验证 PS5.1 语法、脱敏、8 个 evidence slots、JSON roundtrip、ZIP 创建及 ZIP 固定条目。Hosted runner 的 self-test/机器信息**永远不能**替代真实 release evidence。
+
+## 13. 2026-08-30 local Foundation-equivalent candidate verification
+
+Use a clean worktree at `D:\project2\worktrees\facm-p7-candidate-2730` checked out at cloud candidate `2730eda15dc28a801871b5a3d10b4eecbd03a656`. The portable SDK used for this run was `.NET SDK 10.0.400`; the existing machine .NET 9 installation was not changed.
+
+The local order is: publish/self-test FlyingHost and create `FlyingHostBundle.zip` + SHA; publish/self-test PetHost and create `PetHostBundle.zip` + SHA; build the updater and run its self-test; execute all source gates with workflow-compatible `pwsh`; restore/build `FACM4.sln` with required bundle/updater properties; run FoundationSmoke and WindowsSmoke; publish FACM.App as x64 self-contained single-file and verify the output contains no DLL.
+
+The observed outputs were FlyingHost 464 files / `72,052,263` bytes / `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`, PetHost 472 files / `76,915,115` bytes / `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`, and FACM.App.exe `377,994,404` bytes / `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`. The App output had four files and zero DLL entries.
+
+With .NET 10, `WFAC010` is real when a WPF/WinForms host keeps legacy `dpiAware`/`dpiAwareness` manifest nodes. Resolve it by setting `ApplicationHighDpiMode=PerMonitorV2` and removing those nodes; do not suppress the warning or lower warnings-as-errors. Stacked PR production-control gates must compare against the PR base parent, not `origin/main`, because inherited P2-P6 changes otherwise look like a new protected-file mutation.

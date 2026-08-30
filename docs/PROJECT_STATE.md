@@ -28,7 +28,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | code fix `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83` | **Batch M CI-green / targeted Win10 retest next / Draft** |
+| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; staging candidate `2730eda15dc28a801871b5a3d10b4eecbd03a656` | **local .NET 10 Foundation-equivalent green / hosted rerun pending / Draft** |
 
 Tracking Issue：#233。
 
@@ -44,6 +44,20 @@ Tracking Issue：#233。
 - Busy UI 同时改为显示“正在处理，请稍候…”，避免“准备就绪 + 全控件灰掉”的误导。
 
 详细实时账：`docs/FACM4-PLAN.md`。
+
+## 2026-08-30 candidate 2730 本机 Foundation 等价验证
+
+本轮验证使用全新隔离 worktree，云端 candidate `2730eda15dc28a801871b5a3d10b4eecbd03a656`，其父提交为正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`。正式 P7 未移动，PR #234 未合并。
+
+- 便携式 .NET SDK：`10.0.400`；系统已有 .NET 9 未改动；
+- FlyingHost publish/self-test：PASS，464 files，bundle `72,052,263` bytes，SHA-256 `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`；不含 `VPet-Simulator.Core.dll`；
+- PetHost publish/self-test：PASS，472 files，bundle `76,915,115` bytes，SHA-256 `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`；含 `VPet-Simulator.Core.dll`；
+- workflow 全部 28 个 source gates：PASS；`FACM4.sln` restore/build：PASS，Release x64，强制 bundles/updater，0 warnings / 0 errors；
+- `FACM.FoundationSmoke`：PASS；`FACM.WindowsSmoke`：PASS；
+- FACM.App publish：PASS，single-file 输出 4 files、DLL entries 0；EXE `377,994,404` bytes，SHA-256 `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`；artifact ZIP `237,924,305` bytes，SHA-256 `0132c3e4c3037741f0e1af017a377888a6cc23c57d5177da3d99c6a75`；
+- `WFAC010` 已在 .NET 10 下正式复现，原因是 WPF/WinForms host manifest 使用旧 `dpiAware` / `dpiAwareness` 节点；已改为 `ApplicationHighDpiMode=PerMonitorV2`，并修正 FlyingHost assembly identity 为 `FACM.FlyingHost.app`；重跑无该 warning；
+- 三个受保护文件相对本轮 candidate 父提交无变化：`online/version.json`、`release/request.json` 未修改；
+- hosted runner 最新已知 run `33292986694` / job `99207749499` 仍是 `runner_id=0`、`steps=[]`；它不能作为代码失败结论。当前 candidate 完成推送后需重新观察实际 runner 状态。
 
 ## 最新真机证据（Batch M 触发原因）
 
@@ -134,9 +148,9 @@ CUTOVER BLOCKED
 
 Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通“继续”都不能自动把这些 evidence 改为 Passed。
 
-## 下一步：targeted Win10 PetHost 复测
+## 下一步：hosted Foundation 后进入 Win10 targeted 复测
 
-使用 artifact `9709261625`：
+先使用本轮通过本机 Foundation 等价链的 staging candidate，等待 hosted Foundation 实际执行；runner 未分配时不得误判为代码失败。Foundation 真正 SUCCESS 后再生成/确认唯一 Win10 验收包：
 
 1. 第一次启用任意桌宠；新 SHA 无 cache 时允许一次 extraction，但必须有终态。
 2. 正常退出 FACM，再从同一目录运行同一 EXE。

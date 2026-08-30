@@ -207,3 +207,16 @@ Gate13Smoke 已验证 missing/not-granted/wrong-scope/wrong-candidate/future/exp
 - Hotkey = RegisterHotKey；不使用 low-level hook/GetAsyncKeyState polling。
 - PetHost 独立进程。
 - Performance/UI Text/deterministic smoke/source gates 不得静默删除。
+
+## 12. P7 candidate desktop-pet runtime split
+
+FACM 4.0 keeps the two desktop-pet families in separate runtime and payload ownership boundaries:
+
+```text
+FlyingSprite -> WindowsFlyingPetRuntime -> WindowsFlyingHostBundleStore -> FACM.FlyingHost
+VPetCore     -> WindowsVPetRuntime     -> WindowsPetHostBundleStore     -> FACM.PetHost
+```
+
+`FACM.FlyingHost` has no VPet package/cache ownership and `FACM.PetHost` has no FlyingSprite ownership. The router serializes transitions as: clear active -> stop the non-target runtime -> set the target active -> start the target runtime. Each payload preparation, process start, pipe connect, activate/reset/stop write, readiness wait and process exit has a bounded timeout; a deferred prepare gate prevents a timed-out non-cooperative worker from spawning a second extraction worker.
+
+The host projects use .NET 10-compatible `ApplicationHighDpiMode=PerMonitorV2` for their WPF/WinForms analyzer contract. DPI nodes are not duplicated in the manifests. FlyingHost carries its own `FACM.FlyingHost.app` assembly identity; PetHost remains `FACM.PetHost.app`.

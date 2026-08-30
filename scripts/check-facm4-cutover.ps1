@@ -95,10 +95,10 @@ if (-not $releaseReady) {
 
     Push-Location $Root
     try {
-        git rev-parse --verify origin/main *> $null
-        if ($LASTEXITCODE -ne 0) { Fail 'origin/main is unavailable for production-control diff verification.' }
-        $productionChanges = @(git diff --name-only origin/main...HEAD -- online/version.json release/request.json)
-        if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare production release controls against origin/main.' }
+        $diffBase = git rev-parse --verify 'HEAD^' 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($diffBase)) { Fail 'Unable to compare production release controls against the PR base.' }
+        $productionChanges = @(git diff --name-only $diffBase HEAD -- online/version.json release/request.json)
+        if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare production release controls against the PR base.' }
         if ($productionChanges.Count -gt 0) {
             Fail ('Release is blocked; production release controls changed: ' + ($productionChanges -join ', '))
         }

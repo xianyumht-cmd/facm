@@ -54,8 +54,10 @@ if ($bat -notmatch '(?i)WindowsPowerShell\\v1\.0\\powershell\.exe') { throw 'One
 if ($bat -match '(?i)RunAs|Start-Process|powershell\.exe[^\r\n]*-Command[^\r\n]*(Start-Process|RunAs)') { throw 'One-click BAT must not request elevation.' }
 if ($bat -notmatch 'collect-facm4-real-machine-evidence\.ps1') { throw 'One-click BAT does not invoke the canonical collector.' }
 
-$diff = @(& git diff --name-only origin/main...HEAD -- evidence/facm4-release-evidence.json online/version.json release/request.json 2>$null)
-if ($LASTEXITCODE -ne 0) { throw 'Unable to compare real-machine evidence branch with origin/main.' }
+$diffBase = & git rev-parse --verify 'HEAD^' 2>$null
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($diffBase)) { throw 'Unable to compare real-machine evidence branch with the PR base.' }
+$diff = @(& git diff --name-only $diffBase HEAD -- evidence/facm4-release-evidence.json online/version.json release/request.json 2>$null)
+if ($LASTEXITCODE -ne 0) { throw 'Unable to compare real-machine evidence branch with the PR base.' }
 if ($diff.Count -gt 0) { throw "Real-machine evidence harness must not modify release matrix or production controls: $($diff -join ', ')" }
 
 Write-Host 'Real-machine evidence slots: 8'

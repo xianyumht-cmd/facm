@@ -1,12 +1,14 @@
 # FACM 4.0 P7 Functional Parity Closeout
 
-Status: **FUNCTIONAL-PARITY-GREEN / BATCH-M-CI-GREEN / TARGETED-REAL-MACHINE-RETEST-NEXT**
+Status: **FUNCTIONAL-PARITY-GREEN / LOCAL-CANDIDATE-2730-FOUNDATION-EQUIVALENT-GREEN / HOSTED-RUNNER-PENDING**
 Production baseline: FACM 3.5.15
 Stacked base: `feat/facm4-function-parity-p6-settings-maintenance@d3801a0fa4276e74514a59a6c673c4cc4efbaff8`
 Tracking: #233 / PR #234
 Latest code fix: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
 Verified Foundation: **#632 / run `33233590075` = SUCCESS**
 Current targeted artifact: `9709261625`
+
+Current cloud staging candidate: `2730eda15dc28a801871b5a3d10b4eecbd03a656` (parent formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
 
 ## Purpose and boundary
 
@@ -126,6 +128,21 @@ FACM 4.0 Personalization foundation contract: SUCCESS
 ```
 
 The same run passed all P1-P7 source/product gates, PowerShell 5.1 collector self-test, Release build with 0 warnings/0 errors, FoundationSmoke, WindowsSmoke, WinUI x64 self-contained single-file publish, publish-output verification and artifact upload.
+
+## 2026-08-30 local candidate closeout
+
+The isolated candidate worktree reproduced the Foundation sequence with .NET SDK `10.0.400`:
+
+- FlyingHost publish/self-test PASS: 464 files, `72,052,263` bytes, SHA-256 `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`; no `VPet-Simulator.Core.dll`;
+- PetHost publish/self-test PASS: 472 files, `76,915,115` bytes, SHA-256 `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`; `VPet-Simulator.Core.dll` present;
+- all 28 source gates PASS;
+- `FACM4.sln` Release x64 restore/build PASS with required bundles/updater and 0 warnings / 0 errors;
+- FoundationSmoke PASS; WindowsSmoke PASS;
+- FACM.App single-file publish PASS, 4 output files and 0 DLL entries; EXE `377,994,404` bytes / SHA-256 `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`; artifact ZIP `237,924,305` bytes / SHA-256 `0132c3e4c3037741f0e1af017a377888a6cc23c57d5177da3d99c6a75`.
+
+`WFAC010` was a real .NET 10 warning caused by legacy manifest DPI nodes in the WPF/WinForms hosts. Both hosts now use `ApplicationHighDpiMode=PerMonitorV2`; FlyingHost manifest identity is `FACM.FlyingHost.app`; the warning is absent after republish. Three stacked-PR protection gates now compare the candidate/PR base parent rather than `origin/main`, so inherited production-control history is not misreported. `online/version.json` and `release/request.json` remain unchanged.
+
+This is local evidence only. The latest known hosted run `33292986694` / job `99207749499` had `runner_id=0` and `steps=[]`; it did not execute source gates, build, smoke, publish, or artifact upload.
 
 ## Current targeted candidate
 

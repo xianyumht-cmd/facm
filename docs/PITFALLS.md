@@ -48,6 +48,28 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 - Issue #16
 - PR #22
 
+## Stacked PR gate 不应把祖先生产控制差异误判为本轮修改
+
+### 根因
+
+P2-P7 是 stacked PR。若 source gate 固定比较 `origin/main...HEAD`，祖先阶段已经存在的 `online/version.json`、`release/request.json` 或 evidence matrix 差异会被误报为当前 P7 修改，导致一个未改生产控制的 candidate 无法通过 cutover/architecture/evidence gate。
+
+### 防回归规则
+
+- 生产控制保护必须比较当前 PR 的实际 base；在 merge ref 上使用 PR base，在本地 candidate 上使用 candidate 的直接父提交。
+- gate 失败时先输出 changed paths 与比较基线，区分当前提交真实修改和 stacked ancestor 差异；不得删除保护检查或忽略文件。
+
+## .NET 10 WPF/WinForms host 不要继续在 manifest 中声明旧 DPI 节点
+
+### 根因
+
+启用 `UseWPF` + `UseWindowsForms` 的 host 在 .NET 10 会由 Windows Forms analyzer 报 `WFAC010`：旧 `dpiAware` / `dpiAwareness` manifest 节点应移除，改由 `ApplicationHighDpiMode` 或 API 配置。将 warning 当作非错误或降低 warnings-as-errors 会掩盖真实 host 配置问题。
+
+### 防回归规则
+
+- WPF/WinForms host 使用 `ApplicationHighDpiMode=PerMonitorV2`，manifest 只保留仍需要的兼容/长路径声明。
+- 修改后必须重新执行 host publish/self-test、solution build 和 WindowsSmoke；不能只让 analyzer 静音。
+
 ## `ResponseHeadersRead` 不代表正文也受超时控制
 
 ### 根因

@@ -260,3 +260,15 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 - 完整平衡状态 Patch 落后于腾讯当前 Patch 时，FACM 不展示旧数值；
 - 官方公告可以显示明确的本版本改动，但在没有完整状态时必须标注“非完整当前状态”；
 - 核心 CI 只验证离线解析 fixture，真实站点健康继续由独立 live probe 监控。
+
+## 2026-08-30：FlyingSprite 与 VPet 保持独立 host，并按 .NET 10 analyzer 合同配置 DPI
+
+### 决策
+
+- FlyingSprite 继续走 `WindowsFlyingPetRuntime -> FACM.FlyingHost` 独立 bundle；VPetCore 继续走 `WindowsVPetRuntime -> FACM.PetHost`；
+- router 切换固定为 clear active -> stop non-target -> set target active -> start target；两条链的 prepare、启动、pipe、命令、ready、退出都必须有界；
+- WPF/WinForms host 使用 `ApplicationHighDpiMode=PerMonitorV2`，不在 manifest 中重复声明旧 DPI 节点；FlyingHost 使用独立 `FACM.FlyingHost.app` identity。
+
+### 原因
+
+将 FlyingSprite 塞回 VPet PetHost 会重新引入已纠正的架构耦合；而 .NET 10 `WFAC010` 已证明旧 manifest DPI 声明与当前 analyzer 合同冲突。分离 ownership 并采用 SDK 支持的 DPI 配置可以保留行为边界，同时让 warnings-as-errors 构建诚实失败/通过。
