@@ -28,6 +28,8 @@ $appComposition = Read-Required 'src/FACM.App/App.Personalization.cs'
 $appProject = Read-Required 'src/FACM.App/FACM.App.csproj'
 $petSmoke = Read-Required 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
 $flyingSmoke = Read-Required 'src/FACM.WindowsSmoke/FlyingHostBundleSmoke.cs'
+$bundleGateSmoke = Read-Required 'src/FACM.WindowsSmoke/DesktopPetBundleGateSmoke.cs'
+$windowsSmokeProgram = Read-Required 'src/FACM.WindowsSmoke/Program.cs'
 $solution = Read-Required 'FACM4.sln'
 
 foreach ($required in @(
@@ -35,7 +37,13 @@ foreach ($required in @(
     'WindowsPetHostBundleStore',
     'FACM.PetHost.',
     '--pet-id',
-    'runtime-unsupported:'
+    'runtime-unsupported:',
+    'CommandWriteTimeout',
+    'activate-send-start',
+    'activate-send-timeout',
+    'stop-send-timeout',
+    'reset-send-timeout',
+    'WaitAsync(startupTimeout.Token)'
 )) {
     if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "VPet runtime split guard missing: $required" }
 }
@@ -54,8 +62,13 @@ foreach ($required in @(
     'FACM.FlyingHost.',
     '--pet-id',
     'runtime-unsupported:',
+    'CommandWriteTimeout',
     'flying-activate-send-start',
-    'flying-activate-send-finish'
+    'flying-activate-send-finish',
+    'flying-activate-send-timeout',
+    'flying-stop-send-timeout',
+    'flying-reset-send-timeout',
+    'WaitAsync(startupTimeout.Token)'
 )) {
     if ($flyingRuntime -notmatch [regex]::Escape($required)) { Fail "Flying runtime split guard missing: $required" }
 }
@@ -145,6 +158,18 @@ foreach ($required in @(
 )) {
     if ($flyingSmoke -notmatch [regex]::Escape($required)) { Fail "Flying anti-cross-route smoke missing: $required" }
 }
+foreach ($required in @(
+    'WindowsFlyingHostBundleStore',
+    'WindowsPetHostBundleStore',
+    'prepare-timeout-worker-cancelling',
+    'prepare-gate-timeout',
+    'must not start a second worker'
+)) {
+    if ($bundleGateSmoke -notmatch [regex]::Escape($required)) { Fail "Shared desktop-pet prepare-gate smoke missing: $required" }
+}
+if ($windowsSmokeProgram -notmatch [regex]::Escape('DesktopPetBundleGateSmoke.RunAsync()')) {
+    Fail 'Windows smoke runner must execute DesktopPetBundleGateSmoke.'
+}
 
 if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csproj')) {
     Fail 'FACM4.sln must build FACM.FlyingHost as a first-class project.'
@@ -153,7 +178,9 @@ if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csp
 Write-Host 'FlyingSprite -> FACM.FlyingHost ownership: OK'
 Write-Host 'VPetCore -> FACM.PetHost ownership: OK'
 Write-Host 'FlyingHost root/source namespace isolation: OK'
+Write-Host 'Desktop-pet IPC command writes are bounded: OK'
 Write-Host 'Cross-route payload opening is rejected before bundle preparation: OK'
+Write-Host 'Deferred prepare-gate release regression is locked: OK'
 Write-Host 'Separate bundle resource/cache identities: OK'
 Write-Host 'Thread-safe runtime router ownership: OK'
 Write-Host 'FACM 4.0 desktop pet runtime split contract: SUCCESS'
