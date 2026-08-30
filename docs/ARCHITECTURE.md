@@ -74,6 +74,8 @@ Settings 2.0 strict parser/validator fail closed；legacy INI 正式 cutover 前
 
 Diagnostics 只读 Product State + current JSONL + `.1`，再次 scrub secret/Basic/Bearer/Windows/UNC path，ZIP exactly `summary.txt/events.jsonl/manifest.json`。Diagnostics 无业务 writer。
 
+League T1 trace instrumentation remains inside the existing single owners: `LeagueHttpGateway` emits paired request events with correlation/source/phase, timing, status/outcome, endpoint redaction, session invalidation, and in-flight counters; `LeagueGameflowMonitor` emits paired poll events; `LeagueWorkbenchViewModel` emits paired refresh/stage events for Dashboard, Player, Live, and Advisor. The callbacks are best-effort and do not create another transport, polling loop, cache, limiter, or UI thread.
+
 Recovery Core：`Clean / Starting / Running / Failed / Recovering`；bounded atomic state store；previous-start-incomplete 检测。Update recovery 不替代 updater，只约束 validated receipt、old-version preservation、failure keeps old。
 
 ## 5. Feature policy：只减权

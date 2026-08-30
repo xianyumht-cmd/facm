@@ -1,5 +1,29 @@
 # FACM 常见陷阱与防回归规则
 
+## WinUI App 不要用 UseWindowsForms 切换桌面 SDK 目标
+
+### 根因
+
+FACM.App 是 WinUI 3 XAML 应用。为托盘接入 WinForms 时直接设置 `UseWindowsForms=true` 会让 .NET 10 WindowsDesktop targets 把 WinUI 的 `App.xaml` 按 WPF 应用定义处理，构建失败并报 `MC6000`，要求 `PresentationCore` / `PresentationFramework`。
+
+### 防回归规则
+
+- WinUI App 保持 `UseWinUI=true`，不要为托盘程序集启用 `UseWindowsForms`；使用 `Microsoft.WindowsDesktop.App.WindowsForms` framework reference 提供托盘 API。
+- 保持 `TreatWarningsAsErrors=true`，重新执行 solution build、FoundationSmoke（需要跳过 Gate13 时显式传 `--skip-gate13`）和 WindowsSmoke。
+- 这只是构建兼容性处理，不得借机把 WinUI shell 迁移成 WPF 或改变托盘的单实例所有权。
+
+## T1 League 诊断不能先行变成性能修复
+
+### 根因
+
+真实 League 工作台卡顿需要区分 Gameflow 轮询、Workbench 阶段、共享 LCU 请求、超时/取消、session 失效和 UI 回写。没有带 correlation ID 的成对时间线时，提前加入 limiter、cache、debounce、dedup 或新的 timeout 会把症状隐藏，并可能改变 4.0 的既有行为。
+
+### 防回归规则
+
+- T1 只记录共享 Gateway、单一 Gameflow monitor、Workbench refresh/stage 的 start/end、phase、status/outcome、duration、in-flight 和脱敏 endpoint。
+- 诊断回调必须 fail-soft，不能创建第二 transport、第二 polling loop 或改变请求顺序。
+- 在用户提供真实 League trace 并完成根因排序前，不实施 T2 性能策略修改。
+
 ## 未经腾讯验证的 LCU 可选字段不能提升为自动化硬门槛
 
 ### 根因

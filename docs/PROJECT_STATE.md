@@ -59,6 +59,20 @@ Batch P is isolated in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on temp
 
 This is a local fix candidate, not a production release. The next acceptance action is the real Win10 minimal sequence `real-bee -> butterfly -> vpet -> real-bee -> Off`; only a clean result permits the longer six-pet / ten-round retest.
 
+## 2026-08-30 local parity candidate: Batch Q-S and T1
+
+The current local candidate continues from Batch P in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on `tmp/p7-ipc-lifecycle-fix-20260830`. It remains local-only; formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`, PR #234, production pointers, and Gate13 are unchanged.
+
+- Batch Q tray shell parity: `681b6de` (`feat(p7): restore tray shell parity`); one native tray owner, legacy icon fallback, menu routing, double-click activation, and fail-soft disposal.
+- Batch R outside-click parity: `60c8ae2` (`fix(p7): restore compact outside-click behavior`); release-armed physical left-button watcher with modal suppression and deterministic state coverage.
+- Batch S desktop-entry parity: `03ceba4` (`fix(p7): restore desktop entry click semantics`); F/Flying/VPet left-click compact routing and right-click tray routing.
+- WinUI/WinForms build compatibility: `7b084b0`; the App keeps WinUI XAML targets and references Windows Forms without enabling the conflicting WPF desktop target.
+- Batch T1 League diagnostics: `5600d94` (`diag(p7): add League trace instrumentation`); shared Gateway request pairs, Gameflow poll pairs, Workbench stage pairs, correlation IDs, duration/status/outcome, in-flight peak, endpoint redaction, and cancellation/timeout classification. No T2 limiter/cache/debounce/dedup/timeout/session-invalidation/UI-thread behavior change was made.
+- Local SDK `10.0.400` is installed under `D:\project2\dotnet10`; TEMP/TMP, NuGet packages, and CLI home used for this verification are under `D:\project2`.
+- Post-commit `FACM4.sln` Debug x64 build: 0 warnings / 0 errors; FoundationSmoke with `--skip-gate13`: SUCCESS; WindowsSmoke: SUCCESS.
+
+The next evidence action is a real League trace on this candidate. Do not rank root causes or implement T2 performance changes until the user supplies the phase-by-phase trace from the running app.
+
 ## 2026-08-30 candidate 2730 本机 Foundation 等价验证
 
 本轮验证使用全新隔离 worktree，云端 candidate `2730eda15dc28a801871b5a3d10b4eecbd03a656`，其父提交为正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`；本机收口提交为 `e387295fd61c233f8e9892016a6e9917b448cd5b`。正式 P7 未移动，PR #234 未合并。

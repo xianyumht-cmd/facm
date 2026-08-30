@@ -310,3 +310,11 @@ The candidate adds cancellation-aware client command writes, poisoned-transport 
 The contained `FACM.App.exe` is 378,010,788 bytes with SHA-256 `662e1fb5b2df4c4d09bd5657059ba3f8086fbcb8a017380fbee76757a06046f0`. The targeted directory contains four files and zero DLL files. The new host payload identities are FlyingHost bundle `2a4f9722adbc21a5a63050ed50510fea1f3a01a9a844230c56c9e48bc6639f81` and PetHost bundle `ca63f66db51012eda1a5f4816dffc3a8b762f0d0bf0fd165ef6a2aea232cd051`.
 
 Local verification completed: both Host self-tests, solution Release build (0 warnings / 0 errors), the two desktop-pet source gates, personalization source gate, deterministic FoundationSmoke, deterministic WindowsSmoke, and the new IPC lifecycle smoke. Before any real-machine conclusion, retest the candidate with `real-bee -> butterfly -> vpet -> real-bee -> Off`; only after that minimal sequence is clean should the longer six-pet / ten-round sequence run. Do not treat this local candidate as a production release.
+
+## 15. 2026-08-30 Batch Q-S and T1 local candidate
+
+The current continuation uses `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on `tmp/p7-ipc-lifecycle-fix-20260830`. Local commits are Batch Q `681b6de`, Batch R `60c8ae2`, Batch S `03ceba4`, WinUI/WinForms build compatibility `7b084b0`, and T1 League trace instrumentation `5600d94`.
+
+For this candidate, use `.NET SDK 10.0.400` from `D:\project2\dotnet10`. Keep `TEMP`, `TMP`, `NUGET_PACKAGES`, and `DOTNET_CLI_HOME` under `D:\project2` when restoring, building, or running smoke tests. The verified local commands are a Debug x64 `FACM4.sln` build, FoundationSmoke with `--skip-gate13`, and WindowsSmoke; all completed with 0 warnings / 0 errors and SUCCESS.
+
+T1 is an evidence collector only. Start FACM from the candidate output, reproduce the real League phase sequence, then preserve `logs\facm4-events.jsonl` and the matching settings/state files. Only after the trace is reviewed may a separate T2 change address a ranked root cause. Do not use T1 as authorization to alter production pointers, merge PR #234, run Gate13, or publish FACM 4.0.
