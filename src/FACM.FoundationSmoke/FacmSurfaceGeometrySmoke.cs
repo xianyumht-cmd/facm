@@ -21,6 +21,21 @@ internal static class FacmSurfaceGeometrySmoke
             IsOrb: true));
         Assert(orb.Left >= area.Bounds.Left && orb.Top >= area.Bounds.Top, "orb is edge-clamped");
         Assert(orb.Width == 36 && orb.Height == 36, "orb size is preserved");
+
+        var mainArea = new DesktopWorkArea("main", new DesktopRect(0, 0, 1920, 1080), false);
+        var matrix = FacmSurfaceGeometryService.ExpandFromAnchor(new(
+            new DesktopPoint(960, 540),
+            new DesktopSize(360, 206),
+            mainArea));
+        Assert(matrix.Width == 360 && matrix.Height == 206, "control matrix compact geometry is stable");
+
+        var transientRail = FacmSurfaceGeometryService.ExpandFromAnchor(new(
+            new DesktopPoint(1880, 20),
+            new DesktopSize(220, 36),
+            mainArea,
+            IsOrb: false));
+        Assert(transientRail.Right <= mainArea.Bounds.Right - 8 && transientRail.Left < 1880,
+            "transient orb rail clamps inward near the right edge");
     }
 
     private static void Assert(bool condition, string message)

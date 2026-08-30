@@ -9,13 +9,37 @@
             <CompositeTransform x:Name="SurfaceTransitionTransform" />
         </Grid.RenderTransform>
         <Grid
-            x:Name="OrbSurface"
-            Width="36"
+            x:Name="OrbTransientContainer"
+            Width="220"
             Height="36"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            Background="Transparent"
             Visibility="Collapsed">
+            <Border
+                x:Name="OrbTransientRail"
+                Width="178"
+                Height="30"
+                Margin="42,3,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="{StaticResource FacmSurfaceBrush}"
+                BorderBrush="{StaticResource FacmStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="9">
+                <TextBlock
+                    x:Name="OrbTransientRailText"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource FacmInspectorTextStyle}"
+                    TextTrimming="CharacterEllipsis" />
+            </Border>
+            <Grid
+                x:Name="OrbSurface"
+                Width="36"
+                Height="36"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="Transparent">
             <Border
                 x:Name="OrbSurfaceBorder"
                 Width="36"
@@ -61,6 +85,7 @@
                     FontWeight="Bold"
                     Foreground="{StaticResource FacmTextPrimaryBrush}" />
             </Border>
+            </Grid>
         </Grid>
 
         <Grid

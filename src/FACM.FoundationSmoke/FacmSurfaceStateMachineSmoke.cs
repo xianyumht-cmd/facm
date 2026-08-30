@@ -24,6 +24,24 @@ internal static class FacmSurfaceStateMachineSmoke
         Assert(!machine.IsModalScopeActive, "modal scope releases");
         Assert(transitions.Count == 4, "transition telemetry count is deterministic");
         Assert(transitions.All(item => item.CorrelationId.Length == 32), "transitions have correlation ids");
+
+        var champSelectMachine = new FacmSurfaceStateMachine();
+        Assert(champSelectMachine.ObserveGameflow(
+                "ChampSelect",
+                inGame: false,
+                champSelect: true,
+                lobbyRestored: false) is not null,
+            "champ select enters the actionable strip state");
+        Assert(champSelectMachine.Mode == FacmSurfaceMode.ChampSelectStrip,
+            "champ select mode is explicit");
+        Assert(champSelectMachine.ObserveGameflow(
+                "Lobby",
+                inGame: false,
+                champSelect: false,
+                lobbyRestored: true) is not null,
+            "lobby restoration exits champ select strip");
+        Assert(champSelectMachine.Mode == FacmSurfaceMode.Orb,
+            "lobby restoration returns champ select surface to orb");
     }
 
     private static void Assert(bool condition, string message)

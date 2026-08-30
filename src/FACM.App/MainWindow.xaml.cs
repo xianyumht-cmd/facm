@@ -5,6 +5,7 @@ using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.State;
 using FACM.Core.Text;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -20,6 +21,7 @@ namespace FACM.App;
 public sealed partial class MainWindow : Window
 {
     private const double OrbSizeDip = 36d;
+    private const double OrbTransientWidthDip = 220d;
     private const double ControlMatrixWidthDip = 360d;
     private const double ControlMatrixHeightDip = 206d;
     private const double RepairSurfaceWidthDip = 600d;
@@ -68,6 +70,10 @@ public sealed partial class MainWindow : Window
     private long _surfaceSuppressClickUntilTick;
     private LeagueProductState? _lastSurfaceGameflowState;
     private string _activeSection = "repair";
+    private DispatcherQueueTimer? _transientRailTimer;
+    private bool _transientRailVisible;
+    private bool _transientRailOnLeft;
+    private string _lastRuntimeStatusSignature = string.Empty;
 
     public MainWindow(
         ControlCenterViewModel controlCenter,
@@ -163,12 +169,17 @@ public sealed partial class MainWindow : Window
             RootNavigation.IsPaneToggleButtonVisible = true;
             SurfaceCollapseButton.Visibility = Visibility.Collapsed;
             SurfaceCloseButton.Visibility = Visibility.Collapsed;
+            OrbTransientContainer.Visibility = Visibility.Collapsed;
             return;
         }
 
+        if (mode != FacmSurfaceMode.Orb) SetTransientRailVisible(false, resize: false);
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
         RootNavigation.IsPaneOpen = false;
         RootNavigation.IsPaneToggleButtonVisible = false;
+        OrbTransientContainer.Visibility = mode == FacmSurfaceMode.Orb && _transientRailVisible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         OrbSurface.Visibility = mode == FacmSurfaceMode.Orb ? Visibility.Visible : Visibility.Collapsed;
         ControlMatrixSurface.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ChampSelectSurface.Visibility = mode == FacmSurfaceMode.ChampSelectStrip ? Visibility.Visible : Visibility.Collapsed;
@@ -195,21 +206,22 @@ public sealed partial class MainWindow : Window
 
     private void ApplyMorphingFeatureDensity(bool featureVisible)
     {
-        var visible = !_morphingSurfaceEnabled || featureVisible;
-        ProductTitle.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        SectionSubtitle.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairToolsDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairGameDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        CleanupDirectoryDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        CleanupPreviewDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairDriverCleanupHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairFixWindowHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairAutoWindowHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairSkipSettlementHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairRestartClientUxHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        RepairExitGameHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        OverviewBody.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        StateBody.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        var showExplanatoryCopy = !_morphingSurfaceEnabled;
+        ProductTitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        SectionTitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        SectionSubtitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairToolsDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairGameDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        CleanupDirectoryDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        CleanupPreviewDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairDriverCleanupHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairFixWindowHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairAutoWindowHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairSkipSettlementHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairRestartClientUxHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        RepairExitGameHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        OverviewBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        StateBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         if (_morphingSurfaceEnabled)
         {
             TitleBarText.FontSize = 14;
@@ -231,12 +243,14 @@ public sealed partial class MainWindow : Window
         var area = AnchorPlacementService.SelectWorkArea(areas, probe);
         var dipSize = GetSurfaceDipSize(mode);
         var size = DesktopDpi.DipsToPixels(dipSize, area);
+        var transientRail = mode == FacmSurfaceMode.Orb && _transientRailVisible;
         var physicalRect = FacmSurfaceGeometryService.ExpandFromAnchor(new(
             anchor,
             size,
             area,
             DesktopDpi.UniformDipsToPixels(SurfaceEdgeMarginDip, area),
-            mode == FacmSurfaceMode.Orb));
+            mode == FacmSurfaceMode.Orb && !transientRail));
+        if (transientRail) ApplyTransientRailPlacement(anchor, physicalRect);
         var rect = new RectInt32(
             ToInt32(physicalRect.Left),
             ToInt32(physicalRect.Top),
@@ -245,6 +259,59 @@ public sealed partial class MainWindow : Window
         AppWindow.MoveAndResize(rect);
         PlayMorphingSurfaceTransition();
     }
+
+    private void ApplyTransientRailPlacement(DesktopPoint anchor, DesktopRect physicalRect)
+    {
+        var railOnLeft = physicalRect.Left < anchor.X;
+        _transientRailOnLeft = railOnLeft;
+        OrbSurface.HorizontalAlignment = railOnLeft ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        OrbTransientRail.HorizontalAlignment = railOnLeft ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        OrbTransientRail.Margin = railOnLeft ? new Thickness(0, 3, 0, 0) : new Thickness(42, 3, 0, 0);
+    }
+
+    private void SetTransientRailVisible(bool visible, bool resize)
+    {
+        _transientRailVisible = visible;
+        if (!visible)
+        {
+            _transientRailTimer?.Stop();
+            OrbTransientRailText.Text = string.Empty;
+            _transientRailOnLeft = false;
+            OrbSurface.HorizontalAlignment = HorizontalAlignment.Left;
+            OrbTransientRail.HorizontalAlignment = HorizontalAlignment.Left;
+            OrbTransientRail.Margin = new Thickness(42, 3, 0, 0);
+        }
+
+        OrbTransientContainer.Visibility = visible && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        if (resize && _morphingSurfaceEnabled && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb)
+            ApplySurfaceGeometry(FacmSurfaceMode.Orb);
+    }
+
+    private void ShowTransientRail(string message, bool problem)
+    {
+        if (!_morphingSurfaceEnabled || _surfaceStateMachine.Mode != FacmSurfaceMode.Orb || string.IsNullOrWhiteSpace(message))
+            return;
+
+        OrbTransientRailText.Text = message.Trim();
+        OrbTransientRail.Background = (Brush)Application.Current.Resources[
+            problem ? "FacmErrorBrush" : "FacmSurfaceBrush"];
+        OrbTransientRail.BorderBrush = (Brush)Application.Current.Resources[
+            problem ? "FacmErrorBrush" : "FacmStrokeBrush"];
+        SetTransientRailVisible(true, resize: true);
+        _transientRailTimer ??= DispatcherQueue.CreateTimer();
+        _transientRailTimer.IsRepeating = false;
+        _transientRailTimer.Interval = problem
+            ? TimeSpan.FromSeconds(4)
+            : TimeSpan.FromSeconds(1.6);
+        _transientRailTimer.Tick -= OnTransientRailTimerTick;
+        _transientRailTimer.Tick += OnTransientRailTimerTick;
+        _transientRailTimer.Start();
+    }
+
+    private void OnTransientRailTimerTick(DispatcherQueueTimer sender, object args) =>
+        SetTransientRailVisible(false, resize: true);
 
     private DesktopSize GetSurfaceDipSize(FacmSurfaceMode mode) => mode switch
     {
@@ -524,14 +591,24 @@ public sealed partial class MainWindow : Window
 
     internal void SetRuntimeStatus(string badge, string inspector, bool problem = false)
     {
-        OrbStatusBadgeText.Text = badge ?? string.Empty;
-        OrbStatusBadge.Visibility = string.IsNullOrWhiteSpace(badge)
+        var normalizedBadge = badge?.Trim() ?? string.Empty;
+        var normalizedInspector = inspector?.Trim() ?? string.Empty;
+        var signature = string.Join("|", normalizedBadge, normalizedInspector, problem ? "problem" : "ok");
+        var statusChanged = !string.Equals(_lastRuntimeStatusSignature, signature, StringComparison.Ordinal);
+        _lastRuntimeStatusSignature = signature;
+
+        OrbStatusBadgeText.Text = normalizedBadge;
+        OrbStatusBadge.Visibility = string.IsNullOrWhiteSpace(normalizedBadge)
             ? Visibility.Collapsed
             : Visibility.Visible;
         OrbStatusBadge.Background = (Brush)Application.Current.Resources[
             problem ? "FacmErrorBrush" : "FacmSuccessBrush"];
-        MatrixStatus.Text = inspector ?? string.Empty;
-        ToolTipService.SetToolTip(OrbButton, inspector ?? string.Empty);
+        MatrixStatus.Text = normalizedInspector;
+        MatrixInspector.Text = normalizedInspector;
+        ToolTipService.SetToolTip(OrbButton, normalizedInspector);
+
+        if (statusChanged && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb)
+            ShowTransientRail(normalizedInspector, problem);
     }
 
     internal IDisposable SuppressOutsideClose()
@@ -1169,6 +1246,8 @@ public sealed partial class MainWindow : Window
         if (_closed) return;
         _closed = true;
         _outsideClickWatcher.Dispose();
+        _transientRailTimer?.Stop();
+        _transientRailTimer = null;
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;
