@@ -327,16 +327,16 @@ The local .NET SDK is `D:\project2\dotnet10\dotnet.exe` (10.0.400). Keep `DOTNET
 
 The latest natural local interaction kept FACM PID `16436` responsive and completed Workbench Dashboard/Player/Live/Advisor/Refresh without COMException. The current LCU observation is LeagueClient PID `8812`, LeagueClientUx PID `20504`, port `61101`, phase `Lobby / Connected`. The cumulative log has 387 HTTP completions (340 success, 83 ExpectedUnavailable, 0 UnexpectedFailure), p50/p95/max `0/10/374 ms`, and max in-flight `2`. Two automation matchmaking writes took `109 ms` and `127 ms`; no Auto Accept write occurred because the trace did not enter ReadyCheck. This is not a ReadyCheck or full real-machine pass. A future ReadyCheck test must be natural and read-only except for the already-authorized Auto Accept behavior; do not start a queue or game merely to manufacture evidence. The persisted settings currently read `autoMatchmakingEnabled=false` and `autoAcceptEnabled=true` while the same trace contains two automation matchmaking writes; resolve this runtime/persistence discrepancy with diagnostics before changing settings behavior.
 
-## 17. 2026-08-30 Morphing Surface local candidate
+## 17. 2026-08-31 Morphing Surface local candidate
 
 当前可供手工复核的 Morphing Surface 源码候选是：
 
 ```text
 worktree: D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
 branch:   tmp/p7-ipc-lifecycle-fix-20260830
-commit:   11657307a386e443911643444f6e303c42aaf5d4
-exe:      D:\project2\facm-ms7-out\FACM.App.exe
-sha256:   39e628a5dff9f00f584f19ab10b3d710a3438a68c91581fa626032744e64f7c9
+commit:   a760daff21f73cca2ac86c59851541acef9f2b29
+exe:      （MS8.6 fresh candidate 生成后填入）
+sha256:   （MS8.6 fresh candidate 生成后填入）
 log:      （由用户启动新候选后生成于对应候选目录）
 ```
 
@@ -346,8 +346,11 @@ log:      （由用户启动新候选后生成于对应候选目录）
 `bin\x64\Debug` 副本当作当前证据。
 
 本阶段已验证的本地命令包括：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
-`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和全部 27 个非 cutover
-source gates；构建均为 0 警告 / 0 错误，新的 ms7 候选已完成并验证为 4 个文件、0 个 DLL。
+`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和 Desktop/Shell/Architecture/P7
+closeout 相关 source gates；构建均为 0 警告 / 0 错误。MS8.6 将 MainWindow 的 outside-click
+watcher 生命周期限定在可关闭展开态，Orb/Hidden 停止并重置 watcher，且保留 CompactLauncher
+的同一实现。全部非 cutover source gate、fresh candidate 文件数/DLL 检查和 candidate SHA-256
+必须在最终候选生成后补录。
 首次真实视觉检查应覆盖
 Orb 锚点、ControlMatrix、Feature/League surface、ChampSelect strip、outside-click、modal
 suppression、InGame 隐藏/Lobby 回 Orb、tray/single-instance 与 pet 切换；截图采集失败时必须

@@ -44,8 +44,11 @@ modular and are not recreated per mode. `FACM_SHELL_EXPERIENCE=legacy` preserves
 FACM-owned top-level surfaces use one shared outside-click lifecycle implementation where the
 legacy product requires desktop-blank dismissal: `DesktopSurfaceOutsideClickWatcher` owns the
 physical left-button edge, screen-bounds hit test, opening-click release rule, and disposal for
-the active shell. MainWindow feature pages are not separate native windows; their FolderPicker
-and ContentDialog flows acquire an explicit suppression scope so a desktop click cannot close the
+the active shell. MainWindow activates this watcher only for dismissible expanded modes; idle
+`Orb` and `HiddenInGame` stop it and reset its opening-click state, so the 40 ms native sample is
+not an idle/hidden UI timer. CompactLauncher activates the same watcher only while that window is
+alive. MainWindow feature pages are not separate native windows; their FolderPicker and
+ContentDialog flows acquire an explicit suppression scope so a desktop click cannot close the
 host while a modal interaction is active. Morphing geometry snaps to its final clamped bounds;
 the transition is a bounded opacity/translation effect and does not introduce a resize loop.
 
@@ -84,6 +87,13 @@ Green Collapse returns any ordinary expanded surface directly to Orb; Back from 
 ControlMatrix; the red control preserves the established close/shutdown behavior. The Orb is only its
 36-DIP F at idle; an information rail is transient, one-shot, and itself activates the same primary
 surface action when clicked.
+
+Every presentation request is made on the MainWindow Dispatcher. A valid same-mode request is an
+idempotent no-op (with lifecycle activation reconciled); an invalid same-mode presentation is
+re-applied. Successful transitions validate AppWindow visibility, target bounds, and visible content
+immediately. A failed request records the requested/previous mode, operation, exception type/HResult,
+thread, bounds, phase, and correlation id, then restores the last safe presentation or a bounded
+36-DIP Orb fallback; it never leaves a visible blank shell.
 
 When entering ChampSelect, the existing Workbench owner performs one event-driven refresh even if the
 League page was not previously selected. Its Live snapshot is then bound directly to ChampSelectStrip,
