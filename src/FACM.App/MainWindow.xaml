@@ -144,7 +144,7 @@
                     <FontIcon Glyph="&#xE711;" />
                 </Button>
             </Grid>
-            <Grid Grid.Row="1" Padding="10,10,10,8" ColumnSpacing="8" RowSpacing="8">
+            <Grid Grid.Row="1" Padding="8,6" ColumnSpacing="6" RowSpacing="6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />

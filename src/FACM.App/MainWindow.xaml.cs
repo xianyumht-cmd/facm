@@ -924,6 +924,18 @@ public sealed partial class MainWindow : Window
         MatrixPetLabel.Text = personalizationText;
         MatrixSettingsLabel.Text = settingsText;
         MatrixCleanupLabel.Text = _text.Get(UiTextKeys.Cleanup);
+        AutomationProperties.SetName(MatrixRepairButton, repairText);
+        AutomationProperties.SetHelpText(MatrixRepairButton, _text.Get(UiTextKeys.ShellRepairSubtitle));
+        AutomationProperties.SetName(MatrixLeagueButton, leagueText);
+        AutomationProperties.SetHelpText(MatrixLeagueButton, _text.Get(UiTextKeys.ShellLeagueSubtitle));
+        AutomationProperties.SetName(MatrixDiagnosticsButton, _text.Get(UiTextKeys.DiagnosticsTitle));
+        AutomationProperties.SetHelpText(MatrixDiagnosticsButton, _text.Get(UiTextKeys.DiagnosticsSubtitle));
+        AutomationProperties.SetName(MatrixPetButton, personalizationText);
+        AutomationProperties.SetHelpText(MatrixPetButton, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
+        AutomationProperties.SetName(MatrixSettingsButton, settingsText);
+        AutomationProperties.SetHelpText(MatrixSettingsButton, _text.Get(UiTextKeys.ShellMoreSettingsSubtitle));
+        AutomationProperties.SetName(MatrixCleanupButton, _text.Get(UiTextKeys.Cleanup));
+        AutomationProperties.SetHelpText(MatrixCleanupButton, _text.Get(UiTextKeys.CleanupPreviewDescription));
         MatrixInspectorBar.Text = _text.Get(UiTextKeys.ShellStatusReady);
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectWaitingAction);
@@ -1012,6 +1024,12 @@ public sealed partial class MainWindow : Window
 
     private void InitializeInspector()
     {
+        AttachInspector(MatrixRepairButton, _text.Get(UiTextKeys.ShellRepairSubtitle));
+        AttachInspector(MatrixLeagueButton, _text.Get(UiTextKeys.ShellLeagueSubtitle));
+        AttachInspector(MatrixDiagnosticsButton, _text.Get(UiTextKeys.DiagnosticsSubtitle));
+        AttachInspector(MatrixPetButton, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
+        AttachInspector(MatrixSettingsButton, _text.Get(UiTextKeys.ShellMoreSettingsSubtitle));
+        AttachInspector(MatrixCleanupButton, _text.Get(UiTextKeys.CleanupPreviewDescription));
         AttachInspector(RepairNav, _text.Get(UiTextKeys.ShellRepairSubtitle));
         AttachInspector(LeagueNav, _text.Get(UiTextKeys.ShellLeagueSubtitle));
         AttachInspector(PersonalizationNav, _text.Get(UiTextKeys.ShellPersonalizationSubtitle));
@@ -1032,7 +1050,7 @@ public sealed partial class MainWindow : Window
         element.PointerEntered += (_, _) =>
         {
             _inspectorHoverElement = element;
-            InspectorBar.Text = text;
+            SetInspectorText(text);
         };
         element.PointerExited += (_, _) =>
         {
@@ -1042,7 +1060,7 @@ public sealed partial class MainWindow : Window
         element.GotFocus += (_, _) =>
         {
             _inspectorFocusElement = element;
-            InspectorBar.Text = text;
+            SetInspectorText(text);
         };
         element.LostFocus += (_, _) =>
         {
@@ -1055,7 +1073,13 @@ public sealed partial class MainWindow : Window
     {
         if (_closed || _inspectorFocusElement is not null || _inspectorHoverElement is not null) return;
         var state = _leagueWorkbench.LeagueState.ToString();
-        InspectorBar.Text = "LCU · " + state + " · " + _text.Get(UiTextKeys.ShellStatusReady);
+        SetInspectorText("LCU · " + state + " · " + _text.Get(UiTextKeys.ShellStatusReady));
+    }
+
+    private void SetInspectorText(string text)
+    {
+        InspectorBar.Text = text;
+        MatrixInspectorBar.Text = text;
     }
 
     private void ApplyWorkbenchSectionText(

@@ -44,6 +44,11 @@ foreach ($button in @('MatrixBackButton', 'MatrixCloseButton', 'SurfaceBackButto
         Fail "Morphing compact chrome button is outside the 22-28 DIP contract: $button"
     }
 }
+foreach ($matrixButton in @('MatrixRepairButton', 'MatrixLeagueButton', 'MatrixDiagnosticsButton', 'MatrixPetButton', 'MatrixSettingsButton', 'MatrixCleanupButton')) {
+    if ($mainCode -notmatch ('AttachInspector\(' + [regex]::Escape($matrixButton) + ',')) {
+        Fail "Morphing matrix entry is not connected to the shared Inspector: $matrixButton"
+    }
+}
 
 foreach ($tag in @('repair', 'league', 'personalization', 'settings')) {
     if ((Count-Matches $mainXaml ('Tag="' + [regex]::Escape($tag) + '"')) -ne 1) {
