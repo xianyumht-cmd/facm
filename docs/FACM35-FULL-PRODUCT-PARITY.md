@@ -127,6 +127,7 @@ the active 4.0 owner, and evidence rather than counting source files as features
 | `MISSING` | The audited active 4.0 path does not currently provide the required behavior. |
 | `4.0-ONLY` | A new 4.0 capability with no direct 3.5.15 baseline. It must remain additive and must not weaken parity behavior. |
 | `NEEDS-REAL-MACHINE` | Source and/or deterministic checks are insufficient to conclude product behavior on a real supported Windows/League environment. |
+| `FAIL` | The current 4.0 behavior explicitly contradicts the 3.5.15 contract. |
 
 ## Full product behavior matrix
 
@@ -183,6 +184,7 @@ the active 4.0 owner, and evidence rather than counting source files as features
 | `MISSING` | 0 |
 | `4.0-ONLY` | 3 |
 | `NEEDS-REAL-MACHINE` | 6 |
+| `FAIL` | 0 |
 | **Total** | **41** |
 
 The totals are not a release score. `EXACT` means the source/deterministic contract is
