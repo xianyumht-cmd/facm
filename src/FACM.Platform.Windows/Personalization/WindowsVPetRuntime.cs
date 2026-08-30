@@ -91,9 +91,11 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 
             if (pet.Runtime != FacmPetRuntimeKind.VPetCore)
             {
+                await StopTransportLockedAsync().ConfigureAwait(false);
                 SetLauncherVisible(true);
-                UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "runtime-unsupported:" + pet.Runtime));
-                return new DesktopPetModeResult(false, false, "runtime-unsupported:" + pet.Runtime);
+                var unsupported = "runtime-unsupported:" + pet.Runtime;
+                UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, unsupported));
+                return new DesktopPetModeResult(false, false, unsupported);
             }
 
             var existing = Current;
