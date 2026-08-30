@@ -17,6 +17,12 @@ if (ipcSmokeArgument is not null)
     return;
 }
 
+if (args.Any(argument => string.Equals(argument, "--league-discovery-live", StringComparison.OrdinalIgnoreCase)))
+{
+    await LeagueSessionDiscoverySmoke.RunLiveAsync();
+    return;
+}
+
 var executablePaths = new WindowsExecutablePathProvider();
 var layout = RuntimePathLayout.From(executablePaths);
 var expectedDistribution = Path.GetDirectoryName(Path.GetFullPath(executablePaths.ExecutablePath))
@@ -42,6 +48,7 @@ await DesktopPetBundleGateSmoke.RunAsync();
 await FlyingHostBundleSmoke.RunAsync();
 await PetHostBundleSmoke.RunAsync();
 await DesktopPetIpcLifecycleSmoke.RunAsync();
+await LeagueSessionDiscoverySmoke.RunAsync();
 
 var discovered = new LeagueTransportSession(
     new LeagueSessionDescriptor(41, 29999, "https", "windows-smoke", "HN1", "HN"),

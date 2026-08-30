@@ -80,3 +80,18 @@ public sealed record LeagueGameflowDiagnostic(
     DateTimeOffset StartedUtc,
     DateTimeOffset FinishedUtc,
     long DurationMs);
+
+public sealed record LeagueSessionDiscoveryDiagnostic(
+    string DiscoveryId,
+    string Event,
+    string Source,
+    int? ProcessId,
+    int? Port,
+    long DurationMs,
+    string Outcome,
+    bool CacheHit,
+    bool NegativeCacheHit,
+    bool JoinedExistingDiscovery,
+    int ThreadId,
+    string Caller,
+    string? Reason);

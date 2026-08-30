@@ -7,6 +7,46 @@ namespace FACM.App;
 
 public partial class App
 {
+    private void ReportLeagueSessionDiagnostic(LeagueSessionDiscoveryDiagnostic diagnostic)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["discoveryId"] = diagnostic.DiscoveryId,
+            ["source"] = diagnostic.Source,
+            ["event"] = diagnostic.Event,
+            ["outcome"] = diagnostic.Outcome,
+            ["cacheHit"] = diagnostic.CacheHit.ToString(CultureInfo.InvariantCulture),
+            ["negativeCacheHit"] = diagnostic.NegativeCacheHit.ToString(CultureInfo.InvariantCulture),
+            ["joinedExistingDiscovery"] = diagnostic.JoinedExistingDiscovery.ToString(CultureInfo.InvariantCulture),
+            ["threadId"] = diagnostic.ThreadId.ToString(CultureInfo.InvariantCulture),
+            ["caller"] = diagnostic.Caller
+        };
+        if (diagnostic.ProcessId is int processId)
+            data["pid"] = processId.ToString(CultureInfo.InvariantCulture);
+        if (diagnostic.Port is int port)
+            data["port"] = port.ToString(CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(diagnostic.Reason))
+            data["reason"] = diagnostic.Reason;
+
+        var action = diagnostic.Event switch
+        {
+            "discovery-start" => "league.session.discovery-start",
+            "discovery-finish" => "league.session.discovery-finish",
+            "cache-hit" => "league.session.cache-hit",
+            "invalidate" => "league.session.invalidate",
+            _ => "league.session.discovery"
+        };
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            action,
+            "FACM.League.Session",
+            diagnostic.DurationMs,
+            ResolveSessionDiagnosticResult(diagnostic),
+            diagnostic.Reason ?? diagnostic.Outcome,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            CurrentAppVersion(),
+            data));
+    }
+
     private void ReportLeagueHttpDiagnostic(LeagueHttpDiagnostic diagnostic)
     {
         var data = new Dictionary<string, string>
@@ -104,6 +144,19 @@ public partial class App
                 "skipped" or "no-session" => DiagnosticResult.Skipped,
                 _ => DiagnosticResult.Failure
             };
+
+    private static DiagnosticResult ResolveSessionDiagnosticResult(LeagueSessionDiscoveryDiagnostic diagnostic) =>
+        diagnostic.Event is "discovery-start" or "cache-hit"
+            ? DiagnosticResult.Success
+            : diagnostic.Outcome is "lockfile-success" or "process-fallback-success" or "success" or "positive-cache"
+                ? DiagnosticResult.Success
+                : diagnostic.Outcome is "lockfile-empty" or "process-not-found" or "command-line-unavailable" or "negative-cache"
+                    ? DiagnosticResult.Skipped
+                    : diagnostic.Outcome == "cancelled"
+                        ? DiagnosticResult.Cancelled
+                        : diagnostic.Event == "invalidate"
+                            ? DiagnosticResult.Success
+                            : DiagnosticResult.Failure;
 
     private static string CurrentAppVersion() =>
         typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown";

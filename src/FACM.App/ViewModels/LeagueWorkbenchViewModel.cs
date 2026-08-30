@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.ComponentModel;
 using FACM.Core.League;
 using FACM.Core.Performance;
@@ -122,7 +121,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         var dataSource = _dataSource;
         var correlationId = LeagueDiagnosticContext.CreateCorrelationId();
         var refreshStartedUtc = DateTimeOffset.UtcNow;
-        var refreshStartTimestamp = Stopwatch.GetTimestamp();
+        var refreshStartTimestamp = refreshStartedUtc;
         if (dataSource is null)
         {
             ReportWorkbenchDiagnostic(correlationId, "started", "refresh", "skipped", "no-data-source", refreshStartedUtc, refreshStartedUtc, 0);
@@ -234,7 +233,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 refreshReason,
                 refreshStartedUtc,
                 DateTimeOffset.UtcNow,
-                Math.Max(0L, (long)Stopwatch.GetElapsedTime(refreshStartTimestamp).TotalMilliseconds));
+                ElapsedMilliseconds(refreshStartTimestamp));
             SetRefreshing(false);
             _refreshGate.Release();
         }
@@ -246,7 +245,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         Func<Task<T>> operation)
     {
         var startedUtc = DateTimeOffset.UtcNow;
-        var startTimestamp = Stopwatch.GetTimestamp();
+        var startTimestamp = startedUtc;
         ReportWorkbenchDiagnostic(correlationId, "started", stage, "started", "started", startedUtc, startedUtc, 0);
         using var diagnosticScope = LeagueDiagnosticContext.Begin(correlationId, "workbench", stage);
         try
@@ -260,7 +259,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 "completed",
                 startedUtc,
                 DateTimeOffset.UtcNow,
-                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+                ElapsedMilliseconds(startTimestamp));
             return result;
         }
         catch (OperationCanceledException)
@@ -273,7 +272,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 "cancelled",
                 startedUtc,
                 DateTimeOffset.UtcNow,
-                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+                ElapsedMilliseconds(startTimestamp));
             throw;
         }
         catch (Exception exception)
@@ -286,7 +285,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                 exception.GetType().Name,
                 startedUtc,
                 DateTimeOffset.UtcNow,
-                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+                ElapsedMilliseconds(startTimestamp));
             throw;
         }
     }
@@ -297,6 +296,9 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         ReportWorkbenchDiagnostic(correlationId, "started", stage, "skipped", reason, timestamp, timestamp, 0);
         ReportWorkbenchDiagnostic(correlationId, "completed", stage, "skipped", reason, timestamp, DateTimeOffset.UtcNow, 0);
     }
+
+    private static long ElapsedMilliseconds(DateTimeOffset startedUtc) =>
+        Math.Max(0L, (long)(DateTimeOffset.UtcNow - startedUtc).TotalMilliseconds);
 
     private void ReportWorkbenchDiagnostic(
         string correlationId,

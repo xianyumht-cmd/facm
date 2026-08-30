@@ -48,7 +48,7 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var session = _sessions.GetSession();
+            var session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
             if (session is null)
             {
                 outcome = "no-session";
@@ -64,7 +64,7 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 statusCode = (int)response.StatusCode;
                 if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 {
-                    _sessions.Invalidate(session);
+                    InvalidateSession(session, "unauthorized");
                     sessionInvalidated = true;
                 }
                 if (!response.IsSuccessStatusCode)
@@ -84,14 +84,14 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                _sessions.Invalidate(session);
+                InvalidateSession(session, "timeout");
                 sessionInvalidated = true;
                 outcome = "timeout";
                 return null;
             }
             catch (HttpRequestException)
             {
-                _sessions.Invalidate(session);
+                InvalidateSession(session, "connection-refused");
                 sessionInvalidated = true;
                 outcome = "http-exception";
                 return null;
@@ -125,7 +125,7 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var session = _sessions.GetSession();
+            var session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
             if (session is null)
             {
                 outcome = "no-session";
@@ -144,7 +144,7 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
                 statusCode = (int)response.StatusCode;
                 if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 {
-                    _sessions.Invalidate(session);
+                    InvalidateSession(session, "unauthorized");
                     sessionInvalidated = true;
                 }
 
@@ -159,14 +159,14 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                _sessions.Invalidate(session);
+                InvalidateSession(session, "timeout");
                 sessionInvalidated = true;
                 outcome = "timeout";
                 return null;
             }
             catch (HttpRequestException)
             {
-                _sessions.Invalidate(session);
+                InvalidateSession(session, "connection-refused");
                 sessionInvalidated = true;
                 outcome = "http-exception";
                 return null;
@@ -203,6 +203,19 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
             BeginInFlight());
         ReportDiagnostic(trace, "started", trace.StartedUtc, 0, null, "started", false, trace.InFlightAtStart);
         return trace;
+    }
+
+    private Task<LeagueTransportSession?> GetSessionAsync(CancellationToken cancellationToken) =>
+        _sessions is IAsyncLeagueTransportSessionSource asyncSource
+            ? asyncSource.GetSessionAsync(cancellationToken: cancellationToken)
+            : Task.FromResult(_sessions.GetSession());
+
+    private void InvalidateSession(LeagueTransportSession session, string reason)
+    {
+        if (_sessions is IReasonedLeagueTransportSessionInvalidator reasoned)
+            reasoned.Invalidate(session, reason);
+        else
+            _sessions.Invalidate(session);
     }
 
     private void EndRequest(

@@ -128,7 +128,8 @@ public partial class App : Application
         // Exactly one League discovery/auth/session owner and one Gameflow loop for the 4.0 process.
         // Read/write transport, Product State, performance, repair, automation and the Workbench all
         // consume the same facts and gateway.
-        _leagueSessions = new WindowsLeagueTransportSessionSource();
+        _leagueSessions = new WindowsLeagueTransportSessionSource(
+            diagnosticReporter: ReportLeagueSessionDiagnostic);
         _leagueGateway = new LeagueHttpGateway(
             _leagueSessions,
             diagnosticReporter: ReportLeagueHttpDiagnostic);
