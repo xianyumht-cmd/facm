@@ -87,6 +87,7 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
 
             if (pet.Runtime != FacmPetRuntimeKind.FlyingSprite)
             {
+                await StopTransportLockedAsync().ConfigureAwait(false);
                 SetLauncherVisible(true);
                 var unsupported = "runtime-unsupported:" + pet.Runtime;
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, unsupported));
