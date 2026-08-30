@@ -9,6 +9,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 {
     private static readonly TimeSpan HostReadyTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan HostProcessStartTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan CommandWriteTimeout = TimeSpan.FromMilliseconds(750);
 
     private readonly object _stateSync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -153,7 +154,19 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         await _gate.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
-            if (_writer is not null) await TrySendAsync(_writer, "reset").ConfigureAwait(false);
+            if (_writer is not null)
+            {
+                try
+                {
+                    await TrySendAsync(_writer, "reset")
+                        .WaitAsync(CommandWriteTimeout, operation.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    ReportStage("reset-send-timeout");
+                }
+            }
             operation.Token.ThrowIfCancellationRequested();
             await _resetLauncherPosition().ConfigureAwait(false);
             var current = Current;
@@ -258,7 +271,17 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             process.Exited += OnProcessExited;
 
             ReportStage("activate-send-start");
-            await TrySendAsync(writer, "activate|" + pet.Id).ConfigureAwait(false);
+            try
+            {
+                await TrySendAsync(writer, "activate|" + pet.Id)
+                    .WaitAsync(startupTimeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                ReportStage("activate-send-timeout");
+                return new DesktopPetModeResult(false, false, "activate-send-timeout");
+            }
             ReportStage("activate-send-finish");
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "host-starting-cache-hit" : "host-starting-new-payload"));
@@ -473,7 +496,19 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         _readLoop = null;
 
         try { cancellation?.Cancel(); } catch { }
-        if (writer is not null) await TrySendAsync(writer, "stop").ConfigureAwait(false);
+        if (writer is not null)
+        {
+            try
+            {
+                await TrySendAsync(writer, "stop")
+                    .WaitAsync(CommandWriteTimeout)
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                ReportStage("stop-send-timeout");
+            }
+        }
         try { writer?.Dispose(); } catch { }
         try { reader?.Dispose(); } catch { }
         try { pipe?.Dispose(); } catch { }
