@@ -1,12 +1,12 @@
 # FACM 3.5.15 -> 4.0 Full Product Parity Specification Audit
 
-Status: **BATCH-W-COMPLETE / IMPLEMENTATION-BACKLOG-RECORDED**
+Status: **BATCH-W-COMPLETE / BATCH-X-IN-PROGRESS / IMPLEMENTATION-BACKLOG-RECORDED**
 
 Audit date: 2026-08-30
 
 Production baseline: `908d5782e6eb5b30fee0e4d5794c312d70ac0e36` (FACM 3.5.15)
 
-Audited candidate: `7b925572f151d080352a68c2b397c1f47c7d429c` (Batch U included)
+Audited candidate: `0eebe940b26edb3b4900587e54ff2f3b685c224a` (Batch X outside-click slice; Batch U included)
 
 Formal P7: `9744af848e4b888c1876e76e2cbf0c06d5c526bf` (unchanged)
 PR #234: Draft / open / unmerged
@@ -56,8 +56,8 @@ the active 4.0 owner, and evidence rather than counting source files as features
 | 4 | Default F/floating entry is visible, clickable, and acts as the product entry | `FloatingWindow`, `WindowsFloatingSurfacePlatform` | `NEEDS-REAL-MACHINE` | Pointer routing and desktop source gates pass; the final Win10 visible interaction is not yet closed. |
 | 5 | Drag F, persist its desktop position, recover off-screen placement, and reset position | `FloatingWindow`, `AnchorPlacement`, Settings2 narrow update | `EXACT` | Desktop placement and settings source checks pass; mixed-DPI and multi-monitor evidence remain Gate13 items. |
 | 6 | Compact launcher exposes the same primary product categories and can reach detailed control center | `CompactLauncherWindow`, `MainWindow`, `App.xaml.cs` | `PARTIAL` | Functional routes exist, but 3.5.15's exact compact card/menu grouping and visual states still need the X/Y audit. |
-| 7 | Compact launcher closes on the next physical left click outside it, without closing on the opening click or during modal work | `CompactLauncherOutsideClickWatcher` | `EXACT` | Batch R deterministic state coverage and source gate pass. |
-| 8 | Every FACM-owned open surface closes on a desktop-blank outside click, while modal dialogs and pickers are protected | No unified active 4.0 owner; only compact watcher is present | `MISSING` | This is a direct active-product gap. X must define one lifecycle-safe close policy for MainWindow, compact, feature surfaces, and desktop entry. |
+| 7 | Compact launcher closes on the next physical left click outside it, without closing on the opening click or during modal work | `DesktopSurfaceOutsideClickWatcher`, `CompactLauncherWindow` | `EXACT` | Batch R deterministic state coverage and the shared watcher source gate pass. |
+| 8 | Every FACM-owned open surface closes on a desktop-blank outside click, while modal dialogs and pickers are protected | `DesktopSurfaceOutsideClickWatcher`, `MainWindow`, `MaintenanceSettingsControl` | `PARTIAL` | Batch X now gives MainWindow and CompactLauncher one lifecycle-safe physical left-click owner; cleanup, League, maintenance, FolderPicker, and ContentDialog flows hold explicit suppression scopes. Real visible Win10 interaction and any additional top-level FACM surface remain to be accepted. |
 | 9 | F/pet left-click opens FACM; right-click reaches the tray/context commands; drag does not accidentally activate | `FloatingWindow` pointer handlers, `WindowsVPetRuntime`, `WindowsFlyingPetRuntime` | `PARTIAL` | Batch S/P/U preserve the routing and IPC contracts; multi-process visible click behavior still needs real retest. |
 | 10 | 3.5.15 UI text catalog, named keys, replacement section, and hover descriptions remain effective | `IUiTextProvider`, `FileUiTextProvider`, `UiTextContracts`, XAML text assignment | `PARTIAL` | Baseline exposes 198 named UI keys. Active 4.0 exposes 120 renamed role-scoped keys and does not yet map the old role-specific names; old `ui-text.ini` customizations can therefore be ignored by new surfaces. |
 | 11 | Legacy `settings.ini` remains readable/writable with the exact 15 ordered production keys | `LegacySettingsCodec`, `LegacySettingsContract`, `IniSettingsRepository` | `EXACT` | Ordered 15-key contract and settings parity source checks pass; no legacy file rewrite is allowed during migration. |
@@ -97,8 +97,8 @@ the active 4.0 owner, and evidence rather than counting source files as features
 | Status | Count |
 | --- | ---: |
 | `EXACT` | 11 |
-| `PARTIAL` | 19 |
-| `MISSING` | 1 |
+| `PARTIAL` | 20 |
+| `MISSING` | 0 |
 | `4.0-ONLY` | 3 |
 | `NEEDS-REAL-MACHINE` | 7 |
 | **Total** | **41** |
@@ -108,10 +108,11 @@ currently evidenced; it does not erase the real-machine items listed in the row.
 
 ## Batch W findings that drive the next batches
 
-1. **Active shell close policy is incomplete.** `CompactLauncherOutsideClickWatcher` protects
-   only the compact launcher. The active `MainWindow` and feature-specific WinUI surfaces do
-   not yet share a safe outside-click owner that distinguishes desktop blank clicks from modal
-   dialogs, menus, pickers, and the opening click. This is the first X implementation item.
+1. **Active shell close policy is now centralized for the implemented surfaces.** Batch X
+   replaced the compact-only watcher with `DesktopSurfaceOutsideClickWatcher`, shared by
+   `MainWindow` and `CompactLauncherWindow`. MainWindow cleanup, League, maintenance,
+   FolderPicker, and ContentDialog flows now hold explicit suppression scopes. Visible Win10
+   interaction and any separately owned top-level surface remain real-machine acceptance items.
 2. **3.5.15 UI-text compatibility is not a simple rename.** The legacy catalog has 198 named
    keys and a `[Replace]` compatibility layer. The active 4.0 contract has 120 role-scoped keys;
    its parser accepts arbitrary lines but does not make old role-specific names affect the new
@@ -130,5 +131,6 @@ currently evidenced; it does not erase the real-machine items listed in the row.
 ## Batch W exit condition
 
 Batch W is complete when this matrix and its evidence boundaries are committed. No feature code
-is changed by Batch W. The next authorized implementation batch is Batch X for shell/window/input
-parity, beginning with the unified outside-click contract and real visible entry ownership.
+is changed by Batch W. Batch X has completed the unified outside-click implementation slice;
+remaining X shell/window/input parity and real visible entry ownership stay open for the next
+authorized continuation.

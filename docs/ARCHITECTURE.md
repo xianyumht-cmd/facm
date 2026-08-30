@@ -35,6 +35,14 @@ Direction 固定：App -> Core/Infrastructure/Platform.Windows；Infrastructure 
 
 Window/Page -> ViewModel -> Core intent/state。具体 adapter 只在 App composition root 组装。
 
+FACM-owned top-level surfaces use one shared outside-click lifecycle implementation where the
+legacy product requires desktop-blank dismissal: `DesktopSurfaceOutsideClickWatcher` owns the
+physical left-button edge, screen-bounds hit test, opening-click release rule, and disposal for
+`MainWindow` and `CompactLauncherWindow`. MainWindow feature pages are not separate native
+windows; their FolderPicker and ContentDialog flows acquire an explicit suppression scope so a
+desktop click cannot close the host while a modal interaction is active. `FloatingWindow` remains
+the persistent desktop entry surface and is not treated as a dismissible content panel.
+
 Process-wide exactly one：
 
 ```text
