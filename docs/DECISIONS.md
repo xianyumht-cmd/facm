@@ -272,3 +272,15 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 ### 原因
 
 将 FlyingSprite 塞回 VPet PetHost 会重新引入已纠正的架构耦合；而 .NET 10 `WFAC010` 已证明旧 manifest DPI 声明与当前 analyzer 合同冲突。分离 ownership 并采用 SDK 支持的 DPI 配置可以保留行为边界，同时让 warnings-as-errors 构建诚实失败/通过。
+
+## 2026-08-30：Batch P 统一桌宠 Host 的 activate/show/stop 生命周期
+
+### 决策
+
+- Host 进程先建立 Dispatcher 和 IPC reader，但不在 `Program` 中预先显示窗口；只有收到 `activate` 后才在 Dispatcher 上 `Show()`，随后按 `Loaded -> ready` 完成接管。
+- 客户端命令写入必须把取消令牌传入 `StreamWriter.WriteLineAsync` 和 `FlushAsync`；超时后的 transport 进入 poisoned 状态，直接清理并等待/杀进程，不再尝试不可靠的 graceful stop。
+- FlyingHost 与 PetHost 保留各自 payload/Runtime ownership，但共享同一套阶段诊断字段和无异常清理语义；路由仍按 stop-before-start 串行切换。
+
+### 原因
+
+真实 Win10 证据显示旧实现会在 activate 写入超时后留下多个 Host，同时预显示的窗口绕过了“桌宠接管悬浮入口”的时序。把窗口显示和 IPC 命令消费绑定，并让写入取消真正到达底层 StreamWriter，能在不改变 750 ms/ready timeout 预算和既有 Runtime 分离的前提下消除这两个生命周期缺口。

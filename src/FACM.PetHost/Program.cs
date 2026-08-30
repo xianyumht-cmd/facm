@@ -45,7 +45,6 @@ internal static class Program
         }
 
         application.Exit += (_, _) => parentTimer?.Stop();
-        window.Show();
         return application.Run();
     }
 

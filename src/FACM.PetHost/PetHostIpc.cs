@@ -71,7 +71,6 @@ internal sealed class PetHostIpc : IDisposable
             using var reader = new StreamReader(_pipe, new UTF8Encoding(false), false, 4096, leaveOpen: true);
             _writer = new StreamWriter(_pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
             _connected.TrySetResult(true);
-            await SendEventAsync("connected").ConfigureAwait(false);
 
             while (!_cancellation.IsCancellationRequested && _pipe.IsConnected)
             {

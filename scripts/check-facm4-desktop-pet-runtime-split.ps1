@@ -21,13 +21,18 @@ $router = Read-Required 'src/FACM.Platform.Windows/Personalization/WindowsDeskto
 $petStore = Read-Required 'src/FACM.Platform.Windows/Personalization/WindowsPetHostBundleStore.cs'
 $flyingStore = Read-Required 'src/FACM.Platform.Windows/Personalization/WindowsFlyingHostBundleStore.cs'
 $petHostProgram = Read-Required 'src/FACM.PetHost/Program.cs'
+$petHostWindow = Read-Required 'src/FACM.PetHost/PetHostWindow.cs'
+$petHostIpc = Read-Required 'src/FACM.PetHost/PetHostIpc.cs'
 $petHostProject = Read-Required 'src/FACM.PetHost/FACM.PetHost.csproj'
 $flyingHostProgram = Read-Required 'src/FACM.FlyingHost/Program.cs'
+$flyingHostWindow = Read-Required 'src/FACM.FlyingHost/FlyingPetHostWindow.cs'
+$flyingHostIpc = Read-Required 'src/FACM.FlyingHost/PetHostIpc.cs'
 $flyingHostProject = Read-Required 'src/FACM.FlyingHost/FACM.FlyingHost.csproj'
 $appComposition = Read-Required 'src/FACM.App/App.Personalization.cs'
 $appProject = Read-Required 'src/FACM.App/FACM.App.csproj'
 $petSmoke = Read-Required 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
 $flyingSmoke = Read-Required 'src/FACM.WindowsSmoke/FlyingHostBundleSmoke.cs'
+$ipcSmoke = Read-Required 'src/FACM.WindowsSmoke/DesktopPetIpcLifecycleSmoke.cs'
 $bundleGateSmoke = Read-Required 'src/FACM.WindowsSmoke/DesktopPetBundleGateSmoke.cs'
 $windowsSmokeProgram = Read-Required 'src/FACM.WindowsSmoke/Program.cs'
 $solution = Read-Required 'FACM4.sln'
@@ -43,7 +48,16 @@ foreach ($required in @(
     'activate-send-timeout',
     'stop-send-timeout',
     'reset-send-timeout',
-    'WaitAsync(startupTimeout.Token)'
+    'SendCommandAsync',
+    'WriteLineAsync(command.AsMemory(), cancellationToken)',
+    'FlushAsync(cancellationToken)',
+    'transport-poisoned',
+    'stop-send-skipped-poisoned',
+    'process-wait-start',
+    'process-kill-start',
+    'transport-dispose-start',
+    'CancelAfter(CommandWriteTimeout)',
+    'ReadLineAsync(startupTimeout.Token)'
 )) {
     if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "VPet runtime split guard missing: $required" }
 }
@@ -68,7 +82,16 @@ foreach ($required in @(
     'flying-activate-send-timeout',
     'flying-stop-send-timeout',
     'flying-reset-send-timeout',
-    'WaitAsync(startupTimeout.Token)'
+    'SendCommandAsync',
+    'WriteLineAsync(command.AsMemory(), cancellationToken)',
+    'FlushAsync(cancellationToken)',
+    'flying-transport-poisoned',
+    'flying-stop-send-skipped-poisoned',
+    'flying-process-wait-start',
+    'flying-process-kill-start',
+    'flying-transport-dispose-start',
+    'CancelAfter(CommandWriteTimeout)',
+    'ReadLineAsync(startupTimeout.Token)'
 )) {
     if ($flyingRuntime -notmatch [regex]::Escape($required)) { Fail "Flying runtime split guard missing: $required" }
 }
@@ -129,6 +152,11 @@ foreach ($required in @('VPet-Simulator.Core', 'PetHostWindow', 'VPetAssetCacheV
 if ($petHostProgram -match 'FlyingPetHostWindow|FlyingPetProfiles|FlyingSprite') {
     Fail 'FACM.PetHost must be VPet-only and must not own FlyingSprite behavior.'
 }
+if ($petHostProgram -match 'window\.Show\(\)') { Fail 'VPet PetHost must not show its window before activate.' }
+foreach ($required in @('_activated', 'if \(!_activated\) return;', 'SendEventAsync\("stage"', 'HandleCommandOnDispatcherAsync')) {
+    if ($petHostWindow -notmatch $required) { Fail "VPet PetHost activation lifecycle missing: $required" }
+}
+if ($petHostProgram -notmatch 'application\.Run\(\)') { Fail 'VPet PetHost must keep its dispatcher running before activate.' }
 
 foreach ($required in @(
     '<RootNamespace>FACM.FlyingHost</RootNamespace>',
@@ -140,6 +168,18 @@ foreach ($required in @(
 }
 if (($flyingHostProject + "`n" + $flyingHostProgram) -match 'VPet-Simulator|VPet_Simulator|VPetAssetCacheValidator') {
     Fail 'FACM.FlyingHost must stay independent from VPet.'
+}
+if ($flyingHostProgram -match 'window\.Show\(\)') { Fail 'FlyingHost must not show its window before activate.' }
+foreach ($required in @('_activated', 'if \(!_activated\) return;', 'SendEventAsync\("stage"', 'HandleCommandOnDispatcherAsync')) {
+    if ($flyingHostWindow -notmatch $required) { Fail "FlyingHost activation lifecycle missing: $required" }
+}
+if ($flyingHostProgram -notmatch 'application\.Run\(\)') { Fail 'FlyingHost must keep its dispatcher running before activate.' }
+
+foreach ($ipc in @($petHostIpc, $flyingHostIpc)) {
+    if ($ipc -match 'SendEventAsync\("connected"') { Fail 'Host IPC must not pre-send connected before reading activate.' }
+    foreach ($required in @('WaitForConnectionAsync', 'ReadLineAsync\(_cancellation.Token', '_connected.TrySetResult\(true\)')) {
+        if ($ipc -notmatch $required) { Fail "Host IPC lifecycle missing: $required" }
+    }
 }
 
 $flyingHostSourceRoot = Join-Path $Root 'src/FACM.FlyingHost'
@@ -191,6 +231,23 @@ foreach ($required in @(
 }
 if ($windowsSmokeProgram -notmatch [regex]::Escape('DesktopPetBundleGateSmoke.RunAsync()')) {
     Fail 'Windows smoke runner must execute DesktopPetBundleGateSmoke.'
+}
+foreach ($required in @(
+    'VerifyActivateHandshakeOrderAsync',
+    'VerifyCancellationAwareCommandWriteAsync',
+    'VerifyStopSendFailureIsFailSoftAsync',
+    'VerifySequentialHostSessionsAsync',
+    'activate|real-bee',
+    'event|stage|show',
+    'event|stage|loaded',
+    'event|ready',
+    'timed-out IPC command write left a pending task',
+    'maximum active host count'
+)) {
+    if ($ipcSmoke -notmatch [regex]::Escape($required)) { Fail "Desktop-pet IPC lifecycle smoke missing: $required" }
+}
+if ($windowsSmokeProgram -notmatch [regex]::Escape('DesktopPetIpcLifecycleSmoke.RunAsync')) {
+    Fail 'Windows smoke runner must execute DesktopPetIpcLifecycleSmoke.'
 }
 
 if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csproj')) {

@@ -28,7 +28,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; staging candidate `e387295fd61c233f8e9892016a6e9917b448cd5b` | **local .NET 10 Foundation-equivalent green / hosted rerun pending / Draft** |
+| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; Batch P local fix candidate on `fc9f2376ceece94351837c9339ae9301ea7415ad` | **Batch P local IPC lifecycle fix green / real Win10 retest pending / Draft** |
 
 Tracking Issue：#233。
 
@@ -44,6 +44,20 @@ Tracking Issue：#233。
 - Busy UI 同时改为显示“正在处理，请稍候…”，避免“准备就绪 + 全控件灰掉”的误导。
 
 详细实时账：`docs/FACM4-PLAN.md`。
+
+## 2026-08-30 Batch P：Desktop Pet IPC lifecycle fix
+
+Batch P is isolated in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on temporary branch `tmp/p7-ipc-lifecycle-fix-20260830`; the formal P7 branch, PR #234, `online/version.json`, and `release/request.json` remain unchanged.
+
+- Client activate/reset/stop writes now pass cancellation into both `StreamWriter.WriteLineAsync` and `FlushAsync`; timed-out transports are poisoned and cleaned without a second graceful stop write.
+- Runtime cleanup now detaches the generation, disposes pipe/reader/writer, waits for the process, kills the full tree when needed, waits again, and disposes the process.
+- FlyingHost and PetHost no longer pre-show a WPF window. `activate` is consumed on the Dispatcher, then `Show -> Loaded -> ready`; the server no longer pre-sends `connected`.
+- Runtime stage diagnostics now preserve stage plus generation/PID/pipe/command/elapsed fields in App diagnostics.
+- New deterministic Windows IPC smoke covers handshake order, cancellation without a pending write task, stop-send failure fail-soft cleanup, and serial Host sessions.
+- Local solution Release build, both desktop-pet source gates, personalization source gate, FoundationSmoke, WindowsSmoke, Host self-tests, and the real FlyingHost IPC ordering check passed.
+- Targeted candidate: `artifacts/facm4-win10-targeted-batch-p.zip`, 237,928,250 bytes, SHA-256 `a5508c6ab65e3c5c023e957a32e44cf41ece7871f996f4338aaefaa71c9f8c80`; App EXE 378,010,788 bytes, SHA-256 `662e1fb5b2df4c4d09bd5657059ba3f8086fbcb8a017380fbee76757a06046f0`; targeted directory has 4 files and 0 DLLs.
+
+This is a local fix candidate, not a production release. The next acceptance action is the real Win10 minimal sequence `real-bee -> butterfly -> vpet -> real-bee -> Off`; only a clean result permits the longer six-pet / ten-round retest.
 
 ## 2026-08-30 candidate 2730 本机 Foundation 等价验证
 

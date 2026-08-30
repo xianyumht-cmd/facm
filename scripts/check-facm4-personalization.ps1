@@ -27,10 +27,12 @@ $flyingRuntimePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/
 $routerPath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsDesktopPetRuntimeRouter.cs'
 $jobPath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsChildProcessJob.cs'
 $petHostProgramPath = Join-Path $Root 'src/FACM.PetHost/Program.cs'
+$petHostWindowPath = Join-Path $Root 'src/FACM.PetHost/PetHostWindow.cs'
 $flyingHostProgramPath = Join-Path $Root 'src/FACM.FlyingHost/Program.cs'
 $flyingHostProjectPath = Join-Path $Root 'src/FACM.FlyingHost/FACM.FlyingHost.csproj'
 $flyingProfilesPath = Join-Path $Root 'src/FACM.FlyingHost/FlyingPetProfiles.cs'
 $flyingWindowPath = Join-Path $Root 'src/FACM.FlyingHost/FlyingPetHostWindow.cs'
+$ipcSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/DesktopPetIpcLifecycleSmoke.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/PersonalizationSmoke.cs'
 $foundationProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 $petWindowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
@@ -43,8 +45,8 @@ foreach ($path in @(
     $coreCatalogPath, $coreContractsPath, $preferencePath, $settingsPath, $viewModelPath, $runtimePath,
     $surfacePath, $stateSyncPath, $appPersonalizationPath, $appProjectPath, $controlCenterPath,
     $petBundleStorePath, $flyingBundleStorePath, $vpetRuntimePath, $flyingRuntimePath, $routerPath, $jobPath,
-    $petHostProgramPath, $flyingHostProgramPath, $flyingHostProjectPath, $flyingProfilesPath, $flyingWindowPath,
-    $smokePath, $foundationProgramPath, $petWindowsSmokePath, $flyingWindowsSmokePath, $windowsSmokeProgramPath,
+    $petHostProgramPath, $petHostWindowPath, $flyingHostProgramPath, $flyingHostProjectPath, $flyingProfilesPath, $flyingWindowPath,
+    $smokePath, $foundationProgramPath, $petWindowsSmokePath, $flyingWindowsSmokePath, $ipcSmokePath, $windowsSmokeProgramPath,
     $workflowPath, $solutionPath
 )) {
     if (-not (Test-Path $path)) { Fail "Personalization contract file missing: $path" }
@@ -67,10 +69,12 @@ $flyingRuntime = Get-Content $flyingRuntimePath -Raw
 $router = Get-Content $routerPath -Raw
 $job = Get-Content $jobPath -Raw
 $petHostProgram = Get-Content $petHostProgramPath -Raw
+$petHostWindow = Get-Content $petHostWindowPath -Raw
 $flyingHostProgram = Get-Content $flyingHostProgramPath -Raw
 $flyingHostProject = Get-Content $flyingHostProjectPath -Raw
 $flyingProfiles = Get-Content $flyingProfilesPath -Raw
 $flyingWindow = Get-Content $flyingWindowPath -Raw
+$ipcSmoke = Get-Content $ipcSmokePath -Raw
 $smoke = Get-Content $smokePath -Raw
 $foundationProgram = Get-Content $foundationProgramPath -Raw
 $petWindowsSmoke = Get-Content $petWindowsSmokePath -Raw
@@ -150,7 +154,7 @@ foreach ($required in @(
     'WindowsVPetRuntime', 'WindowsFlyingPetRuntime', 'WindowsDesktopPetRuntimeRouter',
     'GetManifestResourceStream', 'ConfigureDesktopPetService', 'InitializeDesktopPetAfterLauncherReadyAsync',
     'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync', 'DisposePersonalizationRuntime',
-    'ReadPetHostBundleSha256', 'ReadFlyingHostBundleSha256'
+    'ReadPetHostBundleSha256', 'ReadFlyingHostBundleSha256', 'ParseDesktopPetRuntimeStage', 'rawStage'
 )) {
     if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "App personalization composition missing: $required" }
 }
@@ -184,14 +188,20 @@ if ($flyingBundleStore -match 'VPet-Simulator.Core') { Fail 'FlyingHost bundle s
 foreach ($required in @(
     'IDesktopPetRuntime', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign', 'activate|', 'event|',
     'ready', 'runtime-failed', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)',
-    'VPetCore', '--pet-id', 'runtime-unsupported', 'HostReadyTimeout', 'host-ready-timeout', '_lifetime'
+    'VPetCore', '--pet-id', 'runtime-unsupported', 'HostReadyTimeout', 'host-ready-timeout', '_lifetime',
+    'SendCommandAsync', 'WriteLineAsync(command.AsMemory(), cancellationToken)', 'FlushAsync(cancellationToken)',
+    'transport-poisoned', 'stop-send-skipped-poisoned', 'process-wait-start', 'process-kill-start',
+    'transport-dispose-start'
 )) {
     if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled VPet runtime missing: $required" }
 }
 foreach ($required in @(
     'IDesktopPetRuntime', 'WindowsFlyingHostBundleStore', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign',
     'FacmPetRuntimeKind.FlyingSprite', 'FACM.FlyingHost.', '--pet-id', 'flying-payload-preparing',
-    'flying-process-start-timeout', 'flying-host-ready-timeout', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)'
+    'flying-process-start-timeout', 'flying-host-ready-timeout', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)',
+    'SendCommandAsync', 'WriteLineAsync(command.AsMemory(), cancellationToken)', 'FlushAsync(cancellationToken)',
+    'flying-transport-poisoned', 'flying-stop-send-skipped-poisoned', 'flying-process-wait-start',
+    'flying-process-kill-start', 'flying-transport-dispose-start'
 )) {
     if ($flyingRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled Flying Sprite runtime missing: $required" }
 }
@@ -210,10 +220,18 @@ foreach ($required in @('PetHostWindow', 'VPetAssetCacheValidator', 'VPet_Simula
     if ($petHostProgram -notmatch [regex]::Escape($required)) { Fail "VPet PetHost entry missing: $required" }
 }
 if ($petHostProgram -match 'FlyingPetHostWindow|FlyingPetProfiles') { Fail 'VPet PetHost must not own Flying Sprite entry/runtime.' }
+if ($petHostProgram -match 'window\.Show\(\)') { Fail 'VPet PetHost must not show before activate.' }
+foreach ($required in @('_activated', 'if \(!_activated\) return;', 'HandleCommandOnDispatcherAsync', 'SendEventAsync\("stage"')) {
+    if ($petHostWindow -notmatch $required) { Fail "VPet PetHost activation lifecycle missing: $required" }
+}
 foreach ($required in @('FlyingPetHostWindow', '--pet-id', '--pipe', '--parent-pid', '--self-test', 'FlyingHostSelfTest')) {
     if ($flyingHostProgram -notmatch [regex]::Escape($required)) { Fail "FlyingHost entry missing: $required" }
 }
 if ($flyingHostProgram -match 'VPetAssetCacheValidator|VPet_Simulator') { Fail 'FlyingHost entry must not own VPet runtime/cache.' }
+if ($flyingHostProgram -match 'window\.Show\(\)') { Fail 'FlyingHost must not show before activate.' }
+foreach ($required in @('_activated', 'if \(!_activated\) return;', 'HandleCommandOnDispatcherAsync', 'SendEventAsync\("stage"')) {
+    if ($flyingWindow -notmatch $required) { Fail "FlyingHost activation lifecycle missing: $required" }
+}
 foreach ($required in @('<AssemblyName>FACM.FlyingHost</AssemblyName>', '<UseWPF>true</UseWPF>', '<UseWindowsForms>true</UseWindowsForms>')) {
     if ($flyingHostProject -notmatch [regex]::Escape($required)) { Fail "FlyingHost project contract missing: $required" }
 }
@@ -233,6 +251,16 @@ foreach ($required in @(
 )) {
     if ($flyingWindow -notmatch [regex]::Escape($required)) { Fail "FlyingHost behavior missing: $required" }
 }
+
+foreach ($required in @(
+    'VerifyActivateHandshakeOrderAsync', 'VerifyCancellationAwareCommandWriteAsync',
+    'VerifyStopSendFailureIsFailSoftAsync',
+    'VerifySequentialHostSessionsAsync', 'event|stage|show', 'event|stage|loaded',
+    'timed-out IPC command write left a pending task', 'maximum active host count'
+)) {
+    if ($ipcSmoke -notmatch [regex]::Escape($required)) { Fail "Desktop-pet IPC lifecycle smoke missing: $required" }
+}
+if ($windowsSmokeProgram -notmatch 'DesktopPetIpcLifecycleSmoke\.RunAsync') { Fail 'Windows smoke runner does not execute desktop-pet IPC lifecycle smoke.' }
 
 foreach ($required in @(
     'Prepare controlled FlyingHost payload', 'FACM.FlyingHost/FACM.FlyingHost.csproj', 'FACM.FlyingHost.exe',

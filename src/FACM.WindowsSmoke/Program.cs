@@ -7,6 +7,16 @@ using FACM.Platform.Windows.Desktop;
 using FACM.Platform.Windows.League;
 using FACM.Platform.Windows.Runtime;
 
+var ipcSmokeArgument = args.FirstOrDefault(argument => argument.StartsWith("--desktop-pet-ipc", StringComparison.OrdinalIgnoreCase));
+if (ipcSmokeArgument is not null)
+{
+    var selectedSmoke = ipcSmokeArgument.IndexOf('=') >= 0
+        ? ipcSmokeArgument[(ipcSmokeArgument.IndexOf('=') + 1)..]
+        : null;
+    await DesktopPetIpcLifecycleSmoke.RunAsync(selectedSmoke);
+    return;
+}
+
 var executablePaths = new WindowsExecutablePathProvider();
 var layout = RuntimePathLayout.From(executablePaths);
 var expectedDistribution = Path.GetDirectoryName(Path.GetFullPath(executablePaths.ExecutablePath))
@@ -31,6 +41,7 @@ RepairWindowsSmoke.Run();
 await DesktopPetBundleGateSmoke.RunAsync();
 await FlyingHostBundleSmoke.RunAsync();
 await PetHostBundleSmoke.RunAsync();
+await DesktopPetIpcLifecycleSmoke.RunAsync();
 
 var discovered = new LeagueTransportSession(
     new LeagueSessionDescriptor(41, 29999, "https", "windows-smoke", "HN1", "HN"),

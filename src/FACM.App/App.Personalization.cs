@@ -191,10 +191,13 @@ public partial class App
 
     private void ReportDesktopPetRuntimeStage(string eventName, string reason, string stage)
     {
-        var failed = stage.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
-                     stage.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
-                     stage.Contains("cancelled", StringComparison.OrdinalIgnoreCase) ||
-                     stage.Contains("rejected", StringComparison.OrdinalIgnoreCase);
+        var diagnosticFields = ParseDesktopPetRuntimeStage(stage);
+        var normalizedStage = diagnosticFields["stage"];
+        var failed = normalizedStage.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     normalizedStage.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                     normalizedStage.Contains("cancelled", StringComparison.OrdinalIgnoreCase) ||
+                     normalizedStage.Contains("rejected", StringComparison.OrdinalIgnoreCase);
+        diagnosticFields["rawStage"] = stage ?? string.Empty;
         QueueDiagnostic(DiagnosticEventFactory.Create(
             eventName,
             "FACM.Personalization",
@@ -203,10 +206,26 @@ public partial class App
             reason,
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
-            new Dictionary<string, string>
-            {
-                ["stage"] = stage ?? string.Empty
-            }));
+            diagnosticFields));
+    }
+
+    private static Dictionary<string, string> ParseDesktopPetRuntimeStage(string? stage)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["stage"] = string.Empty
+        };
+        if (string.IsNullOrWhiteSpace(stage)) return fields;
+
+        var parts = stage.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        fields["stage"] = parts[0];
+        for (var index = 1; index < parts.Length; index++)
+        {
+            var separator = parts[index].IndexOf('=');
+            if (separator <= 0 || separator == parts[index].Length - 1) continue;
+            fields[parts[index][..separator]] = parts[index][(separator + 1)..];
+        }
+        return fields;
     }
 
     private void AttachDesktopPetCloseHook(FloatingWindow floating)

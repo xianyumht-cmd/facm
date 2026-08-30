@@ -454,3 +454,22 @@ Build #845 因此在 FACM 编译阶段以 CS7036 失败；PetHost publish/self-t
 - PR #58
 - Build #845（旧 `FloatingBallSmokeTest` 构造调用）
 - Build #846（显式注入修复后成功）
+
+## IPC 写入超时不能只包裹外层 WaitAsync，Host 也不能在 activate 前 Show
+
+### 根因
+
+桌宠 Runtime 旧实现把不可取消的 `StreamWriter.WriteLineAsync`/`FlushAsync` 放进外层 `WaitAsync`。外层任务超时并不代表底层写入结束；随后清理阶段仍可能复用已污染的 writer。与此同时，FlyingHost/PetHost 的 `Program` 在进入 `Application.Run()` 前无条件 `window.Show()`，因此每次切换都可能先显示一个未完成 activate 的 Host。
+
+### 防回归规则
+
+- activate/reset/stop 命令写入必须把取消令牌传到 `WriteLineAsync` 和 `FlushAsync`，并为每次命令保留有界预算。
+- activate 写超时或写异常后必须标记 transport poisoned；清理只做 detach/dispose、进程 wait/kill/wait/dispose，不再发送 graceful stop。
+- Host 的 `Program` 不得预先 `Show()`；Dispatcher 先运行，`activate` 才允许 `Show()`，随后才进入 `Loaded -> ready`。
+- IPC server 连接后直接进入命令 reader，不得预发送会占用命令时序的 `connected` event。
+- deterministic Windows smoke 必须覆盖激活顺序、取消写入无 pending task、关闭 transport 的 stop 写失败仍 fail-soft，以及串行 Host 会话。
+
+### 关联
+
+- FACM 4.0 / PR #234 / Batch P
+- `artifacts/facm4-win10-targeted-batch-p.zip` targeted candidate

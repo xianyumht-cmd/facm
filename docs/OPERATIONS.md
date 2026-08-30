@@ -300,3 +300,13 @@ The local order is: publish/self-test FlyingHost and create `FlyingHostBundle.zi
 The observed outputs were FlyingHost 464 files / `72,052,263` bytes / `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`, PetHost 472 files / `76,915,115` bytes / `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`, and FACM.App.exe `377,994,404` bytes / `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`. The App output had four files and zero DLL entries.
 
 With .NET 10, `WFAC010` is real when a WPF/WinForms host keeps legacy `dpiAware`/`dpiAwareness` manifest nodes. Resolve it by setting `ApplicationHighDpiMode=PerMonitorV2` and removing those nodes; do not suppress the warning or lower warnings-as-errors. Stacked PR production-control gates must compare against the PR base parent, not `origin/main`, because inherited P2-P6 changes otherwise look like a new protected-file mutation.
+
+## 14. 2026-08-30 Batch P IPC lifecycle candidate
+
+Batch P was built in the isolated worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` from base `fc9f2376ceece94351837c9339ae9301ea7415ad` on temporary branch `tmp/p7-ipc-lifecycle-fix-20260830`. The formal P7 branch and PR #234 were not moved or merged.
+
+The candidate adds cancellation-aware client command writes, poisoned-transport cleanup, post-kill process waiting, activate-gated WPF Host visibility, and a command-first server handshake. The targeted output is `artifacts/facm4-win10-targeted-batch-p.zip`: 237,928,250 bytes, SHA-256 `a5508c6ab65e3c5c023e957a32e44cf41ece7871f996f4338aaefaa71c9f8c80`.
+
+The contained `FACM.App.exe` is 378,010,788 bytes with SHA-256 `662e1fb5b2df4c4d09bd5657059ba3f8086fbcb8a017380fbee76757a06046f0`. The targeted directory contains four files and zero DLL files. The new host payload identities are FlyingHost bundle `2a4f9722adbc21a5a63050ed50510fea1f3a01a9a844230c56c9e48bc6639f81` and PetHost bundle `ca63f66db51012eda1a5f4816dffc3a8b762f0d0bf0fd165ef6a2aea232cd051`.
+
+Local verification completed: both Host self-tests, solution Release build (0 warnings / 0 errors), the two desktop-pet source gates, personalization source gate, deterministic FoundationSmoke, deterministic WindowsSmoke, and the new IPC lifecycle smoke. Before any real-machine conclusion, retest the candidate with `real-bee -> butterfly -> vpet -> real-bee -> Off`; only after that minimal sequence is clean should the longer six-pet / ten-round sequence run. Do not treat this local candidate as a production release.

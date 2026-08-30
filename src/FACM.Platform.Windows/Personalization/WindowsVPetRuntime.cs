@@ -32,6 +32,8 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     private StreamWriter? _writer;
     private CancellationTokenSource? _transportCancellation;
     private Task? _readLoop;
+    private string? _transportPipeName;
+    private bool _transportPoisoned;
     private int _generation;
     private bool _disposed;
 
@@ -85,7 +87,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             if (!enabled)
             {
                 await StopTransportLockedAsync().ConfigureAwait(false);
-                SetLauncherVisible(true);
+                RestoreLauncher("vpet-launcher-restore");
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "launcher-restored"));
                 return new DesktopPetModeResult(true, false, "launcher-restored");
             }
@@ -93,7 +95,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             if (pet.Runtime != FacmPetRuntimeKind.VPetCore)
             {
                 await StopTransportLockedAsync().ConfigureAwait(false);
-                SetLauncherVisible(true);
+                RestoreLauncher("vpet-launcher-restore-unsupported");
                 var unsupported = "runtime-unsupported:" + pet.Runtime;
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, unsupported));
                 return new DesktopPetModeResult(false, false, unsupported);
@@ -108,7 +110,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             }
 
             await StopTransportLockedAsync().ConfigureAwait(false);
-            SetLauncherVisible(true);
+            RestoreLauncher("vpet-launcher-restore-before-start");
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id, "payload-preparing"));
 
             PetHostBundlePreparation preparation;
@@ -132,11 +134,22 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
                 return new DesktopPetModeResult(false, false, "payload-failed:" + exception.GetType().Name);
             }
 
-            var result = await StartPetHostLockedAsync(preparation, pet, operation.Token).ConfigureAwait(false);
+            DesktopPetModeResult result;
+            try
+            {
+                result = await StartPetHostLockedAsync(preparation, pet, operation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                await StopTransportLockedAsync().ConfigureAwait(false);
+                RestoreLauncher("vpet-launcher-restore-cancelled");
+                UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "vpet-start-cancelled"));
+                throw;
+            }
             if (!result.Success)
             {
                 await StopTransportLockedAsync().ConfigureAwait(false);
-                SetLauncherVisible(true);
+                RestoreLauncher("vpet-launcher-restore-failure");
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, result.Detail));
             }
             return result;
@@ -156,15 +169,21 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         {
             if (_writer is not null)
             {
+                var writer = _writer;
+                using var writeTimeout = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+                writeTimeout.CancelAfter(CommandWriteTimeout);
                 try
                 {
-                    await TrySendAsync(_writer, "reset")
-                        .WaitAsync(CommandWriteTimeout, operation.Token)
-                        .ConfigureAwait(false);
+                    await SendCommandAsync(writer, "reset", writeTimeout.Token).ConfigureAwait(false);
                 }
-                catch (TimeoutException)
+                catch (OperationCanceledException) when (!operation.Token.IsCancellationRequested)
                 {
-                    ReportStage("reset-send-timeout");
+                    PoisonTransport("reset-send-timeout", Volatile.Read(ref _generation), _transportPipeName, _process, "reset");
+                }
+                catch (Exception exception)
+                {
+                    PoisonTransport("reset-send-failed:" + exception.GetType().Name,
+                        Volatile.Read(ref _generation), _transportPipeName, _process, "reset");
                 }
             }
             operation.Token.ThrowIfCancellationRequested();
@@ -185,6 +204,8 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
     {
         var generation = ++_generation;
         var pipeName = "FACM.PetHost." + Environment.ProcessId + "." + Guid.NewGuid().ToString("N");
+        _transportPipeName = pipeName;
+        _transportPoisoned = false;
         Directory.CreateDirectory(_dataRoot);
 
         var startInfo = new ProcessStartInfo
@@ -239,7 +260,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             ReportStage("process-start-rejected");
             return new DesktopPetModeResult(false, false, "process-start-rejected");
         }
-        ReportStage("process-start-finish");
+        ReportStage("process-start-finish", generation, pipeName, process);
 
         var pipe = new NamedPipeClientStream(
             ".",
@@ -268,21 +289,31 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
             _reader = reader;
             _writer = writer;
             _transportCancellation = transportCancellation;
+            _transportPoisoned = false;
             process.Exited += OnProcessExited;
 
-            ReportStage("activate-send-start");
+            const string commandPrefix = "activate|";
+            var activateCommand = commandPrefix + pet.Id;
+            var activateClock = Stopwatch.StartNew();
+            ReportStage("activate-send-start", generation, pipeName, process, activateCommand);
             try
             {
-                await TrySendAsync(writer, "activate|" + pet.Id)
-                    .WaitAsync(startupTimeout.Token)
-                    .ConfigureAwait(false);
+                using var activateTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                activateTimeout.CancelAfter(CommandWriteTimeout);
+                await SendCommandAsync(writer, activateCommand, activateTimeout.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                ReportStage("activate-send-timeout");
+                PoisonTransport("activate-send-timeout", generation, pipeName, process, activateCommand, activateClock.ElapsedMilliseconds);
                 return new DesktopPetModeResult(false, false, "activate-send-timeout");
             }
-            ReportStage("activate-send-finish");
+            catch (Exception exception)
+            {
+                PoisonTransport("activate-send-failed:" + exception.GetType().Name,
+                    generation, pipeName, process, activateCommand, activateClock.ElapsedMilliseconds);
+                return new DesktopPetModeResult(false, false, "activate-send-failed:" + exception.GetType().Name);
+            }
+            ReportStage("activate-send-finish", generation, pipeName, process, activateCommand, activateClock.ElapsedMilliseconds);
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "host-starting-cache-hit" : "host-starting-new-payload"));
 
@@ -294,11 +325,18 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 
                 if (string.Equals(eventName, "ready", StringComparison.OrdinalIgnoreCase))
                 {
-                    ReportStage("host-ready");
+                    ReportStage("host-ready", generation, pipeName, process);
+                    ReportStage("launcher-hide", generation, pipeName, process);
                     SetLauncherVisible(false);
                     UpdateState(new DesktopPetRuntimeState(true, true, pet.Id, "ready:" + detail));
                     _readLoop = Task.Run(() => ReadLoopAsync(generation, pet.Id, reader, transportCancellation.Token));
                     return new DesktopPetModeResult(true, true, "ready:" + detail);
+                }
+
+                if (string.Equals(eventName, "stage", StringComparison.OrdinalIgnoreCase))
+                {
+                    ReportStage("host-" + detail, generation, pipeName, process);
+                    continue;
                 }
 
                 if (string.Equals(eventName, "error", StringComparison.OrdinalIgnoreCase))
@@ -470,7 +508,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         {
             if (_disposed || generation != _generation) return;
             await StopTransportLockedAsync().ConfigureAwait(false);
-            SetLauncherVisible(true);
+            RestoreLauncher("vpet-launcher-restore-recovery");
             UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "runtime-failed:" + detail));
         }
         finally
@@ -481,12 +519,14 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
 
     private async Task StopTransportLockedAsync()
     {
-        ++_generation;
+        var generation = ++_generation;
         var process = _process;
         var pipe = _pipe;
         var reader = _reader;
         var writer = _writer;
         var cancellation = _transportCancellation;
+        var pipeName = _transportPipeName;
+        var poisoned = _transportPoisoned;
 
         _process = null;
         _pipe = null;
@@ -494,28 +534,47 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         _writer = null;
         _transportCancellation = null;
         _readLoop = null;
+        _transportPipeName = null;
+        _transportPoisoned = false;
 
+        ReportStage("transport-detach", generation, pipeName, process);
         try { cancellation?.Cancel(); } catch { }
-        if (writer is not null)
+        if (writer is not null && !poisoned)
         {
+            const string command = "stop";
+            var stopClock = Stopwatch.StartNew();
+            ReportStage("stop-send-start", generation, pipeName, process, command);
             try
             {
-                await TrySendAsync(writer, "stop")
-                    .WaitAsync(CommandWriteTimeout)
-                    .ConfigureAwait(false);
+                using var stopTimeout = new CancellationTokenSource(CommandWriteTimeout);
+                await SendCommandAsync(writer, command, stopTimeout.Token).ConfigureAwait(false);
+                ReportStage("stop-send-finish", generation, pipeName, process, command, stopClock.ElapsedMilliseconds);
             }
-            catch (TimeoutException)
+            catch (OperationCanceledException)
             {
-                ReportStage("stop-send-timeout");
+                ReportStage("stop-send-timeout", generation, pipeName, process, command, stopClock.ElapsedMilliseconds);
+            }
+            catch (Exception exception)
+            {
+                ReportStage("stop-send-failed:" + exception.GetType().Name,
+                    generation, pipeName, process, command, stopClock.ElapsedMilliseconds);
             }
         }
+        else if (writer is not null)
+        {
+            ReportStage("stop-send-skipped-poisoned", generation, pipeName, process, "stop");
+        }
+
+        ReportStage("transport-dispose-start", generation, pipeName, process);
         try { writer?.Dispose(); } catch { }
         try { reader?.Dispose(); } catch { }
         try { pipe?.Dispose(); } catch { }
-        cancellation?.Dispose();
+        try { cancellation?.Dispose(); } catch { }
+        ReportStage("transport-dispose-finish", generation, pipeName, process);
 
         if (process is null) return;
         try { process.Exited -= OnProcessExited; } catch { }
+        ReportStage("process-wait-start", generation, pipeName, process);
         try
         {
             if (!process.HasExited)
@@ -523,36 +582,36 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
                 try
                 {
                     await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMilliseconds(1200)).ConfigureAwait(false);
+                    ReportStage("process-wait-finish", generation, pipeName, process);
                 }
                 catch (TimeoutException)
                 {
-                    process.Kill(entireProcessTree: true);
+                    ReportStage("process-wait-timeout", generation, pipeName, process);
+                    KillProcess(process, generation, pipeName);
+                    await WaitForKilledProcessAsync(process, generation, pipeName).ConfigureAwait(false);
                 }
             }
+            else ReportStage("process-wait-finish", generation, pipeName, process);
         }
-        catch
+        catch (Exception exception)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+            ReportStage("process-wait-failed:" + exception.GetType().Name, generation, pipeName, process);
+            KillProcess(process, generation, pipeName);
+            await WaitForKilledProcessAsync(process, generation, pipeName).ConfigureAwait(false);
         }
         finally
         {
-            process.Dispose();
+            ReportStage("process-dispose-start", generation, pipeName, process);
+            try { process.Dispose(); }
+            catch (Exception exception) { ReportStage("process-dispose-failed:" + exception.GetType().Name, generation, pipeName, null); }
+            ReportStage("process-dispose-finish", generation, pipeName, null);
         }
     }
 
-    private static async Task TrySendAsync(StreamWriter writer, string command)
+    private static async Task SendCommandAsync(StreamWriter writer, string command, CancellationToken cancellationToken)
     {
-        try
-        {
-            await writer.WriteLineAsync(command).ConfigureAwait(false);
-            await writer.FlushAsync().ConfigureAwait(false);
-        }
-        catch (IOException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
+        await writer.WriteLineAsync(command.AsMemory(), cancellationToken).ConfigureAwait(false);
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static bool TryParseEvent(string line, out string eventName, out string detail)
@@ -572,6 +631,54 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         try { _setLauncherVisible(visible); } catch { }
     }
 
+    private void RestoreLauncher(string stage)
+    {
+        ReportStage(stage);
+        SetLauncherVisible(true);
+    }
+
+    private void PoisonTransport(string stage, int generation, string? pipeName, Process? process, string command, long? elapsedMs = null)
+    {
+        _transportPoisoned = true;
+        ReportStage(stage, generation, pipeName, process, command, elapsedMs);
+        ReportStage("transport-poisoned", generation, pipeName, process, command, elapsedMs);
+    }
+
+    private void KillProcess(Process process, int generation, string? pipeName)
+    {
+        ReportStage("process-kill-start", generation, pipeName, process);
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                ReportStage("process-kill-finish", generation, pipeName, process);
+            }
+        }
+        catch (Exception exception)
+        {
+            ReportStage("process-kill-failed:" + exception.GetType().Name, generation, pipeName, process);
+        }
+    }
+
+    private async Task WaitForKilledProcessAsync(Process process, int generation, string? pipeName)
+    {
+        ReportStage("process-kill-wait-start", generation, pipeName, process);
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMilliseconds(1200)).ConfigureAwait(false);
+            ReportStage("process-kill-wait-finish", generation, pipeName, process);
+        }
+        catch (TimeoutException)
+        {
+            ReportStage("process-kill-wait-timeout", generation, pipeName, process);
+        }
+        catch (Exception exception)
+        {
+            ReportStage("process-kill-wait-failed:" + exception.GetType().Name, generation, pipeName, process);
+        }
+    }
+
     private static void TryInvoke(Action action)
     {
         try { action(); } catch { }
@@ -583,9 +690,28 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         try { StateChanged?.Invoke(this, state); } catch { }
     }
 
-    private void ReportStage(string stage)
+    private void ReportStage(
+        string stage,
+        int? generation = null,
+        string? pipeName = null,
+        Process? process = null,
+        string? command = null,
+        long? elapsedMs = null)
     {
-        try { _reportStage?.Invoke(stage); } catch { }
+        try
+        {
+            var fields = new List<string> { stage };
+            if (generation is not null) fields.Add("generation=" + generation.Value);
+            if (pipeName is not null) fields.Add("pipeName=" + pipeName);
+            if (process is not null)
+            {
+                try { fields.Add("pid=" + process.Id); } catch { }
+            }
+            if (command is not null) fields.Add("command=" + command);
+            if (elapsedMs is not null) fields.Add("elapsedMs=" + elapsedMs.Value);
+            _reportStage?.Invoke(string.Join(';', fields));
+        }
+        catch { }
     }
 
     private static bool IsProcessAlive(Process? process)
@@ -609,6 +735,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         try { _writer?.Dispose(); } catch { }
         try { _reader?.Dispose(); } catch { }
         try { _pipe?.Dispose(); } catch { }
+        try { _transportCancellation?.Dispose(); } catch { }
         try
         {
             if (_process is not null && !_process.HasExited) _process.Kill(entireProcessTree: true);
@@ -622,6 +749,8 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         _reader = null;
         _writer = null;
         _transportCancellation = null;
+        _transportPipeName = null;
+        _transportPoisoned = false;
         _readLoop = null;
         StateChanged = null;
         // Do not dispose _gate or _lifetime here: an in-flight ApplyAsync/ResetPositionAsync may be

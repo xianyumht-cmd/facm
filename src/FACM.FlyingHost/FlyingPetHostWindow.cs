@@ -44,6 +44,7 @@ internal sealed class FlyingPetHostWindow : Window
     private int _dragCursorY;
     private double _dragWindowX;
     private double _dragWindowY;
+    private bool _activated;
     private bool _closed;
 
     public FlyingPetHostWindow(PetHostIpc ipc, string? petId)
@@ -96,9 +97,11 @@ internal sealed class FlyingPetHostWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (!_activated) return;
         ResetToPrimaryScreen();
         _timer.Start();
-        await _ipc.SendEventAsync("ready", "flying-runtime;pet=" + _petId).ConfigureAwait(false);
+        await _ipc.SendEventAsync("stage", "loaded;pid=" + Environment.ProcessId + ";pet=" + _petId).ConfigureAwait(false);
+        await _ipc.SendEventAsync("ready", "flying-runtime;pet=" + _petId + ";pid=" + Environment.ProcessId).ConfigureAwait(false);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -120,27 +123,37 @@ internal sealed class FlyingPetHostWindow : Window
     {
         _ = Dispatcher.BeginInvoke(new Action(() =>
         {
-            var parts = line.Split('|', 2);
-            var command = parts[0].Trim().ToLowerInvariant();
-            switch (command)
-            {
-                case "activate":
-                    if (parts.Length > 1 && FlyingPetProfiles.Contains(parts[1]))
-                        SetPet(parts[1]);
-                    if (!IsVisible) Show();
-                    Topmost = true;
-                    break;
-                case "reset":
-                    ResetToPrimaryScreen();
-                    break;
-                case "stop":
-                    Close();
-                    break;
-                case "ping":
-                    _ = _ipc.SendEventAsync("pong");
-                    break;
-            }
+            _ = HandleCommandOnDispatcherAsync(line);
         }));
+    }
+
+    private async Task HandleCommandOnDispatcherAsync(string line)
+    {
+        var parts = line.Split('|', 2);
+        var command = parts[0].Trim().ToLowerInvariant();
+        switch (command)
+        {
+            case "activate":
+                if (parts.Length > 1 && FlyingPetProfiles.Contains(parts[1]))
+                    SetPet(parts[1]);
+                if (!IsVisible)
+                {
+                    _activated = true;
+                    await _ipc.SendEventAsync("stage", "show;pid=" + Environment.ProcessId + ";pet=" + _petId);
+                    Show();
+                }
+                Topmost = true;
+                break;
+            case "reset":
+                ResetToPrimaryScreen();
+                break;
+            case "stop":
+                Close();
+                break;
+            case "ping":
+                await _ipc.SendEventAsync("pong");
+                break;
+        }
     }
 
     private void SetPet(string petId)
