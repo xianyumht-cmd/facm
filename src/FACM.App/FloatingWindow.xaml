@@ -8,6 +8,14 @@
         Width="64"
         Height="64"
         Background="{StaticResource FacmAccentBrush}">
+        <Border
+            x:Name="FloatingSurface"
+            Width="64"
+            Height="64"
+            Background="{StaticResource FacmAccentBrush}"
+            BorderBrush="{StaticResource FacmStrokeBrush}"
+            BorderThickness="1"
+            CornerRadius="32">
         <Button
             x:Name="FloatingButton"
             Width="64"
@@ -20,11 +28,33 @@
             CornerRadius="32"
             Style="{StaticResource FacmPrimaryButtonStyle}"
             automation:AutomationProperties.AutomationId="FACM.Desktop.OpenShell">
-            <TextBlock
-                Text="F"
-                FontSize="22"
-                FontWeight="SemiBold"
-                Foreground="{StaticResource FacmAccentTextBrush}" />
+            <Path
+                Width="28"
+                Height="28"
+                Stretch="Fill"
+                Fill="{StaticResource FacmAccentTextBrush}"
+                Data="M 2,2 L 16,2 L 16,5 L 6,5 L 6,8 L 14,8 L 14,11 L 6,11 L 6,16 L 2,16 Z" />
         </Button>
+        </Border>
+        <Border
+            x:Name="FloatingStatusBadge"
+            Width="12"
+            Height="12"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,-2,-2,0"
+            Background="{StaticResource FacmSuccessBrush}"
+            BorderBrush="{StaticResource FacmBackgroundBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Visibility="Collapsed">
+            <TextBlock
+                x:Name="FloatingStatusBadgeText"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="8"
+                FontWeight="Bold"
+                Foreground="{StaticResource FacmTextPrimaryBrush}" />
+        </Border>
     </Grid>
 </Window>

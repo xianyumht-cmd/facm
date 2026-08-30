@@ -1,6 +1,7 @@
 using FACM.App.ViewModels;
 using FACM.Core.Cleanup;
 using FACM.Core.Desktop;
+using FACM.Core.League;
 using FACM.Core.Observability;
 using FACM.Core.Online;
 using FACM.Core.Performance;
@@ -28,11 +29,17 @@ namespace FACM.App;
 public partial class App : Application
 {
     private readonly SemaphoreSlim _floatingPlacementSaveGate = new(1, 1);
+    private readonly bool _morphingSurfaceExperience =
+        !string.Equals(
+            Environment.GetEnvironmentVariable("FACM_SHELL_EXPERIENCE"),
+            "legacy",
+            StringComparison.OrdinalIgnoreCase);
 
     private MainWindow? _window;
     private CompactLauncherWindow? _compactLauncher;
     private FloatingWindow? _floatingWindow;
     private IDesktopWorkAreaProvider? _desktopWorkAreas;
+    private WindowsFloatingSurfacePlatform? _floatingSurfacePlatform;
     private ControlCenterViewModel? _controlCenter;
     private CleanupViewModel? _cleanupCenter;
     private WindowsCleanupEnvironment? _cleanupEnvironment;
@@ -151,34 +158,44 @@ public partial class App : Application
         ConfigureLeagueAutomationFromSettings();
         InitializeLeaguePostGameAutomationFromSettings();
 
+        _desktopWorkAreas = new WindowsDesktopWorkAreaProvider();
+        _floatingSurfacePlatform = new WindowsFloatingSurfacePlatform();
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
         _gameflow.Start();
 
-        // Keep MainWindow XAML constructed during startup so Win10 resource regressions still fail fast,
-        // but do not activate the large shell. FACM 3.5's proven default UX is launcher-first.
+        // The default candidate is one persistent MainWindow surface. The legacy FloatingWindow /
+        // CompactLauncher path remains available through FACM_SHELL_EXPERIENCE=legacy for rollback.
         PrepareMainWindow();
         _ = InitializeMaintenanceAsync();
 
-        _desktopWorkAreas = new WindowsDesktopWorkAreaProvider();
-        var floatingPlatform = new WindowsFloatingSurfacePlatform();
-        _floatingWindow = new FloatingWindow(
-            _desktopWorkAreas,
-            floatingPlatform,
-            _uiText,
-            ToggleCompactLauncher,
-            ShowTrayContextMenuAtCursor,
-            PersistFloatingPlacementAsync);
-        _floatingWindow.Closed += OnFloatingWindowClosed;
-        try
+        if (_morphingSurfaceExperience)
         {
-            _floatingWindow.ApplyPlacement(null);
+            _window?.InitializeMorphingSurface(null);
+            _ = ApplyPreferredMorphingPlacementAsync(_settings, _window);
         }
-        catch (Exception exception)
+        else
         {
-            QueueDiagnostic(CreateDesktopPlacementDiagnostic("default-placement-failed", exception));
+            _floatingWindow = new FloatingWindow(
+                _desktopWorkAreas,
+                _floatingSurfacePlatform!,
+                _uiText,
+                ToggleCompactLauncher,
+                ShowTrayContextMenuAtCursor,
+                PersistFloatingPlacementAsync);
+            _floatingWindow.Closed += OnFloatingWindowClosed;
+            try
+            {
+                _floatingWindow.ApplyPlacement(null);
+            }
+            catch (Exception exception)
+            {
+                QueueDiagnostic(CreateDesktopPlacementDiagnostic("default-placement-failed", exception));
+            }
+            _floatingWindow.Activate();
+            _ = ApplyPreferredFloatingPlacementAsync(_settings, _floatingWindow);
         }
-        _floatingWindow.Activate();
-        _ = ApplyPreferredFloatingPlacementAsync(_settings, _floatingWindow);
+        _gameflow.Changed += OnLeagueGameflowChanged;
+        ApplyDesktopGameflowStatus(_gameflow.Current);
 
         _productState.SetApplication(ApplicationProductState.Ready, "desktop-launcher-ready");
         QueueLifecycleDiagnostic("startup", "desktop-launcher-ready");
@@ -311,7 +328,19 @@ public partial class App : Application
             diagnosticsSource,
             diagnosticsExporter,
             CreateLeagueRuntimeFacts);
-        _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
+        _window = new MainWindow(
+            controlCenter,
+            cleanupCenter,
+            repairTools,
+            _leagueWorkbench,
+            _diagnosticsCenter,
+            text,
+            _morphingSurfaceExperience,
+            _desktopWorkAreas,
+            _floatingSurfacePlatform ?? throw new InvalidOperationException("Desktop surface platform is unavailable."),
+            PersistFloatingPlacementAsync,
+            ShowTrayContextMenuAtCursor,
+            ReportSurfaceTransitionDiagnostic);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
@@ -330,6 +359,15 @@ public partial class App : Application
         {
             var window = GetOrCreateMainWindow();
             window.NavigateToSection(section);
+            if (_morphingSurfaceExperience)
+            {
+                window.ShowMorphingSurface(
+                    string.Equals(section, "league", StringComparison.Ordinal)
+                        ? FacmSurfaceMode.LeagueSurface
+                        : FacmSurfaceMode.FeatureSurface,
+                    "tray-or-feature:" + section,
+                    true);
+            }
             window.Activate();
             QueueLauncherDiagnostic("main-shell-opened");
         }
@@ -342,6 +380,11 @@ public partial class App : Application
     private void ToggleCompactLauncher()
     {
         if (_shuttingDown) return;
+        if (_morphingSurfaceExperience)
+        {
+            _window?.ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "desktop-entry-left-click", true);
+            return;
+        }
         if (_compactLauncher is not null)
         {
             _compactLauncher.Close();
@@ -382,6 +425,20 @@ public partial class App : Application
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
         if (!ReferenceEquals(sender, _window)) return;
+        if (_morphingSurfaceExperience && !_shuttingDown)
+        {
+            _shuttingDown = true;
+            QueueLifecycleDiagnostic("shutdown-requested", "surface-window-closed");
+            QueueLifecycleDiagnostic("shutdown-start", "surface-window-closed");
+            _productState?.SetApplication(ApplicationProductState.ShuttingDown, "surface-window-closed");
+            _window = null;
+            _leagueWorkbench?.Dispose();
+            _leagueWorkbench = null;
+            _diagnosticsCenter = null;
+            DisposeRuntime();
+            Exit();
+            return;
+        }
         _window = null;
         _leagueWorkbench?.Dispose();
         _leagueWorkbench = null;
@@ -415,6 +472,74 @@ public partial class App : Application
         DisposeRuntime();
     }
 
+    private void OnLeagueGameflowChanged(object? sender, LeagueGameflowChangedEventArgs args)
+    {
+        var dispatcher = _mainDispatcher;
+        if (dispatcher is null) return;
+        if (dispatcher.HasThreadAccess)
+        {
+            ApplyDesktopGameflowStatus(args.Current);
+            return;
+        }
+
+        _ = dispatcher.TryEnqueue(() => ApplyDesktopGameflowStatus(args.Current));
+    }
+
+    private void ApplyDesktopGameflowStatus(LeagueGameflowSnapshot? snapshot)
+    {
+        if (_morphingSurfaceExperience)
+        {
+            _window?.ApplyGameflowSurfaceMode(snapshot);
+            ApplySurfaceRuntimeStatus(snapshot);
+            return;
+        }
+
+        var floating = _floatingWindow;
+        if (floating is null || _shuttingDown) return;
+
+        if (snapshot is null)
+        {
+            floating.SetRuntimeStatus("!", "FACM · LCU · 等待连接", problem: true);
+            return;
+        }
+
+        var problem = snapshot.ConnectionState != LeagueConnectionState.Connected;
+        var badge = problem
+            ? "!"
+            : snapshot.ProductState == LeagueProductState.ReadyCheck
+                ? "✓"
+                : snapshot.ProductState is LeagueProductState.Matchmaking or LeagueProductState.InGame
+                    ? "•"
+                    : "·";
+        var phase = string.IsNullOrWhiteSpace(snapshot.Phase) ? snapshot.ProductState.ToString() : snapshot.Phase;
+        floating.SetRuntimeStatus(
+            badge,
+            "FACM · LCU " + snapshot.ConnectionState + " · " + phase,
+            problem);
+    }
+
+    private void ApplySurfaceRuntimeStatus(LeagueGameflowSnapshot? snapshot)
+    {
+        var window = _window;
+        if (window is null || _shuttingDown) return;
+        if (snapshot is null)
+        {
+            window.SetRuntimeStatus("!", "FACM · LCU · 等待连接", problem: true);
+            return;
+        }
+
+        var problem = snapshot.ConnectionState != LeagueConnectionState.Connected;
+        var badge = problem
+            ? "!"
+            : snapshot.ProductState == LeagueProductState.ReadyCheck
+                ? "✓"
+                : snapshot.ProductState is LeagueProductState.Matchmaking or LeagueProductState.InGame
+                    ? "•"
+                    : "·";
+        var phase = string.IsNullOrWhiteSpace(snapshot.Phase) ? snapshot.ProductState.ToString() : snapshot.Phase;
+        window.SetRuntimeStatus(badge, "FACM · LCU " + snapshot.ConnectionState + " · " + phase, problem);
+    }
+
     private async Task ApplyPreferredFloatingPlacementAsync(
         ISettings2Repository settings,
         FloatingWindow floatingWindow)
@@ -446,6 +571,28 @@ public partial class App : Application
         catch (Exception exception)
         {
             QueueDiagnostic(CreateDesktopPlacementDiagnostic("preferred-placement-failed", exception));
+        }
+    }
+
+    private async Task ApplyPreferredMorphingPlacementAsync(
+        ISettings2Repository? settings,
+        MainWindow? surfaceWindow)
+    {
+        if (settings is null || surfaceWindow is null || !_morphingSurfaceExperience) return;
+        try
+        {
+            var loaded = await settings.LoadAsync();
+            if (!ReferenceEquals(_window, surfaceWindow) || _shuttingDown) return;
+
+            var pets = loaded.Settings.Pets;
+            DesktopPoint? preferred = pets.BallX == int.MinValue || pets.BallY == int.MinValue
+                ? null
+                : new DesktopPoint(pets.BallX, pets.BallY);
+            surfaceWindow.ApplyMorphingPlacement(preferred);
+        }
+        catch (Exception exception)
+        {
+            QueueDiagnostic(CreateDesktopPlacementDiagnostic("preferred-surface-placement-failed", exception));
         }
     }
 
@@ -509,6 +656,29 @@ public partial class App : Application
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown");
 
+    private void ReportSurfaceTransitionDiagnostic(FacmSurfaceTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        var failed = transition.Reason.StartsWith("transition-failed:", StringComparison.Ordinal);
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            failed ? "facm.surface.transition-failed" : "facm.surface.transition",
+            "FACM.Surface",
+            transition.DurationMs,
+            failed ? DiagnosticResult.Failure : DiagnosticResult.Success,
+            transition.Reason,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["from"] = transition.From.ToString(),
+                ["to"] = transition.To.ToString(),
+                ["durationMs"] = transition.DurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["correlationId"] = transition.CorrelationId,
+                ["isUserInitiated"] = transition.IsUserInitiated ? "true" : "false",
+                ["phase"] = transition.Phase ?? string.Empty
+            }));
+    }
+
     private void QueueLauncherDiagnostic(string reason, DiagnosticResult result = DiagnosticResult.Success)
     {
         QueueDiagnostic(DiagnosticEventFactory.Create(
@@ -537,6 +707,8 @@ public partial class App : Application
     {
         DisposeMaintenanceRuntime();
         DisposeTrayHost();
+        if (_gameflow is not null)
+            _gameflow.Changed -= OnLeagueGameflowChanged;
         _matchmakingAutomation?.Dispose();
         _matchmakingAutomation = null;
         _gameflow?.Dispose();

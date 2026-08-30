@@ -4,7 +4,9 @@ using FACM.Platform.Windows.Desktop;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace FACM.App;
@@ -57,6 +59,7 @@ public sealed partial class FloatingWindow : Window
         Title = text.Get(UiTextKeys.AppName);
         AutomationProperties.SetName(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
         AutomationProperties.SetHelpText(FloatingButton, text.Get(UiTextKeys.DesktopOpenShellHelp));
+        ToolTipService.SetToolTip(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
 
         _pointerPressedHandler = new PointerEventHandler(OnFloatingPointerPressed);
         _pointerMovedHandler = new PointerEventHandler(OnFloatingPointerMoved);
@@ -139,6 +142,20 @@ public sealed partial class FloatingWindow : Window
         var position = AppWindow.Position;
         var size = AppWindow.Size;
         return new DesktopRect(position.X, position.Y, size.Width, size.Height);
+    }
+
+    internal void SetRuntimeStatus(string badge, string inspector, bool problem = false)
+    {
+        if (_closed) return;
+        FloatingStatusBadgeText.Text = badge ?? string.Empty;
+        FloatingStatusBadge.Visibility = string.IsNullOrWhiteSpace(badge)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        if (problem)
+            FloatingStatusBadge.Background = (Brush)Application.Current.Resources["FacmErrorBrush"];
+        else
+            FloatingStatusBadge.Background = (Brush)Application.Current.Resources["FacmSuccessBrush"];
+        ToolTipService.SetToolTip(FloatingButton, inspector ?? string.Empty);
     }
 
     private void ConfigurePresenter()

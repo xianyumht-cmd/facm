@@ -57,7 +57,7 @@ public partial class App
             layout.UiTextPath,
             () => RequestDesktopEntryAction(DesktopEntryGesture.LeftClick),
             () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
-            visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
+            visible => RunOnDesktopUi(() => SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportPetHostRuntimeStage);
         _flyingPetRuntime ??= new WindowsFlyingPetRuntime(
@@ -65,7 +65,7 @@ public partial class App
             layout.UiTextPath,
             () => RequestDesktopEntryAction(DesktopEntryGesture.LeftClick),
             () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
-            visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
+            visible => RunOnDesktopUi(() => SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportFlyingHostRuntimeStage);
         _desktopPetRuntime ??= new WindowsDesktopPetRuntimeRouter(_flyingPetRuntime, _vpetRuntime);
@@ -85,9 +85,10 @@ public partial class App
         for (var attempt = 0; attempt < 100 && !_shuttingDown; attempt++)
         {
             var floating = _floatingWindow;
-            if (floating is not null)
+            var surface = _window;
+            if (floating is not null || (_morphingSurfaceExperience && surface is not null))
             {
-                AttachDesktopPetCloseHook(floating);
+                if (floating is not null) AttachDesktopPetCloseHook(floating);
                 await viewModel.InitializeDesktopPetAsync().ConfigureAwait(false);
                 return;
             }
@@ -318,12 +319,22 @@ public partial class App
 
     private void RunOnDesktopUi(Action action)
     {
-        var floating = _floatingWindow;
-        if (floating is null || _shuttingDown) return;
-        _ = floating.DispatcherQueue.TryEnqueue(() =>
+        var dispatcher = _morphingSurfaceExperience
+            ? _window?.DispatcherQueue
+            : _floatingWindow?.DispatcherQueue;
+        if (dispatcher is null || _shuttingDown) return;
+        _ = dispatcher.TryEnqueue(() =>
         {
             if (!_shuttingDown) action();
         });
+    }
+
+    private void SetDesktopEntryVisible(bool visible)
+    {
+        if (_morphingSurfaceExperience)
+            _window?.SetDesktopEntryVisible(visible);
+        else
+            _floatingWindow?.SetDesktopEntryVisible(visible);
     }
 
     private void RequestDesktopEntryAction(DesktopEntryGesture gesture) =>
@@ -337,6 +348,9 @@ public partial class App
 
     private Task ResetFloatingEntryPositionAsync()
     {
+        if (_morphingSurfaceExperience)
+            return _window?.ResetMorphingSurfacePositionAsync() ?? Task.CompletedTask;
+
         var floating = _floatingWindow;
         if (floating is null || _shuttingDown) return Task.CompletedTask;
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

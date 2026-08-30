@@ -3,7 +3,7 @@ using FACM.Core.Desktop;
 
 namespace FACM.Platform.Windows.Desktop;
 
-public sealed class WindowsFloatingSurfacePlatform
+public sealed class WindowsFloatingSurfacePlatform : IDesktopCursorPositionProvider
 {
     public bool TryGetCursorPosition(out DesktopPoint position)
     {

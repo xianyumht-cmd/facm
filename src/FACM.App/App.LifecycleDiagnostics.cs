@@ -71,6 +71,8 @@ public partial class App
             ["mainWindow"] = _window is null ? "closed" : "open",
             ["compactLauncher"] = _compactLauncher is null ? "closed" : "open",
             ["floatingWindow"] = _floatingWindow is null ? "closed" : "open",
+            ["morphingSurface"] = _morphingSurfaceExperience ? "enabled" : "disabled",
+            ["surfaceMode"] = _window?.SurfaceMode.ToString() ?? string.Empty,
             ["shuttingDown"] = _shuttingDown.ToString(CultureInfo.InvariantCulture),
             ["leaguePhase"] = _gameflow?.Current?.Phase ?? string.Empty
         };

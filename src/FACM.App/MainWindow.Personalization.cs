@@ -22,9 +22,12 @@ public sealed partial class MainWindow
     private UIElement[]? _overviewDefaultChildren;
     private bool _syncingThemeSelection;
     private bool _syncingPetSelection;
+    private bool _desktopPetInitializationStarted;
 
     private void InitializePersonalizationSurface()
     {
+        if (_desktopPetInitializationStarted) return;
+        _desktopPetInitializationStarted = true;
         var app = Application.Current as App ?? throw new InvalidOperationException("FACM App composition root is unavailable.");
         var viewModel = app.CreatePersonalizationViewModel(_controlCenter);
         ConfigurePersonalization(viewModel);
