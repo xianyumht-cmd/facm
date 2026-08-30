@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Threading;
 
-namespace FACM.PetHost;
+namespace FACM.FlyingHost;
 
 internal static class Program
 {
