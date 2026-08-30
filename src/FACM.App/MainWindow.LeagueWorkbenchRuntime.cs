@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Text;
 using FACM.App.ViewModels;
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,6 +12,7 @@ namespace FACM.App;
 public sealed partial class MainWindow
 {
     private bool _leagueWorkbenchRuntimeConfigured;
+    private bool _champSelectRefreshInFlight;
 
     private void InitializeLeagueWorkbenchRuntimeSurface()
     {
@@ -64,7 +66,16 @@ public sealed partial class MainWindow
 
     private void HandleLeagueWorkbenchRuntimePropertyChanged(PropertyChangedEventArgs args)
     {
-        if (_closed || !IsLeagueWorkbenchSelected()) return;
+        if (_closed) return;
+        if (_morphingSurfaceEnabled &&
+            _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip &&
+            args.PropertyName == nameof(LeagueWorkbenchViewModel.Live))
+        {
+            ApplyMorphingChampSelectState();
+            return;
+        }
+
+        if (!IsLeagueWorkbenchSelected()) return;
         var refreshForPhase = args.PropertyName is nameof(LeagueWorkbenchViewModel.LeagueState);
         var render = refreshForPhase || args.PropertyName is
             nameof(LeagueWorkbenchViewModel.Dashboard) or
@@ -86,6 +97,36 @@ public sealed partial class MainWindow
 
         ApplyLeagueWorkbenchRuntimeSurface();
         if (refreshForPhase) _ = RefreshLeagueWorkbenchRuntimeAsync();
+    }
+
+    private async Task RefreshChampSelectWorkbenchAsync()
+    {
+        if (_closed || !_morphingSurfaceEnabled || _champSelectRefreshInFlight ||
+            !_leagueWorkbench.HasRealDataSource)
+            return;
+
+        _champSelectRefreshInFlight = true;
+        try
+        {
+            // One event-driven refresh of the existing Workbench owner when entering ChampSelect.
+            // This is not a second timer, monitor, gateway, or polling loop.
+            await _leagueWorkbench.RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            _champSelectRefreshInFlight = false;
+            if (!_closed && _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+                _ = DispatcherQueue.TryEnqueue(ApplyMorphingChampSelectState);
+        }
     }
 
     private async Task RefreshLeagueWorkbenchRuntimeAsync()

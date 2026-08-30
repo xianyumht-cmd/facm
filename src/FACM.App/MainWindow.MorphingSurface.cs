@@ -61,8 +61,6 @@ public sealed partial class MainWindow
         var action = string.IsNullOrWhiteSpace(live.LocalActionType)
             ? _text.Get(UiTextKeys.ChampSelectWaitingAction)
             : live.LocalActionType.Trim();
-        if (live.LocalActionChampionId > 0)
-            action += " · #" + live.LocalActionChampionId.ToString(CultureInfo.InvariantCulture);
         ChampSelectAction.Text = action;
 
         var candidates = live.BenchEnabled
@@ -254,8 +252,7 @@ public sealed partial class MainWindow
         }
         catch
         {
-            ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectSwapFailed) + " #" +
-                championId.ToString(CultureInfo.InvariantCulture);
+            ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectSwapFailed);
         }
     }
 

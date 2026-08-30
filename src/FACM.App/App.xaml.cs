@@ -382,7 +382,14 @@ public partial class App : Application
         if (_shuttingDown) return;
         if (_morphingSurfaceExperience)
         {
-            _window?.ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "desktop-entry-left-click", true);
+            var mode = _window?.SurfaceMode;
+            var target = mode is FacmSurfaceMode.Orb or FacmSurfaceMode.HiddenInGame
+                ? FacmSurfaceMode.ControlMatrix
+                : FacmSurfaceMode.Orb;
+            _window?.ShowMorphingSurface(
+                target,
+                target == FacmSurfaceMode.Orb ? "desktop-entry-toggle-collapse" : "desktop-entry-left-click",
+                true);
             return;
         }
         if (_compactLauncher is not null)

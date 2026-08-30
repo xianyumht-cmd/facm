@@ -167,7 +167,9 @@ public sealed partial class MainWindow : Window
             ChampSelectSurface.Visibility = Visibility.Collapsed;
             LegacyFeatureSurface.Visibility = Visibility.Visible;
             RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
+            RootNavigation.Background = (Brush)Application.Current.Resources["FacmBackgroundBrush"];
             RootNavigation.IsPaneToggleButtonVisible = true;
+            RootNavigation.IsPaneOpen = true;
             SurfaceCollapseButton.Visibility = Visibility.Collapsed;
             SurfaceCloseButton.Visibility = Visibility.Collapsed;
             OrbTransientContainer.Visibility = Visibility.Collapsed;
@@ -179,10 +181,15 @@ public sealed partial class MainWindow : Window
         {
             CancelChampSelectIdentityLoad();
             _champSelectRequestedSignature = string.Empty;
+            _champSelectRenderedSignature = string.Empty;
+            _champSelectHasCandidates = false;
         }
-        RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
+        // LeftMinimal still reserves a compact navigation rail. Morphing mode must reclaim that
+        // width entirely; the matrix and compact header provide the navigation affordances.
+        RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
         RootNavigation.IsPaneOpen = false;
         RootNavigation.IsPaneToggleButtonVisible = false;
+        RootNavigation.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
         OrbTransientContainer.Visibility = mode == FacmSurfaceMode.Orb && _transientRailVisible
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -236,6 +243,23 @@ public sealed partial class MainWindow : Window
         {
             TitleBarText.FontSize = 14;
             SectionTitle.FontSize = 16;
+            if (featureVisible) ApplyMorphingCardDensity(LegacyFeatureSurface);
+        }
+    }
+
+    private static void ApplyMorphingCardDensity(DependencyObject root)
+    {
+        var cardStyle = (Style)Application.Current.Resources["FacmCardBorderStyle"];
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is Border border && ReferenceEquals(border.Style, cardStyle))
+            {
+                border.Padding = new Thickness(10, 8, 10, 8);
+                border.CornerRadius = new CornerRadius(8);
+            }
+
+            ApplyMorphingCardDensity(child);
         }
     }
 
@@ -356,6 +380,13 @@ public sealed partial class MainWindow : Window
         if (!_morphingSurfaceEnabled || _surfaceDragMoved || Environment.TickCount64 <= _surfaceSuppressClickUntilTick)
             return;
         ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "orb-left-click", true);
+    }
+
+    private void OnOrbTransientRailTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (!_morphingSurfaceEnabled || _surfaceStateMachine.Mode != FacmSurfaceMode.Orb) return;
+        ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "orb-transient-left-click", true);
+        e.Handled = true;
     }
 
     private void OnSurfacePointerPressed(object sender, PointerRoutedEventArgs e)
@@ -503,6 +534,7 @@ public sealed partial class MainWindow : Window
         if (!_morphingSurfaceEnabled || snapshot is null) return;
         var inGame = snapshot.ProductState == LeagueProductState.InGame;
         var champSelect = snapshot.ProductState == LeagueProductState.ChampSelect;
+        var enteredChampSelect = champSelect && _lastSurfaceGameflowState != LeagueProductState.ChampSelect;
         var lobby = snapshot.ProductState is LeagueProductState.Lobby or LeagueProductState.NotRunning;
         var lobbyRestored = lobby &&
                             _lastSurfaceGameflowState is not null &&
@@ -527,6 +559,7 @@ public sealed partial class MainWindow : Window
             ApplySurfaceMode(FacmSurfaceMode.ChampSelectStrip);
             ApplySurfaceGeometry(FacmSurfaceMode.ChampSelectStrip);
             AppWindow.Show();
+            if (enteredChampSelect) _ = RefreshChampSelectWorkbenchAsync();
             return;
         }
 

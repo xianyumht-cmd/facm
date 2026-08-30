@@ -25,7 +25,9 @@
                 Background="{StaticResource FacmSurfaceBrush}"
                 BorderBrush="{StaticResource FacmStrokeBrush}"
                 BorderThickness="1"
-                CornerRadius="9">
+                CornerRadius="9"
+                Tapped="OnOrbTransientRailTapped"
+                automation:AutomationProperties.AutomationId="FACM.Surface.OrbTransientRail">
                 <TextBlock
                     x:Name="OrbTransientRailText"
                     Margin="10,0"
