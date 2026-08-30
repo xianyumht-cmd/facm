@@ -116,6 +116,12 @@ public static class UiTextKeys
     public const string LeagueAutomationSettingsReady = "LeagueAutomationSettingsReady";
     public const string LeagueAutomationSettingsSaved = "LeagueAutomationSettingsSaved";
     public const string LeagueAutomationSettingsFailed = "LeagueAutomationSettingsFailed";
+    public const string ChampSelectNoData = "ChampSelectNoData";
+    public const string ChampSelectUnavailableAction = "ChampSelectUnavailableAction";
+    public const string ChampSelectWaitingAction = "ChampSelectWaitingAction";
+    public const string ChampSelectSwapName = "ChampSelectSwapName";
+    public const string ChampSelectSwapHelp = "ChampSelectSwapHelp";
+    public const string ChampSelectSwapFailed = "ChampSelectSwapFailed";
 
     public const string DiagnosticsTitle = "DiagnosticsTitle";
     public const string DiagnosticsSubtitle = "DiagnosticsSubtitle";
@@ -246,6 +252,12 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.LeagueAutomationSettingsReady] = "自动化设置已就绪",
         [UiTextKeys.LeagueAutomationSettingsSaved] = "自动化设置已保存",
         [UiTextKeys.LeagueAutomationSettingsFailed] = "自动化设置保存失败，已恢复原状态",
+        [UiTextKeys.ChampSelectNoData] = "选人 · 等待数据",
+        [UiTextKeys.ChampSelectUnavailableAction] = "当前操作暂不可用",
+        [UiTextKeys.ChampSelectWaitingAction] = "等待当前操作",
+        [UiTextKeys.ChampSelectSwapName] = "交换英雄",
+        [UiTextKeys.ChampSelectSwapHelp] = "手动交换英雄台候选；单次点击最多发送一次写请求。",
+        [UiTextKeys.ChampSelectSwapFailed] = "交换失败",
 
         [UiTextKeys.DiagnosticsTitle] = "诊断中心",
         [UiTextKeys.DiagnosticsSubtitle] = "生成只读状态摘要并导出经过再次脱敏的诊断包，不包含设置文件、LCU 凭据或任意目录扫描。",

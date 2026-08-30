@@ -17,7 +17,13 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         ("FacmTextMutedBrush", "FacmPlatformTextMutedBrush"),
         ("FacmAccentBrush", "FacmPlatformAccentBrush"),
         ("FacmAccentTextBrush", "FacmPlatformAccentTextBrush"),
-        ("FacmStrokeBrush", "FacmPlatformStrokeBrush")
+        ("FacmStrokeBrush", "FacmPlatformStrokeBrush"),
+        ("FacmHoverBrush", "FacmPlatformSurfaceSecondaryBrush"),
+        ("FacmPressedBrush", "FacmPlatformSurfaceSecondaryBrush"),
+        ("FacmSelectedBrush", "FacmPlatformAccentBrush"),
+        ("FacmSuccessBrush", "FacmPlatformAccentBrush"),
+        ("FacmWarningBrush", "FacmPlatformAccentBrush"),
+        ("FacmErrorBrush", "FacmPlatformAccentBrush")
     ];
 
     private readonly ResourceDictionary _resources;
@@ -57,6 +63,14 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         SetBrush("FacmAccentBrush", theme.Accent);
         SetBrush("FacmAccentTextBrush", "#FFFFFFFF");
         SetBrush("FacmStrokeBrush", theme.Border);
+        SetBrush("FacmHoverBrush", theme.BackgroundSecondary);
+        SetBrush("FacmPressedBrush", theme.SurfaceSecondary);
+        SetBrush("FacmSelectedBrush", theme.AccentSecondary);
+        SetBrush("FacmSuccessBrush", theme.Success);
+        SetBrush("FacmWarningBrush", theme.Warning);
+        // The catalog has a single caution tone; keep error feedback visibly distinct from the
+        // normal surface while avoiding a second, separately persisted palette contract.
+        SetBrush("FacmErrorBrush", theme.Warning);
 
         // These keys are FACM-owned resources. Never mutate a SolidColorBrush obtained from a WinUI
         // platform alias: real Win10 can expose protected WinRT brush instances whose Color setter

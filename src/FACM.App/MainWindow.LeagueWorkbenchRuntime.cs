@@ -129,6 +129,7 @@ public sealed partial class MainWindow
         LeagueAutomationDescription.Text = BuildLiveSummary(_leagueWorkbench.Live, _leagueWorkbench.IsRefreshing);
         SyncLeagueWorkbenchProductActions();
         ApplyLeagueAutomationSettingsSurface();
+        ApplyMorphingChampSelectState();
     }
 
     private bool IsLeagueWorkbenchSelected() =>
