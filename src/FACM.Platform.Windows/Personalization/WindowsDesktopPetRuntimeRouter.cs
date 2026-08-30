@@ -4,6 +4,7 @@ namespace FACM.Platform.Windows.Personalization;
 
 public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDisposable
 {
+    private readonly object _stateSync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly WindowsFlyingPetRuntime _flying;
     private readonly WindowsVPetRuntime _vpet;
@@ -19,7 +20,13 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
         _vpet.StateChanged += OnVPetStateChanged;
     }
 
-    public DesktopPetRuntimeState Current => _current;
+    public DesktopPetRuntimeState Current
+    {
+        get
+        {
+            lock (_stateSync) return _current;
+        }
+    }
 
     public event EventHandler<DesktopPetRuntimeState>? StateChanged;
 
@@ -35,7 +42,7 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
         {
             if (!enabled)
             {
-                _activeKind = null;
+                SetActiveKind(null);
                 _ = await _flying.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
                 _ = await _vpet.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
                 Publish(new DesktopPetRuntimeState(false, false, string.Empty, "launcher-restored"));
@@ -44,7 +51,7 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
 
             if (pet.Runtime is not (FacmPetRuntimeKind.FlyingSprite or FacmPetRuntimeKind.VPetCore))
             {
-                _activeKind = null;
+                SetActiveKind(null);
                 _ = await _flying.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
                 _ = await _vpet.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
                 var detail = "runtime-unsupported:" + pet.Runtime;
@@ -53,20 +60,30 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
             }
 
             var targetKind = pet.Runtime;
-            _activeKind = null;
+            SetActiveKind(null);
             if (targetKind == FacmPetRuntimeKind.FlyingSprite)
                 _ = await _vpet.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
             else
                 _ = await _flying.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
 
-            _activeKind = targetKind;
+            SetActiveKind(targetKind);
             var target = targetKind == FacmPetRuntimeKind.FlyingSprite
                 ? (IDesktopPetRuntime)_flying
                 : _vpet;
-            var result = await target.ApplyAsync(true, pet, cancellationToken).ConfigureAwait(false);
-            Publish(target.Current);
-            if (!result.Success) _activeKind = null;
-            return result;
+            try
+            {
+                var result = await target.ApplyAsync(true, pet, cancellationToken).ConfigureAwait(false);
+                Publish(target.Current);
+                if (!result.Success) SetActiveKind(null);
+                return result;
+            }
+            catch
+            {
+                // A cancellation or unexpected target failure must not leave the router claiming that
+                // a host is still active. The underlying runtime retains its own fail-soft cleanup.
+                SetActiveKind(null);
+                throw;
+            }
         }
         finally
         {
@@ -80,7 +97,7 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_activeKind == FacmPetRuntimeKind.VPetCore)
+            if (GetActiveKind() == FacmPetRuntimeKind.VPetCore)
                 await _vpet.ResetPositionAsync(cancellationToken).ConfigureAwait(false);
             else
                 await _flying.ResetPositionAsync(cancellationToken).ConfigureAwait(false);
@@ -93,17 +110,27 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
 
     private void OnFlyingStateChanged(object? sender, DesktopPetRuntimeState state)
     {
-        if (_activeKind == FacmPetRuntimeKind.FlyingSprite) Publish(state);
+        if (GetActiveKind() == FacmPetRuntimeKind.FlyingSprite) Publish(state);
     }
 
     private void OnVPetStateChanged(object? sender, DesktopPetRuntimeState state)
     {
-        if (_activeKind == FacmPetRuntimeKind.VPetCore) Publish(state);
+        if (GetActiveKind() == FacmPetRuntimeKind.VPetCore) Publish(state);
+    }
+
+    private FacmPetRuntimeKind? GetActiveKind()
+    {
+        lock (_stateSync) return _activeKind;
+    }
+
+    private void SetActiveKind(FacmPetRuntimeKind? kind)
+    {
+        lock (_stateSync) _activeKind = kind;
     }
 
     private void Publish(DesktopPetRuntimeState state)
     {
-        _current = state;
+        lock (_stateSync) _current = state;
         try { StateChanged?.Invoke(this, state); } catch { }
     }
 
@@ -113,6 +140,7 @@ public sealed class WindowsDesktopPetRuntimeRouter : IDesktopPetRuntime, IDispos
     {
         if (_disposed) return;
         _disposed = true;
+        SetActiveKind(null);
         _flying.StateChanged -= OnFlyingStateChanged;
         _vpet.StateChanged -= OnVPetStateChanged;
         _flying.Dispose();
