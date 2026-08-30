@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace FACM.PetHost;
+namespace FACM.FlyingHost;
 
 internal static class PetHostUiText
 {
