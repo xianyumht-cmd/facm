@@ -155,7 +155,7 @@ foreach ($forbidden in @(
 
 foreach ($required in @(
     'DesktopSurfaceOutsideClickWatcher', 'CompactLauncherOutsideClickState',
-    'GetAsyncKeyState', 'GetCursorPos', 'CreateTimer', 'CloseRequested',
+    'GetAsyncKeyState', 'GetCursorPos', 'CreateTimer', 'Start', 'Stop', 'Reset', 'CloseRequested',
     'opening mouse button'
 )) {
     if ($outsideWatcher -notmatch [regex]::Escape($required)) {
@@ -164,7 +164,8 @@ foreach ($required in @(
 }
 foreach ($required in @(
     'new DesktopSurfaceOutsideClickWatcher', 'SuppressOutsideClose',
-    '_outsideClickWatcher.Dispose', 'GetScreenBounds'
+    '_outsideClickWatcher.Start', '_outsideClickWatcher.Stop', '_outsideClickWatcher.Dispose',
+    'SetOutsideClickWatcherActive', 'FacmSurfaceMode.Orb', 'FacmSurfaceMode.HiddenInGame', 'GetScreenBounds'
 )) {
     if ($mainCode -notmatch [regex]::Escape($required)) {
         Fail "Main Shell outside-click lifecycle missing: $required"

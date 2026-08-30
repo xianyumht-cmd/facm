@@ -18,6 +18,7 @@ internal sealed class DesktopSurfaceOutsideClickWatcher : IDisposable
     private readonly Action _close;
     private readonly CompactLauncherOutsideClickState _state = new();
     private bool _disposed;
+    private bool _active;
 
     public DesktopSurfaceOutsideClickWatcher(
         DispatcherQueue dispatcherQueue,
@@ -38,12 +39,23 @@ internal sealed class DesktopSurfaceOutsideClickWatcher : IDisposable
     public void Start()
     {
         if (_disposed) return;
+        if (_active) return;
+        _state.Reset();
+        _active = true;
         _timer.Start();
+    }
+
+    public void Stop()
+    {
+        if (_disposed || !_active) return;
+        _active = false;
+        _timer.Stop();
+        _state.Reset();
     }
 
     private void OnTick(DispatcherQueueTimer sender, object args)
     {
-        if (_disposed) return;
+        if (_disposed || !_active) return;
 
         var leftButtonDown = (GetAsyncKeyState(VirtualLeftButton) & 0x8000) != 0;
         var pointerInside = true;
@@ -62,6 +74,7 @@ internal sealed class DesktopSurfaceOutsideClickWatcher : IDisposable
         if (_disposed) return;
         _disposed = true;
         _timer.Tick -= OnTick;
+        _active = false;
         _timer.Stop();
         _state.Dispose();
     }

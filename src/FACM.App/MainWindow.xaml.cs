@@ -122,7 +122,6 @@ public sealed partial class MainWindow : Window
             GetScreenBounds,
             () => Volatile.Read(ref _outsideCloseSuppression) != 0,
             RequestOutsideClickDismissal);
-        _outsideClickWatcher.Start();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         ConfigureMorphingPresenter();
@@ -173,6 +172,7 @@ public sealed partial class MainWindow : Window
 
     private void ApplyLegacySurfaceMode()
     {
+        _outsideClickWatcher.Stop();
         OrbPresentationRoot.Visibility = Visibility.Collapsed;
         OrbSurface.Visibility = Visibility.Collapsed;
         OrbTransientRail.Visibility = Visibility.Collapsed;
@@ -625,7 +625,11 @@ public sealed partial class MainWindow : Window
         try
         {
             requestedPresentation = CreateSurfacePresentation(mode, activate);
-            if (mode == previousMode && IsSurfacePresentationValid(requestedPresentation)) return;
+            if (mode == previousMode && IsSurfacePresentationValid(requestedPresentation))
+            {
+                SetOutsideClickWatcherActive(mode);
+                return;
+            }
 
             ApplySurfacePresentationCore(requestedPresentation, animate: true);
             EnsureSurfacePresentationInvariant(requestedPresentation);
@@ -675,6 +679,7 @@ public sealed partial class MainWindow : Window
         {
             AppWindow.Hide();
             CommitSurfaceContent(presentation);
+            SetOutsideClickWatcherActive(presentation.Mode);
             return;
         }
 
@@ -686,8 +691,17 @@ public sealed partial class MainWindow : Window
             presenter.IsAlwaysOnTop = presentation.Topmost;
         AppWindow.Show();
         CommitSurfaceContent(presentation);
+        SetOutsideClickWatcherActive(presentation.Mode);
         if (presentation.Activate) Activate();
         if (animate) PlayMorphingSurfaceTransition();
+    }
+
+    private void SetOutsideClickWatcherActive(FacmSurfaceMode mode)
+    {
+        if (mode is FacmSurfaceMode.Orb or FacmSurfaceMode.HiddenInGame)
+            _outsideClickWatcher.Stop();
+        else
+            _outsideClickWatcher.Start();
     }
 
     private bool IsSurfacePresentationValid(FacmSurfacePresentation presentation)

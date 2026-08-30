@@ -20,6 +20,14 @@ public sealed class CompactLauncherOutsideClickState : IDisposable
     public bool IsArmed => !_opening && !_disposed;
     public bool IsDisposed => _disposed;
 
+    public void Reset()
+    {
+        if (_disposed) return;
+        _opening = true;
+        _previousLeftButtonDown = false;
+        _closeRequested = false;
+    }
+
     public CompactLauncherOutsideClickObservation Observe(
         bool leftButtonDown,
         bool pointerInside,

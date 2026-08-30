@@ -152,6 +152,9 @@ static void TestCompactLauncherOutsideClickState()
     _ = suppressed.Observe(false, false, false);
     Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(true, false, true), "suppressed outside click");
     Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(false, false, false), "suppressed release");
+    suppressed.Reset();
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(true, false, false), "restarted opening held click");
+    Equal(CompactLauncherOutsideClickObservation.Armed, suppressed.Observe(false, false, false), "restarted release arms watcher");
     suppressed.Dispose();
     suppressed.Dispose();
     True(suppressed.IsDisposed, "outside-click state disposal is idempotent");
