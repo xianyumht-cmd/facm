@@ -88,9 +88,31 @@ foreach ($required in @(
     'FacmPetRuntimeKind.FlyingSprite',
     'FacmPetRuntimeKind.VPetCore',
     'SetActiveKind(null)',
-    '_stateSync'
+    '_stateSync',
+    '_gate.WaitAsync'
 )) {
     if ($router -notmatch [regex]::Escape($required)) { Fail "Desktop pet router split behavior missing: $required" }
+}
+
+$targetBlockStart = $router.IndexOf('var targetKind = pet.Runtime;', [StringComparison]::Ordinal)
+if ($targetBlockStart -lt 0) { Fail 'Desktop pet router target-switch block is missing.' }
+$targetBlock = $router.Substring($targetBlockStart)
+$clearActiveIndex = $targetBlock.IndexOf('SetActiveKind(null);', [StringComparison]::Ordinal)
+$stopVPetIndex = $targetBlock.IndexOf('_vpet.ApplyAsync(false', [StringComparison]::Ordinal)
+$stopFlyingIndex = $targetBlock.IndexOf('_flying.ApplyAsync(false', [StringComparison]::Ordinal)
+$setTargetIndex = $targetBlock.IndexOf('SetActiveKind(targetKind);', [StringComparison]::Ordinal)
+$startTargetIndex = $targetBlock.IndexOf('target.ApplyAsync(true', [StringComparison]::Ordinal)
+if (@($clearActiveIndex, $stopVPetIndex, $stopFlyingIndex, $setTargetIndex, $startTargetIndex) | Where-Object { $_ -lt 0 }) {
+    Fail 'Desktop pet router target-switch ordering anchors are incomplete.'
+}
+if ($clearActiveIndex -gt $stopVPetIndex -or $clearActiveIndex -gt $stopFlyingIndex) {
+    Fail 'Desktop pet router must clear active ownership before stopping the previous runtime.'
+}
+if ($stopVPetIndex -gt $setTargetIndex -or $stopFlyingIndex -gt $setTargetIndex) {
+    Fail 'Desktop pet router must stop the non-target runtime before claiming target ownership.'
+}
+if ($setTargetIndex -gt $startTargetIndex) {
+    Fail 'Desktop pet router must claim the target only before starting that exact target runtime.'
 }
 
 foreach ($required in @('FACM.Resources.PetHost.zip', 'FACM.Resources.PetHost.sha256', 'pethost-host')) {
@@ -179,6 +201,7 @@ Write-Host 'FlyingSprite -> FACM.FlyingHost ownership: OK'
 Write-Host 'VPetCore -> FACM.PetHost ownership: OK'
 Write-Host 'FlyingHost root/source namespace isolation: OK'
 Write-Host 'Desktop-pet IPC command writes are bounded: OK'
+Write-Host 'Cross-runtime switch ordering is serialized and stop-before-start: OK'
 Write-Host 'Cross-route payload opening is rejected before bundle preparation: OK'
 Write-Host 'Deferred prepare-gate release regression is locked: OK'
 Write-Host 'Separate bundle resource/cache identities: OK'
