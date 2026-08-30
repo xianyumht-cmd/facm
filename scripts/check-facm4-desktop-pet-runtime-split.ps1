@@ -127,7 +127,7 @@ foreach ($required in @(
     if ($flyingSmoke -notmatch [regex]::Escape($required)) { Fail "Flying anti-cross-route smoke missing: $required" }
 }
 
-if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csproj')) {
+if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csproj'.Replace('\\', '\'))) {
     Fail 'FACM4.sln must build FACM.FlyingHost as a first-class project.'
 }
 
