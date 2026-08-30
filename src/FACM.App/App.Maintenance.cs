@@ -66,9 +66,22 @@ public partial class App
         {
             await maintenance.InitializeAsync();
             await maintenance.RefreshAnnouncementAsync();
+            if (maintenance.IsAnnouncementNew && maintenance.Announcement is { } announcement)
+            {
+                ShowTrayNotificationOnce(
+                    "announcement:" + announcement.Id,
+                    announcement.Title,
+                    announcement.Body);
+                await maintenance.MarkAnnouncementSeenAsync();
+            }
             if (maintenance.AutoUpdateEnabled)
             {
                 await maintenance.ManualCheckAsync();
+                if (maintenance.UpdateAvailable && maintenance.LatestVersion.Length > 0)
+                    ShowTrayNotificationOnce(
+                        "update:" + maintenance.LatestVersion,
+                        "FACM",
+                        "发现可用更新：" + maintenance.LatestVersion);
                 if (maintenance.ForceUpdateRequired && !_shuttingDown)
                     OpenMainWindowSection("settings");
             }
@@ -96,7 +109,7 @@ public partial class App
         _ = dispatcher.TryEnqueue(() =>
         {
             if (_shuttingDown) return;
-            OpenMainWindowSection("settings");
+            OpenOrActivateCompactLauncher();
         });
     }
 

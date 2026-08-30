@@ -114,6 +114,7 @@ public partial class App : Application
         var settingsRecovery = new JsonSettings2RecoveryStore(layout.Settings2LastKnownGoodPath);
         _settings = new RecoveringSettings2Repository(strictSettings, settingsRecovery);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
+        InitializeTrayHost();
         _httpUpdateManifestSource = new HttpUpdateManifestSource();
         _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
         ComposeMaintenance(layout, appVersion);
@@ -156,6 +157,7 @@ public partial class App : Application
             floatingPlatform,
             _uiText,
             ToggleCompactLauncher,
+            ShowTrayContextMenuAtCursor,
             PersistFloatingPlacementAsync);
         _floatingWindow.Closed += OnFloatingWindowClosed;
         try
@@ -510,6 +512,7 @@ public partial class App : Application
     private void DisposeRuntime()
     {
         DisposeMaintenanceRuntime();
+        DisposeTrayHost();
         _matchmakingAutomation?.Dispose();
         _matchmakingAutomation = null;
         _gameflow?.Dispose();

@@ -53,17 +53,17 @@ public partial class App
         _vpetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
             layout.PetHostDataDirectory,
-            layout.UiTextPath,
-            () => RunOnDesktopUi(ToggleCompactLauncher),
-            () => RunOnDesktopUi(ToggleCompactLauncher),
+             layout.UiTextPath,
+             () => RunOnDesktopUi(ToggleCompactLauncher),
+             () => RunOnDesktopUi(ShowTrayContextMenuAtCursor),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportPetHostRuntimeStage);
         _flyingPetRuntime ??= new WindowsFlyingPetRuntime(
             _flyingHostBundleStore,
-            layout.UiTextPath,
-            () => RunOnDesktopUi(ToggleCompactLauncher),
-            () => RunOnDesktopUi(ToggleCompactLauncher),
+             layout.UiTextPath,
+             () => RunOnDesktopUi(ToggleCompactLauncher),
+             () => RunOnDesktopUi(ShowTrayContextMenuAtCursor),
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportFlyingHostRuntimeStage);

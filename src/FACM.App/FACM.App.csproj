@@ -14,6 +14,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
+    <UseWindowsForms>true</UseWindowsForms>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
@@ -40,6 +41,10 @@
     <ProjectReference Include="..\FACM.Core\FACM.Core.csproj" />
     <ProjectReference Include="..\FACM.Infrastructure\FACM.Infrastructure.csproj" />
     <ProjectReference Include="..\FACM.Platform.Windows\FACM.Platform.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\FACM\Resources\FACM.ico"
+                      LogicalName="FACM.Resources.FACM.ico" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(PetHostBundlePath)"

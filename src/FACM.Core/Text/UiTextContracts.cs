@@ -16,6 +16,9 @@ public static class UiTextKeys
     public const string Exit = "Exit";
     public const string ThemeSettings = "ThemeSettings";
     public const string DesktopPet = "DesktopPet";
+    public const string TrayMore = "TrayMore";
+    public const string TrayRestoreLauncher = "TrayRestoreLauncher";
+    public const string TrayResetDesktopPosition = "TrayResetDesktopPosition";
     public const string ShellLeague = "ShellLeague";
     public const string ShellRepairTools = "ShellRepairTools";
     public const string ShellPersonalization = "ShellPersonalization";
@@ -143,6 +146,9 @@ public static class FoundationUiTextDefaults
         [UiTextKeys.Exit] = "退出程序",
         [UiTextKeys.ThemeSettings] = "主题设置",
         [UiTextKeys.DesktopPet] = "桌面宠物",
+        [UiTextKeys.TrayMore] = "更多",
+        [UiTextKeys.TrayRestoreLauncher] = "恢复默认悬浮入口",
+        [UiTextKeys.TrayResetDesktopPosition] = "复位桌面位置",
         [UiTextKeys.ShellLeague] = "LOL 工作台",
         [UiTextKeys.ShellRepairTools] = "清理与修复",
         [UiTextKeys.ShellPersonalization] = "个性化",

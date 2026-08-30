@@ -1,5 +1,6 @@
 using FACM.Core.Application;
 using FACM.Core.Cleanup;
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.Online;
 using FACM.Core.Performance;
@@ -11,6 +12,7 @@ using FACM.Infrastructure.Text;
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
+    ("tray command routing and disposal", () => { TestTrayCommandRouting(); return Task.CompletedTask; }),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
     ("P7 production 3.5.15 settings key parity", LegacySettingsParitySmoke.RunAsync),
@@ -46,6 +48,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("gate12 release evidence and performance matrix", Gate12Smoke.RunAsync),
     ("gate13 production cutover guard", Gate13Smoke.RunAsync)
 };
+
+if (args.Any(argument => string.Equals(argument, "--skip-gate13", StringComparison.OrdinalIgnoreCase)))
+    tests = tests[..^1];
 
 foreach (var test in tests)
 {
@@ -89,6 +94,22 @@ static void TestPerformance()
     Equal("champ-select", PerformancePolicy.Resolve(new(LeagueActivityLevel.ChampSelect, false)).Name, "champ select overrides hidden");
     Equal("in-game", PerformancePolicy.Resolve(new(LeagueActivityLevel.InGame, false)).Name, "in-game overrides hidden");
     True(PerformancePolicy.IsNoMoreAggressiveThan(PerformancePolicy.InGame, PerformancePolicy.Desktop), "in-game must be no more aggressive than desktop");
+}
+
+static void TestTrayCommandRouting()
+{
+    var observed = new List<TrayCommand>();
+    using var router = new TrayCommandRouter(
+        Enum.GetValues<TrayCommand>().ToDictionary(command => command, command => (Action)(() => observed.Add(command))));
+
+    foreach (var command in Enum.GetValues<TrayCommand>())
+        True(router.TryDispatch(command), "tray command dispatch " + command);
+
+    Equal(Enum.GetValues<TrayCommand>().Length, observed.Count, "all tray commands observed");
+    Equal(string.Join(',', Enum.GetValues<TrayCommand>()), string.Join(',', observed), "tray command order");
+    router.Dispose();
+    router.Dispose();
+    True(!router.TryDispatch(TrayCommand.OpenCompactLauncher), "disposed tray router must not dispatch");
 }
 
 static void TestSettings()

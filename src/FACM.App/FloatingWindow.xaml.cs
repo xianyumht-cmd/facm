@@ -19,6 +19,7 @@ public sealed partial class FloatingWindow : Window
     private readonly IDesktopWorkAreaProvider _workAreas;
     private readonly WindowsFloatingSurfacePlatform _platform;
     private readonly Action _toggleCompactLauncher;
+    private readonly Action _showTrayContextMenu;
     private readonly Func<DesktopPoint, Task> _persistPlacement;
     private readonly IntPtr _windowHandle;
     private readonly PointerEventHandler _pointerPressedHandler;
@@ -41,12 +42,14 @@ public sealed partial class FloatingWindow : Window
         WindowsFloatingSurfacePlatform platform,
         IUiTextProvider text,
         Action toggleCompactLauncher,
+        Action showTrayContextMenu,
         Func<DesktopPoint, Task> persistPlacement)
     {
         _workAreas = workAreas ?? throw new ArgumentNullException(nameof(workAreas));
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
         ArgumentNullException.ThrowIfNull(text);
         _toggleCompactLauncher = toggleCompactLauncher ?? throw new ArgumentNullException(nameof(toggleCompactLauncher));
+        _showTrayContextMenu = showTrayContextMenu ?? throw new ArgumentNullException(nameof(showTrayContextMenu));
         _persistPlacement = persistPlacement ?? throw new ArgumentNullException(nameof(persistPlacement));
 
         InitializeComponent();
@@ -164,6 +167,12 @@ public sealed partial class FloatingWindow : Window
         if (_closed || _pointerActive) return;
         var point = e.GetCurrentPoint(FloatingRoot);
         var properties = point.Properties;
+        if (properties.IsRightButtonPressed)
+        {
+            e.Handled = true;
+            _showTrayContextMenu();
+            return;
+        }
         var primaryContact = properties.IsLeftButtonPressed || (!properties.IsRightButtonPressed && point.IsInContact);
         if (!primaryContact) return;
         if (!_platform.TryGetCursorPosition(out var cursor)) return;
