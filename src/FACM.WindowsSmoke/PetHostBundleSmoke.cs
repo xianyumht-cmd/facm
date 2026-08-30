@@ -24,11 +24,48 @@ internal static class PetHostBundleSmoke
 
     public static async Task RunAsync()
     {
+        await RejectsFlyingSpriteWithoutOpeningPetHostBundleAsync();
         await ExtractsExactBundleAndReusesCacheAsync();
         await ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync();
         await BoundsNonCooperativePreparationWallTimeAsync();
         await BoundsNonCooperativeProcessStartAndReleasesRuntimeAsync();
         await RejectsPathTraversalAsync();
+    }
+
+    private static async Task RejectsFlyingSpriteWithoutOpeningPetHostBundleAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-pethost-route-guard-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var openCount = 0;
+            var layout = CreateLayout(root);
+            var store = new WindowsPetHostBundleStore(
+                layout,
+                () =>
+                {
+                    Interlocked.Increment(ref openCount);
+                    return new MemoryStream(CreateBundle(includeTraversal: false), writable: false);
+                });
+            using var runtime = new WindowsVPetRuntime(
+                store,
+                layout.PetHostDataDirectory,
+                layout.UiTextPath,
+                () => { },
+                () => { },
+                _ => { },
+                () => Task.CompletedTask);
+
+            var rejected = await runtime.ApplyAsync(true, FacmPetCatalog.Get("bee"));
+            True(!rejected.Success, "VPet runtime must reject FlyingSprite before payload preparation");
+            Equal("runtime-unsupported:FlyingSprite", rejected.Detail, "VPet FlyingSprite route guard detail");
+            Equal(0, openCount, "FlyingSprite route must not open the VPet PetHost bundle");
+            True(!runtime.Current.StartRequested && !runtime.Current.PetVisible, "VPet FlyingSprite rejection must stay fail-soft");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private static async Task ExtractsExactBundleAndReusesCacheAsync()
