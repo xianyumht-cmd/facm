@@ -119,6 +119,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-facm4-personalization.ps1
 
+      - name: Verify desktop pet runtime split contract
+        shell: pwsh
+        run: ./scripts/check-facm4-desktop-pet-runtime-split.ps1
+
       - name: Verify League Workbench contract
         shell: pwsh
         run: ./scripts/check-facm4-league-workbench.ps1
