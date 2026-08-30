@@ -9,6 +9,7 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
 {
     private static readonly TimeSpan HostReadyTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan HostProcessStartTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CommandWriteTimeout = TimeSpan.FromMilliseconds(750);
 
     private readonly object _stateSync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -150,7 +151,19 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
         await _gate.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
-            if (_writer is not null) await TrySendAsync(_writer, "reset").ConfigureAwait(false);
+            if (_writer is not null)
+            {
+                try
+                {
+                    await TrySendAsync(_writer, "reset")
+                        .WaitAsync(CommandWriteTimeout, operation.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    ReportStage("flying-reset-send-timeout");
+                }
+            }
             operation.Token.ThrowIfCancellationRequested();
             await _resetLauncherPosition().ConfigureAwait(false);
             UpdateState(Current with { Detail = "desktop-position-reset" });
@@ -244,7 +257,17 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
             process.Exited += OnProcessExited;
 
             ReportStage("flying-activate-send-start");
-            await TrySendAsync(writer, "activate|" + pet.Id).ConfigureAwait(false);
+            try
+            {
+                await TrySendAsync(writer, "activate|" + pet.Id)
+                    .WaitAsync(startupTimeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                ReportStage("flying-activate-send-timeout");
+                return new DesktopPetModeResult(false, false, "flying-activate-send-timeout");
+            }
             ReportStage("flying-activate-send-finish");
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "flying-host-starting-cache-hit" : "flying-host-starting-new-payload"));
@@ -422,7 +445,19 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
         _transportCancellation = null;
 
         try { cancellation?.Cancel(); } catch { }
-        if (writer is not null) await TrySendAsync(writer, "stop").ConfigureAwait(false);
+        if (writer is not null)
+        {
+            try
+            {
+                await TrySendAsync(writer, "stop")
+                    .WaitAsync(CommandWriteTimeout)
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                ReportStage("flying-stop-send-timeout");
+            }
+        }
         try { writer?.Dispose(); } catch { }
         try { reader?.Dispose(); } catch { }
         try { pipe?.Dispose(); } catch { }
