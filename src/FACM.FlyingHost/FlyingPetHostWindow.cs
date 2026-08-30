@@ -7,7 +7,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
-namespace FACM.PetHost;
+namespace FACM.FlyingHost;
 
 internal sealed class FlyingPetHostWindow : Window
 {

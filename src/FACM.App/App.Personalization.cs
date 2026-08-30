@@ -12,7 +12,10 @@ public partial class App
 {
     private IFacmThemeRuntime? _facmThemeRuntime;
     private WindowsPetHostBundleStore? _petHostBundleStore;
-    private WindowsVPetRuntime? _desktopPetRuntime;
+    private WindowsFlyingHostBundleStore? _flyingHostBundleStore;
+    private WindowsVPetRuntime? _vpetRuntime;
+    private WindowsFlyingPetRuntime? _flyingPetRuntime;
+    private WindowsDesktopPetRuntimeRouter? _desktopPetRuntime;
     private DesktopPetPreferenceService? _desktopPetPreferences;
     private FloatingWindow? _desktopPetCloseHookTarget;
     private bool _desktopPetCloseHookAttached;
@@ -42,7 +45,12 @@ public partial class App
             () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName),
             ReadPetHostBundleSha256(),
             ReportPetHostBundleStage);
-        _desktopPetRuntime ??= new WindowsVPetRuntime(
+        _flyingHostBundleStore ??= new WindowsFlyingHostBundleStore(
+            layout,
+            () => typeof(App).Assembly.GetManifestResourceStream(WindowsFlyingHostBundleStore.ResourceName),
+            ReadFlyingHostBundleSha256(),
+            ReportFlyingHostBundleStage);
+        _vpetRuntime ??= new WindowsVPetRuntime(
             _petHostBundleStore,
             layout.PetHostDataDirectory,
             layout.UiTextPath,
@@ -51,6 +59,15 @@ public partial class App
             visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
             ReportPetHostRuntimeStage);
+        _flyingPetRuntime ??= new WindowsFlyingPetRuntime(
+            _flyingHostBundleStore,
+            layout.UiTextPath,
+            () => RunOnDesktopUi(ToggleCompactLauncher),
+            () => RunOnDesktopUi(ToggleCompactLauncher),
+            visible => RunOnDesktopUi(() => _floatingWindow?.SetDesktopEntryVisible(visible)),
+            ResetFloatingEntryPositionAsync,
+            ReportFlyingHostRuntimeStage);
+        _desktopPetRuntime ??= new WindowsDesktopPetRuntimeRouter(_flyingPetRuntime, _vpetRuntime);
         if (!_desktopPetRuntimeStateHookAttached)
         {
             _desktopPetRuntime.StateChanged += OnDesktopPetRuntimeStateChanged;
@@ -144,14 +161,26 @@ public partial class App
             }));
     }
 
-    private void ReportPetHostBundleStage(string stage)
+    private void ReportPetHostBundleStage(string stage) =>
+        ReportDesktopPetStage("personalization.pet-bundle", "vpet-preparation-stage", stage);
+
+    private void ReportFlyingHostBundleStage(string stage) =>
+        ReportDesktopPetStage("personalization.flying-bundle", "flying-preparation-stage", stage);
+
+    private void ReportPetHostRuntimeStage(string stage) =>
+        ReportDesktopPetRuntimeStage("personalization.pet-host", "vpet-startup-stage", stage);
+
+    private void ReportFlyingHostRuntimeStage(string stage) =>
+        ReportDesktopPetRuntimeStage("personalization.flying-host", "flying-startup-stage", stage);
+
+    private void ReportDesktopPetStage(string eventName, string reason, string stage)
     {
         QueueDiagnostic(DiagnosticEventFactory.Create(
-            "personalization.pet-bundle",
+            eventName,
             "FACM.Personalization",
             0,
             DiagnosticResult.Success,
-            "preparation-stage",
+            reason,
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
             new Dictionary<string, string>
@@ -160,18 +189,18 @@ public partial class App
             }));
     }
 
-    private void ReportPetHostRuntimeStage(string stage)
+    private void ReportDesktopPetRuntimeStage(string eventName, string reason, string stage)
     {
         var failed = stage.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
                      stage.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
                      stage.Contains("cancelled", StringComparison.OrdinalIgnoreCase) ||
                      stage.Contains("rejected", StringComparison.OrdinalIgnoreCase);
         QueueDiagnostic(DiagnosticEventFactory.Create(
-            "personalization.pet-host",
+            eventName,
             "FACM.Personalization",
             0,
             failed ? DiagnosticResult.Failure : DiagnosticResult.Success,
-            "startup-stage",
+            reason,
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
             new Dictionary<string, string>
@@ -198,9 +227,6 @@ public partial class App
             return;
         }
 
-        // Do not mark the hook as attached until WinUI actually accepts the dispatcher work. The old
-        // code set the flag before TryEnqueue, which could permanently suppress lifecycle cleanup when
-        // the dispatcher was already shutting down.
         _ = floating.DispatcherQueue.TryEnqueue(Attach);
     }
 
@@ -240,22 +266,31 @@ public partial class App
         }
         runtime?.Dispose();
         _desktopPetRuntime = null;
+        _vpetRuntime = null;
+        _flyingPetRuntime = null;
         _desktopPetPreferences = null;
         _petHostBundleStore = null;
+        _flyingHostBundleStore = null;
     }
 
-    private static string? ReadPetHostBundleSha256()
+    private static string? ReadPetHostBundleSha256() =>
+        ReadEmbeddedBundleSha256(WindowsPetHostBundleStore.HashResourceName);
+
+    private static string? ReadFlyingHostBundleSha256() =>
+        ReadEmbeddedBundleSha256(WindowsFlyingHostBundleStore.HashResourceName);
+
+    private static string? ReadEmbeddedBundleSha256(string resourceName)
     {
         try
         {
-            using var stream = typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.HashResourceName);
+            using var stream = typeof(App).Assembly.GetManifestResourceStream(resourceName);
             if (stream is null) return null;
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd().Trim();
         }
         catch
         {
-            // Local/lightweight developer builds may omit the identity resource. The bundle store
+            // Local/lightweight developer builds may omit the identity resource. Each bundle store
             // retains a safe hash-on-demand fallback for that case.
             return null;
         }

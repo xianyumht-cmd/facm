@@ -1,4 +1,4 @@
-namespace FACM.PetHost;
+namespace FACM.FlyingHost;
 
 internal sealed record FlyingPetProfile(
     string Id,

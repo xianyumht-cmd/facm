@@ -20,22 +20,32 @@ $stateSyncPath = Join-Path $Root 'src/FACM.App/MainWindow.PersonalizationStateSy
 $appPersonalizationPath = Join-Path $Root 'src/FACM.App/App.Personalization.cs'
 $appProjectPath = Join-Path $Root 'src/FACM.App/FACM.App.csproj'
 $controlCenterPath = Join-Path $Root 'src/FACM.App/ViewModels/ControlCenterViewModel.cs'
-$bundleStorePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsPetHostBundleStore.cs'
+$petBundleStorePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsPetHostBundleStore.cs'
+$flyingBundleStorePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsFlyingHostBundleStore.cs'
 $vpetRuntimePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsVPetRuntime.cs'
+$flyingRuntimePath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsFlyingPetRuntime.cs'
+$routerPath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsDesktopPetRuntimeRouter.cs'
 $jobPath = Join-Path $Root 'src/FACM.Platform.Windows/Personalization/WindowsChildProcessJob.cs'
 $petHostProgramPath = Join-Path $Root 'src/FACM.PetHost/Program.cs'
-$flyingProfilesPath = Join-Path $Root 'src/FACM.PetHost/FlyingPetProfiles.cs'
-$flyingWindowPath = Join-Path $Root 'src/FACM.PetHost/FlyingPetHostWindow.cs'
+$flyingHostProgramPath = Join-Path $Root 'src/FACM.FlyingHost/Program.cs'
+$flyingHostProjectPath = Join-Path $Root 'src/FACM.FlyingHost/FACM.FlyingHost.csproj'
+$flyingProfilesPath = Join-Path $Root 'src/FACM.FlyingHost/FlyingPetProfiles.cs'
+$flyingWindowPath = Join-Path $Root 'src/FACM.FlyingHost/FlyingPetHostWindow.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/PersonalizationSmoke.cs'
 $foundationProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
-$windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
+$petWindowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/PetHostBundleSmoke.cs'
+$flyingWindowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/FlyingHostBundleSmoke.cs'
+$windowsSmokeProgramPath = Join-Path $Root 'src/FACM.WindowsSmoke/Program.cs'
 $workflowPath = Join-Path $Root '.github/workflows/facm4-foundation.yml'
+$solutionPath = Join-Path $Root 'FACM4.sln'
 
 foreach ($path in @(
     $coreCatalogPath, $coreContractsPath, $preferencePath, $settingsPath, $viewModelPath, $runtimePath,
-    $surfacePath, $stateSyncPath, $appPersonalizationPath, $appProjectPath, $controlCenterPath, $bundleStorePath,
-    $vpetRuntimePath, $jobPath, $petHostProgramPath, $flyingProfilesPath, $flyingWindowPath,
-    $smokePath, $foundationProgramPath, $windowsSmokePath, $workflowPath
+    $surfacePath, $stateSyncPath, $appPersonalizationPath, $appProjectPath, $controlCenterPath,
+    $petBundleStorePath, $flyingBundleStorePath, $vpetRuntimePath, $flyingRuntimePath, $routerPath, $jobPath,
+    $petHostProgramPath, $flyingHostProgramPath, $flyingHostProjectPath, $flyingProfilesPath, $flyingWindowPath,
+    $smokePath, $foundationProgramPath, $petWindowsSmokePath, $flyingWindowsSmokePath, $windowsSmokeProgramPath,
+    $workflowPath, $solutionPath
 )) {
     if (-not (Test-Path $path)) { Fail "Personalization contract file missing: $path" }
 }
@@ -50,16 +60,24 @@ $stateSync = Get-Content $stateSyncPath -Raw
 $appPersonalization = Get-Content $appPersonalizationPath -Raw
 $appProject = Get-Content $appProjectPath -Raw
 $controlCenter = Get-Content $controlCenterPath -Raw
-$bundleStore = Get-Content $bundleStorePath -Raw
+$petBundleStore = Get-Content $petBundleStorePath -Raw
+$flyingBundleStore = Get-Content $flyingBundleStorePath -Raw
 $vpetRuntime = Get-Content $vpetRuntimePath -Raw
+$flyingRuntime = Get-Content $flyingRuntimePath -Raw
+$router = Get-Content $routerPath -Raw
 $job = Get-Content $jobPath -Raw
 $petHostProgram = Get-Content $petHostProgramPath -Raw
+$flyingHostProgram = Get-Content $flyingHostProgramPath -Raw
+$flyingHostProject = Get-Content $flyingHostProjectPath -Raw
 $flyingProfiles = Get-Content $flyingProfilesPath -Raw
 $flyingWindow = Get-Content $flyingWindowPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $foundationProgram = Get-Content $foundationProgramPath -Raw
-$windowsSmoke = Get-Content $windowsSmokePath -Raw
+$petWindowsSmoke = Get-Content $petWindowsSmokePath -Raw
+$flyingWindowsSmoke = Get-Content $flyingWindowsSmokePath -Raw
+$windowsSmokeProgram = Get-Content $windowsSmokeProgramPath -Raw
 $workflow = Get-Content $workflowPath -Raw
+$solution = Get-Content $solutionPath -Raw
 
 foreach ($forbidden in @('Microsoft\.UI', 'Windows\.UI', 'System\.Windows\.Forms', 'System\.Drawing', 'System\.Diagnostics', 'DllImport', 'LibraryImport')) {
     if ($core -match $forbidden) { Fail "Core personalization contract crossed platform/UI boundary: $forbidden" }
@@ -98,19 +116,13 @@ foreach ($required in @(
 )) {
     if ($viewModel -notmatch [regex]::Escape($required)) { Fail "PersonalizationViewModel behavior missing: $required" }
 }
-if ($viewModel -match '\.SaveAsync\s*\(') {
-    Fail 'PersonalizationViewModel must use the atomic narrow Settings 2.0 mutation boundary, not whole-document SaveAsync.'
-}
-if ($viewModel -match 'Pets\.Enabled\s*=\s*true') {
-    Fail 'Pet style selection must not silently enable desktop pet mode before an explicit runtime intent.'
-}
+if ($viewModel -match '\.SaveAsync\s*\(') { Fail 'PersonalizationViewModel must use narrow Settings 2.0 mutation boundary.' }
+if ($viewModel -match 'Pets\.Enabled\s*=\s*true') { Fail 'Pet style selection must not silently enable desktop pet mode.' }
 
 foreach ($required in @('DesktopPetPreferenceService', 'Pets.Enabled = true', 'Pets.Enabled = false', 'ApplyAsync(true', 'ApplyAsync(false', 'RecoveryDefaults', 'ResetPositionAsync', 'UpdateAsync')) {
     if ($preference -notmatch [regex]::Escape($required)) { Fail "Desktop pet settings/runtime coordinator missing: $required" }
 }
-if ($preference -match '\.SaveAsync\s*\(') {
-    Fail 'DesktopPetPreferenceService must not reintroduce stale whole-document Settings2 saves.'
-}
+if ($preference -match '\.SaveAsync\s*\(') { Fail 'DesktopPetPreferenceService must not reintroduce whole-document Settings2 saves.' }
 
 foreach ($required in @('WinUiThemeRuntime', 'AccessibilitySettings', 'HighContrast', 'FacmBackgroundBrush', 'FacmSurfaceBrush', 'FacmTextPrimaryBrush', 'FacmAccentBrush', 'FacmStrokeBrush')) {
     if ($runtime -notmatch [regex]::Escape($required)) { Fail "WinUI theme runtime behavior missing: $required" }
@@ -133,41 +145,82 @@ foreach ($required in @('OnPersonalizationViewModelPropertyChanged', 'Dispatcher
 if ($controlCenter -notmatch 'CreatePersonalization') { Fail 'Existing Settings 2.0 owner must compose the personalization ViewModel.' }
 
 foreach ($required in @(
-    'CreatePersonalizationViewModel', 'WinUiThemeRuntime', 'WindowsPetHostBundleStore', 'WindowsVPetRuntime',
+    'CreatePersonalizationViewModel', 'WinUiThemeRuntime',
+    'WindowsPetHostBundleStore', 'WindowsFlyingHostBundleStore',
+    'WindowsVPetRuntime', 'WindowsFlyingPetRuntime', 'WindowsDesktopPetRuntimeRouter',
     'GetManifestResourceStream', 'ConfigureDesktopPetService', 'InitializeDesktopPetAfterLauncherReadyAsync',
     'SetDesktopEntryVisible', 'ResetFloatingEntryPositionAsync', 'DisposePersonalizationRuntime',
-    'ReadPetHostBundleSha256', 'HashResourceName'
+    'ReadPetHostBundleSha256', 'ReadFlyingHostBundleSha256'
 )) {
     if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "App personalization composition missing: $required" }
 }
+foreach ($required in @('personalization.pet-bundle', 'personalization.flying-bundle', 'personalization.pet-host', 'personalization.flying-host')) {
+    if ($appPersonalization -notmatch [regex]::Escape($required)) { Fail "Split desktop-pet diagnostics missing: $required" }
+}
 
-foreach ($required in @('FACM.Resources.PetHost.zip', 'FACM.Resources.PetHost.sha256', 'PetHostBundlePath', 'PetHostBundleHashPath', 'RequirePetHostBundle', 'EmbeddedResource')) {
-    if ($appProject -notmatch [regex]::Escape($required)) { Fail "FACM.App controlled PetHost embedding missing: $required" }
+foreach ($required in @(
+    'FACM.Resources.PetHost.zip', 'FACM.Resources.PetHost.sha256', 'PetHostBundlePath', 'PetHostBundleHashPath', 'RequirePetHostBundle',
+    'FACM.Resources.FlyingHost.zip', 'FACM.Resources.FlyingHost.sha256', 'FlyingHostBundlePath', 'FlyingHostBundleHashPath', 'RequireFlyingHostBundle',
+    'EmbeddedResource'
+)) {
+    if ($appProject -notmatch [regex]::Escape($required)) { Fail "FACM.App controlled desktop-pet embedding missing: $required" }
 }
 
 foreach ($required in @(
     'WindowsPetHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'pethost-host', 'partial-', 'path traversal',
     'CriticalPayloadFiles', 'PrepareTimeout', '_cachedPreparation', '_expectedBundleSha256', 'NormalizeBundleSha256'
 )) {
-    if ($bundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled PetHost bundle store missing: $required" }
+    if ($petBundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled VPet PetHost bundle store missing: $required" }
 }
+foreach ($required in @(
+    'WindowsFlyingHostBundleStore', 'SHA256.HashData', 'ZipArchive', 'flying-host', 'partial-', 'path traversal',
+    'CriticalPayloadFiles', 'PrepareTimeout', '_cachedPreparation', '_expectedBundleSha256', 'NormalizeBundleSha256',
+    'FACM.FlyingHost.exe'
+)) {
+    if ($flyingBundleStore -notmatch [regex]::Escape($required)) { Fail "Controlled FlyingHost bundle store missing: $required" }
+}
+if ($flyingBundleStore -match 'VPet-Simulator.Core') { Fail 'FlyingHost bundle store must not depend on VPet payload identity.' }
+
 foreach ($required in @(
     'IDesktopPetRuntime', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign', 'activate|', 'event|',
     'ready', 'runtime-failed', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)',
-    'FacmPetRuntimeKind.FlyingSprite', '--runtime', '--pet-id', 'runtime-unsupported',
-    'HostReadyTimeout', 'host-ready-timeout', '_lifetime'
+    'VPetCore', '--pet-id', 'runtime-unsupported', 'HostReadyTimeout', 'host-ready-timeout', '_lifetime'
 )) {
-    if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled desktop PetHost runtime missing: $required" }
+    if ($vpetRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled VPet runtime missing: $required" }
 }
-foreach ($required in @('JobObjectLimitKillOnJobClose', 'AssignProcessToJobObject', 'SetInformationJobObject')) {
-    if ($job -notmatch [regex]::Escape($required)) { Fail "PetHost Job Object containment missing: $required" }
+foreach ($required in @(
+    'IDesktopPetRuntime', 'WindowsFlyingHostBundleStore', 'NamedPipeClientStream', 'WindowsChildProcessJob.TryAssign',
+    'FacmPetRuntimeKind.FlyingSprite', 'FACM.FlyingHost.', '--pet-id', 'flying-payload-preparing',
+    'flying-process-start-timeout', 'flying-host-ready-timeout', 'SetLauncherVisible(false)', 'SetLauncherVisible(true)'
+)) {
+    if ($flyingRuntime -notmatch [regex]::Escape($required)) { Fail "Controlled Flying Sprite runtime missing: $required" }
+}
+foreach ($required in @(
+    'WindowsDesktopPetRuntimeRouter', 'WindowsFlyingPetRuntime', 'WindowsVPetRuntime',
+    'FacmPetRuntimeKind.FlyingSprite', 'FacmPetRuntimeKind.VPetCore', 'ApplyAsync(false', 'ResetPositionAsync'
+)) {
+    if ($router -notmatch [regex]::Escape($required)) { Fail "Desktop pet runtime router missing: $required" }
 }
 
-foreach ($required in @('FlyingPetHostWindow', '--runtime', '--pet-id', 'flying', 'VPetAssetCacheValidator')) {
-    if ($petHostProgram -notmatch [regex]::Escape($required)) { Fail "PetHost runtime routing missing: $required" }
+foreach ($required in @('JobObjectLimitKillOnJobClose', 'AssignProcessToJobObject', 'SetInformationJobObject')) {
+    if ($job -notmatch [regex]::Escape($required)) { Fail "Desktop pet Job Object containment missing: $required" }
 }
+
+foreach ($required in @('PetHostWindow', 'VPetAssetCacheValidator', 'VPet_Simulator.Core', '--pipe', '--parent-pid', '--self-test')) {
+    if ($petHostProgram -notmatch [regex]::Escape($required)) { Fail "VPet PetHost entry missing: $required" }
+}
+if ($petHostProgram -match 'FlyingPetHostWindow|FlyingPetProfiles') { Fail 'VPet PetHost must not own Flying Sprite entry/runtime.' }
+foreach ($required in @('FlyingPetHostWindow', '--pet-id', '--pipe', '--parent-pid', '--self-test', 'FlyingHostSelfTest')) {
+    if ($flyingHostProgram -notmatch [regex]::Escape($required)) { Fail "FlyingHost entry missing: $required" }
+}
+if ($flyingHostProgram -match 'VPetAssetCacheValidator|VPet_Simulator') { Fail 'FlyingHost entry must not own VPet runtime/cache.' }
+foreach ($required in @('<AssemblyName>FACM.FlyingHost</AssemblyName>', '<UseWPF>true</UseWPF>', '<UseWindowsForms>true</UseWindowsForms>')) {
+    if ($flyingHostProject -notmatch [regex]::Escape($required)) { Fail "FlyingHost project contract missing: $required" }
+}
+if ($flyingHostProject -match 'VPet-Simulator|VPet_Simulator') { Fail 'FACM.FlyingHost project must not reference VPet.' }
+
 foreach ($id in @('greenfly', 'bee', 'real-bee', 'dragonfly', 'butterfly', 'moth')) {
-    if ($flyingProfiles -notmatch ('"' + [regex]::Escape($id) + '"')) { Fail "Flying PetHost profile missing: $id" }
+    if ($flyingProfiles -notmatch ('"' + [regex]::Escape($id) + '"')) { Fail "FlyingHost profile missing: $id" }
 }
 foreach ($required in @('82, 140', '7.5, 10.5', '48, 82', '120, 205', '18, 38', '36, 68')) {
     if ($flyingProfiles -notmatch [regex]::Escape($required)) { Fail "Frozen 3.5 flying behavior baseline missing: $required" }
@@ -178,23 +231,37 @@ foreach ($required in @(
     'SendEventAsync("ready"', 'SendEventAsync("click"', 'SendEventAsync("right-click"',
     'case "reset"', 'AllowsTransparency = true', 'WsExToolWindow', 'WsExNoActivate'
 )) {
-    if ($flyingWindow -notmatch [regex]::Escape($required)) { Fail "Flying PetHost behavior missing: $required" }
+    if ($flyingWindow -notmatch [regex]::Escape($required)) { Fail "FlyingHost behavior missing: $required" }
 }
 
 foreach ($required in @(
-    'Prepare controlled PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', '--self-test', 'Compress-Archive',
-    'PetHostBundle.zip', 'PetHostBundle.sha256', 'Get-FileHash $bundle -Algorithm SHA256', 'RequirePetHostBundle=true'
+    'Prepare controlled FlyingHost payload', 'FACM.FlyingHost/FACM.FlyingHost.csproj', 'FACM.FlyingHost.exe',
+    'FlyingHostBundle.zip', 'FlyingHostBundle.sha256', 'VPet-Simulator.Core.dll', 'RequireFlyingHostBundle=true',
+    'Prepare controlled VPet PetHost payload', 'FACM.PetHost/FACM.PetHost.csproj', 'FACM.PetHost.exe',
+    'PetHostBundle.zip', 'PetHostBundle.sha256', 'RequirePetHostBundle=true', 'Compress-Archive'
 )) {
-    if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow PetHost packaging missing: $required" }
+    if ($workflow -notmatch [regex]::Escape($required)) { Fail "Foundation workflow split desktop-pet packaging missing: $required" }
 }
+
 foreach ($required in @(
     'WindowsPetHostBundleStore', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256',
-    'second prepare must not reopen the embedded bundle',
     'ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync',
     'cross-process cache hit must not reopen the embedded bundle'
 )) {
-    if ($windowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows controlled PetHost smoke missing: $required" }
+    if ($petWindowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows VPet PetHost smoke missing: $required" }
 }
+foreach ($required in @(
+    'WindowsFlyingHostBundleStore', 'WindowsFlyingPetRuntime', 'CacheHit', 'RejectsPathTraversalAsync', 'BundleSha256',
+    'ReusesDiskCacheAcrossProcessBoundaryWithoutOpeningBundleAsync',
+    'cross-process FlyingHost cache hit must not reopen the embedded bundle',
+    'flying-process-start-timeout'
+)) {
+    if ($flyingWindowsSmoke -notmatch [regex]::Escape($required)) { Fail "Windows FlyingHost smoke missing: $required" }
+}
+foreach ($required in @('FlyingHostBundleSmoke.RunAsync()', 'PetHostBundleSmoke.RunAsync()')) {
+    if ($windowsSmokeProgram -notmatch [regex]::Escape($required)) { Fail "Windows smoke runner missing: $required" }
+}
+if ($solution -notmatch [regex]::Escape('FACM.FlyingHost')) { Fail 'FACM4.sln does not include FACM.FlyingHost.' }
 
 foreach ($required in @(
     'stable theme count', 'unknown theme fallback', 'unique theme ids',
@@ -206,18 +273,15 @@ foreach ($required in @(
 }
 if ($foundationProgram -notmatch 'PersonalizationSmoke\.Run\(\)') { Fail 'Foundation smoke runner does not execute personalization smoke.' }
 
-Write-Host 'Personalization stable theme catalog: OK'
-Write-Host 'Personalization stable pet compatibility catalog: OK'
+Write-Host 'Personalization stable theme/pet catalogs: OK'
 Write-Host 'Settings 2.0 shared catalog + atomic mutation ownership: OK'
 Write-Host 'Theme/pet selection recovery and persistence boundary: OK'
 Write-Host 'WinUI theme High Contrast fail-safe: OK'
-Write-Host 'App-owned theme and desktop pet composition: OK'
-Write-Host 'Explicit enable / restore F / reset-position controls: OK'
-Write-Host 'Personalization PropertyChanged/Dispatcher busy feedback: OK'
-Write-Host 'Controlled PetHost build identity + extraction/cache/timeout boundary: OK'
-Write-Host 'Cross-process PetHost cache no-rehash boundary: OK'
-Write-Host 'VPet + Flying Sprite named-pipe ready timeout and Job Object runtime boundary: OK'
-Write-Host 'Frozen 3.5 flying movement profiles and modern PetHost window: OK'
-Write-Host 'Foundation PetHost packaging/self-test contract: OK'
-Write-Host 'Personalization deterministic catalog and Windows bundle smoke: OK'
+Write-Host 'App-owned split desktop-pet composition and diagnostics: OK'
+Write-Host 'Flying Sprite -> independent FlyingHost runtime: OK'
+Write-Host 'VPetCore -> VPet PetHost runtime: OK'
+Write-Host 'Separate FlyingHost/PetHost bundle identity + cache + timeout boundaries: OK'
+Write-Host 'Frozen 3.5 flying movement profiles preserved outside VPet PetHost: OK'
+Write-Host 'Foundation split bundle packaging/self-test contract: OK'
+Write-Host 'Personalization deterministic catalog and Windows split-runtime smoke: OK'
 Write-Host 'FACM 4.0 Personalization foundation contract: SUCCESS'

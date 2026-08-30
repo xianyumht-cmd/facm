@@ -28,6 +28,8 @@ await VerifyPhysicalSettings2PersistenceAsync();
 await MaintenanceWindowsSmoke.RunAsync();
 await CleanupSmoke.RunAsync();
 RepairWindowsSmoke.Run();
+await DesktopPetBundleGateSmoke.RunAsync();
+await FlyingHostBundleSmoke.RunAsync();
 await PetHostBundleSmoke.RunAsync();
 
 var discovered = new LeagueTransportSession(
