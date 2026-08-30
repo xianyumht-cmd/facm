@@ -16,6 +16,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("desktop entry click routing", () => { TestDesktopEntryInteractionPolicy(); return Task.CompletedTask; }),
     ("compact launcher outside-click state", () => { TestCompactLauncherOutsideClickState(); return Task.CompletedTask; }),
     ("morphing surface state machine", () => { FacmSurfaceStateMachineSmoke.Run(); return Task.CompletedTask; }),
+    ("morphing surface presentation invariant", () => { FacmSurfacePresentationSmoke.Run(); return Task.CompletedTask; }),
     ("morphing surface anchor geometry", () => { FacmSurfaceGeometrySmoke.Run(); return Task.CompletedTask; }),
     ("league diagnostics transport and gameflow", LeagueDiagnosticsSmoke.RunAsync),
     ("league reliability boundaries", LeagueReliabilitySmoke.RunAsync),

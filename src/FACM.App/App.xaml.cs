@@ -338,7 +338,8 @@ public partial class App : Application
             _floatingSurfacePlatform ?? throw new InvalidOperationException("Desktop surface platform is unavailable."),
             PersistFloatingPlacementAsync,
             ShowTrayContextMenuAtCursor,
-            ReportSurfaceTransitionDiagnostic);
+            ReportSurfaceTransitionDiagnostic,
+            ReportSurfacePresentationFailureDiagnostic);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
@@ -681,6 +682,32 @@ public partial class App : Application
                 ["correlationId"] = transition.CorrelationId,
                 ["isUserInitiated"] = transition.IsUserInitiated ? "true" : "false",
                 ["phase"] = transition.Phase ?? string.Empty
+            }));
+    }
+
+    private void ReportSurfacePresentationFailureDiagnostic(FacmSurfacePresentationFailure failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "facm.surface.presentation-failed",
+            "FACM.Surface",
+            0,
+            DiagnosticResult.Failure,
+            failure.Operation,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+            new Dictionary<string, string>
+            {
+                ["requestedMode"] = failure.RequestedMode.ToString(),
+                ["previousMode"] = failure.PreviousMode.ToString(),
+                ["operation"] = failure.Operation,
+                ["exceptionType"] = failure.ExceptionType,
+                ["hResult"] = "0x" + failure.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
+                ["threadId"] = failure.ThreadId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["bounds"] = failure.Bounds.ToString(),
+                ["correlationId"] = failure.CorrelationId,
+                ["phase"] = failure.Phase ?? string.Empty,
+                ["isUserInitiated"] = failure.IsUserInitiated ? "true" : "false"
             }));
     }
 

@@ -139,7 +139,7 @@ public sealed partial class MainWindow
         if (string.Equals(signature, _champSelectRenderedSignature, StringComparison.Ordinal))
         {
             if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-                ApplySurfaceGeometry(FacmSurfaceMode.ChampSelectStrip);
+                EnsureCurrentSurfacePresentation("champ-select-candidates-unchanged");
             return;
         }
 
@@ -208,7 +208,7 @@ public sealed partial class MainWindow
         }
 
         if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-            ApplySurfaceGeometry(FacmSurfaceMode.ChampSelectStrip);
+            EnsureCurrentSurfacePresentation("champ-select-candidates-changed");
     }
 
     private static IEnumerable<ChampSelectCandidateVisual> CreateFallbackCandidates(IEnumerable<int> championIds) =>

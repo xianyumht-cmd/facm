@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
     private readonly Action? _showTrayContextMenu;
     private readonly FacmSurfaceStateMachine _surfaceStateMachine;
     private readonly Action<FacmSurfaceTransition>? _surfaceTransitionReporter;
+    private readonly Action<FacmSurfacePresentationFailure>? _surfacePresentationFailureReporter;
     private int _outsideCloseSuppression;
     private bool _closed;
     private bool _cleanupInitialized;
@@ -75,6 +76,7 @@ public sealed partial class MainWindow : Window
     private bool _transientRailVisible;
     private bool _transientRailOnLeft;
     private string _lastRuntimeStatusSignature = string.Empty;
+    private FacmSurfacePresentation? _currentPresentation;
 
     public MainWindow(
         ControlCenterViewModel controlCenter,
@@ -88,7 +90,8 @@ public sealed partial class MainWindow : Window
         IDesktopCursorPositionProvider? surfacePlatform = null,
         Func<DesktopPoint, Task>? persistSurfacePlacement = null,
         Action? showTrayContextMenu = null,
-        Action<FacmSurfaceTransition>? surfaceTransitionReporter = null)
+        Action<FacmSurfaceTransition>? surfaceTransitionReporter = null,
+        Action<FacmSurfacePresentationFailure>? surfacePresentationFailureReporter = null)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _cleanupCenter = cleanupCenter ?? throw new ArgumentNullException(nameof(cleanupCenter));
@@ -102,6 +105,7 @@ public sealed partial class MainWindow : Window
         _persistSurfacePlacement = persistSurfacePlacement;
         _showTrayContextMenu = showTrayContextMenu;
         _surfaceTransitionReporter = surfaceTransitionReporter;
+        _surfacePresentationFailureReporter = surfacePresentationFailureReporter;
         _surfaceStateMachine = new FacmSurfaceStateMachine();
         _surfaceStateMachine.Transitioned += OnSurfaceTransitioned;
         try
@@ -138,11 +142,20 @@ public sealed partial class MainWindow : Window
         Closed += OnClosed;
         RootNavigation.SelectedItem = RepairNav;
         RootNavigation.Loaded += OnRootNavigationLoaded;
-        ApplySurfaceMode(_surfaceStateMachine.Mode);
+        if (!_morphingSurfaceEnabled) ApplyLegacySurfaceMode();
     }
 
-    private void OnSurfaceTransitioned(object? sender, FacmSurfaceTransition transition) =>
-        _surfaceTransitionReporter?.Invoke(transition);
+    private void OnSurfaceTransitioned(object? sender, FacmSurfaceTransition transition)
+    {
+        try
+        {
+            _surfaceTransitionReporter?.Invoke(transition);
+        }
+        catch
+        {
+            // Presentation is already committed. Diagnostics must never invalidate a safe surface.
+        }
+    }
 
     private void SetFeatureTitleBar() => SetTitleBar((UIElement)AppTitleBar);
 
@@ -158,25 +171,61 @@ public sealed partial class MainWindow : Window
         presenter.IsMinimizable = false;
     }
 
-    private void ApplySurfaceMode(FacmSurfaceMode mode)
+    private void ApplyLegacySurfaceMode()
     {
-        if (!_morphingSurfaceEnabled)
-        {
-            OrbSurface.Visibility = Visibility.Collapsed;
-            ControlMatrixSurface.Visibility = Visibility.Collapsed;
-            ChampSelectSurface.Visibility = Visibility.Collapsed;
-            LegacyFeatureSurface.Visibility = Visibility.Visible;
-            RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
-            RootNavigation.Background = (Brush)Application.Current.Resources["FacmBackgroundBrush"];
-            RootNavigation.IsPaneToggleButtonVisible = true;
-            RootNavigation.IsPaneOpen = true;
-            SurfaceCollapseButton.Visibility = Visibility.Collapsed;
-            SurfaceCloseButton.Visibility = Visibility.Collapsed;
-            OrbTransientContainer.Visibility = Visibility.Collapsed;
-            return;
-        }
+        OrbPresentationRoot.Visibility = Visibility.Collapsed;
+        OrbSurface.Visibility = Visibility.Collapsed;
+        OrbTransientRail.Visibility = Visibility.Collapsed;
+        ControlMatrixSurface.Visibility = Visibility.Collapsed;
+        ChampSelectSurface.Visibility = Visibility.Collapsed;
+        LegacyFeatureSurface.Visibility = Visibility.Visible;
+        RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
+        RootNavigation.Background = (Brush)Application.Current.Resources["FacmBackgroundBrush"];
+        RootNavigation.IsPaneToggleButtonVisible = true;
+        RootNavigation.IsPaneOpen = true;
+        SurfaceCollapseButton.Visibility = Visibility.Collapsed;
+        SurfaceCloseButton.Visibility = Visibility.Collapsed;
+    }
 
-        if (mode != FacmSurfaceMode.Orb) SetTransientRailVisible(false, resize: false);
+    private void PrepareSurfaceContent(FacmSurfacePresentation presentation)
+    {
+        presentation.EnsureValid();
+        var mode = presentation.Mode;
+        if (mode == FacmSurfaceMode.Orb)
+        {
+            OrbPresentationRoot.Visibility = Visibility.Visible;
+            OrbSurface.Visibility = Visibility.Visible;
+            OrbTransientRail.Visibility = presentation.RailVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+        else if (mode == FacmSurfaceMode.ControlMatrix)
+        {
+            ControlMatrixSurface.Visibility = Visibility.Visible;
+            MatrixTitle.Text = _text.Get(UiTextKeys.AppName);
+            MatrixStatus.Text = "LCU · " + _leagueWorkbench.LeagueState;
+            SetTitleBar(MatrixTitleBar);
+        }
+        else if (mode == FacmSurfaceMode.ChampSelectStrip)
+        {
+            ChampSelectSurface.Visibility = Visibility.Visible;
+            ApplyMorphingChampSelectState();
+        }
+        else if (mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface)
+        {
+            LegacyFeatureSurface.Visibility = Visibility.Visible;
+            SetFeatureTitleBar();
+        }
+    }
+
+    private void CommitSurfaceContent(FacmSurfacePresentation presentation)
+    {
+        var mode = presentation.Mode;
+        if (mode != FacmSurfaceMode.Orb)
+        {
+            _transientRailTimer?.Stop();
+            _transientRailVisible = false;
+            OrbTransientRailText.Text = string.Empty;
+            ResetTransientRailPlacement();
+        }
         if (mode != FacmSurfaceMode.ChampSelectStrip)
         {
             CancelChampSelectIdentityLoad();
@@ -184,16 +233,13 @@ public sealed partial class MainWindow : Window
             _champSelectRenderedSignature = string.Empty;
             _champSelectHasCandidates = false;
         }
-        // LeftMinimal still reserves a compact navigation rail. Morphing mode must reclaim that
-        // width entirely; the matrix and compact header provide the navigation affordances.
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
         RootNavigation.IsPaneOpen = false;
         RootNavigation.IsPaneToggleButtonVisible = false;
         RootNavigation.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
-        OrbTransientContainer.Visibility = mode == FacmSurfaceMode.Orb && _transientRailVisible
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        OrbSurface.Visibility = mode == FacmSurfaceMode.Orb ? Visibility.Visible : Visibility.Collapsed;
+        OrbPresentationRoot.Visibility = presentation.OrbVisible ? Visibility.Visible : Visibility.Collapsed;
+        OrbSurface.Visibility = presentation.OrbVisible ? Visibility.Visible : Visibility.Collapsed;
+        OrbTransientRail.Visibility = presentation.RailVisible ? Visibility.Visible : Visibility.Collapsed;
         ControlMatrixSurface.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ChampSelectSurface.Visibility = mode == FacmSurfaceMode.ChampSelectStrip ? Visibility.Visible : Visibility.Collapsed;
         var featureVisible = mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface;
@@ -204,17 +250,12 @@ public sealed partial class MainWindow : Window
         MatrixCloseButton.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ApplyMorphingFeatureDensity(featureVisible);
 
-        if (mode == FacmSurfaceMode.ControlMatrix)
-        {
-            MatrixTitle.Text = _text.Get(UiTextKeys.AppName);
-            MatrixStatus.Text = "LCU · " + _leagueWorkbench.LeagueState;
-            SetTitleBar(MatrixTitleBar);
-        }
-
-        if (featureVisible) SetFeatureTitleBar();
-
-        if (mode == FacmSurfaceMode.ChampSelectStrip)
-            ApplyMorphingChampSelectState();
+        if (presentation.ContentVisible &&
+            OrbPresentationRoot.Visibility != Visibility.Visible &&
+            ControlMatrixSurface.Visibility != Visibility.Visible &&
+            ChampSelectSurface.Visibility != Visibility.Visible &&
+            LegacyFeatureSurface.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("FACM presentation would expose a window with no visible content.");
     }
 
     private void ApplyMorphingFeatureDensity(bool featureVisible)
@@ -263,35 +304,50 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ApplySurfaceGeometry(FacmSurfaceMode mode)
+    private DesktopRect CalculateSurfaceBounds(FacmSurfaceMode mode)
     {
-        if (!_morphingSurfaceEnabled || mode == FacmSurfaceMode.HiddenInGame) return;
+        if (mode == FacmSurfaceMode.HiddenInGame)
+            throw new InvalidOperationException("HiddenInGame does not have visible surface bounds.");
+
+        var currentPosition = AppWindow.Position;
+        var dipSize = GetSurfaceDipSize(mode);
         var workAreas = _surfaceWorkAreas;
-        if (workAreas is null) return;
+        if (workAreas is null)
+            return new DesktopRect(currentPosition.X, currentPosition.Y, dipSize.Width, dipSize.Height);
 
         var areas = workAreas.GetWorkingAreas();
-        if (areas.Count == 0) return;
-        var currentPosition = AppWindow.Position;
+        if (areas.Count == 0)
+            return new DesktopRect(currentPosition.X, currentPosition.Y, dipSize.Width, dipSize.Height);
         var anchor = _surfaceAnchor ?? new DesktopPoint(currentPosition.X, currentPosition.Y);
         var probe = new DesktopPoint(anchor.X + (OrbSizeDip / 2d), anchor.Y + (OrbSizeDip / 2d));
         var area = AnchorPlacementService.SelectWorkArea(areas, probe);
-        var dipSize = GetSurfaceDipSize(mode);
         var size = DesktopDpi.DipsToPixels(dipSize, area);
         var transientRail = mode == FacmSurfaceMode.Orb && _transientRailVisible;
-        var physicalRect = FacmSurfaceGeometryService.ExpandFromAnchor(new(
+        return FacmSurfaceGeometryService.ExpandFromAnchor(new(
             anchor,
             size,
             area,
             DesktopDpi.UniformDipsToPixels(SurfaceEdgeMarginDip, area),
             mode == FacmSurfaceMode.Orb && !transientRail));
-        if (transientRail) ApplyTransientRailPlacement(anchor, physicalRect);
+    }
+
+    private void ApplySurfaceGeometry(FacmSurfacePresentation presentation)
+    {
+        if (!_morphingSurfaceEnabled || !presentation.WindowVisible) return;
+        var physicalRect = presentation.TargetBounds ??
+                           throw new InvalidOperationException("Visible presentation bounds are missing.");
+        if (presentation.RailVisible)
+        {
+            var currentPosition = AppWindow.Position;
+            var anchor = _surfaceAnchor ?? new DesktopPoint(currentPosition.X, currentPosition.Y);
+            ApplyTransientRailPlacement(anchor, physicalRect);
+        }
         var rect = new RectInt32(
             ToInt32(physicalRect.Left),
             ToInt32(physicalRect.Top),
             Math.Max(1, ToInt32(physicalRect.Width)),
             Math.Max(1, ToInt32(physicalRect.Height)));
         AppWindow.MoveAndResize(rect);
-        PlayMorphingSurfaceTransition();
     }
 
     private void ApplyTransientRailPlacement(DesktopPoint anchor, DesktopRect physicalRect)
@@ -303,24 +359,31 @@ public sealed partial class MainWindow : Window
         OrbTransientRail.Margin = railOnLeft ? new Thickness(0, 3, 0, 0) : new Thickness(42, 3, 0, 0);
     }
 
+    private void ResetTransientRailPlacement()
+    {
+        _transientRailOnLeft = false;
+        OrbSurface.HorizontalAlignment = HorizontalAlignment.Left;
+        OrbTransientRail.HorizontalAlignment = HorizontalAlignment.Left;
+        OrbTransientRail.Margin = new Thickness(42, 3, 0, 0);
+    }
+
     private void SetTransientRailVisible(bool visible, bool resize)
     {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => SetTransientRailVisible(visible, resize));
+            return;
+        }
         _transientRailVisible = visible;
         if (!visible)
         {
             _transientRailTimer?.Stop();
             OrbTransientRailText.Text = string.Empty;
-            _transientRailOnLeft = false;
-            OrbSurface.HorizontalAlignment = HorizontalAlignment.Left;
-            OrbTransientRail.HorizontalAlignment = HorizontalAlignment.Left;
-            OrbTransientRail.Margin = new Thickness(42, 3, 0, 0);
+            ResetTransientRailPlacement();
         }
 
-        OrbTransientContainer.Visibility = visible && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb
-            ? Visibility.Visible
-            : Visibility.Collapsed;
         if (resize && _morphingSurfaceEnabled && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb)
-            ApplySurfaceGeometry(FacmSurfaceMode.Orb);
+            EnsureCurrentSurfacePresentation(visible ? "transient-rail-shown" : "transient-rail-timeout");
     }
 
     private void ShowTransientRail(string message, bool problem)
@@ -349,7 +412,9 @@ public sealed partial class MainWindow : Window
 
     private DesktopSize GetSurfaceDipSize(FacmSurfaceMode mode) => mode switch
     {
-        FacmSurfaceMode.Orb => new DesktopSize(OrbSizeDip, OrbSizeDip),
+        FacmSurfaceMode.Orb => new DesktopSize(
+            _transientRailVisible ? OrbTransientWidthDip : OrbSizeDip,
+            OrbSizeDip),
         FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
         FacmSurfaceMode.ChampSelectStrip => new DesktopSize(
             _champSelectHasCandidates ? ChampSelectStripWidthDip : ChampSelectWaitingWidthDip,
@@ -482,15 +547,19 @@ public sealed partial class MainWindow : Window
     {
         if (!_morphingSurfaceEnabled) return;
         _surfaceAnchor = preferredAnchor;
-        ApplySurfaceMode(FacmSurfaceMode.Orb);
         ShowMorphingSurface(FacmSurfaceMode.Orb, "startup", false);
     }
 
     internal void ApplyMorphingPlacement(DesktopPoint? preferredAnchor)
     {
         if (!_morphingSurfaceEnabled) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => ApplyMorphingPlacement(preferredAnchor));
+            return;
+        }
         _surfaceAnchor = preferredAnchor;
-        ApplySurfaceGeometry(_surfaceStateMachine.Mode);
+        EnsureCurrentSurfacePresentation("placement-changed");
     }
 
     internal void ShowMorphingSurface(
@@ -500,37 +569,201 @@ public sealed partial class MainWindow : Window
         string? phase = null)
     {
         if (!_morphingSurfaceEnabled) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => ShowMorphingSurface(mode, reason, userInitiated, phase));
+            return;
+        }
         if (userInitiated) _manualOpenOverride = true;
+        RequestSurfacePresentation(mode, reason, userInitiated, phase, activate: mode != FacmSurfaceMode.HiddenInGame);
+    }
+
+    private void EnsureCurrentSurfacePresentation(string reason)
+    {
+        if (!_morphingSurfaceEnabled) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => EnsureCurrentSurfacePresentation(reason));
+            return;
+        }
+        RequestSurfacePresentation(_surfaceStateMachine.Mode, reason, false, null, activate: false);
+    }
+
+    private void RequestSurfacePresentation(
+        FacmSurfaceMode mode,
+        string reason,
+        bool userInitiated,
+        string? phase,
+        bool activate)
+    {
+        if (!DispatcherQueue.HasThreadAccess)
+            throw new InvalidOperationException("FACM surface presentation must run on the UI dispatcher.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A presentation reason is required.", nameof(reason));
+
+        var previousMode = _surfaceStateMachine.Mode;
+        var previousPresentation = _currentPresentation;
+        var correlationId = Guid.NewGuid().ToString("N");
+        FacmSurfacePresentation? requestedPresentation = null;
         try
         {
-            _surfaceStateMachine.TransitionTo(mode, reason, userInitiated, phase);
-            ApplySurfaceMode(mode);
-            if (mode == FacmSurfaceMode.HiddenInGame)
-            {
-                AppWindow.Hide();
-                return;
-            }
+            requestedPresentation = CreateSurfacePresentation(mode, activate);
+            if (mode == previousMode && IsSurfacePresentationValid(requestedPresentation)) return;
 
-            ApplySurfaceGeometry(mode);
-            AppWindow.Show();
-            Activate();
+            ApplySurfacePresentationCore(requestedPresentation, animate: true);
+            EnsureSurfacePresentationInvariant(requestedPresentation);
+            _surfaceStateMachine.TransitionTo(mode, reason, userInitiated, phase);
+            _currentPresentation = requestedPresentation;
         }
         catch (Exception exception)
         {
-            _surfaceTransitionReporter?.Invoke(new FacmSurfaceTransition(
-                _surfaceStateMachine.Mode,
-                _surfaceStateMachine.Mode,
-                "transition-failed:" + exception.GetType().Name,
-                0,
-                Guid.NewGuid().ToString("N"),
-                phase,
-                userInitiated));
+            RecoverSurfacePresentation(previousPresentation);
+            var bounds = requestedPresentation?.TargetBounds ?? GetSurfaceBounds();
+            try
+            {
+                _surfacePresentationFailureReporter?.Invoke(new FacmSurfacePresentationFailure(
+                    mode,
+                    previousMode,
+                    "request:" + reason,
+                    exception.GetType().FullName ?? exception.GetType().Name,
+                    exception.HResult,
+                    Environment.CurrentManagedThreadId,
+                    bounds,
+                    correlationId,
+                    phase,
+                    userInitiated));
+            }
+            catch
+            {
+                // Recovery is already complete; diagnostics cannot be allowed to destabilize it.
+            }
         }
     }
+
+    private FacmSurfacePresentation CreateSurfacePresentation(FacmSurfaceMode mode, bool activate)
+    {
+        if (mode == FacmSurfaceMode.HiddenInGame)
+            return FacmSurfacePresentation.Create(mode, null, activate: false);
+        return FacmSurfacePresentation.Create(
+            mode,
+            CalculateSurfaceBounds(mode),
+            mode == FacmSurfaceMode.Orb && _transientRailVisible,
+            activate);
+    }
+
+    private void ApplySurfacePresentationCore(FacmSurfacePresentation presentation, bool animate)
+    {
+        presentation.EnsureValid();
+        if (presentation.Mode == FacmSurfaceMode.HiddenInGame)
+        {
+            AppWindow.Hide();
+            CommitSurfaceContent(presentation);
+            return;
+        }
+
+        // Make the requested content renderable before geometry changes, then remove old content only
+        // after the AppWindow has reached its target bounds. This prevents an observable blank frame.
+        PrepareSurfaceContent(presentation);
+        ApplySurfaceGeometry(presentation);
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+            presenter.IsAlwaysOnTop = presentation.Topmost;
+        AppWindow.Show();
+        CommitSurfaceContent(presentation);
+        if (presentation.Activate) Activate();
+        if (animate) PlayMorphingSurfaceTransition();
+    }
+
+    private bool IsSurfacePresentationValid(FacmSurfacePresentation presentation)
+    {
+        try
+        {
+            EnsureSurfacePresentationInvariant(presentation);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void EnsureSurfacePresentationInvariant(FacmSurfacePresentation presentation)
+    {
+        presentation.EnsureValid();
+        if (AppWindow.IsVisible != presentation.WindowVisible)
+            throw new InvalidOperationException("FACM AppWindow visibility does not match its presentation.");
+
+        if (!presentation.WindowVisible) return;
+        var orbVisible = OrbPresentationRoot.Visibility == Visibility.Visible &&
+                         OrbSurface.Visibility == Visibility.Visible;
+        var railVisible = OrbTransientRail.Visibility == Visibility.Visible;
+        var matrixVisible = ControlMatrixSurface.Visibility == Visibility.Visible;
+        var champSelectVisible = ChampSelectSurface.Visibility == Visibility.Visible;
+        var featureVisible = LegacyFeatureSurface.Visibility == Visibility.Visible;
+        if (orbVisible != presentation.OrbVisible || railVisible != presentation.RailVisible)
+            throw new InvalidOperationException("Orb or transient rail visibility violates the presentation contract.");
+        if (matrixVisible != (presentation.Mode == FacmSurfaceMode.ControlMatrix) ||
+            champSelectVisible != (presentation.Mode == FacmSurfaceMode.ChampSelectStrip) ||
+            featureVisible != (presentation.Mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface))
+            throw new InvalidOperationException("Surface content visibility violates the presentation contract.");
+        if (!orbVisible && !matrixVisible && !champSelectVisible && !featureVisible)
+            throw new InvalidOperationException("FACM AppWindow is visible without visible content.");
+
+        var expected = presentation.TargetBounds ??
+                       throw new InvalidOperationException("Visible presentation bounds are missing.");
+        var actual = GetSurfaceBounds();
+        if (!NearlyEqual(actual.Left, expected.Left) || !NearlyEqual(actual.Top, expected.Top) ||
+            !NearlyEqual(actual.Width, expected.Width) || !NearlyEqual(actual.Height, expected.Height))
+            throw new InvalidOperationException("FACM AppWindow bounds do not match the presentation contract.");
+    }
+
+    private void RecoverSurfacePresentation(FacmSurfacePresentation? previousPresentation)
+    {
+        if (previousPresentation is not null)
+        {
+            try
+            {
+                ApplySurfacePresentationCore(previousPresentation, animate: false);
+                EnsureSurfacePresentationInvariant(previousPresentation);
+                _currentPresentation = previousPresentation;
+                return;
+            }
+            catch
+            {
+                // Continue to the bounded emergency Orb fallback below.
+            }
+        }
+
+        try
+        {
+            _transientRailVisible = false;
+            ResetTransientRailPlacement();
+            var position = AppWindow.Position;
+            var emergencyOrb = FacmSurfacePresentation.Create(
+                FacmSurfaceMode.Orb,
+                new DesktopRect(position.X, position.Y, OrbSizeDip, OrbSizeDip),
+                activate: false);
+            ApplySurfacePresentationCore(emergencyOrb, animate: false);
+            EnsureSurfacePresentationInvariant(emergencyOrb);
+            _currentPresentation = emergencyOrb;
+        }
+        catch
+        {
+            // Hiding is the final fail-safe: a blank AppWindow must never remain interactive.
+            AppWindow.Hide();
+            _currentPresentation = null;
+        }
+    }
+
+    private static bool NearlyEqual(double left, double right) => Math.Abs(left - right) <= 2d;
 
     internal void ApplyGameflowSurfaceMode(LeagueGameflowSnapshot? snapshot)
     {
         if (!_morphingSurfaceEnabled || snapshot is null) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => ApplyGameflowSurfaceMode(snapshot));
+            return;
+        }
         var inGame = snapshot.ProductState == LeagueProductState.InGame;
         var champSelect = snapshot.ProductState == LeagueProductState.ChampSelect;
         var enteredChampSelect = champSelect && _lastSurfaceGameflowState != LeagueProductState.ChampSelect;
@@ -538,26 +771,17 @@ public sealed partial class MainWindow : Window
         var lobbyRestored = lobby &&
                             _lastSurfaceGameflowState is not null &&
                             _lastSurfaceGameflowState is not (LeagueProductState.Lobby or LeagueProductState.NotRunning);
-        _surfaceStateMachine.ObserveGameflow(
-            snapshot.Phase,
-            inGame,
-            champSelect,
-            lobbyRestored,
-            _manualOpenOverride);
         _lastSurfaceGameflowState = snapshot.ProductState;
 
         if (inGame && !_manualOpenOverride)
         {
-            ApplySurfaceMode(FacmSurfaceMode.HiddenInGame);
-            AppWindow.Hide();
+            ShowMorphingSurface(FacmSurfaceMode.HiddenInGame, "gameflow-in-game", false, snapshot.Phase);
             return;
         }
 
         if (champSelect)
         {
-            ApplySurfaceMode(FacmSurfaceMode.ChampSelectStrip);
-            ApplySurfaceGeometry(FacmSurfaceMode.ChampSelectStrip);
-            AppWindow.Show();
+            ShowMorphingSurface(FacmSurfaceMode.ChampSelectStrip, "gameflow-champ-select", false, snapshot.Phase);
             if (enteredChampSelect) _ = RefreshChampSelectWorkbenchAsync();
             return;
         }

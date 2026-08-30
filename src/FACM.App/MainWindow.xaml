@@ -9,10 +9,9 @@
             <CompositeTransform x:Name="SurfaceTransitionTransform" />
         </Grid.RenderTransform>
         <Grid
-            x:Name="OrbTransientContainer"
-            Width="220"
+            x:Name="OrbPresentationRoot"
             Height="36"
-            HorizontalAlignment="Left"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Top"
             Visibility="Collapsed">
             <Button
@@ -30,6 +29,7 @@
                 HorizontalContentAlignment="Stretch"
                 VerticalContentAlignment="Center"
                 Click="OnOrbTransientRailClick"
+                Visibility="Collapsed"
                 automation:AutomationProperties.AutomationId="FACM.Surface.OrbTransientRail">
                 <TextBlock
                     x:Name="OrbTransientRailText"
