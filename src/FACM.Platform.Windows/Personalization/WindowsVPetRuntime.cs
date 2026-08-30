@@ -89,7 +89,7 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
                 return new DesktopPetModeResult(true, false, "launcher-restored");
             }
 
-            if (pet.Runtime == FacmPetRuntimeKind.LegacyCompatibility)
+            if (pet.Runtime != FacmPetRuntimeKind.VPetCore)
             {
                 SetLauncherVisible(true);
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, "runtime-unsupported:" + pet.Runtime));
@@ -185,8 +185,6 @@ public sealed class WindowsVPetRuntime : IDesktopPetRuntime, IDisposable
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         startInfo.ArgumentList.Add("--data-root");
         startInfo.ArgumentList.Add(_dataRoot);
-        startInfo.ArgumentList.Add("--runtime");
-        startInfo.ArgumentList.Add(pet.Runtime == FacmPetRuntimeKind.FlyingSprite ? "flying" : "vpet");
         startInfo.ArgumentList.Add("--pet-id");
         startInfo.ArgumentList.Add(pet.Id);
         if (!string.IsNullOrWhiteSpace(_uiTextPath))
