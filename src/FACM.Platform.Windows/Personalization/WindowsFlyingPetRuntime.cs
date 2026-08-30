@@ -243,7 +243,9 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
             _transportCancellation = transportCancellation;
             process.Exited += OnProcessExited;
 
+            ReportStage("flying-activate-send-start");
             await TrySendAsync(writer, "activate|" + pet.Id).ConfigureAwait(false);
+            ReportStage("flying-activate-send-finish");
             UpdateState(new DesktopPetRuntimeState(true, false, pet.Id,
                 preparation.CacheHit ? "flying-host-starting-cache-hit" : "flying-host-starting-new-payload"));
 
