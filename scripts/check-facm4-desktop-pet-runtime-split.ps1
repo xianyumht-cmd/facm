@@ -93,11 +93,28 @@ if ($petHostProgram -match 'FlyingPetHostWindow|FlyingPetProfiles|FlyingSprite')
     Fail 'FACM.PetHost must be VPet-only and must not own FlyingSprite behavior.'
 }
 
-foreach ($required in @('FACM.FlyingHost', 'FlyingPetHostWindow', 'FlyingHostSelfTest')) {
+foreach ($required in @(
+    '<RootNamespace>FACM.FlyingHost</RootNamespace>',
+    '<AssemblyName>FACM.FlyingHost</AssemblyName>',
+    'FlyingPetHostWindow',
+    'FlyingHostSelfTest'
+)) {
     if (($flyingHostProject + "`n" + $flyingHostProgram) -notmatch [regex]::Escape($required)) { Fail "FlyingHost ownership missing: $required" }
 }
 if (($flyingHostProject + "`n" + $flyingHostProgram) -match 'VPet-Simulator|VPet_Simulator|VPetAssetCacheValidator') {
     Fail 'FACM.FlyingHost must stay independent from VPet.'
+}
+
+$flyingHostSourceRoot = Join-Path $Root 'src/FACM.FlyingHost'
+foreach ($file in Get-ChildItem $flyingHostSourceRoot -Filter '*.cs' -File) {
+    if ($file.Name -in @('GlobalUsings.cs', 'WpfAliases.cs')) { continue }
+    $text = Get-Content $file.FullName -Raw
+    if ($text -notmatch [regex]::Escape('namespace FACM.FlyingHost;')) {
+        Fail "FlyingHost source must declare FACM.FlyingHost namespace: $($file.Name)"
+    }
+    if ($text -match [regex]::Escape('namespace FACM.PetHost;')) {
+        Fail "FlyingHost source leaked legacy FACM.PetHost namespace: $($file.Name)"
+    }
 }
 
 foreach ($required in @(
@@ -133,6 +150,7 @@ if ($solution -notmatch [regex]::Escape('src\FACM.FlyingHost\FACM.FlyingHost.csp
 
 Write-Host 'FlyingSprite -> FACM.FlyingHost ownership: OK'
 Write-Host 'VPetCore -> FACM.PetHost ownership: OK'
+Write-Host 'FlyingHost root/source namespace isolation: OK'
 Write-Host 'Cross-route payload opening is rejected before bundle preparation: OK'
 Write-Host 'Separate bundle resource/cache identities: OK'
 Write-Host 'Thread-safe runtime router ownership: OK'
