@@ -177,7 +177,7 @@ public sealed partial class MainWindow : Window
         if (mode != FacmSurfaceMode.Orb) SetTransientRailVisible(false, resize: false);
         if (mode != FacmSurfaceMode.ChampSelectStrip)
         {
-            _champSelectIdentityCts?.Cancel();
+            CancelChampSelectIdentityLoad();
             _champSelectRequestedSignature = string.Empty;
         }
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
@@ -1260,9 +1260,7 @@ public sealed partial class MainWindow : Window
         _outsideClickWatcher.Dispose();
         _transientRailTimer?.Stop();
         _transientRailTimer = null;
-        _champSelectIdentityCts?.Cancel();
-        _champSelectIdentityCts?.Dispose();
-        _champSelectIdentityCts = null;
+        CancelChampSelectIdentityLoad();
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;

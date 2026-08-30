@@ -24,6 +24,13 @@ public sealed partial class MainWindow
         string Name,
         BitmapImage? Icon);
 
+    private void CancelChampSelectIdentityLoad()
+    {
+        _champSelectIdentityCts?.Cancel();
+        _champSelectIdentityCts?.Dispose();
+        _champSelectIdentityCts = null;
+    }
+
     private void ApplyMorphingChampSelectState()
     {
         _ = RefreshMorphingChampSelectStateAsync();
@@ -38,6 +45,7 @@ public sealed partial class MainWindow
         {
             ChampSelectStatus.Text = _text.Get(UiTextKeys.ChampSelectNoData);
             ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectUnavailableAction);
+            CancelChampSelectIdentityLoad();
             _champSelectRequestedSignature = string.Empty;
             RebuildChampSelectCandidates(Array.Empty<ChampSelectCandidateVisual>());
             return;
