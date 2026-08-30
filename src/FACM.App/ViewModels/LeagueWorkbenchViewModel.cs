@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.ComponentModel;
 using FACM.Core.League;
 using FACM.Core.Performance;
@@ -12,6 +13,7 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     private readonly IProductStateReader _productState;
     private readonly PerformanceBudgetProvider _performance;
     private readonly ILeagueWorkbenchDataSource? _dataSource;
+    private readonly Action<LeagueWorkbenchDiagnostic>? _diagnosticReporter;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly SemaphoreSlim _advisorUiGate = new(1, 1);
     private readonly SemaphoreSlim _itemSetUiGate = new(1, 1);
@@ -39,11 +41,13 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     public LeagueWorkbenchViewModel(
         IProductStateReader productState,
         PerformanceBudgetProvider performance,
-        ILeagueWorkbenchDataSource? dataSource = null)
+        ILeagueWorkbenchDataSource? dataSource = null,
+        Action<LeagueWorkbenchDiagnostic>? diagnosticReporter = null)
     {
         _productState = productState ?? throw new ArgumentNullException(nameof(productState));
         _performance = performance ?? throw new ArgumentNullException(nameof(performance));
         _dataSource = dataSource;
+        _diagnosticReporter = diagnosticReporter;
         _leagueState = _productState.Current.League;
         _budgetName = _performance.Current.Name;
         _productState.Changed += OnProductStateChanged;
@@ -116,32 +120,61 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var dataSource = _dataSource;
-        if (dataSource is null) return;
+        var correlationId = LeagueDiagnosticContext.CreateCorrelationId();
+        var refreshStartedUtc = DateTimeOffset.UtcNow;
+        var refreshStartTimestamp = Stopwatch.GetTimestamp();
+        if (dataSource is null)
+        {
+            ReportWorkbenchDiagnostic(correlationId, "started", "refresh", "skipped", "no-data-source", refreshStartedUtc, refreshStartedUtc, 0);
+            ReportWorkbenchDiagnostic(correlationId, "completed", "refresh", "skipped", "no-data-source", refreshStartedUtc, DateTimeOffset.UtcNow, 0);
+            return;
+        }
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         try
         {
-            if (!await _refreshGate.WaitAsync(0, linked.Token).ConfigureAwait(false)) return;
+            if (!await _refreshGate.WaitAsync(0, linked.Token).ConfigureAwait(false))
+            {
+                ReportWorkbenchDiagnostic(correlationId, "started", "refresh", "skipped", "busy", refreshStartedUtc, refreshStartedUtc, 0);
+                ReportWorkbenchDiagnostic(correlationId, "completed", "refresh", "skipped", "busy", refreshStartedUtc, DateTimeOffset.UtcNow, 0);
+                return;
+            }
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
+            ReportWorkbenchDiagnostic(correlationId, "started", "refresh", "cancelled", "cancelled-before-gate", refreshStartedUtc, refreshStartedUtc, 0);
+            ReportWorkbenchDiagnostic(correlationId, "completed", "refresh", "cancelled", "cancelled-before-gate", refreshStartedUtc, DateTimeOffset.UtcNow, 0);
             return;
         }
 
+        using var diagnosticScope = LeagueDiagnosticContext.Begin(correlationId, "workbench", "refresh");
+        ReportWorkbenchDiagnostic(correlationId, "started", "refresh", "started", "started", refreshStartedUtc, refreshStartedUtc, 0);
+        var refreshOutcome = "unhandled-exception";
+        var refreshReason = "unhandled-exception";
         try
         {
             SetRefreshing(true);
-            var dashboard = await dataSource.LoadDashboardAsync(linked.Token).ConfigureAwait(false);
+            var dashboard = await RunObservedStageAsync(
+                correlationId,
+                "dashboard",
+                () => dataSource.LoadDashboardAsync(linked.Token)).ConfigureAwait(false);
             LeagueWorkbenchPlayerSnapshot player;
             if (dashboard.Account is null)
             {
+                ReportSkippedStage(correlationId, "player", "current-player-unavailable");
                 player = LeagueWorkbenchPlayerSnapshot.Unavailable("current-player-unavailable");
             }
             else
             {
-                player = await dataSource.LoadCurrentPlayerAsync(0, 10, linked.Token).ConfigureAwait(false);
+                player = await RunObservedStageAsync(
+                    correlationId,
+                    "player",
+                    () => dataSource.LoadCurrentPlayerAsync(0, 10, linked.Token)).ConfigureAwait(false);
             }
-            var live = await dataSource.LoadLiveAsync(linked.Token).ConfigureAwait(false);
+            var live = await RunObservedStageAsync(
+                correlationId,
+                "live",
+                () => dataSource.LoadLiveAsync(linked.Token)).ConfigureAwait(false);
 
             _dashboard = dashboard;
             _player = player;
@@ -155,7 +188,10 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
             {
                 try
                 {
-                    SetAdvisor(await advisorService.RefreshAsync(false, linked.Token).ConfigureAwait(false));
+                    SetAdvisor(await RunObservedStageAsync(
+                        correlationId,
+                        "advisor",
+                        () => advisorService.RefreshAsync(false, linked.Token)).ConfigureAwait(false));
                 }
                 catch (OperationCanceledException) when (linked.IsCancellationRequested)
                 {
@@ -165,12 +201,22 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
                     SetAdvisor(LeagueBuildAdvisorSnapshot.Unavailable(live.Phase, "advisor-refresh-failed"));
                 }
             }
+            else
+            {
+                ReportSkippedStage(correlationId, "advisor", "service-unavailable");
+            }
+            refreshOutcome = "success";
+            refreshReason = "completed";
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
+            refreshOutcome = "cancelled";
+            refreshReason = "cancelled";
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            refreshOutcome = "failure";
+            refreshReason = exception.GetType().Name;
             _dashboard = LeagueWorkbenchDashboardSnapshot.Unavailable("refresh-failed");
             _player = LeagueWorkbenchPlayerSnapshot.Unavailable("refresh-failed");
             _live = LeagueWorkbenchLiveSnapshot.Unavailable(_live.Phase, "refresh-failed");
@@ -180,8 +226,103 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
         }
         finally
         {
+            ReportWorkbenchDiagnostic(
+                correlationId,
+                "completed",
+                "refresh",
+                refreshOutcome,
+                refreshReason,
+                refreshStartedUtc,
+                DateTimeOffset.UtcNow,
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(refreshStartTimestamp).TotalMilliseconds));
             SetRefreshing(false);
             _refreshGate.Release();
+        }
+    }
+
+    private async Task<T> RunObservedStageAsync<T>(
+        string correlationId,
+        string stage,
+        Func<Task<T>> operation)
+    {
+        var startedUtc = DateTimeOffset.UtcNow;
+        var startTimestamp = Stopwatch.GetTimestamp();
+        ReportWorkbenchDiagnostic(correlationId, "started", stage, "started", "started", startedUtc, startedUtc, 0);
+        using var diagnosticScope = LeagueDiagnosticContext.Begin(correlationId, "workbench", stage);
+        try
+        {
+            var result = await operation().ConfigureAwait(false);
+            ReportWorkbenchDiagnostic(
+                correlationId,
+                "completed",
+                stage,
+                "success",
+                "completed",
+                startedUtc,
+                DateTimeOffset.UtcNow,
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            ReportWorkbenchDiagnostic(
+                correlationId,
+                "completed",
+                stage,
+                "cancelled",
+                "cancelled",
+                startedUtc,
+                DateTimeOffset.UtcNow,
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportWorkbenchDiagnostic(
+                correlationId,
+                "completed",
+                stage,
+                "failure",
+                exception.GetType().Name,
+                startedUtc,
+                DateTimeOffset.UtcNow,
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+            throw;
+        }
+    }
+
+    private void ReportSkippedStage(string correlationId, string stage, string reason)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        ReportWorkbenchDiagnostic(correlationId, "started", stage, "skipped", reason, timestamp, timestamp, 0);
+        ReportWorkbenchDiagnostic(correlationId, "completed", stage, "skipped", reason, timestamp, DateTimeOffset.UtcNow, 0);
+    }
+
+    private void ReportWorkbenchDiagnostic(
+        string correlationId,
+        string eventName,
+        string stage,
+        string outcome,
+        string reason,
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        long durationMs)
+    {
+        try
+        {
+            _diagnosticReporter?.Invoke(new LeagueWorkbenchDiagnostic(
+                correlationId,
+                eventName,
+                stage,
+                outcome,
+                reason,
+                startedUtc,
+                finishedUtc,
+                durationMs));
+        }
+        catch
+        {
+            // Diagnostics must never change Workbench behavior.
         }
     }
 

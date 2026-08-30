@@ -129,13 +129,16 @@ public partial class App : Application
         // Read/write transport, Product State, performance, repair, automation and the Workbench all
         // consume the same facts and gateway.
         _leagueSessions = new WindowsLeagueTransportSessionSource();
-        _leagueGateway = new LeagueHttpGateway(_leagueSessions);
+        _leagueGateway = new LeagueHttpGateway(
+            _leagueSessions,
+            diagnosticReporter: ReportLeagueHttpDiagnostic);
         _leagueGameRepairService = new WindowsLeagueGameRepairService(_leagueGateway, _leagueGateway);
         _gameflow = new LeagueGameflowMonitor(
             _leagueGateway,
             _leagueSessions,
             _productState,
-            _performance);
+            _performance,
+            diagnosticReporter: ReportLeagueGameflowDiagnostic);
         _matchmakingAutomation = new LeagueMatchmakingAutomationService(
             _leagueGateway,
             _leagueGateway,
@@ -291,7 +294,11 @@ public partial class App : Application
         var repairTools = new RepairToolsViewModel(new WindowsRepairToolService());
         var gameRepair = new LeagueGameRepairViewModel(gameRepairService);
         var workbenchData = new LeagueWorkbenchDataSource(leagueGateway, gameflow);
-        _leagueWorkbench = new LeagueWorkbenchViewModel(productState, performance, workbenchData);
+        _leagueWorkbench = new LeagueWorkbenchViewModel(
+            productState,
+            performance,
+            workbenchData,
+            ReportLeagueWorkbenchDiagnostic);
         _diagnosticsCenter = new DiagnosticsCenterViewModel(diagnosticsSource, diagnosticsExporter);
         _window = new MainWindow(controlCenter, cleanupCenter, repairTools, _leagueWorkbench, _diagnosticsCenter, text);
         _window.ConfigureGameRepair(gameRepair);

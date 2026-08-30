@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using FACM.Core.League;
@@ -21,6 +22,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
     private readonly PerformanceBudgetProvider _performance;
     private readonly Func<DateTimeOffset> _utcNow;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly Action<LeagueGameflowDiagnostic>? _diagnosticReporter;
     private readonly CancellationTokenSource _lifetime = new();
     private LeagueGameflowSnapshot? _current;
     private bool _started;
@@ -32,7 +34,8 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         IProductStateWriter productState,
         PerformanceBudgetProvider performance,
         Func<DateTimeOffset>? utcNow = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Action<LeagueGameflowDiagnostic>? diagnosticReporter = null)
     {
         _readGateway = readGateway ?? throw new ArgumentNullException(nameof(readGateway));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -40,6 +43,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         _performance = performance ?? throw new ArgumentNullException(nameof(performance));
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
         _delay = delay ?? Task.Delay;
+        _diagnosticReporter = diagnosticReporter;
     }
 
     public LeagueGameflowSnapshot? Current
@@ -67,14 +71,114 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
     public async Task<LeagueGameflowSnapshot> RefreshOnceAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        cancellationToken.ThrowIfCancellationRequested();
+        var context = LeagueDiagnosticContext.Current;
+        var pollId = Guid.NewGuid().ToString("N");
+        var correlationId = context?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId();
+        var traceStartedUtc = DateTimeOffset.UtcNow;
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var phase = string.Empty;
+        var connection = LeagueConnectionState.NotRunning;
+        var productState = LeagueProductState.NotRunning;
+        var changed = (bool?)null;
+        var outcome = "unhandled-exception";
+        var reason = "unhandled-exception";
+        using var diagnosticScope = LeagueDiagnosticContext.Begin(correlationId, "gameflow", "poll");
+        ReportDiagnostic(
+            pollId,
+            correlationId,
+            "started",
+            "started",
+            "started",
+            phase,
+            connection,
+            productState,
+            changed,
+            traceStartedUtc,
+            traceStartedUtc,
+            0);
 
-        var bytes = await _readGateway.TryGetBytesAsync(PhaseResourceKey, cancellationToken).ConfigureAwait(false);
-        var connection = _sessions.State;
-        var readSucceeded = bytes is { Length: > 0 };
-        var phase = readSucceeded ? ParsePhase(bytes!) : string.Empty;
-        var mapping = LeagueGameflowPhaseMapper.Map(phase, connection, readSucceeded);
-        return Publish(mapping);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var bytes = await _readGateway.TryGetBytesAsync(PhaseResourceKey, cancellationToken).ConfigureAwait(false);
+            connection = _sessions.State;
+            var readSucceeded = bytes is { Length: > 0 };
+            phase = readSucceeded ? ParsePhase(bytes!) : string.Empty;
+            var mapping = LeagueGameflowPhaseMapper.Map(phase, connection, readSucceeded);
+            var previous = Current;
+            var snapshot = Publish(mapping);
+            productState = snapshot.ProductState;
+            changed = previous is null || !Equivalent(previous, snapshot);
+            outcome = "success";
+            reason = readSucceeded ? "phase-read" : "phase-unavailable";
+            return snapshot;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            outcome = "caller-cancelled";
+            reason = "caller-cancelled";
+            throw;
+        }
+        catch (Exception exception)
+        {
+            outcome = "failure";
+            reason = exception.GetType().Name;
+            throw;
+        }
+        finally
+        {
+            var finishedUtc = DateTimeOffset.UtcNow;
+            ReportDiagnostic(
+                pollId,
+                correlationId,
+                "completed",
+                outcome,
+                reason,
+                phase,
+                connection,
+                productState,
+                changed,
+                traceStartedUtc,
+                finishedUtc,
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+        }
+    }
+
+    private void ReportDiagnostic(
+        string pollId,
+        string correlationId,
+        string eventName,
+        string outcome,
+        string reason,
+        string phase,
+        LeagueConnectionState connection,
+        LeagueProductState productState,
+        bool? changed,
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        long durationMs)
+    {
+        try
+        {
+            _diagnosticReporter?.Invoke(new LeagueGameflowDiagnostic(
+                pollId,
+                correlationId,
+                eventName,
+                outcome,
+                reason,
+                phase,
+                connection,
+                productState,
+                changed,
+                startedUtc,
+                finishedUtc,
+                durationMs));
+        }
+        catch
+        {
+            // Diagnostics must never change the gameflow loop behavior.
+        }
     }
 
     private async Task RunAsync()

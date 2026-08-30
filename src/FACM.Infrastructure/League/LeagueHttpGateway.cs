@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -15,52 +16,100 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
     private readonly ILeagueTransportSessionSource _sessions;
     private readonly Func<HttpMessageHandler> _handlerFactory;
     private readonly TimeSpan _requestTimeout;
+    private readonly Action<LeagueHttpDiagnostic>? _diagnosticReporter;
     private readonly List<HttpClient> _retiredClients = [];
     private LeagueTransportSession? _clientSession;
     private HttpClient? _client;
+    private int _inFlight;
+    private int _maxInFlightObserved;
     private bool _disposed;
 
     public LeagueHttpGateway(
         ILeagueTransportSessionSource sessions,
         TimeSpan? requestTimeout = null,
-        Func<HttpMessageHandler>? handlerFactory = null)
+        Func<HttpMessageHandler>? handlerFactory = null,
+        Action<LeagueHttpDiagnostic>? diagnosticReporter = null)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(2);
         if (_requestTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(requestTimeout));
         _handlerFactory = handlerFactory ?? CreateDefaultHandler;
+        _diagnosticReporter = diagnosticReporter;
     }
 
     public async Task<byte[]?> TryGetBytesAsync(string resourceKey, CancellationToken cancellationToken)
     {
         var path = NormalizeRelativePath(resourceKey);
-        cancellationToken.ThrowIfCancellationRequested();
-        var session = _sessions.GetSession();
-        if (session is null) return null;
+        var trace = BeginRequest("GET", path);
+        var outcome = "unhandled-exception";
+        var statusCode = (int?)null;
+        var sessionInvalidated = false;
 
         try
         {
-            var client = GetOrCreateClient(session);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(_requestTimeout);
-            using var response = await client.GetAsync(path, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) _sessions.Invalidate(session);
-            if (!response.IsSuccessStatusCode) return null;
-            return await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var session = _sessions.GetSession();
+            if (session is null)
+            {
+                outcome = "no-session";
+                return null;
+            }
+
+            try
+            {
+                var client = GetOrCreateClient(session);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(_requestTimeout);
+                using var response = await client.GetAsync(path, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                statusCode = (int)response.StatusCode;
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                {
+                    _sessions.Invalidate(session);
+                    sessionInvalidated = true;
+                }
+                if (!response.IsSuccessStatusCode)
+                {
+                    outcome = response.StatusCode switch
+                    {
+                        HttpStatusCode.Unauthorized => "http-unauthorized",
+                        HttpStatusCode.Forbidden => "http-forbidden",
+                        _ => "http-failure"
+                    };
+                    return null;
+                }
+
+                var bytes = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                outcome = "success";
+                return bytes;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                _sessions.Invalidate(session);
+                sessionInvalidated = true;
+                outcome = "timeout";
+                return null;
+            }
+            catch (HttpRequestException)
+            {
+                _sessions.Invalidate(session);
+                sessionInvalidated = true;
+                outcome = "http-exception";
+                return null;
+            }
+            catch (ObjectDisposedException)
+            {
+                outcome = "disposed";
+                return null;
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _sessions.Invalidate(session);
-            return null;
+            outcome = "caller-cancelled";
+            throw;
         }
-        catch (HttpRequestException)
+        finally
         {
-            _sessions.Invalidate(session);
-            return null;
-        }
-        catch (ObjectDisposedException)
-        {
-            return null;
+            EndRequest(trace, statusCode, outcome, sessionInvalidated);
         }
     }
 
@@ -68,38 +117,171 @@ public sealed class LeagueHttpGateway : ILeagueReadGateway, ILeagueWriteGateway,
     {
         ArgumentNullException.ThrowIfNull(command);
         var target = LeagueWriteTargetPolicy.Resolve(command);
-        cancellationToken.ThrowIfCancellationRequested();
-        var session = _sessions.GetSession();
-        if (session is null) return null;
+        var trace = BeginRequest(target.Method, target.Path);
+        var outcome = "unhandled-exception";
+        var statusCode = (int?)null;
+        var sessionInvalidated = false;
 
         try
         {
-            var client = GetOrCreateClient(session);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(_requestTimeout);
-            using var request = new HttpRequestMessage(new HttpMethod(target.Method), target.Path);
-            if (command.Json is not null)
-                request.Content = new StringContent(command.Json, Encoding.UTF8, "application/json");
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) _sessions.Invalidate(session);
-            var body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
-            return new LeagueWriteResult((int)response.StatusCode, body);
+            cancellationToken.ThrowIfCancellationRequested();
+            var session = _sessions.GetSession();
+            if (session is null)
+            {
+                outcome = "no-session";
+                return null;
+            }
+
+            try
+            {
+                var client = GetOrCreateClient(session);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(_requestTimeout);
+                using var request = new HttpRequestMessage(new HttpMethod(target.Method), target.Path);
+                if (command.Json is not null)
+                    request.Content = new StringContent(command.Json, Encoding.UTF8, "application/json");
+                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                statusCode = (int)response.StatusCode;
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                {
+                    _sessions.Invalidate(session);
+                    sessionInvalidated = true;
+                }
+
+                var body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                outcome = response.IsSuccessStatusCode ? "success" : response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "http-unauthorized",
+                    HttpStatusCode.Forbidden => "http-forbidden",
+                    _ => "http-failure"
+                };
+                return new LeagueWriteResult((int)response.StatusCode, body);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                _sessions.Invalidate(session);
+                sessionInvalidated = true;
+                outcome = "timeout";
+                return null;
+            }
+            catch (HttpRequestException)
+            {
+                _sessions.Invalidate(session);
+                sessionInvalidated = true;
+                outcome = "http-exception";
+                return null;
+            }
+            catch (ObjectDisposedException)
+            {
+                outcome = "disposed";
+                return null;
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _sessions.Invalidate(session);
-            return null;
+            outcome = "caller-cancelled";
+            throw;
         }
-        catch (HttpRequestException)
+        finally
         {
-            _sessions.Invalidate(session);
-            return null;
-        }
-        catch (ObjectDisposedException)
-        {
-            return null;
+            EndRequest(trace, statusCode, outcome, sessionInvalidated);
         }
     }
+
+    private RequestTrace BeginRequest(string method, string path)
+    {
+        var context = LeagueDiagnosticContext.Current;
+        var trace = new RequestTrace(
+            Guid.NewGuid().ToString("N"),
+            context?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId(),
+            context?.Source ?? "league",
+            context?.Phase ?? "transport",
+            method,
+            LeagueEndpointRedactor.Redact(path),
+            DateTimeOffset.UtcNow,
+            Stopwatch.GetTimestamp(),
+            BeginInFlight());
+        ReportDiagnostic(trace, "started", trace.StartedUtc, 0, null, "started", false, trace.InFlightAtStart);
+        return trace;
+    }
+
+    private void EndRequest(
+        RequestTrace trace,
+        int? statusCode,
+        string outcome,
+        bool sessionInvalidated)
+    {
+        var finishedUtc = DateTimeOffset.UtcNow;
+        var durationMs = Math.Max(0L, (long)Stopwatch.GetElapsedTime(trace.StartTimestamp).TotalMilliseconds);
+        var inFlightAtEnd = Interlocked.Decrement(ref _inFlight);
+        ReportDiagnostic(
+            trace,
+            "completed",
+            finishedUtc,
+            durationMs,
+            statusCode,
+            outcome,
+            sessionInvalidated,
+            inFlightAtEnd);
+    }
+
+    private int BeginInFlight()
+    {
+        var current = Interlocked.Increment(ref _inFlight);
+        while (true)
+        {
+            var observed = Volatile.Read(ref _maxInFlightObserved);
+            if (current <= observed || Interlocked.CompareExchange(ref _maxInFlightObserved, current, observed) == observed)
+                return current;
+        }
+    }
+
+    private void ReportDiagnostic(
+        RequestTrace trace,
+        string eventName,
+        DateTimeOffset timestampUtc,
+        long durationMs,
+        int? statusCode,
+        string outcome,
+        bool sessionInvalidated,
+        int inFlightAtEnd)
+    {
+        try
+        {
+            _diagnosticReporter?.Invoke(new LeagueHttpDiagnostic(
+                trace.RequestId,
+                trace.CorrelationId,
+                trace.Source,
+                trace.Phase,
+                eventName,
+                trace.Method,
+                trace.Endpoint,
+                trace.StartedUtc,
+                timestampUtc,
+                durationMs,
+                statusCode,
+                outcome,
+                sessionInvalidated,
+                trace.InFlightAtStart,
+                inFlightAtEnd,
+                Volatile.Read(ref _maxInFlightObserved)));
+        }
+        catch
+        {
+            // Diagnostics must never change transport behavior.
+        }
+    }
+
+    private sealed record RequestTrace(
+        string RequestId,
+        string CorrelationId,
+        string Source,
+        string Phase,
+        string Method,
+        string Endpoint,
+        DateTimeOffset StartedUtc,
+        long StartTimestamp,
+        int InFlightAtStart);
 
     private HttpClient GetOrCreateClient(LeagueTransportSession session)
     {
