@@ -65,10 +65,13 @@ Workbench 只有 `比赛 / 攻略 / 自动化` 三层 IA；Bench 仍手动；wri
 
 ## 2026-08-30 Morphing Surface presentation contract
 
-The primary shell is a single native `MainWindow`; it morphs between the compact Orb, ControlMatrix,
-feature/League surfaces, ChampSelect strip and hidden InGame state. The state machine owns mode
-transitions and emits `facm.surface.transition` or `facm.surface.transition-failed` telemetry;
-it does not own League polling, LCU transport, settings, pet processes or feature business logic.
+The primary shell is a single native `MainWindow`, but Morphing mode must not look like a traditional
+MainWindow layout. It morphs between the compact Orb, ControlMatrix, feature/League surfaces,
+ChampSelect strip and hidden InGame state. In Morphing mode the NavigationView left pane is closed and
+does not reserve a visible navigation column; matrix buttons and compact header controls provide the
+navigation affordances. The state machine owns mode transitions and emits `facm.surface.transition`
+or `facm.surface.transition-failed` telemetry; it does not own League polling, LCU transport, settings,
+pet processes or feature business logic.
 
 The Orb is a 36-DIP custom-vector F anchored through the existing desktop geometry contract. Expansion
 uses one-shot anchor calculation with negative-coordinate, multi-monitor and edge-clamp handling,
@@ -77,9 +80,18 @@ back to the last safe placement and still leaves the shell usable.
 
 The default shell maps desktop entry to ControlMatrix, feature entry to FeatureSurface, League entry
 to LeagueSurface, ChampSelect to ChampSelectStrip, InGame to HiddenInGame, and Lobby return to Orb.
-The ChampSelect strip renders existing Live/Bench facts and reuses the existing one-shot bench write;
-it adds no LCU request owner or polling loop. Existing heavy feature pages remain an in-window adapter
-until a later visual-only migration that observes this contract.
+Green Collapse returns any ordinary expanded surface directly to Orb; Back from a feature returns to
+ControlMatrix; the red control preserves the established close/shutdown behavior. The Orb is only its
+36-DIP F at idle; an information rail is transient, one-shot, and itself activates the same primary
+surface action when clicked.
+
+When entering ChampSelect, the existing Workbench owner performs one event-driven refresh even if the
+League page was not previously selected. Its Live snapshot is then bound directly to ChampSelectStrip,
+including the Legacy/TeamBuilder bench route, existing champion metadata/icon reads, and the existing
+one-shot bench write plus bounded read-back. The strip adds no LCU owner, Gameflow owner, permanent UI
+timer, or second polling loop. Existing heavy feature pages remain an in-window adapter until a later
+visual-only migration that observes this contract; explanatory copy is supplied by the thin Inspector
+where possible, while safety-critical warnings remain at the action point.
 
 ## 3. Stable paths
 

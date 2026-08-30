@@ -208,7 +208,7 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 3. 核对 Batch M fix `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`；
 4. 核对 Foundation #632 / run `33233590075` / artifact `9709261625` / EXE SHA-256 `5d65bd3f...a9fea`；
 5. 不重复已完成的 A-M 稳定性修复；
-6. 从 targeted Win10 PetHost retest 继续；真实 evidence 回来前不得 cutover，也不得提前开始 UI 2.0。
+6. 从 targeted Win10 PetHost retest 继续；真实 evidence 回来前不得 cutover。Morphing Surface 已进入紧凑单表面 UX 收口阶段，但完整视觉迁移和真实视觉验收仍未完成。
 
 ## 2026-08-30 Live LCU Reliability + practical feature expansion
 
@@ -226,15 +226,17 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 
 候选功能评估：LCU Runtime Snapshot（高价值、只读、低风险，已实现）；ReadyCheck/Auto Accept outcome history（高价值、需要自然 ReadyCheck，暂不实现）；Lobby/queue session summary（中价值、已有 Dashboard 部分重复，暂不实现）；match-history performance drilldown（中价值、已有 Player 数据重复，暂不实现）；live phase health timeline（中高价值、需要持续采样，暂不引入第二轮询，暂不实现）。
 
-本轮仍不得 merge、push、release、Gate13、移动正式 P7，也不得开始完整视觉重构；必须先完成自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收。行为冻结基线的 Morphing Surface 实现不等同于 release-ready 或完整视觉升级完成。
+本轮仍不得 merge、push、release、Gate13、移动正式 P7；自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收仍未完成。Morphing Surface 的紧凑 UX 收口不等同于 release-ready 或完整视觉升级完成。
 
 ## 2026-08-30 Morphing Surface / UI Upgrade behavior baseline
 
-本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`；产品实现基线为 `f40d7f2b596df194b1ae6f9b13f33887746557ee`，当前完整 HEAD 为 `206f25b`（含本轮规范文档）。本轮只建立可运行的行为基线，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
+本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`；当前实现 commit 为 `11657307a386e443911643444f6e303c42aaf5d4`（`fix(p7): align morphing rail and lifecycle gates`）。本阶段继续在已冻结行为契约内收口紧凑单表面 UX，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
 
-- 默认 `FACM.App` 使用一个持久 `MainWindow` 主宿主，由 `FacmSurfaceStateMachine` 管理 `Orb / ControlMatrix / FeatureSurface / LeagueSurface / ChampSelectStrip / HiddenInGame` 展示模式；旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback。
-- Orb 使用 36 DIP 锚点和现有自定义 F；ControlMatrix、Inspector、LeagueSurface 及 ChampSelectStrip 复用现有 ViewModel/service。重量级 Diagnostics、Logs、Repair、Cleanup、Settings、Maintenance、Personalization、Pet Picker、Workbench 页面当前通过宿主内适配层承载，尚不是完整的新视觉页面迁移。
-- Outside-click、modal suppression、single-instance、tray、桌宠生命周期、InGame 隐藏和 Lobby 回 Orb 的行为契约保持冻结；没有新增 Gateway、Gameflow monitor、session owner、polling loop 或第二套 cache。
-- Morphing Surface 三笔本地提交：`97cf36b`、`bb85879`、`f40d7f2`。MS0 审计备份位于 `D:\project2\facm-backups\morphing-surface-ms0-20260830-210542`，未纳入仓库。
-- 已完成：FACM.App Debug x64 / FACM4.sln Debug 构建 0 warnings / 0 errors、FoundationSmoke、WindowsSmoke、Morphing/geometry deterministic smoke 及全部选定 source gates。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
+- 默认 `FACM.App` 使用一个持久 `MainWindow` 主宿主，由 `FacmSurfaceStateMachine` 管理 `Orb / ControlMatrix / FeatureSurface / LeagueSurface / ChampSelectStrip / HiddenInGame` 展示模式；这表示一个状态驱动宿主，不表示保留传统大 MainWindow 布局。旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback。
+- Orb 空闲时为 36 DIP 自定义 F；瞬时状态条仅在有信息时显示并使用一次性计时器，点击可执行与 Orb 相同的主激活动作。ControlMatrix 目标为 360x206 DIP，绿色按钮直接回 Orb，红色按钮保持既有关闭语义，Feature/League surface 通过同一宿主改变实际窗口几何。
+- Morphing 下关闭 NavigationView 左 pane，不保留左侧导航占位；永久解释性文案隐藏到 Inspector，清理操作的安全警告仍保留。Repair/Cleanup/League 当前是紧凑宿主适配层，尚不是所有功能的完整视觉重构。
+- ChampSelect 进入时由现有 Workbench owner 做一次事件驱动刷新；Live 快照更新后直接绑定 ChampSelectStrip。候选通过 Legacy/TeamBuilder 既有路由到达，身份来自现有 champion-summary，头像复用 LCU 图标端点，点击仍走既有单次 bench swap + 有界回读。
+- Outside-click、modal suppression、single-instance、tray、桌宠生命周期、InGame 隐藏和 Lobby 回 Orb 的行为契约保持冻结；没有新增 Gateway、Gameflow monitor、session owner、永久 UI 轮询或第二套 cache。
+- 本阶段相关本地提交：`3acad9ffcee467c98609f7c058cac299719a521b`、`ba4ec7c123defba52f209c372b39527d4ba725fc`、`0631e7158e751c4da9c392d73f1eb8d3a6ea1de5`、`89228f929a4c6fff5cb9996c70a557b91f0fc18d`、`11657307a386e443911643444f6e303c42aaf5d4`。MS0 审计备份位于 `D:\project2\facm-backups\morphing-surface-ms0-20260830-210542`，未纳入仓库。
+- 已完成本阶段代码校验：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke，以及全部 27 个非 cutover source gates，均为 0 警告 / 0 错误或 SUCCESS。fresh candidate 位于 `D:\project2\facm-ms7-out`，`FACM.App.exe` 为 `420955992` bytes、SHA-256 `39e628a5dff9f00f584f19ab10b3d710a3438a68c91581fa626032744e64f7c9`，目录包含 4 个文件且 0 个 DLL。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
 - 视觉截图和真实多屏/DPI/辅助功能仍需用户在目标机器复核；WinUI capture 当前受系统 `SetIsBorderRequired` 接口错误阻断，不能把未截图视为视觉 PASS。

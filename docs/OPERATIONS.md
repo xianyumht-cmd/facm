@@ -329,14 +329,15 @@ The latest natural local interaction kept FACM PID `16436` responsive and comple
 
 ## 17. 2026-08-30 Morphing Surface local candidate
 
-当前可供手工复核的默认候选是：
+当前可供手工复核的 Morphing Surface 源码候选是：
 
 ```text
 worktree: D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
 branch:   tmp/p7-ipc-lifecycle-fix-20260830
-commit:   f40d7f2b596df194b1ae6f9b13f33887746557ee
-exe:      D:\project2\facm-ms5-out\FACM.App.exe
-log:      D:\project2\facm-ms5-out\logs\facm4-events.jsonl
+commit:   11657307a386e443911643444f6e303c42aaf5d4
+exe:      D:\project2\facm-ms7-out\FACM.App.exe
+sha256:   39e628a5dff9f00f584f19ab10b3d710a3438a68c91581fa626032744e64f7c9
+log:      （由用户启动新候选后生成于对应候选目录）
 ```
 
 使用默认环境启动时进入 Morphing Surface；仅在需要兼容对照时设置
@@ -344,8 +345,10 @@ log:      D:\project2\facm-ms5-out\logs\facm4-events.jsonl
 必须确认启动前只有目标 FACM.App 进程，退出时使用应用自身关闭流程，不把旧的 `out/` 或
 `bin\x64\Debug` 副本当作当前证据。
 
-本阶段已验证的本地命令仍是：Debug x64 solution build、FoundationSmoke `--skip-gate13`、
-WindowsSmoke、Morphing geometry/state smoke 和全部选定 source gates。首次真实视觉检查应覆盖
+本阶段已验证的本地命令包括：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
+`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和全部 27 个非 cutover
+source gates；构建均为 0 警告 / 0 错误，新的 ms7 候选已完成并验证为 4 个文件、0 个 DLL。
+首次真实视觉检查应覆盖
 Orb 锚点、ControlMatrix、Feature/League surface、ChampSelect strip、outside-click、modal
 suppression、InGame 隐藏/Lobby 回 Orb、tray/single-instance 与 pet 切换；截图采集失败时必须
 标记为 `USER_VISUAL_REVIEW_REQUIRED`，不得自动宣称视觉通过。禁止由本地候选触发 Gate13、release、
