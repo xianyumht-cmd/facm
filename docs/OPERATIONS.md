@@ -334,9 +334,9 @@ The latest natural local interaction kept FACM PID `16436` responsive and comple
 ```text
 worktree: D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
 branch:   tmp/p7-ipc-lifecycle-fix-20260830
-commit:   a760daff21f73cca2ac86c59851541acef9f2b29
-exe:      （MS8.6 fresh candidate 生成后填入）
-sha256:   （MS8.6 fresh candidate 生成后填入）
+commit:   529847bfaad4196556720f24c28862617fefd655
+exe:      D:\project2\facm-ms8-out-20260831\FACM.App.exe
+sha256:   db26b37d66beddf181e4780e14b17a56e659edbe5402e30169a05b2dbeed5820
 log:      （由用户启动新候选后生成于对应候选目录）
 ```
 
@@ -346,11 +346,12 @@ log:      （由用户启动新候选后生成于对应候选目录）
 `bin\x64\Debug` 副本当作当前证据。
 
 本阶段已验证的本地命令包括：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
-`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和 Desktop/Shell/Architecture/P7
-closeout 相关 source gates；构建均为 0 警告 / 0 错误。MS8.6 将 MainWindow 的 outside-click
-watcher 生命周期限定在可关闭展开态，Orb/Hidden 停止并重置 watcher，且保留 CompactLauncher
-的同一实现。全部非 cutover source gate、fresh candidate 文件数/DLL 检查和 candidate SHA-256
-必须在最终候选生成后补录。
+`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和全部 27 个非 cutover source
+gates；构建均为 0 警告 / 0 错误。MS8.6 将 MainWindow 的 outside-click watcher 生命周期限定
+在可关闭展开态，Orb/Hidden 停止并重置 watcher，且保留 CompactLauncher 的同一实现。fresh
+candidate 已验证为 4 个文件、0 个 DLL，SHA-256 已记录于上方。启动候选时机器上已有另一个
+FACM 进程持有单实例，因此候选未暴露可捕获窗口；必须先正常退出既有 FACM，再按下方序列做
+USER_VISUAL_REVIEW_REQUIRED 复核，不能把单实例拦截视为视觉通过。
 首次真实视觉检查应覆盖
 Orb 锚点、ControlMatrix、Feature/League surface、ChampSelect strip、outside-click、modal
 suppression、InGame 隐藏/Lobby 回 Orb、tray/single-instance 与 pet 切换；截图采集失败时必须
