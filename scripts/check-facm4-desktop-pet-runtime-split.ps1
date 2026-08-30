@@ -94,14 +94,14 @@ foreach ($required in @(
     if ($router -notmatch [regex]::Escape($required)) { Fail "Desktop pet router split behavior missing: $required" }
 }
 
-$targetBlockStart = $router.IndexOf('var targetKind = pet.Runtime;', [StringComparison]::Ordinal)
+$targetBlockStart = $router.IndexOf('var targetKind = pet.Runtime;', [System.StringComparison]::Ordinal)
 if ($targetBlockStart -lt 0) { Fail 'Desktop pet router target-switch block is missing.' }
 $targetBlock = $router.Substring($targetBlockStart)
-$clearActiveIndex = $targetBlock.IndexOf('SetActiveKind(null);', [StringComparison]::Ordinal)
-$stopVPetIndex = $targetBlock.IndexOf('_vpet.ApplyAsync(false', [StringComparison]::Ordinal)
-$stopFlyingIndex = $targetBlock.IndexOf('_flying.ApplyAsync(false', [StringComparison]::Ordinal)
-$setTargetIndex = $targetBlock.IndexOf('SetActiveKind(targetKind);', [StringComparison]::Ordinal)
-$startTargetIndex = $targetBlock.IndexOf('target.ApplyAsync(true', [StringComparison]::Ordinal)
+$clearActiveIndex = $targetBlock.IndexOf('SetActiveKind(null);', [System.StringComparison]::Ordinal)
+$stopVPetIndex = $targetBlock.IndexOf('_vpet.ApplyAsync(false', [System.StringComparison]::Ordinal)
+$stopFlyingIndex = $targetBlock.IndexOf('_flying.ApplyAsync(false', [System.StringComparison]::Ordinal)
+$setTargetIndex = $targetBlock.IndexOf('SetActiveKind(targetKind);', [System.StringComparison]::Ordinal)
+$startTargetIndex = $targetBlock.IndexOf('target.ApplyAsync(true', [System.StringComparison]::Ordinal)
 if (@($clearActiveIndex, $stopVPetIndex, $stopFlyingIndex, $setTargetIndex, $startTargetIndex) | Where-Object { $_ -lt 0 }) {
     Fail 'Desktop pet router target-switch ordering anchors are incomplete.'
 }
