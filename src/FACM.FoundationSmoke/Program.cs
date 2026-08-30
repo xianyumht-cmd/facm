@@ -13,6 +13,7 @@ var tests = new (string Name, Func<Task> Run)[]
 {
     ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
     ("tray command routing and disposal", () => { TestTrayCommandRouting(); return Task.CompletedTask; }),
+    ("compact launcher outside-click state", () => { TestCompactLauncherOutsideClickState(); return Task.CompletedTask; }),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
     ("P7 production 3.5.15 settings key parity", LegacySettingsParitySmoke.RunAsync),
@@ -110,6 +111,29 @@ static void TestTrayCommandRouting()
     router.Dispose();
     router.Dispose();
     True(!router.TryDispatch(TrayCommand.OpenCompactLauncher), "disposed tray router must not dispatch");
+}
+
+static void TestCompactLauncherOutsideClickState()
+{
+    using var state = new CompactLauncherOutsideClickState();
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(true, false, false), "opening held click");
+    Equal(CompactLauncherOutsideClickObservation.Armed, state.Observe(false, false, false), "release arms watcher");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(true, true, false), "inside click stays open");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(false, false, false), "inside release");
+    Equal(CompactLauncherOutsideClickObservation.CloseRequested, state.Observe(true, false, false), "outside left click closes");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(false, false, false), "close is issued once");
+
+    using var rightClick = new CompactLauncherOutsideClickState();
+    Equal(CompactLauncherOutsideClickObservation.Armed, rightClick.Observe(false, false, false), "right click baseline release");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, rightClick.Observe(false, false, false), "right click stays open");
+
+    using var suppressed = new CompactLauncherOutsideClickState();
+    _ = suppressed.Observe(false, false, false);
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(true, false, true), "suppressed outside click");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(false, false, false), "suppressed release");
+    suppressed.Dispose();
+    suppressed.Dispose();
+    True(suppressed.IsDisposed, "outside-click state disposal is idempotent");
 }
 
 static void TestSettings()
