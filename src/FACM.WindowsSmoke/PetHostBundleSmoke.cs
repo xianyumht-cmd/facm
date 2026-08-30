@@ -187,7 +187,7 @@ internal static class PetHostBundleSmoke
                 _ => launch.Task);
 
             var watch = Stopwatch.StartNew();
-            var result = await runtime.ApplyAsync(true, FacmPetCatalog.Get("bee"));
+            var result = await runtime.ApplyAsync(true, FacmPetCatalog.Get("vpet"));
             watch.Stop();
 
             True(!result.Success, "non-cooperative PetHost process start unexpectedly succeeded");
@@ -197,7 +197,7 @@ internal static class PetHostBundleSmoke
             True(stages.Contains("process-start-timeout"), "PetHost process startup diagnostics missed process-start-timeout");
             True(!runtime.Current.StartRequested && !runtime.Current.PetVisible, "PetHost timeout did not restore a non-busy launcher runtime state");
 
-            var restored = await runtime.ApplyAsync(false, FacmPetCatalog.Get("bee")).WaitAsync(TimeSpan.FromSeconds(1));
+            var restored = await runtime.ApplyAsync(false, FacmPetCatalog.Get("vpet")).WaitAsync(TimeSpan.FromSeconds(1));
             True(restored.Success, "PetHost runtime gate remained blocked after process-start timeout");
             Equal("launcher-restored", restored.Detail, "PetHost process-start timeout launcher recovery detail");
         }
