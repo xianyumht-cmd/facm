@@ -33,6 +33,7 @@ public sealed partial class MainWindow
         if (_maintenanceControl is null)
         {
             var control = new MaintenanceSettingsControl();
+            control.ConfigureOutsideCloseSuppression(SuppressOutsideClose);
             control.ReplacementStarted += OnMaintenanceReplacementStarted;
             control.ExitRequested += OnMaintenanceExitRequested;
             control.Configure(viewModel);

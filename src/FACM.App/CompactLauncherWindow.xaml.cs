@@ -15,7 +15,7 @@ public sealed partial class CompactLauncherWindow : Window
 
     private readonly IDesktopWorkAreaProvider _workAreas;
     private readonly Action<string> _openShellSection;
-    private readonly CompactLauncherOutsideClickWatcher _outsideClickWatcher;
+    private readonly DesktopSurfaceOutsideClickWatcher _outsideClickWatcher;
     private int _outsideCloseSuppression;
     private bool _closed;
 
@@ -31,7 +31,7 @@ public sealed partial class CompactLauncherWindow : Window
         InitializeComponent();
         ApplyText(text);
         ConfigurePresenter();
-        _outsideClickWatcher = new CompactLauncherOutsideClickWatcher(
+        _outsideClickWatcher = new DesktopSurfaceOutsideClickWatcher(
             DispatcherQueue,
             GetScreenBounds,
             () => Volatile.Read(ref _outsideCloseSuppression) != 0,

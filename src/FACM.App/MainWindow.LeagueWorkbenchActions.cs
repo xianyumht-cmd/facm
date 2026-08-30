@@ -257,6 +257,7 @@ public sealed partial class MainWindow
         };
         try
         {
+            using var outsideCloseSuppression = SuppressOutsideClose();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
         }
         catch (OperationCanceledException)
@@ -303,6 +304,7 @@ public sealed partial class MainWindow
         };
         try
         {
+            using var outsideCloseSuppression = SuppressOutsideClose();
             await resultDialog.ShowAsync();
         }
         catch (OperationCanceledException)
@@ -348,6 +350,7 @@ public sealed partial class MainWindow
         };
         try
         {
+            using var outsideCloseSuppression = SuppressOutsideClose();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
         }
         catch (OperationCanceledException)
@@ -387,6 +390,7 @@ public sealed partial class MainWindow
         };
         try
         {
+            using var outsideCloseSuppression = SuppressOutsideClose();
             await resultDialog.ShowAsync();
         }
         catch (OperationCanceledException)

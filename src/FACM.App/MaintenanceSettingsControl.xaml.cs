@@ -8,6 +8,7 @@ namespace FACM.App;
 public sealed partial class MaintenanceSettingsControl : UserControl
 {
     private MaintenanceViewModel? _viewModel;
+    private Func<IDisposable>? _suppressOutsideClose;
     private bool _syncing;
     private bool _initializationInFlight;
 
@@ -20,6 +21,11 @@ public sealed partial class MaintenanceSettingsControl : UserControl
 
     public event Action? ReplacementStarted;
     public event Action? ExitRequested;
+
+    internal void ConfigureOutsideCloseSuppression(Func<IDisposable> suppressOutsideClose)
+    {
+        _suppressOutsideClose = suppressOutsideClose ?? throw new ArgumentNullException(nameof(suppressOutsideClose));
+    }
 
     public void Configure(MaintenanceViewModel viewModel)
     {
@@ -74,6 +80,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
     {
         if (_viewModel is not null) _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel = null;
+        _suppressOutsideClose = null;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -156,7 +163,15 @@ public sealed partial class MaintenanceSettingsControl : UserControl
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            var outsideCloseSuppression = _suppressOutsideClose?.Invoke();
+            try
+            {
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            }
+            finally
+            {
+                outsideCloseSuppression?.Dispose();
+            }
             var viewModel = _viewModel;
             if (viewModel is null || !viewModel.HasPreparedUpdate) return;
             var result = await viewModel.StartPreparedReplacementAsync();

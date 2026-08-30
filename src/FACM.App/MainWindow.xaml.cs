@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using FACM.App.ViewModels;
 using FACM.Core.Cleanup;
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.Text;
 using Microsoft.UI.Xaml;
@@ -19,6 +20,8 @@ public sealed partial class MainWindow : Window
     private readonly LeagueWorkbenchViewModel _leagueWorkbench;
     private readonly DiagnosticsCenterViewModel _diagnosticsCenter;
     private readonly IUiTextProvider _text;
+    private readonly DesktopSurfaceOutsideClickWatcher _outsideClickWatcher;
+    private int _outsideCloseSuppression;
     private bool _closed;
     private bool _cleanupInitialized;
     private bool _cleanupUiBusy;
@@ -48,6 +51,12 @@ public sealed partial class MainWindow : Window
             StartupFailureObserver.TryWrite(exception, "main-window-xaml-failure.txt");
             throw;
         }
+        _outsideClickWatcher = new DesktopSurfaceOutsideClickWatcher(
+            DispatcherQueue,
+            GetScreenBounds,
+            () => Volatile.Read(ref _outsideCloseSuppression) != 0,
+            Close);
+        _outsideClickWatcher.Start();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         ApplyStaticText();
@@ -60,6 +69,13 @@ public sealed partial class MainWindow : Window
         Closed += OnClosed;
         RootNavigation.SelectedItem = RepairNav;
         RootNavigation.Loaded += OnRootNavigationLoaded;
+    }
+
+    internal IDisposable SuppressOutsideClose()
+    {
+        ObjectDisposedException.ThrowIf(_closed, this);
+        Interlocked.Increment(ref _outsideCloseSuppression);
+        return new OutsideCloseSuppressionScope(this);
     }
 
     public void NavigateToSection(string section)
@@ -292,6 +308,7 @@ public sealed partial class MainWindow : Window
     private async void OnCleanupSelectClick(object sender, RoutedEventArgs args)
     {
         if (_cleanupUiBusy) return;
+        using var outsideCloseSuppression = SuppressOutsideClose();
         var picker = new FolderPicker();
         picker.FileTypeFilter.Add("*");
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -371,6 +388,7 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = plan.DeletableTargets.Count > 0
         };
+        using var outsideCloseSuppression = SuppressOutsideClose();
         var result = await dialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
 
@@ -394,6 +412,7 @@ public sealed partial class MainWindow : Window
             CloseButtonText = _text.Get(UiTextKeys.CleanupCancel),
             DefaultButton = ContentDialogButton.Primary
         };
+        using var outsideCloseSuppression = SuppressOutsideClose();
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
         var started = _cleanupCenter.RestartElevatedForCleanup();
@@ -434,6 +453,7 @@ public sealed partial class MainWindow : Window
                 Content = BuildCleanupResult(result),
                 CloseButtonText = _text.Get(UiTextKeys.CleanupConfirmPrimary)
             };
+            using var outsideCloseSuppression = SuppressOutsideClose();
             await resultDialog.ShowAsync();
         }
         catch (OperationCanceledException)
@@ -623,9 +643,31 @@ public sealed partial class MainWindow : Window
     {
         if (_closed) return;
         _closed = true;
+        _outsideClickWatcher.Dispose();
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;
         Closed -= OnClosed;
+    }
+
+    private DesktopRect? GetScreenBounds()
+    {
+        var position = AppWindow.Position;
+        var size = AppWindow.Size;
+        var bounds = new DesktopRect(position.X, position.Y, size.Width, size.Height);
+        return bounds.IsValid ? bounds : null;
+    }
+
+    private void ReleaseOutsideCloseSuppression()
+    {
+        if (Volatile.Read(ref _outsideCloseSuppression) == 0) return;
+        Interlocked.Decrement(ref _outsideCloseSuppression);
+    }
+
+    private sealed class OutsideCloseSuppressionScope(MainWindow owner) : IDisposable
+    {
+        private MainWindow? _owner = owner;
+
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ReleaseOutsideCloseSuppression();
     }
 }

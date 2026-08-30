@@ -4,7 +4,12 @@ using Microsoft.UI.Dispatching;
 
 namespace FACM.App;
 
-internal sealed class CompactLauncherOutsideClickWatcher : IDisposable
+/// <summary>
+/// Applies the legacy outside-left-click rule to any FACM-owned top-level surface.
+/// The state machine deliberately waits for the opening mouse button to be released before
+/// arming, so an activation click cannot close the newly opened surface.
+/// </summary>
+internal sealed class DesktopSurfaceOutsideClickWatcher : IDisposable
 {
     private const int VirtualLeftButton = 0x01;
     private readonly DispatcherQueueTimer _timer;
@@ -14,7 +19,7 @@ internal sealed class CompactLauncherOutsideClickWatcher : IDisposable
     private readonly CompactLauncherOutsideClickState _state = new();
     private bool _disposed;
 
-    public CompactLauncherOutsideClickWatcher(
+    public DesktopSurfaceOutsideClickWatcher(
         DispatcherQueue dispatcherQueue,
         Func<DesktopRect?> boundsProvider,
         Func<bool> isSuppressed,

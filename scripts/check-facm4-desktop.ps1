@@ -21,13 +21,15 @@ $floatingXamlPath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml'
 $floatingCodePath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml.cs'
 $compactXamlPath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml'
 $compactCodePath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml.cs'
+$outsideWatcherPath = Join-Path $Root 'src/FACM.App/DesktopSurfaceOutsideClickWatcher.cs'
+$mainCodePath = Join-Path $Root 'src/FACM.App/MainWindow.xaml.cs'
 $appCodePath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
     $corePath, $dragCorePath, $platformPath, $floatingPlatformPath,
     $floatingXamlPath, $floatingCodePath, $compactXamlPath, $compactCodePath,
-    $appCodePath, $textPath
+    $outsideWatcherPath, $mainCodePath, $appCodePath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "Desktop contract file missing: $path" }
 }
@@ -40,6 +42,8 @@ $floatingXaml = Get-Content $floatingXamlPath -Raw
 $floatingCode = Get-Content $floatingCodePath -Raw
 $compactXaml = Get-Content $compactXamlPath -Raw
 $compactCode = Get-Content $compactCodePath -Raw
+$outsideWatcher = Get-Content $outsideWatcherPath -Raw
+$mainCode = Get-Content $mainCodePath -Raw
 $appCode = Get-Content $appCodePath -Raw
 $text = Get-Content $textPath -Raw
 
@@ -147,6 +151,27 @@ foreach ($forbidden in @(
     'SetWindowsHookEx', 'GetAsyncKeyState', 'LowLevelKeyboardProc'
 )) {
     if ($compactCode -match $forbidden) { Fail "Compact launcher gained forbidden runtime/platform ownership: $forbidden" }
+}
+
+foreach ($required in @(
+    'DesktopSurfaceOutsideClickWatcher', 'CompactLauncherOutsideClickState',
+    'GetAsyncKeyState', 'GetCursorPos', 'CreateTimer', 'CloseRequested',
+    'opening mouse button'
+)) {
+    if ($outsideWatcher -notmatch [regex]::Escape($required)) {
+        Fail "Unified desktop outside-click watcher missing behavior: $required"
+    }
+}
+foreach ($required in @(
+    'new DesktopSurfaceOutsideClickWatcher', 'SuppressOutsideClose',
+    '_outsideClickWatcher.Dispose', 'GetScreenBounds'
+)) {
+    if ($mainCode -notmatch [regex]::Escape($required)) {
+        Fail "Main Shell outside-click lifecycle missing: $required"
+    }
+}
+if ($compactCode -notmatch 'DesktopSurfaceOutsideClickWatcher') {
+    Fail 'Compact launcher must use the shared desktop outside-click watcher.'
 }
 
 if ((Count-Matches $appCode 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
