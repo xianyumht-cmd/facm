@@ -70,6 +70,18 @@ P2-P7 是 stacked PR。若 source gate 固定比较 `origin/main...HEAD`，祖�
 - WPF/WinForms host 使用 `ApplicationHighDpiMode=PerMonitorV2`，manifest 只保留仍需要的兼容/长路径声明。
 - 修改后必须重新执行 host publish/self-test、solution build 和 WindowsSmoke；不能只让 analyzer 静音。
 
+## Source gate 扫描必须排除构建目录
+
+### 根因
+
+本机在先完成 App publish 后再次执行 shell gate 时，`src/FACM.App/bin/...` 内由 Windows App SDK 生成的 `Microsoft.UI.Xaml` 目录被 `Get-ChildItem -Filter '*.xaml'` 返回，gate 随后对目录调用 `Get-Content` 而失败。干净 checkout 的 CI 顺序不会暴露这个问题，但完整本机验证会。
+
+### 防回归规则
+
+- 扫描源码文件时必须明确使用 `-File`，并在必要时排除 `bin`/`obj`；
+- source gate 应能在 source-only 和 build/publish 后重复执行，不能把生成目录当作源码错误；
+- 修复 gate 选择器，不要删除检查或清理掉真实源码证据来“让测试绿”。
+
 ## `ResponseHeadersRead` 不代表正文也受超时控制
 
 ### 根因

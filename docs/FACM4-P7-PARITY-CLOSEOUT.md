@@ -8,7 +8,7 @@ Latest code fix: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
 Verified Foundation: **#632 / run `33233590075` = SUCCESS**
 Current targeted artifact: `9709261625`
 
-Current cloud staging candidate: `2730eda15dc28a801871b5a3d10b4eecbd03a656` (parent formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
+Current cloud staging candidate: `e387295fd61c233f8e9892016a6e9917b448cd5b` (parent baseline `2730eda15dc28a801871b5a3d10b4eecbd03a656`, formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
 
 ## Purpose and boundary
 
@@ -142,7 +142,7 @@ The isolated candidate worktree reproduced the Foundation sequence with .NET SDK
 
 `WFAC010` was a real .NET 10 warning caused by legacy manifest DPI nodes in the WPF/WinForms hosts. Both hosts now use `ApplicationHighDpiMode=PerMonitorV2`; FlyingHost manifest identity is `FACM.FlyingHost.app`; the warning is absent after republish. Three stacked-PR protection gates now compare the candidate/PR base parent rather than `origin/main`, so inherited production-control history is not misreported. `online/version.json` and `release/request.json` remain unchanged.
 
-This is local evidence only. The latest known hosted run `33292986694` / job `99207749499` had `runner_id=0` and `steps=[]`; it did not execute source gates, build, smoke, publish, or artifact upload.
+This is local evidence only. The candidate closeout hosted run `33295151374` / job `99213419340` had `runner_id=0` and `steps=[]`; it did not execute source gates, build, smoke, publish, or artifact upload.
 
 ## Current targeted candidate
 

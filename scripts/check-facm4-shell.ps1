@@ -56,7 +56,7 @@ foreach ($forbidden in @('System\.Windows\.Forms', 'WindowsFormsHost', 'FormBord
     if ($mainCode -match $forbidden) { Fail "Shell implementation crossed its UI boundary: $forbidden" }
 }
 
-foreach ($xamlFile in Get-ChildItem $app -Recurse -Filter '*.xaml') {
+foreach ($xamlFile in Get-ChildItem $app -Recurse -Filter '*.xaml' -File) {
     $xaml = Get-Content $xamlFile.FullName -Raw
     if ($xaml -match '#[0-9A-Fa-f]{6,8}') { Fail "Hard-coded color found in FACM.App XAML: $($xamlFile.FullName)" }
 }

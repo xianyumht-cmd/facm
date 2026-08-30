@@ -8,7 +8,7 @@ Latest code fix head: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
 Latest code+plan PR head used by Foundation: `803e1ba5f9b671b0a787a8c77bb39912d4211b7d`
 Latest code-bearing Foundation: **#632 / run `33233590075` = SUCCESS**
 Latest canonical-doc full regression: **#633 / run `33233865204` = SUCCESS**
-Current cloud staging candidate: `2730eda15dc28a801871b5a3d10b4eecbd03a656` (parent formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
+Current cloud staging candidate: `e387295fd61c233f8e9892016a6e9917b448cd5b` (parent baseline `2730eda15dc28a801871b5a3d10b4eecbd03a656`, formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论、真机证据或正式交接，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
 
@@ -22,7 +22,7 @@ Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 p
 
 2026-08-30 在全新 candidate worktree 完成了 .NET `10.0.400` Foundation 等价链：FlyingHost/PetHost publish + self-test、28 个 source gates、`FACM4.sln` Release x64 restore/build、FoundationSmoke、WindowsSmoke、FACM.App single-file publish 均通过。FlyingHost 464 files / `72,052,263` bytes / SHA-256 `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`，PetHost 472 files / `76,915,115` bytes / SHA-256 `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`。FACM.App.exe 为 `377,994,404` bytes / SHA-256 `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`，输出 DLL entries 为 0。
 
-本机还正式复现并修复了 .NET 10 `WFAC010`：旧 manifest DPI 节点与 WPF/WinForms analyzer 冲突；两个 host 改用 `ApplicationHighDpiMode=PerMonitorV2`，FlyingHost identity 改为 `FACM.FlyingHost.app`。三处 stacked-PR 生产控制 diff gate 改为比较 PR 基线直接父提交；生产控制文件本身未改动。最新已知 hosted run `33292986694` / job `99207749499` 仍为 `runner_id=0`、`steps=[]`，待 staging candidate 推送后重新观察。
+本机还正式复现并修复了 .NET 10 `WFAC010`：旧 manifest DPI 节点与 WPF/WinForms analyzer 冲突；两个 host 改用 `ApplicationHighDpiMode=PerMonitorV2`，FlyingHost identity 改为 `FACM.FlyingHost.app`。三处 stacked-PR 生产控制 diff gate 改为比较 PR 基线直接父提交；生产控制文件本身未改动。candidate 收口提交的 hosted run `33295151374` / job `99213419340` 仍为 `runner_id=0`、`steps=[]`。
 
 Gate13 不变：
 
