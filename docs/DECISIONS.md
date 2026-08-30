@@ -296,3 +296,20 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 ### 原因
 
 真实复现显示卡顿日志对应的是后台 PropertyChanged 跨线程 COMException，而非已证实的 FACM 进程退出。当前性能数据最大并发为 2、Workbench refresh 为 56 ms，尚无证据支持引入新的调度/缓存机制。自然 ReadyCheck 证据回来前，必须保留现有 Auto Accept 的一次性写入和可观察失败边界。
+
+## 2026-08-30：Morphing Surface 作为单一 FACM 主界面，行为先于视觉升级冻结
+
+### 决策
+
+- 默认 FACM 只创建一个持久 `MainWindow` 主宿主；Orb、ControlMatrix、FeatureSurface、LeagueSurface、ChampSelectStrip 和 HiddenInGame 是同一窗口内的展示模式，不是六个窗口。
+- `FacmSurfaceStateMachine` 只负责展示状态、转换原因、耗时和失败 telemetry；ViewModel、League session/Gateway/Gameflow、settings、automation 和桌宠 runtime ownership 保持原有边界。
+- 旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback，便于诊断和回归对照，但默认体验不再依赖多个并行 FACM shell。
+- UI Upgrade 只允许在这份行为契约之内进行视觉替换；outside-click、modal suppression、single-instance、tray、桌宠切换、InGame 隐藏、Lobby 回 Orb、settings persistence、update flow 和 League polling/cache 不得因视觉重构改变。
+
+### 原因
+
+用户可见的“桌宠/悬浮入口/控制中心/功能页”必须表现为一个可预测的 FACM surface，避免切换时残留多个宿主或桌宠与悬浮入口并存。保留 legacy fallback 可以在真机视觉复核期间提供可逆对照，而不重新引入第二套业务 owner。
+
+### 后果
+
+本地候选先完成状态机、几何、宿主路由、适配层和确定性 smoke；Diagnostics、Logs、Repair、Cleanup、Settings、Maintenance、Personalization、Pet Picker、Workbench 的完整视觉迁移仍是后续工作。未完成真实多屏/DPI/辅助功能和截图复核前，不得把候选视为 release-ready，也不得移动正式 P7。

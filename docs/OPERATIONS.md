@@ -326,3 +326,27 @@ Use the isolated worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` and 
 The local .NET SDK is `D:\project2\dotnet10\dotnet.exe` (10.0.400). Keep `DOTNET_CLI_HOME`, `TEMP`, `TMP`, and NuGet packages under `D:\project2`. The verified commands for this stage are: App self-contained Debug x64 build with 0 warnings / 0 errors; FoundationSmoke with `--skip-gate13` and 0 warnings / 0 errors; then launch the exact current App binary and inspect `logs\facm4-events.jsonl` for lifecycle, paired Workbench stages, exception fields, HTTP outcome/classification, PID/port and in-flight counters.
 
 The latest natural local interaction kept FACM PID `16436` responsive and completed Workbench Dashboard/Player/Live/Advisor/Refresh without COMException. The current LCU observation is LeagueClient PID `8812`, LeagueClientUx PID `20504`, port `61101`, phase `Lobby / Connected`. The cumulative log has 387 HTTP completions (340 success, 83 ExpectedUnavailable, 0 UnexpectedFailure), p50/p95/max `0/10/374 ms`, and max in-flight `2`. Two automation matchmaking writes took `109 ms` and `127 ms`; no Auto Accept write occurred because the trace did not enter ReadyCheck. This is not a ReadyCheck or full real-machine pass. A future ReadyCheck test must be natural and read-only except for the already-authorized Auto Accept behavior; do not start a queue or game merely to manufacture evidence. The persisted settings currently read `autoMatchmakingEnabled=false` and `autoAcceptEnabled=true` while the same trace contains two automation matchmaking writes; resolve this runtime/persistence discrepancy with diagnostics before changing settings behavior.
+
+## 17. 2026-08-30 Morphing Surface local candidate
+
+当前可供手工复核的默认候选是：
+
+```text
+worktree: D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
+branch:   tmp/p7-ipc-lifecycle-fix-20260830
+commit:   f40d7f2b596df194b1ae6f9b13f33887746557ee
+exe:      D:\project2\facm-ms5-out\FACM.App.exe
+log:      D:\project2\facm-ms5-out\logs\facm4-events.jsonl
+```
+
+使用默认环境启动时进入 Morphing Surface；仅在需要兼容对照时设置
+`FACM_SHELL_EXPERIENCE=legacy`，它启用旧 FloatingWindow/CompactLauncher 路由。两种模式都
+必须确认启动前只有目标 FACM.App 进程，退出时使用应用自身关闭流程，不把旧的 `out/` 或
+`bin\x64\Debug` 副本当作当前证据。
+
+本阶段已验证的本地命令仍是：Debug x64 solution build、FoundationSmoke `--skip-gate13`、
+WindowsSmoke、Morphing geometry/state smoke 和全部选定 source gates。首次真实视觉检查应覆盖
+Orb 锚点、ControlMatrix、Feature/League surface、ChampSelect strip、outside-click、modal
+suppression、InGame 隐藏/Lobby 回 Orb、tray/single-instance 与 pet 切换；截图采集失败时必须
+标记为 `USER_VISUAL_REVIEW_REQUIRED`，不得自动宣称视觉通过。禁止由本地候选触发 Gate13、release、
+production pointer、merge 或 push。

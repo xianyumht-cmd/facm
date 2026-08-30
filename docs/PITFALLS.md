@@ -513,3 +513,16 @@ Build #845 因此在 FACM 编译阶段以 CS7036 失败；PetHost publish/self-t
 ## 2026-08-30：验证 App 时必须确认实际输出目录
 
 FACM 工程的 Debug 构建可能输出到 `bin\Debug`，而旧测试启动器仍可能指向历史 `bin\x64\Debug`。启动前必须核对 EXE 的完整路径和修改时间，否则会把旧二进制的失败误判为新修复失败或把旧行为误判为新行为。
+
+## 2026-08-30：Morphing Surface 不能重新引入多个 UI shell 或 League owner
+
+### 根因
+
+将 Orb、控制中心、功能窗口、League 工作台和桌宠入口分别实现为独立常驻窗口，会让一次用户切换同时留下多个宿主；如果每个页面再创建自己的 Gateway、Gameflow monitor、session 或 polling loop，卡顿和生命周期问题会被放大，且无法判断哪个窗口代表当前状态。
+
+### 防回归规则
+
+- 默认只允许一个持久 `MainWindow` 主宿主；其它模式必须在该宿主内 morph，legacy 多窗口只能通过显式 `FACM_SHELL_EXPERIENCE=legacy` 对照启用。
+- 新视觉组件只能消费现有 ViewModel/service，不得创建第二个 League transport、Gameflow monitor、session owner、polling loop 或 cache。
+- 任何外观切换都必须保持 outside-click、modal suppression、single-instance、tray、桌宠、InGame hide 和 Lobby 回 Orb 契约。
+- source gate 如果扫描 `obj` 生成副本，必须先确认扫描的具体路径与当前构建是否已刷新；不要把 stale generated XAML 当成产品源文件，也不要为规避扫描修改平台项目的换行噪声。

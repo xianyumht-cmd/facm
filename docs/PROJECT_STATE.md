@@ -197,7 +197,7 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 ## 之后的阶段
 
 - targeted + 统一真机功能等价验收通过后，再决定 stacked P2-P7 合并策略；CI 绿不会自动 merge。
-- UI 2.0 只在功能等价验收之后开始。
+- UI Upgrade 已进入“行为冻结基线”阶段：本地 Morphing Surface 候选已实现并通过确定性验证；完整视觉重构、真机视觉复核和正式产品切换仍未完成。
 - PR #234 继续 Draft / open / unmerged。
 - Gate13 release/cutover 是独立证据链。
 
@@ -226,4 +226,15 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 
 候选功能评估：LCU Runtime Snapshot（高价值、只读、低风险，已实现）；ReadyCheck/Auto Accept outcome history（高价值、需要自然 ReadyCheck，暂不实现）；Lobby/queue session summary（中价值、已有 Dashboard 部分重复，暂不实现）；match-history performance drilldown（中价值、已有 Player 数据重复，暂不实现）；live phase health timeline（中高价值、需要持续采样，暂不引入第二轮询，暂不实现）。
 
-本轮仍不得 merge、push、release、Gate13、移动正式 P7，也不得开始完整 UI Upgrade；必须先完成自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收。
+本轮仍不得 merge、push、release、Gate13、移动正式 P7，也不得开始完整视觉重构；必须先完成自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收。行为冻结基线的 Morphing Surface 实现不等同于 release-ready 或完整视觉升级完成。
+
+## 2026-08-30 Morphing Surface / UI Upgrade behavior baseline
+
+本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`，当前完整 HEAD 为 `f40d7f2b596df194b1ae6f9b13f33887746557ee`。本轮只建立可运行的行为基线，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
+
+- 默认 `FACM.App` 使用一个持久 `MainWindow` 主宿主，由 `FacmSurfaceStateMachine` 管理 `Orb / ControlMatrix / FeatureSurface / LeagueSurface / ChampSelectStrip / HiddenInGame` 展示模式；旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback。
+- Orb 使用 36 DIP 锚点和现有自定义 F；ControlMatrix、Inspector、LeagueSurface 及 ChampSelectStrip 复用现有 ViewModel/service。重量级 Diagnostics、Logs、Repair、Cleanup、Settings、Maintenance、Personalization、Pet Picker、Workbench 页面当前通过宿主内适配层承载，尚不是完整的新视觉页面迁移。
+- Outside-click、modal suppression、single-instance、tray、桌宠生命周期、InGame 隐藏和 Lobby 回 Orb 的行为契约保持冻结；没有新增 Gateway、Gameflow monitor、session owner、polling loop 或第二套 cache。
+- Morphing Surface 三笔本地提交：`97cf36b`、`bb85879`、`f40d7f2`。MS0 审计备份位于 `D:\project2\facm-backups\morphing-surface-ms0-20260830-210542`，未纳入仓库。
+- 已完成：FACM.App Debug x64 / FACM4.sln Debug 构建 0 warnings / 0 errors、FoundationSmoke、WindowsSmoke、Morphing/geometry deterministic smoke 及全部选定 source gates。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
+- 视觉截图和真实多屏/DPI/辅助功能仍需用户在目标机器复核；WinUI capture 当前受系统 `SetIsBorderRequired` 接口错误阻断，不能把未截图视为视觉 PASS。

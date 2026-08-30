@@ -6,8 +6,8 @@ FACM 3.5.15 WinForms 仍是 production/rollback baseline；FACM 4.0 使用 .NET 
 
 ```text
 FACM.App
-├─ MainWindow: one AppTitleBar + NavigationView + Frame
-├─ FloatingWindow: narrow F desktop entry
+├─ MainWindow: one persistent morphing surface host + legacy feature adapter
+├─ legacy FloatingWindow / CompactLauncherWindow: diagnostic fallback only
 ├─ ViewModels: Core intents/state only
 └─ composition root
         ↓
@@ -35,13 +35,19 @@ Direction 固定：App -> Core/Infrastructure/Platform.Windows；Infrastructure 
 
 Window/Page -> ViewModel -> Core intent/state。具体 adapter 只在 App composition root 组装。
 
+By default FACM owns one persistent `MainWindow` surface. `FacmSurfaceStateMachine` changes only
+the presentation mode (`Orb`, `ControlMatrix`, `FeatureSurface`, `LeagueSurface`,
+`ChampSelectStrip`, `HiddenInGame`); ViewModels, Core services and League ownership remain
+modular and are not recreated per mode. `FACM_SHELL_EXPERIENCE=legacy` preserves the old
+`FloatingWindow` / `CompactLauncherWindow` routing for diagnostics and fallback.
+
 FACM-owned top-level surfaces use one shared outside-click lifecycle implementation where the
 legacy product requires desktop-blank dismissal: `DesktopSurfaceOutsideClickWatcher` owns the
 physical left-button edge, screen-bounds hit test, opening-click release rule, and disposal for
-`MainWindow` and `CompactLauncherWindow`. MainWindow feature pages are not separate native
-windows; their FolderPicker and ContentDialog flows acquire an explicit suppression scope so a
-desktop click cannot close the host while a modal interaction is active. `FloatingWindow` remains
-the persistent desktop entry surface and is not treated as a dismissible content panel.
+the active shell. MainWindow feature pages are not separate native windows; their FolderPicker
+and ContentDialog flows acquire an explicit suppression scope so a desktop click cannot close the
+host while a modal interaction is active. Morphing geometry snaps to its final clamped bounds;
+the transition is a bounded opacity/translation effect and does not introduce a resize loop.
 
 Process-wide exactly one：
 
@@ -56,6 +62,24 @@ ProductStateStore
 Gate 12 source gate 直接统计 App composition construction count，任何一个不是 exactly 1 都失败。禁止 ViewModel/Page 创建 HttpClient、League runtime、settings/diagnostic/recovery store、Process/Registry/Win32 implementation 或第二 polling loop。
 
 Workbench 只有 `比赛 / 攻略 / 自动化` 三层 IA；Bench 仍手动；writer 只能走 Core capability allowlist。
+
+## 2026-08-30 Morphing Surface presentation contract
+
+The primary shell is a single native `MainWindow`; it morphs between the compact Orb, ControlMatrix,
+feature/League surfaces, ChampSelect strip and hidden InGame state. The state machine owns mode
+transitions and emits `facm.surface.transition` or `facm.surface.transition-failed` telemetry;
+it does not own League polling, LCU transport, settings, pet processes or feature business logic.
+
+The Orb is a 36-DIP custom-vector F anchored through the existing desktop geometry contract. Expansion
+uses one-shot anchor calculation with negative-coordinate, multi-monitor and edge-clamp handling,
+then a bounded 180 ms opacity/translation presentation. A failed or unavailable geometry read falls
+back to the last safe placement and still leaves the shell usable.
+
+The default shell maps desktop entry to ControlMatrix, feature entry to FeatureSurface, League entry
+to LeagueSurface, ChampSelect to ChampSelectStrip, InGame to HiddenInGame, and Lobby return to Orb.
+The ChampSelect strip renders existing Live/Bench facts and reuses the existing one-shot bench write;
+it adds no LCU request owner or polling loop. Existing heavy feature pages remain an in-window adapter
+until a later visual-only migration that observes this contract.
 
 ## 3. Stable paths
 
