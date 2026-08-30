@@ -1,10 +1,14 @@
 # FACM 3.5.15 -> 4.0 Full Product Parity Specification Audit
 
-Status: **BATCH-W-COMPLETE / IMPLEMENTATION-BACKLOG-RECORDED**  
-Audit date: 2026-08-30  
-Production baseline: `908d5782e6eb5b30fee0e4d5794c312d70ac0e36` (FACM 3.5.15)  
-Audited candidate: `7b925572f151d080352a68c2b397c1f47c7d429c` (Batch U included)  
-Formal P7: `9744af848e4b888c1876e76e2cbf0c06d5c526bf` (unchanged)  
+Status: **BATCH-W-COMPLETE / IMPLEMENTATION-BACKLOG-RECORDED**
+
+Audit date: 2026-08-30
+
+Production baseline: `908d5782e6eb5b30fee0e4d5794c312d70ac0e36` (FACM 3.5.15)
+
+Audited candidate: `7b925572f151d080352a68c2b397c1f47c7d429c` (Batch U included)
+
+Formal P7: `9744af848e4b888c1876e76e2cbf0c06d5c526bf` (unchanged)
 PR #234: Draft / open / unmerged
 
 This is a behavior and product-surface audit, not a UI 2.0 redesign and not permission to
