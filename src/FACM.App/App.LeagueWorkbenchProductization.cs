@@ -159,35 +159,50 @@ public partial class App
     {
         var settings = _settings
             ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
+        InitializeLeaguePostGameAutomationFromSettings();
+        return new LeaguePostGameAutomationSettingsViewModel(
+            settings,
+            _postGameAutomation ?? throw new InvalidOperationException("League post-game automation is unavailable."));
+    }
+
+    /// <summary>
+    /// Starts the process-scoped post-game owner during normal application startup. The settings
+    /// presenter is intentionally lazy, but Auto Honor/Return Lobby must not depend on opening the
+    /// large shell first.
+    /// </summary>
+    private void InitializeLeaguePostGameAutomationFromSettings()
+    {
+        if (_postGameAutomation is not null) return;
+
+        var settings = _settings
+            ?? throw new InvalidOperationException("Settings 2.0 repository is unavailable.");
         var gateway = _leagueGateway
             ?? throw new InvalidOperationException("League gateway is unavailable.");
         var gameflow = _gameflow
             ?? throw new InvalidOperationException("League gameflow owner is unavailable.");
-
-        if (_postGameAutomation is null)
+        var automation = new LeaguePostGameAutomationService(
+            gateway,
+            gateway,
+            gameflow,
+            diagnosticReporter: ReportLeaguePostGameDiagnostic);
+        try
         {
-            var automation = new LeaguePostGameAutomationService(gateway, gateway, gameflow);
-            try
-            {
-                var loaded = settings.LoadAsync().GetAwaiter().GetResult();
-                automation.Configure(
-                    loaded.Settings.League.AutoHonorTeammateEnabled,
-                    loaded.Settings.League.AutoReturnLobbyEnabled);
-            }
-            catch
-            {
-                automation.Configure(false, false);
-            }
-
-            _postGameAutomation = automation;
-            if (!_postGameProcessExitHooked)
-            {
-                _postGameProcessExitHooked = true;
-                AppDomain.CurrentDomain.ProcessExit += OnLeaguePostGameProcessExit;
-            }
+            var loaded = settings.LoadAsync().GetAwaiter().GetResult();
+            automation.Configure(
+                loaded.Settings.League.AutoHonorTeammateEnabled,
+                loaded.Settings.League.AutoReturnLobbyEnabled);
+        }
+        catch
+        {
+            automation.Configure(false, false);
         }
 
-        return new LeaguePostGameAutomationSettingsViewModel(settings, _postGameAutomation);
+        _postGameAutomation = automation;
+        if (!_postGameProcessExitHooked)
+        {
+            _postGameProcessExitHooked = true;
+            AppDomain.CurrentDomain.ProcessExit += OnLeaguePostGameProcessExit;
+        }
     }
 
     /// <summary>
