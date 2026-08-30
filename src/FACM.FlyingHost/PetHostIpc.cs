@@ -1,7 +1,7 @@
 using System.IO.Pipes;
 using System.Text;
 
-namespace FACM.PetHost;
+namespace FACM.FlyingHost;
 
 internal sealed class PetHostIpc : IDisposable
 {
