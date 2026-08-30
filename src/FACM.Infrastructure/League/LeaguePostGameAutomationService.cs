@@ -12,6 +12,7 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
 {
     internal const string BallotPath = "/lol-honor-v2/v1/ballot";
     internal const string TeamChoicesPath = "/lol-honor-v2/v1/team-choices";
+    internal const string VoteCompletionPath = "/lol-honor-v2/v1/vote-completion";
     internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
     private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(600);
     private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromSeconds(12);
@@ -31,6 +32,7 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly Func<int, int> _chooseIndex;
     private readonly Func<DateTimeOffset> _utcNow;
+    private readonly Action<LeaguePostGameDiagnostic>? _diagnosticReporter;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _cycleCancellation;
     private LeagueHonorAttemptStatus? _lastHonorStatus;
@@ -46,7 +48,8 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         ILeagueGameflowObservationSource gameflow,
         Func<TimeSpan, CancellationToken, Task>? delay = null,
         Func<int, int>? chooseIndex = null,
-        Func<DateTimeOffset>? utcNow = null)
+        Func<DateTimeOffset>? utcNow = null,
+        Action<LeaguePostGameDiagnostic>? diagnosticReporter = null)
     {
         _read = read ?? throw new ArgumentNullException(nameof(read));
         _write = write ?? throw new ArgumentNullException(nameof(write));
@@ -54,6 +57,7 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         _delay = delay ?? Task.Delay;
         _chooseIndex = chooseIndex ?? (count => count <= 1 ? 0 : Random.Shared.Next(count));
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+        _diagnosticReporter = diagnosticReporter;
         _gameflow.Observed += OnGameflowObserved;
     }
 
@@ -145,15 +149,22 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
 
     private async Task RunCycleSafelyAsync(string phase, CancellationToken cancellationToken)
     {
+        var correlationId = LeagueDiagnosticContext.CreateCorrelationId();
+        var startedUtc = _utcNow();
+        ReportDiagnostic(correlationId, "cycle-start", phase, "cycle", "started", "post-game-cycle-started", startedUtc, startedUtc);
         try
         {
+            using var scope = LeagueDiagnosticContext.Begin(correlationId, "postgame", phase);
             await RunCycleAsync(phase, cancellationToken).ConfigureAwait(false);
+            ReportDiagnostic(correlationId, "cycle-complete", phase, "cycle", "success", "post-game-cycle-complete", startedUtc, _utcNow());
         }
         catch (OperationCanceledException)
         {
+            ReportDiagnostic(correlationId, "cycle-complete", phase, "cycle", "cancelled", "post-game-cycle-cancelled", startedUtc, _utcNow());
         }
-        catch
+        catch (Exception exception)
         {
+            ReportDiagnostic(correlationId, "cycle-complete", phase, "cycle", "failure", exception.GetType().Name, startedUtc, _utcNow(), exception: exception);
             // Best-effort post-game automation must never destabilize the shared League runtime.
         }
     }
@@ -187,9 +198,22 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsStillEnabledForReturn()) return;
 
-        _ = await _write.ExecuteAsync(
+        var writeStartedUtc = _utcNow();
+        var correlationId = LeagueDiagnosticContext.Current?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId();
+        ReportDiagnostic(correlationId, "return-lobby", initialPhase, "return-lobby", "started", "play-again-write", writeStartedUtc, writeStartedUtc);
+        var writeResult = await _write.ExecuteAsync(
             new LeagueWriteCommand(LeagueWriteCapability.PlayAgain, null, null),
             cancellationToken).ConfigureAwait(false);
+        ReportDiagnostic(
+            correlationId,
+            "return-lobby",
+            initialPhase,
+            "return-lobby",
+            writeResult is null ? "unavailable" : writeResult.IsSuccessStatusCode ? "success" : "failure",
+            writeResult?.StatusCode.ToString(CultureInfo.InvariantCulture) ?? "no-result",
+            writeStartedUtc,
+            _utcNow(),
+            httpStatus: writeResult?.StatusCode);
     }
 
     private async Task<HonorBallot?> WaitForBallotAsync(CancellationToken cancellationToken)
@@ -327,6 +351,7 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         var sameGameSeen = false;
         var targetStillEligible = false;
         var voteUnchanged = false;
+        var completionSeen = false;
 
         foreach (var delay in VerificationDelays)
         {
@@ -343,21 +368,29 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
                 return new HonorVerification("confirmed", "team-choices-confirmed");
 
             var after = ParseBallot(await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false));
-            if (after is null || after.GameId != before.GameId) continue;
-            sameGameSeen = true;
-            if (after.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal))
-                return new HonorVerification("confirmed", "ballot-honored-player-confirmed");
-            targetStillEligible = after.Allies.Any(item =>
-                item.SummonerId > 0 && item.SummonerId == selected.SummonerId ||
-                string.Equals(item.Puuid, selected.Puuid, StringComparison.Ordinal));
-            voteUnchanged = before.HasVoteCount && after.HasVoteCount && after.Votes == before.Votes;
-            if (before.HasVoteCount && after.HasVoteCount && after.Votes < before.Votes)
-                return new HonorVerification("confirmed", "ballot-vote-decreased");
+            if (after is not null && after.GameId == before.GameId)
+            {
+                sameGameSeen = true;
+                if (after.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal))
+                    return new HonorVerification("confirmed", "ballot-honored-player-confirmed");
+                targetStillEligible = after.Allies.Any(item =>
+                    item.SummonerId > 0 && item.SummonerId == selected.SummonerId ||
+                    string.Equals(item.Puuid, selected.Puuid, StringComparison.Ordinal));
+                voteUnchanged = before.HasVoteCount && after.HasVoteCount && after.Votes == before.Votes;
+                if (before.HasVoteCount && after.HasVoteCount && after.Votes < before.Votes)
+                    return new HonorVerification("confirmed", "ballot-vote-decreased");
+            }
+
+            var completion = ParseVoteCompletion(
+                await _read.TryGetBytesAsync(VoteCompletionPath, cancellationToken).ConfigureAwait(false));
+            if (completion is not null && (completion.GameId == 0 || completion.GameId == before.GameId))
+                completionSeen = true;
         }
 
+        var completionDetail = completionSeen ? ";completion-readable" : ";completion-unreadable";
         return sameGameSeen && targetStillEligible && voteUnchanged
-            ? new HonorVerification("not-applied", "same-game-ballot-unchanged")
-            : new HonorVerification("unknown", "no-authoritative-confirmation");
+            ? new HonorVerification("not-applied", "same-game-ballot-unchanged" + completionDetail)
+            : new HonorVerification("unknown", "no-authoritative-confirmation" + completionDetail);
     }
 
     private async Task<string?> TryReadSelfPuuidAsync(CancellationToken cancellationToken)
@@ -466,6 +499,24 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         }
     }
 
+    internal static VoteCompletion? ParseVoteCompletion(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 0 }) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            return new VoteCompletion(
+                ReadInt64Any(root, "gameId", "game_id"),
+                ReadBooleanAny(root, "fullTeamVote", "full_team_vote"));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     internal static bool IsPostGamePhase(string? phase) =>
         string.Equals(phase, "WaitingForStats", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(phase, "PreEndOfGame", StringComparison.OrdinalIgnoreCase) ||
@@ -499,6 +550,62 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         }
         try { handler?.Invoke(this, EventArgs.Empty); }
         catch { }
+        ReportDiagnostic(
+            LeagueDiagnosticContext.Current?.CorrelationId ?? LeagueDiagnosticContext.CreateCorrelationId(),
+            "honor-status",
+            "PostGame",
+            "auto-honor",
+            status.State,
+            status.Detail,
+            status.CompletedAtUtc,
+            status.CompletedAtUtc,
+            route: status.Route,
+            httpStatus: status.HttpStatus > 0 ? status.HttpStatus : null,
+            attempt: status.Attempts,
+            targetPuuidSuffix: status.TargetPuuidSuffix);
+    }
+
+    private void ReportDiagnostic(
+        string correlationId,
+        string eventName,
+        string phase,
+        string operation,
+        string outcome,
+        string reason,
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        Exception? exception = null,
+        string route = "",
+        int? httpStatus = null,
+        int attempt = 0,
+        string targetPuuidSuffix = "")
+    {
+        try
+        {
+            _diagnosticReporter?.Invoke(new LeaguePostGameDiagnostic(
+                correlationId,
+                eventName,
+                phase,
+                operation,
+                outcome,
+                reason,
+                startedUtc,
+                finishedUtc,
+                Math.Max(0L, (long)(finishedUtc - startedUtc).TotalMilliseconds),
+                route,
+                httpStatus,
+                attempt,
+                targetPuuidSuffix,
+                exception?.GetType().FullName ?? string.Empty,
+                exception is null
+                    ? string.Empty
+                    : "0x" + exception.HResult.ToString("X8", CultureInfo.InvariantCulture),
+                Environment.CurrentManagedThreadId));
+        }
+        catch
+        {
+            // Diagnostics must never change post-game automation behavior.
+        }
     }
 
     private LeagueHonorAttemptStatus CreateStatus(
@@ -548,6 +655,15 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
             JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
             _ => false
         };
+    }
+
+    private static bool ReadBooleanAny(JsonElement source, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (source.TryGetProperty(name, out _)) return ReadBoolean(source, name);
+        }
+        return false;
     }
 
     private static int ReadInt32(JsonElement source, string name)
@@ -608,5 +724,6 @@ public sealed class LeaguePostGameAutomationService : ILeaguePostGameAutomationS
         bool HasVoteCount,
         IReadOnlyList<HonorCandidate> Allies,
         IReadOnlyList<string> HonoredPuuids);
+    internal sealed record VoteCompletion(long GameId, bool FullTeamVote);
     private sealed record HonorVerification(string State, string Detail);
 }

@@ -8,5 +8,5 @@ public interface ILeagueMatchmakingAutomationService
 {
     bool AutoSearchEnabled { get; }
     bool AutoAcceptEnabled { get; }
-    void Configure(bool autoSearch, bool autoAccept);
+    void Configure(bool autoSearch, bool autoAccept, string configurationSource = "runtime");
 }

@@ -149,6 +149,7 @@ public partial class App : Application
             _gameflow,
             ReportLeagueAutomationDiagnostic);
         ConfigureLeagueAutomationFromSettings();
+        InitializeLeaguePostGameAutomationFromSettings();
 
         _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
         _gameflow.Start();
@@ -272,13 +273,14 @@ public partial class App : Application
             var loaded = settings.LoadAsync().GetAwaiter().GetResult();
             automation.Configure(
                 loaded.Settings.League.AutoMatchmakingEnabled,
-                loaded.Settings.League.AutoAcceptEnabled);
+                loaded.Settings.League.AutoAcceptEnabled,
+                "startup-settings:" + loaded.Origin);
         }
         catch
         {
             // Automation is optional and fail-soft. Corrupt/unavailable settings must not prevent the
             // shell from starting; RecoveringSettings2Repository remains the owner of settings repair.
-            automation.Configure(false, false);
+            automation.Configure(false, false, "startup-settings-fallback");
         }
     }
 

@@ -12,6 +12,7 @@ internal static class LeaguePostGameAutomationSmoke
         await LegacyHonorFallbackRemainsBoundedAsync();
         await IneligibleBallotNeverWritesHonorAsync();
         WriteTargetsRemainNarrow();
+        VoteCompletionParserAcceptsLegacyFieldNames();
         PhaseDelaysMatchLegacyContract();
     }
 
@@ -183,6 +184,17 @@ internal static class LeaguePostGameAutomationSmoke
         Equal(TimeSpan.FromSeconds(10), LeaguePostGameAutomationService.ResolveReturnDelay("WaitingForStats"), "WaitingForStats return delay");
         Equal(TimeSpan.FromMilliseconds(3250), LeaguePostGameAutomationService.ResolveReturnDelay("PreEndOfGame"), "PreEndOfGame return delay");
         Equal(TimeSpan.FromMilliseconds(1575), LeaguePostGameAutomationService.ResolveReturnDelay("EndOfGame"), "EndOfGame return delay");
+    }
+
+    private static void VoteCompletionParserAcceptsLegacyFieldNames()
+    {
+        var completion = LeaguePostGameAutomationService.ParseVoteCompletion(
+            Encoding.UTF8.GetBytes("{ \"game_id\": 9001, \"full_team_vote\": true }"));
+        True(completion is not null, "vote completion object parses");
+        Equal(9001L, completion!.GameId, "vote completion game id");
+        True(completion.FullTeamVote, "vote completion full team vote");
+        True(LeaguePostGameAutomationService.ParseVoteCompletion(Encoding.UTF8.GetBytes("[]")) is null,
+            "invalid vote completion shape is ignored");
     }
 
     private static LeagueGameflowSnapshot Snapshot(

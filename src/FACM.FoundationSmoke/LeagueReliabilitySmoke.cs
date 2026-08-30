@@ -13,6 +13,7 @@ internal static class LeagueReliabilitySmoke
         await TestGatewayClassificationAsync();
         await TestGameflowObserverBoundaryAsync();
         await TestAutoAcceptFailureBoundaryAsync();
+        await TestAutomationTimingAndConfigurationAsync();
     }
 
     private static void TestExpected404Classification()
@@ -106,6 +107,42 @@ internal static class LeagueReliabilitySmoke
             "Auto Accept failure includes exception type");
     }
 
+    private static async Task TestAutomationTimingAndConfigurationAsync()
+    {
+        var diagnostics = new List<LeagueAutomationDiagnostic>();
+        var read = new RoutingReadGateway();
+        read.Set(LeagueMatchmakingAutomationService.LobbyPath, """
+            {
+              "canStartActivity": true,
+              "localMember": { "isLeader": true },
+              "gameConfig": { "queueId": 420 },
+              "members": [{ "puuid": "smoke-member", "isBot": false, "isSpectator": false }]
+            }
+            """);
+        var write = new CapturingWriteGateway();
+        var gameflow = new FakeObservationSource();
+        using var service = new LeagueMatchmakingAutomationService(read, write, gameflow, diagnostics.Add);
+        service.Configure(autoSearch: true, autoAccept: false, configurationSource: "smoke-settings");
+
+        var observation = new LeagueGameflowSnapshot(
+            DateTimeOffset.UtcNow.AddMilliseconds(-250),
+            LeagueConnectionState.Connected,
+            "Lobby",
+            LeagueProductState.Lobby,
+            LeagueActivityLevel.Client);
+        await service.EvaluateObservedSafelyForSmokeTestAsync(observation);
+
+        var applied = diagnostics.Single(item => item.Event == "configuration-applied");
+        Equal("smoke-settings", applied.ConfigurationSource, "automation configuration source");
+        True(applied.AutoSearchEnabled == true && applied.AutoAcceptEnabled == false,
+            "automation configuration values");
+        var completed = diagnostics.Single(item => item.Event == "start-matchmaking" && item.StartedUtc != item.FinishedUtc);
+        True(completed.DetectionDelayMs >= 0, "matchmaking detection delay is recorded");
+        True(completed.EvaluationDelayMs >= 0, "matchmaking evaluation delay is recorded");
+        True(completed.HttpDelayMs >= 0, "matchmaking HTTP delay is recorded");
+        Equal(1, write.Commands.Count, "timing smoke writes matchmaking once");
+    }
+
     private static void Equal<T>(T expected, T actual, string name)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
@@ -147,6 +184,32 @@ internal static class LeagueReliabilitySmoke
     {
         public Task<LeagueWriteResult?> ExecuteAsync(LeagueWriteCommand command, CancellationToken cancellationToken) =>
             Task.FromException<LeagueWriteResult?>(new InvalidOperationException("synthetic Auto Accept write failure"));
+    }
+
+    private sealed class CapturingWriteGateway : ILeagueWriteGateway
+    {
+        public List<LeagueWriteCommand> Commands { get; } = [];
+
+        public Task<LeagueWriteResult?> ExecuteAsync(LeagueWriteCommand command, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Commands.Add(command);
+            return Task.FromResult<LeagueWriteResult?>(new LeagueWriteResult(204, []));
+        }
+    }
+
+    private sealed class RoutingReadGateway : ILeagueReadGateway
+    {
+        private readonly Dictionary<string, byte[]> _responses = new(StringComparer.Ordinal);
+
+        public void Set(string path, string json) => _responses[path] = Encoding.UTF8.GetBytes(json);
+
+        public Task<byte[]?> TryGetBytesAsync(string resourceKey, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _responses.TryGetValue(resourceKey, out var response);
+            return Task.FromResult<byte[]?>(response);
+        }
     }
 
     private sealed class FakeSessionAccessor : ILeagueSessionAccessor

@@ -513,7 +513,8 @@ public sealed class LeagueWorkbenchViewModel : INotifyPropertyChanged, IDisposab
 
             automation.Configure(
                 updated.Settings.League.AutoMatchmakingEnabled,
-                updated.Settings.League.AutoAcceptEnabled);
+                updated.Settings.League.AutoAcceptEnabled,
+                "ui-settings-persisted");
             OnPropertyChanged(nameof(AutoMatchmakingEnabled));
             OnPropertyChanged(nameof(AutoAcceptEnabled));
             return true;

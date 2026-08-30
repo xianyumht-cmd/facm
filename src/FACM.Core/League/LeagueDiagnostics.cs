@@ -90,7 +90,14 @@ public sealed record LeagueAutomationDiagnostic(
     long DurationMs,
     string ExceptionType = "",
     string HResult = "",
-    int ThreadId = 0);
+    int ThreadId = 0,
+    string ConfigurationSource = "",
+    bool? AutoSearchEnabled = null,
+    bool? AutoAcceptEnabled = null,
+    DateTimeOffset? ObservedUtc = null,
+    long? DetectionDelayMs = null,
+    long? EvaluationDelayMs = null,
+    long? HttpDelayMs = null);
 
 public sealed record LeagueGameflowDiagnostic(
     string PollId,
@@ -107,7 +114,8 @@ public sealed record LeagueGameflowDiagnostic(
     long DurationMs,
     string ExceptionType = "",
     string HResult = "",
-    int ThreadId = 0);
+    int ThreadId = 0,
+    DateTimeOffset? ObservationTimestampUtc = null);
 
 public sealed record LeagueSessionDiscoveryDiagnostic(
     string DiscoveryId,
@@ -123,3 +131,21 @@ public sealed record LeagueSessionDiscoveryDiagnostic(
     int ThreadId,
     string Caller,
     string? Reason);
+
+public sealed record LeaguePostGameDiagnostic(
+    string CorrelationId,
+    string Event,
+    string Phase,
+    string Operation,
+    string Outcome,
+    string Reason,
+    DateTimeOffset StartedUtc,
+    DateTimeOffset FinishedUtc,
+    long DurationMs,
+    string Route = "",
+    int? HttpStatus = null,
+    int Attempt = 0,
+    string TargetPuuidSuffix = "",
+    string ExceptionType = "",
+    string HResult = "",
+    int ThreadId = 0);

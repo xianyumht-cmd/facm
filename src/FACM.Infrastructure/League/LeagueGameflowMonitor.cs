@@ -80,6 +80,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         var connection = LeagueConnectionState.NotRunning;
         var productState = LeagueProductState.NotRunning;
         var changed = (bool?)null;
+        DateTimeOffset? observationTimestampUtc = null;
         var outcome = "unhandled-exception";
         var reason = "unhandled-exception";
         using var diagnosticScope = LeagueDiagnosticContext.Begin(correlationId, "gameflow", "poll");
@@ -110,6 +111,7 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
             var snapshot = Publish(mapping);
             productState = snapshot.ProductState;
             changed = previous is null || !Equivalent(previous, snapshot);
+            observationTimestampUtc = snapshot.TimestampUtc;
             outcome = "success";
             reason = readSucceeded ? "phase-read" : "phase-unavailable";
             return snapshot;
@@ -141,7 +143,8 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
                 changed,
                 traceStartedUtc,
                 finishedUtc,
-                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds));
+                Math.Max(0L, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds),
+                observationTimestampUtc: observationTimestampUtc);
         }
     }
 
@@ -158,7 +161,8 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
         DateTimeOffset startedUtc,
         DateTimeOffset finishedUtc,
         long durationMs,
-        Exception? exception = null)
+        Exception? exception = null,
+        DateTimeOffset? observationTimestampUtc = null)
     {
         try
         {
@@ -179,7 +183,8 @@ public sealed class LeagueGameflowMonitor : ILeagueGameflowObservationSource, ID
                 exception is null
                     ? string.Empty
                     : "0x" + exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
-                Environment.CurrentManagedThreadId));
+                Environment.CurrentManagedThreadId,
+                observationTimestampUtc));
         }
         catch
         {

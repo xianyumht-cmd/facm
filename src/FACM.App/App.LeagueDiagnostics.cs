@@ -78,7 +78,6 @@ public partial class App
             data["hResult"] = diagnostic.HResult;
         if (diagnostic.ThreadId > 0)
             data["threadId"] = diagnostic.ThreadId.ToString(CultureInfo.InvariantCulture);
-
         QueueDiagnostic(DiagnosticEventFactory.Create(
             "league.http",
             "FACM.League.Transport",
@@ -143,6 +142,8 @@ public partial class App
             data["hResult"] = diagnostic.HResult;
         if (diagnostic.ThreadId > 0)
             data["threadId"] = diagnostic.ThreadId.ToString(CultureInfo.InvariantCulture);
+        if (diagnostic.ObservationTimestampUtc is DateTimeOffset observedUtc)
+            data["observationTimestampUtc"] = observedUtc.ToString("O", CultureInfo.InvariantCulture);
 
         QueueDiagnostic(DiagnosticEventFactory.Create(
             "league.gameflow",
@@ -172,9 +173,19 @@ public partial class App
         if (!string.IsNullOrWhiteSpace(diagnostic.ExceptionType)) data["exceptionType"] = diagnostic.ExceptionType;
         if (!string.IsNullOrWhiteSpace(diagnostic.HResult)) data["hResult"] = diagnostic.HResult;
         if (diagnostic.ThreadId > 0) data["threadId"] = diagnostic.ThreadId.ToString(CultureInfo.InvariantCulture);
+        data.AlsoAddIfNotEmpty("configurationSource", diagnostic.ConfigurationSource);
+        if (diagnostic.AutoSearchEnabled is bool autoSearch)
+            data["autoSearchEnabled"] = autoSearch.ToString(CultureInfo.InvariantCulture);
+        if (diagnostic.AutoAcceptEnabled is bool autoAccept)
+            data["autoAcceptEnabled"] = autoAccept.ToString(CultureInfo.InvariantCulture);
+        if (diagnostic.ObservedUtc is DateTimeOffset observedUtc)
+            data["observedUtc"] = observedUtc.ToString("O", CultureInfo.InvariantCulture);
+        data.AlsoAddIfPositive("detectionDelayMs", diagnostic.DetectionDelayMs ?? 0);
+        data.AlsoAddIfPositive("evaluationDelayMs", diagnostic.EvaluationDelayMs ?? 0);
+        data.AlsoAddIfPositive("httpDelayMs", diagnostic.HttpDelayMs ?? 0);
 
         QueueDiagnostic(DiagnosticEventFactory.Create(
-            "league.automation",
+            diagnostic.Event == "configuration-applied" ? "league.automation.config" : "league.automation",
             "FACM.League.Automation",
             diagnostic.DurationMs,
             ResolveDiagnosticResult(diagnostic.Event, diagnostic.Outcome),
@@ -182,7 +193,41 @@ public partial class App
             _productState?.Current.League ?? LeagueProductState.NotRunning,
             CurrentAppVersion(),
             data,
-            diagnostic.Event.EndsWith("start", StringComparison.Ordinal) ? diagnostic.StartedUtc : diagnostic.FinishedUtc));
+            diagnostic.Outcome == "started" ? diagnostic.StartedUtc : diagnostic.FinishedUtc));
+    }
+
+    private void ReportLeaguePostGameDiagnostic(LeaguePostGameDiagnostic diagnostic)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["correlationId"] = diagnostic.CorrelationId,
+            ["event"] = diagnostic.Event,
+            ["phase"] = diagnostic.Phase,
+            ["operation"] = diagnostic.Operation,
+            ["outcome"] = diagnostic.Outcome,
+            ["reason"] = diagnostic.Reason,
+            ["startedUtc"] = diagnostic.StartedUtc.ToString("O", CultureInfo.InvariantCulture),
+            ["finishedUtc"] = diagnostic.FinishedUtc.ToString("O", CultureInfo.InvariantCulture)
+        };
+        data.AlsoAddIfNotEmpty("route", diagnostic.Route);
+        data.AlsoAddIfNotEmpty("targetPuuidSuffix", diagnostic.TargetPuuidSuffix);
+        data.AlsoAddIfPositive("attempt", diagnostic.Attempt);
+        if (diagnostic.HttpStatus is int statusCode)
+            data["statusCode"] = statusCode.ToString(CultureInfo.InvariantCulture);
+        data.AlsoAddIfNotEmpty("exceptionType", diagnostic.ExceptionType);
+        data.AlsoAddIfNotEmpty("hResult", diagnostic.HResult);
+        data.AlsoAddIfPositive("threadId", diagnostic.ThreadId);
+
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "league.postgame",
+            "FACM.League.PostGame",
+            diagnostic.DurationMs,
+            ResolveDiagnosticResult(diagnostic.Event, diagnostic.Outcome),
+            diagnostic.Reason,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            CurrentAppVersion(),
+            data,
+            diagnostic.Outcome == "started" ? diagnostic.StartedUtc : diagnostic.FinishedUtc));
     }
 
     private static DiagnosticResult ResolveDiagnosticResult(string eventName, string outcome) =>
@@ -249,6 +294,15 @@ internal static class DiagnosticDictionaryExtensions
         this Dictionary<string, string> data,
         string key,
         int value)
+    {
+        if (value > 0) data[key] = value.ToString(CultureInfo.InvariantCulture);
+        return data;
+    }
+
+    public static Dictionary<string, string> AlsoAddIfPositive(
+        this Dictionary<string, string> data,
+        string key,
+        long value)
     {
         if (value > 0) data[key] = value.ToString(CultureInfo.InvariantCulture);
         return data;
