@@ -21,9 +21,15 @@ public sealed partial class MainWindow : Window
 {
     private const double OrbSizeDip = 36d;
     private const double ControlMatrixWidthDip = 360d;
-    private const double ControlMatrixHeightDip = 286d;
-    private const double FeatureSurfaceWidthDip = 760d;
-    private const double FeatureSurfaceHeightDip = 620d;
+    private const double ControlMatrixHeightDip = 206d;
+    private const double RepairSurfaceWidthDip = 600d;
+    private const double RepairSurfaceHeightDip = 470d;
+    private const double LeagueSurfaceWidthDip = 660d;
+    private const double LeagueSurfaceHeightDip = 500d;
+    private const double SettingsSurfaceWidthDip = 560d;
+    private const double SettingsSurfaceHeightDip = 420d;
+    private const double PersonalizationSurfaceWidthDip = 560d;
+    private const double PersonalizationSurfaceHeightDip = 460d;
     private const double ChampSelectStripWidthDip = 560d;
     private const double ChampSelectStripHeightDip = 56d;
     private const double SurfaceEdgeMarginDip = 8d;
@@ -61,6 +67,7 @@ public sealed partial class MainWindow : Window
     private DesktopPoint _surfaceDragWindowStart;
     private long _surfaceSuppressClickUntilTick;
     private LeagueProductState? _lastSurfaceGameflowState;
+    private string _activeSection = "repair";
 
     public MainWindow(
         ControlCenterViewModel controlCenter,
@@ -152,15 +159,26 @@ public sealed partial class MainWindow : Window
             ControlMatrixSurface.Visibility = Visibility.Collapsed;
             ChampSelectSurface.Visibility = Visibility.Collapsed;
             LegacyFeatureSurface.Visibility = Visibility.Visible;
+            RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
+            RootNavigation.IsPaneToggleButtonVisible = true;
+            SurfaceCollapseButton.Visibility = Visibility.Collapsed;
+            SurfaceCloseButton.Visibility = Visibility.Collapsed;
             return;
         }
 
+        RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
+        RootNavigation.IsPaneOpen = false;
+        RootNavigation.IsPaneToggleButtonVisible = false;
         OrbSurface.Visibility = mode == FacmSurfaceMode.Orb ? Visibility.Visible : Visibility.Collapsed;
         ControlMatrixSurface.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ChampSelectSurface.Visibility = mode == FacmSurfaceMode.ChampSelectStrip ? Visibility.Visible : Visibility.Collapsed;
         var featureVisible = mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface;
         LegacyFeatureSurface.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
         SurfaceBackButton.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
+        SurfaceCollapseButton.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
+        SurfaceCloseButton.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
+        MatrixCloseButton.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
+        ApplyMorphingFeatureDensity(featureVisible);
 
         if (mode == FacmSurfaceMode.ControlMatrix)
         {
@@ -175,6 +193,30 @@ public sealed partial class MainWindow : Window
             ApplyMorphingChampSelectState();
     }
 
+    private void ApplyMorphingFeatureDensity(bool featureVisible)
+    {
+        var visible = !_morphingSurfaceEnabled || featureVisible;
+        ProductTitle.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        SectionSubtitle.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairToolsDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairGameDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        CleanupDirectoryDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        CleanupPreviewDescription.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairDriverCleanupHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairFixWindowHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairAutoWindowHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairSkipSettlementHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairRestartClientUxHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        RepairExitGameHint.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        OverviewBody.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        StateBody.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (_morphingSurfaceEnabled)
+        {
+            TitleBarText.FontSize = 14;
+            SectionTitle.FontSize = 16;
+        }
+    }
+
     private void ApplySurfaceGeometry(FacmSurfaceMode mode)
     {
         if (!_morphingSurfaceEnabled || mode == FacmSurfaceMode.HiddenInGame) return;
@@ -187,13 +229,7 @@ public sealed partial class MainWindow : Window
         var anchor = _surfaceAnchor ?? new DesktopPoint(currentPosition.X, currentPosition.Y);
         var probe = new DesktopPoint(anchor.X + (OrbSizeDip / 2d), anchor.Y + (OrbSizeDip / 2d));
         var area = AnchorPlacementService.SelectWorkArea(areas, probe);
-        var dipSize = mode switch
-        {
-            FacmSurfaceMode.Orb => new DesktopSize(OrbSizeDip, OrbSizeDip),
-            FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
-            FacmSurfaceMode.ChampSelectStrip => new DesktopSize(ChampSelectStripWidthDip, ChampSelectStripHeightDip),
-            _ => new DesktopSize(FeatureSurfaceWidthDip, FeatureSurfaceHeightDip)
-        };
+        var dipSize = GetSurfaceDipSize(mode);
         var size = DesktopDpi.DipsToPixels(dipSize, area);
         var physicalRect = FacmSurfaceGeometryService.ExpandFromAnchor(new(
             anchor,
@@ -209,6 +245,18 @@ public sealed partial class MainWindow : Window
         AppWindow.MoveAndResize(rect);
         PlayMorphingSurfaceTransition();
     }
+
+    private DesktopSize GetSurfaceDipSize(FacmSurfaceMode mode) => mode switch
+    {
+        FacmSurfaceMode.Orb => new DesktopSize(OrbSizeDip, OrbSizeDip),
+        FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
+        FacmSurfaceMode.ChampSelectStrip => new DesktopSize(ChampSelectStripWidthDip, ChampSelectStripHeightDip),
+        FacmSurfaceMode.LeagueSurface => new DesktopSize(LeagueSurfaceWidthDip, LeagueSurfaceHeightDip),
+        FacmSurfaceMode.FeatureSurface when _activeSection == "repair" => new DesktopSize(RepairSurfaceWidthDip, RepairSurfaceHeightDip),
+        FacmSurfaceMode.FeatureSurface when _activeSection == "settings" => new DesktopSize(SettingsSurfaceWidthDip, SettingsSurfaceHeightDip),
+        FacmSurfaceMode.FeatureSurface when _activeSection == "personalization" => new DesktopSize(PersonalizationSurfaceWidthDip, PersonalizationSurfaceHeightDip),
+        _ => new DesktopSize(SettingsSurfaceWidthDip, SettingsSurfaceHeightDip)
+    };
 
     private void RequestOutsideClickDismissal()
     {
@@ -417,6 +465,19 @@ public sealed partial class MainWindow : Window
         ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "back-to-control-matrix", true);
     }
 
+    private void OnSurfaceCollapseToOrbClick(object sender, RoutedEventArgs e)
+    {
+        if (!_morphingSurfaceEnabled) return;
+        _manualOpenOverride = false;
+        ShowMorphingSurface(FacmSurfaceMode.Orb, "collapse-to-orb", true);
+    }
+
+    private void OnSurfaceCloseClick(object sender, RoutedEventArgs e)
+    {
+        if (!_morphingSurfaceEnabled) return;
+        Close();
+    }
+
     private void OnMatrixRepairClick(object sender, RoutedEventArgs e) =>
         OpenMorphingFeature("repair", FacmSurfaceMode.FeatureSurface);
 
@@ -490,6 +551,7 @@ public sealed partial class MainWindow : Window
             "settings" => "settings",
             _ => "repair"
         };
+        _activeSection = normalized;
 
         var target = normalized switch
         {

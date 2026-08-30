@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
     xmlns:local="using:FACM.App">
-    <Grid x:Name="SurfaceRoot" Background="{StaticResource FacmBackgroundBrush}">
+    <Grid x:Name="SurfaceRoot" Background="Transparent">
         <Grid.RenderTransform>
             <CompositeTransform x:Name="SurfaceTransitionTransform" />
         </Grid.RenderTransform>
@@ -66,7 +66,7 @@
         <Grid
             x:Name="ControlMatrixSurface"
             Width="360"
-            Height="286"
+            Height="206"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Background="{StaticResource FacmBackgroundBrush}"
@@ -84,6 +84,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Spacing="1">
                     <TextBlock x:Name="MatrixTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
@@ -95,9 +96,23 @@
                     Width="30"
                     Height="30"
                     Padding="0"
-                    Style="{StaticResource FacmToolButtonStyle}"
-                    Click="OnSurfaceBackClick"
-                    automation:AutomationProperties.AutomationId="FACM.Surface.MatrixBack" />
+                    Style="{StaticResource FacmCollapseButtonStyle}"
+                    Click="OnSurfaceCollapseToOrbClick"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.MatrixCollapse">
+                    <FontIcon Glyph="&#xE72C;" />
+                </Button>
+                <Button
+                    x:Name="MatrixCloseButton"
+                    Grid.Column="2"
+                    Width="30"
+                    Height="30"
+                    Margin="4,0,0,0"
+                    Padding="0"
+                    Style="{StaticResource FacmCloseButtonStyle}"
+                    Click="OnSurfaceCloseClick"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.MatrixClose">
+                    <FontIcon Glyph="&#xE711;" />
+                </Button>
             </Grid>
             <Grid Grid.Row="1" Padding="10,10,10,8" ColumnSpacing="8" RowSpacing="8">
                 <Grid.ColumnDefinitions>
@@ -140,7 +155,7 @@
         <Grid
             x:Name="ChampSelectSurface"
             Width="560"
-            Height="62"
+            Height="56"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Background="{StaticResource FacmSurfaceBrush}"
@@ -157,9 +172,11 @@
                 Margin="8,0,0,0"
                 VerticalAlignment="Center"
                 Padding="0"
-                Style="{StaticResource FacmToolButtonStyle}"
-                Click="OnSurfaceBackClick"
-                automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectBack" />
+                Style="{StaticResource FacmCollapseButtonStyle}"
+                Click="OnSurfaceCollapseToOrbClick"
+                automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
+                <FontIcon Glyph="&#xE72C;" />
+            </Button>
             <StackPanel
                 Grid.Column="1"
                 Margin="4,0,4,0"
@@ -189,17 +206,17 @@
             </ScrollViewer>
         </Grid>
 
-        <Grid x:Name="LegacyFeatureSurface" Visibility="Collapsed">
+        <Grid x:Name="LegacyFeatureSurface" Background="Transparent" Visibility="Collapsed">
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="40" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="{StaticResource FacmInspectorHeight}" />
+            <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
         <Border
             x:Name="AppTitleBar"
             Grid.Row="0"
-            Padding="16,0"
+            Padding="10,0"
             Background="{StaticResource FacmSurfaceBrush}"
             BorderBrush="{StaticResource FacmStrokeBrush}"
             BorderThickness="0,0,0,1">
@@ -207,6 +224,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Button
                     x:Name="SurfaceBackButton"
@@ -223,6 +241,30 @@
                     Grid.Column="1"
                     VerticalAlignment="Center"
                     Style="{StaticResource FacmCardTitleTextStyle}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                    <Button
+                        x:Name="SurfaceCollapseButton"
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Style="{StaticResource FacmCollapseButtonStyle}"
+                        Click="OnSurfaceCollapseToOrbClick"
+                        Visibility="Collapsed"
+                        automation:AutomationProperties.AutomationId="FACM.Surface.CollapseToOrb">
+                        <FontIcon Glyph="&#xE72C;" />
+                    </Button>
+                    <Button
+                        x:Name="SurfaceCloseButton"
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Style="{StaticResource FacmCloseButtonStyle}"
+                        Click="OnSurfaceCloseClick"
+                        Visibility="Collapsed"
+                        automation:AutomationProperties.AutomationId="FACM.Surface.Close">
+                        <FontIcon Glyph="&#xE711;" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -233,6 +275,7 @@
             IsSettingsVisible="False"
             AlwaysShowHeader="False"
             PaneDisplayMode="Left"
+            IsPaneToggleButtonVisible="True"
             SelectionChanged="OnSelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="RepairNav" Tag="repair" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Repair" />
@@ -244,9 +287,9 @@
             <Frame x:Name="ContentFrame">
                 <ScrollViewer>
                     <StackPanel
-                        Padding="{StaticResource FacmPagePadding}"
-                        Spacing="{StaticResource FacmSectionSpacing}"
-                        MaxWidth="{StaticResource FacmPageMaxWidth}"
+                        Padding="10,8,10,10"
+                        Spacing="8"
+                        MaxWidth="680"
                         HorizontalAlignment="Stretch">
 
                         <StackPanel Spacing="6">
