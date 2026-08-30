@@ -279,6 +279,9 @@ public sealed partial class MainWindow : Window
         RepairToolDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         CleanupDirectoryDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         CleanupSafetyHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueMatchDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueStrategyDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueAutomationDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         OverviewBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         StateBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsSubtitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;

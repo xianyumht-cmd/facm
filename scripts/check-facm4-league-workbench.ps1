@@ -351,6 +351,18 @@ foreach ($required in @(
         Fail "League Workbench real UI/product intent binding is missing: $required"
     }
 }
+foreach ($required in @(
+    'LeagueMatchDescription.Visibility', 'LeagueStrategyDescription.Visibility',
+    'LeagueAutomationDescription.Visibility', 'LeagueSurfaceWidthDip',
+    'LeagueSurfaceHeightDip'
+)) {
+    if ($mainCode -notmatch [regex]::Escape($required) -and $mainXaml -notmatch [regex]::Escape($required)) {
+        Fail "Compact League Workbench presentation contract missing: $required"
+    }
+}
+if ($mainCode -match 'new\s+(LeagueHttpGateway|LeagueGameflowMonitor|WindowsLeagueTransportSessionSource)\s*\(') {
+    Fail 'MainWindow must not create a second League runtime owner.'
+}
 if ($postGameSettingsVm -notmatch 'SettingsLoadOrigin\.RecoveredLastKnownGood' -or
     $postGameSettingsVm -notmatch 'SettingsLoadOrigin\.RecoveryDefaults') {
     Fail 'Post-game settings controls must preserve recovery read-only behavior.'
