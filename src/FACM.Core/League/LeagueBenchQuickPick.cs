@@ -33,6 +33,11 @@ public sealed record LeagueBenchQuickPickState(
         Array.Empty<int>());
 }
 
+public sealed record LeagueChampionIdentity(
+    int ChampionId,
+    string Name,
+    string IconPath);
+
 public sealed record LeagueBenchSwapResult(
     LeagueBenchSwapStatus Status,
     int ChampionId,
@@ -45,6 +50,10 @@ public sealed record LeagueBenchSwapResult(
 public interface ILeagueBenchQuickPickService
 {
     Task<LeagueBenchQuickPickState> RefreshAsync(CancellationToken cancellationToken = default);
+    void SetSwapRoute(LeagueBenchSwapRoute route);
+    Task<IReadOnlyDictionary<int, LeagueChampionIdentity>> LoadChampionIdentitiesAsync(
+        IReadOnlyCollection<int> championIds,
+        CancellationToken cancellationToken = default);
     Task<byte[]?> LoadChampionIconAsync(int championId, CancellationToken cancellationToken = default);
     Task<LeagueBenchSwapResult> TrySwapAsync(int championId, CancellationToken cancellationToken = default);
 }

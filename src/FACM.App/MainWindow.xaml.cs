@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
     private const double PersonalizationSurfaceWidthDip = 560d;
     private const double PersonalizationSurfaceHeightDip = 460d;
     private const double ChampSelectStripWidthDip = 560d;
+    private const double ChampSelectWaitingWidthDip = 280d;
     private const double ChampSelectStripHeightDip = 56d;
     private const double SurfaceEdgeMarginDip = 8d;
     private const double SurfaceDragThresholdPixels = 4d;
@@ -174,6 +175,11 @@ public sealed partial class MainWindow : Window
         }
 
         if (mode != FacmSurfaceMode.Orb) SetTransientRailVisible(false, resize: false);
+        if (mode != FacmSurfaceMode.ChampSelectStrip)
+        {
+            _champSelectIdentityCts?.Cancel();
+            _champSelectRequestedSignature = string.Empty;
+        }
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftMinimal;
         RootNavigation.IsPaneOpen = false;
         RootNavigation.IsPaneToggleButtonVisible = false;
@@ -222,6 +228,10 @@ public sealed partial class MainWindow : Window
         RepairExitGameHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         OverviewBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         StateBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsSubtitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueAutoMatchmakingHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueAutoAcceptHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsSummaryText.MinHeight = _morphingSurfaceEnabled ? 120 : 180;
         if (_morphingSurfaceEnabled)
         {
             TitleBarText.FontSize = 14;
@@ -317,7 +327,9 @@ public sealed partial class MainWindow : Window
     {
         FacmSurfaceMode.Orb => new DesktopSize(OrbSizeDip, OrbSizeDip),
         FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
-        FacmSurfaceMode.ChampSelectStrip => new DesktopSize(ChampSelectStripWidthDip, ChampSelectStripHeightDip),
+        FacmSurfaceMode.ChampSelectStrip => new DesktopSize(
+            _champSelectHasCandidates ? ChampSelectStripWidthDip : ChampSelectWaitingWidthDip,
+            ChampSelectStripHeightDip),
         FacmSurfaceMode.LeagueSurface => new DesktopSize(LeagueSurfaceWidthDip, LeagueSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "repair" => new DesktopSize(RepairSurfaceWidthDip, RepairSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "settings" => new DesktopSize(SettingsSurfaceWidthDip, SettingsSurfaceHeightDip),
@@ -604,7 +616,7 @@ public sealed partial class MainWindow : Window
         OrbStatusBadge.Background = (Brush)Application.Current.Resources[
             problem ? "FacmErrorBrush" : "FacmSuccessBrush"];
         MatrixStatus.Text = normalizedInspector;
-        MatrixInspector.Text = normalizedInspector;
+        MatrixInspectorBar.Text = normalizedInspector;
         ToolTipService.SetToolTip(OrbButton, normalizedInspector);
 
         if (statusChanged && _surfaceStateMachine.Mode == FacmSurfaceMode.Orb)
@@ -657,7 +669,7 @@ public sealed partial class MainWindow : Window
         MatrixBackButton.Content = "\uE72B";
         ChampSelectBackButton.Content = "\uE72B";
         SurfaceBackButton.Content = "\uE72B";
-        MatrixInspector.Text = _text.Get(UiTextKeys.ShellStatusReady);
+        MatrixInspectorBar.Text = _text.Get(UiTextKeys.ShellStatusReady);
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectWaitingAction);
 
@@ -1248,6 +1260,9 @@ public sealed partial class MainWindow : Window
         _outsideClickWatcher.Dispose();
         _transientRailTimer?.Stop();
         _transientRailTimer = null;
+        _champSelectIdentityCts?.Cancel();
+        _champSelectIdentityCts?.Dispose();
+        _champSelectIdentityCts = null;
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;

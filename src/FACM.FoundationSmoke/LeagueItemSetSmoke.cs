@@ -146,6 +146,7 @@ internal static class LeagueItemSetSmoke
             "pick",
             championId,
             false,
+            LeagueBenchSwapRoute.Legacy,
             Array.Empty<int>(),
             Array.Empty<int>(),
             Array.Empty<int>(),

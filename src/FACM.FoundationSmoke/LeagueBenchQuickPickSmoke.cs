@@ -9,6 +9,7 @@ internal static class LeagueBenchQuickPickSmoke
         ValidateWriteAllowlist();
         ValidatePollingPolicy();
         ValidateLegacyParser();
+        ValidateChampionIdentityParser();
         await ValidateTeamBuilderFallbackAndSingleWriteAsync();
         await ValidateVerificationFailureNeverRetriesWriteAsync();
         await ValidateTargetUnavailableSkipsReadbackAsync();
@@ -70,6 +71,21 @@ internal static class LeagueBenchQuickPickSmoke
             "Local champion was not resolved from the local player cell.");
         Require(state.ChampionIds.SequenceEqual([22, 44, 99]),
             "Bench champion ids were not deduplicated in observed order.");
+    }
+
+    private static void ValidateChampionIdentityParser()
+    {
+        var catalog = LeagueBenchQuickPickService.ParseChampionIdentities(Json("""
+            [
+              { "id": 22, "nameTRA": "寒冰射手", "alias": "Ashe", "squarePortraitPath": "/img/ashe.png" },
+              { "id": 44, "name": "塔里克", "iconPath": "/img/taric.png" }
+            ]
+            """));
+
+        Require(catalog.Count == 2, "Champion identity catalog did not parse all entries.");
+        Require(catalog[22].Name == "寒冰射手" && catalog[22].IconPath.EndsWith("ashe.png", StringComparison.Ordinal),
+            "Preferred localized champion name or portrait was not selected.");
+        Require(catalog[44].Name == "塔里克", "Champion name fallback field was not selected.");
     }
 
     private static async Task ValidateTeamBuilderFallbackAndSingleWriteAsync()

@@ -18,6 +18,7 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
     internal const string ReadyCheckPath = "/lol-matchmaking/v1/ready-check";
     internal const string RankedStatsPath = "/lol-ranked/v1/current-ranked-stats";
     internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
+    internal const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
 
     private readonly ILeagueReadGateway _gateway;
     private readonly ILeagueGameflowReader? _gameflow;
@@ -116,7 +117,20 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
         if (phase.ProductState == LeagueProductState.ChampSelect)
         {
             var bytes = await _gateway.TryGetBytesAsync(ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
-            return ParseChampSelect(bytes, phase.Phase);
+            var live = ParseChampSelect(bytes, phase.Phase);
+            if (ShouldTryTeamBuilderSession(bytes, live))
+            {
+                var teamBuilderBytes = await _gateway.TryGetBytesAsync(
+                    TeamBuilderChampSelectSessionPath,
+                    cancellationToken).ConfigureAwait(false);
+                var teamBuilder = ParseChampSelect(
+                    teamBuilderBytes,
+                    phase.Phase,
+                    LeagueBenchSwapRoute.TeamBuilder);
+                if (teamBuilder.State != LeagueWorkbenchDataState.Unavailable)
+                    return teamBuilder;
+            }
+            return live;
         }
 
         if (phase.ProductState == LeagueProductState.InGame)
@@ -138,6 +152,7 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
             string.Empty,
             0,
             false,
+            LeagueBenchSwapRoute.Legacy,
             Array.Empty<int>(),
             Array.Empty<int>(),
             Array.Empty<int>(),
@@ -291,7 +306,10 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
         return (result, requestedCount > 0 && result.Count >= requestedCount);
     }
 
-    internal static LeagueWorkbenchLiveSnapshot ParseChampSelect(byte[]? bytes, string phase)
+    internal static LeagueWorkbenchLiveSnapshot ParseChampSelect(
+        byte[]? bytes,
+        string phase,
+        LeagueBenchSwapRoute? forceRoute = null)
     {
         using var document = ParseDocument(bytes);
         if (document is null || document.RootElement.ValueKind != JsonValueKind.Object)
@@ -332,6 +350,7 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
             action.Type,
             action.ChampionId,
             ReadBool(root, "benchEnabled"),
+            forceRoute ?? ResolveBenchSwapRoute(root),
             allyBans,
             enemyBans,
             bench,
@@ -378,12 +397,32 @@ public sealed class LeagueWorkbenchDataSource : ILeagueWorkbenchDataSource
             string.Empty,
             0,
             false,
+            LeagueBenchSwapRoute.Legacy,
             Array.Empty<int>(),
             Array.Empty<int>(),
             Array.Empty<int>(),
             players,
             hasContent ? "ready" : "partial",
             DateTimeOffset.UtcNow);
+    }
+
+    private static bool ShouldTryTeamBuilderSession(byte[]? bytes, LeagueWorkbenchLiveSnapshot live)
+    {
+        if (live.State == LeagueWorkbenchDataState.Unavailable) return true;
+        using var document = ParseDocument(bytes);
+        if (document is null || document.RootElement.ValueKind != JsonValueKind.Object) return true;
+        if (document.RootElement.TryGetProperty("isLegacyChampSelect", out var legacy) &&
+            legacy.ValueKind is JsonValueKind.False)
+            return true;
+        return false;
+    }
+
+    private static LeagueBenchSwapRoute ResolveBenchSwapRoute(JsonElement root)
+    {
+        return root.TryGetProperty("isLegacyChampSelect", out var value) &&
+               value.ValueKind is JsonValueKind.False
+            ? LeagueBenchSwapRoute.TeamBuilder
+            : LeagueBenchSwapRoute.Legacy;
     }
 
     private static LeagueWorkbenchMatchSummary ParseMatch(JsonElement game, LeagueWorkbenchAccount account)

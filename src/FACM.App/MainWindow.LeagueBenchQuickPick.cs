@@ -2,6 +2,7 @@ using FACM.Core.League;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using FACM.Core.Desktop;
 
 namespace FACM.App;
 
@@ -93,7 +94,9 @@ public sealed partial class MainWindow
             {
                 var hidden = !IsLeagueWorkbenchSelected();
                 var inGame = IsLeagueBenchInGame();
-                if (!hidden && !inGame && !_leagueBenchSwapping)
+                var morphingChampSelect = _morphingSurfaceEnabled &&
+                                          _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip;
+                if (!hidden && !inGame && !morphingChampSelect && !_leagueBenchSwapping)
                     await RefreshLeagueBenchOnceAsync(cancellationToken);
 
                 var delay = LeagueBenchQuickPickPolling.ResolveDelay(_leagueBenchActive, inGame, hidden);

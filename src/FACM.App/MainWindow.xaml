@@ -168,13 +168,10 @@
                     <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE74D;" /><TextBlock x:Name="MatrixCleanupLabel" /></StackPanel>
                 </Button>
             </Grid>
-            <TextBlock
-                x:Name="MatrixInspector"
+            <local:FacmInspectorBar
+                x:Name="MatrixInspectorBar"
                 Grid.Row="2"
-                Padding="12,0"
-                VerticalAlignment="Center"
-                Style="{StaticResource FacmInspectorTextStyle}"
-                />
+                AutomationProperties.AutomationId="FACM.Surface.MatrixInspector" />
         </Grid>
 
         <Grid
@@ -528,19 +525,19 @@
                                 <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueMatchDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueMatchDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueStrategyDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueStrategyDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueAutomationDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueAutomationDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                         <ToggleSwitch
                                             x:Name="LeagueAutoMatchmakingToggle"
                                             automation:AutomationProperties.AutomationId="FACM.League.AutoMatchmaking"

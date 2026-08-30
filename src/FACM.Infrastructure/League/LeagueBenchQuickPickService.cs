@@ -13,6 +13,7 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
 {
     public const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
     public const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
+    public const string ChampionSummaryPath = "/lol-game-data/assets/v1/champion-summary.json";
     public const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
 
     private const int MaxChampionIconBytes = 2 * 1024 * 1024;
@@ -26,8 +27,11 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
     private readonly ILeagueReadGateway _reader;
     private readonly ILeagueWriteGateway _writer;
     private readonly SemaphoreSlim _swapGate = new(1, 1);
+    private readonly SemaphoreSlim _identityGate = new(1, 1);
     private readonly object _iconSync = new();
+    private readonly object _identitySync = new();
     private readonly Dictionary<int, byte[]> _iconCache = [];
+    private readonly Dictionary<int, LeagueChampionIdentity> _identityCache = [];
     private int _lastRoute = (int)LeagueBenchSwapRoute.Legacy;
     private bool _disposed;
 
@@ -64,6 +68,47 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
 
         if (state.SessionAvailable) RememberRoute(state.SwapRoute);
         return state;
+    }
+
+    public async Task<IReadOnlyDictionary<int, LeagueChampionIdentity>> LoadChampionIdentitiesAsync(
+        IReadOnlyCollection<int> championIds,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(championIds);
+        var requested = championIds.Where(id => id > 0).Distinct().ToArray();
+        if (requested.Length == 0) return new Dictionary<int, LeagueChampionIdentity>();
+
+        var result = ReadCachedIdentities(requested);
+        if (result.Count == requested.Length) return result;
+
+        await _identityGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            result = ReadCachedIdentities(requested);
+            if (result.Count == requested.Length) return result;
+
+            var bytes = await _reader.TryGetBytesAsync(ChampionSummaryPath, cancellationToken).ConfigureAwait(false);
+            var catalog = ParseChampionIdentities(bytes);
+            if (catalog.Count > 0)
+            {
+                lock (_identitySync)
+                foreach (var identity in catalog)
+                    _identityCache[identity.Key] = identity.Value;
+            }
+
+            return ReadCachedIdentities(requested);
+        }
+        finally
+        {
+            _identityGate.Release();
+        }
+    }
+
+    public void SetSwapRoute(LeagueBenchSwapRoute route)
+    {
+        ThrowIfDisposed();
+        RememberRoute(route);
     }
 
     public async Task<byte[]?> LoadChampionIconAsync(
@@ -198,6 +243,32 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
         }
     }
 
+    public static IReadOnlyDictionary<int, LeagueChampionIdentity> ParseChampionIdentities(byte[]? bytes)
+    {
+        var result = new Dictionary<int, LeagueChampionIdentity>();
+        if (bytes is null || bytes.Length == 0) return result;
+
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            foreach (var row in EnumerateCatalog(document.RootElement))
+            {
+                var id = ReadInt(row, "id");
+                if (id <= 0 || result.ContainsKey(id)) continue;
+                var name = FirstText(row, "nameTRA", "name", "alias");
+                var icon = FirstText(row, "squarePortraitPath", "iconPath");
+                if (string.IsNullOrWhiteSpace(name)) name = "英雄";
+                result[id] = new LeagueChampionIdentity(id, name.Trim(), icon.Trim());
+            }
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<int, LeagueChampionIdentity>();
+        }
+
+        return result;
+    }
+
     private async Task<bool> VerifyChampionAsync(
         int championId,
         TimeSpan delay,
@@ -231,6 +302,51 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
                value.ValueKind == JsonValueKind.Array;
     }
 
+    private static IEnumerable<JsonElement> EnumerateCatalog(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in root.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.Object) yield return item;
+            yield break;
+        }
+
+        if (root.ValueKind != JsonValueKind.Object) yield break;
+        if (TryGetArray(root, "champions", out var champions))
+        {
+            foreach (var item in champions.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.Object) yield return item;
+            yield break;
+        }
+
+        foreach (var property in root.EnumerateObject())
+            if (property.Value.ValueKind == JsonValueKind.Object) yield return property.Value;
+    }
+
+    private static string FirstText(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!root.TryGetProperty(name, out var value)) continue;
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var text = value.GetString();
+                if (!string.IsNullOrWhiteSpace(text)) return text;
+            }
+        }
+        return string.Empty;
+    }
+
+    private IReadOnlyDictionary<int, LeagueChampionIdentity> ReadCachedIdentities(IEnumerable<int> requested)
+    {
+        lock (_identitySync)
+        {
+            return requested
+                .Where(_identityCache.ContainsKey)
+                .ToDictionary(id => id, id => _identityCache[id]);
+        }
+    }
+
     private static int ReadInt(JsonElement root, string name)
     {
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(name, out var value)) return 0;
@@ -255,6 +371,8 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
         if (_disposed) return;
         _disposed = true;
         lock (_iconSync) _iconCache.Clear();
+        lock (_identitySync) _identityCache.Clear();
         _swapGate.Dispose();
+        _identityGate.Dispose();
     }
 }

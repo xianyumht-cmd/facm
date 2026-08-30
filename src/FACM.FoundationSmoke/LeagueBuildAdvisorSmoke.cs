@@ -139,6 +139,7 @@ internal static class LeagueBuildAdvisorSmoke
             phase == "ChampSelect" ? "pick" : string.Empty,
             99,
             false,
+            LeagueBenchSwapRoute.Legacy,
             Array.Empty<int>(),
             Array.Empty<int>(),
             Array.Empty<int>(),

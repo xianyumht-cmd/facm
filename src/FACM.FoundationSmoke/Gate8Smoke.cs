@@ -196,6 +196,18 @@ internal static class Gate8Smoke
         Equal(22, champSelect.EnemyBans[0], "workbench enemy ban");
         Equal("pick", champSelect.LocalActionType, "workbench local action");
         Equal(99, champSelect.LocalActionChampionId, "workbench local action champion");
+        Equal(LeagueBenchSwapRoute.Legacy, champSelect.BenchSwapRoute, "workbench legacy bench route");
+
+        gateway.Responses[LeagueWorkbenchDataSource.ChampSelectSessionPath] = Utf8("""
+            {"isLegacyChampSelect":false,"localPlayerCellId":1,"benchEnabled":true,"myTeam":[{"cellId":1,"championId":99}]}
+            """);
+        gateway.Responses[LeagueWorkbenchDataSource.TeamBuilderChampSelectSessionPath] = Utf8("""
+            {"localPlayerCellId":1,"benchEnabled":true,"myTeam":[{"cellId":1,"championId":99}],"benchChampionIds":[44]}
+            """);
+        var teamBuilderChampSelect = await liveSource.LoadLiveAsync();
+        Equal(LeagueBenchSwapRoute.TeamBuilder, teamBuilderChampSelect.BenchSwapRoute,
+            "workbench Team Builder route");
+        Equal(44, teamBuilderChampSelect.BenchChampionIds[0], "workbench Team Builder bench routing");
 
         gameflow.Current = new LeagueGameflowSnapshot(
             DateTimeOffset.Parse("2026-08-28T07:01:00Z"),
