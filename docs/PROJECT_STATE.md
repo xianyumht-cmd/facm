@@ -501,7 +501,7 @@ was published, no push/merge or production pointer change was performed, and pro
 - The local signed release-compatible bundle is at
   `D:\project2\facm-free-dist-release-20260831\bundle`; the launcher-only review directory is
   `D:\project2\facm4-free-dist-review-20260831` and contains only `FACM.exe` plus `bootstrap.json`.
-- Candidate figures are 103,775,138 total bundle bytes, 103,647,538 CAB bytes, and 3,919,587 launcher bytes;
+- Candidate figures are 103,775,138 total bundle bytes, 103,647,538 CAB bytes, and 3,919,603 launcher bytes;
   four detached signatures are present. The local evidence is
   `D:\project2\facm-free-dist-release-20260831\free-dist-evidence.json` and
   `D:\project2\facm-free-dist-probe-20260831\free-dist-test-results.json`.

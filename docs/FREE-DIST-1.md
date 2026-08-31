@@ -83,8 +83,8 @@ Current candidate figures:
 
 - release-compatible bundle: 103,775,138 bytes total;
 - three CAB packages: 103,647,538 bytes total;
-- launcher-only directory: 3,919,587 bytes total;
-- launcher files: `FACM.exe` 3,919,360 bytes and `bootstrap.json` 227 bytes;
+- launcher-only directory: 3,919,603 bytes total;
+- launcher files: `FACM.exe` 3,919,376 bytes and `bootstrap.json` 227 bytes;
 - four detached signatures present;
 - live probe passed for `ghfast.top`, `gh-proxy.com`, and direct GitHub in the last focused run; all four candidates were attempted;
 - invalid non-GitHub Release probe URL was rejected;
