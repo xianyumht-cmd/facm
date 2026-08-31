@@ -4,6 +4,7 @@ using System.Text;
 using FACM.App.ViewModels;
 using FACM.Core.Desktop;
 using FACM.Core.League;
+using FACM.Core.State;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -68,11 +69,10 @@ public sealed partial class MainWindow
     {
         if (_closed) return;
         if (_morphingSurfaceEnabled &&
-            _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip &&
+            _lastSurfaceGameflowState == LeagueProductState.ChampSelect &&
             args.PropertyName == nameof(LeagueWorkbenchViewModel.Live))
         {
             ApplyMorphingChampSelectState();
-            return;
         }
 
         if (!IsLeagueWorkbenchSelected()) return;
@@ -124,7 +124,7 @@ public sealed partial class MainWindow
         finally
         {
             _champSelectRefreshInFlight = false;
-            if (!_closed && _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            if (!_closed && _lastSurfaceGameflowState == LeagueProductState.ChampSelect)
                 _ = DispatcherQueue.TryEnqueue(ApplyMorphingChampSelectState);
         }
     }
@@ -170,6 +170,7 @@ public sealed partial class MainWindow
         LeagueAutomationDescription.Text = BuildLiveSummary(_leagueWorkbench.Live, _leagueWorkbench.IsRefreshing);
         SyncLeagueWorkbenchProductActions();
         ApplyLeagueAutomationSettingsSurface();
+        ApplyLeagueBenchFromLive();
         ApplyMorphingChampSelectState();
     }
 

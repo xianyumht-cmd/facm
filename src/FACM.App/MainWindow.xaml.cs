@@ -150,6 +150,11 @@ public sealed partial class MainWindow : Window
         SurfaceRoot.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnSurfacePointerReleased), handledEventsToo: true);
         SurfaceRoot.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(OnSurfacePointerCanceled), handledEventsToo: true);
         SurfaceRoot.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnSurfacePointerCaptureLost), handledEventsToo: true);
+        ChampSelectDragHandle.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnSurfacePointerPressed), handledEventsToo: true);
+        ChampSelectDragHandle.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnSurfacePointerMoved), handledEventsToo: true);
+        ChampSelectDragHandle.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnSurfacePointerReleased), handledEventsToo: true);
+        ChampSelectDragHandle.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(OnSurfacePointerCanceled), handledEventsToo: true);
+        ChampSelectDragHandle.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnSurfacePointerCaptureLost), handledEventsToo: true);
         _cleanupCenter.PropertyChanged += OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchPropertyChanged;
         Closed += OnClosed;
@@ -222,8 +227,8 @@ public sealed partial class MainWindow : Window
         }
         else if (mode == FacmSurfaceMode.ChampSelectStrip)
         {
+            ChampSelectSurface.Width = LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount);
             ChampSelectSurface.Visibility = Visibility.Visible;
-            ApplyMorphingChampSelectState();
         }
         else if (mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface)
         {
@@ -248,6 +253,8 @@ public sealed partial class MainWindow : Window
             _champSelectRequestedSignature = string.Empty;
             _champSelectRenderedSignature = string.Empty;
             _champSelectHasCandidates = false;
+            _benchStripCandidateCount = 0;
+            _champSelectCandidateNames.Clear();
         }
         RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
         RootNavigation.IsPaneVisible = false;
@@ -259,6 +266,8 @@ public sealed partial class MainWindow : Window
         OrbTransientRail.Visibility = presentation.RailVisible ? Visibility.Visible : Visibility.Collapsed;
         ControlMatrixSurface.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ChampSelectSurface.Visibility = mode == FacmSurfaceMode.ChampSelectStrip ? Visibility.Visible : Visibility.Collapsed;
+        if (mode == FacmSurfaceMode.ChampSelectStrip)
+            ChampSelectSurface.Width = LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount);
         var featureVisible = mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface;
         LegacyFeatureSurface.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
         SurfaceBackButton.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -452,8 +461,8 @@ public sealed partial class MainWindow : Window
             OrbSizeDip),
         FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
         FacmSurfaceMode.ChampSelectStrip => new DesktopSize(
-            _champSelectHasCandidates ? ChampSelectStripWidthDip : ChampSelectWaitingWidthDip,
-            ChampSelectStripHeightDip),
+            LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount),
+            LeagueBenchSwapStripPolicy.HeightDip),
         FacmSurfaceMode.LeagueSurface => new DesktopSize(LeagueSurfaceWidthDip, LeagueSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "repair" => new DesktopSize(RepairSurfaceWidthDip, RepairSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "settings" && _logsSubviewVisible => new DesktopSize(560d, 420d),
@@ -472,6 +481,8 @@ public sealed partial class MainWindow : Window
 
         if (_surfaceStateMachine.IsModalScopeActive || _surfaceStateMachine.Mode == FacmSurfaceMode.HiddenInGame)
             return;
+        if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            DismissBenchStripForCurrentContext();
         _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "outside-click", false);
     }
@@ -491,7 +502,10 @@ public sealed partial class MainWindow : Window
 
     private void OnSurfacePointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (!_morphingSurfaceEnabled || _surfaceStateMachine.Mode != FacmSurfaceMode.Orb || _surfacePointerActive)
+        if (!_morphingSurfaceEnabled ||
+            (_surfaceStateMachine.Mode != FacmSurfaceMode.Orb && _surfaceStateMachine.Mode != FacmSurfaceMode.ChampSelectStrip) ||
+            (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip && !ReferenceEquals(sender, ChampSelectDragHandle)) ||
+            _surfacePointerActive)
             return;
         var point = e.GetCurrentPoint(SurfaceRoot);
         if (point.Properties.IsRightButtonPressed)
@@ -672,6 +686,8 @@ public sealed partial class MainWindow : Window
             _surfaceStateMachine.TransitionTo(mode, reason, userInitiated, phase);
             _currentPresentation = requestedPresentation;
             _currentPresentationGeneration = requestedGeneration;
+            if (mode == FacmSurfaceMode.ChampSelectStrip)
+                ApplyMorphingChampSelectState();
         }
         catch (Exception exception)
         {
@@ -1080,19 +1096,26 @@ public sealed partial class MainWindow : Window
 
         if (inGame && !_manualOpenOverride)
         {
+            ResetBenchContext();
             ShowMorphingSurface(FacmSurfaceMode.HiddenInGame, "gameflow-in-game", false, snapshot.Phase);
             return;
         }
 
         if (champSelect)
         {
-            ShowMorphingSurface(FacmSurfaceMode.ChampSelectStrip, "gameflow-champ-select", false, snapshot.Phase);
-            if (enteredChampSelect) _ = RefreshChampSelectWorkbenchAsync();
+            if (enteredChampSelect)
+            {
+                BeginBenchContext();
+                if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+                    ShowMorphingSurface(FacmSurfaceMode.Orb, "bench-context-refreshing", false, snapshot.Phase);
+                _ = RefreshChampSelectWorkbenchAsync();
+            }
             return;
         }
 
         if (lobbyRestored)
         {
+            ResetBenchContext();
             _manualOpenOverride = false;
             ShowMorphingSurface(FacmSurfaceMode.Orb, "gameflow-lobby-restored", false, snapshot.Phase);
         }
@@ -1108,6 +1131,8 @@ public sealed partial class MainWindow : Window
     private void OnSurfaceCollapseToOrbClick(object sender, RoutedEventArgs e)
     {
         if (!_morphingSurfaceEnabled) return;
+        if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            DismissBenchStripForCurrentContext();
         _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "collapse-to-orb", true);
     }

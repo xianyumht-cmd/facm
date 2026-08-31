@@ -6,6 +6,7 @@ using FACM.Core.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Storage.Streams;
@@ -18,11 +19,35 @@ public sealed partial class MainWindow
     private string _champSelectRenderedSignature = string.Empty;
     private CancellationTokenSource? _champSelectIdentityCts;
     private bool _champSelectHasCandidates;
+    private int _benchStripCandidateCount;
+    private string _benchLastCandidateSignature = string.Empty;
+    private readonly LeagueBenchContextDismissal _benchContextDismissal = new();
+    private readonly Dictionary<int, string> _champSelectCandidateNames = [];
 
-    private sealed record ChampSelectCandidateVisual(
-        int ChampionId,
-        string Name,
-        BitmapImage? Icon);
+    private sealed record ChampSelectCandidateVisual(LeagueBenchCandidate Candidate, BitmapImage? Icon);
+
+    private void BeginBenchContext()
+    {
+        CancelChampSelectIdentityLoad();
+        _benchContextDismissal.BeginNewContext();
+        _benchLastCandidateSignature = string.Empty;
+        _benchStripCandidateCount = 0;
+        _champSelectRequestedSignature = string.Empty;
+        _champSelectRenderedSignature = string.Empty;
+        _champSelectCandidateNames.Clear();
+    }
+
+    private void DismissBenchStripForCurrentContext() => _benchContextDismissal.DismissCurrentContext();
+
+    private void ResetBenchContext()
+    {
+        _benchLastCandidateSignature = string.Empty;
+        _benchStripCandidateCount = 0;
+        _champSelectRequestedSignature = string.Empty;
+        _champSelectRenderedSignature = string.Empty;
+        _champSelectCandidateNames.Clear();
+        CancelChampSelectIdentityLoad();
+    }
 
     private void CancelChampSelectIdentityLoad()
     {
@@ -31,85 +56,84 @@ public sealed partial class MainWindow
         _champSelectIdentityCts = null;
     }
 
-    private void ApplyMorphingChampSelectState()
-    {
-        _ = RefreshMorphingChampSelectStateAsync();
-    }
+    private void ApplyMorphingChampSelectState() => _ = RefreshMorphingChampSelectStateAsync();
 
     private async Task RefreshMorphingChampSelectStateAsync()
     {
         if (!_morphingSurfaceEnabled || ChampSelectCandidatesPanel is null) return;
 
         var live = _leagueWorkbench.Live;
-        if (live.State == LeagueWorkbenchDataState.Unavailable)
-        {
-            ChampSelectStatus.Text = _text.Get(UiTextKeys.ChampSelectNoData);
-            ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectUnavailableAction);
-            CancelChampSelectIdentityLoad();
-            _champSelectRequestedSignature = string.Empty;
-            RebuildChampSelectCandidates(Array.Empty<ChampSelectCandidateVisual>());
-            return;
-        }
-
-        _leagueBenchQuickPick?.SetSwapRoute(live.BenchSwapRoute);
-
-        var timer = live.TimerMillisecondsLeft > 0
-            ? " · " + (live.TimerMillisecondsLeft / 1000d).ToString("0.#", CultureInfo.InvariantCulture) + "s"
-            : string.Empty;
-        ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect) + timer;
-
-        var action = string.IsNullOrWhiteSpace(live.LocalActionType)
-            ? _text.Get(UiTextKeys.ChampSelectWaitingAction)
-            : live.LocalActionType.Trim();
-        ChampSelectAction.Text = action;
-
         var candidates = live.BenchEnabled
             ? live.BenchChampionIds.Where(id => id > 0).Distinct().ToArray()
             : Array.Empty<int>();
         var signature = string.Join(',', candidates);
-        if (string.Equals(signature, _champSelectRequestedSignature, StringComparison.Ordinal)) return;
+        if (!string.Equals(signature, _benchLastCandidateSignature, StringComparison.Ordinal))
+        {
+            _benchLastCandidateSignature = signature;
+            if (!string.IsNullOrEmpty(signature))
+                _benchContextDismissal.ResetForMaterialCandidateChange();
+        }
+
+        var eligible = LeagueBenchSwapStripPolicy.IsEligible(live) && candidates.Length > 0;
+        if (!eligible)
+        {
+            if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip &&
+                !_surfaceStateMachine.IsModalScopeActive)
+            {
+                ShowMorphingSurface(FacmSurfaceMode.Orb, "bench-candidates-unavailable", false, live.Phase);
+            }
+            return;
+        }
+
+        _benchStripCandidateCount = candidates.Length;
+        if (_surfaceStateMachine.IsModalScopeActive ||
+            !_benchContextDismissal.CanAutoShow(true))
+            return;
+
+        if (_surfaceStateMachine.Mode != FacmSurfaceMode.ChampSelectStrip)
+        {
+            ShowMorphingSurface(FacmSurfaceMode.ChampSelectStrip, "bench-candidates-available", false, live.Phase);
+            return;
+        }
+
+        ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
+        if (!_leagueBenchSwapping)
+            ChampSelectAction.Text = "点击头像即可交换英雄";
+
+        if (string.Equals(signature, _champSelectRequestedSignature, StringComparison.Ordinal))
+        {
+            SetChampSelectCandidateButtonsEnabled(!_leagueBenchSwapping);
+            return;
+        }
 
         _champSelectRequestedSignature = signature;
-        _champSelectIdentityCts?.Cancel();
-        _champSelectIdentityCts?.Dispose();
-        _champSelectIdentityCts = null;
-
-        if (candidates.Length == 0)
-        {
-            RebuildChampSelectCandidates(Array.Empty<ChampSelectCandidateVisual>());
-            return;
-        }
+        CancelChampSelectIdentityLoad();
+        var fallback = LeagueBenchCandidatePresentation.Create(candidates)
+            .Select(candidate => new ChampSelectCandidateVisual(candidate, null))
+            .ToArray();
+        RebuildChampSelectCandidates(fallback);
 
         var service = _leagueBenchQuickPick;
-        if (service is null)
-        {
-            RebuildChampSelectCandidates(CreateFallbackCandidates(candidates));
-            return;
-        }
+        if (service is null) return;
 
         _champSelectIdentityCts = new CancellationTokenSource();
         var requestCts = _champSelectIdentityCts;
-
         try
         {
             var identities = await service.LoadChampionIdentitiesAsync(candidates, requestCts.Token);
             var visuals = new List<ChampSelectCandidateVisual>(candidates.Length);
-            foreach (var championId in candidates)
+            foreach (var candidate in LeagueBenchCandidatePresentation.Create(candidates, identities))
             {
                 requestCts.Token.ThrowIfCancellationRequested();
-                identities.TryGetValue(championId, out var identity);
-                var icon = await TryLoadChampionIconAsync(service, championId, requestCts.Token);
                 visuals.Add(new ChampSelectCandidateVisual(
-                    championId,
-                    identity?.Name ?? string.Empty,
-                    icon));
+                    candidate,
+                    await TryLoadChampionIconAsync(service, candidate.ChampionId, requestCts.Token)));
             }
 
             if (_closed || requestCts.IsCancellationRequested ||
                 _surfaceStateMachine.Mode != FacmSurfaceMode.ChampSelectStrip ||
                 !string.Equals(signature, _champSelectRequestedSignature, StringComparison.Ordinal))
                 return;
-
             RebuildChampSelectCandidates(visuals);
         }
         catch (OperationCanceledException) when (requestCts.IsCancellationRequested)
@@ -118,13 +142,13 @@ public sealed partial class MainWindow
         catch
         {
             if (!_closed && string.Equals(signature, _champSelectRequestedSignature, StringComparison.Ordinal))
-                RebuildChampSelectCandidates(CreateFallbackCandidates(candidates));
+                RebuildChampSelectCandidates(fallback);
         }
         finally
         {
             if (ReferenceEquals(_champSelectIdentityCts, requestCts))
             {
-                _champSelectIdentityCts.Dispose();
+                requestCts.Dispose();
                 _champSelectIdentityCts = null;
             }
         }
@@ -132,89 +156,72 @@ public sealed partial class MainWindow
 
     private void RebuildChampSelectCandidates(IEnumerable<ChampSelectCandidateVisual> candidates)
     {
-        var visuals = candidates.Where(item => item.ChampionId > 0).ToArray();
+        var visuals = candidates
+            .Where(item => item.Candidate.ChampionId > 0 && item.Candidate.IsActionable)
+            .ToArray();
         var signature = string.Join(',', visuals.Select(item =>
-            item.ChampionId.ToString(CultureInfo.InvariantCulture) + ":" + item.Name + ":" + (item.Icon is null ? "0" : "1")));
+            item.Candidate.ChampionId.ToString(CultureInfo.InvariantCulture) + ":" +
+            item.Candidate.DisplayName + ":" + (item.Icon is null ? "0" : "1")));
         _champSelectHasCandidates = visuals.Length > 0;
+        _benchStripCandidateCount = visuals.Length > 0 ? visuals.Length : _benchStripCandidateCount;
         if (string.Equals(signature, _champSelectRenderedSignature, StringComparison.Ordinal))
         {
             if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-                EnsureCurrentSurfacePresentation("champ-select-candidates-unchanged");
+                EnsureCurrentSurfacePresentation("bench-strip-candidates-unchanged");
             return;
         }
 
         _champSelectRenderedSignature = signature;
+        _champSelectCandidateNames.Clear();
         ChampSelectCandidatesPanel.Children.Clear();
-        var ordinal = 0;
         foreach (var visual in visuals)
         {
-            ordinal++;
-            var name = string.IsNullOrWhiteSpace(visual.Name) ? "候选英雄 " + ordinal : visual.Name;
-            var content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 4,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            if (visual.Icon is not null)
-            {
-                content.Children.Add(new Image
+            _champSelectCandidateNames[visual.Candidate.ChampionId] = visual.Candidate.DisplayName;
+            FrameworkElement portrait = visual.Icon is null
+                ? new Border
                 {
-                    Source = visual.Icon,
-                    Width = 28,
-                    Height = 28,
-                    Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill
-                });
-            }
-            else
-            {
-                content.Children.Add(new Border
-                {
-                    Width = 28,
-                    Height = 28,
-                    CornerRadius = new CornerRadius(6),
-                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FacmAccentBrush"],
+                    Width = LeagueBenchSwapStripPolicy.PortraitTileDip,
+                    Height = LeagueBenchSwapStripPolicy.PortraitTileDip,
+                    CornerRadius = new CornerRadius(7),
+                    Background = (Brush)Application.Current.Resources["FacmAccentBrush"],
                     Child = new TextBlock
                     {
-                        Text = name[..Math.Min(1, name.Length)],
+                        Text = "?",
+                        FontSize = 18,
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FacmAccentTextBrush"]
+                        Foreground = (Brush)Application.Current.Resources["FacmAccentTextBrush"]
                     }
-                });
-            }
-            content.Children.Add(new TextBlock
-            {
-                Text = name,
-                MaxWidth = 74,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
+                }
+                : new Image
+                {
+                    Source = visual.Icon,
+                    Width = LeagueBenchSwapStripPolicy.PortraitTileDip,
+                    Height = LeagueBenchSwapStripPolicy.PortraitTileDip,
+                    Stretch = Stretch.UniformToFill
+                };
             var button = new Button
             {
-                Content = content,
-                Tag = visual.ChampionId,
-                Width = 94,
-                Height = 42,
+                Content = portrait,
+                Tag = visual.Candidate.ChampionId,
+                Width = 50,
+                Height = 50,
                 Padding = new Thickness(2),
-                VerticalAlignment = VerticalAlignment.Center,
+                IsTabStop = true,
+                IsEnabled = !_leagueBenchSwapping,
                 Style = (Style)Application.Current.Resources["FacmToolButtonStyle"]
             };
-            AutomationProperties.SetAutomationId(button, "FACM.Surface.ChampSelect." + visual.ChampionId);
-            AutomationProperties.SetName(button, _text.Get(UiTextKeys.ChampSelectSwapName) + " " + name);
-            AutomationProperties.SetHelpText(button, _text.Get(UiTextKeys.ChampSelectSwapHelp));
+            AutomationProperties.SetAutomationId(button, "FACM.Surface.BenchSwap." + visual.Candidate.ChampionId);
+            AutomationProperties.SetName(button, visual.Candidate.AccessibleName);
+            AutomationProperties.SetHelpText(button, visual.Candidate.DisplayName + " · Click to swap once");
+            ToolTipService.SetToolTip(button, visual.Candidate.DisplayName + " · 点击交换一次");
             button.Click += OnChampSelectCandidateClick;
             ChampSelectCandidatesPanel.Children.Add(button);
         }
 
         if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-            EnsureCurrentSurfacePresentation("champ-select-candidates-changed");
+            EnsureCurrentSurfacePresentation("bench-strip-candidates-changed");
     }
-
-    private static IEnumerable<ChampSelectCandidateVisual> CreateFallbackCandidates(IEnumerable<int> championIds) =>
-        championIds.Where(id => id > 0)
-            .Distinct()
-            .Select((id, index) => new ChampSelectCandidateVisual(id, "候选英雄 " + (index + 1), null));
 
     private static async Task<BitmapImage?> TryLoadChampionIconAsync(
         ILeagueBenchQuickPickService service,
@@ -228,7 +235,7 @@ public sealed partial class MainWindow
             using var stream = new InMemoryRandomAccessStream();
             await stream.WriteAsync(bytes.AsBuffer());
             stream.Seek(0);
-            var image = new BitmapImage { DecodePixelWidth = 32, DecodePixelHeight = 32 };
+            var image = new BitmapImage { DecodePixelWidth = 44, DecodePixelHeight = 44 };
             await image.SetSourceAsync(stream);
             return image;
         }
@@ -242,6 +249,18 @@ public sealed partial class MainWindow
         }
     }
 
+    private void SetChampSelectCandidateButtonsEnabled(bool enabled)
+    {
+        if (ChampSelectCandidatesPanel is null) return;
+        foreach (var child in ChampSelectCandidatesPanel.Children)
+            if (child is Button button) button.IsEnabled = enabled;
+    }
+
+    private string ResolveChampSelectCandidateName(int championId) =>
+        _champSelectCandidateNames.TryGetValue(championId, out var name) && !string.IsNullOrWhiteSpace(name)
+            ? name
+            : "Unknown champion";
+
     private async void OnChampSelectCandidateClick(object sender, RoutedEventArgs args)
     {
         if (sender is not Button { Tag: int championId }) return;
@@ -252,7 +271,7 @@ public sealed partial class MainWindow
         }
         catch
         {
-            ChampSelectAction.Text = _text.Get(UiTextKeys.ChampSelectSwapFailed);
+            ChampSelectAction.Text = "交换失败 · " + ResolveChampSelectCandidateName(championId);
         }
     }
 

@@ -1,8 +1,13 @@
+using System.Globalization;
+using System.Runtime.InteropServices.WindowsRuntime;
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using FACM.Core.Desktop;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 
 namespace FACM.App;
 
@@ -13,11 +18,12 @@ public sealed partial class MainWindow
     private TextBlock? _leagueBenchStateText;
     private TextBlock? _leagueBenchStatusText;
     private StackPanel? _leagueBenchButtons;
-    private CancellationTokenSource? _leagueBenchLoopCts;
-    private bool _leagueBenchRefreshing;
+    private CancellationTokenSource? _leagueBenchIdentityCts;
     private bool _leagueBenchSwapping;
-    private bool _leagueBenchActive;
-    private string _leagueBenchSignature = string.Empty;
+    private string _leagueBenchRequestedSignature = string.Empty;
+    private string _leagueBenchRenderedSignature = string.Empty;
+
+    private sealed record BenchCandidateVisual(LeagueBenchCandidate Candidate, BitmapImage? Icon);
 
     private void InitializeLeagueBenchQuickPickSurface()
     {
@@ -40,7 +46,7 @@ public sealed partial class MainWindow
         });
         content.Children.Add(new TextBlock
         {
-            Text = "迁移自 FACM 3.5.15。仅在客户端实际提供 Bench 时显示候选；每次点击最多发送一次交换请求，成功必须经过只读回验确认，不会自动重试写入。",
+            Text = "迁移自 FACM 3.5.15。仅在客户端实际提供 Bench 且存在可操作候选时显示头像；每次点击最多发送一次交换请求，成功必须经过只读回验确认。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         });
@@ -81,141 +87,208 @@ public sealed partial class MainWindow
         card.Child = content;
         _leagueBenchCard = card;
         LeagueWorkbenchPanel.Children.Add(card);
-
-        _leagueBenchLoopCts = new CancellationTokenSource();
-        _ = RunLeagueBenchLoopAsync(_leagueBenchLoopCts.Token);
     }
 
-    private async Task RunLeagueBenchLoopAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested && !_closed)
-            {
-                var hidden = !IsLeagueWorkbenchSelected();
-                var inGame = IsLeagueBenchInGame();
-                var morphingChampSelect = _morphingSurfaceEnabled &&
-                                          _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip;
-                if (!hidden && !inGame && !morphingChampSelect && !_leagueBenchSwapping)
-                    await RefreshLeagueBenchOnceAsync(cancellationToken);
-
-                var delay = LeagueBenchQuickPickPolling.ResolveDelay(_leagueBenchActive, inGame, hidden);
-                try
-                {
-                    await Task.Delay(delay, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch
-        {
-            if (!_closed && _leagueBenchStatusText is not null)
-                _leagueBenchStatusText.Text = "英雄台后台刷新已停止；LOL 工作台其它功能不受影响。";
-        }
-    }
-
-    private bool IsLeagueBenchInGame()
-    {
-        var phase = _leagueWorkbench.Live.Phase ?? string.Empty;
-        return phase.Equals("InProgress", StringComparison.OrdinalIgnoreCase) ||
-               phase.Equals("Reconnect", StringComparison.OrdinalIgnoreCase) ||
-               phase.Equals("GameStart", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task RefreshLeagueBenchOnceAsync(CancellationToken cancellationToken = default)
-    {
-        var service = _leagueBenchQuickPick;
-        if (_closed || service is null || _leagueBenchRefreshing || _leagueBenchSwapping) return;
-
-        _leagueBenchRefreshing = true;
-        try
-        {
-            var state = await service.RefreshAsync(cancellationToken);
-            if (_closed || cancellationToken.IsCancellationRequested) return;
-            ApplyLeagueBenchState(state);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-            if (!_closed && _leagueBenchStatusText is not null)
-                _leagueBenchStatusText.Text = "英雄台状态读取失败；LOL 工作台其它功能不受影响。";
-        }
-        finally
-        {
-            _leagueBenchRefreshing = false;
-        }
-    }
-
-    private void ApplyLeagueBenchState(LeagueBenchQuickPickState state)
+    /// <summary>
+    /// Renders the same Workbench.Live Bench state used by the Morphing strip. This presenter does
+    /// not start a second Bench polling loop; refresh ownership stays in LeagueWorkbenchViewModel.
+    /// </summary>
+    private void ApplyLeagueBenchFromLive()
     {
         if (_leagueBenchStateText is null || _leagueBenchStatusText is null) return;
 
-        if (!state.SessionAvailable)
+        var live = _leagueWorkbench.Live;
+        _leagueBenchQuickPick?.SetSwapRoute(live.BenchSwapRoute);
+        if (live.State == LeagueWorkbenchDataState.Unavailable ||
+            !string.Equals(live.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
         {
-            _leagueBenchActive = false;
-            _leagueBenchStateText.Text = "当前没有可用的选人会话。";
-            _leagueBenchStatusText.Text = "等待随机模式英雄台。";
-            RebuildLeagueBenchButtons(Array.Empty<int>());
+            ApplyLeagueBenchUnavailable("当前没有可用的选人会话。", "等待随机模式英雄台。");
             return;
         }
 
-        if (!state.BenchEnabled)
+        if (!live.BenchEnabled)
         {
-            _leagueBenchActive = false;
-            _leagueBenchStateText.Text = "当前选人模式未启用英雄台。";
-            _leagueBenchStatusText.Text = "此模式无需 Bench quick-pick。";
-            RebuildLeagueBenchButtons(Array.Empty<int>());
+            ApplyLeagueBenchUnavailable("当前选人模式未启用英雄台。", "此模式无需 Bench quick-pick。");
             return;
         }
 
-        _leagueBenchActive = true;
-        var ids = state.ChampionIds.Where(value => value > 0).Distinct().ToArray();
+        var ids = live.BenchChampionIds.Where(id => id > 0).Distinct().ToArray();
         _leagueBenchStateText.Text = ids.Length == 0
             ? "英雄台已启用，正在等待可交换英雄。"
             : $"英雄台已启用 · 当前 {ids.Length} 个候选";
         if (!_leagueBenchSwapping)
             _leagueBenchStatusText.Text = ids.Length == 0
                 ? "等待候选刷新。"
-                : "点击英雄即可尝试交换；每次点击只写一次。";
-        RebuildLeagueBenchButtons(ids);
-    }
+                : "点击英雄头像即可尝试交换；每次点击只写一次。";
 
-    private void RebuildLeagueBenchButtons(IEnumerable<int> championIds)
-    {
-        var panel = _leagueBenchButtons;
-        if (panel is null) return;
-
-        var ids = championIds.Where(value => value > 0).Distinct().ToArray();
         var signature = string.Join(',', ids);
-        if (string.Equals(signature, _leagueBenchSignature, StringComparison.Ordinal))
+        if (string.Equals(signature, _leagueBenchRequestedSignature, StringComparison.Ordinal))
         {
             SetLeagueBenchButtonsEnabled(!_leagueBenchSwapping);
             return;
         }
-        _leagueBenchSignature = signature;
-        panel.Children.Clear();
 
-        foreach (var championId in ids)
+        _leagueBenchRequestedSignature = signature;
+        CancelLeagueBenchIdentityLoad();
+        if (ids.Length == 0)
         {
+            RebuildLeagueBenchButtons(Array.Empty<BenchCandidateVisual>());
+            return;
+        }
+
+        var candidates = LeagueBenchCandidatePresentation.Create(ids);
+        RebuildLeagueBenchButtons(candidates.Select(candidate => new BenchCandidateVisual(candidate, null)).ToArray());
+        var service = _leagueBenchQuickPick;
+        if (service is null) return;
+
+        _leagueBenchIdentityCts = new CancellationTokenSource();
+        var requestCts = _leagueBenchIdentityCts;
+        _ = LoadLeagueBenchCandidatesAsync(ids, service, requestCts);
+    }
+
+    private void ApplyLeagueBenchUnavailable(string state, string status)
+    {
+        _leagueBenchStateText!.Text = state;
+        _leagueBenchStatusText!.Text = status;
+        _leagueBenchRequestedSignature = string.Empty;
+        CancelLeagueBenchIdentityLoad();
+        RebuildLeagueBenchButtons(Array.Empty<BenchCandidateVisual>());
+    }
+
+    private async Task LoadLeagueBenchCandidatesAsync(
+        IReadOnlyCollection<int> ids,
+        ILeagueBenchQuickPickService service,
+        CancellationTokenSource requestCts)
+    {
+        try
+        {
+            var identities = await service.LoadChampionIdentitiesAsync(ids, requestCts.Token);
+            var visuals = new List<BenchCandidateVisual>(ids.Count);
+            foreach (var candidate in LeagueBenchCandidatePresentation.Create(ids, identities))
+            {
+                requestCts.Token.ThrowIfCancellationRequested();
+                visuals.Add(new BenchCandidateVisual(
+                    candidate,
+                    await TryLoadLeagueBenchIconAsync(service, candidate.ChampionId, requestCts.Token)));
+            }
+
+            if (_closed || requestCts.IsCancellationRequested ||
+                !string.Equals(string.Join(',', ids), _leagueBenchRequestedSignature, StringComparison.Ordinal))
+                return;
+            RebuildLeagueBenchButtons(visuals);
+        }
+        catch (OperationCanceledException) when (requestCts.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // The identity model already supplies a safe unknown-champion fallback.
+        }
+        finally
+        {
+            if (ReferenceEquals(_leagueBenchIdentityCts, requestCts))
+            {
+                requestCts.Dispose();
+                _leagueBenchIdentityCts = null;
+            }
+        }
+    }
+
+    private static async Task<BitmapImage?> TryLoadLeagueBenchIconAsync(
+        ILeagueBenchQuickPickService service,
+        int championId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bytes = await service.LoadChampionIconAsync(championId, cancellationToken);
+            if (bytes is null || bytes.Length == 0) return null;
+            using var stream = new InMemoryRandomAccessStream();
+            await stream.WriteAsync(bytes.AsBuffer());
+            stream.Seek(0);
+            var image = new BitmapImage { DecodePixelWidth = 44, DecodePixelHeight = 44 };
+            await image.SetSourceAsync(stream);
+            return image;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void RebuildLeagueBenchButtons(IReadOnlyList<BenchCandidateVisual> visuals)
+    {
+        var panel = _leagueBenchButtons;
+        if (panel is null) return;
+
+        var signature = string.Join(',', visuals.Select(item =>
+            item.Candidate.ChampionId.ToString(CultureInfo.InvariantCulture) + ":" +
+            item.Candidate.DisplayName + ":" + (item.Icon is null ? "0" : "1")));
+        if (string.Equals(signature, _leagueBenchRenderedSignature, StringComparison.Ordinal))
+        {
+            SetLeagueBenchButtonsEnabled(!_leagueBenchSwapping);
+            return;
+        }
+
+        _leagueBenchRenderedSignature = signature;
+        panel.Children.Clear();
+        foreach (var visual in visuals)
+        {
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            content.Children.Add(visual.Icon is null
+                ? new Border
+                {
+                    Width = 38,
+                    Height = 38,
+                    CornerRadius = new CornerRadius(6),
+                    Background = (Brush)Application.Current.Resources["FacmAccentBrush"],
+                    Child = new TextBlock
+                    {
+                        Text = "?",
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Foreground = (Brush)Application.Current.Resources["FacmAccentTextBrush"]
+                    }
+                }
+                : new Image
+                {
+                    Source = visual.Icon,
+                    Width = 38,
+                    Height = 38,
+                    Stretch = Stretch.UniformToFill
+                });
+            content.Children.Add(new TextBlock
+            {
+                Text = visual.Candidate.DisplayName,
+                MaxWidth = 120,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+
             var button = new Button
             {
-                Content = "#" + championId,
-                Tag = championId,
-                MinWidth = 64,
+                Content = content,
+                Tag = visual.Candidate.ChampionId,
+                MinWidth = 132,
+                Height = 48,
+                Padding = new Thickness(4),
                 HorizontalAlignment = HorizontalAlignment.Left,
-                IsEnabled = !_leagueBenchSwapping
+                IsEnabled = !_leagueBenchSwapping,
+                Style = (Style)Application.Current.Resources["FacmToolButtonStyle"]
             };
-            AutomationProperties.SetAutomationId(button, "FACM.League.Bench." + championId);
-            AutomationProperties.SetName(button, "交换英雄 " + championId);
-            AutomationProperties.SetHelpText(button, "手动交换英雄台候选；单次点击最多发送一次写请求。");
+            AutomationProperties.SetAutomationId(button, "FACM.League.Bench." + visual.Candidate.ChampionId);
+            AutomationProperties.SetName(button, visual.Candidate.AccessibleName);
+            AutomationProperties.SetHelpText(button, "Manual one-shot Bench swap.");
+            ToolTipService.SetToolTip(button, visual.Candidate.DisplayName + " · Click to swap");
             button.Click += OnLeagueBenchChampionClicked;
             panel.Children.Add(button);
         }
@@ -224,14 +297,11 @@ public sealed partial class MainWindow
     private async void OnLeagueBenchChampionClicked(object sender, RoutedEventArgs args)
     {
         if (sender is not Button { Tag: int championId }) return;
-        try
-        {
-            await SwapLeagueBenchChampionAsync(championId);
-        }
+        try { await SwapLeagueBenchChampionAsync(championId); }
         catch
         {
             if (!_closed && _leagueBenchStatusText is not null)
-                _leagueBenchStatusText.Text = $"英雄 #{championId} 交换失败。";
+                _leagueBenchStatusText.Text = "Bench swap failed.";
         }
     }
 
@@ -241,47 +311,84 @@ public sealed partial class MainWindow
         if (_closed || service is null || _leagueBenchSwapping || championId <= 0) return;
 
         _leagueBenchSwapping = true;
-        SetLeagueBenchButtonsEnabled(false);
-        if (_leagueBenchStatusText is not null)
-            _leagueBenchStatusText.Text = $"正在交换英雄 #{championId}…";
+        SetBenchSwapButtonsEnabled(false);
+        var candidateName = ResolveBenchCandidateName(championId);
+        SetBenchSwapStatus("正在交换英雄 " + candidateName + "…", "Swapping " + candidateName + "…");
 
         try
         {
             var result = await service.TrySwapAsync(championId);
             if (_closed) return;
-            if (_leagueBenchStatusText is not null)
-                _leagueBenchStatusText.Text = FormatLeagueBenchSwapResult(result);
+            var success = result.Success;
+            var status = FormatLeagueBenchSwapResult(result, candidateName);
+            SetBenchSwapStatus(status, success ? "已切换 · " + candidateName : status);
+            SetBenchSwapFeedback(championId, candidateName, success);
         }
         catch (OperationCanceledException)
         {
         }
         catch
         {
-            if (!_closed && _leagueBenchStatusText is not null)
-                _leagueBenchStatusText.Text = $"英雄 #{championId} 交换失败。";
+            if (!_closed) SetBenchSwapStatus("交换失败 · " + candidateName, "Swap failed · " + candidateName);
         }
         finally
         {
             _leagueBenchSwapping = false;
-            SetLeagueBenchButtonsEnabled(true);
-            await RefreshLeagueBenchOnceAsync();
+            SetBenchSwapButtonsEnabled(true);
+            if (!_closed && IsLeagueWorkbenchSelected())
+                await RefreshLeagueWorkbenchRuntimeAsync();
         }
     }
 
-    private static string FormatLeagueBenchSwapResult(LeagueBenchSwapResult result)
+    private string ResolveBenchCandidateName(int championId)
     {
-        var suffix = " #" + result.ChampionId;
-        if (result.ElapsedMilliseconds > 0) suffix += " · " + result.ElapsedMilliseconds + " ms";
+        if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            return ResolveChampSelectCandidateName(championId);
+        if (_leagueBenchButtons is not null)
+        {
+            foreach (var child in _leagueBenchButtons.Children)
+            {
+                if (child is Button { Tag: int id, Content: StackPanel content } && id == championId)
+                {
+                    var label = content.Children.OfType<TextBlock>().FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(label?.Text)) return label.Text;
+                }
+            }
+        }
+        return "Unknown champion";
+    }
+
+    private static string FormatLeagueBenchSwapResult(LeagueBenchSwapResult result, string name)
+    {
         return result.Status switch
         {
-            LeagueBenchSwapStatus.Success => "交换成功" + suffix,
-            LeagueBenchSwapStatus.TargetUnavailable => "目标已不在英雄台" + suffix,
+            LeagueBenchSwapStatus.Success => "交换成功 · " + name,
+            LeagueBenchSwapStatus.TargetUnavailable => "目标已不可用 · " + name,
             LeagueBenchSwapStatus.BenchDisabled => "当前模式未启用英雄台。",
             LeagueBenchSwapStatus.SessionUnavailable => "选人会话已结束。",
-            LeagueBenchSwapStatus.VerificationFailed => "客户端已接受请求，但回读未确认交换完成" + suffix,
-            _ when result.StatusCode > 0 => "交换被客户端拒绝" + suffix + " · HTTP " + result.StatusCode,
-            _ => "交换被客户端拒绝" + suffix
+            LeagueBenchSwapStatus.VerificationFailed => "回读未确认交换 · " + name,
+            _ when result.StatusCode > 0 => "交换被客户端拒绝 · HTTP " + result.StatusCode,
+            _ => "交换被客户端拒绝 · " + name
         };
+    }
+
+    private void SetBenchSwapStatus(string detail, string stripStatus)
+    {
+        if (_leagueBenchStatusText is not null) _leagueBenchStatusText.Text = detail;
+        if (ChampSelectAction is not null && _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            ChampSelectAction.Text = stripStatus;
+    }
+
+    private void SetBenchSwapFeedback(int championId, string name, bool success)
+    {
+        if (ChampSelectAction is not null && _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            ChampSelectAction.Text = success ? "已切换 · " + name : "交换失败 · " + name;
+    }
+
+    private void SetBenchSwapButtonsEnabled(bool enabled)
+    {
+        SetLeagueBenchButtonsEnabled(enabled);
+        SetChampSelectCandidateButtonsEnabled(enabled);
     }
 
     private void SetLeagueBenchButtonsEnabled(bool enabled)
@@ -291,20 +398,24 @@ public sealed partial class MainWindow
             if (child is Button button) button.IsEnabled = enabled;
     }
 
+    private void CancelLeagueBenchIdentityLoad()
+    {
+        _leagueBenchIdentityCts?.Cancel();
+        _leagueBenchIdentityCts?.Dispose();
+        _leagueBenchIdentityCts = null;
+    }
+
     private void DisposeLeagueBenchQuickPickSurface()
     {
-        _leagueBenchLoopCts?.Cancel();
-        _leagueBenchLoopCts?.Dispose();
-        _leagueBenchLoopCts = null;
+        CancelLeagueBenchIdentityLoad();
         if (_leagueBenchQuickPick is IDisposable disposable) disposable.Dispose();
         _leagueBenchQuickPick = null;
         _leagueBenchCard = null;
         _leagueBenchStateText = null;
         _leagueBenchStatusText = null;
         _leagueBenchButtons = null;
-        _leagueBenchSignature = string.Empty;
-        _leagueBenchActive = false;
-        _leagueBenchRefreshing = false;
+        _leagueBenchRequestedSignature = string.Empty;
+        _leagueBenchRenderedSignature = string.Empty;
         _leagueBenchSwapping = false;
     }
 }

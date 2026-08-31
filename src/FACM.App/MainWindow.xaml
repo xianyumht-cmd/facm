@@ -186,41 +186,32 @@
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Background="{StaticResource FacmSurfaceBrush}"
+            automation:AutomationProperties.AutomationId="FACM.Surface.BenchSwapStrip"
             Visibility="Collapsed">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="44" />
-                <ColumnDefinition Width="172" />
+                <ColumnDefinition Width="42" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="92" />
+                <ColumnDefinition Width="34" />
             </Grid.ColumnDefinitions>
-            <Button
-                x:Name="ChampSelectBackButton"
-                Width="34"
-                Height="34"
-                Margin="8,0,0,0"
+            <Border
+                x:Name="ChampSelectDragHandle"
+                Grid.Column="0"
+                Width="42"
+                Height="56"
                 VerticalAlignment="Center"
-                Padding="0"
-                Style="{StaticResource FacmCollapseButtonStyle}"
-                Click="OnSurfaceCollapseToOrbClick"
-                automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
-                <FontIcon Glyph="&#xE72C;" />
-            </Button>
-            <StackPanel
-                Grid.Column="1"
-                Margin="4,0,4,0"
-                VerticalAlignment="Center"
-                Spacing="1">
+                Background="Transparent">
                 <TextBlock
-                x:Name="ChampSelectStatus"
-                    Style="{StaticResource FacmBodyTextStyle}"
-                    />
-                <TextBlock
-                    x:Name="ChampSelectAction"
-                    Style="{StaticResource FacmInspectorTextStyle}"
-                    />
-            </StackPanel>
+                    Text="F"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource FacmAccentBrush}" />
+            </Border>
             <ScrollViewer
-                Grid.Column="2"
-                Margin="4,0,10,0"
+                Grid.Column="1"
+                Margin="4,3,4,3"
                 HorizontalScrollMode="Auto"
                 HorizontalScrollBarVisibility="Hidden"
                 VerticalScrollMode="Disabled"
@@ -228,9 +219,39 @@
                 <StackPanel
                     x:Name="ChampSelectCandidatesPanel"
                     Orientation="Horizontal"
-                    Spacing="4"
+                    Spacing="6"
                     VerticalAlignment="Center" />
             </ScrollViewer>
+            <StackPanel
+                Grid.Column="2"
+                Margin="2,0,2,0"
+                VerticalAlignment="Center"
+                Spacing="1">
+                <TextBlock
+                    x:Name="ChampSelectStatus"
+                    Style="{StaticResource FacmBodyTextStyle}"
+                    FontSize="10"
+                    TextTrimming="CharacterEllipsis"
+                    />
+                <TextBlock
+                    x:Name="ChampSelectAction"
+                    Style="{StaticResource FacmInspectorTextStyle}"
+                    FontSize="10"
+                    TextTrimming="CharacterEllipsis"
+                    />
+            </StackPanel>
+            <Button
+                x:Name="ChampSelectBackButton"
+                Grid.Column="3"
+                Width="30"
+                Height="30"
+                VerticalAlignment="Center"
+                Padding="0"
+                Style="{StaticResource FacmCollapseButtonStyle}"
+                Click="OnSurfaceCollapseToOrbClick"
+                automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
+                <FontIcon Glyph="&#xE72C;" />
+            </Button>
         </Grid>
 
         <Grid x:Name="LegacyFeatureSurface" Background="Transparent" Visibility="Collapsed">
