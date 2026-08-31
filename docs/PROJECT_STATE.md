@@ -28,7 +28,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch X `0eebe940b26edb3b4900587e54ff2f3b685c224a` | **Batch U/X source checks green / Full Product Parity audit recorded / Draft** |
+| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch X `0eebe940b26edb3b4900587e54ff2f3b685c224a` and BS7 `f0528fa` | **Batch U/X/BS7 source checks green / Full Product Parity audit recorded / Draft** |
 
 Tracking Issue：#233。
 
@@ -57,18 +57,24 @@ Tracking Issue：#233。
 - 本轮没有注入桌面空白 outside-click，也没有制造 ChampSelect/Lobby 自然回归；因此 outside-click、ChampSelectStrip/Lobby restore、modal、tray、桌宠切换和多显示器真实验收仍标记为 `USER_MANUAL_VALIDATION_REQUIRED`。MS8 的 84 次 outside-click 失败与其它路径共享同一个尺寸 invariant 根因；失败后未能提交 Orb，watcher 继续收到后续物理边沿，形成失败洪水。
 - 最终校验：`FACM4.sln` Debug x64 为 0 警告/0 错误；FoundationSmoke `--skip-gate13` SUCCESS；WindowsSmoke SUCCESS；27/27 非 cutover source gates 全部通过。未执行 Gate13、merge、push、release、正式 P7 移动或 production pointer 修改。
 
-## 2026-08-31 Morphing Bench Swap Strip：BS1–BS6
+## 2026-08-31 Morphing Bench Swap Strip：BS1–BS7
 
 本轮从代码基线 `f80a70e065c33b9ba650b09a2cebcc0088233bfc` 开始，产品提交为 `4b9fe1b`
 （Bench candidate identity model）、`fea17fd`（同一 MainWindow 的 Morphing Bench Swap Strip、
-Workbench 同源呈现与上下文生命周期）和 `d551a46`（点击后的权威状态回读）；测试/门禁提交为
-`dc70c98`、`028268e`、`50f7026`。实现只发生在
+Workbench 同源呈现与上下文生命周期）、`d551a46`（点击后的权威状态回读）和 `f0528fa`
+（进程级 Bench context/latch 生命周期修复）；测试/门禁提交为 `dc70c98`、`028268e`、
+`50f7026`、`f0528fa`。实现只发生在
 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`；`D:\project2\Facm` 未修改。
 
 - Compact/Strip 自动呈现的候选唯一来源已提升为进程级 `LeagueBenchRuntimeSnapshot`；它由新的
   `LeagueBenchRuntimeObserver` 挂接现有唯一 `LeagueGameflowMonitor.Observed` 心跳，并复用唯一
   `LeagueBenchQuickPickService` 的 Legacy/TeamBuilder 读取路径。详细 Workbench 仍消费自己的
   `Live` 快照，但不再是 Compact/Strip 自动显示的前置条件。
+- 根因已确认：BS6 的 Compact/Strip 事实只来自 `LeagueWorkbenchViewModel.RefreshAsync()`，实际
+  只有进入 ChampSelect、打开/刷新 Workbench、交换后等 3 个调用入口；Workbench 未打开或候选
+  在一次性刷新之后到达时，FACM 不会重新观察，故会停留 Orb。BS7 新增 1 个
+  `LeagueBenchRuntimeObserver`，挂在现有唯一 Gameflow heartbeat 上，未新增 Gameflow、session、
+  gateway 或 timer owner。
 - 身份和头像继续使用现有 `LeagueBenchQuickPickService` 的
   `/lol-game-data/assets/v1/champion-summary.json` 与
   `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取/缓存路径；本轮未增加 portrait 网络
@@ -87,6 +93,13 @@ Workbench 同源呈现与上下文生命周期）和 `d551a46`（点击后的权
 - 新用户评审候选：`D:\project2\facm-bs6-review-out-20260831-1600\FACM.App.exe`，单文件目录
   仅 1 个文件、0 个 DLL，421,024,376 bytes，SHA-256
   `68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B`。
+- BS7 新用户评审候选：`D:\project2\facm-bs7-review-out-20260831-1319\FACM.App.exe`，单文件目录
+  仅 1 个文件、0 个 DLL，420,921,000 bytes，SHA-256
+  `4FABDC97FFD67E3403F93D6FCD2A78C1E1E4F60B51F88B6287A4298A2AE526D6`；候选由提交
+  `f0528fa` 构建，旧 BS6 candidate 保持不变。
+- owner 计数：BS6 的自动呈现 Bench state owner 为 Workbench `Live` 1 个；BS7 为
+  `LeagueBenchRuntimeObserver` 1 个，`LeagueBenchQuickPickService` 共享创建 1 个，且
+  `WindowsLeagueTransportSessionSource` / `LeagueHttpGateway` / `LeagueGameflowMonitor` 仍各 1 个。
 
 本轮没有执行 Gate13、merge、push、release、正式 P7 移动或 production pointer 修改。真实 LCU
 ARAM/Bench、portrait 实际渲染、Strip 锁存全过程、modal、键盘/辅助功能、多 DPI 和完整 MS9
