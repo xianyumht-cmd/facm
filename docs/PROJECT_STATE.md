@@ -403,3 +403,9 @@ BOOT3-A 已在隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`�
 当前是 **BOOT3-A local cryptographic trust candidate green / not release-ready**。BOOT3-B 仍需 controlled
 production key custody/rotation、真实 HTTPS hosting、signed package publication、真实 Windows update/cutover
 验收及完整 release evidence；不得由本候选自动进入 BOOT3-B、Gate13 或 production release。
+
+## 2026-08-31 BOOT3-B release-key governance baseline
+
+BOOT3-B 已开始，当前先落地 release-key governance：`facm-production-r1` 明确标记为 candidate-active、非正式 production credential；`facm-production-r2` 仅作为 planned rotation identity，尚未进入 native acceptance。key policy 位于 `tools/release/facm-keyring-policy.json`，仅供 release tooling/review 使用，不能添加运行时信任根。
+
+已核对 `facm-production-r1` 的外部 local validation public modulus 与 `src/FACM.Bootstrapper/ManifestTrust.cpp` 完全一致：RSA-2048、exponent `010001`、256-byte modulus；正式 production key custody 尚无仓库证据，因此不会伪造 HSM/KMS 或 signer service 已存在的结论。下一步是确定性 BOOT3-B artifact/signing-request pipeline、external signer response boundary 和 offline release bundle validator。

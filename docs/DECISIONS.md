@@ -428,3 +428,20 @@ manifest 的 exact-byte detached trust。Windows CNG 可由无 .NET/WinUI 依赖
 
 BOOT3-A 获得了可审计的 native trust boundary 和失败更新保护，但真实 release key custody、HTTPS hosting、
 签名包发布、密钥轮换与真实机器 update/cutover evidence 仍属于 BOOT3-B；本地测试私钥不能用于正式发布。
+
+## 2026-08-31：BOOT3-B 将 release key custody 与构建/签名流程隔离
+
+### 决策
+
+- `facm-production-r1` 只视为当前候选 bootstrapper 的 embedded public identity，不视为已经存在的正式生产 release credential。
+- release private key 永远不进入 Git、bootstrapper、fixtures、review artifacts、日志、CI artifacts 或命令行；普通构建机只产生 exact-byte signing request，外部 signer 返回 detached signatures。
+- 运行时只信任源码编译进 native bootstrapper 的固定 key table；`tools/release/facm-keyring-policy.json` 只是 review metadata，不能扩大 runtime trust roots。
+- key rotation 通过 reviewed bootstrapper source change 明确激活，支持有界 overlap；planned/retired/revoked/unknown key ID 和 downgrade fail closed。
+
+### 原因
+
+当前环境证明了 BOOT3-A 公钥表示与本地验证 key 的数学对应关系，但没有证明正式生产 HSM/KMS 或 signing service 已部署。显式 external-signer boundary 可以让构建、审计和持钥职责分离，同时避免虚构生产 secret storage。
+
+### 后果
+
+BOOT3-B 可以生成可审计的 unsigned signing request 和可验证的 signed bundle，但正式 production key custody、授权记录和 release publication 仍需 release owner 提供真实外部证据。local validation key 只用于测试，不能直接触发生产发布。
