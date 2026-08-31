@@ -142,6 +142,7 @@ foreach ($componentId in $componentIds) {
     $componentUrl = "$ManifestBaseUrl/$manifestRelative"
     $packageUrl = "$ManifestBaseUrl/$packageRelative"
     $mirrors = @($MirrorBaseUrls | ForEach-Object { "$_/$packageRelative" })
+    $componentManifestMirrors = @($MirrorBaseUrls | ForEach-Object { "$_/$manifestRelative" })
     $dependencies = if ($componentId -eq 'facm-app-win-x64') {
         @('facm-dotnet-runtime-win-x64', 'facm-windows-runtime-win-x64')
     } else { @() }
@@ -152,6 +153,7 @@ foreach ($componentId in $componentIds) {
         installedSize=$installedSize; sha256=$packageSha; contentDigest=$contentDigest
         fileCount=[uint64]$files.Count; packageFormat='cab'; entryPoint=$entryPoint
         primaryUrl=$packageUrl; mirrors=$mirrors; dependencies=$dependencies
+        componentManifestMirrors=$componentManifestMirrors
     }
 
     $componentDirectory = Join-Path $bundleRoot ($manifestRelative -replace '/', '\' | Split-Path -Parent)
@@ -164,6 +166,7 @@ foreach ($componentId in $componentIds) {
     $appRecord = [ordered]@{}
     foreach ($property in $component.GetEnumerator()) { $appRecord[$property.Key] = $property.Value }
     $appRecord['componentManifestUrl'] = $componentUrl
+    $appRecord['componentManifestMirrors'] = $componentManifestMirrors
     $appRecord['componentManifestSha256'] = $componentManifestSha
     [void]$appRecords.Add($appRecord)
 
@@ -181,7 +184,8 @@ foreach ($componentId in $componentIds) {
 
 $application = [ordered]@{
     schemaVersion=3; applicationId='FACM'; applicationVersion=$Version; architecture='win-x64'
-    trustMode='production'; keyId='facm-production-r1'; components=$appRecords
+    trustMode='production'; keyId='facm-production-r1'
+    manifestMirrors=@($MirrorBaseUrls | ForEach-Object { "$_/manifest.json" }); components=$appRecords
 }
 $applicationPath = Join-Path $bundleRoot 'manifest.json'
 Write-ExactJson $applicationPath $application

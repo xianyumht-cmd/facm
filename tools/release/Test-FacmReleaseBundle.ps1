@@ -77,6 +77,7 @@ function Assert-ComponentMetadata([object]$App, [object]$Signed, [string]$Id) {
         }
     }
     Require (Same-Array $App.mirrors $Signed.mirrors) "Authenticated component metadata mismatch ($Id): mirrors"
+    Require (Same-Array $App.componentManifestMirrors $Signed.componentManifestMirrors) "Authenticated component metadata mismatch ($Id): componentManifestMirrors"
     Require (Same-Array $App.dependencies $Signed.dependencies) "Authenticated component metadata mismatch ($Id): dependencies"
 }
 function Assert-NoSecretMaterial([string]$Root) {
@@ -118,6 +119,7 @@ if (-not [string]::IsNullOrWhiteSpace($CurrentActiveVersion) -and
 }
 Require ('unsigned-local' -notin @([string]$application.trustMode,[string]$index.trustMode)) 'Unsigned-local trust mode is present in a release bundle.'
 Require (Same-Array $index.defaultComposition @('facm-app-win-x64','facm-dotnet-runtime-win-x64','facm-windows-runtime-win-x64')) 'Default BOOT composition is not exactly the three core components.'
+foreach ($manifestMirror in (Get-StringArray $application.manifestMirrors)) { Assert-Https $manifestMirror 'Application manifest mirror URL' }
 
 $expectedIds = @('facm-app-win-x64','facm-dotnet-runtime-win-x64','facm-windows-runtime-win-x64')
 $appComponents = @($application.components)
@@ -152,6 +154,7 @@ foreach ($appComponent in $appComponents) {
     Assert-Https ([string]$appComponent.primaryUrl) "$id package URL"
     foreach ($mirror in (Get-StringArray $appComponent.mirrors)) { Assert-Https $mirror "$id mirror URL" }
     Assert-Https ([string]$appComponent.componentManifestUrl) "$id component manifest URL"
+    foreach ($mirror in (Get-StringArray $appComponent.componentManifestMirrors)) { Assert-Https $mirror "$id component manifest mirror URL" }
     $manifestRelative = Get-SafeRelativePath ([string]$indexComponent.manifestPath) "$id manifest path"
     $signatureRelative = Get-SafeRelativePath ([string]$indexComponent.signaturePath) "$id signature path"
     $packageRelative = Get-SafeRelativePath ([string]$indexComponent.packagePath) "$id package path"
