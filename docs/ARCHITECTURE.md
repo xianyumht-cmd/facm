@@ -435,3 +435,39 @@ canonicalization is used. Production URLs are HTTPS regardless of local-developm
 EXE Authenticode/updater identity path remains separate because it is a PE release-signing mechanism, not a
 JSON/CAB exact-byte manifest mechanism. `unsigned-local` is retained only for explicit loopback development
 provisioning and cannot add production trust roots or bypass signatures.
+
+## 2026-08-31 BOOT3-B release artifact and signer topology
+
+BOOT3-B keeps release private-key possession outside the repository/build
+machine:
+
+```text
+BOOT-2 publish/classification/CAB stages
+  -> deterministic BOOT3-B bundle builder
+       -> three core CAB packages
+       -> exact-byte component manifests
+       -> exact-byte application manifest
+       -> release-index.json + ownership-report.json
+       -> signing-request.json (public metadata/digests only)
+            -> external controlled signer
+                 -> detached Base64 signatures
+            -> response apply (rechecks request payload bytes/digests)
+                 -> complete signed bundle
+                      -> offline release-bundle validator
+                           -> native CNG --verify-trust-bundle
+```
+
+The release tooling key policy is review metadata only. Runtime trust remains
+the compiled native key table with explicit `Active`, `Overlap`, `Planned`,
+`Retired`, and `Revoked` lifecycle statuses. A planned key cannot become
+trusted by changing a manifest, signing request, environment variable, or
+configuration file. The default bundle composition is exactly app, managed
+runtime, and Windows runtime; Desktop Pet payloads remain outside this pipe.
+
+The builder writes UTF-8/no-BOM manifests with one final newline and preserves
+the payload files used for signing. The signer request uses relative bundle
+paths plus exact byte counts and SHA-256 values. The response apply step does
+not parse/reserialize payloads and does not access a private key. The offline
+validator validates the public artifact topology and calls the native verifier
+for authoritative signature, CAB extraction, and extracted-content checks; it
+does not install or alter an active FACM composition.

@@ -522,3 +522,42 @@ production network path performs the same exact-byte signature checks over HTTPS
 passed Release x64 with 0 warnings / 0 errors, FoundationSmoke `--skip-gate13`, WindowsSmoke, 29 non-cutover
 source gates, and an independent BOOT-2 regression smoke. BOOT3-A does not run Gate13, touch production pointers,
 release/merge/push PR #234, move Formal P7, or retire FACM 3.5.15.
+
+## 2026-08-31 BOOT3-B signed artifact pipeline
+
+BOOT3-B build, signing-request, signer-response, validator, test-key and temporary paths must remain under
+`D:\project2`. The normal builder does not receive a private key. It reuses `tools/boot1/Build-Boot2Candidate.ps1`
+for the three CAB stages, then creates a production schema-3 bundle and `signing-request.json`:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Build-FacmBoot3BRelease.ps1' `
+  -OutputRoot 'D:\project2\facm-boot3b-release-<date>' `
+  -Version '4.0.0-<release>' `
+  -ManifestBaseUrl 'https://<approved-origin>/facm/<release>'
+```
+
+The external signer receives the request and returns only detached Base64 signatures. Apply responses with:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Apply-FacmSigningResponses.ps1' `
+  -RequestPath 'D:\project2\facm-boot3b-release-<date>\signing-request.json' `
+  -SignatureRoot 'D:\project2\facm-boot3b-release-<date>\signer-responses' `
+  -BundleRoot 'D:\project2\facm-boot3b-release-<date>\bundle'
+```
+
+Validate a completed bundle offline with:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmReleaseBundle.ps1' `
+  -BundleRoot 'D:\project2\facm-boot3b-release-<date>\bundle' `
+  -Bootstrapper 'D:\project2\facm-boot3a-native-build\FACM.exe'
+```
+
+`Test-Boot3BRelease.ps1` uses a non-formal local validation key outside the repository only to emulate an external
+signer. It verifies deterministic output from the same BOOT-2 inputs, exact-byte signature sensitivity, replay/tamper/
+unknown/planned/test-only/unsigned/metadata/package/downgrade rejection and successful native validation. The release
+bundle validator is read-only with respect to installed FACM state. BOOT3-B does not run Gate13, modify production
+pointers, upload artifacts, merge/push PR #234, move Formal P7, or retire FACM 3.5.15.

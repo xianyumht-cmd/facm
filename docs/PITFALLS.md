@@ -596,3 +596,20 @@ application/component JSON 的精确字节，也不能把组件 manifest 的 pac
   组合都不能把它升级为生产信任。
 - 负向 smoke 必须覆盖 altered signed bytes、unknown/test-only key、unsigned downgrade、metadata mismatch、
   package corruption 和 failed-update active preservation；失败时旧 active 必须仍可 resolve/launch。
+
+## 2026-08-31：BOOT3-B 确定性管线必须显式处理 PowerShell 路径和对象语义
+
+### 根因
+
+BOOT3-B 首轮验证暴露了三个容易被脚本表面成功掩盖的问题：`Measure-Object` 不能直接对
+`[ordered]` 字典对象的 `size` 属性做可靠求和；`Copy-Item -LiteralPath` 不展开受控的通配符；
+确定性比较若从输出根目录开始，会把 `signing-request.json` 等预期外文件混入 bundle 比较。
+此外，旧测试输出目录可能仍有被 MSBuild/NuGet 占用的文件，复用它会把环境锁定误报为产品失败。
+
+### 防回归规则
+
+- 对 manifest 的数值字段先显式投影为 `[int64]`，再求和；不要依赖字典对象的动态属性绑定。
+- 只有在通配符已被人工限定到受控根目录时使用 `-Path`；需要单文件精确复制时使用 `-LiteralPath`。
+- 确定性比较要明确比较边界：artifact bundle、release index 和 signing request 分别比较，不能混用输出根。
+- 每轮完整构建使用新的 `D:\project2` 临时根；清理只能针对已确认的本轮目录，不能触碰用户既有输出或安装状态。
+- B3 验证必须同时检查 unsigned request、签名后 exact-byte 校验、key rotation/replay/metadata/package/downgrade 负向路径。

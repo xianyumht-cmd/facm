@@ -34,9 +34,9 @@ Tracking Issue：#233。
 
 ## FACM 4.0 当前里程碑
 
-当前执行焦点已转为 BOOT3-A：在 BOOT-2 native 组件供给、CAB/FDI 原生解包、组件状态与组合、增量下载/续传、
-镜像故障切换和 clean/pre-provisioned 验证之上建立 bootstrapper-local production trust boundary。实现位于
-隔离 worktree，尚未作为正式 P7 移动；后文 BOOT-2 与 BOOT3-A 条目是当前事实来源。
+当前执行焦点已转为 BOOT3-B：在 BOOT3-A bootstrapper-local production trust boundary 之上建立 release-key
+governance、确定性 artifact/signing-request pipeline、external signer boundary 和 offline release validator。
+实现位于隔离 worktree，尚未作为正式 P7 移动；后文 BOOT-2、BOOT3-A 与 BOOT3-B 条目是当前事实来源。
 
 代码侧功能等价、自动稳定性审查与重复压力层已完成。最新真实 Win10 evidence 又发现一个跨进程 PetHost cache 性能缺陷，并已在 Batch M 根因修复：
 
@@ -400,9 +400,35 @@ BOOT3-A 已在隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`�
 - 生产 EXE Authenticode 现有基础设施已审计但未复用为 JSON/CAB manifest trust；现有 Authenticode 仍仅负责
   PE 发布签名和托管 updater release identity。测试私钥不在仓库，测试材料和输出位于 `D:\project2`。
 
-当前是 **BOOT3-A local cryptographic trust candidate green / not release-ready**。BOOT3-B 仍需 controlled
-production key custody/rotation、真实 HTTPS hosting、signed package publication、真实 Windows update/cutover
-验收及完整 release evidence；不得由本候选自动进入 BOOT3-B、Gate13 或 production release。
+当前是 **BOOT3-A local cryptographic trust candidate green / not release-ready**。BOOT3-B 的治理、构建请求、
+external signer response apply、offline validator 和 rotation/rejection fixture 已在本地完成，但真实 controlled
+production key custody、HTTPS/CDN hosting、signed package publication、真实 Windows update/cutover 验收及完整
+release evidence 仍未完成；不得由本候选自动进入 Gate13 或 production release。
+
+## 2026-08-31 BOOT3-B release-key governance and signed artifact pipeline
+
+BOOT3-B 已在隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
+`tmp/p7-ipc-lifecycle-fix-20260830` 的 `551c596` 之后完成，新增提交 `551c596`（治理）、`a206e95`（native
+key table、downgrade guard、artifact/signing-request pipeline）及后续测试/validator 提交。正式 P7、PR #234、
+生产指针、Formal P7、merge/push/release 和 Gate13 均保持不变；`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`、
+`out/`、`setup.inf`、`setup.rpt` 仍为原有未提交材料。
+
+- `facm-production-r1` 被明确标记为 candidate-active、非正式 production credential；`facm-production-r2` 为
+  planned rotation identity。native `ManifestTrust` 使用固定编译 key table，只有 Active/Overlap 可接受，planned/
+  retired/revoked/unknown 关闭接受；配置、环境变量、远端 keyring 不能添加信任根。
+- BOOT3-B builder 复用 BOOT-2 的三类 CAB 组件供给和 content digest，输出不含 Desktop Pet 的 core bundle、
+  exact-byte schema-3 清单、release index、ownership report 和不含私钥的 external signing request；应用/组件
+  manifest 与 package 的路径、字节数、SHA-256、installed size、fileCount 和 contentDigest 全部被串联记录。
+- external response apply 只读取 request、重新校验 payload digest/size/index digest 和 Base64 signature，写入
+  detached `.sig`；它不打开私钥，也不把私钥路径写入配置。`Test-FacmReleaseBundle.ps1` 额外检查 ownership、
+  HTTPS、core composition、secret material，并调用 native trust bundle verifier。
+- BOOT3-B focused test 已通过：unsigned request、确定性双构建、external response apply、signed validator、
+  signature byte sensitivity、post-sign mutation、component signature replay、unknown/planned/test-only key、
+  unsigned release、authenticated metadata、package hash 和 downgrade rejection。
+
+当前是 **BOOT3-B local governance/pipeline/validator candidate green / not release-ready**。BOOT3-C 仍需真实
+controlled signer、immutable HTTPS/CDN/mirror、生产发布证据、真实 Windows update/rollback 和后续授权；不要由
+本候选自动继续到 BOOT3-C、Gate13、Formal P7 或 production cutover。
 
 ## 2026-08-31 BOOT3-B release-key governance baseline
 

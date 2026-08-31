@@ -429,6 +429,23 @@ manifest 的 exact-byte detached trust。Windows CNG 可由无 .NET/WinUI 依赖
 BOOT3-A 获得了可审计的 native trust boundary 和失败更新保护，但真实 release key custody、HTTPS hosting、
 签名包发布、密钥轮换与真实机器 update/cutover evidence 仍属于 BOOT3-B；本地测试私钥不能用于正式发布。
 
+## 2026-08-31：BOOT3-B 采用外部 signer request 与离线 bundle validation
+
+### 决策
+
+- 普通构建机只生成三类 BOOT-2 CAB、exact-byte schema-3 清单、release index 和 unsigned signing request；不接触正式 release private key。
+- signer request 用相对路径、精确 payload bytes、SHA-256、key ID、算法和期望 `.sig` 路径固定授权边界；response apply 重新校验请求输入，只写 detached signature。
+- offline validator 先检查 artifact topology、ownership、HTTPS、默认三组件、hash/size/contentDigest 和 secret material，再调用 native CNG trust bundle verifier。
+- 同一 BOOT-2 package/source 输入的 bundle metadata 必须 byte-identical；任何 manifest post-sign 修改、signature replay、未知/计划 key、unsigned bundle、metadata/package/downgrade 异常都必须 fail closed。
+
+### 原因
+
+该拆分让“生成要签什么”和“持有/使用私钥”成为两个可审计边界。当前环境没有正式 production signer 的证据，不能用本地 validation key 冒充生产签名系统；同时 native verifier 继续是签名和 CAB 解包的权威执行点。
+
+### 后果
+
+BOOT3-B 可以在无生产私钥的前提下产出可审计的签名请求，并在测试中完成签名响应、离线校验和负向覆盖。真实 signer、immutable HTTPS/CDN/mirror、生产发布和 Windows update/cutover 仍需 BOOT3-C/后续授权。
+
 ## 2026-08-31：BOOT3-B 将 release key custody 与构建/签名流程隔离
 
 ### 决策
