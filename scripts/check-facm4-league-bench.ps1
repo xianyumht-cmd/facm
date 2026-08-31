@@ -99,7 +99,7 @@ foreach ($required in @(
     'FACM.League.BenchState', 'FACM.League.BenchStatus', 'FACM.League.Bench.',
     'ILeagueBenchQuickPickService', 'CreateLeagueBenchQuickPickService',
     'ApplyLeagueBenchFromLive', 'LeagueBenchCandidatePresentation', 'TrySwapAsync',
-    'SetBenchSwapButtonsEnabled(false)', 'RefreshLeagueWorkbenchRuntimeAsync'
+    'SetBenchSwapButtonsEnabled(false)', 'RefreshBenchAuthoritativeStateAsync'
 )) {
     if ($ui -notmatch [regex]::Escape($required)) {
         Fail "League bench WinUI surface is missing behavior: $required"
