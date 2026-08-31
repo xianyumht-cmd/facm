@@ -59,9 +59,10 @@ Tracking Issue：#233。
 
 ## 2026-08-31 Morphing Bench Swap Strip：BS1–BS6
 
-本轮从代码基线 `f80a70e065c33b9ba650b09a2cebcc0088233bfc` 开始，代码提交为 `4b9fe1b`
-（Bench candidate identity model）和 `fea17fd`（同一 MainWindow 的 Morphing Bench Swap Strip、
-Workbench 同源呈现与上下文生命周期）。实现只发生在
+本轮从代码基线 `f80a70e065c33b9ba650b09a2cebcc0088233bfc` 开始，产品提交为 `4b9fe1b`
+（Bench candidate identity model）、`fea17fd`（同一 MainWindow 的 Morphing Bench Swap Strip、
+Workbench 同源呈现与上下文生命周期）和 `d551a46`（点击后的权威状态回读）；测试/门禁提交为
+`dc70c98`、`028268e`。实现只发生在
 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`；`D:\project2\Facm` 未修改。
 
 - 候选唯一来源是 `LeagueWorkbenchViewModel.Live.BenchChampionIds`；它由现有
@@ -81,9 +82,9 @@ Workbench 同源呈现与上下文生命周期）。实现只发生在
   dismissal/reopen、一次写入、成功回读、验证失败不重试和 409 stale target；28/28 当前
   `check-facm4-*.ps1` source gates、FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
   `--skip-gate13`、WindowsSmoke 均通过，均为 0 警告/0 错误（smoke 本身无警告）。
-- 新用户评审候选：`D:\project2\facm-bs6-review-out-20260831-1500\FACM.App.exe`，单文件目录
+- 新用户评审候选：`D:\project2\facm-bs6-review-out-20260831-1600\FACM.App.exe`，单文件目录
   仅 1 个文件、0 个 DLL，421,024,376 bytes，SHA-256
-  `6C12C65988953AD01C258D8D712BEC7291CF82F773A1BE9F2D298CD8736BE7BB`。
+  `68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B`。
 
 本轮没有执行 Gate13、merge、push、release、正式 P7 移动或 production pointer 修改。真实 LCU
 ARAM/Bench、portrait 实际渲染、outside-click/modal、键盘/辅助功能、多 DPI 和完整 MS9

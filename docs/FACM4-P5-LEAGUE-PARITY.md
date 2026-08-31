@@ -59,6 +59,8 @@ P5 的 9 个功能组已经在 4.0 单一 League runtime 架构下具备真实�
 
 候选仍来自 Workbench `Live.BenchChampionIds`；Legacy/TeamBuilder route 仍由现有 `LeagueBenchQuickPickService` 管理。头像身份沿用现有 `/lol-game-data/assets/v1/champion-summary.json` 与 `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取和进程内缓存，没有新增 portrait provider 或独立网络循环。点击仍复用既有一次 POST、35/70/140ms 有界只读回读和 `_swapGate` 串行边界；不进行写重试或后台自动换人。
 
+点击完成后，App 只通过现有 `LeagueWorkbenchViewModel` 发起一次显式 Live refresh，使权威候选列表在详细 Workbench 未选中时也能立即回写 Strip；这不是新的计时器或轮询 owner。
+
 strip 目标高度 56 DIP，头像格 44 DIP，宽度按候选数计算并限制在 280–600 DIP；候选过多时保持横向滚动，不扩张为大窗口。F 区为拖动区，折叠/桌面空白点击回 Orb 并只关闭当前上下文；候选实质变化或新 ChampSelect 会重新开放自动显示；InGame 隐藏、Lobby 回 Orb、modal suppression、single-instance、tray 和桌宠契约不变。
 
 确定性覆盖包括：37/236 双候选回归、未知 ID 回退、已知名称/头像源、零/一/多候选几何、Bench/phase eligibility、候选去重、上下文 dismissal/reopen、一次写入、成功有界回读、验证失败不重试和 stale target 拒绝。自然真实 ARAM/LCU portrait、outside-click/modal、keyboard/accessibility 与跨 DPI 仍是用户验收项。

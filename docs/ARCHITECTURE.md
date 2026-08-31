@@ -150,6 +150,10 @@ single POST plus 35/70/140 ms read-back; busy state disables both presentations,
 brief and non-modal. Unknown identity data uses a compact `Unknown champion` placeholder and never
 renders a raw `#<id>` primary label.
 
+After a user click completes, the App requests one explicit refresh through the existing Workbench
+ViewModel so the authoritative `Live` candidate list can reconcile immediately even when the detailed
+League page is not selected. This is a user-action refresh, not a new timer or polling owner.
+
 Outside-click and explicit collapse return the one host to Orb and dismiss only the current Bench
 context. A material candidate-list change or a new ChampSelect generation clears that dismissal.
 InGame still takes precedence and hides the host; Lobby restoration returns it to Orb. The existing

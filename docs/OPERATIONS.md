@@ -366,8 +366,9 @@ release、production pointer、merge 或 push。
 
 本阶段使用 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` 的
 `tmp/p7-ipc-lifecycle-fix-20260830`，代码基线为 `f80a70e065c33b9ba650b09a2cebcc0088233bfc`。
-代码提交为 `4b9fe1b`（candidate identity model）和 `fea17fd`（Morphing strip / shared Live
-state / detailed Workbench reuse）。`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`
+产品代码提交为 `4b9fe1b`（candidate identity model）、`fea17fd`（Morphing strip / shared Live
+state / detailed Workbench reuse）和 `d551a46`（post-click authoritative refresh）；测试/门禁提交为
+`dc70c98`、`028268e`。`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`
 的换行噪声和既有 `out/` 仍未纳入提交。
 
 Bench candidate source is `LeagueWorkbenchViewModel.Live.BenchChampionIds`, populated by the
@@ -393,11 +394,11 @@ inside FoundationSmoke; all 28 `check-facm4-*.ps1` source gates passed. Gate13 w
 Fresh user-review candidate:
 
 ```text
-directory: D:\project2\facm-bs6-review-out-20260831-1500
-exe:       D:\project2\facm-bs6-review-out-20260831-1500\FACM.App.exe
+directory: D:\project2\facm-bs6-review-out-20260831-1600
+exe:       D:\project2\facm-bs6-review-out-20260831-1600\FACM.App.exe
 config:    Debug / win-x64 / self-contained / single-file
 bytes:     421024376
-sha256:    6C12C65988953AD01C258D8D712BEC7291CF82F773A1BE9F2D298CD8736BE7BB
+sha256:    68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B
 files:     1
 dlls:      0
 ```
