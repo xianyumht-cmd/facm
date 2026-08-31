@@ -1,4 +1,5 @@
 using FACM.Core.Settings;
+using FACM.Core.Runtime;
 
 namespace FACM.Core.Personalization;
 
@@ -13,12 +14,17 @@ public sealed class DesktopPetPreferenceService
 {
     private readonly ISettings2Repository _settings;
     private readonly IDesktopPetRuntime _runtime;
+    private readonly IComponentAvailability _componentAvailability;
     private readonly SemaphoreSlim _failureRepairGate = new(1, 1);
 
-    public DesktopPetPreferenceService(ISettings2Repository settings, IDesktopPetRuntime runtime)
+    public DesktopPetPreferenceService(
+        ISettings2Repository settings,
+        IDesktopPetRuntime runtime,
+        IComponentAvailability? componentAvailability = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _componentAvailability = componentAvailability ?? AlwaysAvailableComponentAvailability.Instance;
         _runtime.StateChanged += OnRuntimeStateChanged;
     }
 
@@ -39,9 +45,29 @@ public sealed class DesktopPetPreferenceService
             return Snapshot(false, pet, recoveryReadOnly, disabled.Detail);
         }
 
+        var requiredComponent = FacmComponentIds.ForPet(pet);
+        if (!_componentAvailability.IsAvailable(requiredComponent))
+        {
+            _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
+            return Snapshot(
+                false,
+                pet,
+                recoveryReadOnly,
+                ComponentUnavailableDetail(pet, requiredComponent));
+        }
+
         var result = await _runtime.ApplyAsync(true, pet, cancellationToken).ConfigureAwait(false);
         if (result.Success)
             return Snapshot(true, pet, recoveryReadOnly, result.Detail);
+
+        // A configured pet may never make FACM disappear. If the optional component is absent, keep
+        // the user's enabled/style preference for a future component install; do not silently turn it
+        // off in stable settings. Other runtime failures retain the historical repair behavior.
+        if (IsComponentUnavailable(result.Detail))
+        {
+            _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
+            return Snapshot(false, pet, recoveryReadOnly, result.Detail);
+        }
 
         // A configured pet may never make FACM disappear. If startup is rejected, return to the
         // built-in launcher and repair only Pets.Enabled without overwriting unrelated settings.
@@ -61,6 +87,22 @@ public sealed class DesktopPetPreferenceService
         CancellationToken cancellationToken = default)
     {
         var pet = FacmPetCatalog.Get(petId);
+
+        var requiredComponent = FacmComponentIds.ForPet(pet);
+        if (!_componentAvailability.IsAvailable(requiredComponent))
+        {
+            var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var componentRecoveryReadOnly = IsRecoveryReadOnly(loaded.Origin);
+            if (!componentRecoveryReadOnly)
+            {
+                _ = await _settings.UpdateAsync(
+                    settings => settings.Pets.StyleId = pet.Id,
+                    allowRecoveryRebuild: false,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            _ = await _runtime.ApplyAsync(false, pet, cancellationToken).ConfigureAwait(false);
+            return Snapshot(false, pet, componentRecoveryReadOnly, ComponentUnavailableDetail(pet, requiredComponent));
+        }
 
         // Persist the explicit style choice but do not claim enabled until PetHost reaches ready.
         // Recovery settings remain session-only and are never rebuilt by personalization.
@@ -201,4 +243,10 @@ public sealed class DesktopPetPreferenceService
 
     private static bool IsRecoveryReadOnly(SettingsLoadOrigin origin) =>
         origin is SettingsLoadOrigin.RecoveredLastKnownGood or SettingsLoadOrigin.RecoveryDefaults;
+
+    private static bool IsComponentUnavailable(string detail) =>
+        detail.StartsWith("component-unavailable;", StringComparison.OrdinalIgnoreCase);
+
+    private static string ComponentUnavailableDetail(FacmPetDefinition pet, string requiredComponent) =>
+        $"component-unavailable;requestedStyleId={pet.Id};requiredComponent={requiredComponent}";
 }

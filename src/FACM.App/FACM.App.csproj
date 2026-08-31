@@ -31,6 +31,8 @@
     <PetHostBundleHashPath Condition="'$(PetHostBundleHashPath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.sha256</PetHostBundleHashPath>
     <FlyingHostBundlePath Condition="'$(FlyingHostBundlePath)' == ''">$(MSBuildProjectDirectory)\..\..\out\FlyingHostBundle.zip</FlyingHostBundlePath>
     <FlyingHostBundleHashPath Condition="'$(FlyingHostBundleHashPath)' == ''">$(MSBuildProjectDirectory)\..\..\out\FlyingHostBundle.sha256</FlyingHostBundleHashPath>
+    <!-- Legacy publishes keep the embedded pet payloads. BOOT-1 Core publishes explicitly opt out. -->
+    <FACMIncludeEmbeddedPetPayload Condition="'$(FACMIncludeEmbeddedPetPayload)' == ''">true</FACMIncludeEmbeddedPetPayload>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
@@ -48,22 +50,22 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(PetHostBundlePath)"
-                      Condition="Exists('$(PetHostBundlePath)')"
+                      Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(PetHostBundlePath)')"
                       LogicalName="FACM.Resources.PetHost.zip"
                       Type="Non-Resx"
                       WithCulture="false" />
     <EmbeddedResource Include="$(PetHostBundleHashPath)"
-                      Condition="Exists('$(PetHostBundleHashPath)')"
+                      Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(PetHostBundleHashPath)')"
                       LogicalName="FACM.Resources.PetHost.sha256"
                       Type="Non-Resx"
                       WithCulture="false" />
     <EmbeddedResource Include="$(FlyingHostBundlePath)"
-                      Condition="Exists('$(FlyingHostBundlePath)')"
+                      Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(FlyingHostBundlePath)')"
                       LogicalName="FACM.Resources.FlyingHost.zip"
                       Type="Non-Resx"
                       WithCulture="false" />
     <EmbeddedResource Include="$(FlyingHostBundleHashPath)"
-                      Condition="Exists('$(FlyingHostBundleHashPath)')"
+                      Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(FlyingHostBundleHashPath)')"
                       LogicalName="FACM.Resources.FlyingHost.sha256"
                       Type="Non-Resx"
                       WithCulture="false" />
@@ -77,16 +79,16 @@
            Text="Required FACM 4.0 FlyingHost bundle was not built: $(FlyingHostBundlePath)" />
     <Error Condition="'$(RequireFlyingHostBundle)' == 'true' and !Exists('$(FlyingHostBundleHashPath)')"
            Text="Required FACM 4.0 FlyingHost bundle identity was not built: $(FlyingHostBundleHashPath)" />
-    <Message Condition="Exists('$(PetHostBundlePath)')"
+    <Message Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(PetHostBundlePath)')"
              Importance="High"
              Text="Embedding FACM 4.0 VPet PetHost bundle as FACM.Resources.PetHost.zip: $(PetHostBundlePath)" />
-    <Message Condition="Exists('$(PetHostBundleHashPath)')"
+    <Message Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(PetHostBundleHashPath)')"
              Importance="High"
              Text="Embedding FACM 4.0 VPet PetHost identity as FACM.Resources.PetHost.sha256: $(PetHostBundleHashPath)" />
-    <Message Condition="Exists('$(FlyingHostBundlePath)')"
+    <Message Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(FlyingHostBundlePath)')"
              Importance="High"
              Text="Embedding FACM 4.0 FlyingHost bundle as FACM.Resources.FlyingHost.zip: $(FlyingHostBundlePath)" />
-    <Message Condition="Exists('$(FlyingHostBundleHashPath)')"
+    <Message Condition="'$(FACMIncludeEmbeddedPetPayload)' == 'true' and Exists('$(FlyingHostBundleHashPath)')"
              Importance="High"
              Text="Embedding FACM 4.0 FlyingHost identity as FACM.Resources.FlyingHost.sha256: $(FlyingHostBundleHashPath)" />
   </Target>

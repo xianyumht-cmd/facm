@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using FACM.Core.Personalization;
+using FACM.Core.Runtime;
 
 namespace FACM.Platform.Windows.Personalization;
 
@@ -15,6 +16,7 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly WindowsFlyingHostBundleStore _bundleStore;
+    private readonly IComponentAvailability _componentAvailability;
     private readonly string _uiTextPath;
     private readonly Action _openRequested;
     private readonly Action _contextRequested;
@@ -44,9 +46,11 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
         Func<Task> resetLauncherPosition,
         Action<string>? reportStage = null,
         TimeSpan? hostProcessStartTimeout = null,
-        Func<ProcessStartInfo, Task<Process?>>? launchProcess = null)
+        Func<ProcessStartInfo, Task<Process?>>? launchProcess = null,
+        IComponentAvailability? componentAvailability = null)
     {
         _bundleStore = bundleStore ?? throw new ArgumentNullException(nameof(bundleStore));
+        _componentAvailability = componentAvailability ?? AlwaysAvailableComponentAvailability.Instance;
         _uiTextPath = uiTextPath ?? string.Empty;
         _openRequested = openRequested ?? throw new ArgumentNullException(nameof(openRequested));
         _contextRequested = contextRequested ?? throw new ArgumentNullException(nameof(contextRequested));
@@ -95,6 +99,15 @@ public sealed class WindowsFlyingPetRuntime : IDesktopPetRuntime, IDisposable
                 var unsupported = "runtime-unsupported:" + pet.Runtime;
                 UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, unsupported));
                 return new DesktopPetModeResult(false, false, unsupported);
+            }
+
+            if (!_componentAvailability.IsAvailable(FacmComponentIds.FlyingHostWinX64))
+            {
+                await StopTransportLockedAsync().ConfigureAwait(false);
+                RestoreLauncher("component-unavailable");
+                var detail = $"component-unavailable;requestedStyleId={pet.Id};requiredComponent={FacmComponentIds.FlyingHostWinX64}";
+                UpdateState(new DesktopPetRuntimeState(false, false, string.Empty, detail));
+                return new DesktopPetModeResult(false, false, detail);
             }
 
             var existing = Current;

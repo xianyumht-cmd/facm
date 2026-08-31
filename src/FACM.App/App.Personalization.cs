@@ -3,8 +3,10 @@ using FACM.App.ViewModels;
 using FACM.Core.Desktop;
 using FACM.Core.Observability;
 using FACM.Core.Personalization;
+using FACM.Core.Runtime;
 using FACM.Core.State;
 using FACM.Platform.Windows.Personalization;
+using FACM.Platform.Windows.Runtime;
 using Microsoft.UI.Xaml;
 
 namespace FACM.App;
@@ -21,6 +23,7 @@ public partial class App
     private FloatingWindow? _desktopPetCloseHookTarget;
     private bool _desktopPetCloseHookAttached;
     private bool _desktopPetRuntimeStateHookAttached;
+    private IComponentAvailability? _componentAvailability;
 
     internal PersonalizationViewModel CreatePersonalizationViewModel(ControlCenterViewModel controlCenter)
     {
@@ -41,6 +44,12 @@ public partial class App
         }
 
         var layout = FACM.Core.Runtime.RuntimePathLayout.From(new FACM.Platform.Windows.Runtime.WindowsExecutablePathProvider());
+        _componentAvailability ??= new WindowsComponentAvailability(
+            new Dictionary<string, Func<bool>>(StringComparer.OrdinalIgnoreCase)
+            {
+                [FacmComponentIds.PetHostWinX64] = () => typeof(App).Assembly.GetManifestResourceInfo(WindowsPetHostBundleStore.ResourceName) is not null,
+                [FacmComponentIds.FlyingHostWinX64] = () => typeof(App).Assembly.GetManifestResourceInfo(WindowsFlyingHostBundleStore.ResourceName) is not null
+            });
         _petHostBundleStore ??= new WindowsPetHostBundleStore(
             layout,
             () => typeof(App).Assembly.GetManifestResourceStream(WindowsPetHostBundleStore.ResourceName),
@@ -59,7 +68,8 @@ public partial class App
             () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
             visible => RunOnDesktopUi(() => SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
-            ReportPetHostRuntimeStage);
+            ReportPetHostRuntimeStage,
+            componentAvailability: _componentAvailability);
         _flyingPetRuntime ??= new WindowsFlyingPetRuntime(
             _flyingHostBundleStore,
             layout.UiTextPath,
@@ -67,14 +77,15 @@ public partial class App
             () => RequestDesktopEntryAction(DesktopEntryGesture.RightClick),
             visible => RunOnDesktopUi(() => SetDesktopEntryVisible(visible)),
             ResetFloatingEntryPositionAsync,
-            ReportFlyingHostRuntimeStage);
+            ReportFlyingHostRuntimeStage,
+            componentAvailability: _componentAvailability);
         _desktopPetRuntime ??= new WindowsDesktopPetRuntimeRouter(_flyingPetRuntime, _vpetRuntime);
         if (!_desktopPetRuntimeStateHookAttached)
         {
             _desktopPetRuntime.StateChanged += OnDesktopPetRuntimeStateChanged;
             _desktopPetRuntimeStateHookAttached = true;
         }
-        _desktopPetPreferences ??= new DesktopPetPreferenceService(settings, _desktopPetRuntime);
+        _desktopPetPreferences ??= new DesktopPetPreferenceService(settings, _desktopPetRuntime, _componentAvailability);
         viewModel.ConfigureDesktopPetService(_desktopPetPreferences);
         return viewModel;
     }
@@ -161,6 +172,23 @@ public partial class App
                 ["petVisible"] = state.PetVisible ? "true" : "false",
                 ["detail"] = detail
             }));
+        if (detail.StartsWith("component-unavailable;", StringComparison.OrdinalIgnoreCase))
+        {
+            var fields = ParseDesktopPetRuntimeStage(detail);
+            QueueDiagnostic(DiagnosticEventFactory.Create(
+                "desktop.pet.component-unavailable",
+                "FACM.Personalization",
+                0,
+                DiagnosticResult.Failure,
+                "optional-component-missing",
+                _productState?.Current.League ?? LeagueProductState.NotRunning,
+                typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown",
+                new Dictionary<string, string>
+                {
+                    ["requestedStyleId"] = fields.GetValueOrDefault("requestedStyleId", string.Empty),
+                    ["requiredComponent"] = fields.GetValueOrDefault("requiredComponent", string.Empty)
+                }));
+        }
     }
 
     private void ReportPetHostBundleStage(string stage) =>
@@ -292,6 +320,7 @@ public partial class App
         _desktopPetPreferences = null;
         _petHostBundleStore = null;
         _flyingHostBundleStore = null;
+        _componentAvailability = null;
     }
 
     private static string? ReadPetHostBundleSha256() =>

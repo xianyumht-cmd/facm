@@ -111,6 +111,25 @@ public partial class App : Application
         _performance = new PerformanceBudgetProvider();
         _diagnostics = new BoundedJsonLinesDiagnosticSink(diagnosticLogPath);
         QueueLifecycleDiagnostic("startup", "diagnostics-ready");
+        var bootstrapCorrelationId = Environment.GetEnvironmentVariable("FACM_BOOTSTRAP_CORRELATION_ID");
+        if (!string.IsNullOrWhiteSpace(bootstrapCorrelationId))
+        {
+            QueueDiagnostic(DiagnosticEventFactory.Create(
+                "app.bootstrap-launch",
+                "FACM.Bootstrapper",
+                0,
+                DiagnosticResult.Success,
+                "core-process-started",
+                _productState.Current.League,
+                appVersion,
+                new Dictionary<string, string>
+                {
+                    ["correlationId"] = bootstrapCorrelationId.Trim(),
+                    ["rootMode"] = layout.IsModular ? "modular" : "legacy",
+                    ["distributionDirectory"] = layout.DistributionDirectory,
+                    ["dataRootDirectory"] = layout.DataRootDirectory
+                }));
+        }
         _diagnosticsSource = new FileDiagnosticsSnapshotSource(
             _productState,
             diagnosticLogPath,
