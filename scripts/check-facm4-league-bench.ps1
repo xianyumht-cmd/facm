@@ -19,11 +19,12 @@ $servicePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBenchQuickP
 $compositionPath = Join-Path $Root 'src/FACM.App/App.LeagueBenchQuickPick.cs'
 $uiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueBenchQuickPick.cs'
 $morphingPath = Join-Path $Root 'src/FACM.App/MainWindow.MorphingSurface.cs'
+$xamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
 $runtimeUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchRuntime.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/LeagueBenchQuickPickSmoke.cs'
 $smokeProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 
-foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $uiPath, $morphingPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
+foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $uiPath, $morphingPath, $xamlPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
     if (-not (Test-Path $path)) { Fail "League bench quick-pick contract file missing: $path" }
 }
 
@@ -33,6 +34,7 @@ $service = Get-Content $servicePath -Raw
 $composition = Get-Content $compositionPath -Raw
 $ui = Get-Content $uiPath -Raw
 $morphing = Get-Content $morphingPath -Raw
+$xaml = Get-Content $xamlPath -Raw
 $runtimeUi = Get-Content $runtimeUiPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $smokeProgram = Get-Content $smokeProgramPath -Raw
@@ -116,11 +118,16 @@ foreach ($forbidden in @('ILeagueWriteGateway', 'LeagueHttpGateway', 'HttpClient
 foreach ($required in @(
     'LeagueBenchSwapStripPolicy.IsEligible', 'LeagueBenchCandidatePresentation',
     'DismissBenchStripForCurrentContext', 'ResetBenchContext',
-    'SetChampSelectCandidateButtonsEnabled', 'ChampSelectDragHandle',
+    'SetChampSelectCandidateButtonsEnabled',
     'FACM.Surface.BenchSwap.', 'ToolTipService.SetToolTip'
 )) {
     if ($morphing -notmatch [regex]::Escape($required)) {
         Fail "Morphing Bench Swap Strip is missing behavior: $required"
+    }
+}
+foreach ($required in @('ChampSelectDragHandle', 'FACM.Surface.BenchSwapStrip', 'ChampSelectCandidatesPanel')) {
+    if ($xaml -notmatch [regex]::Escape($required)) {
+        Fail "Morphing Bench Swap Strip XAML is missing behavior: $required"
     }
 }
 foreach ($forbidden in @('RunLeagueBenchLoopAsync', '_leagueBenchLoopCts', 'LeagueBenchQuickPickPolling.ResolveDelay')) {
