@@ -462,3 +462,21 @@ BOOT3-B 可以在无生产私钥的前提下产出可审计的签名请求，并
 ### 后果
 
 BOOT3-B 可以生成可审计的 unsigned signing request 和可验证的 signed bundle，但正式 production key custody、授权记录和 release publication 仍需 release owner 提供真实外部证据。local validation key 只用于测试，不能直接触发生产发布。
+
+## 2026-08-31：BOOT3-C 使用签名清单控制 HTTPS 主站/镜像回退
+
+### 决策
+
+- 应用清单增加签名覆盖的 `manifestMirrors`；组件清单增加签名覆盖的 `componentManifestMirrors`，包地址继续使用已认证的 `primaryUrl`/`mirrors`。
+- bootstrapper 只把 `bootstrap.json` 的 primary + fixed mirror 作为首次发现候选；WinHTTP 显式禁用重定向，生产地址必须 HTTPS。
+- 地址切换只按 manifest 声明顺序执行；传输失败或包精确 hash/size 不匹配时可尝试下一个已声明地址，但任何来源都必须通过 embedded key、exact-byte signature、metadata、package 和 extraction checks。
+- 更新前以包/partial、解包暂存、组合版本和 64 MiB 余量估算目标卷峰值空间；active/known-good 版本不作为清理对象。
+- 本地 TLS origin 只用于验证 WinHTTP 的真实证书链路；测试证书和 local validation private key 必须在仓库外并在测试结束删除。
+
+### 原因
+
+BOOT3-B 的 offline bundle validator 已证明静态签名链，但不能证明真实 HTTPS、主站故障、镜像回退、重定向拒绝、断点恢复和磁盘压力。将 fallback metadata 纳入签名 payload 能保持 origin 与 release identity 分离，同时不引入任意第三方 trust root。
+
+### 后果
+
+BOOT3-C 可以在本地 production-like TLS origin/mirror 上验证失败关闭、恢复和状态保护；它仍不能证明正式 CDN、生产 signer、发布授权或真实 Win10/11 PASS。正式 production pointer、Formal P7 和 Gate13 必须由后续明确授权的任务处理。

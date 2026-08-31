@@ -34,9 +34,9 @@ Tracking Issue：#233。
 
 ## FACM 4.0 当前里程碑
 
-当前执行焦点已转为 BOOT3-B：在 BOOT3-A bootstrapper-local production trust boundary 之上建立 release-key
-governance、确定性 artifact/signing-request pipeline、external signer boundary 和 offline release validator。
-实现位于隔离 worktree，尚未作为正式 P7 移动；后文 BOOT-2、BOOT3-A 与 BOOT3-B 条目是当前事实来源。
+当前执行焦点已转为 BOOT3-C：在 BOOT3-B exact-byte signer boundary 之上建立 production-like HTTPS
+origin/mirror、fail-closed 网络策略、更新恢复/磁盘状态安全和真实 Windows 验收 harness。实现位于隔离
+worktree，尚未作为正式 P7 移动；正式生产仍保持 FACM 3.5.15。
 
 代码侧功能等价、自动稳定性审查与重复压力层已完成。最新真实 Win10 evidence 又发现一个跨进程 PetHost cache 性能缺陷，并已在 Batch M 根因修复：
 
@@ -440,3 +440,44 @@ controlled signer、immutable HTTPS/CDN/mirror、生产发布证据、真实 Win
 BOOT3-B 已开始，当前先落地 release-key governance：`facm-production-r1` 明确标记为 candidate-active、非正式 production credential；`facm-production-r2` 仅作为 planned rotation identity，尚未进入 native acceptance。key policy 位于 `tools/release/facm-keyring-policy.json`，仅供 release tooling/review 使用，不能添加运行时信任根。
 
 已核对 `facm-production-r1` 的外部 local validation public modulus 与 `src/FACM.Bootstrapper/ManifestTrust.cpp` 完全一致：RSA-2048、exponent `010001`、256-byte modulus；正式 production key custody 尚无仓库证据，因此不会伪造 HSM/KMS 或 signer service 已存在的结论。下一步是确定性 BOOT3-B artifact/signing-request pipeline、external signer response boundary 和 offline release bundle validator。
+
+## 2026-08-31 BOOT3-C production-like HTTPS distribution candidate
+
+BOOT3-C 当前实现仍在同一隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
+`tmp/p7-ipc-lifecycle-fix-20260830`，基线为 BOOT3-B 文档提交 `72972f6`。本轮只做本地候选和
+production-like 测试基础设施，不修改 `online/version.json`、`release/request.json`、正式 P7、PR #234、
+production CDN/DNS、release、merge、push 或 Gate13；正式生产仍为 FACM 3.5.15。
+
+- schema-3 application manifest now carries signed `manifestMirrors`; schema-3 component metadata carries
+  signed `componentManifestMirrors`, while existing package `mirrors` remain authenticated. `bootstrap.json`
+  provides only the initial primary/mirror discovery list.
+- native WinHTTP requests explicitly disable redirects. Manifest discovery and component-manifest retrieval use
+  fixed primary-then-mirror order; production trust is still the embedded BOOT3-B key table plus exact detached
+  signatures, never the origin certificate or an arbitrary mirror.
+- package downloads keep `.partial` on transport interruption, resume with Range, verify exact package size and
+  SHA-256 before promotion, and fail over on an unavailable or corrupted primary package. Existing active state is
+  not deleted during network, hash, extraction, composition or active-state failure.
+- update preflight checks target-volume free space against package/partial + extracted staging + composed version
+  peak plus a 64 MiB margin. `--check-disk-space` is a bounded diagnostic only; it cannot bypass provisioning.
+- added local TLS origin/mirror server and integration harness:
+  `tools/release/Start-FacmBoot3CHttpsOrigin.js` and
+  `tools/release/Test-FacmBoot3CHttpsDistribution.ps1`. Test certificate and validation private key are external
+  temporary material and must not enter the repository.
+- added real-machine evidence wrapper and explicit matrix:
+  `tools/release/Test-FacmBoot3CRealMachineHarness.ps1`. It remains read-only and keeps all 16 Windows 10/11,
+  UAC, Defender/SmartScreen, offline, interruption, rollback and data-root acceptance cases `manual_required`.
+- 2026-08-31 verification is green for the local candidate: pinned native Release build (0 warnings/errors),
+  BOOT3-A focused trust regression, BOOT3-B full release/signing-request regression, all 31 non-cutover
+  `check-facm4-*.ps1` source gates, FoundationSmoke `--skip-gate13`, and WindowsSmoke.
+- Production-like HTTPS evidence is recorded at
+  `D:\project2\facm-boot3c-https-tests-20260831\results.json`: all 8 scenarios passed, including primary/mirror
+  failover, corrupt-primary recovery, corrupt-mirror fail-closed preservation, `.partial` resume, redirect
+  rejection, local rollback and disk-space guard. This is controlled local evidence, not production CDN evidence.
+- Read-only real-machine evidence capture succeeded on OS build 19045 with candidate present at
+  `D:\project2\facm-boot3c-native-build-20260831\FACM.exe`; the wrapper output is
+  `D:\project2\facm-boot3c-real-machine-evidence-20260831\boot3c-acceptance.json`. All 16 acceptance rows remain
+  `manual_required` and no `PASS_REAL_MACHINE` claim is made.
+
+Current BOOT3-C readiness is **local implementation / production-like HTTPS candidate; not release-ready** until
+the external signer response, release-owner publication authorization, production CDN/mirror controls, and reviewed
+real-machine Win10 22H2 / controlled Win11 evidence exist. Gate13 is intentionally `NOT_RUN_GATE13`.

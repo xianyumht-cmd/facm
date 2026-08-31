@@ -471,3 +471,29 @@ not parse/reserialize payloads and does not access a private key. The offline
 validator validates the public artifact topology and calls the native verifier
 for authoritative signature, CAB extraction, and extracted-content checks; it
 does not install or alter an active FACM composition.
+
+## 2026-08-31 BOOT3-C HTTPS distribution and recovery topology
+
+BOOT3-C extends the BOOT3-B boundary without moving trust to the network origin:
+
+```text
+bootstrap.json primary + fixed manifestMirrors
+  -> WinHTTP system TLS validation (redirect policy = never)
+  -> signed application manifest + application mirror metadata
+  -> signed component manifests + component-manifest mirrors
+  -> primary package / authenticated package mirrors
+  -> .partial Range resume -> exact package size/SHA-256
+  -> fresh extraction staging -> composed version staging
+  -> components.json -> atomic active.json commit
+```
+
+Manifest and package mirrors are deterministic fallback addresses, not additional trust roots. The embedded native
+key table and exact detached signatures remain authoritative. A transport failure or bad package may move to the next
+declared address; a response that cannot satisfy the signed byte/hash/metadata contract fails closed. WinHTTP never
+follows a redirect, preventing an HTTPS-to-HTTP or unauthorized-host downgrade.
+
+The update path now performs a target-volume peak-space check before downloads. The estimate covers package/partial
+bytes, extracted component staging, composed-version bytes and a fixed safety margin while preserving the current
+active/known-good version. State readers reject malformed schema, unsafe active paths, duplicate component IDs,
+invalid digests and unsafe installed-component paths. Failed staging remains controlled diagnostic material; the
+active pointer is not deleted during a failed update.

@@ -613,3 +613,23 @@ BOOT3-B 首轮验证暴露了三个容易被脚本表面成功掩盖的问题：
 - 确定性比较要明确比较边界：artifact bundle、release index 和 signing request 分别比较，不能混用输出根。
 - 每轮完整构建使用新的 `D:\project2` 临时根；清理只能针对已确认的本轮目录，不能触碰用户既有输出或安装状态。
 - B3 验证必须同时检查 unsigned request、签名后 exact-byte 校验、key rotation/replay/metadata/package/downgrade 负向路径。
+
+## 2026-08-31：production-like HTTPS 测试必须区分 TLS 信任与 release trust
+
+BOOT3-C 本地 origin 使用临时自签名证书，只为让 Windows WinHTTP 走真实 TLS 证书验证路径。该证书不能
+被当作 FACM release key，也不能把 `NODE_TLS_REJECT_UNAUTHORIZED=0`、任意第三方根证书或 HTTP fallback
+带入生产实现。测试根证书和 private key 必须在 `D:\project2` 临时目录中，运行结束删除；Windows 弹窗中
+只确认名称/指纹属于本轮 `FACM BOOT3-C local test` 证书。
+
+## 2026-08-31：mirror fallback 的可用性不能替代 exact-byte rejection
+
+主站不可用可以按签名清单中的固定顺序切换镜像；但镜像仍必须通过 embedded key、detached signature、
+metadata、package size/SHA-256 和 extraction digest。WinHTTP 必须显式禁止重定向，否则 HTTPS 到 HTTP 或
+未授权主机可能被透明跟随，测试也不能只用一个 HTTP listener 证明 production-like 分发。
+
+## 2026-08-31：低空间正向测试不能贴着当前 free-space 值
+
+引导器本身会创建 correlation/log 文件，使用 `available - 1` 做“应通过”的断言会因为文件系统分配粒度
+产生误报。低空间负向断言应使用 `available + 1`，正向断言保留足够余量（当前 harness 使用 256 MiB），并把
+真实更新峰值按 package/partial、解包暂存、组合目录和 safety margin 计算。PowerShell 的 `Math.Max` 默认重载
+还可能把大于 2 GiB 的磁盘值绑定到 `Int32`；磁盘字节数必须保持 `Int64`/`UInt64`。

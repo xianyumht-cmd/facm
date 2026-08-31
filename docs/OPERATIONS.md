@@ -561,3 +561,65 @@ signer. It verifies deterministic output from the same BOOT-2 inputs, exact-byte
 unknown/planned/test-only/unsigned/metadata/package/downgrade rejection and successful native validation. The release
 bundle validator is read-only with respect to installed FACM state. BOOT3-B does not run Gate13, modify production
 pointers, upload artifacts, merge/push PR #234, move Formal P7, or retire FACM 3.5.15.
+
+## 2026-08-31 BOOT3-C production-like HTTPS rehearsal
+
+BOOT3-C local origin/mirror infrastructure is test-only. It uses a fresh output root under `D:\project2`, a
+candidate bootstrapper built from the current worktree, and an external local validation key only for test signing.
+The production private key is never passed to the builder or test harness.
+
+Build the native candidate with the pinned toolchain:
+
+```powershell
+$env:PATH = 'D:\project2\w64devkit-2.9.1\w64devkit\bin;' + $env:PATH
+cmake -S 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper' `
+  -B 'D:\project2\facm-boot3c-native-build-20260831' -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build 'D:\project2\facm-boot3c-native-build-20260831' --config Release --parallel 2
+```
+
+Run the local HTTPS distribution rehearsal:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmBoot3CHttpsDistribution.ps1' `
+  -Bootstrapper 'D:\project2\facm-boot3c-native-build-20260831\FACM.exe'
+```
+
+The script generates a short-lived `FACM BOOT3-C local test` certificate and adds only that public certificate to the
+current user's Root store so WinHTTP can perform actual TLS validation. Confirm the Windows prompt only when the
+displayed name and fingerprint belong to this test certificate. The script removes its private key, certificate file
+and matching current-user Root entry in cleanup. If cleanup is interrupted, remove only the exact certificate shown in
+the script's test output; do not change machine-wide trust settings.
+
+Expected evidence is retained under `D:\project2\facm-boot3c-https-tests-20260831\results.json` and per-scenario
+redacted request/bootstrap logs. The harness covers primary success, primary unavailability with mirror success,
+corrupt primary package with mirror success, corrupt mirror fail-closed with old active preservation, incomplete
+`.partial` recovery, stale staging cleanup, same-version idempotence, redirect rejection, local rollback and disk-space
+diagnostics. It does not claim a production CDN, external signer, real-machine PASS, online pointer change or Gate13.
+
+Generate the real-machine evidence/checklist without making deployment changes:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmBoot3CRealMachineHarness.ps1' `
+  -Target Windows10-22H2 `
+  -CandidatePath 'D:\project2\facm-boot3c-native-build-20260831\FACM.exe'
+```
+
+All matrix rows remain `manual_required` until reviewed on the intended physical Windows 10 22H2 and controlled
+Windows 11 machines. Do not turn automatic collector facts into release PASS by copying or editing the JSON.
+
+The BOOT3-C source contract gate is:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\scripts\check-facm4-boot3c.ps1'
+```
+
+## BOOT3-C publication ordering (design only)
+
+For a later explicitly authorized production task: build from a reviewed source commit; obtain the external signer
+response and offline/native validation; publish immutable CAB blobs to approved primary and mirror version paths;
+independently compare bytes and hashes from both origins; publish signed component manifests and signatures; publish
+the signed application manifest and signature; then, only with release-owner authorization, update release index and
+online pointers. Never publish a pointer before all referenced immutable bytes are available from every approved origin.
