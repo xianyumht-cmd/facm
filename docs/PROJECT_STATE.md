@@ -34,6 +34,10 @@ Tracking Issue：#233。
 
 ## FACM 4.0 当前里程碑
 
+当前执行焦点已转为 BOOT-2：native bootstrapper 的网络组件供给、CAB/FDI 原生解包、组件状态与组合、
+增量下载/续传/镜像故障切换，以及 clean/pre-provisioned 本地根目录验证。实现位于隔离 worktree，尚未
+作为正式 P7 移动；后文 BOOT-2 条目是当前事实来源。
+
 代码侧功能等价、自动稳定性审查与重复压力层已完成。最新真实 Win10 evidence 又发现一个跨进程 PetHost cache 性能缺陷，并已在 Batch M 根因修复：
 
 - 旧实现每个新 FACM 进程第一次启用桌宠时，会先完整 SHA-256 约 76.9 MB 内嵌 PetHost ZIP，之后才检查 disk cache；
@@ -346,6 +350,31 @@ Gate13 均未移动或执行；`D:\project2\Facm` 未作为实现源，也未被
   `FACM.App.exe`，通过窗口自身正常关闭，App 与 bootstrapper 均退出，未残留 candidate 进程。日志保留
   `app.bootstrap-launch` correlation、`main-window-created`、`desktop-launcher-ready` 和
   `shutdown-complete`。
+
+## 2026-08-31 BOOT-2 网络组件供给与增量候选
+
+BOOT-2 已在 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
+`tmp/p7-ipc-lifecycle-fix-20260830` 的提交 `693a762` 中实现；当前工作 HEAD 仍未作为正式 P7 移动。正式 P7
+`9744af848e4b888c1876e76e2cbf0c06d5c526bf`、PR #234、`D:\project2\Facm`、生产指针、merge/push/release
+和 Gate13 均保持不变。
+
+- native bootstrapper 现包含 WinHTTP 清单/下载、显式 HTTPS 或本地 HTTP 开发策略、`.partial` + Range
+  续传、主地址/镜像故障切换、完整包 SHA-256 校验、CAB FDI 原生解包、解包大小/文件数/内容摘要校验、
+  组件状态、组合 staging、active 原子切换和离线 fast path。`Sha256Text` 已改为内存 CNG，BOOT-2
+  不因摘要计算向 C 盘写临时文件。
+- 组件实际分为三类：app 49 files / `57,598,388` raw / `23,134,258` CAB；managed runtime 262 /
+  `119,712,016` / `47,631,441`；Windows runtime 289 / `101,300,664` / `32,881,795`。镜像与
+  `ownership-report.json` 位于 `D:\project2\facm-boot2-mirror-20260831`，clean/pre-provisioned
+  review roots 位于 `D:\project2\facm-boot2-review-20260831`。
+- 本地 deterministic smoke 全部通过：首次网络供给、primary→mirror failover、4KB Range resume、
+  无网络 fast path、无变化更新不下载 CAB、app-only 仅下载 app、runtime-only 下载 app+managed
+  runtime 不下载 Windows runtime、pre-provisioned offline resolve、no-pet boundary。Bootstrap 日志
+  包含 manifest/component evaluation、download start/resume/failover/complete、hash/extraction、
+  composition/active failure milestones；不写入凭据或逐 chunk 日志。
+
+当前是 **BOOT-2 deterministic local candidate green / not release-ready**。production signature/key、
+真实 HTTPS/CDN、真实 Win10/11 安装与更新、真实 League/桌宠回归、完整 release evidence 和 Gate13
+仍未完成。正式生产仍为 FACM 3.5.15。
 
 当前状态是 **BOOT-1 local review candidate ready / not release-ready**。ZIP 已生成并可校验，但当前
 prototype 的本地 provisioning 仍消费 expanded local source；原生 ZIP extraction、网络 provisioning、

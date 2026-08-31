@@ -376,3 +376,31 @@ legacy profile 作为行为对照；可选桌宠 fail-soft 则避免组件缺失
 review candidate 已具备离线启动、active switch/rollback、pack hash verification 和 no-pet Core
 边界，但它仍不是 release package。任何真实机器安装、网络下载、签名、ZIP extraction、桌宠跨进程
 回归和 production cutover 都必须另行验证，不能由 deterministic smoke 自动替代。
+
+## 2026-08-31：BOOT-2 使用 CAB 原生组件包与显式本地信任模式
+
+### 决策
+
+- BOOT-2 的网络组件包采用 Windows Cabinet（MSZIP）而不是继续把 ZIP 解包交给 PowerShell、7-Zip 或
+  WinRAR；native bootstrapper 通过 Cabinet FDI 回调完成受控解包。
+- 从实际 app-local publish 输出建立三类更新单元：FACM app、.NET managed runtime、Windows UI/runtime。
+  每个源路径只有一个 owner；组合阶段使用 fresh staging copy，重复目标路径直接失败，不使用未经审计的
+  symlink/hardlink 共享。
+- 正常启动只读本地 `active.json` 与入口文件，不同步抓取远端 manifest，也不执行全量 installed hash；
+  网络清单和组件评估属于首次缺失供给或显式 `--update` 路径。
+- 下载缓存使用完整包与 `.partial` 两态；支持 HTTP Range 续传、主地址/镜像有界切换，包在 SHA-256
+  和大小通过前不得转正。解包另校验 extracted file count、installed size 和 content digest。
+- 当前 deterministic mirror 只使用 `unsigned-local` + 显式本地 HTTP 开关，作为开发/验证模式；没有
+  生产签名密钥或真实 CDN，因此不宣称 production trust，也不进入 release/cutover。
+
+### 原因
+
+BOOT-1 的 expanded-source/ZIP 原型无法证明真实网络供给、断点续传、独立组件更新或原生安装安全边界。
+CAB 可由 Windows 自带 Cabinet API 解包，且能在不引入 managed framework 的前提下与 thin bootstrapper
+配合；按更新节奏拆分后，app-only 更新不会重新下载两个 runtime，Windows runtime 也可独立保持不变。
+
+### 后果
+
+本地 BOOT-2 candidate 已能证明组件供给、组合、回滚保护和增量下载关系，但仍需真实 HTTPS/CDN、生产
+签名验证、真实 Win10/11、升级中断/空间压力、自然 League/桌宠和完整 Gate13 evidence。unsigned-local
+镜像不得直接作为用户 release。

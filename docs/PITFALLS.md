@@ -562,3 +562,17 @@ BOOT-1 的 native bootstrapper 和 FACM managed app 共享单实例边界。若�
   校验调用误变成默认启动；
 - ready、bootstrap correlation、active Core 路径和 shutdown-complete 必须同时作为启动证据，不能只
   看 bootstrapper 的 process-created 日志。
+
+## 2026-08-31：BOOT-2 MakeCAB 分卷和内容摘要必须验证真实语义
+
+BOOT-2 初版 DDF 使用默认磁盘大小，`makecab` 将一个组件拆成多个约 1.44MB 分卷；由于模板名没有卷号，
+后续卷覆盖了前一卷，下载包虽能通过局部尺寸/哈希却无法完整 FDI 解包。修复为单 CAB、`MaxDiskSize`
+为 512 字节对齐的受控上限，并在 manifest 中记录实际 CAB size/hash。
+
+随后摘要校验出现误报：PowerShell 默认排序通常不等价于 C++ `std::sort` 的 ordinal 大小写排序，导致
+同一组文件生成不同 `contentDigest`。组件摘要必须按与 native verifier 完全相同的相对路径、`/` 分隔和
+ordinal 顺序计算，并同时校验 file count 与 installed size；不能只看压缩包 hash。
+
+预防规则：生成每个包后先检查 setup/卷数量与实际输出文件数，再用 native extractor 做 round-trip；
+ownership、package hash、expanded digest、file count 和 byte sum 必须进入同一份审计报告。失败 staging
+只能保留在受控 `.facm\staging`，active 版本不得被清理流程顺手删除。

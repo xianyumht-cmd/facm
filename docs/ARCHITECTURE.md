@@ -383,3 +383,33 @@ Legacy single-file publication remains available and keeps its existing embedded
 `BootCore.pubxml` explicitly disables embedded pet payloads and publishes a multi-file self-contained Core.
 The current local prototype can produce/verify a ZIP component pack and can provision an expanded local source
 tree into staging; native ZIP extraction and network provisioning are intentionally outside this stage.
+
+## 2026-08-31 BOOT-2 network component topology
+
+BOOT-2 extends the startup boundary into a modular local component supply path without moving product
+ownership into the bootstrapper:
+
+```text
+FACM.exe
+  -> bootstrap.json (manifest URL + explicit local-dev trust switches)
+  -> WinHTTP application manifest
+  -> .facm/cache/downloads/<component>-<version>.cab[.partial]
+  -> .facm/components/<component>/<version>
+  -> .facm/staging/composition-<applicationVersion>
+  -> .facm/versions/<applicationVersion>/FACM.App.exe
+  -> .facm/state/components.json + active.json
+  -> FACM.App (existing managed ownership)
+```
+
+The BOOT-2 application manifest has independent component IDs, versions, architecture, required flag,
+package size, installed size, package hash, extracted content digest, file count, package format, entry point,
+primary URL, mirror URLs and dependencies. The current local manifest is explicitly `unsigned-local`; no
+production signature verification is claimed. Component installation is topologically dependency-ordered,
+and composition copies each source path once into a fresh staging directory; collisions, unsafe archive paths,
+reparse points, over-limit extraction and content/file-count mismatches abort before active replacement.
+
+The three current update units are `facm-app-win-x64`, `facm-dotnet-runtime-win-x64` and
+`facm-windows-runtime-win-x64`. Desktop-pet payloads remain outside BOOT-2 network delivery. Normal launch
+with a valid active composition does not fetch the manifest or hash all installed files; `--update` is the
+explicit update path and may perform full component evaluation. The local server under
+`D:\project2\facm-boot2-mirror-20260831` is deterministic test infrastructure only.

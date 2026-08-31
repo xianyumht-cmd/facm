@@ -1,10 +1,10 @@
 # FACM 4.0 执行计划与实时进度
 
-Status: **LOCAL-BS6-BENCH-STRIP-CANDIDATE / DETERMINISTIC-GREEN / REAL-LEAGUE-VALIDATION-PENDING**
+Status: **LOCAL-BOOT2-NETWORK-CANDIDATE / DETERMINISTIC-GREEN / REAL-MACHINE-VALIDATION-PENDING**
 Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
-Latest code fix head: `e834763b09f69d7aaa0951af3bc8a0601d64edf3`
+Latest code fix head: `693a762` (BOOT-2 native network component provisioning implementation)
 Latest code+plan PR head used by Foundation: `803e1ba5f9b671b0a787a8c77bb39912d4211b7d`
 Latest code-bearing Foundation: **#632 / run `33233590075` = SUCCESS**
 Latest canonical-doc full regression: **#633 / run `33233865204` = SUCCESS**
@@ -15,6 +15,10 @@ Current local MS9 candidate: `D:\project2\facm-ms9.4-runtime-out-20260831-1305` 
 
 Current local BS6 review candidate: `D:\project2\facm-bs6-review-out-20260831-1600` with
 `FACM.App.exe` SHA-256 `68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B`.
+
+Current local BOOT-2 review candidate: `D:\project2\facm-boot2-review-20260831` with
+deterministic local mirror `D:\project2\facm-boot2-mirror-20260831`; implementation is recorded in
+`693a762` on `tmp/p7-ipc-lifecycle-fix-20260830`.
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论、真机证据或正式交接，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
 
@@ -252,3 +256,31 @@ BOOT-1 已在 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` 完成首个本�
   WindowsSmoke、27/27 非 cutover source gates、Bootstrapper version/rollback/pack/single-instance
   smoke，以及 3 次 app-local 启动/正常退出。正式 P7、PR #234、production pointer、merge/push/release
   和 Gate13 均保持不变。
+
+## 2026-08-31 BOOT-2 执行状态：网络组件供给与增量基础
+
+BOOT-2 在同一隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` 继续实现，正式 P7
+`9744af848e4b888c1876e76e2cbf0c06d5c526bf`、PR #234、生产指针、merge/push/release 和 Gate13 均未移动。
+BOOT-1 的 ZIP/expanded-source 原型没有被当作 BOOT-2 交付格式；BOOT-2 选择 Windows 原生 CAB + FDI，
+以避免依赖 PowerShell、7-Zip 或 WinRAR。
+
+- 组件边界固定为 `facm-app-win-x64`、`facm-dotnet-runtime-win-x64`、
+  `facm-windows-runtime-win-x64`；实际发布输出完成路径所有权报告，运行时组合遇到重复目标路径会失败。
+- native `FACM.exe` 使用 WinHTTP 读取应用清单，生产地址只允许 HTTPS；本地镜像的 HTTP 与
+  `unsigned-local` 信任模式都必须由 `bootstrap.json` 或命令行显式开启。当前没有生产签名密钥，不能
+  把本地无签名镜像描述为 production-trusted。
+- 首次 clean root 只含 `FACM.exe` 与 `bootstrap.json`，缺失组件下载到 `.facm/cache/downloads` 的
+  `.partial`，通过 HTTP Range 续传、SHA-256 校验后转正，再由 Cabinet FDI 解包到受控 staging。
+  组合成功后原子切换 `.facm/state/active.json`，组件版本记录在 `components.json`；失败不覆盖旧 active。
+- 完整本地镜像 `D:\project2\facm-boot2-mirror-20260831` 的实际数据：managed runtime
+  `119,712,016` raw / `47,631,441` CAB / 262 files；Windows runtime `101,300,664` raw /
+  `32,881,795` CAB / 289 files；app `57,598,388` raw / `23,134,258` CAB / 49 files。合计 raw
+  `278,611,068` bytes，三个 CAB 合计 `103,647,494` bytes；压缩比与每包 hash 以镜像文件和 manifest
+  实际值为准。
+- `Test-Boot2.ps1` 已通过：clean first run、primary 失败到 mirror、4KB Range resume、无网络
+  fast path、无变化更新 0 CAB bytes、app-only 仅 app pack、runtime-only app+managed runtime
+  不取 Windows runtime、pre-provisioned offline resolve、no-pet boundary。
+
+当前状态是 **BOOT-2 deterministic local network candidate green / not release-ready**。仍未完成生产
+签名与真实 HTTPS/CDN、真实 Win10/11 安装升级、用户数据迁移、桌宠网络供给、自然 League session、
+最终 release evidence 和 Gate13；不得据此切生产。

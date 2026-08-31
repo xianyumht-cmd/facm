@@ -456,3 +456,39 @@ Gate13 result.
 BOOT-1 currently creates a ZIP pack for delivery evidence but the native prototype provisions an expanded
 local source tree; do not describe this stage as having native ZIP extraction or a production downloader.
 Do not merge, push, release, modify production pointers, move formal P7, or run Gate13 from this candidate.
+
+## 2026-08-31 BOOT-2 network provisioning candidate
+
+All BOOT-2 build, package, mirror, test, log and temporary paths remain under `D:\project2`. The implementation
+source is the isolated worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`; do not use
+`D:\project2\Facm` as implementation source. The build script also pins `TEMP`, `TMP`, `DOTNET_CLI_HOME`
+and NuGet packages to D:.
+
+Build a fresh candidate and local mirror with:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\boot1\Build-Boot2Candidate.ps1'
+```
+
+The resulting review roots are `D:\project2\facm-boot2-review-20260831\clean-first-run` and
+`D:\project2\facm-boot2-review-20260831\pre-provisioned`; the deterministic source is
+`D:\project2\facm-boot2-mirror-20260831`. Run the full local supply/update experiment with:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\boot1\Test-Boot2.ps1'
+```
+
+`Start-Boot2TestMirror.ps1` is a local static HttpListener with Range support and request logging. The test
+intentionally uses a missing primary URL so mirror failover is observed, preloads a 4KB `.partial` app pack,
+stops the server to prove the normal fast path, then runs no-change, app-only and runtime-only update variants.
+The test uses `--dry-run`; it validates provisioning/activation without claiming natural League or real-machine
+behavior. Production URLs must be HTTPS, production trust must use a real signed manifest/package policy, and
+the current `unsigned-local` mode must not be shipped as release trust.
+
+Failure safety: verified packages are promoted only after hash/size verification; extraction occurs inside
+fresh staging; active state is written after composition; old active is never deleted during a failed network,
+hash, extraction or activation attempt. Failed staging is preserved under the controlled `.facm\staging`
+directory for diagnosis/cleanup. Do not merge, push, release, modify production pointers, move formal P7 or
+run Gate13 from this candidate.
