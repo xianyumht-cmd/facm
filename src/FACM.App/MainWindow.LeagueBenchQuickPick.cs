@@ -335,8 +335,30 @@ public sealed partial class MainWindow
         {
             _leagueBenchSwapping = false;
             SetBenchSwapButtonsEnabled(true);
-            if (!_closed && IsLeagueWorkbenchSelected())
-                await RefreshLeagueWorkbenchRuntimeAsync();
+            await RefreshBenchAuthoritativeStateAsync();
+        }
+    }
+
+    private async Task RefreshBenchAuthoritativeStateAsync()
+    {
+        if (_closed || !_leagueWorkbench.HasRealDataSource ||
+            !string.Equals(_leagueWorkbench.Live.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            // One explicit post-click reconciliation through the existing Workbench owner. This is
+            // not a new timer or polling loop; the resulting Live notification redraws both views.
+            await _leagueWorkbench.RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch
+        {
         }
     }
 
