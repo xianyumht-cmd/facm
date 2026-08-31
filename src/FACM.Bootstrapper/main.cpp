@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <bcrypt.h>
+#include <fdi.h>
 #include <shellapi.h>
+#include <winhttp.h>
 
 #include <algorithm>
 #include <chrono>
@@ -8,12 +10,19 @@
 #include <cstdint>
 #include <cwctype>
 #include <cwchar>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <io.h>
+#include <fcntl.h>
+#include <map>
 #include <optional>
+#include <set>
+#include <share.h>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -23,7 +32,11 @@ namespace {
 constexpr wchar_t kCoreComponent[] = L"facm-core-win-x64";
 constexpr wchar_t kCoreEntryPoint[] = L"FACM.App.exe";
 constexpr wchar_t kStateFileName[] = L"active.json";
+constexpr wchar_t kComponentsStateFileName[] = L"components.json";
+constexpr wchar_t kBootstrapConfigFileName[] = L"bootstrap.json";
 constexpr wchar_t kCorrelationEnvironment[] = L"FACM_BOOTSTRAP_CORRELATION_ID";
+constexpr wchar_t kExpectedArchitecture[] = L"win-x64";
+constexpr std::uintmax_t kMaximumComponentInstalledBytes = 1024ull * 1024ull * 1024ull;
 bool g_suppressUi = false;
 
 struct ActiveState {
@@ -44,11 +57,47 @@ struct ComponentManifest {
     std::uintmax_t installedSize = 0;
     std::wstring sha256;
     std::wstring entryPoint;
+    std::wstring packageFormat;
+    std::wstring contentDigest;
+    std::uintmax_t fileCount = 0;
+    std::wstring primaryUrl;
+    std::vector<std::wstring> mirrorUrls;
+    std::vector<std::wstring> dependencies;
+};
+
+struct ApplicationManifest {
+    int schemaVersion = 0;
+    std::wstring applicationId;
+    std::wstring applicationVersion;
+    std::wstring architecture;
+    std::wstring trustMode;
+    std::vector<ComponentManifest> components;
+};
+
+struct InstalledComponent {
+    std::wstring componentId;
+    std::wstring version;
+    std::wstring path;
+    std::uintmax_t installedSize = 0;
+    std::wstring contentDigest;
+};
+
+struct ComponentsState {
+    int schemaVersion = 1;
+    std::wstring applicationVersion;
+    std::vector<InstalledComponent> components;
+};
+
+struct BootstrapConfig {
+    std::wstring manifestUrl;
+    bool allowUnsignedLocal = false;
+    bool allowInsecureLocal = false;
 };
 
 class StatusWindow {
 public:
     void Show(const std::wstring& text) {
+        if (g_suppressUi) return;
         if (_window) {
             SetStatus(text);
             return;
@@ -258,6 +307,105 @@ std::optional<bool> JsonBool(const std::string& json, const std::string& key) {
     return std::nullopt;
 }
 
+std::optional<std::string> JsonArrayText(const std::string& json, const std::string& key) {
+    const auto marker = "\"" + key + "\"";
+    const auto keyPosition = json.find(marker);
+    if (keyPosition == std::string::npos) return std::nullopt;
+    const auto open = json.find('[', keyPosition + marker.size());
+    if (open == std::string::npos) return std::nullopt;
+    bool quoted = false;
+    bool escaped = false;
+    int depth = 0;
+    for (size_t index = open; index < json.size(); ++index) {
+        const auto character = json[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (character == '\\') escaped = true;
+            else if (character == '"') quoted = false;
+            continue;
+        }
+        if (character == '"') {
+            quoted = true;
+            continue;
+        }
+        if (character == '[') ++depth;
+        if (character == ']' && --depth == 0) return json.substr(open + 1, index - open - 1);
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string> JsonObjectArray(const std::string& json, const std::string& key) {
+    const auto contents = JsonArrayText(json, key);
+    if (!contents) return {};
+    std::vector<std::string> objects;
+    size_t start = std::string::npos;
+    int depth = 0;
+    bool quoted = false;
+    bool escaped = false;
+    for (size_t index = 0; index < contents->size(); ++index) {
+        const auto character = (*contents)[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (character == '\\') escaped = true;
+            else if (character == '"') quoted = false;
+            continue;
+        }
+        if (character == '"') {
+            quoted = true;
+            continue;
+        }
+        if (character == '{') {
+            if (depth == 0) start = index;
+            ++depth;
+        } else if (character == '}' && depth > 0) {
+            --depth;
+            if (depth == 0 && start != std::string::npos) {
+                objects.push_back(contents->substr(start, index - start + 1));
+                start = std::string::npos;
+            }
+        }
+    }
+    return objects;
+}
+
+std::vector<std::wstring> JsonStringArray(const std::string& json, const std::string& key) {
+    const auto contents = JsonArrayText(json, key);
+    if (!contents) return {};
+    std::vector<std::wstring> values;
+    size_t index = 0;
+    while (index < contents->size()) {
+        const auto quote = contents->find('"', index);
+        if (quote == std::string::npos) break;
+        std::string value;
+        bool escaped = false;
+        for (size_t cursor = quote + 1; cursor < contents->size(); ++cursor) {
+            const auto character = (*contents)[cursor];
+            if (escaped) {
+                switch (character) {
+                case 'n': value.push_back('\n'); break;
+                case 'r': value.push_back('\r'); break;
+                case 't': value.push_back('\t'); break;
+                default: value.push_back(character); break;
+                }
+                escaped = false;
+                continue;
+            }
+            if (character == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (character == '"') {
+                values.push_back(Utf8ToWide(value));
+                index = cursor + 1;
+                break;
+            }
+            value.push_back(character);
+        }
+        if (index == quote + 1) break;
+    }
+    return values;
+}
+
 bool ReadText(const fs::path& path, std::string& output) {
     std::ifstream input(path, std::ios::binary);
     if (!input) return false;
@@ -308,9 +456,7 @@ std::string ActiveStateJson(const ActiveState& state) {
     return output.str();
 }
 
-std::optional<ComponentManifest> ReadComponentManifest(const fs::path& path) {
-    std::string json;
-    if (!ReadText(path, json)) return std::nullopt;
+std::optional<ComponentManifest> ParseComponentManifest(const std::string& json) {
     const auto componentId = JsonString(json, "componentId");
     const auto version = JsonString(json, "version");
     const auto architecture = JsonString(json, "architecture");
@@ -329,6 +475,40 @@ std::optional<ComponentManifest> ReadComponentManifest(const fs::path& path) {
     manifest.sha256 = Utf8ToWide(*sha256);
     manifest.entryPoint = Utf8ToWide(*entryPoint);
     manifest.required = JsonBool(json, "required").value_or(true);
+    manifest.packageFormat = Utf8ToWide(JsonString(json, "packageFormat").value_or("zip"));
+    manifest.contentDigest = Utf8ToWide(JsonString(json, "contentDigest").value_or(""));
+    manifest.fileCount = JsonUnsigned(json, "fileCount").value_or(0);
+    manifest.primaryUrl = Utf8ToWide(JsonString(json, "primaryUrl").value_or(""));
+    manifest.mirrorUrls = JsonStringArray(json, "mirrors");
+    manifest.dependencies = JsonStringArray(json, "dependencies");
+    return manifest;
+}
+
+std::optional<ComponentManifest> ReadComponentManifest(const fs::path& path) {
+    std::string json;
+    if (!ReadText(path, json)) return std::nullopt;
+    return ParseComponentManifest(json);
+}
+
+std::optional<ApplicationManifest> ReadApplicationManifest(const std::string& json) {
+    const auto schema = JsonUnsigned(json, "schemaVersion");
+    const auto applicationId = JsonString(json, "applicationId");
+    const auto applicationVersion = JsonString(json, "applicationVersion");
+    const auto architecture = JsonString(json, "architecture");
+    const auto trustMode = JsonString(json, "trustMode");
+    if (!schema || !applicationId || !applicationVersion || !architecture || !trustMode) return std::nullopt;
+    ApplicationManifest manifest;
+    manifest.schemaVersion = static_cast<int>(*schema);
+    manifest.applicationId = Utf8ToWide(*applicationId);
+    manifest.applicationVersion = Utf8ToWide(*applicationVersion);
+    manifest.architecture = Utf8ToWide(*architecture);
+    manifest.trustMode = Utf8ToWide(*trustMode);
+    for (const auto& object : JsonObjectArray(json, "components")) {
+        const auto component = ParseComponentManifest(object);
+        if (!component) return std::nullopt;
+        manifest.components.push_back(*component);
+    }
+    if (manifest.components.empty()) return std::nullopt;
     return manifest;
 }
 
@@ -391,16 +571,31 @@ std::optional<std::wstring> Sha256File(const fs::path& path) {
 }
 
 std::optional<std::wstring> Sha256Text(const std::string& value) {
-    const auto temporary = fs::temp_directory_path() / (L"facm-bootstrap-hash-" + std::to_wstring(GetCurrentProcessId()) + L".tmp");
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) return std::nullopt;
-        output.write(value.data(), static_cast<std::streamsize>(value.size()));
+    BCRYPT_ALG_HANDLE algorithm = nullptr;
+    BCRYPT_HASH_HANDLE hash = nullptr;
+    std::vector<UCHAR> object;
+    std::vector<UCHAR> digest(32);
+    DWORD objectLength = 0;
+    DWORD resultLength = 0;
+    if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0 ||
+        BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&objectLength), sizeof(objectLength), &resultLength, 0) < 0) {
+        if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
+        return std::nullopt;
     }
-    const auto result = Sha256File(temporary);
-    std::error_code error;
-    fs::remove(temporary, error);
-    return result;
+    object.resize(objectLength);
+    if (BCryptCreateHash(algorithm, &hash, object.data(), objectLength, nullptr, 0, 0) < 0 ||
+        (value.size() > 0 && BCryptHashData(hash, reinterpret_cast<PUCHAR>(const_cast<char*>(value.data())), static_cast<ULONG>(value.size()), 0) < 0) ||
+        BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) < 0) {
+        if (hash) BCryptDestroyHash(hash);
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        return std::nullopt;
+    }
+    BCryptDestroyHash(hash);
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    std::wostringstream output;
+    output << std::hex << std::setfill(L'0');
+    for (const auto byte : digest) output << std::setw(2) << static_cast<unsigned int>(byte);
+    return output.str();
 }
 
 std::uintmax_t DirectorySize(const fs::path& root) {
@@ -498,6 +693,20 @@ void AppendLog(const fs::path& root, const std::wstring& event, const std::wstri
     }
 }
 
+void AppendLogDetail(const fs::path& root, const std::wstring& event, const std::wstring& correlation, const std::wstring& detail) {
+    try {
+        const auto logDirectory = root / L".facm" / L"logs";
+        fs::create_directories(logDirectory);
+        std::ofstream output(logDirectory / L"bootstrapper.jsonl", std::ios::app | std::ios::binary);
+        if (!output) return;
+        output << "{\"ts\":\"" << EscapeJson(UtcTimestamp())
+               << "\",\"event\":\"" << EscapeJson(event)
+               << "\",\"correlationId\":\"" << EscapeJson(correlation)
+               << "\",\"detail\":\"" << EscapeJson(detail) << "\"}\n";
+    } catch (...) {
+    }
+}
+
 void ErrorMessage(const std::wstring& title, const std::wstring& message) {
     if (g_suppressUi) return;
     MessageBoxW(nullptr, message.c_str(), title.c_str(), MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
@@ -511,6 +720,641 @@ bool ValidVersion(const std::wstring& version) {
                (character >= L'0' && character <= L'9') ||
                character == L'.' || character == L'-' || character == L'_' ;
     });
+}
+
+bool ValidComponentId(const std::wstring& id) {
+    if (id.empty() || id.size() > 80) return false;
+    return std::all_of(id.begin(), id.end(), [](wchar_t character) {
+        return (character >= L'a' && character <= L'z') ||
+               (character >= L'A' && character <= L'Z') ||
+               (character >= L'0' && character <= L'9') ||
+               character == L'.' || character == L'-' || character == L'_';
+    });
+}
+
+bool IsSafeArchivePath(const std::string& archiveName, fs::path& relative) {
+    const auto wide = Utf8ToWide(archiveName);
+    if (wide.empty() || wide.find(L':') != std::wstring::npos || wide.front() == L'\\' || wide.front() == L'/') return false;
+    std::wstring normalized = wide;
+    std::replace(normalized.begin(), normalized.end(), L'/', L'\\');
+    size_t start = 0;
+    while (start <= normalized.size()) {
+        const auto separator = normalized.find(L'\\', start);
+        const auto part = normalized.substr(start, separator == std::wstring::npos ? std::wstring::npos : separator - start);
+        if (part.empty() || part == L"." || part == L"..") return false;
+        start = separator == std::wstring::npos ? normalized.size() + 1 : separator + 1;
+    }
+    relative = fs::path(normalized);
+    return !relative.empty() && relative.is_relative();
+}
+
+bool IsLocalDevelopmentUrl(const std::wstring& url) {
+    const auto lower = [&]() {
+        auto copy = url;
+        std::transform(copy.begin(), copy.end(), copy.begin(), towlower);
+        return copy;
+    }();
+    return lower.rfind(L"http://127.0.0.1:", 0) == 0 ||
+           lower.rfind(L"http://localhost:", 0) == 0 ||
+           lower.rfind(L"http://[::1]:", 0) == 0;
+}
+
+bool IsAllowedUrl(const std::wstring& url, bool allowInsecureLocal) {
+    auto lower = url;
+    std::transform(lower.begin(), lower.end(), lower.begin(), towlower);
+    if (lower.rfind(L"https://", 0) == 0) return true;
+    return allowInsecureLocal && IsLocalDevelopmentUrl(url);
+}
+
+std::wstring ComponentPackageExtension(const ComponentManifest& component) {
+    auto format = component.packageFormat;
+    std::transform(format.begin(), format.end(), format.begin(), towlower);
+    if (format == L"cab") return L".cab";
+    if (format == L"zip") return L".zip";
+    return {};
+}
+
+bool IsReparsePoint(const fs::path& path) {
+    const auto attributes = GetFileAttributesW(path.c_str());
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+
+struct ExtractionContext {
+    fs::path destination;
+    std::set<std::wstring> files;
+    std::uintmax_t writtenBytes = 0;
+    std::uintmax_t maximumBytes = kMaximumComponentInstalledBytes;
+    bool failed = false;
+    std::string failureDetail;
+};
+
+thread_local ExtractionContext* g_extractionContext = nullptr;
+
+void* DIAMONDAPI CabAlloc(ULONG bytes) {
+    return std::malloc(bytes);
+}
+
+void DIAMONDAPI CabFree(void* value) {
+    std::free(value);
+}
+
+INT_PTR DIAMONDAPI CabOpen(char* file, int flags, int mode) {
+    int descriptor = -1;
+    if (!file || _sopen_s(&descriptor, file, flags | _O_BINARY, _SH_DENYNO, mode) != 0) {
+        if (g_extractionContext) g_extractionContext->failureDetail = std::string("input open failed: ") + (file ? file : "(null)");
+        return -1;
+    }
+    return static_cast<INT_PTR>(descriptor);
+}
+
+UINT DIAMONDAPI CabRead(INT_PTR descriptor, void* buffer, UINT bytes) {
+    if (descriptor < 0) return 0;
+    const auto read = _read(static_cast<int>(descriptor), buffer, bytes);
+    if (read < 0 && g_extractionContext) {
+        g_extractionContext->failed = true;
+        g_extractionContext->failureDetail = "input read failed";
+    }
+    return read < 0 ? 0 : static_cast<UINT>(read);
+}
+
+UINT DIAMONDAPI CabWrite(INT_PTR descriptor, void* buffer, UINT bytes) {
+    if (descriptor < 0 || !g_extractionContext) return 0;
+    if (bytes > g_extractionContext->maximumBytes - std::min(g_extractionContext->maximumBytes, g_extractionContext->writtenBytes)) {
+        g_extractionContext->failed = true;
+        return 0;
+    }
+    const auto written = _write(static_cast<int>(descriptor), buffer, bytes);
+    if (written < 0) {
+        g_extractionContext->failed = true;
+        return 0;
+    }
+    g_extractionContext->writtenBytes += static_cast<std::uintmax_t>(written);
+    return static_cast<UINT>(written);
+}
+
+int DIAMONDAPI CabClose(INT_PTR descriptor) {
+    return descriptor < 0 ? -1 : _close(static_cast<int>(descriptor));
+}
+
+LONG DIAMONDAPI CabSeek(INT_PTR descriptor, LONG distance, int seekType) {
+    if (descriptor < 0) return -1;
+    return _lseek(static_cast<int>(descriptor), distance, seekType);
+}
+
+INT_PTR DIAMONDAPI CabNotify(FDINOTIFICATIONTYPE type, PFDINOTIFICATION notification) {
+    if (!g_extractionContext || !notification) return -1;
+    if (type == fdintCOPY_FILE) {
+        fs::path relative;
+        if (!IsSafeArchivePath(notification->psz1 ? notification->psz1 : "", relative)) {
+            g_extractionContext->failed = true;
+            g_extractionContext->failureDetail = notification->psz1 ? notification->psz1 : "invalid archive path";
+            return -1;
+        }
+        const auto key = relative.generic_wstring();
+        if (!g_extractionContext->files.insert(key).second) {
+            g_extractionContext->failed = true;
+            g_extractionContext->failureDetail = "duplicate archive path: " + WideToUtf8(key);
+            return -1;
+        }
+        const auto target = g_extractionContext->destination / relative;
+        if (!IsPathInside(g_extractionContext->destination, target) || IsReparsePoint(target)) {
+            g_extractionContext->failed = true;
+            g_extractionContext->failureDetail = "archive path escaped destination";
+            return -1;
+        }
+        std::error_code error;
+        fs::create_directories(target.parent_path(), error);
+        if (error || IsReparsePoint(target.parent_path())) {
+            g_extractionContext->failed = true;
+            g_extractionContext->failureDetail = "parent directory rejected";
+            return -1;
+        }
+        int descriptor = -1;
+        if (_wsopen_s(&descriptor, target.c_str(), _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE) != 0) {
+            g_extractionContext->failed = true;
+            g_extractionContext->failureDetail = "target file open failed";
+            return -1;
+        }
+        return static_cast<INT_PTR>(descriptor);
+    }
+    if (type == fdintCLOSE_FILE_INFO) return CabClose(notification->hf) == 0 ? 1 : 0;
+    if (type == fdintPARTIAL_FILE) {
+        return 0;
+    }
+    if (type == fdintNEXT_CABINET) {
+        g_extractionContext->failed = true;
+        g_extractionContext->failureDetail = "multi-cabinet input is not supported";
+        return -1;
+    }
+    return 0;
+}
+
+bool ExtractCab(const fs::path& pack, const fs::path& destination, const ComponentManifest& manifest, StatusWindow& status, std::wstring& failure) {
+    if (manifest.packageFormat != L"cab" || !IsPathInside(destination.parent_path(), destination)) {
+        failure = L"组件包格式或解包目标无效。";
+        return false;
+    }
+    std::error_code error;
+    fs::create_directories(destination, error);
+    if (error) {
+        failure = L"无法创建组件暂存目录。";
+        return false;
+    }
+    ExtractionContext context;
+    context.destination = destination;
+    context.maximumBytes = std::min(kMaximumComponentInstalledBytes, std::max<std::uintmax_t>(manifest.installedSize, 1));
+    ERF erf{};
+    const auto hfdi = FDICreate(CabAlloc, CabFree, CabOpen, CabRead, CabWrite, CabClose, CabSeek, cpu80386, &erf);
+    if (!hfdi) {
+        failure = L"Windows Cabinet 解包器初始化失败。";
+        return false;
+    }
+    auto cabinet = WideToUtf8(pack.filename().wstring());
+    auto cabinetPath = WideToUtf8(pack.parent_path().wstring());
+    if (cabinetPath.empty() || cabinet.empty()) {
+        FDIDestroy(hfdi);
+        failure = L"组件包路径无法转换为本地编码。";
+        return false;
+    }
+    if (cabinetPath.back() != '\\') cabinetPath.push_back('\\');
+    g_extractionContext = &context;
+    status.SetStatus(L"正在解包组件：" + manifest.componentId);
+    const auto copied = FDICopy(hfdi, cabinet.data(), cabinetPath.data(), 0, CabNotify, nullptr, nullptr);
+    g_extractionContext = nullptr;
+    FDIDestroy(hfdi);
+    if (!copied || context.failed) {
+        failure = L"组件 CAB 解包失败或触发了安全限制（FDI " + std::to_wstring(erf.erfOper) + L":" + std::to_wstring(erf.erfType) + L"）。";
+        if (!context.failureDetail.empty()) failure += L" " + Utf8ToWide(context.failureDetail);
+        return false;
+    }
+    if (context.files.empty() || context.writtenBytes != manifest.installedSize ||
+        (manifest.fileCount != 0 && context.files.size() != manifest.fileCount)) {
+        failure = L"组件解包后的文件数量或大小与清单不一致（实际文件 " + std::to_wstring(context.files.size()) +
+                  L"，清单 " + std::to_wstring(manifest.fileCount) + L"；实际字节 " + std::to_wstring(context.writtenBytes) +
+                  L"，清单 " + std::to_wstring(manifest.installedSize) + L"）。";
+        return false;
+    }
+    const auto digest = DirectoryDigest(destination);
+    if (manifest.contentDigest.empty() || digest.empty() || _wcsicmp(digest.c_str(), manifest.contentDigest.c_str()) != 0) {
+        failure = L"组件解包后的内容摘要与清单不一致（实际 " + digest + L"，清单 " + manifest.contentDigest + L"）。";
+        return false;
+    }
+    return true;
+}
+
+struct HttpResponse {
+    DWORD status = 0;
+    std::uintmax_t contentLength = 0;
+    bool hasContentLength = false;
+};
+
+bool CrackHttpUrl(const std::wstring& url, URL_COMPONENTS& components, std::vector<wchar_t>& host, std::vector<wchar_t>& path, std::vector<wchar_t>& extra, std::wstring& failure) {
+    std::wstring mutableUrl = url;
+    host.assign(512, L'\0');
+    path.assign(32768, L'\0');
+    extra.assign(8192, L'\0');
+    components = {};
+    components.dwStructSize = sizeof(components);
+    components.lpszHostName = host.data();
+    components.dwHostNameLength = static_cast<DWORD>(host.size() - 1);
+    components.lpszUrlPath = path.data();
+    components.dwUrlPathLength = static_cast<DWORD>(path.size() - 1);
+    components.lpszExtraInfo = extra.data();
+    components.dwExtraInfoLength = static_cast<DWORD>(extra.size() - 1);
+    if (!WinHttpCrackUrl(mutableUrl.data(), 0, 0, &components)) {
+        failure = L"组件地址解析失败。";
+        return false;
+    }
+    if (components.dwHostNameLength == 0 || components.dwUrlPathLength == 0) {
+        failure = L"组件地址缺少主机或路径。";
+        return false;
+    }
+    return true;
+}
+
+bool QueryHttpResponse(HINTERNET request, HttpResponse& response) {
+    DWORD statusSize = sizeof(response.status);
+    if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                              WINHTTP_HEADER_NAME_BY_INDEX, &response.status, &statusSize, WINHTTP_NO_HEADER_INDEX)) return false;
+    DWORD contentSize = sizeof(DWORD);
+    DWORD contentLength = 0;
+    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &contentLength, &contentSize, WINHTTP_NO_HEADER_INDEX)) {
+        response.contentLength = contentLength;
+        response.hasContentLength = true;
+    }
+    return true;
+}
+
+bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failure) {
+    URL_COMPONENTS components{};
+    std::vector<wchar_t> host;
+    std::vector<wchar_t> path;
+    std::vector<wchar_t> extra;
+    if (!CrackHttpUrl(url, components, host, path, extra, failure)) return false;
+    const auto session = WinHttpOpen(L"FACM/4.0 Bootstrapper", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session) { failure = L"网络会话初始化失败。"; return false; }
+    WinHttpSetTimeouts(session, 10000, 10000, 10000, 30000);
+    const auto connection = WinHttpConnect(session, host.data(), components.nPort, 0);
+    if (!connection) { WinHttpCloseHandle(session); failure = L"无法连接清单服务器。"; return false; }
+    std::wstring target(path.data(), components.dwUrlPathLength);
+    target.append(extra.data(), components.dwExtraInfoLength);
+    const auto request = WinHttpOpenRequest(connection, L"GET", target.c_str(), nullptr, WINHTTP_NO_REFERER,
+                                            WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                            components.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+    if (!request) {
+        WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        failure = L"无法创建清单请求。"; return false;
+    }
+    const auto sent = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != FALSE &&
+                      WinHttpReceiveResponse(request, nullptr) != FALSE;
+    HttpResponse response{};
+    if (!sent || !QueryHttpResponse(request, response) || response.status != 200) {
+        failure = L"清单请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    body.clear();
+    while (true) {
+        DWORD available = 0;
+        if (!WinHttpQueryDataAvailable(request, &available)) { failure = L"清单读取失败。"; break; }
+        if (available == 0) break;
+        if (body.size() + available > 8ull * 1024ull * 1024ull) { failure = L"清单超过大小限制。"; break; }
+        std::vector<char> buffer(available);
+        DWORD read = 0;
+        if (!WinHttpReadData(request, buffer.data(), available, &read)) { failure = L"清单读取失败。"; break; }
+        body.append(buffer.data(), read);
+    }
+    WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+    return failure.empty();
+}
+
+bool DownloadUrl(const std::wstring& url, const fs::path& partial, const ComponentManifest& component,
+                 StatusWindow& status, const fs::path& root, const std::wstring& correlation,
+                 std::uintmax_t overallCompleted, std::uintmax_t overallTotal,
+                 std::uintmax_t& downloadedBytes, std::uintmax_t& totalBytes, std::wstring& failure) {
+    (void)root;
+    (void)correlation;
+    URL_COMPONENTS components{};
+    std::vector<wchar_t> host;
+    std::vector<wchar_t> path;
+    std::vector<wchar_t> extra;
+    if (!CrackHttpUrl(url, components, host, path, extra, failure)) return false;
+    std::error_code error;
+    const auto existing = fs::is_regular_file(partial, error) ? fs::file_size(partial, error) : 0;
+    if (error || existing > component.packageSize) {
+        fs::remove(partial, error);
+    }
+    const auto resumeAt = fs::is_regular_file(partial, error) ? fs::file_size(partial, error) : 0;
+    const auto session = WinHttpOpen(L"FACM/4.0 Bootstrapper", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session) { failure = L"网络会话初始化失败。"; return false; }
+    WinHttpSetTimeouts(session, 10000, 10000, 10000, 30000);
+    const auto connection = WinHttpConnect(session, host.data(), components.nPort, 0);
+    if (!connection) { WinHttpCloseHandle(session); failure = L"组件服务器连接失败。"; return false; }
+    std::wstring target(path.data(), components.dwUrlPathLength);
+    target.append(extra.data(), components.dwExtraInfoLength);
+    const auto request = WinHttpOpenRequest(connection, L"GET", target.c_str(), nullptr, WINHTTP_NO_REFERER,
+                                            WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                            components.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+    if (!request) {
+        WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        failure = L"无法创建组件请求。"; return false;
+    }
+    bool requestedResume = resumeAt > 0;
+    std::wstring rangeHeader;
+    if (requestedResume) {
+        rangeHeader = L"Range: bytes=" + std::to_wstring(resumeAt) + L"-\r\n";
+        WinHttpAddRequestHeaders(request, rangeHeader.c_str(), static_cast<DWORD>(-1L), WINHTTP_ADDREQ_FLAG_ADD);
+    }
+    const auto sent = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != FALSE &&
+                      WinHttpReceiveResponse(request, nullptr) != FALSE;
+    HttpResponse response{};
+    if (!sent || !QueryHttpResponse(request, response) || (response.status != 200 && response.status != 206)) {
+        failure = L"组件请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    const auto append = requestedResume && response.status == 206;
+    downloadedBytes = append ? resumeAt : 0;
+    totalBytes = response.hasContentLength ? downloadedBytes + response.contentLength : component.packageSize;
+    if (totalBytes != component.packageSize) totalBytes = component.packageSize;
+    std::ofstream output(partial, append ? (std::ios::binary | std::ios::app) : (std::ios::binary | std::ios::trunc));
+    if (!output) {
+        failure = L"无法写入组件临时包。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    while (true) {
+        DWORD available = 0;
+        if (!WinHttpQueryDataAvailable(request, &available)) { failure = L"组件下载读取失败。"; break; }
+        if (available == 0) break;
+        std::vector<char> buffer(std::min<DWORD>(available, 256 * 1024));
+        DWORD read = 0;
+        if (!WinHttpReadData(request, buffer.data(), static_cast<DWORD>(buffer.size()), &read)) { failure = L"组件下载读取失败。"; break; }
+        if (downloadedBytes + read > component.packageSize) { failure = L"组件下载超过清单大小。"; break; }
+        output.write(buffer.data(), read);
+        if (!output) { failure = L"组件临时包写入失败。"; break; }
+        downloadedBytes += read;
+        status.SetStatus(L"正在下载 " + component.componentId + L"：" + std::to_wstring(downloadedBytes) + L" / " + std::to_wstring(totalBytes) +
+                         L" 字节；总进度 " + std::to_wstring(overallCompleted + downloadedBytes) + L" / " + std::to_wstring(overallTotal) + L" 字节");
+    }
+    output.close();
+    WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+    if (!failure.empty() || downloadedBytes != component.packageSize) {
+        if (failure.empty()) failure = L"组件下载未完成。";
+        return false;
+    }
+    return true;
+}
+
+std::uintmax_t DirectoryFileCount(const fs::path& root) {
+    std::uintmax_t count = 0;
+    std::error_code error;
+    for (const auto& entry : fs::recursive_directory_iterator(root, error)) {
+        if (error) break;
+        if (entry.is_regular_file(error)) ++count;
+    }
+    return count;
+}
+
+bool MergeComponentTree(const fs::path& source, const fs::path& destination, StatusWindow& status, std::wstring& failure) {
+    try {
+        std::error_code error;
+        fs::create_directories(destination, error);
+        if (error || IsReparsePoint(destination)) { failure = L"组件组合目标目录无效。"; return false; }
+        for (const auto& entry : fs::recursive_directory_iterator(source, error)) {
+            if (error) { failure = L"读取组件目录失败。"; return false; }
+            if (entry.is_symlink(error) || IsReparsePoint(entry.path())) {
+                failure = L"组件包含不允许的符号链接或重解析点。"; return false;
+            }
+            const auto relative = fs::relative(entry.path(), source, error);
+            if (error || relative.empty()) { failure = L"组件相对路径无效。"; return false; }
+            const auto target = destination / relative;
+            if (!IsPathInside(destination, target)) { failure = L"组件路径越界。"; return false; }
+            if (entry.is_directory(error)) {
+                fs::create_directories(target, error);
+                if (error || IsReparsePoint(target)) { failure = L"无法创建组合目录。"; return false; }
+                continue;
+            }
+            if (!entry.is_regular_file(error)) { failure = L"组件目录包含不支持的文件类型。"; return false; }
+            if (fs::exists(target, error) || error) { failure = L"组件文件所有权冲突：" + relative.wstring(); return false; }
+            fs::create_directories(target.parent_path(), error);
+            if (error || IsReparsePoint(target.parent_path())) { failure = L"无法创建组件文件目录。"; return false; }
+            status.SetStatus(L"正在组合组件：" + relative.wstring());
+            fs::copy_file(entry.path(), target, fs::copy_options::none, error);
+            if (error) { failure = L"组件组合复制失败：" + relative.wstring(); return false; }
+        }
+        return true;
+    } catch (...) {
+        failure = L"组件组合发生未知文件系统错误。";
+        return false;
+    }
+}
+
+std::string ComponentManifestJson(const ComponentManifest& component) {
+    std::ostringstream output;
+    output << "{\n"
+           << "  \"schemaVersion\": 2,\n"
+           << "  \"componentId\": \"" << EscapeJson(component.componentId) << "\",\n"
+           << "  \"version\": \"" << EscapeJson(component.version) << "\",\n"
+           << "  \"architecture\": \"" << EscapeJson(component.architecture) << "\",\n"
+           << "  \"required\": " << (component.required ? "true" : "false") << ",\n"
+           << "  \"packageSize\": " << component.packageSize << ",\n"
+           << "  \"installedSize\": " << component.installedSize << ",\n"
+           << "  \"sha256\": \"" << EscapeJson(component.sha256) << "\",\n"
+           << "  \"contentDigest\": \"" << EscapeJson(component.contentDigest) << "\",\n"
+           << "  \"fileCount\": " << component.fileCount << ",\n"
+           << "  \"packageFormat\": \"" << EscapeJson(component.packageFormat) << "\",\n"
+           << "  \"entryPoint\": \"" << EscapeJson(component.entryPoint) << "\",\n"
+           << "  \"primaryUrl\": \"" << EscapeJson(component.primaryUrl) << "\",\n"
+           << "  \"mirrors\": [";
+    for (size_t index = 0; index < component.mirrorUrls.size(); ++index) {
+        if (index != 0) output << ", ";
+        output << "\"" << EscapeJson(component.mirrorUrls[index]) << "\"";
+    }
+    output << "],\n  \"dependencies\": [";
+    for (size_t index = 0; index < component.dependencies.size(); ++index) {
+        if (index != 0) output << ", ";
+        output << "\"" << EscapeJson(component.dependencies[index]) << "\"";
+    }
+    output << "]\n}\n";
+    return output.str();
+}
+
+bool ValidateApplicationManifest(const ApplicationManifest& manifest, bool allowUnsignedLocal, bool allowInsecureLocal, std::wstring& failure) {
+    if (manifest.schemaVersion != 2 || manifest.applicationId != L"FACM" || !ValidVersion(manifest.applicationVersion) ||
+        manifest.architecture != kExpectedArchitecture) {
+        failure = L"应用清单的 schema、应用标识、版本或架构无效。";
+        return false;
+    }
+    if (manifest.trustMode != L"unsigned-local" || !allowUnsignedLocal) {
+        failure = L"当前清单未通过生产信任校验；仅允许显式 unsigned-local 开发模式。";
+        return false;
+    }
+    std::set<std::wstring> ids;
+    bool hasApp = false;
+    for (const auto& component : manifest.components) {
+        if (!ValidComponentId(component.componentId) || !ValidVersion(component.version) ||
+            component.architecture != kExpectedArchitecture || component.packageFormat != L"cab" ||
+            component.packageSize == 0 || component.installedSize == 0 || component.installedSize > kMaximumComponentInstalledBytes ||
+            !IsHexSha256(component.sha256) || !IsHexSha256(component.contentDigest) || component.fileCount == 0 ||
+            component.primaryUrl.empty() || !IsAllowedUrl(component.primaryUrl, allowInsecureLocal)) {
+            failure = L"组件清单字段无效或组件地址不被允许。";
+            return false;
+        }
+        if (!ids.insert(component.componentId).second) {
+            failure = L"组件清单包含重复组件 ID。";
+            return false;
+        }
+        fs::path entry;
+        if (!component.entryPoint.empty() && !IsSafeArchivePath(WideToUtf8(component.entryPoint), entry)) {
+            failure = L"组件入口路径不安全。";
+            return false;
+        }
+        if (component.componentId == L"facm-app-win-x64") {
+            hasApp = component.entryPoint == kCoreEntryPoint;
+        }
+        for (const auto& mirror : component.mirrorUrls) {
+            if (!IsAllowedUrl(mirror, allowInsecureLocal)) {
+                failure = L"组件镜像地址不被允许。";
+                return false;
+            }
+        }
+        for (const auto& dependency : component.dependencies) {
+            if (dependency == component.componentId || dependency.empty()) {
+                failure = L"组件依赖关系无效。";
+                return false;
+            }
+        }
+    }
+    if (!hasApp) {
+        failure = L"应用清单缺少 FACM.App 组件入口。";
+        return false;
+    }
+    for (const auto& component : manifest.components) {
+        for (const auto& dependency : component.dependencies) {
+            if (ids.find(dependency) == ids.end()) {
+                failure = L"组件依赖缺少对应组件。";
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+const InstalledComponent* FindInstalledComponent(const ComponentsState& state, const std::wstring& id) {
+    const auto found = std::find_if(state.components.begin(), state.components.end(), [&](const auto& component) {
+        return component.componentId == id;
+    });
+    return found == state.components.end() ? nullptr : &*found;
+}
+
+bool VerifyPackAgainstManifest(const fs::path& pack, const ComponentManifest& manifest, std::wstring& failure);
+
+bool ExistingComponentMatches(const fs::path& root, const ComponentManifest& expected, const ComponentsState& state, fs::path& path) {
+    const auto installed = FindInstalledComponent(state, expected.componentId);
+    if (!installed || installed->version != expected.version || installed->contentDigest.empty()) return false;
+    const auto candidate = root / fs::path(installed->path);
+    if (!IsPathInside(root / L".facm" / L"components", candidate) || !fs::is_directory(candidate)) return false;
+    std::error_code error;
+    if (DirectorySize(candidate) != expected.installedSize || DirectoryFileCount(candidate) != expected.fileCount || error) return false;
+    const auto digest = DirectoryDigest(candidate);
+    if (digest.empty() || _wcsicmp(digest.c_str(), expected.contentDigest.c_str()) != 0) return false;
+    path = candidate;
+    return true;
+}
+
+bool InstallNetworkComponent(const fs::path& root, const ComponentManifest& component, bool allowInsecureLocal,
+                             StatusWindow& status, const std::wstring& correlation, std::uintmax_t& overallCompleted,
+                             std::uintmax_t overallTotal, fs::path& installedPath, std::wstring& failure) {
+    const auto extension = ComponentPackageExtension(component);
+    if (extension != L".cab") { failure = L"BOOT-2 只接受 CAB 组件包。"; return false; }
+    const auto cacheDirectory = root / L".facm" / L"cache" / L"downloads";
+    const auto stagingDirectory = root / L".facm" / L"staging" / (component.componentId + L"-" + component.version);
+    const auto destination = root / L".facm" / L"components" / component.componentId / component.version;
+    if (!IsPathInside(root / L".facm" / L"cache", cacheDirectory) ||
+        !IsPathInside(root / L".facm" / L"staging", stagingDirectory) ||
+        !IsPathInside(root / L".facm" / L"components", destination)) {
+        failure = L"组件缓存、暂存或安装路径越界。";
+        return false;
+    }
+    std::error_code error;
+    fs::create_directories(cacheDirectory, error);
+    if (error) { failure = L"无法创建组件下载缓存目录。"; return false; }
+    const auto complete = cacheDirectory / (component.componentId + L"-" + component.version + extension);
+    const auto partial = complete.wstring() + L".partial";
+    bool verified = false;
+    if (fs::is_regular_file(complete, error)) {
+        std::wstring cachedFailure;
+        verified = VerifyPackAgainstManifest(complete, component, cachedFailure);
+        if (!verified) fs::remove(complete, error);
+    }
+    std::vector<std::wstring> urls;
+    urls.push_back(component.primaryUrl);
+    urls.insert(urls.end(), component.mirrorUrls.begin(), component.mirrorUrls.end());
+    if (!verified) {
+        for (size_t index = 0; index < urls.size(); ++index) {
+            if (!IsAllowedUrl(urls[index], allowInsecureLocal)) continue;
+            const auto partialSize = fs::is_regular_file(partial, error) ? fs::file_size(partial, error) : 0;
+            if (partialSize > 0) AppendLog(root, L"component-download-resume", correlation);
+            AppendLog(root, index == 0 ? L"component-download-start" : L"component-download-failover", correlation);
+            std::wstring downloadFailure;
+            std::uintmax_t downloaded = 0;
+            std::uintmax_t total = 0;
+            if (!DownloadUrl(urls[index], partial, component, status, root, correlation, overallCompleted, overallTotal, downloaded, total, downloadFailure)) {
+                AppendLog(root, L"component-download-failed", correlation);
+                continue;
+            }
+            std::wstring verifyFailure;
+            if (!VerifyPackAgainstManifest(partial, component, verifyFailure)) {
+                AppendLog(root, L"component-download-hash-failed", correlation);
+                fs::remove(partial, error);
+                continue;
+            }
+            if (!MoveFileExW(partial.c_str(), complete.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                failure = L"组件包校验通过但无法转正缓存。";
+                return false;
+            }
+            AppendLog(root, L"component-download-complete", correlation);
+            verified = true;
+            break;
+        }
+    }
+    if (!verified) { failure = L"组件下载失败，所有地址均不可用或校验未通过。"; return false; }
+    overallCompleted += component.packageSize;
+
+    if (fs::is_directory(destination, error)) {
+        if (DirectorySize(destination) == component.installedSize && DirectoryFileCount(destination) == component.fileCount &&
+            _wcsicmp(DirectoryDigest(destination).c_str(), component.contentDigest.c_str()) == 0) {
+            installedPath = destination;
+            overallCompleted += component.packageSize;
+            AppendLog(root, L"component-install-reused", correlation);
+            return true;
+        }
+        failure = L"已有组件目录与目标版本不一致，拒绝覆盖。";
+        return false;
+    }
+    fs::remove_all(stagingDirectory, error);
+    if (error) { failure = L"无法清理组件暂存目录。"; return false; }
+    if (!ExtractCab(complete, stagingDirectory, component, status, failure)) {
+        // Preserve failed staging for diagnostics and a future cleanup/retry pass.
+        return false;
+    }
+    fs::create_directories(destination.parent_path(), error);
+    if (error || !MoveFileExW(stagingDirectory.c_str(), destination.c_str(), MOVEFILE_WRITE_THROUGH)) {
+        fs::remove_all(stagingDirectory, error);
+        failure = L"组件安装激活失败，旧 active 未修改。";
+        return false;
+    }
+    if (!AtomicWrite(destination.parent_path() / (component.version + L".manifest.json"), ComponentManifestJson(component))) {
+        failure = L"组件本地清单写入失败；组件目录保留但 active 未切换。";
+        return false;
+    }
+    AppendLog(root, L"component-extraction-complete", correlation);
+    installedPath = destination;
+    return true;
 }
 
 std::wstring QuoteArgument(const std::wstring& value) {
@@ -571,30 +1415,92 @@ bool IsBootstrapOnlyArgument(const std::wstring& argument) {
            argument == L"--manifest" || argument.rfind(L"--manifest=", 0) == 0 ||
            argument == L"--activate-version" || argument.rfind(L"--activate-version=", 0) == 0 ||
            argument == L"--verify-pack" || argument.rfind(L"--verify-pack=", 0) == 0 ||
-           argument == L"--version" || argument.rfind(L"--version=", 0) == 0;
+           argument == L"--version" || argument.rfind(L"--version=", 0) == 0 ||
+           argument == L"--update" || argument == L"--allow-insecure-local" || argument == L"--allow-unsigned-local" ||
+           argument == L"--manifest-url" || argument.rfind(L"--manifest-url=", 0) == 0;
 }
 
 bool TakesBootstrapValue(const std::wstring& argument) {
     return argument == L"--provision-source" || argument == L"--provision-pack" ||
            argument == L"--manifest" || argument == L"--activate-version" ||
-           argument == L"--verify-pack" || argument == L"--version";
+           argument == L"--verify-pack" || argument == L"--version" || argument == L"--manifest-url";
 }
 
 fs::path StatePath(const fs::path& root) {
     return root / L".facm" / L"state" / kStateFileName;
 }
 
+fs::path ComponentsStatePath(const fs::path& root) {
+    return root / L".facm" / L"state" / kComponentsStateFileName;
+}
+
+std::optional<BootstrapConfig> ReadBootstrapConfig(const fs::path& root) {
+    std::string json;
+    const auto path = root / kBootstrapConfigFileName;
+    if (!ReadText(path, json)) return std::nullopt;
+    const auto manifestUrl = JsonString(json, "manifestUrl");
+    if (!manifestUrl || manifestUrl->empty()) return std::nullopt;
+    BootstrapConfig config;
+    config.manifestUrl = Utf8ToWide(*manifestUrl);
+    config.allowUnsignedLocal = JsonBool(json, "allowUnsignedLocal").value_or(false);
+    config.allowInsecureLocal = JsonBool(json, "allowInsecureLocal").value_or(false);
+    return config;
+}
+
+std::optional<ComponentsState> ReadComponentsState(const fs::path& path) {
+    std::string json;
+    if (!ReadText(path, json)) return std::nullopt;
+    ComponentsState state;
+    state.schemaVersion = static_cast<int>(JsonUnsigned(json, "schemaVersion").value_or(0));
+    state.applicationVersion = Utf8ToWide(JsonString(json, "applicationVersion").value_or(""));
+    for (const auto& object : JsonObjectArray(json, "components")) {
+        const auto componentId = JsonString(object, "componentId");
+        const auto version = JsonString(object, "version");
+        const auto componentPath = JsonString(object, "path");
+        if (!componentId || !version || !componentPath) return std::nullopt;
+        InstalledComponent component;
+        component.componentId = Utf8ToWide(*componentId);
+        component.version = Utf8ToWide(*version);
+        component.path = Utf8ToWide(*componentPath);
+        component.installedSize = JsonUnsigned(object, "installedSize").value_or(0);
+        component.contentDigest = Utf8ToWide(JsonString(object, "contentDigest").value_or(""));
+        state.components.push_back(component);
+    }
+    if (state.schemaVersion != 1 || state.applicationVersion.empty() || state.components.empty()) return std::nullopt;
+    return state;
+}
+
+std::string ComponentsStateJson(const ComponentsState& state) {
+    std::ostringstream output;
+    output << "{\n"
+           << "  \"schemaVersion\": 1,\n"
+           << "  \"applicationVersion\": \"" << EscapeJson(state.applicationVersion) << "\",\n"
+           << "  \"components\": [\n";
+    for (size_t index = 0; index < state.components.size(); ++index) {
+        const auto& component = state.components[index];
+        output << "    {\"componentId\": \"" << EscapeJson(component.componentId)
+               << "\", \"version\": \"" << EscapeJson(component.version)
+               << "\", \"path\": \"" << EscapeJson(component.path)
+               << "\", \"installedSize\": " << component.installedSize
+               << ", \"contentDigest\": \"" << EscapeJson(component.contentDigest) << "\"}";
+        if (index + 1 != state.components.size()) output << ',';
+        output << '\n';
+    }
+    output << "  ]\n}\n";
+    return output.str();
+}
+
+bool WriteComponentsState(const fs::path& root, const ComponentsState& state) {
+    return AtomicWrite(ComponentsStatePath(root), ComponentsStateJson(state));
+}
+
 bool WriteActiveState(const fs::path& root, const ActiveState& state) {
     return AtomicWrite(StatePath(root), ActiveStateJson(state));
 }
 
-bool VerifyPack(const fs::path& pack, const fs::path& manifestPath, std::wstring& failure) {
-    const auto manifest = ReadComponentManifest(manifestPath);
-    if (!manifest) {
-        failure = L"组件清单缺失或格式无效。";
-        return false;
-    }
-    if (manifest->componentId != kCoreComponent || manifest->architecture != L"win-x64" || !IsHexSha256(manifest->sha256)) {
+bool VerifyPackAgainstManifest(const fs::path& pack, const ComponentManifest& manifest, std::wstring& failure) {
+    if (!ValidComponentId(manifest.componentId) || manifest.architecture != kExpectedArchitecture || !IsHexSha256(manifest.sha256) ||
+        manifest.packageSize == 0 || manifest.installedSize == 0 || manifest.installedSize > kMaximumComponentInstalledBytes) {
         failure = L"组件清单的组件 ID、架构或 SHA-256 无效。";
         return false;
     }
@@ -603,15 +1509,190 @@ bool VerifyPack(const fs::path& pack, const fs::path& manifestPath, std::wstring
         failure = L"组件包不存在。";
         return false;
     }
-    if (fs::file_size(pack, error) != manifest->packageSize || error) {
+    if (fs::file_size(pack, error) != manifest.packageSize || error) {
         failure = L"组件包大小与清单不一致。";
         return false;
     }
     const auto actual = Sha256File(pack);
-    if (!actual || _wcsicmp(actual->c_str(), manifest->sha256.c_str()) != 0) {
+    if (!actual || _wcsicmp(actual->c_str(), manifest.sha256.c_str()) != 0) {
         failure = L"组件包 SHA-256 校验失败。";
         return false;
     }
+    return true;
+}
+
+bool VerifyPack(const fs::path& pack, const fs::path& manifestPath, std::wstring& failure) {
+    const auto manifest = ReadComponentManifest(manifestPath);
+    if (!manifest) {
+        failure = L"组件清单缺失或格式无效。";
+        return false;
+    }
+    return VerifyPackAgainstManifest(pack, *manifest, failure);
+}
+
+bool ProvisionFromNetwork(const fs::path& root, const std::wstring& manifestUrl, bool allowUnsignedLocal,
+                          bool allowInsecureLocal, StatusWindow& status, const std::wstring& correlation,
+                          std::wstring& failure) {
+    if (!IsAllowedUrl(manifestUrl, allowInsecureLocal)) {
+        failure = L"应用清单地址不是 HTTPS，且未启用显式本地开发 HTTP。";
+        return false;
+    }
+    AppendLog(root, L"manifest-fetch-start", correlation);
+    std::string manifestText;
+    if (!HttpGetText(manifestUrl, manifestText, failure)) {
+        AppendLog(root, L"manifest-fetch-failed", correlation);
+        return false;
+    }
+    const auto manifest = ReadApplicationManifest(manifestText);
+    if (!manifest) {
+        failure = L"应用清单缺失或格式无效。";
+        AppendLog(root, L"manifest-validate-failed", correlation);
+        return false;
+    }
+    if (manifest->trustMode == L"unsigned-local" && !IsLocalDevelopmentUrl(manifestUrl)) {
+        failure = L"unsigned-local 清单只能来自本机开发镜像。";
+        AppendLog(root, L"manifest-trust-rejected", correlation);
+        return false;
+    }
+    if (!ValidateApplicationManifest(*manifest, allowUnsignedLocal, allowInsecureLocal, failure)) {
+        AppendLog(root, L"manifest-validate-failed", correlation);
+        return false;
+    }
+    AppendLog(root, L"manifest-validated", correlation);
+
+    const auto previousState = ReadComponentsState(ComponentsStatePath(root));
+    const auto previousActive = ReadActiveState(StatePath(root));
+    std::error_code currentError;
+    bool allCurrent = previousState && previousState->applicationVersion == manifest->applicationVersion && previousActive &&
+                      previousActive->activeVersion == manifest->applicationVersion &&
+                      fs::is_regular_file(root / fs::path(previousActive->activePath) / kCoreEntryPoint, currentError);
+    if (allCurrent) {
+        for (const auto& component : manifest->components) {
+            fs::path existing;
+            if (!ExistingComponentMatches(root, component, *previousState, existing)) {
+                allCurrent = false;
+                break;
+            }
+        }
+    }
+    AppendLog(root, allCurrent ? L"component-evaluation-no-change" : L"component-evaluation-update-required", correlation);
+    if (allCurrent) return true;
+
+    ComponentsState nextState;
+    nextState.applicationVersion = manifest->applicationVersion;
+    std::map<std::wstring, fs::path> componentPaths;
+    std::set<std::wstring> completed;
+    std::uintmax_t overallCompleted = 0;
+    std::uintmax_t overallTotal = 0;
+    for (const auto& component : manifest->components) overallTotal += component.packageSize;
+    size_t remaining = manifest->components.size();
+    while (remaining > 0) {
+        bool progressed = false;
+        for (const auto& component : manifest->components) {
+            if (completed.find(component.componentId) != completed.end()) continue;
+            bool dependenciesReady = true;
+            for (const auto& dependency : component.dependencies) {
+                if (completed.find(dependency) == completed.end()) dependenciesReady = false;
+            }
+            if (!dependenciesReady) continue;
+            progressed = true;
+            fs::path installed;
+            if (previousState && ExistingComponentMatches(root, component, *previousState, installed)) {
+                overallCompleted += component.packageSize;
+                AppendLog(root, L"component-reused", correlation);
+            } else if (!InstallNetworkComponent(root, component, allowInsecureLocal, status, correlation, overallCompleted, overallTotal, installed, failure)) {
+                AppendLogDetail(root, L"component-install-failed", correlation, failure);
+                return false;
+            }
+            if (!IsPathInside(root / L".facm" / L"components", installed)) {
+                failure = L"组件安装路径不在受控目录内。";
+                return false;
+            }
+            InstalledComponent installedState;
+            installedState.componentId = component.componentId;
+            installedState.version = component.version;
+            std::error_code relativeError;
+            installedState.path = fs::relative(installed, root, relativeError).generic_wstring();
+            if (relativeError) {
+                failure = L"组件安装路径无法转换为相对路径。";
+                return false;
+            }
+            installedState.installedSize = component.installedSize;
+            installedState.contentDigest = component.contentDigest;
+            nextState.components.push_back(installedState);
+            componentPaths.emplace(component.componentId, installed);
+            completed.insert(component.componentId);
+            --remaining;
+        }
+        if (!progressed) {
+            failure = L"组件依赖关系无法解析。";
+            return false;
+        }
+    }
+
+    const auto compositionStaging = root / L".facm" / L"staging" / (L"composition-" + manifest->applicationVersion);
+    const auto compositionDestination = root / L".facm" / L"versions" / manifest->applicationVersion;
+    std::error_code error;
+    if (!IsPathInside(root / L".facm" / L"staging", compositionStaging) ||
+        !IsPathInside(root / L".facm" / L"versions", compositionDestination)) {
+        failure = L"组合暂存或版本路径越界。";
+        return false;
+    }
+    if (fs::exists(compositionDestination, error)) {
+        failure = L"目标应用组合版本已经存在，拒绝覆盖。";
+        return false;
+    }
+    fs::remove_all(compositionStaging, error);
+    if (error) { failure = L"无法清理应用组合暂存目录。"; return false; }
+    fs::create_directories(compositionStaging, error);
+    if (error) { failure = L"无法创建应用组合暂存目录。"; return false; }
+    for (const auto& component : manifest->components) {
+        const auto found = componentPaths.find(component.componentId);
+        if (found == componentPaths.end() || !MergeComponentTree(found->second, compositionStaging, status, failure)) {
+            fs::remove_all(compositionStaging, error);
+            return false;
+        }
+    }
+    const auto executable = compositionStaging / kCoreEntryPoint;
+    if (!fs::is_regular_file(executable, error) || fs::file_size(executable, error) == 0) {
+        fs::remove_all(compositionStaging, error);
+        failure = L"应用组合缺少 FACM.App 入口；当前 active 未修改。";
+        return false;
+    }
+    std::ostringstream compositionJson;
+    compositionJson << "{\n  \"schemaVersion\": 1,\n  \"applicationVersion\": \""
+                    << EscapeJson(manifest->applicationVersion) << "\",\n  \"components\": [";
+    for (size_t index = 0; index < manifest->components.size(); ++index) {
+        if (index != 0) compositionJson << ", ";
+        compositionJson << "{\"componentId\": \"" << EscapeJson(manifest->components[index].componentId)
+                        << "\", \"version\": \"" << EscapeJson(manifest->components[index].version) << "\"}";
+    }
+    compositionJson << "]\n}\n";
+    if (!AtomicWrite(compositionStaging / L"composition.json", compositionJson.str())) {
+        fs::remove_all(compositionStaging, error);
+        failure = L"应用组合清单写入失败。";
+        return false;
+    }
+    fs::create_directories(compositionDestination.parent_path(), error);
+    if (error || !MoveFileExW(compositionStaging.c_str(), compositionDestination.c_str(), MOVEFILE_WRITE_THROUGH)) {
+        fs::remove_all(compositionStaging, error);
+        failure = L"应用组合激活失败；当前 active 未修改。";
+        return false;
+    }
+    AppendLog(root, L"composition-activated", correlation);
+    if (!WriteComponentsState(root, nextState)) {
+        failure = L"组件状态写入失败；当前 active 未切换。";
+        return false;
+    }
+    ActiveState nextActive;
+    nextActive.activeVersion = manifest->applicationVersion;
+    nextActive.activePath = (fs::path(L".facm") / L"versions" / manifest->applicationVersion).generic_wstring();
+    nextActive.previousVersion = previousActive ? previousActive->activeVersion : L"";
+    if (!WriteActiveState(root, nextActive)) {
+        failure = L"active.json 原子写入失败；已安装组件与组合目录保留，旧 active 未删除。";
+        return false;
+    }
+    AppendLog(root, L"active-composition-committed", correlation);
     return true;
 }
 
@@ -876,6 +1957,34 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
             if (mutex) CloseHandle(mutex);
             ErrorMessage(L"FACM Core 版本切换", failure);
             return 13;
+        }
+    }
+
+    const auto currentActive = ReadActiveState(StatePath(root));
+    std::error_code activeError;
+    const bool currentActiveValid = currentActive &&
+        IsPathInside(root / L".facm" / L"versions", root / fs::path(currentActive->activePath)) &&
+        fs::is_regular_file(root / fs::path(currentActive->activePath) / kCoreEntryPoint, activeError);
+    const bool networkRequested = HasOption(arguments, L"--update") || !currentActiveValid;
+    if (networkRequested) {
+        const auto config = ReadBootstrapConfig(root);
+        const auto manifestUrl = OptionValue(arguments, L"--manifest-url").value_or(config ? config->manifestUrl : L"");
+        const bool allowUnsignedLocal = HasOption(arguments, L"--allow-unsigned-local") || (config && config->allowUnsignedLocal);
+        const bool allowInsecureLocal = HasOption(arguments, L"--allow-insecure-local") || (config && config->allowInsecureLocal);
+        if (manifestUrl.empty()) {
+            if (mutex) CloseHandle(mutex);
+            if (!currentActiveValid) ErrorMessage(L"FACM", L"未找到有效的 FACM 组件组合，也没有可用的 bootstrap.json。请先完成网络初始化。");
+            return currentActiveValid ? 0 : 14;
+        }
+        std::wstring failure;
+        status.Show(HasOption(arguments, L"--update") ? L"正在检查 FACM 组件更新…" : L"正在初始化 FACM 组件…");
+        const auto success = ProvisionFromNetwork(root, manifestUrl, allowUnsignedLocal, allowInsecureLocal, status, correlation, failure);
+        status.Close();
+        if (!success) {
+            if (mutex) CloseHandle(mutex);
+            AppendLogDetail(root, L"bootstrap-network-failed", correlation, failure);
+            ErrorMessage(L"FACM 组件初始化", failure.empty() ? L"网络组件初始化失败；当前 active 版本未切换。" : failure);
+            return 14;
         }
     }
 
