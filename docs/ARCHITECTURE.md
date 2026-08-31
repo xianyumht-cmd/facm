@@ -58,6 +58,7 @@ Process-wide exactly one：
 WindowsLeagueTransportSessionSource
 LeagueHttpGateway
 LeagueGameflowMonitor
+LeagueBenchRuntimeObserver (reuses Gameflow.Observed; no loop)
 PerformanceBudgetProvider
 ProductStateStore
 ```
@@ -97,13 +98,15 @@ immediately. A failed request records the requested/previous mode, operation, ex
 thread, bounds, phase, and correlation id, then restores the last safe presentation or a bounded
 36-DIP Orb fallback; it never leaves a visible blank shell.
 
-When entering ChampSelect, the existing Workbench owner performs one event-driven refresh even if the
-League page was not previously selected. Its Live snapshot is then bound directly to ChampSelectStrip,
-including the Legacy/TeamBuilder bench route, existing champion metadata/icon reads, and the existing
-one-shot bench write plus bounded read-back. The strip adds no LCU owner, Gameflow owner, permanent UI
-timer, or second polling loop. Existing heavy feature pages remain an in-window adapter until a later
-visual-only migration that observes this contract; explanatory copy is supplied by the thin Inspector
-where possible, while safety-critical warnings remain at the action point.
+When entering ChampSelect, the process-level Bench observer consumes the existing Gameflow heartbeat
+and performs the small Bench session read even if the League page was not previously selected. Its
+runtime snapshot drives ChampSelectStrip, including the Legacy/TeamBuilder bench route, existing
+champion metadata/icon reads, and the existing one-shot bench write plus bounded read-back. The
+Workbench may still refresh its detailed Live snapshot, but that page lifecycle is not required for
+automatic strip activation. The strip adds no LCU owner, Gameflow owner, permanent UI timer, or second
+polling loop. Existing heavy feature pages remain an in-window adapter until a later visual-only
+migration that observes this contract; explanatory copy is supplied by the thin Inspector where
+possible, while safety-critical warnings remain at the action point.
 
 ## 2026-08-31 Morphing Surface runtime presentation stabilization
 
@@ -132,33 +135,40 @@ a new watcher owner.
 
 ## 2026-08-31 Morphing Bench Swap Strip contract
 
-`LeagueBenchSwapStripPolicy` is a presentation policy over the existing `LeagueWorkbenchLiveSnapshot`.
-It requires a usable `ChampSelect` snapshot, `BenchEnabled`, and at least one positive observed Bench
-candidate. `LeagueBenchCandidatePresentation` is the shared identity model for both the thin
-Morphing strip and the detailed Workbench fallback; it preserves the champion ID only as the command
-key, while the primary identity is the resolved name plus the existing LCU portrait cache path.
+`LeagueBenchSwapStripPolicy` remains the presentation policy over observed Bench facts, while the
+process-level `LeagueBenchRuntimeObserver` now owns the compact surface's current context. It reuses
+the existing `LeagueGameflowMonitor.Observed` heartbeat and the one shared
+`LeagueBenchQuickPickService`; it does not create another Gameflow monitor, session, gateway, timer,
+or polling loop. `LeagueBenchRuntimeSnapshot` carries the ChampSelect generation, Bench enabled state,
+candidate IDs, latch, and source freshness independently of whether the detailed Workbench page has
+ever been opened.
 
-Entering ChampSelect starts a new local Bench context and asks the existing Workbench owner for one
-event-driven refresh. Live `BenchChampionIds` is the only candidate source. The Morphing strip never
-creates a second Gameflow monitor, session, gateway, refresh loop, timer, or swap command. The detail
-card is updated from the same `Live` property and no longer owns its former Bench polling loop.
+The observer creates one generation when entering ChampSelect, refreshes Bench facts on the existing
+heartbeat, and latches only after actionable candidates are observed. Candidate changes update the
+same generation in place. A zero-candidate or temporarily unavailable read keeps an already latched
+surface alive as a compact waiting strip; leaving ChampSelect clears the latch. The detailed Workbench
+still owns its page-level Dashboard/Player/Live refreshes, but it is no longer the sole source for
+automatic Compact/Strip presentation.
 
 The strip is the existing `MainWindow` `ChampSelectStrip` mode: a 56-DIP horizontal surface with
-44-DIP portrait tiles, content-driven width clamped to 280–600 DIP, a dedicated `F` drag handle,
-and a compact collapse control. Portrait buttons use the existing `TrySwapAsync` command and its
-single POST plus 35/70/140 ms read-back; busy state disables both presentations, and result text is
-brief and non-modal. Unknown identity data uses a compact `Unknown champion` placeholder and never
-renders a raw `#<id>` primary label.
+44-DIP portrait tiles, content-driven width clamped to 280–600 DIP, and a dedicated `F` drag handle.
+There is no normal collapse button for this latched surface. Portrait buttons use the existing
+`TrySwapAsync` command and its single POST plus 35/70/140 ms read-back; busy state disables both
+presentations, and result text is brief and non-modal. Unknown identity data uses a compact
+`Unknown champion` placeholder and never renders a raw `#<id>` primary label.
 
-After a user click completes, the App requests one explicit refresh through the existing Workbench
-ViewModel so the authoritative `Live` candidate list can reconcile immediately even when the detailed
-League page is not selected. This is a user-action refresh, not a new timer or polling owner.
+After a user click completes, the App requests one explicit refresh through the shared Bench runtime
+and the existing Workbench ViewModel. This is a user-action reconciliation, not a new timer or
+polling owner.
 
-Outside-click and explicit collapse return the one host to Orb and dismiss only the current Bench
-context. A material candidate-list change or a new ChampSelect generation clears that dismissal.
-InGame still takes precedence and hides the host; Lobby restoration returns it to Orb. The existing
-MS9 HWND minimum-track-size adaptation, TopMost/hit-test boundary, modal suppression, anchor
-persistence, single-instance and tray contracts remain outside this feature's ownership.
+Outside-click, League-client click, candidate click, and simple F-handle click preserve the latched
+Strip. Ordinary expanded surfaces retain their existing outside-click dismissal policy. Modal scopes
+suppress automatic activation and re-evaluate after the scope closes. InGame takes precedence and
+hides the host directly; Lobby restoration returns it to Orb. The App emits low-noise
+`league.bench.surface-evaluation` events only when the decision/state signature changes, including
+phase, context generation, candidate count, current surface, latch, source owner, and freshness. The
+existing MS9 HWND minimum-track-size adaptation, TopMost/hit-test boundary, modal suppression,
+anchor persistence, single-instance and tray contracts remain outside this feature's ownership.
 
 ## 3. Stable paths
 

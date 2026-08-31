@@ -152,6 +152,7 @@ public partial class App : Application
             _productState,
             _performance,
             diagnosticReporter: ReportLeagueGameflowDiagnostic);
+        InitializeLeagueBenchRuntime();
         _matchmakingAutomation = new LeagueMatchmakingAutomationService(
             _leagueGateway,
             _leagueGateway,
@@ -343,7 +344,10 @@ public partial class App : Application
             ShowTrayContextMenuAtCursor,
             ReportSurfaceTransitionDiagnostic,
             ReportSurfacePresentationFailureDiagnostic,
-            _floatingSurfacePlatform!.TryEnableSmallSurfaceWindow);
+            _floatingSurfacePlatform!.TryEnableSmallSurfaceWindow,
+            CreateLeagueBenchQuickPickService(),
+            _leagueBenchRuntime,
+            ReportLeagueBenchSurfaceEvaluation);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
@@ -772,6 +776,11 @@ public partial class App : Application
         DisposeTrayHost();
         if (_gameflow is not null)
             _gameflow.Changed -= OnLeagueGameflowChanged;
+        _leagueBenchRuntime?.Dispose();
+        _leagueBenchRuntime = null;
+        if (_leagueBenchQuickPick is IDisposable leagueBenchQuickPick)
+            leagueBenchQuickPick.Dispose();
+        _leagueBenchQuickPick = null;
         _matchmakingAutomation?.Dispose();
         _matchmakingAutomation = null;
         _gameflow?.Dispose();

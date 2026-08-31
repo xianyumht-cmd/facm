@@ -334,11 +334,12 @@ MS9.1 真实日志证明所有呈现失败都在共享 `invariant-check`，而�
 
 ### 决策
 
-- `LeagueWorkbenchViewModel.Live.BenchChampionIds` 是 Bench 候选的唯一权威来源；Morphing `ChampSelectStrip` 与详细 League Bench 卡片都消费它，不再各自计算候选。
+- `LeagueBenchRuntimeObserver` 是 Compact/Strip 自动呈现的唯一进程级 Bench 状态 owner；它复用唯一 `LeagueGameflowMonitor.Observed` 心跳和唯一 `LeagueBenchQuickPickService`。详细 Workbench 仍可刷新自己的 `Live` 页面，但不再是自动呈现的前置条件。
+- `LeagueBenchRuntimeSnapshot` 是 Compact/Strip 的唯一候选事实来源；它保留 ChampSelect context generation、Bench 状态、候选列表、锁存状态和 source freshness，详细 Workbench 与该运行时都不各自维护自动呈现判定。
 - 新增的 `LeagueBenchCandidate` / `LeagueBenchCandidatePresentation` 只负责把已观察到的 ID 映射为名称、头像源和动作状态；交换仍调用既有 `ILeagueBenchQuickPickService.TrySwapAsync`，不新增 HTTP 写路径。
-- 只有 `ChampSelect + BenchEnabled + 至少一个正数候选` 时才自动把同一个 `MainWindow` 变为横向 strip。无候选、Bench 禁用、会话不可用或其它阶段不得显示空 strip。
+- 只有首次观察到 `ChampSelect + BenchEnabled + 至少一个正数候选` 时才锁存并把同一个 `MainWindow` 变为横向 strip；同一 ChampSelect context 中候选暂时变为 0 或读取暂不可用时，保留细条等待态，不退回 Orb。InGame/Lobby 结束 context 并清理锁存。
 - strip 采用 56 DIP 高度、44 DIP 头像格、280–600 DIP 内容宽度；F 区域是唯一拖动区，头像按钮只处理点击/键盘激活；hover/focus 使用短提示，不以 `#37` / `#236` 作为主控件标签。
-- 用户折叠或桌面空白点击只屏蔽当前 Bench 上下文；候选列表实质变化或新 ChampSelect 上下文会重新允许自动显示。InGame、modal、single-instance、tray、桌宠与 MS9 窗口约束保持原契约。
+- BenchStrip 没有正常折叠按钮；桌面空白、League 客户端点击、候选点击和 F 句柄简单点击均保持 Strip，F 句柄仍可拖动。普通 expanded surface 继续使用 outside-click 折叠，modal 只抑制自动激活并在关闭后重新评估。InGame、single-instance、tray、桌宠与 MS9 窗口约束保持原契约。
 
 ### 原因
 

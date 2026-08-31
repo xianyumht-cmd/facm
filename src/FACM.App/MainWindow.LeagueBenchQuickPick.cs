@@ -20,6 +20,7 @@ public sealed partial class MainWindow
     private StackPanel? _leagueBenchButtons;
     private CancellationTokenSource? _leagueBenchIdentityCts;
     private bool _leagueBenchSwapping;
+    private bool _ownsLeagueBenchQuickPick;
     private string _leagueBenchRequestedSignature = string.Empty;
     private string _leagueBenchRenderedSignature = string.Empty;
 
@@ -28,10 +29,16 @@ public sealed partial class MainWindow
     private void InitializeLeagueBenchQuickPickSurface()
     {
         if (_leagueBenchCard is not null) return;
-        if (Application.Current is not App app) return;
-
-        try { _leagueBenchQuickPick = app.CreateLeagueBenchQuickPickService(); }
-        catch { return; }
+        if (_leagueBenchQuickPick is null)
+        {
+            if (Application.Current is not App app) return;
+            try
+            {
+                _leagueBenchQuickPick = app.CreateLeagueBenchQuickPickService();
+                _ownsLeagueBenchQuickPick = true;
+            }
+            catch { return; }
+        }
 
         var card = new Border
         {
@@ -350,6 +357,8 @@ public sealed partial class MainWindow
             // One explicit post-click reconciliation through the existing Workbench owner. This is
             // not a new timer or polling loop; the resulting Live notification redraws both views.
             await _leagueWorkbench.RefreshAsync();
+            if (_leagueBenchRuntime is not null)
+                await _leagueBenchRuntime.RefreshAsync();
         }
         catch (OperationCanceledException)
         {
@@ -430,8 +439,10 @@ public sealed partial class MainWindow
     private void DisposeLeagueBenchQuickPickSurface()
     {
         CancelLeagueBenchIdentityLoad();
-        if (_leagueBenchQuickPick is IDisposable disposable) disposable.Dispose();
+        if (_ownsLeagueBenchQuickPick && _leagueBenchQuickPick is IDisposable disposable)
+            disposable.Dispose();
         _leagueBenchQuickPick = null;
+        _ownsLeagueBenchQuickPick = false;
         _leagueBenchCard = null;
         _leagueBenchStateText = null;
         _leagueBenchStatusText = null;

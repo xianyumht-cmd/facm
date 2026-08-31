@@ -20,8 +20,7 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _champSelectIdentityCts;
     private bool _champSelectHasCandidates;
     private int _benchStripCandidateCount;
-    private string _benchLastCandidateSignature = string.Empty;
-    private readonly LeagueBenchContextDismissal _benchContextDismissal = new();
+    private string _lastBenchSurfaceEvaluationSignature = string.Empty;
     private readonly Dictionary<int, string> _champSelectCandidateNames = [];
 
     private sealed record ChampSelectCandidateVisual(LeagueBenchCandidate Candidate, BitmapImage? Icon);
@@ -29,23 +28,20 @@ public sealed partial class MainWindow
     private void BeginBenchContext()
     {
         CancelChampSelectIdentityLoad();
-        _benchContextDismissal.BeginNewContext();
-        _benchLastCandidateSignature = string.Empty;
         _benchStripCandidateCount = 0;
         _champSelectRequestedSignature = string.Empty;
         _champSelectRenderedSignature = string.Empty;
         _champSelectCandidateNames.Clear();
+        _lastBenchSurfaceEvaluationSignature = string.Empty;
     }
-
-    private void DismissBenchStripForCurrentContext() => _benchContextDismissal.DismissCurrentContext();
 
     private void ResetBenchContext()
     {
-        _benchLastCandidateSignature = string.Empty;
         _benchStripCandidateCount = 0;
         _champSelectRequestedSignature = string.Empty;
         _champSelectRenderedSignature = string.Empty;
         _champSelectCandidateNames.Clear();
+        _lastBenchSurfaceEvaluationSignature = string.Empty;
         CancelChampSelectIdentityLoad();
     }
 
@@ -56,6 +52,17 @@ public sealed partial class MainWindow
         _champSelectIdentityCts = null;
     }
 
+    private void OnLeagueBenchRuntimeChanged(object? sender, LeagueBenchRuntimeChangedEventArgs args)
+    {
+        if (_closed) return;
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => OnLeagueBenchRuntimeChanged(sender, args));
+            return;
+        }
+        ApplyMorphingChampSelectState();
+    }
+
     private void ApplyMorphingChampSelectState() => _ = RefreshMorphingChampSelectStateAsync();
 
     private async Task RefreshMorphingChampSelectStateAsync()
@@ -63,42 +70,111 @@ public sealed partial class MainWindow
         if (!_morphingSurfaceEnabled || ChampSelectCandidatesPanel is null) return;
 
         var live = _leagueWorkbench.Live;
-        var candidates = live.BenchEnabled
-            ? live.BenchChampionIds.Where(id => id > 0).Distinct().ToArray()
-            : Array.Empty<int>();
-        var signature = string.Join(',', candidates);
-        if (!string.Equals(signature, _benchLastCandidateSignature, StringComparison.Ordinal))
-        {
-            _benchLastCandidateSignature = signature;
-            if (!string.IsNullOrEmpty(signature))
-                _benchContextDismissal.ResetForMaterialCandidateChange();
-        }
+        var runtime = _leagueBenchRuntime?.Current;
+        var phase = runtime?.Phase ?? live.Phase;
+        var isChampSelect = runtime?.IsChampSelect ??
+                            string.Equals(live.Phase, "ChampSelect", StringComparison.OrdinalIgnoreCase);
+        var benchEnabled = runtime?.BenchEnabled ?? live.BenchEnabled;
+        var candidates = runtime is not null
+            ? runtime.ChampionIds.Where(id => id > 0).Distinct().ToArray()
+            : live.BenchChampionIds.Where(id => id > 0).Distinct().ToArray();
+        var eligible = runtime is not null
+            ? LeagueBenchSwapStripPolicy.IsEligible(runtime)
+            : LeagueBenchSwapStripPolicy.IsEligible(live);
+        var isLatched = runtime?.IsLatched == true;
+        var currentSurface = _surfaceStateMachine.Mode.ToString();
 
-        var eligible = LeagueBenchSwapStripPolicy.IsEligible(live) && candidates.Length > 0;
-        if (!eligible)
+        if (!isChampSelect)
         {
+            ReportBenchSurfaceEvaluation(
+                runtime,
+                phase,
+                benchEnabled,
+                candidates.Length,
+                currentSurface,
+                false,
+                "phase-not-champ-select");
             if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip &&
                 !_surfaceStateMachine.IsModalScopeActive)
-            {
-                ShowMorphingSurface(FacmSurfaceMode.Orb, "bench-candidates-unavailable", false, live.Phase);
-            }
+                ShowMorphingSurface(FacmSurfaceMode.Orb, "bench-context-ended", false, phase);
+            return;
+        }
+
+        if (!isLatched)
+        {
+            ReportBenchSurfaceEvaluation(
+                runtime,
+                phase,
+                benchEnabled,
+                candidates.Length,
+                currentSurface,
+                false,
+                candidates.Length == 0
+                    ? "awaiting-actionable-candidates"
+                    : eligible ? "awaiting-context-latch" : "bench-not-actionable");
+            return;
+        }
+
+        if (_surfaceStateMachine.IsModalScopeActive)
+        {
+            ReportBenchSurfaceEvaluation(
+                runtime,
+                phase,
+                benchEnabled,
+                candidates.Length,
+                currentSurface,
+                true,
+                "modal-suppressed");
             return;
         }
 
         _benchStripCandidateCount = candidates.Length;
-        if (_surfaceStateMachine.IsModalScopeActive ||
-            !_benchContextDismissal.CanAutoShow(true))
-            return;
-
         if (_surfaceStateMachine.Mode != FacmSurfaceMode.ChampSelectStrip)
         {
-            ShowMorphingSurface(FacmSurfaceMode.ChampSelectStrip, "bench-candidates-available", false, live.Phase);
+            ReportBenchSurfaceEvaluation(
+                runtime,
+                phase,
+                benchEnabled,
+                candidates.Length,
+                currentSurface,
+                true,
+                "strip-activated");
+            ShowMorphingSurface(FacmSurfaceMode.ChampSelectStrip, "bench-candidates-latched", false, phase);
+            return;
+        }
+
+        if (candidates.Length == 0)
+        {
+            _champSelectRequestedSignature = string.Empty;
+            _benchStripCandidateCount = 0;
+            RebuildChampSelectCandidates(Array.Empty<ChampSelectCandidateVisual>());
+            ChampSelectStatus.Text = "英雄台";
+            ChampSelectAction.Text = "等待候选英雄…";
+            ReportBenchSurfaceEvaluation(
+                runtime,
+                phase,
+                benchEnabled,
+                0,
+                currentSurface,
+                true,
+                "strip-waiting-for-candidates");
             return;
         }
 
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         if (!_leagueBenchSwapping)
             ChampSelectAction.Text = "点击头像即可交换英雄";
+
+        ReportBenchSurfaceEvaluation(
+            runtime,
+            phase,
+            benchEnabled,
+            candidates.Length,
+            currentSurface,
+            true,
+            "strip-latched-refresh");
+
+        var signature = string.Join(',', candidates);
 
         if (string.Equals(signature, _champSelectRequestedSignature, StringComparison.Ordinal))
         {
@@ -151,6 +227,50 @@ public sealed partial class MainWindow
                 requestCts.Dispose();
                 _champSelectIdentityCts = null;
             }
+        }
+    }
+
+    private void ReportBenchSurfaceEvaluation(
+        LeagueBenchRuntimeSnapshot? runtime,
+        string phase,
+        bool benchEnabled,
+        int candidateCount,
+        string currentSurface,
+        bool isLatched,
+        string decision)
+    {
+        if (_benchSurfaceEvaluationReporter is null) return;
+        var contextGeneration = runtime?.ContextGeneration ?? 0;
+        var sourceOwner = runtime?.SourceOwner ?? "LeagueWorkbenchViewModel";
+        var sourceFreshness = runtime?.SourceFreshness ?? "workbench-fallback";
+        var signature = string.Join(
+            "|",
+            phase,
+            contextGeneration.ToString(CultureInfo.InvariantCulture),
+            benchEnabled,
+            candidateCount.ToString(CultureInfo.InvariantCulture),
+            currentSurface,
+            isLatched,
+            decision,
+            sourceOwner,
+            sourceFreshness);
+        if (string.Equals(signature, _lastBenchSurfaceEvaluationSignature, StringComparison.Ordinal)) return;
+        _lastBenchSurfaceEvaluationSignature = signature;
+        try
+        {
+            _benchSurfaceEvaluationReporter(new LeagueBenchSurfaceEvaluation(
+                phase,
+                contextGeneration,
+                benchEnabled,
+                candidateCount,
+                currentSurface,
+                isLatched,
+                decision,
+                sourceOwner,
+                sourceFreshness));
+        }
+        catch
+        {
         }
     }
 

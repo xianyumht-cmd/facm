@@ -65,29 +65,31 @@ Workbench 同源呈现与上下文生命周期）和 `d551a46`（点击后的权
 `dc70c98`、`028268e`、`50f7026`。实现只发生在
 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`；`D:\project2\Facm` 未修改。
 
-- 候选唯一来源是 `LeagueWorkbenchViewModel.Live.BenchChampionIds`；它由现有
-  `LeagueWorkbenchDataSource` 的 Legacy/TeamBuilder 读取路径提供。Strip 与详细 Workbench 卡片
-  共同使用 `LeagueBenchCandidatePresentation`，不再分别计算候选。
+- Compact/Strip 自动呈现的候选唯一来源已提升为进程级 `LeagueBenchRuntimeSnapshot`；它由新的
+  `LeagueBenchRuntimeObserver` 挂接现有唯一 `LeagueGameflowMonitor.Observed` 心跳，并复用唯一
+  `LeagueBenchQuickPickService` 的 Legacy/TeamBuilder 读取路径。详细 Workbench 仍消费自己的
+  `Live` 快照，但不再是 Compact/Strip 自动显示的前置条件。
 - 身份和头像继续使用现有 `LeagueBenchQuickPickService` 的
   `/lol-game-data/assets/v1/champion-summary.json` 与
   `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取/缓存路径；本轮未增加 portrait 网络
   owner 或请求循环。未知 ID 显示 `Unknown champion` 紧凑占位，不以 `#37`/`#236` 为主标签。
-- 同一 `MainWindow` 的 `ChampSelectStrip` 在 `ChampSelect + BenchEnabled + 候选数>0` 时才自动
-  显示；目标高度 56 DIP、头像格 44 DIP、宽度 280–600 DIP。F 区为拖动区，头像按钮保留
-  mouse/keyboard 激活、短提示和可访问名称。
+- 同一 `MainWindow` 的 `ChampSelectStrip` 在当前 ChampSelect context 首次观察到
+  `BenchEnabled + 候选数>0` 后锁存显示；候选变化原位更新，暂时零候选/读取不可用保持 56 DIP
+  waiting strip，不回退 Orb。目标头像格 44 DIP、宽度 280–600 DIP；F 区为拖动区，头像按钮
+  保留 mouse/keyboard 激活、短提示和可访问名称。
 - 点击复用既有 `TrySwapAsync`：一次 POST、35/70/140ms 有界只读回读、无写重试；成功/失败在
-  strip 与详细卡片显示短反馈。桌面空白/显式折叠回 Orb，并只屏蔽当前上下文；候选实质变化
-  或新 ChampSelect 会话重新允许自动显示。InGame 仍隐藏，Lobby 恢复 Orb。
-- 定向 Bench smoke 已通过 37/236 双候选、未知回退、0/1/2/多候选 eligibility/geometry、上下文
-  dismissal/reopen、一次写入、成功回读、验证失败不重试和 409 stale target；28/28 当前
-  `check-facm4-*.ps1` source gates、FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
-  `--skip-gate13`、WindowsSmoke 均通过，均为 0 警告/0 错误（smoke 本身无警告）。
+  strip 与详细卡片显示短反馈。桌面空白、League 客户端点击、候选点击和 F 句柄简单点击都
+  保持已锁存 Strip；只有 InGame/Lobby 结束 context，InGame 仍直接 HiddenInGame，Lobby 恢复 Orb。
+- BS7 定向 smoke 已通过 Workbench 未打开自动锁存、候选原位更新、零候选 waiting、新 context
+  generation、InGame/Lobby 清理、一次写入、成功回读、验证失败不重试、409 stale target 和
+  Strip 输入保持策略；Bench/Desktop source gates、FACM.App Release build、FoundationSmoke
+  和 WindowsSmoke 均通过，均为 0 警告/0 错误。
 - 新用户评审候选：`D:\project2\facm-bs6-review-out-20260831-1600\FACM.App.exe`，单文件目录
   仅 1 个文件、0 个 DLL，421,024,376 bytes，SHA-256
   `68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B`。
 
 本轮没有执行 Gate13、merge、push、release、正式 P7 移动或 production pointer 修改。真实 LCU
-ARAM/Bench、portrait 实际渲染、outside-click/modal、键盘/辅助功能、多 DPI 和完整 MS9
+ARAM/Bench、portrait 实际渲染、Strip 锁存全过程、modal、键盘/辅助功能、多 DPI 和完整 MS9
 presentation 仍需在该新候选上由用户验收，不能据此宣称完整 P7 或 release-ready。
 
 ## 2026-08-30 Batch P：Desktop Pet IPC lifecycle fix

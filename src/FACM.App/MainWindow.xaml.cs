@@ -55,6 +55,8 @@ public sealed partial class MainWindow : Window
     private readonly Action<FacmSurfaceTransition>? _surfaceTransitionReporter;
     private readonly Action<FacmSurfacePresentationFailure>? _surfacePresentationFailureReporter;
     private readonly Func<IntPtr, bool>? _configureSurfaceWindow;
+    private readonly ILeagueBenchRuntimeState? _leagueBenchRuntime;
+    private readonly Action<LeagueBenchSurfaceEvaluation>? _benchSurfaceEvaluationReporter;
     private int _outsideCloseSuppression;
     private bool _closed;
     private bool _cleanupInitialized;
@@ -104,7 +106,10 @@ public sealed partial class MainWindow : Window
         Action? showTrayContextMenu = null,
         Action<FacmSurfaceTransition>? surfaceTransitionReporter = null,
         Action<FacmSurfacePresentationFailure>? surfacePresentationFailureReporter = null,
-        Func<IntPtr, bool>? configureSurfaceWindow = null)
+        Func<IntPtr, bool>? configureSurfaceWindow = null,
+        ILeagueBenchQuickPickService? leagueBenchQuickPick = null,
+        ILeagueBenchRuntimeState? leagueBenchRuntime = null,
+        Action<LeagueBenchSurfaceEvaluation>? benchSurfaceEvaluationReporter = null)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _cleanupCenter = cleanupCenter ?? throw new ArgumentNullException(nameof(cleanupCenter));
@@ -120,6 +125,9 @@ public sealed partial class MainWindow : Window
         _surfaceTransitionReporter = surfaceTransitionReporter;
         _surfacePresentationFailureReporter = surfacePresentationFailureReporter;
         _configureSurfaceWindow = configureSurfaceWindow;
+        _leagueBenchQuickPick = leagueBenchQuickPick;
+        _leagueBenchRuntime = leagueBenchRuntime;
+        _benchSurfaceEvaluationReporter = benchSurfaceEvaluationReporter;
         _surfaceStateMachine = new FacmSurfaceStateMachine();
         _surfaceStateMachine.Transitioned += OnSurfaceTransitioned;
         try
@@ -157,6 +165,8 @@ public sealed partial class MainWindow : Window
         ChampSelectDragHandle.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnSurfacePointerCaptureLost), handledEventsToo: true);
         _cleanupCenter.PropertyChanged += OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged += OnLeagueWorkbenchPropertyChanged;
+        if (_leagueBenchRuntime is not null)
+            _leagueBenchRuntime.Changed += OnLeagueBenchRuntimeChanged;
         Closed += OnClosed;
         RootNavigation.SelectedItem = RepairNav;
         RootNavigation.Loaded += OnRootNavigationLoaded;
@@ -481,8 +491,8 @@ public sealed partial class MainWindow : Window
 
         if (_surfaceStateMachine.IsModalScopeActive || _surfaceStateMachine.Mode == FacmSurfaceMode.HiddenInGame)
             return;
-        if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-            DismissBenchStripForCurrentContext();
+        if (LeagueBenchStripInteractionPolicy.SuppressOutsideDismissal(_surfaceStateMachine.Mode))
+            return;
         _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "outside-click", false);
     }
@@ -970,7 +980,7 @@ public sealed partial class MainWindow : Window
 
     private void SetOutsideClickWatcherActive(FacmSurfaceMode mode)
     {
-        if (mode is FacmSurfaceMode.Orb or FacmSurfaceMode.HiddenInGame)
+        if (mode is FacmSurfaceMode.Orb or FacmSurfaceMode.HiddenInGame or FacmSurfaceMode.ChampSelectStrip)
             _outsideClickWatcher.Stop();
         else
             _outsideClickWatcher.Start();
@@ -1108,6 +1118,7 @@ public sealed partial class MainWindow : Window
                 BeginBenchContext();
                 if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
                     ShowMorphingSurface(FacmSurfaceMode.Orb, "bench-context-refreshing", false, snapshot.Phase);
+                ApplyMorphingChampSelectState();
                 _ = RefreshChampSelectWorkbenchAsync();
             }
             return;
@@ -1131,8 +1142,8 @@ public sealed partial class MainWindow : Window
     private void OnSurfaceCollapseToOrbClick(object sender, RoutedEventArgs e)
     {
         if (!_morphingSurfaceEnabled) return;
-        if (_surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
-            DismissBenchStripForCurrentContext();
+        if (LeagueBenchStripInteractionPolicy.SuppressCollapse(_surfaceStateMachine.Mode))
+            return;
         _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "collapse-to-orb", true);
     }
@@ -1891,6 +1902,8 @@ public sealed partial class MainWindow : Window
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;
+        if (_leagueBenchRuntime is not null)
+            _leagueBenchRuntime.Changed -= OnLeagueBenchRuntimeChanged;
         _surfaceStateMachine.Transitioned -= OnSurfaceTransitioned;
         Closed -= OnClosed;
     }
@@ -1906,7 +1919,9 @@ public sealed partial class MainWindow : Window
     private void ReleaseOutsideCloseSuppression()
     {
         if (Volatile.Read(ref _outsideCloseSuppression) == 0) return;
-        Interlocked.Decrement(ref _outsideCloseSuppression);
+        if (Interlocked.Decrement(ref _outsideCloseSuppression) == 0 &&
+            _surfaceStateMachine.Mode == FacmSurfaceMode.ChampSelectStrip)
+            ApplyMorphingChampSelectState();
     }
 
     private sealed class OutsideCloseSuppressionScope(MainWindow owner) : IDisposable

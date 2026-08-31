@@ -1,5 +1,8 @@
 using System.Text;
+using FACM.Core.Desktop;
 using FACM.Core.League;
+using FACM.Core.Performance;
+using FACM.Core.State;
 using FACM.Infrastructure.League;
 
 internal static class LeagueBenchQuickPickSmoke
@@ -11,6 +14,7 @@ internal static class LeagueBenchQuickPickSmoke
         ValidateLegacyParser();
         ValidateChampionIdentityParser();
         ValidateBenchSwapStripPresentation();
+        await ValidateProcessLevelBenchRuntimeLifecycleAsync();
         await ValidateTeamBuilderFallbackAndSingleWriteAsync();
         await ValidateVerificationFailureNeverRetriesWriteAsync();
         await ValidateTargetUnavailableSkipsReadbackAsync();
@@ -149,16 +153,76 @@ internal static class LeagueBenchQuickPickSmoke
                 LeagueBenchSwapStripPolicy.ResolveWidthDip(20) == LeagueBenchSwapStripPolicy.MaximumWidthDip,
             "Bench strip geometry must be content-driven and capped.");
 
-        var dismissal = new LeagueBenchContextDismissal();
-        dismissal.BeginNewContext();
-        Require(dismissal.CanAutoShow(true), "A new actionable Bench context must auto-show.");
-        dismissal.DismissCurrentContext();
-        Require(!dismissal.CanAutoShow(true), "Manual strip dismissal must hold for the current context.");
-        dismissal.ResetForMaterialCandidateChange();
-        Require(dismissal.CanAutoShow(true), "A material candidate change must clear dismissal.");
-        dismissal.DismissCurrentContext();
-        dismissal.BeginNewContext();
-        Require(dismissal.CanAutoShow(true), "A new Champ Select context must reopen the strip.");
+        Require(LeagueBenchStripInteractionPolicy.SuppressOutsideDismissal(FacmSurfaceMode.ChampSelectStrip),
+            "Outside click must preserve the latched Bench strip.");
+        Require(LeagueBenchStripInteractionPolicy.SuppressCollapse(FacmSurfaceMode.ChampSelectStrip),
+            "The normal collapse action must not collapse the latched Bench strip.");
+        Require(LeagueBenchStripInteractionPolicy.PreserveAfterCandidateClick(FacmSurfaceMode.ChampSelectStrip),
+            "Candidate click must preserve the Bench strip.");
+        Require(LeagueBenchStripInteractionPolicy.PreserveAfterHandleClick(FacmSurfaceMode.ChampSelectStrip),
+            "A simple F-handle click must preserve the Bench strip.");
+        Require(!LeagueBenchStripInteractionPolicy.SuppressOutsideDismissal(FacmSurfaceMode.ControlMatrix),
+            "Ordinary expanded surfaces must retain outside-click dismissal.");
+    }
+
+    private static async Task ValidateProcessLevelBenchRuntimeLifecycleAsync()
+    {
+        var gameflow = new FakeGameflow();
+        var bench = new FakeBenchService
+        {
+            State = new LeagueBenchQuickPickState(true, true, 1, 10, LeagueBenchSwapRoute.Legacy, [22, 44])
+        };
+        using var runtime = new LeagueBenchRuntimeObserver(gameflow, bench);
+
+        // No Workbench ViewModel is constructed or opened in this scenario. The observer alone must
+        // activate the process-level state when ChampSelect candidates arrive.
+        gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));
+        await WaitUntilAsync(() => runtime.Current.IsLatched && runtime.Current.CandidateCount == 2,
+            "Process-level Bench observer did not latch without opening Workbench.");
+        Require(runtime.Current.ContextGeneration == 1, "The first ChampSelect context generation was not created.");
+
+        bench.State = bench.State with { ChampionIds = [44, 77] };
+        gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));
+        await WaitUntilAsync(() => runtime.Current.ChampionIds.SequenceEqual([44, 77]),
+            "Candidate changes did not update the latched runtime state in place.");
+
+        bench.State = bench.State with { ChampionIds = [] };
+        gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));
+        await WaitUntilAsync(() => runtime.Current.IsLatched && runtime.Current.CandidateCount == 0,
+            "A temporary zero-candidate read collapsed the latched runtime state.");
+
+        gameflow.Publish(Snapshot(LeagueProductState.InGame, "InProgress"));
+        await WaitUntilAsync(() => !runtime.Current.IsChampSelect && !runtime.Current.IsLatched,
+            "InGame did not clear the Bench runtime state.");
+
+        bench.State = bench.State with { ChampionIds = [99] };
+        gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));
+        await WaitUntilAsync(() => runtime.Current.IsLatched && runtime.Current.ContextGeneration == 2,
+            "A new ChampSelect context did not create a fresh latch.");
+
+        gameflow.Publish(Snapshot(LeagueProductState.Lobby, "Lobby"));
+        await WaitUntilAsync(() => !runtime.Current.IsChampSelect && !runtime.Current.IsLatched,
+            "Lobby did not return the Bench runtime state to idle.");
+    }
+
+    private static LeagueGameflowSnapshot Snapshot(LeagueProductState productState, string phase) =>
+        new(
+            DateTimeOffset.UtcNow,
+            LeagueConnectionState.Connected,
+            phase,
+            productState,
+            productState == LeagueProductState.ChampSelect
+                ? LeagueActivityLevel.ChampSelect
+                : productState == LeagueProductState.InGame
+                    ? LeagueActivityLevel.InGame
+                    : LeagueActivityLevel.Client);
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string message)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (!condition() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+        Require(condition(), message);
     }
 
     private static async Task ValidateTeamBuilderFallbackAndSingleWriteAsync()
@@ -309,5 +373,51 @@ internal static class LeagueBenchQuickPickSmoke
             Commands.Add(command);
             return Task.FromResult(WriteResult);
         }
+    }
+
+    private sealed class FakeGameflow : ILeagueGameflowObservationSource
+    {
+        public LeagueGameflowSnapshot? Current { get; private set; }
+
+        public event EventHandler<LeagueGameflowChangedEventArgs>? Changed;
+        public event EventHandler<LeagueGameflowChangedEventArgs>? Observed;
+
+        public void Publish(LeagueGameflowSnapshot snapshot)
+        {
+            var previous = Current;
+            Current = snapshot;
+            var args = new LeagueGameflowChangedEventArgs(previous, snapshot);
+            Changed?.Invoke(this, args);
+            Observed?.Invoke(this, args);
+        }
+    }
+
+    private sealed class FakeBenchService : ILeagueBenchQuickPickService
+    {
+        public LeagueBenchQuickPickState State { get; set; } = LeagueBenchQuickPickState.Unavailable;
+
+        public Task<LeagueBenchQuickPickState> RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(State);
+        }
+
+        public void SetSwapRoute(LeagueBenchSwapRoute route) { }
+
+        public Task<IReadOnlyDictionary<int, LeagueChampionIdentity>> LoadChampionIdentitiesAsync(
+            IReadOnlyCollection<int> championIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, LeagueChampionIdentity>>(
+                new Dictionary<int, LeagueChampionIdentity>());
+
+        public Task<byte[]?> LoadChampionIconAsync(int championId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<byte[]?>(null);
+
+        public Task<LeagueBenchSwapResult> TrySwapAsync(int championId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new LeagueBenchSwapResult(
+                LeagueBenchSwapStatus.SessionUnavailable,
+                championId,
+                0,
+                0));
     }
 }

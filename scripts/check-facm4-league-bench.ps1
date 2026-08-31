@@ -17,6 +17,7 @@ $corePath = Join-Path $Root 'src/FACM.Core/League/LeagueBenchQuickPick.cs'
 $writeContractPath = Join-Path $Root 'src/FACM.Core/League/LeagueContracts.cs'
 $servicePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBenchQuickPickService.cs'
 $compositionPath = Join-Path $Root 'src/FACM.App/App.LeagueBenchQuickPick.cs'
+$runtimePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBenchRuntimeObserver.cs'
 $uiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueBenchQuickPick.cs'
 $morphingPath = Join-Path $Root 'src/FACM.App/MainWindow.MorphingSurface.cs'
 $xamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
@@ -24,7 +25,7 @@ $runtimeUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchRuntime
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/LeagueBenchQuickPickSmoke.cs'
 $smokeProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 
-foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $uiPath, $morphingPath, $xamlPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
+foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $runtimePath, $uiPath, $morphingPath, $xamlPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
     if (-not (Test-Path $path)) { Fail "League bench quick-pick contract file missing: $path" }
 }
 
@@ -32,6 +33,7 @@ $core = Get-Content $corePath -Raw
 $writeContract = Get-Content $writeContractPath -Raw
 $service = Get-Content $servicePath -Raw
 $composition = Get-Content $compositionPath -Raw
+$runtime = Get-Content $runtimePath -Raw
 $ui = Get-Content $uiPath -Raw
 $morphing = Get-Content $morphingPath -Raw
 $xaml = Get-Content $xamlPath -Raw
@@ -105,6 +107,11 @@ foreach ($required in @(
         Fail "League bench WinUI surface is missing behavior: $required"
     }
 }
+foreach ($required in @('LeagueBenchRuntimeObserver', 'ILeagueBenchRuntimeState', 'Observed +=', 'RefreshForObservationAsync', '_refreshGate')) {
+    if (($composition + $runtime) -notmatch [regex]::Escape($required)) {
+        Fail "Process-level Bench runtime owner is missing: $required"
+    }
+}
 foreach ($forbidden in @('RunLeagueBenchLoopAsync', '_leagueBenchLoopCts', 'RefreshLeagueBenchOnceAsync', 'LeagueBenchQuickPickPolling.ResolveDelay')) {
     if ($ui -match [regex]::Escape($forbidden)) {
         Fail "League bench WinUI must not add an independent polling loop: $forbidden"
@@ -117,7 +124,8 @@ foreach ($forbidden in @('ILeagueWriteGateway', 'LeagueHttpGateway', 'HttpClient
 }
 foreach ($required in @(
     'LeagueBenchSwapStripPolicy.IsEligible', 'LeagueBenchCandidatePresentation',
-    'DismissBenchStripForCurrentContext', 'ResetBenchContext',
+    'LeagueBenchRuntimeSnapshot', 'OnLeagueBenchRuntimeChanged', 'ResetBenchContext',
+    'strip-activated', 'strip-waiting-for-candidates', 'ReportBenchSurfaceEvaluation',
     'SetChampSelectCandidateButtonsEnabled',
     'FACM.Surface.BenchSwap.', 'ToolTipService.SetToolTip'
 )) {
@@ -135,6 +143,11 @@ foreach ($forbidden in @('RunLeagueBenchLoopAsync', '_leagueBenchLoopCts', 'Leag
         Fail "Morphing Bench Swap Strip must not add an independent polling loop: $forbidden"
     }
 }
+foreach ($forbidden in @('DismissBenchStripForCurrentContext', 'LeagueBenchContextDismissal')) {
+    if (($ui + $morphing + $smoke) -match [regex]::Escape($forbidden)) {
+        Fail "Bench strip must not retain normal-interaction dismissal semantics: $forbidden"
+    }
+}
 foreach ($required in @('InitializeLeagueBenchQuickPickSurface()', 'DisposeLeagueBenchQuickPickSurface()')) {
     if ($runtimeUi -notmatch [regex]::Escape($required)) {
         Fail "League Workbench lifecycle is missing bench surface hook: $required"
@@ -143,6 +156,7 @@ foreach ($required in @('InitializeLeagueBenchQuickPickSurface()', 'DisposeLeagu
 
 foreach ($required in @(
     'ValidateWriteAllowlist', 'ValidatePollingPolicy', 'ValidateLegacyParser',
+    'ValidateProcessLevelBenchRuntimeLifecycleAsync', 'SuppressOutsideDismissal', 'ContextGeneration',
     'ValidateTeamBuilderFallbackAndSingleWriteAsync', 'ValidateVerificationFailureNeverRetriesWriteAsync',
     'ValidateTargetUnavailableSkipsReadbackAsync', 'gateway.Commands.Count == 1', 'reads == 4'
 )) {

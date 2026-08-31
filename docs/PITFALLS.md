@@ -24,6 +24,27 @@ FACM.App 是 WinUI 3 XAML 应用。为托盘接入 WinForms 时直接设置 `Use
 - 诊断回调必须 fail-soft，不能创建第二 transport、第二 polling loop 或改变请求顺序。
 - 在用户提供真实 League trace 并完成根因排序前，不实施 T2 性能策略修改。
 
+## Bench 自动呈现不能依赖 Workbench 页面生命周期
+
+### 根因
+
+`LeagueWorkbenchViewModel.Live` 只会在 Workbench refresh 入口被更新。若 Compact/Strip 把它当作
+自动呈现的唯一事实来源，则 Workbench 未打开、ChampSelect 候选晚于一次性进入刷新到达，或
+候选列表在会话中变化时，League 客户端已经显示 Bench 候选而 FACM 仍停留在 Orb。这是事实
+观察 owner 与 UI 页面生命周期耦合，不是 portrait 渲染失败。
+
+### 防回归规则
+
+- 自动 Compact/Strip 呈现必须消费进程级 Bench runtime state；它应挂接现有唯一
+  `LeagueGameflowMonitor.Observed` 心跳，不得新增第二个 Gameflow/session/gateway/timer/loop。
+- 首次可操作候选只在当前 ChampSelect context 内锁存 Strip；零候选或暂时读取失败只能显示
+  waiting state，不能因为一次空读回退 Orb。
+- 普通 expanded surface 的 outside-click 规则不能套用到锁存 BenchStrip；候选点击和 F 句柄
+  简单点击必须保持 Strip，InGame/Lobby 才能结束 context。
+- `league.bench.surface-evaluation` 只在决策签名改变时记录 phase、context generation、
+  candidate count、current surface、latch、source owner 和 freshness，避免用高频日志掩盖真正
+  的生命周期断链。
+
 ## 未经腾讯验证的 LCU 可选字段不能提升为自动化硬门槛
 
 ### 根因

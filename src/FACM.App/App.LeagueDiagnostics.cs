@@ -119,6 +119,30 @@ public partial class App
             diagnostic.Event == "started" ? diagnostic.StartedUtc : diagnostic.FinishedUtc));
     }
 
+    private void ReportLeagueBenchSurfaceEvaluation(LeagueBenchSurfaceEvaluation evaluation)
+    {
+        QueueDiagnostic(DiagnosticEventFactory.Create(
+            "league.bench.surface-evaluation",
+            "FACM.League.Bench",
+            0,
+            DiagnosticResult.Success,
+            evaluation.Decision,
+            _productState?.Current.League ?? LeagueProductState.NotRunning,
+            CurrentAppVersion(),
+            new Dictionary<string, string>
+            {
+                ["phase"] = evaluation.Phase,
+                ["contextGeneration"] = evaluation.ContextGeneration.ToString(CultureInfo.InvariantCulture),
+                ["benchEnabled"] = evaluation.BenchEnabled.ToString(CultureInfo.InvariantCulture),
+                ["candidateCount"] = evaluation.CandidateCount.ToString(CultureInfo.InvariantCulture),
+                ["currentSurface"] = evaluation.CurrentSurface,
+                ["isLatched"] = evaluation.IsLatched.ToString(CultureInfo.InvariantCulture),
+                ["decision"] = evaluation.Decision,
+                ["sourceOwner"] = evaluation.SourceOwner,
+                ["sourceFreshness"] = evaluation.SourceFreshness
+            }));
+    }
+
     private void ReportLeagueGameflowDiagnostic(LeagueGameflowDiagnostic diagnostic)
     {
         var data = new Dictionary<string, string>

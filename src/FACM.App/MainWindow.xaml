@@ -249,6 +249,7 @@
                 Padding="0"
                 Style="{StaticResource FacmCollapseButtonStyle}"
                 Click="OnSurfaceCollapseToOrbClick"
+                Visibility="Collapsed"
                 automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
                 <FontIcon Glyph="&#xE72C;" />
             </Button>

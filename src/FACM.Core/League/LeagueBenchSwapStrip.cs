@@ -69,6 +69,12 @@ public static class LeagueBenchSwapStripPolicy
         return live.BenchChampionIds.Any(id => id > 0);
     }
 
+    public static bool IsEligible(LeagueBenchRuntimeSnapshot? runtime) =>
+        runtime?.HasActionableCandidates == true;
+
+    public static bool IsChampSelectContext(LeagueBenchRuntimeSnapshot? runtime) =>
+        runtime?.IsChampSelect == true;
+
     public static int CountActionableCandidates(LeagueWorkbenchLiveSnapshot? live) =>
         live is null
             ? 0
@@ -86,29 +92,4 @@ public static class LeagueBenchSwapStripPolicy
                            count * PortraitTileDip + Math.Max(0, count - 1) * gapDip;
         return Math.Clamp(contentWidth, MinimumWidthDip, MaximumWidthDip);
     }
-}
-
-/// <summary>
-/// Keeps manual dismissal local to one Champ Select/Bench context. A new context or a materially
-/// changed candidate list is allowed to auto-show the strip again.
-/// </summary>
-public sealed class LeagueBenchContextDismissal
-{
-    private long _generation;
-    private long? _dismissedGeneration;
-
-    public long Generation => _generation;
-
-    public void BeginNewContext()
-    {
-        _generation++;
-        _dismissedGeneration = null;
-    }
-
-    public void ResetForMaterialCandidateChange() => _dismissedGeneration = null;
-
-    public void DismissCurrentContext() => _dismissedGeneration = _generation;
-
-    public bool CanAutoShow(bool hasActionableCandidates) =>
-        hasActionableCandidates && _dismissedGeneration != _generation;
 }
