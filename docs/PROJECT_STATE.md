@@ -408,8 +408,9 @@ release evidence 仍未完成；不得由本候选自动进入 Gate13 或 produc
 ## 2026-08-31 BOOT3-B release-key governance and signed artifact pipeline
 
 BOOT3-B 已在隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
-`tmp/p7-ipc-lifecycle-fix-20260830` 的 `551c596` 之后完成，新增提交 `551c596`（治理）、`a206e95`（native
-key table、downgrade guard、artifact/signing-request pipeline）及后续测试/validator 提交。正式 P7、PR #234、
+`tmp/p7-ipc-lifecycle-fix-20260830` 的 BOOT3-A HEAD `d66caad` 之后完成，新增提交 `551c596`（治理）、
+`a206e95`（native key table、downgrade guard、artifact/signing-request pipeline）和 `e8dd8e1`（validator、
+rejection fixtures、source gate 与回归文档）。正式 P7、PR #234、
 生产指针、Formal P7、merge/push/release 和 Gate13 均保持不变；`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`、
 `out/`、`setup.inf`、`setup.rpt` 仍为原有未提交材料。
 
@@ -425,6 +426,10 @@ key table、downgrade guard、artifact/signing-request pipeline）及后续测�
 - BOOT3-B focused test 已通过：unsigned request、确定性双构建、external response apply、signed validator、
   signature byte sensitivity、post-sign mutation、component signature replay、unknown/planned/test-only key、
   unsigned release、authenticated metadata、package hash 和 downgrade rejection。
+- 最终回归已通过：BOOT3-A focused trust test、BOOT-2 network/incremental smoke、native CMake Release、
+  `FACM4.sln` Release x64（0 warnings / 0 errors）、FoundationSmoke `--skip-gate13`、WindowsSmoke，以及
+  `30/30` 非 cutover `check-facm4-*.ps1` source gates。Gate13/cutover、真实 CDN/signer、merge/push/release
+  和正式 P7 移动均未执行。
 
 当前是 **BOOT3-B local governance/pipeline/validator candidate green / not release-ready**。BOOT3-C 仍需真实
 controlled signer、immutable HTTPS/CDN/mirror、生产发布证据、真实 Windows update/rollback 和后续授权；不要由
