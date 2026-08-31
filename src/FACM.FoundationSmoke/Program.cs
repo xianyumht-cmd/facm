@@ -4,6 +4,7 @@ using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.Online;
 using FACM.Core.Performance;
+using FACM.Core.Runtime;
 using FACM.Core.Settings;
 using FACM.Core.Text;
 using FACM.Infrastructure.Settings;
@@ -28,6 +29,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("league write capability boundary", () => { TestLeagueWritePolicy(); return Task.CompletedTask; }),
     ("online update decision", () => { TestUpdateDecision(); return Task.CompletedTask; }),
     ("settings repository adapter", TestSettingsRepositoryAsync),
+    ("BOOT-1 stable data-root and component contracts", () => { TestBoot1Contracts(); return Task.CompletedTask; }),
     ("productization maintenance settings and manual update", MaintenanceSmoke.RunAsync),
     ("productization update package download", UpdatePackageSmoke.RunAsync),
     ("productization prepared update receipt and replacement", PreparedUpdateInstallerSmoke.RunAsync),
@@ -258,6 +260,33 @@ static async Task TestSettingsRepositoryAsync()
     }
 }
 
+static void TestBoot1Contracts()
+{
+    var oldRoot = Environment.GetEnvironmentVariable("FACM_ROOT");
+    var oldDataRoot = Environment.GetEnvironmentVariable("FACM_DATA_ROOT");
+    var root = Path.Combine(Path.GetTempPath(), "facm4-boot1-root");
+    var dataRoot = Path.Combine(root, ".facm");
+    try
+    {
+        Environment.SetEnvironmentVariable("FACM_ROOT", root);
+        Environment.SetEnvironmentVariable("FACM_DATA_ROOT", dataRoot);
+        var layout = RuntimePathLayout.From(new FakeBootExecutablePaths(Path.Combine(root, ".facm", "versions", "A", "FACM.App.exe")));
+        Equal(Path.GetFullPath(root), layout.DistributionDirectory, "modular distribution root");
+        Equal(Path.Combine(dataRoot, "settings.v2.json"), layout.Settings2Path, "modular settings path");
+        Equal(Path.Combine(dataRoot, "logs"), layout.LogsDirectory, "modular logs path");
+        Equal(Path.Combine(dataRoot, "state", "state.json"), layout.RecoveryStatePath, "modular recovery state path");
+        True(layout.IsModular, "modular layout flag");
+        Equal("facm-core-win-x64", FacmComponentIds.CoreWinX64, "Core component id");
+        Equal("facm-pet-pethost-win-x64", FacmComponentIds.PetHostWinX64, "VPet component id");
+        Equal("facm-pet-flying-win-x64", FacmComponentIds.FlyingHostWinX64, "Flying component id");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("FACM_ROOT", oldRoot);
+        Environment.SetEnvironmentVariable("FACM_DATA_ROOT", oldDataRoot);
+    }
+}
+
 static void Equal<T>(T expected, T actual, string name)
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
@@ -304,4 +333,9 @@ sealed class FakeCleanupExecutor : ICleanupExecutor
         Calls++;
         return Task.FromResult(new CleanupResult(1, 0, Array.Empty<string>()));
     }
+}
+
+sealed record FakeBootExecutablePaths(string ExecutablePath) : IExecutablePathProvider
+{
+    public string BaseDirectory => Path.GetDirectoryName(ExecutablePath)!;
 }
