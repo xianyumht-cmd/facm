@@ -1,24 +1,31 @@
 # FACM 4.0 执行计划与实时进度
 
-Status: **LOCAL-CANDIDATE-2730-FOUNDATION-EQUIVALENT-GREEN / HOSTED-RUNNER-PENDING / TARGETED-WIN10-NEXT**
+Status: **LOCAL-MS9-PRESENTATION-STABILIZED / REAL-CYCLE-GREEN / MANUAL-WIN10-VALIDATION-PENDING**
 Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
-Latest code fix head: `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83`
+Latest code fix head: `e834763b09f69d7aaa0951af3bc8a0601d64edf3`
 Latest code+plan PR head used by Foundation: `803e1ba5f9b671b0a787a8c77bb39912d4211b7d`
 Latest code-bearing Foundation: **#632 / run `33233590075` = SUCCESS**
 Latest canonical-doc full regression: **#633 / run `33233865204` = SUCCESS**
-Current cloud staging candidate: `e387295fd61c233f8e9892016a6e9917b448cd5b` (parent baseline `2730eda15dc28a801871b5a3d10b4eecbd03a656`, formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
+Historical cloud staging candidate: `e387295fd61c233f8e9892016a6e9917b448cd5b` (parent baseline `2730eda15dc28a801871b5a3d10b4eecbd03a656`, formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`)
+
+Current local MS9 candidate: `D:\project2\facm-ms9.4-runtime-out-20260831-1305` with
+`FACM.App.exe` SHA-256 `94AD1C97C93C32285A76F27E3CB3FE78FBE42B7D1BDEEC2DC18B789DD4E66412`.
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论、真机证据或正式交接，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
 
 ## 当前结论
 
+2026-08-31 MS9 诊断与修复已完成：MS8 失败日志实际包含 90 个 `facm.surface.presentation-failed`，全部是共享呈现 invariant 在 `136×39` 实际窗口与 `36×36` Orb 目标不一致时触发的 `System.InvalidOperationException` / `0x80131509`。失败发生在 UI thread 2 且 Dispatcher access 正常；不是 League owner、LCU、XAML 内容或后台线程根因。
+
+MS9 最终修复在唯一 Morphing MainWindow 的 Windows 平台层适配 `WM_GETMINMAXINFO` 最小跟踪尺寸，保留原窗口过程和既有 `AppWindow.MoveAndResize` owner。最终候选真实窗口达到 `36×36`，100 次 Orb→ControlMatrix→Orb 全部成功；Repair/FeatureSurface→Orb 与 LeagueSurface→Orb 也已真实通过。候选日志为 0 presentation-failed、0 invariant-failed、0 stale、0 unhandled、0 fatal。outside-click、ChampSelect/Lobby 自然回归、modal、tray、桌宠、多屏/DPI 和视觉截图仍等待用户手动验证，不得据此宣称完整 P7 或 release-ready。
+
 FACM 4.0 P7 的功能等价与自动稳定性层已完成，但 Win10 真机继续暴露了一个此前 smoke 未覆盖的跨进程 PetHost cache 性能缺陷：旧实现每个新 FACM 进程第一次启用桌宠时，先完整读取并 SHA-256 约 76.9 MB 内嵌 PetHost ZIP，随后才知道磁盘 cache 能否复用。
 
 Batch M 已从根因修复：Foundation 构建 PetHost ZIP 后生成稳定 SHA identity，FACM 单文件同时嵌入 ZIP + tiny SHA resource；新进程优先用 SHA 直接检查 `runtime/pethost-host/<sha>`，完整 cache 命中时不再打开、更不再重新 hash 76.9 MB ZIP。跨进程 no-rehash smoke 已进入 WindowsSmoke。
 
-Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。随后 canonical docs head `b7bbb24bef5670196633f65ec2bbd5e441dd5b1e` 又通过 Foundation #633 全回归。下一步不是继续加功能，而是用 #632 新 artifact 做 targeted Win10 复测。
+Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。随后 canonical docs head `b7bbb24bef5670196633f65ec2bbd5e441dd5b1e` 又通过 Foundation #633 全回归；这属于 MS9 之前的 Foundation 基线。当前执行焦点已转为上方记录的 Morphing Surface MS9 真机呈现验证。
 
 2026-08-30 在全新 candidate worktree 完成了 .NET `10.0.400` Foundation 等价链：FlyingHost/PetHost publish + self-test、28 个 source gates、`FACM4.sln` Release x64 restore/build、FoundationSmoke、WindowsSmoke、FACM.App single-file publish 均通过。FlyingHost 464 files / `72,052,263` bytes / SHA-256 `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`，PetHost 472 files / `76,915,115` bytes / SHA-256 `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`。FACM.App.exe 为 `377,994,404` bytes / SHA-256 `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`，输出 DLL entries 为 0。
 
@@ -40,7 +47,7 @@ CUTOVER BLOCKED
 4. 自动压力与重复操作 smoke — **COMPLETED + cross-process PetHost coverage**
 5. 完整 Foundation — **#632 SUCCESS**
 6. 新统一候选 — **#632 artifact ready and independently hashed**
-7. 统一真机功能验收 — **IN PROGRESS; hosted Foundation pending, then targeted Win10**
+7. 统一真机功能验收 — **IN PROGRESS; MS9 real shell cycles green, manual Win10/League/pet validation pending**
 
 ## 稳定性批次账
 
@@ -58,6 +65,9 @@ CUTOVER BLOCKED
 | J | `4755c40c6c3ec751d27bf9cab31d74581f58f3d3` | Updater atomic fallback/rollback + helper self-test | #627 green |
 | K | `f3906b84dd0076411dcd8a4fd82610d1d6c2a179` | repeated lifecycle/settings/League stress | #628 green |
 | M | `6ba8c917c73e9f7eee1229b29ba9ed243be8ae83` | PetHost cross-process cache no-rehash + Busy UX | #632 green |
+| MS9.1 | `a321424` | Morphing Surface failure forensics and operation telemetry | closed |
+| MS9.2 | `c372388` | Preferred minimum geometry probe; superseded after runtime evidence | superseded |
+| MS9.3 | `e834763b09f69d7aaa0951af3bc8a0601d64edf3` | HWND minimum-track-size adaptation for the one Morphing host | local real-cycle green; manual validation pending |
 
 ## 关键已修根因
 

@@ -327,33 +327,37 @@ The local .NET SDK is `D:\project2\dotnet10\dotnet.exe` (10.0.400). Keep `DOTNET
 
 The latest natural local interaction kept FACM PID `16436` responsive and completed Workbench Dashboard/Player/Live/Advisor/Refresh without COMException. The current LCU observation is LeagueClient PID `8812`, LeagueClientUx PID `20504`, port `61101`, phase `Lobby / Connected`. The cumulative log has 387 HTTP completions (340 success, 83 ExpectedUnavailable, 0 UnexpectedFailure), p50/p95/max `0/10/374 ms`, and max in-flight `2`. Two automation matchmaking writes took `109 ms` and `127 ms`; no Auto Accept write occurred because the trace did not enter ReadyCheck. This is not a ReadyCheck or full real-machine pass. A future ReadyCheck test must be natural and read-only except for the already-authorized Auto Accept behavior; do not start a queue or game merely to manufacture evidence. The persisted settings currently read `autoMatchmakingEnabled=false` and `autoAcceptEnabled=true` while the same trace contains two automation matchmaking writes; resolve this runtime/persistence discrepancy with diagnostics before changing settings behavior.
 
-## 17. 2026-08-31 Morphing Surface local candidate
+## 17. 2026-08-31 Morphing Surface MS9 runtime candidate
 
-当前可供手工复核的 Morphing Surface 源码候选是：
+本阶段的真实根因证据来自不可变目录 `D:\project2\facm-ms8-out-20260831`：实际日志含 90 个
+`facm.surface.presentation-failed`，全部为 `System.InvalidOperationException` / `0x80131509`；
+其中 outside-click 84 个、collapse-to-orb 5 个、gameflow-lobby-restored 1 个。MS9.1
+operation telemetry 将抛错定位到 `EnsureSurfacePresentationInvariant` 的 `invariant-check`，
+因为系统实际外框 `136×39`，而 Orb 目标 `36×36`；失败上下文为 UI thread 2，
+`hasThreadAccess=true`，`dispatcherQueueAvailable=true`。
+
+最终修复位于提交 `e834763b09f69d7aaa0951af3bc8a0601d64edf3`，Windows 平台层对唯一 Morphing
+MainWindow HWND 仅适配 `WM_GETMINMAXINFO` 最小跟踪尺寸，并把其它消息转发给原窗口过程。最终
+候选如下：
 
 ```text
-worktree: D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
-branch:   tmp/p7-ipc-lifecycle-fix-20260830
-commit:   529847bfaad4196556720f24c28862617fefd655
-exe:      D:\project2\facm-ms8-out-20260831\FACM.App.exe
-sha256:   db26b37d66beddf181e4780e14b17a56e659edbe5402e30169a05b2dbeed5820
-log:      （由用户启动新候选后生成于对应候选目录）
+worktree:  D:\project2\worktrees\facm-p7-ipc-lifecycle-fix
+branch:    tmp/p7-ipc-lifecycle-fix-20260830
+head:      e834763b09f69d7aaa0951af3bc8a0601d64edf3
+candidate: D:\project2\facm-ms9.4-runtime-out-20260831-1305
+exe:       D:\project2\facm-ms9.4-runtime-out-20260831-1305\FACM.App.exe
+sha256:    94AD1C97C93C32285A76F27E3CB3FE78FBE42B7D1BDEEC2DC18B789DD4E66412
 ```
 
-使用默认环境启动时进入 Morphing Surface；仅在需要兼容对照时设置
-`FACM_SHELL_EXPERIENCE=legacy`，它启用旧 FloatingWindow/CompactLauncher 路由。两种模式都
-必须确认启动前只有目标 FACM.App 进程，退出时使用应用自身关闭流程，不把旧的 `out/` 或
-`bin\x64\Debug` 副本当作当前证据。
+最终候选实际外框为 `36×36`、客户区 `30×30`，唯一精确匹配的 `FACM.App.exe` 进程保持响应。
+真实窗口完成 100 次 Orb→ControlMatrix→Orb，100/100 成功；日志为 0 presentation-failed、0
+operation-failed、0 invariant-failed、0 stale、0 unhandled、0 fatal。Repair/FeatureSurface→Orb
+和 LeagueSurface→Orb 也已在同一修复序列的真实窗口中通过。27/27 非 cutover source gates、
+`FACM4.sln` Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke 均通过。
 
-本阶段已验证的本地命令包括：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke
-`--skip-gate13`、WindowsSmoke、Morphing geometry/state smoke 和全部 27 个非 cutover source
-gates；构建均为 0 警告 / 0 错误。MS8.6 将 MainWindow 的 outside-click watcher 生命周期限定
-在可关闭展开态，Orb/Hidden 停止并重置 watcher，且保留 CompactLauncher 的同一实现。fresh
-candidate 已验证为 4 个文件、0 个 DLL，SHA-256 已记录于上方。启动候选时机器上已有另一个
-FACM 进程持有单实例，因此候选未暴露可捕获窗口；必须先正常退出既有 FACM，再按下方序列做
-USER_VISUAL_REVIEW_REQUIRED 复核，不能把单实例拦截视为视觉通过。
-首次真实视觉检查应覆盖
-Orb 锚点、ControlMatrix、Feature/League surface、ChampSelect strip、outside-click、modal
-suppression、InGame 隐藏/Lobby 回 Orb、tray/single-instance 与 pet 切换；截图采集失败时必须
-标记为 `USER_VISUAL_REVIEW_REQUIRED`，不得自动宣称视觉通过。禁止由本地候选触发 Gate13、release、
-production pointer、merge 或 push。
+启动和人工验证规则保持不变：默认环境进入 Morphing Surface，只有兼容对照时才使用
+`FACM_SHELL_EXPERIENCE=legacy`；启动前确认只有目标 FACM 进程，退出使用应用自身关闭流程。
+本轮没有注入桌面空白 outside-click，也没有制造 ChampSelect/Lobby 自然回归，因此
+outside-click、modal、ChampSelect/Lobby、tray/single-instance、桌宠切换、多屏/DPI 和视觉复核
+仍为 `USER_MANUAL_VALIDATION_REQUIRED`。该候选不是 release-ready；禁止由本地候选触发 Gate13、
+release、production pointer、merge 或 push。

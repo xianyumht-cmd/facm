@@ -103,6 +103,31 @@ timer, or second polling loop. Existing heavy feature pages remain an in-window 
 visual-only migration that observes this contract; explanatory copy is supplied by the thin Inspector
 where possible, while safety-critical warnings remain at the action point.
 
+## 2026-08-31 Morphing Surface runtime presentation stabilization
+
+MS9.1 diagnostics proved that the shared failure was the presentation invariant itself: on this
+Win10 runtime, the unique Morphing `MainWindow` was clamped to a `136×39` outer AppWindow while
+the valid Orb contract requested `36×36`. The Orb XAML content was visible and every failing
+diagnostic ran on thread 2 with Dispatcher access; the exception was thrown by
+`EnsureSurfacePresentationInvariant`, not by League transport, XAML visibility, activation, or
+the dispatcher.
+
+The Windows platform adapter now installs one lifetime-bound HWND subclass for the Morphing
+MainWindow and changes only `WM_GETMINMAXINFO.MinTrackSize` to `1×1`; all other messages are first
+forwarded to the original window procedure. This is a platform boundary for the one existing
+surface host, not a new window owner or a general application lock. The existing
+`AppWindow.MoveAndResize` path remains authoritative for every Orb, matrix, feature, League and
+ChampSelect geometry change. The resulting real candidate measured `36×36` outer and `30×30`
+client bounds.
+
+No MS9 coordinator, retry loop, debounce, or League change was required: the reviewed failure
+trace did not prove overlapping or stale presentation requests. Existing same-mode policy remains:
+ordinary valid `Orb→Orb` is idempotent, while `EnsureCurrentSurfacePresentation(Orb)` may repair an
+invalid presentation. Diagnostic generation/correlation fields record request context but are not
+presented as stale-request suppression. Existing outside-click lifecycle ownership remains the
+same; the MS8 flood was a consequence of the shared invariant never committing the first Orb, not
+a new watcher owner.
+
 ## 3. Stable paths
 
 所有稳定路径只从 distribution EXE (`Environment.ProcessPath`) 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。

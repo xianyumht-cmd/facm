@@ -45,6 +45,18 @@ Tracking Issue：#233。
 
 详细实时账：`docs/FACM4-PLAN.md`。
 
+## 2026-08-31 Morphing Surface MS9 runtime stabilization
+
+本轮只处理 Morphing Surface 的真实窗口呈现阻断，未开始 UI Upgrade，未改变 League、桌宠、托盘、outside-click 行为契约，也未移动正式 P7、PR #234、生产指针或 Gate13。
+
+- MS9.1 诊断提交：`a321424`（`diag(p7): expand surface presentation failure forensics`）。MS8 失败证据目录 `D:\project2\facm-ms8-out-20260831` 保持不变；实际读取该目录日志得到 90 个 `facm.surface.presentation-failed`，全部为 `System.InvalidOperationException` / `0x80131509`，其中 `request:outside-click` 84 个、`request:collapse-to-orb` 5 个、`request:gameflow-lobby-restored` 1 个。
+- 根因不是 League 或 UI Dispatcher：MS9.1 首个候选明确显示抛错操作为 `invariant-check`，实际 AppWindow 外框 `136×39`，目标 Orb `36×36`；XAML Orb 可见性正确，线程 2 具有 Dispatcher access，DispatcherQueue 可用。Win32 检查进一步确认窗口客户区仍被系统非客户区/最小跟踪尺寸限制。
+- 窄修复提交：`c372388`（`fix(p7): honor compact surface minimum geometry`）验证了 PreferredMinimum 不能解除本机约束；最终修复提交：`e834763b09f69d7aaa0951af3bc8a0601d64edf3`（`fix(p7): allow morphing surface minimum track size`）。Windows 平台层只对唯一 Morphing MainWindow 的 HWND 子类化 `WM_GETMINMAXINFO`，保留原窗口过程，并将最小跟踪尺寸放宽到 1×1，未引入全局锁、重试、计时器或第二 owner。
+- 最终候选：`D:\project2\facm-ms9.4-runtime-out-20260831-1305\FACM.App.exe`，SHA-256 `94AD1C97C93C32285A76F27E3CB3FE78FBE42B7D1BDEEC2DC18B789DD4E66412`，420,892,024 bytes，single-file 输出 0 DLL。真实窗口外框为 `36×36`、客户区 `30×30`，进程保持响应且精确匹配进程数为 1。
+- 最终候选完成 100 次真实 Orb↔ControlMatrix 循环，100/100 成功；候选日志为 0 `facm.surface.presentation-failed`、0 operation-failed、0 invariant-failed、0 stale、0 unhandled、0 fatal，202 次转场全部是 101 次 Orb→ControlMatrix 与 101 次 ControlMatrix→Orb。Repair/FeatureSurface→Orb、LeagueSurface→Orb 在同一修复前候选中也已真实通过。
+- 本轮没有注入桌面空白 outside-click，也没有制造 ChampSelect/Lobby 自然回归；因此 outside-click、ChampSelectStrip/Lobby restore、modal、tray、桌宠切换和多显示器真实验收仍标记为 `USER_MANUAL_VALIDATION_REQUIRED`。MS8 的 84 次 outside-click 失败与其它路径共享同一个尺寸 invariant 根因；失败后未能提交 Orb，watcher 继续收到后续物理边沿，形成失败洪水。
+- 最终校验：`FACM4.sln` Debug x64 为 0 警告/0 错误；FoundationSmoke `--skip-gate13` SUCCESS；WindowsSmoke SUCCESS；27/27 非 cutover source gates 全部通过。未执行 Gate13、merge、push、release、正式 P7 移动或 production pointer 修改。
+
 ## 2026-08-30 Batch P：Desktop Pet IPC lifecycle fix
 
 Batch P is isolated in `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on temporary branch `tmp/p7-ipc-lifecycle-fix-20260830`; the formal P7 branch, PR #234, `online/version.json`, and `release/request.json` remain unchanged.
@@ -122,7 +134,7 @@ FACM 4.0 Foundation **#632 / run `33233590075` = SUCCESS**。
 - publish-output verification SUCCESS；
 - artifact upload SUCCESS。
 
-## 当前 targeted candidate
+## 历史 hosted targeted candidate（已被上方 MS9 本地候选 supersede）
 
 ```text
 artifact: facm4-x64
@@ -228,9 +240,9 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 
 本轮仍不得 merge、push、release、Gate13、移动正式 P7；自然 ReadyCheck/Auto Accept 证据和剩余真实机器验收仍未完成。Morphing Surface 的紧凑 UX 收口不等同于 release-ready 或完整视觉升级完成。
 
-## 2026-08-31 Morphing Surface / UI Upgrade behavior baseline
+## 2026-08-30 Morphing Surface / UI Upgrade behavior baseline（历史基线，当前 MS9 见上）
 
-本地 Morphing Surface 候选继续位于 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支 `tmp/p7-ipc-lifecycle-fix-20260830`；当前实现 commit 为 `a760daff21f73cca2ac86c59851541acef9f2b29`（MS8.6 outside-click lifecycle hardening）。本阶段继续在已冻结行为契约内收口紧凑单表面 UX，不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
+本节记录 MS8.6 时代的 Morphing Surface 行为基线；当前实现和候选已由上方 2026-08-31 MS9 条目更新。该历史基线不移动正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`，不修改 PR #234、production pointer 或 Gate13。
 
 - 默认 `FACM.App` 使用一个持久 `MainWindow` 主宿主，由 `FacmSurfaceStateMachine` 管理 `Orb / ControlMatrix / FeatureSurface / LeagueSurface / ChampSelectStrip / HiddenInGame` 展示模式；这表示一个状态驱动宿主，不表示保留传统大 MainWindow 布局。旧 `FloatingWindow` / `CompactLauncherWindow` 路由保留为 `FACM_SHELL_EXPERIENCE=legacy` fallback。
 - Orb 空闲时为 36 DIP 自定义 F；瞬时状态条仅在有信息时显示并使用一次性计时器，点击可执行与 Orb 相同的主激活动作。ControlMatrix 目标为 360x176 DIP，绿色按钮直接回 Orb，红色按钮保持既有关闭语义，Feature/League surface 通过同一宿主改变实际窗口几何。
@@ -238,5 +250,5 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 - ChampSelect 进入时由现有 Workbench owner 做一次事件驱动刷新；Live 快照更新后直接绑定 ChampSelectStrip。候选通过 Legacy/TeamBuilder 既有路由到达，身份来自现有 champion-summary，头像复用 LCU 图标端点，点击仍走既有单次 bench swap + 有界回读。
 - Outside-click、modal suppression、single-instance、tray、桌宠生命周期、InGame 隐藏和 Lobby 回 Orb 的行为契约保持冻结；MainWindow 的共享 outside-click watcher 仅在 ControlMatrix、Feature/League、ChampSelect 等可关闭展开态运行，切回 Orb/Hidden 时停止并重置；没有新增 Gateway、Gameflow monitor、session owner、永久 Orb/Hidden UI 轮询或第二套 cache。
 - 本阶段相关本地提交包含前序 Morphing commits，以及 `9960c9e`（Orb presentation invariant）、`518067a`（compact morphing chrome）、`2997198`（matrix inspector）、`7ddf8ae`（maintenance/logs consolidation）、`1b19f00`（compact League Workbench）和 `a760daf`（outside-click lifecycle hardening）。MS0 审计备份位于 `D:\project2\facm-backups\morphing-surface-ms0-20260830-210542`，未纳入仓库。
-- 已完成本批代码校验：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke，以及全部 `27/27` 非 cutover source gates 均为 0 警告 / 0 错误或 SUCCESS。fresh candidate 位于 `D:\project2\facm-ms8-out-20260831`，`FACM.App.exe` 为 `420991240` bytes、SHA-256 `db26b37d66beddf181e4780e14b17a56e659edbe5402e30169a05b2dbeed5820`，目录包含 4 个文件且 0 个 DLL。候选可见复核尚未开始：启动时被当时已运行的既有 FACM 单实例拦截，不能把这次启动阻断当成视觉 PASS；需要用户先正常退出既有 FACM 后再启动该候选。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
+- 已完成本历史基线的代码校验：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke，以及全部 `27/27` 非 cutover source gates 均为 0 警告 / 0 错误或 SUCCESS。MS8 候选 `D:\project2\facm-ms8-out-20260831` 现作为不可变失败证据，当前 MS9 候选和真实运行结果见上方条目。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
 - 视觉截图和真实多屏/DPI/辅助功能仍需用户在目标机器复核；WinUI capture 当前受系统 `SetIsBorderRequired` 接口错误阻断，不能把未截图视为视觉 PASS。

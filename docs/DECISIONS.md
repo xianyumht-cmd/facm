@@ -313,3 +313,19 @@ PetHost 启动后尝试加入 FACM 创建的 Windows Job Object，并启用 `JOB
 ### 后果
 
 本地候选先完成状态机、几何、宿主路由、适配层和确定性 smoke；Diagnostics、Logs、Repair、Cleanup、Settings、Maintenance、Personalization、Pet Picker、Workbench 的完整视觉迁移仍是后续工作。未完成真实多屏/DPI/辅助功能和截图复核前，不得把候选视为 release-ready，也不得移动正式 P7。
+
+## 2026-08-31：Morphing Orb 使用平台层最小跟踪尺寸适配
+
+### 决策
+
+- 保持 `MainWindow` 的既有 `AppWindow.MoveAndResize` 呈现路径，不引入第二个浮窗、全局锁、重试或连续 watchdog；
+- 由现有 `WindowsFloatingSurfacePlatform` 仅为 Morphing `MainWindow` HWND 安装生命周期绑定的窗口过程适配，在 `WM_GETMINMAXINFO` 中把 `MinTrackSize` 放宽到 `1×1`，其它消息先转发给原窗口过程；
+- 该适配只解决 Win10 本机将无边框 Orb 外框钳制到 `136×39` 的平台约束，不改变 Orb、ControlMatrix、Feature/League、ChampSelect、outside-click 或 League owner 契约。
+
+### 原因
+
+MS9.1 真实日志证明所有呈现失败都在共享 `invariant-check`，而不是 XAML、Dispatcher、AppWindow API 异常或 League；首个候选实际外框 `136×39` 与目标 `36×36` 不符。`PreferredMinimumWidth/Height` 与 CompactOverlay 均未解除该本机最小跟踪尺寸，平台层窗口过程适配后最终候选真实达到 `36×36`。
+
+### 后果
+
+真实 Orb↔ControlMatrix 100 次循环和 Feature/League 回 Orb 已通过，后续 UI Upgrade 仍必须遵守冻结行为契约，并继续由用户完成 outside-click、ChampSelect/Lobby、modal、tray、桌宠和多屏/DPI 的真机验收。
