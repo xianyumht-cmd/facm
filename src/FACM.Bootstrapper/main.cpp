@@ -103,6 +103,24 @@ struct BootstrapConfig {
     bool allowInsecureLocal = false;
 };
 
+struct TransportCandidate {
+    std::wstring id;
+    std::wstring url;
+    std::wstring sourceUrl;
+    bool directGithubFallback = false;
+};
+
+struct GithubProxyPrefix {
+    const wchar_t* id;
+    const wchar_t* prefix;
+};
+
+constexpr GithubProxyPrefix kGithubProxyPrefixes[] = {
+    {L"ghfast.top", L"https://ghfast.top/"},
+    {L"gh-proxy.com", L"https://gh-proxy.com/"},
+    {L"gh.llkk.cc", L"https://gh.llkk.cc/"},
+};
+
 class StatusWindow {
 public:
     void Show(const std::wstring& text) {
@@ -1051,6 +1069,11 @@ struct HttpResponse {
     DWORD status = 0;
     std::uintmax_t contentLength = 0;
     bool hasContentLength = false;
+    std::wstring location;
+    bool hasContentRange = false;
+    std::uintmax_t rangeStart = 0;
+    std::uintmax_t rangeEnd = 0;
+    std::uintmax_t rangeTotal = 0;
 };
 
 bool CrackHttpUrl(const std::wstring& url, URL_COMPONENTS& components, std::vector<wchar_t>& host, std::vector<wchar_t>& path, std::vector<wchar_t>& extra, std::wstring& failure) {
@@ -1077,6 +1100,123 @@ bool CrackHttpUrl(const std::wstring& url, URL_COMPONENTS& components, std::vect
     return true;
 }
 
+std::wstring Lowercase(std::wstring value) {
+    std::transform(value.begin(), value.end(), value.begin(), towlower);
+    return value;
+}
+
+bool IsCanonicalGithubReleaseUrl(const std::wstring& url) {
+    URL_COMPONENTS components{};
+    std::vector<wchar_t> host;
+    std::vector<wchar_t> path;
+    std::vector<wchar_t> extra;
+    std::wstring failure;
+    if (!CrackHttpUrl(url, components, host, path, extra, failure) ||
+        components.nScheme != INTERNET_SCHEME_HTTPS ||
+        Lowercase(std::wstring(host.data(), components.dwHostNameLength)) != L"github.com" ||
+        components.dwExtraInfoLength != 0) {
+        return false;
+    }
+    const auto pathText = std::wstring(path.data(), components.dwUrlPathLength);
+    if (pathText.empty() || pathText.front() != L'/' || pathText.find(L"//") != std::wstring::npos ||
+        pathText.find(L"..") != std::wstring::npos) {
+        return false;
+    }
+    std::vector<std::wstring> segments;
+    size_t start = 1;
+    while (start <= pathText.size()) {
+        const auto separator = pathText.find(L'/', start);
+        segments.push_back(pathText.substr(start, separator == std::wstring::npos ? std::wstring::npos : separator - start));
+        if (separator == std::wstring::npos) break;
+        start = separator + 1;
+    }
+    return segments.size() == 6 && !segments[0].empty() && !segments[1].empty() &&
+           Lowercase(segments[2]) == L"releases" && Lowercase(segments[3]) == L"download" &&
+           !segments[4].empty() && !segments[5].empty();
+}
+
+bool IsApprovedGithubRedirect(const std::wstring& url) {
+    if (!IsHttpsUrl(url) || url.find(L'@') != std::wstring::npos) return false;
+    URL_COMPONENTS components{};
+    std::vector<wchar_t> host;
+    std::vector<wchar_t> path;
+    std::vector<wchar_t> extra;
+    std::wstring failure;
+    if (!CrackHttpUrl(url, components, host, path, extra, failure)) return false;
+    const auto hostName = Lowercase(std::wstring(host.data(), components.dwHostNameLength));
+    if (hostName == L"github.com") return IsCanonicalGithubReleaseUrl(url);
+    return components.nScheme == INTERNET_SCHEME_HTTPS &&
+           (hostName == L"release-assets.githubusercontent.com" || hostName == L"objects.githubusercontent.com");
+}
+
+std::vector<TransportCandidate> BuildTransportCandidates(const std::wstring& sourceUrl) {
+    std::vector<TransportCandidate> candidates;
+    if (!IsCanonicalGithubReleaseUrl(sourceUrl)) {
+        candidates.push_back({L"direct", sourceUrl, sourceUrl, false});
+        return candidates;
+    }
+    for (const auto& proxy : kGithubProxyPrefixes) {
+        candidates.push_back({proxy.id, std::wstring(proxy.prefix) + sourceUrl, sourceUrl, false});
+    }
+    candidates.push_back({L"github-direct", sourceUrl, sourceUrl, true});
+    return candidates;
+}
+
+std::vector<TransportCandidate> BuildOrderedTransportCandidates(const std::vector<std::wstring>& sourceUrls) {
+    std::vector<TransportCandidate> candidates;
+    std::set<std::wstring> seen;
+    const auto add = [&](const TransportCandidate& candidate) {
+        if (seen.insert(candidate.url).second) candidates.push_back(candidate);
+    };
+    for (const auto& sourceUrl : sourceUrls) {
+        for (const auto& candidate : BuildTransportCandidates(sourceUrl)) {
+            if (!candidate.directGithubFallback) add(candidate);
+        }
+    }
+    for (const auto& sourceUrl : sourceUrls) {
+        for (const auto& candidate : BuildTransportCandidates(sourceUrl)) {
+            if (candidate.directGithubFallback) add(candidate);
+        }
+    }
+    return candidates;
+}
+
+bool QueryHeaderText(HINTERNET request, DWORD query, std::wstring& value) {
+    DWORD bytes = 0;
+    if (WinHttpQueryHeaders(request, query, WINHTTP_HEADER_NAME_BY_INDEX, nullptr, &bytes, WINHTTP_NO_HEADER_INDEX) ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER || bytes < sizeof(wchar_t)) {
+        return false;
+    }
+    std::vector<wchar_t> buffer(bytes / sizeof(wchar_t) + 1, L'\0');
+    if (!WinHttpQueryHeaders(request, query, WINHTTP_HEADER_NAME_BY_INDEX, buffer.data(), &bytes, WINHTTP_NO_HEADER_INDEX)) {
+        return false;
+    }
+    value.assign(buffer.data(), bytes / sizeof(wchar_t));
+    while (!value.empty() && value.back() == L'\0') value.pop_back();
+    return !value.empty();
+}
+
+bool ParseContentRange(const std::wstring& value, std::uintmax_t& start, std::uintmax_t& end, std::uintmax_t& total) {
+    if (value.rfind(L"bytes ", 0) != 0) return false;
+    const auto dash = value.find(L'-', 6);
+    const auto slash = value.find(L'/', dash == std::wstring::npos ? 0 : dash + 1);
+    if (dash == std::wstring::npos || slash == std::wstring::npos || dash <= 6 || slash <= dash + 1 || slash + 1 >= value.size()) {
+        return false;
+    }
+    try {
+        size_t consumedStart = 0;
+        size_t consumedEnd = 0;
+        size_t consumedTotal = 0;
+        start = std::stoull(value.substr(6, dash - 6), &consumedStart);
+        end = std::stoull(value.substr(dash + 1, slash - dash - 1), &consumedEnd);
+        total = std::stoull(value.substr(slash + 1), &consumedTotal);
+        return consumedStart == dash - 6 && consumedEnd == slash - dash - 1 && consumedTotal == value.size() - slash - 1 &&
+               start <= end && end < total;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool QueryHttpResponse(HINTERNET request, HttpResponse& response) {
     DWORD statusSize = sizeof(response.status);
     if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
@@ -1084,9 +1224,18 @@ bool QueryHttpResponse(HINTERNET request, HttpResponse& response) {
     DWORD contentSize = sizeof(DWORD);
     DWORD contentLength = 0;
     if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
-                             WINHTTP_HEADER_NAME_BY_INDEX, &contentLength, &contentSize, WINHTTP_NO_HEADER_INDEX)) {
+                              WINHTTP_HEADER_NAME_BY_INDEX, &contentLength, &contentSize, WINHTTP_NO_HEADER_INDEX)) {
         response.contentLength = contentLength;
         response.hasContentLength = true;
+    }
+    if (response.status >= 300 && response.status < 400) {
+        QueryHeaderText(request, WINHTTP_QUERY_LOCATION, response.location);
+    }
+    if (response.status == 206) {
+        std::wstring contentRange;
+        if (QueryHeaderText(request, WINHTTP_QUERY_CONTENT_RANGE, contentRange)) {
+            response.hasContentRange = ParseContentRange(contentRange, response.rangeStart, response.rangeEnd, response.rangeTotal);
+        }
     }
     return true;
 }
@@ -1096,7 +1245,7 @@ bool DisableHttpRedirects(HINTERNET request) {
     return WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy)) != FALSE;
 }
 
-bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failure) {
+bool HttpGetTextOnce(const std::wstring& url, std::string& body, HttpResponse& response, std::wstring& failure) {
     URL_COMPONENTS components{};
     std::vector<wchar_t> host;
     std::vector<wchar_t> path;
@@ -1123,8 +1272,16 @@ bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failu
     }
     const auto sent = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != FALSE &&
                       WinHttpReceiveResponse(request, nullptr) != FALSE;
-    HttpResponse response{};
-    if (!sent || !QueryHttpResponse(request, response) || response.status != 200) {
+    if (!sent || !QueryHttpResponse(request, response)) {
+        failure = L"清单请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    if (response.status >= 300 && response.status < 400) {
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return true;
+    }
+    if (response.status != 200) {
         failure = L"清单请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
         WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
         return false;
@@ -1144,12 +1301,55 @@ bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failu
     return failure.empty();
 }
 
+bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failure, int redirectDepth = 0) {
+    HttpResponse response{};
+    if (!HttpGetTextOnce(url, body, response, failure)) return false;
+    if (response.status >= 300 && response.status < 400) {
+        if (redirectDepth >= 2 || response.location.empty() || !IsApprovedGithubRedirect(response.location)) {
+            failure = L"拒绝不安全或未授权的 HTTPS 重定向。";
+            return false;
+        }
+        return HttpGetText(response.location, body, failure, redirectDepth + 1);
+    }
+    return response.status == 200;
+}
+
+bool HttpGetTextWithTransports(const std::wstring& sourceUrl, std::string& body, std::wstring& failure,
+                               std::wstring* selectedTransportId = nullptr) {
+    failure.clear();
+    for (const auto& candidate : BuildTransportCandidates(sourceUrl)) {
+        std::wstring candidateFailure;
+        if (HttpGetText(candidate.url, body, candidateFailure)) {
+            if (selectedTransportId) *selectedTransportId = candidate.id;
+            return true;
+        }
+        failure = candidateFailure;
+    }
+    return false;
+}
+
+int ProbeGithubTransport(const fs::path& root, const std::wstring& sourceUrl, const std::wstring& correlation) {
+    if (!IsCanonicalGithubReleaseUrl(sourceUrl)) {
+        AppendLog(root, L"free-dist-transport-probe-rejected", correlation);
+        return 16;
+    }
+    bool anySuccess = false;
+    for (const auto& candidate : BuildTransportCandidates(sourceUrl)) {
+        std::string body;
+        std::wstring failure;
+        const auto success = HttpGetText(candidate.url, body, failure);
+        AppendLogDetail(root, success ? L"free-dist-transport-probe-pass" : L"free-dist-transport-probe-fail",
+                        correlation, candidate.id);
+        anySuccess = anySuccess || success;
+    }
+    return anySuccess ? 0 : 16;
+}
+
 bool DownloadUrl(const std::wstring& url, const fs::path& partial, const ComponentManifest& component,
                  StatusWindow& status, const fs::path& root, const std::wstring& correlation,
                  std::uintmax_t overallCompleted, std::uintmax_t overallTotal,
-                 std::uintmax_t& downloadedBytes, std::uintmax_t& totalBytes, std::wstring& failure) {
-    (void)root;
-    (void)correlation;
+                 std::uintmax_t& downloadedBytes, std::uintmax_t& totalBytes, std::wstring& failure,
+                 int redirectDepth = 0) {
     URL_COMPONENTS components{};
     std::vector<wchar_t> host;
     std::vector<wchar_t> path;
@@ -1189,11 +1389,33 @@ bool DownloadUrl(const std::wstring& url, const fs::path& partial, const Compone
     const auto sent = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != FALSE &&
                       WinHttpReceiveResponse(request, nullptr) != FALSE;
     HttpResponse response{};
-    if (!sent || !QueryHttpResponse(request, response) || (response.status != 200 && response.status != 206)) {
+    if (!sent || !QueryHttpResponse(request, response)) {
         failure = L"组件请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
         WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
         return false;
     }
+    if (response.status >= 300 && response.status < 400) {
+        if (redirectDepth >= 2 || response.location.empty() || !IsApprovedGithubRedirect(response.location)) {
+            failure = L"拒绝不安全或未授权的 HTTPS 重定向。";
+            WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+            return false;
+        }
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return DownloadUrl(response.location, partial, component, status, root, correlation, overallCompleted, overallTotal,
+                           downloadedBytes, totalBytes, failure, redirectDepth + 1);
+    }
+    if (response.status != 200 && response.status != 206) {
+        failure = L"组件请求失败（HTTP " + std::to_wstring(response.status) + L"）。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    if (response.status == 206 && (!response.hasContentRange || response.rangeStart != resumeAt ||
+                                   response.rangeTotal != component.packageSize || response.rangeEnd < response.rangeStart)) {
+        failure = L"组件服务器返回了不匹配的 Range 响应，拒绝拼接。";
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        return false;
+    }
+    if (requestedResume && response.status == 200) AppendLog(root, L"component-download-range-ignored", correlation);
     const auto append = requestedResume && response.status == 206;
     downloadedBytes = append ? resumeAt : 0;
     totalBytes = response.hasContentLength ? downloadedBytes + response.contentLength : component.packageSize;
@@ -1503,24 +1725,29 @@ bool InstallNetworkComponent(const fs::path& root, const ComponentManifest& comp
         verified = VerifyPackAgainstManifest(complete, component, cachedFailure);
         if (!verified) fs::remove(complete, error);
     }
-    std::vector<std::wstring> urls;
-    urls.push_back(component.primaryUrl);
-    urls.insert(urls.end(), component.mirrorUrls.begin(), component.mirrorUrls.end());
+    std::vector<std::wstring> sourceUrls;
+    sourceUrls.push_back(component.primaryUrl);
+    sourceUrls.insert(sourceUrls.end(), component.mirrorUrls.begin(), component.mirrorUrls.end());
+    const auto urls = BuildOrderedTransportCandidates(sourceUrls);
     if (!verified) {
         for (size_t index = 0; index < urls.size(); ++index) {
-            if (!IsAllowedUrl(urls[index], allowInsecureLocal)) continue;
+            if (!IsAllowedUrl(urls[index].url, allowInsecureLocal)) continue;
             const auto partialSize = fs::is_regular_file(partial, error) ? fs::file_size(partial, error) : 0;
             if (partialSize > 0) AppendLog(root, L"component-download-resume", correlation);
             AppendLog(root, index == 0 ? L"component-download-start" : L"component-download-failover", correlation);
+            AppendLogDetail(root, L"component-transport-attempt", correlation, urls[index].id);
             std::wstring downloadFailure;
             std::uintmax_t downloaded = 0;
             std::uintmax_t total = 0;
-            if (!DownloadUrl(urls[index], partial, component, status, root, correlation, overallCompleted, overallTotal, downloaded, total, downloadFailure)) {
+            if (!DownloadUrl(urls[index].url, partial, component, status, root, correlation, overallCompleted, overallTotal,
+                             downloaded, total, downloadFailure)) {
+                AppendLogDetail(root, L"component-transport-failure", correlation, urls[index].id);
                 AppendLog(root, L"component-download-failed", correlation);
                 continue;
             }
             std::wstring verifyFailure;
             if (!VerifyPackAgainstManifest(partial, component, verifyFailure)) {
+                AppendLogDetail(root, L"component-transport-verification-failed", correlation, urls[index].id);
                 AppendLog(root, L"component-download-hash-failed", correlation);
                 fs::remove(partial, error);
                 continue;
@@ -1530,6 +1757,7 @@ bool InstallNetworkComponent(const fs::path& root, const ComponentManifest& comp
                 return false;
             }
             AppendLog(root, L"component-download-complete", correlation);
+            AppendLogDetail(root, L"component-transport-selected", correlation, urls[index].id);
             verified = true;
             break;
         }
@@ -1629,6 +1857,7 @@ bool HasOption(const std::vector<std::wstring>& arguments, const std::wstring& n
 
 bool IsBootstrapOnlyArgument(const std::wstring& argument) {
     return argument == L"--self-test" || argument == L"--dry-run" || argument == L"--resolve-only" || argument == L"--no-ui" ||
+           argument == L"--probe-github-transport" || argument.rfind(L"--probe-github-transport=", 0) == 0 ||
            argument == L"--provision-source" || argument.rfind(L"--provision-source=", 0) == 0 ||
            argument == L"--provision-pack" || argument.rfind(L"--provision-pack=", 0) == 0 ||
            argument == L"--manifest" || argument.rfind(L"--manifest=", 0) == 0 ||
@@ -1642,7 +1871,7 @@ bool IsBootstrapOnlyArgument(const std::wstring& argument) {
 }
 
 bool TakesBootstrapValue(const std::wstring& argument) {
-    return argument == L"--provision-source" || argument == L"--provision-pack" ||
+    return argument == L"--probe-github-transport" || argument == L"--provision-source" || argument == L"--provision-pack" ||
            argument == L"--manifest" || argument == L"--activate-version" ||
            argument == L"--verify-pack" || argument == L"--verify-trust-bundle" || argument == L"--version" ||
            argument == L"--manifest-url" || argument == L"--check-disk-space";
@@ -1789,7 +2018,7 @@ bool VerifyProductionApplicationManifest(const std::string& exactBytes, const st
         return false;
     }
     std::string signature;
-    if (!HttpGetText(DetachedSignatureUrl(manifestUrl), signature, failure)) {
+    if (!HttpGetTextWithTransports(DetachedSignatureUrl(manifestUrl), signature, failure)) {
         failure = L"无法读取应用清单 detached 签名：" + failure;
         return false;
     }
@@ -1804,19 +2033,20 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         failure = L"生产组件清单地址或精确字节摘要无效。";
         return false;
     }
-    std::vector<std::wstring> manifestUrls;
-    manifestUrls.push_back(advertised.componentManifestUrl);
-    manifestUrls.insert(manifestUrls.end(), advertised.componentManifestMirrors.begin(), advertised.componentManifestMirrors.end());
+    std::vector<std::wstring> manifestSources;
+    manifestSources.push_back(advertised.componentManifestUrl);
+    manifestSources.insert(manifestSources.end(), advertised.componentManifestMirrors.begin(), advertised.componentManifestMirrors.end());
+    const auto manifestUrls = BuildOrderedTransportCandidates(manifestSources);
     std::string exactBytes;
-    std::wstring selectedUrl;
+    std::wstring selectedSourceUrl;
     std::wstring lastFailure;
-    for (const auto& url : manifestUrls) {
-        if (!IsHttpsUrl(url)) continue;
+    for (const auto& candidate : manifestUrls) {
+        if (!IsHttpsUrl(candidate.url)) continue;
         std::wstring fetchFailure;
-        if (HttpGetText(url, exactBytes, fetchFailure)) {
+        if (HttpGetText(candidate.url, exactBytes, fetchFailure)) {
             const auto digest = Sha256Text(exactBytes);
             if (digest && _wcsicmp(digest->c_str(), advertised.componentManifestSha256.c_str()) == 0) {
-                selectedUrl = url;
+                selectedSourceUrl = candidate.sourceUrl;
                 break;
             }
             lastFailure = L"组件清单精确字节 SHA-256 与应用清单不一致。";
@@ -1824,7 +2054,7 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         }
         lastFailure = fetchFailure;
     }
-    if (selectedUrl.empty()) {
+    if (selectedSourceUrl.empty()) {
         failure = L"无法读取或校验组件清单：" + (lastFailure.empty() ? L"没有可用的受控地址。" : lastFailure);
         return false;
     }
@@ -1834,7 +2064,7 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         return false;
     }
     std::string signature;
-    if (!HttpGetText(DetachedSignatureUrl(selectedUrl), signature, failure)) {
+    if (!HttpGetTextWithTransports(DetachedSignatureUrl(selectedSourceUrl), signature, failure)) {
         failure = L"无法读取组件清单 detached 签名：" + failure;
         return false;
     }
@@ -1938,30 +2168,35 @@ bool ProvisionFromNetwork(const fs::path& root, const std::vector<std::wstring>&
             return false;
         }
     }
-    const auto& manifestUrl = manifestUrls.front();
-    if (!IsAllowedUrl(manifestUrl, allowInsecureLocal)) {
-        failure = L"应用清单地址不是 HTTPS，且未启用显式本地开发 HTTP。";
+    const auto transports = BuildOrderedTransportCandidates(manifestUrls);
+    if (transports.empty()) {
+        failure = L"没有可用的应用清单传输候选。";
         return false;
     }
     AppendLog(root, L"manifest-fetch-start", correlation);
     std::string manifestText;
-    std::wstring selectedManifestUrl;
-    for (size_t index = 0; index < manifestUrls.size(); ++index) {
+    std::wstring selectedManifestSourceUrl;
+    std::wstring selectedManifestTransportId;
+    for (size_t index = 0; index < transports.size(); ++index) {
+        const auto& transport = transports[index];
+        AppendLogDetail(root, L"manifest-transport-attempt", correlation, transport.id);
         std::wstring fetchFailure;
-        if (HttpGetText(manifestUrls[index], manifestText, fetchFailure)) {
-            selectedManifestUrl = manifestUrls[index];
+        if (HttpGetText(transport.url, manifestText, fetchFailure)) {
+            selectedManifestSourceUrl = transport.sourceUrl;
+            selectedManifestTransportId = transport.id;
             if (index != 0) AppendLog(root, L"manifest-fetch-failover", correlation);
             break;
         }
         failure = fetchFailure;
-        if (index + 1 < manifestUrls.size()) AppendLog(root, L"manifest-fetch-failover", correlation);
+        AppendLogDetail(root, L"manifest-transport-failed", correlation, transport.id);
+        if (index + 1 < transports.size()) AppendLog(root, L"manifest-fetch-failover", correlation);
     }
-    if (selectedManifestUrl.empty()) {
+    if (selectedManifestSourceUrl.empty()) {
         AppendLog(root, L"manifest-fetch-failed", correlation);
         return false;
     }
-    const auto resolvedManifestUrl = selectedManifestUrl;
-    AppendLogDetail(root, L"manifest-fetch-selected", correlation, resolvedManifestUrl);
+    const auto resolvedManifestUrl = selectedManifestSourceUrl;
+    AppendLogDetail(root, L"manifest-fetch-selected", correlation, selectedManifestTransportId);
     auto manifest = ReadApplicationManifest(manifestText);
     if (!manifest) {
         failure = L"应用清单缺失或格式无效。";
@@ -2355,6 +2590,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         const auto staging = root / L".facm" / L"staging";
         const auto versions = root / L".facm" / L"versions";
         return IsPathInside(root / L".facm", staging) && IsPathInside(root / L".facm", versions) ? 0 : 10;
+    }
+
+    const auto transportProbe = OptionValue(arguments, L"--probe-github-transport");
+    if (transportProbe) {
+        const auto result = ProbeGithubTransport(root, *transportProbe, correlation);
+        if (mutex) CloseHandle(mutex);
+        return result;
     }
 
     const auto diskSpaceCheck = OptionValue(arguments, L"--check-disk-space");
