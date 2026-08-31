@@ -329,3 +329,21 @@ MS9.1 真实日志证明所有呈现失败都在共享 `invariant-check`，而�
 ### 后果
 
 真实 Orb↔ControlMatrix 100 次循环和 Feature/League 回 Orb 已通过，后续 UI Upgrade 仍必须遵守冻结行为契约，并继续由用户完成 outside-click、ChampSelect/Lobby、modal、tray、桌宠和多屏/DPI 的真机验收。
+
+## 2026-08-31：Bench 快捷换人使用单一候选源并直接呈现头像
+
+### 决策
+
+- `LeagueWorkbenchViewModel.Live.BenchChampionIds` 是 Bench 候选的唯一权威来源；Morphing `ChampSelectStrip` 与详细 League Bench 卡片都消费它，不再各自计算候选。
+- 新增的 `LeagueBenchCandidate` / `LeagueBenchCandidatePresentation` 只负责把已观察到的 ID 映射为名称、头像源和动作状态；交换仍调用既有 `ILeagueBenchQuickPickService.TrySwapAsync`，不新增 HTTP 写路径。
+- 只有 `ChampSelect + BenchEnabled + 至少一个正数候选` 时才自动把同一个 `MainWindow` 变为横向 strip。无候选、Bench 禁用、会话不可用或其它阶段不得显示空 strip。
+- strip 采用 56 DIP 高度、44 DIP 头像格、280–600 DIP 内容宽度；F 区域是唯一拖动区，头像按钮只处理点击/键盘激活；hover/focus 使用短提示，不以 `#37` / `#236` 作为主控件标签。
+- 用户折叠或桌面空白点击只屏蔽当前 Bench 上下文；候选列表实质变化或新 ChampSelect 上下文会重新允许自动显示。InGame、modal、single-instance、tray、桌宠与 MS9 窗口约束保持原契约。
+
+### 原因
+
+用户需要在已有随机模式英雄台候选出现时直接看头像并单击交换，而不是打开 Workbench 解释数字 ID。复用现有 Live、身份缓存和一次写入/有界回读边界，可以减少操作路径而不引入新的 League 性能 owner。
+
+### 后果
+
+这是行为等价线上的窄功能改进，不是完整 UI Upgrade。真实 LCU ARAM 会话、真实 portrait 渲染、outside-click/modal、键盘/辅助功能和跨 DPI 仍需在新候选上由用户完成验收；在此之前不宣称完整 P7 或 release-ready。

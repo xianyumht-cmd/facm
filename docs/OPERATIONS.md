@@ -361,3 +361,47 @@ operation-failed、0 invariant-failed、0 stale、0 unhandled、0 fatal。Repair
 outside-click、modal、ChampSelect/Lobby、tray/single-instance、桌宠切换、多屏/DPI 和视觉复核
 仍为 `USER_MANUAL_VALIDATION_REQUIRED`。该候选不是 release-ready；禁止由本地候选触发 Gate13、
 release、production pointer、merge 或 push。
+
+## 18. 2026-08-31 Morphing Bench Swap Strip BS1–BS6 candidate
+
+本阶段使用 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` 的
+`tmp/p7-ipc-lifecycle-fix-20260830`，代码基线为 `f80a70e065c33b9ba650b09a2cebcc0088233bfc`。
+代码提交为 `4b9fe1b`（candidate identity model）和 `fea17fd`（Morphing strip / shared Live
+state / detailed Workbench reuse）。`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`
+的换行噪声和既有 `out/` 仍未纳入提交。
+
+Bench candidate source is `LeagueWorkbenchViewModel.Live.BenchChampionIds`, populated by the
+existing `LeagueWorkbenchDataSource` Legacy/TeamBuilder session reads. Both the strip and the
+detailed League card use `LeagueBenchCandidatePresentation`; both route clicks to the existing
+`LeagueBenchQuickPickService.TrySwapAsync` and its one POST plus bounded read-back. Portrait identity
+uses the existing champion summary and icon paths/cache; no new portrait network path or polling owner
+was added.
+
+Verified local commands, with all temporary directories under `D:\project2`, were:
+
+```powershell
+dotnet build src/FACM.App/FACM.App.csproj --configuration Debug --no-restore
+dotnet build FACM4.sln --configuration Debug -p:Platform=x64 --no-restore
+dotnet run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj --configuration Debug --no-restore -- --skip-gate13
+dotnet run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj --configuration Debug --no-restore
+```
+
+Results: FACM.App 0 warnings/0 errors; FACM4.sln Debug x64 0 warnings/0 errors;
+FoundationSmoke SUCCESS with Gate13 omitted; WindowsSmoke SUCCESS; Bench targeted smoke passed
+inside FoundationSmoke; all 28 `check-facm4-*.ps1` source gates passed. Gate13 was not run.
+
+Fresh user-review candidate:
+
+```text
+directory: D:\project2\facm-bs6-review-out-20260831-1500
+exe:       D:\project2\facm-bs6-review-out-20260831-1500\FACM.App.exe
+config:    Debug / win-x64 / self-contained / single-file
+bytes:     421024376
+sha256:    6C12C65988953AD01C258D8D712BEC7291CF82F773A1BE9F2D298CD8736BE7BB
+files:     1
+dlls:      0
+```
+
+This candidate is for user review only. Do not overwrite the immutable MS9.4 candidate, modify
+production pointers, merge/push/release, or treat deterministic green as natural ARAM, modal,
+outside-click, accessibility, mixed-DPI, or Gate13 evidence.

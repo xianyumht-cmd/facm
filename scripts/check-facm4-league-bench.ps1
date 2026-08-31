@@ -18,11 +18,12 @@ $writeContractPath = Join-Path $Root 'src/FACM.Core/League/LeagueContracts.cs'
 $servicePath = Join-Path $Root 'src/FACM.Infrastructure/League/LeagueBenchQuickPickService.cs'
 $compositionPath = Join-Path $Root 'src/FACM.App/App.LeagueBenchQuickPick.cs'
 $uiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueBenchQuickPick.cs'
+$morphingPath = Join-Path $Root 'src/FACM.App/MainWindow.MorphingSurface.cs'
 $runtimeUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchRuntime.cs'
 $smokePath = Join-Path $Root 'src/FACM.FoundationSmoke/LeagueBenchQuickPickSmoke.cs'
 $smokeProgramPath = Join-Path $Root 'src/FACM.FoundationSmoke/Program.cs'
 
-foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $uiPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
+foreach ($path in @($corePath, $writeContractPath, $servicePath, $compositionPath, $uiPath, $morphingPath, $runtimeUiPath, $smokePath, $smokeProgramPath)) {
     if (-not (Test-Path $path)) { Fail "League bench quick-pick contract file missing: $path" }
 }
 
@@ -31,6 +32,7 @@ $writeContract = Get-Content $writeContractPath -Raw
 $service = Get-Content $servicePath -Raw
 $composition = Get-Content $compositionPath -Raw
 $ui = Get-Content $uiPath -Raw
+$morphing = Get-Content $morphingPath -Raw
 $runtimeUi = Get-Content $runtimeUiPath -Raw
 $smoke = Get-Content $smokePath -Raw
 $smokeProgram = Get-Content $smokeProgramPath -Raw
@@ -94,16 +96,36 @@ foreach ($required in @('CreateLeagueBenchQuickPickService', 'new LeagueBenchQui
 foreach ($required in @(
     'FACM.League.BenchState', 'FACM.League.BenchStatus', 'FACM.League.Bench.',
     'ILeagueBenchQuickPickService', 'CreateLeagueBenchQuickPickService',
-    'LeagueBenchQuickPickPolling.ResolveDelay', 'TrySwapAsync',
-    'SetLeagueBenchButtonsEnabled(false)', 'RefreshLeagueBenchOnceAsync'
+    'ApplyLeagueBenchFromLive', 'LeagueBenchCandidatePresentation', 'TrySwapAsync',
+    'SetBenchSwapButtonsEnabled(false)', 'RefreshLeagueWorkbenchRuntimeAsync'
 )) {
     if ($ui -notmatch [regex]::Escape($required)) {
         Fail "League bench WinUI surface is missing behavior: $required"
     }
 }
+foreach ($forbidden in @('RunLeagueBenchLoopAsync', '_leagueBenchLoopCts', 'RefreshLeagueBenchOnceAsync', 'LeagueBenchQuickPickPolling.ResolveDelay')) {
+    if ($ui -match [regex]::Escape($forbidden)) {
+        Fail "League bench WinUI must not add an independent polling loop: $forbidden"
+    }
+}
 foreach ($forbidden in @('ILeagueWriteGateway', 'LeagueHttpGateway', 'HttpClient', 'HttpRequestMessage', 'FACM\.Platform', 'bench/swap/')) {
     if ($ui -match $forbidden) {
         Fail "League bench WinUI crossed the intent boundary: $forbidden"
+    }
+}
+foreach ($required in @(
+    'LeagueBenchSwapStripPolicy.IsEligible', 'LeagueBenchCandidatePresentation',
+    'DismissBenchStripForCurrentContext', 'ResetBenchContext',
+    'SetChampSelectCandidateButtonsEnabled', 'ChampSelectDragHandle',
+    'FACM.Surface.BenchSwap.', 'ToolTipService.SetToolTip'
+)) {
+    if ($morphing -notmatch [regex]::Escape($required)) {
+        Fail "Morphing Bench Swap Strip is missing behavior: $required"
+    }
+}
+foreach ($forbidden in @('RunLeagueBenchLoopAsync', '_leagueBenchLoopCts', 'LeagueBenchQuickPickPolling.ResolveDelay')) {
+    if ($morphing -match [regex]::Escape($forbidden)) {
+        Fail "Morphing Bench Swap Strip must not add an independent polling loop: $forbidden"
     }
 }
 foreach ($required in @('InitializeLeagueBenchQuickPickSurface()', 'DisposeLeagueBenchQuickPickSurface()')) {

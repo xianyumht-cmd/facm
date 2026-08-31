@@ -82,7 +82,9 @@ then a bounded 180 ms opacity/translation presentation. A failed or unavailable 
 back to the last safe placement and still leaves the shell usable.
 
 The default shell maps desktop entry to ControlMatrix, feature entry to FeatureSurface, League entry
-to LeagueSurface, ChampSelect to ChampSelectStrip, InGame to HiddenInGame, and Lobby return to Orb.
+to LeagueSurface, an actionable Bench-backed ChampSelect context to ChampSelectStrip, InGame to
+HiddenInGame, and Lobby return to Orb. ChampSelect without actionable Bench candidates stays on the
+current safe surface rather than opening an empty strip.
 Green Collapse returns any ordinary expanded surface directly to Orb; Back from a feature returns to
 ControlMatrix; the red control preserves the established close/shutdown behavior. The Orb is only its
 36-DIP F at idle; an information rail is transient, one-shot, and itself activates the same primary
@@ -127,6 +129,32 @@ invalid presentation. Diagnostic generation/correlation fields record request co
 presented as stale-request suppression. Existing outside-click lifecycle ownership remains the
 same; the MS8 flood was a consequence of the shared invariant never committing the first Orb, not
 a new watcher owner.
+
+## 2026-08-31 Morphing Bench Swap Strip contract
+
+`LeagueBenchSwapStripPolicy` is a presentation policy over the existing `LeagueWorkbenchLiveSnapshot`.
+It requires a usable `ChampSelect` snapshot, `BenchEnabled`, and at least one positive observed Bench
+candidate. `LeagueBenchCandidatePresentation` is the shared identity model for both the thin
+Morphing strip and the detailed Workbench fallback; it preserves the champion ID only as the command
+key, while the primary identity is the resolved name plus the existing LCU portrait cache path.
+
+Entering ChampSelect starts a new local Bench context and asks the existing Workbench owner for one
+event-driven refresh. Live `BenchChampionIds` is the only candidate source. The Morphing strip never
+creates a second Gameflow monitor, session, gateway, refresh loop, timer, or swap command. The detail
+card is updated from the same `Live` property and no longer owns its former Bench polling loop.
+
+The strip is the existing `MainWindow` `ChampSelectStrip` mode: a 56-DIP horizontal surface with
+44-DIP portrait tiles, content-driven width clamped to 280–600 DIP, a dedicated `F` drag handle,
+and a compact collapse control. Portrait buttons use the existing `TrySwapAsync` command and its
+single POST plus 35/70/140 ms read-back; busy state disables both presentations, and result text is
+brief and non-modal. Unknown identity data uses a compact `Unknown champion` placeholder and never
+renders a raw `#<id>` primary label.
+
+Outside-click and explicit collapse return the one host to Orb and dismiss only the current Bench
+context. A material candidate-list change or a new ChampSelect generation clears that dismissal.
+InGame still takes precedence and hides the host; Lobby restoration returns it to Orb. The existing
+MS9 HWND minimum-track-size adaptation, TopMost/hit-test boundary, modal suppression, anchor
+persistence, single-instance and tray contracts remain outside this feature's ownership.
 
 ## 3. Stable paths
 

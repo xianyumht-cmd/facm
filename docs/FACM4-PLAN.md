@@ -1,6 +1,6 @@
 # FACM 4.0 执行计划与实时进度
 
-Status: **LOCAL-MS9-PRESENTATION-STABILIZED / REAL-CYCLE-GREEN / MANUAL-WIN10-VALIDATION-PENDING**
+Status: **LOCAL-BS6-BENCH-STRIP-CANDIDATE / DETERMINISTIC-GREEN / REAL-LEAGUE-VALIDATION-PENDING**
 Production baseline: **FACM 3.5.15（保持不变）**
 Active line: `feat/facm4-function-parity-p7-closeout` / PR #234 / Issue #233
 Canonical main: `269da6c751a8463542ed0d172300675deff9571e`
@@ -12,6 +12,9 @@ Historical cloud staging candidate: `e387295fd61c233f8e9892016a6e9917b448cd5b` (
 
 Current local MS9 candidate: `D:\project2\facm-ms9.4-runtime-out-20260831-1305` with
 `FACM.App.exe` SHA-256 `94AD1C97C93C32285A76F27E3CB3FE78FBE42B7D1BDEEC2DC18B789DD4E66412`.
+
+Current local BS6 review candidate: `D:\project2\facm-bs6-review-out-20260831-1500` with
+`FACM.App.exe` SHA-256 `6C12C65988953AD01C258D8D712BEC7291CF82F773A1BE9F2D298CD8736BE7BB`.
 
 > 本文件是 FACM 4.0 当前工作的实时计划账。每完成一批代码审查、修复、CI 结论、真机证据或正式交接，都要同步更新。生产/cutover/release 权限不从本文件自动产生。
 
@@ -25,7 +28,14 @@ FACM 4.0 P7 的功能等价与自动稳定性层已完成，但 Win10 真机继�
 
 Batch M 已从根因修复：Foundation 构建 PetHost ZIP 后生成稳定 SHA identity，FACM 单文件同时嵌入 ZIP + tiny SHA resource；新进程优先用 SHA 直接检查 `runtime/pethost-host/<sha>`，完整 cache 命中时不再打开、更不再重新 hash 76.9 MB ZIP。跨进程 no-rehash smoke 已进入 WindowsSmoke。
 
-Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。随后 canonical docs head `b7bbb24bef5670196633f65ec2bbd5e441dd5b1e` 又通过 Foundation #633 全回归；这属于 MS9 之前的 Foundation 基线。当前执行焦点已转为上方记录的 Morphing Surface MS9 真机呈现验证。
+Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 publish 都嵌入了 `FACM.Resources.PetHost.sha256`。随后 canonical docs head `b7bbb24bef5670196633f65ec2bbd5e441dd5b1e` 又通过 Foundation #633 全回归；这属于 MS9 之前的 Foundation 基线。当前执行焦点已转为 Morphing Bench Swap Strip 的真实 LCU/Win10 验证。
+
+2026-08-31 的下一阶段 BS1–BS6 已完成本地代码事务：候选身份模型、同源 Workbench/Strip
+呈现、自动显示 gate、一次既有 swap 路由、上下文 dismissal、详细卡片复用和回归门均已落地。
+代码提交为 `4b9fe1b`、`fea17fd`；当前候选使用同一 Morphing `MainWindow` 的既有
+`ChampSelectStrip`，并通过现有 LCU metadata/icon cache 读取头像。28 个 source gates、App 和
+solution Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke 均通过。自然 ARAM/LCU
+交互和真实可视化仍是手动验收，不改变 P7/cutover 状态。
 
 2026-08-30 在全新 candidate worktree 完成了 .NET `10.0.400` Foundation 等价链：FlyingHost/PetHost publish + self-test、28 个 source gates、`FACM4.sln` Release x64 restore/build、FoundationSmoke、WindowsSmoke、FACM.App single-file publish 均通过。FlyingHost 464 files / `72,052,263` bytes / SHA-256 `63f94f2bd3fbd4908d0736c9067f26c90afcd7798bdc2abc1929f7b2771cabb5`，PetHost 472 files / `76,915,115` bytes / SHA-256 `e295beec4035fe671b3e757b9b515668b8f7eca39178337a73c7c855424d00df`。FACM.App.exe 为 `377,994,404` bytes / SHA-256 `5aa53107fd8efcf67423c3b625908ec083ed6ff5c3effb6f3d80f613c1fe90d6`，输出 DLL entries 为 0。
 

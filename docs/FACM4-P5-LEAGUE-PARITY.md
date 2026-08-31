@@ -49,3 +49,16 @@
 ## P5 工程验收结论
 
 P5 的 9 个功能组已经在 4.0 单一 League runtime 架构下具备真实读取/操作入口和专项 source gate / deterministic smoke。Foundation 最新完整验证包含 Release build、FoundationSmoke、WindowsSmoke、self-contained single-file publish 与 artifact upload。P5 PR 仍保持 Draft，最终 merge 继续等待整套 3.5 功能等价版的一次性真机验收。
+
+## 2026-08-31 BenchSwapStrip 直接入口
+
+随机模式英雄台快捷换人现在有两种同源呈现：
+
+- 默认 Morphing shell：当 `LeagueWorkbenchLiveSnapshot` 同时满足 `ChampSelect`、`BenchEnabled` 和至少一个正数候选时，单一 `MainWindow` 自动变为横向 `ChampSelectStrip`；头像是主控件，名称在可用时显示在紧凑提示/辅助功能名称中。
+- 详细 League Workbench：保留状态、诊断和备用入口，但按钮同样使用 `LeagueBenchCandidatePresentation`，不再把 `#37` / `#236` 作为主标签。
+
+候选仍来自 Workbench `Live.BenchChampionIds`；Legacy/TeamBuilder route 仍由现有 `LeagueBenchQuickPickService` 管理。头像身份沿用现有 `/lol-game-data/assets/v1/champion-summary.json` 与 `/lol-game-data/assets/v1/champion-icons/{id}.png` 读取和进程内缓存，没有新增 portrait provider 或独立网络循环。点击仍复用既有一次 POST、35/70/140ms 有界只读回读和 `_swapGate` 串行边界；不进行写重试或后台自动换人。
+
+strip 目标高度 56 DIP，头像格 44 DIP，宽度按候选数计算并限制在 280–600 DIP；候选过多时保持横向滚动，不扩张为大窗口。F 区为拖动区，折叠/桌面空白点击回 Orb 并只关闭当前上下文；候选实质变化或新 ChampSelect 会重新开放自动显示；InGame 隐藏、Lobby 回 Orb、modal suppression、single-instance、tray 和桌宠契约不变。
+
+确定性覆盖包括：37/236 双候选回归、未知 ID 回退、已知名称/头像源、零/一/多候选几何、Bench/phase eligibility、候选去重、上下文 dismissal/reopen、一次写入、成功有界回读、验证失败不重试和 stale target 拒绝。自然真实 ARAM/LCU portrait、outside-click/modal、keyboard/accessibility 与跨 DPI 仍是用户验收项。
