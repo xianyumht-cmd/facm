@@ -486,7 +486,8 @@ real-machine Win10 22H2 / controlled Win11 evidence exist. Gate13 is intentional
 
 FREE-DIST-1 extends the BOOT3-C transport layer without changing the BOOT3-A/BOOT3-B trust boundary. The work is on
 the same isolated worktree and task branch. Focused commits are `50101e6` (`feat(dist): add GitHub canonical proxy
-transport candidates`) and `7929988` (`test(dist): cover free proxy failure and GitHub fallback`). No GitHub Release
+transport candidates`), `5d91a7b` (`fix(dist): preserve resume and verification across proxy failover`), and `7929988`
+(`test(dist): cover free proxy failure and GitHub fallback`); the architecture record is `73afa00`. No GitHub Release
 was published, no push/merge or production pointer change was performed, and production remains FACM 3.5.15.
 
 - Canonical signed metadata URLs use only
