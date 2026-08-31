@@ -34,9 +34,9 @@ Tracking Issue：#233。
 
 ## FACM 4.0 当前里程碑
 
-当前执行焦点已转为 BOOT-2：native bootstrapper 的网络组件供给、CAB/FDI 原生解包、组件状态与组合、
-增量下载/续传/镜像故障切换，以及 clean/pre-provisioned 本地根目录验证。实现位于隔离 worktree，尚未
-作为正式 P7 移动；后文 BOOT-2 条目是当前事实来源。
+当前执行焦点已转为 BOOT3-A：在 BOOT-2 native 组件供给、CAB/FDI 原生解包、组件状态与组合、增量下载/续传、
+镜像故障切换和 clean/pre-provisioned 验证之上建立 bootstrapper-local production trust boundary。实现位于
+隔离 worktree，尚未作为正式 P7 移动；后文 BOOT-2 与 BOOT3-A 条目是当前事实来源。
 
 代码侧功能等价、自动稳定性审查与重复压力层已完成。最新真实 Win10 evidence 又发现一个跨进程 PetHost cache 性能缺陷，并已在 Batch M 根因修复：
 
@@ -372,11 +372,34 @@ BOOT-2 已在 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
   包含 manifest/component evaluation、download start/resume/failover/complete、hash/extraction、
   composition/active failure milestones；不写入凭据或逐 chunk 日志。
 
-当前是 **BOOT-2 deterministic local candidate green / not release-ready**。production signature/key、
-真实 HTTPS/CDN、真实 Win10/11 安装与更新、真实 League/桌宠回归、完整 release evidence 和 Gate13
-仍未完成。正式生产仍为 FACM 3.5.15。
+BOOT-2 deterministic local candidate 及其独立回归已通过；production key custody、真实 HTTPS/CDN、真实 Win10/11
+安装与更新、真实 League/桌宠回归、完整 release evidence 和 Gate13 仍未完成。正式生产仍为 FACM 3.5.15。
 
 当前状态是 **BOOT-1 local review candidate ready / not release-ready**。ZIP 已生成并可校验，但当前
 prototype 的本地 provisioning 仍消费 expanded local source；原生 ZIP extraction、网络 provisioning、
 真实 Windows 10/11、桌宠切换、outside-click、modal、tray、League 自然 ReadyCheck、mixed-DPI、辅助
 功能、最终签名和完整 Gate13 evidence 仍未完成，不能据此修改生产指针或宣称 cutover。
+
+## 2026-08-31 BOOT3-A production trust candidate
+
+BOOT3-A 已在隔离 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、临时分支
+`tmp/p7-ipc-lifecycle-fix-20260830` 上完成，起点 `8fd87b6`，当前实现提交为 `cc45295`，信任契约提交为
+`56a694f`。正式 P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`、PR #234、生产指针、Formal P7、merge/push/release
+和 Gate13 均保持不变；当前工作树原有的 `src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`、`out/`、
+`setup.inf`、`setup.rpt` 未纳入提交。
+
+- 生产模式为 schema 3 `production`：bootstrapper 内嵌固定 `facm-production-r1` RSA-2048 公钥，仅接受
+  detached RSA-SHA256/PKCS#1 签名，签名覆盖应用/组件清单的精确 UTF-8 字节；应用清单认证组件清单地址、
+  清单摘要、包 SHA-256、解包 size/fileCount/contentDigest，组件清单再次逐字段匹配。
+- `unsigned-local` 保留为 schema 2 的显式 loopback HTTP 开发模式，必须同时显式打开 local unsigned 和
+  insecure 开关；生产模式不接受这些开关、配置或任意第三方信任根，生产组件清单和包地址也必须 HTTPS。
+- BOOT3-A focused smoke 已通过 valid signed bundle、altered application/component bytes、invalid signature、
+  unknown/test-only key、unsigned production/downgrade、altered authenticated metadata、corrupted package hash
+  及 failed-update active preservation；原生 CMake Release build 通过，29 个非 cutover source gates、BOOT-2
+  regression smoke、Release x64（0 warnings / 0 errors）、FoundationSmoke 和 WindowsSmoke 均通过。
+- 生产 EXE Authenticode 现有基础设施已审计但未复用为 JSON/CAB manifest trust；现有 Authenticode 仍仅负责
+  PE 发布签名和托管 updater release identity。测试私钥不在仓库，测试材料和输出位于 `D:\project2`。
+
+当前是 **BOOT3-A local cryptographic trust candidate green / not release-ready**。BOOT3-B 仍需 controlled
+production key custody/rotation、真实 HTTPS hosting、signed package publication、真实 Windows update/cutover
+验收及完整 release evidence；不得由本候选自动进入 BOOT3-B、Gate13 或 production release。

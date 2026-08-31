@@ -413,3 +413,25 @@ The three current update units are `facm-app-win-x64`, `facm-dotnet-runtime-win-
 with a valid active composition does not fetch the manifest or hash all installed files; `--update` is the
 explicit update path and may perform full component evaluation. The local server under
 `D:\project2\facm-boot2-mirror-20260831` is deterministic test infrastructure only.
+
+## 2026-08-31 BOOT3-A trust topology
+
+BOOT3-A adds a bootstrapper-local trust boundary around the BOOT-2 supply path:
+
+```text
+embedded production keyring (facm-production-r1 public key only)
+  -> exact application manifest bytes + manifest.json.sig
+  -> authenticated component URL / manifest SHA / package SHA / extracted digest metadata
+  -> exact component manifest bytes + component.manifest.json.sig
+  -> native CNG signature + metadata comparison
+  -> CAB package size/SHA-256
+  -> native FDI extraction + installed size/fileCount/contentDigest
+  -> fresh composition staging
+  -> atomic active.json commit
+```
+
+The signed-byte format is RSA-2048 PKCS#1 v1.5 with SHA-256 and detached Base64 signatures; no JSON
+canonicalization is used. Production URLs are HTTPS regardless of local-development switches. The existing
+EXE Authenticode/updater identity path remains separate because it is a PE release-signing mechanism, not a
+JSON/CAB exact-byte manifest mechanism. `unsigned-local` is retained only for explicit loopback development
+provisioning and cannot add production trust roots or bypass signatures.

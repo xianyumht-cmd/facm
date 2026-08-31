@@ -404,3 +404,27 @@ CAB 可由 Windows 自带 Cabinet API 解包，且能在不引入 managed framew
 本地 BOOT-2 candidate 已能证明组件供给、组合、回滚保护和增量下载关系，但仍需真实 HTTPS/CDN、生产
 签名验证、真实 Win10/11、升级中断/空间压力、自然 League/桌宠和完整 Gate13 evidence。unsigned-local
 镜像不得直接作为用户 release。
+
+## 2026-08-31：BOOT3-A 使用 bootstrapper-local exact-byte manifest trust
+
+### 决策
+
+- 生产应用和组件清单使用 detached RSA-2048 PKCS#1/SHA-256 签名，签名输入是实际传输/读取的精确字节，
+  不引入新的 JSON canonicalization 规则。
+- bootstrapper 只内嵌固定生产 `keyId` 与公钥，不读取配置、系统任意证书根或用户提供的 keyring 来扩大
+  生产信任；应用清单与组件清单必须使用同一受信任 key identity。
+- 应用签名认证组件清单 URL、清单字节 SHA-256、CAB size/hash 和 extracted size/fileCount/contentDigest；
+  组件清单再签名并逐字段对比，包哈希和解包摘要在安装前后都验证。
+- `unsigned-local` 只保留给显式 loopback HTTP 开发测试，必须同时开启两个 local 开关，且生产模式下这些
+  开关永远不是签名绕过。
+
+### 原因
+
+现有 Authenticode/updater verifier 只适合 PE 文件签名者身份与 WinVerifyTrust，无法直接表达 JSON/CAB
+manifest 的 exact-byte detached trust。Windows CNG 可由无 .NET/WinUI 依赖的 native bootstrapper 验证，
+并能把包与解包内容的身份纳入同一组件元数据链。
+
+### 后果
+
+BOOT3-A 获得了可审计的 native trust boundary 和失败更新保护，但真实 release key custody、HTTPS hosting、
+签名包发布、密钥轮换与真实机器 update/cutover evidence 仍属于 BOOT3-B；本地测试私钥不能用于正式发布。

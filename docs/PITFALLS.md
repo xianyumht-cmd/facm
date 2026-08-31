@@ -576,3 +576,23 @@ ordinal 顺序计算，并同时校验 file count 与 installed size；不能只
 预防规则：生成每个包后先检查 setup/卷数量与实际输出文件数，再用 native extractor 做 round-trip；
 ownership、package hash、expanded digest、file count 和 byte sum 必须进入同一份审计报告。失败 staging
 只能保留在受控 `.facm\staging`，active 版本不得被清理流程顺手删除。
+
+## 2026-08-31：不能把 Authenticode 当作 JSON/CAB manifest trust
+
+### 根因
+
+仓库已有的 Authenticode 机制面向 PE 可执行文件的签名者、证书链和发布版本身份；它不能天然认证
+application/component JSON 的精确字节，也不能把组件 manifest 的 package hash 与 extracted content digest
+串进 bootstrapper 的生产信任链。若只增加一个 `signed=true` 配置或沿用 unsigned-local 镜像，签名边界仍可被
+配置/传输替换绕过。
+
+### 防回归规则
+
+- 清单签名必须是 detached exact-byte signature；生产 key identity 必须来自 bootstrapper 内嵌 keyring，
+  不得来自配置、任意系统根或测试私钥。
+- 应用清单认证 component-manifest URL/bytes hash、package hash 和 extracted digest；组件清单要独立签名
+  并逐字段匹配，包在验证后才能转正。
+- unsigned-local 只能通过显式 loopback HTTP 开发边界进入，任何生产 URL、组件 URL 或 `allow-insecure-local`
+  组合都不能把它升级为生产信任。
+- 负向 smoke 必须覆盖 altered signed bytes、unknown/test-only key、unsigned downgrade、metadata mismatch、
+  package corruption 和 failed-update active preservation；失败时旧 active 必须仍可 resolve/launch。

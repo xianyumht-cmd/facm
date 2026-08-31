@@ -492,3 +492,33 @@ fresh staging; active state is written after composition; old active is never de
 hash, extraction or activation attempt. Failed staging is preserved under the controlled `.facm\staging`
 directory for diagnosis/cleanup. Do not merge, push, release, modify production pointers, move formal P7 or
 run Gate13 from this candidate.
+
+## 2026-08-31 BOOT3-A trust verification candidate
+
+The focused trust contract is in `docs/BOOT3A-TRUST.md`. The source gate is:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\scripts\check-facm4-boot3a.ps1'
+```
+
+Build the bootstrapper with the D: toolchain and keep the output under `D:\project2`, then run the focused
+fixture test. The test requires an externally held local validation private key corresponding to the embedded
+`facm-production-r1` public root; it creates a separate unmistakable `facm-test-only-r1` key under its D: test
+root and proves production rejects that identity. No private key or signed fixture is written to the repository.
+
+```powershell
+$env:PATH = 'D:\project2\w64devkit-2.9.1\w64devkit\bin;' + $env:PATH
+cmake -S 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper' `
+  -B 'D:\project2\facm-boot3a-native-build' -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build 'D:\project2\facm-boot3a-native-build' --config Release --parallel 2
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\boot1\Test-Boot3A.ps1'
+```
+
+`--verify-trust-bundle` is a bounded verification diagnostic: it validates a local signed application/component
+bundle, package hash, native CAB extraction, and extracted content digest without changing active state. The
+production network path performs the same exact-byte signature checks over HTTPS. The 2026-08-31 candidate also
+passed Release x64 with 0 warnings / 0 errors, FoundationSmoke `--skip-gate13`, WindowsSmoke, 29 non-cutover
+source gates, and an independent BOOT-2 regression smoke. BOOT3-A does not run Gate13, touch production pointers,
+release/merge/push PR #234, move Formal P7, or retire FACM 3.5.15.
