@@ -67,6 +67,7 @@ struct ComponentManifest {
     std::vector<std::wstring> dependencies;
     std::wstring keyId;
     std::wstring componentManifestUrl;
+    std::vector<std::wstring> componentManifestMirrors;
     std::wstring componentManifestSha256;
 };
 
@@ -77,6 +78,7 @@ struct ApplicationManifest {
     std::wstring architecture;
     std::wstring trustMode;
     std::wstring keyId;
+    std::vector<std::wstring> manifestMirrors;
     std::vector<ComponentManifest> components;
 };
 
@@ -96,6 +98,7 @@ struct ComponentsState {
 
 struct BootstrapConfig {
     std::wstring manifestUrl;
+    std::vector<std::wstring> manifestMirrors;
     bool allowUnsignedLocal = false;
     bool allowInsecureLocal = false;
 };
@@ -317,8 +320,12 @@ std::optional<std::string> JsonArrayText(const std::string& json, const std::str
     const auto marker = "\"" + key + "\"";
     const auto keyPosition = json.find(marker);
     if (keyPosition == std::string::npos) return std::nullopt;
-    const auto open = json.find('[', keyPosition + marker.size());
-    if (open == std::string::npos) return std::nullopt;
+    auto open = keyPosition + marker.size();
+    while (open < json.size() && isspace(static_cast<unsigned char>(json[open]))) ++open;
+    if (open >= json.size() || json[open] != ':') return std::nullopt;
+    ++open;
+    while (open < json.size() && isspace(static_cast<unsigned char>(json[open]))) ++open;
+    if (open >= json.size() || json[open] != '[') return std::nullopt;
     bool quoted = false;
     bool escaped = false;
     int depth = 0;
@@ -436,15 +443,48 @@ bool AtomicWrite(const fs::path& path, const std::string& content) {
     }
 }
 
+bool ValidVersion(const std::wstring& version);
+bool ValidComponentId(const std::wstring& id);
+bool IsHexSha256(const std::wstring& value);
+
+bool IsSafeInstalledComponentPath(const std::wstring& value) {
+    if (value.empty() || value.find(L':') != std::wstring::npos || value.front() == L'\\' || value.front() == L'/') {
+        return false;
+    }
+    std::wstring normalized = value;
+    std::replace(normalized.begin(), normalized.end(), L'\\', L'/');
+    const auto parts = [&]() {
+        std::vector<std::wstring> result;
+        size_t start = 0;
+        while (start <= normalized.size()) {
+            const auto separator = normalized.find(L'/', start);
+            const auto part = normalized.substr(start, separator == std::wstring::npos ? std::wstring::npos : separator - start);
+            if (part.empty() || part == L"." || part == L"..") return std::vector<std::wstring>{};
+            result.push_back(part);
+            if (separator == std::wstring::npos) break;
+            start = separator + 1;
+        }
+        return result;
+    }();
+    return parts.size() >= 4 && _wcsicmp(parts[0].c_str(), L".facm") == 0 &&
+           _wcsicmp(parts[1].c_str(), L"components") == 0;
+}
+
 std::optional<ActiveState> ReadActiveState(const fs::path& path) {
     std::string json;
     if (!ReadText(path, json)) return std::nullopt;
+    const auto schemaVersion = JsonUnsigned(json, "schemaVersion");
     const auto activeVersion = JsonString(json, "activeVersion");
     const auto activePath = JsonString(json, "activePath");
-    if (!activeVersion || !activePath || activeVersion->empty() || activePath->empty()) return std::nullopt;
+    if (!schemaVersion || *schemaVersion != 1 || !activeVersion || !activePath || activeVersion->empty() || activePath->empty()) return std::nullopt;
     ActiveState state;
     state.activeVersion = Utf8ToWide(*activeVersion);
     state.activePath = Utf8ToWide(*activePath);
+    auto normalizedActivePath = state.activePath;
+    std::replace(normalizedActivePath.begin(), normalizedActivePath.end(), L'\\', L'/');
+    const auto endsWithParent = normalizedActivePath.size() >= 3 && normalizedActivePath.compare(normalizedActivePath.size() - 3, 3, L"/..") == 0;
+    if (!ValidVersion(state.activeVersion) || normalizedActivePath.find(L".facm/versions/") != 0 ||
+        normalizedActivePath.find(L"/../") != std::wstring::npos || endsWithParent) return std::nullopt;
     state.previousVersion = Utf8ToWide(JsonString(json, "previousVersion").value_or(""));
     state.lastSuccessfulLaunch = Utf8ToWide(JsonString(json, "lastSuccessfulLaunch").value_or(""));
     return state;
@@ -490,6 +530,7 @@ std::optional<ComponentManifest> ParseComponentManifest(const std::string& json)
     manifest.dependencies = JsonStringArray(json, "dependencies");
     manifest.keyId = Utf8ToWide(JsonString(json, "keyId").value_or(""));
     manifest.componentManifestUrl = Utf8ToWide(JsonString(json, "componentManifestUrl").value_or(""));
+    manifest.componentManifestMirrors = JsonStringArray(json, "componentManifestMirrors");
     manifest.componentManifestSha256 = Utf8ToWide(JsonString(json, "componentManifestSha256").value_or(""));
     return manifest;
 }
@@ -514,6 +555,7 @@ std::optional<ApplicationManifest> ReadApplicationManifest(const std::string& js
     manifest.architecture = Utf8ToWide(*architecture);
     manifest.trustMode = Utf8ToWide(*trustMode);
     manifest.keyId = Utf8ToWide(JsonString(json, "keyId").value_or(""));
+    manifest.manifestMirrors = JsonStringArray(json, "manifestMirrors");
     for (const auto& object : JsonObjectArray(json, "components")) {
         const auto component = ParseComponentManifest(object);
         if (!component) return std::nullopt;
@@ -1049,6 +1091,11 @@ bool QueryHttpResponse(HINTERNET request, HttpResponse& response) {
     return true;
 }
 
+bool DisableHttpRedirects(HINTERNET request) {
+    DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+    return WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy)) != FALSE;
+}
+
 bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failure) {
     URL_COMPONENTS components{};
     std::vector<wchar_t> host;
@@ -1069,6 +1116,10 @@ bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failu
     if (!request) {
         WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
         failure = L"无法创建清单请求。"; return false;
+    }
+    if (!DisableHttpRedirects(request)) {
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        failure = L"无法启用 HTTPS 无重定向策略。"; return false;
     }
     const auto sent = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != FALSE &&
                       WinHttpReceiveResponse(request, nullptr) != FALSE;
@@ -1125,6 +1176,10 @@ bool DownloadUrl(const std::wstring& url, const fs::path& partial, const Compone
         WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
         failure = L"无法创建组件请求。"; return false;
     }
+    if (!DisableHttpRedirects(request)) {
+        WinHttpCloseHandle(request); WinHttpCloseHandle(connection); WinHttpCloseHandle(session);
+        failure = L"无法启用 HTTPS 无重定向策略。"; return false;
+    }
     bool requestedResume = resumeAt > 0;
     std::wstring rangeHeader;
     if (requestedResume) {
@@ -1180,6 +1235,56 @@ std::uintmax_t DirectoryFileCount(const fs::path& root) {
         if (entry.is_regular_file(error)) ++count;
     }
     return count;
+}
+
+bool AddSaturating(std::uintmax_t& total, std::uintmax_t value) {
+    const auto maximum = static_cast<std::uintmax_t>(-1);
+    if (value > maximum - total) {
+        total = maximum;
+        return false;
+    }
+    total += value;
+    return true;
+}
+
+std::optional<std::uintmax_t> AvailableDiskBytes(const fs::path& root) {
+    ULARGE_INTEGER available{};
+    if (!GetDiskFreeSpaceExW(root.c_str(), &available, nullptr, nullptr)) return std::nullopt;
+    return static_cast<std::uintmax_t>(available.QuadPart);
+}
+
+std::uintmax_t ProvisionRequiredBytes(const ApplicationManifest& manifest) {
+    constexpr std::uintmax_t safetyMargin = 64ull * 1024ull * 1024ull;
+    std::uintmax_t required = safetyMargin;
+    for (const auto& component : manifest.components) {
+        // Peak update usage is package/partial + extracted component staging +
+        // the composed version. Existing active/known-good versions are never
+        // counted as disposable space and are left untouched on failure.
+        AddSaturating(required, component.packageSize);
+        AddSaturating(required, component.installedSize);
+        AddSaturating(required, component.installedSize);
+    }
+    return required;
+}
+
+bool CheckProvisionDiskSpace(const fs::path& root, const ApplicationManifest& manifest,
+                             const std::wstring& correlation, std::wstring& failure) {
+    const auto required = ProvisionRequiredBytes(manifest);
+    const auto available = AvailableDiskBytes(root);
+    if (!available) {
+        failure = L"无法读取目标磁盘的可用空间，拒绝开始更新。";
+        AppendLog(root, L"provision-disk-space-check-failed", correlation);
+        return false;
+    }
+    AppendLogDetail(root, L"provision-disk-space-check", correlation,
+                    L"required=" + std::to_wstring(required) + L";available=" + std::to_wstring(*available));
+    if (*available < required) {
+        failure = L"可用磁盘空间不足：更新峰值至少需要 " + std::to_wstring(required) +
+                  L" 字节，当前可用 " + std::to_wstring(*available) + L" 字节；当前 active 未修改。";
+        AppendLog(root, L"provision-disk-space-rejected", correlation);
+        return false;
+    }
+    return true;
 }
 
 bool MergeComponentTree(const fs::path& source, const fs::path& destination, StatusWindow& status, std::wstring& failure) {
@@ -1245,6 +1350,11 @@ std::string ComponentManifestJson(const ComponentManifest& component) {
         if (index != 0) output << ", ";
         output << "\"" << EscapeJson(component.dependencies[index]) << "\"";
     }
+    output << "],\n  \"componentManifestMirrors\": [";
+    for (size_t index = 0; index < component.componentManifestMirrors.size(); ++index) {
+        if (index != 0) output << ", ";
+        output << "\"" << EscapeJson(component.componentManifestMirrors[index]) << "\"";
+    }
     output << "]\n}\n";
     return output.str();
 }
@@ -1266,6 +1376,16 @@ bool ValidateApplicationManifest(const ApplicationManifest& manifest, bool allow
     if (production && manifest.keyId.empty()) {
         failure = L"生产清单缺少受信任的 key ID。";
         return false;
+    }
+    const auto manifestUrlAllowed = [&](const std::wstring& url) {
+        return production ? IsHttpsUrl(url) : IsAllowedUrl(url, allowInsecureLocal);
+    };
+    std::set<std::wstring> manifestUrls;
+    for (const auto& mirror : manifest.manifestMirrors) {
+        if (!manifestUrlAllowed(mirror) || !manifestUrls.insert(mirror).second) {
+            failure = L"应用清单镜像地址不被允许或重复。";
+            return false;
+        }
     }
     std::set<std::wstring> ids;
     bool hasApp = false;
@@ -1311,6 +1431,15 @@ bool ValidateApplicationManifest(const ApplicationManifest& manifest, bool allow
             failure = L"生产组件缺少 HTTPS 组件清单或其精确字节摘要。";
             return false;
         }
+        if (production) {
+            std::set<std::wstring> componentManifestUrls;
+            for (const auto& mirror : component.componentManifestMirrors) {
+                if (!IsHttpsUrl(mirror) || !componentManifestUrls.insert(mirror).second) {
+                    failure = L"生产组件镜像清单地址不被允许或重复。";
+                    return false;
+                }
+            }
+        }
     }
     if (!hasApp) {
         failure = L"应用清单缺少 FACM.App 组件入口。";
@@ -1319,7 +1448,7 @@ bool ValidateApplicationManifest(const ApplicationManifest& manifest, bool allow
     for (const auto& component : manifest.components) {
         for (const auto& dependency : component.dependencies) {
             if (ids.find(dependency) == ids.end()) {
-                failure = L"组件依赖缺少对应组件。";
+                failure = L"组件依赖缺少对应组件：" + dependency;
                 return false;
             }
         }
@@ -1508,14 +1637,15 @@ bool IsBootstrapOnlyArgument(const std::wstring& argument) {
            argument == L"--verify-trust-bundle" || argument.rfind(L"--verify-trust-bundle=", 0) == 0 ||
            argument == L"--version" || argument.rfind(L"--version=", 0) == 0 ||
            argument == L"--update" || argument == L"--allow-insecure-local" || argument == L"--allow-unsigned-local" ||
-           argument == L"--manifest-url" || argument.rfind(L"--manifest-url=", 0) == 0;
+           argument == L"--manifest-url" || argument.rfind(L"--manifest-url=", 0) == 0 ||
+           argument == L"--check-disk-space" || argument.rfind(L"--check-disk-space=", 0) == 0;
 }
 
 bool TakesBootstrapValue(const std::wstring& argument) {
     return argument == L"--provision-source" || argument == L"--provision-pack" ||
            argument == L"--manifest" || argument == L"--activate-version" ||
            argument == L"--verify-pack" || argument == L"--verify-trust-bundle" || argument == L"--version" ||
-           argument == L"--manifest-url";
+           argument == L"--manifest-url" || argument == L"--check-disk-space";
 }
 
 fs::path StatePath(const fs::path& root) {
@@ -1534,6 +1664,7 @@ std::optional<BootstrapConfig> ReadBootstrapConfig(const fs::path& root) {
     if (!manifestUrl || manifestUrl->empty()) return std::nullopt;
     BootstrapConfig config;
     config.manifestUrl = Utf8ToWide(*manifestUrl);
+    config.manifestMirrors = JsonStringArray(json, "manifestMirrors");
     config.allowUnsignedLocal = JsonBool(json, "allowUnsignedLocal").value_or(false);
     config.allowInsecureLocal = JsonBool(json, "allowInsecureLocal").value_or(false);
     return config;
@@ -1545,6 +1676,7 @@ std::optional<ComponentsState> ReadComponentsState(const fs::path& path) {
     ComponentsState state;
     state.schemaVersion = static_cast<int>(JsonUnsigned(json, "schemaVersion").value_or(0));
     state.applicationVersion = Utf8ToWide(JsonString(json, "applicationVersion").value_or(""));
+    std::set<std::wstring> seen;
     for (const auto& object : JsonObjectArray(json, "components")) {
         const auto componentId = JsonString(object, "componentId");
         const auto version = JsonString(object, "version");
@@ -1556,6 +1688,10 @@ std::optional<ComponentsState> ReadComponentsState(const fs::path& path) {
         component.path = Utf8ToWide(*componentPath);
         component.installedSize = JsonUnsigned(object, "installedSize").value_or(0);
         component.contentDigest = Utf8ToWide(JsonString(object, "contentDigest").value_or(""));
+        if (!ValidComponentId(component.componentId) || !ValidVersion(component.version) ||
+            component.installedSize == 0 || !IsHexSha256(component.contentDigest) ||
+            !IsSafeInstalledComponentPath(component.path)) return std::nullopt;
+        if (!seen.insert(component.componentId).second) return std::nullopt;
         state.components.push_back(component);
     }
     if (state.schemaVersion != 1 || state.applicationVersion.empty() || state.components.empty()) return std::nullopt;
@@ -1641,11 +1777,13 @@ bool SameComponentMetadata(const ComponentManifest& advertised, const ComponentM
            advertised.fileCount == authenticated.fileCount &&
            advertised.primaryUrl == authenticated.primaryUrl &&
            SameStringVector(advertised.mirrorUrls, authenticated.mirrorUrls) &&
+           SameStringVector(advertised.componentManifestMirrors, authenticated.componentManifestMirrors) &&
            SameStringVector(advertised.dependencies, authenticated.dependencies);
 }
 
 bool VerifyProductionApplicationManifest(const std::string& exactBytes, const std::wstring& manifestUrl,
                                          const ApplicationManifest& manifest, std::wstring& failure) {
+    failure.clear();
     if (manifest.trustMode != L"production" || !IsHttpsUrl(manifestUrl) || manifest.keyId.empty()) {
         failure = L"生产清单必须使用 HTTPS、production trust mode 和受信任 key ID。";
         return false;
@@ -1666,14 +1804,28 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         failure = L"生产组件清单地址或精确字节摘要无效。";
         return false;
     }
+    std::vector<std::wstring> manifestUrls;
+    manifestUrls.push_back(advertised.componentManifestUrl);
+    manifestUrls.insert(manifestUrls.end(), advertised.componentManifestMirrors.begin(), advertised.componentManifestMirrors.end());
     std::string exactBytes;
-    if (!HttpGetText(advertised.componentManifestUrl, exactBytes, failure)) {
-        failure = L"无法读取组件清单：" + failure;
-        return false;
+    std::wstring selectedUrl;
+    std::wstring lastFailure;
+    for (const auto& url : manifestUrls) {
+        if (!IsHttpsUrl(url)) continue;
+        std::wstring fetchFailure;
+        if (HttpGetText(url, exactBytes, fetchFailure)) {
+            const auto digest = Sha256Text(exactBytes);
+            if (digest && _wcsicmp(digest->c_str(), advertised.componentManifestSha256.c_str()) == 0) {
+                selectedUrl = url;
+                break;
+            }
+            lastFailure = L"组件清单精确字节 SHA-256 与应用清单不一致。";
+            continue;
+        }
+        lastFailure = fetchFailure;
     }
-    const auto digest = Sha256Text(exactBytes);
-    if (!digest || _wcsicmp(digest->c_str(), advertised.componentManifestSha256.c_str()) != 0) {
-        failure = L"组件清单精确字节 SHA-256 与应用清单不一致。";
+    if (selectedUrl.empty()) {
+        failure = L"无法读取或校验组件清单：" + (lastFailure.empty() ? L"没有可用的受控地址。" : lastFailure);
         return false;
     }
     const auto authenticated = ParseComponentManifest(exactBytes);
@@ -1682,7 +1834,7 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         return false;
     }
     std::string signature;
-    if (!HttpGetText(DetachedSignatureUrl(advertised.componentManifestUrl), signature, failure)) {
+    if (!HttpGetText(DetachedSignatureUrl(selectedUrl), signature, failure)) {
         failure = L"无法读取组件清单 detached 签名：" + failure;
         return false;
     }
@@ -1773,19 +1925,43 @@ bool VerifyTrustBundle(const fs::path& bundle, std::wstring& failure) {
     return true;
 }
 
-bool ProvisionFromNetwork(const fs::path& root, const std::wstring& manifestUrl, bool allowUnsignedLocal,
+bool ProvisionFromNetwork(const fs::path& root, const std::vector<std::wstring>& manifestUrls, bool allowUnsignedLocal,
                           bool allowInsecureLocal, StatusWindow& status, const std::wstring& correlation,
                           std::wstring& failure) {
+    if (manifestUrls.empty()) {
+        failure = L"没有配置应用清单地址。";
+        return false;
+    }
+    for (const auto& url : manifestUrls) {
+        if (!IsAllowedUrl(url, allowInsecureLocal)) {
+            failure = L"应用清单地址不是 HTTPS，且未启用显式本地开发 HTTP。";
+            return false;
+        }
+    }
+    const auto& manifestUrl = manifestUrls.front();
     if (!IsAllowedUrl(manifestUrl, allowInsecureLocal)) {
         failure = L"应用清单地址不是 HTTPS，且未启用显式本地开发 HTTP。";
         return false;
     }
     AppendLog(root, L"manifest-fetch-start", correlation);
     std::string manifestText;
-    if (!HttpGetText(manifestUrl, manifestText, failure)) {
+    std::wstring selectedManifestUrl;
+    for (size_t index = 0; index < manifestUrls.size(); ++index) {
+        std::wstring fetchFailure;
+        if (HttpGetText(manifestUrls[index], manifestText, fetchFailure)) {
+            selectedManifestUrl = manifestUrls[index];
+            if (index != 0) AppendLog(root, L"manifest-fetch-failover", correlation);
+            break;
+        }
+        failure = fetchFailure;
+        if (index + 1 < manifestUrls.size()) AppendLog(root, L"manifest-fetch-failover", correlation);
+    }
+    if (selectedManifestUrl.empty()) {
         AppendLog(root, L"manifest-fetch-failed", correlation);
         return false;
     }
+    const auto resolvedManifestUrl = selectedManifestUrl;
+    AppendLogDetail(root, L"manifest-fetch-selected", correlation, resolvedManifestUrl);
     auto manifest = ReadApplicationManifest(manifestText);
     if (!manifest) {
         failure = L"应用清单缺失或格式无效。";
@@ -1793,13 +1969,13 @@ bool ProvisionFromNetwork(const fs::path& root, const std::wstring& manifestUrl,
         return false;
     }
     if (manifest->trustMode == L"unsigned-local") {
-        if (!allowUnsignedLocal || !allowInsecureLocal || !IsLocalDevelopmentUrl(manifestUrl)) {
+        if (!allowUnsignedLocal || !allowInsecureLocal || !IsLocalDevelopmentUrl(resolvedManifestUrl)) {
             failure = L"unsigned-local 清单只能通过显式本机开发信任边界使用。";
             AppendLog(root, L"manifest-trust-rejected", correlation);
             return false;
         }
     } else if (manifest->trustMode == L"production") {
-        if (!VerifyProductionApplicationManifest(manifestText, manifestUrl, *manifest, failure)) {
+        if (!VerifyProductionApplicationManifest(manifestText, resolvedManifestUrl, *manifest, failure)) {
             AppendLog(root, L"manifest-signature-rejected", correlation);
             return false;
         }
@@ -1845,6 +2021,7 @@ bool ProvisionFromNetwork(const fs::path& root, const std::wstring& manifestUrl,
     }
     AppendLog(root, allCurrent ? L"component-evaluation-no-change" : L"component-evaluation-update-required", correlation);
     if (allCurrent) return true;
+    if (!CheckProvisionDiskSpace(root, *manifest, correlation, failure)) return false;
 
     ComponentsState nextState;
     nextState.applicationVersion = manifest->applicationVersion;
@@ -2180,6 +2357,27 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         return IsPathInside(root / L".facm", staging) && IsPathInside(root / L".facm", versions) ? 0 : 10;
     }
 
+    const auto diskSpaceCheck = OptionValue(arguments, L"--check-disk-space");
+    if (diskSpaceCheck) {
+        std::uintmax_t required = 0;
+        bool parsed = false;
+        try {
+            size_t consumed = 0;
+            required = std::stoull(*diskSpaceCheck, &consumed);
+            parsed = consumed == diskSpaceCheck->size();
+        } catch (...) {
+            parsed = false;
+        }
+        const auto available = AvailableDiskBytes(root);
+        const bool sufficient = parsed && available && *available >= required;
+        AppendLogDetail(root, sufficient ? L"disk-space-diagnostic-pass" : L"disk-space-diagnostic-fail", correlation,
+                        L"required=" + std::to_wstring(required) + L";available=" +
+                        (available ? std::to_wstring(*available) : L"unknown"));
+        if (!sufficient && !g_suppressUi) ErrorMessage(L"FACM 磁盘空间检查", L"目标磁盘可用空间不足或检查参数无效。");
+        if (mutex) CloseHandle(mutex);
+        return sufficient ? 0 : 15;
+    }
+
     const auto verifyPack = OptionValue(arguments, L"--verify-pack");
     if (verifyPack) {
         const auto manifest = OptionValue(arguments, L"--manifest");
@@ -2245,17 +2443,21 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     const bool networkRequested = HasOption(arguments, L"--update") || !currentActiveValid;
     if (networkRequested) {
         const auto config = ReadBootstrapConfig(root);
-        const auto manifestUrl = OptionValue(arguments, L"--manifest-url").value_or(config ? config->manifestUrl : L"");
+        const auto configuredManifestUrl = OptionValue(arguments, L"--manifest-url").value_or(config ? config->manifestUrl : L"");
         const bool allowUnsignedLocal = HasOption(arguments, L"--allow-unsigned-local") || (config && config->allowUnsignedLocal);
         const bool allowInsecureLocal = HasOption(arguments, L"--allow-insecure-local") || (config && config->allowInsecureLocal);
-        if (manifestUrl.empty()) {
+        if (configuredManifestUrl.empty()) {
             if (mutex) CloseHandle(mutex);
             if (!currentActiveValid) ErrorMessage(L"FACM", L"未找到有效的 FACM 组件组合，也没有可用的 bootstrap.json。请先完成网络初始化。");
             return currentActiveValid ? 0 : 14;
         }
+        std::vector<std::wstring> manifestUrls{configuredManifestUrl};
+        if (!OptionValue(arguments, L"--manifest-url")) {
+            if (config) manifestUrls.insert(manifestUrls.end(), config->manifestMirrors.begin(), config->manifestMirrors.end());
+        }
         std::wstring failure;
         status.Show(HasOption(arguments, L"--update") ? L"正在检查 FACM 组件更新…" : L"正在初始化 FACM 组件…");
-        const auto success = ProvisionFromNetwork(root, manifestUrl, allowUnsignedLocal, allowInsecureLocal, status, correlation, failure);
+        const auto success = ProvisionFromNetwork(root, manifestUrls, allowUnsignedLocal, allowInsecureLocal, status, correlation, failure);
         status.Close();
         if (!success) {
             if (mutex) CloseHandle(mutex);
