@@ -71,4 +71,25 @@ public sealed record FacmSurfacePresentationFailure(
     DesktopRect Bounds,
     string CorrelationId,
     string? Phase,
-    bool IsUserInitiated);
+    bool IsUserInitiated)
+{
+    public string EventName { get; init; } = "facm.surface.presentation-failed";
+    public string Reason { get; init; } = string.Empty;
+    public FacmSurfaceMode CurrentMode { get; init; }
+    public string ExceptionMessage { get; init; } = string.Empty;
+    public string StackSignature { get; init; } = string.Empty;
+    public bool HasThreadAccess { get; init; }
+    public bool DispatcherQueueAvailable { get; init; }
+    public string WindowHandle { get; init; } = string.Empty;
+    public string AppWindowId { get; init; } = string.Empty;
+    public bool WindowVisible { get; init; }
+    public string PresenterKind { get; init; } = string.Empty;
+    public DesktopRect? ActualBounds { get; init; }
+    public DesktopRect? TargetBounds { get; init; }
+    public string OrbVisibility { get; init; } = string.Empty;
+    public string TransientRailVisibility { get; init; } = string.Empty;
+    public string CompactChromeVisibility { get; init; } = string.Empty;
+    public string FeatureContentVisibility { get; init; } = string.Empty;
+    public long CurrentPresentationGeneration { get; init; }
+    public long RequestedPresentationGeneration { get; init; }
+}

@@ -77,6 +77,17 @@ public sealed partial class MainWindow : Window
     private bool _transientRailOnLeft;
     private string _lastRuntimeStatusSignature = string.Empty;
     private FacmSurfacePresentation? _currentPresentation;
+    private long _presentationGeneration;
+    private long _currentPresentationGeneration;
+
+    private readonly record struct PresentationRequestContext(
+        FacmSurfaceMode RequestedMode,
+        FacmSurfaceMode PreviousMode,
+        string CorrelationId,
+        string Reason,
+        string? Phase,
+        bool IsUserInitiated,
+        long RequestedGeneration);
 
     public MainWindow(
         ControlCenterViewModel controlCenter,
@@ -347,7 +358,7 @@ public sealed partial class MainWindow : Window
             mode == FacmSurfaceMode.Orb && !transientRail));
     }
 
-    private void ApplySurfaceGeometry(FacmSurfacePresentation presentation)
+    private void ApplySurfaceGeometry(FacmSurfacePresentation presentation, PresentationRequestContext context)
     {
         if (!_morphingSurfaceEnabled || !presentation.WindowVisible) return;
         var physicalRect = presentation.TargetBounds ??
@@ -356,14 +367,18 @@ public sealed partial class MainWindow : Window
         {
             var currentPosition = AppWindow.Position;
             var anchor = _surfaceAnchor ?? new DesktopPoint(currentPosition.X, currentPosition.Y);
-            ApplyTransientRailPlacement(anchor, physicalRect);
+            RunSurfaceOperation(
+                "xaml-transient-rail-placement",
+                presentation,
+                context,
+                () => ApplyTransientRailPlacement(anchor, physicalRect));
         }
         var rect = new RectInt32(
             ToInt32(physicalRect.Left),
             ToInt32(physicalRect.Top),
             Math.Max(1, ToInt32(physicalRect.Width)),
             Math.Max(1, ToInt32(physicalRect.Height)));
-        AppWindow.MoveAndResize(rect);
+        RunSurfaceOperation("window-move-resize", presentation, context, () => AppWindow.MoveAndResize(rect));
     }
 
     private void ApplyTransientRailPlacement(DesktopPoint anchor, DesktopRect physicalRect)
@@ -621,38 +636,56 @@ public sealed partial class MainWindow : Window
         var previousMode = _surfaceStateMachine.Mode;
         var previousPresentation = _currentPresentation;
         var correlationId = Guid.NewGuid().ToString("N");
+        var requestedGeneration = ++_presentationGeneration;
+        var context = new PresentationRequestContext(
+            mode,
+            previousMode,
+            correlationId,
+            reason,
+            phase,
+            userInitiated,
+            requestedGeneration);
         FacmSurfacePresentation? requestedPresentation = null;
         try
         {
-            requestedPresentation = CreateSurfacePresentation(mode, activate);
+            requestedPresentation = RunSurfaceOperation(
+                "presentation-create",
+                null,
+                context,
+                () => CreateSurfacePresentation(mode, activate));
             if (mode == previousMode && IsSurfacePresentationValid(requestedPresentation))
             {
                 SetOutsideClickWatcherActive(mode);
                 return;
             }
 
-            ApplySurfacePresentationCore(requestedPresentation, animate: true);
-            EnsureSurfacePresentationInvariant(requestedPresentation);
+            ApplySurfacePresentationCore(requestedPresentation, animate: true, context: context);
+            RunSurfaceOperation(
+                "invariant-check",
+                requestedPresentation,
+                context,
+                () => EnsureSurfacePresentationInvariant(requestedPresentation));
             _surfaceStateMachine.TransitionTo(mode, reason, userInitiated, phase);
             _currentPresentation = requestedPresentation;
+            _currentPresentationGeneration = requestedGeneration;
         }
         catch (Exception exception)
         {
-            RecoverSurfacePresentation(previousPresentation);
-            var bounds = requestedPresentation?.TargetBounds ?? GetSurfaceBounds();
+            RecoverSurfacePresentation(previousPresentation, context);
+            var bounds = requestedPresentation?.TargetBounds ?? TryGetSurfaceBounds() ?? default;
             try
             {
-                _surfacePresentationFailureReporter?.Invoke(new FacmSurfacePresentationFailure(
+                _surfacePresentationFailureReporter?.Invoke(CreatePresentationFailure(
                     mode,
                     previousMode,
                     "request:" + reason,
-                    exception.GetType().FullName ?? exception.GetType().Name,
-                    exception.HResult,
-                    Environment.CurrentManagedThreadId,
                     bounds,
                     correlationId,
                     phase,
-                    userInitiated));
+                    userInitiated,
+                    requestedPresentation,
+                    exception,
+                    requestedGeneration));
             }
             catch
             {
@@ -672,28 +705,247 @@ public sealed partial class MainWindow : Window
             activate);
     }
 
-    private void ApplySurfacePresentationCore(FacmSurfacePresentation presentation, bool animate)
+    private void ApplySurfacePresentationCore(
+        FacmSurfacePresentation presentation,
+        bool animate,
+        PresentationRequestContext context)
     {
-        presentation.EnsureValid();
+        RunSurfaceOperation("contract-validate", presentation, context, presentation.EnsureValid);
         if (presentation.Mode == FacmSurfaceMode.HiddenInGame)
         {
-            AppWindow.Hide();
-            CommitSurfaceContent(presentation);
-            SetOutsideClickWatcherActive(presentation.Mode);
+            RunSurfaceOperation("window-hide", presentation, context, AppWindow.Hide);
+            RunSurfaceOperation("xaml-content-commit", presentation, context, () => CommitSurfaceContent(presentation));
+            RunSurfaceOperation("watcher-lifecycle", presentation, context, () => SetOutsideClickWatcherActive(presentation.Mode));
             return;
         }
 
         // Make the requested content renderable before geometry changes, then remove old content only
         // after the AppWindow has reached its target bounds. This prevents an observable blank frame.
-        PrepareSurfaceContent(presentation);
-        ApplySurfaceGeometry(presentation);
-        if (AppWindow.Presenter is OverlappedPresenter presenter)
-            presenter.IsAlwaysOnTop = presentation.Topmost;
-        AppWindow.Show();
-        CommitSurfaceContent(presentation);
-        SetOutsideClickWatcherActive(presentation.Mode);
-        if (presentation.Activate) Activate();
+        RunSurfaceOperation("xaml-content-prepare", presentation, context, () => PrepareSurfaceContent(presentation));
+        RunSurfaceOperation("geometry-prepare", presentation, context, () => ApplySurfaceGeometry(presentation, context));
+        RunSurfaceOperation("presenter-topmost", presentation, context, () =>
+        {
+            if (AppWindow.Presenter is OverlappedPresenter presenter)
+                presenter.IsAlwaysOnTop = presentation.Topmost;
+        });
+        RunSurfaceOperation("window-show", presentation, context, AppWindow.Show);
+        RunSurfaceOperation("xaml-content-commit", presentation, context, () => CommitSurfaceContent(presentation));
+        RunSurfaceOperation("watcher-lifecycle", presentation, context, () => SetOutsideClickWatcherActive(presentation.Mode));
+        if (presentation.Activate)
+            RunSurfaceOperation("window-activate", presentation, context, Activate);
         if (animate) PlayMorphingSurfaceTransition();
+    }
+
+    private T RunSurfaceOperation<T>(
+        string operation,
+        FacmSurfacePresentation? presentation,
+        PresentationRequestContext context,
+        Func<T> action)
+    {
+        try
+        {
+            return action();
+        }
+        catch (Exception exception)
+        {
+            ReportSurfaceOperationFailure(operation, presentation, context, exception);
+            throw;
+        }
+    }
+
+    private void RunSurfaceOperation(
+        string operation,
+        FacmSurfacePresentation? presentation,
+        PresentationRequestContext context,
+        Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            ReportSurfaceOperationFailure(operation, presentation, context, exception);
+            throw;
+        }
+    }
+
+    private void ReportSurfaceOperationFailure(
+        string operation,
+        FacmSurfacePresentation? presentation,
+        PresentationRequestContext context,
+        Exception exception)
+    {
+        try
+        {
+            _surfacePresentationFailureReporter?.Invoke(CreatePresentationFailure(
+                context.RequestedMode,
+                context.PreviousMode,
+                operation,
+                presentation?.TargetBounds ?? TryGetSurfaceBounds() ?? default,
+                context.CorrelationId,
+                context.Phase,
+                context.IsUserInitiated,
+                presentation,
+                exception,
+                context.RequestedGeneration,
+                "facm.surface.presentation-operation-failed",
+                context));
+        }
+        catch
+        {
+            // Failure telemetry must never replace the original presentation exception.
+        }
+    }
+
+    private FacmSurfacePresentationFailure CreatePresentationFailure(
+        FacmSurfaceMode requestedMode,
+        FacmSurfaceMode previousMode,
+        string operation,
+        DesktopRect bounds,
+        string correlationId,
+        string? phase,
+        bool isUserInitiated,
+        FacmSurfacePresentation? presentation,
+        Exception exception,
+        long requestedGeneration,
+        string eventName = "facm.surface.presentation-failed",
+        PresentationRequestContext? context = null)
+    {
+        var actualBounds = TryGetSurfaceBounds();
+        var requestContext = context ?? new PresentationRequestContext(
+            requestedMode,
+            previousMode,
+            correlationId,
+            operation,
+            phase,
+            isUserInitiated,
+            requestedGeneration);
+        return new FacmSurfacePresentationFailure(
+            requestedMode,
+            previousMode,
+            operation,
+            exception.GetType().FullName ?? exception.GetType().Name,
+            exception.HResult,
+            Environment.CurrentManagedThreadId,
+            bounds,
+            correlationId,
+            phase,
+            isUserInitiated)
+        {
+            EventName = eventName,
+            ExceptionMessage = exception.Message,
+            StackSignature = CreateStackSignature(exception),
+            HasThreadAccess = DispatcherQueue?.HasThreadAccess ?? false,
+            DispatcherQueueAvailable = DispatcherQueue is not null,
+            WindowHandle = TryGetWindowHandle(),
+            AppWindowId = TryGetAppWindowId(),
+            WindowVisible = TryGetWindowVisible(),
+            PresenterKind = TryGetPresenterKind(),
+            ActualBounds = actualBounds,
+            TargetBounds = presentation?.TargetBounds,
+            OrbVisibility = TryGetVisibility(OrbPresentationRoot),
+            TransientRailVisibility = TryGetVisibility(OrbTransientRail),
+            CompactChromeVisibility = TryGetCompactChromeVisibility(),
+            FeatureContentVisibility = TryGetVisibility(LegacyFeatureSurface),
+            CurrentPresentationGeneration = _currentPresentationGeneration,
+            RequestedPresentationGeneration = requestContext.RequestedGeneration,
+            Reason = requestContext.Reason,
+            CurrentMode = _surfaceStateMachine.Mode
+        };
+    }
+
+    private DesktopRect? TryGetSurfaceBounds()
+    {
+        try
+        {
+            return GetSurfaceBounds();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private bool TryGetWindowVisible()
+    {
+        try
+        {
+            return AppWindow.IsVisible;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string TryGetPresenterKind()
+    {
+        try
+        {
+            return AppWindow.Presenter?.GetType().FullName ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private string TryGetWindowHandle()
+    {
+        try
+        {
+            return $"0x{WinRT.Interop.WindowNative.GetWindowHandle(this).ToInt64():X}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private string TryGetAppWindowId()
+    {
+        try
+        {
+            return AppWindow.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string TryGetVisibility(UIElement? element)
+    {
+        try
+        {
+            return element?.Visibility.ToString() ?? "unavailable";
+        }
+        catch
+        {
+            return "unavailable";
+        }
+    }
+
+    private string TryGetCompactChromeVisibility() =>
+        string.Join(",",
+            "root=" + TryGetVisibility(SurfaceRoot),
+            "matrix=" + TryGetVisibility(ControlMatrixSurface),
+            "champSelect=" + TryGetVisibility(ChampSelectSurface));
+
+    private static string CreateStackSignature(Exception exception)
+    {
+        var frames = (exception.StackTrace ?? exception.GetBaseException().StackTrace ?? string.Empty)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(frame => frame.Trim())
+            .Where(frame => frame.StartsWith("at ", StringComparison.Ordinal))
+            .Select(frame =>
+            {
+                var pathStart = frame.IndexOf(" in ", StringComparison.Ordinal);
+                return pathStart >= 0 ? frame[..pathStart] : frame;
+            })
+            .Take(12);
+        return string.Join(" <= ", frames);
     }
 
     private void SetOutsideClickWatcherActive(FacmSurfaceMode mode)
@@ -747,14 +999,24 @@ public sealed partial class MainWindow : Window
             throw new InvalidOperationException("FACM AppWindow bounds do not match the presentation contract.");
     }
 
-    private void RecoverSurfacePresentation(FacmSurfacePresentation? previousPresentation)
+    private void RecoverSurfacePresentation(
+        FacmSurfacePresentation? previousPresentation,
+        PresentationRequestContext context)
     {
         if (previousPresentation is not null)
         {
             try
             {
-                ApplySurfacePresentationCore(previousPresentation, animate: false);
-                EnsureSurfacePresentationInvariant(previousPresentation);
+                RunSurfaceOperation(
+                    "recovery-apply",
+                    previousPresentation,
+                    context,
+                    () => ApplySurfacePresentationCore(previousPresentation, animate: false, context: context));
+                RunSurfaceOperation(
+                    "recovery-invariant-check",
+                    previousPresentation,
+                    context,
+                    () => EnsureSurfacePresentationInvariant(previousPresentation));
                 _currentPresentation = previousPresentation;
                 return;
             }
@@ -773,8 +1035,16 @@ public sealed partial class MainWindow : Window
                 FacmSurfaceMode.Orb,
                 new DesktopRect(position.X, position.Y, OrbSizeDip, OrbSizeDip),
                 activate: false);
-            ApplySurfacePresentationCore(emergencyOrb, animate: false);
-            EnsureSurfacePresentationInvariant(emergencyOrb);
+            RunSurfaceOperation(
+                "recovery-emergency-orb",
+                emergencyOrb,
+                context,
+                () => ApplySurfacePresentationCore(emergencyOrb, animate: false, context: context));
+            RunSurfaceOperation(
+                "recovery-emergency-invariant-check",
+                emergencyOrb,
+                context,
+                () => EnsureSurfacePresentationInvariant(emergencyOrb));
             _currentPresentation = emergencyOrb;
         }
         catch

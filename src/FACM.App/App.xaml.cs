@@ -692,7 +692,7 @@ public partial class App : Application
     {
         ArgumentNullException.ThrowIfNull(failure);
         QueueDiagnostic(DiagnosticEventFactory.Create(
-            "facm.surface.presentation-failed",
+            failure.EventName,
             "FACM.Surface",
             0,
             DiagnosticResult.Failure,
@@ -703,16 +703,43 @@ public partial class App : Application
             {
                 ["requestedMode"] = failure.RequestedMode.ToString(),
                 ["previousMode"] = failure.PreviousMode.ToString(),
+                ["currentMode"] = failure.CurrentMode.ToString(),
+                ["reason"] = failure.Reason,
                 ["operation"] = failure.Operation,
                 ["exceptionType"] = failure.ExceptionType,
+                ["exceptionMessage"] = failure.ExceptionMessage,
+                ["stackSignature"] = failure.StackSignature,
                 ["hResult"] = "0x" + failure.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture),
                 ["threadId"] = failure.ThreadId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["hasThreadAccess"] = failure.HasThreadAccess ? "true" : "false",
+                ["dispatcherQueueAvailable"] = failure.DispatcherQueueAvailable ? "true" : "false",
+                ["windowHandle"] = failure.WindowHandle,
+                ["appWindowId"] = failure.AppWindowId,
+                ["windowVisible"] = failure.WindowVisible ? "true" : "false",
+                ["presenterKind"] = failure.PresenterKind,
                 ["bounds"] = failure.Bounds.ToString(),
+                ["actualWindowX"] = FormatCoordinate(failure.ActualBounds?.Left),
+                ["actualWindowY"] = FormatCoordinate(failure.ActualBounds?.Top),
+                ["actualWindowWidth"] = FormatCoordinate(failure.ActualBounds?.Width),
+                ["actualWindowHeight"] = FormatCoordinate(failure.ActualBounds?.Height),
+                ["targetX"] = FormatCoordinate(failure.TargetBounds?.Left),
+                ["targetY"] = FormatCoordinate(failure.TargetBounds?.Top),
+                ["targetWidth"] = FormatCoordinate(failure.TargetBounds?.Width),
+                ["targetHeight"] = FormatCoordinate(failure.TargetBounds?.Height),
+                ["orbSurfaceVisibility"] = failure.OrbVisibility,
+                ["transientRailVisibility"] = failure.TransientRailVisibility,
+                ["compactChromeVisibility"] = failure.CompactChromeVisibility,
+                ["featureContentVisibility"] = failure.FeatureContentVisibility,
+                ["currentPresentationGeneration"] = failure.CurrentPresentationGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["requestedPresentationGeneration"] = failure.RequestedPresentationGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["correlationId"] = failure.CorrelationId,
                 ["phase"] = failure.Phase ?? string.Empty,
                 ["isUserInitiated"] = failure.IsUserInitiated ? "true" : "false"
             }));
     }
+
+    private static string FormatCoordinate(double? value) =>
+        value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
     private void QueueLauncherDiagnostic(string reason, DiagnosticResult result = DiagnosticResult.Success)
     {
