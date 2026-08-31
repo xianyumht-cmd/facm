@@ -353,3 +353,33 @@ Batch P closes the shared host lifecycle contract without merging the two runtim
 `LeagueGameflowMonitor` remains the single polling owner. Changed/Observed subscribers are isolated individually so one UI or automation observer cannot terminate the loop or suppress healthy observers. Workbench property notifications likewise isolate subscriber faults, while `MainWindow` marshals all navigation/surface reads to its Dispatcher before touching WinUI objects.
 
 `App` owns the lifecycle diagnostics handlers and emits sanitized lifecycle/exception events. Diagnostics Center merges a point-in-time runtime-facts provider into its existing snapshot; it does not own League state. Matchmaking automation keeps the existing one-shot ReadyCheck write boundary and now reports evaluation/read/write outcomes through the existing diagnostic sink.
+
+## 2026-08-31 BOOT-1 bootstrap and modular data-root topology
+
+BOOT-1 adds a native startup boundary without moving existing product ownership:
+
+```text
+FACM.exe (native Win32 bootstrapper)
+  -> .facm/state/active.json
+  -> .facm/versions/<version>/FACM.App.exe
+  -> FACM.App (WinUI 3 / managed product)
+       -> FACM_ROOT + FACM_DATA_ROOT
+       -> Core / Infrastructure / Platform.Windows
+```
+
+The bootstrapper owns only active-version resolution, bounded path validation, local state/manifest/pack
+operations, startup correlation and child-process creation. It does not own League session, Gameflow,
+settings semantics, UI shell, desktop-pet behavior, or network update policy. `active.json` is the minimal
+schemaVersion/activeVersion/activePath/previousVersion/lastSuccessfulLaunch record and is atomically replaced.
+An install or staging failure leaves the previous active version intact.
+
+The app-local Core uses `facm-core-win-x64`; optional desktop-pet components are identified separately as
+`facm-pet-pethost-win-x64` and `facm-pet-flying-win-x64`. `IComponentAvailability` is a read-only boundary,
+not a package manager. If a selected optional pet component is unavailable, the runtime stops/restores the
+launcher and emits a sanitized unavailable-component result; it does not create a second host or rewrite the
+user's persisted enabled preference to `Off`.
+
+Legacy single-file publication remains available and keeps its existing embedded-pet default. BOOT-1's
+`BootCore.pubxml` explicitly disables embedded pet payloads and publishes a multi-file self-contained Core.
+The current local prototype can produce/verify a ZIP component pack and can provision an expanded local source
+tree into staging; native ZIP extraction and network provisioning are intentionally outside this stage.

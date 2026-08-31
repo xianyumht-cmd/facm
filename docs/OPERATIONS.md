@@ -406,3 +406,53 @@ dlls:      0
 This candidate is for user review only. Do not overwrite the immutable MS9.4 candidate, modify
 production pointers, merge/push/release, or treat deterministic green as natural ARAM, modal,
 outside-click, accessibility, mixed-DPI, or Gate13 evidence.
+
+## 2026-08-31 BOOT-1 local review candidate
+
+Implementation and all generated validation material must remain under `D:\project2`. Use the portable
+`.NET SDK 10.0.400` at `D:\project2\dotnet10\dotnet.exe`; keep `DOTNET_CLI_HOME`, `TEMP`, `TMP` and
+NuGet packages on D:. The implementation source is the isolated worktree
+`D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`; do not use `D:\project2\Facm` as its source.
+
+Build the candidate with:
+
+```powershell
+$env:DOTNET_CLI_HOME='D:\project2\facm-dotnet-home'
+& 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\boot1\Build-BootCandidate.ps1' `
+  -RepoRoot 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix' `
+  -OutputRoot 'D:\project2\facm-boot1-review-20260831-final' `
+  -BuildRoot 'D:\project2\facm-boot1-build-20260831-final'
+```
+
+The review root should contain only `FACM.exe` and `.facm`; build intermediates belong in the separate
+`BuildRoot`. The generated layout is:
+
+```text
+FACM.exe
+.facm/
+  app/ runtime/ components/ versions/ staging/ cache/ logs/ state/
+```
+
+Run deterministic checks with:
+
+```powershell
+& 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\boot1\Test-Bootstrapper.ps1' `
+  -CandidateRoot 'D:\project2\facm-boot1-review-20260831-final' `
+  -TestRoot 'D:\project2\facm-boot1-tests-20260831-final'
+```
+
+The test covers no-pet binary packaging, active state, local A/B provision, switch/rollback, malformed
+state, failed staging preservation, Unicode-safe arguments, stable data root, optional-pet fail-soft and
+single-instance mutex behavior. Verify a pack with `FACM.exe --verify-pack <zip> --manifest <manifest> --no-ui`;
+the expected exit code is 0 for a matching pack and 11 for a size/hash mismatch.
+
+For an app-local launch check, start the exact review-root `FACM.exe` and inspect
+`.facm\logs\bootstrapper.jsonl` plus `.facm\logs\facm4-events.jsonl`. The bootstrapper must resolve the
+active Core under `.facm\versions`, and the app log should correlate `app.bootstrap-launch` with
+`desktop-launcher-ready`. Stop the candidate through its own window-close path; do not force-kill it when
+collecting lifecycle evidence. A review launch is not a real-machine, signing, network provisioning or
+Gate13 result.
+
+BOOT-1 currently creates a ZIP pack for delivery evidence but the native prototype provisions an expanded
+local source tree; do not describe this stage as having native ZIP extraction or a production downloader.
+Do not merge, push, release, modify production pointers, move formal P7, or run Gate13 from this candidate.

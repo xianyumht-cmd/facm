@@ -305,3 +305,49 @@ Hosted CI、source gate、deterministic pressure smoke、targeted fix 或普通�
 - 本阶段相关本地提交包含前序 Morphing commits，以及 `9960c9e`（Orb presentation invariant）、`518067a`（compact morphing chrome）、`2997198`（matrix inspector）、`7ddf8ae`（maintenance/logs consolidation）、`1b19f00`（compact League Workbench）和 `a760daf`（outside-click lifecycle hardening）。MS0 审计备份位于 `D:\project2\facm-backups\morphing-surface-ms0-20260830-210542`，未纳入仓库。
 - 已完成本历史基线的代码校验：FACM.App Debug x64、FACM4.sln Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke，以及全部 `27/27` 非 cutover source gates 均为 0 警告 / 0 错误或 SUCCESS。MS8 候选 `D:\project2\facm-ms8-out-20260831` 现作为不可变失败证据，当前 MS9 候选和真实运行结果见上方条目。Release evidence 仍为 `22 required / 12 Passed / 10 Blocked`，因此 cutover 仍 blocked。
 - 视觉截图和真实多屏/DPI/辅助功能仍需用户在目标机器复核；WinUI capture 当前受系统 `SetIsBorderRequired` 接口错误阻断，不能把未截图视为视觉 PASS。
+
+## 2026-08-31 BOOT-1 Native Bootstrapper + app-local Core candidate
+
+本轮执行 BOOT-1：在独立 worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`、分支
+`tmp/p7-ipc-lifecycle-fix-20260830` 上，从本轮起始 HEAD `51a2ea45be7b24476d62da21a25dec17261ac2fd`
+实现 Native Bootstrapper、app-local multi-file Core、无桌宠 Core profile、稳定 modular data root、
+本地 manifest/pack/staging 原型和可选桌宠缺失时的 fail-soft 边界。正式 P7
+`9744af848e4b888c1876e76e2cbf0c06d5c526bf`、PR #234、production pointer、merge/push/release 和
+Gate13 均未移动或执行；`D:\project2\Facm` 未作为实现源，也未被修改。
+
+- `FACM.exe` 是不依赖 .NET/WinUI/Windows App SDK 的原生 Win32 bootstrapper；它读取受控
+  `.facm\state\active.json`，校验 active Core 位于 `.facm\versions`，设置 `FACM_ROOT`、
+  `FACM_DATA_ROOT` 和启动 correlation，再以完整路径启动 `FACM.App.exe`。state 使用原子替换，
+  stage 失败不覆盖已知 active 版本。
+- `FACM.App` 默认仍保留 legacy 单文件 profile 和嵌入桌宠 payload；BOOT-1 `BootCore.pubxml`
+  显式使用 `PublishSingleFile=false`、self-contained `win-x64` 和
+  `FACMIncludeEmbeddedPetPayload=false`。无桌宠 Core 中 `FACM.App.exe`/`.dll` 均存在，独立宠物
+  文件为 0，两个嵌入资源标记均未命中；可选桌宠组件缺失只记录
+  `desktop.pet.component-unavailable`，恢复 launcher，不把用户持久化的 `Pets.Enabled` 静默改为关闭。
+- 稳定数据根默认为 modular distribution root 下的 `.facm`，也支持 `FACM_ROOT`/`FACM_DATA_ROOT`；
+  settings、logs、runtime/cache、state 和 update 数据不再要求写入 Core 版本目录。Core component id
+  为 `facm-core-win-x64`，桌宠组件 id 为 `facm-pet-pethost-win-x64` 和
+  `facm-pet-flying-win-x64`。
+- 最终 review candidate：
+  `D:\project2\facm-boot1-review-20260831-final`。根目录只有 `FACM.exe` 与 `.facm`；启动器
+  `3,186,663` bytes，SHA-256
+  `29472BEDB2C3DB1130EF97D32D2E2F29C89C49CD204BE702FCBA0F2D097E3B07`；active Core 共 600 个文件、
+  `278,611,060` bytes；ZIP component pack `108,980,393` bytes，SHA-256
+  `D9763FDD3ABF1983A6B991BDC8E02D5871CD7AA2B46D39461605E14C5E25054B`。manifest V1 和 active state
+  均已实际生成。
+- 本地 pack 校验：正确包返回 0，末字节损坏包返回 11。Bootstrapper version A/B provision、active
+  switch、rollback、malformed state、failed staging preserve、Unicode argument、stable data root、
+  optional pet availability 和 named single-instance smoke 全部通过。
+- 验证结果：D 盘 `.NET SDK 10.0.400` 下 `FACM4.sln` Release / no-pet build 为 0 warnings / 0 errors；
+  Release FoundationSmoke `--skip-gate13` SUCCESS（含 BOOT-1 contract、Gate12）；WindowsSmoke SUCCESS；
+  27/27 非 cutover `check-facm4-*.ps1` source gates 通过，`check-facm4-cutover.ps1` 未运行。
+- 在 `DOTNET_ROOT`/`DOTNET_ROOT_X64` 指向不存在目录时，最终 candidate 连续启动 3 次至
+  `desktop-launcher-ready` 用时 `1088 ms / 1056 ms / 1046 ms`；每次均准确命中 active Core 的
+  `FACM.App.exe`，通过窗口自身正常关闭，App 与 bootstrapper 均退出，未残留 candidate 进程。日志保留
+  `app.bootstrap-launch` correlation、`main-window-created`、`desktop-launcher-ready` 和
+  `shutdown-complete`。
+
+当前状态是 **BOOT-1 local review candidate ready / not release-ready**。ZIP 已生成并可校验，但当前
+prototype 的本地 provisioning 仍消费 expanded local source；原生 ZIP extraction、网络 provisioning、
+真实 Windows 10/11、桌宠切换、outside-click、modal、tray、League 自然 ReadyCheck、mixed-DPI、辅助
+功能、最终签名和完整 Gate13 evidence 仍未完成，不能据此修改生产指针或宣称 cutover。

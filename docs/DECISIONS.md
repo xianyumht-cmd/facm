@@ -348,3 +348,31 @@ MS9.1 真实日志证明所有呈现失败都在共享 `invariant-check`，而�
 ### 后果
 
 这是行为等价线上的窄功能改进，不是完整 UI Upgrade。真实 LCU ARAM 会话、真实 portrait 渲染、outside-click/modal、键盘/辅助功能和跨 DPI 仍需在新候选上由用户完成验收；在此之前不宣称完整 P7 或 release-ready。
+
+## 2026-08-31：BOOT-1 使用原生 thin bootstrapper + app-local multi-file Core
+
+### 决策
+
+- 以小型原生 Win32 `FACM.exe` 作为启动/解析层；它不引入 .NET、WinUI 或 Windows App SDK，
+  只负责读取最小 active state、验证受控版本目录、设置 modular root 环境并启动当前 Core。
+- 4.0 Core 的新 profile 使用 app-local self-contained multi-file `win-x64` 发布；legacy single-file
+  profile 保留并继续默认嵌入桌宠 payload，便于兼容回归和可逆对照。
+- Core、PetHost、FlyingHost 使用明确 component id；桌宠可用性在 App composition root 只读探测，
+  缺失时 fail-soft、恢复 launcher、记录诊断，不改写用户的 enabled/style 选择。
+- `.facm\state\active.json`、`.facm\versions`、`.facm\components`、`.facm\staging`、logs 和
+  runtime/cache 构成稳定 modular data-root contract；state 和 staging 的失败路径必须保留已知
+  active 版本。
+- BOOT-1 只做本地 package/source 和 manifest/hash/staging 原型；review pack 采用 ZIP 并可独立校验，
+  但 native ZIP extraction 和网络 provisioning 留待后续明确授权的 provisioning 阶段。
+
+### 原因
+
+单文件 Core 把大桌宠 payload 与核心启动耦合在一起，也让后续组件更新、版本切换和数据路径隔离变得
+不透明。原生薄启动器可以把启动 fast path、active rollback 和 Core 生命周期从托管 UI 中分离，同时保留
+legacy profile 作为行为对照；可选桌宠 fail-soft 则避免组件缺失导致 FACM 主界面消失或持久化偏好被误改。
+
+### 后果
+
+review candidate 已具备离线启动、active switch/rollback、pack hash verification 和 no-pet Core
+边界，但它仍不是 release package。任何真实机器安装、网络下载、签名、ZIP extraction、桌宠跨进程
+回归和 production cutover 都必须另行验证，不能由 deterministic smoke 自动替代。

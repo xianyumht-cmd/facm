@@ -547,3 +547,18 @@ FACM 工程的 Debug 构建可能输出到 `bin\Debug`，而旧测试启动器�
 - 新视觉组件只能消费现有 ViewModel/service，不得创建第二个 League transport、Gameflow monitor、session owner、polling loop 或 cache。
 - 任何外观切换都必须保持 outside-click、modal suppression、single-instance、tray、桌宠、InGame hide 和 Lobby 回 Orb 契约。
 - source gate 如果扫描 `obj` 生成副本，必须先确认扫描的具体路径与当前构建是否已刷新；不要把 stale generated XAML 当成产品源文件，也不要为规避扫描修改平台项目的换行噪声。
+
+## 2026-08-31：BOOT-1 启动验证必须隔离旧候选进程并核对准确路径
+
+BOOT-1 的 native bootstrapper 和 FACM managed app 共享单实例边界。若旧 review 目录的
+`FACM.App.exe` 未通过自身窗口关闭流程退出，新候选即使已被 bootstrapper 正确创建，也会因单实例
+保护立即退出，表现为“没有 desktop-launcher-ready”。
+
+防回归规则：
+
+- 每次启动前按完整 `ExecutablePath` 核对目标 candidate，不要只按进程名判断；
+- 不同候选之间切换时，先正常关闭旧候选并确认进程退出，再启动新候选；
+- `Start-Process` 的参数数组测试必须确认实际 child command line；参数传递错误可能把 bootstrap-only
+  校验调用误变成默认启动；
+- ready、bootstrap correlation、active Core 路径和 shutdown-complete 必须同时作为启动证据，不能只
+  看 bootstrapper 的 process-created 日志。
