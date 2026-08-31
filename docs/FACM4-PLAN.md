@@ -32,7 +32,7 @@ Foundation #632 已全链路 SUCCESS，且实际日志确认 Release build 和 p
 
 2026-08-31 的下一阶段 BS1–BS6 已完成本地代码事务：候选身份模型、同源 Workbench/Strip
 呈现、自动显示 gate、一次既有 swap 路由、上下文 dismissal、详细卡片复用和回归门均已落地。
-代码提交为 `4b9fe1b`、`fea17fd`、`d551a46`，测试/门禁提交为 `dc70c98`、`028268e`；当前候选使用同一 Morphing `MainWindow` 的既有
+代码提交为 `4b9fe1b`、`fea17fd`、`d551a46`，测试/门禁提交为 `dc70c98`、`028268e`、`50f7026`；当前候选使用同一 Morphing `MainWindow` 的既有
 `ChampSelectStrip`，并通过现有 LCU metadata/icon cache 读取头像。28 个 source gates、App 和
 solution Debug x64、FoundationSmoke `--skip-gate13`、WindowsSmoke 均通过。自然 ARAM/LCU
 交互和真实可视化仍是手动验收，不改变 P7/cutover 状态。

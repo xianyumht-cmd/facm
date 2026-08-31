@@ -62,7 +62,7 @@ Tracking Issue：#233。
 本轮从代码基线 `f80a70e065c33b9ba650b09a2cebcc0088233bfc` 开始，产品提交为 `4b9fe1b`
 （Bench candidate identity model）、`fea17fd`（同一 MainWindow 的 Morphing Bench Swap Strip、
 Workbench 同源呈现与上下文生命周期）和 `d551a46`（点击后的权威状态回读）；测试/门禁提交为
-`dc70c98`、`028268e`。实现只发生在
+`dc70c98`、`028268e`、`50f7026`。实现只发生在
 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`；`D:\project2\Facm` 未修改。
 
 - 候选唯一来源是 `LeagueWorkbenchViewModel.Live.BenchChampionIds`；它由现有

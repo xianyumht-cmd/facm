@@ -368,7 +368,7 @@ release、production pointer、merge 或 push。
 `tmp/p7-ipc-lifecycle-fix-20260830`，代码基线为 `f80a70e065c33b9ba650b09a2cebcc0088233bfc`。
 产品代码提交为 `4b9fe1b`（candidate identity model）、`fea17fd`（Morphing strip / shared Live
 state / detailed Workbench reuse）和 `d551a46`（post-click authoritative refresh）；测试/门禁提交为
-`dc70c98`、`028268e`。`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`
+`dc70c98`、`028268e`、`50f7026`。`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`
 的换行噪声和既有 `out/` 仍未纳入提交。
 
 Bench candidate source is `LeagueWorkbenchViewModel.Live.BenchChampionIds`, populated by the
