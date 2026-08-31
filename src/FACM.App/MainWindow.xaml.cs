@@ -175,6 +175,11 @@ public sealed partial class MainWindow : Window
         AppWindow.IsShownInSwitchers = false;
         if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
         presenter.SetBorderAndTitleBar(false, false);
+        // The Morphing Orb is smaller than the default overlapped-window minimum. Keep the
+        // presentation contract in client/outer coordinates by allowing the presenter to honor
+        // the 36-DIP shell instead of clamping it to the framework default minimum.
+        presenter.PreferredMinimumWidth = 1;
+        presenter.PreferredMinimumHeight = 1;
         presenter.IsAlwaysOnTop = true;
         presenter.IsResizable = false;
         presenter.IsMaximizable = false;
