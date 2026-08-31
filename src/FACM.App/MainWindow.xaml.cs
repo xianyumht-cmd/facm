@@ -1104,7 +1104,7 @@ public sealed partial class MainWindow : Window
                             _lastSurfaceGameflowState is not (LeagueProductState.Lobby or LeagueProductState.NotRunning);
         _lastSurfaceGameflowState = snapshot.ProductState;
 
-        if (inGame && !_manualOpenOverride)
+        if (inGame)
         {
             ResetBenchContext();
             ShowMorphingSurface(FacmSurfaceMode.HiddenInGame, "gameflow-in-game", false, snapshot.Phase);
