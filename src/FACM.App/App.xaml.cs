@@ -342,7 +342,8 @@ public partial class App : Application
             PersistFloatingPlacementAsync,
             ShowTrayContextMenuAtCursor,
             ReportSurfaceTransitionDiagnostic,
-            ReportSurfacePresentationFailureDiagnostic);
+            ReportSurfacePresentationFailureDiagnostic,
+            _floatingSurfacePlatform!.TryEnableSmallSurfaceWindow);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
