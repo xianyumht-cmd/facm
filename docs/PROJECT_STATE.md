@@ -481,3 +481,35 @@ production CDN/DNS、release、merge、push 或 Gate13；正式生产仍为 FACM
 Current BOOT3-C readiness is **local implementation / production-like HTTPS candidate; not release-ready** until
 the external signer response, release-owner publication authorization, production CDN/mirror controls, and reviewed
 real-machine Win10 22H2 / controlled Win11 evidence exist. Gate13 is intentionally `NOT_RUN_GATE13`.
+
+## 2026-08-31 FREE-DIST-1 GitHub Release and free HTTPS transport candidate
+
+FREE-DIST-1 extends the BOOT3-C transport layer without changing the BOOT3-A/BOOT3-B trust boundary. The work is on
+the same isolated worktree and task branch. Focused commits are `50101e6` (`feat(dist): add GitHub canonical proxy
+transport candidates`) and `7929988` (`test(dist): cover free proxy failure and GitHub fallback`). No GitHub Release
+was published, no push/merge or production pointer change was performed, and production remains FACM 3.5.15.
+
+- Canonical signed metadata URLs use only
+  `https://github.com/xianyumht-cmd/facm/releases/download/<release-tag>/<relative-artifact-path>`; proxy URLs
+  are runtime transport candidates and never enter signed metadata or trust decisions.
+- Canonical GitHub transport order is `ghfast.top`, `gh-proxy.com`, `gh.llkk.cc`, then direct GitHub. WinHTTP
+  automatic redirects remain disabled; only bounded HTTPS redirects to canonical GitHub or GitHub-owned release
+  asset hosts are accepted. HTTP, user-info, arbitrary-host and unsafe redirect chains fail closed.
+- Resume behavior preserves `.partial` across candidate failover. `206 Content-Range` must match the requested
+  offset and authenticated package total; a `200` response during resume restarts safely; package SHA-256 and
+  extracted metadata verification remain mandatory for every candidate.
+- The local signed release-compatible bundle is at
+  `D:\project2\facm-free-dist-release-20260831\bundle`; the launcher-only review directory is
+  `D:\project2\facm4-free-dist-review-20260831` and contains only `FACM.exe` plus `bootstrap.json`.
+- Candidate figures are 103,775,138 total bundle bytes, 103,647,538 CAB bytes, and 3,919,587 launcher bytes;
+  four detached signatures are present. The local evidence is
+  `D:\project2\facm-free-dist-release-20260831\free-dist-evidence.json` and
+  `D:\project2\facm-free-dist-probe-20260831\free-dist-test-results.json`.
+- The focused FREE-DIST gate and test passed: canonical URL/proxy separation, signed-trust preservation,
+  launcher-only shape, live candidate probing, unsafe URL rejection, and existing BOOT3-C HTTPS 8/8 evidence.
+  Existing BOOT3-A/BOOT3-B/native/build/smoke evidence remains unchanged.
+
+The public repository has FACM 3.5.15 but does not yet publish the local `v4.0.0-free-dist-1` release. Therefore
+clean-machine first-run, public-release proxy failover and second-launch zero-download are not claimed. The remaining
+action is explicit release-owner authorization to publish the reviewed bundle, followed by real-machine acceptance;
+Gate13 and production cutover remain out of scope.

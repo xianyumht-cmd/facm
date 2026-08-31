@@ -480,3 +480,28 @@ BOOT3-B 的 offline bundle validator 已证明静态签名链，但不能证明�
 ### 后果
 
 BOOT3-C 可以在本地 production-like TLS origin/mirror 上验证失败关闭、恢复和状态保护；它仍不能证明正式 CDN、生产 signer、发布授权或真实 Win10/11 PASS。正式 production pointer、Formal P7 和 Gate13 必须由后续明确授权的任务处理。
+
+## 2026-08-31：FREE-DIST-1 使用 GitHub canonical origin 加固定免费传输候选
+
+### 决策
+
+- 将 GitHub Release 作为唯一 canonical artifact origin；签名应用/组件清单只写标准 GitHub Release 下载路径，
+  不把公共代理地址写进 signed metadata。
+- 对 canonical GitHub Release URL 固定尝试 `ghfast.top`、`gh-proxy.com`、`gh.llkk.cc`，最后回退 direct GitHub；
+  对非 canonical/local-development URL 不自动套用这些代理。
+- 保留 WinHTTP redirect policy = never，只允许有限深度的 HTTPS GitHub release/CDN redirect；HTTP、任意主机、
+  user-info 和异常链路 fail closed。
+- 传输候选不能获得信任权。清单 exact-byte detached signature、embedded `facm-production-r1`、package SHA-256、
+  extraction digest、downgrade、activation 和 rollback 规则全部不变。
+
+### 原因
+
+当前目标是零付费、零新增服务器的可审计分发候选。公共免费代理的可用性不稳定，不能成为 canonical origin
+或 release trust；把它们限定为顺序 transport candidates，既能覆盖受限网络，又能让 direct GitHub 保持最终
+可用路径。实测支持 Range 的候选才进入固定列表，忽略 Range、TLS 失败或落到 HTTP 的地址不纳入。
+
+### 后果
+
+FREE-DIST-1 可以在本地生成和验证 release-compatible bundle 与 launcher-only candidate，但不能证明公共免费
+代理的 SLA，也不能替代 GitHub Release 发布授权、真实 signer、真实机器 acceptance 或 Gate13。发布后必须重新
+验证所有候选、清洁机器首启、断点续传、恶意/损坏内容拒绝和二次启动零下载。

@@ -633,3 +633,24 @@ metadata、package size/SHA-256 和 extraction digest。WinHTTP 必须显式禁�
 产生误报。低空间负向断言应使用 `available + 1`，正向断言保留足够余量（当前 harness 使用 256 MiB），并把
 真实更新峰值按 package/partial、解包暂存、组合目录和 safety margin 计算。PowerShell 的 `Math.Max` 默认重载
 还可能把大于 2 GiB 的磁盘值绑定到 `Int32`；磁盘字节数必须保持 `Int64`/`UInt64`。
+
+## 2026-08-31：免费代理只能是 transport，不能进入 signed metadata 或 trust
+
+### 根因
+
+GitHub Release 公共代理的域名、证书、重定向和 Range 行为可能随时变化。若把代理地址写入签名清单，代理
+可用性就会和 release identity、签名查找、回滚判断混在一起；若跟随任意重定向，还可能把 HTTPS 下载降级到
+HTTP 或未授权主机。另一个常见错误是代理返回 `200` 或错误的 `206 Content-Range` 时直接拼接 `.partial`。
+
+### 防回归规则
+
+- signed metadata 只写 canonical GitHub Release URL；代理只由 native bootstrapper 对 canonical URL 派生，且
+  必须按固定顺序最终回到 direct GitHub。
+- WinHTTP 自动 redirect 保持关闭，只允许有界 HTTPS GitHub release/CDN host；拒绝 HTTP、user-info、任意域名
+  和超深 redirect chain。
+- resume 时验证 `Content-Range` 的起点和总大小；服务器在续传请求上返回 `200` 必须安全重启，不能把完整
+  文件追加到 partial；每个候选完成后重新做包 hash 和解包内容校验。
+- 每次候选验证都同时保留 canonical source URL；proxy response 不能改变 detached signature URL、key ID、
+  downgrade 或 activation policy。
+- 免费代理的当前可用性只能作为带日期的 compatibility evidence，不能写成 SLA；发布前后都要重新探测，并
+  保留 direct GitHub fallback。

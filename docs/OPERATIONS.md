@@ -623,3 +623,44 @@ response and offline/native validation; publish immutable CAB blobs to approved 
 independently compare bytes and hashes from both origins; publish signed component manifests and signatures; publish
 the signed application manifest and signature; then, only with release-owner authorization, update release index and
 online pointers. Never publish a pointer before all referenced immutable bytes are available from every approved origin.
+
+## 2026-08-31 FREE-DIST-1 GitHub Release candidate preparation
+
+The zero-cost distribution candidate can be prepared locally without publication:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Prepare-FacmFreeDistCandidate.ps1'
+```
+
+This reuses the already verified BOOT-2 component stages, builds canonical GitHub Release metadata for the selected
+tag, applies detached signatures using only the external local validation key, and writes the release-compatible
+bundle to `D:\project2\facm-free-dist-release-20260831\bundle`. It writes the two-file launcher review candidate to
+`D:\project2\facm4-free-dist-review-20260831`. The key is not copied into either output.
+
+Run the focused transport and trust-separation test:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmFreeDistProxyTransport.ps1'
+```
+
+Run the source contract gate:
+
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\scripts\check-facm4-free-dist.ps1'
+```
+
+The candidate transport order is `ghfast.top`, `gh-proxy.com`, `gh.llkk.cc`, and `github-direct`. Signed metadata
+must contain only canonical GitHub Release URLs; public proxy URLs must never be copied into manifests. Native
+redirect handling accepts only bounded HTTPS redirects to GitHub-owned release asset hosts. Range resume must retain
+the partial file across candidate failure, reject mismatched `Content-Range`, restart safely on a resume-time `200`,
+and recheck exact package/content identity before activation.
+
+Evidence is retained at `D:\project2\facm-free-dist-release-20260831\free-dist-evidence.json` and
+`D:\project2\facm-free-dist-probe-20260831\free-dist-test-results.json`. This task intentionally does not create
+the GitHub Release, upload assets, change `online/version.json` or `release/request.json`, merge/push PR #234,
+perform real-machine publication acceptance, run Gate13, or retire FACM 3.5.15. The public repository currently has
+FACM 3.5.15 rather than the local FREE-DIST candidate, so first-run and second-launch acceptance against the public
+release remain pending explicit release-owner authorization.

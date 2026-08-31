@@ -497,3 +497,26 @@ bytes, extracted component staging, composed-version bytes and a fixed safety ma
 active/known-good version. State readers reject malformed schema, unsafe active paths, duplicate component IDs,
 invalid digests and unsafe installed-component paths. Failed staging remains controlled diagnostic material; the
 active pointer is not deleted during a failed update.
+
+## 2026-08-31 FREE-DIST-1 GitHub origin and proxy transport topology
+
+FREE-DIST-1 keeps one canonical release identity while allowing zero-cost transport candidates:
+
+```text
+canonical GitHub Release URL in signed metadata
+  -> fixed HTTPS proxy prefix: ghfast.top
+  -> fixed HTTPS proxy prefix: gh-proxy.com
+  -> fixed HTTPS proxy prefix: gh.llkk.cc
+  -> direct GitHub Release URL
+       -> bounded approved HTTPS redirect -> GitHub release asset host
+  -> exact-byte manifest/signature/package/content verification
+```
+
+The proxy prefix is derived only for a canonical GitHub Release path. It is not a manifest mirror, trust root,
+key source or release identity. A selected transport retains the canonical source URL for detached-signature lookup
+and downgrade/trust checks. Non-canonical local-development URLs continue to use their supplied direct address.
+
+For package downloads, the transport layer and the existing recovery layer are deliberately separate: the transport
+candidate may fail, return bad bytes or ignore a Range request, but the recovery layer keeps or safely restarts the
+partial file, verifies `Content-Range`, package size, package SHA-256 and extracted content before activation. This
+prevents a free proxy from weakening the BOOT3-A/BOOT3-B exact-byte trust chain.
