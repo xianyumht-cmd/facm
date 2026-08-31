@@ -10,6 +10,7 @@ internal static class LeagueBenchQuickPickSmoke
         ValidatePollingPolicy();
         ValidateLegacyParser();
         ValidateChampionIdentityParser();
+        ValidateBenchSwapStripPresentation();
         await ValidateTeamBuilderFallbackAndSingleWriteAsync();
         await ValidateVerificationFailureNeverRetriesWriteAsync();
         await ValidateTargetUnavailableSkipsReadbackAsync();
@@ -86,6 +87,78 @@ internal static class LeagueBenchQuickPickSmoke
         Require(catalog[22].Name == "寒冰射手" && catalog[22].IconPath.EndsWith("ashe.png", StringComparison.Ordinal),
             "Preferred localized champion name or portrait was not selected.");
         Require(catalog[44].Name == "塔里克", "Champion name fallback field was not selected.");
+    }
+
+    private static void ValidateBenchSwapStripPresentation()
+    {
+        var catalog = LeagueBenchQuickPickService.ParseChampionIdentities(Json("""
+            [
+              { "id": 37, "nameTRA": "琴女", "alias": "Sona", "squarePortraitPath": "/img/sona.png" },
+              { "id": 236, "nameTRA": "卢锡安", "alias": "Lucian", "squarePortraitPath": "/img/lucian.png" }
+            ]
+            """));
+        var candidates = LeagueBenchCandidatePresentation.Create([37, 236, 9999, 37], catalog);
+
+        Require(candidates.Count == 3, "Bench candidate presentation did not preserve unique observed candidates.");
+        Require(candidates[0].ChampionId == 37 && candidates[0].DisplayName == "琴女" &&
+                candidates[0].PortraitSource.EndsWith("sona.png", StringComparison.Ordinal),
+            "Known candidate 37 did not resolve to its portrait identity.");
+        Require(candidates[1].ChampionId == 236 && candidates[1].DisplayName == "卢锡安" &&
+                candidates[1].AccessibleName == "卢锡安 · Swap",
+            "Known candidate 236 did not expose an accessible portrait identity.");
+        Require(candidates[2].DisplayName == "Unknown champion" && candidates[2].IsActionable,
+            "Unknown candidates must use a compact non-ID fallback while remaining actionable.");
+        Require(!candidates.Any(candidate => candidate.DisplayName == "#37" || candidate.DisplayName == "#236"),
+            "Raw champion ids must not be the primary candidate identity.");
+
+        var live = new LeagueWorkbenchLiveSnapshot(
+            LeagueWorkbenchDataState.Ready,
+            "ChampSelect",
+            0,
+            null,
+            0,
+            string.Empty,
+            1,
+            string.Empty,
+            0,
+            string.Empty,
+            0,
+            true,
+            LeagueBenchSwapRoute.Legacy,
+            [],
+            [],
+            [37, 236],
+            [],
+            "ready",
+            DateTimeOffset.UtcNow);
+        Require(LeagueBenchSwapStripPolicy.IsEligible(live) &&
+                LeagueBenchSwapStripPolicy.CountActionableCandidates(live) == 2,
+            "Actionable Champ Select Bench state did not enable the strip.");
+        Require(LeagueBenchSwapStripPolicy.IsEligible(live with { BenchChampionIds = [37] }),
+            "A single actionable Bench candidate must enable the strip.");
+        Require(!LeagueBenchSwapStripPolicy.IsEligible(live with { BenchChampionIds = [] }),
+            "An empty Bench candidate list must not enable the strip.");
+        Require(!LeagueBenchSwapStripPolicy.IsEligible(live with { BenchEnabled = false }),
+            "A disabled Bench must not enable the strip.");
+        Require(!LeagueBenchSwapStripPolicy.IsEligible(live with { Phase = "InProgress" }) &&
+                !LeagueBenchSwapStripPolicy.IsEligible(live with { Phase = "Lobby" }),
+            "In-game and Lobby states must not enable the Champ Select strip.");
+        Require(LeagueBenchSwapStripPolicy.ResolveWidthDip(2) >= LeagueBenchSwapStripPolicy.MinimumWidthDip &&
+                LeagueBenchSwapStripPolicy.ResolveWidthDip(1) == LeagueBenchSwapStripPolicy.MinimumWidthDip &&
+                LeagueBenchSwapStripPolicy.ResolveWidthDip(4) > LeagueBenchSwapStripPolicy.ResolveWidthDip(2) &&
+                LeagueBenchSwapStripPolicy.ResolveWidthDip(20) == LeagueBenchSwapStripPolicy.MaximumWidthDip,
+            "Bench strip geometry must be content-driven and capped.");
+
+        var dismissal = new LeagueBenchContextDismissal();
+        dismissal.BeginNewContext();
+        Require(dismissal.CanAutoShow(true), "A new actionable Bench context must auto-show.");
+        dismissal.DismissCurrentContext();
+        Require(!dismissal.CanAutoShow(true), "Manual strip dismissal must hold for the current context.");
+        dismissal.ResetForMaterialCandidateChange();
+        Require(dismissal.CanAutoShow(true), "A material candidate change must clear dismissal.");
+        dismissal.DismissCurrentContext();
+        dismissal.BeginNewContext();
+        Require(dismissal.CanAutoShow(true), "A new Champ Select context must reopen the strip.");
     }
 
     private static async Task ValidateTeamBuilderFallbackAndSingleWriteAsync()
