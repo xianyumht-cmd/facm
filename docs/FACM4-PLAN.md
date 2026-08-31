@@ -231,3 +231,24 @@ Hosted CI、source gate、smoke、targeted bug fix 都不能自动把这些 bloc
 - 交接覆盖：已完成、已验证、失败/不足方案及原因、禁止重复路线、当前代码/CI/artifact、测试环境、未完成问题、下一步操作和日志判定分支。
 - 新对话继续时优先读取：`AGENTS.md` -> 本计划 -> `PROJECT_STATE.md` -> `FACM4-P7-PARITY-CLOSEOUT.md` -> `HANDOFF-20260807.md`。
 - 当前唯一应继续验证的 executable 是 #632 artifact `9709261625`；#628 artifact 不再用于桌宠验收。
+
+## 2026-08-31 BOOT-1 执行状态
+
+BOOT-1 已在 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` 完成首个本地实现候选：
+
+- 原生 Win32 `FACM.exe` 负责 active Core 解析、原子 state、受控版本切换/回滚、启动 correlation 和
+  child process 创建；不引入 .NET/WinUI/Windows App SDK。
+- `BootCore.pubxml` 提供 self-contained `win-x64` app-local multi-file Core，并通过
+  `FACMIncludeEmbeddedPetPayload=false` 保证 Core 不携带桌宠 payload；legacy single-file profile
+  仍保留原默认行为。
+- `.facm` 提供稳定 `FACM_ROOT`/`FACM_DATA_ROOT`、components、versions、staging、logs、state 和
+  runtime/cache 布局。ZIP pack/manifest/hash 校验和 expanded local source staging 已验证；native ZIP
+  extraction 和网络 provisioning 尚不在本阶段。
+- 缺失可选桌宠组件时，runtime fail-soft 并记录 `desktop.pet.component-unavailable`，不创建孤儿 Host、
+  不让 FACM 主界面消失、不把用户持久化 enabled preference 静默改为 Off。
+- 最终 review candidate 为 `D:\project2\facm-boot1-review-20260831-final`；详实文件数、字节数、
+  SHA-256、启动 timing 和未完成的 real-machine/Gate13 边界已记录在 `docs/PROJECT_STATE.md`。
+- 本机验证已完成：Release no-pet solution build 0 warnings/0 errors、FoundationSmoke `--skip-gate13`、
+  WindowsSmoke、27/27 非 cutover source gates、Bootstrapper version/rollback/pack/single-instance
+  smoke，以及 3 次 app-local 启动/正常退出。正式 P7、PR #234、production pointer、merge/push/release
+  和 Gate13 均保持不变。
