@@ -11,8 +11,17 @@
 namespace facm::bootstrapper {
 namespace {
 
-constexpr wchar_t kProductionKeyId[] = L"facm-production-r1";
 constexpr std::uint32_t kProductionKeyBits = 2048;
+
+struct ProductionKeyMaterial {
+    const wchar_t* keyId;
+    const wchar_t* algorithm;
+    ProductionKeyStatus status;
+    const unsigned char* modulus;
+    std::size_t modulusSize;
+    const unsigned char* exponent;
+    std::size_t exponentSize;
+};
 
 // This is public release-root material only. The corresponding private key is
 // owned by the release process and is never part of this repository or binary.
@@ -37,6 +46,14 @@ constexpr unsigned char kProductionModulus[] = {
 
 constexpr unsigned char kProductionExponent[] = { 0x01, 0x00, 0x01 };
 
+// This table is the only production trust source. A future rotation adds a
+// reviewed public entry here with Active/Overlap status; it never comes from a
+// manifest, config file, environment variable, or remote keyring.
+constexpr ProductionKeyMaterial kProductionKeyring[] = {
+    { L"facm-production-r1", L"RSA-2048-PKCS1-SHA256", ProductionKeyStatus::Active,
+      kProductionModulus, sizeof(kProductionModulus), kProductionExponent, sizeof(kProductionExponent) },
+};
+
 bool IsSuccess(NTSTATUS status) {
     return status >= 0;
 }
@@ -50,18 +67,29 @@ bool DecodeBase64(const std::string& input, std::vector<unsigned char>& output) 
                                 output.data(), &size, nullptr, nullptr) != FALSE;
 }
 
-bool BuildPublicKeyBlob(std::vector<unsigned char>& blob) {
+const ProductionKeyMaterial* FindProductionKey(const std::wstring& keyId) {
+    for (const auto& key : kProductionKeyring) {
+        if (keyId == key.keyId) return &key;
+    }
+    return nullptr;
+}
+
+bool IsAcceptedStatus(ProductionKeyStatus status) {
+    return status == ProductionKeyStatus::Active || status == ProductionKeyStatus::Overlap;
+}
+
+bool BuildPublicKeyBlob(const ProductionKeyMaterial& material, std::vector<unsigned char>& blob) {
     BCRYPT_RSAKEY_BLOB header{};
     header.Magic = BCRYPT_RSAPUBLIC_MAGIC;
     header.BitLength = kProductionKeyBits;
-    header.cbPublicExp = static_cast<ULONG>(sizeof(kProductionExponent));
-    header.cbModulus = static_cast<ULONG>(sizeof(kProductionModulus));
+    header.cbPublicExp = static_cast<ULONG>(material.exponentSize);
+    header.cbModulus = static_cast<ULONG>(material.modulusSize);
     header.cbPrime1 = 0;
     header.cbPrime2 = 0;
-    blob.resize(sizeof(header) + sizeof(kProductionExponent) + sizeof(kProductionModulus));
+    blob.resize(sizeof(header) + material.exponentSize + material.modulusSize);
     std::memcpy(blob.data(), &header, sizeof(header));
-    std::memcpy(blob.data() + sizeof(header), kProductionExponent, sizeof(kProductionExponent));
-    std::memcpy(blob.data() + sizeof(header) + sizeof(kProductionExponent), kProductionModulus, sizeof(kProductionModulus));
+    std::memcpy(blob.data() + sizeof(header), material.exponent, material.exponentSize);
+    std::memcpy(blob.data() + sizeof(header) + material.exponentSize, material.modulus, material.modulusSize);
     return true;
 }
 
@@ -72,8 +100,13 @@ bool VerifyProductionSignature(
     const std::wstring& keyId,
     const std::string& base64Signature,
     std::wstring& failure) {
-    if (keyId != kProductionKeyId) {
+    const auto* material = FindProductionKey(keyId);
+    if (!material) {
         failure = L"清单签名的 key ID 不在 bootstrapper 内嵌生产信任根中。";
+        return false;
+    }
+    if (!IsAcceptedStatus(material->status)) {
+        failure = L"清单签名的 key ID 处于 planned、retired 或 revoked 生命周期状态。";
         return false;
     }
 
@@ -107,7 +140,7 @@ bool VerifyProductionSignature(
         failure = L"清单 SHA-256 计算失败。";
         goto cleanup;
     }
-    if (!BuildPublicKeyBlob(publicBlob) ||
+    if (!BuildPublicKeyBlob(*material, publicBlob) ||
         !IsSuccess(BCryptOpenAlgorithmProvider(&rsaAlgorithm, BCRYPT_RSA_ALGORITHM, nullptr, 0)) ||
         !IsSuccess(BCryptImportKeyPair(rsaAlgorithm, nullptr, BCRYPT_RSAPUBLIC_BLOB, &key,
                                        publicBlob.data(), static_cast<ULONG>(publicBlob.size()), 0))) {
@@ -138,6 +171,12 @@ cleanup:
     if (key) BCryptDestroyKey(key);
     if (rsaAlgorithm) BCryptCloseAlgorithmProvider(rsaAlgorithm, 0);
     return false;
+}
+
+bool IsProductionKeyAccepted(const std::wstring& keyId, ProductionKeyStatus* status) {
+    const auto* material = FindProductionKey(keyId);
+    if (status) *status = material ? material->status : ProductionKeyStatus::Revoked;
+    return material && IsAcceptedStatus(material->status);
 }
 
 } // namespace facm::bootstrapper

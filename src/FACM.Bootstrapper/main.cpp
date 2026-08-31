@@ -733,6 +733,50 @@ bool ValidVersion(const std::wstring& version) {
     });
 }
 
+bool ParseNumericVersionBase(const std::wstring& base, std::vector<std::uintmax_t>& parts) {
+    if (base.empty()) return false;
+    std::uintmax_t value = 0;
+    bool hasDigit = false;
+    for (size_t index = 0; index <= base.size(); ++index) {
+        if (index == base.size() || base[index] == L'.') {
+            if (!hasDigit) return false;
+            parts.push_back(value);
+            value = 0;
+            hasDigit = false;
+            continue;
+        }
+        if (base[index] < L'0' || base[index] > L'9') return false;
+        hasDigit = true;
+        const auto digit = static_cast<std::uintmax_t>(base[index] - L'0');
+        if (value > (static_cast<std::uintmax_t>(-1) - digit) / 10) return false;
+        value = value * 10 + digit;
+    }
+    return !parts.empty();
+}
+
+int CompareReleaseVersions(const std::wstring& left, const std::wstring& right) {
+    const auto leftSeparator = left.find_first_of(L"-_");
+    const auto rightSeparator = right.find_first_of(L"-_");
+    const auto leftBase = left.substr(0, leftSeparator);
+    const auto rightBase = right.substr(0, rightSeparator);
+    const auto leftSuffix = leftSeparator == std::wstring::npos ? L"" : left.substr(leftSeparator + 1);
+    const auto rightSuffix = rightSeparator == std::wstring::npos ? L"" : right.substr(rightSeparator + 1);
+    std::vector<std::uintmax_t> leftParts;
+    std::vector<std::uintmax_t> rightParts;
+    if (!ParseNumericVersionBase(leftBase, leftParts) || !ParseNumericVersionBase(rightBase, rightParts)) {
+        return _wcsicmp(left.c_str(), right.c_str());
+    }
+    const auto count = std::max(leftParts.size(), rightParts.size());
+    for (size_t index = 0; index < count; ++index) {
+        const auto leftPart = index < leftParts.size() ? leftParts[index] : 0;
+        const auto rightPart = index < rightParts.size() ? rightParts[index] : 0;
+        if (leftPart < rightPart) return -1;
+        if (leftPart > rightPart) return 1;
+    }
+    if (leftSuffix.empty() != rightSuffix.empty()) return leftSuffix.empty() ? 1 : -1;
+    return _wcsicmp(leftSuffix.c_str(), rightSuffix.c_str());
+}
+
 bool ValidComponentId(const std::wstring& id) {
     if (id.empty() || id.size() > 80) return false;
     return std::all_of(id.begin(), id.end(), [](wchar_t character) {
@@ -1773,6 +1817,13 @@ bool ProvisionFromNetwork(const fs::path& root, const std::wstring& manifestUrl,
     }
     if (!ValidateApplicationManifest(*manifest, allowUnsignedLocal, allowInsecureLocal, failure)) {
         AppendLog(root, L"manifest-validate-failed", correlation);
+        return false;
+    }
+    const auto currentActive = ReadActiveState(StatePath(root));
+    if (manifest->trustMode == L"production" && currentActive &&
+        CompareReleaseVersions(manifest->applicationVersion, currentActive->activeVersion) < 0) {
+        failure = L"生产更新版本低于当前 active 版本，拒绝 downgrade。";
+        AppendLog(root, L"manifest-downgrade-rejected", correlation);
         return false;
     }
     AppendLog(root, L"manifest-validated", correlation);
