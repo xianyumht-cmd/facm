@@ -1314,16 +1314,23 @@ bool HttpGetText(const std::wstring& url, std::string& body, std::wstring& failu
     return response.status == 200;
 }
 
-bool HttpGetTextWithTransports(const std::wstring& sourceUrl, std::string& body, std::wstring& failure,
-                               std::wstring* selectedTransportId = nullptr) {
+bool VerifyDetachedSignatureWithTransports(const std::string& exactBytes, const std::wstring& sourceUrl,
+                                           const std::wstring& keyId, std::wstring& failure,
+                                           std::wstring* selectedTransportId = nullptr) {
     failure.clear();
     for (const auto& candidate : BuildTransportCandidates(sourceUrl)) {
-        std::wstring candidateFailure;
-        if (HttpGetText(candidate.url, body, candidateFailure)) {
+        std::string signature;
+        std::wstring fetchFailure;
+        if (!HttpGetText(candidate.url, signature, fetchFailure)) {
+            failure = fetchFailure;
+            continue;
+        }
+        std::wstring verifyFailure;
+        if (facm::bootstrapper::VerifyProductionSignature(exactBytes, keyId, signature, verifyFailure)) {
             if (selectedTransportId) *selectedTransportId = candidate.id;
             return true;
         }
-        failure = candidateFailure;
+        failure = verifyFailure;
     }
     return false;
 }
@@ -2017,12 +2024,10 @@ bool VerifyProductionApplicationManifest(const std::string& exactBytes, const st
         failure = L"生产清单必须使用 HTTPS、production trust mode 和受信任 key ID。";
         return false;
     }
-    std::string signature;
-    if (!HttpGetTextWithTransports(DetachedSignatureUrl(manifestUrl), signature, failure)) {
+    if (!VerifyDetachedSignatureWithTransports(exactBytes, DetachedSignatureUrl(manifestUrl), manifest.keyId, failure)) {
         failure = L"无法读取应用清单 detached 签名：" + failure;
         return false;
     }
-    if (!facm::bootstrapper::VerifyProductionSignature(exactBytes, manifest.keyId, signature, failure)) return false;
     return true;
 }
 
@@ -2063,12 +2068,10 @@ bool VerifyProductionComponentManifest(const ComponentManifest& advertised, cons
         failure = L"组件清单 key ID 或 schema 与应用清单不一致。";
         return false;
     }
-    std::string signature;
-    if (!HttpGetTextWithTransports(DetachedSignatureUrl(selectedSourceUrl), signature, failure)) {
+    if (!VerifyDetachedSignatureWithTransports(exactBytes, DetachedSignatureUrl(selectedSourceUrl), authenticated->keyId, failure)) {
         failure = L"无法读取组件清单 detached 签名：" + failure;
         return false;
     }
-    if (!facm::bootstrapper::VerifyProductionSignature(exactBytes, authenticated->keyId, signature, failure)) return false;
     if (!SameComponentMetadata(advertised, *authenticated)) {
         failure = L"组件清单未通过应用清单的 authenticated metadata 对比。";
         return false;
