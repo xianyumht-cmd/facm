@@ -28,7 +28,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch X `0eebe940b26edb3b4900587e54ff2f3b685c224a` and BS7 `f0528fa` | **Batch U/X/BS7 source checks green / Full Product Parity audit recorded / Draft** |
+| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch X `0eebe940b26edb3b4900587e54ff2f3b685c224a` and BS7 `742f75f` | **Batch U/X/BS7 source checks green / Full Product Parity audit recorded / Draft** |
 
 Tracking Issue：#233。
 
@@ -61,9 +61,9 @@ Tracking Issue：#233。
 
 本轮从代码基线 `f80a70e065c33b9ba650b09a2cebcc0088233bfc` 开始，产品提交为 `4b9fe1b`
 （Bench candidate identity model）、`fea17fd`（同一 MainWindow 的 Morphing Bench Swap Strip、
-Workbench 同源呈现与上下文生命周期）、`d551a46`（点击后的权威状态回读）和 `f0528fa`
+Workbench 同源呈现与上下文生命周期）、`d551a46`（点击后的权威状态回读）、`f0528fa`
 （进程级 Bench context/latch 生命周期修复）；测试/门禁提交为 `dc70c98`、`028268e`、
-`50f7026`、`f0528fa`。实现只发生在
+`50f7026`、`f0528fa`、`b2218f6`、`742f75f`。实现只发生在
 `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix`；`D:\project2\Facm` 未修改。
 
 - Compact/Strip 自动呈现的候选唯一来源已提升为进程级 `LeagueBenchRuntimeSnapshot`；它由新的
@@ -93,10 +93,15 @@ Workbench 同源呈现与上下文生命周期）、`d551a46`（点击后的权�
 - 新用户评审候选：`D:\project2\facm-bs6-review-out-20260831-1600\FACM.App.exe`，单文件目录
   仅 1 个文件、0 个 DLL，421,024,376 bytes，SHA-256
   `68766D9B9D2511B846F477FA658EF6573BC7197CBE94861D36BFE0481DF8CE9B`。
-- BS7 新用户评审候选：`D:\project2\facm-bs7-review-out-20260831-1319\FACM.App.exe`，单文件目录
+- BS7 中间 candidate：`D:\project2\facm-bs7-review-out-20260831-1319\FACM.App.exe`，单文件目录
   仅 1 个文件、0 个 DLL，420,921,000 bytes，SHA-256
-  `4FABDC97FFD67E3403F93D6FCD2A78C1E1E4F60B51F88B6287A4298A2AE526D6`；候选由提交
-  `f0528fa` 构建，旧 BS6 candidate 保持不变。
+  `4FABDC97FFD67E3403F93D6FCD2A78C1E1E4F60B51F88B6287A4298A2AE526D6`；旧 BS6 candidate 保持不变。
+- BS7 最终用户评审候选：`D:\project2\facm-bs7-review-out-20260831-1324\FACM.App.exe`，单文件目录
+  仅 1 个文件、0 个 DLL，420,921,000 bytes，SHA-256
+  `130A13EF8163061B682B2DF3CAB4E8B8A810484B091D57EEB69F9CE7E459CAB0`；ZIP
+  `D:\project2\facm-bs7-review-out-20260831-1324.zip`，252,333,304 bytes，SHA-256
+  `C45A8B8B6FAE5C989203E2AB7A7BBDC83C3DD4C513F88D8857E5EEE39C02AD09`；由最终代码提交
+  `742f75f` 构建。
 - owner 计数：BS6 的自动呈现 Bench state owner 为 Workbench `Live` 1 个；BS7 为
   `LeagueBenchRuntimeObserver` 1 个，`LeagueBenchQuickPickService` 共享创建 1 个，且
   `WindowsLeagueTransportSessionSource` / `LeagueHttpGateway` / `LeagueGameflowMonitor` 仍各 1 个。
