@@ -66,7 +66,6 @@ public sealed partial class MainWindow : Window
     private UIElement? _inspectorHoverElement;
     private UIElement? _inspectorFocusElement;
     private DesktopPoint? _surfaceAnchor;
-    private bool _manualOpenOverride;
     private bool _surfacePointerActive;
     private bool _surfaceDragMoved;
     private uint _surfacePointerId;
@@ -493,7 +492,6 @@ public sealed partial class MainWindow : Window
             return;
         if (LeagueBenchStripInteractionPolicy.SuppressOutsideDismissal(_surfaceStateMachine.Mode))
             return;
-        _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "outside-click", false);
     }
 
@@ -634,7 +632,6 @@ public sealed partial class MainWindow : Window
             _ = DispatcherQueue.TryEnqueue(() => ShowMorphingSurface(mode, reason, userInitiated, phase));
             return;
         }
-        if (userInitiated) _manualOpenOverride = true;
         RequestSurfacePresentation(mode, reason, userInitiated, phase, activate: mode != FacmSurfaceMode.HiddenInGame);
     }
 
@@ -1127,7 +1124,6 @@ public sealed partial class MainWindow : Window
         if (lobbyRestored)
         {
             ResetBenchContext();
-            _manualOpenOverride = false;
             ShowMorphingSurface(FacmSurfaceMode.Orb, "gameflow-lobby-restored", false, snapshot.Phase);
         }
     }
@@ -1135,7 +1131,6 @@ public sealed partial class MainWindow : Window
     private void OnSurfaceBackClick(object sender, RoutedEventArgs e)
     {
         if (!_morphingSurfaceEnabled) return;
-        _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.ControlMatrix, "back-to-control-matrix", true);
     }
 
@@ -1144,7 +1139,6 @@ public sealed partial class MainWindow : Window
         if (!_morphingSurfaceEnabled) return;
         if (LeagueBenchStripInteractionPolicy.SuppressCollapse(_surfaceStateMachine.Mode))
             return;
-        _manualOpenOverride = false;
         ShowMorphingSurface(FacmSurfaceMode.Orb, "collapse-to-orb", true);
     }
 
@@ -1181,7 +1175,6 @@ public sealed partial class MainWindow : Window
         if (!_morphingSurfaceEnabled) return;
         if (visible)
         {
-            _manualOpenOverride = false;
             ShowMorphingSurface(FacmSurfaceMode.Orb, "desktop-entry-visible", false);
         }
         else
