@@ -21,6 +21,7 @@ $gameRepairPath = Join-Path $Root 'src/FACM.Platform.Windows/League/WindowsLeagu
 $toolVmPath = Join-Path $Root 'src/FACM.App/ViewModels/RepairToolsViewModel.cs'
 $gameVmPath = Join-Path $Root 'src/FACM.App/ViewModels/LeagueGameRepairViewModel.cs'
 $gameUiPath = Join-Path $Root 'src/FACM.App/MainWindow.GameRepair.cs'
+$efficiencyUiPath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueEfficiency.cs'
 $mainXamlPath = Join-Path $Root 'src/FACM.App/MainWindow.xaml'
 $appPath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $platformProjectPath = Join-Path $Root 'src/FACM.Platform.Windows/FACM.Platform.Windows.csproj'
@@ -29,7 +30,7 @@ $windowsSmokePath = Join-Path $Root 'src/FACM.WindowsSmoke/RepairWindowsSmoke.cs
 
 foreach ($path in @(
     $coreToolPath, $coreLeaguePath, $leagueContractsPath, $driverPath, $gameRepairPath,
-    $toolVmPath, $gameVmPath, $gameUiPath, $mainXamlPath, $appPath,
+    $toolVmPath, $gameVmPath, $gameUiPath, $efficiencyUiPath, $mainXamlPath, $appPath,
     $platformProjectPath, $foundationSmokePath, $windowsSmokePath
 )) {
     if (-not (Test-Path $path)) { Fail "Repair contract file missing: $path" }
@@ -41,6 +42,7 @@ $driver = Get-Content $driverPath -Raw
 $gameRepair = Get-Content $gameRepairPath -Raw
 $viewModels = (Get-Content $toolVmPath -Raw) + "`n" + (Get-Content $gameVmPath -Raw)
 $gameUi = Get-Content $gameUiPath -Raw
+$efficiencyUi = Get-Content $efficiencyUiPath -Raw
 $xaml = Get-Content $mainXamlPath -Raw
 $app = Get-Content $appPath -Raw
 $platformProject = Get-Content $platformProjectPath -Raw
@@ -103,13 +105,19 @@ foreach ($required in @('IRepairToolService', 'ILeagueGameRepairService', 'Launc
 foreach ($id in @(
     'FACM.Repair.Privilege', 'FACM.Repair.DriverCleanup', 'FACM.Repair.WindowNow',
     'FACM.Repair.AutoWindow', 'FACM.Repair.SkipSettlement', 'FACM.Repair.RestartClientUx',
-    'FACM.Repair.ExitGame', 'FACM.Repair.GameStatus'
+    'FACM.Repair.GameStatus'
 )) {
     if ($xaml -notmatch [regex]::Escape($id)) { Fail "Repair WinUI AutomationId missing: $id" }
 }
 if ($xaml -match '#[0-9A-Fa-f]{6,8}') { Fail 'Repair WinUI must use semantic design resources, not hard-coded colors.' }
-foreach ($required in @('ConfigureGameRepair', 'OnRepairFixWindowClick', 'OnRepairAutoWindowClick', 'OnRepairSkipSettlementClick', 'OnRepairRestartClientUxClick', 'OnRepairExitGameClick')) {
+foreach ($required in @('ConfigureGameRepair', 'OnRepairFixWindowClick', 'OnRepairAutoWindowClick', 'OnRepairSkipSettlementClick', 'OnRepairRestartClientUxClick')) {
     if ($gameUi -notmatch [regex]::Escape($required)) { Fail "Repair WinUI handler missing: $required" }
+}
+if ($xaml -match 'FACM\.Repair\.ExitGame' -or $gameUi -match 'OnRepairExitGameClick') {
+    Fail 'Duplicate Repair/Cleanup exit-game UI entry must stay removed.'
+}
+foreach ($required in @('FACM.League.ExitGameHotkey', 'SaveEfficiencyHotkeys', 'ExitGame')) {
+    if ($efficiencyUi -notmatch [regex]::Escape($required)) { Fail "League exit-game shortcut path missing: $required" }
 }
 foreach ($forbidden in @('System\.Diagnostics', '\bProcess\.', 'DllImport', 'LibraryImport', 'HttpClient', 'SetWindowPos', 'SetWinEventHook')) {
     if ($gameUi -match $forbidden) { Fail "Repair WinUI presentation owns platform behavior: $forbidden" }

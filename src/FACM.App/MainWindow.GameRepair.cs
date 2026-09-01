@@ -22,8 +22,6 @@ public sealed partial class MainWindow
         RepairSkipSettlementHint.Text = _text.Get(UiTextKeys.RepairSkipSettlementHint);
         RepairRestartClientUxButton.Content = _text.Get(UiTextKeys.RepairRestartClientUx);
         RepairRestartClientUxHint.Text = _text.Get(UiTextKeys.RepairRestartClientUxHint);
-        RepairExitGameButton.Content = _text.Get(UiTextKeys.RepairExitGame);
-        RepairExitGameHint.Text = _text.Get(UiTextKeys.RepairExitGameHint);
 
         AutomationProperties.SetName(RepairFixWindowButton, _text.Get(UiTextKeys.RepairFixWindow));
         AutomationProperties.SetHelpText(RepairFixWindowButton, _text.Get(UiTextKeys.RepairFixWindowHint));
@@ -33,8 +31,6 @@ public sealed partial class MainWindow
         AutomationProperties.SetHelpText(RepairSkipSettlementButton, _text.Get(UiTextKeys.RepairSkipSettlementHint));
         AutomationProperties.SetName(RepairRestartClientUxButton, _text.Get(UiTextKeys.RepairRestartClientUx));
         AutomationProperties.SetHelpText(RepairRestartClientUxButton, _text.Get(UiTextKeys.RepairRestartClientUxHint));
-        AutomationProperties.SetName(RepairExitGameButton, _text.Get(UiTextKeys.RepairExitGame));
-        AutomationProperties.SetHelpText(RepairExitGameButton, _text.Get(UiTextKeys.RepairExitGameHint));
 
         ApplyGameRepairState();
         InitializePersonalizationSurface();
@@ -57,9 +53,6 @@ public sealed partial class MainWindow
 
     private async void OnRepairRestartClientUxClick(object sender, RoutedEventArgs args) =>
         await RunGameRepairAsync(viewModel => viewModel.RestartClientUxAsync());
-
-    private async void OnRepairExitGameClick(object sender, RoutedEventArgs args) =>
-        await RunGameRepairAsync(viewModel => viewModel.ExitGameAsync());
 
     private async Task RunGameRepairAsync(Func<LeagueGameRepairViewModel, Task<FACM.Core.League.LeagueGameRepairResult?>> operation)
     {
@@ -106,6 +99,5 @@ public sealed partial class MainWindow
         RepairAutoWindowButton.IsEnabled = enabled;
         RepairSkipSettlementButton.IsEnabled = enabled;
         RepairRestartClientUxButton.IsEnabled = enabled;
-        RepairExitGameButton.IsEnabled = enabled;
     }
 }
