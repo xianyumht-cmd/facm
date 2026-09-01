@@ -723,3 +723,75 @@ the optional-config and trust-boundary negative cases. It writes evidence to
 The test certificate is current-user-only temporary material and must be removed in cleanup. If a proxy is temporarily
 needed for the native live probe, record the original WinHTTP state and restore it immediately after the run. Do not
 publish the prerelease, push/merge, change production pointers, run Gate13, or retire FACM 3.5.15 from this rehearsal.
+
+## 2026-09-01 FREE-DIST-4 public prerelease validation
+
+The authorized non-production release `v4.0.0-free-dist-test.1` was briefly published with `draft=false`,
+`prerelease=true`, and exactly 13 assets, then withdrawn and deleted after the blocker below. Its historical URL was
+`https://github.com/xianyumht-cmd/facm/releases/tag/v4.0.0-free-dist-test.1`; no public test.1 release currently exists.
+The approved local bundle was independently downloaded through the public canonical URLs into
+`D:\project2\facm4-public-release-download-20260901`; all 13 names, sizes, and SHA-256 values matched with no extras.
+
+Public first-run evidence is retained in
+`D:\project2\facm4-public-first-run-test-20260901` and its bootstrap log. Only `FACM.exe` was present before launch;
+the real Orb started after 103,647,538 CAB bytes were downloaded. Second launch and a temporarily unavailable
+WinHTTP offline launch passed with zero new manifest/download/extraction events. The controlled valid-prefix Range
+root is `D:\project2\facm4-public-range-resume-controlled-20260901`; it recorded a resume event, completed all three
+components, and passed a follow-up Orb launch. Proxy probes and prior deterministic BOOT3-C evidence are retained in
+the existing evidence directories listed above.
+
+This validation is **BLOCKED**, not `PUBLIC_FREE_DIST_TEST_READY_FOR_USER`. A forced termination at the exact end of a
+CAB download left a `.partial` whose size and SHA-256 equaled the complete package; the current code then requested
+an invalid Range at EOF, received HTTP 416 through the available transports, and could not recover. The failing root is
+`D:\project2\facm4-public-interrupted-range-test-20260901`. Fix and regression-test this boundary before preparing a
+new `test.2`; never mutate the existing `test.1` asset identity. Do not create the final user copy, merge/push PR #234,
+move formal P7, run Gate13, alter production pointers, or retire FACM 3.5.15.
+
+## 2026-09-01 FREE-DIST-5 test.2 release and recovery acceptance
+
+FREE-DIST-5 changes only the full-size `.partial` recovery boundary. Before using a Range request, the native
+bootstrapper now handles `partialSize == packageSize` as follows: verify the complete file against the authenticated
+manifest SHA-256, atomically promote a valid file to the complete cache, or delete an invalid file and restart from byte
+zero. `partialSize < packageSize` continues to use bounded Range resume, and `partialSize > packageSize` remains a safe
+rejection/restart path. BOOT3-A/BOOT3-B trust behavior and the canonical signed URL surface are unchanged.
+
+The fresh test.2 build and candidate are:
+
+```text
+D:\project2\facm-free-dist5-native-test2-20260901\FACM.exe
+D:\project2\facm-free-dist5-test2-candidate-20260901\bundle
+D:\project2\facm-free-dist5-test2-candidate-20260901\free-dist-evidence.json
+D:\project2\facm-free-dist5-test2-boot3c-background4-20260901\results.json
+D:\project2\facm-free-dist5-test2-proxy-probe2-20260901\free-dist-test-results.json
+D:\project2\facm-free-dist5-test2-one-file-review-20260901\FACM.exe
+```
+
+The native executable is 3,364,691 bytes with SHA-256
+`887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`. The flat signed bundle contains exactly 13
+assets and 103,647,538 CAB bytes. The local BOOT3-C harness is 10/10 PASS, including both new full-size partial cases;
+all 32 non-cutover source gates, BOOT2, BOOT3-A, BOOT3-B, BOOT3-C, FREE-DIST, the .NET 10 Release x64 solution build
+(0 warnings / 0 errors), FoundationSmoke `--skip-gate13`, and WindowsSmoke passed.
+
+The authorized public prerelease is `v4.0.0-free-dist-test.2`, title `FACM 4.0.0 FREE-DIST test.2`,
+`draft=false`, `prerelease=true`, targeted at remote main SHA `269da6c751a8463542ed0d172300675deff9571e`. Anonymous
+download comparison passed 13/13 for exact size and SHA-256 at
+`D:\project2\facm-free-dist5-test2-public-assets-20260901`.
+
+Public acceptance evidence:
+
+- `D:\project2\facm-free-dist5-test2-public-first-run2-20260901`: one-file first run, 19.7 seconds, 103,647,538 CAB
+  bytes, real Orb launch;
+- same root second launch: 0.1 seconds, no new manifest/download/extraction events;
+- same root offline third launch: 0.1 seconds with temporary invalid WinHTTP proxy, no network/extraction events, WinHTTP
+  restored to Direct access;
+- `D:\project2\facm-free-dist5-test2-public-range-resume-20260901`: 1 MiB nonzero Range resume, final hash and Orb PASS;
+- `D:\project2\facm-free-dist5-test2-public-fullsize-valid-20260901`: valid full-size app partial promoted with no app
+  CAB download event, final hash and Orb PASS;
+- `D:\project2\facm-free-dist5-test2-public-fullsize-invalid-20260901`: corrupted full-size partial rejected, three CAB
+  downloads including app restart from byte zero, final hash and Orb PASS.
+
+The user review copy is `D:\project2\FACM-4.0-FREE-DIST-TEST`, exactly one `FACM.exe`, with the same 3,364,691-byte
+SHA-256 identity. The local single-launcher helper also passed its core one-file/default/Orb/transport checks; one rerun
+hit a CurrentUser Root test-certificate-store stall during setup, so the public one-file acceptance is the final runtime
+evidence. Do not infer production readiness from this prerelease: production remains FACM 3.5.15; no source push, PR
+#234 merge, Formal P7 move, Gate13, production pointer change, or restart was performed.

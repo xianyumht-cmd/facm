@@ -670,3 +670,32 @@ HTTP 或未授权主机。另一个常见错误是代理返回 `200` 或错误�
 
 同样，live transport probe 不能使用尚未发布的候选 Release URL；应使用可确认存在的公共 GitHub 资产验证
 四路候选，另用本地签名 HTTPS origin 验证单启动器默认配置和 trust boundary。
+
+## 2026-09-01：完整大小的 `.partial` 也必须可恢复
+
+### 根因
+
+FREE-DIST-4 公网首启中，强制终止恰好落在 CAB 最后一个字节写入之后、临时文件转正之前。此时 `.partial`
+大小已经等于 authenticated package size，但当前 `DownloadUrl` 只拒绝 `existing > packageSize`，于是把
+`resumeAt == packageSize` 编成 `Range: bytes=<packageSize>-`。公共服务器返回 HTTP 416，所有候选失败，完整的
+临时包也不会被重新验证或转正。
+
+### 防回归规则
+
+- `partialSize == packageSize` 必须先做完整 package SHA-256/manifest 校验；校验通过则直接安全转正，不能发
+  EOF Range；校验失败才应清理并从零开始下载。
+- 中断回归必须覆盖非零前缀和“完整大小但尚未转正”两个窗口，并验证重启后无残留 `.partial`、精确 hash、
+  解包 digest、active 提交和真实 Orb 启动。
+- 记录 `component-download-resume` 不能单独作为通过证据；必须同时证明 Range 响应或完整包恢复后的最终
+  exact-byte 和 activation 结果。
+
+## 2026-09-01：长时间 Windows 回归不能用前台等待上限判定失败
+
+BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex 前台等待窗口结束时，父 PowerShell 可能被
+中断而留下测试子进程或 CurrentUser Root 测试证书。把日志重定向到测试根目录还会与 harness 的清理动作互相
+锁定，造成看似无关的失败。
+
+防回归规则：长回归用后台测试进程并把 stdout/stderr 放在测试根目录之外，轮询结果 JSON、精确测试进程和端口；
+只终止命令行明确属于本轮测试根的进程。若证书清理遇到系统证书存储等待，不得把它解释为 release trust 失败；
+同时保留最终 runtime evidence，并确认 WinHTTP 恢复为原始状态。单启动器的 Orb 关闭后检查要允许短暂进程枚举
+时序，不能用一次立即查询制造假阴性。

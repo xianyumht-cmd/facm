@@ -170,3 +170,41 @@ HTTP downgrade rejection, arbitrary trust-key injection ignore, and unsigned-man
 The exact flat signed bundle from FREE-DIST-2 was reused unchanged. No GitHub Release, tag, push, merge, production
 pointer change, or Gate13 action was performed; production remains FACM 3.5.15. Public prerelease publication and
 real-machine acceptance remain separately authorized next steps.
+
+## 2026-09-01 FREE-DIST-5 test.2 accepted candidate
+
+The test.1 full-size interrupted-download blocker was fixed without changing the BOOT3-A/BOOT3-B trust model. When a
+`.partial` file is exactly the authenticated package size, the native bootstrapper now verifies its SHA-256 and promotes
+it atomically without an EOF Range request. A bad full-size partial is removed and downloaded from byte zero; ordinary
+nonzero-prefix Range resume remains covered.
+
+Fresh evidence:
+
+```text
+D:\project2\facm-free-dist5-test2-candidate-20260901\bundle
+D:\project2\facm-free-dist5-test2-candidate-20260901\free-dist-evidence.json
+D:\project2\facm-free-dist5-test2-boot3c-background4-20260901\results.json
+D:\project2\facm-free-dist5-test2-proxy-probe2-20260901\free-dist-test-results.json
+D:\project2\facm-free-dist5-test2-public-assets-20260901
+D:\project2\facm-free-dist5-test2-public-first-run2-20260901
+D:\project2\facm-free-dist5-test2-public-range-resume-20260901
+D:\project2\facm-free-dist5-test2-public-fullsize-valid-20260901
+D:\project2\facm-free-dist5-test2-public-fullsize-invalid-20260901
+D:\project2\FACM-4.0-FREE-DIST-TEST
+```
+
+The fresh native launcher is 3,364,691 bytes, SHA-256
+`887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`, and embeds the test.2 manifest URL. The signed
+flat bundle has 13 unique assets and 103,647,538 CAB bytes. The public prerelease is tag
+`v4.0.0-free-dist-test.2`, title `FACM 4.0.0 FREE-DIST test.2`, `draft=false`, `prerelease=true`; anonymous public
+downloads matched all 13 local assets by size and SHA-256.
+
+Acceptance passed for clean one-file first run (19.7 seconds, real Orb, 103,647,538 CAB bytes), second launch with no
+new manifest/download/extraction events (0.1 seconds), offline third launch with invalid temporary WinHTTP proxy (0.1
+seconds, proxy restored), 1 MiB nonzero Range resume, valid full-size partial promotion with no app CAB download, and
+invalid full-size partial rejection followed by three CAB downloads including app restart from byte zero. Local BOOT3-C
+is 10/10 PASS; all 32 non-cutover source gates, the .NET 10 Release x64 build (0 warnings / 0 errors), FoundationSmoke
+`--skip-gate13`, WindowsSmoke, BOOT2, BOOT3-A, BOOT3-B, BOOT3-C and FREE-DIST gates passed.
+
+This remains a non-production test release. Production stays FACM 3.5.15; no source push, PR #234 merge, Formal P7
+move, Gate13, production pointer change, or production restart was performed.

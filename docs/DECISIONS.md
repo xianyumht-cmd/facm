@@ -538,3 +538,26 @@ production key 或 FACM 3.5.15 生产指针。任何远程发布仍需单独授�
 
 FREE-DIST-3 获得了可审计的单文件首启路径，同时保留现有签名、降级、镜像和失败关闭语义。实际 GitHub
 Release 发布、干净机器公网首启、二次启动零下载和生产切换仍然是后续授权范围。
+
+## 2026-09-01：FREE-DIST-5 使用不可变 test.2 身份并先验证完整临时包
+
+### 决策
+
+- 不修改或复用已撤回的 `v4.0.0-free-dist-test.1`；修复后的候选使用全新的 `v4.0.0-free-dist-test.2`。
+- 对 `partialSize == packageSize` 的临时 CAB 先做 authenticated SHA-256 校验；合法文件原子转正，非法文件删除后从
+  byte zero 下载，禁止把 EOF 编成 Range 请求。
+- 继续保留非零前缀 Range resume、镜像/transport failover、detached signature、manifest/content digest 和
+  activation 校验，不把 size-only promotion 视为成功。
+- 只有在本地 10/10 BOOT3-C、13 个公网资产 exact-byte、单文件首启/二次启动/离线、Range、合法/非法完整 partial
+  和真实 Orb 证据全部完成后，才生成 `D:\project2\FACM-4.0-FREE-DIST-TEST` 用户审查副本。
+
+### 原因
+
+test.1 的公网中断窗口证明完整大小的 `.partial` 是可出现的真实状态；重试 EOF Range 会得到 HTTP 416 并把可验证的
+完整包困在缓存中。test.2 的新 release identity 使旧失败资产保持不可变，也让每一轮公网 evidence 与新启动器默认
+URL、manifest、package filename 一一对应。
+
+### 后果
+
+test.2 是非生产 prerelease，生产仍为 FACM 3.5.15。该决定不授权 source push、PR #234 merge、Formal P7、Gate13、
+production pointer 或生产重启；这些仍需独立授权。
