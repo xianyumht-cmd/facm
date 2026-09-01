@@ -142,3 +142,31 @@ The remaining human-controlled action is to review and explicitly authorize publ
 Release asset set. After publication, run clean Windows-machine first-run, proxy failover, corrupted-content rejection,
 resume, and second-launch zero-download acceptance; only then consider any production pointer or cutover request. Gate13,
 Mac acceptance, and production cutover are out of scope for this task.
+
+## 2026-09-01 FREE-DIST-3 single-launcher update
+
+The current prerelease candidate supersedes the earlier two-file launcher shape. `FACM.exe` now contains the default
+schema-1 manifest URL for `v4.0.0-free-dist-test.1`; `bootstrap.json` is optional and is accepted only as a valid
+discovery override. Invalid configuration falls back to the compiled default, while arbitrary trust-key fields,
+unsigned production, HTTP downgrade, and changes to the embedded release key remain rejected or ignored under the
+existing trust contract.
+
+The focused implementation and evidence are:
+
+```text
+D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper\CMakeLists.txt
+D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper\BootstrapDefaults.h.in
+D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper\main.cpp
+D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmSingleLauncher.ps1
+D:\project2\facm4-single-launcher-review-20260901
+D:\project2\facm4-single-launcher-tests-20260901\results.json
+```
+
+The review root contains exactly one file before first launch: `FACM.exe` (3,930,039 bytes; SHA-256
+`24b30bed79352fe60b110eae1a242a3c217b6924d18078b14dc33971b9cf2a99`). Local single-launcher coverage passed for
+three-component provisioning, real Orb launch, four transport candidates, optional valid override, malformed fallback,
+HTTP downgrade rejection, arbitrary trust-key injection ignore, and unsigned-manifest rejection.
+
+The exact flat signed bundle from FREE-DIST-2 was reused unchanged. No GitHub Release, tag, push, merge, production
+pointer change, or Gate13 action was performed; production remains FACM 3.5.15. Public prerelease publication and
+real-machine acceptance remain separately authorized next steps.

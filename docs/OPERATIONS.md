@@ -695,3 +695,31 @@ D:\project2\facm-free-dist-final-candidate-flat4-probe-20260901\free-dist-test-r
 This is `PASS_LOCAL` only. The public test Release, public clean-machine first run, second-launch zero-download proof,
 and real Windows acceptance are still `WAITING_FOR_PUBLIC_TEST_RELEASE`. Publishing requires a separate explicit
 authorization.
+
+## 2026-09-01 FREE-DIST-3 single-launcher prerelease rehearsal
+
+FREE-DIST-3 changes the clean first-run shape from `FACM.exe + bootstrap.json` to exactly `FACM.exe`. The default
+non-production manifest URL is generated into the native executable by `src/FACM.Bootstrapper/CMakeLists.txt` from
+`BootstrapDefaults.h.in`. A valid `bootstrap.json` remains optional and may provide discovery overrides; malformed or
+unsupported configuration falls back to the compiled URL without changing the embedded production trust table.
+
+Build with the pinned local toolchain and run the focused harness:
+
+```powershell
+$env:PATH = 'D:\project2\w64devkit-2.9.1\w64devkit\bin;' + $env:PATH
+cmake -S 'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.Bootstrapper' `
+  -B 'D:\project2\facm-boot3c-native-build-20260831' -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build 'D:\project2\facm-boot3c-native-build-20260831' --config Release --parallel 2
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File `
+  'D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\tools\release\Test-FacmSingleLauncher.ps1'
+```
+
+The harness must report `SingleLauncherBeforeFirstLaunch: PASS` with exactly one `FACM.exe`, prove local signed
+three-component provisioning without creating `bootstrap.json`, observe a real `FACM.App.exe` Orb launch, and pass
+the optional-config and trust-boundary negative cases. It writes evidence to
+`D:\project2\facm4-single-launcher-tests-20260901\results.json` and prepares the exact review root
+`D:\project2\facm4-single-launcher-review-20260901`.
+
+The test certificate is current-user-only temporary material and must be removed in cleanup. If a proxy is temporarily
+needed for the native live probe, record the original WinHTTP state and restore it immediately after the run. Do not
+publish the prerelease, push/merge, change production pointers, run Gate13, or retire FACM 3.5.15 from this rehearsal.

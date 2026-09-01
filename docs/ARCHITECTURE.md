@@ -526,3 +526,23 @@ FREE-DIST candidate therefore maps nested build artifacts to stable root names s
 `facm-app-win-x64-component-manifest.json` and `facm-app-win-x64-4.0.0-free-dist-test.1.cab`; signed
 application/component URLs and `release-index.json` use the same flat names. This changes publication packaging only
 and does not change the canonical release identity, trust key, or transport fallback policy.
+
+## 2026-09-01 FREE-DIST-3 single-launcher startup topology
+
+The normal clean first-run path no longer depends on a runtime configuration file:
+
+```text
+FACM.exe
+  -> compiled schema-1 default manifest URL
+  -> optional valid bootstrap.json override (if present)
+  -> fixed GitHub transport candidates for canonical URLs
+  -> signed application manifest + detached signature
+  -> signed component manifests + authenticated packages
+  -> exact verification -> composed active version -> FACM.App.exe Orb
+```
+
+`bootstrap.json` is an optional discovery override only. It must contain the expected schema and a non-empty manifest
+URL; malformed or unsupported configuration falls back to the compiled default. Its mirror list and local flags are
+used only when the file is valid. It cannot add public keys, replace the embedded key table, make production content
+unsigned, or turn an HTTPS production path into HTTP. A command-line URL remains an explicit test/development override
+under the existing URL and trust validation rules.

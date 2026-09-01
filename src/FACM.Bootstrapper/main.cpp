@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <vector>
 
+#include "BootstrapDefaults.h"
 #include "ManifestTrust.h"
 
 namespace fs = std::filesystem;
@@ -36,6 +37,8 @@ constexpr wchar_t kCoreEntryPoint[] = L"FACM.App.exe";
 constexpr wchar_t kStateFileName[] = L"active.json";
 constexpr wchar_t kComponentsStateFileName[] = L"components.json";
 constexpr wchar_t kBootstrapConfigFileName[] = L"bootstrap.json";
+constexpr int kBootstrapSchemaVersion = FACM_BOOTSTRAP_SCHEMA_VERSION;
+constexpr wchar_t kDefaultManifestUrl[] = FACM_DEFAULT_MANIFEST_URL;
 constexpr wchar_t kCorrelationEnvironment[] = L"FACM_BOOTSTRAP_CORRELATION_ID";
 constexpr wchar_t kExpectedArchitecture[] = L"win-x64";
 constexpr std::uintmax_t kMaximumComponentInstalledBytes = 1024ull * 1024ull * 1024ull;
@@ -97,6 +100,7 @@ struct ComponentsState {
 };
 
 struct BootstrapConfig {
+    int schemaVersion = kBootstrapSchemaVersion;
     std::wstring manifestUrl;
     std::vector<std::wstring> manifestMirrors;
     bool allowUnsignedLocal = false;
@@ -1359,6 +1363,9 @@ int ProbeGithubTransport(const fs::path& root, const std::wstring& sourceUrl, co
         const auto success = HttpGetText(candidate.url, body, failure);
         AppendLogDetail(root, success ? L"free-dist-transport-probe-pass" : L"free-dist-transport-probe-fail",
                         correlation, candidate.id);
+        if (!success && !failure.empty()) {
+            AppendLogDetail(root, L"free-dist-transport-probe-failure", correlation, candidate.id + L";" + failure);
+        }
         anySuccess = anySuccess || success;
     }
     return anySuccess ? 0 : 16;
@@ -1908,13 +1915,54 @@ std::optional<BootstrapConfig> ReadBootstrapConfig(const fs::path& root) {
     std::string json;
     const auto path = root / kBootstrapConfigFileName;
     if (!ReadText(path, json)) return std::nullopt;
+    size_t first = json.find_first_not_of(" \t\r\n");
+    size_t last = json.find_last_not_of(" \t\r\n");
+    if (first == std::string::npos || json[first] != '{' || json[last] != '}') return std::nullopt;
+    int objectDepth = 0;
+    int arrayDepth = 0;
+    bool quoted = false;
+    bool escaped = false;
+    for (size_t index = first; index <= last; ++index) {
+        const auto character = json[index];
+        if (quoted) {
+            if (escaped) {
+                escaped = false;
+            } else if (character == '\\') {
+                escaped = true;
+            } else if (character == '"') {
+                quoted = false;
+            }
+            continue;
+        }
+        if (character == '"') {
+            quoted = true;
+        } else if (character == '{') {
+            ++objectDepth;
+        } else if (character == '}' && --objectDepth < 0) {
+            return std::nullopt;
+        } else if (character == '[') {
+            ++arrayDepth;
+        } else if (character == ']' && --arrayDepth < 0) {
+            return std::nullopt;
+        }
+    }
+    if (quoted || escaped || objectDepth != 0 || arrayDepth != 0) return std::nullopt;
+    const auto schema = JsonUnsigned(json, "schemaVersion");
+    if (schema && *schema != kBootstrapSchemaVersion) return std::nullopt;
     const auto manifestUrl = JsonString(json, "manifestUrl");
     if (!manifestUrl || manifestUrl->empty()) return std::nullopt;
     BootstrapConfig config;
+    config.schemaVersion = static_cast<int>(schema.value_or(kBootstrapSchemaVersion));
     config.manifestUrl = Utf8ToWide(*manifestUrl);
     config.manifestMirrors = JsonStringArray(json, "manifestMirrors");
     config.allowUnsignedLocal = JsonBool(json, "allowUnsignedLocal").value_or(false);
     config.allowInsecureLocal = JsonBool(json, "allowInsecureLocal").value_or(false);
+    return config;
+}
+
+BootstrapConfig CompiledDefaultBootstrapConfig() {
+    BootstrapConfig config;
+    config.manifestUrl = kDefaultManifestUrl;
     return config;
 }
 
@@ -2710,18 +2758,24 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         fs::is_regular_file(root / fs::path(currentActive->activePath) / kCoreEntryPoint, activeError);
     const bool networkRequested = HasOption(arguments, L"--update") || !currentActiveValid;
     if (networkRequested) {
-        const auto config = ReadBootstrapConfig(root);
-        const auto configuredManifestUrl = OptionValue(arguments, L"--manifest-url").value_or(config ? config->manifestUrl : L"");
-        const bool allowUnsignedLocal = HasOption(arguments, L"--allow-unsigned-local") || (config && config->allowUnsignedLocal);
-        const bool allowInsecureLocal = HasOption(arguments, L"--allow-insecure-local") || (config && config->allowInsecureLocal);
+        const auto fileConfig = ReadBootstrapConfig(root);
+        const auto config = fileConfig.value_or(CompiledDefaultBootstrapConfig());
+        if (!fileConfig) {
+            const auto configPath = root / kBootstrapConfigFileName;
+            AppendLogDetail(root, fs::exists(configPath) ? L"bootstrap-config-invalid-fallback" : L"bootstrap-default-selected",
+                            correlation, config.manifestUrl);
+        }
+        const auto configuredManifestUrl = OptionValue(arguments, L"--manifest-url").value_or(config.manifestUrl);
+        const bool allowUnsignedLocal = HasOption(arguments, L"--allow-unsigned-local") || (fileConfig && fileConfig->allowUnsignedLocal);
+        const bool allowInsecureLocal = HasOption(arguments, L"--allow-insecure-local") || (fileConfig && fileConfig->allowInsecureLocal);
         if (configuredManifestUrl.empty()) {
             if (mutex) CloseHandle(mutex);
-            if (!currentActiveValid) ErrorMessage(L"FACM", L"未找到有效的 FACM 组件组合，也没有可用的 bootstrap.json。请先完成网络初始化。");
+            if (!currentActiveValid) ErrorMessage(L"FACM", L"未找到有效的 FACM 组件组合，也没有可用的默认启动地址。请先完成网络初始化。");
             return currentActiveValid ? 0 : 14;
         }
         std::vector<std::wstring> manifestUrls{configuredManifestUrl};
-        if (!OptionValue(arguments, L"--manifest-url")) {
-            if (config) manifestUrls.insert(manifestUrls.end(), config->manifestMirrors.begin(), config->manifestMirrors.end());
+        if (!OptionValue(arguments, L"--manifest-url") && fileConfig) {
+            manifestUrls.insert(manifestUrls.end(), fileConfig->manifestMirrors.begin(), fileConfig->manifestMirrors.end());
         }
         std::wstring failure;
         status.Show(HasOption(arguments, L"--update") ? L"正在检查 FACM 组件更新…" : L"正在初始化 FACM 组件…");

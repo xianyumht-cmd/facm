@@ -661,3 +661,12 @@ HTTP 或未授权主机。另一个常见错误是代理返回 `200` 或错误�
 组件清单若都保留 `component.manifest.json` basename 会冲突，canonical URL 也不能直接假设远程保留本地目录层级。
 发布候选必须先映射为唯一扁平文件名，再同步重写所有已签名 URL、release index、签名请求和验证脚本；需要把
 “本地目录可服务”与“Release asset 可上传/下载”分开验证。
+
+## 2026-09-01：单启动器测试要区分子进程观察与 bootstrapper 等待
+
+真实启动路径会由 `FACM.exe` 创建并监督 `FACM.App.exe`。对 bootstrapper 使用 `Start-Process -Wait` 会等待
+整个子进程树，导致测试在应用已经启动时仍看不到控制权，产生假阴性。专项 harness 必须异步启动 bootstrapper，
+按候选安装路径观察真实 `FACM.App.exe`，然后只对本轮确切候选进程执行正常关闭和必要的精确清理。
+
+同样，live transport probe 不能使用尚未发布的候选 Release URL；应使用可确认存在的公共 GitHub 资产验证
+四路候选，另用本地签名 HTTPS origin 验证单启动器默认配置和 trust boundary。

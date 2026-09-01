@@ -515,3 +515,26 @@ release index、签名请求和本地验证器。
 
 该决定只修正 GitHub Release 的发布拓扑，不增加 proxy、不改变 BOOT3-A/BOOT3-B trust boundary，也不改变
 production key 或 FACM 3.5.15 生产指针。任何远程发布仍需单独授权。
+
+## 2026-09-01：FREE-DIST-3 将 bootstrap.json 从正常首启依赖降为可选覆盖
+
+### 决策
+
+- 将非生产 prerelease 的 canonical manifest URL 在 CMake 构建时编译进 `FACM.exe`；干净目录首次启动只需要
+  `FACM.exe`。
+- 保留 `bootstrap.json` 作为显式 discovery override，但只接受预期 schema、非空 manifest URL 和现有 URL 规则。
+- 畸形/不支持的配置回退到编译默认，并记录可审计事件；配置字段不能添加 trust key、开启 unsigned production、
+  放宽 HTTPS 或修改 embedded key table。
+- 单文件回归必须同时证明默认配置、可选合法覆盖、畸形回退和信任边界负向用例；live transport probe 使用
+  已存在的公共 GitHub 资产，而不是尚未发布的候选 prerelease URL。
+
+### 原因
+
+`bootstrap.json` 是分发发现信息，不应成为正常首启的第二个必备文件；同时把测试候选 URL 编译进启动器可以
+满足单文件分发目标，而不会把可变远端配置提升为信任根。尚未发布的候选 URL 不能作为 live availability test
+的依据，否则 404 会被误判为 transport regression。
+
+### 后果
+
+FREE-DIST-3 获得了可审计的单文件首启路径，同时保留现有签名、降级、镜像和失败关闭语义。实际 GitHub
+Release 发布、干净机器公网首启、二次启动零下载和生产切换仍然是后续授权范围。

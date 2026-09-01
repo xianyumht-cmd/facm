@@ -539,3 +539,31 @@ local test candidate is:
 The proposed remote identity is non-production tag `v4.0.0-free-dist-test.1`, title `FACM 4.0.0 FREE-DIST test.1`,
 with `prerelease=true`. No remote tag, Release, push, merge or production pointer change occurred. The public first-run,
 second-launch zero-download and real Windows-machine acceptance remain waiting for a separately authorized test Release.
+
+## 2026-09-01 FREE-DIST-3 single-launcher candidate
+
+FREE-DIST-3 continues from the verified `aa08a89bc5c5b2f6347b313024bc93c59d20132e` baseline in the isolated
+worktree `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix` on branch `tmp/p7-ipc-lifecycle-fix-20260830`.
+The native bootstrapper now embeds the schema-1 default manifest URL for the non-production test release, while a
+valid explicit `bootstrap.json` remains an optional discovery override. Invalid configuration falls back to the
+compiled default and cannot add trust roots, enable unsigned production, or downgrade HTTPS. The fixed transport order
+remains `ghfast.top`, `gh-proxy.com`, `gh.llkk.cc`, then `github-direct`.
+
+The focused single-launcher evidence passed locally with `D:\project2\dotnet10\dotnet.exe` (SDK `10.0.400`):
+
+- review root before first launch: `D:\project2\facm4-single-launcher-review-20260901`, exactly one file, `FACM.exe`;
+- candidate launcher: 3,930,039 bytes, SHA-256 `24b30bed79352fe60b110eae1a242a3c217b6924d18078b14dc33971b9cf2a99`;
+- test evidence: `D:\project2\facm4-single-launcher-tests-20260901\results.json`;
+- local signed HTTPS provisioning composed all 3 core components without creating `bootstrap.json`;
+- the real `FACM.App.exe` Orb process was observed and closed normally;
+- all 4 transport candidates were probed against the public GitHub CLI checksum asset;
+- valid override, malformed-config fallback, HTTP downgrade rejection, arbitrary trust-key injection ignore, and
+  unsigned-manifest rejection all passed.
+
+The local test certificate was removed from the current-user Root store and temporary WinHTTP proxy settings were
+restored to Direct access. The exact existing FREE-DIST-2 signed flat bundle was reused unchanged; no release asset,
+GitHub Release, tag, push, merge, production pointer, or Gate13 action was performed. Production remains FACM 3.5.15.
+
+The local implementation is ready for review as a single-launcher prerelease candidate. Public publication, clean-machine
+first run against the published test Release, second-launch zero-download proof, real Windows acceptance, and any
+production/cutover action still require separate authorization.
