@@ -650,3 +650,26 @@ harness had an environment-only CurrentUser Root certificate-store stall during 
 transport checks passed, and the independent public one-file acceptance above is the authoritative release evidence.
 No source push, PR #234 merge, Gate13, Formal P7 move, production pointer change, or production restart occurred.
 Production remains FACM 3.5.15.
+
+## 2026-09-01 P7 UX-CLOSEOUT-1 local implementation state
+
+The local P7 UX closeout is implemented on the active task branch at final UX HEAD `0a7179c` after the verified
+FREE-DIST-5 baseline commits `7edabf5`, `446c08f`, and `907105c` (starting HEAD
+`2b93e5545598cbd006dab16d7c7b66519b723fd4`). The scope is local
+review only: ten-theme semantic contrast hardening, ControlMatrix footer geometry correction, compact League Workbench
+guide presentation, removal of only the duplicate Repair/Cleanup exit-game button, preservation of the League efficiency
+shortcut, OP.GG icon-guide decoration with Tencent-first/CommunityDragon-fallback cached assets, and user-facing GGman
+(`鸡鸡侠`) branding while retaining FACM internal identifiers and data roots.
+
+Verified locally with `D:\project2\dotnet10\dotnet.exe`: FACM.App Release x64 build succeeded with 0 warnings/errors;
+FoundationSmoke `--skip-gate13` passed including theme contrast and guide-asset-route checks; WindowsSmoke passed for
+desktop pet IPC lifecycle and FACM 4.0 Windows runtime. Targeted shell, accessibility, League, repair, personalization,
+and P7 closeout source gates passed after the dependency-boundary correction. The local user-review candidate is now
+`D:\project2\GGman-UX-CLOSEOUT-REVIEW-20260901`: root `GGman.exe` is 3,364,691 bytes with SHA-256
+`887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`; `.facm\state\active.json` points to the
+pre-provisioned current Core at `.facm\versions\4.0.0-ux-closeout-1`, whose launcher-side app file is 420,946,212
+bytes. Final native-launcher-to-Core startup returned a responsive `GGman（鸡鸡侠） 4.0` window and closed normally.
+Rendered UI evidence is retained at `D:\project2\ggman-ux-closeout1-evidence-20260901` for ControlMatrix, League
+Workbench, League guide, Repair/Cleanup, and dark/light Personalization review. No source push, PR #234 merge, Gate13,
+Formal P7 move, production change, or production restart was performed. Protected dirty paths remain untouched:
+`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`, `out/`, `setup.inf`, and `setup.rpt`.

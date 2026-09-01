@@ -561,3 +561,25 @@ URL、manifest、package filename 一一对应。
 
 test.2 是非生产 prerelease，生产仍为 FACM 3.5.15。该决定不授权 source push、PR #234 merge、Formal P7、Gate13、
 production pointer 或生产重启；这些仍需独立授权。
+
+## 2026-09-01：P7 UX-CLOSEOUT-1 使用 GGman 展示品牌并保持 FACM 内部兼容
+
+### 决策
+
+- 用户可见产品名统一使用 `GGman（鸡鸡侠）`；FACM namespaces、AutomationIds、文件前缀、配置键、数据根和内部
+  诊断标识继续保留，避免破坏兼容性与既有自动化。
+- 主题颜色由语义 brush 统一承载，并对十套主题的 accent、secondary-surface、success、warning 状态文本做
+  对比度计算；ControlMatrix footer 统一到 30 DIP 行和 184 DIP 外层几何。
+- League Workbench 采用紧凑的 OP.GG 推荐图文行和一个底部 contextual-help inspector，保留现有数据/刷新 owner；
+  图标仅作装饰，Tencent 固定路由优先、CommunityDragon 固定路由回退、缓存失败时保留文字推荐。
+- Repair/Cleanup 只删除重复的“一键结束游戏”可见入口；League efficiency shortcut 保持不变并继续回归。
+
+### 原因
+
+该方案解决的是可读性、底部遮挡、信息密度、重复入口和品牌一致性问题，同时不改变 League 写入边界、会话所有权、
+生产发布边界或内部数据兼容性。
+
+### 后果
+
+P7 需要以本地 candidate、源码门禁、FoundationSmoke、WindowsSmoke 和人工 UI review 作为收口证据；它不授权
+source push、PR #234 merge、Gate13、Formal P7、production deployment 或 production restart。

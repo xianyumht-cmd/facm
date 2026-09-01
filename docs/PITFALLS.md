@@ -699,3 +699,18 @@ BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex
 只终止命令行明确属于本轮测试根的进程。若证书清理遇到系统证书存储等待，不得把它解释为 release trust 失败；
 同时保留最终 runtime evidence，并确认 WinHTTP 恢复为原始状态。单启动器的 Orb 关闭后检查要允许短暂进程枚举
 时序，不能用一次立即查询制造假阴性。
+
+## 2026-09-01：WinUI P7 的 UI 资产依赖必须停在 Core contract
+
+### 根因
+
+为给 League Workbench 增加 OP.GG 图标而让 WinUI 页面直接引用 Infrastructure，会绕过现有 composition boundary，
+并使 source gate 失去对依赖方向的保护。
+
+### 防回归规则
+
+- 在 Core 定义最小的 `ILeagueGuideAssetService` contract，由 App composition root 注入具体实现。
+- 远端图标是 decorative enhancement，不得阻塞 OP.GG JSON、改变 League session owner、增加 polling loop 或把
+  网络失败变成空白推荐；缓存/路由失败必须保留文字行。
+- 对 fixed-host、路径遍历拒绝、缓存和 fail-soft 行为保留 FoundationSmoke 覆盖，并在架构门禁后重跑 Workbench
+  与 recommended source gates。

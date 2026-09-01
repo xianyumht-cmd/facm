@@ -795,3 +795,22 @@ SHA-256 identity. The local single-launcher helper also passed its core one-file
 hit a CurrentUser Root test-certificate-store stall during setup, so the public one-file acceptance is the final runtime
 evidence. Do not infer production readiness from this prerelease: production remains FACM 3.5.15; no source push, PR
 #234 merge, Formal P7 move, Gate13, production pointer change, or restart was performed.
+
+## 2026-09-01 P7 UX-CLOSEOUT-1 local review procedure
+
+Build the UX candidate with the repository-pinned SDK and the existing Release x64 settings:
+
+```text
+D:\project2\dotnet10\dotnet.exe build src/FACM.App/FACM.App.csproj -c Release -p:Platform=x64 --no-restore
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release --no-restore -- --skip-gate13
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release --no-restore
+```
+
+The P7 review candidate must be a new local directory such as
+`D:\project2\GGman-UX-CLOSEOUT-REVIEW-20260901`, with `GGman.exe` at the root and internal app/core material under a
+hidden `.facm` directory. It must not overwrite `D:\project2\FACM-4.0-FREE-DIST-TEST` or any public release/test.3
+artifact. The completed local candidate is `D:\project2\GGman-UX-CLOSEOUT-REVIEW-20260901`; it has only `GGman.exe`
+and `.facm` at the root, contains the active version `4.0.0-ux-closeout-1`, and was launched through the native launcher
+to a responsive `GGman（鸡鸡侠） 4.0` Core before normal shutdown. Its root launcher is 3,364,691 bytes with SHA-256
+`887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`. This is a local review candidate only; it is not
+a release request, deployment, production pointer, or Gate13 evidence.

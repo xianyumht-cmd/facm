@@ -546,3 +546,17 @@ URL; malformed or unsupported configuration falls back to the compiled default. 
 used only when the file is valid. It cannot add public keys, replace the embedded key table, make production content
 unsigned, or turn an HTTPS production path into HTTP. A command-line URL remains an explicit test/development override
 under the existing URL and trust validation rules.
+
+## 2026-09-01 P7 UX-CLOSEOUT-1 presentation boundaries
+
+The WinUI League Workbench remains a single productized surface and continues to use the existing League session,
+workbench refresh, and advisor owners. `MainWindow` receives the Core-level `ILeagueGuideAssetService` from the App
+composition root; the UI does not reference Infrastructure directly and does not create a second League owner or polling
+loop. The service is decorative-only: OP.GG JSON remains the source of recommendation rows, while icon bytes use a fixed
+Tencent image route first and a fixed CommunityDragon route second, with bounded requests, disk cache, single-flight
+deduplication, exact-path validation, and fail-soft text-only fallback.
+
+The guide is rendered as compact icon/text rows inside the existing Workbench card and uses the existing bottom inspector
+bar for contextual help. Verbose per-card descriptions are collapsed from the normal surface and are available through
+hover/focus help. Repair/Cleanup exposes one visible exit-game action; the existing League efficiency shortcut remains
+the separate keyboard path and continues to call the existing narrow action service.
