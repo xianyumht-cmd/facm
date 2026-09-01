@@ -164,6 +164,40 @@ function Read-Events([string]$CandidateRoot) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
     return @(Get-Content -LiteralPath $path | ForEach-Object { $_ | ConvertFrom-Json })
 }
+function Read-Requests([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @() }
+    return @(Get-Content -LiteralPath $Path | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+}
+function Get-PreparedPackage([string]$PreparedRoot, [string]$ComponentId) {
+    $application = Get-Content -Raw -LiteralPath (Join-Path $PreparedRoot 'manifest.json') | ConvertFrom-Json
+    $releaseIndex = Get-Content -Raw -LiteralPath (Join-Path $PreparedRoot 'release-index.json') | ConvertFrom-Json
+    $appComponent = @($application.components | Where-Object { [string]$_.componentId -ceq $ComponentId }) | Select-Object -First 1
+    Require ($null -ne $appComponent) "Application component missing: $ComponentId"
+    $releaseComponent = @($releaseIndex.components | Where-Object { [string]$_.componentId -ceq $ComponentId }) | Select-Object -First 1
+    Require ($null -ne $releaseComponent) "Release index component missing: $ComponentId"
+    $packageRelative = [string]$releaseComponent.packagePath
+    $packagePath = Get-LocalPath $PreparedRoot $packageRelative
+    Require (Test-Path -LiteralPath $packagePath -PathType Leaf) "Prepared package missing: $packagePath"
+    $package = Get-Item -LiteralPath $packagePath
+    return [ordered]@{
+        componentId = $ComponentId
+        version = [string]$appComponent.version
+        packagePath = $packagePath
+        packageName = [IO.Path]::GetFileName($packageRelative)
+        packageSize = [uint64]$package.Length
+        packageSha256 = Get-Sha256 $packagePath
+    }
+}
+function Corrupt-OneByte([string]$Path) {
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $value = $stream.ReadByte()
+        Require ($value -ge 0) "Cannot corrupt empty file: $Path"
+        $stream.Position = 0
+        $stream.WriteByte([byte]($value -bxor 0xff))
+        $stream.Flush($true)
+    } finally { $stream.Dispose() }
+}
 function Seed-OldActive([string]$CandidateRoot, [string]$Root) {
     $seed = Join-Path $Root 'seed-old'
     New-Item -ItemType Directory -Force -Path $seed | Out-Null
@@ -258,6 +292,54 @@ try {
     Invoke-Scenario 'corrupt-mirror-fails-preserving-active' 'unavailable' 'corrupt-package' 14 $true
     Invoke-Scenario 'incomplete-partial-resumes' 'truncate-package' 'truncate-package' 14 $false $true
     Invoke-Scenario 'redirect-never-followed' 'redirect' 'redirect' 14
+
+    function Invoke-FullSizePartialScenario([string]$Name, [bool]$Invalid) {
+        $scenarioRoot = Join-Path $TestRoot $Name
+        New-Item -ItemType Directory -Force -Path $scenarioRoot | Out-Null
+        New-Candidate $scenarioRoot $Bootstrapper "$($distribution.primaryBase)/manifest.json" "$($distribution.mirrorBase)/manifest.json"
+        $component = Get-PreparedPackage $preparedDirectory 'facm-app-win-x64'
+        $partialPath = Join-Path $scenarioRoot ".facm\cache\downloads\$($component.packageName).partial"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $partialPath) | Out-Null
+        Copy-Item -LiteralPath $component.packagePath -Destination $partialPath -Force
+        if ($Invalid) { Corrupt-OneByte $partialPath }
+        $partialFile = Get-Item -LiteralPath $partialPath
+        Require ([uint64]$partialFile.Length -eq $component.packageSize) "$Name did not seed a full-size partial"
+        if (-not $Invalid) { Require ((Get-Sha256 $partialPath) -ceq $component.packageSha256) "$Name did not seed the authenticated full package" }
+
+        $primaryReady = Join-Path $scenarioRoot 'primary.ready.json'; $mirrorReady = Join-Path $scenarioRoot 'mirror.ready.json'
+        $primaryLog = Join-Path $scenarioRoot 'primary.requests.jsonl'; $mirrorLog = Join-Path $scenarioRoot 'mirror.requests.jsonl'
+        $localOrigins = @()
+        try {
+            $localOrigins += Start-Origin $Node $serverScript $preparedDirectory $ports[0] $certificate.key $certificate.cert $primaryReady $primaryLog 'normal' ''
+            $localOrigins += Start-Origin $Node $serverScript $preparedDirectory $ports[1] $certificate.key $certificate.cert $mirrorReady $mirrorLog 'normal' ''
+            $exit = Invoke-Boot $scenarioRoot @('--update','--dry-run','--no-ui')
+            Require ($exit -eq 0) "$Name expected success, got $exit"
+            Assert-ActiveVersion $scenarioRoot $version | Out-Null
+            $packageRequests = @((Read-Requests $primaryLog) + (Read-Requests $mirrorLog) | Where-Object { $_.path -eq "/$($component.packageName)" })
+            $completePath = Join-Path $scenarioRoot ".facm\cache\downloads\$($component.packageName)"
+            Require (Test-Path -LiteralPath $completePath -PathType Leaf) "$Name did not create the complete package cache"
+            Require ((Get-Item -LiteralPath $completePath).Length -eq $component.packageSize) "$Name complete cache size mismatch"
+            Require ((Get-Sha256 $completePath) -ceq $component.packageSha256) "$Name complete cache hash mismatch"
+            Require (-not (Test-Path -LiteralPath $partialPath -PathType Leaf)) "$Name left the full-size partial behind"
+            $events = Read-Events $scenarioRoot
+            if ($Invalid) {
+                Require (@($events | Where-Object event -eq 'component-partial-full-size-invalid').Count -eq 1) "$Name did not reject the invalid full-size partial"
+                Require ($packageRequests.Count -ge 1) "$Name did not download a replacement package"
+                Require (@($packageRequests | Where-Object { $null -eq $_.range }).Count -ge 1) "$Name replacement package did not start from byte zero"
+            } else {
+                Require (@($events | Where-Object event -eq 'component-partial-full-size-recovered').Count -eq 1) "$Name did not record full-size partial recovery"
+                Require ($packageRequests.Count -eq 0) "$Name re-downloaded the already-complete package"
+            }
+            [void]$results.Add([ordered]@{
+                name=$Name; status='PASS'; expectedExit=0; fullSizePartial=$true; invalidPartial=$Invalid
+                packageName=$component.packageName; packageBytes=$component.packageSize; packageRequests=$packageRequests.Count
+            })
+            Write-Host "${Name}: PASS"
+        } finally { foreach ($origin in $localOrigins) { Stop-Origin $origin } }
+    }
+
+    Invoke-FullSizePartialScenario 'full-size-valid-partial-recovery' $false
+    Invoke-FullSizePartialScenario 'full-size-invalid-partial-restart' $true
 
     $rollbackRoot = Join-Path $TestRoot 'local-rollback'
     New-Item -ItemType Directory -Force -Path $rollbackRoot | Out-Null

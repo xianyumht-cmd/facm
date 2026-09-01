@@ -8,6 +8,7 @@ param(
     [string]$Bootstrapper = 'D:\project2\facm-boot3c-native-build-20260831\FACM.exe',
     [string]$Boot2MirrorSource = 'D:\project2\facm-boot3c-boot3b-regression-20260831\release-a\boot2-mirror',
     [string]$Boot2BuildRoot = 'D:\project2\facm-boot3c-boot3b-regression-20260831\release-a\boot2-build',
+    [string]$StagedMirrorRoot = 'D:\project2\facm-free-dist-boot2-mirror-20260831',
     [string]$LocalValidationKeyPath = 'D:\project2\facm-boot3a-signing\production-r1\production-r1.pk8.pem'
 )
 
@@ -194,6 +195,7 @@ $OutputRoot = Assert-DProject2Path $OutputRoot 'OutputRoot'
 $LauncherRoot = Assert-DProject2Path $LauncherRoot 'LauncherRoot'
 $Boot2MirrorSource = Assert-DProject2Path $Boot2MirrorSource 'Boot2MirrorSource'
 $Boot2BuildRoot = Assert-DProject2Path $Boot2BuildRoot 'Boot2BuildRoot'
+$StagedMirrorRoot = Assert-DProject2Path $StagedMirrorRoot 'StagedMirrorRoot'
 $Bootstrapper = Assert-DProject2Path $Bootstrapper 'Bootstrapper'
 $LocalValidationKeyPath = Assert-DProject2Path $LocalValidationKeyPath 'LocalValidationKeyPath'
 if ($Version -notmatch '^[A-Za-z0-9._-]+$' -or $ReleaseTag -notmatch '^[A-Za-z0-9._-]+$') { throw 'Version and ReleaseTag contain unsafe characters.' }
@@ -201,7 +203,7 @@ if (-not (Test-Path -LiteralPath $Bootstrapper -PathType Leaf)) { throw "Bootstr
 if (-not (Test-Path -LiteralPath $Boot2MirrorSource -PathType Container)) { throw "BOOT-2 mirror missing: $Boot2MirrorSource" }
 if (-not (Test-Path -LiteralPath $Boot2BuildRoot -PathType Container)) { throw "BOOT-2 build root missing: $Boot2BuildRoot" }
 
-$stagedMirror = 'D:\project2\facm-free-dist-boot2-mirror-20260831'
+$stagedMirror = $StagedMirrorRoot
 New-CleanDirectory $OutputRoot 'OutputRoot'
 New-CleanDirectory $LauncherRoot 'LauncherRoot'
 New-CleanDirectory $stagedMirror 'StagedMirror'

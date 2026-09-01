@@ -23,7 +23,7 @@ $docs = Require-File 'docs/FREE-DIST-1.md'
 foreach ($marker in @('ghfast.top', 'gh-proxy.com', 'gh.llkk.cc', 'github-direct', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'WINHTTP_QUERY_CONTENT_RANGE')) {
     if ($bootstrapper -notmatch [regex]::Escape($marker)) { throw "Bootstrapper is missing FREE-DIST marker: $marker" }
 }
-foreach ($marker in @('FACM_BOOTSTRAP_SCHEMA_VERSION', 'FACM_DEFAULT_MANIFEST_URL', 'v4.0.0-free-dist-test.1')) {
+foreach ($marker in @('FACM_BOOTSTRAP_SCHEMA_VERSION', 'FACM_DEFAULT_MANIFEST_URL', 'v4.0.0-free-dist-test.2')) {
     if (($bootstrapDefaults -notmatch [regex]::Escape($marker)) -and ($bootstrapCMake -notmatch [regex]::Escape($marker))) { throw "Compiled bootstrap defaults are missing marker: $marker" }
 }
 foreach ($marker in @('CompiledDefaultBootstrapConfig', 'bootstrap-default-selected', 'bootstrap-config-invalid-fallback')) {

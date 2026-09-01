@@ -186,7 +186,7 @@ Require (Test-Path -LiteralPath $Bootstrapper -PathType Leaf) "Bootstrapper miss
 Require (Test-Path -LiteralPath $BundleRoot -PathType Container) "Bundle missing: $BundleRoot"
 Require (Test-Path -LiteralPath (Join-Path $UnsignedManifestRoot 'manifest.json') -PathType Leaf) "Unsigned manifest missing: $UnsignedManifestRoot"
 
-$canonicalUrl = 'https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0-free-dist-test.1/manifest.json'
+$canonicalUrl = 'https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0-free-dist-test.2/manifest.json'
 $transportProbeUrl = 'https://github.com/cli/cli/releases/download/v2.62.0/gh_2.62.0_checksums.txt'
 $serverScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'Start-FacmBoot3CHttpsOrigin.js'
 $node = (Get-Command node -ErrorAction Stop).Source
@@ -248,7 +248,13 @@ try {
     Require (@($appProcess).Count -gt 0) 'Single launcher did not start the real FACM.App Orb process.'
     Write-Host 'RealFacmOrbLaunch: PASS'
     Close-CandidateApp $candidateAppRoot $distribution.version
-    Require (@(Find-CandidateApp $candidateAppRoot $distribution.version).Count -eq 0) 'Candidate FACM.App process remained after graceful close.'
+    $remainingApp = @()
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $remainingApp = @(Find-CandidateApp $candidateAppRoot $distribution.version)
+        if ($remainingApp.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 250
+    }
+    Require ($remainingApp.Count -eq 0) 'Candidate FACM.App process remained after graceful close.'
 
     Copy-Bootstrapper $probeRoot
     Require ((Invoke-Boot $probeRoot @('--no-ui', "--probe-github-transport=$transportProbeUrl")) -eq 0) 'Single-file transport probe failed.'

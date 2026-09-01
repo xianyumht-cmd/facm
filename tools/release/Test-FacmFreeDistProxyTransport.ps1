@@ -98,7 +98,7 @@ Write-Host 'UnsafeTransportUrlRejected: PASS'
 if (Test-Path -LiteralPath $HttpsResults -PathType Leaf) {
     $https = Get-Content -Raw -LiteralPath $HttpsResults | ConvertFrom-Json
     $httpsScenarios = @($https.scenarios)
-    Assert-True ($httpsScenarios.Count -eq 8 -and @($httpsScenarios | Where-Object { $_.status -ne 'PASS' }).Count -eq 0) 'Existing BOOT3-C HTTPS regression evidence is not 8/8 green.'
+    Assert-True ($httpsScenarios.Count -ge 8 -and @($httpsScenarios | Where-Object { $_.status -ne 'PASS' }).Count -eq 0) 'Existing BOOT3-C HTTPS regression evidence has fewer than 8 scenarios or contains a failure.'
     Write-Host 'Boot3CHttpsRegressionEvidence: PASS'
 }
 
@@ -111,7 +111,7 @@ $result = [ordered]@{
     liveProbeCandidates = $probeIds
     liveProbePassed = @($probeEvents | Where-Object { $_.event -eq 'free-dist-transport-probe-pass' } | Select-Object -ExpandProperty detail -Unique)
     invalidUrlRejected = $true
-    boot3cHttpsRegression = if (Test-Path -LiteralPath $HttpsResults -PathType Leaf) { '8/8 PASS' } else { 'not-provided' }
+    boot3cHttpsRegression = if (Test-Path -LiteralPath $HttpsResults -PathType Leaf) { "$($httpsScenarios.Count)/$($httpsScenarios.Count) PASS" } else { 'not-provided' }
 }
 Write-Utf8NoBom (Join-Path $ProbeRoot 'free-dist-test-results.json') (($result | ConvertTo-Json -Depth 10) + "`n")
 Write-Host "FREE-DIST proxy transport and signed-bundle tests: SUCCESS"
