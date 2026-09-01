@@ -158,7 +158,7 @@ public sealed partial class MainWindow
 
         var picker = new FileSavePicker
         {
-            SuggestedFileName = "FACM-海斗攻略-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
+            SuggestedFileName = "GGman-海斗攻略-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
         };
         picker.FileTypeChoices.Add("PNG 图片", new List<string> { ".png" });
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);

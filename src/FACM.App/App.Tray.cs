@@ -92,7 +92,7 @@ public partial class App
             if (!maintenance.IsInitialized) await maintenance.InitializeAsync().ConfigureAwait(false);
             var decision = await maintenance.ManualCheckAsync().ConfigureAwait(false);
             if (decision.UpdateAvailable)
-                ShowTrayNotificationOnce("update:" + decision.LatestVersion, "FACM", "发现可用更新：" + decision.LatestVersion);
+                ShowTrayNotificationOnce("update:" + decision.LatestVersion, "GGman", "发现可用更新：" + decision.LatestVersion);
         }
         catch (OperationCanceledException)
         {

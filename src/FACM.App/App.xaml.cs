@@ -366,7 +366,8 @@ public partial class App : Application
             _floatingSurfacePlatform!.TryEnableSmallSurfaceWindow,
             CreateLeagueBenchQuickPickService(),
             _leagueBenchRuntime,
-            ReportLeagueBenchSurfaceEvaluation);
+            ReportLeagueBenchSurfaceEvaluation,
+            CreateLeagueGuideAssetService());
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;
@@ -532,7 +533,7 @@ public partial class App : Application
 
         if (snapshot is null)
         {
-            floating.SetRuntimeStatus("!", "FACM · LCU · 等待连接", problem: true);
+            floating.SetRuntimeStatus("!", "GGman · LCU · 等待连接", problem: true);
             return;
         }
 
@@ -547,7 +548,7 @@ public partial class App : Application
         var phase = string.IsNullOrWhiteSpace(snapshot.Phase) ? snapshot.ProductState.ToString() : snapshot.Phase;
         floating.SetRuntimeStatus(
             badge,
-            "FACM · LCU " + snapshot.ConnectionState + " · " + phase,
+            "GGman · LCU " + snapshot.ConnectionState + " · " + phase,
             problem);
     }
 
@@ -557,7 +558,7 @@ public partial class App : Application
         if (window is null || _shuttingDown) return;
         if (snapshot is null)
         {
-            window.SetRuntimeStatus("!", "FACM · LCU · 等待连接", problem: true);
+            window.SetRuntimeStatus("!", "GGman · LCU · 等待连接", problem: true);
             return;
         }
 
@@ -570,7 +571,7 @@ public partial class App : Application
                     ? "•"
                     : "·";
         var phase = string.IsNullOrWhiteSpace(snapshot.Phase) ? snapshot.ProductState.ToString() : snapshot.Phase;
-        window.SetRuntimeStatus(badge, "FACM · LCU " + snapshot.ConnectionState + " · " + phase, problem);
+        window.SetRuntimeStatus(badge, "GGman · LCU " + snapshot.ConnectionState + " · " + phase, problem);
     }
 
     private async Task ApplyPreferredFloatingPlacementAsync(

@@ -158,8 +158,8 @@ public sealed partial class MaintenanceSettingsControl : UserControl
             var dialog = new ContentDialog
             {
                 XamlRoot = XamlRoot,
-                Title = "安装 FACM 更新？",
-                Content = "将启动管理员权限更新器。只有更新器成功启动后，当前 FACM 才会退出。",
+                Title = "安装 GGman 更新？",
+                Content = "将启动管理员权限更新器。只有更新器成功启动后，当前 GGman 才会退出。",
                 PrimaryButtonText = "安装并重启",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close
@@ -281,7 +281,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         "initialization-failed" => "维护设置初始化失败；重新进入更多设置时会重试",
         "recovery-loaded-no-save" => "已从恢复设置加载；未覆盖主设置",
         "checking" => "正在检查更新…",
-        "update-available" when forceUpdateRequired => "发现必须更新的版本：请选择更新或退出 FACM",
+        "update-available" when forceUpdateRequired => "发现必须更新的版本：请选择更新或退出 GGman",
         "update-available" => "发现新版本",
         "up-to-date" => "当前已是最新版本",
         "manifest-unavailable" => "暂时无法获取更新信息",
@@ -292,7 +292,7 @@ public sealed partial class MaintenanceSettingsControl : UserControl
         "update-download-failed" => "更新下载或校验失败",
         "update-starting" => "正在启动更新器…",
         "replacement-started" => "更新器已启动",
-        "launcher-not-started" => "未启动更新器；当前 FACM 保持运行",
+        "launcher-not-started" => "未启动更新器；当前 GGman 保持运行",
         "log-opened" => "已打开当前日志",
         _ => status
     };

@@ -44,7 +44,7 @@ public sealed partial class MainWindow
 
         var hint = new TextBlock
         {
-            Text = "按 3.5 的方式修改 League 聊天在线状态。每次点击只发送一次 PUT，再读取两次确认；如果客户端覆盖，FACM 不会循环抢写。",
+            Text = "按既有方式修改 League 聊天在线状态。每次点击只发送一次 PUT，再读取两次确认；如果客户端覆盖，GGman 不会循环抢写。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };
@@ -164,7 +164,7 @@ public sealed partial class MainWindow
                 _leaguePresenceStatus.Text = result.Status switch
                 {
                     "success" => "在线状态已应用并确认。",
-                    "overridden" => "League 客户端覆盖了该状态；FACM 没有继续循环抢写。",
+                    "overridden" => "League 客户端覆盖了该状态；GGman 没有继续循环抢写。",
                     "unavailable" => "League 客户端未连接，无法修改在线状态。",
                     _ => "在线状态写入失败。"
                 };

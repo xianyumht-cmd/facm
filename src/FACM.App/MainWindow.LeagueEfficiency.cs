@@ -37,7 +37,7 @@ public sealed partial class MainWindow
         });
         content.Children.Add(new TextBlock
         {
-            Text = "迁移自 FACM 3.5.15。空白表示禁用；裸字母/数字会被拒绝，F1-F12 可单独使用。注册失败时会恢复上一组快捷键，不会留下半套配置。",
+            Text = "空白表示禁用；裸字母/数字会被拒绝，F1-F12 可单独使用。注册失败时会恢复上一组快捷键，不会留下半套配置。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         });

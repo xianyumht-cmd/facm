@@ -104,7 +104,7 @@ internal sealed class WindowsTrayHost : IDisposable
 
     private static string LimitToolTip(string? value)
     {
-        var result = string.IsNullOrWhiteSpace(value) ? "FACM" : value.Trim();
+        var result = string.IsNullOrWhiteSpace(value) ? "GGman" : value.Trim();
         return result.Length <= 63 ? result : result[..63];
     }
 

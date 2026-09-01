@@ -53,7 +53,7 @@ public sealed partial class MainWindow
         });
         content.Children.Add(new TextBlock
         {
-            Text = "迁移自 FACM 3.5.15。仅在客户端实际提供 Bench 且存在可操作候选时显示头像；每次点击最多发送一次交换请求，成功必须经过只读回验确认。",
+            Text = "仅在客户端实际提供 Bench 且存在可操作候选时显示头像；每次点击最多发送一次交换请求，成功必须经过只读回验确认。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         });
