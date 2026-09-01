@@ -50,7 +50,7 @@ D:\project2\facm-free-dist-release-20260831\bundle
 The final flat release candidate bundle is:
 
 ```text
-D:\project2\facm-free-dist-final-candidate-flat3-20260901\bundle
+D:\project2\facm-free-dist-final-candidate-flat4-20260901\bundle
 ```
 
 The reproducible preparation and focused test tools are:
@@ -113,19 +113,19 @@ D:\project2\facm-free-dist-probe-20260831\free-dist-test-results.json
 The final candidate evidence and fresh verification outputs are:
 
 ```text
-D:\project2\facm-free-dist-final-candidate-flat3-20260901\free-dist-evidence.json
-D:\project2\facm-free-dist-final-candidate-flat3-boot3c-20260901\results.json
-D:\project2\facm-free-dist-final-candidate-flat3-probe-20260901\free-dist-test-results.json
+D:\project2\facm-free-dist-final-candidate-flat4-20260901\free-dist-evidence.json
+D:\project2\facm-free-dist-final-candidate-flat4-boot3c-20260901\results.json
+D:\project2\facm-free-dist-final-candidate-flat4-probe-20260901\free-dist-test-results.json
 ```
 
 Current candidate figures:
 
-- release-compatible bundle: 103,775,138 bytes total;
+- release-compatible bundle: 103,774,544 bytes total;
 - three CAB packages: 103,647,538 bytes total;
-- launcher-only directory: 3,919,603 bytes total;
-- launcher files: `FACM.exe` 3,919,376 bytes and `bootstrap.json` 227 bytes;
+- launcher-only directory: 3,926,076 bytes total;
+- launcher files: `FACM.exe` 3,925,844 bytes and `bootstrap.json` 232 bytes;
 - four detached signatures present;
-- live probe passed for `ghfast.top`, `gh-proxy.com`, and direct GitHub in the last focused run; all four candidates were attempted;
+- overall live probe passed after attempting all four candidates; the retained JSON records passing responses from `gh-proxy.com` and `gh.llkk.cc`;
 - invalid non-GitHub Release probe URL was rejected;
 - existing BOOT3-C HTTPS distribution regression evidence remains 8/8 PASS.
 
@@ -134,6 +134,7 @@ The public GitHub repository currently exposes FACM 3.5.15, not the local `v4.0.
 The final local candidate uses `v4.0.0-free-dist-test.1` only for a non-production test release. It is signed with the
 external local validation key for test evidence; it is not a production signing result. The final launcher-only review
 directory is `D:\project2\facm4-free-dist-final-review-flat3-20260901` and contains exactly `FACM.exe` and `bootstrap.json`.
+The candidate evidence records the exact source commit used to prepare this bundle.
 
 ## Required next action before any release claim
 

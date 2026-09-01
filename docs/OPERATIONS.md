@@ -679,17 +679,17 @@ The final non-production candidate is prepared with tag `v4.0.0-free-dist-test.1
 `FACM 4.0.0 FREE-DIST test.1`, and `prerelease=true`:
 
 ```text
-D:\project2\facm-free-dist-final-candidate-flat3-20260901\bundle
-D:\project2\facm4-free-dist-final-review-flat3-20260901
-D:\project2\facm-free-dist-final-candidate-flat3-20260901\free-dist-evidence.json
+D:\project2\facm-free-dist-final-candidate-flat4-20260901\bundle
+D:\project2\facm4-free-dist-final-review-flat4-20260901
+D:\project2\facm-free-dist-final-candidate-flat4-20260901\free-dist-evidence.json
 ```
 
 The bundle is a flat GitHub Release asset set with unique names. The launcher-only directory contains exactly
 `FACM.exe` and `bootstrap.json`. The local final-candidate BOOT3-C and FREE-DIST evidence is retained at:
 
 ```text
-D:\project2\facm-free-dist-final-candidate-flat3-boot3c-20260901\results.json
-D:\project2\facm-free-dist-final-candidate-flat3-probe-20260901\free-dist-test-results.json
+D:\project2\facm-free-dist-final-candidate-flat4-boot3c-20260901\results.json
+D:\project2\facm-free-dist-final-candidate-flat4-probe-20260901\free-dist-test-results.json
 ```
 
 This is `PASS_LOCAL` only. The public test Release, public clean-machine first run, second-launch zero-download proof,
