@@ -583,3 +583,19 @@ production pointer 或生产重启；这些仍需独立授权。
 
 P7 需要以本地 candidate、源码门禁、FoundationSmoke、WindowsSmoke 和人工 UI review 作为收口证据；它不授权
 source push、PR #234 merge、Gate13、Formal P7、production deployment 或 production restart。
+
+## 2026-09-01：P7 UX-CLOSEOUT-2 手动海斗使用单一可复用投影
+
+### 决策
+
+- 手动海斗继续保留为自动 ChampSelect 攻略的 fallback/detail 路径。
+- 在 Core 定义 `MayhemGuidePresentation`，WinUI 卡片和攻略 PNG 共用同一投影；缺失的强化符文、版本或其他可选字段直接省略。
+- OP.GG 详细页面只负责可验证的技能、召唤师技能和出装补充；实测未发现可验证的 Runes 表，因此不得把通用符文或未经统计的内容显示成该页面推荐。
+
+### 原因
+
+这样可以在信息源不完整或国内访问抖动时保留可用的中文基础攻略，同时避免界面和分享图出现两套内容、内部技术词或伪造的统计结论。
+
+### 后果
+
+后续自动攻略必须复用同一规范化数据边界，并在真实 LCU ChampSelect 证据到位后再绑定当前英雄；本决定不授权第二套 League session、gateway、gameflow poller 或生产发布。

@@ -814,3 +814,21 @@ and `.facm` at the root, contains the active version `4.0.0-ux-closeout-1`, and 
 to a responsive `GGman（鸡鸡侠） 4.0` Core before normal shutdown. Its root launcher is 3,364,691 bytes with SHA-256
 `887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`. This is a local review candidate only; it is not
 a release request, deployment, production pointer, or Gate13 evidence.
+
+## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou review
+
+Use the repository-pinned SDK from the worktree:
+
+```text
+D:\project2\dotnet10\dotnet.exe build src/FACM.App/FACM.App.csproj -c Release -p:Platform=x64 --no-restore
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release --no-restore -- --skip-gate13
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release --no-restore
+```
+
+The manual review candidate is `D:\project2\GGman-HAIDOU-TEXT-REVIEW-20260901`; its root entry is
+`GGman.exe` and its active Core is under `.facm\versions\4.0.0-haidou-text-20260901`. The real UI
+evidence directory is `D:\project2\ggman-haidou-text-evidence-20260901`. The copied-image check is
+complete when `洛-guide-share.png` exists as a non-empty PNG after invoking `FACM.League.Mayhem.CopyImage`.
+This candidate is local review only; do not treat it as a release, deployment, production pointer, or
+Gate13 evidence. The detailed OP.GG enrichment has a bounded 4.5-second budget and may fail soft to
+the verified base guide.

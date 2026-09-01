@@ -560,3 +560,13 @@ The guide is rendered as compact icon/text rows inside the existing Workbench ca
 bar for contextual help. Verbose per-card descriptions are collapsed from the normal surface and are available through
 hover/focus help. Repair/Cleanup exposes one visible exit-game action; the existing League efficiency shortcut remains
 the separate keyboard path and continues to call the existing narrow action service.
+
+## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou projection
+
+The manual HaiDou result is projected by the Core-level `MayhemGuidePresentation` model. WinUI and
+the PNG export consume that same ordered section list, so the visible card and shared image cannot
+silently diverge. The projection is Chinese-first, keeps only verified source fields, omits empty
+optional sections, and leaves the manual HaiDou path available as the detail/fallback surface for
+the later automatic ChampSelect guide. The OP.GG detailed page remains an optional enrichment source;
+its absence of a verified Runes table is represented by omission rather than a generic or invented
+rune section.

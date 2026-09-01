@@ -11,6 +11,7 @@ namespace FACM.Infrastructure.Mayhem;
 internal sealed class MayhemBuildDetailsService
 {
     internal const int MaximumCoreBuilds = 2;
+    internal static readonly TimeSpan BuildSourceBudget = TimeSpan.FromSeconds(4.5);
     private readonly MayhemCachedPublicDataTransport _transport;
 
     public MayhemBuildDetailsService(MayhemCachedPublicDataTransport transport)
@@ -33,7 +34,7 @@ internal sealed class MayhemBuildDetailsService
             var request = new MayhemPublicResourceRequest(MayhemPublicResourceKind.MayhemBuild, slug);
             var response = await _transport.GetAsync(
                 request,
-                TimeSpan.FromSeconds(1.8),
+                BuildSourceBudget,
                 cancellationToken,
                 allowStale: true).ConfigureAwait(false);
             if (response is not null)
@@ -79,6 +80,7 @@ internal sealed class MayhemBuildDetailsService
         if (bootRows.Count > 0) result.BootItems = bootRows[0].Items.Take(1).ToList();
         if (summoner.Count > 0) result.SummonerSpells = summoner.Take(2).ToList();
         if (skills.Count > 0) result.SkillPriority = skills.Take(3).ToList();
+        if (string.IsNullOrWhiteSpace(result.SkillOrder)) result.SkillOrder = ExtractSkillOrder(normalized);
 
         if (result.CoreBuilds.Count > 0)
         {
@@ -229,6 +231,21 @@ internal sealed class MayhemBuildDetailsService
                 "\"src\"\\s*:\\s*\"(?<src>[^\"]*/spell/[^\"]+)\".*?\"alt\"\\s*:\\s*\"(?<name>[^\"]+)\".*?\"children\"\\s*:\\s*\"(?<key>[QWER])\"");
         }
         return output.Take(3).ToList();
+    }
+
+    private static string ExtractSkillOrder(string html)
+    {
+        var segment = SegmentAfter(html, ["SkillOrder Table", "Skill Order", "技能加点"], 19000);
+        if (string.IsNullOrWhiteSpace(segment)) return string.Empty;
+        var text = Regex.Replace(segment, "<(script|style)[^>]*>.*?</\\1>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, "<[^>]+>", " ", RegexOptions.CultureInvariant);
+        text = WebUtility.HtmlDecode(text);
+        var keys = Regex.Matches(text, @"(?<![A-Za-z])[QWER](?![A-Za-z])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+            .Cast<Match>()
+            .Select(match => match.Value.ToUpperInvariant())
+            .ToArray();
+        if (keys.Length > 15) keys = keys[^15..];
+        return keys.Length < 4 ? string.Empty : string.Join(" → ", keys);
     }
 
     private static void AddSerializedSkillRows(ICollection<MayhemSkillPriority> output, string segment)

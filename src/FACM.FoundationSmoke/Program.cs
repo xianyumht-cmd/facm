@@ -49,6 +49,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("productization League bench quick-pick", LeagueBenchQuickPickSmoke.RunAsync),
     ("productization ARAM Mayhem base query", MayhemQuerySmoke.RunAsync),
     ("productization ARAM Mayhem official patch", MayhemOfficialPatchSmoke.RunAsync),
+    ("productization HaiDou text-first guide", () => { MayhemGuidePresentationSmoke.Run(); return Task.CompletedTask; }),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
     ("theme contrast and guide asset routes", () => { ThemeContrastSmoke.Run(); LeagueGuideAssetSmoke.Run(); return Task.CompletedTask; }),

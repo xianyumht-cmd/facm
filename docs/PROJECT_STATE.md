@@ -673,3 +673,24 @@ Rendered UI evidence is retained at `D:\project2\ggman-ux-closeout1-evidence-202
 Workbench, League guide, Repair/Cleanup, and dark/light Personalization review. No source push, PR #234 merge, Gate13,
 Formal P7 move, production change, or production restart was performed. Protected dirty paths remain untouched:
 `src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`, `out/`, `setup.inf`, and `setup.rpt`.
+
+## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou guide state
+
+The local manual HaiDou closeout is implemented on the active task branch. The existing manual
+query remains the fallback/detail surface; it now renders one Core-level `MayhemGuidePresentation`
+projection in the same Workbench card and uses that same projection for the PNG export. Empty or
+unverified optional sections are omitted instead of rendered as internal diagnostics or fabricated
+values. The OP.GG detailed source budget is 4.5 seconds because the real `zh-cn/lol/modes/aram-mayhem`
+page can take about 4.5 seconds to return; the parser now keeps the real skill-order fallback and
+the existing two-path/limited item behavior. The real page did not expose a verified Runes table,
+so the manual guide does not claim a verified rune recommendation for that source.
+
+Verified locally with `D:\project2\dotnet10\dotnet.exe`: FACM.App Release x64 build succeeded with 0
+warnings/errors; FoundationSmoke `--skip-gate13` passed including the manual guide projection and
+secondary fixtures; WindowsSmoke passed. The manual review candidate remains
+`D:\project2\GGman-HAIDOU-TEXT-REVIEW-20260901\GGman.exe`. Real UI review succeeded for 洛、光辉、石头人、
+琴女 and for 寒冰 after one bounded retry. Evidence is retained under
+`D:\project2\ggman-haidou-text-evidence-20260901`, including the verified copied PNG
+`洛-guide-share.png` and the four secondary-champion screenshots. No source push, PR #234 merge,
+Gate13, Formal P7 move, production pointer change, or production restart occurred. Production remains
+FACM 3.5.15.

@@ -714,3 +714,9 @@ BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex
   网络失败变成空白推荐；缓存/路由失败必须保留文字行。
 - 对 fixed-host、路径遍历拒绝、缓存和 fail-soft 行为保留 FoundationSmoke 覆盖，并在架构门禁后重跑 Workbench
   与 recommended source gates。
+
+## 2026-09-01：OP.GG 海斗详细页可能慢且没有可验证的 Runes 表
+
+手动海斗真实读取中，`zh-cn/lol/modes/aram-mayhem` 详细页在本机可能接近 4.5 秒才返回；此前的 1.8 秒预算会把可用的技能和出装误判成不可用。该页面同时没有当前可验证的 `Runes Table`，不能因为旧模型或其他模式数据存在就显示一套“推荐符文”。
+
+防回归规则：详细源保持有界的 4.5 秒预算，并允许降级到已验证的基础结果；只有解析到真实来源字段时才显示技能、召唤师技能、出装或强化符文。缺失的可选 section 必须省略，不得显示内部术语、占位“暂无”或通用数据伪装成英雄专属推荐。手动路径保留为后续自动 ChampSelect 攻略的 fallback/detail，不得据此绕过真实 LCU ChampSelect 证据。

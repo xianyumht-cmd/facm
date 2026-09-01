@@ -238,6 +238,7 @@ public sealed class MayhemQueryService : IMayhemQueryService, IDisposable
                 if (string.IsNullOrWhiteSpace(result.Tier) && result.Rank.HasValue)
                     result.Tier = InferTier(result.Rank.Value);
 
+                result.UpdatedAtUtc = _utcNow();
                 var anyPrimary = hexTargetFound || !string.IsNullOrWhiteSpace(rankingTask.Result) || !string.IsNullOrWhiteSpace(opggTask.Result);
                 if (!anyPrimary)
                 {

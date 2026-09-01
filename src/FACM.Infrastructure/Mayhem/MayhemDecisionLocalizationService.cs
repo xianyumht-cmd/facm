@@ -67,6 +67,10 @@ internal sealed class MayhemDecisionLocalizationService
         if (champion.HasValue)
         {
             var championId = ReadInt(champion.Value, "id");
+            result.ChampionId = championId;
+            var localizedChampionName = FirstText(champion.Value, "nameTRA", "name");
+            if (!string.IsNullOrWhiteSpace(localizedChampionName) && ContainsCjk(localizedChampionName))
+                result.ChampionName = localizedChampionName.Trim();
             var portrait = FirstText(champion.Value, "squarePortraitPath", "iconPath");
             if (!string.IsNullOrWhiteSpace(portrait)) result.ChampionIconUrl = AssetReference(portrait);
             else if (championId > 0)
@@ -101,6 +105,11 @@ internal sealed class MayhemDecisionLocalizationService
         var champion = FindChampion(championSummaryJson, result.ChampionSlug, result.ChampionName);
         if (champion.HasValue)
         {
+            var championId = ReadInt(champion.Value, "id");
+            result.ChampionId = championId;
+            var localizedChampionName = FirstText(champion.Value, "nameTRA", "name");
+            if (!string.IsNullOrWhiteSpace(localizedChampionName) && ContainsCjk(localizedChampionName))
+                result.ChampionName = localizedChampionName.Trim();
             var portrait = FirstText(champion.Value, "squarePortraitPath", "iconPath");
             if (!string.IsNullOrWhiteSpace(portrait)) result.ChampionIconUrl = AssetReference(portrait);
         }
@@ -315,14 +324,18 @@ internal sealed class MayhemDecisionLocalizationService
         var catalog = EnumerateCatalog(document.RootElement).ToArray();
         foreach (var spell in result.SummonerSpells)
         {
+            var sourceId = NormalizeKey(spell.Id);
             var fileKey = NormalizeKey(FileToken(spell.IconUrl));
             var sourceName = NormalizeKey(spell.Name);
             JsonElement? localized = null;
             foreach (var candidate in catalog)
             {
+                var candidateId = NormalizeKey(FirstText(candidate, "id", "summonerSpellId"));
                 var iconKey = NormalizeKey(FileToken(FirstText(candidate, "iconPath", "icon")));
                 var apiKey = NormalizeKey(FirstText(candidate, "apiName", "alias", "name"));
-                if ((fileKey.Length > 0 && iconKey == fileKey) || (sourceName.Length > 0 && apiKey == sourceName))
+                if ((sourceId.Length > 0 && candidateId == sourceId) ||
+                    (fileKey.Length > 0 && iconKey == fileKey) ||
+                    (sourceName.Length > 0 && apiKey == sourceName))
                 {
                     localized = candidate;
                     break;

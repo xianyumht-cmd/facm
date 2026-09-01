@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Globalization;
-using System.Text;
 using FACM.App.ViewModels;
 using FACM.Core.Mayhem;
 using Microsoft.UI.Xaml;
@@ -49,13 +48,13 @@ public sealed partial class MainWindow
         var content = new StackPanel { Spacing = 12 };
         content.Children.Add(new TextBlock
         {
-            Text = "海斗攻略",
+            Text = "GGman（鸡鸡侠）· 海斗攻略",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmCardTitleTextStyle"]
         });
         content.Children.Add(new TextBlock
         {
-            Text = "查英雄强度、强化符文和出装。强化榜优先展示胜率、选择率、样本量和效果；上游未提供统计时只展示可验证信息。",
+            Text = "输入英雄名称或别名，查看当前模式的强度、技能、召唤师技能与出装建议。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         });
@@ -84,12 +83,12 @@ public sealed partial class MainWindow
         _mayhemCancelButton.Click += OnMayhemCancelClick;
         actions.Children.Add(_mayhemCancelButton);
 
-        _mayhemSaveImageButton = new Button { Content = "保存图片", IsEnabled = false };
+        _mayhemSaveImageButton = new Button { Content = "保存攻略图", IsEnabled = false };
         AutomationProperties.SetAutomationId(_mayhemSaveImageButton, "FACM.League.Mayhem.SaveImage");
         _mayhemSaveImageButton.Click += OnMayhemSaveImageClick;
         actions.Children.Add(_mayhemSaveImageButton);
 
-        _mayhemCopyImageButton = new Button { Content = "复制图片", IsEnabled = false };
+        _mayhemCopyImageButton = new Button { Content = "复制攻略图", IsEnabled = false };
         AutomationProperties.SetAutomationId(_mayhemCopyImageButton, "FACM.League.Mayhem.CopyImage");
         _mayhemCopyImageButton.Click += OnMayhemCopyImageClick;
         actions.Children.Add(_mayhemCopyImageButton);
@@ -120,7 +119,10 @@ public sealed partial class MainWindow
         _mayhemResultCard = new Border
         {
             Style = (Style)Application.Current.Resources["FacmCardBorderStyle"],
-            Padding = new Thickness(16),
+            Padding = new Thickness(20),
+            MinWidth = 520,
+            MaxWidth = 720,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Visibility = Visibility.Collapsed,
             Child = _mayhemResults
         };
@@ -171,11 +173,11 @@ public sealed partial class MainWindow
             using var stream = await file.OpenAsync(FileAccessMode.ReadWrite);
             stream.Size = 0;
             await EncodeMayhemResultPngAsync(stream);
-            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片已保存";
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "攻略图已保存";
         }
         catch
         {
-            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片保存失败，请换一个位置后重试。";
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "攻略图保存失败，请换一个位置后重试。";
         }
     }
 
@@ -192,11 +194,11 @@ public sealed partial class MainWindow
             package.SetBitmap(RandomAccessStreamReference.CreateFromStream(stream));
             Clipboard.SetContent(package);
             Clipboard.Flush();
-            if (_mayhemStatus is not null) _mayhemStatus.Text = "图片已复制到剪贴板";
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "攻略图已复制到剪贴板";
         }
         catch
         {
-            if (_mayhemStatus is not null) _mayhemStatus.Text = "复制图片失败，请稍后重试。";
+            if (_mayhemStatus is not null) _mayhemStatus.Text = "复制攻略图失败，请稍后重试。";
         }
     }
 
@@ -268,17 +270,42 @@ public sealed partial class MainWindow
             return;
         }
 
-        AddMayhemSection(_mayhemResults, "先看结论", BuildMayhemSummary(result));
-        AddMayhemSection(_mayhemResults, "版本修正", BuildMayhemBalance(result));
-        AddMayhemSection(_mayhemResults, "这一局怎么选", BuildMayhemDecisionRoutes(result));
-        AddMayhemSection(_mayhemResults, "强化符文决策榜", BuildMayhemAugments(result));
-        AddMayhemSection(_mayhemResults, "技能与出装", BuildMayhemBuild(result));
-        AddMayhemSection(_mayhemResults, "版本胜率前十", BuildMayhemTopTen(result));
-        AddMayhemSection(_mayhemResults, "数据来源", string.IsNullOrWhiteSpace(result.SourceNote) ? "—" : result.SourceNote);
+        var guide = MayhemGuidePresentation.Create(result);
+        AddMayhemGuideHeader(_mayhemResults, guide);
+        foreach (var section in guide.Sections)
+            AddMayhemSection(_mayhemResults, section.Title, section.Body);
+    }
+
+    private static void AddMayhemGuideHeader(StackPanel parent, MayhemGuidePresentation guide)
+    {
+        var header = new StackPanel { Spacing = 2 };
+        header.Children.Add(new TextBlock
+        {
+            Text = guide.QueryTitle,
+            FontSize = 28,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["FacmCardTitleTextStyle"]
+        });
+        if (!string.IsNullOrWhiteSpace(guide.OfficialName))
+            header.Children.Add(new TextBlock
+            {
+                Text = guide.OfficialName,
+                TextWrapping = TextWrapping.Wrap,
+                Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
+            });
+        header.Children.Add(new TextBlock
+        {
+            Text = guide.ModeTitle,
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["FacmBodyTextStyle"]
+        });
+        parent.Children.Add(header);
     }
 
     private static void AddMayhemSection(StackPanel parent, string title, string body)
     {
+        if (string.IsNullOrWhiteSpace(body)) return;
         var section = new StackPanel { Spacing = 4 };
         section.Children.Add(new TextBlock
         {
@@ -288,100 +315,11 @@ public sealed partial class MainWindow
         });
         section.Children.Add(new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(body) ? "暂无可验证数据" : body,
+            Text = body,
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmBodyTextStyle"]
         });
         parent.Children.Add(section);
-    }
-
-    private static string BuildMayhemSummary(MayhemChampionResult result)
-    {
-        var parts = new List<string>
-        {
-            string.IsNullOrWhiteSpace(result.ChampionName) ? result.ChampionSlug : result.ChampionName
-        };
-        if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add("版本 " + result.Patch);
-        if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add("梯队 " + result.Tier);
-        if (result.Rank.HasValue) parts.Add("排行 #" + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
-        if (result.WinRate.HasValue) parts.Add("英雄胜率 " + result.WinRate.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%");
-        if (result.PickRate.HasValue) parts.Add("选用率 " + result.PickRate.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%");
-        return string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
-    }
-
-    private static string BuildMayhemBalance(MayhemChampionResult result)
-    {
-        var baseAram = string.IsNullOrWhiteSpace(result.BaseBalanceSummary)
-            ? "暂无可验证的基础 ARAM 修正"
-            : result.BaseBalanceSummary;
-        var mayhem = string.IsNullOrWhiteSpace(result.MayhemBalanceSummary)
-            ? string.IsNullOrWhiteSpace(result.BalanceSummary) ? "暂无可验证的 Mayhem 专属修正" : result.BalanceSummary
-            : result.MayhemBalanceSummary;
-        var basePatch = string.IsNullOrWhiteSpace(result.BaseBalancePatch) ? string.Empty : "（" + result.BaseBalancePatch + "）";
-        return "基础 ARAM" + basePatch + "：" + baseAram + Environment.NewLine +
-               "Mayhem 专属：" + mayhem + Environment.NewLine +
-               "两层独立展示，不做数值叠加。";
-    }
-
-    private static string BuildMayhemDecisionRoutes(MayhemChampionResult result)
-    {
-        if (result.AugmentRoutes.Count == 0)
-            return "暂无足够单强化统计；不会伪造三强化组合胜率。";
-        return string.Join(Environment.NewLine, result.AugmentRoutes.Take(3).Select(route =>
-            route.Title + "：" + route.AugmentName +
-            (string.IsNullOrWhiteSpace(route.Hint) ? string.Empty : " · " + route.Hint)));
-    }
-
-    private static string BuildMayhemAugments(MayhemChampionResult result)
-    {
-        if (result.AugmentRows.Count == 0)
-            return result.Augments.Count == 0 ? "暂无强化排行，基础攻略仍可正常使用。" : string.Join(" · ", result.Augments.Take(5));
-
-        return string.Join(Environment.NewLine, result.AugmentRows.Take(8).Select(row =>
-        {
-            var metrics = new List<string>();
-            if (!string.IsNullOrWhiteSpace(row.Rarity)) metrics.Add(row.Rarity);
-            if (row.WinRate.HasValue) metrics.Add("胜率 " + row.WinRate.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%");
-            if (row.PickRate.HasValue) metrics.Add("选择 " + row.PickRate.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%");
-            if (row.Games.HasValue) metrics.Add("样本 " + row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) + " 局");
-            var suffix = metrics.Count == 0 ? string.Empty : " · " + string.Join(" · ", metrics);
-            var description = string.IsNullOrWhiteSpace(row.Description) ? string.Empty : Environment.NewLine + "    " + row.Description;
-            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + " " + row.Name + suffix + description;
-        }));
-    }
-
-    private static string BuildMayhemBuild(MayhemChampionResult result)
-    {
-        var builder = new StringBuilder();
-        foreach (var path in result.CoreBuilds.Take(2))
-        {
-            if (builder.Length > 0) builder.AppendLine();
-            builder.Append("核心方案 #").Append(path.Rank).Append("：")
-                .Append(string.Join(" → ", path.Items.Take(5).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name))));
-        }
-        AppendBuildLine(builder, "出门", result.StarterItems.Select(item => item.Name));
-        AppendBuildLine(builder, "鞋子", result.BootItems.Select(item => item.Name));
-        AppendBuildLine(builder, "召唤师", result.SummonerSpells.Select(item => item.Name));
-        AppendBuildLine(builder, "技能加点", result.SkillPriority.Select(item => string.IsNullOrWhiteSpace(item.Name) ? item.Key : item.Key + " " + item.Name));
-        if (builder.Length == 0 && !string.IsNullOrWhiteSpace(result.SkillOrder)) builder.Append("技能：").Append(result.SkillOrder);
-        return builder.ToString();
-    }
-
-    private static void AppendBuildLine(StringBuilder builder, string label, IEnumerable<string> values)
-    {
-        var items = values.Where(value => !string.IsNullOrWhiteSpace(value)).Take(5).ToArray();
-        if (items.Length == 0) return;
-        if (builder.Length > 0) builder.AppendLine();
-        builder.Append(label).Append("：").Append(string.Join(" → ", items));
-    }
-
-    private static string BuildMayhemTopTen(MayhemChampionResult result)
-    {
-        if (result.TopTen.Count == 0) return "暂无数据";
-        return string.Join(Environment.NewLine, result.TopTen.Take(10).Select(item =>
-            "#" + item.Rank.ToString(CultureInfo.InvariantCulture) + " " + item.Name +
-            (item.WinRate.HasValue ? " · " + item.WinRate.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%" : string.Empty) +
-            (string.IsNullOrWhiteSpace(item.Tier) ? string.Empty : " · " + item.Tier)));
     }
 
     private void DisposeMayhemSurface()
