@@ -863,6 +863,18 @@ bool IsSafeArchivePath(const std::string& archiveName, fs::path& relative) {
     return !relative.empty() && relative.is_relative();
 }
 
+std::optional<fs::path> LocalBundleAssetPath(const std::wstring& url) {
+    auto end = url.find_first_of(L"?#");
+    const auto withoutQuery = end == std::wstring::npos ? url : url.substr(0, end);
+    const auto slash = withoutQuery.find_last_of(L'/');
+    if (slash == std::wstring::npos || slash + 1 >= withoutQuery.size()) return std::nullopt;
+    fs::path relative;
+    if (!IsSafeArchivePath(WideToUtf8(withoutQuery.substr(slash + 1)), relative) || relative.has_parent_path()) {
+        return std::nullopt;
+    }
+    return relative;
+}
+
 bool IsLocalDevelopmentUrl(const std::wstring& url) {
     const auto lower = [&]() {
         auto copy = url;
@@ -2107,9 +2119,20 @@ bool VerifyTrustBundle(const fs::path& bundle, std::wstring& failure) {
     StatusWindow status;
     for (const auto& advertised : manifest->components) {
         const auto componentDirectory = bundle / L"components" / advertised.componentId / advertised.version;
-        const auto componentManifestPath = componentDirectory / L"component.manifest.json";
-        const auto componentSignaturePath = componentDirectory / L"component.manifest.json.sig";
-        const auto pack = componentDirectory / (advertised.componentId + L"-" + advertised.version + L".cab");
+        auto componentManifestPath = componentDirectory / L"component.manifest.json";
+        auto componentSignaturePath = componentDirectory / L"component.manifest.json.sig";
+        auto pack = componentDirectory / (advertised.componentId + L"-" + advertised.version + L".cab");
+        const auto flatManifest = LocalBundleAssetPath(advertised.componentManifestUrl);
+        const auto flatPackage = LocalBundleAssetPath(advertised.primaryUrl);
+        if (flatManifest && flatPackage) {
+            const auto flatManifestPath = bundle / *flatManifest;
+            const auto flatPackagePath = bundle / *flatPackage;
+            if (fs::exists(flatManifestPath, error) || fs::exists(flatPackagePath, error)) {
+                componentManifestPath = flatManifestPath;
+                componentSignaturePath = fs::path(flatManifestPath.wstring() + L".sig");
+                pack = flatPackagePath;
+            }
+        }
         if (!IsPathInside(bundle, componentDirectory) || !IsPathInside(bundle, componentManifestPath) ||
             !IsPathInside(bundle, componentSignaturePath) || !IsPathInside(bundle, pack)) {
             failure = L"BOOT3-A trust bundle 组件路径越界。";

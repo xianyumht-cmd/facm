@@ -33,6 +33,7 @@ Assert-True (Test-Path -LiteralPath $LauncherRoot -PathType Container) "Launcher
 Assert-True (Test-Path -LiteralPath $Bootstrapper -PathType Leaf) "Bootstrapper missing: $Bootstrapper"
 
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $BundleRoot 'manifest.json') | ConvertFrom-Json
+$releaseIndex = Get-Content -Raw -LiteralPath (Join-Path $BundleRoot 'release-index.json') | ConvertFrom-Json
 $canonicalPattern = '^https://github\.com/xianyumht-cmd/facm/releases/download/[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$'
 $allUrls = [System.Collections.Generic.List[string]]::new()
 foreach ($url in @($manifest.manifestMirrors)) { if ($url) { [void]$allUrls.Add([string]$url) } }
@@ -49,6 +50,14 @@ foreach ($url in $allUrls) {
     Assert-True ($url -notmatch 'ghfast|gh-proxy|gh\.llkk|ghproxy|github\.tk') "Proxy hostname leaked into signed metadata: $url"
 }
 Write-Host 'CanonicalGithubUrlsAndProxySeparation: PASS'
+
+$assetFiles = @(Get-ChildItem -LiteralPath $BundleRoot -Recurse -File | ForEach-Object {
+    [IO.Path]::GetRelativePath($BundleRoot, $_.FullName).Replace('\', '/')
+})
+Assert-True (@($assetFiles | Where-Object { $_ -match '/' }).Count -eq 0) 'GitHub Release assets must be flat files without directory paths.'
+Assert-True (@($assetFiles | Group-Object { [IO.Path]::GetFileName($_) } | Where-Object { $_.Count -gt 1 }).Count -eq 0) 'GitHub Release asset basenames must be unique.'
+Assert-True (@($releaseIndex.components | Where-Object { ([string]$_.manifestPath + [string]$_.signaturePath + [string]$_.packagePath) -match '/' }).Count -eq 0) 'Release index contains a nested asset path.'
+Write-Host 'ReleaseAssetLayout: PASS'
 
 $signatureFiles = @(Get-ChildItem -LiteralPath $BundleRoot -Recurse -Filter '*.sig' -File)
 Assert-True ($signatureFiles.Count -eq 4) "Expected four detached signatures, found $($signatureFiles.Count)."

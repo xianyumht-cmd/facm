@@ -520,3 +520,9 @@ For package downloads, the transport layer and the existing recovery layer are d
 candidate may fail, return bad bytes or ignore a Range request, but the recovery layer keeps or safely restarts the
 partial file, verifies `Content-Range`, package size, package SHA-256 and extracted content before activation. This
 prevents a free proxy from weakening the BOOT3-A/BOOT3-B exact-byte trust chain.
+
+GitHub Release publication adds a separate asset-layout constraint: each uploaded asset is a unique flat filename. The
+FREE-DIST candidate therefore maps nested build artifacts to stable root names such as
+`facm-app-win-x64-component-manifest.json` and `facm-app-win-x64-4.0.0-free-dist-test.1.cab`; signed
+application/component URLs and `release-index.json` use the same flat names. This changes publication packaging only
+and does not change the canonical release identity, trust key, or transport fallback policy.

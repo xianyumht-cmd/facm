@@ -505,3 +505,13 @@ BOOT3-C 可以在本地 production-like TLS origin/mirror 上验证失败关闭�
 FREE-DIST-1 可以在本地生成和验证 release-compatible bundle 与 launcher-only candidate，但不能证明公共免费
 代理的 SLA，也不能替代 GitHub Release 发布授权、真实 signer、真实机器 acceptance 或 Gate13。发布后必须重新
 验证所有候选、清洁机器首启、断点续传、恶意/损坏内容拒绝和二次启动零下载。
+
+## 2026-09-01：GitHub Release 资产使用唯一扁平文件名
+
+FREE-DIST-2 复核发现，GitHub Release 资产是按唯一文件名上传和下载的；原先保留
+`components/<id>/<version>/component.manifest.json` 目录层级会造成多个同名清单和无法直接对应的 canonical
+asset URL。最终候选采用唯一的 ASCII-safe 扁平名称，并同步更新 application manifest、component manifests、
+release index、签名请求和本地验证器。
+
+该决定只修正 GitHub Release 的发布拓扑，不增加 proxy、不改变 BOOT3-A/BOOT3-B trust boundary，也不改变
+production key 或 FACM 3.5.15 生产指针。任何远程发布仍需单独授权。

@@ -654,3 +654,10 @@ HTTP 或未授权主机。另一个常见错误是代理返回 `200` 或错误�
   downgrade 或 activation policy。
 - 免费代理的当前可用性只能作为带日期的 compatibility evidence，不能写成 SLA；发布前后都要重新探测，并
   保留 direct GitHub fallback。
+
+## 2026-09-01：GitHub Release 资产不能直接复用嵌套构建路径
+
+本地 HTTP origin 可以按 `components/<id>/<version>/...` 提供目录树，但 GitHub Release 上传的是独立资产文件，
+组件清单若都保留 `component.manifest.json` basename 会冲突，canonical URL 也不能直接假设远程保留本地目录层级。
+发布候选必须先映射为唯一扁平文件名，再同步重写所有已签名 URL、release index、签名请求和验证脚本；需要把
+“本地目录可服务”与“Release asset 可上传/下载”分开验证。

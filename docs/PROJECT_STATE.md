@@ -514,3 +514,28 @@ The public repository has FACM 3.5.15 but does not yet publish the local `v4.0.0
 clean-machine first-run, public-release proxy failover and second-launch zero-download are not claimed. The remaining
 action is explicit release-owner authorization to publish the reviewed bundle, followed by real-machine acceptance;
 Gate13 and production cutover remain out of scope.
+
+## 2026-09-01 FREE-DIST-2 toolchain revalidation and non-production test candidate
+
+The current HEAD `6b0c8d63c8a4b8e4dccb92a08c64570db0ab81d4` was revalidated in the same isolated worktree and task
+branch. `D:\project2\dotnet10\dotnet.exe` is present and reports SDK `10.0.400`; the full `FACM4.sln` Release build
+completed with 0 warnings and 0 errors. The current shell still resolves `dotnet` to the machine .NET 9 installation,
+so this task explicitly uses the .NET 10 executable and keeps temporary/cache paths under `D:\project2`.
+
+The native bootstrapper Release build, 32 non-cutover source gates, BOOT3-A, BOOT3-B, BOOT-2 (13/13), BOOT3-C (8/8),
+FREE-DIST, FoundationSmoke `--skip-gate13`, and WindowsSmoke all passed. Gate13 and the cutover gate were not run.
+
+The initial candidate layout exposed a GitHub Release compatibility defect: nested component manifests reused the same
+asset basename. The preparation tool now emits a flat bundle with unique ASCII-safe asset names, rewrites signed
+canonical URLs and release-index paths, and the focused FREE-DIST test enforces flat unique asset names. The exact final
+local test candidate is:
+
+- Bundle: `D:\project2\facm-free-dist-final-candidate-flat3-20260901\bundle`
+- Launcher-only review: `D:\project2\facm4-free-dist-final-review-flat3-20260901`
+- Evidence: `D:\project2\facm-free-dist-final-candidate-flat3-20260901\free-dist-evidence.json`
+- BOOT3-C evidence: `D:\project2\facm-free-dist-final-candidate-flat3-boot3c-20260901\results.json`
+- FREE-DIST evidence: `D:\project2\facm-free-dist-final-candidate-flat3-probe-20260901\free-dist-test-results.json`
+
+The proposed remote identity is non-production tag `v4.0.0-free-dist-test.1`, title `FACM 4.0.0 FREE-DIST test.1`,
+with `prerelease=true`. No remote tag, Release, push, merge or production pointer change occurred. The public first-run,
+second-launch zero-download and real Windows-machine acceptance remain waiting for a separately authorized test Release.

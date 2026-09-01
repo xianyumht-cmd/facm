@@ -20,13 +20,13 @@ $docs = Require-File 'docs/FREE-DIST-1.md'
 foreach ($marker in @('ghfast.top', 'gh-proxy.com', 'gh.llkk.cc', 'github-direct', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'WINHTTP_QUERY_CONTENT_RANGE')) {
     if ($bootstrapper -notmatch [regex]::Escape($marker)) { throw "Bootstrapper is missing FREE-DIST marker: $marker" }
 }
-foreach ($marker in @('canonical', 'manifestMirrors', 'production-r1', 'free-dist-release')) {
+foreach ($marker in @('canonical', 'manifestMirrors', 'production-r1', 'free-dist-release', 'Get-ReleaseAssetName', 'Flatten-ReleaseBundle')) {
     if ($prep -notmatch [regex]::Escape($marker)) { throw "Preparation tool is missing FREE-DIST marker: $marker" }
 }
-foreach ($marker in @('CanonicalGithubUrlsAndProxySeparation', 'LiveGithubTransportProbe', 'UnsafeTransportUrlRejected', 'Boot3CHttpsRegressionEvidence')) {
+foreach ($marker in @('CanonicalGithubUrlsAndProxySeparation', 'ReleaseAssetLayout', 'LiveGithubTransportProbe', 'UnsafeTransportUrlRejected', 'Boot3CHttpsRegressionEvidence')) {
     if ($test -notmatch [regex]::Escape($marker)) { throw "FREE-DIST test is missing assertion: $marker" }
 }
-foreach ($marker in @('canonical GitHub Release URLs', 'Resume and verification behavior', 'direct GitHub', 'not an SLA')) {
+foreach ($marker in @('canonical GitHub Release URLs', 'flat filenames', 'Resume and verification behavior', 'direct GitHub', 'not an SLA')) {
     if ($docs -notmatch [regex]::Escape($marker)) { throw "FREE-DIST documentation is missing section/evidence: $marker" }
 }
 

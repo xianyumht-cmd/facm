@@ -58,6 +58,7 @@ function Prepare-Bundle([string]$Source, [string]$Destination, [int]$PrimaryPort
     $mirrorBase = "https://127.0.0.1:$MirrorPort"
     $applicationPath = Join-Path $Destination 'manifest.json'
     $application = Get-Content -Raw -LiteralPath $applicationPath | ConvertFrom-Json
+    $releaseIndex = Get-Content -Raw -LiteralPath (Join-Path $Destination 'release-index.json') | ConvertFrom-Json
     if ($null -eq $application.PSObject.Properties['manifestMirrors']) {
         $application | Add-Member -MemberType NoteProperty -Name manifestMirrors -Value @()
     }
@@ -66,9 +67,10 @@ function Prepare-Bundle([string]$Source, [string]$Destination, [int]$PrimaryPort
     for ($index = 0; $index -lt $components.Count; $index++) {
         $appComponent = $components[$index]
         $id = [string]$appComponent.componentId
-        $version = [string]$appComponent.version
-        $manifestRelative = "components/$id/$version/component.manifest.json"
-        $packageRelative = "components/$id/$version/$id-$version.cab"
+        $releaseComponent = @($releaseIndex.components | Where-Object { [string]$_.componentId -ceq $id }) | Select-Object -First 1
+        Require ($null -ne $releaseComponent) "Release index component missing: $id"
+        $manifestRelative = [string]$releaseComponent.manifestPath
+        $packageRelative = [string]$releaseComponent.packagePath
         $componentPath = Get-LocalPath $Destination $manifestRelative
         $component = Get-Content -Raw -LiteralPath $componentPath | ConvertFrom-Json
         if ($null -eq $appComponent.PSObject.Properties['componentManifestMirrors']) {

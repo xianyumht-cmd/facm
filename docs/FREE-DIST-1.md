@@ -1,6 +1,6 @@
 # FACM 4.0 FREE-DIST-1 — GitHub Release and Free HTTPS Transport
 
-Status as of 2026-08-31: local candidate prepared and verified. No GitHub Release was published, no repository push or merge was performed, and production remains FACM 3.5.15.
+Status as of 2026-09-01: FREE-DIST-2 toolchain revalidation and final non-production candidate preparation passed locally. No GitHub Release was published, no repository push or merge was performed, and production remains FACM 3.5.15.
 
 ## Distribution contract
 
@@ -8,6 +8,31 @@ The canonical artifact origin is a GitHub Release. Signed metadata contains only
 
 ```text
 https://github.com/xianyumht-cmd/facm/releases/download/<release-tag>/<relative-artifact-path>
+```
+
+GitHub Release assets are uploaded as unique flat filenames. The final local test candidate uses these stable names:
+
+```text
+manifest.json
+manifest.json.sig
+facm-app-win-x64-component-manifest.json
+facm-app-win-x64-component-manifest.json.sig
+facm-app-win-x64-4.0.0-free-dist-test.1.cab
+facm-dotnet-runtime-win-x64-component-manifest.json
+facm-dotnet-runtime-win-x64-component-manifest.json.sig
+facm-dotnet-runtime-win-x64-4.0.0-free-dist-test.1.cab
+facm-windows-runtime-win-x64-component-manifest.json
+facm-windows-runtime-win-x64-component-manifest.json.sig
+facm-windows-runtime-win-x64-4.0.0-free-dist-test.1.cab
+release-index.json
+ownership-report.json
+```
+
+The proposed non-production release identity is tag `v4.0.0-free-dist-test.1`, title `FACM 4.0.0 FREE-DIST test.1`,
+and `prerelease=true`. The canonical application manifest URL is:
+
+```text
+https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0-free-dist-test.1/manifest.json
 ```
 
 The launcher-only review directory is:
@@ -20,6 +45,12 @@ It contains exactly `FACM.exe` and `bootstrap.json`. The local release-compatibl
 
 ```text
 D:\project2\facm-free-dist-release-20260831\bundle
+```
+
+The final flat release candidate bundle is:
+
+```text
+D:\project2\facm-free-dist-final-candidate-flat3-20260901\bundle
 ```
 
 The reproducible preparation and focused test tools are:
@@ -79,6 +110,14 @@ D:\project2\facm-free-dist-release-20260831\free-dist-evidence.json
 D:\project2\facm-free-dist-probe-20260831\free-dist-test-results.json
 ```
 
+The final candidate evidence and fresh verification outputs are:
+
+```text
+D:\project2\facm-free-dist-final-candidate-flat3-20260901\free-dist-evidence.json
+D:\project2\facm-free-dist-final-candidate-flat3-boot3c-20260901\results.json
+D:\project2\facm-free-dist-final-candidate-flat3-probe-20260901\free-dist-test-results.json
+```
+
 Current candidate figures:
 
 - release-compatible bundle: 103,775,138 bytes total;
@@ -92,6 +131,13 @@ Current candidate figures:
 
 The public GitHub repository currently exposes FACM 3.5.15, not the local `v4.0.0-free-dist-1` candidate. Therefore a clean-machine first-run against the public FREE-DIST-1 release and a second-launch zero-download proof are intentionally not claimed yet. They require a separately authorized GitHub Release publication followed by real-machine acceptance.
 
+The final local candidate uses `v4.0.0-free-dist-test.1` only for a non-production test release. It is signed with the
+external local validation key for test evidence; it is not a production signing result. The final launcher-only review
+directory is `D:\project2\facm4-free-dist-final-review-flat3-20260901` and contains exactly `FACM.exe` and `bootstrap.json`.
+
 ## Required next action before any release claim
 
-The remaining human-controlled action is to review and explicitly authorize publication of the local bundle as a GitHub Release asset set. After publication, run clean-machine first-run, proxy failover, corrupted-content rejection, resume, and second-launch zero-download acceptance; only then consider any production pointer or cutover request. Gate13 and production cutover are out of scope for this task.
+The remaining human-controlled action is to review and explicitly authorize publication of the local flat bundle as a GitHub
+Release asset set. After publication, run clean Windows-machine first-run, proxy failover, corrupted-content rejection,
+resume, and second-launch zero-download acceptance; only then consider any production pointer or cutover request. Gate13,
+Mac acceptance, and production cutover are out of scope for this task.
