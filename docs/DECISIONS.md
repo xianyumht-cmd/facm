@@ -584,6 +584,22 @@ production pointer 或生产重启；这些仍需独立授权。
 P7 需要以本地 candidate、源码门禁、FoundationSmoke、WindowsSmoke 和人工 UI review 作为收口证据；它不授权
 source push、PR #234 merge、Gate13、Formal P7、production deployment 或 production restart。
 
+## 2026-09-01：自动攻略采用 LIVE-LCU-FIRST，Lobby 不推断 ChampSelect
+
+### 决策
+
+- 先用现有单一 session/gateway 对真实 LCU 做只读探测，再实现或绑定自动攻略字段。
+- `gameflow-phase=None` 且两个 ChampSelect session 端点为 `404 expected-unavailable` 时，只记录 Lobby/非选人状态；不伪造当前英雄、hover、selected、locked 或强化符文榜。
+- 静态 `cherry-augments.json` 只证明元数据目录可读，不等同于当前英雄专属强化符文排名。
+
+### 原因
+
+LCU 的会话字段和版本会随客户端变化，目录元数据与英雄专属统计也不是同一层数据。先保存脱敏结构证据，可以让后续实现直接针对当前客户端的真实 schema。
+
+### 后果
+
+自动攻略的下一步依赖一次正常 ChampSelect 实测；在该证据到位前，产品必须保持等待状态而不是展示可能误导用户的通用结果。
+
 ## 2026-09-01：P7 UX-CLOSEOUT-2 手动海斗使用单一可复用投影
 
 ### 决策

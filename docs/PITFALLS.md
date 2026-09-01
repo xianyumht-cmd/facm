@@ -715,6 +715,17 @@ BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex
 - 对 fixed-host、路径遍历拒绝、缓存和 fail-soft 行为保留 FoundationSmoke 覆盖，并在架构门禁后重跑 Workbench
   与 recommended source gates。
 
+## 2026-09-01：Lobby 不能推断 ChampSelect，静态强化符文目录也不是英雄专属排行
+
+真实 LCU 审计中，`gameflow-phase` 返回 `None`，两个已知 ChampSelect session 端点都返回
+`404 expected-unavailable`，而静态 `cherry-augments.json` 仍可返回 657 条目录元数据。若把
+目录可读或历史页面数据当作当前选人结果，就会把通用强化符文误报成当前英雄专属排名。
+
+防回归规则：自动攻略必须等待共享 Gameflow owner 的 ChampSelect 状态；只绑定真实 payload
+中的本地 action/champion 字段。Lobby、None、空 champion、未识别 action 或不存在的稀有度都
+必须 fail-closed，不展示推测的当前英雄或伪造的强化符文排行。脱敏审计只保留 schema 形状、
+计数、状态和版本信息，不得落盘 LCU token、账号身份或原始响应。
+
 ## 2026-09-01：OP.GG 海斗详细页可能慢且没有可验证的 Runes 表
 
 手动海斗真实读取中，`zh-cn/lol/modes/aram-mayhem` 详细页在本机可能接近 4.5 秒才返回；此前的 1.8 秒预算会把可用的技能和出装误判成不可用。该页面同时没有当前可验证的 `Runes Table`，不能因为旧模型或其他模式数据存在就显示一套“推荐符文”。

@@ -694,3 +694,24 @@ secondary fixtures; WindowsSmoke passed. The manual review candidate remains
 `洛-guide-share.png` and the four secondary-champion screenshots. No source push, PR #234 merge,
 Gate13, Formal P7 move, production pointer change, or production restart occurred. Production remains
 FACM 3.5.15.
+
+## 2026-09-01 P7 LIVE-LCU-FIRST lobby audit
+
+The standalone read-only audit reuses the same `WindowsLeagueTransportSessionSource` and
+`LeagueHttpGateway` contracts used by the product; it does not add a production owner or polling
+loop. Evidence is retained at `D:\project2\ggman-live-lcu-guide-audit-20260901\lobby-audit.json`.
+The observed live session was HTTPS, source `process-command-line`, process ID 5816, port 61944;
+the command-line credential itself was never written to evidence. `LeagueClientUx` was present at
+file version `16.17.812.490`. The actual phase response was `None`, so no ChampSelect payload was
+claimed.
+
+Observed endpoint facts: gameflow phase `200` with `None`; gameflow session, lobby, legacy
+ChampSelect, and team-builder ChampSelect were `404 expected-unavailable`; current summoner was
+`200` with 469 bytes but all identity values were redacted from the evidence; champion summary was
+237 entries; items 868; summoner spells 39; perks 103; Cherry Augments 657; Rakan detail
+`/champions/497.json` `200`; Rakan icon `/champion-icons/497.png` `200`. No current local champion,
+hover/selected/locked state, or ChampSelect-specific augment ranking is verified yet.
+
+The audit runner is `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.WindowsSmoke\LeagueLcuAuditSmoke.cs`
+and is invoked with `--league-lcu-audit-live`. The next required live step is a normal ChampSelect;
+until then the automatic guide remains intentionally fail-closed.

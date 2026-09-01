@@ -561,6 +561,16 @@ bar for contextual help. Verbose per-card descriptions are collapsed from the no
 hover/focus help. Repair/Cleanup exposes one visible exit-game action; the existing League efficiency shortcut remains
 the separate keyboard path and continues to call the existing narrow action service.
 
+## 2026-09-01 P7 LIVE-LCU-FIRST evidence boundary
+
+The current live audit confirms that the product's existing LCU chain can read the gameflow phase
+and static game-data catalogs through one authenticated loopback gateway. In the observed Lobby/None
+state, both known ChampSelect session routes returned `404 expected-unavailable`; this is a valid
+state transition, not a schema to be filled in by inference. Automatic guide resolution must therefore
+wait for the shared gameflow owner to report ChampSelect and must bind only the local player action
+and champion fields observed from the live session. The audit summary contains schema shapes and
+counts only; it never carries LCU credentials, account identity values, or raw response bodies.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou projection
 
 The manual HaiDou result is projected by the Core-level `MayhemGuidePresentation` model. WinUI and

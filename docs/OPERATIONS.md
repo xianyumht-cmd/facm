@@ -815,6 +815,21 @@ to a responsive `GGman（鸡鸡侠） 4.0` Core before normal shutdown. Its root
 `887386803d33215304a21c5e55fcf84c1fef0b7bfa273d7feb828f711425edb5`. This is a local review candidate only; it is not
 a release request, deployment, production pointer, or Gate13 evidence.
 
+## 2026-09-01 P7 live LCU audit procedure
+
+With League Client running, use the existing WindowsSmoke project for a read-only live audit:
+
+```text
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release --no-restore -- --league-lcu-audit-live
+```
+
+The sanitized result is written to `D:\project2\ggman-live-lcu-guide-audit-20260901\lobby-audit.json`.
+It records endpoint paths, status/outcome, timings, byte counts, JSON key/array shapes, client file
+version, and process/port identity. Never replace this with a raw LCU response or command line. If
+the phase is not ChampSelect, preserve the actual unavailable endpoint status and stop before
+binding a current champion. For the next evidence pass, enter a normal ChampSelect and leave GGman
+running; do not fabricate a ChampSelect response from the Lobby result.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou review
 
 Use the repository-pinned SDK from the worktree:

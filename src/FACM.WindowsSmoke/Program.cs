@@ -23,6 +23,12 @@ if (args.Any(argument => string.Equals(argument, "--league-discovery-live", Stri
     return;
 }
 
+if (args.Any(argument => string.Equals(argument, "--league-lcu-audit-live", StringComparison.OrdinalIgnoreCase)))
+{
+    await LeagueLcuAuditSmoke.RunLiveAsync();
+    return;
+}
+
 var executablePaths = new WindowsExecutablePathProvider();
 var layout = RuntimePathLayout.From(executablePaths);
 var expectedDistribution = Path.GetDirectoryName(Path.GetFullPath(executablePaths.ExecutablePath))
