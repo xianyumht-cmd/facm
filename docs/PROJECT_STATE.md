@@ -715,3 +715,9 @@ hover/selected/locked state, or ChampSelect-specific augment ranking is verified
 The audit runner is `D:\project2\worktrees\facm-p7-ipc-lifecycle-fix\src\FACM.WindowsSmoke\LeagueLcuAuditSmoke.cs`
 and is invoked with `--league-lcu-audit-live`. The next required live step is a normal ChampSelect;
 until then the automatic guide remains intentionally fail-closed.
+
+The shared Gameflow cadence now retries `NotRunning`, `Connecting`, and `ClientError` every 3
+seconds, reducing the late-start/restart reacquisition window without adding an owner. Deterministic
+Gate8/Gate12 cadence assertions were updated and will be re-run with the full smoke suite. The real
+GGman-first/League-later and close/reopen League sequences remain pending because they require the
+user's normal desktop lifecycle; League was not closed or restarted by this task.

@@ -600,6 +600,20 @@ LCU 的会话字段和版本会随客户端变化，目录元数据与英雄专�
 
 自动攻略的下一步依赖一次正常 ChampSelect 实测；在该证据到位前，产品必须保持等待状态而不是展示可能误导用户的通用结果。
 
+## 2026-09-01：晚启动和客户端重启继续复用唯一 Gameflow heartbeat
+
+### 决策
+
+将共享 Gameflow monitor 在 `NotRunning`、`Connecting`、`ClientError` 下的 cadence 设为 3 秒，作为 GGman-first/League-later 和 League 重启后的有限重新发现窗口；不增加第二个 reconnect timer、session source 或 gateway。
+
+### 原因
+
+原 10 秒 cadence 会让客户端已经启动但 GGman 尚未重新接管的状态持续过久，而现有 session invalidation 已经能在连接失败后放弃旧 session。3 秒能缩短恢复窗口，同时保留已有的 bounded discovery 和 UI 非阻塞边界。
+
+### 后果
+
+Gate8/Gate12 的 cadence 断言必须同步；真实 close/reopen 和晚启动序列仍需在用户桌面上实测，不能用静态 smoke 代替。
+
 ## 2026-09-01：P7 UX-CLOSEOUT-2 手动海斗使用单一可复用投影
 
 ### 决策

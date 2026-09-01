@@ -76,7 +76,9 @@ public static class LeagueGameflowCadence
             LeagueProductState.ChampSelect => TimeSpan.FromSeconds(2),
             LeagueProductState.Matchmaking or LeagueProductState.ReadyCheck => TimeSpan.FromSeconds(3),
             LeagueProductState.InGame => TimeSpan.FromSeconds(10),
-            LeagueProductState.NotRunning or LeagueProductState.Connecting or LeagueProductState.ClientError => TimeSpan.FromSeconds(10),
+            // Keep late-start and client-restart reacquisition bounded without creating another
+            // discovery timer. The shared monitor is the only heartbeat owner.
+            LeagueProductState.NotRunning or LeagueProductState.Connecting or LeagueProductState.ClientError => TimeSpan.FromSeconds(3),
             _ => TimeSpan.FromSeconds(5)
         };
     }

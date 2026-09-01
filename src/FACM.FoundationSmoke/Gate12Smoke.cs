@@ -52,9 +52,9 @@ internal static class Gate12Smoke
         Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.InGame), "InGame cadence");
         Equal(TimeSpan.FromSeconds(5), Cadence(LeagueProductState.Lobby), "connected idle cadence");
         Equal(TimeSpan.FromSeconds(5), Cadence(LeagueProductState.PostGame), "post-game cadence");
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.NotRunning), "not-running cadence");
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.Connecting), "connecting cadence");
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.ClientError), "client-error cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.NotRunning), "not-running cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.Connecting), "connecting cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.ClientError), "client-error cadence");
     }
 
     private static void VerifyReleaseEvaluator()

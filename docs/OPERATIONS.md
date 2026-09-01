@@ -830,6 +830,11 @@ the phase is not ChampSelect, preserve the actual unavailable endpoint status an
 binding a current champion. For the next evidence pass, enter a normal ChampSelect and leave GGman
 running; do not fabricate a ChampSelect response from the Lobby result.
 
+The real lifecycle acceptance still needs two user-driven sequences: start GGman before starting
+League, and close/reopen League while GGman remains running. Confirm that the shared monitor moves
+through `NotRunning`/`ClientError`, reacquires the new process/port, and then reports the current
+phase. This task did not terminate or restart the user's League process.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou review
 
 Use the repository-pinned SDK from the worktree:

@@ -46,15 +46,15 @@ internal static class Gate8Smoke
 
     private static void TestCadence()
     {
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.NotRunning, LeagueActivityLevel.None), "not-running cadence");
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.Connecting, LeagueActivityLevel.None), "connecting cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.NotRunning, LeagueActivityLevel.None), "not-running cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.Connecting, LeagueActivityLevel.None), "connecting cadence");
         Equal(TimeSpan.FromSeconds(5), Cadence(LeagueProductState.Lobby, LeagueActivityLevel.Client), "lobby cadence");
         Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.Matchmaking, LeagueActivityLevel.Queueing), "matchmaking cadence");
         Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.ReadyCheck, LeagueActivityLevel.Queueing), "ready-check cadence");
         Equal(TimeSpan.FromSeconds(2), Cadence(LeagueProductState.ChampSelect, LeagueActivityLevel.ChampSelect), "champ-select cadence");
         Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.InGame, LeagueActivityLevel.InGame), "in-game cadence");
         Equal(TimeSpan.FromSeconds(5), Cadence(LeagueProductState.PostGame, LeagueActivityLevel.Client), "post-game cadence");
-        Equal(TimeSpan.FromSeconds(10), Cadence(LeagueProductState.ClientError, LeagueActivityLevel.Client), "client-error cadence");
+        Equal(TimeSpan.FromSeconds(3), Cadence(LeagueProductState.ClientError, LeagueActivityLevel.Client), "client-error cadence");
     }
 
     private static void TestWorkbenchCatalogAndText()

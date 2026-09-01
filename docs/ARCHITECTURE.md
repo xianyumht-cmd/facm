@@ -571,6 +571,10 @@ wait for the shared gameflow owner to report ChampSelect and must bind only the 
 and champion fields observed from the live session. The audit summary contains schema shapes and
 counts only; it never carries LCU credentials, account identity values, or raw response bodies.
 
+The one Gameflow monitor uses a 3-second retry cadence for `NotRunning`, `Connecting`, and
+`ClientError`, while preserving the slower phase-specific cadences for idle lobby and in-game
+states. This is a timing adjustment inside the existing owner, not a second reconnect loop.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou projection
 
 The manual HaiDou result is projected by the Core-level `MayhemGuidePresentation` model. WinUI and
