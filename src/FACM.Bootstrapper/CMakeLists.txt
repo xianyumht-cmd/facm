@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(FACMBootstrapper LANGUAGES CXX)
 
 set(FACM_BOOTSTRAP_SCHEMA_VERSION 1)
-set(FACM_DEFAULT_MANIFEST_URL "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0-free-dist-test.1/manifest.json")
+set(FACM_DEFAULT_MANIFEST_URL "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0-free-dist-test.2/manifest.json")
 configure_file(BootstrapDefaults.h.in ${CMAKE_CURRENT_BINARY_DIR}/BootstrapDefaults.h @ONLY)
 
 add_executable(FACM WIN32 main.cpp ManifestTrust.cpp)

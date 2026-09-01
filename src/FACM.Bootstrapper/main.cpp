@@ -1751,6 +1751,25 @@ bool InstallNetworkComponent(const fs::path& root, const ComponentManifest& comp
         verified = VerifyPackAgainstManifest(complete, component, cachedFailure);
         if (!verified) fs::remove(complete, error);
     }
+    if (!verified && fs::is_regular_file(partial, error)) {
+        const auto partialSize = fs::file_size(partial, error);
+        if (!error && partialSize == component.packageSize) {
+            std::wstring partialFailure;
+            if (VerifyPackAgainstManifest(partial, component, partialFailure)) {
+                if (!MoveFileExW(partial.c_str(), complete.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                    failure = L"完整组件临时包校验通过但无法转正缓存。";
+                    return false;
+                }
+                verified = true;
+                AppendLog(root, L"component-partial-full-size-recovered", correlation);
+            } else {
+                fs::remove(partial, error);
+                AppendLog(root, L"component-partial-full-size-invalid", correlation);
+            }
+        } else if (error) {
+            error.clear();
+        }
+    }
     std::vector<std::wstring> sourceUrls;
     sourceUrls.push_back(component.primaryUrl);
     sourceUrls.insert(sourceUrls.end(), component.mirrorUrls.begin(), component.mirrorUrls.end());
