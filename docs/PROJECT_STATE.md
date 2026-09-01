@@ -718,6 +718,7 @@ until then the automatic guide remains intentionally fail-closed.
 
 The shared Gameflow cadence now retries `NotRunning`, `Connecting`, and `ClientError` every 3
 seconds, reducing the late-start/restart reacquisition window without adding an owner. Deterministic
-Gate8/Gate12 cadence assertions were updated and will be re-run with the full smoke suite. The real
+Gate8/Gate12 cadence assertions were updated and passed in the latest full App Release x64 build,
+FoundationSmoke `--skip-gate13`, and WindowsSmoke run. The real
 GGman-first/League-later and close/reopen League sequences remain pending because they require the
 user's normal desktop lifecycle; League was not closed or restarted by this task.
