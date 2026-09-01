@@ -49,12 +49,12 @@
             CornerRadius="6"
             Visibility="Collapsed">
             <TextBlock
-                x:Name="FloatingStatusBadgeText"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                FontSize="8"
-                FontWeight="Bold"
-                Foreground="{StaticResource FacmTextPrimaryBrush}" />
+                 x:Name="FloatingStatusBadgeText"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 FontSize="8"
+                 FontWeight="Bold"
+                 Foreground="{StaticResource FacmSuccessTextBrush}" />
         </Border>
     </Grid>
 </Window>

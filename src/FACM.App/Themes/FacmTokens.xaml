@@ -23,6 +23,10 @@
     <SolidColorBrush x:Key="FacmTextMutedBrush" />
     <SolidColorBrush x:Key="FacmAccentBrush" />
     <SolidColorBrush x:Key="FacmAccentTextBrush" />
+    <SolidColorBrush x:Key="FacmSurfaceSecondaryTextBrush" />
+    <SolidColorBrush x:Key="FacmSuccessTextBrush" />
+    <SolidColorBrush x:Key="FacmWarningTextBrush" />
+    <SolidColorBrush x:Key="FacmErrorTextBrush" />
     <SolidColorBrush x:Key="FacmStrokeBrush" />
     <SolidColorBrush x:Key="FacmHoverBrush" />
     <SolidColorBrush x:Key="FacmPressedBrush" />

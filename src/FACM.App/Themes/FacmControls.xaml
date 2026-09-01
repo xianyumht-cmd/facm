@@ -46,7 +46,9 @@
     <Style x:Key="FacmStatusChipStyle" TargetType="Border">
         <Setter Property="Padding" Value="8,3" />
         <Setter Property="CornerRadius" Value="{StaticResource FacmControlCornerRadius}" />
-        <Setter Property="Background" Value="{StaticResource FacmSurfaceSecondaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource FacmSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource FacmStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <Style x:Key="FacmPrimaryButtonStyle" TargetType="Button">
@@ -54,6 +56,7 @@
         <Setter Property="Padding" Value="12,5" />
         <Setter Property="CornerRadius" Value="{StaticResource FacmControlCornerRadius}" />
         <Setter Property="Background" Value="{StaticResource FacmAccentBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource FacmAccentTextBrush}" />
     </Style>
 
     <Style x:Key="FacmToolButtonStyle" TargetType="Button">
@@ -64,21 +67,33 @@
         <Setter Property="FontSize" Value="13" />
     </Style>
 
+    <DataTemplate x:Key="FacmToggleTextTemplate">
+        <TextBlock
+            Text="{Binding}"
+            Foreground="{StaticResource FacmTextPrimaryBrush}"
+            FontSize="13"
+            TextWrapping="Wrap" />
+    </DataTemplate>
+
     <Style x:Key="FacmCollapseButtonStyle" TargetType="Button" BasedOn="{StaticResource FacmToolButtonStyle}">
         <Setter Property="Background" Value="{StaticResource FacmSuccessBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource FacmTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource FacmSuccessTextBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="FacmCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource FacmToolButtonStyle}">
         <Setter Property="Background" Value="{StaticResource FacmErrorBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource FacmTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource FacmErrorTextBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="FacmToolToggleStyle" TargetType="ToggleSwitch">
         <Setter Property="MinHeight" Value="{StaticResource FacmCompactControlHeight}" />
         <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource FacmTextPrimaryBrush}" />
+        <Setter Property="HeaderTemplate" Value="{StaticResource FacmToggleTextTemplate}" />
+        <Setter Property="OnContentTemplate" Value="{StaticResource FacmToggleTextTemplate}" />
+        <Setter Property="OffContentTemplate" Value="{StaticResource FacmToggleTextTemplate}" />
     </Style>
 
     <Style x:Key="FacmInspectorTextStyle" TargetType="TextBlock">

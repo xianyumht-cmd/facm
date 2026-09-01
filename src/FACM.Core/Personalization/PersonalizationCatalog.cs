@@ -19,6 +19,53 @@ public sealed record FacmThemeDefinition(
     double CardRadius,
     double ControlRadius);
 
+/// <summary>
+/// Chooses the higher-contrast of the two standard foreground colors for a themed surface.
+/// Keeping this calculation in Core gives every desktop surface the same accessibility contract.
+/// </summary>
+public static class FacmThemeContrast
+{
+    public const string LightForeground = "#FFFFFFFF";
+    public const string DarkForeground = "#FF111111";
+
+    public static string ReadableForeground(string background) =>
+        ContrastRatio(Parse(background), Parse(LightForeground)) >=
+        ContrastRatio(Parse(background), Parse(DarkForeground))
+            ? LightForeground
+            : DarkForeground;
+
+    public static double ContrastRatio(string foreground, string background) =>
+        ContrastRatio(Parse(foreground), Parse(background));
+
+    private static double ContrastRatio((double R, double G, double B) foreground,
+        (double R, double G, double B) background)
+    {
+        var foregroundLuminance = RelativeLuminance(foreground);
+        var backgroundLuminance = RelativeLuminance(background);
+        var lighter = Math.Max(foregroundLuminance, backgroundLuminance);
+        var darker = Math.Min(foregroundLuminance, backgroundLuminance);
+        return (lighter + 0.05d) / (darker + 0.05d);
+    }
+
+    private static double RelativeLuminance((double R, double G, double B) color) =>
+        0.2126d * Linearize(color.R) + 0.7152d * Linearize(color.G) + 0.0722d * Linearize(color.B);
+
+    private static double Linearize(double value) =>
+        value <= 0.03928d ? value / 12.92d : Math.Pow((value + 0.055d) / 1.055d, 2.4d);
+
+    private static (double R, double G, double B) Parse(string value)
+    {
+        var text = (value ?? string.Empty).Trim();
+        if (text.StartsWith('#')) text = text[1..];
+        if (text.Length == 8) text = text[2..];
+        if (text.Length != 6) throw new FormatException("Theme colors must use #RRGGBB or #AARRGGBB.");
+        return (
+            Convert.ToByte(text[..2], 16) / 255d,
+            Convert.ToByte(text.Substring(2, 2), 16) / 255d,
+            Convert.ToByte(text.Substring(4, 2), 16) / 255d);
+    }
+}
+
 public static class FacmThemeCatalog
 {
     public const string DefaultThemeId = "glass-blue";

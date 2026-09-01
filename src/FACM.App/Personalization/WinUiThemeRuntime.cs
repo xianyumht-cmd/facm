@@ -17,6 +17,10 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         ("FacmTextMutedBrush", "FacmPlatformTextMutedBrush"),
         ("FacmAccentBrush", "FacmPlatformAccentBrush"),
         ("FacmAccentTextBrush", "FacmPlatformAccentTextBrush"),
+        ("FacmSurfaceSecondaryTextBrush", "FacmPlatformTextPrimaryBrush"),
+        ("FacmSuccessTextBrush", "FacmPlatformAccentTextBrush"),
+        ("FacmWarningTextBrush", "FacmPlatformAccentTextBrush"),
+        ("FacmErrorTextBrush", "FacmPlatformAccentTextBrush"),
         ("FacmStrokeBrush", "FacmPlatformStrokeBrush"),
         ("FacmHoverBrush", "FacmPlatformSurfaceSecondaryBrush"),
         ("FacmPressedBrush", "FacmPlatformSurfaceSecondaryBrush"),
@@ -61,7 +65,11 @@ public sealed class WinUiThemeRuntime : IFacmThemeRuntime
         SetBrush("FacmTextPrimaryBrush", theme.TextPrimary);
         SetBrush("FacmTextMutedBrush", theme.TextMuted);
         SetBrush("FacmAccentBrush", theme.Accent);
-        SetBrush("FacmAccentTextBrush", "#FFFFFFFF");
+        SetBrush("FacmAccentTextBrush", FacmThemeContrast.ReadableForeground(theme.Accent));
+        SetBrush("FacmSurfaceSecondaryTextBrush", FacmThemeContrast.ReadableForeground(theme.SurfaceSecondary));
+        SetBrush("FacmSuccessTextBrush", FacmThemeContrast.ReadableForeground(theme.Success));
+        SetBrush("FacmWarningTextBrush", FacmThemeContrast.ReadableForeground(theme.Warning));
+        SetBrush("FacmErrorTextBrush", FacmThemeContrast.ReadableForeground(theme.Warning));
         SetBrush("FacmStrokeBrush", theme.Border);
         SetBrush("FacmHoverBrush", theme.BackgroundSecondary);
         SetBrush("FacmPressedBrush", theme.SurfaceSecondary);
