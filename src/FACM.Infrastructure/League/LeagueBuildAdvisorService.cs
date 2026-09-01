@@ -102,6 +102,10 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
         public Dictionary<int, string> Items { get; } = [];
         public Dictionary<int, string> Spells { get; } = [];
         public Dictionary<int, string> Perks { get; } = [];
+        public Dictionary<int, string> ChampionIcons { get; } = [];
+        public Dictionary<int, string> ItemIcons { get; } = [];
+        public Dictionary<int, string> SpellIcons { get; } = [];
+        public Dictionary<int, string> PerkIcons { get; } = [];
     }
 
     public LeagueBuildAdvisorService(
@@ -302,13 +306,13 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
         }
 
         var rows = new List<LeagueBuildAdvisorRow>();
-        AddPickRow(rows, data, "summoner_spells", "summoner-spells", catalog?.Spells);
-        AddRuneRow(rows, data, catalog?.Perks);
-        AddPickRow(rows, data, "starter_items", "starter-items", catalog?.Items);
-        AddPickRow(rows, data, "boots", "boots", catalog?.Items);
-        AddPickRow(rows, data, "core_items", "core-items", catalog?.Items);
+        AddPickRow(rows, data, "summoner_spells", "summoner-spells", catalog?.Spells, catalog?.SpellIcons);
+        AddRuneRow(rows, data, catalog?.Perks, catalog?.PerkIcons);
+        AddPickRow(rows, data, "starter_items", "starter-items", catalog?.Items, catalog?.ItemIcons);
+        AddPickRow(rows, data, "boots", "boots", catalog?.Items, catalog?.ItemIcons);
+        AddPickRow(rows, data, "core_items", "core-items", catalog?.Items, catalog?.ItemIcons);
         AddSkillRow(rows, data);
-        AddCounterRow(rows, data, catalog?.Champions);
+        AddCounterRow(rows, data, catalog?.Champions, catalog?.ChampionIcons);
 
         return new LeagueBuildRecommendation(tier, rank, winRate, pickRate, banRate, rows);
     }
@@ -475,14 +479,17 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
     private static BuildCatalog ParseCatalog(byte[]? champions, byte[]? items, byte[]? spells, byte[]? perks)
     {
         var catalog = new BuildCatalog();
-        ParseIdNameArray(champions, catalog.Champions);
-        ParseIdNameArray(items, catalog.Items);
-        ParseIdNameArray(spells, catalog.Spells);
-        ParseIdNameArray(perks, catalog.Perks);
+        ParseIdNameArray(champions, catalog.Champions, catalog.ChampionIcons);
+        ParseIdNameArray(items, catalog.Items, catalog.ItemIcons);
+        ParseIdNameArray(spells, catalog.Spells, catalog.SpellIcons);
+        ParseIdNameArray(perks, catalog.Perks, catalog.PerkIcons);
         return catalog;
     }
 
-    private static void ParseIdNameArray(byte[]? bytes, IDictionary<int, string> target)
+    private static void ParseIdNameArray(
+        byte[]? bytes,
+        IDictionary<int, string> target,
+        IDictionary<int, string> icons)
     {
         using var document = ParseDocument(bytes);
         if (document is null || document.RootElement.ValueKind != JsonValueKind.Array) return;
@@ -492,6 +499,9 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
             var id = ReadInt(row, "id");
             var name = ReadString(row, "name");
             if (id > 0 && !string.IsNullOrWhiteSpace(name)) target[id] = name.Trim();
+            var icon = ReadString(row, "iconPath");
+            if (string.IsNullOrWhiteSpace(icon)) icon = ReadString(row, "icon");
+            if (id > 0 && !string.IsNullOrWhiteSpace(icon)) icons[id] = icon.Trim();
         }
     }
 
@@ -500,18 +510,23 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
         JsonElement data,
         string property,
         string category,
-        IDictionary<int, string>? names)
+        IDictionary<int, string>? names,
+        IDictionary<int, string>? icons = null)
     {
         if (!TryGetFirstObject(data, property, out var row)) return;
         var ids = ReadIntArray(row, "ids");
         if (ids.Count == 0) return;
-        rows.Add(new LeagueBuildAdvisorRow(category, JoinNames(ids, names), BuildEvidence(row)));
+        rows.Add(new LeagueBuildAdvisorRow(category, JoinNames(ids, names), BuildEvidence(row))
+        {
+            Icons = BuildIcons(category, ids, names, icons)
+        });
     }
 
     private static void AddRuneRow(
         ICollection<LeagueBuildAdvisorRow> rows,
         JsonElement data,
-        IDictionary<int, string>? names)
+        IDictionary<int, string>? names,
+        IDictionary<int, string>? icons = null)
     {
         JsonElement runePage;
         if (!TryGetFirstObject(data, "runes", out runePage) && !TryGetFirstObject(data, "rune_pages", out runePage))
@@ -520,7 +535,10 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
         var ids = ReadIntArray(build, "primary_rune_ids");
         ids.AddRange(ReadIntArray(build, "secondary_rune_ids"));
         if (ids.Count == 0) return;
-        rows.Add(new LeagueBuildAdvisorRow("runes", JoinNames(ids, names), BuildEvidence(build)));
+        rows.Add(new LeagueBuildAdvisorRow("runes", JoinNames(ids, names), BuildEvidence(build))
+        {
+            Icons = BuildIcons("runes", ids, names, icons)
+        });
     }
 
     private static void AddSkillRow(ICollection<LeagueBuildAdvisorRow> rows, JsonElement data)
@@ -539,21 +557,44 @@ public sealed class LeagueBuildAdvisorService : ILeagueBuildAdvisorService, IDis
     private static void AddCounterRow(
         ICollection<LeagueBuildAdvisorRow> rows,
         JsonElement data,
-        IDictionary<int, string>? championNames)
+        IDictionary<int, string>? championNames,
+        IDictionary<int, string>? championIcons = null)
     {
         if (!data.TryGetProperty("counters", out var counters) || counters.ValueKind != JsonValueKind.Array) return;
         var labels = new List<string>();
+        var ids = new List<int>();
         var plays = 0;
         foreach (var row in counters.EnumerateArray().Take(5))
         {
             if (row.ValueKind != JsonValueKind.Object) continue;
             var id = ReadInt(row, "champion_id");
             if (id <= 0) continue;
+            ids.Add(id);
             labels.Add(ResolveName(championNames, id, "#" + id.ToString(CultureInfo.InvariantCulture)));
             plays += Math.Max(0, ReadInt(row, "play"));
         }
         if (labels.Count == 0) return;
-        rows.Add(new LeagueBuildAdvisorRow("counters", string.Join(" · ", labels), plays + " games"));
+        rows.Add(new LeagueBuildAdvisorRow("counters", string.Join(" · ", labels), plays + " games")
+        {
+            Icons = BuildIcons("champions", ids, championNames, championIcons)
+        });
+    }
+
+    private static IReadOnlyList<LeagueBuildAdvisorIcon> BuildIcons(
+        string kind,
+        IEnumerable<int> ids,
+        IDictionary<int, string>? names,
+        IDictionary<int, string>? icons)
+    {
+        return ids
+            .Where(id => id > 0)
+            .Distinct()
+            .Select(id => new LeagueBuildAdvisorIcon(
+                kind,
+                id,
+                ResolveName(names, id, "#" + id.ToString(CultureInfo.InvariantCulture)),
+                icons is not null && icons.TryGetValue(id, out var path) ? path : string.Empty))
+            .ToArray();
     }
 
     private static string BuildEvidence(JsonElement row)

@@ -1,7 +1,9 @@
 using FACM.App.ViewModels;
 using FACM.Core.League;
+using FACM.Core.Runtime;
 using FACM.Infrastructure.League;
 using FACM.Platform.Windows.League;
+using FACM.Platform.Windows.Runtime;
 
 namespace FACM.App;
 
@@ -13,6 +15,7 @@ public partial class App
     private bool _recommendedAutoApplyProcessExitHooked;
     private LeagueEfficiencyRuntime? _leagueEfficiencyRuntime;
     private bool _leagueEfficiencyProcessExitHooked;
+    private LeagueGuideAssetService? _leagueGuideAssets;
 
     /// <summary>
     /// Completes the per-shell League Workbench composition without creating another League runtime.
@@ -70,6 +73,21 @@ public partial class App
     }
 
     internal ILeagueEfficiencyRuntime? GetLeagueEfficiencyRuntime() => _leagueEfficiencyRuntime;
+
+    internal ILeagueGuideAssetService? CreateLeagueGuideAssetService()
+    {
+        if (_leagueGuideAssets is not null) return _leagueGuideAssets;
+        try
+        {
+            var layout = RuntimePathLayout.From(new WindowsExecutablePathProvider());
+            _leagueGuideAssets = new LeagueGuideAssetService(layout.CacheDirectory);
+            return _leagueGuideAssets;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private void EnsureLeagueRecommendedAutoApply(
         ILeagueWorkbenchDataSource dataSource,
@@ -235,6 +253,8 @@ public partial class App
         _leagueEfficiencyRuntime = null;
         _postGameAutomation?.Dispose();
         _postGameAutomation = null;
+        _leagueGuideAssets?.Dispose();
+        _leagueGuideAssets = null;
     }
 
     private void OnLeagueRecommendedAutoApplyProcessExit(object? sender, EventArgs args)

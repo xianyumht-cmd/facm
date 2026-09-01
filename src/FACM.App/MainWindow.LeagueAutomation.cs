@@ -62,7 +62,11 @@ public sealed partial class MainWindow
             settingsStatusBorder.Parent is not StackPanel automationStack)
             return;
 
-        _leagueAutoHonorToggle = new ToggleSwitch { Header = "自动点赞队友" };
+        _leagueAutoHonorToggle = new ToggleSwitch
+        {
+            Header = "自动点赞队友",
+            Style = (Style)Application.Current.Resources["FacmToolToggleStyle"]
+        };
         AutomationProperties.SetAutomationId(_leagueAutoHonorToggle, "FACM.League.AutoHonor");
         AutomationProperties.SetName(_leagueAutoHonorToggle, "自动点赞队友");
         AutomationProperties.SetHelpText(
@@ -77,7 +81,11 @@ public sealed partial class MainWindow
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };
 
-        _leagueAutoReturnLobbyToggle = new ToggleSwitch { Header = "自动返回大厅" };
+        _leagueAutoReturnLobbyToggle = new ToggleSwitch
+        {
+            Header = "自动返回大厅",
+            Style = (Style)Application.Current.Resources["FacmToolToggleStyle"]
+        };
         AutomationProperties.SetAutomationId(_leagueAutoReturnLobbyToggle, "FACM.League.AutoReturnLobby");
         AutomationProperties.SetName(_leagueAutoReturnLobbyToggle, "自动返回大厅");
         AutomationProperties.SetHelpText(
@@ -87,7 +95,7 @@ public sealed partial class MainWindow
 
         _leagueAutoReturnLobbyHint = new TextBlock
         {
-            Text = "不会创建第二套 phase 轮询；关闭主界面后，已启用的赛后自动化仍由 FACM 进程继续托管。",
+            Text = "不会创建第二套 phase 轮询；关闭主界面后，已启用的赛后自动化仍由 GGman 进程继续托管。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         };

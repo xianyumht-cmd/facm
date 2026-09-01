@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using FACM.App.ViewModels;
 using FACM.Core.League;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 
 namespace FACM.App;
 
@@ -14,6 +17,7 @@ public sealed partial class MainWindow
     private Border? _leagueProductActionsCard;
     private TextBlock? _leagueAdvisorStatus;
     private TextBlock? _leagueLoadoutStatus;
+    private StackPanel? _leagueGuideRows;
     private Button? _leagueAdvisorRefreshButton;
     private Button? _leagueLoadoutApplyButton;
     private Button? _leagueItemSetApplyButton;
@@ -23,6 +27,9 @@ public sealed partial class MainWindow
     private TextBlock? _recommendedAutoApplyStatus;
     private bool _recommendedAutoApplyUiApplying;
     private bool _leagueLoadoutBusy;
+    private ILeagueGuideAssetService? _leagueGuideAssets;
+    private string _leagueGuideSignature = string.Empty;
+    private int _leagueGuideRenderGeneration;
 
     private void InitializeLeagueWorkbenchProductActions()
     {
@@ -39,7 +46,6 @@ public sealed partial class MainWindow
             }
             catch { }
         }
-
         var card = new Border
         {
             Style = (Style)Application.Current.Resources["FacmCardBorderStyle"]
@@ -51,19 +57,16 @@ public sealed partial class MainWindow
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmCardTitleTextStyle"]
         });
-        content.Children.Add(new TextBlock
-        {
-            Text = "推荐只在选人阶段主动读取；进入游戏后严格使用已有缓存。符文/技能和装备集在真正写入前都会重新校验选人阶段、英雄和队列。",
-            TextWrapping = TextWrapping.Wrap,
-            Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
-        });
-
         _leagueAdvisorStatus = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmBodyTextStyle"]
         };
         content.Children.Add(_leagueAdvisorStatus);
+
+        _leagueGuideRows = new StackPanel { Spacing = 6 };
+        AutomationProperties.SetAutomationId(_leagueGuideRows, "FACM.League.OpggGuide");
+        content.Children.Add(_leagueGuideRows);
 
         _leagueLoadoutStatus = new TextBlock
         {
@@ -91,7 +94,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetName(_leagueLoadoutApplyButton, "应用推荐符文/技能");
         AutomationProperties.SetHelpText(
             _leagueLoadoutApplyButton,
-            "先生成只读预览，明确确认后才写入 FACM 自有符文页和你的召唤师技能选择。" );
+            "先生成只读预览，明确确认后才写入 GGman 自有符文页和你的召唤师技能选择。" );
         _leagueLoadoutApplyButton.Click += OnLeagueLoadoutApplyClicked;
 
         _leagueItemSetApplyButton = new Button
@@ -115,7 +118,8 @@ public sealed partial class MainWindow
 
         _recommendedAutoApplyToggle = new ToggleSwitch
         {
-            Header = "自动应用推荐配置"
+            Header = "自动应用推荐配置",
+            Style = (Style)Application.Current.Resources["FacmToolToggleStyle"]
         };
         AutomationProperties.SetAutomationId(_recommendedAutoApplyToggle, "FACM.League.AutoApplyRecommended");
         AutomationProperties.SetName(_recommendedAutoApplyToggle, "自动应用推荐配置");
@@ -127,7 +131,7 @@ public sealed partial class MainWindow
 
         content.Children.Add(new TextBlock
         {
-            Text = "自动模式不会创建第二套 League 轮询。关闭主窗口后仍由 FACM 进程托管；英雄、队列或选人阶段变化会阻止过期写入。",
+            Text = "自动模式不会创建第二套 League 轮询。关闭主窗口后仍由 GGman 进程托管；英雄、队列或选人阶段变化会阻止过期写入。",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
         });
@@ -143,6 +147,7 @@ public sealed partial class MainWindow
         card.Child = content;
         _leagueProductActionsCard = card;
         LeagueWorkbenchPanel.Children.Add(card);
+        AttachInspector(card, () => "OP.GG 推荐只在选人阶段主动读取；进入游戏后使用已缓存内容。图标优先来自腾讯国内静态资源，失败时回退到 CommunityDragon，并写入本地装饰资源缓存。推荐写入仍复用现有 League Workbench 安全门禁。 ");
         SyncLeagueWorkbenchProductActions();
     }
 
@@ -157,6 +162,7 @@ public sealed partial class MainWindow
             _leagueWorkbench.Advisor,
             _leagueWorkbench.IsAdvisorRefreshing,
             _leagueWorkbench.ItemSetStatus);
+        RenderLeagueGuide(_leagueWorkbench.Advisor);
 
         var serviceReady = _leagueWorkbench.HasProductServices;
         _leagueAdvisorRefreshButton.IsEnabled =
@@ -211,6 +217,151 @@ public sealed partial class MainWindow
             SyncLeagueWorkbenchProductActions();
         }
     }
+
+    private void RenderLeagueGuide(LeagueBuildAdvisorSnapshot advisor)
+    {
+        var rowsPanel = _leagueGuideRows;
+        if (rowsPanel is null) return;
+
+        var signature = BuildGuideSignature(advisor);
+        if (string.Equals(signature, _leagueGuideSignature, StringComparison.Ordinal)) return;
+        _leagueGuideSignature = signature;
+        var generation = ++_leagueGuideRenderGeneration;
+        rowsPanel.Children.Clear();
+
+        var recommendation = advisor.Recommendation;
+        if (recommendation is null || advisor.State is not (LeagueBuildAdvisorState.Ready or LeagueBuildAdvisorState.InGameCache))
+            return;
+
+        var visuals = new List<(Image Image, LeagueBuildAdvisorIcon Icon)>();
+        foreach (var row in recommendation.Rows.Take(7))
+        {
+            var rowPanel = new StackPanel { Spacing = 4 };
+            var heading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            heading.Children.Add(new TextBlock
+            {
+                Text = CategoryGlyph(row.Category),
+                FontSize = 14,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FacmAccentBrush"]
+            });
+            heading.Children.Add(new TextBlock
+            {
+                Text = FormatAdvisorCategory(row.Category),
+                Style = (Style)Application.Current.Resources["FacmCardTitleTextStyle"]
+            });
+            rowPanel.Children.Add(heading);
+
+            var icons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+            foreach (var icon in row.Icons.Take(6))
+            {
+                var image = new Image
+                {
+                    Width = 28,
+                    Height = 28,
+                    Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill
+                };
+                ToolTipService.SetToolTip(image, icon.Name);
+                icons.Children.Add(new Border
+                {
+                    Width = 30,
+                    Height = 30,
+                    Padding = new Thickness(1),
+                    CornerRadius = new CornerRadius(5),
+                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FacmSurfaceSecondaryBrush"],
+                    Child = image
+                });
+                visuals.Add((image, icon));
+            }
+            if (icons.Children.Count > 0) rowPanel.Children.Add(icons);
+
+            var recommendationText = new TextBlock
+            {
+                Text = row.Recommendation,
+                MaxLines = 2,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.Wrap,
+                Style = (Style)Application.Current.Resources["FacmBodyTextStyle"]
+            };
+            rowPanel.Children.Add(recommendationText);
+            if (!string.IsNullOrWhiteSpace(row.Evidence))
+                rowPanel.Children.Add(new TextBlock
+                {
+                    Text = row.Evidence,
+                    Style = (Style)Application.Current.Resources["FacmMutedTextStyle"]
+                });
+            rowsPanel.Children.Add(rowPanel);
+        }
+
+        if (visuals.Count > 0) _ = LoadLeagueGuideIconsAsync(visuals, generation);
+    }
+
+    private async Task LoadLeagueGuideIconsAsync(
+        IReadOnlyList<(Image Image, LeagueBuildAdvisorIcon Icon)> visuals,
+        int generation)
+    {
+        var assets = _leagueGuideAssets;
+        if (assets is null) return;
+        try
+        {
+            var results = await Task.WhenAll(visuals.Select(async visual =>
+            {
+                try
+                {
+                    var bytes = await assets.TryGetBytesAsync(
+                        visual.Icon.Kind,
+                        visual.Icon.Id,
+                        visual.Icon.AssetPath).ConfigureAwait(true);
+                    return (Visual: visual, Bytes: bytes);
+                }
+                catch
+                {
+                    return (Visual: visual, Bytes: (byte[]?)null);
+                }
+            }));
+
+            if (_closed || generation != _leagueGuideRenderGeneration) return;
+            foreach (var result in results)
+            {
+                if (result.Bytes is null || result.Bytes.Length == 0) continue;
+                try
+                {
+                    using var stream = new InMemoryRandomAccessStream();
+                    await stream.WriteAsync(result.Bytes.AsBuffer());
+                    stream.Seek(0);
+                    var image = new BitmapImage { DecodePixelWidth = 56, DecodePixelHeight = 56 };
+                    await image.SetSourceAsync(stream);
+                    result.Visual.Image.Source = image;
+                }
+                catch
+                {
+                    // A missing decorative icon never removes the text recommendation.
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string BuildGuideSignature(LeagueBuildAdvisorSnapshot advisor)
+    {
+        if (advisor.Recommendation is null) return advisor.State + "|empty";
+        var rows = string.Join("|", advisor.Recommendation.Rows.Select(row =>
+            row.Category + ":" + row.Recommendation + ":" + string.Join(',', row.Icons.Select(icon => icon.Id))));
+        return advisor.State + "|" + advisor.UpdatedAtUtc.Ticks + "|" + rows;
+    }
+
+    private static string CategoryGlyph(string category) => category switch
+    {
+        "summoner-spells" => "⚡",
+        "runes" => "✦",
+        "starter-items" => "◇",
+        "boots" => "◈",
+        "core-items" => "◆",
+        "skills" => "↗",
+        "counters" => "◎",
+        _ => "•"
+    };
 
     private async void OnLeagueLoadoutApplyClicked(object sender, RoutedEventArgs args)
     {
@@ -469,12 +620,6 @@ public sealed partial class MainWindow
                 builder.Append(" · 胜率 ").Append(percent.ToString("0.#", CultureInfo.InvariantCulture)).Append('%');
             }
 
-            foreach (var row in recommendation.Rows.Take(5))
-            {
-                builder.AppendLine();
-                builder.Append(FormatAdvisorCategory(row.Category)).Append("：").Append(row.Recommendation);
-                if (!string.IsNullOrWhiteSpace(row.Evidence)) builder.Append(" · ").Append(row.Evidence);
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(itemSetStatus) && !string.Equals(itemSetStatus, "not-ready", StringComparison.Ordinal))
@@ -501,7 +646,7 @@ public sealed partial class MainWindow
                 ? string.Join(" / ", plan.SelectedPerkIds)
                 : plan.RunePreview).AppendLine();
         builder.AppendLine()
-            .Append("确认后 FACM 会再次读取当前选人状态；英雄或队列已变化时不会写入。符文只创建或复用 [FACM] 自有页面，闪现会尽量保持原来的槽位。HTTP 2xx 不会直接算成功，必须通过回读确认。");
+            .Append("确认后 GGman 会再次读取当前选人状态；英雄或队列已变化时不会写入。符文只创建或复用自有页面，闪现会尽量保持原来的槽位。HTTP 2xx 不会直接算成功，必须通过回读确认。");
         return builder.ToString();
     }
 
@@ -562,7 +707,7 @@ public sealed partial class MainWindow
             .AppendLine()
             .Append("模式：").Append(plan.Mode).Append(" / ").Append(plan.Position)
             .AppendLine().AppendLine()
-            .Append("确认后 FACM 才会写入 League 的推荐装备集目录；只管理 FACM 4 自己生成的 facm4-*.json，不会删除旧版装备集。");
+            .Append("确认后 GGman 才会写入 League 的推荐装备集目录；只管理 GGman 生成的自有文件，不会删除旧版装备集。");
         return builder.ToString();
     }
 
@@ -571,7 +716,7 @@ public sealed partial class MainWindow
         if (result.Succeeded)
         {
             var text = "已写入：" + result.FileName;
-            if (result.RemovedOldFiles > 0) text += Environment.NewLine + "已清理旧 FACM 4 装备集：" + result.RemovedOldFiles;
+            if (result.RemovedOldFiles > 0) text += Environment.NewLine + "已清理旧版 GGman 装备集：" + result.RemovedOldFiles;
             if (result.CleanupWarning) text += Environment.NewLine + "旧文件清理有部分失败，但新装备集已写入。";
             return text;
         }
@@ -640,5 +785,10 @@ public sealed partial class MainWindow
         _recommendedAutoApplySettings = null;
         _recommendedAutoApplyToggle = null;
         _recommendedAutoApplyStatus = null;
+        _leagueGuideRows = null;
+        _leagueGuideSignature = string.Empty;
+        _leagueGuideRenderGeneration++;
+        _leagueGuideAssets?.Dispose();
+        _leagueGuideAssets = null;
     }
 }

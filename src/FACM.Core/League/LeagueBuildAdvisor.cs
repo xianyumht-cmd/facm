@@ -13,10 +13,28 @@ public enum LeagueBuildAdvisorState
     Timeout
 }
 
+public sealed record LeagueBuildAdvisorIcon(
+    string Kind,
+    int Id,
+    string Name,
+    string AssetPath);
+
+public interface ILeagueGuideAssetService : IDisposable
+{
+    Task<byte[]?> TryGetBytesAsync(
+        string kind,
+        int id,
+        string? assetPath = null,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record LeagueBuildAdvisorRow(
     string Category,
     string Recommendation,
-    string Evidence);
+    string Evidence)
+{
+    public IReadOnlyList<LeagueBuildAdvisorIcon> Icons { get; init; } = Array.Empty<LeagueBuildAdvisorIcon>();
+}
 
 public sealed record LeagueBuildRecommendation(
     string Tier,
