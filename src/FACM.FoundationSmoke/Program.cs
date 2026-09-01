@@ -51,6 +51,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("productization ARAM Mayhem official patch", MayhemOfficialPatchSmoke.RunAsync),
     ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
     ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
+    ("theme contrast and guide asset routes", () => { ThemeContrastSmoke.Run(); LeagueGuideAssetSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
     ("gate10 DPI and mixed-monitor accessibility contract", Gate10Smoke.RunAsync),
     ("gate11 recovery and monotonic feature policy", Gate11Smoke.RunAsync),
