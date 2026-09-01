@@ -23,7 +23,7 @@ public sealed partial class MainWindow : Window
     private const double OrbSizeDip = 36d;
     private const double OrbTransientWidthDip = 220d;
     private const double ControlMatrixWidthDip = 360d;
-    private const double ControlMatrixHeightDip = 176d;
+    private const double ControlMatrixHeightDip = 184d;
     private const double RepairSurfaceWidthDip = 520d;
     private const double RepairSurfaceHeightDip = 440d;
     private const double LeagueSurfaceWidthDip = 540d;
@@ -108,7 +108,8 @@ public sealed partial class MainWindow : Window
         Func<IntPtr, bool>? configureSurfaceWindow = null,
         ILeagueBenchQuickPickService? leagueBenchQuickPick = null,
         ILeagueBenchRuntimeState? leagueBenchRuntime = null,
-        Action<LeagueBenchSurfaceEvaluation>? benchSurfaceEvaluationReporter = null)
+        Action<LeagueBenchSurfaceEvaluation>? benchSurfaceEvaluationReporter = null,
+        ILeagueGuideAssetService? leagueGuideAssets = null)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _cleanupCenter = cleanupCenter ?? throw new ArgumentNullException(nameof(cleanupCenter));
@@ -127,6 +128,7 @@ public sealed partial class MainWindow : Window
         _leagueBenchQuickPick = leagueBenchQuickPick;
         _leagueBenchRuntime = leagueBenchRuntime;
         _benchSurfaceEvaluationReporter = benchSurfaceEvaluationReporter;
+        _leagueGuideAssets = leagueGuideAssets;
         _surfaceStateMachine = new FacmSurfaceStateMachine();
         _surfaceStateMachine.Transitioned += OnSurfaceTransitioned;
         try
@@ -308,18 +310,17 @@ public sealed partial class MainWindow : Window
         RepairAutoWindowHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         RepairSkipSettlementHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         RepairRestartClientUxHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        RepairExitGameHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         RepairToolDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         CleanupDirectoryDetail.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         CleanupSafetyHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        LeagueMatchDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        LeagueStrategyDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        LeagueAutomationDescription.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
+        LeagueMatchDescription.Visibility = Visibility.Collapsed;
+        LeagueStrategyDescription.Visibility = Visibility.Collapsed;
+        LeagueAutomationDescription.Visibility = Visibility.Collapsed;
+        LeagueAutoMatchmakingHint.Visibility = Visibility.Collapsed;
+        LeagueAutoAcceptHint.Visibility = Visibility.Collapsed;
         OverviewBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         StateBody.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsSubtitle.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        LeagueAutoMatchmakingHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
-        LeagueAutoAcceptHint.Visibility = showExplanatoryCopy ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsSummaryText.MinHeight = _morphingSurfaceEnabled ? 120 : 180;
         if (_morphingSurfaceEnabled)
         {
@@ -445,6 +446,8 @@ public sealed partial class MainWindow : Window
             return;
 
         OrbTransientRailText.Text = message.Trim();
+        OrbTransientRailText.Foreground = (Brush)Application.Current.Resources[
+            problem ? "FacmErrorTextBrush" : "FacmTextPrimaryBrush"];
         OrbTransientRail.Background = (Brush)Application.Current.Resources[
             problem ? "FacmErrorBrush" : "FacmSurfaceBrush"];
         OrbTransientRail.BorderBrush = (Brush)Application.Current.Resources[
@@ -1388,6 +1391,9 @@ public sealed partial class MainWindow : Window
         AttachInspector(CleanupPreviewButton, _text.Get(UiTextKeys.CleanupPreviewDescription));
         AttachInspector(LeagueAutoMatchmakingToggle, _text.Get(UiTextKeys.LeagueAutoMatchmakingHint));
         AttachInspector(LeagueAutoAcceptToggle, _text.Get(UiTextKeys.LeagueAutoAcceptHint));
+        AttachInspector(LeagueMatchCard, () => _text.Get(LeagueWorkbenchCatalog.Get(LeagueWorkbenchCatalog.Match).DescriptionTextKey));
+        AttachInspector(LeagueStrategyCard, () => _text.Get(LeagueWorkbenchCatalog.Get(LeagueWorkbenchCatalog.Strategy).DescriptionTextKey));
+        AttachInspector(LeagueAutomationCard, () => _text.Get(LeagueWorkbenchCatalog.Get(LeagueWorkbenchCatalog.Automation).DescriptionTextKey));
         AttachInspector(DiagnosticsRefreshButton, _text.Get(UiTextKeys.DiagnosticsRefreshHelp));
         AttachInspector(DiagnosticsExportButton, _text.Get(UiTextKeys.DiagnosticsExportBundleHelp));
         ApplyInspectorDefault();

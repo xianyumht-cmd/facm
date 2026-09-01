@@ -88,7 +88,7 @@
                     VerticalAlignment="Center"
                     FontSize="8"
                     FontWeight="Bold"
-                    Foreground="{StaticResource FacmTextPrimaryBrush}" />
+                    Foreground="{StaticResource FacmSuccessTextBrush}" />
             </Border>
             </Grid>
         </Grid>
@@ -96,7 +96,7 @@
         <Grid
             x:Name="ControlMatrixSurface"
             Width="360"
-            Height="176"
+            Height="184"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Background="{StaticResource FacmBackgroundBrush}"
@@ -104,7 +104,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="34" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="24" />
+                <RowDefinition Height="30" />
             </Grid.RowDefinitions>
             <Grid
                 x:Name="MatrixTitleBar"
@@ -335,7 +335,9 @@
                 <NavigationViewItem x:Name="SettingsNav" Tag="settings" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Settings" />
             </NavigationView.MenuItems>
 
-            <Frame x:Name="ContentFrame">
+            <Frame
+                x:Name="ContentFrame"
+                Background="{StaticResource FacmBackgroundBrush}">
                 <ScrollViewer>
                     <StackPanel
                         Padding="10,8,10,10"
@@ -399,7 +401,6 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
                                         <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
@@ -434,14 +435,6 @@
                                                 HorizontalAlignment="Left"
                                                 Click="OnRepairRestartClientUxClick" />
                                             <TextBlock x:Name="RepairRestartClientUxHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="6">
-                                            <Button
-                                                x:Name="RepairExitGameButton"
-                                                automation:AutomationProperties.AutomationId="FACM.Repair.ExitGame"
-                                                HorizontalAlignment="Left"
-                                                Click="OnRepairExitGameClick" />
-                                            <TextBlock x:Name="RepairExitGameHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Grid>
                                     <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
@@ -551,32 +544,34 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueMatchCard" Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueMatchDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueMatchDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueStrategyCard" Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueStrategyDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueStrategyDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueAutomationCard" Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueAutomationDescription" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueAutomationDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                         <ToggleSwitch
                                             x:Name="LeagueAutoMatchmakingToggle"
+                                            Style="{StaticResource FacmToolToggleStyle}"
                                             automation:AutomationProperties.AutomationId="FACM.League.AutoMatchmaking"
                                             Toggled="OnLeagueAutoMatchmakingToggled" />
-                                        <TextBlock x:Name="LeagueAutoMatchmakingHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueAutoMatchmakingHint" Visibility="Collapsed" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                         <ToggleSwitch
                                             x:Name="LeagueAutoAcceptToggle"
+                                            Style="{StaticResource FacmToolToggleStyle}"
                                             automation:AutomationProperties.AutomationId="FACM.League.AutoAccept"
                                             Toggled="OnLeagueAutoAcceptToggled" />
-                                        <TextBlock x:Name="LeagueAutoAcceptHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueAutoAcceptHint" Visibility="Collapsed" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                         <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
                                             <TextBlock
                                                 x:Name="LeagueAutomationSettingsStatus"
