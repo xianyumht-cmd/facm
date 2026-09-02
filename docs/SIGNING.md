@@ -119,3 +119,12 @@ FACM 4.0 还会对 `manifest.json` 和组件清单做 RSA-2048 PKCS#1/SHA-256 de
 Authenticode，不能直接使用 3.5 PFX；4.0 启动器只信任编译进自身的 `facm-production-r1` 公钥。
 本地自签名发布时，4.0 私钥保存在仓库外的 `local-signing` 目录，公钥随 native bootstrapper 编译，
 私钥必须单独备份且不得进入仓库、Release 资产或日志。
+
+## 云端 ChatGPT 交接边界
+
+云端 ChatGPT 可以管理源码、构建和远端 Release，但只有在运行环境明确提供受控的签名凭据时才能完成正式上传。
+本机 `local-signing` 目录和 Windows Git credential manager 不会自动出现在云端任务中；缺少它们时，任务必须停在签名前，
+输出待签名文件的 SHA-256 和期望证书/keyId，不能上传未签名包，也不能要求用户在聊天中发送私钥或密码。
+
+云端恢复发布时，先验证签名后的 native `FACM.exe` 的 Authenticode 证书指纹、`FileVersionInfo` 和 SHA-256，再验证四个
+detached 清单签名，最后才允许更新在线指针。3.5 PFX 与 4.0 detached 私钥始终是两条独立信任链。

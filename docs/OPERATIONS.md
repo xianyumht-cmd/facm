@@ -975,3 +975,51 @@ The legacy migration gate is complete for the 4.0.5 release: Gitee Release `v4.0
 `0AD02D4980FD214B39B14BC12D934FA46E72293083DCA7B31E222EE9AB9A7248`, and the real desktop retry recorded
 `Update package downloaded and verified: FACM-4.0.5.exe`, `migration-complete; activeVersion=4.0.5`,
 `bridge-state.status=completed`, and `.facm/state/active.json` version `4.0.5`.
+
+## 面向云端 ChatGPT 的发布交接
+
+这套流程供云端 ChatGPT 读取和执行，不要求用户手工复制命令。每次任务开始时，先读取本文件、`AGENTS.md`、
+`docs/PROJECT_STATE.md`、`docs/SIGNING.md`，检查工作树是否有受保护脏文件、当前分支是否包含最新 `main`、两个远端
+`main` 是否一致，以及目标 tag/Release 是否已存在。不要自动切换分支、覆盖脏文件或把旧候选目录当作当前源码。
+
+### 云端可独立完成的部分
+
+- 从当前源码构建 4.0.x 的 FACM.App 和三个 CAB，并运行源码门禁、smoke、bundle validator 和必要的隔离启动验证；
+- 生成不含私钥的 release-index、ownership-report、manifest 和校验报告；
+- 提交并推送源码、文档和在线清单，使用本地发布脚本的 preview 结果核对 Release 资产；
+- 通过已授权的远端凭据创建 Release、上传资产，并用 Release API 与匿名 HTTPS 下载复核 tag、大小和 SHA-256。
+
+### 云端不能猜测或越过的部分
+
+- 云端环境没有本机 `local-signing` 目录、PFX 密码或 4.0 detached 私钥时，不能声称“已签名发布”；不得让用户把密钥
+  粘贴到聊天，也不得把私钥写入仓库、Release、日志或临时工件；
+- 3.5 PFX 只能签 native/legacy `FACM.exe` 的 Authenticode，4.0 JSON/CAB 清单继续使用独立 RSA 私钥；两种签名都必须
+  核对指纹/公钥身份和目标版本；
+- 当前 4.0 维护页读取 legacy 顶层版本（截图中会显示 `3.5.18`），并不等于 4.0.x 组件更新状态。4.0 原生更新当前由
+  root bootstrapper 在 `--update` 或首次初始化路径触发；若要让 4.0 维护页直接管理组件更新，必须另行完成并验证产品代码改动。
+
+### 无 GitHub Actions 时的标准发布顺序
+
+1. 在一个任务分支完成源码改动和版本资源更新，运行完整本地构建/门禁，形成固定源码提交 `C`。
+2. 从 `C` 重新生成 CAB 和 native bootstrapper；native 的 numeric `FILEVERSION`、字符串版本和产品版本必须与目标
+   `4.0.x` 一致，使用 3.5 PFX 完成 Authenticode 签名，使用 4.0 RSA 私钥完成 detached 清单签名。
+3. 运行 `Test-FacmReleaseBundle.ps1`；同时核对 `FileVersionInfo`、PFX 指纹、包大小、CAB 解包内容、四个 detached `.sig`
+   和所有 SHA-256。任何一项失败都停在本地，不创建公开 Release。
+4. 先把源码提交 `C` 推送到 GitHub/Gitee `main`，再用
+   `scripts/release/publish-gitee-release-local.ps1` 预览并上传 `v4.0.x` 的完整 bundle。Release 的 target commit 必须
+   已存在于远端；发布脚本只从 Windows Git credential manager 读取 Gitee token。
+5. 确认 Release API、匿名下载和签名/哈希均通过后，再提交只修改 `online/version.json` 的指针提交 `P`，把 migration
+   目标、bootstrapper SHA、manifest URL 和 release notes 指向新 tag，并推送 `P` 到两个 `main`。不要先把清单指向尚未
+   存在的 Release。
+6. 若本次是 3.5→4.0 迁移，旧客户端必须先达到已签名的 3.5.18 bridge；真实验证以
+   `Update package downloaded and verified`、三个组件的 download/extraction、`migration-complete`、
+   `bridge-state=completed` 和 `.facm/state/active.json` 为准。若只是 4.0→4.0.x，验证 native bootstrapper 的
+   `--update` 路径，不要把 legacy 维护页的“最新版本”文字当作证据。
+7. 最后把 `C`、`P`、Release id、资产哈希、签名指纹、远端 ref 和运行证据写入 `PROJECT_STATE.md`；保留失败 tag 为历史
+   记录，不覆盖或复用错误资产。
+
+### 签名缺失时的云端交接格式
+
+如果云端只能完成到签名前，状态必须写成 `BLOCKED_BY_SIGNING_CREDENTIALS`，并输出目标版本、源码 SHA、待签名文件路径、
+签名前 SHA-256、期望 PFX 指纹和 detached 公钥 keyId；本地签名完成后只需回填签名后 SHA-256、签名状态和验证日志，云端
+即可从第 3 步继续。严禁在交接内容中包含 PFX、密码、私钥或 Base64 密钥。
