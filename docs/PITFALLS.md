@@ -784,3 +784,12 @@ FACM 3.x 的更新器以 `FACM.exe` 进程在短时间内仍存活作为安装�
 防回归规则：先发布一个版本固定为 3.5.17 的 bridge，再由 bridge 使用独立 migration 模式；migration 模式必须
 验证目标 `active.json`、目标版本目录和匹配的 `FACM.App.exe` 进程，失败时原子恢复旧 `FACM.exe`。不要只改
 `online/version.json` 的版本号，也不要把 4.0 测试包或本地验证密钥当成生产迁移目标。
+
+## 2026-09-02：清单重签不能替代重新构建应用 CAB
+
+本轮发布复盘确认：将旧 `v4.0.0-free-dist-test.2` 的 CAB 放入新 Release，再重写清单版本并重新生成 detached 签名，
+静态清单校验仍会通过，但 CAB 内的应用程序集仍是旧候选。版本号、签名和 Release 标签不是应用内容身份的充分证明。
+
+防回归规则：每次 4.0 修正版都必须从当前源码重新执行 BOOT-2 组件分类和 CAB 打包；解包 `facm-app-win-x64` 后核对
+`FACM.App.exe` 的产品版本/源码提交，并将 CAB SHA-256 与 manifest、release-index 三处交叉核对。已发布的错误版本保留为
+历史资产，在线 migration 指针改指向新的修正版，而不是覆盖或复用旧 CAB。

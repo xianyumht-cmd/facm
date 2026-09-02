@@ -600,10 +600,16 @@ The production private key is never passed to the builder or test harness.
 
 1. 3.5 PFX 只签名 legacy/native `FACM.exe` 的 Authenticode；不能用它生成 4.0 JSON 清单签名。
 2. 运行 `scripts/release/New-Facm4SelfSignedManifestKey.ps1` 生成一次 4.0 私钥/公钥对，并将私钥备份到受控位置。
-3. 重新构建 native bootstrapper，使其内嵌生成的公钥；使用 `scripts/release/Build-Facm4SelfSignedBundle.ps1`
-   生成 `FACM.exe`、CAB、清单和四个 detached `.sig`。
+3. 重新构建 native bootstrapper，使其内嵌生成的公钥；使用 BOOT-2 构建脚本从当前源码重新生成三类 CAB，
+   再用 `tools/release/Prepare-FacmFreeDistCandidate.ps1` 生成 `FACM.exe`、清单和四个 detached `.sig`。
 4. 用 `tools/release/Test-FacmReleaseBundle.ps1` 做离线完整性与 native trust 校验，确认通过后再创建 GitHub Release。
-5. 先发布 3.5.17 bridge 和 4.0.0 资产，再提交 `online/version.json`；旧客户端先安装 bridge，bridge 再启动 4.0 迁移。
+5. 先发布 3.5.17 bridge 和从最终本地源码构建的 4.0.1 资产，再提交 `online/version.json`；旧客户端先安装 bridge，
+   bridge 再启动 4.0.1 迁移。已经安装历史 4.0.0 的用户不会因版本号相同自动降级，应直接安装 4.0.1。
+
+本次纠正记录：历史 `v4.0.0` 误复用了 `v4.0.0-free-dist-test.2` CAB，清单重签不能改变其中的旧应用内容；该 Release 保留为历史资产，
+不再作为 migration 目标。修正版 `v4.0.1` 的应用 CAB SHA-256 为
+`77050d02dc6b5964c781b7065ec8972e9b7cc71b11fa1ca888dc821a95469bcb`，启动器 SHA-256 为
+`428CA6B4F2CE35AB0988B2E5E38FBAA9C29A549D477B1F5396552A72917685E6`。
 
 自签名包可能显示 Windows“未知发布者”；这不改变 detached 清单校验。私钥不得进入 Git、Release 资产、日志或聊天内容。
 
