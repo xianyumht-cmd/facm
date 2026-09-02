@@ -9,27 +9,28 @@
 - 4.x 更新先校验下载的同签名 native `FACM.exe`，再启动已安装的 native bootstrapper 并传入匹配的
   signed `manifest.json`；不会直接替换未签名的 `FACM.App.exe`。
 - 本地验证：`FACM4.sln` Release 构建 0 警告/0 错误，FoundationSmoke、WindowsSmoke、维护更新门禁和
-  Cleanup 门禁通过。远端 Release/在线清单发布仍需在目标提交推送后按发布脚本完成。
+  Cleanup 门禁通过。Gitee `v4.0.6` Release、GitHub/Gitee `main` 和两条在线更新清单均已发布并核验。
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.17 bridge
-- GitHub Release：`v3.5.17`
+- 版本：FACM 3.5.18 bridge → FACM 4.0.6 modular
+- GitHub Release：`v3.5.18` bridge；Gitee Release：`v4.0.6`
 - 在线更新：已启用
 - `minimum_version`：3.0.0
 - `force_update`：false
-- 发布基础 main：`d8dae188372329c2eee8c4a30e4b385bb18e987c`
-- Release FACM.exe SHA-256：`57361F0CD350E2888EB64C130EB3C0397A0F06276D8228BE3A705BA955CFC7D0`
+- 发布基础 main：`21105a8`
+- Bridge FACM.exe SHA-256：`78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0`
+- Modular 4.0.6 FACM.exe SHA-256：`B562E1E897EA33B3AC49F76F1CA9EA44444AAB0088EBE90B4EDD7F95F60951B1`
 - `published_at`：2026-09-02T08:35:02.0000000+00:00
-- release_notes：旧版自动更新过渡版本；安装后自动迁移到 FACM 4.0。
+- release_notes：旧版自动更新过渡版本；安装后自动迁移到 FACM 4.0.6。
 <!-- FACM_RELEASE_STATE_END -->
 
-> **当前旧版自动更新线为 FACM 3.5.17 bridge。** 原 `v4.0.0` 虽已发布但误用了旧 `v4.0.0-free-dist-test.2` CAB，已标记为过时；修正版 `v4.0.1` 已由最终本地代码重新构建并作为迁移目标。由于使用自签名，Windows 可能显示“未知发布者”，Gate 13 真机迁移/回滚证据仍需继续补齐。
+> **当前旧版自动更新线为 FACM 3.5.18 bridge。** 原 `v4.0.0` 虽已发布但误用了旧 `v4.0.0-free-dist-test.2` CAB，已标记为过时；当前迁移目标为由最新本地代码重新构建并签名的 FACM 4.0.6。由于使用自签名，Windows 可能显示“未知发布者”，Gate 13 真机迁移/回滚证据仍需继续补齐。
 
 ## 当前 canonical / active line
 
-- canonical `main`：`d8dae188372329c2eee8c4a30e4b385bb18e987c`，包含 3.5.17 bridge、P7 最终本地代码、4.0.1 修正版在线指针和本地发布工具。
+- canonical `main`：`21105a8`，包含 3.5.18 bridge、4.0.x 维护页更新链、4.0.6 在线指针和本地发布工具。
 - #218 Win10 `TabViewButtonBackground` / XamlParse startup issue 已修复并合入。
 - #221 launcher-first F / compact launcher 行为迁移已通过对应 Win10 真机验证并合入。
 - PR #234（P7）已合并到 `main`；FACM 4.0 的其它候选与 production cutover 仍按独立门禁执行。
