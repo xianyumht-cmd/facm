@@ -3,23 +3,22 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.16
-- GitHub Release：`v3.5.16`
+- 版本：FACM 3.5.17 bridge
+- GitHub Release：`v3.5.17`
 - 在线更新：已启用
 - `minimum_version`：3.0.0
 - `force_update`：false
-- 发布基础 main：`25d308b12b44e16d231dec3169a8486228b816d1`
-- 发布元数据提交：`6239e1c055590e1f5af84dbe08838691184eae25`
-- Release FACM.exe SHA-256：`2051677EBBA9E92CCBE9065400DD66059B210255BFFAD3460D871EDBA27A688B`
-- `published_at`：2026-09-02T06:10:37.0000000+00:00
-- release_notes：修复先启动 GGman、后启动游戏 LCU 时客户端未被识别的问题；更新现代化应用与托盘图标，并保持旧版在线更新兼容。
+- 发布基础 main：`09888896ae4273a0d4d5e1b9dd4f159c233f103b`
+- Release FACM.exe SHA-256：`57361F0CD350E2888EB64C130EB3C0397A0F06276D8228BE3A705BA955CFC7D0`
+- `published_at`：2026-09-02T08:35:02.0000000+00:00
+- release_notes：旧版自动更新过渡版本；安装后自动迁移到 FACM 4.0。
 <!-- FACM_RELEASE_STATE_END -->
 
-> **当前正式更新线为 FACM 3.5.16。** FACM 4.0 仍处于独立验收阶段，不代表 FACM 4.0 production cutover；本次发布只更新 legacy FACM.exe 的在线更新指针。
+> **当前旧版自动更新线为 FACM 3.5.17 bridge。** `v4.0.0` 自签名组件包已发布；3.5.17 会按迁移清单自动安装它。由于使用自签名，Windows 可能显示“未知发布者”，Gate 13 真机迁移/回滚证据仍需继续补齐。
 
 ## 当前 canonical / active line
 
-- canonical `main`：`6239e1c055590e1f5af84dbe08838691184eae25`，包含 Merge PR #234 与 FACM 3.5.16 发布元数据。
+- canonical `main`：`09888896ae4273a0d4d5e1b9dd4f159c233f103b`，包含 3.5.17 bridge、4.0.0 自签名发布元数据和本地发布工具。
 - #218 Win10 `TabViewButtonBackground` / XamlParse startup issue 已修复并合入。
 - #221 launcher-first F / compact launcher 行为迁移已通过对应 Win10 真机验证并合入。
 - PR #234（P7）已合并到 `main`；FACM 4.0 的其它候选与 production cutover 仍按独立门禁执行。
@@ -31,7 +30,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | merge `25d308b12b44e16d231dec3169a8486228b816d1`; release metadata `6239e1c055590e1f5af84dbe08838691184eae25` | **Merged to main / FACM 3.5.16 legacy release published; FACM4 cutover remains separately gated** |
+| P7 Unified parity closeout | #234 | merge `25d308b12b44e16d231dec3169a8486228b816d1`; release metadata `6239e1c055590e1f5af84dbe08838691184eae25` | **Merged to main / FACM 3.5.17 bridge and 4.0.0 self-signed release published; Gate 13 remains separately tracked** |
 
 Tracking Issue：#233。
 
@@ -51,8 +50,8 @@ Tracking Issue：#233。
 - 本地验证：legacy `FACM.sln` Release 构建通过（保留既有 1 条 obsolete warning）；`--facm4-migration-test`
   和 `FACM.Updater.exe --self-test` 通过；`FACM4.sln` 使用 `D:\project2\dotnet10\dotnet.exe` Release 构建通过；
   native bootstrapper `--self-test` 通过。
-- 3.5.17 bridge、4.0.0 自签名包和线上清单尚未推送；远端在线指针仍保持 3.5.16。自签名包会保留
-  Windows“未知发布者”提示；Gate 13 真机迁移/回滚证据仍需在发布后补齐。
+- 3.5.17 bridge、4.0.0 自签名包和线上清单已推送；远端在线指针现在指向 3.5.17。自签名包会保留
+  Windows“未知发布者”提示；Gate 13 真机迁移/回滚证据仍需继续补齐。
 
 ## FACM 4.0 当前里程碑
 
