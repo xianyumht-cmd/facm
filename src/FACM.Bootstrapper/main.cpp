@@ -1167,6 +1167,14 @@ bool IsApprovedGithubRedirect(const std::wstring& url) {
         // repository so a release URL cannot turn into an arbitrary HTTPS fetch.
         return pathText.rfind(L"/xymhtcmd/facm/", 0) == 0;
     }
+    if (hostName == L"foruda.gitee.com") {
+        const auto pathText = std::wstring(path.data(), components.dwUrlPathLength);
+        // Gitee serves release attachments from this fixed download host after the
+        // repository redirect. Keep the attachment path bounded and HTTPS-only.
+        return pathText.rfind(L"/attach_file/", 0) == 0 &&
+               pathText.find(L"//") == std::wstring::npos &&
+               pathText.find(L"..") == std::wstring::npos;
+    }
     return components.nScheme == INTERNET_SCHEME_HTTPS &&
            (hostName == L"release-assets.githubusercontent.com" || hostName == L"objects.githubusercontent.com");
 }
