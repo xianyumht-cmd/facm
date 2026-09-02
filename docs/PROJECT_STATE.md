@@ -1,25 +1,28 @@
 # FACM 当前项目状态
 
 <!-- FACM_RELEASE_STATE_BEGIN -->
-## 当前正式版（生产冻结线）
+## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.15
-- GitHub Release：`v3.5.15`
+- 版本：FACM 3.5.16
+- GitHub Release：`v3.5.16`
 - 在线更新：已启用
 - `minimum_version`：3.0.0
 - `force_update`：false
-- Release FACM.exe SHA-256：`E3B415375E204212EE2D7A36D4A038708DC75694CD9B6FD28F2761BBF1FD01CE`
-- `published_at`：2026-08-27T05:28:50.9137418+00:00
+- 发布基础 main：`25d308b12b44e16d231dec3169a8486228b816d1`
+- 发布元数据提交：`6239e1c055590e1f5af84dbe08838691184eae25`
+- Release FACM.exe SHA-256：`2051677EBBA9E92CCBE9065400DD66059B210255BFFAD3460D871EDBA27A688B`
+- `published_at`：2026-09-02T06:10:37.0000000+00:00
+- release_notes：修复先启动 GGman、后启动游戏 LCU 时客户端未被识别的问题；更新现代化应用与托盘图标，并保持旧版在线更新兼容。
 <!-- FACM_RELEASE_STATE_END -->
 
-> **生产仍是 FACM 3.5.15。** FACM 4.0 当前只处于 stacked P7 真机验收阶段，不存在 4.0 production cutover 授权。没有完整 release evidence READY + fresh production/destructive authorization，不得修改 `online/version.json` / `release/request.json`、发布 4.0.0、退休 legacy、deploy/restart 或删除历史分支/tag。
+> **当前正式更新线为 FACM 3.5.16。** FACM 4.0 仍处于独立验收阶段，不代表 FACM 4.0 production cutover；本次发布只更新 legacy FACM.exe 的在线更新指针。
 
 ## 当前 canonical / active line
 
-- canonical `main`：`269da6c751a8463542ed0d172300675deff9571e`，Merge PR #221。
+- canonical `main`：`6239e1c055590e1f5af84dbe08838691184eae25`，包含 Merge PR #234 与 FACM 3.5.16 发布元数据。
 - #218 Win10 `TabViewButtonBackground` / XamlParse startup issue 已修复并合入。
 - #221 launcher-first F / compact launcher 行为迁移已通过对应 Win10 真机验证并合入。
-- P2-P7 继续 stacked，全部保持 Draft / 未合并到 `main`。
+- PR #234（P7）已合并到 `main`；FACM 4.0 的其它候选与 production cutover 仍按独立门禁执行。
 
 | 阶段 | PR | Head | 状态 |
 | --- | --- | --- | --- |
@@ -28,7 +31,7 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | formal P7 `9744af848e4b888c1876e76e2cbf0c06d5c526bf`; local parity candidate now includes Batch X `0eebe940b26edb3b4900587e54ff2f3b685c224a` and BS7 `742f75f` | **Batch U/X/BS7 source checks green / Full Product Parity audit recorded / Draft** |
+| P7 Unified parity closeout | #234 | merge `25d308b12b44e16d231dec3169a8486228b816d1`; release metadata `6239e1c055590e1f5af84dbe08838691184eae25` | **Merged to main / FACM 3.5.16 legacy release published; FACM4 cutover remains separately gated** |
 
 Tracking Issue：#233。
 

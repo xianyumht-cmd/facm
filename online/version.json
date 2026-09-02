@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.16",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.16/FACM.exe",
   "sha256": "2051677EBBA9E92CCBE9065400DD66059B210255BFFAD3460D871EDBA27A688B",
   "release_notes": "FACM 3.5.16：修复先启动 GGman、后启动游戏 LCU 时客户端未被识别的问题；更新现代化应用与托盘图标，并保持旧版在线更新兼容。",
-  "published_at": "2026-09-02T06:03:40.8316712+00:00"
+  "published_at": "2026-09-02T06:10:37.0000000+00:00"
 }
