@@ -594,6 +594,19 @@ BOOT3-C local origin/mirror infrastructure is test-only. It uses a fresh output 
 candidate bootstrapper built from the current worktree, and an external local validation key only for test signing.
 The production private key is never passed to the builder or test harness.
 
+## 2026-09-02 本地自签名 4.0 发布
+
+用户明确授权没有远端密钥托管时，可使用仓库外的本地 RSA-2048 detached key 完成 4.0 自签名包：
+
+1. 3.5 PFX 只签名 legacy/native `FACM.exe` 的 Authenticode；不能用它生成 4.0 JSON 清单签名。
+2. 运行 `scripts/release/New-Facm4SelfSignedManifestKey.ps1` 生成一次 4.0 私钥/公钥对，并将私钥备份到受控位置。
+3. 重新构建 native bootstrapper，使其内嵌生成的公钥；使用 `scripts/release/Build-Facm4SelfSignedBundle.ps1`
+   生成 `FACM.exe`、CAB、清单和四个 detached `.sig`。
+4. 用 `tools/release/Test-FacmReleaseBundle.ps1` 做离线完整性与 native trust 校验，确认通过后再创建 GitHub Release。
+5. 先发布 3.5.17 bridge 和 4.0.0 资产，再提交 `online/version.json`；旧客户端先安装 bridge，bridge 再启动 4.0 迁移。
+
+自签名包可能显示 Windows“未知发布者”；这不改变 detached 清单校验。私钥不得进入 Git、Release 资产、日志或聊天内容。
+
 Build the native candidate with the pinned toolchain:
 
 ```powershell

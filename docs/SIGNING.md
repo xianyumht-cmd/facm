@@ -112,3 +112,10 @@ Get-FileHash .\artifacts\FACM.exe -Algorithm SHA256
 ```
 
 使用受信任证书时，签名状态应为 `Valid`；发布网站同时展示 SHA-256，便于用户核对文件完整性。使用自签名证书时，未安装对应公钥证书的电脑可能显示证书链不受信任，这是自签名证书的正常限制。
+
+## FACM 4.0 清单签名
+
+FACM 4.0 还会对 `manifest.json` 和组件清单做 RSA-2048 PKCS#1/SHA-256 detached 签名。该签名不是
+Authenticode，不能直接使用 3.5 PFX；4.0 启动器只信任编译进自身的 `facm-production-r1` 公钥。
+本地自签名发布时，4.0 私钥保存在仓库外的 `local-signing` 目录，公钥随 native bootstrapper 编译，
+私钥必须单独备份且不得进入仓库、Release 资产或日志。

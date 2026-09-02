@@ -44,10 +44,15 @@ Tracking Issue：#233。
 - 已实现内置更新器 migration 模式：替换根 `FACM.exe` 前保留完整回滚镜像；只有目标 `active.json`、目标
   `FACM.App.exe` 和匹配运行进程同时出现才提交，否则恢复旧版并记录失败状态。
 - Native Bootstrapper 已补充 `4.0.0.0` PE 文件版本；CMake 允许发布脚本注入最终 manifest URL。
+- 用户已授权自签名发布：本地已生成新的 RSA-2048 detached manifest 签名密钥，私钥只保存在仓库外的
+  `local-signing` 目录；对应公钥已写入本任务分支的 native bootstrapper，不能提交私钥。
+- 已基于现有 4.0 组件包生成 `D:\project2\facm-release-4.0.0-selfsigned\release`，包含 `FACM.exe`、
+  三个 CAB、四个 detached `.sig`、清单和 `bootstrap.json`；`Test-FacmReleaseBundle.ps1` 已通过。
 - 本地验证：legacy `FACM.sln` Release 构建通过（保留既有 1 条 obsolete warning）；`--facm4-migration-test`
   和 `FACM.Updater.exe --self-test` 通过；`FACM4.sln` 使用 `D:\project2\dotnet10\dotnet.exe` Release 构建通过；
   native bootstrapper `--self-test` 通过。
-- 尚未发布 3.5.17 bridge、尚未修改远端在线指针；4.0 Gate 13 仍有真实迁移/回滚、兼容性和最终生产签名缺口。
+- 3.5.17 bridge、4.0.0 自签名包和线上清单尚未推送；远端在线指针仍保持 3.5.16。自签名包会保留
+  Windows“未知发布者”提示；Gate 13 真机迁移/回滚证据仍需在发布后补齐。
 
 ## FACM 4.0 当前里程碑
 
