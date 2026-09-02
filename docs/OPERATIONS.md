@@ -940,8 +940,8 @@ the token. Always run preview first:
 
 ```text
 pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/release/publish-gitee-release-local.ps1 `
-  -ReleaseTag v4.0.2 `
-  -BundleRoot D:\project2\facm-release-4.0.2-gitee\release-assets
+  -ReleaseTag v4.0.5 `
+  -BundleRoot D:\project2\facm-release-4.0.5-gitee\release-assets
 ```
 
 After the source commit is pushed and the bundle has been rebuilt from that exact commit, rerun with
@@ -951,7 +951,7 @@ Do not include private keys, passwords, evidence files, `out/`, or generated bui
 
 Verification requires all of the following: the Gitee Release API lists the expected tag/assets; anonymous
 HTTPS downloads return the exact recorded SHA-256; `raw/main/online/version.json` points to the Gitee
-4.0.4 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
+4.0.5 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
 cannot consume the new Gitee URL allowlist until the signed 3.5.18 bridge has been installed once.
 
 ## 2026-09-02 CAB metadata verification before local publishing
@@ -962,10 +962,16 @@ each CAB with `%WINDIR%\System32\expand.exe`, derives installedSize/fileCount/co
 files, updates ownership-report, and only then signs the component and application manifests. The output
 must pass `Test-FacmReleaseBundle.ps1`; that validator now extracts every CAB and rejects stale metadata.
 
-For the current repair candidate, the local bundle is
-`D:\project2\facm-release-4.0.4-gitee\release-assets` and the package source is the corrected 4.0.3 CAB set.
-The candidate bootstrapper is `D:\project2\facm-boot2-gitee-4.0.3-build\bootstrap\FACM.exe`; do not publish
-until its SHA is recorded in `online/version.json`, the source commit is pushed, and a fresh isolated root
-completes manifest validation, all component downloads, extraction, active-state write, and app launch. These
-gates are now satisfied for Gitee `v4.0.4`; the anonymous isolated root
-`D:\project2\facm-gitee-4.0.4-e2e-20260902` reached active 4.0.4 and created `FACM.App.exe`.
+For the current signed repair release, the local bundle is
+`D:\project2\facm-release-4.0.5-gitee\release-assets` and its CAB sources are the verified 4.0.4 CAB set.
+The native bootstrapper is `D:\project2\facm-boot2-gitee-4.0.5-build\bootstrap\FACM.exe`; its file version is
+`4.0.5.0`, product version is `4.0.5`, and its Authenticode signer is the same local self-signed PFX used by
+the 3.5.18 bridge. Do not publish until the bootstrapper signature thumbprint matches the bridge, the SHA is
+recorded in `online/version.json`, the source commit is pushed, and `Test-FacmReleaseBundle.ps1` passes.
+The 4.0.4 tag remains a historical release and must not be overwritten.
+
+The legacy migration gate is complete for the 4.0.5 release: Gitee Release `v4.0.5` (id `1119527`) contains
+15 bundle assets, anonymous download of `FACM.exe` matches SHA-256
+`0AD02D4980FD214B39B14BC12D934FA46E72293083DCA7B31E222EE9AB9A7248`, and the real desktop retry recorded
+`Update package downloaded and verified: FACM-4.0.5.exe`, `migration-complete; activeVersion=4.0.5`,
+`bridge-state.status=completed`, and `.facm/state/active.json` version `4.0.5`.

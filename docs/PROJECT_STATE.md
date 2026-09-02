@@ -911,3 +911,27 @@ BOOT-2/BOOT3-A/BOOT3-B 检查、.NET build、mirror/migration smoke 均通过；
 三次 `component-extraction-complete`、`active-composition-committed` 和 `facm-process-created`，隔离根
 `D:\project2\facm-gitee-4.0.4-e2e-20260902` 的 active 版本为 4.0.4，三个组件的解包文件数/字节数/摘要
 均与清单一致。正式用户安装目录和 League 进程未被修改。
+
+## 2026-09-02 4.0.5 签名引导程序发布与真实迁移完成
+
+上一版 4.0.4 迁移失败的根因是远端 `FACM.exe` 缺少 Authenticode 签名，且原生资源版本仍为
+4.0.0。已在提交 `cf1262a` 中让 CMake 资源和 BOOT-2 构建脚本按目标补丁版本写入文件/产品版本，
+再在提交 `fdd33d5` 中把在线迁移指针切换到 4.0.5；两个提交均已推送到 GitHub 和 Gitee `main`。
+
+本地生成的原生引导程序为
+`D:\project2\facm-boot2-gitee-4.0.5-build\bootstrap\FACM.exe`，文件版本 `4.0.5.0`、产品版本
+`4.0.5`、大小 3,512,760 字节、SHA-256
+`0AD02D4980FD214B39B14BC12D934FA46E72293083DCA7B31E222EE9AB9A7248`。它使用与 3.5.18 bridge 相同的
+本地自签名 PFX，证书指纹为 `A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568`；未安装根证书的机器显示
+`UnknownError` 是预期的自签名链状态，但签名证书可正确读取。
+
+4.0.5 bundle 位于 `D:\project2\facm-release-4.0.5-gitee\release-assets`，CAB 内容重算后通过
+`Test-FacmReleaseBundle.ps1`。Gitee Release `v4.0.5`（id `1119527`）已上传 15 个正式资产，远端匿名
+下载的 `FACM.exe` 版本、SHA-256 和签名指纹与本地完全一致；Gitee `raw/main/online/version.json`
+已确认指向 Gitee `v4.0.5`，GitHub `main` 也已推送同一在线清单提交。
+
+用户桌面 `C:\Users\Administrator\Desktop\2` 的真实重试已完成：旧 3.5.18 bridge 记录
+`Update package downloaded and verified: FACM-4.0.5.exe`，原生日志记录清单验证、三个组件下载和解包、
+`active-composition-committed`、`facm-process-created`，更新器记录 `migration-complete; activeVersion=4.0.5`。
+当前 `.facm/migration/bridge-state.json` 为 `completed`，`.facm/state/active.json` 为 `4.0.5`，
+`FACM.App.exe` 已启动。4.0.4 保留为历史资产；本次未执行 Gate13 生产切换或 legacy 退休。

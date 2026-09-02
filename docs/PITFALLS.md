@@ -821,3 +821,15 @@ Gitee 的 Release 下载还会从仓库域名跳到 `foruda.gitee.com` 附件域
 manifest 上限截断文件并报告 FDI 8:0；下载哈希正确并不能证明解包可用。发布脚本现在以 `expand.exe`
 解包每个待发布 CAB，重新计算文件数、总字节和目录摘要后才生成签名清单，并更新 ownership-report。
 发布验证器同样执行 CAB 内容校验；任何 metadata 与实际解包结果不一致的 bundle 必须在上传前停止。
+
+## 2026-09-02：4.0 引导程序的 detached 清单签名不等于 Authenticode 签名
+
+本轮真实迁移暴露出两种签名边界不能混淆：4.0 的 `manifest.json`/组件清单 detached RSA 签名可以全部
+通过，而 legacy bridge 仍会对下载的 `FACM.exe` 调用 Windows Authenticode 校验。未签名的 native
+bootstrapper 会在下载完成后报“未找到有效的 FACM 发布签名”；即使补签名，资源 `FileVersion` 不是目标
+4.0.x 也会继续被拒绝。
+
+防回归规则：构建 4.0.x 时把 numeric 资源版本、字符串版本和默认 manifest URL 一并传给 CMake；签名后核对
+`FileVersionInfo`、`ProductVersion`、SHA-256 以及与 3.5 bridge 相同的证书指纹，再运行 bundle validator，
+最后才更新 online migration 指针和发布 Release。迁移失败状态还需要显式 `--facm4-migration-retry`
+才能再次尝试；成功后必须以 `migration-complete`、`bridge-state=completed` 和 `active.json` 为准。
