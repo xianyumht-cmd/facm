@@ -905,5 +905,9 @@ No production installation or user process was changed by this probe.
 也会执行同样的 CAB 内容校验，旧 4.0.3 已能被该校验明确拦截。native bootstrapper 保留受限的写入/关闭
 诊断信息。基于当前实际 CAB 和本地 RSA-2048 detached key 已生成 4.0.4 候选包，bundle validator、
 BOOT-2/BOOT3-A/BOOT3-B 检查、.NET build、mirror/migration smoke 均通过；候选 bootstrapper SHA-256
-为 `650B263DBF0B8D43208FC35471850DA276A7BAB8CCED23069CF2D23E0948DE0F`。Gitee v4.0.4 Release、
-源代码推送和无 VPN 远端首次启动复测仍待本轮提交后完成。
+为 `650B263DBF0B8D43208FC35471850DA276A7BAB8CCED23069CF2D23E0948DE0F`。修复提交 `2cf71c1`
+已推送到 GitHub 和 Gitee `main`；Gitee `v4.0.4`（Release id `1119483`）已上传 15 个正式资产。
+匿名远端首次启动复测已通过：Gitee 直连完成 `manifest-validated`、三次 `component-download-complete`、
+三次 `component-extraction-complete`、`active-composition-committed` 和 `facm-process-created`，隔离根
+`D:\project2\facm-gitee-4.0.4-e2e-20260902` 的 active 版本为 4.0.4，三个组件的解包文件数/字节数/摘要
+均与清单一致。正式用户安装目录和 League 进程未被修改。

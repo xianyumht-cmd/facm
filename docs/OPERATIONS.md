@@ -966,4 +966,6 @@ For the current repair candidate, the local bundle is
 `D:\project2\facm-release-4.0.4-gitee\release-assets` and the package source is the corrected 4.0.3 CAB set.
 The candidate bootstrapper is `D:\project2\facm-boot2-gitee-4.0.3-build\bootstrap\FACM.exe`; do not publish
 until its SHA is recorded in `online/version.json`, the source commit is pushed, and a fresh isolated root
-completes manifest validation, all component downloads, extraction, active-state write, and app launch.
+completes manifest validation, all component downloads, extraction, active-state write, and app launch. These
+gates are now satisfied for Gitee `v4.0.4`; the anonymous isolated root
+`D:\project2\facm-gitee-4.0.4-e2e-20260902` reached active 4.0.4 and created `FACM.App.exe`.
