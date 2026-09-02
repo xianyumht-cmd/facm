@@ -1,1 +1,31 @@
 1 ICON "@FACM_ICON_PATH@"
+
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @FACM_BOOTSTRAP_FILE_VERSION@
+ PRODUCTVERSION @FACM_BOOTSTRAP_PRODUCT_VERSION@
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS__WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "FACM"
+            VALUE "FileDescription", "FACM 4.0 Native Bootstrapper"
+            VALUE "FileVersion", "4.0.0.0"
+            VALUE "InternalName", "FACM.exe"
+            VALUE "OriginalFilename", "FACM.exe"
+            VALUE "ProductName", "FACM"
+            VALUE "ProductVersion", "4.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

@@ -35,6 +35,20 @@
 
 Tracking Issue：#233。
 
+## 2026-09-02 3.x → 4.0 迁移桥接实现
+
+当前任务分支：`codex/facm-legacy-to-4-bridge`（基于 `origin/main` `e9c32ee28b57d52da0e37567fc78b7cad851857f`）。
+
+- 已实现 3.5.17 bridge：可选 `online/version.json.migration` 清单字段、4.0 目标 URL/SHA-256 校验、旧
+  `settings.ini` 到 `.facm\settings.ini` 的保留式复制、原子写入 `bootstrap.json`。
+- 已实现内置更新器 migration 模式：替换根 `FACM.exe` 前保留完整回滚镜像；只有目标 `active.json`、目标
+  `FACM.App.exe` 和匹配运行进程同时出现才提交，否则恢复旧版并记录失败状态。
+- Native Bootstrapper 已补充 `4.0.0.0` PE 文件版本；CMake 允许发布脚本注入最终 manifest URL。
+- 本地验证：legacy `FACM.sln` Release 构建通过（保留既有 1 条 obsolete warning）；`--facm4-migration-test`
+  和 `FACM.Updater.exe --self-test` 通过；`FACM4.sln` 使用 `D:\project2\dotnet10\dotnet.exe` Release 构建通过；
+  native bootstrapper `--self-test` 通过。
+- 尚未发布 3.5.17 bridge、尚未修改远端在线指针；4.0 Gate 13 仍有真实迁移/回滚、兼容性和最终生产签名缺口。
+
 ## FACM 4.0 当前里程碑
 
 当前执行焦点已转为 BOOT3-C：在 BOOT3-B exact-byte signer boundary 之上建立 production-like HTTPS

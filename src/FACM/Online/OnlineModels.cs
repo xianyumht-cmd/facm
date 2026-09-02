@@ -30,8 +30,36 @@ namespace FACM.Online
         [DataMember(Name = "published_at")]
         public string PublishedAt { get; set; }
 
+        // Optional bridge metadata. Legacy clients ignore the field; the 3.5.17
+        // bridge consumes it to hand the installation over to the FACM 4.0
+        // native bootstrapper without changing the legacy single-file protocol.
+        [DataMember(Name = "migration")]
+        public Facm4MigrationTarget Migration { get; set; }
+
         [IgnoreDataMember]
         public UpdateMirrorSource[] ResolvedSources { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class Facm4MigrationTarget
+    {
+        [DataMember(Name = "enabled")]
+        public bool Enabled { get; set; }
+
+        [DataMember(Name = "version")]
+        public string Version { get; set; }
+
+        [DataMember(Name = "bootstrapper_url")]
+        public string BootstrapperUrl { get; set; }
+
+        [DataMember(Name = "bootstrapper_sha256")]
+        public string BootstrapperSha256 { get; set; }
+
+        [DataMember(Name = "manifest_url")]
+        public string ManifestUrl { get; set; }
+
+        [DataMember(Name = "release_notes")]
+        public string ReleaseNotes { get; set; }
     }
 
     [DataContract]

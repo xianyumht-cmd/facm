@@ -15,6 +15,9 @@ namespace FACM.Updater
         private const string SourcePrefix = "--source64=";
         private const string DestinationPrefix = "--dest64=";
         private const string HashPrefix = "--sha256=";
+        private const string ModePrefix = "--mode=";
+        private const string MigrationVersionPrefix = "--migration-version=";
+        private const string MigrationStatePrefix = "--migration-state64=";
         private const string SelfTestArgument = "--self-test";
         private const int MoveFileReplaceExisting = 0x1;
         private const int MoveFileWriteThrough = 0x8;
@@ -46,8 +49,15 @@ namespace FACM.Updater
                 var source = DecodePath(ReadArgument(args, SourcePrefix));
                 destination = DecodePath(ReadArgument(args, DestinationPrefix));
                 var expectedHash = (ReadArgument(args, HashPrefix) ?? string.Empty).Trim();
+                var mode = (ReadArgument(args, ModePrefix) ?? string.Empty).Trim();
 
                 ValidateRequest(parentPid, source, destination, expectedHash);
+                if (string.Equals(mode, "migration", StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplyMigration(parentPid, source, destination, expectedHash, args);
+                    return;
+                }
+
                 AppendLog(destination, "apply-start; parentPid=" + parentPid);
                 WaitForParentExit(parentPid, TimeSpan.FromSeconds(120));
 
@@ -98,6 +108,56 @@ namespace FACM.Updater
                 }
                 catch { }
                 Environment.ExitCode = 9;
+            }
+        }
+
+        private static void ApplyMigration(
+            int parentPid,
+            string source,
+            string destination,
+            string expectedHash,
+            string[] args)
+        {
+            var migrationVersion = DecodeText(ReadArgument(args, MigrationVersionPrefix));
+            var migrationState = DecodePath(ReadArgument(args, MigrationStatePrefix));
+            ValidateMigrationRequest(destination, migrationVersion, migrationState);
+            AppendLog(destination, "migration-apply-start; parentPid=" + parentPid + "; target=" + migrationVersion);
+            WaitForParentExit(parentPid, TimeSpan.FromSeconds(120));
+
+            var backup = ReplaceFiles(source, destination, expectedHash);
+            AppendLog(destination, "migration-bootstrapper-replaced; rollback=" + (File.Exists(backup) ? "ready" : "none"));
+
+            Process restarted = null;
+            try
+            {
+                restarted = Process.Start(new ProcessStartInfo
+                {
+                    FileName = destination,
+                    Arguments = "--update",
+                    WorkingDirectory = Path.GetDirectoryName(destination),
+                    UseShellExecute = true
+                });
+
+                if (restarted == null) throw new InvalidOperationException("无法启动 FACM 4.0 引导程序。");
+                AppendLog(destination, "migration-bootstrapper-started; pid=" + restarted.Id);
+
+                if (!WaitForMigrationReady(restarted, migrationState, migrationVersion, TimeSpan.FromMinutes(3)))
+                {
+                    TryRollback(destination, backup);
+                    WriteMigrationFailureState(migrationState, migrationVersion, "FACM 4.0 引导程序未完成初始化。");
+                    TryRestartRollback(destination);
+                    throw new InvalidOperationException("FACM 4.0 引导程序未完成初始化，已恢复旧版本。");
+                }
+
+                WriteMigrationSuccessState(migrationState, migrationVersion);
+                TryDelete(source);
+                TryDelete(backup);
+                AppendLog(destination, "migration-complete; activeVersion=" + migrationVersion + "; cleanup=done");
+                Environment.ExitCode = 0;
+            }
+            finally
+            {
+                if (restarted != null) restarted.Dispose();
             }
         }
 
@@ -230,6 +290,128 @@ namespace FACM.Updater
                 throw new InvalidDataException("更新源和目标不能是同一个文件。");
         }
 
+        private static void ValidateMigrationRequest(string destination, string version, string statePath)
+        {
+            Version parsed;
+            if (!Version.TryParse(version, out parsed) || parsed.Major != 4 || parsed.Build < 0)
+                throw new InvalidDataException("FACM 4.0 迁移版本号无效。");
+
+            var root = Path.GetDirectoryName(Path.GetFullPath(destination));
+            var expectedState = Path.Combine(root, ".facm", "migration", "bridge-state.json");
+            var expectedActive = Path.Combine(root, ".facm", "state", "active.json");
+            if (!string.Equals(Path.GetFullPath(statePath), expectedState, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("FACM 4.0 迁移状态路径不在受控目录中。");
+            if (!Directory.Exists(root)) Directory.CreateDirectory(root);
+            if (string.Equals(Path.GetFullPath(statePath), expectedActive, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("FACM 4.0 迁移状态不能覆盖 active.json。");
+        }
+
+        private static bool WaitForMigrationReady(
+            Process bootstrapper,
+            string statePath,
+            string version,
+            TimeSpan timeout)
+        {
+            var root = Path.GetDirectoryName(Path.GetFullPath(statePath));
+            root = Path.GetDirectoryName(root); // .facm
+            root = Path.GetDirectoryName(root); // distribution root
+            var executable = Path.Combine(root, ".facm", "versions", version, "FACM.App.exe");
+            var activeState = Path.Combine(root, ".facm", "state", "active.json");
+            var deadline = DateTime.UtcNow + timeout;
+            var processExitObservedAt = DateTime.MinValue;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                if (IsMigrationReady(activeState, executable, version)) return true;
+
+                try
+                {
+                    if (bootstrapper.HasExited)
+                    {
+                        if (processExitObservedAt == DateTime.MinValue) processExitObservedAt = DateTime.UtcNow;
+                        if (DateTime.UtcNow - processExitObservedAt > TimeSpan.FromSeconds(8)) return false;
+                    }
+                }
+                catch { }
+
+                System.Threading.Thread.Sleep(500);
+            }
+            return IsMigrationReady(activeState, executable, version);
+        }
+
+        private static bool IsMigrationReady(string activeState, string executable, string version)
+        {
+            try
+            {
+                if (!File.Exists(activeState) || !File.Exists(executable)) return false;
+                var json = File.ReadAllText(activeState, Encoding.UTF8);
+                if (json.IndexOf("\"activeVersion\"", StringComparison.OrdinalIgnoreCase) < 0 ||
+                    json.IndexOf(version, StringComparison.OrdinalIgnoreCase) < 0 ||
+                    json.IndexOf(".facm/versions/", StringComparison.OrdinalIgnoreCase) < 0)
+                    return false;
+
+                foreach (var process in Process.GetProcessesByName("FACM.App"))
+                {
+                    try
+                    {
+                        if (!process.HasExited && string.Equals(
+                            Path.GetFullPath(process.MainModule.FileName),
+                            Path.GetFullPath(executable),
+                            StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                    catch { }
+                    finally { process.Dispose(); }
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        private static void WriteMigrationFailureState(string path, string version, string error)
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(path);
+                Directory.CreateDirectory(directory);
+                var text = "{\n" +
+                           "  \"schemaVersion\": 1,\n" +
+                           "  \"status\": \"failed\",\n" +
+                           "  \"targetVersion\": \"" + EscapeJson(version) + "\",\n" +
+                           "  \"updatedAt\": \"" + DateTimeOffset.UtcNow.ToString("o") + "\",\n" +
+                           "  \"error\": \"" + EscapeJson(error) + "\"\n" +
+                           "}\n";
+                var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
+                File.WriteAllText(temporary, text, Encoding.UTF8);
+                if (File.Exists(path)) File.Replace(temporary, path, null, true);
+                else File.Move(temporary, path);
+                TryDelete(temporary);
+            }
+            catch { }
+        }
+
+        private static void WriteMigrationSuccessState(string path, string version)
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(path);
+                Directory.CreateDirectory(directory);
+                var text = "{\n" +
+                           "  \"schemaVersion\": 1,\n" +
+                           "  \"status\": \"completed\",\n" +
+                           "  \"targetVersion\": \"" + EscapeJson(version) + "\",\n" +
+                           "  \"updatedAt\": \"" + DateTimeOffset.UtcNow.ToString("o") + "\",\n" +
+                           "  \"error\": \"\"\n" +
+                           "}\n";
+                var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
+                File.WriteAllText(temporary, text, Encoding.UTF8);
+                if (File.Exists(path)) File.Replace(temporary, path, null, true);
+                else File.Move(temporary, path);
+                TryDelete(temporary);
+            }
+            catch { }
+        }
+
         private static void WaitForParentExit(int processId, TimeSpan timeout)
         {
             try
@@ -264,6 +446,13 @@ namespace FACM.Updater
         {
             if (string.IsNullOrWhiteSpace(encoded)) throw new InvalidDataException("更新路径参数缺失。");
             return Path.GetFullPath(Encoding.UTF8.GetString(Convert.FromBase64String(encoded)));
+        }
+
+        private static string DecodeText(string encoded)
+        {
+            if (string.IsNullOrWhiteSpace(encoded)) throw new InvalidDataException("迁移文本参数缺失。");
+            try { return Encoding.UTF8.GetString(Convert.FromBase64String(encoded)); }
+            catch (Exception exception) { throw new InvalidDataException("迁移文本参数无效。", exception); }
         }
 
         private static string ComputeSha256(string path)
@@ -373,6 +562,12 @@ namespace FACM.Updater
         {
             if (string.IsNullOrWhiteSpace(destination)) return;
             AppendLog(destination, "apply-failed; " + exception.GetType().Name + "; " + exception.Message);
+        }
+
+        private static string EscapeJson(string value)
+        {
+            return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"")
+                .Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
         }
     }
 }

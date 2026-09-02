@@ -259,6 +259,32 @@ Updater 受控中断/rollback 试验使用：
 FACM-4.0-真机证据采集.bat "D:\FACM\FACM.App.exe" UpdaterRollback
 ```
 
+## 2026-09-02 legacy-to-4.0 migration bridge
+
+The 3.x online pointer must be staged before the 4.0 pointer. Publish a signed 3.5.17 bridge first and keep
+`online/version.json` on 3.5.17 while the migration cohort moves. The bridge consumes the optional `migration` object,
+copies the legacy `settings.ini` into `.facm\settings.ini` without deleting the source, writes the exact 4.0
+`bootstrap.json`, and invokes the embedded updater's migration mode.
+
+The migration helper treats the native bootstrapper differently from a normal managed replacement: the bootstrapper
+may exit after creating `FACM.App.exe`. Success is therefore the conjunction of the expected `.facm\state\active.json`,
+`.facm\versions\<version>\FACM.App.exe`, and a matching running `FACM.App.exe` process. Any timeout, signature/hash
+mismatch, missing active state, or missing matching process restores the complete 3.x `FACM.exe` rollback image.
+
+Required local checks before any remote publication:
+
+```powershell
+dotnet build FACM.sln --configuration Release
+Start-Process .\src\FACM\bin\Release\net48\FACM.exe -ArgumentList '--facm4-migration-test' -Wait
+Start-Process .\src\FACM.Updater\bin\Release\net48\FACM.Updater.exe -ArgumentList '--self-test' -Wait
+D:\project2\dotnet10\dotnet.exe build FACM4.sln --configuration Release
+```
+
+The 4.0 native bootstrapper must be built with a numeric `4.0.0.0` file version, Authenticode-signed, and packaged
+with the production detached signatures. A test/free-dist bundle or a local validation key is not a production
+migration target. Gate 13 and the final real-machine migration/rollback evidence remain required before changing the
+production pointer.
+
 ### 输出
 
 每次采集生成：

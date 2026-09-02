@@ -692,3 +692,20 @@ Gate8/Gate12 的 cadence 断言必须同步；真实 close/reopen 和晚启动�
 
 FACM.App 只复用现有 Gameflow snapshot 更新托盘资源，不增加 League 轮询、session owner、gateway 或写入行为。
 未来替换品牌图时必须同时检查 EXE 的九个尺寸层和托盘的四个尺寸层，不能只查看 256 像素预览。
+
+## 2026-09-02：3.x 到 4.0 必须使用两阶段迁移桥接
+
+### 决策
+
+- 旧版 `online/version.json` 在迁移阶段先指向签名的 3.5.17 bridge，不能直接指向 4.0 的 CAB/manifest 组合。
+- 3.5.17 只负责下载并验证 4.0 原生启动器、保留旧 `settings.ini`、生成 `bootstrap.json`，然后把根 `FACM.exe` 的原子替换交给内置更新器。
+- 更新器只有同时观察到目标 `active.json`、目标版本目录和匹配的 `FACM.App.exe` 进程后才删除旧版回滚镜像；否则恢复完整旧版。
+- 4.0 的 detached manifest trust 与旧版 EXE Authenticode trust 保持分层，不能用本地 PFX 代替 `facm-production-r1` 组件签名私钥。
+
+### 原因
+
+旧版更新器的成功判据是“替换后的 FACM.exe 在 5 秒内仍运行”，而 4.0 原生启动器会创建 `FACM.App.exe` 后退出；直接复用旧判据会把成功迁移误判为失败，或在组件尚未就绪时删除回滚文件。两阶段桥接可以保留旧协议的可达性，同时把 4.0 的组合安装、设置迁移和回滚边界交给正确的启动器。
+
+### 后果
+
+3.5.17 bridge 是一次性过渡版本；只有 4.0 最终签名包和 Gate 13 真机迁移/回滚证据完成后，才允许把生产指针切换到 4.0 并退休旧版。

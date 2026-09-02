@@ -99,6 +99,27 @@ namespace FACM.Online
             }
         }
 
+        public static Task<string> DownloadMigrationBootstrapperAsync(
+            Facm4MigrationTarget target,
+            UpdateMirrorSource[] sources,
+            IProgress<int> progress,
+            CancellationToken cancellationToken)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            return DownloadAsync(
+                new UpdateManifest
+                {
+                    Enabled = true,
+                    Version = target.Version,
+                    DownloadUrl = target.BootstrapperUrl,
+                    Sha256 = target.BootstrapperSha256,
+                    ReleaseNotes = target.ReleaseNotes,
+                    ResolvedSources = sources
+                },
+                progress,
+                cancellationToken);
+        }
+
         private static async Task DownloadCandidateAsync(
             string url,
             string temporary,
@@ -208,6 +229,49 @@ namespace FACM.Online
             AppLog.Info("Update replacement process started; mode=embedded-winexe-updater; console=false");
         }
 
+        public static void StartMigrationReplacement(
+            string downloadedBootstrapper,
+            string migrationVersion,
+            string migrationStatePath)
+        {
+            if (string.IsNullOrWhiteSpace(downloadedBootstrapper) || !File.Exists(downloadedBootstrapper))
+                throw new FileNotFoundException("FACM 4.0 bootstrapper 更新文件不存在。", downloadedBootstrapper);
+            if (string.IsNullOrWhiteSpace(migrationVersion) || string.IsNullOrWhiteSpace(migrationStatePath))
+                throw new InvalidDataException("FACM 4.0 迁移参数缺失。");
+
+            var receipt = TakeValidatedPackage(downloadedBootstrapper);
+            if (receipt == null || !string.Equals(receipt.Version, migrationVersion, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("FACM 4.0 bootstrapper 缺少本次下载校验凭据，已停止安装。");
+
+            var actualHash = ComputeSha256(downloadedBootstrapper);
+            if (!string.Equals(actualHash, receipt.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("FACM 4.0 bootstrapper 在安装前发生变化，已停止替换。");
+            SignatureInspector.ValidateUpdatePackage(downloadedBootstrapper, migrationVersion);
+
+            RuntimePaths.Initialize();
+            var updaterPath = ExtractEmbeddedUpdater();
+            var currentProcess = Process.GetCurrentProcess();
+            var currentExecutable = currentProcess.MainModule.FileName;
+            var arguments = BuildMigrationUpdaterArguments(
+                currentProcess.Id,
+                downloadedBootstrapper,
+                currentExecutable,
+                receipt.Sha256,
+                migrationVersion,
+                migrationStatePath);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = updaterPath,
+                Arguments = arguments,
+                WorkingDirectory = RuntimePaths.UpdatesDirectory,
+                UseShellExecute = true,
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
+            });
+            AppLog.Info("FACM 4.0 migration replacement process started; mode=embedded-winexe-updater; console=false");
+        }
+
         internal static void ValidateEmbeddedUpdaterForSmokeTest()
         {
             var bytes = ReadEmbeddedUpdaterBytes();
@@ -306,9 +370,28 @@ namespace FACM.Online
                    " --sha256=" + expectedHash.ToUpperInvariant();
         }
 
+        private static string BuildMigrationUpdaterArguments(
+            int parentPid,
+            string source,
+            string destination,
+            string expectedHash,
+            string migrationVersion,
+            string migrationStatePath)
+        {
+            return BuildUpdaterArguments(parentPid, source, destination, expectedHash) +
+                   " --mode=migration" +
+                   " --migration-version=\"" + EncodeText(migrationVersion) + "\"" +
+                   " --migration-state64=\"" + EncodePath(migrationStatePath) + "\"";
+        }
+
         private static string EncodePath(string value)
         {
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(Path.GetFullPath(value)));
+        }
+
+        private static string EncodeText(string value)
+        {
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
         }
 
         private static void ValidateManifest(UpdateManifest manifest)

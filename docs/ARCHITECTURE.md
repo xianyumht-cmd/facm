@@ -547,6 +547,34 @@ used only when the file is valid. It cannot add public keys, replace the embedde
 unsigned, or turn an HTTPS production path into HTTP. A command-line URL remains an explicit test/development override
 under the existing URL and trust validation rules.
 
+## 2026-09-02 legacy-to-4.0 migration bridge
+
+The legacy net48 updater cannot install a 4.0 component composition by replacing one managed EXE. The transition is
+therefore intentionally two-stage:
+
+```text
+FACM 3.5.16 (legacy single EXE)
+  -> normal signed update -> FACM 3.5.17 migration bridge
+       -> signed FACM 4.0 native bootstrapper
+       -> .facm/settings.ini (copy of legacy settings.ini; source preserved)
+       -> bootstrap.json (exact production manifest URL)
+       -> embedded updater migration mode
+            -> atomic FACM.exe replacement + rollback image
+            -> bootstrapper --update
+                 -> signed CAB composition + active.json
+                 -> FACM.App.exe
+```
+
+The bridge metadata is an optional `migration` object in the legacy `online/version.json`. It is ignored by older
+clients and is consumed only by the version-pinned 3.5.17 bridge. The native bootstrapper is verified with the
+existing legacy Authenticode signer and its SHA-256 before replacement; the bootstrapper then applies its own
+compiled-in `facm-production-r1` detached-manifest trust boundary. The helper does not treat a short-lived native
+bootstrapper process as success: it waits for the expected `active.json`, version directory, and matching
+`FACM.App.exe` process, otherwise it atomically restores the legacy executable and records a failed bridge state.
+
+This bridge does not authorize production cutover. A production 4.0 release still requires a fully signed bundle and
+all Gate 13 real-machine evidence; until then the legacy pointer remains the rollback line.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-1 presentation boundaries
 
 The WinUI League Workbench remains a single productized surface and continues to use the existing League session,
