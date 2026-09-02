@@ -22,6 +22,10 @@ if (-not ([IO.Path]::GetFullPath($NuGetPackages)).StartsWith('D:\project2\', [St
     throw "BOOT-2 NuGet packages must remain under D:\project2: $NuGetPackages"
 }
 if ($Version -notmatch '^[A-Za-z0-9._-]+$') { throw "Invalid application version: $Version" }
+$versionBase = (($Version -split '[-+]', 2)[0]).Trim()
+$versionMatch = [regex]::Match($versionBase, '^(\d+)\.(\d+)\.(\d+)$')
+if (-not $versionMatch.Success) { throw "Version must begin with a three-part numeric release version: $Version" }
+$nativeFileVersion = "{0},{1},{2},0" -f $versionMatch.Groups[1].Value, $versionMatch.Groups[2].Value, $versionMatch.Groups[3].Value
 
 function Remove-Scope([string]$Path) {
     $full = [IO.Path]::GetFullPath($Path)
@@ -117,7 +121,9 @@ $cmake = Get-Command cmake -ErrorAction SilentlyContinue
 if (-not $cmake -and (Test-Path -LiteralPath (Join-Path $toolchainBin 'cmake.exe'))) { $env:PATH = $toolchainBin + ';' + $env:PATH; $cmake = Get-Command cmake }
 if (-not $cmake) { throw 'CMake is required to build the native BOOT-2 bootstrapper.' }
 Write-Host 'Building native BOOT-2 bootstrapper...'
-cmake -S (Join-Path $RepoRoot 'src\FACM.Bootstrapper') -B $BootstrapBuild -DCMAKE_BUILD_TYPE=Release
+cmake -S (Join-Path $RepoRoot 'src\FACM.Bootstrapper') -B $BootstrapBuild -DCMAKE_BUILD_TYPE=Release `
+    "-DFACM_BOOTSTRAP_FILE_VERSION=$nativeFileVersion" `
+    "-DFACM_BOOTSTRAP_PRODUCT_VERSION=$nativeFileVersion"
 if ($LASTEXITCODE -ne 0) { throw "Bootstrapper configure failed ($LASTEXITCODE)." }
 cmake --build $BootstrapBuild --config Release --parallel 2
 if ($LASTEXITCODE -ne 0) { throw "Bootstrapper build failed ($LASTEXITCODE)." }

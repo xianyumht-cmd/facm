@@ -17,11 +17,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "FACM"
             VALUE "FileDescription", "FACM 4.0 Native Bootstrapper"
-            VALUE "FileVersion", "4.0.0.0"
+            VALUE "FileVersion", "@FACM_BOOTSTRAP_FILE_VERSION_STRING@"
             VALUE "InternalName", "FACM.exe"
             VALUE "OriginalFilename", "FACM.exe"
             VALUE "ProductName", "FACM"
-            VALUE "ProductVersion", "4.0.0"
+            VALUE "ProductVersion", "@FACM_BOOTSTRAP_PRODUCT_VERSION_STRING@"
         END
     END
     BLOCK "VarFileInfo"
