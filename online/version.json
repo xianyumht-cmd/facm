@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.15",
+  "enabled": false,
+  "version": "3.5.16",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.15/FACM.exe",
-  "sha256": "E3B415375E204212EE2D7A36D4A038708DC75694CD9B6FD28F2761BBF1FD01CE",
-  "release_notes": "FACM 3.5.15：控制中心收束为“清理与修复 / LOL 工作台 / 个性化 / 更多设置”四个桌面式入口，新增清理与修复完整流程，LOL 工作台页面提示并入自绘标题栏，个性化主题升级为 FACM 全局主题。LOL 游戏修复同时完成原生现代化：不再启动旧 Fix-LCU-Window 外部 mode，窗口修复按客户端实际所在显示器与工作区处理多屏/负坐标，优先恢复合理尺寸；自动修复改为 WinEvent 事件驱动并带 debounce/cooldown，不再每 1500ms 常驻轮询；跳过卡结算复用既有 play-again writer，重启客户端界面使用专用最小权限 writer，并停止在正式 ToolBundle 中打包旧 Fix-LCU-Window EXE 与 mode scripts。",
-  "published_at": "2026-08-27T05:28:50.9137418+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.16/FACM.exe",
+  "sha256": "2051677EBBA9E92CCBE9065400DD66059B210255BFFAD3460D871EDBA27A688B",
+  "release_notes": "FACM 3.5.16：修复先启动 GGman、后启动游戏 LCU 时客户端未被识别的问题；更新现代化应用与托盘图标，并保持旧版在线更新兼容。",
+  "published_at": "2026-09-02T06:03:40.8316712+00:00"
 }
