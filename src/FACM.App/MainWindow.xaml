@@ -2,24 +2,347 @@
     x:Class="FACM.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
-    <Grid Background="{StaticResource FacmBackgroundBrush}">
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:local="using:FACM.App">
+    <Grid x:Name="SurfaceRoot" Background="Transparent">
+        <Grid.RenderTransform>
+            <CompositeTransform x:Name="SurfaceTransitionTransform" />
+        </Grid.RenderTransform>
+        <Grid
+            x:Name="OrbPresentationRoot"
+            Height="36"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Top"
+            Visibility="Collapsed">
+            <Button
+                x:Name="OrbTransientRail"
+                Width="178"
+                Height="30"
+                Margin="42,3,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="{StaticResource FacmSurfaceBrush}"
+                BorderBrush="{StaticResource FacmStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="9"
+                Padding="0"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Click="OnOrbTransientRailClick"
+                Visibility="Collapsed"
+                automation:AutomationProperties.AutomationId="FACM.Surface.OrbTransientRail">
+                <TextBlock
+                    x:Name="OrbTransientRailText"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource FacmInspectorTextStyle}"
+                    TextTrimming="CharacterEllipsis" />
+            </Button>
+            <Grid
+                x:Name="OrbSurface"
+                Width="36"
+                Height="36"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="Transparent">
+            <Border
+                x:Name="OrbSurfaceBorder"
+                Width="36"
+                Height="36"
+                Background="{StaticResource FacmAccentBrush}"
+                BorderBrush="{StaticResource FacmStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="10,10,10,3">
+                <Button
+                    x:Name="OrbButton"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnOrbButtonClick"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.Orb">
+                    <Path
+                        Width="18"
+                        Height="18"
+                        Stretch="Fill"
+                        Fill="{StaticResource FacmAccentTextBrush}"
+                        Data="M 2,2 L 16,2 L 16,5 L 6,5 L 6,8 L 14,8 L 14,11 L 6,11 L 6,16 L 2,16 Z" />
+                </Button>
+            </Border>
+            <Border
+                x:Name="OrbStatusBadge"
+                Width="12"
+                Height="12"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,-2,-2,0"
+                Background="{StaticResource FacmSuccessBrush}"
+                BorderBrush="{StaticResource FacmBackgroundBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="Collapsed">
+                <TextBlock
+                    x:Name="OrbStatusBadgeText"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="8"
+                    FontWeight="Bold"
+                    Foreground="{StaticResource FacmSuccessTextBrush}" />
+            </Border>
+            </Grid>
+        </Grid>
+
+        <Grid
+            x:Name="ControlMatrixSurface"
+            Width="360"
+            Height="184"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{StaticResource FacmBackgroundBrush}"
+            Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="34" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
+            </Grid.RowDefinitions>
+            <Grid
+                x:Name="MatrixTitleBar"
+                Grid.Row="0"
+                Padding="12,0"
+                Background="{StaticResource FacmSurfaceBrush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                    <TextBlock x:Name="MatrixTitle" Style="{StaticResource FacmCardTitleTextStyle}" />
+                    <TextBlock x:Name="MatrixStatus" Style="{StaticResource FacmMutedTextStyle}" />
+                </StackPanel>
+                <Button
+                    x:Name="MatrixBackButton"
+                    Grid.Column="1"
+                    Width="26"
+                    Height="26"
+                    Padding="0"
+                    Style="{StaticResource FacmCollapseButtonStyle}"
+                    Click="OnSurfaceCollapseToOrbClick"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.MatrixCollapse">
+                    <FontIcon Glyph="&#xE72C;" />
+                </Button>
+                <Button
+                    x:Name="MatrixCloseButton"
+                    Grid.Column="2"
+                    Width="26"
+                    Height="26"
+                    Margin="4,0,0,0"
+                    Padding="0"
+                    Style="{StaticResource FacmCloseButtonStyle}"
+                    Click="OnSurfaceCloseClick"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.MatrixClose">
+                    <FontIcon Glyph="&#xE711;" />
+                </Button>
+            </Grid>
+            <Grid Grid.Row="1" Padding="8,6" ColumnSpacing="6" RowSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Button x:Name="MatrixRepairButton" Grid.Row="0" Grid.Column="0" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixRepairClick" automation:AutomationProperties.AutomationId="FACM.Surface.Repair">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE7BA;" /><TextBlock x:Name="MatrixRepairLabel" /></StackPanel>
+                </Button>
+                <Button x:Name="MatrixLeagueButton" Grid.Row="0" Grid.Column="1" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixLeagueClick" automation:AutomationProperties.AutomationId="FACM.Surface.League">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE734;" /><TextBlock x:Name="MatrixLeagueLabel" /></StackPanel>
+                </Button>
+                <Button x:Name="MatrixDiagnosticsButton" Grid.Row="0" Grid.Column="2" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixDiagnosticsClick" automation:AutomationProperties.AutomationId="FACM.Surface.Diagnostics">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE9D9;" /><TextBlock x:Name="MatrixDiagnosticsLabel" /></StackPanel>
+                </Button>
+                <Button x:Name="MatrixPetButton" Grid.Row="1" Grid.Column="0" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixPersonalizationClick" automation:AutomationProperties.AutomationId="FACM.Surface.Personalization">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE734;" /><TextBlock x:Name="MatrixPetLabel" /></StackPanel>
+                </Button>
+                <Button x:Name="MatrixSettingsButton" Grid.Row="1" Grid.Column="1" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixSettingsClick" automation:AutomationProperties.AutomationId="FACM.Surface.Settings">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE713;" /><TextBlock x:Name="MatrixSettingsLabel" /></StackPanel>
+                </Button>
+                <Button x:Name="MatrixCleanupButton" Grid.Row="1" Grid.Column="2" Style="{StaticResource FacmToolButtonStyle}" Click="OnMatrixRepairClick" automation:AutomationProperties.AutomationId="FACM.Surface.Cleanup">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE74D;" /><TextBlock x:Name="MatrixCleanupLabel" /></StackPanel>
+                </Button>
+            </Grid>
+            <local:FacmInspectorBar
+                x:Name="MatrixInspectorBar"
+                Grid.Row="2"
+                AutomationProperties.AutomationId="FACM.Surface.MatrixInspector" />
+        </Grid>
+
+        <Grid
+            x:Name="ChampSelectSurface"
+            Width="560"
+            Height="56"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{StaticResource FacmSurfaceBrush}"
+            automation:AutomationProperties.AutomationId="FACM.Surface.BenchSwapStrip"
+            Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid x:Name="ChampSelectStripRow" Grid.Row="0" Height="56">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="42" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="34" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    x:Name="ChampSelectDragHandle"
+                    Grid.Column="0"
+                    Width="42"
+                    Height="56"
+                    VerticalAlignment="Center"
+                    Background="Transparent">
+                    <TextBlock
+                        Text="F"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource FacmAccentBrush}" />
+                </Border>
+                <ScrollViewer
+                    Grid.Column="1"
+                    Margin="4,3,4,3"
+                    HorizontalScrollMode="Auto"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollMode="Disabled"
+                    VerticalScrollBarVisibility="Hidden">
+                    <StackPanel
+                        x:Name="ChampSelectCandidatesPanel"
+                        Orientation="Horizontal"
+                        Spacing="6"
+                        VerticalAlignment="Center" />
+                </ScrollViewer>
+                <StackPanel
+                    Grid.Column="2"
+                    Margin="2,0,2,0"
+                    VerticalAlignment="Center"
+                    Spacing="1">
+                    <TextBlock
+                        x:Name="ChampSelectStatus"
+                        Style="{StaticResource FacmBodyTextStyle}"
+                        FontSize="10"
+                        TextTrimming="CharacterEllipsis"
+                        />
+                    <TextBlock
+                        x:Name="ChampSelectAction"
+                        Style="{StaticResource FacmInspectorTextStyle}"
+                        FontSize="10"
+                        TextTrimming="CharacterEllipsis"
+                        />
+                </StackPanel>
+                <Button
+                    x:Name="ChampSelectBackButton"
+                    Grid.Column="3"
+                    Width="30"
+                    Height="30"
+                    VerticalAlignment="Center"
+                    Padding="0"
+                    Style="{StaticResource FacmCollapseButtonStyle}"
+                    Click="OnSurfaceCollapseToOrbClick"
+                    Visibility="Collapsed"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
+                    <FontIcon Glyph="&#xE72C;" />
+                </Button>
+            </Grid>
+            <Border
+                x:Name="ChampSelectGuidePanel"
+                Grid.Row="1"
+                Margin="8,0,8,8"
+                Padding="8"
+                Background="{StaticResource FacmSurfaceSecondaryBrush}"
+                BorderBrush="{StaticResource FacmStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="Collapsed">
+                <ScrollViewer
+                    VerticalScrollMode="Auto"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel
+                        x:Name="ChampSelectGuideContent"
+                        Spacing="8" />
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="LegacyFeatureSurface" Background="Transparent" Visibility="Collapsed">
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="34" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="24" />
         </Grid.RowDefinitions>
 
         <Border
             x:Name="AppTitleBar"
             Grid.Row="0"
-            Padding="16,0"
+            Padding="10,0"
             Background="{StaticResource FacmSurfaceBrush}"
             BorderBrush="{StaticResource FacmStrokeBrush}"
             BorderThickness="0,0,0,1">
-            <TextBlock
-                x:Name="TitleBarText"
-                VerticalAlignment="Center"
-                Style="{StaticResource FacmCardTitleTextStyle}" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="SurfaceBackButton"
+                    Width="26"
+                    Height="26"
+                    Margin="0,0,8,0"
+                    Padding="0"
+                    Style="{StaticResource FacmToolButtonStyle}"
+                    Click="OnSurfaceBackClick"
+                    Visibility="Collapsed"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.Back">
+                    <FontIcon Glyph="&#xE72B;" />
+                </Button>
+                <TextBlock
+                    x:Name="TitleBarText"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource FacmCardTitleTextStyle}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                    <Button
+                        x:Name="SurfaceCollapseButton"
+                        Width="26"
+                        Height="26"
+                        Padding="0"
+                        Style="{StaticResource FacmCollapseButtonStyle}"
+                        Click="OnSurfaceCollapseToOrbClick"
+                        Visibility="Collapsed"
+                        automation:AutomationProperties.AutomationId="FACM.Surface.CollapseToOrb">
+                        <FontIcon Glyph="&#xE72C;" />
+                    </Button>
+                    <Button
+                        x:Name="SurfaceCloseButton"
+                        Width="26"
+                        Height="26"
+                        Padding="0"
+                        Style="{StaticResource FacmCloseButtonStyle}"
+                        Click="OnSurfaceCloseClick"
+                        Visibility="Collapsed"
+                        automation:AutomationProperties.AutomationId="FACM.Surface.Close">
+                        <FontIcon Glyph="&#xE711;" />
+                    </Button>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <NavigationView
@@ -29,6 +352,7 @@
             IsSettingsVisible="False"
             AlwaysShowHeader="False"
             PaneDisplayMode="Left"
+            IsPaneToggleButtonVisible="True"
             SelectionChanged="OnSelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="RepairNav" Tag="repair" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Repair" />
@@ -37,12 +361,14 @@
                 <NavigationViewItem x:Name="SettingsNav" Tag="settings" Style="{StaticResource FacmNavigationItemStyle}" automation:AutomationProperties.AutomationId="FACM.Nav.Settings" />
             </NavigationView.MenuItems>
 
-            <Frame x:Name="ContentFrame">
+            <Frame
+                x:Name="ContentFrame"
+                Background="{StaticResource FacmBackgroundBrush}">
                 <ScrollViewer>
                     <StackPanel
-                        Padding="{StaticResource FacmPagePadding}"
-                        Spacing="{StaticResource FacmSectionSpacing}"
-                        MaxWidth="{StaticResource FacmPageMaxWidth}"
+                        Padding="10,8,10,10"
+                        Spacing="8"
+                        MaxWidth="680"
                         HorizontalAlignment="Stretch">
 
                         <StackPanel Spacing="6">
@@ -59,6 +385,143 @@
                                 </Border>
                             </StackPanel>
                         </Border>
+
+                        <StackPanel x:Name="CleanupPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="RepairToolsTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RepairToolsDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock x:Name="RepairPrivilegeLabel" Style="{StaticResource FacmBodyTextStyle}" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                            <TextBlock
+                                                x:Name="RepairPrivilegeStatus"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.Privilege"
+                                                Style="{StaticResource FacmBodyTextStyle}"
+                                                TextWrapping="Wrap" />
+                                        </Border>
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="RepairDriverCleanupButton"
+                                        automation:AutomationProperties.AutomationId="FACM.Repair.DriverCleanup"
+                                        Style="{StaticResource FacmPrimaryButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        Click="OnRepairDriverCleanupClick" />
+                                    <TextBlock x:Name="RepairDriverCleanupHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="RepairToolStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                    <TextBlock x:Name="RepairToolDetail" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="RepairGameTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="RepairGameDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Grid ColumnSpacing="12" RowSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                            <Button
+                                                x:Name="RepairFixWindowButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.WindowNow"
+                                                Style="{StaticResource FacmPrimaryButtonStyle}"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairFixWindowClick" />
+                                            <TextBlock x:Name="RepairFixWindowHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                            <Button
+                                                x:Name="RepairAutoWindowButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.AutoWindow"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairAutoWindowClick" />
+                                            <TextBlock x:Name="RepairAutoWindowHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                            <Button
+                                                x:Name="RepairSkipSettlementButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.SkipSettlement"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairSkipSettlementClick" />
+                                            <TextBlock x:Name="RepairSkipSettlementHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                            <Button
+                                                x:Name="RepairRestartClientUxButton"
+                                                automation:AutomationProperties.AutomationId="FACM.Repair.RestartClientUx"
+                                                HorizontalAlignment="Left"
+                                                Click="OnRepairRestartClientUxClick" />
+                                            <TextBlock x:Name="RepairRestartClientUxHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock
+                                            x:Name="RepairGameStatus"
+                                            automation:AutomationProperties.AutomationId="FACM.Repair.GameStatus"
+                                            Style="{StaticResource FacmBodyTextStyle}"
+                                            TextWrapping="Wrap" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock x:Name="CleanupDirectoryTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupDirectoryDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock
+                                        x:Name="CleanupPathText"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.GamePath"
+                                        Style="{StaticResource FacmBodyTextStyle}"
+                                        TextWrapping="Wrap" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="CleanupDirectoryStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                    <TextBlock x:Name="CleanupDirectoryDetail" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button
+                                            x:Name="CleanupDetectButton"
+                                            automation:AutomationProperties.AutomationId="FACM.Cleanup.Detect"
+                                            Style="{StaticResource FacmPrimaryButtonStyle}"
+                                            Click="OnCleanupDetectClick" />
+                                        <Button
+                                            x:Name="CleanupSelectButton"
+                                            automation:AutomationProperties.AutomationId="FACM.Cleanup.Select"
+                                            Click="OnCleanupSelectClick" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="CleanupPreviewTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupPreviewDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CleanupSafetyHint" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                    <Button
+                                        x:Name="CleanupPreviewButton"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.Preview"
+                                        Style="{StaticResource FacmPrimaryButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        Click="OnCleanupPreviewClick" />
+                                    <ProgressBar
+                                        x:Name="CleanupProgressBar"
+                                        automation:AutomationProperties.AutomationId="FACM.Cleanup.Progress"
+                                        Visibility="Collapsed"
+                                        IsIndeterminate="True" />
+                                    <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="CleanupOperationStatus" Style="{StaticResource FacmBodyTextStyle}" TextWrapping="Wrap" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
 
                         <Grid x:Name="GeneralOverviewGrid" ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
@@ -107,29 +570,59 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueMatchCard" Grid.Column="0" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueMatchTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueMatchDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueMatchDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueStrategyCard" Grid.Column="1" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueStrategyTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueStrategyDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueStrategyDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
+                                <Border x:Name="LeagueAutomationCard" Grid.Column="2" Style="{StaticResource FacmCardBorderStyle}">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="LeagueAutomationTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="LeagueAutomationDescription" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="LeagueAutomationDescription" Visibility="Collapsed" MaxLines="2" TextTrimming="CharacterEllipsis" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <ToggleSwitch
+                                            x:Name="LeagueAutoMatchmakingToggle"
+                                            Style="{StaticResource FacmToolToggleStyle}"
+                                            automation:AutomationProperties.AutomationId="FACM.League.AutoMatchmaking"
+                                            Toggled="OnLeagueAutoMatchmakingToggled" />
+                                        <TextBlock x:Name="LeagueAutoMatchmakingHint" Visibility="Collapsed" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <ToggleSwitch
+                                            x:Name="LeagueAutoAcceptToggle"
+                                            Style="{StaticResource FacmToolToggleStyle}"
+                                            automation:AutomationProperties.AutomationId="FACM.League.AutoAccept"
+                                            Toggled="OnLeagueAutoAcceptToggled" />
+                                        <TextBlock x:Name="LeagueAutoAcceptHint" Visibility="Collapsed" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
+                                        <Border Style="{StaticResource FacmStatusChipStyle}" HorizontalAlignment="Left">
+                                            <TextBlock
+                                                x:Name="LeagueAutomationSettingsStatus"
+                                                automation:AutomationProperties.AutomationId="FACM.League.AutomationSettingsStatus"
+                                                Style="{StaticResource FacmBodyTextStyle}"
+                                                TextWrapping="Wrap" />
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </Grid>
                         </StackPanel>
 
                         <StackPanel x:Name="DiagnosticsPanel" Visibility="Collapsed" Spacing="{StaticResource FacmSectionSpacing}">
-                            <Border Style="{StaticResource FacmCardBorderStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button
+                                    x:Name="DiagnosticsViewButton"
+                                    Style="{StaticResource FacmPrimaryButtonStyle}"
+                                    Click="OnDiagnosticsViewClick"
+                                    automation:AutomationProperties.AutomationId="FACM.Diagnostics.View" />
+                                <Button
+                                    x:Name="LogsViewButton"
+                                    Click="OnLogsViewClick"
+                                    automation:AutomationProperties.AutomationId="FACM.Logs.View" />
+                            </StackPanel>
+                            <Border x:Name="DiagnosticsSummarySurface" Style="{StaticResource FacmCardBorderStyle}">
                                 <StackPanel Spacing="12">
                                     <TextBlock x:Name="DiagnosticsTitle" Style="{StaticResource FacmCardTitleTextStyle}" TextWrapping="Wrap" />
                                     <TextBlock x:Name="DiagnosticsSubtitle" Style="{StaticResource FacmMutedTextStyle}" TextWrapping="Wrap" />
@@ -151,10 +644,71 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
+                            <Grid
+                                x:Name="LogViewerSurface"
+                                Visibility="Collapsed"
+                                RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="112" />
+                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox
+                                        x:Name="LogSearchBox"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.Search"
+                                        TextChanged="OnLogFilterChanged" />
+                                    <ComboBox
+                                        x:Name="LogDomainFilter"
+                                        Grid.Column="1"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.DomainFilter"
+                                        SelectionChanged="OnLogFilterChanged" />
+                                    <ComboBox
+                                        x:Name="LogOutcomeFilter"
+                                        Grid.Column="2"
+                                        automation:AutomationProperties.AutomationId="FACM.Logs.OutcomeFilter"
+                                        SelectionChanged="OnLogFilterChanged" />
+                                    <Button x:Name="LogRefreshButton" Grid.Column="3" Click="OnLogRefreshClick" />
+                                    <Button x:Name="LogOpenFolderButton" Grid.Column="4" Click="OnLogOpenFolderClick" />
+                                    <Button x:Name="LogCopyPathButton" Grid.Column="5" Click="OnLogCopyPathClick" />
+                                </Grid>
+                                <Grid Grid.Row="1" Padding="6,3" ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="72" />
+                                        <ColumnDefinition Width="92" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="68" />
+                                        <ColumnDefinition Width="54" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="LogTimeHeader" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogDomainHeader" Grid.Column="1" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogOperationHeader" Grid.Column="2" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogOutcomeHeader" Grid.Column="3" Style="{StaticResource FacmMutedTextStyle}" />
+                                    <TextBlock x:Name="LogDurationHeader" Grid.Column="4" Style="{StaticResource FacmMutedTextStyle}" />
+                                </Grid>
+                                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="LogRowsPanel" Spacing="1" />
+                                </ScrollViewer>
+                                <TextBlock x:Name="LogViewerStatus" Grid.Row="3" Style="{StaticResource FacmMutedTextStyle}" />
+                            </Grid>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Frame>
         </NavigationView>
+
+            <local:FacmInspectorBar
+                x:Name="InspectorBar"
+                Grid.Row="2" />
+        </Grid>
     </Grid>
 </Window>

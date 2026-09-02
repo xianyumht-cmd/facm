@@ -15,6 +15,8 @@ public sealed partial class CompactLauncherWindow : Window
 
     private readonly IDesktopWorkAreaProvider _workAreas;
     private readonly Action<string> _openShellSection;
+    private readonly DesktopSurfaceOutsideClickWatcher _outsideClickWatcher;
+    private int _outsideCloseSuppression;
     private bool _closed;
 
     public CompactLauncherWindow(
@@ -29,6 +31,12 @@ public sealed partial class CompactLauncherWindow : Window
         InitializeComponent();
         ApplyText(text);
         ConfigurePresenter();
+        _outsideClickWatcher = new DesktopSurfaceOutsideClickWatcher(
+            DispatcherQueue,
+            GetScreenBounds,
+            () => Volatile.Read(ref _outsideCloseSuppression) != 0,
+            Close);
+        _outsideClickWatcher.Start();
 
         CloseButton.Click += OnCloseClick;
         RepairButton.Click += (_, _) => OpenSection("repair");
@@ -37,6 +45,13 @@ public sealed partial class CompactLauncherWindow : Window
         SettingsButton.Click += (_, _) => OpenSection("settings");
         ControlCenterButton.Click += (_, _) => OpenSection("repair");
         Closed += OnClosed;
+    }
+
+    public IDisposable SuppressOutsideClose()
+    {
+        ObjectDisposedException.ThrowIf(_closed, this);
+        Interlocked.Increment(ref _outsideCloseSuppression);
+        return new OutsideCloseSuppressionScope(this);
     }
 
     public void ShowNextTo(DesktopRect floatingBounds)
@@ -121,7 +136,29 @@ public sealed partial class CompactLauncherWindow : Window
     {
         if (_closed) return;
         _closed = true;
+        _outsideClickWatcher.Dispose();
         Closed -= OnClosed;
+    }
+
+    private DesktopRect? GetScreenBounds()
+    {
+        var position = AppWindow.Position;
+        var size = AppWindow.Size;
+        var bounds = new DesktopRect(position.X, position.Y, size.Width, size.Height);
+        return bounds.IsValid ? bounds : null;
+    }
+
+    private void ReleaseOutsideCloseSuppression()
+    {
+        if (Volatile.Read(ref _outsideCloseSuppression) == 0) return;
+        Interlocked.Decrement(ref _outsideCloseSuppression);
+    }
+
+    private sealed class OutsideCloseSuppressionScope(CompactLauncherWindow owner) : IDisposable
+    {
+        private CompactLauncherWindow? _owner = owner;
+
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ReleaseOutsideCloseSuppression();
     }
 
     private static int ToInt32(double value)

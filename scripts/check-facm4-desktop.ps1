@@ -21,13 +21,15 @@ $floatingXamlPath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml'
 $floatingCodePath = Join-Path $Root 'src/FACM.App/FloatingWindow.xaml.cs'
 $compactXamlPath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml'
 $compactCodePath = Join-Path $Root 'src/FACM.App/CompactLauncherWindow.xaml.cs'
+$outsideWatcherPath = Join-Path $Root 'src/FACM.App/DesktopSurfaceOutsideClickWatcher.cs'
+$mainCodePath = Join-Path $Root 'src/FACM.App/MainWindow.xaml.cs'
 $appCodePath = Join-Path $Root 'src/FACM.App/App.xaml.cs'
 $textPath = Join-Path $Root 'src/FACM.Core/Text/UiTextContracts.cs'
 
 foreach ($path in @(
     $corePath, $dragCorePath, $platformPath, $floatingPlatformPath,
     $floatingXamlPath, $floatingCodePath, $compactXamlPath, $compactCodePath,
-    $appCodePath, $textPath
+    $outsideWatcherPath, $mainCodePath, $appCodePath, $textPath
 )) {
     if (-not (Test-Path $path)) { Fail "Desktop contract file missing: $path" }
 }
@@ -40,6 +42,8 @@ $floatingXaml = Get-Content $floatingXamlPath -Raw
 $floatingCode = Get-Content $floatingCodePath -Raw
 $compactXaml = Get-Content $compactXamlPath -Raw
 $compactCode = Get-Content $compactCodePath -Raw
+$outsideWatcher = Get-Content $outsideWatcherPath -Raw
+$mainCode = Get-Content $mainCodePath -Raw
 $appCode = Get-Content $appCodePath -Raw
 $text = Get-Content $textPath -Raw
 
@@ -149,6 +153,28 @@ foreach ($forbidden in @(
     if ($compactCode -match $forbidden) { Fail "Compact launcher gained forbidden runtime/platform ownership: $forbidden" }
 }
 
+foreach ($required in @(
+    'DesktopSurfaceOutsideClickWatcher', 'CompactLauncherOutsideClickState',
+    'GetAsyncKeyState', 'GetCursorPos', 'CreateTimer', 'Start', 'Stop', 'Reset', 'CloseRequested',
+    'opening mouse button'
+)) {
+    if ($outsideWatcher -notmatch [regex]::Escape($required)) {
+        Fail "Unified desktop outside-click watcher missing behavior: $required"
+    }
+}
+foreach ($required in @(
+    'new DesktopSurfaceOutsideClickWatcher', 'SuppressOutsideClose',
+    '_outsideClickWatcher.Start', '_outsideClickWatcher.Stop', '_outsideClickWatcher.Dispose',
+    'SetOutsideClickWatcherActive', 'FacmSurfaceMode.Orb', 'FacmSurfaceMode.HiddenInGame', 'GetScreenBounds'
+)) {
+    if ($mainCode -notmatch [regex]::Escape($required)) {
+        Fail "Main Shell outside-click lifecycle missing: $required"
+    }
+}
+if ($compactCode -notmatch 'DesktopSurfaceOutsideClickWatcher') {
+    Fail 'Compact launcher must use the shared desktop outside-click watcher.'
+}
+
 if ((Count-Matches $appCode 'new\s+WindowsLeagueTransportSessionSource\s*\(') -ne 1) {
     Fail 'FACM.App must still create exactly one League session owner.'
 }
@@ -172,11 +198,14 @@ if ($appCode -match '(?m)^\s*EnsureMainWindow\(\);\s*$') {
 if ($appCode -notmatch 'PersistFloatingPlacementAsync' -or
     $appCode -notmatch 'Pets\.BallX\s*=' -or
     $appCode -notmatch 'Pets\.BallY\s*=' -or
-    $appCode -notmatch 'settings\.SaveAsync') {
-    Fail 'App must persist user-dragged floating-surface coordinates through Settings 2.0.'
+    $appCode -notmatch 'settings\.UpdateAsync' -or
+    $appCode -notmatch 'allowRecoveryRebuild:\s*false' -or
+    $appCode -notmatch 'updated\.Persisted' -or
+    $appCode -notmatch 'drag-position-not-persisted-recovery') {
+    Fail 'App must persist user-dragged floating-surface coordinates through the atomic recovery-safe Settings 2.0 mutation boundary.'
 }
-if ($appCode -notmatch 'RecoveredLastKnownGood' -or $appCode -notmatch 'RecoveryDefaults') {
-    Fail 'Floating-surface persistence must preserve corrupt-primary Settings recovery semantics.'
+if ($appCode -match 'settings\.SaveAsync\s*\(') {
+    Fail 'Floating placement persistence must not reintroduce stale whole-document Settings2 saves.'
 }
 if ($appCode -match '(?is)Pets\.Enabled.{0,600}new\s+FloatingWindow') {
     Fail 'pets.enabled controls optional desktop pets, not the built-in F launcher.'
@@ -194,4 +223,5 @@ Write-Host 'FACM 3.5-compatible absolute cursor drag model on WinUI: OK'
 Write-Host 'WinUI Button.Click owns compact launcher toggle: OK'
 Write-Host '420x680 compact launcher parity surface: OK'
 Write-Host 'Circular floating-surface client alignment: OK'
+Write-Host 'Atomic recovery-safe F placement persistence: OK'
 Write-Host 'FACM 4.0 Desktop contract: SUCCESS'

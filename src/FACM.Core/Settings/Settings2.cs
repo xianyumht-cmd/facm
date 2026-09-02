@@ -1,3 +1,5 @@
+using FACM.Core.Personalization;
+
 namespace FACM.Core.Settings;
 
 public enum SettingsLoadOrigin
@@ -139,18 +141,6 @@ public sealed record SettingsValidationResult(bool IsValid, IReadOnlyList<string
 
 public static class Settings2Validator
 {
-    private static readonly HashSet<string> KnownThemeIds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "glass-blue", "obsidian-gold", "neon-cyber", "cloud-light", "brutalist-grid",
-        "holo-spectrum", "mono-emerald", "rgb-tactical", "aurora-night", "sunset-synthwave"
-    };
-
-    private static readonly HashSet<string> KnownPetIds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "greenfly", "bee", "real-bee", "dragonfly", "butterfly", "moth", "vpet",
-        "cat", "dog", "spider", "ant", "greyfly", "wasp", "bird"
-    };
-
     public static SettingsValidationResult Validate(Settings2Document? settings)
     {
         var errors = new List<string>();
@@ -176,11 +166,11 @@ public static class Settings2Validator
         else ValidateSingleLine(online.LastAnnouncementId, 512, "online.lastAnnouncementId", errors);
 
         if (appearance is null) errors.Add("appearance section is missing");
-        else if (string.IsNullOrWhiteSpace(appearance.ThemeId) || !KnownThemeIds.Contains(appearance.ThemeId))
+        else if (string.IsNullOrWhiteSpace(appearance.ThemeId) || !FacmThemeCatalog.Contains(appearance.ThemeId))
             errors.Add("appearance.themeId is unsupported");
 
         if (pets is null) errors.Add("pets section is missing");
-        else if (string.IsNullOrWhiteSpace(pets.StyleId) || !KnownPetIds.Contains(pets.StyleId))
+        else if (string.IsNullOrWhiteSpace(pets.StyleId) || !FacmPetCatalog.Contains(pets.StyleId))
             errors.Add("pets.styleId is unsupported");
 
         if (league is null) errors.Add("league section is missing");

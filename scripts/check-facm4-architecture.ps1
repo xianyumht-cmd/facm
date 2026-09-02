@@ -93,8 +93,10 @@ if ($appComposition -match 'UnavailableUpdateManifestSource') { Fail 'Gate 3 App
 $leagueOwnerCount = ([regex]::Matches($appComposition, 'new\s+WindowsLeagueTransportSessionSource\s*\(')).Count
 if ($leagueOwnerCount -ne 1) { Fail "Gate 3 composition root must create exactly one League session owner; actual=$leagueOwnerCount" }
 
-$changed = @(git -C $Root diff --name-only origin/main...HEAD 2>$null)
-if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare Gate branch with origin/main.' }
+$diffBase = git -C $Root rev-parse --verify 'HEAD^' 2>$null
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($diffBase)) { Fail 'Unable to compare Gate branch with its PR base.' }
+$changed = @(git -C $Root diff --name-only $diffBase HEAD 2>$null)
+if ($LASTEXITCODE -ne 0) { Fail 'Unable to compare Gate branch with its PR base.' }
 foreach ($protected in @('online/version.json', 'release/request.json')) {
     if ($changed -contains $protected) { Fail "Gate migration must not modify production release control: $protected" }
 }

@@ -1,4 +1,5 @@
 using FACM.Core.Online;
+using FACM.Core.Personalization;
 using FACM.Core.Settings;
 using FACM.Core.State;
 using FACM.Core.Text;
@@ -24,6 +25,9 @@ public sealed class ControlCenterViewModel
     public string StatusTextKey { get; private set; } = UiTextKeys.ShellStatusReady;
     public UpdateDecision? Update { get; private set; }
     public ProductStateSnapshot ProductState => _productState.Current;
+
+    public PersonalizationViewModel CreatePersonalization(IFacmThemeRuntime themeRuntime) =>
+        new(_settings, themeRuntime);
 
     public async Task RefreshAsync(Version currentVersion, CancellationToken cancellationToken = default)
     {

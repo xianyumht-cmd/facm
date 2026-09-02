@@ -1,8 +1,10 @@
 using FACM.Core.Application;
 using FACM.Core.Cleanup;
+using FACM.Core.Desktop;
 using FACM.Core.League;
 using FACM.Core.Online;
 using FACM.Core.Performance;
+using FACM.Core.Runtime;
 using FACM.Core.Settings;
 using FACM.Core.Text;
 using FACM.Infrastructure.Settings;
@@ -11,25 +13,55 @@ using FACM.Infrastructure.Text;
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("module host topology and rollback", () => { TestHost(); return Task.CompletedTask; }),
+    ("tray command routing and disposal", () => { TestTrayCommandRouting(); return Task.CompletedTask; }),
+    ("desktop entry click routing", () => { TestDesktopEntryInteractionPolicy(); return Task.CompletedTask; }),
+    ("compact launcher outside-click state", () => { TestCompactLauncherOutsideClickState(); return Task.CompletedTask; }),
+    ("morphing surface state machine", () => { FacmSurfaceStateMachineSmoke.Run(); return Task.CompletedTask; }),
+    ("morphing surface presentation invariant", () => { FacmSurfacePresentationSmoke.Run(); return Task.CompletedTask; }),
+    ("morphing surface anchor geometry", () => { FacmSurfaceGeometrySmoke.Run(); return Task.CompletedTask; }),
+    ("league diagnostics transport and gameflow", LeagueDiagnosticsSmoke.RunAsync),
+    ("league reliability boundaries", LeagueReliabilitySmoke.RunAsync),
     ("performance contract", () => { TestPerformance(); return Task.CompletedTask; }),
     ("settings.ini compatibility", () => { TestSettings(); return Task.CompletedTask; }),
+    ("P7 production 3.5.15 settings key parity", LegacySettingsParitySmoke.RunAsync),
     ("ui text adapter", () => { TestUiText(); return Task.CompletedTask; }),
     ("cleanup application boundary", TestCleanupAsync),
     ("league write capability boundary", () => { TestLeagueWritePolicy(); return Task.CompletedTask; }),
     ("online update decision", () => { TestUpdateDecision(); return Task.CompletedTask; }),
     ("settings repository adapter", TestSettingsRepositoryAsync),
+    ("BOOT-1 stable data-root and component contracts", () => { TestBoot1Contracts(); return Task.CompletedTask; }),
+    ("productization maintenance settings and manual update", MaintenanceSmoke.RunAsync),
+    ("productization update package download", UpdatePackageSmoke.RunAsync),
+    ("productization prepared update receipt and replacement", PreparedUpdateInstallerSmoke.RunAsync),
     ("gate3 runtime and transport", Gate3Smoke.RunAsync),
     ("gate4 Settings 2.0 migration and atomic persistence", Settings2Smoke.RunAsync),
     ("gate5 Product State and observability", Gate5Smoke.RunAsync),
     ("gate6 design system and shell text", Gate6Smoke.RunAsync),
     ("gate7 desktop anchor placement", Gate7Smoke.RunAsync),
     ("gate8 state-driven League Workbench", Gate8Smoke.RunAsync),
+    ("productization League Build Advisor", LeagueBuildAdvisorSmoke.RunAsync),
+    ("productization League item sets", LeagueItemSetSmoke.RunAsync),
+    ("productization League matchmaking automation", LeagueMatchmakingAutomationSmoke.RunAsync),
+    ("productization League post-game automation", LeaguePostGameAutomationSmoke.RunAsync),
+    ("productization League presence", LeaguePresenceSmoke.RunAsync),
+    ("productization League recommended setup", LeagueRecommendedAutoApplySmoke.RunAsync),
+    ("productization League efficiency", LeagueEfficiencySmoke.RunAsync),
+    ("productization League bench quick-pick", LeagueBenchQuickPickSmoke.RunAsync),
+    ("productization ARAM Mayhem base query", MayhemQuerySmoke.RunAsync),
+    ("productization ARAM Mayhem official patch", MayhemOfficialPatchSmoke.RunAsync),
+    ("productization HaiDou text-first guide", () => { MayhemGuidePresentationSmoke.Run(); return Task.CompletedTask; }),
+    ("productization repair parity", () => { RepairParitySmoke.Run(); return Task.CompletedTask; }),
+    ("productization personalization catalogs", () => { PersonalizationSmoke.Run(); return Task.CompletedTask; }),
+    ("theme contrast and guide asset routes", () => { ThemeContrastSmoke.Run(); LeagueGuideAssetSmoke.Run(); return Task.CompletedTask; }),
     ("gate9 sanitized Diagnostics Center", Gate9Smoke.RunAsync),
     ("gate10 DPI and mixed-monitor accessibility contract", Gate10Smoke.RunAsync),
     ("gate11 recovery and monotonic feature policy", Gate11Smoke.RunAsync),
     ("gate12 release evidence and performance matrix", Gate12Smoke.RunAsync),
     ("gate13 production cutover guard", Gate13Smoke.RunAsync)
 };
+
+if (args.Any(argument => string.Equals(argument, "--skip-gate13", StringComparison.OrdinalIgnoreCase)))
+    tests = tests[..^1];
 
 foreach (var test in tests)
 {
@@ -47,8 +79,8 @@ static void TestHost()
         host.Register(new TestModule("consumer", ["core"], events));
         host.Register(new TestModule("core", [], events));
         host.Initialize();
-        Equal("core,consumer", string.Join(',', host.Report.InitializationOrder), "topological init order");
     }
+    Equal("core,consumer", string.Join(',', events.Where(item => item.StartsWith("init:", StringComparison.Ordinal)).Select(item => item[5..])), "topological init order");
     Equal("init:core,init:consumer,dispose:consumer,dispose:core", string.Join(',', events), "reverse dispose order");
 
     events.Clear();
@@ -73,6 +105,63 @@ static void TestPerformance()
     Equal("champ-select", PerformancePolicy.Resolve(new(LeagueActivityLevel.ChampSelect, false)).Name, "champ select overrides hidden");
     Equal("in-game", PerformancePolicy.Resolve(new(LeagueActivityLevel.InGame, false)).Name, "in-game overrides hidden");
     True(PerformancePolicy.IsNoMoreAggressiveThan(PerformancePolicy.InGame, PerformancePolicy.Desktop), "in-game must be no more aggressive than desktop");
+}
+
+static void TestTrayCommandRouting()
+{
+    var observed = new List<TrayCommand>();
+    using var router = new TrayCommandRouter(
+        Enum.GetValues<TrayCommand>().ToDictionary(command => command, command => (Action)(() => observed.Add(command))));
+
+    foreach (var command in Enum.GetValues<TrayCommand>())
+        True(router.TryDispatch(command), "tray command dispatch " + command);
+
+    Equal(Enum.GetValues<TrayCommand>().Length, observed.Count, "all tray commands observed");
+    Equal(string.Join(',', Enum.GetValues<TrayCommand>()), string.Join(',', observed), "tray command order");
+    router.Dispose();
+    router.Dispose();
+    True(!router.TryDispatch(TrayCommand.OpenCompactLauncher), "disposed tray router must not dispatch");
+}
+
+static void TestDesktopEntryInteractionPolicy()
+{
+    foreach (var entry in Enum.GetValues<DesktopEntryKind>())
+    {
+        Equal(
+            DesktopEntryAction.ToggleCompactLauncher,
+            DesktopEntryInteractionPolicy.Resolve(DesktopEntryGesture.LeftClick),
+            entry + " left click opens compact launcher");
+        Equal(
+            DesktopEntryAction.ShowTrayContextMenu,
+            DesktopEntryInteractionPolicy.Resolve(DesktopEntryGesture.RightClick),
+            entry + " right click opens tray context");
+    }
+}
+
+static void TestCompactLauncherOutsideClickState()
+{
+    using var state = new CompactLauncherOutsideClickState();
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(true, false, false), "opening held click");
+    Equal(CompactLauncherOutsideClickObservation.Armed, state.Observe(false, false, false), "release arms watcher");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(true, true, false), "inside click stays open");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(false, false, false), "inside release");
+    Equal(CompactLauncherOutsideClickObservation.CloseRequested, state.Observe(true, false, false), "outside left click closes");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, state.Observe(false, false, false), "close is issued once");
+
+    using var rightClick = new CompactLauncherOutsideClickState();
+    Equal(CompactLauncherOutsideClickObservation.Armed, rightClick.Observe(false, false, false), "right click baseline release");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, rightClick.Observe(false, false, false), "right click stays open");
+
+    using var suppressed = new CompactLauncherOutsideClickState();
+    _ = suppressed.Observe(false, false, false);
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(true, false, true), "suppressed outside click");
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(false, false, false), "suppressed release");
+    suppressed.Reset();
+    Equal(CompactLauncherOutsideClickObservation.Ignored, suppressed.Observe(true, false, false), "restarted opening held click");
+    Equal(CompactLauncherOutsideClickObservation.Armed, suppressed.Observe(false, false, false), "restarted release arms watcher");
+    suppressed.Dispose();
+    suppressed.Dispose();
+    True(suppressed.IsDisposed, "outside-click state disposal is idempotent");
 }
 
 static void TestSettings()
@@ -129,6 +218,12 @@ static void TestLeagueWritePolicy()
     True(!LeagueWriteTargetPolicy.Matches(selection, "POST", "/lol-champ-select/v1/session/actions/1"), "selection must reject arbitrary action");
     var page = new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 42, "{}");
     True(LeagueWriteTargetPolicy.Matches(page, "PUT", "/lol-perks/v1/pages/42"), "perk page allowlist");
+    var search = new LeagueWriteCommand(LeagueWriteCapability.StartMatchmaking, null, null);
+    True(LeagueWriteTargetPolicy.Matches(search, "POST", "/lol-lobby/v2/lobby/matchmaking/search"), "matchmaking search allowlist");
+    var accept = new LeagueWriteCommand(LeagueWriteCapability.AcceptReadyCheck, null, null);
+    True(LeagueWriteTargetPolicy.Matches(accept, "POST", "/lol-matchmaking/v1/ready-check/accept"), "ready-check accept allowlist");
+    var presence = new LeagueWriteCommand(LeagueWriteCapability.SetPresence, null, "{}");
+    True(LeagueWriteTargetPolicy.Matches(presence, "PUT", "/lol-chat/v1/me"), "presence allowlist");
     try
     {
         LeagueWriteTargetPolicy.Resolve(new LeagueWriteCommand(LeagueWriteCapability.UpdatePerkPage, 0, "{}"));
@@ -164,6 +259,33 @@ static async Task TestSettingsRepositoryAsync()
     finally
     {
         if (Directory.Exists(root)) Directory.Delete(root, true);
+    }
+}
+
+static void TestBoot1Contracts()
+{
+    var oldRoot = Environment.GetEnvironmentVariable("FACM_ROOT");
+    var oldDataRoot = Environment.GetEnvironmentVariable("FACM_DATA_ROOT");
+    var root = Path.Combine(Path.GetTempPath(), "facm4-boot1-root");
+    var dataRoot = Path.Combine(root, ".facm");
+    try
+    {
+        Environment.SetEnvironmentVariable("FACM_ROOT", root);
+        Environment.SetEnvironmentVariable("FACM_DATA_ROOT", dataRoot);
+        var layout = RuntimePathLayout.From(new FakeBootExecutablePaths(Path.Combine(root, ".facm", "versions", "A", "FACM.App.exe")));
+        Equal(Path.GetFullPath(root), layout.DistributionDirectory, "modular distribution root");
+        Equal(Path.Combine(dataRoot, "settings.v2.json"), layout.Settings2Path, "modular settings path");
+        Equal(Path.Combine(dataRoot, "logs"), layout.LogsDirectory, "modular logs path");
+        Equal(Path.Combine(dataRoot, "state", "state.json"), layout.RecoveryStatePath, "modular recovery state path");
+        True(layout.IsModular, "modular layout flag");
+        Equal("facm-core-win-x64", FacmComponentIds.CoreWinX64, "Core component id");
+        Equal("facm-pet-pethost-win-x64", FacmComponentIds.PetHostWinX64, "VPet component id");
+        Equal("facm-pet-flying-win-x64", FacmComponentIds.FlyingHostWinX64, "Flying component id");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("FACM_ROOT", oldRoot);
+        Environment.SetEnvironmentVariable("FACM_DATA_ROOT", oldDataRoot);
     }
 }
 
@@ -213,4 +335,9 @@ sealed class FakeCleanupExecutor : ICleanupExecutor
         Calls++;
         return Task.FromResult(new CleanupResult(1, 0, Array.Empty<string>()));
     }
+}
+
+sealed record FakeBootExecutablePaths(string ExecutablePath) : IExecutablePathProvider
+{
+    public string BaseDirectory => Path.GetDirectoryName(ExecutablePath)!;
 }

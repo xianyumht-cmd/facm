@@ -27,7 +27,7 @@ internal static class Program
         };
 
         var ipc = new PetHostIpc(pipeName);
-        var window = new PetHostWindow(ipc);
+        System.Windows.Window window = new PetHostWindow(ipc);
         application.MainWindow = window;
 
         DispatcherTimer? parentTimer = null;
@@ -45,7 +45,6 @@ internal static class Program
         }
 
         application.Exit += (_, _) => parentTimer?.Stop();
-        window.Show();
         return application.Run();
     }
 

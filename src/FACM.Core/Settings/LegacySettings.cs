@@ -53,24 +53,24 @@ public static class LegacySettingsCodec
     {
         ArgumentNullException.ThrowIfNull(settings);
         Normalize(settings);
-        return new[]
-        {
-            "BallX=" + settings.BallX.ToString(CultureInfo.InvariantCulture),
-            "BallY=" + settings.BallY.ToString(CultureInfo.InvariantCulture),
-            "GamePath=" + Sanitize(settings.GamePath),
-            "AutoUpdateEnabled=" + settings.AutoUpdateEnabled,
-            "LastAnnouncementId=" + Sanitize(settings.LastAnnouncementId),
-            "ThemeId=" + settings.ThemeId,
-            "PetStyleId=" + settings.PetStyleId,
-            "AnimalPetEnabled=" + settings.AnimalPetEnabled,
-            "LeagueAutoApplyRecommended=" + settings.LeagueAutoApplyRecommended,
-            "LeagueExitGameHotkey=" + Sanitize(settings.LeagueExitGameHotkey),
-            "LeagueCloseLobbyHotkey=" + Sanitize(settings.LeagueCloseLobbyHotkey),
-            "LeagueAutoHonorTeammateEnabled=" + settings.LeagueAutoHonorTeammateEnabled,
-            "LeagueAutoReturnLobbyEnabled=" + settings.LeagueAutoReturnLobbyEnabled,
-            "LeagueAutoMatchmakingEnabled=" + settings.LeagueAutoMatchmakingEnabled,
-            "LeagueAutoAcceptEnabled=" + settings.LeagueAutoAcceptEnabled
-        };
+        return
+        [
+            LegacySettingsContract.BallX + "=" + settings.BallX.ToString(CultureInfo.InvariantCulture),
+            LegacySettingsContract.BallY + "=" + settings.BallY.ToString(CultureInfo.InvariantCulture),
+            LegacySettingsContract.GamePath + "=" + Sanitize(settings.GamePath),
+            LegacySettingsContract.AutoUpdateEnabled + "=" + settings.AutoUpdateEnabled,
+            LegacySettingsContract.LastAnnouncementId + "=" + Sanitize(settings.LastAnnouncementId),
+            LegacySettingsContract.ThemeId + "=" + settings.ThemeId,
+            LegacySettingsContract.PetStyleId + "=" + settings.PetStyleId,
+            LegacySettingsContract.AnimalPetEnabled + "=" + settings.AnimalPetEnabled,
+            LegacySettingsContract.LeagueAutoApplyRecommended + "=" + settings.LeagueAutoApplyRecommended,
+            LegacySettingsContract.LeagueExitGameHotkey + "=" + Sanitize(settings.LeagueExitGameHotkey),
+            LegacySettingsContract.LeagueCloseLobbyHotkey + "=" + Sanitize(settings.LeagueCloseLobbyHotkey),
+            LegacySettingsContract.LeagueAutoHonorTeammateEnabled + "=" + settings.LeagueAutoHonorTeammateEnabled,
+            LegacySettingsContract.LeagueAutoReturnLobbyEnabled + "=" + settings.LeagueAutoReturnLobbyEnabled,
+            LegacySettingsContract.LeagueAutoMatchmakingEnabled + "=" + settings.LeagueAutoMatchmakingEnabled,
+            LegacySettingsContract.LeagueAutoAcceptEnabled + "=" + settings.LeagueAutoAcceptEnabled
+        ];
     }
 
     private static void ApplyLine(LegacySettingsSnapshot result, string? line)
@@ -80,21 +80,21 @@ public static class LegacySettingsCodec
         if (separator <= 0) return;
         var key = line[..separator].Trim();
         var value = line[(separator + 1)..].Trim();
-        if (key.Equals("BallX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var x)) result.BallX = x;
-        else if (key.Equals("BallY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var y)) result.BallY = y;
-        else if (key.Equals("GamePath", StringComparison.OrdinalIgnoreCase)) result.GamePath = value;
-        else if (key.Equals("AutoUpdateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoUpdate)) result.AutoUpdateEnabled = autoUpdate;
-        else if (key.Equals("LastAnnouncementId", StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
-        else if (key.Equals("ThemeId", StringComparison.OrdinalIgnoreCase)) result.ThemeId = value;
-        else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = value;
-        else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var animalPet)) result.AnimalPetEnabled = animalPet;
-        else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoApply)) result.LeagueAutoApplyRecommended = autoApply;
-        else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
-        else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
-        else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var honor)) result.LeagueAutoHonorTeammateEnabled = honor;
-        else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var returnLobby)) result.LeagueAutoReturnLobbyEnabled = returnLobby;
-        else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var matchmaking)) result.LeagueAutoMatchmakingEnabled = matchmaking;
-        else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var accept)) result.LeagueAutoAcceptEnabled = accept;
+        if (key.Equals(LegacySettingsContract.BallX, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var x)) result.BallX = x;
+        else if (key.Equals(LegacySettingsContract.BallY, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var y)) result.BallY = y;
+        else if (key.Equals(LegacySettingsContract.GamePath, StringComparison.OrdinalIgnoreCase)) result.GamePath = value;
+        else if (key.Equals(LegacySettingsContract.AutoUpdateEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoUpdate)) result.AutoUpdateEnabled = autoUpdate;
+        else if (key.Equals(LegacySettingsContract.LastAnnouncementId, StringComparison.OrdinalIgnoreCase)) result.LastAnnouncementId = value;
+        else if (key.Equals(LegacySettingsContract.ThemeId, StringComparison.OrdinalIgnoreCase)) result.ThemeId = value;
+        else if (key.Equals(LegacySettingsContract.PetStyleId, StringComparison.OrdinalIgnoreCase)) result.PetStyleId = value;
+        else if (key.Equals(LegacySettingsContract.AnimalPetEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var animalPet)) result.AnimalPetEnabled = animalPet;
+        else if (key.Equals(LegacySettingsContract.LeagueAutoApplyRecommended, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoApply)) result.LeagueAutoApplyRecommended = autoApply;
+        else if (key.Equals(LegacySettingsContract.LeagueExitGameHotkey, StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
+        else if (key.Equals(LegacySettingsContract.LeagueCloseLobbyHotkey, StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
+        else if (key.Equals(LegacySettingsContract.LeagueAutoHonorTeammateEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var honor)) result.LeagueAutoHonorTeammateEnabled = honor;
+        else if (key.Equals(LegacySettingsContract.LeagueAutoReturnLobbyEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var returnLobby)) result.LeagueAutoReturnLobbyEnabled = returnLobby;
+        else if (key.Equals(LegacySettingsContract.LeagueAutoMatchmakingEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var matchmaking)) result.LeagueAutoMatchmakingEnabled = matchmaking;
+        else if (key.Equals(LegacySettingsContract.LeagueAutoAcceptEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var accept)) result.LeagueAutoAcceptEnabled = accept;
     }
 
     private static void Normalize(LegacySettingsSnapshot result)

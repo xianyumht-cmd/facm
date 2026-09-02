@@ -1,5 +1,50 @@
 # FACM 常见陷阱与防回归规则
 
+## WinUI App 不要用 UseWindowsForms 切换桌面 SDK 目标
+
+### 根因
+
+FACM.App 是 WinUI 3 XAML 应用。为托盘接入 WinForms 时直接设置 `UseWindowsForms=true` 会让 .NET 10 WindowsDesktop targets 把 WinUI 的 `App.xaml` 按 WPF 应用定义处理，构建失败并报 `MC6000`，要求 `PresentationCore` / `PresentationFramework`。
+
+### 防回归规则
+
+- WinUI App 保持 `UseWinUI=true`，不要为托盘程序集启用 `UseWindowsForms`；使用 `Microsoft.WindowsDesktop.App.WindowsForms` framework reference 提供托盘 API。
+- 保持 `TreatWarningsAsErrors=true`，重新执行 solution build、FoundationSmoke（需要跳过 Gate13 时显式传 `--skip-gate13`）和 WindowsSmoke。
+- 这只是构建兼容性处理，不得借机把 WinUI shell 迁移成 WPF 或改变托盘的单实例所有权。
+
+## T1 League 诊断不能先行变成性能修复
+
+### 根因
+
+真实 League 工作台卡顿需要区分 Gameflow 轮询、Workbench 阶段、共享 LCU 请求、超时/取消、session 失效和 UI 回写。没有带 correlation ID 的成对时间线时，提前加入 limiter、cache、debounce、dedup 或新的 timeout 会把症状隐藏，并可能改变 4.0 的既有行为。
+
+### 防回归规则
+
+- T1 只记录共享 Gateway、单一 Gameflow monitor、Workbench refresh/stage 的 start/end、phase、status/outcome、duration、in-flight 和脱敏 endpoint。
+- 诊断回调必须 fail-soft，不能创建第二 transport、第二 polling loop 或改变请求顺序。
+- 在用户提供真实 League trace 并完成根因排序前，不实施 T2 性能策略修改。
+
+## Bench 自动呈现不能依赖 Workbench 页面生命周期
+
+### 根因
+
+`LeagueWorkbenchViewModel.Live` 只会在 Workbench refresh 入口被更新。若 Compact/Strip 把它当作
+自动呈现的唯一事实来源，则 Workbench 未打开、ChampSelect 候选晚于一次性进入刷新到达，或
+候选列表在会话中变化时，League 客户端已经显示 Bench 候选而 FACM 仍停留在 Orb。这是事实
+观察 owner 与 UI 页面生命周期耦合，不是 portrait 渲染失败。
+
+### 防回归规则
+
+- 自动 Compact/Strip 呈现必须消费进程级 Bench runtime state；它应挂接现有唯一
+  `LeagueGameflowMonitor.Observed` 心跳，不得新增第二个 Gameflow/session/gateway/timer/loop。
+- 首次可操作候选只在当前 ChampSelect context 内锁存 Strip；零候选或暂时读取失败只能显示
+  waiting state，不能因为一次空读回退 Orb。
+- 普通 expanded surface 的 outside-click 规则不能套用到锁存 BenchStrip；候选点击和 F 句柄
+  简单点击必须保持 Strip，InGame/Lobby 才能结束 context。
+- `league.bench.surface-evaluation` 只在决策签名改变时记录 phase、context generation、
+  candidate count、current surface、latch、source owner 和 freshness，避免用高频日志掩盖真正
+  的生命周期断链。
+
 ## 未经腾讯验证的 LCU 可选字段不能提升为自动化硬门槛
 
 ### 根因
@@ -47,6 +92,40 @@ Windows 路径规范化还有一个容易忽略的语义差异：`C:\` 是盘符
 
 - Issue #16
 - PR #22
+
+## Stacked PR gate 不应把祖先生产控制差异误判为本轮修改
+
+### 根因
+
+P2-P7 是 stacked PR。若 source gate 固定比较 `origin/main...HEAD`，祖先阶段已经存在的 `online/version.json`、`release/request.json` 或 evidence matrix 差异会被误报为当前 P7 修改，导致一个未改生产控制的 candidate 无法通过 cutover/architecture/evidence gate。
+
+### 防回归规则
+
+- 生产控制保护必须比较当前 PR 的实际 base；在 merge ref 上使用 PR base，在本地 candidate 上使用 candidate 的直接父提交。
+- gate 失败时先输出 changed paths 与比较基线，区分当前提交真实修改和 stacked ancestor 差异；不得删除保护检查或忽略文件。
+
+## .NET 10 WPF/WinForms host 不要继续在 manifest 中声明旧 DPI 节点
+
+### 根因
+
+启用 `UseWPF` + `UseWindowsForms` 的 host 在 .NET 10 会由 Windows Forms analyzer 报 `WFAC010`：旧 `dpiAware` / `dpiAwareness` manifest 节点应移除，改由 `ApplicationHighDpiMode` 或 API 配置。将 warning 当作非错误或降低 warnings-as-errors 会掩盖真实 host 配置问题。
+
+### 防回归规则
+
+- WPF/WinForms host 使用 `ApplicationHighDpiMode=PerMonitorV2`，manifest 只保留仍需要的兼容/长路径声明。
+- 修改后必须重新执行 host publish/self-test、solution build 和 WindowsSmoke；不能只让 analyzer 静音。
+
+## Source gate 扫描必须排除构建目录
+
+### 根因
+
+本机在先完成 App publish 后再次执行 shell gate 时，`src/FACM.App/bin/...` 内由 Windows App SDK 生成的 `Microsoft.UI.Xaml` 目录被 `Get-ChildItem -Filter '*.xaml'` 返回，gate 随后对目录调用 `Get-Content` 而失败。干净 checkout 的 CI 顺序不会暴露这个问题，但完整本机验证会。
+
+### 防回归规则
+
+- 扫描源码文件时必须明确使用 `-File`，并在必要时排除 `bin`/`obj`；
+- source gate 应能在 source-only 和 build/publish 后重复执行，不能把生成目录当作源码错误；
+- 修复 gate 选择器，不要删除检查或清理掉真实源码证据来“让测试绿”。
 
 ## `ResponseHeadersRead` 不代表正文也受超时控制
 
@@ -420,3 +499,278 @@ Build #845 因此在 FACM 编译阶段以 CS7036 失败；PetHost publish/self-t
 - PR #58
 - Build #845（旧 `FloatingBallSmokeTest` 构造调用）
 - Build #846（显式注入修复后成功）
+
+## IPC 写入超时不能只包裹外层 WaitAsync，Host 也不能在 activate 前 Show
+
+### 根因
+
+桌宠 Runtime 旧实现把不可取消的 `StreamWriter.WriteLineAsync`/`FlushAsync` 放进外层 `WaitAsync`。外层任务超时并不代表底层写入结束；随后清理阶段仍可能复用已污染的 writer。与此同时，FlyingHost/PetHost 的 `Program` 在进入 `Application.Run()` 前无条件 `window.Show()`，因此每次切换都可能先显示一个未完成 activate 的 Host。
+
+### 防回归规则
+
+- activate/reset/stop 命令写入必须把取消令牌传到 `WriteLineAsync` 和 `FlushAsync`，并为每次命令保留有界预算。
+- activate 写超时或写异常后必须标记 transport poisoned；清理只做 detach/dispose、进程 wait/kill/wait/dispose，不再发送 graceful stop。
+- Host 的 `Program` 不得预先 `Show()`；Dispatcher 先运行，`activate` 才允许 `Show()`，随后才进入 `Loaded -> ready`。
+- IPC server 连接后直接进入命令 reader，不得预发送会占用命令时序的 `connected` event。
+- deterministic Windows smoke 必须覆盖激活顺序、取消写入无 pending task、关闭 transport 的 stop 写失败仍 fail-soft，以及串行 Host 会话。
+
+### 关联
+
+- FACM 4.0 / PR #234 / Batch P
+- `artifacts/facm4-win10-targeted-batch-p.zip` targeted candidate
+
+## 2026-08-30：Workbench 后台 PropertyChanged 不能直接读取 WinUI
+
+### 根因
+
+`LeagueWorkbenchViewModel.RefreshAsync` 在 `ConfigureAwait(false)` 后更新快照，并同步触发 `PropertyChanged`。若 MainWindow 订阅器在回调入口读取 `NavigationView.SelectedItem`，该读取发生在后台线程，会抛出 `COMException`，使日志看起来像 Workbench refresh failure，甚至可能被误判为 FACM 崩溃。
+
+### 防回归规则
+
+- ViewModel 可以在后台线程发布数据，但所有 WinUI 导航、控件、窗口状态读取和写入必须先通过 Dispatcher。
+- PropertyChanged、Gameflow Changed/Observed 和其它后台 observer 必须逐个隔离异常；一个 observer 失败不能中止共享 monitor 或吞掉后续 observer。
+- 真实诊断必须同时检查 FACM PID 是否退出、lifecycle/fatal 事件和 Workbench stage pair；单条 `COMException` 不能直接称为进程崩溃。
+
+## 2026-08-30：验证 App 时必须确认实际输出目录
+
+FACM 工程的 Debug 构建可能输出到 `bin\Debug`，而旧测试启动器仍可能指向历史 `bin\x64\Debug`。启动前必须核对 EXE 的完整路径和修改时间，否则会把旧二进制的失败误判为新修复失败或把旧行为误判为新行为。
+
+## 2026-08-30：Morphing Surface 不能重新引入多个 UI shell 或 League owner
+
+### 根因
+
+将 Orb、控制中心、功能窗口、League 工作台和桌宠入口分别实现为独立常驻窗口，会让一次用户切换同时留下多个宿主；如果每个页面再创建自己的 Gateway、Gameflow monitor、session 或 polling loop，卡顿和生命周期问题会被放大，且无法判断哪个窗口代表当前状态。
+
+### 防回归规则
+
+- 默认只允许一个持久 `MainWindow` 主宿主；其它模式必须在该宿主内 morph，legacy 多窗口只能通过显式 `FACM_SHELL_EXPERIENCE=legacy` 对照启用。
+- 新视觉组件只能消费现有 ViewModel/service，不得创建第二个 League transport、Gameflow monitor、session owner、polling loop 或 cache。
+- 任何外观切换都必须保持 outside-click、modal suppression、single-instance、tray、桌宠、InGame hide 和 Lobby 回 Orb 契约。
+- source gate 如果扫描 `obj` 生成副本，必须先确认扫描的具体路径与当前构建是否已刷新；不要把 stale generated XAML 当成产品源文件，也不要为规避扫描修改平台项目的换行噪声。
+
+## 2026-08-31：BOOT-1 启动验证必须隔离旧候选进程并核对准确路径
+
+BOOT-1 的 native bootstrapper 和 FACM managed app 共享单实例边界。若旧 review 目录的
+`FACM.App.exe` 未通过自身窗口关闭流程退出，新候选即使已被 bootstrapper 正确创建，也会因单实例
+保护立即退出，表现为“没有 desktop-launcher-ready”。
+
+防回归规则：
+
+- 每次启动前按完整 `ExecutablePath` 核对目标 candidate，不要只按进程名判断；
+- 不同候选之间切换时，先正常关闭旧候选并确认进程退出，再启动新候选；
+- `Start-Process` 的参数数组测试必须确认实际 child command line；参数传递错误可能把 bootstrap-only
+  校验调用误变成默认启动；
+- ready、bootstrap correlation、active Core 路径和 shutdown-complete 必须同时作为启动证据，不能只
+  看 bootstrapper 的 process-created 日志。
+
+## 2026-08-31：BOOT-2 MakeCAB 分卷和内容摘要必须验证真实语义
+
+BOOT-2 初版 DDF 使用默认磁盘大小，`makecab` 将一个组件拆成多个约 1.44MB 分卷；由于模板名没有卷号，
+后续卷覆盖了前一卷，下载包虽能通过局部尺寸/哈希却无法完整 FDI 解包。修复为单 CAB、`MaxDiskSize`
+为 512 字节对齐的受控上限，并在 manifest 中记录实际 CAB size/hash。
+
+随后摘要校验出现误报：PowerShell 默认排序通常不等价于 C++ `std::sort` 的 ordinal 大小写排序，导致
+同一组文件生成不同 `contentDigest`。组件摘要必须按与 native verifier 完全相同的相对路径、`/` 分隔和
+ordinal 顺序计算，并同时校验 file count 与 installed size；不能只看压缩包 hash。
+
+预防规则：生成每个包后先检查 setup/卷数量与实际输出文件数，再用 native extractor 做 round-trip；
+ownership、package hash、expanded digest、file count 和 byte sum 必须进入同一份审计报告。失败 staging
+只能保留在受控 `.facm\staging`，active 版本不得被清理流程顺手删除。
+
+## 2026-08-31：不能把 Authenticode 当作 JSON/CAB manifest trust
+
+### 根因
+
+仓库已有的 Authenticode 机制面向 PE 可执行文件的签名者、证书链和发布版本身份；它不能天然认证
+application/component JSON 的精确字节，也不能把组件 manifest 的 package hash 与 extracted content digest
+串进 bootstrapper 的生产信任链。若只增加一个 `signed=true` 配置或沿用 unsigned-local 镜像，签名边界仍可被
+配置/传输替换绕过。
+
+### 防回归规则
+
+- 清单签名必须是 detached exact-byte signature；生产 key identity 必须来自 bootstrapper 内嵌 keyring，
+  不得来自配置、任意系统根或测试私钥。
+- 应用清单认证 component-manifest URL/bytes hash、package hash 和 extracted digest；组件清单要独立签名
+  并逐字段匹配，包在验证后才能转正。
+- unsigned-local 只能通过显式 loopback HTTP 开发边界进入，任何生产 URL、组件 URL 或 `allow-insecure-local`
+  组合都不能把它升级为生产信任。
+- 负向 smoke 必须覆盖 altered signed bytes、unknown/test-only key、unsigned downgrade、metadata mismatch、
+  package corruption 和 failed-update active preservation；失败时旧 active 必须仍可 resolve/launch。
+
+## 2026-08-31：BOOT3-B 确定性管线必须显式处理 PowerShell 路径和对象语义
+
+### 根因
+
+BOOT3-B 首轮验证暴露了三个容易被脚本表面成功掩盖的问题：`Measure-Object` 不能直接对
+`[ordered]` 字典对象的 `size` 属性做可靠求和；`Copy-Item -LiteralPath` 不展开受控的通配符；
+确定性比较若从输出根目录开始，会把 `signing-request.json` 等预期外文件混入 bundle 比较。
+此外，旧测试输出目录可能仍有被 MSBuild/NuGet 占用的文件，复用它会把环境锁定误报为产品失败。
+
+### 防回归规则
+
+- 对 manifest 的数值字段先显式投影为 `[int64]`，再求和；不要依赖字典对象的动态属性绑定。
+- 只有在通配符已被人工限定到受控根目录时使用 `-Path`；需要单文件精确复制时使用 `-LiteralPath`。
+- 确定性比较要明确比较边界：artifact bundle、release index 和 signing request 分别比较，不能混用输出根。
+- 每轮完整构建使用新的 `D:\project2` 临时根；清理只能针对已确认的本轮目录，不能触碰用户既有输出或安装状态。
+- B3 验证必须同时检查 unsigned request、签名后 exact-byte 校验、key rotation/replay/metadata/package/downgrade 负向路径。
+
+## 2026-08-31：production-like HTTPS 测试必须区分 TLS 信任与 release trust
+
+BOOT3-C 本地 origin 使用临时自签名证书，只为让 Windows WinHTTP 走真实 TLS 证书验证路径。该证书不能
+被当作 FACM release key，也不能把 `NODE_TLS_REJECT_UNAUTHORIZED=0`、任意第三方根证书或 HTTP fallback
+带入生产实现。测试根证书和 private key 必须在 `D:\project2` 临时目录中，运行结束删除；Windows 弹窗中
+只确认名称/指纹属于本轮 `FACM BOOT3-C local test` 证书。
+
+## 2026-08-31：mirror fallback 的可用性不能替代 exact-byte rejection
+
+主站不可用可以按签名清单中的固定顺序切换镜像；但镜像仍必须通过 embedded key、detached signature、
+metadata、package size/SHA-256 和 extraction digest。WinHTTP 必须显式禁止重定向，否则 HTTPS 到 HTTP 或
+未授权主机可能被透明跟随，测试也不能只用一个 HTTP listener 证明 production-like 分发。
+
+## 2026-08-31：低空间正向测试不能贴着当前 free-space 值
+
+引导器本身会创建 correlation/log 文件，使用 `available - 1` 做“应通过”的断言会因为文件系统分配粒度
+产生误报。低空间负向断言应使用 `available + 1`，正向断言保留足够余量（当前 harness 使用 256 MiB），并把
+真实更新峰值按 package/partial、解包暂存、组合目录和 safety margin 计算。PowerShell 的 `Math.Max` 默认重载
+还可能把大于 2 GiB 的磁盘值绑定到 `Int32`；磁盘字节数必须保持 `Int64`/`UInt64`。
+
+## 2026-08-31：免费代理只能是 transport，不能进入 signed metadata 或 trust
+
+### 根因
+
+GitHub Release 公共代理的域名、证书、重定向和 Range 行为可能随时变化。若把代理地址写入签名清单，代理
+可用性就会和 release identity、签名查找、回滚判断混在一起；若跟随任意重定向，还可能把 HTTPS 下载降级到
+HTTP 或未授权主机。另一个常见错误是代理返回 `200` 或错误的 `206 Content-Range` 时直接拼接 `.partial`。
+
+### 防回归规则
+
+- signed metadata 只写 canonical GitHub Release URL；代理只由 native bootstrapper 对 canonical URL 派生，且
+  必须按固定顺序最终回到 direct GitHub。
+- WinHTTP 自动 redirect 保持关闭，只允许有界 HTTPS GitHub release/CDN host；拒绝 HTTP、user-info、任意域名
+  和超深 redirect chain。
+- resume 时验证 `Content-Range` 的起点和总大小；服务器在续传请求上返回 `200` 必须安全重启，不能把完整
+  文件追加到 partial；每个候选完成后重新做包 hash 和解包内容校验。
+- 每次候选验证都同时保留 canonical source URL；proxy response 不能改变 detached signature URL、key ID、
+  downgrade 或 activation policy。
+- 免费代理的当前可用性只能作为带日期的 compatibility evidence，不能写成 SLA；发布前后都要重新探测，并
+  保留 direct GitHub fallback。
+
+## 2026-09-01：GitHub Release 资产不能直接复用嵌套构建路径
+
+本地 HTTP origin 可以按 `components/<id>/<version>/...` 提供目录树，但 GitHub Release 上传的是独立资产文件，
+组件清单若都保留 `component.manifest.json` basename 会冲突，canonical URL 也不能直接假设远程保留本地目录层级。
+发布候选必须先映射为唯一扁平文件名，再同步重写所有已签名 URL、release index、签名请求和验证脚本；需要把
+“本地目录可服务”与“Release asset 可上传/下载”分开验证。
+
+## 2026-09-01：单启动器测试要区分子进程观察与 bootstrapper 等待
+
+真实启动路径会由 `FACM.exe` 创建并监督 `FACM.App.exe`。对 bootstrapper 使用 `Start-Process -Wait` 会等待
+整个子进程树，导致测试在应用已经启动时仍看不到控制权，产生假阴性。专项 harness 必须异步启动 bootstrapper，
+按候选安装路径观察真实 `FACM.App.exe`，然后只对本轮确切候选进程执行正常关闭和必要的精确清理。
+
+同样，live transport probe 不能使用尚未发布的候选 Release URL；应使用可确认存在的公共 GitHub 资产验证
+四路候选，另用本地签名 HTTPS origin 验证单启动器默认配置和 trust boundary。
+
+## 2026-09-01：完整大小的 `.partial` 也必须可恢复
+
+### 根因
+
+FREE-DIST-4 公网首启中，强制终止恰好落在 CAB 最后一个字节写入之后、临时文件转正之前。此时 `.partial`
+大小已经等于 authenticated package size，但当前 `DownloadUrl` 只拒绝 `existing > packageSize`，于是把
+`resumeAt == packageSize` 编成 `Range: bytes=<packageSize>-`。公共服务器返回 HTTP 416，所有候选失败，完整的
+临时包也不会被重新验证或转正。
+
+### 防回归规则
+
+- `partialSize == packageSize` 必须先做完整 package SHA-256/manifest 校验；校验通过则直接安全转正，不能发
+  EOF Range；校验失败才应清理并从零开始下载。
+- 中断回归必须覆盖非零前缀和“完整大小但尚未转正”两个窗口，并验证重启后无残留 `.partial`、精确 hash、
+  解包 digest、active 提交和真实 Orb 启动。
+- 记录 `component-download-resume` 不能单独作为通过证据；必须同时证明 Range 响应或完整包恢复后的最终
+  exact-byte 和 activation 结果。
+
+## 2026-09-01：长时间 Windows 回归不能用前台等待上限判定失败
+
+BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex 前台等待窗口结束时，父 PowerShell 可能被
+中断而留下测试子进程或 CurrentUser Root 测试证书。把日志重定向到测试根目录还会与 harness 的清理动作互相
+锁定，造成看似无关的失败。
+
+防回归规则：长回归用后台测试进程并把 stdout/stderr 放在测试根目录之外，轮询结果 JSON、精确测试进程和端口；
+只终止命令行明确属于本轮测试根的进程。若证书清理遇到系统证书存储等待，不得把它解释为 release trust 失败；
+同时保留最终 runtime evidence，并确认 WinHTTP 恢复为原始状态。单启动器的 Orb 关闭后检查要允许短暂进程枚举
+时序，不能用一次立即查询制造假阴性。
+
+## 2026-09-01：WinUI P7 的 UI 资产依赖必须停在 Core contract
+
+### 根因
+
+为给 League Workbench 增加 OP.GG 图标而让 WinUI 页面直接引用 Infrastructure，会绕过现有 composition boundary，
+并使 source gate 失去对依赖方向的保护。
+
+### 防回归规则
+
+- 在 Core 定义最小的 `ILeagueGuideAssetService` contract，由 App composition root 注入具体实现。
+- 远端图标是 decorative enhancement，不得阻塞 OP.GG JSON、改变 League session owner、增加 polling loop 或把
+  网络失败变成空白推荐；缓存/路由失败必须保留文字行。
+- 对 fixed-host、路径遍历拒绝、缓存和 fail-soft 行为保留 FoundationSmoke 覆盖，并在架构门禁后重跑 Workbench
+  与 recommended source gates。
+
+## 2026-09-01：Lobby 不能推断 ChampSelect，静态强化符文目录也不是英雄专属排行
+
+真实 LCU 审计中，`gameflow-phase` 返回 `None`，两个已知 ChampSelect session 端点都返回
+`404 expected-unavailable`，而静态 `cherry-augments.json` 仍可返回 657 条目录元数据。若把
+目录可读或历史页面数据当作当前选人结果，就会把通用强化符文误报成当前英雄专属排名。
+
+防回归规则：自动攻略必须等待共享 Gameflow owner 的 ChampSelect 状态；只绑定真实 payload
+中的本地 action/champion 字段。Lobby、None、空 champion、未识别 action 或不存在的稀有度都
+必须 fail-closed，不展示推测的当前英雄或伪造的强化符文排行。脱敏审计只保留 schema 形状、
+计数、状态和版本信息，不得落盘 LCU token、账号身份或原始响应。
+
+## 2026-09-01：OP.GG 海斗详细页可能慢且没有可验证的 Runes 表
+
+手动海斗真实读取中，`zh-cn/lol/modes/aram-mayhem` 详细页在本机可能接近 4.5 秒才返回；此前的 1.8 秒预算会把可用的技能和出装误判成不可用。该页面同时没有当前可验证的 `Runes Table`，不能因为旧模型或其他模式数据存在就显示一套“推荐符文”。
+
+防回归规则：详细源保持有界的 4.5 秒预算，并允许降级到已验证的基础结果；只有解析到真实来源字段时才显示技能、召唤师技能、出装或强化符文。缺失的可选 section 必须省略，不得显示内部术语、占位“暂无”或通用数据伪装成英雄专属推荐。手动路径保留为后续自动 ChampSelect 攻略的 fallback/detail，不得据此绕过真实 LCU ChampSelect 证据。
+
+## 2026-09-01：自动攻略的 OP.GG 数字稀有度不能直接当作显示文本
+
+真实用户截图中，Kled 的冠军、技能、召唤师技能和装备图标均已显示，但强化符文区域错误提示“当前数据源未提供
+可分级的海克斯图标”。根因不是没有拿到数据：OP.GG 页面里的富数据使用数字 `rarity`，观察到的值为 `1/4/8`；
+旧解析器把数字保留成字符串，UI 只筛选 `棱彩/黄金/白银`，于是完整 rows 被全部过滤。修复规则是显式映射
+`1=白银`、`4=黄金`、`8=棱彩`，未知值仍保持 fail-closed；完整 rows 不能用 `Take(12)` 截断，分页只能发生在
+presentation 层。FoundationSmoke 必须包含嵌套 `self.__next_f` 结构和数字等级 fixture。
+
+## 2026-09-01：Champion summary 不是永远可靠的自动识别唯一来源
+
+ChampSelect 中偶发出现“没有识别到这个英雄”时，不能把用户输入或 pick intent 当作修复。总目录可能在客户端切换、
+缓存或版本边界期间缺少当前 ID，或只返回占位名称。保持同一只读 LCU gateway，在 summary 缺少/占位时按已观察的
+champion ID 请求 typed champion detail，并对旧请求做取消和 generation 检查。详情仍缺失时应保留等待/手动查询兜底，
+不得猜测英雄或展示通用榜单。
+
+## 2026-09-01：旧候选进程不能代表修复版 UI 验收
+
+候选入口切换到新版本目录后，已经运行的 `FACM.App.exe` 仍加载旧程序集。必须让用户正常关闭并重新启动根 launcher
+后再验证新 parser/identity fallback；不能在不确认 loaded version 的情况下把旧截图当成修复失败，也不能强制终止用户进程。
+本机 screenshot helper 还可能因 `SetIsBorderRequired` `E_NOINTERFACE` 失败；进程存在、窗口标题或源码门禁都不能替代
+真实 post-fix UI review。
+
+## 2026-09-02：GUI host 的 League 进程命令行读取不能只依赖 native/动态 COM fallback
+
+真实问题中 `LeagueClient.exe`、`LeagueClientUx.exe`、Riot Client 与 LCU 端口都在运行，失败发生在 HTTP 之前：
+WinUI self-contained host 的 `NtQueryInformationProcess` 返回访问/部分复制错误，动态 `WbemScripting.SWbemLocator`
+也没有返回命令行，因此 discovery 记录 `command-line-unavailable`，界面显示 `NotRunning`。同机诊断 shell 的 WMI
+成功不能代表 GUI host 的动态 COM 路径也成功；旁边的空 `LeagueClient\lockfile` 更不能当作 LCU 凭据。
+
+防回归规则：
+
+- 保留 native query，但在 App composition 中注入强类型 `System.Management` WMI reader；失败时继续使用原有动态
+  COM fallback，并把全部异常转换为 fail-closed 的无命令行结果。
+- 只记录脱敏的 source/outcome/PID/port；绝不记录命令行或 token。
+- 回归必须在真实 GUI self-contained 候选中同时验证进程发现、LCU HTTP 200、`Connected` 状态和候选日志；仅凭
+  shell WMI、监听端口、进程存在或历史 ready 状态不能判定修复。
+
+## 2026-09-02：带状态点的托盘图标不能从任务栏大图直接缩放
+
+16 像素托盘图标若沿用居中的完整品牌图，再把状态点贴在右上角，Windows 缩放和托盘裁切会让状态点缺角，
+同时压缩双 G 的可读空间。防回归规则是：托盘使用独立的微型图形，主体向左下收；右上角保留约 30% 空间；
+状态点向内至少一像素并带深色轮廓；16、20、24、32 像素逐层检查，而不是只检查源 PNG 或 256 像素 ICO。

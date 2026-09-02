@@ -34,6 +34,7 @@ internal sealed class PetHostWindow : Window
     private long _leftDownTicks;
     private bool _leftTracking;
     private int _bootstrapProgressTotal;
+    private bool _activated;
 
     public PetHostWindow(PetHostIpc ipc)
     {
@@ -149,7 +150,9 @@ internal sealed class PetHostWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (!_activated) return;
         _controller.ResetToPrimaryScreen();
+        await _ipc.SendEventAsync("stage", "loaded;pid=" + Environment.ProcessId);
         var progress = new Progress<string>(HandleBootstrapProgress);
         var started = Stopwatch.StartNew();
 
@@ -310,24 +313,34 @@ internal sealed class PetHostWindow : Window
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            var command = line.Split('|')[0].Trim().ToLowerInvariant();
-            switch (command)
-            {
-                case "activate":
-                    if (!IsVisible) Show();
-                    Topmost = true;
-                    break;
-                case "reset":
-                    _controller.ResetToPrimaryScreen();
-                    break;
-                case "stop":
-                    Close();
-                    break;
-                case "ping":
-                    _ = _ipc.SendEventAsync("pong");
-                    break;
-            }
+            _ = HandleCommandOnDispatcherAsync(line);
         }));
+    }
+
+    private async Task HandleCommandOnDispatcherAsync(string line)
+    {
+        var command = line.Split('|')[0].Trim().ToLowerInvariant();
+        switch (command)
+        {
+            case "activate":
+                if (!IsVisible)
+                {
+                    _activated = true;
+                    await _ipc.SendEventAsync("stage", "show;pid=" + Environment.ProcessId);
+                    Show();
+                }
+                Topmost = true;
+                break;
+            case "reset":
+                _controller.ResetToPrimaryScreen();
+                break;
+            case "stop":
+                Close();
+                break;
+            case "ping":
+                await _ipc.SendEventAsync("pong");
+                break;
+        }
     }
 
     private void OnPreviewLeftButtonDown(object sender, MouseButtonEventArgs e)

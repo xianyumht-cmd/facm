@@ -1,0 +1,17 @@
+<UserControl
+    x:Class="FACM.App.FacmInspectorBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    MinHeight="{StaticResource FacmInspectorHeightDip}"
+    AutomationProperties.AutomationId="FACM.Inspector">
+    <Border
+        Padding="12,0"
+        Background="{StaticResource FacmSurfaceBrush}"
+        BorderBrush="{StaticResource FacmStrokeBrush}"
+        BorderThickness="0,1,0,0">
+        <TextBlock
+            x:Name="InspectorText"
+            Style="{StaticResource FacmInspectorTextStyle}"
+            AutomationProperties.AutomationId="FACM.Inspector.Text" />
+    </Border>
+</UserControl>

@@ -4,7 +4,9 @@ using FACM.Platform.Windows.Desktop;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace FACM.App;
@@ -19,6 +21,7 @@ public sealed partial class FloatingWindow : Window
     private readonly IDesktopWorkAreaProvider _workAreas;
     private readonly WindowsFloatingSurfacePlatform _platform;
     private readonly Action _toggleCompactLauncher;
+    private readonly Action _showTrayContextMenu;
     private readonly Func<DesktopPoint, Task> _persistPlacement;
     private readonly IntPtr _windowHandle;
     private readonly PointerEventHandler _pointerPressedHandler;
@@ -41,12 +44,14 @@ public sealed partial class FloatingWindow : Window
         WindowsFloatingSurfacePlatform platform,
         IUiTextProvider text,
         Action toggleCompactLauncher,
+        Action showTrayContextMenu,
         Func<DesktopPoint, Task> persistPlacement)
     {
         _workAreas = workAreas ?? throw new ArgumentNullException(nameof(workAreas));
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
         ArgumentNullException.ThrowIfNull(text);
         _toggleCompactLauncher = toggleCompactLauncher ?? throw new ArgumentNullException(nameof(toggleCompactLauncher));
+        _showTrayContextMenu = showTrayContextMenu ?? throw new ArgumentNullException(nameof(showTrayContextMenu));
         _persistPlacement = persistPlacement ?? throw new ArgumentNullException(nameof(persistPlacement));
 
         InitializeComponent();
@@ -54,6 +59,7 @@ public sealed partial class FloatingWindow : Window
         Title = text.Get(UiTextKeys.AppName);
         AutomationProperties.SetName(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
         AutomationProperties.SetHelpText(FloatingButton, text.Get(UiTextKeys.DesktopOpenShellHelp));
+        ToolTipService.SetToolTip(FloatingButton, text.Get(UiTextKeys.DesktopOpenShell));
 
         _pointerPressedHandler = new PointerEventHandler(OnFloatingPointerPressed);
         _pointerMovedHandler = new PointerEventHandler(OnFloatingPointerMoved);
@@ -138,6 +144,20 @@ public sealed partial class FloatingWindow : Window
         return new DesktopRect(position.X, position.Y, size.Width, size.Height);
     }
 
+    internal void SetRuntimeStatus(string badge, string inspector, bool problem = false)
+    {
+        if (_closed) return;
+        FloatingStatusBadgeText.Text = badge ?? string.Empty;
+        FloatingStatusBadge.Visibility = string.IsNullOrWhiteSpace(badge)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        if (problem)
+            FloatingStatusBadge.Background = (Brush)Application.Current.Resources["FacmErrorBrush"];
+        else
+            FloatingStatusBadge.Background = (Brush)Application.Current.Resources["FacmSuccessBrush"];
+        ToolTipService.SetToolTip(FloatingButton, inspector ?? string.Empty);
+    }
+
     private void ConfigurePresenter()
     {
         ExtendsContentIntoTitleBar = true;
@@ -156,7 +176,15 @@ public sealed partial class FloatingWindow : Window
         // click merely because our root observer has not reset _pointerActive yet. A real drag marks
         // suppression as soon as it crosses the 3.5 threshold, so only click-like releases get here.
         if (_dragMoved || Environment.TickCount64 <= _suppressClickUntilTick) return;
-        _toggleCompactLauncher();
+        DispatchDesktopEntryAction(DesktopEntryGesture.LeftClick);
+    }
+
+    private void DispatchDesktopEntryAction(DesktopEntryGesture gesture)
+    {
+        if (DesktopEntryInteractionPolicy.Resolve(gesture) == DesktopEntryAction.ShowTrayContextMenu)
+            _showTrayContextMenu();
+        else
+            _toggleCompactLauncher();
     }
 
     private void OnFloatingPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -164,6 +192,12 @@ public sealed partial class FloatingWindow : Window
         if (_closed || _pointerActive) return;
         var point = e.GetCurrentPoint(FloatingRoot);
         var properties = point.Properties;
+        if (properties.IsRightButtonPressed)
+        {
+            e.Handled = true;
+            DispatchDesktopEntryAction(DesktopEntryGesture.RightClick);
+            return;
+        }
         var primaryContact = properties.IsLeftButtonPressed || (!properties.IsRightButtonPressed && point.IsInContact);
         if (!primaryContact) return;
         if (!_platform.TryGetCursorPosition(out var cursor)) return;

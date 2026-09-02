@@ -55,10 +55,10 @@ namespace FACM
                     graphics.DrawEllipse(pen, bounds);
                 }
 
-                using (var font = new Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Pixel))
                 using (var brush = new SolidBrush(Color.White))
                 {
-                    const string text = "F";
+                    const string text = "GG";
                     var size = graphics.MeasureString(text, font);
                     graphics.DrawString(text, font, brush, (32F - size.Width) / 2F - 0.5F, (32F - size.Height) / 2F - 1.5F);
                 }

@@ -24,6 +24,9 @@ $services = Read-Required 'src/FACM.Infrastructure/Observability/DiagnosticsCent
 $viewModel = Read-Required 'src/FACM.App/ViewModels/DiagnosticsCenterViewModel.cs'
 $mainCode = Read-Required 'src/FACM.App/MainWindow.xaml.cs'
 $mainXaml = Read-Required 'src/FACM.App/MainWindow.xaml'
+$logViewer = Read-Required 'src/FACM.App/MainWindow.LogViewer.cs'
+$maintenanceWindow = Read-Required 'src/FACM.App/MainWindow.Maintenance.cs'
+$tray = Read-Required 'src/FACM.App/App.Tray.cs'
 $app = Read-Required 'src/FACM.App/App.xaml.cs'
 $text = Read-Required 'src/FACM.Core/Text/UiTextContracts.cs'
 
@@ -84,6 +87,34 @@ foreach ($name in @(
     }
 }
 
+foreach ($name in @(
+    'LogViewerSurface', 'LogSearchBox', 'LogDomainFilter', 'LogOutcomeFilter',
+    'LogRefreshButton', 'LogOpenFolderButton', 'LogCopyPathButton', 'LogRowsPanel'
+)) {
+    if ((Count-Matches $mainXaml ('x:Name="' + [regex]::Escape($name) + '"')) -ne 1) {
+        Fail "Structured log XAML surface missing or duplicated: $name"
+    }
+}
+foreach ($required in @(
+    'RefreshEventsAsync', 'IReadOnlyList<DiagnosticEvent> Events', 'LogPath', 'LogDirectory',
+    'LaunchFolderPathAsync', 'Clipboard.SetContent', 'OrderByDescending', 'Take(120)',
+    'LogsTime', 'LogsDomain', 'LogsOperation', 'LogsOutcome', 'LogsDuration'
+)) {
+    if ($viewModel -notmatch [regex]::Escape($required) -and
+        $logViewer -notmatch [regex]::Escape($required) -and
+        $mainCode -notmatch [regex]::Escape($required)) {
+        Fail "Structured log surface contract missing: $required"
+    }
+}
+foreach ($forbidden in @('WindowsLogFileOpener', 'OpenLogAsync', 'Process\.Start')) {
+    if ($logViewer -match $forbidden) { Fail "Structured log UI may not shell-open the raw JSONL file: $forbidden" }
+}
+foreach ($required in @('OpenLogRequested', 'OpenStructuredLogSurface')) {
+    if ($maintenanceWindow -notmatch [regex]::Escape($required) -and $tray -notmatch [regex]::Escape($required)) {
+        Fail "Primary operation-log entry is not routed to the internal structured log surface: $required"
+    }
+}
+
 if ((Count-Matches $app 'new\s+FileDiagnosticsSnapshotSource\s*\(') -ne 1) {
     Fail 'App composition must create exactly one read-only diagnostics snapshot source.'
 }
@@ -108,6 +139,18 @@ foreach ($constant in @(
     }
     if ($text -notmatch ('\[UiTextKeys\.' + [regex]::Escape($constant) + '\]\s*=')) {
         Fail "Diagnostics UI Text default missing: $constant"
+    }
+}
+foreach ($constant in @(
+    'LogsTitle', 'LogsSearch', 'LogsAllDomains', 'LogsAllOutcomes', 'LogsRefresh',
+    'LogsOpenFolder', 'LogsCopyPath', 'LogsTime', 'LogsDomain', 'LogsOperation',
+    'LogsOutcome', 'LogsDuration', 'LogsNoEvents', 'LogsRefreshed', 'LogsPathCopied'
+)) {
+    if ($text -notmatch ('public const string\s+' + [regex]::Escape($constant) + '\s*=')) {
+        Fail "Structured log UI Text key missing: $constant"
+    }
+    if ($text -notmatch ('\[UiTextKeys\.' + [regex]::Escape($constant) + '\]\s*=')) {
+        Fail "Structured log UI Text default missing: $constant"
     }
 }
 

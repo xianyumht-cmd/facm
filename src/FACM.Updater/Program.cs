@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
@@ -14,10 +15,30 @@ namespace FACM.Updater
         private const string SourcePrefix = "--source64=";
         private const string DestinationPrefix = "--dest64=";
         private const string HashPrefix = "--sha256=";
+        private const string SelfTestArgument = "--self-test";
+        private const int MoveFileReplaceExisting = 0x1;
+        private const int MoveFileWriteThrough = 0x8;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
         [STAThread]
         private static void Main(string[] args)
         {
+            if (args != null && args.Any(value => string.Equals(value, SelfTestArgument, StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    RunSelfTest();
+                    Environment.ExitCode = 0;
+                }
+                catch
+                {
+                    Environment.ExitCode = 8;
+                }
+                return;
+            }
+
             string destination = null;
             try
             {
@@ -117,7 +138,7 @@ namespace FACM.Updater
                 }
                 else
                 {
-                    File.Move(staging, destination);
+                    AtomicReplaceFromStaging(staging, destination);
                 }
 
                 if (!string.Equals(ComputeSha256(destination), expectedHash, StringComparison.OrdinalIgnoreCase))
@@ -135,11 +156,13 @@ namespace FACM.Updater
 
         private static void FallbackReplace(string staging, string destination, string backup)
         {
+            // Never stream-copy over the live executable. If the helper is terminated while preparing
+            // the backup, destination remains the complete old image. The only destination mutation is
+            // a same-directory MoveFileEx replacement after staging has already passed SHA-256.
             if (File.Exists(destination)) File.Copy(destination, backup, true);
             try
             {
-                File.Copy(staging, destination, true);
-                TryDelete(staging);
+                AtomicReplaceFromStaging(staging, destination);
             }
             catch
             {
@@ -148,12 +171,29 @@ namespace FACM.Updater
             }
         }
 
+        private static void AtomicReplaceFromStaging(string staging, string destination)
+        {
+            if (string.IsNullOrWhiteSpace(staging) || string.IsNullOrWhiteSpace(destination))
+                throw new InvalidDataException("更新原子替换路径无效。");
+
+            var sourceDirectory = Path.GetDirectoryName(Path.GetFullPath(staging));
+            var destinationDirectory = Path.GetDirectoryName(Path.GetFullPath(destination));
+            if (!string.Equals(sourceDirectory, destinationDirectory, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("更新原子替换必须在同一目录执行。");
+
+            if (!MoveFileEx(staging, destination, MoveFileReplaceExisting | MoveFileWriteThrough))
+                throw new IOException("Windows 原子替换 FACM 文件失败。", Marshal.GetHRForLastWin32Error());
+        }
+
         private static void TryRollback(string destination, string backup)
         {
             try
             {
                 if (!File.Exists(backup)) return;
-                File.Copy(backup, destination, true);
+                // Moving the complete backup over destination is itself atomic. If the helper is killed
+                // around this call, the target is either the complete candidate or the complete rollback,
+                // never a partially copied executable.
+                AtomicReplaceFromStaging(backup, destination);
             }
             catch { }
         }
@@ -252,6 +292,60 @@ namespace FACM.Updater
         {
             try { return process.ExitCode; }
             catch { return -1; }
+        }
+
+        private static void RunSelfTest()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "facm-updater-selftest-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var destination = Path.Combine(root, "FACM.App.exe");
+                var staging = Path.Combine(root, "FACM.App.exe.facm-new-selftest");
+                var backup = destination + ".facm-old";
+                var oldBytes = Encoding.UTF8.GetBytes(new string('O', 8192) + "-old");
+                var newBytes = Encoding.UTF8.GetBytes(new string('N', 12288) + "-new");
+                File.WriteAllBytes(destination, oldBytes);
+                File.WriteAllBytes(staging, newBytes);
+                var oldHash = ComputeSha256(destination);
+                var newHash = ComputeSha256(staging);
+
+                // Interruption checkpoint A: backup preparation must not mutate the live destination.
+                File.Copy(destination, backup, true);
+                RequireSelfTest(string.Equals(ComputeSha256(destination), oldHash, StringComparison.OrdinalIgnoreCase),
+                    "backup preparation changed the live executable");
+                RequireSelfTest(string.Equals(ComputeSha256(backup), oldHash, StringComparison.OrdinalIgnoreCase),
+                    "backup preparation did not preserve the old executable");
+
+                // Interruption checkpoint B: the only destination mutation is one atomic same-directory move.
+                AtomicReplaceFromStaging(staging, destination);
+                RequireSelfTest(string.Equals(ComputeSha256(destination), newHash, StringComparison.OrdinalIgnoreCase),
+                    "atomic replacement did not produce the complete candidate");
+                RequireSelfTest(!File.Exists(staging), "atomic replacement left the staging file behind");
+
+                // Rollback uses the same atomic primitive rather than streaming bytes over destination.
+                TryRollback(destination, backup);
+                RequireSelfTest(string.Equals(ComputeSha256(destination), oldHash, StringComparison.OrdinalIgnoreCase),
+                    "atomic rollback did not restore the complete old executable");
+                RequireSelfTest(!File.Exists(backup), "atomic rollback did not consume the backup staging file");
+
+                // Exercise the actual fallback wrapper as well.
+                File.WriteAllBytes(staging, newBytes);
+                FallbackReplace(staging, destination, backup);
+                RequireSelfTest(string.Equals(ComputeSha256(destination), newHash, StringComparison.OrdinalIgnoreCase),
+                    "fallback replacement did not produce the complete candidate");
+                RequireSelfTest(string.Equals(ComputeSha256(backup), oldHash, StringComparison.OrdinalIgnoreCase),
+                    "fallback replacement did not preserve a complete rollback image");
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
+            }
+        }
+
+        private static void RequireSelfTest(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException("FACM updater self-test failed: " + message);
         }
 
         private static void TryDelete(string path)
