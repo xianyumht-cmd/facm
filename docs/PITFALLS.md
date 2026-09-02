@@ -809,3 +809,8 @@ Gitee 的 Release 下载还会从仓库域名跳到 `foruda.gitee.com` 附件域
 即使引导器已重新构建，也不能用旧 Release 种子里的 CAB 代替 BOOT-2 本轮生成的 CAB。发布前要对照本轮 mirror
 输出的包大小和 SHA-256；否则会出现“引导器是修正版、应用 CAB 却是旧包”的混合发布。发现后应保留 tag，删除
 该 Release 的附件并用同一 tag 重新上传完整 bundle，同时更新 release-index 和验证记录。
+
+本次隔离 Gitee 首次启动还暴露出一个待分析边界：清单和三个 CAB 均能直连下载且哈希/大小正确，但 native FDI
+在 Windows runtime CAB 解包结束后返回 `FDI 8:0`。在定位前不能把“下载成功”写成“首次启动成功”；应保留
+`D:\project2\facm-gitee-4.0.3-e2e-20260902\.facm\logs\bootstrapper.jsonl` 的脱敏事件、复核目标目录的文件计数/字节数，
+并用新的隔离目录重现，不能删除或覆盖用户现有安装。

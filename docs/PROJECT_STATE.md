@@ -882,4 +882,12 @@ Gitee Releases `v4.0.2` (15 bundle files), corrected `v4.0.3` (15 bundle files),
 GitHub `v3.5.18` bridge Release is also published for the one-time legacy hop. The online manifest now
 offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.3 migration target. Existing installed 3.5.17
 clients still contain the old GitHub-only URL allowlist, so they must receive the signed 3.5.18 bridge once
-before the Gitee-first 4.0.2 migration path can be used automatically.
+before the Gitee-first 4.0.3 migration path can be used automatically.
+
+The isolated Gitee first-run probe is currently paused for user gameplay. It fetched the signed manifest
+and all three 4.0.3 CABs through the direct Gitee route (the log records `manifest-validated` and three
+`component-download-complete` events), but the native FDI extraction step ended with `FDI 8:0` after the
+Windows runtime files had been written. The downloaded Windows CAB matches the local SHA-256 and its
+file count/installed bytes match the manifest; this is therefore an unresolved native extraction/runtime
+verification item, not evidence of a bad Gitee download. Test root: `D:\project2\facm-gitee-4.0.3-e2e-20260902`.
+No production installation or user process was changed by this probe.
