@@ -868,7 +868,9 @@ FACM 4.0.2 (`v4.0.2`) was published, but Gitee's second attachment redirect host
 allowlist gap. The corrective FACM 4.0.3 (`v4.0.3`) bundle is built from fixed source commit
 `14bac2d64deecfd9e9d10b8844661cabfdb3ebd4`, with
 bootstrapper SHA-256 `FC09650F0818E0FF44BB3B3D97EBEB3730AB3424547153D807FE494AEFE77FDA` and
-detached manifest SHA-256 `00A68D3A676D6C57546E28FB00C48C7240839C352A97F37034114C0B48E60B4C`. The
+detached manifest SHA-256 `669E1297C382FF69B2A7E6E0C93E0ACAB70813CDE6E5CF72D853946C4AEC308A`. Its freshly
+rebuilt application CAB is 23,500,520 bytes with SHA-256
+`9A41CBF3283AECA0F65CBDCF186235A6499397F9A612B60BC514599FFABE349A`. The
 signed 3.5.18 bridge copy is `D:\project2\facm-release-3.5.18-gitee\FACM.exe` with SHA-256
 `78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0`.
 
@@ -876,7 +878,7 @@ The local publisher is `scripts/release/publish-gitee-release-local.ps1`; it rea
 from the OS credential manager, never writes it to the repository, and supports preview before upload.
 The source is pushed to both GitHub and Gitee `main` at commit `90e50b2` (the release binary provenance remains
 the explicit `14bac2d` source commit above).
-Gitee Releases `v4.0.2` (15 bundle files), `v4.0.3` (15 bundle files), and `v3.5.18` (bridge plus SHA256 record) are published; the
+Gitee Releases `v4.0.2` (15 bundle files), corrected `v4.0.3` (15 bundle files), and `v3.5.18` (bridge plus SHA256 record) are published; the
 GitHub `v3.5.18` bridge Release is also published for the one-time legacy hop. The online manifest now
 offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.3 migration target. Existing installed 3.5.17
 clients still contain the old GitHub-only URL allowlist, so they must receive the signed 3.5.18 bridge once

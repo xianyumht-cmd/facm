@@ -805,3 +805,7 @@ FACM 3.x 的更新器以 `FACM.exe` 进程在短时间内仍存活作为安装�
 
 Gitee 的 Release 下载还会从仓库域名跳到 `foruda.gitee.com` 附件域名。只在 `gitee.com` 放行会导致引导器在真实
 下载时失败；必须对固定附件路径做受限放行，并在重新构建后更新 bootstrapper SHA-256 和 migration 指针。
+
+即使引导器已重新构建，也不能用旧 Release 种子里的 CAB 代替 BOOT-2 本轮生成的 CAB。发布前要对照本轮 mirror
+输出的包大小和 SHA-256；否则会出现“引导器是修正版、应用 CAB 却是旧包”的混合发布。发现后应保留 tag，删除
+该 Release 的附件并用同一 tag 重新上传完整 bundle，同时更新 release-index 和验证记录。
