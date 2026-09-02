@@ -32,6 +32,13 @@ public interface ILeagueProcessSnapshotProvider
 /// </summary>
 public sealed class WindowsLeagueProcessSnapshotProvider : ILeagueProcessSnapshotProvider
 {
+    private readonly Func<int, string?>? _managedCommandLineReader;
+
+    public WindowsLeagueProcessSnapshotProvider(Func<int, string?>? managedCommandLineReader = null)
+    {
+        _managedCommandLineReader = managedCommandLineReader;
+    }
+
     public IReadOnlyList<LeagueProcessSnapshot> GetProcesses(string processName)
     {
         if (string.IsNullOrWhiteSpace(processName)) return Array.Empty<LeagueProcessSnapshot>();
@@ -42,7 +49,7 @@ public sealed class WindowsLeagueProcessSnapshotProvider : ILeagueProcessSnapsho
             try
             {
                 var executablePath = TryReadExecutablePath(process);
-                var commandLine = TryReadCommandLine(process.Id);
+                var commandLine = TryReadCommandLine(process.Id, _managedCommandLineReader);
                 result.Add(new LeagueProcessSnapshot(process.Id, executablePath, commandLine));
             }
             catch
@@ -70,32 +77,34 @@ public sealed class WindowsLeagueProcessSnapshotProvider : ILeagueProcessSnapsho
         }
     }
 
-    private static string? TryReadCommandLine(int processId)
+    private static string? TryReadCommandLine(
+        int processId,
+        Func<int, string?>? managedCommandLineReader)
     {
         if (processId <= 0) return null;
 
         var handle = OpenProcess(ProcessQueryInformation | ProcessVmRead, false, processId);
-        if (handle == IntPtr.Zero) return TryReadWmiCommandLine(processId);
+        if (handle == IntPtr.Zero) return TryReadFallbackCommandLine(processId, managedCommandLineReader);
 
         try
         {
             var status = NtQueryInformationProcess(handle, ProcessCommandLineInformation, IntPtr.Zero, 0, out var length);
-            if (length <= 0) return TryReadWmiCommandLine(processId);
+            if (length <= 0) return TryReadFallbackCommandLine(processId, managedCommandLineReader);
 
             var buffer = Marshal.AllocHGlobal(length);
             try
             {
                 status = NtQueryInformationProcess(handle, ProcessCommandLineInformation, buffer, length, out _);
-                if (status != 0) return TryReadWmiCommandLine(processId);
+                if (status != 0) return TryReadFallbackCommandLine(processId, managedCommandLineReader);
 
                 var commandLine = Marshal.PtrToStructure<UnicodeString>(buffer);
                 if (commandLine.Length == 0 || commandLine.Buffer == IntPtr.Zero)
-                    return TryReadWmiCommandLine(processId);
+                    return TryReadFallbackCommandLine(processId, managedCommandLineReader);
 
                 var bytes = new byte[commandLine.Length];
                 if (!ReadProcessMemory(handle, commandLine.Buffer, bytes, bytes.Length, out var read) ||
                     read.ToInt64() < bytes.Length)
-                    return TryReadWmiCommandLine(processId);
+                    return TryReadFallbackCommandLine(processId, managedCommandLineReader);
                 return System.Text.Encoding.Unicode.GetString(bytes);
             }
             finally
@@ -105,7 +114,7 @@ public sealed class WindowsLeagueProcessSnapshotProvider : ILeagueProcessSnapsho
         }
         catch
         {
-            return TryReadWmiCommandLine(processId);
+            return TryReadFallbackCommandLine(processId, managedCommandLineReader);
         }
         finally
         {
@@ -113,7 +122,17 @@ public sealed class WindowsLeagueProcessSnapshotProvider : ILeagueProcessSnapsho
         }
     }
 
-    private static string? TryReadWmiCommandLine(int processId)
+    private static string? TryReadFallbackCommandLine(
+        int processId,
+        Func<int, string?>? managedCommandLineReader)
+    {
+        var commandLine = managedCommandLineReader?.Invoke(processId);
+        return !string.IsNullOrWhiteSpace(commandLine)
+            ? commandLine
+            : TryReadComWmiCommandLine(processId);
+    }
+
+    private static string? TryReadComWmiCommandLine(int processId)
     {
         object? locator = null;
         object? service = null;

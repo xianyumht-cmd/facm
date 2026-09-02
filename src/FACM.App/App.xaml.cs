@@ -159,6 +159,8 @@ public partial class App : Application
         // Read/write transport, Product State, performance, repair, automation and the Workbench all
         // consume the same facts and gateway.
         _leagueSessions = new WindowsLeagueTransportSessionSource(
+            discovery: new ProcessLockfileLeagueSessionDiscovery(
+                new WindowsLeagueProcessSnapshotProvider(WindowsAppLeagueCommandLineReader.TryRead)),
             diagnosticReporter: ReportLeagueSessionDiagnostic);
         _leagueGateway = new LeagueHttpGateway(
             _leagueSessions,
