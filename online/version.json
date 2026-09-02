@@ -5,14 +5,14 @@
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.18/FACM.exe",
   "sha256": "78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0",
-  "release_notes": "FACM 3.5.18：旧版迁移桥接修正版；更新后优先从 Gitee 下载 FACM 4.0.5。",
+  "release_notes": "FACM 3.5.18：旧版迁移桥接修正版；更新后优先从 Gitee 下载 FACM 4.0.6。",
   "published_at": "2026-09-02T00:00:00.0000000+00:00",
   "migration": {
     "enabled": true,
-    "version": "4.0.5",
-    "bootstrapper_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.5/FACM.exe",
-    "bootstrapper_sha256": "0AD02D4980FD214B39B14BC12D934FA46E72293083DCA7B31E222EE9AB9A7248",
-    "manifest_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.5/manifest.json",
-    "release_notes": "FACM 4.0.5：修复原生引导程序签名缺失和版本号不匹配导致的迁移失败"
+    "version": "4.0.6",
+    "bootstrapper_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.6/FACM.exe",
+    "bootstrapper_sha256": "B562E1E897EA33B3AC49F76F1CA9EA44444AAB0088EBE90B4EDD7F95F60951B1",
+    "manifest_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.6/manifest.json",
+    "release_notes": "FACM 4.0.6：修复维护页确认清理无效，并完善 4.x 维护页到原生引导程序的更新链"
   }
 }
