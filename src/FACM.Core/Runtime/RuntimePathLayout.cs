@@ -19,6 +19,7 @@ public sealed record RuntimePathLayout(
     public string RecoveryDirectory => IsModular
         ? Path.Combine(DataRootDirectory, "state")
         : Path.Combine(RuntimeDirectory, "recovery");
+    public string ActiveStatePath => Path.Combine(DataRootDirectory, "state", "active.json");
     public string RecoveryStatePath => Path.Combine(RecoveryDirectory, "state.json");
     public string Settings2LastKnownGoodPath => Path.Combine(RecoveryDirectory, "settings.v2.lkg.json");
     public string FeatureKillSwitchPath => Path.Combine(RecoveryDirectory, "feature-kill-switch.json");

@@ -1,9 +1,11 @@
 using FACM.App.ViewModels;
 using FACM.Core.Maintenance;
+using FACM.Core.Online;
 using FACM.Core.Runtime;
 using FACM.Infrastructure.Online;
 using FACM.Platform.Windows.Runtime;
 using Microsoft.UI.Dispatching;
+using System.Text.Json;
 
 namespace FACM.App;
 
@@ -43,7 +45,7 @@ public partial class App
     {
         var settings = _settings ?? throw new InvalidOperationException("Settings owner is unavailable.");
         var updateSource = _updateManifestSource ?? throw new InvalidOperationException("Update manifest source is unavailable.");
-        var currentVersion = Version.TryParse(appVersion, out var parsed) ? parsed : new Version(4, 0, 0);
+        var currentVersion = ResolveCurrentVersion(layout, appVersion);
         _httpAnnouncementSource = new HttpAnnouncementSource();
         var service = new FACM.Core.Online.MaintenanceApplicationService(
             settings,
@@ -51,11 +53,43 @@ public partial class App
             _httpAnnouncementSource,
             currentVersion);
         var executablePaths = new WindowsExecutablePathProvider();
-        var launcher = new WindowsUpdateReplacementLauncher(layout, executablePaths);
-        var identityVerifier = new WindowsUpdatePackageIdentityVerifier(executablePaths);
+        IUpdateReplacementLauncher launcher;
+        string? identitySourcePath = null;
+        if (layout.IsModular)
+        {
+            launcher = new WindowsBootstrapperUpdateLauncher(layout);
+            identitySourcePath = Path.Combine(layout.DistributionDirectory, "FACM.exe");
+        }
+        else
+        {
+            launcher = new WindowsUpdateReplacementLauncher(layout, executablePaths);
+        }
+        var identityVerifier = new WindowsUpdatePackageIdentityVerifier(executablePaths, identitySourcePath);
         var installer = new HttpPreparedUpdateInstaller(layout, launcher, identityVerifier);
         var logOpener = new WindowsLogFileOpener(layout);
         _maintenanceCenter = new MaintenanceViewModel(service, installer, logOpener);
+    }
+
+    private static Version ResolveCurrentVersion(RuntimePathLayout layout, string appVersion)
+    {
+        if (layout.IsModular)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(layout.ActiveStatePath));
+                var activeVersion = document.RootElement.TryGetProperty("activeVersion", out var value)
+                    ? value.GetString()
+                    : null;
+                var parsedActive = UpdateDecisionService.ParseVersion(activeVersion);
+                if (parsedActive is not null) return parsedActive;
+            }
+            catch
+            {
+                // Fall back to the assembly identity while a first-run active state is being created.
+            }
+        }
+
+        return UpdateDecisionService.ParseVersion(appVersion) ?? new Version(4, 0, 0);
     }
 
     private async Task InitializeMaintenanceAsync()

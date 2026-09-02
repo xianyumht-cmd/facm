@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "version": "4.0.5",
+  "minimum_version": "4.0.0",
+  "force_update": false,
+  "download_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.5/FACM.exe",
+  "sha256": "0AD02D4980FD214B39B14BC12D934FA46E72293083DCA7B31E222EE9AB9A7248",
+  "manifest_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.5/manifest.json",
+  "release_notes": "FACM 4.0.5：修复原生引导程序签名缺失和版本号不匹配导致的迁移失败。后续版本通过原生组件链更新。",
+  "published_at": "2026-09-02T00:00:00.0000000+00:00"
+}

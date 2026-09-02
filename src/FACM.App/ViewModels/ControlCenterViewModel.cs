@@ -11,16 +11,21 @@ public sealed class ControlCenterViewModel
     private readonly ISettings2Repository _settings;
     private readonly IUpdateManifestSource _updates;
     private readonly IProductStateReader _productState;
+    private Version _currentVersion;
 
     public ControlCenterViewModel(
         ISettings2Repository settings,
         IUpdateManifestSource updates,
-        IProductStateReader productState)
+        IProductStateReader productState,
+        Version? currentVersion = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
         _productState = productState ?? throw new ArgumentNullException(nameof(productState));
+        _currentVersion = currentVersion ?? new Version(4, 0, 0);
     }
+
+    public Version CurrentVersion => _currentVersion;
 
     public string StatusTextKey { get; private set; } = UiTextKeys.ShellStatusReady;
     public UpdateDecision? Update { get; private set; }
@@ -31,6 +36,8 @@ public sealed class ControlCenterViewModel
 
     public async Task RefreshAsync(Version currentVersion, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(currentVersion);
+        _currentVersion = currentVersion;
         var loaded = await _settings.LoadAsync(cancellationToken).ConfigureAwait(false);
         var autoUpdateEnabled = loaded.Settings.Online.AutoUpdateEnabled;
         var manifest = autoUpdateEnabled

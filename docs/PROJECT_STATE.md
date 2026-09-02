@@ -1,5 +1,16 @@
 # FACM 当前项目状态
 
+## 2026-09-02 清理确认与 4.x 维护页更新链修复（当前任务）
+
+- 已确认清理无效果的根因：预览确认对话框期间 `_cleanupUiBusy` 保持为 true，执行函数把它误当成
+  拒绝条件而提前返回；现已改为独立的 `_cleanupExecutionBusy` 互斥，确认路径会进入实际删除执行。
+- 4.x 维护页不再读取 legacy 3.x 版本清单：模块化运行时从 `online/facm4-version.json` 获取更新，
+  当前版本以 `.facm/state/active.json.activeVersion` 为准。
+- 4.x 更新先校验下载的同签名 native `FACM.exe`，再启动已安装的 native bootstrapper 并传入匹配的
+  signed `manifest.json`；不会直接替换未签名的 `FACM.App.exe`。
+- 本地验证：`FACM4.sln` Release 构建 0 警告/0 错误，FoundationSmoke、WindowsSmoke、维护更新门禁和
+  Cleanup 门禁通过。远端 Release/在线清单发布仍需在目标提交推送后按发布脚本完成。
+
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 

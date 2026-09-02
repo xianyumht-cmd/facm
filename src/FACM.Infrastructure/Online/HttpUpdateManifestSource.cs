@@ -12,6 +12,9 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
     public static readonly Uri ProductionManifestUri = new(
         "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/version.json",
         UriKind.Absolute);
+    public static readonly Uri ModularProductionManifestUri = new(
+        "https://gitee.com/xymhtcmd/facm/raw/main/online/facm4-version.json",
+        UriKind.Absolute);
 
     public const int DefaultMaxMetadataBytes = 128 * 1024;
 
@@ -78,7 +81,8 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
             dto.DownloadUrl ?? string.Empty,
             dto.Sha256 ?? string.Empty,
             dto.ReleaseNotes ?? string.Empty,
-            dto.PublishedAt ?? string.Empty);
+            dto.PublishedAt ?? string.Empty,
+            dto.BootstrapManifestUrl ?? string.Empty);
         if (!IsValidManifest(snapshot)) throw new InvalidDataException("FACM update metadata failed validation.");
         return snapshot;
     }
@@ -92,6 +96,12 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
 
         if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out var download) ||
             !IsApprovedReleaseUrl(download, version)) return false;
+
+        if (!string.IsNullOrWhiteSpace(manifest.BootstrapManifestUrl))
+        {
+            if (!Uri.TryCreate(manifest.BootstrapManifestUrl, UriKind.Absolute, out var bootstrapManifest) ||
+                !IsApprovedReleaseManifestUrl(bootstrapManifest, version)) return false;
+        }
 
         if (manifest.Sha256.Length != 64) return false;
         foreach (var character in manifest.Sha256)
@@ -116,6 +126,10 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
         return string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase) &&
                HasSingleAssetPath(uri.AbsolutePath, giteePrefix);
     }
+
+    private static bool IsApprovedReleaseManifestUrl(Uri uri, Version version) =>
+        IsApprovedReleaseUrl(uri, version) &&
+        uri.AbsolutePath.EndsWith("/manifest.json", StringComparison.OrdinalIgnoreCase);
 
     private static bool HasSingleAssetPath(string path, string prefix)
     {
@@ -143,5 +157,7 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
         public string? ReleaseNotes { get; init; }
         [JsonPropertyName("published_at")]
         public string? PublishedAt { get; init; }
+        [JsonPropertyName("manifest_url")]
+        public string? BootstrapManifestUrl { get; init; }
     }
 }

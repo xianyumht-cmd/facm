@@ -11,7 +11,20 @@ public sealed record PreparedUpdatePackage(
     string PackagePath,
     string Version,
     string Sha256,
-    long Length);
+    long Length)
+{
+    public string BootstrapManifestUrl { get; init; } = string.Empty;
+}
+
+public interface IManifestAwareUpdateReplacementLauncher
+{
+    Task<bool> StartAsync(
+        string validatedPackagePath,
+        string expectedSha256,
+        string version,
+        string bootstrapManifestUrl,
+        CancellationToken cancellationToken = default);
+}
 
 public sealed record UpdateReplacementResult(bool Started, string Reason);
 

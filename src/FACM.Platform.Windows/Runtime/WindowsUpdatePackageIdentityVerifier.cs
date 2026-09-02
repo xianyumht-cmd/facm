@@ -26,10 +26,16 @@ public sealed class WindowsUpdatePackageIdentityVerifier : IUpdatePackageIdentit
     internal const int CertEChaining = unchecked((int)0x800B010A);
 
     private readonly IExecutablePathProvider _executablePaths;
+    private readonly string? _identitySourcePath;
 
-    public WindowsUpdatePackageIdentityVerifier(IExecutablePathProvider executablePaths)
+    public WindowsUpdatePackageIdentityVerifier(
+        IExecutablePathProvider executablePaths,
+        string? identitySourcePath = null)
     {
         _executablePaths = executablePaths ?? throw new ArgumentNullException(nameof(executablePaths));
+        _identitySourcePath = string.IsNullOrWhiteSpace(identitySourcePath)
+            ? null
+            : Path.GetFullPath(identitySourcePath);
     }
 
     public void Validate(string packagePath, string expectedVersion)
@@ -37,7 +43,7 @@ public sealed class WindowsUpdatePackageIdentityVerifier : IUpdatePackageIdentit
         if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath))
             throw new FileNotFoundException("Update package does not exist.", packagePath);
 
-        var currentPath = Path.GetFullPath(_executablePaths.ExecutablePath);
+        var currentPath = _identitySourcePath ?? Path.GetFullPath(_executablePaths.ExecutablePath);
         var candidatePath = Path.GetFullPath(packagePath);
         using var currentSigner = LoadSigner(currentPath);
         using var candidateSigner = LoadSigner(candidatePath);

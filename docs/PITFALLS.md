@@ -1,5 +1,33 @@
 # FACM 常见陷阱与防回归规则
 
+## 维护页确认清理不能复用预览忙状态
+
+### 根因
+
+清理预览按钮在显示确认对话框期间会保持 `_cleanupUiBusy=true`。执行函数如果再次把这个标志
+当作“禁止执行”条件，用户点击确认后就会静默返回，既不删除文件，也不显示结果。
+
+### 防回归规则
+
+- 预览/对话框生命周期与实际删除执行使用独立的忙状态；确认路径必须能进入
+  `CleanupViewModel.ExecuteConfirmedAsync`。
+- 仍需保留单独的执行互斥，防止重复点击造成并发删除。
+- 修改后至少运行 `check-facm4-cleanup.ps1` 与 Foundation/Windows smoke。
+
+## 4.x 维护页不能直接替换未签名 FACM.App.exe
+
+### 根因
+
+模块化 4.x 的 `FACM.App.exe` 是未签名的组件入口，且只代表 active composition 的一个文件。
+沿用 legacy 更新器会触发 signer 校验失败，或只替换单个文件而留下旧组件状态。
+
+### 防回归规则
+
+- 4.x 维护页从 `facm4-version.json` 读取版本，并以 `.facm/state/active.json` 的 `activeVersion` 为当前版本。
+- 下载的签名 `FACM.exe` 只用于身份/哈希校验；安装必须启动已安装的 native bootstrapper，传入匹配的
+  signed `manifest.json` URL，由 bootstrapper 完成组件下载、验证、切换和回滚。
+- legacy `online/version.json` 与 4.x catalog 必须保持独立，不能用 3.x 版本号判断 4.x 更新。
+
 ## WinUI App 不要用 UseWindowsForms 切换桌面 SDK 目标
 
 ### 根因

@@ -109,7 +109,7 @@ internal static class Gate3Smoke
 
     private static async Task TestManifestSourceAsync()
     {
-        var validJson = "{\"enabled\":true,\"version\":\"4.0.0\",\"minimum_version\":\"3.0.0\",\"force_update\":false,\"download_url\":\"https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe\",\"sha256\":\"" + new string('A', 64) + "\",\"release_notes\":\"test\",\"published_at\":\"2026-08-27\"}";
+        var validJson = "{\"enabled\":true,\"version\":\"4.0.0\",\"minimum_version\":\"3.0.0\",\"force_update\":false,\"download_url\":\"https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe\",\"manifest_url\":\"https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/manifest.json\",\"sha256\":\"" + new string('A', 64) + "\",\"release_notes\":\"test\",\"published_at\":\"2026-08-27\"}";
         using (var source = new HttpUpdateManifestSource(new StaticHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(Encoding.UTF8.GetBytes(validJson))
@@ -117,6 +117,9 @@ internal static class Gate3Smoke
         {
             var manifest = await source.GetAsync(CancellationToken.None);
             Equal("4.0.0", manifest!.Version, "manifest version");
+            True(UpdateManifestPolicy.IsApprovedReleaseManifestUrl(
+                    new Uri(manifest.BootstrapManifestUrl), new Version(4, 0, 0)),
+                "modular bootstrap manifest URL policy");
             True(HttpUpdateManifestSource.IsValidManifest(manifest), "valid manifest policy");
         }
 
@@ -128,6 +131,12 @@ internal static class Gate3Smoke
             DownloadUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe",
             Sha256 = "ABC"
         }), "short hash rejection");
+        True(!HttpUpdateManifestSource.IsValidManifest(invalid with
+        {
+            DownloadUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe",
+            Sha256 = new string('A', 64),
+            BootstrapManifestUrl = "https://example.invalid/facm/manifest.json"
+        }), "unapproved modular bootstrap manifest URL rejection");
 
         using (var oversized = new HttpUpdateManifestSource(
             new StaticHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[1025]) }),

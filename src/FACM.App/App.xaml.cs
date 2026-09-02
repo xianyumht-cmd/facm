@@ -145,7 +145,10 @@ public partial class App : Application
         _settings = new RecoveringSettings2Repository(strictSettings, settingsRecovery);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
         InitializeTrayHost();
-        _httpUpdateManifestSource = new HttpUpdateManifestSource();
+        _httpUpdateManifestSource = new HttpUpdateManifestSource(
+            manifestUri: layout.IsModular
+                ? HttpUpdateManifestSource.ModularProductionManifestUri
+                : HttpUpdateManifestSource.ProductionManifestUri);
         _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
         ComposeMaintenance(layout, appVersion);
 
@@ -184,7 +187,11 @@ public partial class App : Application
 
         _desktopWorkAreas = new WindowsDesktopWorkAreaProvider();
         _floatingSurfacePlatform = new WindowsFloatingSurfacePlatform();
-        _controlCenter = new ControlCenterViewModel(_settings, _updateManifestSource, _productState);
+        _controlCenter = new ControlCenterViewModel(
+            _settings,
+            _updateManifestSource,
+            _productState,
+            ResolveCurrentVersion(layout, appVersion));
         _gameflow.Start();
 
         // The default candidate is one persistent MainWindow surface. The legacy FloatingWindow /
