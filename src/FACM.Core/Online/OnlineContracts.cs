@@ -8,7 +8,8 @@ public sealed record UpdateManifestSnapshot(
     string DownloadUrl,
     string Sha256,
     string ReleaseNotes,
-    string PublishedAt);
+    string PublishedAt,
+    string BootstrapManifestUrl = "");
 
 public sealed record UpdateDecision(
     Version CurrentVersion,
@@ -25,6 +26,39 @@ public interface IUpdateManifestSource
 public interface IUpdateInstaller
 {
     Task InstallAsync(UpdateManifestSnapshot manifest, CancellationToken cancellationToken);
+}
+
+public static class UpdateManifestPolicy
+{
+    public static bool IsApprovedReleaseUrl(Uri uri, Version version)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(version);
+        if (uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrWhiteSpace(uri.Query) ||
+            !string.IsNullOrWhiteSpace(uri.Fragment)) return false;
+
+        var normalizedVersion = version.ToString();
+        var githubPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
+        var giteePrefix = "/xymhtcmd/facm/releases/download/v" + normalizedVersion + "/";
+        var prefix = string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)
+            ? githubPrefix
+            : string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase)
+                ? giteePrefix
+                : string.Empty;
+        return prefix.Length > 0 && HasSingleAssetPath(uri.AbsolutePath, prefix);
+    }
+
+    public static bool IsApprovedReleaseManifestUrl(Uri uri, Version version)
+    {
+        return IsApprovedReleaseUrl(uri, version) &&
+               uri.AbsolutePath.EndsWith("/manifest.json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasSingleAssetPath(string path, string prefix)
+    {
+        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               path.Length > prefix.Length && !path[prefix.Length..].Contains('/');
+    }
 }
 
 public static class UpdateDecisionService

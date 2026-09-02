@@ -664,11 +664,14 @@ gateway, LCU read, or write path; it is a visual projection of the existing sing
 
 ## 2026-09-02 Gitee-first update metadata and release origins
 
-The update metadata path now tries the public Gitee raw catalog/manifest first and retains the GitHub
-raw endpoints as fallback. Each origin is expanded through the existing mirror router, de-duplicated,
-and validated before use. Gitee release assets remain direct first-party HTTPS candidates; GitHub proxy
-prefixes are not applied to them. Legacy bridge validation, .NET manifest validation, and the native
-bootstrapper redirect policy all constrain Gitee to the FACM repository's exact release paths.
+The modular 4.x maintenance surface reads the fixed Gitee raw catalog
+`online/facm4-version.json`; the legacy 3.x bridge continues to read `online/version.json`. The catalog
+contains the versioned bootstrapper asset and the matching signed application-manifest URL. The WinUI
+surface verifies the downloaded bootstrapper against the installed native bootstrapper signer, then
+starts the installed `FACM.exe --update --manifest-url=...`. The native bootstrapper remains the only
+owner of signed component manifests, CAB hashes, extraction, active-version commit, and rollback.
+Gitee release assets remain direct first-party HTTPS candidates; GitHub proxy prefixes are not applied
+to them. Both catalog URLs and release URLs are constrained to the FACM repository's exact paths.
 
 The local release publisher is an operator-only API client. It reads the Gitee token from the operating
 system credential manager, creates a tagged Release against an explicit commit, and uploads only the

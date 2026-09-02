@@ -36,7 +36,8 @@ internal static class PreparedUpdateInstallerSmoke
                 "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.1/FACM.App.exe",
                 sha,
                 "smoke",
-                "2026-08-28");
+                "2026-08-28",
+                "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.1/manifest.json");
 
             var progress = new List<UpdateDownloadProgress>();
             var prepared = await installer.PrepareAsync(manifest, new Progress<UpdateDownloadProgress>(progress.Add));
@@ -70,6 +71,8 @@ internal static class PreparedUpdateInstallerSmoke
             Require(launcher.Calls == 1, "Validated replacement should launch exactly once.");
             Require(launcher.LastPath == preparedAgain.PackagePath && launcher.LastHash == sha && launcher.LastVersion == "4.0.1",
                 "Replacement launcher received a different package identity.");
+            Require(launcher.LastManifestUrl == "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.1/manifest.json",
+                "Modular bootstrapper manifest URL was not bound to the prepared receipt.");
             Require(verifier.Calls == 3 && verifier.LastPath == preparedAgain.PackagePath,
                 "Replacement did not revalidate the prepared package identity immediately before launch.");
         }
@@ -112,12 +115,13 @@ internal static class PreparedUpdateInstallerSmoke
         }
     }
 
-    private sealed class FakeLauncher : IUpdateReplacementLauncher
+    private sealed class FakeLauncher : IUpdateReplacementLauncher, IManifestAwareUpdateReplacementLauncher
     {
         public int Calls { get; private set; }
         public string LastPath { get; private set; } = string.Empty;
         public string LastHash { get; private set; } = string.Empty;
         public string LastVersion { get; private set; } = string.Empty;
+        public string LastManifestUrl { get; private set; } = string.Empty;
 
         public Task<bool> StartAsync(
             string validatedPackagePath,
@@ -126,6 +130,22 @@ internal static class PreparedUpdateInstallerSmoke
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Calls++;
+            LastPath = validatedPackagePath;
+            LastHash = expectedSha256;
+            LastVersion = version;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> StartAsync(
+            string validatedPackagePath,
+            string expectedSha256,
+            string version,
+            string bootstrapManifestUrl,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastManifestUrl = bootstrapManifestUrl;
             Calls++;
             LastPath = validatedPackagePath;
             LastHash = expectedSha256;

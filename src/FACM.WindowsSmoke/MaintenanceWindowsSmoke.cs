@@ -16,6 +16,7 @@ internal static class MaintenanceWindowsSmoke
         ValidateMissingActivationListenerIsBounded();
         await ValidateControlledLogOpenAsync();
         await ValidateControlledUpdaterLaunchAsync();
+        await ValidateControlledBootstrapperLaunchAsync();
     }
 
     private static void ValidateSingleInstanceActivation()
@@ -175,6 +176,44 @@ internal static class MaintenanceWindowsSmoke
                     "Updater UAC cancellation must keep the current FACM instance alive in stress cycle " + cycle + ".");
             }
             Require(starts == 1, "Repeated UAC cancellation unexpectedly reached the successful Process.Start path.");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task ValidateControlledBootstrapperLaunchAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "facm4-bootstrapper-launch-" + Guid.NewGuid().ToString("N"));
+        var runtime = Path.Combine(root, "runtime");
+        var layout = CreateLayout(root, runtime);
+        Directory.CreateDirectory(layout.UpdatesDirectory);
+        var package = Path.Combine(layout.UpdatesDirectory, "FACM-4.0.6.exe");
+        var packageBytes = Enumerable.Range(0, 4096).Select(index => (byte)(index % 227)).ToArray();
+        await File.WriteAllBytesAsync(package, packageBytes);
+        await File.WriteAllBytesAsync(Path.Combine(root, "FACM.exe"), [0x4D, 0x5A, 0x00, 0x00]);
+        var expectedHash = Convert.ToHexString(SHA256.HashData(packageBytes));
+        ProcessStartInfo? observed = null;
+        try
+        {
+            var launcher = new WindowsBootstrapperUpdateLauncher(
+                layout,
+                startInfo =>
+                {
+                    observed = startInfo;
+                    return new Process();
+                });
+            var manifestUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.6/manifest.json";
+            Require(await ((IManifestAwareUpdateReplacementLauncher)launcher).StartAsync(
+                    package, expectedHash, "4.0.6", manifestUrl),
+                "Modular update did not start the native bootstrapper.");
+            Require(observed is not null &&
+                    string.Equals(observed.FileName, Path.Combine(root, "FACM.exe"), StringComparison.OrdinalIgnoreCase) &&
+                    observed.Arguments.Contains("--update", StringComparison.Ordinal) &&
+                    observed.Arguments.Contains(manifestUrl, StringComparison.Ordinal) &&
+                    observed.UseShellExecute && observed.Verb == "runas",
+                "Modular update escaped the controlled bootstrapper launch contract.");
         }
         finally
         {

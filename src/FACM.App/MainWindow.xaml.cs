@@ -64,6 +64,7 @@ public sealed partial class MainWindow : Window
     private bool _closed;
     private bool _cleanupInitialized;
     private bool _cleanupUiBusy;
+    private bool _cleanupExecutionBusy;
     private bool _diagnosticsLoaded;
     private bool _diagnosticsBusy;
     private UIElement? _inspectorHoverElement;
@@ -1693,7 +1694,11 @@ public sealed partial class MainWindow : Window
 
     private async Task ExecuteCleanupAsync()
     {
-        if (_cleanupUiBusy || _cleanupCenter.CurrentPlan is null) return;
+        // Preview owns _cleanupUiBusy while its confirmation dialog is open. Checking that flag
+        // here made every confirmed cleanup return before ExecuteConfirmedAsync was reached.
+        // Keep a separate execution guard so a second invocation is still rejected safely.
+        if (_cleanupExecutionBusy || _cleanupCenter.CurrentPlan is null) return;
+        _cleanupExecutionBusy = true;
         _cleanupUiBusy = true;
         CleanupProgressBar.IsIndeterminate = false;
         CleanupProgressBar.Minimum = 0;
@@ -1726,6 +1731,7 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
+            _cleanupExecutionBusy = false;
             _cleanupUiBusy = false;
             CleanupProgressBar.Visibility = Visibility.Collapsed;
             ApplyCleanupRuntimeState();

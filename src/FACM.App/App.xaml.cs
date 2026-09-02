@@ -145,7 +145,10 @@ public partial class App : Application
         _settings = new RecoveringSettings2Repository(strictSettings, settingsRecovery);
         _uiText = new FileUiTextProvider(layout.UiTextPath);
         InitializeTrayHost();
-        _httpUpdateManifestSource = new HttpUpdateManifestSource();
+        _httpUpdateManifestSource = new HttpUpdateManifestSource(
+            manifestUri: layout.IsModular
+                ? HttpUpdateManifestSource.ModularProductionManifestUri
+                : HttpUpdateManifestSource.ProductionManifestUri);
         _updateManifestSource = new FeatureGatedUpdateManifestSource(_httpUpdateManifestSource, _featurePolicy);
         ComposeMaintenance(layout, appVersion);
 

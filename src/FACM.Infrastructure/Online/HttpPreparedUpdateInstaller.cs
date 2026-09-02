@@ -7,7 +7,7 @@ using FACM.Core.Runtime;
 namespace FACM.Infrastructure.Online;
 
 /// <summary>
-/// Downloads only a manifest already valid for the fixed FACM GitHub release layout. A successful
+/// Downloads only a manifest already valid for the fixed FACM first-party release layout. A successful
 /// download is represented by an opaque process-local receipt. Replacement re-checks the receipt,
 /// file identity, byte length, SHA-256 and release identity before delegating to the Windows launcher.
 /// </summary>
@@ -24,6 +24,7 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
     private readonly IUpdatePackageIdentityVerifier _identityVerifier;
     private readonly HttpClient _client;
     private readonly Dictionary<string, Receipt> _receipts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _receiptManifestUrls = new(StringComparer.Ordinal);
     private readonly object _receiptSync = new();
     private readonly SemaphoreSlim _replacementGate = new(1, 1);
     private bool _disposed;
@@ -142,10 +143,14 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
             lock (_receiptSync)
             {
                 _receipts[receiptId] = new Receipt(fullPath, version, actualHash, length);
+                _receiptManifestUrls[receiptId] = manifest.BootstrapManifestUrl ?? string.Empty;
             }
 
             progress?.Report(new UpdateDownloadProgress(length, length, 100, "prepared"));
-            return new PreparedUpdatePackage(receiptId, fullPath, version, actualHash, length);
+            return new PreparedUpdatePackage(receiptId, fullPath, version, actualHash, length)
+            {
+                BootstrapManifestUrl = manifest.BootstrapManifestUrl ?? string.Empty
+            };
         }
         finally
         {
@@ -167,17 +172,22 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
                 return new UpdateReplacementResult(false, "receipt-missing");
 
             Receipt receipt;
+            string receiptManifestUrl;
             lock (_receiptSync)
             {
                 if (!_receipts.TryGetValue(receiptId, out receipt!))
                     return new UpdateReplacementResult(false, "receipt-missing");
+                receiptManifestUrl = _receiptManifestUrls.TryGetValue(receiptId, out var value)
+                    ? value
+                    : string.Empty;
             }
 
             var suppliedPath = Path.GetFullPath(package.PackagePath ?? string.Empty);
             if (!string.Equals(suppliedPath, receipt.Path, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(package.Version, receipt.Version, StringComparison.Ordinal) ||
                 !string.Equals(package.Sha256, receipt.Sha256, StringComparison.OrdinalIgnoreCase) ||
-                package.Length != receipt.Length)
+                package.Length != receipt.Length ||
+                !string.Equals(package.BootstrapManifestUrl ?? string.Empty, receiptManifestUrl, StringComparison.Ordinal))
                 return new UpdateReplacementResult(false, "receipt-mismatch");
 
             if (!File.Exists(receipt.Path)) return new UpdateReplacementResult(false, "package-missing");
@@ -198,11 +208,19 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
                 return new UpdateReplacementResult(false, "package-identity-changed");
             }
 
-            var started = await _launcher.StartAsync(receipt.Path, receipt.Sha256, receipt.Version, cancellationToken)
-                .ConfigureAwait(false);
+            var started = _launcher is IManifestAwareUpdateReplacementLauncher manifestAware &&
+                          receiptManifestUrl.Length > 0
+                ? await manifestAware.StartAsync(receipt.Path, receipt.Sha256, receipt.Version, receiptManifestUrl, cancellationToken)
+                    .ConfigureAwait(false)
+                : await _launcher.StartAsync(receipt.Path, receipt.Sha256, receipt.Version, cancellationToken)
+                    .ConfigureAwait(false);
             if (!started) return new UpdateReplacementResult(false, "launcher-not-started");
 
-            lock (_receiptSync) _receipts.Remove(receiptId);
+            lock (_receiptSync)
+            {
+                _receipts.Remove(receiptId);
+                _receiptManifestUrls.Remove(receiptId);
+            }
             return new UpdateReplacementResult(true, "replacement-started");
         }
         finally
@@ -215,7 +233,7 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
     {
         ArgumentNullException.ThrowIfNull(manifest);
         if (!HttpUpdateManifestSource.IsValidManifest(manifest))
-            throw new InvalidDataException("Update manifest is not valid for the fixed FACM GitHub release path.");
+            throw new InvalidDataException("Update manifest is not valid for the fixed FACM release path.");
         if (!manifest.Enabled) throw new InvalidOperationException("Updates are disabled by the manifest.");
     }
 
@@ -251,6 +269,10 @@ public sealed class HttpPreparedUpdateInstaller : IPreparedUpdateInstaller, IDis
         _disposed = true;
         _client.Dispose();
         _replacementGate.Dispose();
-        lock (_receiptSync) _receipts.Clear();
+        lock (_receiptSync)
+        {
+            _receipts.Clear();
+            _receiptManifestUrls.Clear();
+        }
     }
 }

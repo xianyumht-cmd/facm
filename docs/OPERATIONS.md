@@ -976,6 +976,22 @@ The legacy migration gate is complete for the 4.0.5 release: Gitee Release `v4.0
 `Update package downloaded and verified: FACM-4.0.5.exe`, `migration-complete; activeVersion=4.0.5`,
 `bridge-state.status=completed`, and `.facm/state/active.json` version `4.0.5`.
 
+## 2026-09-02 4.x maintenance-page update path
+
+4.x maintenance checks use `online/facm4-version.json`, not the legacy 3.x `online/version.json`. The
+catalog records the release bootstrapper URL/SHA and its matching signed `manifest.json` URL. The
+maintenance page resolves the current version from `.facm/state/active.json`, downloads the bootstrapper
+asset for hash and signer verification, and then starts the installed root `FACM.exe` with
+`--update --manifest-url=<signed-manifest-url>`. The native bootstrapper performs the actual component
+manifest/signature/CAB validation and active-version transaction; the WinUI `FACM.App.exe` is never
+replaced directly in modular mode.
+
+For a later 4.0.x release, publish the complete signed bundle first, verify the release URLs and hashes,
+then update only `online/facm4-version.json` to the new version/asset/manifest values and push that
+catalog change. Existing 4.x clients will discover the new version from More Settings and hand off the
+update to the native bootstrapper. Keep the legacy bridge pointer unchanged unless a separate 3.x
+migration decision is authorized.
+
 ## 面向云端 ChatGPT 的发布交接
 
 这套流程供云端 ChatGPT 读取和执行，不要求用户手工复制命令。每次任务开始时，先读取本文件、`AGENTS.md`、
@@ -995,8 +1011,8 @@ The legacy migration gate is complete for the 4.0.5 release: Gitee Release `v4.0
   粘贴到聊天，也不得把私钥写入仓库、Release、日志或临时工件；
 - 3.5 PFX 只能签 native/legacy `FACM.exe` 的 Authenticode，4.0 JSON/CAB 清单继续使用独立 RSA 私钥；两种签名都必须
   核对指纹/公钥身份和目标版本；
-- 当前 4.0 维护页读取 legacy 顶层版本（截图中会显示 `3.5.18`），并不等于 4.0.x 组件更新状态。4.0 原生更新当前由
-  root bootstrapper 在 `--update` 或首次初始化路径触发；若要让 4.0 维护页直接管理组件更新，必须另行完成并验证产品代码改动。
+- 4.0 维护页读取 `online/facm4-version.json`，并以 `.facm/state/active.json` 的 `activeVersion` 判断当前版本；
+  维护页只负责准备并启动 root bootstrapper，组件更新仍由带签名的 `manifest.json` 和 native bootstrapper 完成。
 
 ### 无 GitHub Actions 时的标准发布顺序
 
