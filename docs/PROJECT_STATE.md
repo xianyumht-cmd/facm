@@ -953,6 +953,7 @@ BOOT-2/BOOT3-A/BOOT3-B 检查、.NET build、mirror/migration smoke 均通过；
 `fb4ae50d706d92467fcf0454f48771210f2126e8` 推送到 GitHub/Gitee `main`；Gitee
 在线目录指针提交为 `b16a595`，两边 `main` 均已包含该指针。GitHub Actions 因账户不可用仍显示失败，
 本次发布未使用其构建或签名结果；本地构建、FoundationSmoke、WindowsSmoke、shell/架构/更新器门禁均已通过。
+GitHub PR #238 已记录为 merged；最终 GitHub/Gitee `main` ref 为 `3c586e7429ea5c0486afa3083eada7439e06d79a`。
 
 从该源码重新生成了 4.0.6 的三组件 CAB 和原生引导程序。引导程序文件版本/产品版本为 `4.0.6.0`/`4.0.6`，
 SHA-256 为 `B562E1E897EA33B3AC49F76F1CA9EA44444AAB0088EBE90B4EDD7F95F60951B1`，
