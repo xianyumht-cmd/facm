@@ -872,6 +872,9 @@ signed 3.5.18 bridge copy is `D:\project2\facm-release-3.5.18-gitee\FACM.exe` wi
 
 The local publisher is `scripts/release/publish-gitee-release-local.ps1`; it reads the Gitee token only
 from the OS credential manager, never writes it to the repository, and supports preview before upload.
-The source and release assets are not yet pushed or published in this state. Existing installed 3.5.17
-clients still contain the old GitHub-only URL allowlist; they require the signed 3.5.18 bridge once before
-the Gitee-first 4.0.2 migration path can be used automatically.
+The source is pushed to both GitHub and Gitee `main` at commit `2cb86a67acd83cb43a152dad59b3d1a0d0512f69`.
+Gitee Releases `v4.0.2` (15 bundle files) and `v3.5.18` (bridge plus SHA256 record) are published; the
+GitHub `v3.5.18` bridge Release is also published for the one-time legacy hop. The online manifest now
+offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.2 migration target. Existing installed 3.5.17
+clients still contain the old GitHub-only URL allowlist, so they must receive the signed 3.5.18 bridge once
+before the Gitee-first 4.0.2 migration path can be used automatically.

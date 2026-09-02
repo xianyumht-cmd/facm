@@ -1,11 +1,11 @@
 {
   "enabled": true,
-  "version": "3.5.17",
+  "version": "3.5.18",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.17/FACM.exe",
-  "sha256": "57361F0CD350E2888EB64C130EB3C0397A0F06276D8228BE3A705BA955CFC7D0",
-  "release_notes": "FACM 3.5.17：旧版自动更新桥接版本；更新后会自动迁移到 FACM 4.0。",
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.18/FACM.exe",
+  "sha256": "78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0",
+  "release_notes": "FACM 3.5.18：旧版迁移桥接修正版；更新后优先从 Gitee 下载 FACM 4.0.2。",
   "published_at": "2026-09-02T00:00:00.0000000+00:00",
   "migration": {
     "enabled": true,
