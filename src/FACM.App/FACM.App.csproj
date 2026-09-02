@@ -9,6 +9,7 @@
     <AssemblyVersion>4.0.0.0</AssemblyVersion>
     <FileVersion>4.0.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\FACM\Resources\FACM.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -48,6 +49,12 @@
   <ItemGroup>
     <EmbeddedResource Include="..\FACM\Resources\FACM.ico"
                       LogicalName="FACM.Resources.FACM.ico" />
+    <EmbeddedResource Include="..\FACM\Resources\GGman.Tray.Connected.ico"
+                      LogicalName="FACM.Resources.GGman.Tray.Connected.ico" />
+    <EmbeddedResource Include="..\FACM\Resources\GGman.Tray.Connecting.ico"
+                      LogicalName="FACM.Resources.GGman.Tray.Connecting.ico" />
+    <EmbeddedResource Include="..\FACM\Resources\GGman.Tray.Offline.ico"
+                      LogicalName="FACM.Resources.GGman.Tray.Offline.ico" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(PetHostBundlePath)"

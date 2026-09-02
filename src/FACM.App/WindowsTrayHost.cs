@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using FACM.Core.Desktop;
+using FACM.Core.League;
 using FACM.Core.Text;
 
 namespace FACM.App;
@@ -10,12 +11,15 @@ namespace FACM.App;
 /// </summary>
 internal sealed class WindowsTrayHost : IDisposable
 {
-    private const string IconResourceName = "FACM.Resources.FACM.ico";
+    private const string ConnectedIconResourceName = "FACM.Resources.GGman.Tray.Connected.ico";
+    private const string ConnectingIconResourceName = "FACM.Resources.GGman.Tray.Connecting.ico";
+    private const string OfflineIconResourceName = "FACM.Resources.GGman.Tray.Offline.ico";
 
     private readonly TrayCommandRouter _commands;
     private readonly ContextMenuStrip _menu;
     private readonly NotifyIcon _notifyIcon;
-    private readonly Icon _icon;
+    private readonly IReadOnlyDictionary<TrayLeagueStatus, Icon> _icons;
+    private TrayLeagueStatus _status = TrayLeagueStatus.Offline;
     private bool _disposed;
 
     public WindowsTrayHost(
@@ -25,15 +29,30 @@ internal sealed class WindowsTrayHost : IDisposable
         ArgumentNullException.ThrowIfNull(text);
         _commands = new TrayCommandRouter(commandHandlers);
         _menu = BuildMenu(text);
-        _icon = LoadIcon();
+        _icons = LoadIcons();
         _notifyIcon = new NotifyIcon
         {
-            Icon = _icon,
+            Icon = _icons[_status],
             Text = LimitToolTip(text.Get(UiTextKeys.AppName)),
             ContextMenuStrip = _menu,
             Visible = true
         };
         _notifyIcon.DoubleClick += OnDoubleClick;
+    }
+
+    public void SetLeagueConnectionState(LeagueConnectionState connectionState)
+    {
+        if (_disposed) return;
+        var next = connectionState switch
+        {
+            LeagueConnectionState.Connected => TrayLeagueStatus.Connected,
+            LeagueConnectionState.Connecting => TrayLeagueStatus.Connecting,
+            LeagueConnectionState.Unavailable => TrayLeagueStatus.Connecting,
+            _ => TrayLeagueStatus.Offline
+        };
+        if (next == _status) return;
+        _status = next;
+        try { _notifyIcon.Icon = _icons[next]; } catch { }
     }
 
     public void ShowContextMenuAtCursor()
@@ -88,11 +107,21 @@ internal sealed class WindowsTrayHost : IDisposable
 
     private void OnDoubleClick(object? sender, EventArgs args) => _commands.TryDispatch(TrayCommand.OpenCompactLauncher);
 
-    private static Icon LoadIcon()
+    private static IReadOnlyDictionary<TrayLeagueStatus, Icon> LoadIcons()
+    {
+        return new Dictionary<TrayLeagueStatus, Icon>
+        {
+            [TrayLeagueStatus.Connected] = LoadIcon(ConnectedIconResourceName),
+            [TrayLeagueStatus.Connecting] = LoadIcon(ConnectingIconResourceName),
+            [TrayLeagueStatus.Offline] = LoadIcon(OfflineIconResourceName)
+        };
+    }
+
+    private static Icon LoadIcon(string resourceName)
     {
         try
         {
-            using var stream = typeof(App).Assembly.GetManifestResourceStream(IconResourceName);
+            using var stream = typeof(App).Assembly.GetManifestResourceStream(resourceName);
             if (stream is not null) return new Icon(stream);
         }
         catch
@@ -118,6 +147,13 @@ internal sealed class WindowsTrayHost : IDisposable
         _menu.Dispose();
         _notifyIcon.Dispose();
         _commands.Dispose();
-        _icon.Dispose();
+        foreach (var icon in _icons.Values) icon.Dispose();
+    }
+
+    private enum TrayLeagueStatus
+    {
+        Offline,
+        Connecting,
+        Connected
     }
 }

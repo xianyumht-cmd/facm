@@ -625,3 +625,11 @@ This host-aware fallback addresses a real WinUI self-contained-host difference w
 diagnostic shell but the previous dynamic COM path returned no `LeagueClientUx` command line. The
 reader returns command-line text only to the local parser; diagnostics receive only source/outcome/PID/
 port fields, and no second session, gateway, timer, or write path is created.
+
+## 2026-09-02 GGman icon ownership and tray state projection
+
+`FACM.ico` is the shared taskbar/EXE icon for the legacy FACM host, FACM.App, and the native bootstrapper.
+FACM.App's `WindowsTrayHost` separately owns three micro-optimized embedded tray icons. The existing
+Gameflow change handler projects only `LeagueConnectionState` into the tray: `NotRunning` is gray,
+`Connecting`/`Unavailable` is yellow, and `Connected` is green. This adds no discovery owner, timer,
+gateway, LCU read, or write path; it is a visual projection of the existing single Gameflow snapshot.

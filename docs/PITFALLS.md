@@ -768,3 +768,9 @@ WinUI self-contained host 的 `NtQueryInformationProcess` 返回访问/部分复
 - 只记录脱敏的 source/outcome/PID/port；绝不记录命令行或 token。
 - 回归必须在真实 GUI self-contained 候选中同时验证进程发现、LCU HTTP 200、`Connected` 状态和候选日志；仅凭
   shell WMI、监听端口、进程存在或历史 ready 状态不能判定修复。
+
+## 2026-09-02：带状态点的托盘图标不能从任务栏大图直接缩放
+
+16 像素托盘图标若沿用居中的完整品牌图，再把状态点贴在右上角，Windows 缩放和托盘裁切会让状态点缺角，
+同时压缩双 G 的可读空间。防回归规则是：托盘使用独立的微型图形，主体向左下收；右上角保留约 30% 空间；
+状态点向内至少一像素并带深色轮廓；16、20、24、32 像素逐层检查，而不是只检查源 PNG 或 256 像素 ICO。

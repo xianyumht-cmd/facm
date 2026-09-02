@@ -817,3 +817,17 @@ selection sequence.
 
 Production remains FACM 3.5.15. The fix was not pushed or merged; Gate13, production pointers,
 deployment, restart, and the protected dirty paths remain untouched.
+
+## 2026-09-02 GGman/FACM icon refresh
+
+The selected first-style icon is implemented as a deep-navy electric-cyan double-G orbit. FACM 3.x,
+FACM.App 4.0, and the Native Bootstrapper use the shared multi-resolution `FACM.ico` for EXE/taskbar
+identity. FACM.App embeds separate 16/20/24/32 tray resources with a reserved upper-right status area:
+gray for League not running, yellow for connecting/unavailable, and green for connected. The status is
+projected from the existing Gameflow snapshot and does not add a second League discovery or polling path.
+
+Current verification: FACM.App Release x64 builds with 0 warnings/errors and exposes all four expected
+embedded icon resources; its EXE and the legacy FACM Release EXE both expose associated Windows icons.
+The legacy net48 build succeeds with its pre-existing obsolete API warning. Native Bootstrapper resource
+source is wired through CMake; a native compiler/CMake installation is not available on this machine for
+a fresh bootstrapper binary build. Production and the active candidate pointer remain unchanged.

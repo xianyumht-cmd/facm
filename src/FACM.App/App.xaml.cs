@@ -524,6 +524,8 @@ public partial class App : Application
 
     private void ApplyDesktopGameflowStatus(LeagueGameflowSnapshot? snapshot)
     {
+        _tray?.SetLeagueConnectionState(snapshot?.ConnectionState ?? LeagueConnectionState.NotRunning);
+
         if (_morphingSurfaceExperience)
         {
             _window?.ApplyGameflowSurfaceMode(snapshot);
