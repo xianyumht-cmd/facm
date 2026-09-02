@@ -629,3 +629,27 @@ Gate8/Gate12 的 cadence 断言必须同步；真实 close/reopen 和晚启动�
 ### 后果
 
 后续自动攻略必须复用同一规范化数据边界，并在真实 LCU ChampSelect 证据到位后再绑定当前英雄；本决定不授权第二套 League session、gateway、gameflow poller 或生产发布。
+
+## 2026-09-01：LEAGUE-GUIDE-MORPH-1 自动攻略采用图标优先、同一 MainWindow
+
+### 决策
+
+- 自动攻略继续挂在现有 `ChampSelectStrip` 下方的同一 `MainWindow` 内，不创建第二个攻略窗口、第二个
+  League session/gateway、第二个 Gameflow poller 或自动写配置路径。
+- `LeagueBenchRuntimeObserver` 的当前本地英雄 ID 是自动攻略的唯一优先事实来源；UI 只在运行时快照暂时为零时
+  使用已有 Live local-player/action 字段兜底，不把 pick intent 当作已选英雄。
+- `MayhemChampionResult.AugmentRows` 保留完整富数据，界面按每个稀有度六个图标分页；OP.GG 数字稀有度
+  `8/4/1` 固定映射为棱彩/黄金/白银。旧 fallback 若没有可验证稀有度，继续保持未知并不伪造分级。
+- 英雄总目录缺失或返回占位名称时，按当前英雄 ID 读取 typed champion detail；这只补齐识别和图标，不改变查询
+  数据源或 League 写入边界。
+
+### 原因
+
+真实用户验收显示，英雄/技能/装备图标已经能读取，但 OP.GG 返回的数字 `rarity` 被旧解析器保留成 `1/4/8`，
+导致 UI 的棱彩/黄金/白银过滤器看起来没有任何强化符文；另有部分实时会话中总目录未及时提供可查询名称。
+图标优先的完整排行应让图标承担主信息、文字只做标题/hover/focus 检查，同时保持数据缺失时的明确等待状态。
+
+### 后果
+
+自动攻略现在可以在真实 ChampSelect 中自动查询并显示完整强化符文排行，但 post-fix UI review 仍是人工必需项。
+当前候选只用于本地 review；生产仍为 FACM 3.5.15，不能由本决定触发 push、merge、Gate13、Formal P7、部署或重启。

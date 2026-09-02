@@ -731,3 +731,25 @@ BOOT3-C/单启动器脚本会下载并解包约 103 MB 的三个 CAB；在 Codex
 手动海斗真实读取中，`zh-cn/lol/modes/aram-mayhem` 详细页在本机可能接近 4.5 秒才返回；此前的 1.8 秒预算会把可用的技能和出装误判成不可用。该页面同时没有当前可验证的 `Runes Table`，不能因为旧模型或其他模式数据存在就显示一套“推荐符文”。
 
 防回归规则：详细源保持有界的 4.5 秒预算，并允许降级到已验证的基础结果；只有解析到真实来源字段时才显示技能、召唤师技能、出装或强化符文。缺失的可选 section 必须省略，不得显示内部术语、占位“暂无”或通用数据伪装成英雄专属推荐。手动路径保留为后续自动 ChampSelect 攻略的 fallback/detail，不得据此绕过真实 LCU ChampSelect 证据。
+
+## 2026-09-01：自动攻略的 OP.GG 数字稀有度不能直接当作显示文本
+
+真实用户截图中，Kled 的冠军、技能、召唤师技能和装备图标均已显示，但强化符文区域错误提示“当前数据源未提供
+可分级的海克斯图标”。根因不是没有拿到数据：OP.GG 页面里的富数据使用数字 `rarity`，观察到的值为 `1/4/8`；
+旧解析器把数字保留成字符串，UI 只筛选 `棱彩/黄金/白银`，于是完整 rows 被全部过滤。修复规则是显式映射
+`1=白银`、`4=黄金`、`8=棱彩`，未知值仍保持 fail-closed；完整 rows 不能用 `Take(12)` 截断，分页只能发生在
+presentation 层。FoundationSmoke 必须包含嵌套 `self.__next_f` 结构和数字等级 fixture。
+
+## 2026-09-01：Champion summary 不是永远可靠的自动识别唯一来源
+
+ChampSelect 中偶发出现“没有识别到这个英雄”时，不能把用户输入或 pick intent 当作修复。总目录可能在客户端切换、
+缓存或版本边界期间缺少当前 ID，或只返回占位名称。保持同一只读 LCU gateway，在 summary 缺少/占位时按已观察的
+champion ID 请求 typed champion detail，并对旧请求做取消和 generation 检查。详情仍缺失时应保留等待/手动查询兜底，
+不得猜测英雄或展示通用榜单。
+
+## 2026-09-01：旧候选进程不能代表修复版 UI 验收
+
+候选入口切换到新版本目录后，已经运行的 `FACM.App.exe` 仍加载旧程序集。必须让用户正常关闭并重新启动根 launcher
+后再验证新 parser/identity fallback；不能在不确认 loaded version 的情况下把旧截图当成修复失败，也不能强制终止用户进程。
+本机 screenshot helper 还可能因 `SetIsBorderRequired` `E_NOINTERFACE` 失败；进程存在、窗口标题或源码门禁都不能替代
+真实 post-fix UI review。

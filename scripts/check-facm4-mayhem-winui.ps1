@@ -12,16 +12,18 @@ function Fail([string]$Message) {
 $vmPath = Join-Path $Root 'src/FACM.App/ViewModels/MayhemViewModel.cs'
 $uiPath = Join-Path $Root 'src/FACM.App/MainWindow.Mayhem.cs'
 $runtimePath = Join-Path $Root 'src/FACM.App/MainWindow.LeagueWorkbenchRuntime.cs'
+$automaticGuidePath = Join-Path $Root 'src/FACM.App/MainWindow.ChampSelectGuide.cs'
 $appPath = Join-Path $Root 'src/FACM.App/App.Mayhem.cs'
 $productPath = Join-Path $Root 'src/FACM.Infrastructure/Mayhem/MayhemProductQueryService.cs'
 
-foreach ($path in @($vmPath, $uiPath, $runtimePath, $appPath, $productPath)) {
+foreach ($path in @($vmPath, $uiPath, $runtimePath, $automaticGuidePath, $appPath, $productPath)) {
     if (-not (Test-Path $path)) { Fail "Mayhem WinUI contract file missing: $path" }
 }
 
 $vm = Get-Content $vmPath -Raw
 $ui = Get-Content $uiPath -Raw
 $runtime = Get-Content $runtimePath -Raw
+$automaticGuide = Get-Content $automaticGuidePath -Raw
 $app = Get-Content $appPath -Raw
 $product = Get-Content $productPath -Raw
 
@@ -44,8 +46,7 @@ foreach ($required in @(
     'FACM.League.Mayhem.Query', 'FACM.League.Mayhem.Search', 'FACM.League.Mayhem.Cancel',
     'FACM.League.Mayhem.SaveImage', 'FACM.League.Mayhem.CopyImage', 'FACM.League.Mayhem.ExportCard',
     'FACM.League.Mayhem.Progress', 'FACM.League.Mayhem.Status', 'FACM.League.Mayhem.Results',
-    '海斗攻略', '版本修正', '基础 ARAM', 'Mayhem 专属', '两层独立展示，不做数值叠加',
-    '这一局怎么选', '强化符文决策榜', '技能与出装', '版本胜率前十',
+    '海斗攻略', '输入英雄名称或别名，查看当前模式',
     'VirtualKey.Enter', 'OnMayhemQueryKeyDown', 'RunMayhemQueryAsync',
     'MayhemExportWidth = 840', 'RenderTargetBitmap', 'FileSavePicker',
     'BitmapEncoder.PngEncoderId', 'RandomAccessStreamReference.CreateFromStream',
@@ -75,6 +76,17 @@ if ($ui -notmatch '_mayhemSaveImageButton\.Click\s*\+=\s*OnMayhemSaveImageClick'
 
 if ($runtime -notmatch 'InitializeMayhemSurface\(\)' -or $runtime -notmatch 'DisposeMayhemSurface\(\)') {
     Fail 'League Workbench must attach and dispose the Mayhem query surface.'
+}
+
+foreach ($required in @(
+    'QueryForInputAsync', 'ChampSelectGuidePanel', 'MayhemAutomaticGuideProjection',
+    'EnsureChampSelectAutomaticGuide', 'CancellationTokenSource', 'IsCurrentGeneration',
+    'SupportedRarities', '上一页', '下一页', '不会自动应用任何配置'
+)) {
+    if ($automaticGuide -notmatch [regex]::Escape($required)) { Fail "Automatic ChampSelect guide missing: $required" }
+}
+foreach ($forbidden in @('ILeagueWriteGateway', 'LeagueWriteCommand', 'TrySwapAsync\(')) {
+    if ($automaticGuide -match $forbidden) { Fail "Automatic ChampSelect guide crossed the read-only boundary: $forbidden" }
 }
 
 foreach ($required in @(

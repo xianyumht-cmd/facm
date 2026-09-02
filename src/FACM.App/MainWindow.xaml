@@ -188,71 +188,97 @@
             Background="{StaticResource FacmSurfaceBrush}"
             automation:AutomationProperties.AutomationId="FACM.Surface.BenchSwapStrip"
             Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="42" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="92" />
-                <ColumnDefinition Width="34" />
-            </Grid.ColumnDefinitions>
-            <Border
-                x:Name="ChampSelectDragHandle"
-                Grid.Column="0"
-                Width="42"
-                Height="56"
-                VerticalAlignment="Center"
-                Background="Transparent">
-                <TextBlock
-                    Text="F"
-                    FontSize="18"
-                    FontWeight="SemiBold"
-                    HorizontalAlignment="Center"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid x:Name="ChampSelectStripRow" Grid.Row="0" Height="56">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="42" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="34" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    x:Name="ChampSelectDragHandle"
+                    Grid.Column="0"
+                    Width="42"
+                    Height="56"
                     VerticalAlignment="Center"
-                    Foreground="{StaticResource FacmAccentBrush}" />
-            </Border>
-            <ScrollViewer
-                Grid.Column="1"
-                Margin="4,3,4,3"
-                HorizontalScrollMode="Auto"
-                HorizontalScrollBarVisibility="Hidden"
-                VerticalScrollMode="Disabled"
-                VerticalScrollBarVisibility="Hidden">
+                    Background="Transparent">
+                    <TextBlock
+                        Text="F"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource FacmAccentBrush}" />
+                </Border>
+                <ScrollViewer
+                    Grid.Column="1"
+                    Margin="4,3,4,3"
+                    HorizontalScrollMode="Auto"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollMode="Disabled"
+                    VerticalScrollBarVisibility="Hidden">
+                    <StackPanel
+                        x:Name="ChampSelectCandidatesPanel"
+                        Orientation="Horizontal"
+                        Spacing="6"
+                        VerticalAlignment="Center" />
+                </ScrollViewer>
                 <StackPanel
-                    x:Name="ChampSelectCandidatesPanel"
-                    Orientation="Horizontal"
-                    Spacing="6"
-                    VerticalAlignment="Center" />
-            </ScrollViewer>
-            <StackPanel
-                Grid.Column="2"
-                Margin="2,0,2,0"
-                VerticalAlignment="Center"
-                Spacing="1">
-                <TextBlock
-                    x:Name="ChampSelectStatus"
-                    Style="{StaticResource FacmBodyTextStyle}"
-                    FontSize="10"
-                    TextTrimming="CharacterEllipsis"
-                    />
-                <TextBlock
-                    x:Name="ChampSelectAction"
-                    Style="{StaticResource FacmInspectorTextStyle}"
-                    FontSize="10"
-                    TextTrimming="CharacterEllipsis"
-                    />
-            </StackPanel>
-            <Button
-                x:Name="ChampSelectBackButton"
-                Grid.Column="3"
-                Width="30"
-                Height="30"
-                VerticalAlignment="Center"
-                Padding="0"
-                Style="{StaticResource FacmCollapseButtonStyle}"
-                Click="OnSurfaceCollapseToOrbClick"
-                Visibility="Collapsed"
-                automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
-                <FontIcon Glyph="&#xE72C;" />
-            </Button>
+                    Grid.Column="2"
+                    Margin="2,0,2,0"
+                    VerticalAlignment="Center"
+                    Spacing="1">
+                    <TextBlock
+                        x:Name="ChampSelectStatus"
+                        Style="{StaticResource FacmBodyTextStyle}"
+                        FontSize="10"
+                        TextTrimming="CharacterEllipsis"
+                        />
+                    <TextBlock
+                        x:Name="ChampSelectAction"
+                        Style="{StaticResource FacmInspectorTextStyle}"
+                        FontSize="10"
+                        TextTrimming="CharacterEllipsis"
+                        />
+                </StackPanel>
+                <Button
+                    x:Name="ChampSelectBackButton"
+                    Grid.Column="3"
+                    Width="30"
+                    Height="30"
+                    VerticalAlignment="Center"
+                    Padding="0"
+                    Style="{StaticResource FacmCollapseButtonStyle}"
+                    Click="OnSurfaceCollapseToOrbClick"
+                    Visibility="Collapsed"
+                    automation:AutomationProperties.AutomationId="FACM.Surface.ChampSelectCollapse">
+                    <FontIcon Glyph="&#xE72C;" />
+                </Button>
+            </Grid>
+            <Border
+                x:Name="ChampSelectGuidePanel"
+                Grid.Row="1"
+                Margin="8,0,8,8"
+                Padding="8"
+                Background="{StaticResource FacmSurfaceSecondaryBrush}"
+                BorderBrush="{StaticResource FacmStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="Collapsed">
+                <ScrollViewer
+                    VerticalScrollMode="Auto"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel
+                        x:Name="ChampSelectGuideContent"
+                        Spacing="8" />
+                </ScrollViewer>
+            </Border>
         </Grid>
 
         <Grid x:Name="LegacyFeatureSurface" Background="Transparent" Visibility="Collapsed">

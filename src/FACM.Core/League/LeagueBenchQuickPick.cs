@@ -36,7 +36,14 @@ public sealed record LeagueBenchQuickPickState(
 public sealed record LeagueChampionIdentity(
     int ChampionId,
     string Name,
-    string IconPath);
+    string IconPath)
+{
+    /// <summary>
+    /// Stable client-side champion alias, such as "volibear". This is preferred for
+    /// public-data lookups because localized display names are not a complete slug map.
+    /// </summary>
+    public string Alias { get; init; } = string.Empty;
+}
 
 public sealed record LeagueBenchSwapResult(
     LeagueBenchSwapStatus Status,

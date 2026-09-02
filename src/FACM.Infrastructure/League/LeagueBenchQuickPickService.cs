@@ -14,6 +14,7 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
     public const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
     public const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
     public const string ChampionSummaryPath = "/lol-game-data/assets/v1/champion-summary.json";
+    public const string ChampionDetailPathPrefix = "/lol-game-data/assets/v1/champions/";
     public const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
 
     private const int MaxChampionIconBytes = 2 * 1024 * 1024;
@@ -80,7 +81,7 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
         if (requested.Length == 0) return new Dictionary<int, LeagueChampionIdentity>();
 
         var result = ReadCachedIdentities(requested);
-        if (result.Count == requested.Length) return result;
+        if (HasUsableIdentities(requested, result)) return result;
 
         await _identityGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -95,6 +96,25 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
                 lock (_identitySync)
                 foreach (var identity in catalog)
                     _identityCache[identity.Key] = identity.Value;
+            }
+
+            result = ReadCachedIdentities(requested);
+            var missing = requested
+                .Where(id => !result.TryGetValue(id, out var identity) || !IsUsableIdentity(identity))
+                .ToArray();
+            if (missing.Length == 0) return result;
+
+            var detailTasks = missing.Select(async id =>
+            {
+                var bytes = await _reader.TryGetBytesAsync(
+                    ChampionDetailPathPrefix + id + ".json",
+                    cancellationToken).ConfigureAwait(false);
+                return ParseChampionDetailIdentity(id, bytes);
+            });
+            foreach (var identity in await Task.WhenAll(detailTasks).ConfigureAwait(false))
+            {
+                if (identity is null) continue;
+                lock (_identitySync) _identityCache[identity.ChampionId] = identity;
             }
 
             return ReadCachedIdentities(requested);
@@ -256,9 +276,13 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
                 var id = ReadInt(row, "id");
                 if (id <= 0 || result.ContainsKey(id)) continue;
                 var name = FirstText(row, "nameTRA", "name", "alias");
+                var alias = FirstText(row, "alias", "idName", "internalName");
                 var icon = FirstText(row, "squarePortraitPath", "iconPath");
                 if (string.IsNullOrWhiteSpace(name)) name = "英雄";
-                result[id] = new LeagueChampionIdentity(id, name.Trim(), icon.Trim());
+                result[id] = new LeagueChampionIdentity(id, name.Trim(), icon.Trim())
+                {
+                    Alias = alias.Trim()
+                };
             }
         }
         catch (JsonException)
@@ -267,6 +291,31 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
         }
 
         return result;
+    }
+
+    public static LeagueChampionIdentity? ParseChampionDetailIdentity(int championId, byte[]? bytes)
+    {
+        if (championId <= 0 || bytes is null || bytes.Length == 0) return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            var name = FirstText(root, "nameTRA", "title", "name", "alias");
+            var alias = FirstText(root, "alias", "idName", "internalName");
+            var icon = FirstText(root, "squarePortraitPath", "iconPath");
+            return string.IsNullOrWhiteSpace(name)
+                ? null
+                : new LeagueChampionIdentity(championId, name.Trim(), icon.Trim())
+                {
+                    Alias = alias.Trim()
+                };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private async Task<bool> VerifyChampionAsync(
@@ -346,6 +395,16 @@ public sealed class LeagueBenchQuickPickService : ILeagueBenchQuickPickService, 
                 .ToDictionary(id => id, id => _identityCache[id]);
         }
     }
+
+    private static bool HasUsableIdentities(
+        IReadOnlyCollection<int> requested,
+        IReadOnlyDictionary<int, LeagueChampionIdentity> identities) =>
+        requested.Count == identities.Count &&
+        requested.All(id => identities.TryGetValue(id, out var identity) && IsUsableIdentity(identity));
+
+    private static bool IsUsableIdentity(LeagueChampionIdentity identity) =>
+        !string.IsNullOrWhiteSpace(identity.Name) &&
+        !string.Equals(identity.Name.Trim(), "英雄", StringComparison.Ordinal);
 
     private static int ReadInt(JsonElement root, string name)
     {

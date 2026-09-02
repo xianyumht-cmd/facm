@@ -216,3 +216,21 @@ Do not execute real LOL deletion, updater kill/replacement, production pointer c
 ## Completion boundary
 
 Functional parity and automated stability are code-green through Batch M, but **real-machine P7 is not complete until the Batch M PetHost retest and the remaining unified functional checks are reviewed**. PR #234 stays Draft/unmerged. UI 2.0 remains after functional-equivalence validation. Gate13 remains a separate evidence/authorization process.
+
+## 2026-09-02 automatic ChampSelect guide checkpoint
+
+The local continuation adds an icon-first automatic ChampSelect guide under the existing horizontal
+strip in the same `MainWindow`. It consumes the shared read-only League/Bench/Gameflow observation,
+keeps the full ranked augment set, normalizes OP.GG numeric rarity values `8/4/1`, and paginates six
+icons per rarity page. Champion identity retries a temporary empty summary and falls back to the
+typed champion-detail endpoint; generation checks cancel stale champion requests. No League write or
+second session/gateway/poller was added.
+
+The current source checkpoint is locally green: Release x64 build 0 warnings/0 errors, FoundationSmoke
+and WindowsSmoke SUCCESS, and 32/32 non-cutover source gates PASS under PowerShell 7. The candidate
+starts and remains responsive, but this machine currently has no League client. Fresh read-only live
+discovery/audit/ChampSelect probes therefore report `process-not-found` / `no-session`; screenshot
+capture also remains unavailable because `SetIsBorderRequired` returns `E_NOINTERFACE`. The final
+manual ChampSelect, late-start, and close/reopen checks are consequently `BLOCKED_BY_CLIENT_STATE`.
+This is not a merge or release claim: PR #234 remains Draft, production remains FACM 3.5.15, and
+Gate13/production pointers are unchanged.

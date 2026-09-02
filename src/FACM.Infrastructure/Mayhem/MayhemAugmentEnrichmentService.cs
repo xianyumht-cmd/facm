@@ -37,7 +37,7 @@ internal sealed class MayhemAugmentEnrichmentService
             cancellationToken,
             allowStale: true).ConfigureAwait(false);
 
-        var richRows = ParseOpggRows(richResponse?.ReadUtf8()).Take(12).ToList();
+        var richRows = ParseOpggRows(richResponse?.ReadUtf8()).ToList();
         if (richRows.Count > 0)
         {
             ApplyRich(result, richRows);
@@ -67,7 +67,7 @@ internal sealed class MayhemAugmentEnrichmentService
     internal static int ApplyHtmlForSmoke(MayhemChampionResult result, string? html)
     {
         ArgumentNullException.ThrowIfNull(result);
-        var rich = ParseOpggRows(html).Take(12).ToList();
+        var rich = ParseOpggRows(html).ToList();
         if (rich.Count > 0)
         {
             ApplyRich(result, rich);
@@ -196,7 +196,6 @@ internal sealed class MayhemAugmentEnrichmentService
     {
         result.AugmentRows = rows
             .Where(row => !string.IsNullOrWhiteSpace(row.Name))
-            .Take(12)
             .ToList();
         result.Augments = result.AugmentRows.Take(5).Select(row => row.Name).ToList();
         result.AugmentIconUrls = result.AugmentRows.Take(5).Select(row => row.IconUrl).ToList();
@@ -346,6 +345,16 @@ internal sealed class MayhemAugmentEnrichmentService
     private static string NormalizeRarity(string? value)
     {
         var text = (value ?? string.Empty).Trim().ToLowerInvariant();
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericRarity))
+        {
+            return numericRarity switch
+            {
+                8 => "棱彩",
+                4 => "黄金",
+                1 => "白银",
+                _ => text
+            };
+        }
         if (text.Contains("prismatic", StringComparison.Ordinal) || text.Contains("prism", StringComparison.Ordinal) || text.Contains("棱彩", StringComparison.Ordinal)) return "棱彩";
         if (text.Contains("gold", StringComparison.Ordinal) || text.Contains("黄金", StringComparison.Ordinal) || text.Contains('金')) return "黄金";
         if (text.Contains("silver", StringComparison.Ordinal) || text.Contains("白银", StringComparison.Ordinal) || text.Contains('银')) return "白银";
@@ -386,12 +395,20 @@ internal sealed class MayhemAugmentEnrichmentService
         return builder.ToString();
     }
 
-    private static string NormalizeEscapedHtml(string? value) => (value ?? string.Empty)
-        .Replace("\\u003c", "<", StringComparison.OrdinalIgnoreCase)
-        .Replace("\\u003e", ">", StringComparison.OrdinalIgnoreCase)
-        .Replace("\\u0026", "&", StringComparison.OrdinalIgnoreCase)
-        .Replace("\\\"", "\"", StringComparison.Ordinal)
-        .Replace("\\/", "/", StringComparison.Ordinal);
+    private static string NormalizeEscapedHtml(string? value)
+    {
+        // OP.GG embeds the augment JSON inside a self.__next_f string. Structural quotes are
+        // escaped once, while quotes inside HTML attributes are escaped through an additional
+        // layer. Remove the structural escape first, then preserve one escape for inner JSON
+        // string content so attributes such as color=\"#ffd138\" remain valid JSON.
+        var normalized = (value ?? string.Empty)
+            .Replace("\\u003c", "<", StringComparison.OrdinalIgnoreCase)
+            .Replace("\\u003e", ">", StringComparison.OrdinalIgnoreCase)
+            .Replace("\\u0026", "&", StringComparison.OrdinalIgnoreCase)
+            .Replace("\\\"", "\"", StringComparison.Ordinal)
+            .Replace("\\/", "/", StringComparison.Ordinal);
+        return normalized.Replace("\\\\\"", "\\\"", StringComparison.Ordinal);
+    }
 
     private static string CleanText(string html)
     {

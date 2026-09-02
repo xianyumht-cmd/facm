@@ -58,17 +58,30 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
         private set => SetField(ref _result, value);
     }
 
-    public async Task QueryAsync(CancellationToken cancellationToken = default)
+    public async Task QueryAsync(CancellationToken cancellationToken = default) =>
+        _ = await QueryCoreAsync(QueryText, cancellationToken);
+
+    public Task<MayhemChampionResult?> QueryForInputAsync(
+        string input,
+        CancellationToken cancellationToken = default)
+    {
+        QueryText = input;
+        return QueryCoreAsync(input, cancellationToken);
+    }
+
+    private async Task<MayhemChampionResult?> QueryCoreAsync(
+        string input,
+        CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (IsBusy) return;
+        if (IsBusy) return null;
 
-        var input = QueryText.Trim();
+        input = input.Trim();
         if (input.Length == 0)
         {
             Result = null;
             StatusText = "请输入英雄名称或别名。";
-            return;
+            return null;
         }
 
         _queryCancellation?.Dispose();
@@ -91,6 +104,7 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
             StatusText = result.Success
                 ? "查询完成"
                 : string.IsNullOrWhiteSpace(result.ErrorMessage) ? "暂时没有读取到可用数据，请稍后重试。" : result.ErrorMessage;
+            return result;
         }
         catch (OperationCanceledException) when (_queryCancellation.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
@@ -98,11 +112,13 @@ public sealed class MayhemViewModel : INotifyPropertyChanged, IDisposable
             StatusText = _userCancellationRequested || cancellationToken.IsCancellationRequested
                 ? "查询已取消"
                 : "查询超时，请稍后重试。";
+            return null;
         }
         catch
         {
             Result = null;
             StatusText = "查询失败，请稍后重试。";
+            return null;
         }
         finally
         {

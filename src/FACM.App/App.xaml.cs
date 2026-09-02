@@ -367,7 +367,8 @@ public partial class App : Application
             CreateLeagueBenchQuickPickService(),
             _leagueBenchRuntime,
             ReportLeagueBenchSurfaceEvaluation,
-            CreateLeagueGuideAssetService());
+            CreateLeagueGuideAssetService(),
+            leagueGateway);
         _window.ConfigureGameRepair(gameRepair);
         ConfigureMaintenanceWindow(_window);
         _window.Closed += OnMainWindowClosed;

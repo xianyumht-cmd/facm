@@ -13,6 +13,7 @@ internal static class LeagueBenchQuickPickSmoke
         ValidatePollingPolicy();
         ValidateLegacyParser();
         ValidateChampionIdentityParser();
+        await ValidateChampionIdentityFallbackAsync();
         ValidateBenchSwapStripPresentation();
         await ValidateProcessLevelBenchRuntimeLifecycleAsync();
         await ValidateTeamBuilderFallbackAndSingleWriteAsync();
@@ -88,9 +89,17 @@ internal static class LeagueBenchQuickPickSmoke
             """));
 
         Require(catalog.Count == 2, "Champion identity catalog did not parse all entries.");
-        Require(catalog[22].Name == "寒冰射手" && catalog[22].IconPath.EndsWith("ashe.png", StringComparison.Ordinal),
-            "Preferred localized champion name or portrait was not selected.");
+        Require(catalog[22].Name == "寒冰射手" && catalog[22].Alias == "Ashe" &&
+                catalog[22].IconPath.EndsWith("ashe.png", StringComparison.Ordinal),
+            "Preferred localized champion name, alias or portrait was not selected.");
         Require(catalog[44].Name == "塔里克", "Champion name fallback field was not selected.");
+
+        var detail = LeagueBenchQuickPickService.ParseChampionDetailIdentity(240, Json("""
+            { "id": 240, "name": "Kled", "title": "暴怒骑士", "alias": "Kled", "squarePortraitPath": "/img/kled.png" }
+            """));
+        Require(detail is not null && detail.Name == "暴怒骑士" && detail.Alias == "Kled" &&
+                detail.IconPath.EndsWith("kled.png", StringComparison.Ordinal),
+            "Champion detail fallback did not prefer the localized title, alias and portrait.");
     }
 
     private static void ValidateBenchSwapStripPresentation()
@@ -165,6 +174,30 @@ internal static class LeagueBenchQuickPickSmoke
             "Ordinary expanded surfaces must retain outside-click dismissal.");
     }
 
+    private static async Task ValidateChampionIdentityFallbackAsync()
+    {
+        var gateway = new FakeGateway
+        {
+            Reader = (path, _) => path switch
+            {
+                LeagueBenchQuickPickService.ChampionSummaryPath => null,
+                LeagueBenchQuickPickService.ChampionDetailPathPrefix + "240.json" => Json("""
+                    { "id": 240, "name": "Kled", "title": "暴怒骑士", "alias": "Kled", "squarePortraitPath": "/img/kled.png" }
+                    """),
+                _ => null
+            }
+        };
+
+        using var service = new LeagueBenchQuickPickService(gateway, gateway);
+        var identities = await service.LoadChampionIdentitiesAsync([240]);
+        Require(identities.TryGetValue(240, out var identity) && identity.Name == "暴怒骑士" && identity.Alias == "Kled" &&
+                identity.IconPath.EndsWith("kled.png", StringComparison.Ordinal),
+            "Missing champion-summary data must fall back to the champion detail endpoint.");
+        Require(gateway.PathReadCounts.TryGetValue(LeagueBenchQuickPickService.ChampionSummaryPath, out var summaryReads) && summaryReads == 1 &&
+                gateway.PathReadCounts.TryGetValue(LeagueBenchQuickPickService.ChampionDetailPathPrefix + "240.json", out var detailReads) && detailReads == 1,
+            "Champion identity fallback must use one summary read and one bounded detail read.");
+    }
+
     private static async Task ValidateProcessLevelBenchRuntimeLifecycleAsync()
     {
         var gameflow = new FakeGameflow();
@@ -180,11 +213,15 @@ internal static class LeagueBenchQuickPickSmoke
         await WaitUntilAsync(() => runtime.Current.IsLatched && runtime.Current.CandidateCount == 2,
             "Process-level Bench observer did not latch without opening Workbench.");
         Require(runtime.Current.ContextGeneration == 1, "The first ChampSelect context generation was not created.");
+        Require(runtime.Current.LocalChampionId == 10,
+            "Process-level Bench observer did not publish the authoritative local champion.");
 
-        bench.State = bench.State with { ChampionIds = [44, 77] };
+        bench.State = bench.State with { LocalChampionId = 33, ChampionIds = [44, 77] };
         gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));
         await WaitUntilAsync(() => runtime.Current.ChampionIds.SequenceEqual([44, 77]),
             "Candidate changes did not update the latched runtime state in place.");
+        await WaitUntilAsync(() => runtime.Current.LocalChampionId == 33,
+            "A local champion change did not update the existing Bench context.");
 
         bench.State = bench.State with { ChampionIds = [] };
         gameflow.Publish(Snapshot(LeagueProductState.ChampSelect, "ChampSelect"));

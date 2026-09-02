@@ -852,3 +852,37 @@ complete when `洛-guide-share.png` exists as a non-empty PNG after invoking `FA
 This candidate is local review only; do not treat it as a release, deployment, production pointer, or
 Gate13 evidence. The detailed OP.GG enrichment has a bounded 4.5-second budget and may fail soft to
 the verified base guide.
+
+## 2026-09-01 P7 automatic icon-first ChampSelect guide review
+
+Use the repository-pinned .NET 10 SDK; the machine-default `dotnet` may resolve to .NET 9 and cannot
+target this project:
+
+```text
+D:\project2\dotnet10\dotnet.exe build src/FACM.App/FACM.App.csproj -c Release --no-restore
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.FoundationSmoke/FACM.FoundationSmoke.csproj -c Release --no-restore -- --skip-gate13
+D:\project2\dotnet10\dotnet.exe run --project src/FACM.WindowsSmoke/FACM.WindowsSmoke.csproj -c Release --no-restore
+```
+
+The review candidate is `D:\project2\GGman-AUTO-GUIDE-REVIEW-20260901\GGman.exe`. Its active state is
+`D:\project2\GGman-AUTO-GUIDE-REVIEW-20260901\.facm\state\active.json`, currently targeting
+`.facm\versions\4.0.0-auto-guide-20260901-r4`. The candidate root must remain a local review copy;
+do not overwrite `D:\project2\FACM-4.0-FREE-DIST-TEST`, publish a release, move Formal P7, or run
+Gate13 from this procedure. The prior candidate process was closed normally and the root launcher is
+ready to start r4; no process was forcibly terminated by this task.
+
+With League Client running, enter a normal ARAM Mayhem ChampSelect and leave the candidate open. The
+expected surface is the existing horizontal hero/Bench strip with the same MainWindow expanded
+downward below it. After the current champion is observed, it should show the champion title/icon,
+skill/spell/item icons, `强化符文 · 完整排行`, and only the rarity tabs that have data. A rarity page
+contains at most six icons and exposes `上一页`/`下一页` when more rows exist. Selecting a new hero
+must refresh the guide in place, reset its pages, and never apply an automatic League write.
+
+If the panel reports that the hero cannot be identified, record the visible hero, the ChampSelect
+phase, and the candidate's current event-log timestamp; r4 carries a stable champion alias and retries
+identity through the typed champion-detail endpoint. If the augment section reports no graded icons,
+capture the timestamp and retain the active r4 evidence; the real nested-escape parser fix and strict
+OP.GG static-image fallback are included in this version. The
+native screenshot helper remains unreliable on this
+machine because `SetIsBorderRequired` returns `E_NOINTERFACE` (`0x80004002`), so a responsive title or
+process alone is not UI acceptance evidence.

@@ -674,6 +674,22 @@ Workbench, League guide, Repair/Cleanup, and dark/light Personalization review. 
 Formal P7 move, production change, or production restart was performed. Protected dirty paths remain untouched:
 `src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`, `out/`, `setup.inf`, and `setup.rpt`.
 
+## 2026-09-02 P7 integration checkpoint
+
+The automatic icon-first ChampSelect guide changes are present in the active local task worktree and
+have not been pushed or merged. The current local source validation is green: `FACM4.sln` Release x64
+build has 0 warnings/0 errors, FoundationSmoke `--skip-gate13` and WindowsSmoke are SUCCESS, and all
+32 non-cutover `check-facm4-*.ps1` gates pass under PowerShell 7.6.4. The detailed-build source gate
+now records the verified 4.5-second OP.GG budget used by the implementation.
+
+Fresh read-only live probes on 2026-09-02 found no League client process: discovery returned
+`process-not-found`, LCU audit returned `no-session`, and the ChampSelect observer returned
+`no-session`. The active local candidate starts r4 and remains responsive, but the native screenshot
+helper still fails with `SetIsBorderRequired` / `E_NOINTERFACE`. Consequently final real ChampSelect,
+late League startup reacquisition, and close/reopen lifecycle acceptance are `BLOCKED_BY_CLIENT_STATE`,
+not PASS. PR #234 remains Draft with base P6 and head `9744af8…`; production remains FACM 3.5.15,
+Gate13 and production pointers remain untouched, and the protected dirty paths remain un-staged.
+
 ## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou guide state
 
 The local manual HaiDou closeout is implemented on the active task branch. The existing manual
@@ -722,3 +738,59 @@ Gate8/Gate12 cadence assertions were updated and passed in the latest full App R
 FoundationSmoke `--skip-gate13`, and WindowsSmoke run. The real
 GGman-first/League-later and close/reopen League sequences remain pending because they require the
 user's normal desktop lifecycle; League was not closed or restarted by this task.
+
+## 2026-09-01 P7 LEAGUE-GUIDE-MORPH-1 automatic icon-first Mayhem guide
+
+The automatic ChampSelect guide is implemented on the active local task branch, but remains a review
+candidate rather than a production or release change. The process-level `LeagueBenchRuntimeSnapshot`
+now carries the observed local champion ID, so the existing single Gameflow/Bench observer can detect
+the current champion and champion changes without adding another League session, gateway, timer, or
+polling owner. `MainWindow.ChampSelectGuide.cs` renders an icon-first guide below the existing
+horizontal ChampSelect strip in the same MainWindow. It reuses the shared `MayhemProductQueryService`
+and shared read-only `ILeagueReadGateway`; no automatic League write or configuration application is
+performed.
+
+The guide keeps the full rich `AugmentRows` result and paginates only the presentation at six icons per
+rarity page. It supports the available `棱彩`/`黄金`/`白银` tabs, per-rarity page state, champion-change
+reset, stale-generation cancellation, champion/skill/summoner/item icons, hover/focus inspection, and
+the existing manual HaiDou query as fallback/detail. The OP.GG numeric rarity values `8/4/1` are now
+normalized to `棱彩/黄金/白银`; if the LCU champion summary is incomplete, the identity loader falls
+back to the current champion's typed detail endpoint.
+
+The user's real candidate screenshots exposed both defects before this correction: one ChampSelect
+case showed the existing strip but no champion name, and a Kled (`暴怒骑士`) case loaded champion,
+skill, spell, and item icons while the augment area incorrectly said no graded icons were available.
+The numeric-rarity parser regression and ID-detail identity fallback are now covered by deterministic
+FoundationSmoke fixtures. A reflection check against the cached real Hecarim OP.GG page now parses
+190 augment rows, including the three normalized rarity values; this also fixed the nested escaped
+HTML-attribute case that previously caused the real payload to parse as zero rows. The candidate
+active pointer is `D:\project2\GGman-AUTO-GUIDE-REVIEW-20260901\.facm\state\active.json`, targeting
+`.facm\versions\4.0.0-auto-guide-20260901-r4`; r4 contains the current Release assemblies and was
+activated only after the prior candidate exited normally. No process was forcibly terminated by this task.
+
+The latest live event evidence separates the remaining latency from the lookup failures. LCU
+`/lol-gameflow/v1/gameflow-phase` and `/lol-champ-select/v1/session` calls were successful and generally
+completed in 0–3 ms (the largest observed sample was 93 ms). The first ChampSelect observation briefly
+had zero actionable candidates for about eight seconds while the client session was hydrating; this is a
+client lifecycle timing gap, not a slow LCU request. The visible first-query delay is instead the public
+OP.GG pipeline: the uncached augment/build responses were approximately 830 KB/605 KB/740 KB and arrived
+around 18:28:41, while the product query intentionally waits for its bounded public-source and enrichment
+stages before rendering the guide. Repeat lookups should use the existing local cache.
+
+The concrete lookup fixes in r4 are: carry the stable champion alias from the LCU summary/detail payload,
+retry a temporarily empty identity for a bounded period, and avoid the previous one-shot display-name
+query that failed for names such as Volibear (`不灭狂雷`). Augment icons now also have a strict allowlisted
+OP.GG static-image fallback; the observed LCU augment icon requests themselves returned HTTP 200, so any
+remaining grey tiles require manual confirmation of paint timing versus the source asset.
+
+Post-fix evidence: FACM.App Release build with `D:\project2\dotnet10\dotnet.exe` succeeded with 0
+warnings/errors; FoundationSmoke `--skip-gate13` and WindowsSmoke succeeded; League Bench, Mayhem
+Augment, Mayhem WinUI, and P7 closeout source gates succeeded. The screenshot helper could launch the
+candidate and observe a responsive `GGman（鸡鸡侠） 4.0` window, but its native window-state capture
+failed with the environment compatibility error `SetIsBorderRequired failed: 不支持此接口
+(0x80004002)`. Therefore source/runtime checks are PASS, the user's screenshots are real pre-fix
+symptom evidence, and post-fix automatic UI acceptance is still manual-required.
+
+No source push, PR #234 merge, Gate13, Formal P7 move, production pointer change, deployment, or
+League restart occurred. Production remains FACM 3.5.15. Protected dirty paths remain untouched:
+`src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`, `out/`, `setup.inf`, and `setup.rpt`.

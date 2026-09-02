@@ -9,6 +9,7 @@ internal static class MayhemAugmentSmoke
     {
         ValidateDecisionPolicy();
         ValidateRichParserRequiresIcon();
+        ValidateFullRankedProjection();
         ValidateLegacyProjection();
         await ValidateTypedRichEnrichmentAsync();
         await ValidateTypedLegacyFallbackAsync();
@@ -54,6 +55,20 @@ internal static class MayhemAugmentSmoke
             "Rich augment rarity/sample projection changed.");
         Require(rows[0].Description == "strong choice",
             "Rich augment description sanitization changed.");
+
+        const string numericRarityHtml = """
+            <script>self.__next_f.push([1,"59:[\"$\",\"$L5a\",null,{\"data\":[{\"name\":\"Silver\",\"rarity\":1,\"largeIcon\":\"https://cdn.test/silver.png\"},{\"name\":\"Gold\",\"rarity\":4,\"largeIcon\":\"https://cdn.test/gold.png\"},{\"name\":\"Prismatic\",\"rarity\":8,\"largeIcon\":\"https://cdn.test/prismatic.png\"}]}\"]"])</script>
+            """;
+        var numericRows = MayhemAugmentEnrichmentService.ParseOpggRowsForSmoke(numericRarityHtml);
+        Require(numericRows.Select(row => row.Rarity).SequenceEqual(["白银", "黄金", "棱彩"]),
+            "OP.GG numeric augment rarity values 1/4/8 must map to Silver/Gold/Prismatic.");
+
+        const string nestedEscapedHtml = """
+            <script>self.__next_f.push([1,"59:[\"$\",\"$L5a\",null,{\"data\":[{\"name\":\"Nested\",\"rarity\":4,\"largeIcon\":\"https://cdn.test/nested.png\",\"tooltip\":\"颜色<font color=\\\"#ffd138\\\">黄金</font>\"}]}]\"]"])</script>
+            """;
+        var nestedRows = MayhemAugmentEnrichmentService.ParseOpggRowsForSmoke(nestedEscapedHtml);
+        Require(nestedRows.Count == 1 && nestedRows[0].Name == "Nested" && nestedRows[0].Rarity == "黄金",
+            "OP.GG nested self.__next_f escaping must remain parseable when augment tooltips contain HTML attributes.");
     }
 
     private static void ValidateLegacyProjection()
@@ -74,6 +89,44 @@ internal static class MayhemAugmentSmoke
             "Legacy fallback must preserve the 3.5 Kiwi icon projection.");
     }
 
+    private static void ValidateFullRankedProjection()
+    {
+        var rows = Enumerable.Range(1, 13)
+            .Select(index => new MayhemAugmentRow
+            {
+                Id = "augment-" + index,
+                Rank = index,
+                Name = "强化 " + index,
+                Rarity = index <= 7 ? "棱彩" : "黄金",
+                IconUrl = "https://cdn.test/augment-" + index + ".png"
+            })
+            .Append(new MayhemAugmentRow
+            {
+                Id = "augment-1",
+                Rank = 99,
+                Name = "重复强化",
+                Rarity = "棱彩",
+                IconUrl = "https://cdn.test/duplicate.png"
+            })
+            .ToArray();
+
+        var normalized = MayhemAutomaticGuideProjection.NormalizeAugments(rows);
+        Require(normalized.Count == 13, "Automatic guide projection must retain the full ranked augment set without duplicate IDs.");
+        Require(MayhemAutomaticGuideProjection.PageCount(normalized, "棱彩") == 2,
+            "Prismatic augment pagination must expose the partial second page.");
+        Require(MayhemAutomaticGuideProjection.Page(normalized, "棱彩", 1).Count == 1,
+            "Prismatic partial page count changed.");
+        Require(MayhemAutomaticGuideProjection.Page(normalized, "黄金", 0).Count == 6,
+            "Gold augment page must keep the configured six-icon page size.");
+        Require(MayhemAutomaticGuideProjection.PageCount(normalized, "白银") == 0,
+            "Unavailable rarity must have no pages.");
+        Require(MayhemAutomaticGuideProjection.IsCurrentGeneration(4, 4) &&
+                !MayhemAutomaticGuideProjection.IsCurrentGeneration(3, 4),
+            "Automatic guide stale-generation guard changed.");
+        Require(normalized.Select(row => row.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == normalized.Count,
+            "Automatic guide projection emitted duplicate augment IDs.");
+    }
+
     private static async Task ValidateTypedRichEnrichmentAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), "facm4-mayhem-rich-" + Guid.NewGuid().ToString("N"));
@@ -83,7 +136,11 @@ internal static class MayhemAugmentSmoke
             {
                 if (!request.RequestUri!.AbsolutePath.EndsWith("/ashe/augments", StringComparison.OrdinalIgnoreCase))
                     return new HttpResponseMessage(HttpStatusCode.NotFound);
-                const string html = "<script>{\"augments\":[{\"name\":\"Rich A\",\"performance\":55.5,\"popular\":20,\"largeIcon\":\"https://cdn.test/rich.png\"}]}</script>";
+                var rows = string.Join(',', Enumerable.Range(1, 13).Select(index =>
+                    "{\"id\":\"rich-" + index + "\",\"name\":\"Rich " + index + "\",\"performance\":" +
+                    (50 + index) + ",\"popular\":20,\"rarity\":\"" + (index <= 7 ? "Prismatic" : "Gold") +
+                    "\",\"largeIcon\":\"https://cdn.test/rich-" + index + ".png\"}"));
+                var html = "<script>{\"augments\":[" + rows + "]}</script>";
                 return Html(html);
             });
             using var transport = new MayhemCachedPublicDataTransport(root, handler);
@@ -92,8 +149,11 @@ internal static class MayhemAugmentSmoke
             await service.EnrichAsync(result);
 
             Require(handler.Calls == 1, "Rich augment enrichment should stop after one successful typed source request.");
-            Require(result.AugmentRows.Count == 1 && result.AugmentRows[0].Name == "Rich A",
-                "Typed rich augment enrichment did not populate the result.");
+            Require(result.AugmentRows.Count == 13 && result.AugmentRows[0].Name == "Rich 1",
+                "Typed rich augment enrichment did not preserve the full ranked result.");
+            Require(result.AugmentRows.Count(row => row.Rarity == "棱彩") == 7 &&
+                    result.AugmentRows.Count(row => row.Rarity == "黄金") == 6,
+                "Typed rich augment enrichment changed rarity partitioning.");
             Require(result.AugmentSourceRoute == "direct" && !result.AugmentSourceStale,
                 "Direct rich augment source state was not preserved.");
             Require(result.AugmentSourceUrl.EndsWith("/ashe/augments", StringComparison.OrdinalIgnoreCase),

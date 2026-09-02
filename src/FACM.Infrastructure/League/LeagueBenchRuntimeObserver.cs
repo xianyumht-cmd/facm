@@ -131,6 +131,7 @@ public sealed class LeagueBenchRuntimeObserver : ILeagueBenchRuntimeState, IDisp
                     {
                         SessionAvailable = observed.SessionAvailable,
                         BenchEnabled = observed.BenchEnabled,
+                        LocalChampionId = observed.LocalChampionId,
                         SwapRoute = observed.SwapRoute,
                         ChampionIds = candidates,
                         IsLatched = latched,
@@ -165,6 +166,7 @@ public sealed class LeagueBenchRuntimeObserver : ILeagueBenchRuntimeState, IDisp
                 {
                     SessionAvailable = false,
                     BenchEnabled = false,
+                    LocalChampionId = 0,
                     ChampionIds = Array.Empty<int>(),
                     UpdatedAtUtc = DateTimeOffset.UtcNow,
                     SourceFreshness = "read-failed"
@@ -192,6 +194,7 @@ public sealed class LeagueBenchRuntimeObserver : ILeagueBenchRuntimeState, IDisp
             generation,
             sessionAvailable,
             benchEnabled,
+            0,
             route,
             championIds,
             isLatched,
@@ -211,6 +214,7 @@ public sealed class LeagueBenchRuntimeObserver : ILeagueBenchRuntimeState, IDisp
         left.ContextGeneration == right.ContextGeneration &&
         left.SessionAvailable == right.SessionAvailable &&
         left.BenchEnabled == right.BenchEnabled &&
+        left.LocalChampionId == right.LocalChampionId &&
         left.SwapRoute == right.SwapRoute &&
         left.IsLatched == right.IsLatched &&
         string.Equals(left.SourceFreshness, right.SourceFreshness, StringComparison.Ordinal) &&

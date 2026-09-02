@@ -584,3 +584,34 @@ optional sections, and leaves the manual HaiDou path available as the detail/fal
 the later automatic ChampSelect guide. The OP.GG detailed page remains an optional enrichment source;
 its absence of a verified Runes table is represented by omission rather than a generic or invented
 rune section.
+
+## 2026-09-01 P7 LEAGUE-GUIDE-MORPH-1 automatic ChampSelect guide
+
+The automatic guide is a presentation extension of the existing `ChampSelectStrip`, not a second
+window or League subsystem:
+
+```text
+single Gameflow heartbeat
+  -> LeagueBenchRuntimeObserver
+  -> LeagueBenchRuntimeSnapshot.LocalChampionId + Bench facts
+  -> existing MainWindow ChampSelectStrip
+  -> nested MainWindow ChampSelectGuidePanel
+       -> shared MayhemProductQueryService
+       -> shared read-only ILeagueReadGateway / public cache transport
+       -> icon-first result projection
+```
+
+`LocalChampionId` is resolved from the observed Bench session and the UI falls back to the live local
+player/action fields only when the runtime snapshot is temporarily zero. Pick intent is not used as a
+claimed current champion. When the ID changes, the current request is cancelled, the guide generation
+advances, rarity/page state resets, and a new query starts in place. A zero ID does not replace an
+already visible guide with a guessed champion.
+
+The automatic guide consumes the same `MayhemChampionResult` as manual HaiDou. Rich source rows stay
+complete in `AugmentRows`; the UI normalizes, partitions, and paginates them at six icons per rarity.
+The source parser maps OP.GG numeric rarity values `8`, `4`, and `1` to Prismatic, Gold, and Silver
+respectively, while unknown/legacy rows remain fail-closed rather than being assigned a guessed tier.
+LCU image references use the existing read gateway; public image/data references use the existing
+bounded public-data/cache path. The panel has no `ILeagueWriteGateway`, `LeagueWriteCommand`, or
+automatic configuration mutation path. Champion identity loading uses the summary catalog first and
+typed `/lol-game-data/assets/v1/champions/{id}.json` detail fallback for missing or placeholder names.

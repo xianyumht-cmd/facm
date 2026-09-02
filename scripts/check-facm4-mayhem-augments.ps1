@@ -49,7 +49,8 @@ foreach ($required in @(
     'MayhemAugmentEnrichmentService', 'MayhemPublicResourceKind.MayhemAugments',
     'MayhemPublicResourceKind.RankingBuild', 'TimeSpan.FromSeconds(5.5)', 'TimeSpan.FromSeconds(3)',
     'ParseOpggRows', 'FindNextArrayMarker', 'FindBalancedEnd', 'ScoreRows',
-    'if (string.IsNullOrWhiteSpace(icon)) return null', '.Take(12)', '.Take(5)',
+    'if (string.IsNullOrWhiteSpace(icon)) return null', '.Take(5)',
+    'result.AugmentRows = rows',
     'MayhemAugmentDecisionPolicy.BuildRoutes', 'AugmentSourceRoute', 'AugmentSourceStale',
     'Best Augments for', 'Augment Combos', 'raw.communitydragon.org', 'Rarity = "未知"'
 )) {
@@ -83,7 +84,7 @@ foreach ($required in @(
 }
 
 foreach ($required in @(
-    'ValidateDecisionPolicy', 'ValidateRichParserRequiresIcon', 'ValidateLegacyProjection',
+    'ValidateDecisionPolicy', 'ValidateRichParserRequiresIcon', 'ValidateFullRankedProjection', 'ValidateLegacyProjection',
     'ValidateTypedRichEnrichmentAsync', 'ValidateTypedLegacyFallbackAsync',
     'StableScore', 'No Icon', 'handler.Calls == 1', 'handler.Calls == 2'
 )) {

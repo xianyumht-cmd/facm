@@ -28,6 +28,7 @@ public sealed partial class MainWindow
     private void BeginBenchContext()
     {
         CancelChampSelectIdentityLoad();
+        ResetChampSelectAutomaticGuide();
         _benchStripCandidateCount = 0;
         _champSelectRequestedSignature = string.Empty;
         _champSelectRenderedSignature = string.Empty;
@@ -37,6 +38,7 @@ public sealed partial class MainWindow
 
     private void ResetBenchContext()
     {
+        ResetChampSelectAutomaticGuide();
         _benchStripCandidateCount = 0;
         _champSelectRequestedSignature = string.Empty;
         _champSelectRenderedSignature = string.Empty;
@@ -145,6 +147,7 @@ public sealed partial class MainWindow
 
         if (candidates.Length == 0)
         {
+            EnsureChampSelectAutomaticGuide(ResolveCurrentChampSelectChampionId(runtime, live));
             _champSelectRequestedSignature = string.Empty;
             _benchStripCandidateCount = 0;
             RebuildChampSelectCandidates(Array.Empty<ChampSelectCandidateVisual>());
@@ -164,6 +167,8 @@ public sealed partial class MainWindow
         ChampSelectStatus.Text = _text.Get(UiTextKeys.LeagueStateChampSelect);
         if (!_leagueBenchSwapping)
             ChampSelectAction.Text = "点击头像即可交换英雄";
+
+        EnsureChampSelectAutomaticGuide(ResolveCurrentChampSelectChampionId(runtime, live));
 
         ReportBenchSurfaceEvaluation(
             runtime,

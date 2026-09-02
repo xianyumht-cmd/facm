@@ -35,6 +35,8 @@ public sealed partial class MainWindow : Window
     private const double ChampSelectStripWidthDip = 560d;
     private const double ChampSelectWaitingWidthDip = 280d;
     private const double ChampSelectStripHeightDip = 56d;
+    private const double ChampSelectGuideWidthDip = 380d;
+    private const double ChampSelectGuideHeightDip = 560d;
     private const double SurfaceEdgeMarginDip = 8d;
     private const double SurfaceDragThresholdPixels = 4d;
     private const long SurfaceDragClickSuppressionMilliseconds = 350;
@@ -56,6 +58,7 @@ public sealed partial class MainWindow : Window
     private readonly Action<FacmSurfacePresentationFailure>? _surfacePresentationFailureReporter;
     private readonly Func<IntPtr, bool>? _configureSurfaceWindow;
     private readonly ILeagueBenchRuntimeState? _leagueBenchRuntime;
+    private readonly ILeagueReadGateway? _leagueReadGateway;
     private readonly Action<LeagueBenchSurfaceEvaluation>? _benchSurfaceEvaluationReporter;
     private int _outsideCloseSuppression;
     private bool _closed;
@@ -109,7 +112,8 @@ public sealed partial class MainWindow : Window
         ILeagueBenchQuickPickService? leagueBenchQuickPick = null,
         ILeagueBenchRuntimeState? leagueBenchRuntime = null,
         Action<LeagueBenchSurfaceEvaluation>? benchSurfaceEvaluationReporter = null,
-        ILeagueGuideAssetService? leagueGuideAssets = null)
+        ILeagueGuideAssetService? leagueGuideAssets = null,
+        ILeagueReadGateway? leagueReadGateway = null)
     {
         _controlCenter = controlCenter ?? throw new ArgumentNullException(nameof(controlCenter));
         _cleanupCenter = cleanupCenter ?? throw new ArgumentNullException(nameof(cleanupCenter));
@@ -129,6 +133,7 @@ public sealed partial class MainWindow : Window
         _leagueBenchRuntime = leagueBenchRuntime;
         _benchSurfaceEvaluationReporter = benchSurfaceEvaluationReporter;
         _leagueGuideAssets = leagueGuideAssets;
+        _leagueReadGateway = leagueReadGateway;
         _surfaceStateMachine = new FacmSurfaceStateMachine();
         _surfaceStateMachine.Transitioned += OnSurfaceTransitioned;
         try
@@ -238,7 +243,9 @@ public sealed partial class MainWindow : Window
         }
         else if (mode == FacmSurfaceMode.ChampSelectStrip)
         {
-            ChampSelectSurface.Width = LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount);
+            var size = GetSurfaceDipSize(mode);
+            ChampSelectSurface.Width = size.Width;
+            ChampSelectSurface.Height = size.Height;
             ChampSelectSurface.Visibility = Visibility.Visible;
         }
         else if (mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface)
@@ -261,6 +268,7 @@ public sealed partial class MainWindow : Window
         if (mode != FacmSurfaceMode.ChampSelectStrip)
         {
             CancelChampSelectIdentityLoad();
+            ResetChampSelectAutomaticGuide();
             _champSelectRequestedSignature = string.Empty;
             _champSelectRenderedSignature = string.Empty;
             _champSelectHasCandidates = false;
@@ -278,7 +286,11 @@ public sealed partial class MainWindow : Window
         ControlMatrixSurface.Visibility = mode == FacmSurfaceMode.ControlMatrix ? Visibility.Visible : Visibility.Collapsed;
         ChampSelectSurface.Visibility = mode == FacmSurfaceMode.ChampSelectStrip ? Visibility.Visible : Visibility.Collapsed;
         if (mode == FacmSurfaceMode.ChampSelectStrip)
-            ChampSelectSurface.Width = LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount);
+        {
+            var size = GetSurfaceDipSize(mode);
+            ChampSelectSurface.Width = size.Width;
+            ChampSelectSurface.Height = size.Height;
+        }
         var featureVisible = mode is FacmSurfaceMode.FeatureSurface or FacmSurfaceMode.LeagueSurface;
         LegacyFeatureSurface.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
         SurfaceBackButton.Visibility = featureVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -473,8 +485,10 @@ public sealed partial class MainWindow : Window
             OrbSizeDip),
         FacmSurfaceMode.ControlMatrix => new DesktopSize(ControlMatrixWidthDip, ControlMatrixHeightDip),
         FacmSurfaceMode.ChampSelectStrip => new DesktopSize(
-            LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount),
-            LeagueBenchSwapStripPolicy.HeightDip),
+            _champSelectGuideVisible
+                ? ChampSelectGuideWidthDip
+                : LeagueBenchSwapStripPolicy.ResolveWidthDip(_benchStripCandidateCount),
+            _champSelectGuideVisible ? ChampSelectGuideHeightDip : LeagueBenchSwapStripPolicy.HeightDip),
         FacmSurfaceMode.LeagueSurface => new DesktopSize(LeagueSurfaceWidthDip, LeagueSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "repair" => new DesktopSize(RepairSurfaceWidthDip, RepairSurfaceHeightDip),
         FacmSurfaceMode.FeatureSurface when _activeSection == "settings" && _logsSubviewVisible => new DesktopSize(560d, 420d),
@@ -1898,6 +1912,7 @@ public sealed partial class MainWindow : Window
         _transientRailTimer?.Stop();
         _transientRailTimer = null;
         CancelChampSelectIdentityLoad();
+        ResetChampSelectAutomaticGuide();
         RootNavigation.Loaded -= OnRootNavigationLoaded;
         _cleanupCenter.PropertyChanged -= OnCleanupPropertyChanged;
         _leagueWorkbench.PropertyChanged -= OnLeagueWorkbenchPropertyChanged;

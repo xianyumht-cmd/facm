@@ -284,3 +284,29 @@ BOOT-1 的 ZIP/expanded-source 原型没有被当作 BOOT-2 交付格式；BOOT-
 当前状态是 **BOOT-2 deterministic local network candidate green / not release-ready**。仍未完成生产
 签名与真实 HTTPS/CDN、真实 Win10/11 安装升级、用户数据迁移、桌宠网络供给、自然 League session、
 最终 release evidence 和 Gate13；不得据此切生产。
+
+## 2026-09-02 P7 automatic-guide integration checkpoint
+
+The active local task worktree contains the automatic icon-first ChampSelect guide implementation and
+its deterministic coverage. The implementation retains complete `AugmentRows`, maps OP.GG numeric
+rarities `8/4/1` to `棱彩/黄金/白银`, paginates only the presentation at six icons per page, uses
+typed champion-detail fallback when the summary catalog is temporarily incomplete, and rejects stale
+champion generations. It reuses the single League/Bench/Gameflow ownership and does not expose a
+League write path.
+
+Current local validation with `D:\project2\dotnet10\dotnet.exe`:
+
+- `FACM4.sln` Release x64: 0 warnings / 0 errors;
+- FoundationSmoke `--skip-gate13`: SUCCESS;
+- WindowsSmoke: SUCCESS;
+- 32/32 non-cutover `check-facm4-*.ps1` source gates: PASS under PowerShell 7.6.4;
+- `--league-discovery-live`, `--league-lcu-audit-live`, and `--league-champselect-observe-live`:
+  read-only `no-session` / `process-not-found` because no League client is running.
+
+The candidate `D:\project2\GGman-AUTO-GUIDE-REVIEW-20260901\GGman.exe` starts its active r4 Core
+and reports a responsive `GGman（鸡鸡侠） 4.0` window. Native screenshot capture still fails on this
+machine with `SetIsBorderRequired` / `E_NOINTERFACE`, so no visual acceptance is claimed. Final
+ChampSelect and late-start/restart lifecycle acceptance remains `BLOCKED_BY_CLIENT_STATE` until the
+user has League running and manually enters a normal ARAM Mayhem ChampSelect. No push, PR retarget,
+merge, cleanup, Gate13, production pointer change, deployment, or restart is authorized by this
+checkpoint.

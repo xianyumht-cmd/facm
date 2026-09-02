@@ -29,7 +29,7 @@ $querySmoke = Get-Content $querySmokePath -Raw
 
 foreach ($required in @(
     'MayhemBuildDetailsService', 'MaximumCoreBuilds = 2',
-    'MayhemPublicResourceKind.MayhemBuild', 'TimeSpan.FromSeconds(1.8)',
+    'MayhemPublicResourceKind.MayhemBuild', 'TimeSpan.FromSeconds(4.5)',
     'if (HasDetailedBuild(result))', 'EnsureFallbackSkillPriority(result)',
     'ExtractItemRows(normalized, "core_items", 3, 5)',
     'ExtractItemRows(normalized, "starter_items", 2, 3)',
@@ -82,7 +82,7 @@ if ((Count-Matches $querySmoke 'MayhemBuildDetailsSmoke\.RunAsync') -ne 1) {
 
 Write-Host 'Mayhem detailed build: max 2 core paths / 5 core items / 3 starter / 1 boot'
 Write-Host 'Mayhem detailed build: max 2 summoners / 3 non-R skill priorities'
-Write-Host 'Mayhem detailed build: one typed MayhemBuild request with 1.8s budget'
+Write-Host 'Mayhem detailed build: one typed MayhemBuild request with 4.5s budget'
 Write-Host 'Mayhem detailed build: existing-details short-circuit + legacy build/skill fallback'
 Write-Host 'Mayhem detailed-build deterministic smoke: HTML / typed source / fallback covered offline'
 Write-Host 'FACM 4.0 Mayhem detailed-build parity contract: SUCCESS'

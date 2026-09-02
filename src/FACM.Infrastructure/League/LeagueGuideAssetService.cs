@@ -17,6 +17,7 @@ public sealed class LeagueGuideAssetService : ILeagueGuideAssetService
     private const long MaximumBodyBytes = 512L * 1024L;
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromDays(30);
     private const string TencentBase = "https://game.gtimg.cn/images/lol/act/img";
+    private const string OpggAugmentBase = "https://opgg-static.akamaized.net/meta/images/lol/latest/aram-augment/";
     private const string CommunityDragonBase =
         "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_cn/v1";
 
@@ -96,7 +97,22 @@ public sealed class LeagueGuideAssetService : ILeagueGuideAssetService
         var communityPath = ResolveCommunityPath(normalized, id, assetPath);
         if (communityPath.Length > 0)
             uris.Add(new Uri(CommunityDragonBase + "/" + communityPath));
+
+        if (normalized == "augments" && TryResolveOpggAugmentUri(assetPath) is { } opggUri)
+            uris.Add(opggUri);
         return uris;
+    }
+
+    private static Uri? TryResolveOpggAugmentUri(string? assetPath)
+    {
+        if (!Uri.TryCreate(assetPath?.Trim(), UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !uri.Host.Equals("opgg-static.akamaized.net", StringComparison.OrdinalIgnoreCase) ||
+            !uri.AbsoluteUri.StartsWith(OpggAugmentBase, StringComparison.OrdinalIgnoreCase) ||
+            uri.AbsolutePath.Contains("..", StringComparison.Ordinal) ||
+            !uri.AbsolutePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return uri;
     }
 
     private static string ResolveCommunityPath(string kind, int id, string? assetPath)
