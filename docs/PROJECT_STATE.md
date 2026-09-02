@@ -946,3 +946,22 @@ BOOT-2/BOOT3-A/BOOT3-B 检查、.NET build、mirror/migration smoke 均通过；
 `active-composition-committed`、`facm-process-created`，更新器记录 `migration-complete; activeVersion=4.0.5`。
 当前 `.facm/migration/bridge-state.json` 为 `completed`，`.facm/state/active.json` 为 `4.0.5`，
 `FACM.App.exe` 已启动。4.0.4 保留为历史资产；本次未执行 Gate13 生产切换或 legacy 退休。
+
+## 2026-09-02 4.0.6 清理修复与维护页更新链正式发布
+
+本次维护页修复和清理确认修复已从固定源码提交
+`fb4ae50d706d92467fcf0454f48771210f2126e8` 推送到 GitHub/Gitee `main`；Gitee
+在线目录指针提交为 `b16a595`，两边 `main` 均已包含该指针。GitHub Actions 因账户不可用仍显示失败，
+本次发布未使用其构建或签名结果；本地构建、FoundationSmoke、WindowsSmoke、shell/架构/更新器门禁均已通过。
+
+从该源码重新生成了 4.0.6 的三组件 CAB 和原生引导程序。引导程序文件版本/产品版本为 `4.0.6.0`/`4.0.6`，
+SHA-256 为 `B562E1E897EA33B3AC49F76F1CA9EA44444AAB0088EBE90B4EDD7F95F60951B1`，
+使用与 3.5 bridge 相同的本地自签名 PFX，证书指纹仍为
+`A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568`。bundle validator 已通过；四个 detached 清单签名继续使用
+`facm-production-r1` 私钥，私钥未进入仓库或 Release。
+
+Gitee Release `v4.0.6`（id `1119658`）已上传 15 个正式资产，下载地址为
+`https://gitee.com/xymhtcmd/facm/releases/tag/v4.0.6`。`raw/main/online/facm4-version.json` 已指向
+该 Release 的 `FACM.exe` 和签名 `manifest.json`，目录中的 bootstrapper SHA 与远端匿名下载的文件版本、
+大小和 SHA-256 完全一致。现有 4.x 客户端打开维护页即可发现 4.0.6，并由 root bootstrapper 执行组件更新；
+旧 3.5 bridge 指针保持不变。
