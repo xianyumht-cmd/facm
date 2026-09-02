@@ -92,12 +92,6 @@ namespace FACM
                 if (floatingBallTest) { Environment.ExitCode = FloatingBallSmokeTest.Run(); return; }
                 if (petLocatorTest) { Environment.ExitCode = DesktopHomunculusLocatorSmokeTest.Run(); return; }
 
-                if (!testMode && !startCleanup && Facm4MigrationBridge.TryStart(args))
-                {
-                    Environment.ExitCode = 0;
-                    return;
-                }
-
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
