@@ -814,3 +814,10 @@ Gitee 的 Release 下载还会从仓库域名跳到 `foruda.gitee.com` 附件域
 在 Windows runtime CAB 解包结束后返回 `FDI 8:0`。在定位前不能把“下载成功”写成“首次启动成功”；应保留
 `D:\project2\facm-gitee-4.0.3-e2e-20260902\.facm\logs\bootstrapper.jsonl` 的脱敏事件、复核目标目录的文件计数/字节数，
 并用新的隔离目录重现，不能删除或覆盖用户现有安装。
+
+## 2026-09-02：重签清单前必须核对 CAB 实际内容
+
+本轮复现证明，沿用旧 CAB 清单中的 installedSize/contentDigest 再重签，会让 native 解包器按过小的
+manifest 上限截断文件并报告 FDI 8:0；下载哈希正确并不能证明解包可用。发布脚本现在以 `expand.exe`
+解包每个待发布 CAB，重新计算文件数、总字节和目录摘要后才生成签名清单，并更新 ownership-report。
+发布验证器同样执行 CAB 内容校验；任何 metadata 与实际解包结果不一致的 bundle 必须在上传前停止。

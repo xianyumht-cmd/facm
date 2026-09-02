@@ -920,11 +920,13 @@ bool IsReparsePoint(const fs::path& path) {
 
 struct ExtractionContext {
     fs::path destination;
+    std::map<INT_PTR, std::string> openFiles;
     std::set<std::wstring> files;
     std::uintmax_t writtenBytes = 0;
     std::uintmax_t maximumBytes = kMaximumComponentInstalledBytes;
     bool failed = false;
     std::string failureDetail;
+    std::string lastEventDetail;
 };
 
 thread_local ExtractionContext* g_extractionContext = nullptr;
@@ -943,6 +945,7 @@ INT_PTR DIAMONDAPI CabOpen(char* file, int flags, int mode) {
         if (g_extractionContext) g_extractionContext->failureDetail = std::string("input open failed: ") + (file ? file : "(null)");
         return -1;
     }
+    if (g_extractionContext) g_extractionContext->openFiles[descriptor] = file ? file : "(null)";
     return static_cast<INT_PTR>(descriptor);
 }
 
@@ -951,7 +954,9 @@ UINT DIAMONDAPI CabRead(INT_PTR descriptor, void* buffer, UINT bytes) {
     const auto read = _read(static_cast<int>(descriptor), buffer, bytes);
     if (read < 0 && g_extractionContext) {
         g_extractionContext->failed = true;
-        g_extractionContext->failureDetail = "input read failed";
+        const auto open = g_extractionContext->openFiles.find(descriptor);
+        g_extractionContext->failureDetail = "input read failed" +
+            (open == g_extractionContext->openFiles.end() ? std::string() : ": " + open->second);
     }
     return read < 0 ? 0 : static_cast<UINT>(read);
 }
@@ -960,11 +965,21 @@ UINT DIAMONDAPI CabWrite(INT_PTR descriptor, void* buffer, UINT bytes) {
     if (descriptor < 0 || !g_extractionContext) return 0;
     if (bytes > g_extractionContext->maximumBytes - std::min(g_extractionContext->maximumBytes, g_extractionContext->writtenBytes)) {
         g_extractionContext->failed = true;
+        const auto open = g_extractionContext->openFiles.find(descriptor);
+        g_extractionContext->failureDetail = "target write exceeds manifest limit" +
+            (open == g_extractionContext->openFiles.end() ? std::string() : ": " + open->second) +
+            ";written=" + std::to_string(g_extractionContext->writtenBytes) +
+            ";requested=" + std::to_string(bytes) +
+            ";limit=" + std::to_string(g_extractionContext->maximumBytes);
         return 0;
     }
     const auto written = _write(static_cast<int>(descriptor), buffer, bytes);
-    if (written < 0) {
+    if (written < 0 || written != static_cast<int>(bytes)) {
         g_extractionContext->failed = true;
+        const auto open = g_extractionContext->openFiles.find(descriptor);
+        g_extractionContext->failureDetail = written < 0 ? "target write failed" : "target write incomplete";
+        if (open != g_extractionContext->openFiles.end()) g_extractionContext->failureDetail += ": " + open->second;
+        g_extractionContext->failureDetail += ";requested=" + std::to_string(bytes) + ";written=" + std::to_string(written);
         return 0;
     }
     g_extractionContext->writtenBytes += static_cast<std::uintmax_t>(written);
@@ -996,6 +1011,7 @@ INT_PTR DIAMONDAPI CabNotify(FDINOTIFICATIONTYPE type, PFDINOTIFICATION notifica
             return -1;
         }
         const auto target = g_extractionContext->destination / relative;
+        g_extractionContext->lastEventDetail = "copy: " + WideToUtf8(target.wstring());
         if (!IsPathInside(g_extractionContext->destination, target) || IsReparsePoint(target)) {
             g_extractionContext->failed = true;
             g_extractionContext->failureDetail = "archive path escaped destination";
@@ -1014,9 +1030,26 @@ INT_PTR DIAMONDAPI CabNotify(FDINOTIFICATIONTYPE type, PFDINOTIFICATION notifica
             g_extractionContext->failureDetail = "target file open failed";
             return -1;
         }
+        g_extractionContext->openFiles[descriptor] = WideToUtf8(target.wstring());
         return static_cast<INT_PTR>(descriptor);
     }
-    if (type == fdintCLOSE_FILE_INFO) return CabClose(notification->hf) == 0 ? 1 : 0;
+    if (type == fdintCLOSE_FILE_INFO) {
+        const auto descriptor = notification->hf;
+        const auto closeResult = CabClose(descriptor);
+        if (g_extractionContext) {
+            const auto open = g_extractionContext->openFiles.find(descriptor);
+            g_extractionContext->lastEventDetail = "close: " +
+                (open == g_extractionContext->openFiles.end() ? std::string("descriptor=") + std::to_string(descriptor) : open->second) +
+                ";result=" + std::to_string(closeResult);
+            if (closeResult != 0) {
+                g_extractionContext->failed = true;
+                g_extractionContext->failureDetail = "target close failed" +
+                    (open == g_extractionContext->openFiles.end() ? std::string() : ": " + open->second);
+            }
+            if (open != g_extractionContext->openFiles.end()) g_extractionContext->openFiles.erase(open);
+        }
+        return closeResult == 0 ? 1 : 0;
+    }
     if (type == fdintPARTIAL_FILE) {
         return 0;
     }
@@ -1064,6 +1097,7 @@ bool ExtractCab(const fs::path& pack, const fs::path& destination, const Compone
     if (!copied || context.failed) {
         failure = L"组件 CAB 解包失败或触发了安全限制（FDI " + std::to_wstring(erf.erfOper) + L":" + std::to_wstring(erf.erfType) + L"）。";
         if (!context.failureDetail.empty()) failure += L" " + Utf8ToWide(context.failureDetail);
+        else if (!context.lastEventDetail.empty()) failure += L" " + Utf8ToWide(context.lastEventDetail);
         return false;
     }
     if (context.files.empty() || context.writtenBytes != manifest.installedSize ||

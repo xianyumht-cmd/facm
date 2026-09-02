@@ -674,3 +674,12 @@ The local release publisher is an operator-only API client. It reads the Gitee t
 system credential manager, creates a tagged Release against an explicit commit, and uploads only the
 selected bundle files. It is outside the application runtime and introduces no update-time credential
 or network dependency.
+
+## 2026-09-02 Release metadata derives from CAB contents
+
+The local publisher treats each CAB as the content authority for release metadata. Before a detached
+component manifest is signed, the publisher extracts the CAB with the Windows system extractor and derives
+file count, installed byte size, per-file ownership records, and the deterministic content digest from that
+extracted tree. The application manifest, component manifests, release index, and ownership report all
+consume those derived values. The release validator repeats the extraction and comparison, preventing a
+stale seed manifest from imposing an incorrect native extraction limit at first launch.

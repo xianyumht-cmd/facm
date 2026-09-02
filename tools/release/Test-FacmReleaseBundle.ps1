@@ -24,6 +24,41 @@ function Read-Json([string]$Path) {
     return Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json
 }
 function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Get-DirectoryDigest([string]$Root) {
+    $paths = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $Root -Recurse -File)) {
+        [void]$paths.Add(([IO.Path]::GetRelativePath($Root, $file.FullName)).Replace('\','/'))
+    }
+    $paths.Sort([StringComparer]::Ordinal)
+    $rows = @()
+    foreach ($relative in $paths) {
+        $file = Get-Item -LiteralPath ([IO.Path]::Combine($Root, $relative.Replace('/', [IO.Path]::DirectorySeparatorChar)))
+        $rows += $relative
+        $rows += (Get-Sha256 $file.FullName)
+    }
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($rows -join "`n") + "`n")
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-','').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
+function Assert-CabContentMatchesManifest([string]$PackagePath, [object]$Component, [string]$Id) {
+    $expand = Join-Path $env:WINDIR 'System32\expand.exe'
+    Require (Test-Path -LiteralPath $expand -PathType Leaf) "Windows expand.exe missing: $expand"
+    $verifyRoot = Join-Path ([IO.Path]::GetTempPath()) ("facm-cab-validate-" + [Guid]::NewGuid().ToString('N'))
+    try {
+        New-Item -ItemType Directory -Force -Path $verifyRoot | Out-Null
+        & $expand '-F:*' $PackagePath $verifyRoot 2>&1 | Out-Null
+        Require ($LASTEXITCODE -eq 0) "$Id CAB extraction failed during release validation."
+        $files = @(Get-ChildItem -LiteralPath $verifyRoot -Recurse -File)
+        Require ([uint64]$files.Count -eq [uint64]$Component.fileCount) "$Id CAB file count does not match signed metadata (actual $($files.Count), signed $($Component.fileCount))."
+        $size = [uint64](($files | Measure-Object -Property Length -Sum).Sum)
+        Require ($size -eq [uint64]$Component.installedSize) "$Id CAB installed size does not match signed metadata (actual $size, signed $($Component.installedSize))."
+        $digest = Get-DirectoryDigest $verifyRoot
+        Require ($digest -ieq [string]$Component.contentDigest) "$Id CAB content digest does not match signed metadata (actual $digest, signed $($Component.contentDigest))."
+    } finally {
+        if (Test-Path -LiteralPath $verifyRoot) { Remove-Item -LiteralPath $verifyRoot -Recurse -Force }
+    }
+}
 function Get-SafeRelativePath([string]$Relative, [string]$Label) {
     $normalized = $Relative.Replace('\','/')
     Require (-not [string]::IsNullOrWhiteSpace($normalized) -and -not [IO.Path]::IsPathRooted($normalized) -and
@@ -173,6 +208,7 @@ foreach ($appComponent in $appComponents) {
     Require ([int64]$indexComponent.packageBytes -eq $packageInfo.Length) "$id CAB package byte count mismatch."
     Require ([int64]$appComponent.packageSize -eq $packageInfo.Length) "$id application package size mismatch."
     Require ([string]$appComponent.sha256 -ieq (Get-Sha256 $packagePath)) "$id application package digest mismatch."
+    Assert-CabContentMatchesManifest $packagePath $appComponent $id
     $signedComponent = Read-Json $manifestPath
     Require ($signedComponent.schemaVersion -eq 3 -and [string]$signedComponent.keyId -ceq [string]$application.keyId) "$id signed component key/schema mismatch."
     Assert-ComponentMetadata $appComponent $signedComponent $id

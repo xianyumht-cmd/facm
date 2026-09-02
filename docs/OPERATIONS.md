@@ -951,5 +951,19 @@ Do not include private keys, passwords, evidence files, `out/`, or generated bui
 
 Verification requires all of the following: the Gitee Release API lists the expected tag/assets; anonymous
 HTTPS downloads return the exact recorded SHA-256; `raw/main/online/version.json` points to the Gitee
-4.0.3 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
+4.0.4 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
 cannot consume the new Gitee URL allowlist until the signed 3.5.18 bridge has been installed once.
+
+## 2026-09-02 CAB metadata verification before local publishing
+
+When producing a 4.0.x self-signed bundle, pass `-PackageSourceRoot` and `-PackageSourceVersion` when the
+packages come from a newer BOOT-2 build than the seed metadata. `Build-Facm4SelfSignedBundle.ps1` extracts
+each CAB with `%WINDIR%\System32\expand.exe`, derives installedSize/fileCount/contentDigest from the extracted
+files, updates ownership-report, and only then signs the component and application manifests. The output
+must pass `Test-FacmReleaseBundle.ps1`; that validator now extracts every CAB and rejects stale metadata.
+
+For the current repair candidate, the local bundle is
+`D:\project2\facm-release-4.0.4-gitee\release-assets` and the package source is the corrected 4.0.3 CAB set.
+The candidate bootstrapper is `D:\project2\facm-boot2-gitee-4.0.3-build\bootstrap\FACM.exe`; do not publish
+until its SHA is recorded in `online/version.json`, the source commit is pushed, and a fresh isolated root
+completes manifest validation, all component downloads, extraction, active-state write, and app launch.

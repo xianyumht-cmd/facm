@@ -880,7 +880,7 @@ The source is pushed to both GitHub and Gitee `main` at commit `90e50b2` (the re
 the explicit `14bac2d` source commit above).
 Gitee Releases `v4.0.2` (15 bundle files), corrected `v4.0.3` (15 bundle files), and `v3.5.18` (bridge plus SHA256 record) are published; the
 GitHub `v3.5.18` bridge Release is also published for the one-time legacy hop. The online manifest now
-offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.3 migration target. Existing installed 3.5.17
+offers 3.5.18 from GitHub and the working tree now targets the Gitee-first 4.0.4 migration release. Existing installed 3.5.17
 clients still contain the old GitHub-only URL allowlist, so they must receive the signed 3.5.18 bridge once
 before the Gitee-first 4.0.3 migration path can be used automatically.
 
@@ -891,3 +891,19 @@ Windows runtime files had been written. The downloaded Windows CAB matches the l
 file count/installed bytes match the manifest; this is therefore an unresolved native extraction/runtime
 verification item, not evidence of a bad Gitee download. Test root: `D:\project2\facm-gitee-4.0.3-e2e-20260902`.
 No production installation or user process was changed by this probe.
+
+## 2026-09-02 Gitee 首次启动问题已定位，4.0.4 候选待发布
+
+复现诊断已确认此前的 `FDI 8:0` 不是 Gitee 网络或 CAB 下载损坏。隔离目录中的清单和三个 CAB
+均可通过 Gitee 直连下载；失败发生在 app CAB 解包时，`wuceffectsi.dll` 被截断。当前 app CAB
+实际为 49 个文件、58,001,209 字节、contentDigest `8158e15f8ab9c6683770460bab736a2bafa02c5a41c110c86d5103c3edc2401a`，
+而已发布 4.0.3 清单错误沿用了旧种子值 58,000,621 和 `53ea...`，原生解包器按错误的 installedSize
+上限主动拒绝了剩余写入，最终显示 FDI 8:0。旧 `v4.0.3` 保留为历史资产，不覆盖其附件。
+
+发布脚本 `Build-Facm4SelfSignedBundle.ps1` 现在会先用系统 `expand.exe` 解包每个 CAB，再从实际文件
+重新计算 installedSize、fileCount、contentDigest，并同步 ownership-report；`Test-FacmReleaseBundle.ps1`
+也会执行同样的 CAB 内容校验，旧 4.0.3 已能被该校验明确拦截。native bootstrapper 保留受限的写入/关闭
+诊断信息。基于当前实际 CAB 和本地 RSA-2048 detached key 已生成 4.0.4 候选包，bundle validator、
+BOOT-2/BOOT3-A/BOOT3-B 检查、.NET build、mirror/migration smoke 均通过；候选 bootstrapper SHA-256
+为 `650B263DBF0B8D43208FC35471850DA276A7BAB8CCED23069CF2D23E0948DE0F`。Gitee v4.0.4 Release、
+源代码推送和无 VPN 远端首次启动复测仍待本轮提交后完成。

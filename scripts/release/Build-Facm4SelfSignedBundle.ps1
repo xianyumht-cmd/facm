@@ -7,7 +7,9 @@ param(
     [string]$BootstrapperPath = 'D:\project2\facm-boot2-gitee-4.0.2-build\bootstrap\FACM.exe',
     [string]$PrivateKeyPath = 'D:\project2\Facm\local-signing\FACM4-MANIFEST-SIGNING-PRIVATE.pem',
     [string]$KeyId = 'facm-production-r1',
-    [string]$ManifestBaseUrl = 'https://gitee.com/xymhtcmd/facm/releases/download/v4.0.2'
+    [string]$ManifestBaseUrl = 'https://gitee.com/xymhtcmd/facm/releases/download/v4.0.2',
+    [string]$PackageSourceRoot = '',
+    [string]$PackageSourceVersion = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,6 +25,23 @@ function Assert-DProject2Path([string]$Path, [string]$Label) {
 }
 function Require([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Get-DirectoryDigest([string]$Root) {
+    $paths = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $Root -Recurse -File)) {
+        [void]$paths.Add(([IO.Path]::GetRelativePath($Root, $file.FullName)).Replace('\','/'))
+    }
+    $paths.Sort([StringComparer]::Ordinal)
+    $rows = @()
+    foreach ($relative in $paths) {
+        $file = Get-Item -LiteralPath ([IO.Path]::Combine($Root, $relative.Replace('/', [IO.Path]::DirectorySeparatorChar)))
+        $rows += $relative
+        $rows += (Get-Sha256 $file.FullName)
+    }
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($rows -join "`n") + "`n")
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-','').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
 function Write-ExactJson([string]$Path, [object]$Value) {
     $json = $Value | ConvertTo-Json -Depth 30
     [IO.File]::WriteAllText($Path, $json + "`n", [Text.UTF8Encoding]::new($false))
@@ -58,11 +77,39 @@ function Get-ComponentFiles([string]$Id) {
         SignatureName = "$Id-component-manifest.json.sig"
     }
 }
+function Get-CabContentMetadata([string]$PackagePath, [string]$VerificationRoot) {
+    if (Test-Path -LiteralPath $VerificationRoot) { Remove-Item -LiteralPath $VerificationRoot -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $VerificationRoot | Out-Null
+    $expand = Join-Path $env:WINDIR 'System32\expand.exe'
+    Require (Test-Path -LiteralPath $expand -PathType Leaf) "Windows expand.exe missing: $expand"
+    & $expand '-F:*' $PackagePath $VerificationRoot 2>&1 | Out-Null
+    Require ($LASTEXITCODE -eq 0) "CAB extraction failed during release metadata verification: $PackagePath"
+    $files = @(Get-ChildItem -LiteralPath $VerificationRoot -Recurse -File)
+    Require ($files.Count -gt 0) "CAB contains no files: $PackagePath"
+    $records = @($files | ForEach-Object {
+        [ordered]@{
+            path = ([IO.Path]::GetRelativePath($VerificationRoot, $_.FullName)).Replace('\','/')
+            size = [uint64]$_.Length
+            sha256 = Get-Sha256 $_.FullName
+        }
+    } | Sort-Object path)
+    [pscustomobject]@{
+        fileCount = [uint64]$files.Count
+        installedSize = [uint64](($files | Measure-Object -Property Length -Sum).Sum)
+        contentDigest = Get-DirectoryDigest $VerificationRoot
+        files = $records
+    }
+}
 
 $SeedRoot = Assert-DProject2Path $SeedRoot 'SeedRoot'
 $OutputRoot = Assert-DProject2Path $OutputRoot 'OutputRoot'
 $BootstrapperPath = Assert-DProject2Path $BootstrapperPath 'BootstrapperPath'
 $PrivateKeyPath = Assert-DProject2Path $PrivateKeyPath 'PrivateKeyPath'
+if (-not [string]::IsNullOrWhiteSpace($PackageSourceRoot)) {
+    $PackageSourceRoot = Assert-DProject2Path $PackageSourceRoot 'PackageSourceRoot'
+    Require (Test-Path -LiteralPath $PackageSourceRoot -PathType Container) "Package source root missing: $PackageSourceRoot"
+    Require (-not [string]::IsNullOrWhiteSpace($PackageSourceVersion)) 'PackageSourceVersion is required when PackageSourceRoot is provided.'
+}
 Require ($Version -match '^4\.0\.[0-9]+$') 'Version must be a 4.0.x version.'
 Require ($ReleaseTag -ceq "v$Version") 'ReleaseTag must match Version so release URLs remain deterministic.'
 $manifestUri = $null
@@ -81,19 +128,31 @@ try {
     $appComponents = [System.Collections.Generic.List[object]]::new()
     $indexComponents = [System.Collections.Generic.List[object]]::new()
     $ownership = Read-Json (Join-Path $SeedRoot 'ownership-report.json')
+    $verificationRoot = Join-Path $OutputRoot '.cab-verify'
 
     foreach ($id in $componentIds) {
         $meta = Get-ComponentFiles $id
         $packagePath = Join-Path $OutputRoot $meta.PackageName
         $manifestPath = Join-Path $OutputRoot $meta.ManifestName
         $signaturePath = Join-Path $OutputRoot $meta.SignatureName
-        Copy-Seed $meta.PackageSeed $packagePath
+        $packageSource = if ([string]::IsNullOrWhiteSpace($PackageSourceRoot)) {
+            Join-Path $SeedRoot $meta.PackageSeed
+        } else {
+            Join-Path $PackageSourceRoot "$id-$PackageSourceVersion.cab"
+        }
+        Require (Test-Path -LiteralPath $packageSource -PathType Leaf) "Missing package source: $packageSource"
+        Copy-Item -LiteralPath $packageSource -Destination $packagePath -Force
+
+        $actual = Get-CabContentMetadata $packagePath (Join-Path $verificationRoot $id)
 
         $component = Read-Json (Join-Path $SeedRoot $meta.ManifestName)
         $component.version = $Version
         $component.keyId = $KeyId
         $component.packageSize = [uint64](Get-Item -LiteralPath $packagePath).Length
         $component.sha256 = Get-Sha256 $packagePath
+        $component.installedSize = [uint64]$actual.installedSize
+        $component.fileCount = [uint64]$actual.fileCount
+        $component.contentDigest = [string]$actual.contentDigest
         $component.primaryUrl = "$baseUrl/$($meta.PackageName)"
         $component.mirrors = @()
         if ($component.PSObject.Properties.Name -contains 'componentManifestUrl') {
@@ -124,7 +183,16 @@ try {
             fileCount = [uint64]$component.fileCount
             contentDigest = [string]$component.contentDigest
         })
+
+        $owner = @($ownership.componentOwnership | Where-Object { [string]$_.componentId -ceq $id }) | Select-Object -First 1
+        if ($null -ne $owner) {
+            $owner.installedSize = [uint64]$actual.installedSize
+            $owner.fileCount = [uint64]$actual.fileCount
+            $owner.files = @($actual.files)
+        }
     }
+
+    if (Test-Path -LiteralPath $verificationRoot) { Remove-Item -LiteralPath $verificationRoot -Recurse -Force }
 
     $application = [ordered]@{
         schemaVersion = 3
