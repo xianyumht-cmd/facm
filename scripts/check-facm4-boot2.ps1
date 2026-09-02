@@ -18,7 +18,7 @@ $bootCore = Read-Required 'src/FACM.App/Properties/PublishProfiles/BootCore.pubx
 
 Require $cmake 'winhttp' 'BOOT-2 native target must link WinHTTP.'
 Require $cmake 'cabinet' 'BOOT-2 native target must link Cabinet FDI.'
-foreach ($marker in @('WinHttpOpen','WinHttpCrackUrl','WinHttpAddRequestHeaders','Range: bytes=','.partial','VerifyPackAgainstManifest','FDICreate','FDICopy','IsSafeArchivePath','IsReparsePoint','components.json','active-composition-committed','--update','allow-unsigned-local')) {
+foreach ($marker in @('WinHttpOpen','WinHttpCrackUrl','WinHttpAddRequestHeaders','Range: bytes=','.partial','VerifyPackAgainstManifest','FDICreate','FDICopy','IsSafeArchivePath','IsReparsePoint','components.json','active-composition-committed','--update','allow-unsigned-local','gitee.com','foruda.gitee.com','IsApprovedGithubRedirect')) {
     Require $native $marker "BOOT-2 native boundary missing: $marker"
 }
 foreach ($component in @('facm-app-win-x64','facm-dotnet-runtime-win-x64','facm-windows-runtime-win-x64')) {

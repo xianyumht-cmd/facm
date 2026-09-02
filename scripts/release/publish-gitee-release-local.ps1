@@ -72,6 +72,12 @@ function Get-GiteeRelease([string]$Tag, [string]$Token) {
     catch { if ($_.Exception.Message -match 'HTTP 404') { return $null }; throw }
 }
 
+function Get-GiteeAssetNames([object]$Release, [string]$Token) {
+    $path = "/repos/$RepoOwner/$RepoName/releases/$($Release.id)/attach_files"
+    $assets = Invoke-GiteeJson 'Get' $path $null $Token
+    return @($assets | ForEach-Object { [string]$_.name })
+}
+
 function Upload-GiteeAsset([object]$Release, [string]$Path, [string]$Token) {
     $client = [Net.Http.HttpClient]::new()
     try {
@@ -105,7 +111,8 @@ Require (Test-Path -LiteralPath $BundleRoot -PathType Container) "BundleRoot doe
 
 $allAssets = @(Get-ChildItem -LiteralPath $BundleRoot -File | Where-Object { $_.Name -ne 'self-signed-release-evidence.json' })
 if ($AssetNames.Count -gt 0) {
-    $allAssets = @($AssetNames | ForEach-Object {
+    $selectedNames = @($AssetNames | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $allAssets = @($selectedNames | ForEach-Object {
         $asset = Join-Path $BundleRoot $_
         Require (Test-Path -LiteralPath $asset -PathType Leaf) "Release asset does not exist: $asset"
         Get-Item -LiteralPath $asset
@@ -135,8 +142,10 @@ if ($null -eq $release) {
     Write-Host "Using existing Gitee release id=$($release.id)."
 }
 
-$existingNames = @($release.assets | ForEach-Object { [string]$_.name })
 foreach ($asset in $allAssets) {
+    # Refresh immediately before each upload. This makes a rerun safe if a previous
+    # long upload was interrupted locally but continued on the server.
+    $existingNames = Get-GiteeAssetNames $release $token
     if ($existingNames -contains $asset.Name) {
         Write-Host "Skipped existing asset: $($asset.Name)"
         continue

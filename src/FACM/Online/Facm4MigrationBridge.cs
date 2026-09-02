@@ -102,19 +102,19 @@ namespace FACM.Online
             var valid = new Facm4MigrationTarget
             {
                 Enabled = true,
-                Version = "4.0.0",
-                BootstrapperUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe",
+                Version = "4.0.3",
+                BootstrapperUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.3/FACM.exe",
                 BootstrapperSha256 = new string('A', 64),
-                ManifestUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/manifest.json"
+                ManifestUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.3/manifest.json"
             };
             Require(IsValidTarget(valid), "valid FACM 4.0 migration target rejected");
 
-            valid.BootstrapperUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.0/FACM.exe";
-            valid.ManifestUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.0/manifest.json";
+            valid.BootstrapperUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.3/FACM.exe";
+            valid.ManifestUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.3/manifest.json";
             Require(IsValidTarget(valid), "valid Gitee FACM 4.0 migration target rejected");
 
-            valid.BootstrapperUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe";
-            valid.ManifestUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/manifest.json";
+            valid.BootstrapperUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.3/FACM.exe";
+            valid.ManifestUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.3/manifest.json";
 
             valid.BootstrapperSha256 = "not-a-sha256";
             Require(!IsValidTarget(valid), "invalid bootstrapper hash accepted");
