@@ -14,11 +14,11 @@
 - release_notes：旧版自动更新过渡版本；安装后自动迁移到 FACM 4.0。
 <!-- FACM_RELEASE_STATE_END -->
 
-> **当前旧版自动更新线为 FACM 3.5.17 bridge。** `v4.0.0` 自签名组件包已发布；3.5.17 会按迁移清单自动安装它。由于使用自签名，Windows 可能显示“未知发布者”，Gate 13 真机迁移/回滚证据仍需继续补齐。
+> **当前旧版自动更新线为 FACM 3.5.17 bridge。** 原 `v4.0.0` 虽已发布但误用了旧 `v4.0.0-free-dist-test.2` CAB，已标记为过时；修正版 `v4.0.1` 将由最终本地代码重新构建并作为迁移目标。由于使用自签名，Windows 可能显示“未知发布者”，Gate 13 真机迁移/回滚证据仍需继续补齐。
 
 ## 当前 canonical / active line
 
-- canonical `main`：`09888896ae4273a0d4d5e1b9dd4f159c233f103b`，包含 3.5.17 bridge、4.0.0 自签名发布元数据和本地发布工具。
+- canonical `main`：当前远端仍为 `5e60a4c846d446af98f26bdced0291d285c1c901`，包含 3.5.17 bridge、P7 最终本地代码、4.0 自签名发布工具；4.0.1 修正版指针待本任务合并后生效。
 - #218 Win10 `TabViewButtonBackground` / XamlParse startup issue 已修复并合入。
 - #221 launcher-first F / compact launcher 行为迁移已通过对应 Win10 真机验证并合入。
 - PR #234（P7）已合并到 `main`；FACM 4.0 的其它候选与 production cutover 仍按独立门禁执行。
@@ -30,13 +30,13 @@
 | P4 Personalization | #228 | `2f1efa396cd9add76c96cdf38dee82fac7a16de7` | code-green / Draft |
 | P5 League Workbench | #230 | `e3bac2e779e00051b51005e5b715196602c4982f` | code-green / Draft |
 | P6 Settings / Maintenance | #232 | `d3801a0fa4276e74514a59a6c673c4cc4efbaff8` | code-green / Draft |
-| P7 Unified parity closeout | #234 | merge `25d308b12b44e16d231dec3169a8486228b816d1`; release metadata `6239e1c055590e1f5af84dbe08838691184eae25` | **Merged to main / FACM 3.5.17 bridge and 4.0.0 self-signed release published; Gate 13 remains separately tracked** |
+| P7 Unified parity closeout | #234 | merge `25d308b12b44e16d231dec3169a8486228b816d1`; release metadata `6239e1c055590e1f5af84dbe08838691184eae25` | **Merged to main / FACM 3.5.17 bridge; 4.0.0 superseded and 4.0.1 corrective release in progress; Gate 13 remains separately tracked** |
 
 Tracking Issue：#233。
 
-## 2026-09-02 3.x → 4.0 迁移桥接实现
+## 2026-09-02 3.x → 4.0 迁移桥接实现与 4.0.1 修正
 
-当前任务分支：`codex/facm-legacy-to-4-bridge`（基于 `origin/main` `e9c32ee28b57d52da0e37567fc78b7cad851857f`）。
+当前任务分支：`codex/facm-4-latest-corrective`（基于远端 `main` `5e60a4c846d446af98f26bdced0291d285c1c901`）。
 
 - 已实现 3.5.17 bridge：可选 `online/version.json.migration` 清单字段、4.0 目标 URL/SHA-256 校验、旧
   `settings.ini` 到 `.facm\settings.ini` 的保留式复制、原子写入 `bootstrap.json`。
@@ -45,13 +45,16 @@ Tracking Issue：#233。
 - Native Bootstrapper 已补充 `4.0.0.0` PE 文件版本；CMake 允许发布脚本注入最终 manifest URL。
 - 用户已授权自签名发布：本地已生成新的 RSA-2048 detached manifest 签名密钥，私钥只保存在仓库外的
   `local-signing` 目录；对应公钥已写入本任务分支的 native bootstrapper，不能提交私钥。
-- 已基于现有 4.0 组件包生成 `D:\project2\facm-release-4.0.0-selfsigned\release`，包含 `FACM.exe`、
-  三个 CAB、四个 detached `.sig`、清单和 `bootstrap.json`；`Test-FacmReleaseBundle.ps1` 已通过。
+- 原 `v4.0.0` 发布包复用了旧 `v4.0.0-free-dist-test.2` CAB，虽然清单和签名验证通过，但不是最后本地代码，现已视为过时。
+- 已从包含 P7 最终修改的本地代码重新构建 `D:\project2\facm-release-4.0.1-selfsigned\release-assets`；
+  新 `FACM.App.exe` 产品版本带源码提交 `5e60a4c`，应用 CAB SHA-256 为
+  `77050d02dc6b5964c781b7065ec8972e9b7cc71b11fa1ca888dc821a95469bcb`，且 `Test-FacmReleaseBundle.ps1` 已通过。
 - 本地验证：legacy `FACM.sln` Release 构建通过（保留既有 1 条 obsolete warning）；`--facm4-migration-test`
   和 `FACM.Updater.exe --self-test` 通过；`FACM4.sln` 使用 `D:\project2\dotnet10\dotnet.exe` Release 构建通过；
   native bootstrapper `--self-test` 通过。
-- 3.5.17 bridge、4.0.0 自签名包和线上清单已推送；远端在线指针现在指向 3.5.17。自签名包会保留
-  Windows“未知发布者”提示；Gate 13 真机迁移/回滚证据仍需继续补齐。
+- 4.0.1 修正版的 `online/version.json` 已在本任务分支切换到新启动器 SHA-256
+  `428CA6B4F2CE35AB0988B2E5E38FBAA9C29A549D477B1F5396552A72917685E6`；发布与主线合并完成后，旧版客户端仍先安装
+  3.5.17 bridge，再迁移到 4.0.1。自签名包会保留 Windows“未知发布者”提示；Gate 13 真机迁移/回滚证据仍需继续补齐。
 
 ## FACM 4.0 当前里程碑
 
