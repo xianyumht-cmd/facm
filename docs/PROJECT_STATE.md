@@ -794,3 +794,26 @@ symptom evidence, and post-fix automatic UI acceptance is still manual-required.
 No source push, PR #234 merge, Gate13, Formal P7 move, production pointer change, deployment, or
 League restart occurred. Production remains FACM 3.5.15. Protected dirty paths remain untouched:
 `src/FACM.Platform.Windows/FACM.Platform.Windows.csproj`, `out/`, `setup.inf`, and `setup.rpt`.
+
+## 2026-09-02 P7 League discovery fallback fix
+
+The reported GGman-first/League-later symptom was traced to discovery before HTTP: the running League
+client exposed a valid `LeagueClientUx` command line through WMI, but the WinUI candidate's native
+`NtQueryInformationProcess` and dynamic COM fallback returned no command line. The stale empty
+`LeagueClient\lockfile` was not a usable credential source. A strongly typed `System.Management`
+reader now runs in the App host and is injected into the existing Platform process snapshot provider;
+the single session owner, gateway, and Gameflow heartbeat remain unchanged.
+
+The local GUI candidate `D:\project2\GGman-AUTO-GUIDE-REVIEW-20260901\.facm\versions\4.0.0-auto-guide-20260901-r6`
+was started while the real League processes were running. Its sanitized event log records
+`process-fallback-success` for the League process, an LCU `200` response, and `Connected / Lobby`.
+The fix is committed locally as `bbe7dad` (`fix(p7): make League discovery WMI fallback host-aware`).
+Release x64 build, FoundationSmoke `--skip-gate13`, WindowsSmoke, and all 32 non-cutover source gates
+pass. During the user's requested restart check, the candidate first recorded `process-not-found`, then
+rediscovered the new League process with `process-fallback-success`; after one bounded LCU hydration
+timeout, subsequent gameflow requests returned HTTP 200 and `Connected / Lobby`. This verifies the
+late-start/restart reacquisition path. ChampSelect UI acceptance still requires the user's normal
+selection sequence.
+
+Production remains FACM 3.5.15. The fix was not pushed or merged; Gate13, production pointers,
+deployment, restart, and the protected dirty paths remain untouched.

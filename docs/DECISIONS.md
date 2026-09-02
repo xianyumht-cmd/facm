@@ -653,3 +653,23 @@ Gate8/Gate12 的 cadence 断言必须同步；真实 close/reopen 和晚启动�
 
 自动攻略现在可以在真实 ChampSelect 中自动查询并显示完整强化符文排行，但 post-fix UI review 仍是人工必需项。
 当前候选只用于本地 review；生产仍为 FACM 3.5.15，不能由本决定触发 push、merge、Gate13、Formal P7、部署或重启。
+
+## 2026-09-02：League discovery 在 App host 提供强类型 WMI fallback
+
+### 决策
+
+保留 Platform 的 native process query 与动态 COM fallback，并由 WinUI App composition root 注入强类型
+`System.Management` command-line reader。只有经过现有 `LeagueTransportSessionParser` 解析成功的命令行才会
+进入唯一 session owner；原始命令行不进入 telemetry。
+
+### 原因
+
+真实候选日志显示，League 进程与 LCU 都在运行，但 GUI self-contained host 的 native/动态 COM 路径读不到
+`LeagueClientUx` 命令行，导致 discovery 在 HTTP 之前返回 `command-line-unavailable`。同机 WMI 查询和 App-host
+候选验证均能读到有效端口并得到 LCU 200；将强类型依赖放在 App 而不是受保护的 Platform 工程文件，既修复运行时
+差异，也保留既有平台边界。
+
+### 后果
+
+候选在 League 已运行时可恢复 `Connected / Lobby`，但 GGman-first/League-later 与真实 ChampSelect 仍需用户
+按正常桌面流程手测；本决策不授权 push、merge、Gate13、生产部署或 League 重启。

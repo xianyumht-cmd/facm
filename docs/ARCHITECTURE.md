@@ -615,3 +615,13 @@ LCU image references use the existing read gateway; public image/data references
 bounded public-data/cache path. The panel has no `ILeagueWriteGateway`, `LeagueWriteCommand`, or
 automatic configuration mutation path. Champion identity loading uses the summary catalog first and
 typed `/lol-game-data/assets/v1/champions/{id}.json` detail fallback for missing or placeholder names.
+
+## 2026-09-02 League process discovery fallback ownership
+
+`WindowsLeagueTransportSessionSource` still owns the single bounded discovery/session path. Its
+Platform process snapshot provider keeps native process inspection and the dynamic COM fallback, but
+the WinUI App composition root now injects a strongly typed `System.Management` command-line reader.
+This host-aware fallback addresses a real WinUI self-contained-host difference where WMI succeeded in a
+diagnostic shell but the previous dynamic COM path returned no `LeagueClientUx` command line. The
+reader returns command-line text only to the local parser; diagnostics receive only source/outcome/PID/
+port fields, and no second session, gateway, timer, or write path is created.

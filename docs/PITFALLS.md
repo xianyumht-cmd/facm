@@ -753,3 +753,18 @@ champion ID 请求 typed champion detail，并对旧请求做取消和 generatio
 后再验证新 parser/identity fallback；不能在不确认 loaded version 的情况下把旧截图当成修复失败，也不能强制终止用户进程。
 本机 screenshot helper 还可能因 `SetIsBorderRequired` `E_NOINTERFACE` 失败；进程存在、窗口标题或源码门禁都不能替代
 真实 post-fix UI review。
+
+## 2026-09-02：GUI host 的 League 进程命令行读取不能只依赖 native/动态 COM fallback
+
+真实问题中 `LeagueClient.exe`、`LeagueClientUx.exe`、Riot Client 与 LCU 端口都在运行，失败发生在 HTTP 之前：
+WinUI self-contained host 的 `NtQueryInformationProcess` 返回访问/部分复制错误，动态 `WbemScripting.SWbemLocator`
+也没有返回命令行，因此 discovery 记录 `command-line-unavailable`，界面显示 `NotRunning`。同机诊断 shell 的 WMI
+成功不能代表 GUI host 的动态 COM 路径也成功；旁边的空 `LeagueClient\lockfile` 更不能当作 LCU 凭据。
+
+防回归规则：
+
+- 保留 native query，但在 App composition 中注入强类型 `System.Management` WMI reader；失败时继续使用原有动态
+  COM fallback，并把全部异常转换为 fail-closed 的无命令行结果。
+- 只记录脱敏的 source/outcome/PID/port；绝不记录命令行或 token。
+- 回归必须在真实 GUI self-contained 候选中同时验证进程发现、LCU HTTP 200、`Connected` 状态和候选日志；仅凭
+  shell WMI、监听端口、进程存在或历史 ready 状态不能判定修复。

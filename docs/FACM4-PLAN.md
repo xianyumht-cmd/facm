@@ -310,3 +310,17 @@ ChampSelect and late-start/restart lifecycle acceptance remains `BLOCKED_BY_CLIE
 user has League running and manually enters a normal ARAM Mayhem ChampSelect. No push, PR retarget,
 merge, cleanup, Gate13, production pointer change, deployment, or restart is authorized by this
 checkpoint.
+
+## 2026-09-02 客户端发现问题修复
+
+本次复现的 `GGman 先启动、League/LCU 后启动后仍显示 NotRunning` 已定位为 WinUI 进程命令行读取失败，
+不是 LCU 端口或认证失败。运行中的 `LeagueClientUx` 命令行可通过 WMI 读取，旧的 native/动态 COM 路径在
+GUI host 中却返回空值；旁边的空 `LeagueClient\lockfile` 也不能作为凭据。修复将强类型 `System.Management`
+读取器放在 App host，由现有 Platform snapshot provider 注入使用，保持唯一 session/gateway/Gameflow owner。
+
+本地候选 r6 的脱敏日志已出现 `process-fallback-success`、LCU HTTP 200、`Connected / Lobby`。代码提交为
+`bbe7dad`；Release x64、FoundationSmoke、WindowsSmoke、32/32 非 cutover 门禁均通过。候选测试不改 League
+进程、不改生产。用户随后重启客户端时，候选先记录 `process-not-found`，再通过 `process-fallback-success`
+重新识别新进程；短暂 LCU hydration timeout 后恢复 HTTP 200 与 `Connected / Lobby`。ChampSelect 仍需用户
+在正常桌面流程中手工验收；不据此移动
+PR #234、执行 Gate13 或切换生产指针。

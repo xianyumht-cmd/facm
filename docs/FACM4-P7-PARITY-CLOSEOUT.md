@@ -234,3 +234,22 @@ capture also remains unavailable because `SetIsBorderRequired` returns `E_NOINTE
 manual ChampSelect, late-start, and close/reopen checks are consequently `BLOCKED_BY_CLIENT_STATE`.
 This is not a merge or release claim: PR #234 remains Draft, production remains FACM 3.5.15, and
 Gate13/production pointers are unchanged.
+
+## 2026-09-02 League discovery fallback correction
+
+The GGman-first/League-later investigation confirmed that the LCU itself was healthy. The failure was
+the WinUI host's process command-line read: native process inspection and the dynamic COM WMI fallback
+could not read `LeagueClientUx`, while the actual process command line contained the authenticated LCU
+port. The old empty League lockfile was therefore correctly unusable. The App now injects a strongly
+typed `System.Management` WMI reader into the existing `WindowsLeagueProcessSnapshotProvider`, with
+the original dynamic fallback retained for resilience. No second discovery owner or polling loop was
+introduced.
+
+Candidate r6 was started locally against the running League client. The candidate log records
+`source=process-command-line`, `outcome=process-fallback-success`, the first gameflow request as HTTP
+200, and `connectionState=Connected` / `productState=Lobby`. The code fix is local commit `bbe7dad`.
+Build, FoundationSmoke, WindowsSmoke, and 32/32 non-cutover source gates are green. This closes the
+discovery/authentication defect. In the user's restart check the candidate observed the old client
+disappear, rediscovered the new process via `process-fallback-success`, tolerated one bounded LCU
+hydration timeout, and then returned to HTTP 200 / `Connected / Lobby`. Natural ChampSelect UI review
+remains a separate manual check.
