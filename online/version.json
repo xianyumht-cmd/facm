@@ -9,10 +9,10 @@
   "published_at": "2026-09-02T00:00:00.0000000+00:00",
   "migration": {
     "enabled": true,
-    "version": "4.0.2",
-    "bootstrapper_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.2/FACM.exe",
-    "bootstrapper_sha256": "EF375B8DAFC2091F252BCBC53F998C232E368A2B6267893E5C1703E0460F36C8",
-    "manifest_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.2/manifest.json",
-    "release_notes": "FACM 4.0.2：支持 Gitee 公开下载源，减少无 VPN 用户首次启动失败和长时间等待"
+    "version": "4.0.3",
+    "bootstrapper_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.3/FACM.exe",
+    "bootstrapper_sha256": "FC09650F0818E0FF44BB3B3D97EBEB3730AB3424547153D807FE494AEFE77FDA",
+    "manifest_url": "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.3/manifest.json",
+    "release_notes": "FACM 4.0.3：修复 Gitee 附件跳转校验，支持无 VPN 用户稳定完成首次迁移"
   }
 }

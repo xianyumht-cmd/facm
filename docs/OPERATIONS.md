@@ -951,5 +951,5 @@ Do not include private keys, passwords, evidence files, `out/`, or generated bui
 
 Verification requires all of the following: the Gitee Release API lists the expected tag/assets; anonymous
 HTTPS downloads return the exact recorded SHA-256; `raw/main/online/version.json` points to the Gitee
-4.0.2 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
+4.0.3 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
 cannot consume the new Gitee URL allowlist until the signed 3.5.18 bridge has been installed once.

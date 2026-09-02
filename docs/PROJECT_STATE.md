@@ -864,17 +864,18 @@ Release or asset existed before this task. The source change adds Gitee as the f
 keeps GitHub as fallback, prevents public GitHub proxy prefixes from being applied to Gitee release URLs,
 and extends the legacy bridge/native redirect allowlists to the exact FACM Gitee repository paths.
 
-The pending local release is FACM 4.0.2 (`v4.0.2`) built from the current bridge branch, with a freshly
-compiled bootstrapper SHA-256 `EF375B8DAFC2091F252BCBC53F998C232E368A2B6267893E5C1703E0460F36C8` and
-detached manifest SHA-256 `99601F250B7092FB7B05CB1E8C2FEC61E9729C16257A72EBD94228A0F0BA9797`. The
+FACM 4.0.2 (`v4.0.2`) was published, but Gitee's second attachment redirect host exposed a bootstrapper
+allowlist gap. The corrective FACM 4.0.3 (`v4.0.3`) bundle is built from the fixed source, with
+bootstrapper SHA-256 `FC09650F0818E0FF44BB3B3D97EBEB3730AB3424547153D807FE494AEFE77FDA` and
+detached manifest SHA-256 `00A68D3A676D6C57546E28FB00C48C7240839C352A97F37034114C0B48E60B4C`. The
 signed 3.5.18 bridge copy is `D:\project2\facm-release-3.5.18-gitee\FACM.exe` with SHA-256
 `78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0`.
 
 The local publisher is `scripts/release/publish-gitee-release-local.ps1`; it reads the Gitee token only
 from the OS credential manager, never writes it to the repository, and supports preview before upload.
 The source is pushed to both GitHub and Gitee `main` at commit `2cb86a67acd83cb43a152dad59b3d1a0d0512f69`.
-Gitee Releases `v4.0.2` (15 bundle files) and `v3.5.18` (bridge plus SHA256 record) are published; the
+Gitee Releases `v4.0.2` (15 bundle files), `v4.0.3` (15 bundle files), and `v3.5.18` (bridge plus SHA256 record) are published; the
 GitHub `v3.5.18` bridge Release is also published for the one-time legacy hop. The online manifest now
-offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.2 migration target. Existing installed 3.5.17
+offers 3.5.18 from GitHub and keeps the Gitee-first 4.0.3 migration target. Existing installed 3.5.17
 clients still contain the old GitHub-only URL allowlist, so they must receive the signed 3.5.18 bridge once
 before the Gitee-first 4.0.2 migration path can be used automatically.

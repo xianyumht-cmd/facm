@@ -801,4 +801,7 @@ FACM 3.x 的更新器以 `FACM.exe` 进程在短时间内仍存活作为安装�
 先创建包含完整签名 bundle 的 Gitee Release，并让 Gitee origin 走直接 HTTPS；GitHub 只作为备用 origin。
 
 另一个兼容性陷阱是已安装的 3.5.17 二进制：它的 allowlist 在编译时只接受 GitHub，无法凭远端清单自行学会 Gitee。
-因此必须先提供签名的 3.5.18 bridge，再把 4.0.2 Gitee migration 作为后续目标；不能宣称 3.5.17 用户无需过渡即可自动切换。
+因此必须先提供签名的 3.5.18 bridge，再把 4.0.3 Gitee migration 作为后续目标；不能宣称 3.5.17 用户无需过渡即可自动切换。
+
+Gitee 的 Release 下载还会从仓库域名跳到 `foruda.gitee.com` 附件域名。只在 `gitee.com` 放行会导致引导器在真实
+下载时失败；必须对固定附件路径做受限放行，并在重新构建后更新 bootstrapper SHA-256 和 migration 指针。
