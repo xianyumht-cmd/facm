@@ -401,11 +401,31 @@ namespace FACM.Online
             Uri uri;
             if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
-                !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("更新源地址必须指向 GitHub 的有效 HTTPS 发布文件。");
+                !IsApprovedReleaseUrl(uri, manifest.Version))
+                throw new InvalidDataException("更新源地址必须指向受信任的 HTTPS 发布文件。");
 
             if (string.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64 || !IsHex(manifest.Sha256))
                 throw new InvalidDataException("更新清单缺少有效的 SHA-256。");
+        }
+
+        private static bool IsApprovedReleaseUrl(Uri uri, string version)
+        {
+            if (uri == null || string.IsNullOrWhiteSpace(version) ||
+                !string.IsNullOrWhiteSpace(uri.Query) || !string.IsNullOrWhiteSpace(uri.Fragment))
+                return false;
+
+            var normalizedVersion = version.Trim().TrimStart('v', 'V');
+            var githubPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
+            if (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+                return uri.AbsolutePath.StartsWith(githubPrefix, StringComparison.OrdinalIgnoreCase) &&
+                       uri.AbsolutePath.Length > githubPrefix.Length &&
+                       !uri.AbsolutePath.Substring(githubPrefix.Length).Contains("/");
+
+            var giteePrefix = "/xymhtcmd/facm/releases/download/v" + normalizedVersion + "/";
+            return string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase) &&
+                   uri.AbsolutePath.StartsWith(giteePrefix, StringComparison.OrdinalIgnoreCase) &&
+                   uri.AbsolutePath.Length > giteePrefix.Length &&
+                   !uri.AbsolutePath.Substring(giteePrefix.Length).Contains("/");
         }
 
         private static bool IsHex(string value)

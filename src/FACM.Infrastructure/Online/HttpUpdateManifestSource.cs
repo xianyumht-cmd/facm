@@ -91,13 +91,7 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
         if (!string.IsNullOrWhiteSpace(manifest.MinimumVersion) && UpdateDecisionService.ParseVersion(manifest.MinimumVersion) is null) return false;
 
         if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out var download) ||
-            download.Scheme != Uri.UriSchemeHttps ||
-            !string.Equals(download.Host, "github.com", StringComparison.OrdinalIgnoreCase)) return false;
-
-        var normalizedVersion = manifest.Version.Trim();
-        if (normalizedVersion.StartsWith('v') || normalizedVersion.StartsWith('V')) normalizedVersion = normalizedVersion[1..];
-        var expectedPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
-        if (!download.AbsolutePath.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase)) return false;
+            !IsApprovedReleaseUrl(download, version)) return false;
 
         if (manifest.Sha256.Length != 64) return false;
         foreach (var character in manifest.Sha256)
@@ -106,6 +100,27 @@ public sealed class HttpUpdateManifestSource : IUpdateManifestSource, IDisposabl
             if (!valid) return false;
         }
         return true;
+    }
+
+    private static bool IsApprovedReleaseUrl(Uri uri, Version version)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrWhiteSpace(uri.Query) ||
+            !string.IsNullOrWhiteSpace(uri.Fragment)) return false;
+
+        var normalizedVersion = version.ToString();
+        var githubPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
+        if (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+            return HasSingleAssetPath(uri.AbsolutePath, githubPrefix);
+
+        var giteePrefix = "/xymhtcmd/facm/releases/download/v" + normalizedVersion + "/";
+        return string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase) &&
+               HasSingleAssetPath(uri.AbsolutePath, giteePrefix);
+    }
+
+    private static bool HasSingleAssetPath(string path, string prefix)
+    {
+        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               path.Length > prefix.Length && !path[prefix.Length..].Contains('/');
     }
 
     public void Dispose() => _client.Dispose();

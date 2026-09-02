@@ -931,3 +931,25 @@ OP.GG static-image fallback are included in this version. The
 native screenshot helper remains unreliable on this
 machine because `SetIsBorderRequired` returns `E_NOINTERFACE` (`0x80004002`), so a responsive title or
 process alone is not UI acceptance evidence.
+
+## 2026-09-02 Local Gitee release procedure (no GitHub Actions)
+
+Use the bridge worktree only; keep the protected dirty root worktree and signing material outside Git.
+The publisher obtains the Gitee token from the Windows Git credential manager and never prints or stores
+the token. Always run preview first:
+
+```text
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/release/publish-gitee-release-local.ps1 `
+  -ReleaseTag v4.0.2 `
+  -BundleRoot D:\project2\facm-release-4.0.2-gitee\release-assets
+```
+
+After the source commit is pushed and the bundle has been rebuilt from that exact commit, rerun with
+`-Publish` to create/update the Gitee Release and upload the selected assets. Publish the signed 3.5.18
+bridge separately using the same script and a bundle root containing only its intended release files.
+Do not include private keys, passwords, evidence files, `out/`, or generated build directories.
+
+Verification requires all of the following: the Gitee Release API lists the expected tag/assets; anonymous
+HTTPS downloads return the exact recorded SHA-256; `raw/main/online/version.json` points to the Gitee
+4.0.2 URLs; and the local update/migration smoke tests remain green. Existing 3.5.17 installations
+cannot consume the new Gitee URL allowlist until the signed 3.5.18 bridge has been installed once.

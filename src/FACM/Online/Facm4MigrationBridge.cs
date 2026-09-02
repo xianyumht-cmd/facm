@@ -17,7 +17,7 @@ namespace FACM.Online
     /// </summary>
     internal static class Facm4MigrationBridge
     {
-        private const string BridgeVersion = "3.5.17";
+        private const string BridgeVersion = "3.5.18";
         private const string StateRelativePath = @".facm\migration\bridge-state.json";
         private const string BootstrapConfigName = "bootstrap.json";
 
@@ -109,6 +109,13 @@ namespace FACM.Online
             };
             Require(IsValidTarget(valid), "valid FACM 4.0 migration target rejected");
 
+            valid.BootstrapperUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.0/FACM.exe";
+            valid.ManifestUrl = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.0/manifest.json";
+            Require(IsValidTarget(valid), "valid Gitee FACM 4.0 migration target rejected");
+
+            valid.BootstrapperUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/FACM.exe";
+            valid.ManifestUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v4.0.0/manifest.json";
+
             valid.BootstrapperSha256 = "not-a-sha256";
             Require(!IsValidTarget(valid), "invalid bootstrapper hash accepted");
             valid.BootstrapperSha256 = new string('A', 64);
@@ -156,14 +163,16 @@ namespace FACM.Online
             Uri uri;
             if (!Uri.TryCreate(value, UriKind.Absolute, out uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
-                !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+                !string.IsNullOrWhiteSpace(uri.Query) || !string.IsNullOrWhiteSpace(uri.Fragment))
                 return false;
 
-            var prefix = "/xianyumht-cmd/facm/releases/download/v" + version + "/";
-            return uri.AbsolutePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                   string.Equals(uri.AbsolutePath.Substring(prefix.Length), assetName, StringComparison.OrdinalIgnoreCase) &&
-                   string.IsNullOrWhiteSpace(uri.Query) &&
-                   string.IsNullOrWhiteSpace(uri.Fragment);
+            var githubPath = "/xianyumht-cmd/facm/releases/download/v" + version + "/" + assetName;
+            if (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+                return string.Equals(uri.AbsolutePath, githubPath, StringComparison.OrdinalIgnoreCase);
+
+            var giteePath = "/xymhtcmd/facm/releases/download/v" + version + "/" + assetName;
+            return string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.AbsolutePath, giteePath, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsHexSha256(string value)

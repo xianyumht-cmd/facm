@@ -746,3 +746,20 @@ PKCS#1/SHA-256 的 exact-byte 清单签名。分开使用可以保持两种信�
 已生成的 `v4.0.1` 应用 CAB SHA-256 为
 `77050d02dc6b5964c781b7065ec8972e9b7cc71b11fa1ca888dc821a95469bcb`，启动器 SHA-256 为
 `428CA6B4F2CE35AB0988B2E5E38FBAA9C29A549D477B1F5396552A72917685E6`。已经安装错误 `v4.0.0` 的用户不会因版本号相同自动降级，需先安装/运行 4.0.1 修正版。
+
+## 2026-09-02：Gitee 作为无 VPN 首选分发源，GitHub 保留回退
+
+### 决策
+
+- 在线版本清单和镜像目录先读取公开 Gitee raw 地址，失败时再读取 GitHub raw 地址。
+- 4.0.2 发布资产使用 Gitee Release `v4.0.2`；4.0 引导器、旧版 bridge、更新器和清单源只接受该仓库下的精确 HTTPS 发布路径。
+- Gitee 发布由 `scripts/release/publish-gitee-release-local.ps1` 在本地完成；凭据只从 Windows Git credential manager 读取，不依赖 GitHub Actions。
+- 现有 3.5.17 二进制的 GitHub-only allowlist 不在本次运行时改变；先发布 3.5.18 bridge，作为旧版用户的一次性过渡。
+
+### 原因
+
+Gitee 在目标网络中可直接访问，而公开代理并不保证稳定，也不能安全地把代理前缀套到 Gitee URL 上。保留 GitHub 回退可以避免单一站点故障；精确路径 allowlist 则避免把“支持 Gitee”扩大成任意 HTTPS 下载。
+
+### 后果
+
+首次从已安装 3.5.17 迁移的用户仍需要先获得 3.5.18 bridge；之后更新检查优先走 Gitee，Gitee 暂时不可用时回退 GitHub。发布、推送和 4.0 生产切换仍需独立验证，不由本决定自动触发。

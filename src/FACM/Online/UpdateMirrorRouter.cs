@@ -16,6 +16,9 @@ namespace FACM.Online
         internal const string CatalogOriginUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/mirrors.json";
 
+        internal const string GiteeCatalogOriginUrl =
+            "https://gitee.com/xymhtcmd/facm/raw/main/online/mirrors.json";
+
         private const int MaxRemoteSources = 16;
         private const long MaxCatalogBytes = 64 * 1024;
         private static readonly object CacheSync = new object();
@@ -143,7 +146,9 @@ namespace FACM.Online
                 if (string.IsNullOrWhiteSpace(url) || !seen.Add(url)) continue;
                 result.Add(new UpdateDownloadCandidate
                 {
-                    SourceName = string.IsNullOrWhiteSpace(source.Name) ? "mirror" : source.Name.Trim(),
+                    SourceName = IsGiteeUrl(originUrl) && string.IsNullOrWhiteSpace(source.Prefix)
+                        ? "gitee"
+                        : string.IsNullOrWhiteSpace(source.Name) ? "mirror" : source.Name.Trim(),
                     Url = url
                 });
             }
@@ -154,6 +159,10 @@ namespace FACM.Online
         {
             if (source == null || !source.Enabled || !IsHttpsUrl(originUrl)) return null;
             if (string.IsNullOrWhiteSpace(source.Prefix)) return originUrl;
+            // GitHub proxy prefixes are not valid Gitee release URLs. Gitee is already a
+            // first-party HTTPS origin for FACM, so use it directly instead of producing
+            // malformed "proxy/https://gitee.com/..." candidates.
+            if (IsGiteeUrl(originUrl)) return null;
             if (!IsSafeMirrorPrefix(source.Prefix)) return null;
             return source.Prefix.TrimEnd('/') + "/" + originUrl;
         }
@@ -225,6 +234,14 @@ namespace FACM.Online
         {
             Uri uri;
             return Uri.TryCreate(value, UriKind.Absolute, out uri) && uri.Scheme == Uri.UriSchemeHttps;
+        }
+
+        private static bool IsGiteeUrl(string value)
+        {
+            Uri uri;
+            return Uri.TryCreate(value, UriKind.Absolute, out uri) &&
+                   uri.Scheme == Uri.UriSchemeHttps &&
+                   string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetCatalogCachePath()

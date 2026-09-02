@@ -661,3 +661,16 @@ FACM.App's `WindowsTrayHost` separately owns three micro-optimized embedded tray
 Gameflow change handler projects only `LeagueConnectionState` into the tray: `NotRunning` is gray,
 `Connecting`/`Unavailable` is yellow, and `Connected` is green. This adds no discovery owner, timer,
 gateway, LCU read, or write path; it is a visual projection of the existing single Gameflow snapshot.
+
+## 2026-09-02 Gitee-first update metadata and release origins
+
+The update metadata path now tries the public Gitee raw catalog/manifest first and retains the GitHub
+raw endpoints as fallback. Each origin is expanded through the existing mirror router, de-duplicated,
+and validated before use. Gitee release assets remain direct first-party HTTPS candidates; GitHub proxy
+prefixes are not applied to them. Legacy bridge validation, .NET manifest validation, and the native
+bootstrapper redirect policy all constrain Gitee to the FACM repository's exact release paths.
+
+The local release publisher is an operator-only API client. It reads the Gitee token from the operating
+system credential manager, creates a tagged Release against an explicit commit, and uploads only the
+selected bundle files. It is outside the application runtime and introduces no update-time credential
+or network dependency.

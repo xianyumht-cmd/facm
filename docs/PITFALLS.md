@@ -793,3 +793,12 @@ FACM 3.x 的更新器以 `FACM.exe` 进程在短时间内仍存活作为安装�
 防回归规则：每次 4.0 修正版都必须从当前源码重新执行 BOOT-2 组件分类和 CAB 打包；解包 `facm-app-win-x64` 后核对
 `FACM.App.exe` 的产品版本/源码提交，并将 CAB SHA-256 与 manifest、release-index 三处交叉核对。已发布的错误版本保留为
 历史资产，在线 migration 指针改指向新的修正版，而不是覆盖或复用旧 CAB。
+
+## 2026-09-02：Gitee 发布不能只改在线清单
+
+如果 `online/version.json` 先指向 Gitee，而 Gitee 尚无同 tag Release/资产，旧版会得到可解析但不可下载的
+迁移目标；如果只把 Gitee URL 交给现有镜像路由，还会生成 `proxy/https://gitee.com/...` 的无效候选。发布前必须
+先创建包含完整签名 bundle 的 Gitee Release，并让 Gitee origin 走直接 HTTPS；GitHub 只作为备用 origin。
+
+另一个兼容性陷阱是已安装的 3.5.17 二进制：它的 allowlist 在编译时只接受 GitHub，无法凭远端清单自行学会 Gitee。
+因此必须先提供签名的 3.5.18 bridge，再把 4.0.2 Gitee migration 作为后续目标；不能宣称 3.5.17 用户无需过渡即可自动切换。

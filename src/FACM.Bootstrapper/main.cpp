@@ -1161,6 +1161,12 @@ bool IsApprovedGithubRedirect(const std::wstring& url) {
     if (!CrackHttpUrl(url, components, host, path, extra, failure)) return false;
     const auto hostName = Lowercase(std::wstring(host.data(), components.dwHostNameLength));
     if (hostName == L"github.com") return IsCanonicalGithubReleaseUrl(url);
+    if (hostName == L"gitee.com") {
+        const auto pathText = std::wstring(path.data(), components.dwUrlPathLength);
+        // Gitee is a controlled FACM distribution origin. Restrict redirects to this
+        // repository so a release URL cannot turn into an arbitrary HTTPS fetch.
+        return pathText.rfind(L"/xymhtcmd/facm/", 0) == 0;
+    }
     return components.nScheme == INTERNET_SCHEME_HTTPS &&
            (hostName == L"release-assets.githubusercontent.com" || hostName == L"objects.githubusercontent.com");
 }

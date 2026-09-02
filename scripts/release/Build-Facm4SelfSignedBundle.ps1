@@ -1,12 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$SeedRoot = 'D:\project2\facm-release-4.0.0-selfsigned',
-    [string]$OutputRoot = 'D:\project2\facm-release-4.0.0-selfsigned\release',
-    [string]$Version = '4.0.0',
-    [string]$ReleaseTag = 'v4.0.0',
-    [string]$BootstrapperPath = 'D:\project2\facm-release-4.0.0-selfsigned\native-build\FACM.exe',
+    [string]$SeedRoot = 'D:\project2\facm-release-4.0.1-selfsigned\release-assets',
+    [string]$OutputRoot = 'D:\project2\facm-release-4.0.2-gitee\release-assets',
+    [string]$Version = '4.0.2',
+    [string]$ReleaseTag = 'v4.0.2',
+    [string]$BootstrapperPath = 'D:\project2\facm-boot2-gitee-4.0.2-build\bootstrap\FACM.exe',
     [string]$PrivateKeyPath = 'D:\project2\Facm\local-signing\FACM4-MANIFEST-SIGNING-PRIVATE.pem',
-    [string]$KeyId = 'facm-production-r1'
+    [string]$KeyId = 'facm-production-r1',
+    [string]$ManifestBaseUrl = 'https://gitee.com/xymhtcmd/facm/releases/download/v4.0.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,7 +52,7 @@ function Sign-ExactJson([string]$PayloadPath, [string]$SignaturePath, [Security.
 function Get-ComponentFiles([string]$Id) {
     return [ordered]@{
         Id = $Id
-        PackageSeed = "$Id-4.0.0-free-dist-test.2.cab"
+        PackageSeed = "$Id-4.0.1.cab"
         PackageName = "$Id-$Version.cab"
         ManifestName = "$Id-component-manifest.json"
         SignatureName = "$Id-component-manifest.json.sig"
@@ -62,14 +63,16 @@ $SeedRoot = Assert-DProject2Path $SeedRoot 'SeedRoot'
 $OutputRoot = Assert-DProject2Path $OutputRoot 'OutputRoot'
 $BootstrapperPath = Assert-DProject2Path $BootstrapperPath 'BootstrapperPath'
 $PrivateKeyPath = Assert-DProject2Path $PrivateKeyPath 'PrivateKeyPath'
-Require ($Version -match '^4\.0\.0$') 'This self-signed release script only creates FACM 4.0.0.'
-Require ($ReleaseTag -ceq 'v4.0.0') 'ReleaseTag must be v4.0.0 so the bridge URL remains deterministic.'
+Require ($Version -match '^4\.0\.[0-9]+$') 'Version must be a 4.0.x version.'
+Require ($ReleaseTag -ceq "v$Version") 'ReleaseTag must match Version so release URLs remain deterministic.'
+$manifestUri = $null
+Require ([Uri]::TryCreate($ManifestBaseUrl, [UriKind]::Absolute, [ref]$manifestUri) -and $manifestUri.Scheme -eq 'https') 'ManifestBaseUrl must be an HTTPS URL.'
 Require (Test-Path -LiteralPath $BootstrapperPath -PathType Leaf) "Bootstrapper missing: $BootstrapperPath"
 
 if (Test-Path -LiteralPath $OutputRoot) { Remove-Item -LiteralPath $OutputRoot -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
-$baseUrl = "https://github.com/xianyumht-cmd/facm/releases/download/$ReleaseTag"
+$baseUrl = $ManifestBaseUrl.TrimEnd('/')
 $sourceCommit = (& git -C (Get-Location) rev-parse HEAD).Trim()
 Require ($sourceCommit -match '^[0-9a-f]{40}$') 'Unable to record source commit.'
 $rsa = Open-Rsa $PrivateKeyPath

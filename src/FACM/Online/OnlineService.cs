@@ -18,6 +18,9 @@ namespace FACM.Online
         internal const string UpdateManifestUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/version.json";
 
+        internal const string GiteeUpdateManifestUrl =
+            "https://gitee.com/xymhtcmd/facm/raw/main/online/version.json";
+
         internal const string AnnouncementManifestUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/announcement.json";
 
@@ -41,13 +44,17 @@ namespace FACM.Online
                 // parallel. A slow mirrors.json or a blocked GitHub announcement must never hold
                 // up a version check that has already succeeded through another mirror.
                 var catalogTask = TryDownloadFromMirrorsAsync<UpdateMirrorCatalog>(
-                    UpdateMirrorRouter.CatalogOriginUrl,
+                    new[]
+                    {
+                        UpdateMirrorRouter.GiteeCatalogOriginUrl,
+                        UpdateMirrorRouter.CatalogOriginUrl
+                    },
                     sources,
                     MetadataRaceWidth,
                     cancellationToken,
                     UpdateMirrorRouter.IsValidCatalog);
                 var updateTask = TryDownloadFromMirrorsAsync<UpdateManifest>(
-                    UpdateManifestUrl,
+                    new[] { GiteeUpdateManifestUrl, UpdateManifestUrl },
                     sources,
                     MetadataRaceWidth,
                     cancellationToken,
@@ -146,13 +153,18 @@ namespace FACM.Online
         }
 
         private static async Task<MirrorFetchResult<T>> TryDownloadFromMirrorsAsync<T>(
-            string originUrl,
+            IEnumerable<string> originUrls,
             UpdateMirrorSource[] sources,
             int raceWidth,
             CancellationToken cancellationToken,
             Func<T, bool> validator) where T : class
         {
-            var candidates = UpdateMirrorRouter.BuildCandidates(originUrl, sources);
+            var candidates = (originUrls ?? Enumerable.Empty<string>())
+                .Where(origin => !string.IsNullOrWhiteSpace(origin))
+                .SelectMany(origin => UpdateMirrorRouter.BuildCandidates(origin, sources))
+                .GroupBy(candidate => candidate.Url, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
             if (candidates.Length == 0) return new MirrorFetchResult<T>();
 
             raceWidth = Math.Max(1, Math.Min(3, raceWidth));
@@ -307,15 +319,8 @@ namespace FACM.Online
 
             Uri download;
             if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out download) ||
-                download.Scheme != Uri.UriSchemeHttps ||
-                !string.Equals(download.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+                !IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe"))
                 return false;
-
-            var normalizedVersion = manifest.Version.Trim();
-            if (normalizedVersion.StartsWith("v", StringComparison.OrdinalIgnoreCase))
-                normalizedVersion = normalizedVersion.Substring(1);
-            var expectedPrefix = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/";
-            if (!download.AbsolutePath.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase)) return false;
 
             if (string.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64) return false;
             for (var index = 0; index < manifest.Sha256.Length; index++)
@@ -328,6 +333,22 @@ namespace FACM.Online
             }
 
             return true;
+        }
+
+        private static bool IsApprovedReleaseUrl(Uri uri, Version version, string assetName)
+        {
+            if (uri == null || version == null || uri.Scheme != Uri.UriSchemeHttps ||
+                !string.IsNullOrWhiteSpace(uri.Query) || !string.IsNullOrWhiteSpace(uri.Fragment))
+                return false;
+
+            var normalizedVersion = version.ToString();
+            var path = "/xianyumht-cmd/facm/releases/download/v" + normalizedVersion + "/" + assetName;
+            if (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+                return string.Equals(uri.AbsolutePath, path, StringComparison.OrdinalIgnoreCase);
+
+            var giteePath = "/xymhtcmd/facm/releases/download/v" + normalizedVersion + "/" + assetName;
+            return string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.AbsolutePath, giteePath, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryParseVersion(string value, out Version version)

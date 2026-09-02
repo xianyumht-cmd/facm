@@ -855,3 +855,23 @@ embedded icon resources; its EXE and the legacy FACM Release EXE both expose ass
 The legacy net48 build succeeds with its pre-existing obsolete API warning. Native Bootstrapper resource
 source is wired through CMake; a native compiler/CMake installation is not available on this machine for
 a fresh bootstrapper binary build. Production and the active candidate pointer remain unchanged.
+
+## 2026-09-02 Gitee distribution path and local release publishing
+
+The public Gitee mirror `https://gitee.com/xymhtcmd/facm` is reachable anonymously, and the local
+credential manager now contains an authenticated Gitee credential for release operations. No Gitee
+Release or asset existed before this task. The source change adds Gitee as the first metadata origin,
+keeps GitHub as fallback, prevents public GitHub proxy prefixes from being applied to Gitee release URLs,
+and extends the legacy bridge/native redirect allowlists to the exact FACM Gitee repository paths.
+
+The pending local release is FACM 4.0.2 (`v4.0.2`) built from the current bridge branch, with a freshly
+compiled bootstrapper SHA-256 `EF375B8DAFC2091F252BCBC53F998C232E368A2B6267893E5C1703E0460F36C8` and
+detached manifest SHA-256 `99601F250B7092FB7B05CB1E8C2FEC61E9729C16257A72EBD94228A0F0BA9797`. The
+signed 3.5.18 bridge copy is `D:\project2\facm-release-3.5.18-gitee\FACM.exe` with SHA-256
+`78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0`.
+
+The local publisher is `scripts/release/publish-gitee-release-local.ps1`; it reads the Gitee token only
+from the OS credential manager, never writes it to the repository, and supports preview before upload.
+The source and release assets are not yet pushed or published in this state. Existing installed 3.5.17
+clients still contain the old GitHub-only URL allowlist; they require the signed 3.5.18 bridge once before
+the Gitee-first 4.0.2 migration path can be used automatically.

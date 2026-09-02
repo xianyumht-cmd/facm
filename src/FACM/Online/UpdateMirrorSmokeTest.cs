@@ -39,6 +39,7 @@ namespace FACM.Online
 
             var rawOrigin = "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/version.json";
             var releaseOrigin = "https://github.com/xianyumht-cmd/facm/releases/download/v3.4.6/FACM.exe";
+            var giteeReleaseOrigin = "https://gitee.com/xymhtcmd/facm/releases/download/v4.0.1/FACM.exe";
 
             var ghfast = new UpdateMirrorSource
             {
@@ -101,6 +102,12 @@ namespace FACM.Online
                 "Direct GitHub release candidate is missing.");
             Require(candidates.Any(item => item.Url.StartsWith("https://ghfast.top/https://github.com/", StringComparison.Ordinal)),
                 "ghfast release candidate is missing.");
+
+            var giteeCandidates = UpdateMirrorRouter.BuildCandidates(giteeReleaseOrigin, merged);
+            Require(giteeCandidates.Any(item => item.Url == giteeReleaseOrigin),
+                "Direct Gitee release candidate is missing.");
+            Require(!giteeCandidates.Any(item => item.Url.IndexOf("https://gitee.com/https://", StringComparison.OrdinalIgnoreCase) >= 0),
+                "Gitee release candidates must not be wrapped in GitHub proxy prefixes.");
         }
 
         private static void Require(bool condition, string message)
