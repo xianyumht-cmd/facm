@@ -1,11 +1,11 @@
 {
-  "enabled": true,
+  "enabled": false,
   "version": "3.5.18",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.18/FACM.exe",
   "sha256": "78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0",
-  "release_notes": "FACM 3.5.18：继续采用单 EXE 便携架构；保留 4.0 功能等价基线（含自动 ChampSelect 指引、League 发现修复与新版图标等），并吸收后续适用于 3.x 的更新链修复。4.x 迁移已关闭。",
+  "release_notes": "FACM 3.5.18：正式版发布处理中，在线更新暂时停用。",
   "published_at": "2026-09-03T00:00:00.0000000+00:00",
   "migration": {
     "enabled": false,
