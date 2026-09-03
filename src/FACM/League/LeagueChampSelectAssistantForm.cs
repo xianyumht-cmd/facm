@@ -13,19 +13,20 @@ using FACM.Services;
 namespace FACM.League
 {
     /// <summary>
-    /// Lightweight WinForms equivalent of the useful FACM 4 ChampSelect strip/automatic-guide UX.
-    /// The assistant is intentionally limited to bench-enabled ChampSelect sessions (ARAM/Mayhem),
-    /// reuses the one existing LeagueBenchQuickPickService, and never writes rune/build settings.
+    /// Lightweight WinForms equivalent of the useful FACM 4 ChampSelect strip + automatic Mayhem guide.
+    /// It stays on the legacy 3.5 runtime, reuses the existing Bench write service, and never writes builds.
     /// </summary>
     internal sealed class LeagueChampSelectAssistantForm : Form
     {
+        private const int WidthPixels = 660;
         private const int CompactHeight = 116;
-        private const int ExpandedHeight = 470;
+        private const int ExpandedHeight = 458;
+
         private readonly LeagueBenchQuickPickService _bench;
-        private readonly MayhemAutomaticGuideService _guide;
         private readonly ILeagueClientApi _leagueClient;
+        private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-        private readonly Timer _pollTimer;
+        private readonly System.Windows.Forms.Timer _pollTimer;
         private readonly Label _status;
         private readonly FlowLayoutPanel _benchPanel;
         private readonly Button _guideToggle;
@@ -33,22 +34,29 @@ namespace FACM.League
         private readonly PictureBox _championIcon;
         private readonly Label _championTitle;
         private readonly Label _championMeta;
-        private readonly FlowLayoutPanel _skillFlow;
-        private readonly FlowLayoutPanel _spellFlow;
-        private readonly FlowLayoutPanel _itemFlow;
-        private readonly ListView _augmentList;
+        private readonly Label _skills;
+        private readonly Label _spells;
+        private readonly Label _items;
         private readonly Label _guideStatus;
+        private readonly ListView _augments;
         private readonly ToolTip _toolTip;
-        private readonly Dictionary<int, Bitmap> _benchIconCache = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _benchIcons = new Dictionary<int, Bitmap>();
+
         private CancellationTokenSource _guideRequest;
         private bool _refreshing;
-        private bool _benchWasAvailable;
+        private bool _benchConfirmed;
         private bool _guideExpanded;
         private int _guideChampionId;
         private int _guideGeneration;
+        private bool _dragging;
         private Point _dragCursor;
         private Point _dragWindow;
-        private bool _dragging;
+
+        private sealed class BenchTarget
+        {
+            public int ChampionId { get; set; }
+            public LeagueBenchSwapRoute Route { get; set; }
+        }
 
         public LeagueChampSelectAssistantForm(
             LeagueBenchQuickPickService bench,
@@ -58,10 +66,8 @@ namespace FACM.League
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _guide = new MayhemAutomaticGuideService(_leagueClient);
 
-            Text = "FACM · 选人助手";
+            Text = "FACM · 海克斯大乱斗选人助手";
             StartPosition = FormStartPosition.Manual;
-            ClientSize = new Size(660, CompactHeight);
-            MinimumSize = MaximumSize = Size;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
@@ -69,11 +75,13 @@ namespace FACM.League
             ForeColor = Color.White;
             Font = new Font("Microsoft YaHei UI", 9F);
             DoubleBuffered = true;
+            Opacity = 0d; // Do not flash on ordinary ranked ChampSelect before Bench has been confirmed.
+            SetClientHeight(CompactHeight);
 
             var header = new Panel
             {
-                Location = new Point(0, 0),
-                Size = new Size(660, 36),
+                Location = Point.Empty,
+                Size = new Size(WidthPixels, 36),
                 BackColor = Color.FromArgb(25, 34, 52),
                 Cursor = Cursors.SizeAll
             };
@@ -81,23 +89,24 @@ namespace FACM.League
             {
                 Text = "FACM · 海克斯大乱斗选人助手",
                 Location = new Point(12, 8),
-                Size = new Size(290, 22),
+                Size = new Size(286, 22),
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
                 ForeColor = Color.White
             };
             _status = new Label
             {
                 Text = "正在读取替补席…",
-                Location = new Point(304, 9),
-                Size = new Size(250, 20),
+                Location = new Point(300, 9),
+                Size = new Size(252, 20),
                 TextAlign = ContentAlignment.MiddleRight,
                 ForeColor = Color.FromArgb(156, 176, 210)
             };
-            _guideToggle = CreateFlatButton("攻略", new Rectangle(560, 5, 52, 26), Color.FromArgb(55, 73, 105));
+            _guideToggle = CreateButton("攻略", new Rectangle(558, 5, 54, 26), Color.FromArgb(55, 73, 105));
             _guideToggle.Enabled = false;
             _guideToggle.Click += delegate { SetGuideExpanded(!_guideExpanded); };
-            var close = CreateFlatButton("×", new Rectangle(618, 5, 30, 26), Color.FromArgb(92, 48, 58));
+            var close = CreateButton("×", new Rectangle(618, 5, 30, 26), Color.FromArgb(92, 48, 58));
             close.Click += delegate { Close(); };
+
             header.Controls.Add(title);
             header.Controls.Add(_status);
             header.Controls.Add(_guideToggle);
@@ -123,22 +132,21 @@ namespace FACM.League
             _guidePanel = new Panel
             {
                 Location = new Point(10, 116),
-                Size = new Size(640, 344),
+                Size = new Size(640, 332),
                 BackColor = Color.FromArgb(18, 26, 40),
-                Visible = false,
-                AutoScroll = false
+                Visible = false
             };
             _championIcon = new PictureBox
             {
                 Location = new Point(10, 10),
-                Size = new Size(54, 54),
+                Size = new Size(52, 52),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.FromArgb(30, 42, 62)
             };
             _championTitle = new Label
             {
                 Text = "自动攻略",
-                Location = new Point(74, 10),
+                Location = new Point(72, 10),
                 Size = new Size(360, 26),
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
                 ForeColor = Color.White
@@ -146,64 +154,62 @@ namespace FACM.League
             _championMeta = new Label
             {
                 Text = "等待读取当前英雄…",
-                Location = new Point(75, 38),
-                Size = new Size(540, 22),
+                Location = new Point(73, 38),
+                Size = new Size(545, 22),
                 ForeColor = Color.FromArgb(150, 168, 198)
             };
             _guideStatus = new Label
             {
                 Text = string.Empty,
-                Location = new Point(10, 70),
+                Location = new Point(10, 68),
                 Size = new Size(610, 22),
                 ForeColor = Color.FromArgb(111, 206, 165)
             };
-
-            var skillTitle = CreateSectionLabel("技能", 10, 98);
-            _skillFlow = CreateTokenFlow(62, 96, 170, 62);
-            var spellTitle = CreateSectionLabel("召唤师技能", 242, 98);
-            _spellFlow = CreateTokenFlow(242, 118, 160, 62);
-            var itemTitle = CreateSectionLabel("出装", 412, 98);
-            _itemFlow = CreateTokenFlow(412, 118, 208, 62);
-
-            var augmentTitle = CreateSectionLabel("强化符文 · 完整排行", 10, 190);
-            _augmentList = new ListView
+            _skills = CreateGuideLine("技能：等待数据…", 96);
+            _spells = CreateGuideLine("召唤师技能：等待数据…", 120);
+            _items = CreateGuideLine("出装：等待数据…", 144);
+            var augmentTitle = new Label
             {
-                Location = new Point(10, 214),
-                Size = new Size(610, 116),
+                Text = "强化符文 · 完整排行",
+                Location = new Point(10, 174),
+                Size = new Size(260, 22),
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(177, 195, 224)
+            };
+            _augments = new ListView
+            {
+                Location = new Point(10, 200),
+                Size = new Size(610, 118),
                 View = View.Details,
                 FullRowSelect = true,
-                GridLines = false,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
                 BackColor = Color.FromArgb(22, 31, 47),
                 ForeColor = Color.FromArgb(232, 238, 248),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            _augmentList.Columns.Add("#", 38, HorizontalAlignment.Right);
-            _augmentList.Columns.Add("强化", 218, HorizontalAlignment.Left);
-            _augmentList.Columns.Add("品质", 64, HorizontalAlignment.Left);
-            _augmentList.Columns.Add("胜率", 78, HorizontalAlignment.Right);
-            _augmentList.Columns.Add("选择率", 82, HorizontalAlignment.Right);
-            _augmentList.Columns.Add("场次", 86, HorizontalAlignment.Right);
+            _augments.Columns.Add("#", 38, HorizontalAlignment.Right);
+            _augments.Columns.Add("强化", 220, HorizontalAlignment.Left);
+            _augments.Columns.Add("品质", 68, HorizontalAlignment.Left);
+            _augments.Columns.Add("胜率", 78, HorizontalAlignment.Right);
+            _augments.Columns.Add("选择率", 82, HorizontalAlignment.Right);
+            _augments.Columns.Add("场次", 86, HorizontalAlignment.Right);
 
             _guidePanel.Controls.Add(_championIcon);
             _guidePanel.Controls.Add(_championTitle);
             _guidePanel.Controls.Add(_championMeta);
             _guidePanel.Controls.Add(_guideStatus);
-            _guidePanel.Controls.Add(skillTitle);
-            _guidePanel.Controls.Add(_skillFlow);
-            _guidePanel.Controls.Add(spellTitle);
-            _guidePanel.Controls.Add(_spellFlow);
-            _guidePanel.Controls.Add(itemTitle);
-            _guidePanel.Controls.Add(_itemFlow);
+            _guidePanel.Controls.Add(_skills);
+            _guidePanel.Controls.Add(_spells);
+            _guidePanel.Controls.Add(_items);
             _guidePanel.Controls.Add(augmentTitle);
-            _guidePanel.Controls.Add(_augmentList);
+            _guidePanel.Controls.Add(_augments);
 
             Controls.Add(header);
             Controls.Add(_benchPanel);
             Controls.Add(_guidePanel);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
-            _pollTimer = new Timer { Interval = 650 };
+            _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
             _pollTimer.Tick += async delegate { await RefreshBenchAsync(); };
             Shown += delegate
             {
@@ -241,16 +247,19 @@ namespace FACM.League
                     return;
                 }
 
-                // Only ARAM/Mayhem-style bench sessions should keep the automatic assistant alive.
-                // Ordinary ranked ChampSelect must not display an ARAM Mayhem guide.
+                // FACM 4 automatic guide is a Mayhem/ARAM guide. Do not surface it in normal ranked.
                 if (!state.BenchEnabled)
                 {
-                    _status.Text = "当前选人模式没有替补席";
                     Close();
                     return;
                 }
 
-                _benchWasAvailable = true;
+                if (!_benchConfirmed)
+                {
+                    _benchConfirmed = true;
+                    Opacity = 1d;
+                }
+
                 _status.Text = state.ChampionIds.Count > 0
                     ? "替补席 " + state.ChampionIds.Count.ToString(CultureInfo.InvariantCulture) + " 个英雄"
                     : "替补席暂时为空";
@@ -262,7 +271,7 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Info("ChampSelect assistant refresh skipped: " + exception.Message);
-                if (!IsDisposed) _status.Text = _benchWasAvailable ? "替补席刷新暂时失败" : "正在等待替补席…";
+                if (!IsDisposed) _status.Text = _benchConfirmed ? "替补席刷新暂时失败" : "正在等待替补席…";
             }
             finally
             {
@@ -274,8 +283,8 @@ namespace FACM.League
         {
             var wanted = new HashSet<int>(state.ChampionIds.Where(id => id > 0));
             var existing = _benchPanel.Controls.OfType<Button>()
-                .Where(button => button.Tag is int)
-                .ToDictionary(button => (int)button.Tag, button => button);
+                .Where(button => button.Tag is BenchTarget)
+                .ToDictionary(button => ((BenchTarget)button.Tag).ChampionId, button => button);
 
             foreach (var pair in existing)
             {
@@ -291,7 +300,6 @@ namespace FACM.League
                 {
                     button = new Button
                     {
-                        Tag = championId,
                         Width = 54,
                         Height = 48,
                         Margin = new Padding(2),
@@ -299,19 +307,23 @@ namespace FACM.League
                         BackColor = Color.FromArgb(33, 47, 70),
                         ForeColor = Color.White,
                         Text = championId.ToString(CultureInfo.InvariantCulture),
-                        TextImageRelation = TextImageRelation.ImageBeforeText,
-                        ImageAlign = ContentAlignment.MiddleLeft,
+                        ImageAlign = ContentAlignment.MiddleCenter,
                         TextAlign = ContentAlignment.MiddleCenter,
                         Cursor = Cursors.Hand
                     };
                     button.FlatAppearance.BorderColor = Color.FromArgb(65, 90, 128);
-                    button.Click += async delegate { await SwapToAsync((int)button.Tag, state.SwapRoute); };
-                    _toolTip.SetToolTip(button, "点击换到英雄 ID " + championId.ToString(CultureInfo.InvariantCulture));
+                    button.Click += async delegate
+                    {
+                        var target = button.Tag as BenchTarget;
+                        if (target != null) await SwapToAsync(target.ChampionId, target.Route);
+                    };
                     _benchPanel.Controls.Add(button);
                     existing[championId] = button;
                     _ = LoadBenchIconAsync(button, championId);
                 }
 
+                button.Tag = new BenchTarget { ChampionId = championId, Route = state.SwapRoute };
+                _toolTip.SetToolTip(button, "点击换到英雄 ID " + championId.ToString(CultureInfo.InvariantCulture));
                 button.FlatAppearance.BorderColor = championId == state.LocalChampionId
                     ? Color.FromArgb(92, 208, 155)
                     : Color.FromArgb(65, 90, 128);
@@ -320,12 +332,14 @@ namespace FACM.League
 
         private async Task LoadBenchIconAsync(Button button, int championId)
         {
-            if (button == null || button.IsDisposed) return;
             Bitmap cached;
-            if (_benchIconCache.TryGetValue(championId, out cached))
+            if (_benchIcons.TryGetValue(championId, out cached))
             {
-                button.Image = cached;
-                button.Text = string.Empty;
+                if (!button.IsDisposed)
+                {
+                    button.Image = cached;
+                    button.Text = string.Empty;
+                }
                 return;
             }
 
@@ -333,10 +347,10 @@ namespace FACM.League
             {
                 var bytes = await _bench.LoadChampionIconAsync(championId, _lifetime.Token);
                 if (bytes == null || bytes.Length == 0 || IsDisposed || button.IsDisposed) return;
-                var image = DecodeBitmap(bytes, new Size(34, 34));
-                if (image == null) return;
-                _benchIconCache[championId] = image;
-                button.Image = image;
+                var bitmap = DecodeBitmap(bytes, new Size(34, 34));
+                if (bitmap == null) return;
+                _benchIcons[championId] = bitmap;
+                button.Image = bitmap;
                 button.Text = string.Empty;
             }
             catch (OperationCanceledException)
@@ -344,7 +358,7 @@ namespace FACM.League
             }
             catch
             {
-                // Text fallback remains usable.
+                // Champion ID remains as a safe text fallback.
             }
         }
 
@@ -356,9 +370,7 @@ namespace FACM.League
             {
                 var result = await _bench.TrySwapAsync(championId, route, _lifetime.Token);
                 if (IsDisposed) return;
-                _status.Text = result.Success
-                    ? "换人成功"
-                    : DescribeSwapFailure(result.Status);
+                _status.Text = result.Success ? "换人成功" : DescribeSwapFailure(result.Status);
                 _ = RefreshBenchAsync();
             }
             catch (OperationCanceledException)
@@ -373,16 +385,14 @@ namespace FACM.League
 
         private void StartAutomaticGuide(int championId)
         {
-            if (championId <= 0 || IsDisposed) return;
             CancelGuideRequest();
             _guideChampionId = championId;
-            _guideGeneration++;
-            var generation = _guideGeneration;
+            var generation = ++_guideGeneration;
             _guideRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             _guideRequest.CancelAfter(TimeSpan.FromSeconds(15));
             _guideToggle.Enabled = true;
             SetGuideExpanded(true);
-            ResetGuideUi(championId);
+            ResetGuide(championId);
             _ = LoadAutomaticGuideAsync(generation, championId, _guideRequest);
         }
 
@@ -391,7 +401,7 @@ namespace FACM.League
             try
             {
                 var result = await _guide.QueryForChampionIdAsync(championId, request.Token);
-                if (IsDisposed || request.IsCancellationRequested || generation != _guideGeneration || championId != _guideChampionId) return;
+                if (!IsCurrentGuide(generation, championId, request)) return;
                 if (result == null || !string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
                     _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
@@ -423,73 +433,44 @@ namespace FACM.League
             {
                 if (ReferenceEquals(_guideRequest, request))
                 {
-                    request.Dispose();
                     _guideRequest = null;
+                    request.Dispose();
                 }
             }
         }
 
-        private void ResetGuideUi(int championId)
+        private bool IsCurrentGuide(int generation, int championId, CancellationTokenSource request)
         {
-            DisposePicture(_championIcon);
+            return !IsDisposed && !request.IsCancellationRequested && generation == _guideGeneration && championId == _guideChampionId;
+        }
+
+        private void ResetGuide(int championId)
+        {
+            ReplacePicture(_championIcon, null);
             _championTitle.Text = "正在识别当前英雄…";
-            _championMeta.Text = "英雄 ID " + championId.ToString(CultureInfo.InvariantCulture) + " · 自动攻略只读，不会修改符文或配置";
+            _championMeta.Text = "英雄 ID " + championId.ToString(CultureInfo.InvariantCulture) + " · 自动攻略只读，不会修改任何配置";
             _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
             _guideStatus.Text = "正在读取技能、出装和强化符文排行…";
-            ClearTokenFlow(_skillFlow);
-            ClearTokenFlow(_spellFlow);
-            ClearTokenFlow(_itemFlow);
-            _augmentList.Items.Clear();
+            _skills.Text = "技能：等待数据…";
+            _spells.Text = "召唤师技能：等待数据…";
+            _items.Text = "出装：等待数据…";
+            _augments.Items.Clear();
         }
 
         private void RenderGuide(MayhemChampionResult result, int generation, CancellationToken token)
         {
-            _championTitle.Text = string.IsNullOrWhiteSpace(result.ChampionName)
-                ? (string.IsNullOrWhiteSpace(result.Query) ? "当前英雄" : result.Query)
-                : result.ChampionName;
+            _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, "当前英雄");
             _championMeta.Text = BuildChampionMeta(result);
             _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
-            _guideStatus.Text = "攻略已加载 · 仅提供参考，不会自动应用任何配置";
+            _guideStatus.Text = "攻略已加载 · 仅供参考，不会自动应用任何配置";
+            _skills.Text = "技能：" + BuildSkillText(result);
+            _spells.Text = "召唤师技能：" + BuildSpellText(result);
+            _items.Text = "出装：" + BuildItemText(result);
 
-            var skills = result.SkillPriority == null
-                ? new List<MayhemSkillPriority>()
-                : result.SkillPriority.Where(item => item != null).Take(4).ToList();
-            if (skills.Count > 0)
-            {
-                foreach (var skill in skills)
-                    AddToken(_skillFlow, FirstNonEmpty(skill.Key, skill.Name), skill.Name, skill.IconUrl, generation, token);
-            }
-            else if (!string.IsNullOrWhiteSpace(result.SkillOrder))
-            {
-                AddTextToken(_skillFlow, result.SkillOrder, result.SkillOrder);
-            }
-
-            foreach (var spell in (result.SummonerSpells ?? new List<MayhemBuildItem>()).Where(item => item != null).Take(2))
-                AddToken(_spellFlow, FirstNonEmpty(spell.Name, spell.Id), spell.Name, spell.IconUrl, generation, token);
-
-            var itemKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var item in (result.StarterItems ?? new List<MayhemBuildItem>())
-                .Concat(result.BootItems ?? new List<MayhemBuildItem>())
-                .Concat(result.CoreBuilds != null && result.CoreBuilds.Count > 0 && result.CoreBuilds[0] != null
-                    ? result.CoreBuilds[0].Items ?? new List<MayhemBuildItem>()
-                    : new List<MayhemBuildItem>()))
-            {
-                if (item == null) continue;
-                var key = FirstNonEmpty(item.Id, item.Name);
-                if (string.IsNullOrWhiteSpace(key) || !itemKeys.Add(key)) continue;
-                AddToken(_itemFlow, FirstNonEmpty(item.Name, item.Id), item.Name, item.IconUrl, generation, token);
-                if (_itemFlow.Controls.Count >= 7) break;
-            }
-            if (_itemFlow.Controls.Count == 0)
-            {
-                foreach (var itemName in (result.CoreItems ?? new List<string>()).Where(value => !string.IsNullOrWhiteSpace(value)).Take(5))
-                    AddTextToken(_itemFlow, itemName, itemName);
-            }
-
-            _augmentList.BeginUpdate();
+            _augments.BeginUpdate();
             try
             {
-                _augmentList.Items.Clear();
+                _augments.Items.Clear();
                 foreach (var row in (result.AugmentRows ?? new List<MayhemAugmentRow>())
                     .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
                     .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
@@ -502,99 +483,34 @@ namespace FACM.League
                     item.SubItems.Add(FormatRate(row.WinRate));
                     item.SubItems.Add(FormatRate(row.PickRate));
                     item.SubItems.Add(row.Games.HasValue ? row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
-                    if (!string.IsNullOrWhiteSpace(row.Description)) _toolTip.SetToolTip(_augmentList, row.Description);
-                    _augmentList.Items.Add(item);
+                    item.ToolTipText = row.Description ?? string.Empty;
+                    _augments.Items.Add(item);
                 }
             }
             finally
             {
-                _augmentList.EndUpdate();
+                _augments.EndUpdate();
             }
 
             if (!string.IsNullOrWhiteSpace(result.ChampionIconUrl))
-                _ = LoadPictureAsync(_championIcon, result.ChampionIconUrl, generation, token, new Size(54, 54));
+                _ = LoadChampionPictureAsync(result.ChampionIconUrl, generation, token);
         }
 
-        private void AddToken(
-            FlowLayoutPanel host,
-            string text,
-            string tooltip,
-            string reference,
-            int generation,
-            CancellationToken token)
-        {
-            var panel = new Panel
-            {
-                Width = 48,
-                Height = 54,
-                Margin = new Padding(1),
-                BackColor = Color.FromArgb(28, 39, 59)
-            };
-            var picture = new PictureBox
-            {
-                Location = new Point(7, 3),
-                Size = new Size(34, 34),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(34, 47, 70)
-            };
-            var label = new Label
-            {
-                Text = Shorten(text, 7),
-                Location = new Point(2, 39),
-                Size = new Size(44, 13),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Microsoft YaHei UI", 7F),
-                ForeColor = Color.FromArgb(218, 226, 240)
-            };
-            panel.Controls.Add(picture);
-            panel.Controls.Add(label);
-            host.Controls.Add(panel);
-            _toolTip.SetToolTip(panel, FirstNonEmpty(tooltip, text));
-            _toolTip.SetToolTip(picture, FirstNonEmpty(tooltip, text));
-            _toolTip.SetToolTip(label, FirstNonEmpty(tooltip, text));
-            if (!string.IsNullOrWhiteSpace(reference))
-                _ = LoadPictureAsync(picture, reference, generation, token, new Size(34, 34));
-        }
-
-        private static void AddTextToken(FlowLayoutPanel host, string text, string tooltip)
-        {
-            var label = new Label
-            {
-                Text = text,
-                AutoEllipsis = true,
-                Width = Math.Min(host.Width - 4, 150),
-                Height = 48,
-                Margin = new Padding(1),
-                TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.FromArgb(28, 39, 59),
-                ForeColor = Color.FromArgb(218, 226, 240)
-            };
-            host.Controls.Add(label);
-        }
-
-        private async Task LoadPictureAsync(
-            PictureBox picture,
-            string reference,
-            int generation,
-            CancellationToken token,
-            Size size)
+        private async Task LoadChampionPictureAsync(string reference, int generation, CancellationToken token)
         {
             try
             {
                 var bytes = await RiotGameDataService.DownloadImageAsync(reference, _leagueClient, token);
-                if (bytes == null || bytes.Length == 0 || IsDisposed || picture.IsDisposed || generation != _guideGeneration) return;
-                var bitmap = DecodeBitmap(bytes, size);
-                if (bitmap == null) return;
-                var old = picture.Image;
-                picture.Image = bitmap;
-                if (old != null) old.Dispose();
+                if (bytes == null || bytes.Length == 0 || IsDisposed || generation != _guideGeneration) return;
+                var bitmap = DecodeBitmap(bytes, new Size(52, 52));
+                if (bitmap != null) ReplacePicture(_championIcon, bitmap);
             }
             catch (OperationCanceledException)
             {
             }
             catch
             {
-                // Text guide remains usable without images.
+                // Text guide remains complete without an icon.
             }
         }
 
@@ -604,18 +520,17 @@ namespace FACM.League
             _guideExpanded = expanded;
             _guidePanel.Visible = expanded;
             _guideToggle.Text = expanded ? "收起" : "攻略";
-            var height = expanded ? ExpandedHeight : CompactHeight;
-            ClientSize = new Size(660, height);
-            MinimumSize = MaximumSize = Size;
+            SetClientHeight(expanded ? ExpandedHeight : CompactHeight);
             KeepInsideWorkingArea();
         }
 
-        private void KeepInsideWorkingArea()
+        private void SetClientHeight(int height)
         {
-            var area = Screen.FromRectangle(Bounds).WorkingArea;
-            var x = Math.Max(area.Left, Math.Min(Left, area.Right - Width));
-            var y = Math.Max(area.Top, Math.Min(Top, area.Bottom - Height));
-            Location = new Point(x, y);
+            MaximumSize = Size.Empty;
+            MinimumSize = Size.Empty;
+            ClientSize = new Size(WidthPixels, height);
+            MinimumSize = Size;
+            MaximumSize = Size;
         }
 
         private void BeginDrag(object sender, MouseEventArgs e)
@@ -630,15 +545,21 @@ namespace FACM.League
         {
             if (!_dragging || e.Button != MouseButtons.Left) return;
             var current = Cursor.Position;
-            Location = new Point(
-                _dragWindow.X + current.X - _dragCursor.X,
-                _dragWindow.Y + current.Y - _dragCursor.Y);
+            Location = new Point(_dragWindow.X + current.X - _dragCursor.X, _dragWindow.Y + current.Y - _dragCursor.Y);
         }
 
         private void EndDrag(object sender, MouseEventArgs e)
         {
             _dragging = false;
             KeepInsideWorkingArea();
+        }
+
+        private void KeepInsideWorkingArea()
+        {
+            var area = Screen.FromRectangle(Bounds).WorkingArea;
+            Location = new Point(
+                Math.Max(area.Left, Math.Min(Left, area.Right - Width)),
+                Math.Max(area.Top, Math.Min(Top, area.Bottom - Height)));
         }
 
         private void HandleClosed(object sender, FormClosedEventArgs e)
@@ -649,12 +570,9 @@ namespace FACM.League
             try { _lifetime.Cancel(); }
             catch { }
             _lifetime.Dispose();
-            DisposePicture(_championIcon);
-            ClearTokenFlow(_skillFlow);
-            ClearTokenFlow(_spellFlow);
-            ClearTokenFlow(_itemFlow);
-            foreach (var bitmap in _benchIconCache.Values) bitmap.Dispose();
-            _benchIconCache.Clear();
+            ReplacePicture(_championIcon, null);
+            foreach (var bitmap in _benchIcons.Values) bitmap.Dispose();
+            _benchIcons.Clear();
             _toolTip.Dispose();
         }
 
@@ -668,72 +586,19 @@ namespace FACM.League
             request.Dispose();
         }
 
-        private static void ClearTokenFlow(FlowLayoutPanel host)
-        {
-            if (host == null) return;
-            foreach (Control control in host.Controls)
-            {
-                var panel = control as Panel;
-                if (panel != null)
-                {
-                    foreach (var picture in panel.Controls.OfType<PictureBox>()) DisposePicture(picture);
-                }
-            }
-            host.Controls.Clear();
-        }
-
-        private static void DisposePicture(PictureBox picture)
-        {
-            if (picture == null) return;
-            var image = picture.Image;
-            picture.Image = null;
-            if (image != null) image.Dispose();
-        }
-
-        private static Bitmap DecodeBitmap(byte[] bytes, Size size)
-        {
-            try
-            {
-                using (var stream = new MemoryStream(bytes, false))
-                using (var source = Image.FromStream(stream, true, true))
-                {
-                    return new Bitmap(source, size);
-                }
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Label CreateSectionLabel(string text, int x, int y)
+        private static Label CreateGuideLine(string text, int y)
         {
             return new Label
             {
                 Text = text,
-                Location = new Point(x, y),
-                Size = new Size(190, 20),
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(177, 195, 224)
+                Location = new Point(10, y),
+                Size = new Size(610, 22),
+                AutoEllipsis = true,
+                ForeColor = Color.FromArgb(218, 226, 240)
             };
         }
 
-        private static FlowLayoutPanel CreateTokenFlow(int x, int y, int width, int height)
-        {
-            return new FlowLayoutPanel
-            {
-                Location = new Point(x, y),
-                Size = new Size(width, height),
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                AutoScroll = true,
-                BackColor = Color.Transparent,
-                Margin = Padding.Empty,
-                Padding = Padding.Empty
-            };
-        }
-
-        private static Button CreateFlatButton(string text, Rectangle bounds, Color background)
+        private static Button CreateButton(string text, Rectangle bounds, Color background)
         {
             var button = new Button
             {
@@ -748,6 +613,79 @@ namespace FACM.League
             };
             button.FlatAppearance.BorderSize = 0;
             return button;
+        }
+
+        private static Bitmap DecodeBitmap(byte[] bytes, Size size)
+        {
+            try
+            {
+                using (var stream = new MemoryStream(bytes, false))
+                using (var source = Image.FromStream(stream, true, true))
+                    return new Bitmap(source, size);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static void ReplacePicture(PictureBox picture, Image image)
+        {
+            var old = picture.Image;
+            picture.Image = image;
+            if (old != null && !ReferenceEquals(old, image)) old.Dispose();
+        }
+
+        private static string BuildSkillText(MayhemChampionResult result)
+        {
+            var values = (result.SkillPriority ?? new List<MayhemSkillPriority>())
+                .Where(value => value != null)
+                .Select(value => FirstNonEmpty(value.Key, value.Name))
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Take(4)
+                .ToArray();
+            if (values.Length > 0) return string.Join(" → ", values);
+            return string.IsNullOrWhiteSpace(result.SkillOrder) ? "暂无" : result.SkillOrder;
+        }
+
+        private static string BuildSpellText(MayhemChampionResult result)
+        {
+            var values = (result.SummonerSpells ?? new List<MayhemBuildItem>())
+                .Where(value => value != null)
+                .Select(value => FirstNonEmpty(value.Name, value.Id))
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Take(2)
+                .ToArray();
+            return values.Length == 0 ? "暂无" : string.Join(" + ", values);
+        }
+
+        private static string BuildItemText(MayhemChampionResult result)
+        {
+            var values = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var buildItems = (result.StarterItems ?? new List<MayhemBuildItem>())
+                .Concat(result.BootItems ?? new List<MayhemBuildItem>())
+                .Concat(result.CoreBuilds != null && result.CoreBuilds.Count > 0 && result.CoreBuilds[0] != null
+                    ? result.CoreBuilds[0].Items ?? new List<MayhemBuildItem>()
+                    : new List<MayhemBuildItem>());
+            foreach (var item in buildItems)
+            {
+                if (item == null) continue;
+                var value = FirstNonEmpty(item.Name, item.Id);
+                if (string.IsNullOrWhiteSpace(value) || !seen.Add(value)) continue;
+                values.Add(value);
+                if (values.Count >= 7) break;
+            }
+            if (values.Count == 0)
+            {
+                foreach (var value in (result.CoreItems ?? new List<string>()).Where(value => !string.IsNullOrWhiteSpace(value)))
+                {
+                    if (!seen.Add(value)) continue;
+                    values.Add(value);
+                    if (values.Count >= 7) break;
+                }
+            }
+            return values.Count == 0 ? "暂无" : string.Join(" → ", values);
         }
 
         private static string BuildChampionMeta(MayhemChampionResult result)
@@ -773,13 +711,6 @@ namespace FACM.League
             return string.Empty;
         }
 
-        private static string Shorten(string value, int length)
-        {
-            var text = (value ?? string.Empty).Trim();
-            if (text.Length <= length) return text;
-            return text.Substring(0, Math.Max(1, length - 1)) + "…";
-        }
-
         private static string DescribeSwapFailure(LeagueBenchSwapStatus status)
         {
             switch (status)
@@ -800,14 +731,28 @@ namespace FACM.League
                 Tier = "S+",
                 Rank = 3,
                 WinRate = 0.5432,
-                Patch = "26.18"
+                Patch = "26.18",
+                SkillPriority = new List<MayhemSkillPriority>
+                {
+                    new MayhemSkillPriority { Key = "Q", Name = "清籁穿云" },
+                    new MayhemSkillPriority { Key = "E", Name = "增幅节拍" },
+                    new MayhemSkillPriority { Key = "W", Name = "聚和心声" }
+                },
+                SummonerSpells = new List<MayhemBuildItem>
+                {
+                    new MayhemBuildItem { Name = "闪现" },
+                    new MayhemBuildItem { Name = "标记" }
+                }
             };
             var meta = BuildChampionMeta(result);
             if (meta.IndexOf("S+", StringComparison.Ordinal) < 0 ||
                 meta.IndexOf("#3", StringComparison.Ordinal) < 0 ||
                 meta.IndexOf("54.3%", StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("ChampSelect assistant guide summary projection is invalid.");
-
+            if (!string.Equals(BuildSkillText(result), "Q → E → W", StringComparison.Ordinal))
+                throw new InvalidOperationException("ChampSelect assistant skill projection is invalid.");
+            if (!string.Equals(BuildSpellText(result), "闪现 + 标记", StringComparison.Ordinal))
+                throw new InvalidOperationException("ChampSelect assistant spell projection is invalid.");
             if (DescribeSwapFailure(LeagueBenchSwapStatus.TargetUnavailable).IndexOf("换走", StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("ChampSelect assistant lost quick-swap failure guidance.");
         }
