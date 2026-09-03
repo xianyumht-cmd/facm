@@ -1,12 +1,12 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.18",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.18/FACM.exe",
-  "sha256": "78D606CF7C2AB3F6F0F177F91F512FFDB214D313F58C445A7D7C25858F8791B0",
-  "release_notes": "FACM 3.5.18：正式版发布处理中，在线更新暂时停用。",
-  "published_at": "2026-09-03T00:00:00.0000000+00:00",
+  "sha256": "D2C491DCA5F935B3BE2FC0C0378D129190FF180CB9A943447C7302F246A53DFF",
+  "release_notes": "FACM 3.5.18 Final：保持约 1.8 MB 单 EXE 便携架构；正常启动移除 4.x migration bridge，断网不再在首屏前等待迁移请求；保留 3.5.17 已包含的 4.0 功能等价基线，并继续使用 3.5.x 单 EXE 在线更新。",
+  "published_at": "2026-09-03T04:31:35.0000000+00:00",
   "migration": {
     "enabled": false,
     "version": "",
