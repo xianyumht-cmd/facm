@@ -1,12 +1,12 @@
 {
-  "enabled": true,
-  "version": "3.5.18",
+  "enabled": false,
+  "version": "3.5.19",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.18/FACM.exe",
-  "sha256": "D2C491DCA5F935B3BE2FC0C0378D129190FF180CB9A943447C7302F246A53DFF",
-  "release_notes": "FACM 3.5.18 Final：保持约 1.8 MB 单 EXE 便携架构；正常启动移除 4.x migration bridge，断网不再在首屏前等待迁移请求；保留 3.5.17 已包含的 4.0 功能等价基线，并继续使用 3.5.x 单 EXE 在线更新。",
-  "published_at": "2026-09-03T04:31:35.0000000+00:00",
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.19/FACM.exe",
+  "sha256": "11EBA1E35730752FD22D8796129D24EA1F837596574CE7867171D8A646BC7CEF",
+  "release_notes": "FACM 3.5.19：继续保持约 1.8 MB 的 .NET Framework 4.8 / WinForms 单 EXE 便携架构；ChampSelect 改为紧凑助手并支持当前英雄的极地大乱斗/海克斯乱斗指引；设置写入增加原子保存与 last-known-good 恢复，新增脱敏诊断 ZIP 和日志轮转；加强 League 后启动识别与发布/性能门禁；同时修复 OP.GG 上游页面变化导致的 Mayhem 强化符文加载失败。4.x 迁移、CAB、bootstrapper 和大运行时均不进入 3.5.x。",
+  "published_at": "2026-09-03T09:28:52.1948373+00:00",
   "migration": {
     "enabled": false,
     "version": "",
