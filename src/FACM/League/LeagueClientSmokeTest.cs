@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSharedLockfileRead();
             ValidateCommandLineParser();
             ValidateSessionRefreshBoundary();
+            ValidateLateStartRediscoveryBoundary();
             ValidateDisconnectedModuleIsNonFatal();
         }
 
@@ -107,6 +108,23 @@ namespace FACM.League
             var refreshed = provider.GetSession(true);
             Require(refreshed != null && refreshed.Matches(second), "LeagueClient session provider did not refresh after invalidation.");
             Require(discovery.Calls == 2, "LeagueClient session provider refresh did not invoke discovery exactly once.");
+        }
+
+        private static void ValidateLateStartRediscoveryBoundary()
+        {
+            var later = new LeagueClientSession("LeagueClientUx", 3, 50003, "late", "https", "test-late-start");
+            var discovery = new SequenceDiscovery(null, later);
+            var provider = new LeagueClientSessionProvider(discovery, TimeSpan.Zero);
+
+            var beforeLeagueStarts = provider.GetSession();
+            Require(beforeLeagueStarts == null, "LeagueClient late-start smoke unexpectedly found a session before League started.");
+            Require(discovery.Calls == 1, "LeagueClient late-start smoke did not perform the first discovery attempt.");
+
+            var afterLeagueStarts = provider.GetSession();
+            Require(afterLeagueStarts != null && afterLeagueStarts.Matches(later),
+                "LeagueClient session provider did not rediscover after an earlier no-session result.");
+            Require(discovery.Calls == 2,
+                "LeagueClient late-start rediscovery did not invoke discovery exactly once after League became available.");
         }
 
         private static void ValidateDisconnectedModuleIsNonFatal()
