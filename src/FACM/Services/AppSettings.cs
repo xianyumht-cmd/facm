@@ -50,7 +50,16 @@ namespace FACM.Services
                     result.Save();
                     return result;
                 }
-                result = ParseLines(File.ReadAllLines(RuntimePaths.SettingsPath));
+
+                AppSettingsLoadOrigin origin;
+                result = AppSettingsRecovery.Load(
+                    RuntimePaths.SettingsPath,
+                    RuntimePaths.SettingsRecoveryPath,
+                    out origin);
+                if (origin == AppSettingsLoadOrigin.LastKnownGood)
+                    AppLog.Warning("Settings primary file was invalid; loaded last-known-good snapshot.");
+                else if (origin == AppSettingsLoadOrigin.RecoveryDefaults)
+                    AppLog.Warning("Settings primary and recovery files were invalid; loaded fail-safe defaults with auto-update disabled.");
             }
             catch (Exception exception)
             {
@@ -68,6 +77,7 @@ namespace FACM.Services
                 {
                     RuntimePaths.Initialize();
                     WriteLinesAtomically(RuntimePaths.SettingsPath, BuildLines());
+                    AppSettingsRecovery.SaveLastKnownGood(RuntimePaths.SettingsRecoveryPath, this);
                 }
             }
             catch (Exception exception)
