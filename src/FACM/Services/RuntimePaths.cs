@@ -18,6 +18,11 @@ namespace FACM.Services
             get { return Path.Combine(BaseDirectoryValue, "settings.ini"); }
         }
 
+        public static string SettingsRecoveryPath
+        {
+            get { return Path.Combine(RuntimeDirectory, "settings.last-known-good.ini"); }
+        }
+
         public static string UiTextPath
         {
             get { return Path.Combine(BaseDirectoryValue, "ui-text.ini"); }
@@ -51,6 +56,11 @@ namespace FACM.Services
         public static string UpdatesDirectory
         {
             get { return Path.Combine(RuntimeDirectory, "updates"); }
+        }
+
+        public static string DiagnosticsDirectory
+        {
+            get { return Path.Combine(RuntimeDirectory, "diagnostics"); }
         }
 
         public static void Initialize()
