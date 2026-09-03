@@ -1,0 +1,374 @@
+name: FACM 3.5 Lightweight Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '3.5.x release version, for example 3.5.19'
+        required: true
+        type: string
+      minimum_version:
+        description: 'Minimum version allowed to continue without updating'
+        required: true
+        type: string
+        default: '3.0.0'
+      force_update:
+        description: 'Force older versions to update'
+        required: true
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Publish as prerelease'
+        required: true
+        type: boolean
+        default: false
+      release_notes:
+        description: 'Release notes'
+        required: true
+        type: string
+        default: 'FACM 3.5 lightweight stability and feature update.'
+  push:
+    branches:
+      - main
+    paths:
+      - 'release/3.5-request.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: facm-main-writer
+  cancel-in-progress: false
+
+env:
+  SOLUTION: FACM.sln
+  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  RELEASE_VERSION: ${{ inputs.version }}
+  MINIMUM_VERSION: ${{ inputs.minimum_version }}
+  FORCE_UPDATE: ${{ inputs.force_update }}
+  PRERELEASE: ${{ inputs.prerelease }}
+  RELEASE_NOTES: ${{ inputs.release_notes }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  publish:
+    name: Build, sign and publish lightweight FACM 3.5
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve audited release request
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -ne 'push') {
+            Write-Host 'Using workflow_dispatch inputs.'
+            exit 0
+          }
+
+          $path = 'release/3.5-request.json'
+          if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Release request is missing: $path"
+          }
+          $request = Get-Content -LiteralPath $path -Raw -Encoding utf8 | ConvertFrom-Json
+          $version = [string]$request.version
+          $minimum = [string]$request.minimum_version
+          $force = [string][bool]$request.force_update
+          $pre = [string][bool]$request.prerelease
+          $notes = [string]$request.release_notes
+          if ([string]::IsNullOrWhiteSpace($version) -or
+              [string]::IsNullOrWhiteSpace($minimum) -or
+              [string]::IsNullOrWhiteSpace($notes)) {
+            throw 'release/3.5-request.json must define version, minimum_version and release_notes.'
+          }
+
+          "RELEASE_VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "MINIMUM_VERSION=$minimum" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "FORCE_UPDATE=$force" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "PRERELEASE=$pre" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          $delimiter = 'FACM_RELEASE_NOTES_' + [Guid]::NewGuid().ToString('N')
+          "RELEASE_NOTES<<$delimiter" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          $notes | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          $delimiter | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Validate release request and freeze main
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^3\.5\.\d+$') {
+            throw 'Only 3.5.x releases are allowed by this lightweight publisher.'
+          }
+          if ($env:MINIMUM_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'minimum_version must use major.minor.patch format.'
+          }
+          if ([Version]$env:MINIMUM_VERSION -gt [Version]$env:RELEASE_VERSION) {
+            throw 'minimum_version cannot exceed the release version.'
+          }
+          gh release view ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release v$($env:RELEASE_VERSION) already exists."
+          }
+          $global:LASTEXITCODE = 0
+          $base = (git rev-parse HEAD).Trim()
+          "FACM_RELEASE_BASE_SHA=$base" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Frozen release base: $base"
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Apply requested 3.5 version
+        shell: pwsh
+        run: |
+          $path = 'src/FACM/Properties/AssemblyInfo.cs'
+          $content = Get-Content -LiteralPath $path -Raw -Encoding utf8
+          $assemblyVersion = $env:RELEASE_VERSION + '.0'
+          $content = [regex]::Replace($content, 'AssemblyVersion\("[^"]+"\)', 'AssemblyVersion("' + $assemblyVersion + '")')
+          $content = [regex]::Replace($content, 'AssemblyFileVersion\("[^"]+"\)', 'AssemblyFileVersion("' + $assemblyVersion + '")')
+          $content = [regex]::Replace($content, 'AssemblyInformationalVersion\("[^"]+"\)', 'AssemblyInformationalVersion("' + $env:RELEASE_VERSION + '")')
+          Set-Content -LiteralPath $path -Value $content -Encoding utf8
+
+      - name: Verify bundled tool inputs
+        shell: pwsh
+        run: |
+          $manifest = Get-Content tools/EXTRACTED-TOOLS.json -Raw -Encoding utf8 | ConvertFrom-Json
+          foreach ($entry in $manifest.files) {
+            $path = Join-Path $PWD ('tools/' + [string]$entry.name)
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Missing tool input: $($entry.name)"
+            }
+            if ((Get-Item -LiteralPath $path).Length -ne [long]$entry.size) {
+              throw "Tool size mismatch: $($entry.name)"
+            }
+            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne [string]$entry.sha256) {
+              throw "Tool SHA-256 mismatch: $($entry.name)"
+            }
+          }
+
+      - name: Build lightweight Release and execute release smokes
+        shell: pwsh
+        run: |
+          if (Test-Path 'out\PetHostBundle.zip') {
+            Remove-Item 'out\PetHostBundle.zip' -Force
+          }
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lightweight Release build failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
+            throw "FACM.exe was not produced: $env:OUTPUT_EXE"
+          }
+
+      - name: Verify lightweight identity and resources
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+            throw 'FACM.exe is not a Windows PE executable.'
+          }
+          if ($bytes.Length -gt 10MB) {
+            throw "Lightweight FACM.exe exceeded 10 MiB: $($bytes.Length) bytes"
+          }
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+          $expectedFileVersion = $env:RELEASE_VERSION + '.0'
+          if ($version.FileVersion -ne $expectedFileVersion) {
+            throw "FileVersion mismatch: expected $expectedFileVersion, got $($version.FileVersion)"
+          }
+          if ($version.ProductName -ne 'FACM') {
+            throw "Unexpected ProductName: $($version.ProductName)"
+          }
+
+          $verify = Join-Path $env:RUNNER_TEMP 'facm-release-resources.ps1'
+          @'
+          param([Parameter(Mandatory=$true)][string]$ExePath)
+          $ErrorActionPreference = 'Stop'
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($ExePath)
+          $assembly.GetManifestResourceNames()
+          '@ | Set-Content -LiteralPath $verify -Encoding utf8
+          $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $resources = @(& $powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $verify -ExePath $exe)
+          if ($LASTEXITCODE -ne 0) { throw 'Resource verification failed.' }
+          if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
+            throw 'FACM.ToolBundle.dll is missing from the single EXE.'
+          }
+          if ($resources -contains 'FACM.Resources.PetHost.zip') {
+            throw 'Large PetHost runtime was unexpectedly embedded in the 3.5 EXE.'
+          }
+          Write-Host "Lightweight identity verified: $expectedFileVersion; $($bytes.Length) bytes"
+
+      - name: Sign release executable
+        shell: pwsh
+        env:
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_BASE64)) {
+            throw 'FACM_PFX_BASE64 is required for a production release.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:FACM_PFX_PASSWORD)) {
+            throw 'FACM_PFX_PASSWORD is required for a production release.'
+          }
+          & .\scripts\sign-ci.ps1 -ExePath $env:OUTPUT_EXE -PfxBase64 $env:FACM_PFX_BASE64 -PfxPassword $env:FACM_PFX_PASSWORD
+          if ($LASTEXITCODE -ne 0) { throw 'Signing failed.' }
+          $signature = Get-AuthenticodeSignature $env:OUTPUT_EXE
+          if (-not $signature.SignerCertificate) { throw 'Signed FACM.exe has no signer certificate.' }
+          "FACM_SIGNER_THUMBPRINT=$($signature.SignerCertificate.Thumbprint.ToUpperInvariant())" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Signer: $($signature.SignerCertificate.Subject)"
+
+      - name: Prepare release files and disabled online manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item $env:OUTPUT_EXE release/FACM.exe -Force
+          $hash = (Get-FileHash release/FACM.exe -Algorithm SHA256).Hash.ToUpperInvariant()
+          $size = (Get-Item release/FACM.exe).Length
+          "$hash *FACM.exe" | Set-Content release/SHA256.txt -Encoding ascii
+          Set-Content release/RELEASE-NOTES.txt $env:RELEASE_NOTES -Encoding utf8
+
+          $manifest = [ordered]@{
+            enabled = $false
+            version = $env:RELEASE_VERSION
+            minimum_version = $env:MINIMUM_VERSION
+            force_update = [bool]::Parse($env:FORCE_UPDATE)
+            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/FACM.exe"
+            sha256 = $hash
+            release_notes = $env:RELEASE_NOTES
+            published_at = [DateTimeOffset]::UtcNow.ToString('o')
+            migration = [ordered]@{
+              enabled = $false
+              version = ''
+              bootstrapper_url = ''
+              bootstrapper_sha256 = ''
+              manifest_url = ''
+              release_notes = ''
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content online/version.json -Encoding utf8
+          "FACM_RELEASE_SHA256=$hash" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "FACM_RELEASE_SIZE=$size" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Commit release metadata with updater disabled
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $remote = (git rev-parse origin/main).Trim()
+          if ($remote -ne $env:FACM_RELEASE_BASE_SHA) {
+            throw "main moved during release build: expected $env:FACM_RELEASE_BASE_SHA, got $remote"
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/FACM/Properties/AssemblyInfo.cs online/version.json
+          git commit -m "release: prepare FACM $env:RELEASE_VERSION"
+          $metadata = (git rev-parse HEAD).Trim()
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to push disabled release metadata.' }
+          "FACM_RELEASE_METADATA_SHA=$metadata" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create and publish GitHub Release
+        shell: pwsh
+        run: |
+          $args = @(
+            'release','create',("v" + $env:RELEASE_VERSION),
+            'release/FACM.exe','release/SHA256.txt',
+            '--repo',$env:GITHUB_REPOSITORY,
+            '--target',$env:FACM_RELEASE_METADATA_SHA,
+            '--title',("FACM " + $env:RELEASE_VERSION),
+            '--notes-file','release/RELEASE-NOTES.txt',
+            '--draft'
+          )
+          if ([bool]::Parse($env:PRERELEASE)) { $args += '--prerelease' }
+          & gh @args
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create draft GitHub Release.' }
+
+          $edit = @('release','edit',("v" + $env:RELEASE_VERSION),'--repo',$env:GITHUB_REPOSITORY,'--draft=false')
+          if ([bool]::Parse($env:PRERELEASE)) { $edit += '--prerelease' } else { $edit += '--latest' }
+          & gh @edit
+          if ($LASTEXITCODE -ne 0) {
+            gh release delete ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY --cleanup-tag --yes
+            throw 'Failed to publish GitHub Release; cleanup was attempted and updater remains disabled.'
+          }
+
+      - name: Verify public release bytes and signer
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'facm-public-release-verify'
+          if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          gh release download ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY --pattern 'FACM.exe' --dir $dir
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download published FACM.exe.' }
+          $exe = Join-Path $dir 'FACM.exe'
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToUpperInvariant()
+          $size = (Get-Item $exe).Length
+          if ($hash -ne $env:FACM_RELEASE_SHA256) { throw "Published hash mismatch: $hash" }
+          if ($size -ne [long]$env:FACM_RELEASE_SIZE) { throw "Published size mismatch: $size" }
+          $signature = Get-AuthenticodeSignature $exe
+          if (-not $signature.SignerCertificate -or
+              $signature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $env:FACM_SIGNER_THUMBPRINT) {
+            throw 'Published signer identity does not match the signed candidate.'
+          }
+          Write-Host "PUBLIC RELEASE VERIFIED: v$env:RELEASE_VERSION; size=$size; SHA256=$hash"
+
+      - name: Enable online update after public verification
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $remote = (git rev-parse origin/main).Trim()
+          $local = (git rev-parse HEAD).Trim()
+          if ($remote -ne $local) {
+            throw "main moved after release publication; public release exists but online update remains disabled."
+          }
+          $manifest = Get-Content online/version.json -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$manifest.version -ne $env:RELEASE_VERSION -or [string]$manifest.sha256 -ne $env:FACM_RELEASE_SHA256) {
+            throw 'Release manifest identity changed before enablement.'
+          }
+          if ([bool]$manifest.enabled) { throw 'Release manifest was enabled prematurely.' }
+          $manifest.enabled = $true
+          $manifest.published_at = [DateTimeOffset]::UtcNow.ToString('o')
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content online/version.json -Encoding utf8
+
+          $statePath = 'docs/PROJECT_STATE.md'
+          if (Test-Path $statePath) {
+            $state = Get-Content $statePath -Raw -Encoding utf8
+            $begin = '<!-- FACM_RELEASE_STATE_BEGIN -->'
+            $end = '<!-- FACM_RELEASE_STATE_END -->'
+            $notes = (($env:RELEASE_NOTES -replace '\r?\n',' ') -replace '\s{2,}',' ').Trim()
+            $block = @(
+              $begin,
+              '## 当前正式版（发布工作流维护）',
+              '',
+              ('- 版本：FACM ' + $env:RELEASE_VERSION),
+              ('- GitHub Release：v' + $env:RELEASE_VERSION),
+              '- 在线更新：已启用',
+              ('- minimum_version：' + $env:MINIMUM_VERSION),
+              ('- force_update：' + $env:FORCE_UPDATE.ToLowerInvariant()),
+              ('- 发布基础 main：' + $env:FACM_RELEASE_BASE_SHA),
+              ('- 发布元数据提交：' + $env:FACM_RELEASE_METADATA_SHA),
+              ('- Release FACM.exe SHA-256：' + $env:FACM_RELEASE_SHA256),
+              ('- release_notes：' + $notes),
+              $end
+            ) -join [Environment]::NewLine
+            $pattern = '(?s)' + [regex]::Escape($begin) + '.*?' + [regex]::Escape($end)
+            if ([regex]::IsMatch($state,$pattern)) {
+              $state = [regex]::Replace($state,$pattern,[System.Text.RegularExpressions.MatchEvaluator]{ param($m) $block })
+            } else {
+              $state = $block + [Environment]::NewLine + [Environment]::NewLine + $state
+            }
+            Set-Content $statePath $state.TrimEnd() -Encoding utf8
+          }
+
+          git add online/version.json docs/PROJECT_STATE.md
+          git commit -m "release: enable FACM $env:RELEASE_VERSION online update"
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Public release is verified, but online updater enablement push failed.'
+          }
+
+      - name: Final release evidence
+        shell: pwsh
+        run: |
+          gh release view ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY --json tagName,name,isDraft,isPrerelease,url,targetCommitish
+          Get-Content online/version.json -Raw -Encoding utf8 | Write-Host
