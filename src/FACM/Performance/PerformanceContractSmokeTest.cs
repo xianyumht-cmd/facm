@@ -8,20 +8,20 @@ namespace FACM.Performance
         {
             try
             {
-                Validate();
-                FACM.ShellUxSmokeTest.Validate();
-                FACM.LeagueDashboardSmokeTest.Validate();
-                FACM.League.LeaguePlayerSmokeTest.Validate();
-                FACM.League.LeagueLiveSmokeTest.Validate();
-                FACM.League.LeagueBuildAdvisorSmokeTest.Validate();
-                FACM.League.LeagueBuildApplySmokeTest.Validate();
-                FACM.League.LeaguePresenceSmokeTest.Validate();
-                FACM.League.LeagueItemSetUiTextSmokeTest.Validate();
-                FACM.League.LeagueItemSetSmokeTest.Validate();
-                FACM.League.LeagueAutoApplySmokeTest.Validate();
-                FACM.League.LeagueEfficiencySmokeTest.Validate();
-                FACM.League.LeaguePostGameAutomationSmokeTest.Validate();
-                FACM.League.LeagueMatchmakingAutomationSmokeTest.Validate();
+                RunStep("performance-budget", Validate);
+                RunStep("shell-ux", FACM.ShellUxSmokeTest.Validate);
+                RunStep("league-dashboard", FACM.LeagueDashboardSmokeTest.Validate);
+                RunStep("league-player", FACM.League.LeaguePlayerSmokeTest.Validate);
+                RunStep("league-live", FACM.League.LeagueLiveSmokeTest.Validate);
+                RunStep("league-build-advisor", FACM.League.LeagueBuildAdvisorSmokeTest.Validate);
+                RunStep("league-build-apply", FACM.League.LeagueBuildApplySmokeTest.Validate);
+                RunStep("league-presence", FACM.League.LeaguePresenceSmokeTest.Validate);
+                RunStep("league-itemset-ui-text", FACM.League.LeagueItemSetUiTextSmokeTest.Validate);
+                RunStep("league-itemset", FACM.League.LeagueItemSetSmokeTest.Validate);
+                RunStep("league-auto-apply", FACM.League.LeagueAutoApplySmokeTest.Validate);
+                RunStep("league-efficiency", FACM.League.LeagueEfficiencySmokeTest.Validate);
+                RunStep("league-postgame", FACM.League.LeaguePostGameAutomationSmokeTest.Validate);
+                RunStep("league-matchmaking", FACM.League.LeagueMatchmakingAutomationSmokeTest.Validate);
                 Console.WriteLine("FACM performance contract smoke passed.");
                 return 0;
             }
@@ -30,6 +30,13 @@ namespace FACM.Performance
                 Console.Error.WriteLine(exception);
                 return 4;
             }
+        }
+
+        private static void RunStep(string name, Action action)
+        {
+            Console.WriteLine("[performance-smoke] START " + name);
+            action();
+            Console.WriteLine("[performance-smoke] OK " + name);
         }
 
         private static void Validate()
