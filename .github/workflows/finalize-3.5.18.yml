@@ -1,0 +1,192 @@
+name: Finalize FACM 3.5.18
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/finalize-3.5.18.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: facm-3.5.18-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    name: Replace obsolete 3.5.18 bridge with portable Final
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: v3.5.18
+      SOURCE_RUN_ID: '33714891847'
+      SOURCE_ARTIFACT: FACM-Windows-x64-1475
+      SOURCE_COMMIT: 6c579c7ac339df6dc85b588574dbeb3103d71a04
+      EXPECTED_VERSION: 3.5.18.0
+      EXPECTED_SIZE: '1806232'
+      EXPECTED_SHA256: D2C491737752BF8E11510AB44D72479E03AC153110868D50E9969E4B17A53DFF
+      EXPECTED_SIGNER_SUBJECT: CN=FACM Local Signing
+      EXPECTED_SIGNER_THUMBPRINT: C6252B885CEC4ADB157871527FC178293A63E27F
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository with tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download the already-verified lightweight candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify candidate identity, size, hash and signer
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'candidate\artifacts\FACM.exe'
+          $shaFile = Join-Path $PWD 'candidate\artifacts\SHA256.txt'
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            throw "Candidate FACM.exe was not found: $exe"
+          }
+
+          $item = Get-Item -LiteralPath $exe
+          if ($item.Length -ne [int64]$env:EXPECTED_SIZE) {
+            throw "Unexpected FACM.exe size: expected $env:EXPECTED_SIZE, got $($item.Length)"
+          }
+
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+          if ($version.FileVersion -ne $env:EXPECTED_VERSION) {
+            throw "Unexpected FileVersion: expected $env:EXPECTED_VERSION, got $($version.FileVersion)"
+          }
+          if ($version.ProductName -ne 'FACM') {
+            throw "Unexpected ProductName: $($version.ProductName)"
+          }
+
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToUpperInvariant()
+          if ($hash -ne $env:EXPECTED_SHA256) {
+            throw "Unexpected SHA256: expected $env:EXPECTED_SHA256, got $hash"
+          }
+
+          $signature = Get-AuthenticodeSignature -FilePath $exe
+          if (-not $signature.SignerCertificate) {
+            throw 'FACM.exe has no Authenticode signer certificate.'
+          }
+          if ($signature.SignerCertificate.Subject -ne $env:EXPECTED_SIGNER_SUBJECT) {
+            throw "Unexpected signer subject: $($signature.SignerCertificate.Subject)"
+          }
+          if ($signature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $env:EXPECTED_SIGNER_THUMBPRINT) {
+            throw "Unexpected signer thumbprint: $($signature.SignerCertificate.Thumbprint)"
+          }
+
+          $expectedShaLine = "$hash *FACM.exe"
+          if (-not (Test-Path -LiteralPath $shaFile -PathType Leaf)) {
+            Set-Content -LiteralPath $shaFile -Value $expectedShaLine -Encoding ascii
+          } else {
+            $shaText = (Get-Content -LiteralPath $shaFile -Raw).Trim()
+            if ($shaText -ne $expectedShaLine) {
+              throw "SHA256.txt does not match the candidate: $shaText"
+            }
+          }
+
+          Write-Host "Verified FACM $($version.FileVersion), $($item.Length) bytes, SHA256=$hash"
+          Write-Host "Signer=$($signature.SignerCertificate.Subject); thumbprint=$($signature.SignerCertificate.Thumbprint); status=$($signature.Status)"
+
+      - name: Point v3.5.18 tag at the exact candidate source commit
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git cat-file -e "$env:SOURCE_COMMIT^{commit}"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Source commit is unavailable: $env:SOURCE_COMMIT"
+          }
+          git tag -f $env:RELEASE_TAG $env:SOURCE_COMMIT
+          git push --force origin "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to move v3.5.18 tag to the verified source commit.'
+          }
+
+          $remote = (git ls-remote origin "refs/tags/$env:RELEASE_TAG").Split("`t")[0]
+          if ($remote -ne $env:SOURCE_COMMIT) {
+            throw "Remote tag mismatch: expected $env:SOURCE_COMMIT, got $remote"
+          }
+          Write-Host "Remote $env:RELEASE_TAG -> $remote"
+
+      - name: Replace obsolete bridge assets and release notes
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'candidate\artifacts\FACM.exe'
+          $shaFile = Join-Path $PWD 'candidate\artifacts\SHA256.txt'
+          $notes = Join-Path $env:RUNNER_TEMP 'FACM-3.5.18-release-notes.md'
+          @'
+          FACM 3.5.18 Final
+
+          - 保持 3.5 系列单 EXE 便携架构，核心 FACM.exe 约 1.8 MB。
+          - 正常启动彻底移除 4.x migration bridge；断网不会在首屏出现前等待迁移网络请求。
+          - 在线更新仍为 3.5.x 单 EXE 替换，并在主界面显示后后台异步检查。
+          - 保留 3.5.17 已包含的 4.0 功能等价基线，包括自动 ChampSelect 指引、League 相关能力与新版图标等。
+          - 内置 FACM.ToolBundle；可选 PetHost/VPet 兼容运行时继续通过独立兼容路径使用，不再把整套 .NET 8 self-contained Runtime 塞进 3.5 核心 EXE。
+          - 4.x CAB / native bootstrapper / migration 发布体系不属于本版本。
+
+          构建来源：6c579c7ac339df6dc85b588574dbeb3103d71a04
+          SHA256：D2C491737752BF8E11510AB44D72479E03AC153110868D50E9969E4B17A53DFF
+          '@ | Set-Content -LiteralPath $notes -Encoding utf8
+
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "Existing release $env:RELEASE_TAG was not found. Refusing to create an unexpected replacement release."
+          }
+
+          gh release upload $env:RELEASE_TAG $exe $shaFile --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to replace v3.5.18 release assets.'
+          }
+
+          gh release edit $env:RELEASE_TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --title 'FACM 3.5.18' `
+            --notes-file $notes `
+            --target $env:SOURCE_COMMIT `
+            --latest
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to update v3.5.18 release metadata.'
+          }
+
+      - name: Verify the public release bytes after replacement
+        shell: pwsh
+        run: |
+          $verifyDir = Join-Path $env:RUNNER_TEMP 'facm-3518-public-verify'
+          if (Test-Path $verifyDir) {
+            Remove-Item $verifyDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
+
+          gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --pattern 'FACM.exe' --dir $verifyDir
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not download the replaced FACM.exe from the public release.'
+          }
+
+          $remoteExe = Join-Path $verifyDir 'FACM.exe'
+          $remoteHash = (Get-FileHash -LiteralPath $remoteExe -Algorithm SHA256).Hash.ToUpperInvariant()
+          $remoteSize = (Get-Item -LiteralPath $remoteExe).Length
+          if ($remoteHash -ne $env:EXPECTED_SHA256) {
+            throw "Published SHA mismatch: expected $env:EXPECTED_SHA256, got $remoteHash"
+          }
+          if ($remoteSize -ne [int64]$env:EXPECTED_SIZE) {
+            throw "Published size mismatch: expected $env:EXPECTED_SIZE, got $remoteSize"
+          }
+
+          $remoteSignature = Get-AuthenticodeSignature -FilePath $remoteExe
+          if (-not $remoteSignature.SignerCertificate -or
+              $remoteSignature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $env:EXPECTED_SIGNER_THUMBPRINT) {
+            throw 'Published FACM.exe signer identity does not match the verified candidate.'
+          }
+
+          Write-Host "PUBLIC RELEASE VERIFIED: $env:RELEASE_TAG; size=$remoteSize; SHA256=$remoteHash"
