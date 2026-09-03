@@ -25,6 +25,7 @@ namespace FACM.League
         private readonly LeagueBenchQuickPickService _bench;
         private readonly ILeagueClientApi _leagueClient;
         private readonly MayhemAutomaticGuideService _guide;
+        private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly System.Windows.Forms.Timer _pollTimer;
         private readonly Label _status;
@@ -65,8 +66,9 @@ namespace FACM.League
             _bench = bench ?? throw new ArgumentNullException(nameof(bench));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _guide = new MayhemAutomaticGuideService(_leagueClient);
+            _ui = UiTextCatalog.Load();
 
-            Text = "FACM · 海克斯大乱斗选人助手";
+            Text = BuildWindowTitle();
             StartPosition = FormStartPosition.Manual;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -87,24 +89,26 @@ namespace FACM.League
             };
             var title = new Label
             {
-                Text = "FACM · 海克斯大乱斗选人助手",
+                Text = BuildWindowTitle(),
                 Location = new Point(12, 8),
-                Size = new Size(286, 22),
+                Size = new Size(276, 22),
+                AutoEllipsis = true,
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
                 ForeColor = Color.White
             };
             _status = new Label
             {
-                Text = "正在读取替补席…",
-                Location = new Point(300, 9),
-                Size = new Size(252, 20),
+                Text = BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
+                Location = new Point(290, 9),
+                Size = new Size(228, 20),
                 TextAlign = ContentAlignment.MiddleRight,
+                AutoEllipsis = true,
                 ForeColor = Color.FromArgb(156, 176, 210)
             };
-            _guideToggle = CreateButton("攻略", new Rectangle(558, 5, 54, 26), Color.FromArgb(55, 73, 105));
+            _guideToggle = CreateButton(MayhemUiCopy.WindowTitle, new Rectangle(526, 5, 78, 26), Color.FromArgb(55, 73, 105));
             _guideToggle.Enabled = false;
             _guideToggle.Click += delegate { SetGuideExpanded(!_guideExpanded); };
-            var close = CreateButton("×", new Rectangle(618, 5, 30, 26), Color.FromArgb(92, 48, 58));
+            var close = CreateButton("×", new Rectangle(612, 5, 36, 26), Color.FromArgb(92, 48, 58));
             close.Click += delegate { Close(); };
 
             header.Controls.Add(title);
@@ -145,7 +149,7 @@ namespace FACM.League
             };
             _championTitle = new Label
             {
-                Text = "自动攻略",
+                Text = MayhemUiCopy.WindowTitle,
                 Location = new Point(72, 10),
                 Size = new Size(360, 26),
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
@@ -153,9 +157,10 @@ namespace FACM.League
             };
             _championMeta = new Label
             {
-                Text = "等待读取当前英雄…",
+                Text = MayhemUiCopy.ReadingHero,
                 Location = new Point(73, 38),
                 Size = new Size(545, 22),
+                AutoEllipsis = true,
                 ForeColor = Color.FromArgb(150, 168, 198)
             };
             _guideStatus = new Label
@@ -163,14 +168,15 @@ namespace FACM.League
                 Text = string.Empty,
                 Location = new Point(10, 68),
                 Size = new Size(610, 22),
+                AutoEllipsis = true,
                 ForeColor = Color.FromArgb(111, 206, 165)
             };
-            _skills = CreateGuideLine("技能：等待数据…", 96);
-            _spells = CreateGuideLine("召唤师技能：等待数据…", 120);
-            _items = CreateGuideLine("出装：等待数据…", 144);
+            _skills = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache), 96);
+            _spells = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache), 120);
+            _items = CreateGuideLine(BuildGuideLine(MayhemUiCopy.CompactBuild, MayhemUiCopy.ReadingCache), 144);
             var augmentTitle = new Label
             {
-                Text = "强化符文 · 完整排行",
+                Text = MayhemUiCopy.AugmentBoard,
                 Location = new Point(10, 174),
                 Size = new Size(260, 22),
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
@@ -185,14 +191,15 @@ namespace FACM.League
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
                 BackColor = Color.FromArgb(22, 31, 47),
                 ForeColor = Color.FromArgb(232, 238, 248),
-                BorderStyle = BorderStyle.FixedSingle
+                BorderStyle = BorderStyle.FixedSingle,
+                ShowItemToolTips = true
             };
             _augments.Columns.Add("#", 38, HorizontalAlignment.Right);
-            _augments.Columns.Add("强化", 220, HorizontalAlignment.Left);
-            _augments.Columns.Add("品质", 68, HorizontalAlignment.Left);
-            _augments.Columns.Add("胜率", 78, HorizontalAlignment.Right);
-            _augments.Columns.Add("选择率", 82, HorizontalAlignment.Right);
-            _augments.Columns.Add("场次", 86, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 220, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 68, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 78, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PickRate, 82, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.Sample, 86, HorizontalAlignment.Right);
 
             _guidePanel.Controls.Add(_championIcon);
             _guidePanel.Controls.Add(_championTitle);
@@ -243,7 +250,7 @@ namespace FACM.League
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (state == null || !state.SessionAvailable)
                 {
-                    _status.Text = "等待客户端选人数据…";
+                    _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
                     return;
                 }
 
@@ -261,8 +268,8 @@ namespace FACM.League
                 }
 
                 _status.Text = state.ChampionIds.Count > 0
-                    ? "替补席 " + state.ChampionIds.Count.ToString(CultureInfo.InvariantCulture) + " 个英雄"
-                    : "替补席暂时为空";
+                    ? BenchText(LeagueBenchQuickPickUiTextKeys.Title) + ": " + state.ChampionIds.Count.ToString(CultureInfo.InvariantCulture)
+                    : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
                 RenderBench(state);
 
                 if (state.LocalChampionId > 0 && state.LocalChampionId != _guideChampionId)
@@ -271,7 +278,8 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Info("ChampSelect assistant refresh skipped: " + exception.Message);
-                if (!IsDisposed) _status.Text = _benchConfirmed ? "替补席刷新暂时失败" : "正在等待替补席…";
+                if (!IsDisposed)
+                    _status.Text = _benchConfirmed ? MayhemUiCopy.Failed : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
             }
             finally
             {
@@ -323,7 +331,9 @@ namespace FACM.League
                 }
 
                 button.Tag = new BenchTarget { ChampionId = championId, Route = state.SwapRoute };
-                _toolTip.SetToolTip(button, "点击换到英雄 ID " + championId.ToString(CultureInfo.InvariantCulture));
+                _toolTip.SetToolTip(
+                    button,
+                    BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
                 button.FlatAppearance.BorderColor = championId == state.LocalChampionId
                     ? Color.FromArgb(92, 208, 155)
                     : Color.FromArgb(65, 90, 128);
@@ -365,12 +375,14 @@ namespace FACM.League
         private async Task SwapToAsync(int championId, LeagueBenchSwapRoute route)
         {
             if (championId <= 0 || IsDisposed) return;
-            _status.Text = "正在换人…";
+            _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Swapping);
             try
             {
                 var result = await _bench.TrySwapAsync(championId, route, _lifetime.Token);
                 if (IsDisposed) return;
-                _status.Text = result.Success ? "换人成功" : DescribeSwapFailure(result.Status);
+                _status.Text = result.Success
+                    ? BenchText(LeagueBenchQuickPickUiTextKeys.Success)
+                    : DescribeSwapFailure(result.Status);
                 _ = RefreshBenchAsync();
             }
             catch (OperationCanceledException)
@@ -379,7 +391,7 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Info("ChampSelect quick swap failed: " + exception.Message);
-                if (!IsDisposed) _status.Text = "换人失败，请稍后重试";
+                if (!IsDisposed) _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Rejected);
             }
         }
 
@@ -406,8 +418,8 @@ namespace FACM.League
                 {
                     _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
                     _guideStatus.Text = result == null || string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? "自动攻略暂时没有结果；替补席仍可正常使用。"
-                        : result.ErrorMessage + "；替补席仍可正常使用。";
+                        ? MayhemUiCopy.NoData
+                        : result.ErrorMessage;
                     return;
                 }
                 RenderGuide(result, generation, request.Token);
@@ -417,7 +429,7 @@ namespace FACM.League
                 if (!IsDisposed && !_lifetime.IsCancellationRequested && generation == _guideGeneration)
                 {
                     _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
-                    _guideStatus.Text = "自动攻略读取超时；替补席仍可正常使用。";
+                    _guideStatus.Text = MayhemUiCopy.TimeoutShort;
                 }
             }
             catch (Exception exception)
@@ -426,7 +438,7 @@ namespace FACM.League
                 if (!IsDisposed && generation == _guideGeneration)
                 {
                     _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
-                    _guideStatus.Text = "自动攻略读取失败；替补席仍可正常使用。";
+                    _guideStatus.Text = MayhemUiCopy.Failed;
                 }
             }
             finally
@@ -447,25 +459,27 @@ namespace FACM.League
         private void ResetGuide(int championId)
         {
             ReplacePicture(_championIcon, null);
-            _championTitle.Text = "正在识别当前英雄…";
-            _championMeta.Text = "英雄 ID " + championId.ToString(CultureInfo.InvariantCulture) + " · 自动攻略只读，不会修改任何配置";
+            _championTitle.Text = MayhemUiCopy.ReadingHero;
+            _championMeta.Text = _ui.Get(UiTextKeys.LeagueLiveChampion) + " " +
+                                 championId.ToString(CultureInfo.InvariantCulture) + " · " +
+                                 _ui.Get(UiTextKeys.LeagueLiveReadOnly);
             _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
-            _guideStatus.Text = "正在读取技能、出装和强化符文排行…";
-            _skills.Text = "技能：等待数据…";
-            _spells.Text = "召唤师技能：等待数据…";
-            _items.Text = "出装：等待数据…";
+            _guideStatus.Text = MayhemUiCopy.ReadingLatest;
+            _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache);
+            _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache);
+            _items.Text = BuildGuideLine(MayhemUiCopy.CompactBuild, MayhemUiCopy.ReadingCache);
             _augments.Items.Clear();
         }
 
         private void RenderGuide(MayhemChampionResult result, int generation, CancellationToken token)
         {
-            _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, "当前英雄");
+            _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
             _championMeta.Text = BuildChampionMeta(result);
             _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
-            _guideStatus.Text = "攻略已加载 · 仅供参考，不会自动应用任何配置";
-            _skills.Text = "技能：" + BuildSkillText(result);
-            _spells.Text = "召唤师技能：" + BuildSpellText(result);
-            _items.Text = "出装：" + BuildItemText(result);
+            _guideStatus.Text = MayhemUiCopy.Completed + " · " + _ui.Get(UiTextKeys.LeagueLiveReadOnly);
+            _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, BuildSkillText(result));
+            _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, BuildSpellText(result));
+            _items.Text = BuildGuideLine(MayhemUiCopy.CompactBuild, BuildItemText(result));
 
             _augments.BeginUpdate();
             try
@@ -519,7 +533,7 @@ namespace FACM.League
             if (expanded && !_guideToggle.Enabled) return;
             _guideExpanded = expanded;
             _guidePanel.Visible = expanded;
-            _guideToggle.Text = expanded ? "收起" : "攻略";
+            _guideToggle.Text = expanded ? _ui.Get(UiTextKeys.Close) : MayhemUiCopy.WindowTitle;
             SetClientHeight(expanded ? ExpandedHeight : CompactHeight);
             KeepInsideWorkingArea();
         }
@@ -586,6 +600,21 @@ namespace FACM.League
             request.Dispose();
         }
 
+        private string BuildWindowTitle()
+        {
+            return UiTextRuntime.Text(UiTextKeys.AppName) + " · " + MayhemUiCopy.CardSubtitle;
+        }
+
+        private string BenchText(string key)
+        {
+            return LeagueBenchQuickPickText.Get(_ui, key);
+        }
+
+        private static string BuildGuideLine(string label, string value)
+        {
+            return (label ?? string.Empty) + ": " + (value ?? string.Empty);
+        }
+
         private static Label CreateGuideLine(string text, int y)
         {
             return new Label
@@ -645,7 +674,7 @@ namespace FACM.League
                 .Take(4)
                 .ToArray();
             if (values.Length > 0) return string.Join(" → ", values);
-            return string.IsNullOrWhiteSpace(result.SkillOrder) ? "暂无" : result.SkillOrder;
+            return string.IsNullOrWhiteSpace(result.SkillOrder) ? MayhemUiCopy.NoValue : result.SkillOrder;
         }
 
         private static string BuildSpellText(MayhemChampionResult result)
@@ -656,7 +685,7 @@ namespace FACM.League
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Take(2)
                 .ToArray();
-            return values.Length == 0 ? "暂无" : string.Join(" + ", values);
+            return values.Length == 0 ? MayhemUiCopy.NoValue : string.Join(" + ", values);
         }
 
         private static string BuildItemText(MayhemChampionResult result)
@@ -685,17 +714,18 @@ namespace FACM.League
                     if (values.Count >= 7) break;
                 }
             }
-            return values.Count == 0 ? "暂无" : string.Join(" → ", values);
+            return values.Count == 0 ? MayhemUiCopy.NoValue : string.Join(" → ", values);
         }
 
         private static string BuildChampionMeta(MayhemChampionResult result)
         {
             var parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add(result.Tier);
-            if (result.Rank.HasValue) parts.Add("排行 #" + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
-            if (result.WinRate.HasValue) parts.Add("胜率 " + (result.WinRate.Value * 100d).ToString("0.0", CultureInfo.InvariantCulture) + "%");
-            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add("版本 " + result.Patch);
-            return parts.Count == 0 ? "海克斯大乱斗自动攻略" : string.Join(" · ", parts);
+            if (result.Rank.HasValue) parts.Add(MayhemUiCopy.RankPrefix + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
+            if (result.WinRate.HasValue)
+                parts.Add(MayhemUiCopy.Win + (result.WinRate.Value * 100d).ToString("0.0", CultureInfo.InvariantCulture) + "%");
+            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
+            return parts.Count == 0 ? MayhemUiCopy.CardSubtitle : string.Join(" · ", parts);
         }
 
         private static string FormatRate(double? value)
@@ -711,15 +741,20 @@ namespace FACM.League
             return string.Empty;
         }
 
-        private static string DescribeSwapFailure(LeagueBenchSwapStatus status)
+        private string DescribeSwapFailure(LeagueBenchSwapStatus status)
         {
             switch (status)
             {
-                case LeagueBenchSwapStatus.TargetUnavailable: return "目标已被换走，请重新选择";
-                case LeagueBenchSwapStatus.VerificationFailed: return "客户端尚未确认换人，请查看游戏内结果";
-                case LeagueBenchSwapStatus.BenchDisabled: return "当前替补席不可用";
-                case LeagueBenchSwapStatus.SessionUnavailable: return "选人会话暂时不可用";
-                default: return "换人请求未成功";
+                case LeagueBenchSwapStatus.TargetUnavailable:
+                    return BenchText(LeagueBenchQuickPickUiTextKeys.Unavailable);
+                case LeagueBenchSwapStatus.VerificationFailed:
+                    return BenchText(LeagueBenchQuickPickUiTextKeys.VerifyFailed);
+                case LeagueBenchSwapStatus.BenchDisabled:
+                    return BenchText(LeagueBenchQuickPickUiTextKeys.Disabled);
+                case LeagueBenchSwapStatus.SessionUnavailable:
+                    return BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
+                default:
+                    return BenchText(LeagueBenchQuickPickUiTextKeys.Rejected);
             }
         }
 
@@ -727,21 +762,21 @@ namespace FACM.League
         {
             var result = new MayhemChampionResult
             {
-                ChampionName = "萨勒芬妮",
+                ChampionName = "Seraphine",
                 Tier = "S+",
                 Rank = 3,
                 WinRate = 0.5432,
                 Patch = "26.18",
                 SkillPriority = new List<MayhemSkillPriority>
                 {
-                    new MayhemSkillPriority { Key = "Q", Name = "清籁穿云" },
-                    new MayhemSkillPriority { Key = "E", Name = "增幅节拍" },
-                    new MayhemSkillPriority { Key = "W", Name = "聚和心声" }
+                    new MayhemSkillPriority { Key = "Q", Name = "Q" },
+                    new MayhemSkillPriority { Key = "E", Name = "E" },
+                    new MayhemSkillPriority { Key = "W", Name = "W" }
                 },
                 SummonerSpells = new List<MayhemBuildItem>
                 {
-                    new MayhemBuildItem { Name = "闪现" },
-                    new MayhemBuildItem { Name = "标记" }
+                    new MayhemBuildItem { Name = "Flash" },
+                    new MayhemBuildItem { Name = "Mark" }
                 }
             };
             var meta = BuildChampionMeta(result);
@@ -751,10 +786,8 @@ namespace FACM.League
                 throw new InvalidOperationException("ChampSelect assistant guide summary projection is invalid.");
             if (!string.Equals(BuildSkillText(result), "Q → E → W", StringComparison.Ordinal))
                 throw new InvalidOperationException("ChampSelect assistant skill projection is invalid.");
-            if (!string.Equals(BuildSpellText(result), "闪现 + 标记", StringComparison.Ordinal))
+            if (!string.Equals(BuildSpellText(result), "Flash + Mark", StringComparison.Ordinal))
                 throw new InvalidOperationException("ChampSelect assistant spell projection is invalid.");
-            if (DescribeSwapFailure(LeagueBenchSwapStatus.TargetUnavailable).IndexOf("换走", StringComparison.Ordinal) < 0)
-                throw new InvalidOperationException("ChampSelect assistant lost quick-swap failure guidance.");
         }
     }
 }
