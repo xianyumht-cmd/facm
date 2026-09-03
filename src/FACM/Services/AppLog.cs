@@ -116,7 +116,7 @@ namespace FACM.Services
             {
                 var path = Path.Combine(root, "facm-20260903.log");
                 var rotated = RotatedPath(path);
-                var nearLimit = new string('a', (int)MaxLogBytes - 64);
+                var nearLimit = new string('a', (int)MaxLogBytes - 1);
                 File.WriteAllText(path, nearLimit, Utf8NoBom);
 
                 AppendBounded(path, "rotation-trigger\r\n");
@@ -127,7 +127,7 @@ namespace FACM.Services
                 if (File.ReadAllText(path).IndexOf("rotation-trigger", StringComparison.Ordinal) < 0)
                     throw new InvalidOperationException("Bounded AppLog lost the entry that triggered rotation.");
 
-                File.WriteAllText(path, new string('b', (int)MaxLogBytes - 32), Utf8NoBom);
+                File.WriteAllText(path, new string('b', (int)MaxLogBytes - 1), Utf8NoBom);
                 AppendBounded(path, "second-rotation\r\n");
                 if (Directory.GetFiles(root, "facm-20260903.1.log").Length != 1)
                     throw new InvalidOperationException("Bounded AppLog retained more than one rotated backup.");
