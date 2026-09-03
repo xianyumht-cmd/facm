@@ -56,13 +56,13 @@ namespace FACM
             var budgets = new PerformanceBudgetProvider();
             var api = new FakeLeagueClientApi();
             var phaseService = new LeagueDashboardPhaseService(api, budgets);
-            var phase = await phaseService.RefreshAsync(CancellationToken.None);
+            var phase = await phaseService.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
             Require(phase.Connected && phase.Phase == "ChampSelect", "Phase read failed.");
             Require(phase.ClientProcessDetected, "Connected phase should imply client presence.");
             Require(budgets.Current.Name == "champ-select", "Performance budget was not driven by Gameflow.");
 
             var details = new LeagueDashboardDetailsService(api, budgets);
-            var snapshot = await details.LoadAsync(phase, CancellationToken.None);
+            var snapshot = await details.LoadAsync(phase, CancellationToken.None).ConfigureAwait(false);
             Require(snapshot.ClientProcessDetected, "Dashboard details lost client-process presence state.");
             Require(snapshot.AccountName == "FACM测试#CN1", "Summoner name parsing failed.");
             Require(snapshot.SummonerLevel == 88, "Summoner level parsing failed.");
@@ -85,7 +85,7 @@ namespace FACM
                 Activity = LeagueActivityLevel.InGame,
                 BudgetName = budgets.Current.Name
             };
-            await details.LoadAsync(inGamePhase, CancellationToken.None);
+            await details.LoadAsync(inGamePhase, CancellationToken.None).ConfigureAwait(false);
             Require(api.MaxConcurrent == 1, "In-game Dashboard details must be sequential.");
 
             var module = new LeagueDashboardModule(new LeagueClientModule(), new PerformanceModule());

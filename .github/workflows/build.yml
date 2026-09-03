@@ -152,8 +152,19 @@ jobs:
           if ($version.ProductName -ne 'FACM') {
             throw "Unexpected product name: $($version.ProductName)"
           }
-          if ($version.FileVersion -ne '3.5.18.0') {
-            throw "Unexpected FACM version: $($version.FileVersion)"
+
+          $assemblyInfoPath = 'src/FACM/Properties/AssemblyInfo.cs'
+          $assemblyInfo = Get-Content -LiteralPath $assemblyInfoPath -Raw -Encoding utf8
+          $match = [regex]::Match($assemblyInfo, 'AssemblyFileVersion\("([^"]+)"\)')
+          if (-not $match.Success) {
+            throw "Could not resolve AssemblyFileVersion from $assemblyInfoPath"
+          }
+          $expectedVersion = $match.Groups[1].Value
+          if ($expectedVersion -notmatch '^3\.5\.\d+\.0$') {
+            throw "Source version is outside the supported 3.5.x line: $expectedVersion"
+          }
+          if ($version.FileVersion -ne $expectedVersion) {
+            throw "Unexpected FACM version: expected $expectedVersion, got $($version.FileVersion)"
           }
 
           $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-facm-resources.ps1'

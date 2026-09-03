@@ -108,26 +108,26 @@
           AfterTargets="Build"
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Message Importance="High" Text="Validating FACM modular host dependency graph and lifecycle." />
-    <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM performance budget contract." />
-    <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM update mirror routing, embedded updater and GitHub fallback." />
-    <Exec Command="&quot;$(TargetPath)&quot; --update-mirror-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --update-mirror-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
-    <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" Timeout="120000" />
     <Message Importance="High" Text="Validating duplicate-launch activation channel." />
-    <Exec Command="&quot;$(TargetPath)&quot; --single-instance-activation-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --single-instance-activation-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM built-in roaming animal pets and reset behavior." />
-    <Exec Command="&quot;$(TargetPath)&quot; --animal-pet-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --animal-pet-test" Timeout="120000" />
     <Message Importance="High" Text="Validating game-locator search budget and cancellation." />
-    <Exec Command="&quot;$(TargetPath)&quot; --game-locator-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --game-locator-test" Timeout="120000" />
     <Message Importance="High" Text="Validating Mayhem response-body cancellation after headers arrive." />
-    <Exec Command="&quot;$(TargetPath)&quot; --mayhem-body-cancellation-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --mayhem-body-cancellation-test" Timeout="120000" />
     <Message Importance="High" Text="Validating Tencent Mayhem patch parsing with an offline fixture." />
-    <Exec Command="&quot;$(TargetPath)&quot; --tencent-mayhem-patch-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --tencent-mayhem-patch-test" Timeout="120000" />
     <Message Importance="High" Text="Validating complete base ARAM balance parsing with an offline Seraphine fixture." />
-    <Exec Command="&quot;$(TargetPath)&quot; --aram-base-balance-test" />
+    <Exec Command="&quot;$(TargetPath)&quot; --aram-base-balance-test" Timeout="120000" />
     <Message Condition="Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
-    <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" />
+    <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" Timeout="180000" />
   </Target>
 </Project>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FACM.AppHost.Modules;
 using FACM.League;
+using FACM.Services;
 
 namespace FACM.AppHost
 {
@@ -19,6 +20,12 @@ namespace FACM.AppHost
                 ValidateInitializationFailureRollback();
                 ValidateFirstModuleFailureReport();
                 ValidateShellFeatureDependencyContract();
+                AppSettings.ValidateAtomicSaveForSmokeTest();
+                AppSettingsRecovery.ValidateForSmokeTest();
+                AppLog.ValidateForSmokeTest();
+                DiagnosticsExportService.ValidateForSmokeTest();
+                FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
+                LeagueChampSelectAssistantForm.ValidateForSmokeTest();
                 LeagueClientSmokeTest.Validate();
                 LeagueEfficiencySmokeTest.Validate();
                 LeagueGameRepairSmokeTest.Validate();

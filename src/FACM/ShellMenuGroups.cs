@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.League;
+using FACM.Services;
 
 namespace FACM
 {
@@ -43,6 +44,8 @@ namespace FACM
             var item = new ToolStripMenuItem(text ?? string.Empty) { Name = name ?? string.Empty };
             if (string.Equals(name, LeagueGroupName, StringComparison.Ordinal))
                 item.Click += delegate { LeagueHubUiBridge.RequestOpen(); };
+            else if (string.Equals(name, MoreGroupName, StringComparison.Ordinal))
+                item.DropDownItems.Add(DiagnosticsShellAction.CreateMenuItem());
             return item;
         }
 
@@ -123,6 +126,19 @@ namespace FACM
             };
             if (businessActions.Any(action => RootContractNames.Contains(action, StringComparer.Ordinal)))
                 throw new InvalidOperationException("A business action name leaked into the fixed Shell root contract.");
+
+            var more = CreateRootGroup(MoreGroupName, "More");
+            try
+            {
+                var diagnostics = more.DropDownItems.Cast<ToolStripItem>()
+                    .FirstOrDefault(item => string.Equals(item.Name, DiagnosticsShellAction.ActionName, StringComparison.Ordinal));
+                if (diagnostics == null || !(diagnostics.Tag is int) || (int)diagnostics.Tag != DiagnosticsShellAction.Order)
+                    throw new InvalidOperationException("Shell More group lost its diagnostics support action.");
+            }
+            finally
+            {
+                more.Dispose();
+            }
 
             LeagueHubNavigation.ValidateForSmokeTest();
         }

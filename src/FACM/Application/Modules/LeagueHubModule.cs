@@ -163,13 +163,10 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                var ui = UiTextCatalog.Load();
-                form = CreateLive(ui);
-                form.Text = ui.Get(UiTextKeys.LeagueLiveWindowTitle) + " · 选人快捷";
+                form = _live.CreateChampSelectAssistantForm();
                 form.TopMost = true;
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
-                form.ClientSize = new Size(820, 620);
 
                 var area = Screen.FromPoint(Cursor.Position).WorkingArea;
                 form.Location = new Point(
@@ -181,7 +178,7 @@ namespace FACM.AppHost.Modules
                 _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
-                AppLog.Info("League Live popup opened for ChampSelect episode.");
+                AppLog.Info("Lightweight ChampSelect assistant opened for episode.");
             }
             catch (Exception exception)
             {
@@ -189,7 +186,7 @@ namespace FACM.AppHost.Modules
                 _automaticLivePopup = null;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = true;
-                AppLog.Info("League Live automatic popup skipped: " + exception.Message);
+                AppLog.Info("ChampSelect assistant skipped: " + exception.Message);
             }
         }
 
