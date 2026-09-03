@@ -37,10 +37,10 @@ namespace FACM.Services
             @"(?i)\b(token|password|passwd|secret|authorization|api[-_]?key)\s*[:=]\s*[^\s;,\r\n]+",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex WindowsPathRegex = new Regex(
-            @"(?i)(?<![A-Za-z0-9])[A-Z]:\\(?:[^\\/:*?\"<>|\r\n]+\\)*[^\\/:*?\"<>|\r\n]*",
+            @"(?i)(?<![A-Za-z0-9])[A-Z]:\\(?:[^\\/:*?<>|\r\n]+\\)*[^\\/:*?<>|\r\n]*",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex UncPathRegex = new Regex(
-            @"\\\\[^\\\s]+\\[^\r\n;,|\"<>]+",
+            @"\\\\[^\\\s]+\\[^\r\n;,|<>]+",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         public static DiagnosticsExportReceipt ExportCurrent()
