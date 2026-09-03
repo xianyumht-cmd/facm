@@ -22,6 +22,7 @@ namespace FACM.AppHost
                 ValidateShellFeatureDependencyContract();
                 AppSettings.ValidateAtomicSaveForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
+                AppLog.ValidateForSmokeTest();
                 DiagnosticsExportService.ValidateForSmokeTest();
                 FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
                 LeagueChampSelectAssistantForm.ValidateForSmokeTest();
