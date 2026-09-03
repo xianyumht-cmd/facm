@@ -39,6 +39,13 @@ namespace FACM.AppHost.Modules
             return LeagueSoftGlassSkin.Apply(new LeagueLiveForm(_service, _benchQuickPick, ui));
         }
 
+        public Form CreateChampSelectAssistantForm()
+        {
+            if (_service == null || _benchQuickPick == null)
+                throw new InvalidOperationException("League Live module is not initialized.");
+            return new LeagueChampSelectAssistantForm(_benchQuickPick, _leagueClient);
+        }
+
         public void Dispose()
         {
             _benchQuickPick = null;
