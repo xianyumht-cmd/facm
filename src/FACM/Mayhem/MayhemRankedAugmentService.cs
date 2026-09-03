@@ -46,7 +46,14 @@ namespace FACM.Mayhem
                         TimeSpan.FromSeconds(5.5),
                         token,
                         true).ConfigureAwait(false);
-                    var rows = ParseOpggRows(response == null ? null : response.ReadUtf8()).Take(12).ToList();
+                    var html = response == null ? null : response.ReadUtf8();
+                    var rows = ParseOpggRows(html).Take(12).ToList();
+                    var renderedFallback = false;
+                    if (rows.Count == 0)
+                    {
+                        rows = ParseRenderedAugmentRows(html).Take(12).ToList();
+                        renderedFallback = rows.Count > 0;
+                    }
                     if (rows.Count > 0)
                     {
                         ApplyRich(result, rows);
@@ -54,7 +61,11 @@ namespace FACM.Mayhem
                         result.AugmentSourceRoute = response.Route;
                         result.AugmentSourceStale = response.IsStale;
                         await buildTask.ConfigureAwait(false);
-                        AppLog.Info("Mayhem rich augments loaded: count=" + rows.Count + "; route=" + response.Route + "; stale=" + response.IsStale);
+                        AppLog.Info(
+                            "Mayhem augments loaded: count=" + rows.Count +
+                            "; mode=" + (renderedFallback ? "rendered-html" : "rich-json") +
+                            "; route=" + response.Route +
+                            "; stale=" + response.IsStale);
                         return;
                     }
                 }
@@ -79,6 +90,12 @@ namespace FACM.Mayhem
             {
                 ApplyRich(result, rich);
                 return rich.Count;
+            }
+            var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
+            if (rendered.Count > 0)
+            {
+                ApplyRich(result, rendered);
+                return rendered.Count;
             }
             var legacy = ParseLegacyPicks(html).Take(5).ToList();
             ApplyLegacy(result, legacy);
@@ -147,6 +164,37 @@ namespace FACM.Mayhem
                 searchFrom = close + 1;
             }
             return best;
+        }
+
+        private static IEnumerable<MayhemAugmentRow> ParseRenderedAugmentRows(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html)) return Enumerable.Empty<MayhemAugmentRow>();
+            var normalized = NormalizeEscapedHtml(html);
+            var rows = new List<MayhemAugmentRow>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (Match match in Regex.Matches(
+                normalized,
+                "<img\\b[^>]*>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline))
+            {
+                var tag = match.Value;
+                var icon = MatchAttribute(tag, "src");
+                if (string.IsNullOrWhiteSpace(icon)) icon = MatchAttribute(tag, "data-src");
+                if (string.IsNullOrWhiteSpace(icon) || icon.IndexOf("/aram-augment/", StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                var name = WebUtility.HtmlDecode(MatchAttribute(tag, "alt") ?? string.Empty).Trim();
+                if (name.Length < 2 || !seen.Add(name)) continue;
+                rows.Add(new MayhemAugmentRow
+                {
+                    Rank = rows.Count + 1,
+                    Name = name,
+                    Slug = Slugify(name),
+                    Rarity = MayhemUiCopy.Unknown,
+                    IconUrl = CleanIconUrl(icon)
+                });
+            }
+            return rows;
         }
 
         private static int ScoreRows(IList<MayhemAugmentRow> rows)
