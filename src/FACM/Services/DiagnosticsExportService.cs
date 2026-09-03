@@ -20,12 +20,13 @@ namespace FACM.Services
 
     /// <summary>
     /// Lightweight FACM 3.5 adaptation of the bounded/redacted FACM 4 diagnostics exporter.
-    /// It only reads two allowlisted FACM log paths (today/yesterday), never enumerates user folders,
-    /// scrubs credentials and local paths before writing, and atomically publishes a bounded ZIP.
+    /// It only reads an explicit today/yesterday FACM log allowlist (including one bounded rotated
+    /// backup per day), never enumerates user folders, scrubs credentials/local paths, and atomically
+    /// publishes a bounded ZIP.
     /// </summary>
     internal static class DiagnosticsExportService
     {
-        private const long MaxLogFileBytes = 4 * 1024 * 1024;
+        private const long MaxLogFileBytes = AppLog.MaxLogBytes;
         private const long MaxTotalInputBytes = 8 * 1024 * 1024;
         private const long MaxBundleBytes = 8 * 1024 * 1024;
         private const int MaxSummaryChars = 64 * 1024;
@@ -71,10 +72,9 @@ namespace FACM.Services
             var skipped = 0;
             long totalInput = 0;
 
-            // Explicit allowlist only: yesterday then today. Do not enumerate arbitrary log or user folders.
-            foreach (var date in new[] { localNow.Date.AddDays(-1), localNow.Date })
+            // Fixed priority allowlist. Current-day evidence wins when the 8 MiB aggregate bound is reached.
+            foreach (var name in BuildAllowedLogNames(localNow))
             {
-                var name = "facm-" + date.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".log";
                 var path = Path.Combine(logsRoot, name);
                 if (!File.Exists(path)) continue;
 
@@ -144,6 +144,16 @@ namespace FACM.Services
             {
                 TryDelete(tempPath);
                 throw;
+            }
+        }
+
+        private static IEnumerable<string> BuildAllowedLogNames(DateTime localNow)
+        {
+            foreach (var date in new[] { localNow.Date, localNow.Date.AddDays(-1) })
+            {
+                var current = "facm-" + date.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".log";
+                yield return current;
+                yield return Path.GetFileName(AppLog.RotatedPath(current));
             }
         }
 
@@ -224,12 +234,16 @@ namespace FACM.Services
                     "Authorization: Bearer abc.def.123\r\ntoken=super-secret\r\npath=C:\\Users\\Alice\\Desktop\\FACM\\settings.ini\r\n",
                     new UTF8Encoding(false));
                 File.WriteAllText(
+                    Path.Combine(logs, "facm-20260903.1.log"),
+                    "rotated today password=older-secret\r\n",
+                    new UTF8Encoding(false));
+                File.WriteAllText(
                     Path.Combine(logs, "facm-20260902.log"),
                     "previous log \\\\server\\private\\share\r\n",
                     new UTF8Encoding(false));
 
                 var receipt = Export(logs, output, now, "3.5.19-smoke");
-                if (!File.Exists(receipt.BundlePath) || receipt.LogFilesIncluded != 2 || receipt.LogFilesSkipped != 0)
+                if (!File.Exists(receipt.BundlePath) || receipt.LogFilesIncluded != 3 || receipt.LogFilesSkipped != 0)
                     throw new InvalidOperationException("Diagnostics export smoke receipt is invalid.");
                 if (receipt.BundleBytes <= 0 || receipt.BundleBytes > MaxBundleBytes)
                     throw new InvalidOperationException("Diagnostics export smoke bundle size is invalid.");
@@ -237,23 +251,31 @@ namespace FACM.Services
                 using (var stream = File.OpenRead(receipt.BundlePath))
                 using (var archive = new ZipArchive(stream, ZipArchiveMode.Read, false))
                 {
-                    if (archive.Entries.Count != 3)
+                    if (archive.Entries.Count != 4)
                         throw new InvalidOperationException("Diagnostics export contains unexpected entries.");
 
+                    var expectedEntries = new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "summary.txt",
+                        "logs/facm-20260903.log",
+                        "logs/facm-20260903.1.log",
+                        "logs/facm-20260902.log"
+                    };
                     var allText = new StringBuilder();
                     foreach (var entry in archive.Entries.OrderBy(value => value.FullName, StringComparer.Ordinal))
                     {
-                        if (entry.FullName != "summary.txt" &&
-                            entry.FullName != "logs/facm-20260902.log" &&
-                            entry.FullName != "logs/facm-20260903.log")
+                        if (!expectedEntries.Remove(entry.FullName))
                             throw new InvalidOperationException("Diagnostics export escaped its entry allowlist.");
                         using (var reader = new StreamReader(entry.Open(), Encoding.UTF8, true))
                             allText.AppendLine(reader.ReadToEnd());
                     }
+                    if (expectedEntries.Count != 0)
+                        throw new InvalidOperationException("Diagnostics export lost an expected allowlisted entry.");
 
                     var exported = allText.ToString();
                     if (exported.IndexOf("abc.def.123", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         exported.IndexOf("super-secret", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        exported.IndexOf("older-secret", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         exported.IndexOf("Alice", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         exported.IndexOf("server", StringComparison.OrdinalIgnoreCase) >= 0)
                         throw new InvalidOperationException("Diagnostics export leaked a smoke-test secret or local path.");
