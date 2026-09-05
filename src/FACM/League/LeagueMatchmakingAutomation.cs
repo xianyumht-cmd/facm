@@ -82,9 +82,7 @@ namespace FACM.League
     {
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string SearchStatePath = "/lol-matchmaking/v1/search";
-        private static readonly TimeSpan LobbyInitialDelay = TimeSpan.FromMilliseconds(1500);
         private static readonly TimeSpan LobbyObserveInterval = TimeSpan.FromSeconds(3);
-        private static readonly TimeSpan ReadyInitialDelay = TimeSpan.FromMilliseconds(450);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
@@ -221,7 +219,8 @@ namespace FACM.League
 
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
-            await _clock.Delay(LobbyInitialDelay, cancellationToken).ConfigureAwait(false);
+            // Gameflow already proved that Lobby is active. Evaluate immediately; if the
+            // lobby payload has not caught up yet, the existing bounded observer retries.
             while (IsSearchActive())
             {
                 var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
@@ -283,7 +282,8 @@ namespace FACM.League
 
         private async Task RunReadyObserverAsync(CancellationToken cancellationToken)
         {
-            await _clock.Delay(ReadyInitialDelay, cancellationToken).ConfigureAwait(false);
+            // ReadyCheck is short-lived. Do not add a fixed sleep after Gameflow has
+            // already observed it; the per-episode attempted flag prevents duplicates.
             await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
         }
 
