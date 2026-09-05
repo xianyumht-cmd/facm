@@ -109,6 +109,8 @@
           Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Message Importance="High" Text="Validating FACM modular host dependency graph and lifecycle." />
     <Exec Command="&quot;$(TargetPath)&quot; --facm-host-test" Timeout="120000" />
+    <Message Importance="High" Text="Validating League gameflow cadence, matchmaking reaction and desktop-entry visibility." />
+    <Exec Command="&quot;$(TargetPath)&quot; --league-dashboard-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM performance budget contract." />
     <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM update mirror routing, embedded updater and GitHub fallback." />
