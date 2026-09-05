@@ -22,6 +22,7 @@ namespace FACM.League
             ValidateLobbyBlocks();
             ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
+            ValidateFailedReadyCheckRetries();
             ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
         }
@@ -209,6 +210,29 @@ namespace FACM.League
             }
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
                 "Same continuous ReadyCheck episode must accept exactly once.");
+        }
+
+        private static void ValidateFailedReadyCheckRetries()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi { StatusCode = 500 };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                    "Failed ReadyCheck accept attempt was not emitted.");
+
+                write.StatusCode = 204;
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 2,
+                    "A true failed ReadyCheck accept incorrectly consumed the episode and blocked retry.");
+
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 2,
+                    "Successful ReadyCheck retry did not consume the episode exactly once.");
+            }
         }
 
         private static void ValidateExplicitReadyResponseBlocks()
