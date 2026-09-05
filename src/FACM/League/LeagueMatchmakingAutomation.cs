@@ -84,6 +84,7 @@ namespace FACM.League
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string SearchStatePath = "/lol-matchmaking/v1/search";
         private static readonly TimeSpan LobbyObserveInterval = TimeSpan.FromSeconds(3);
+        private static readonly TimeSpan ReadyObserveInterval = TimeSpan.FromMilliseconds(500);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
@@ -309,9 +310,14 @@ namespace FACM.League
 
         private async Task RunReadyObserverAsync(CancellationToken cancellationToken)
         {
-            // ReadyCheck is short-lived. Do not add a fixed sleep after Gameflow has
-            // already observed it; the per-episode attempted flag prevents duplicates.
-            await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
+            // The first attempt stays immediate. Only a real failed/ambiguous write pays the
+            // short retry delay, and every retry is bounded by the same ReadyCheck episode.
+            while (IsAcceptActive())
+            {
+                var done = await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
+                if (done) return;
+                await _clock.Delay(ReadyObserveInterval, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         private async Task<bool> EvaluateReadyAsync(CancellationToken cancellationToken)
@@ -333,6 +339,8 @@ namespace FACM.League
                 return true;
             }
 
+            // Claim the episode before the POST so Configure/Observe cannot start a duplicate
+            // writer while this request is in flight. A true failure releases the claim below.
             lock (_sync)
             {
                 if (_acceptAttemptedThisReadyCheck) return true;
@@ -345,11 +353,36 @@ namespace FACM.League
                 "POST",
                 LeagueMatchmakingWriteApiClient.AcceptPath,
                 cancellationToken).ConfigureAwait(false);
+            var ok = response != null && response.IsSuccessStatusCode;
+            var reconciled = false;
+
+            // A timeout can be reported after LCU already accepted the ready check. Before
+            // releasing the episode claim, reconcile the authoritative local response so an
+            // ambiguous success cannot cause a duplicate POST on the 500 ms retry.
+            if (!ok && IsAcceptActive())
+            {
+                var after = ParseSearch(await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false));
+                if (after != null && after.HasFinalLocalResponse)
+                {
+                    ok = true;
+                    reconciled = true;
+                }
+            }
+
+            if (!ok && IsAcceptActive() && !cancellationToken.IsCancellationRequested)
+            {
+                lock (_sync)
+                {
+                    if (!_disposed && _autoAccept && IsPhase("ReadyCheck"))
+                        _acceptAttemptedThisReadyCheck = false;
+                }
+            }
+
             AppLog.Info("League auto accept: " +
-                        (response != null && response.IsSuccessStatusCode
-                            ? "success"
+                        (ok
+                            ? (reconciled ? "success/reconciled-final-response" : "success")
                             : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
-            return true;
+            return ok;
         }
 
         internal LeagueLobbyEligibility ParseLobby(byte[] bytes)
