@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
+using FACM.League;
 using FACM.Online;
 using FACM.Pets;
 using FACM.Services;
@@ -26,6 +27,7 @@ namespace FACM
         private readonly NotifyIcon _tray;
         private readonly Icon _appIcon;
         private readonly LayeredFloatingBall _layeredBall;
+        private readonly DesktopEntryGameflowPolicy _gameflowVisibility = new DesktopEntryGameflowPolicy();
         private CompactMenuForm _menu;
         private bool _startCleanup;
         private bool _onlineCheckStarted;
@@ -146,6 +148,48 @@ namespace FACM
             {
                 // The main window can be between construction and message-loop startup. HandleShown
                 // consumes the pending flag so a launch during this narrow race is not lost.
+            }
+        }
+
+        public void ApplyGameflowState(LeagueDashboardPhaseState state)
+        {
+            if (IsDisposed || _exiting) return;
+            if (InvokeRequired)
+            {
+                try
+                {
+                    BeginInvoke(new Action(delegate { ApplyGameflowState(state); }));
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+                catch (InvalidOperationException)
+                {
+                }
+                return;
+            }
+
+            var action = _gameflowVisibility.Observe(state, IsDesktopEntryVisible());
+            if (action == DesktopEntryGameflowAction.Hide)
+            {
+                CloseMenu();
+                try
+                {
+                    if (_pets.IsActive) _pets.SetVisible(false);
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Desktop pet gameflow hide skipped: " + exception.Message);
+                }
+                HideBuiltInBall();
+                AppLog.Info("FACM desktop entry hidden for in-game Gameflow.");
+                return;
+            }
+
+            if (action == DesktopEntryGameflowAction.Restore)
+            {
+                RestoreDesktopEntryAfterGameflow();
+                AppLog.Info("FACM desktop entry restored after in-game Gameflow.");
             }
         }
 
@@ -376,9 +420,6 @@ namespace FACM
 
             Task.Run(async delegate
             {
-                // Give the message loop a short head start so the FACM shell can paint before disk/AV
-                // work begins. ToolBundle is part of the core product; PetHost is optional and stays cold
-                // unless the current configuration actually enables a desktop pet.
                 await Task.Delay(180).ConfigureAwait(false);
 
                 try
@@ -488,8 +529,6 @@ namespace FACM
             if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
             try
             {
-                // Keep the lightweight FACM entry visible until the selected desktop form reports that
-                // it is actually ready. This removes the previous no-visible-UI gap while PetHost starts.
                 _animalPetActive = false;
                 ShowBuiltInBall();
 
@@ -530,10 +569,15 @@ namespace FACM
                                 if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
                                 _animalPetActive = true;
                                 HideBuiltInBall();
+                                if (_gameflowVisibility.IsSuppressed && _pets.IsActive)
+                                    _pets.SetVisible(false);
                             }));
                         }
                         catch { }
                     });
+
+                if (_gameflowVisibility.IsSuppressed && _pets.IsActive)
+                    _pets.SetVisible(false);
             }
             catch (Exception exception)
             {
@@ -543,6 +587,32 @@ namespace FACM
                 _animalPetActive = false;
                 ShowBuiltInBall();
             }
+        }
+
+        private bool IsDesktopEntryVisible()
+        {
+            return Visible || _pets.IsVisible;
+        }
+
+        private void RestoreDesktopEntryAfterGameflow()
+        {
+            if (IsDisposed || _exiting) return;
+            try
+            {
+                if (_settings.AnimalPetEnabled && _pets.IsActive)
+                {
+                    _pets.SetVisible(true);
+                    _animalPetActive = true;
+                    HideBuiltInBall();
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Desktop pet gameflow restore skipped: " + exception.Message);
+            }
+
+            ShowBuiltInBall();
         }
 
         private void BeginBallDrag(object sender, MouseEventArgs e)
@@ -605,8 +675,7 @@ namespace FACM
             _settings.BallY = int.MinValue;
             _settings.Save();
             RestoreBallPosition();
-            if (!Visible) Show();
-            TopMost = true;
+            ShowBuiltInBall();
             AppLog.Info("FACM shell reset to default position: " + Left + "," + Top);
         }
 
@@ -620,6 +689,11 @@ namespace FACM
         private void ShowBuiltInBall()
         {
             if (IsDisposed || _exiting) return;
+            if (_gameflowVisibility.IsSuppressed)
+            {
+                if (Visible) HideBuiltInBall();
+                return;
+            }
             _animalPetActive = false;
             RestoreBallPosition();
             if (!Visible) Show();
