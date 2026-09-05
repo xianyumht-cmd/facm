@@ -28,6 +28,11 @@ namespace FACM.AppHost.Modules
             get { return AnimalPetManager.IsActive; }
         }
 
+        public bool IsVisible
+        {
+            get { return AnimalPetManager.IsVisible; }
+        }
+
         public void Initialize()
         {
         }
@@ -40,6 +45,11 @@ namespace FACM.AppHost.Modules
         public void Activate(string petId, Action clicked, Action rightClicked, Action ready = null)
         {
             AnimalPetManager.Activate(petId, clicked, rightClicked, ready);
+        }
+
+        public void SetVisible(bool visible)
+        {
+            AnimalPetManager.SetVisible(visible);
         }
 
         public void ResetToPrimaryScreen()
