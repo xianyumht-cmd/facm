@@ -61,6 +61,6 @@ Removing 4.x means removing it from the current working tree and current CI/rele
 
 Future public brand target may be GGman（鸡鸡侠）, but do not globally replace `FACM` identifiers. First inventory update URLs, namespaces, assembly/resource names, mutex/config paths and compatibility contracts. User-facing naming can change before internals.
 
-## D-012 — Release 3.5.20 after cleanup
+## D-012 — 3.5.20 is the first post-cleanup release
 
-3.5.19 remains the online version while the cleanup PR is validated. After cleanup reaches `main` and CI is green, publish a new 3.5.20 lightweight Release rather than mutating/reusing the existing 3.5.19 release.
+3.5.20 was published after P1 and the 4.x working-tree cleanup reached `main`. It is a new lightweight Release rather than mutated/reused 3.5.19 bytes. Future releases must use a new 3.5.x patch version and keep the online manifest migration-free.

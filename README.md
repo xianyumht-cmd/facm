@@ -4,9 +4,9 @@ FACM 是面向 Windows 的轻量桌面悬浮控制中心。当前产品线固定
 
 ## 当前状态
 
-- 当前在线正式版：`3.5.19`（以 `online/version.json` 与 GitHub Release 为准）。
+- 当前在线正式版：`3.5.20`（以 `online/version.json` 与 GitHub Release 为准）。
 - 当前源码主线：3.5.x lightweight。
-- 下一次发布：清理合并后发布 `3.5.20`。
+- 3.5.20 是完成 P1 回灌与 4.x 工作树清理后的首个正式版本。
 - 普通发布产物：单个 `FACM.exe`，CI 要求小于 10 MiB。
 - `FACM.PetHost` 源码继续保留并 build/self-test，但普通 FACM.exe **不内嵌 self-contained PetHost bundle**。
 
@@ -67,7 +67,7 @@ GitHub Actions 主构建：**FACM Windows Build**。
 - Actions 手动 `workflow_dispatch`；
 - 修改 `release/3.5-request.json` 并推送到 `main`。
 
-发布工作流只接受新的 3.5.x 版本号，构建并验证 lightweight FACM.exe，创建 GitHub Release，随后更新 `online/version.json`。旧的 heavyweight `release/request.json` / `publish-release.yml` 已退出产品线。
+发布工作流只接受尚未发布的新 3.5.x 版本号，构建并验证 lightweight FACM.exe，创建 GitHub Release，随后更新 `online/version.json`。清单只描述普通 3.5 更新，不包含 4.x migration 字段。旧的 heavyweight `release/request.json` / `publish-release.yml` 已退出产品线。
 
 公告由 `online/announcement.json` 和 **FACM Online Management** 工作流维护。详细说明见 `docs/ONLINE-MANAGEMENT.md` 与 `docs/OPERATIONS.md`。
 

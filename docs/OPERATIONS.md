@@ -50,21 +50,21 @@ Actions → FACM 3.5 Lightweight Release → Run workflow, then supply:
 
 ### Audited request file
 
-Edit `release/3.5-request.json` on `main`:
+Edit `release/3.5-request.json` on `main` using the exact current schema:
 
 ```json
 {
-  "enabled": true,
-  "version": "3.5.20",
+  "version": "3.5.21",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "notes": "FACM 3.5.20 lightweight update.",
-  "requestedAtUtc": "<UTC timestamp>"
+  "release_notes": "FACM 3.5.21 lightweight update."
 }
 ```
 
 A push touching that file triggers the same publisher. The workflow rejects an already-existing release tag; never reuse an old version number to publish new bytes.
+
+The publisher freezes `main`, builds and signs the candidate, first writes an `enabled=false` manifest, publishes the GitHub Release, downloads the public asset again to verify size/SHA-256/signer, then enables the online manifest. The current manifest schema is migration-free.
 
 After publishing, verify:
 
@@ -72,13 +72,14 @@ After publishing, verify:
 2. Release asset SHA-256 matches `online/version.json`.
 3. `online/version.json.enabled=true` and points to the exact Release asset.
 4. `minimum_version` and `force_update` are intentional.
-5. A currently supported client can check/download the update.
+5. `online/version.json` still contains no 4.x migration object.
+6. A currently supported client can check/download the update.
 
 ## Online manifest safety
 
 `online/version.json` is the client-facing release pointer. Do not point it at CI artifacts, branch files or an old tag with different bytes.
 
-The current updater accepts approved HTTPS release URLs, validates SHA-256 and package identity, then performs atomic replacement using `FACM.Updater.exe`. 4.x migration/bootstrapper fields are no longer part of the runtime contract.
+The current updater accepts approved HTTPS release URLs, validates SHA-256 and package identity, then performs atomic replacement using `FACM.Updater.exe`. 4.x migration/bootstrapper fields are no longer part of the runtime contract or publisher output.
 
 ## Announcements and mirrors
 

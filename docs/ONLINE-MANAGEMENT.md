@@ -1,6 +1,6 @@
 # FACM 3.5 在线版本与公告管理
 
-FACM 当前正式产品线是 **3.5.x lightweight**。生产事实以 `main`、GitHub Release 与 `online/version.json` 为准。当前正式版是 3.5.19；下一次正常发布使用 3.5.20。4.x bootstrap、CAB、迁移清单和 migration updater mode 已退出当前产品线。
+FACM 当前正式产品线是 **3.5.x lightweight**。生产事实以 `main`、GitHub Release 与 `online/version.json` 为准。当前正式版是 3.5.20。4.x bootstrap、CAB、迁移清单和 migration updater mode 已退出当前产品线。
 
 ## 在线资源
 
@@ -8,7 +8,7 @@ FACM 当前正式产品线是 **3.5.x lightweight**。生产事实以 `main`、G
 - `online/mirrors.json`：版本检查与下载可使用的镜像前缀。
 - `online/announcement.json`：公告开关、标题、正文、级别、弹出设置和可选 HTTPS 链接。
 
-`online/version.json` 当前只描述普通 3.5 更新，不再包含 4.x migration 字段。客户端离线或检查失败不会影响本地功能。
+`online/version.json` 当前只描述普通 3.5 更新，不包含 4.x migration 字段。客户端离线或检查失败不会影响本地功能。
 
 ## 发布 3.5.x
 
@@ -19,7 +19,7 @@ FACM 当前正式产品线是 **3.5.x lightweight**。生产事实以 `main`、G
 Actions → FACM 3.5 Lightweight Release
 ```
 
-它只接受 `3.5.x` 版本，并保持 WinForms / .NET Framework 4.8 轻量单 EXE 发布边界。发布前会验证工具输入、编译 Release、执行 release smoke、检查 `FACM.exe` 小于 10 MiB、确认 ToolBundle 已嵌入且大型 PetHost runtime 未嵌入，并要求生产签名证书。
+它只接受尚未存在的 `3.5.x` 版本，并保持 WinForms / .NET Framework 4.8 轻量单 EXE 发布边界。发布前会验证工具输入、编译 Release、执行 release smoke、检查 `FACM.exe` 小于 10 MiB、确认 ToolBundle 已嵌入且大型 PetHost runtime 未嵌入，并要求生产签名证书。
 
 发布有两种入口：
 
@@ -30,7 +30,7 @@ Actions → FACM 3.5 Lightweight Release
 
 ```json
 {
-  "version": "3.5.20",
+  "version": "3.5.21",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
@@ -38,7 +38,7 @@ Actions → FACM 3.5 Lightweight Release
 }
 ```
 
-不要复用已经存在的版本号。工作流会拒绝已有 GitHub Release，例如已经存在 `v3.5.19` 时不能再次发布 3.5.19。
+不要复用已经存在的版本号。工作流会拒绝已有 GitHub Release，例如已经存在 `v3.5.20` 时不能再次发布 3.5.20。
 
 ### 发布事务顺序
 
