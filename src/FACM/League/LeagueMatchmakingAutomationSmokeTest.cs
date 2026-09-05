@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateImmediatePhaseReaction();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
+            ValidateFailedSearchRetriesAfterBackoff();
             ValidateLobbyBlocks();
             ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
@@ -119,6 +120,29 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
                     "Changed member context should allow one new matchmaking attempt.");
+            }
+        }
+
+        private static void ValidateFailedSearchRetriesAfterBackoff()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var write = new FakeWriteApi { StatusCode = 500 };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Failed matchmaking attempt was not emitted.");
+
+                write.StatusCode = 204;
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "A failed matchmaking POST incorrectly consumed the Lobby fingerprint and blocked retry.");
+
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "Successful retry did not commit the Lobby fingerprint exactly once.");
             }
         }
 
@@ -251,6 +275,7 @@ namespace FACM.League
             internal sealed class Call { public string Method; public string Path; }
             public readonly List<Call> Calls = new List<Call>();
             private readonly ManualResetEventSlim _called = new ManualResetEventSlim(false);
+            public int StatusCode = 204;
 
             public bool WaitForCall(TimeSpan timeout)
             {
@@ -262,7 +287,7 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 lock (Calls) Calls.Add(new Call { Method = method, Path = path });
                 _called.Set();
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = StatusCode, Body = new byte[0] });
             }
         }
 
