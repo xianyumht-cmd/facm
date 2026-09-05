@@ -1,688 +1,83 @@
-# FACM 架构
+# FACM Architecture
 
-## 1. 双轨迁移
+## Product boundary
 
-FACM 3.5.15 WinForms 仍是 production/rollback baseline；FACM 4.0 使用 .NET 10 + WinUI 3。正式 cutover 前不退休 legacy、不修改 production release controls。
+The maintained product is FACM 3.5.x lightweight: **WinForms + .NET Framework 4.8 + one FACM.exe**. The repository intentionally avoids restoring the retired 4.x WinUI/Core/Infrastructure/Platform/bootstrapper architecture.
 
-```text
-FACM.App
-├─ MainWindow: one persistent morphing surface host + legacy feature adapter
-├─ legacy FloatingWindow / CompactLauncherWindow: diagnostic fallback only
-├─ ViewModels: Core intents/state only
-└─ composition root
-        ↓
-FACM.Core
-├─ Performance / Product State
-├─ Settings 2.0 / UI Text
-├─ Observability / Diagnostics
-├─ Desktop geometry + DPI
-├─ Recovery / Feature policy
-├─ Release evidence evaluator
-├─ Production cutover decision guard
-└─ Cleanup / League / Online contracts
-        ↓
-FACM.Infrastructure                 FACM.Platform.Windows
-├─ settings/diagnostic IO           ├─ executable/runtime identity
-├─ recovery/LKG stores              ├─ League session owner
-├─ HTTP/League transport            ├─ monitor/work-area/DPI facts
-├─ one Gameflow monitor             └─ Windows integration
-└─ update metadata
-```
+## Solution
 
-Direction 固定：App -> Core/Infrastructure/Platform.Windows；Infrastructure -> Core；Platform.Windows -> Core；Core 不引用 UI/platform implementation。
+`FACM.sln` contains four current projects:
 
-## 2. Runtime ownership
+- `src/FACM` — main WinForms application.
+- `src/FACM.ToolBundle` — validated embedded tool resources.
+- `src/FACM.Updater` — small Windows updater used for atomic EXE replacement and rollback.
+- `src/FACM.PetHost` — optional .NET 8/WPF VPet runtime source, validated separately.
 
-Window/Page -> ViewModel -> Core intent/state。具体 adapter 只在 App composition root 组装。
+The normal 3.5 build embeds ToolBundle but does **not** embed a self-contained PetHost ZIP.
 
-By default FACM owns one persistent `MainWindow` surface. `FacmSurfaceStateMachine` changes only
-the presentation mode (`Orb`, `ControlMatrix`, `FeatureSurface`, `LeagueSurface`,
-`ChampSelectStrip`, `HiddenInGame`); ViewModels, Core services and League ownership remain
-modular and are not recreated per mode. `FACM_SHELL_EXPERIENCE=legacy` preserves the old
-`FloatingWindow` / `CompactLauncherWindow` routing for diagnostics and fallback.
+## Main host
 
-FACM-owned top-level surfaces use one shared outside-click lifecycle implementation where the
-legacy product requires desktop-blank dismissal: `DesktopSurfaceOutsideClickWatcher` owns the
-physical left-button edge, screen-bounds hit test, opening-click release rule, and disposal for
-the active shell. MainWindow activates this watcher only for dismissible expanded modes; idle
-`Orb` and `HiddenInGame` stop it and reset its opening-click state, so the 40 ms native sample is
-not an idle/hidden UI timer. CompactLauncher activates the same watcher only while that window is
-alive. MainWindow feature pages are not separate native windows; their FolderPicker and
-ContentDialog flows acquire an explicit suppression scope so a desktop click cannot close the
-host while a modal interaction is active. Morphing geometry snaps to its final clamped bounds;
-the transition is a bounded opacity/translation effect and does not introduce a resize loop.
+`Program.cs` creates one `FacmHost` and registers small modules around the existing 3.5 services. `ShellModule` owns the primary `MainForm`; the compact menu, tray and floating entry remain WinForms surfaces.
 
-Process-wide exactly one：
+The module layer is an ownership/lifecycle boundary, not a separate 4.x application architecture. Do not split the product into a new Core/Infrastructure/Platform stack without a concrete 3.5 requirement.
 
-```text
-WindowsLeagueTransportSessionSource
-LeagueHttpGateway
-LeagueGameflowMonitor
-LeagueBenchRuntimeObserver (reuses Gameflow.Observed; no loop)
-PerformanceBudgetProvider
-ProductStateStore
-```
+## League runtime
 
-Gate 12 source gate 直接统计 App composition construction count，任何一个不是 exactly 1 都失败。禁止 ViewModel/Page 创建 HttpClient、League runtime、settings/diagnostic/recovery store、Process/Registry/Win32 implementation 或第二 polling loop。
+League features share one client/session boundary and one Gameflow monitor.
 
-Workbench 只有 `比赛 / 攻略 / 自动化` 三层 IA；Bench 仍手动；writer 只能走 Core capability allowlist。
+Important rules:
 
-## 2026-08-30 Morphing Surface presentation contract
+- Features consume the shared Gameflow state; do not create competing phase polling loops.
+- Connected phase reads are authoritative. Process presence is only a fallback when LCU is temporarily unavailable.
+- Cadence is activity-based: disconnected/reacquisition 3s, Queue/ReadyCheck 3s, ChampSelect about 2s, InGame 10s, ordinary client state about 5s.
+- Lobby/ReadyCheck automation evaluates immediately when the relevant phase is observed.
+- Stable Lobby membership uses a fingerprint to prevent duplicate search writes.
+- Failed/ambiguous matchmaking writes reconcile `/lol-matchmaking/v1/search` before deciding to retry.
+- ReadyCheck attempts use an episode fence; true failures can retry after a short delay, while a final local response prevents duplicate writes.
 
-The primary shell is a single native `MainWindow`, but Morphing mode must not look like a traditional
-MainWindow layout. It morphs between the compact Orb, ControlMatrix, feature/League surfaces,
-ChampSelect strip and hidden InGame state. In Morphing mode the NavigationView left pane is closed and
-does not reserve a visible navigation column; matrix buttons and compact header controls provide the
-navigation affordances. The state machine owns mode transitions and emits `facm.surface.transition`
-or `facm.surface.transition-failed` telemetry; it does not own League polling, LCU transport, settings,
-pet processes or feature business logic.
+## Mayhem / ChampSelect
 
-The Orb is a 36-DIP custom-vector F anchored through the existing desktop geometry contract. Expansion
-uses one-shot anchor calculation with negative-coordinate, multi-monitor and edge-clamp handling,
-then a bounded 180 ms opacity/translation presentation. A failed or unavailable geometry read falls
-back to the last safe placement and still leaves the shell usable.
+Mayhem keeps the established 3.5 service/cache/network path. UI code must treat win-rate values as **0..100 percentage points** and must not multiply by 100 again.
 
-The default shell maps desktop entry to ControlMatrix, feature entry to FeatureSurface, League entry
-to LeagueSurface, an actionable Bench-backed ChampSelect context to ChampSelectStrip, InGame to
-HiddenInGame, and Lobby return to Orb. ChampSelect without actionable Bench candidates stays on the
-current safe surface rather than opening an empty strip.
-Green Collapse returns any ordinary expanded surface directly to Orb; Back from a feature returns to
-ControlMatrix; the red control preserves the established close/shutdown behavior. The Orb is only its
-36-DIP F at idle; an information rail is transient, one-shot, and itself activates the same primary
-surface action when clicked.
+Do not replace the current fast service with a 4.x data stack merely for architectural consistency. UI completeness, cancellation, bounded waits, cache behavior and fail-soft handling are the relevant contracts.
 
-Every presentation request is made on the MainWindow Dispatcher. A valid same-mode request is an
-idempotent no-op (with lifecycle activation reconciled); an invalid same-mode presentation is
-re-applied. Successful transitions validate AppWindow visibility, target bounds, and visible content
-immediately. A failed request records the requested/previous mode, operation, exception type/HResult,
-thread, bounds, phase, and correlation id, then restores the last safe presentation or a bounded
-36-DIP Orb fallback; it never leaves a visible blank shell.
+## Desktop entry and pets
 
-When entering ChampSelect, the process-level Bench observer consumes the existing Gameflow heartbeat
-and performs the small Bench session read even if the League page was not previously selected. Its
-runtime snapshot drives ChampSelectStrip, including the Legacy/TeamBuilder bench route, existing
-champion metadata/icon reads, and the existing one-shot bench write plus bounded read-back. The
-Workbench may still refresh its detailed Live snapshot, but that page lifecycle is not required for
-automatic strip activation. The strip adds no LCU owner, Gameflow owner, permanent UI timer, or second
-polling loop. Existing heavy feature pages remain an in-window adapter until a later visual-only
-migration that observes this contract; explanatory copy is supplied by the thin Inspector where
-possible, while safety-critical warnings remain at the action point.
+`DesktopEntryGameflowPolicy` owns in-game suppression semantics:
 
-## 2026-08-31 Morphing Surface runtime presentation stabilization
+- first InGame transition suppresses desktop entry surfaces;
+- restore ownership is recorded only when Gameflow hid something that had been visible;
+- repeated InGame observations do not repeatedly close a control center explicitly reopened by the user;
+- leaving InGame restores only Gameflow-owned visibility.
 
-MS9.1 diagnostics proved that the shared failure was the presentation invariant itself: on this
-Win10 runtime, the unique Morphing `MainWindow` was clamped to a `136×39` outer AppWindow while
-the valid Orb contract requested `36×36`. The Orb XAML content was visible and every failing
-diagnostic ran on thread 2 with Dispatcher access; the exception was thrown by
-`EnsureSurfacePresentationInvariant`, not by League transport, XAML visibility, activation, or
-the dispatcher.
+`PetsModule`/`AnimalPetManager` expose active and visible state. `VPetHostClient` tracks requested visibility so hide/show intent survives host startup races.
 
-The Windows platform adapter now installs one lifetime-bound HWND subclass for the Morphing
-MainWindow and changes only `WM_GETMINMAXINFO.MinTrackSize` to `1×1`; all other messages are first
-forwarded to the original window procedure. This is a platform boundary for the one existing
-surface host, not a new window owner or a general application lock. The existing
-`AppWindow.MoveAndResize` path remains authoritative for every Orb, matrix, feature, League and
-ChampSelect geometry change. The resulting real candidate measured `36×36` outer and `30×30`
-client bounds.
+## Update architecture
 
-No MS9 coordinator, retry loop, debounce, or League change was required: the reviewed failure
-trace did not prove overlapping or stale presentation requests. Existing same-mode policy remains:
-ordinary valid `Orb→Orb` is idempotent, while `EnsureCurrentSurfacePresentation(Orb)` may repair an
-invalid presentation. Diagnostic generation/correlation fields record request context but are not
-presented as stale-request suppression. Existing outside-click lifecycle ownership remains the
-same; the MS8 flood was a consequence of the shared invariant never committing the first Orb, not
-a new watcher owner.
+`OnlineService` reads version/announcement/mirror metadata. `UpdateInstaller` downloads the approved 3.5 Release EXE, verifies it and extracts the embedded `FACM.Updater.exe`. The updater waits for FACM to exit, atomically replaces the EXE, validates the result, restarts it and can roll back on early failure.
 
-## 2026-08-31 Morphing Bench Swap Strip contract
+There is no current 4.x migration/bootstrapper mode. Unknown legacy JSON properties are ignored rather than used as runtime migration instructions.
 
-`LeagueBenchSwapStripPolicy` remains the presentation policy over observed Bench facts, while the
-process-level `LeagueBenchRuntimeObserver` now owns the compact surface's current context. It reuses
-the existing `LeagueGameflowMonitor.Observed` heartbeat and the one shared
-`LeagueBenchQuickPickService`; it does not create another Gameflow monitor, session, gateway, timer,
-or polling loop. `LeagueBenchRuntimeSnapshot` carries the ChampSelect generation, Bench enabled state,
-candidate IDs, latch, and source freshness independently of whether the detailed Workbench page has
-ever been opened.
+## Build contracts
 
-The observer creates one generation when entering ChampSelect, refreshes Bench facts on the existing
-heartbeat, and latches only after actionable candidates are observed. Candidate changes update the
-same generation in place. A zero-candidate or temporarily unavailable read keeps an already latched
-surface alive as a compact waiting strip; leaving ChampSelect clears the latch. The detailed Workbench
-still owns its page-level Dashboard/Player/Live refreshes, but it is no longer the sole source for
-automatic Compact/Strip presentation.
+CI must enforce:
 
-The strip is the existing `MainWindow` `ChampSelectStrip` mode: a 56-DIP horizontal surface with
-44-DIP portrait tiles, content-driven width clamped to 280–600 DIP, and a dedicated `F` drag handle.
-There is no normal collapse button for this latched surface. Portrait buttons use the existing
-`TrySwapAsync` command and its single POST plus 35/70/140 ms read-back; busy state disables both
-presentations, and result text is brief and non-modal. Unknown identity data uses a compact
-`Unknown champion` placeholder and never renders a raw `#<id>` primary label.
+- ToolBundle input integrity and embedded resource presence.
+- optional PetHost build/self-test.
+- no `FACM.Resources.PetHost.zip` in ordinary FACM.exe.
+- FACM.exe <10 MiB.
+- host, League dashboard/automation, performance, updater, floating-ball, pet and Mayhem smoke tests.
+- UI text contract.
 
-After a user click completes, the App requests one explicit refresh through the shared Bench runtime
-and the existing Workbench ViewModel. This is a user-action reconciliation, not a new timer or
-polling owner.
+## State ownership rules
 
-Outside-click, League-client click, candidate click, and simple F-handle click preserve the latched
-Strip. Ordinary expanded surfaces retain their existing outside-click dismissal policy. Modal scopes
-suppress automatic activation and re-evaluate after the scope closes. InGame takes precedence and
-hides the host directly; Lobby restoration returns it to Orb. The App emits low-noise
-`league.bench.surface-evaluation` events only when the decision/state signature changes, including
-phase, context generation, candidate count, current surface, latch, source owner, and freshness. The
-existing MS9 HWND minimum-track-size adaptation, TopMost/hit-test boundary, modal suppression,
-anchor persistence, single-instance and tray contracts remain outside this feature's ownership.
+Prefer one owner per mutable runtime concern:
 
-## 3. Stable paths
+- one Gameflow monitor;
+- one shell/MainForm;
+- one updater replacement path;
+- one desired pet visibility state;
+- one online version manifest;
+- one canonical 3.5 lightweight publisher.
 
-所有稳定路径只从 distribution EXE (`Environment.ProcessPath`) 推导，不使用 single-file self-extract `AppContext.BaseDirectory`。
-
-```text
-<distribution>/settings.ini
-<distribution>/settings.v2.json
-<distribution>/ui-text.ini
-<distribution>/logs/facm4-events.jsonl
-<distribution>/runtime/diagnostics/
-<distribution>/runtime/recovery/state.json
-<distribution>/runtime/recovery/settings.v2.lkg.json
-<distribution>/runtime/recovery/feature-kill-switch.json
-```
-
-Release evidence 是 repository file `evidence/facm4-release-evidence.json`。它不是 runtime 配置，也不是 production pointer。
-
-## 4. Settings / Diagnostics / Recovery
-
-Settings 2.0 strict parser/validator fail closed；legacy INI 正式 cutover 前保留。Primary save 使用 same-directory temp + flush-to-disk + replace/move。
-
-`RecoveringSettings2Repository` 只在 strict load 抛 `InvalidDataException` 后读取 validator-backed LKG；无有效 LKG 返回安全内存默认且 `AutoUpdateEnabled=false`；坏 primary 不自动覆盖。
-
-Diagnostics 只读 Product State + current JSONL + `.1`，再次 scrub secret/Basic/Bearer/Windows/UNC path，ZIP exactly `summary.txt/events.jsonl/manifest.json`。Diagnostics 无业务 writer。
-
-League T1 trace instrumentation remains inside the existing single owners: `LeagueHttpGateway` emits paired request events with correlation/source/phase, timing, status/outcome, endpoint redaction, session invalidation, and in-flight counters; `LeagueGameflowMonitor` emits paired poll events; `LeagueWorkbenchViewModel` emits paired refresh/stage events for Dashboard, Player, Live, and Advisor. The callbacks are best-effort and do not create another transport, polling loop, cache, limiter, or UI thread.
-
-Recovery Core：`Clean / Starting / Running / Failed / Recovering`；bounded atomic state store；previous-start-incomplete 检测。Update recovery 不替代 updater，只约束 validated receipt、old-version preservation、failure keeps old。
-
-## 5. Feature policy：只减权
-
-Feature baseline 是 Core 手写 approved list，不从 enum 自动推导。
-
-```text
-EffectiveEnabled = ApprovedBaseline - DisabledKillSwitchSet
-```
-
-没有 remote/local enable override。未知字段/capability、坏 JSON/schema、超界、读取异常全部 fail closed。League/Cleanup/Update/Diagnostics gated wrapper 都在底层调用前拒绝 disabled capability。
-
-## 6. Desktop / DPI / Accessibility
-
-Core `AnchorPlacementService` 处理 physical desktop geometry：负坐标、nearest monitor、edge/corner、margin/clamp、off-screen recovery。
-
-Core `DesktopDpi` 是 DPI->scale / DIP->physical pixel 唯一 contract。96/120/144/168/192 DPI 对应 100/125/150/175/200%。Windows adapter 只采集事实；FloatingWindow 不拥有第二套 scale math。
-
-Manifest 固定：`dpiAware=true/pm`、`dpiAwareness=PerMonitorV2, PerMonitor`、execution `asInvoker`。
-
-Main Shell/F/Diagnostics actionable controls 使用 stable AutomationId；Name/HelpText 走 UI Text；主要动作 keyboard-capable；正文 Wrap；semantic colors alias WinUI platform resources。
-
-Synthetic/hosted evidence 不替代真实 mixed-DPI、High Contrast、screen-reader 用户证据。
-
-## 7. Performance contract
-
-Gate 12 将 Performance Contract 从“存在”提升为逐字段 release regression：
-
-```text
-Desktop     network4 image2 disk2 cpu2 history20 poll15s  BG/Maint/Visual=true
-Client      network3 image2 disk2 cpu2 history12 poll20s  true
-Queueing    network2 image1 disk1 cpu1 history4  poll30s  false
-ChampSelect network2 image1 disk1 cpu1 history0  poll45s  false
-InGame      network1 image1 disk1 cpu1 history0  poll60s  false
-Background  network1 image1 disk1 cpu1 history0  poll60s  false
-```
-
-`IsNoMoreAggressiveThan` 必须持续证明降级策略不会增加并发/prefetch/visual work，poll interval 不会变得更激进。
-
-Gameflow cadence 固定：ChampSelect 2s；Matchmaking/ReadyCheck 3s；InGame 10s；connected other 5s；NotRunning/Connecting/ClientError 10s。
-
-## 8. Release evidence architecture
-
-Canonical machine-readable matrix：`evidence/facm4-release-evidence.json`。
-
-每项字段：
-
-```text
-id
-category
-requiredForRelease
-status = Passed | Blocked | NotRun | Failed
-evidence
-notes
-```
-
-规则：
-
-- `Passed` 必须有 evidence；
-- required 非 Passed 必须有 notes；
-- ID 唯一；mandatory release evidence 不得移除；
-- candidate identity 必须是 full Git SHA + positive artifact id/size + SHA-256 digest；
-- JSON 不存可手改的 `releaseReady`。
-
-Core `ReleaseEvidenceEvaluator` 唯一推导：
-
-```text
-ReleaseReady = all(required item.status == Passed)
-```
-
-因此 CI 可以在 matrix 合法时 SUCCESS，同时正确输出 `RELEASE BLOCKED`。Blocked 不是 CI 失败；伪造/缺失 evidence contract 才是 CI 失败。
-
-Gate 12 已完成并合入 `main@4be7d6c38a8a59c6ff437a1352b8c0c4a5d2a798`。Gate 13 guard implementation head `71d82ea060f393f271048102bc4eff77d0707305` 已通过 Foundation #240、Windows Build #1366、UI Text #487；Gate13Smoke 与 WindowsSmoke 均 SUCCESS。
-
-当前 matrix 为 **22 required / 12 Passed / 10 Blocked**，`ReleaseReady=false`。
-
-## 9. Current external blockers
-
-仍 required 且 Blocked：
-
-- non-admin launch + UAC cancel；
-- Defender / SmartScreen；
-- Win10 1809 / Win10 22H2 / controlled real-user Win11；
-- real 100/125/150/175/200% mixed-DPI multi-monitor；
-- keyboard/focus、High Contrast、text scaling、basic screen reader；
-- real 3.5.15 -> 4.0 Settings migration/relaunch/rollback；
-- interrupted updater replacement/rollback；
-- final signing/package verification。
-
-Hosted CI 不得把这些项目改成 Passed。
-
-## 10. Gate 13 production cutover guard
-
-Gate 13 已验证的安全条件是双门：
-
-```text
-CutoverAllowed = ReleaseEvidenceEvaluator.ReleaseReady
-                 AND FreshProductionDestructiveAuthorization
-```
-
-Core `CutoverDecisionService` 的判定顺序固定：**先 release evidence，后 authorization**。只要 required evidence 尚未全部 Passed，任何授权对象都不能覆盖 `ReleaseEvidenceBlocked`。
-
-Production authorization 约束：
-
-- `Granted=true`；
-- scope 精确为 `FACM4ProductionCutover`；
-- candidate SHA 与 evidence candidate 精确匹配；
-- issued 时间不得来自未来；
-- 最大 freshness 30 分钟；
-- 最大授权窗口 30 分钟；
-- 不在 repository/runtime config 中持久化 token/secret/authorization。
-
-Gate13Smoke 已验证 missing/not-granted/wrong-scope/wrong-candidate/future/expired/stale/overlong authorization 全部拒绝；只有 synthetic all-pass evidence + fresh matching authorization 才允许。
-
-`check-facm4-cutover.ps1` 在当前 `ReleaseReady=false` 时同时冻结：
-
-- `online/version.json`；
-- `release/request.json`；
-- legacy `FACM.sln`；
-- `src/FACM`；
-- `src/FACM.Updater`；
-- `src/FACM.ToolBundle`。
-
-当前状态是 **GUARD VERIFIED / CUTOVER BLOCKED**。普通“继续做工程”不等于 production/destructive authorization。
-
-## 11. Persistent invariants
-
-- Cleanup：preview -> explicit confirm -> UAC -> allowlist/reparse guard -> execution-time revalidation。
-- Updater：size/SHA-256/signature/package/validated receipt/wait-exit/separate replacement/failure keeps old/rollback。
-- Single Instance = Ensure Open / Activate。
-- Hotkey = RegisterHotKey；不使用 low-level hook/GetAsyncKeyState polling。
-- PetHost 独立进程。
-- Performance/UI Text/deterministic smoke/source gates 不得静默删除。
-
-## 12. P7 candidate desktop-pet runtime split
-
-FACM 4.0 keeps the two desktop-pet families in separate runtime and payload ownership boundaries:
-
-```text
-FlyingSprite -> WindowsFlyingPetRuntime -> WindowsFlyingHostBundleStore -> FACM.FlyingHost
-VPetCore     -> WindowsVPetRuntime     -> WindowsPetHostBundleStore     -> FACM.PetHost
-```
-
-`FACM.FlyingHost` has no VPet package/cache ownership and `FACM.PetHost` has no FlyingSprite ownership. The router serializes transitions as: clear active -> stop the non-target runtime -> set the target active -> start the target runtime. Each payload preparation, process start, pipe connect, activate/reset/stop write, readiness wait and process exit has a bounded timeout; a deferred prepare gate prevents a timed-out non-cooperative worker from spawning a second extraction worker.
-
-The host projects use .NET 10-compatible `ApplicationHighDpiMode=PerMonitorV2` for their WPF/WinForms analyzer contract. DPI nodes are not duplicated in the manifests. FlyingHost carries its own `FACM.FlyingHost.app` assembly identity; PetHost remains `FACM.PetHost.app`.
-
-Batch P closes the shared host lifecycle contract without merging the two runtime families: the client command write uses a cancellation-aware `WriteLineAsync`/`FlushAsync` pair with a 750 ms command budget; a timed-out transport is marked poisoned, detached, disposed and followed by bounded wait/kill/wait/dispose cleanup. A poisoned transport never receives a second graceful `stop` write. Both WPF hosts keep their dispatcher alive without calling `Show()` during process startup; only the dispatched `activate` command may emit `show`, after which `Loaded` emits `loaded` and the host emits `ready`. The server enters its command reader after pipe connection and does not pre-send a `connected` event. Runtime stage diagnostics carry the stage, generation, PID, pipe name, command and elapsed time as separate App diagnostic fields.
-
-## 2026-08-30 Live League reliability boundaries
-
-`LeagueHttpGateway` remains the single authenticated LCU transport. It may read the current `LeagueGameflowMonitor` snapshot through an optional provider solely to classify known 404 responses; it does not poll, cache a second phase, or create another client. The gateway exposes only bounded in-flight counters for the read-only Diagnostics Runtime Snapshot.
-
-`LeagueGameflowMonitor` remains the single polling owner. Changed/Observed subscribers are isolated individually so one UI or automation observer cannot terminate the loop or suppress healthy observers. Workbench property notifications likewise isolate subscriber faults, while `MainWindow` marshals all navigation/surface reads to its Dispatcher before touching WinUI objects.
-
-`App` owns the lifecycle diagnostics handlers and emits sanitized lifecycle/exception events. Diagnostics Center merges a point-in-time runtime-facts provider into its existing snapshot; it does not own League state. Matchmaking automation keeps the existing one-shot ReadyCheck write boundary and now reports evaluation/read/write outcomes through the existing diagnostic sink.
-
-## 2026-08-31 BOOT-1 bootstrap and modular data-root topology
-
-BOOT-1 adds a native startup boundary without moving existing product ownership:
-
-```text
-FACM.exe (native Win32 bootstrapper)
-  -> .facm/state/active.json
-  -> .facm/versions/<version>/FACM.App.exe
-  -> FACM.App (WinUI 3 / managed product)
-       -> FACM_ROOT + FACM_DATA_ROOT
-       -> Core / Infrastructure / Platform.Windows
-```
-
-The bootstrapper owns only active-version resolution, bounded path validation, local state/manifest/pack
-operations, startup correlation and child-process creation. It does not own League session, Gameflow,
-settings semantics, UI shell, desktop-pet behavior, or network update policy. `active.json` is the minimal
-schemaVersion/activeVersion/activePath/previousVersion/lastSuccessfulLaunch record and is atomically replaced.
-An install or staging failure leaves the previous active version intact.
-
-The app-local Core uses `facm-core-win-x64`; optional desktop-pet components are identified separately as
-`facm-pet-pethost-win-x64` and `facm-pet-flying-win-x64`. `IComponentAvailability` is a read-only boundary,
-not a package manager. If a selected optional pet component is unavailable, the runtime stops/restores the
-launcher and emits a sanitized unavailable-component result; it does not create a second host or rewrite the
-user's persisted enabled preference to `Off`.
-
-Legacy single-file publication remains available and keeps its existing embedded-pet default. BOOT-1's
-`BootCore.pubxml` explicitly disables embedded pet payloads and publishes a multi-file self-contained Core.
-The current local prototype can produce/verify a ZIP component pack and can provision an expanded local source
-tree into staging; native ZIP extraction and network provisioning are intentionally outside this stage.
-
-## 2026-08-31 BOOT-2 network component topology
-
-BOOT-2 extends the startup boundary into a modular local component supply path without moving product
-ownership into the bootstrapper:
-
-```text
-FACM.exe
-  -> bootstrap.json (manifest URL + explicit local-dev trust switches)
-  -> WinHTTP application manifest
-  -> .facm/cache/downloads/<component>-<version>.cab[.partial]
-  -> .facm/components/<component>/<version>
-  -> .facm/staging/composition-<applicationVersion>
-  -> .facm/versions/<applicationVersion>/FACM.App.exe
-  -> .facm/state/components.json + active.json
-  -> FACM.App (existing managed ownership)
-```
-
-The BOOT-2 application manifest has independent component IDs, versions, architecture, required flag,
-package size, installed size, package hash, extracted content digest, file count, package format, entry point,
-primary URL, mirror URLs and dependencies. The current local manifest is explicitly `unsigned-local`; no
-production signature verification is claimed. Component installation is topologically dependency-ordered,
-and composition copies each source path once into a fresh staging directory; collisions, unsafe archive paths,
-reparse points, over-limit extraction and content/file-count mismatches abort before active replacement.
-
-The three current update units are `facm-app-win-x64`, `facm-dotnet-runtime-win-x64` and
-`facm-windows-runtime-win-x64`. Desktop-pet payloads remain outside BOOT-2 network delivery. Normal launch
-with a valid active composition does not fetch the manifest or hash all installed files; `--update` is the
-explicit update path and may perform full component evaluation. The local server under
-`D:\project2\facm-boot2-mirror-20260831` is deterministic test infrastructure only.
-
-## 2026-08-31 BOOT3-A trust topology
-
-BOOT3-A adds a bootstrapper-local trust boundary around the BOOT-2 supply path:
-
-```text
-embedded production keyring (facm-production-r1 public key only)
-  -> exact application manifest bytes + manifest.json.sig
-  -> authenticated component URL / manifest SHA / package SHA / extracted digest metadata
-  -> exact component manifest bytes + component.manifest.json.sig
-  -> native CNG signature + metadata comparison
-  -> CAB package size/SHA-256
-  -> native FDI extraction + installed size/fileCount/contentDigest
-  -> fresh composition staging
-  -> atomic active.json commit
-```
-
-The signed-byte format is RSA-2048 PKCS#1 v1.5 with SHA-256 and detached Base64 signatures; no JSON
-canonicalization is used. Production URLs are HTTPS regardless of local-development switches. The existing
-EXE Authenticode/updater identity path remains separate because it is a PE release-signing mechanism, not a
-JSON/CAB exact-byte manifest mechanism. `unsigned-local` is retained only for explicit loopback development
-provisioning and cannot add production trust roots or bypass signatures.
-
-## 2026-08-31 BOOT3-B release artifact and signer topology
-
-BOOT3-B keeps release private-key possession outside the repository/build
-machine:
-
-```text
-BOOT-2 publish/classification/CAB stages
-  -> deterministic BOOT3-B bundle builder
-       -> three core CAB packages
-       -> exact-byte component manifests
-       -> exact-byte application manifest
-       -> release-index.json + ownership-report.json
-       -> signing-request.json (public metadata/digests only)
-            -> external controlled signer
-                 -> detached Base64 signatures
-            -> response apply (rechecks request payload bytes/digests)
-                 -> complete signed bundle
-                      -> offline release-bundle validator
-                           -> native CNG --verify-trust-bundle
-```
-
-The release tooling key policy is review metadata only. Runtime trust remains
-the compiled native key table with explicit `Active`, `Overlap`, `Planned`,
-`Retired`, and `Revoked` lifecycle statuses. A planned key cannot become
-trusted by changing a manifest, signing request, environment variable, or
-configuration file. The default bundle composition is exactly app, managed
-runtime, and Windows runtime; Desktop Pet payloads remain outside this pipe.
-
-The builder writes UTF-8/no-BOM manifests with one final newline and preserves
-the payload files used for signing. The signer request uses relative bundle
-paths plus exact byte counts and SHA-256 values. The response apply step does
-not parse/reserialize payloads and does not access a private key. The offline
-validator validates the public artifact topology and calls the native verifier
-for authoritative signature, CAB extraction, and extracted-content checks; it
-does not install or alter an active FACM composition.
-
-## 2026-08-31 BOOT3-C HTTPS distribution and recovery topology
-
-BOOT3-C extends the BOOT3-B boundary without moving trust to the network origin:
-
-```text
-bootstrap.json primary + fixed manifestMirrors
-  -> WinHTTP system TLS validation (redirect policy = never)
-  -> signed application manifest + application mirror metadata
-  -> signed component manifests + component-manifest mirrors
-  -> primary package / authenticated package mirrors
-  -> .partial Range resume -> exact package size/SHA-256
-  -> fresh extraction staging -> composed version staging
-  -> components.json -> atomic active.json commit
-```
-
-Manifest and package mirrors are deterministic fallback addresses, not additional trust roots. The embedded native
-key table and exact detached signatures remain authoritative. A transport failure or bad package may move to the next
-declared address; a response that cannot satisfy the signed byte/hash/metadata contract fails closed. WinHTTP never
-follows a redirect, preventing an HTTPS-to-HTTP or unauthorized-host downgrade.
-
-The update path now performs a target-volume peak-space check before downloads. The estimate covers package/partial
-bytes, extracted component staging, composed-version bytes and a fixed safety margin while preserving the current
-active/known-good version. State readers reject malformed schema, unsafe active paths, duplicate component IDs,
-invalid digests and unsafe installed-component paths. Failed staging remains controlled diagnostic material; the
-active pointer is not deleted during a failed update.
-
-## 2026-08-31 FREE-DIST-1 GitHub origin and proxy transport topology
-
-FREE-DIST-1 keeps one canonical release identity while allowing zero-cost transport candidates:
-
-```text
-canonical GitHub Release URL in signed metadata
-  -> fixed HTTPS proxy prefix: ghfast.top
-  -> fixed HTTPS proxy prefix: gh-proxy.com
-  -> fixed HTTPS proxy prefix: gh.llkk.cc
-  -> direct GitHub Release URL
-       -> bounded approved HTTPS redirect -> GitHub release asset host
-  -> exact-byte manifest/signature/package/content verification
-```
-
-The proxy prefix is derived only for a canonical GitHub Release path. It is not a manifest mirror, trust root,
-key source or release identity. A selected transport retains the canonical source URL for detached-signature lookup
-and downgrade/trust checks. Non-canonical local-development URLs continue to use their supplied direct address.
-
-For package downloads, the transport layer and the existing recovery layer are deliberately separate: the transport
-candidate may fail, return bad bytes or ignore a Range request, but the recovery layer keeps or safely restarts the
-partial file, verifies `Content-Range`, package size, package SHA-256 and extracted content before activation. This
-prevents a free proxy from weakening the BOOT3-A/BOOT3-B exact-byte trust chain.
-
-GitHub Release publication adds a separate asset-layout constraint: each uploaded asset is a unique flat filename. The
-FREE-DIST candidate therefore maps nested build artifacts to stable root names such as
-`facm-app-win-x64-component-manifest.json` and `facm-app-win-x64-4.0.0-free-dist-test.1.cab`; signed
-application/component URLs and `release-index.json` use the same flat names. This changes publication packaging only
-and does not change the canonical release identity, trust key, or transport fallback policy.
-
-## 2026-09-01 FREE-DIST-3 single-launcher startup topology
-
-The normal clean first-run path no longer depends on a runtime configuration file:
-
-```text
-FACM.exe
-  -> compiled schema-1 default manifest URL
-  -> optional valid bootstrap.json override (if present)
-  -> fixed GitHub transport candidates for canonical URLs
-  -> signed application manifest + detached signature
-  -> signed component manifests + authenticated packages
-  -> exact verification -> composed active version -> FACM.App.exe Orb
-```
-
-`bootstrap.json` is an optional discovery override only. It must contain the expected schema and a non-empty manifest
-URL; malformed or unsupported configuration falls back to the compiled default. Its mirror list and local flags are
-used only when the file is valid. It cannot add public keys, replace the embedded key table, make production content
-unsigned, or turn an HTTPS production path into HTTP. A command-line URL remains an explicit test/development override
-under the existing URL and trust validation rules.
-
-## 2026-09-02 legacy-to-4.0 migration bridge
-
-The legacy net48 updater cannot install a 4.0 component composition by replacing one managed EXE. The transition is
-therefore intentionally two-stage:
-
-```text
-FACM 3.5.16 (legacy single EXE)
-  -> normal signed update -> FACM 3.5.17 migration bridge
-       -> signed FACM 4.0 native bootstrapper
-       -> .facm/settings.ini (copy of legacy settings.ini; source preserved)
-       -> bootstrap.json (exact production manifest URL)
-       -> embedded updater migration mode
-            -> atomic FACM.exe replacement + rollback image
-            -> bootstrapper --update
-                 -> signed CAB composition + active.json
-                 -> FACM.App.exe
-```
-
-The bridge metadata is an optional `migration` object in the legacy `online/version.json`. It is ignored by older
-clients and is consumed only by the version-pinned 3.5.17 bridge. The native bootstrapper is verified with the
-existing legacy Authenticode signer and its SHA-256 before replacement; the bootstrapper then applies its own
-compiled-in `facm-production-r1` detached-manifest trust boundary. The helper does not treat a short-lived native
-bootstrapper process as success: it waits for the expected `active.json`, version directory, and matching
-`FACM.App.exe` process, otherwise it atomically restores the legacy executable and records a failed bridge state.
-
-This bridge does not authorize production cutover. A production 4.0 release still requires a fully signed bundle and
-all Gate 13 real-machine evidence; until then the legacy pointer remains the rollback line.
-
-## 2026-09-01 P7 UX-CLOSEOUT-1 presentation boundaries
-
-The WinUI League Workbench remains a single productized surface and continues to use the existing League session,
-workbench refresh, and advisor owners. `MainWindow` receives the Core-level `ILeagueGuideAssetService` from the App
-composition root; the UI does not reference Infrastructure directly and does not create a second League owner or polling
-loop. The service is decorative-only: OP.GG JSON remains the source of recommendation rows, while icon bytes use a fixed
-Tencent image route first and a fixed CommunityDragon route second, with bounded requests, disk cache, single-flight
-deduplication, exact-path validation, and fail-soft text-only fallback.
-
-The guide is rendered as compact icon/text rows inside the existing Workbench card and uses the existing bottom inspector
-bar for contextual help. Verbose per-card descriptions are collapsed from the normal surface and are available through
-hover/focus help. Repair/Cleanup exposes one visible exit-game action; the existing League efficiency shortcut remains
-the separate keyboard path and continues to call the existing narrow action service.
-
-## 2026-09-01 P7 LIVE-LCU-FIRST evidence boundary
-
-The current live audit confirms that the product's existing LCU chain can read the gameflow phase
-and static game-data catalogs through one authenticated loopback gateway. In the observed Lobby/None
-state, both known ChampSelect session routes returned `404 expected-unavailable`; this is a valid
-state transition, not a schema to be filled in by inference. Automatic guide resolution must therefore
-wait for the shared gameflow owner to report ChampSelect and must bind only the local player action
-and champion fields observed from the live session. The audit summary contains schema shapes and
-counts only; it never carries LCU credentials, account identity values, or raw response bodies.
-
-The one Gameflow monitor uses a 3-second retry cadence for `NotRunning`, `Connecting`, and
-`ClientError`, while preserving the slower phase-specific cadences for idle lobby and in-game
-states. This is a timing adjustment inside the existing owner, not a second reconnect loop.
-
-## 2026-09-01 P7 UX-CLOSEOUT-2 manual HaiDou projection
-
-The manual HaiDou result is projected by the Core-level `MayhemGuidePresentation` model. WinUI and
-the PNG export consume that same ordered section list, so the visible card and shared image cannot
-silently diverge. The projection is Chinese-first, keeps only verified source fields, omits empty
-optional sections, and leaves the manual HaiDou path available as the detail/fallback surface for
-the later automatic ChampSelect guide. The OP.GG detailed page remains an optional enrichment source;
-its absence of a verified Runes table is represented by omission rather than a generic or invented
-rune section.
-
-## 2026-09-01 P7 LEAGUE-GUIDE-MORPH-1 automatic ChampSelect guide
-
-The automatic guide is a presentation extension of the existing `ChampSelectStrip`, not a second
-window or League subsystem:
-
-```text
-single Gameflow heartbeat
-  -> LeagueBenchRuntimeObserver
-  -> LeagueBenchRuntimeSnapshot.LocalChampionId + Bench facts
-  -> existing MainWindow ChampSelectStrip
-  -> nested MainWindow ChampSelectGuidePanel
-       -> shared MayhemProductQueryService
-       -> shared read-only ILeagueReadGateway / public cache transport
-       -> icon-first result projection
-```
-
-`LocalChampionId` is resolved from the observed Bench session and the UI falls back to the live local
-player/action fields only when the runtime snapshot is temporarily zero. Pick intent is not used as a
-claimed current champion. When the ID changes, the current request is cancelled, the guide generation
-advances, rarity/page state resets, and a new query starts in place. A zero ID does not replace an
-already visible guide with a guessed champion.
-
-The automatic guide consumes the same `MayhemChampionResult` as manual HaiDou. Rich source rows stay
-complete in `AugmentRows`; the UI normalizes, partitions, and paginates them at six icons per rarity.
-The source parser maps OP.GG numeric rarity values `8`, `4`, and `1` to Prismatic, Gold, and Silver
-respectively, while unknown/legacy rows remain fail-closed rather than being assigned a guessed tier.
-LCU image references use the existing read gateway; public image/data references use the existing
-bounded public-data/cache path. The panel has no `ILeagueWriteGateway`, `LeagueWriteCommand`, or
-automatic configuration mutation path. Champion identity loading uses the summary catalog first and
-typed `/lol-game-data/assets/v1/champions/{id}.json` detail fallback for missing or placeholder names.
-
-## 2026-09-02 League process discovery fallback ownership
-
-`WindowsLeagueTransportSessionSource` still owns the single bounded discovery/session path. Its
-Platform process snapshot provider keeps native process inspection and the dynamic COM fallback, but
-the WinUI App composition root now injects a strongly typed `System.Management` command-line reader.
-This host-aware fallback addresses a real WinUI self-contained-host difference where WMI succeeded in a
-diagnostic shell but the previous dynamic COM path returned no `LeagueClientUx` command line. The
-reader returns command-line text only to the local parser; diagnostics receive only source/outcome/PID/
-port fields, and no second session, gateway, timer, or write path is created.
-
-## 2026-09-02 GGman icon ownership and tray state projection
-
-`FACM.ico` is the shared taskbar/EXE icon for the legacy FACM host, FACM.App, and the native bootstrapper.
-FACM.App's `WindowsTrayHost` separately owns three micro-optimized embedded tray icons. The existing
-Gameflow change handler projects only `LeagueConnectionState` into the tray: `NotRunning` is gray,
-`Connecting`/`Unavailable` is yellow, and `Connected` is green. This adds no discovery owner, timer,
-gateway, LCU read, or write path; it is a visual projection of the existing single Gameflow snapshot.
-
-## 2026-09-02 Gitee-first update metadata and release origins
-
-The modular 4.x maintenance surface reads the fixed Gitee raw catalog
-`online/facm4-version.json`; the legacy 3.x bridge continues to read `online/version.json`. The catalog
-contains the versioned bootstrapper asset and the matching signed application-manifest URL. The WinUI
-surface verifies the downloaded bootstrapper against the installed native bootstrapper signer, then
-starts the installed `FACM.exe --update --manifest-url=...`. The native bootstrapper remains the only
-owner of signed component manifests, CAB hashes, extraction, active-version commit, and rollback.
-Gitee release assets remain direct first-party HTTPS candidates; GitHub proxy prefixes are not applied
-to them. Both catalog URLs and release URLs are constrained to the FACM repository's exact paths.
-
-The local release publisher is an operator-only API client. It reads the Gitee token from the operating
-system credential manager, creates a tagged Release against an explicit commit, and uploads only the
-selected bundle files. It is outside the application runtime and introduces no update-time credential
-or network dependency.
-
-## 2026-09-02 Release metadata derives from CAB contents
-
-The local publisher treats each CAB as the content authority for release metadata. Before a detached
-component manifest is signed, the publisher extracts the CAB with the Windows system extractor and derives
-file count, installed byte size, per-file ownership records, and the deterministic content digest from that
-extracted tree. The application manifest, component manifests, release index, and ownership report all
-consume those derived values. The release validator repeats the extraction and comparison, preventing a
-stale seed manifest from imposing an incorrect native extraction limit at first launch.
+When asynchronous work can finish after context changes, use cancellation/generation/fingerprint/postcondition checks rather than adding arbitrary sleeps.
