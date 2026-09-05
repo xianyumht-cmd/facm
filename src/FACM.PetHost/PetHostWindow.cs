@@ -165,8 +165,6 @@ internal sealed class PetHostWindow : Window
             GraphCore.CachePath = PetHostPaths.CacheDirectory;
             Directory.CreateDirectory(GraphCore.CachePath);
 
-            // Match VPet-Simulator.Windows startup behavior. Core's default 2000 MB limit can stall
-            // first-run graph generation when hundreds of high-resolution frames are being merged.
             var baselineMemoryMb = (int)Math.Ceiling(Function.MemoryUsage());
             var availableMemoryMb = Math.Max(0, (int)Math.Floor(Function.MemoryAvailable()));
             var additionalBudgetMb = Math.Max(512, availableMemoryMb / 2);
@@ -192,7 +190,6 @@ internal sealed class PetHostWindow : Window
                 Opacity = 0
             };
 
-            // Keep the loading card above the real VPet control while the first-run PNG caches are generated.
             _root.Children.Insert(0, _main);
             SetLoadProgress();
 
@@ -209,9 +206,6 @@ internal sealed class PetHostWindow : Window
 
             if (_lifetime.IsCancellationRequested) return;
 
-            // FACM embeds only the pet rendering/interaction layer. VPet's full simulator toolbar
-            // (Feed / Panel / Interaction / System) is intentionally disabled here because its
-            // product actions are not wired into FACM and would create a second, non-functional menu.
             if (_main.ToolBar != null)
                 _main.ToolBar.Visibility = System.Windows.Visibility.Collapsed;
 
@@ -331,6 +325,13 @@ internal sealed class PetHostWindow : Window
                 }
                 Topmost = true;
                 break;
+            case "hide":
+                if (IsVisible) Hide();
+                break;
+            case "show":
+                if (_activated && !IsVisible) Show();
+                if (_activated) Topmost = true;
+                break;
             case "reset":
                 _controller.ResetToPrimaryScreen();
                 break;
@@ -363,9 +364,6 @@ internal sealed class PetHostWindow : Window
 
     private bool IsFacmOpenHit(MouseButtonEventArgs e)
     {
-        // FACM's open-panel bridge must not turn the whole transparent 330x330 host into a hit target.
-        // Reuse VPet's own configured head/body rectangles, but do not handle the routed event; VPet keeps
-        // receiving exactly the same touch/press interactions as before.
         if (_main == null || _core?.Graph?.GraphConfig == null) return false;
         var width = Math.Max(1d, _main.ActualWidth);
         var height = Math.Max(1d, _main.ActualHeight);
@@ -384,8 +382,6 @@ internal sealed class PetHostWindow : Window
 
     private void OnPreviewRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // FACM owns right-click behavior in PetHost. Always consume the event so VPet Core never opens
-        // its built-in full-simulator toolbar. Only the configured FACM hit area opens FACM's menu.
         var openFacmMenu = IsFacmOpenHit(e);
         e.Handled = true;
         if (_main?.ToolBar != null)
