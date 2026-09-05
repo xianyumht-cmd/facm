@@ -19,6 +19,13 @@
     <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
     <UpdaterAssembly>$(MSBuildProjectDirectory)\..\FACM.Updater\bin\$(Configuration)\net48\FACM.Updater.exe</UpdaterAssembly>
     <PetHostBundlePath Condition="'$(PetHostBundlePath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.zip</PetHostBundlePath>
+    <!--
+      3.5.x portable builds are lightweight by default. Merely leaving an old PetHostBundle.zip
+      under out/ must never inflate FACM.exe. Historical/specialized embedded-PetHost builds remain
+      available only through an explicit IncludePetHostBundle=true or RequirePetHostBundle=true.
+    -->
+    <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == '' and '$(RequirePetHostBundle)' == 'true'">true</IncludePetHostBundle>
+    <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
 
   <ItemGroup>
@@ -67,11 +74,12 @@
                       WithCulture="false" />
 
     <!--
-      正式构建会先 publish/self-test PetHost，再把完整 publish 目录压成 ZIP。
-      ZIP 直接嵌入 FACM.exe，因此旧版单 EXE 更新器升级后也能恢复匹配版本的 PetHost。
+      PetHost is an optional compatibility runtime on the 3.5 lightweight line. Keep support for
+      explicitly requested historical/specialized bundles, but never embed one just because a stale
+      out/PetHostBundle.zip happens to exist on the build machine.
     -->
     <EmbeddedResource Include="$(PetHostBundlePath)"
-                      Condition="Exists('$(PetHostBundlePath)')"
+                      Condition="'$(IncludePetHostBundle)' == 'true' and Exists('$(PetHostBundlePath)')"
                       LogicalName="FACM.Resources.PetHost.zip"
                       Type="Non-Resx"
                       WithCulture="false" />
@@ -99,9 +107,9 @@
           BeforeTargets="PrepareResourceNames">
     <Error Condition="'$(RequirePetHostBundle)' == 'true' and !Exists('$(PetHostBundlePath)')"
            Text="Required PetHost bundle was not built: $(PetHostBundlePath)" />
-    <Message Condition="Exists('$(PetHostBundlePath)')"
+    <Message Condition="'$(IncludePetHostBundle)' == 'true' and Exists('$(PetHostBundlePath)')"
              Importance="High"
-             Text="Embedding PetHost bundle as FACM.Resources.PetHost.zip: $(PetHostBundlePath)" />
+             Text="Embedding explicitly requested PetHost bundle as FACM.Resources.PetHost.zip: $(PetHostBundlePath)" />
   </Target>
 
   <Target Name="ValidateRuntimeSourcesAfterCiBuild"
@@ -129,7 +137,7 @@
     <Exec Command="&quot;$(TargetPath)&quot; --tencent-mayhem-patch-test" Timeout="120000" />
     <Message Importance="High" Text="Validating complete base ARAM balance parsing with an offline Seraphine fixture." />
     <Exec Command="&quot;$(TargetPath)&quot; --aram-base-balance-test" Timeout="120000" />
-    <Message Condition="Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
-    <Exec Condition="Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" Timeout="180000" />
+    <Message Condition="'$(IncludePetHostBundle)' == 'true' and Exists('$(PetHostBundlePath)')" Importance="High" Text="Validating embedded PetHost extraction and startup." />
+    <Exec Condition="'$(IncludePetHostBundle)' == 'true' and Exists('$(PetHostBundlePath)')" Command="&quot;$(TargetPath)&quot; --embedded-pethost-test" Timeout="180000" />
   </Target>
 </Project>
