@@ -19,6 +19,15 @@ namespace FACM.Pets
             get
             {
                 if (_host != null && _host.IsActive) return true;
+                return _window != null && !_window.IsDisposed;
+            }
+        }
+
+        public static bool IsVisible
+        {
+            get
+            {
+                if (_host != null && _host.IsActive) return _host.IsVisible;
                 return _window != null && !_window.IsDisposed && _window.Visible;
             }
         }
@@ -72,6 +81,27 @@ namespace FACM.Pets
             _window.TopMost = true;
             AppLog.Info(SpriteRuntimeName(definition) + " pet changed: " + definition.Id);
             HandleReady();
+        }
+
+        public static void SetVisible(bool visible)
+        {
+            EnsureUiThread();
+            if (_host != null)
+            {
+                _host.SetVisible(visible);
+                return;
+            }
+
+            if (_window == null || _window.IsDisposed) return;
+            if (visible)
+            {
+                if (!_window.Visible) _window.Show();
+                _window.TopMost = true;
+            }
+            else if (_window.Visible)
+            {
+                _window.Hide();
+            }
         }
 
         public static void ResetToPrimaryScreen()
