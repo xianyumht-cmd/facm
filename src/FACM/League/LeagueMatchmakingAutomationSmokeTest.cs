@@ -14,11 +14,15 @@ namespace FACM.League
         {
             ValidateSettings();
             ValidateTransportFence();
+            ValidateImmediatePhaseReaction();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
+            ValidateFailedSearchRetriesAfterBackoff();
+            ValidateAmbiguousSearchReconcilesQueueState();
             ValidateLobbyBlocks();
             ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
+            ValidateFailedReadyCheckRetries();
             ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
         }
@@ -53,12 +57,42 @@ namespace FACM.League
                 "Gate 7 transport must not inherit Gate 6 play-again permission.");
         }
 
+        private static void ValidateImmediatePhaseReaction()
+        {
+            var lobbyRead = new FakeReadApi();
+            lobbyRead.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            var lobbyWrite = new FakeWriteApi();
+            var lobbyClock = new FakeClock();
+            using (var controller = new LeagueMatchmakingAutomationController(lobbyRead, lobbyWrite, lobbyClock))
+            {
+                controller.Configure(true, false);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(lobbyWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "Lobby phase did not trigger matchmaking promptly.");
+                Require(lobbyClock.DelayCalls == 0,
+                    "Lobby automation inserted a fixed delay before its first matchmaking attempt.");
+            }
+
+            var readyRead = new FakeReadApi();
+            readyRead.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var readyWrite = new FakeWriteApi();
+            var readyClock = new FakeClock();
+            using (var controller = new LeagueMatchmakingAutomationController(readyRead, readyWrite, readyClock))
+            {
+                controller.Configure(false, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "ReadyCheck" });
+                Require(readyWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "ReadyCheck phase did not trigger accept promptly.");
+                Require(readyClock.DelayCalls == 0,
+                    "ReadyCheck automation inserted a fixed delay before its first accept attempt.");
+            }
+        }
+
         private static void ValidateTencentLobbyWithoutOptionalFields()
         {
             var read = new FakeReadApi();
-            // Tencent compatibility fixture: no partyId, queueId is unavailable/0,
-            // allowedStartActivity is false, and warnings/restrictions are non-empty.
-            // None of those optional fields may veto a client-reported canStartActivity Lobby.
             read.Set(LeagueMatchmakingAutomationController.LobbyPath,
                 LobbyJson(0, true, false, true, new[] { "self" }, true));
             var write = new FakeWriteApi();
@@ -91,6 +125,52 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateFailedSearchRetriesAfterBackoff()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var write = new FakeWriteApi { StatusCode = 500 };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Failed matchmaking attempt was not emitted.");
+
+                write.StatusCode = 204;
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "A true failed matchmaking POST incorrectly consumed the Lobby fingerprint and blocked retry.");
+
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "Successful retry did not commit the Lobby fingerprint exactly once.");
+            }
+        }
+
+        private static void ValidateAmbiguousSearchReconcilesQueueState()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"isCurrentlyInQueue\":true,\"readyCheck\":{\"state\":\"None\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi { ReturnNull = true };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Ambiguous matchmaking write was not attempted exactly once.");
+                Require(read.RequestCount == 2,
+                    "Ambiguous matchmaking write did not perform exactly one authoritative queue-state reconciliation read.");
+
+                write.ReturnNull = false;
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Authoritative queue=true reconciliation did not fence a duplicate matchmaking POST.");
+            }
+        }
+
         private static void ValidateLobbyBlocks()
         {
             AssertLobbyBlocked(LobbyJson(420, false, true, true, new[] { "self" }, false), "canStartActivity=false");
@@ -101,7 +181,6 @@ namespace FACM.League
         private static void ValidateTencentReadyCheckWithoutFingerprintFields()
         {
             var read = new FakeReadApi();
-            // Missing/partial search data must not block a ReadyCheck phase accept attempt.
             read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
                 "{\"isCurrentlyInQueue\":true,\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
             var write = new FakeWriteApi();
@@ -131,6 +210,29 @@ namespace FACM.League
             }
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
                 "Same continuous ReadyCheck episode must accept exactly once.");
+        }
+
+        private static void ValidateFailedReadyCheckRetries()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi { StatusCode = 500 };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                    "Failed ReadyCheck accept attempt was not emitted.");
+
+                write.StatusCode = 204;
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 2,
+                    "A true failed ReadyCheck accept incorrectly consumed the episode and blocked retry.");
+
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 2,
+                    "Successful ReadyCheck retry did not consume the episode exactly once.");
+            }
         }
 
         private static void ValidateExplicitReadyResponseBlocks()
@@ -209,7 +311,7 @@ namespace FACM.League
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                RequestCount++;
+                Interlocked.Increment(ref RequestCount);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);
@@ -220,19 +322,33 @@ namespace FACM.League
         {
             internal sealed class Call { public string Method; public string Path; }
             public readonly List<Call> Calls = new List<Call>();
+            private readonly ManualResetEventSlim _called = new ManualResetEventSlim(false);
+            public int StatusCode = 204;
+            public bool ReturnNull;
+
+            public bool WaitForCall(TimeSpan timeout)
+            {
+                return _called.Wait(timeout);
+            }
+
             public Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Calls.Add(new Call { Method = method, Path = path });
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
+                lock (Calls) Calls.Add(new Call { Method = method, Path = path });
+                _called.Set();
+                if (ReturnNull) return Task.FromResult<LeagueClientWriteResponse>(null);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = StatusCode, Body = new byte[0] });
             }
         }
 
         private sealed class FakeClock : ILeagueMatchmakingClock
         {
+            public int DelayCalls;
+
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref DelayCalls);
                 return Task.CompletedTask;
             }
         }

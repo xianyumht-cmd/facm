@@ -20,7 +20,7 @@ namespace FACM.League
     {
         private const int WidthPixels = 660;
         private const int CompactHeight = 116;
-        private const int ExpandedHeight = 458;
+        private const int ExpandedHeight = 560;
 
         private readonly LeagueBenchQuickPickService _bench;
         private readonly ILeagueClientApi _leagueClient;
@@ -136,7 +136,8 @@ namespace FACM.League
             _guidePanel = new Panel
             {
                 Location = new Point(10, 116),
-                Size = new Size(640, 332),
+                Size = new Size(640, 434),
+                AutoScroll = true,
                 BackColor = Color.FromArgb(18, 26, 40),
                 Visible = false
             };
@@ -171,21 +172,21 @@ namespace FACM.League
                 AutoEllipsis = true,
                 ForeColor = Color.FromArgb(111, 206, 165)
             };
-            _skills = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache), 96);
-            _spells = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache), 120);
-            _items = CreateGuideLine(BuildGuideLine(MayhemUiCopy.CompactBuild, MayhemUiCopy.ReadingCache), 144);
+            _skills = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache), 96, 32);
+            _spells = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache), 130, 32);
+            _items = CreateGuideLine(BuildGuideLine(MayhemUiCopy.CompactBuild, MayhemUiCopy.ReadingCache), 164, 54);
             var augmentTitle = new Label
             {
                 Text = MayhemUiCopy.AugmentBoard,
-                Location = new Point(10, 174),
+                Location = new Point(10, 224),
                 Size = new Size(260, 22),
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(177, 195, 224)
             };
             _augments = new ListView
             {
-                Location = new Point(10, 200),
-                Size = new Size(610, 118),
+                Location = new Point(10, 250),
+                Size = new Size(610, 168),
                 View = View.Details,
                 FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
@@ -480,6 +481,10 @@ namespace FACM.League
             _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, BuildSkillText(result));
             _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, BuildSpellText(result));
             _items.Text = BuildGuideLine(MayhemUiCopy.CompactBuild, BuildItemText(result));
+            _toolTip.SetToolTip(_championMeta, _championMeta.Text);
+            _toolTip.SetToolTip(_skills, _skills.Text);
+            _toolTip.SetToolTip(_spells, _spells.Text);
+            _toolTip.SetToolTip(_items, _items.Text);
 
             _augments.BeginUpdate();
             try
@@ -615,14 +620,14 @@ namespace FACM.League
             return (label ?? string.Empty) + ": " + (value ?? string.Empty);
         }
 
-        private static Label CreateGuideLine(string text, int y)
+        private static Label CreateGuideLine(string text, int y, int height)
         {
             return new Label
             {
                 Text = text,
                 Location = new Point(10, y),
-                Size = new Size(610, 22),
-                AutoEllipsis = true,
+                Size = new Size(610, height),
+                AutoEllipsis = false,
                 ForeColor = Color.FromArgb(218, 226, 240)
             };
         }
@@ -703,7 +708,7 @@ namespace FACM.League
                 var value = FirstNonEmpty(item.Name, item.Id);
                 if (string.IsNullOrWhiteSpace(value) || !seen.Add(value)) continue;
                 values.Add(value);
-                if (values.Count >= 7) break;
+                if (values.Count >= 12) break;
             }
             if (values.Count == 0)
             {
@@ -711,7 +716,7 @@ namespace FACM.League
                 {
                     if (!seen.Add(value)) continue;
                     values.Add(value);
-                    if (values.Count >= 7) break;
+                    if (values.Count >= 12) break;
                 }
             }
             return values.Count == 0 ? MayhemUiCopy.NoValue : string.Join(" → ", values);
@@ -723,14 +728,14 @@ namespace FACM.League
             if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add(result.Tier);
             if (result.Rank.HasValue) parts.Add(MayhemUiCopy.RankPrefix + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
             if (result.WinRate.HasValue)
-                parts.Add(MayhemUiCopy.Win + (result.WinRate.Value * 100d).ToString("0.0", CultureInfo.InvariantCulture) + "%");
+                parts.Add(MayhemUiCopy.Win + result.WinRate.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%");
             if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
             return parts.Count == 0 ? MayhemUiCopy.CardSubtitle : string.Join(" · ", parts);
         }
 
         private static string FormatRate(double? value)
         {
-            return value.HasValue ? (value.Value * 100d).ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
+            return value.HasValue ? value.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
         }
 
         private static string FirstNonEmpty(params string[] values)
@@ -765,7 +770,7 @@ namespace FACM.League
                 ChampionName = "Seraphine",
                 Tier = "S+",
                 Rank = 3,
-                WinRate = 0.5432,
+                WinRate = 54.32,
                 Patch = "26.18",
                 SkillPriority = new List<MayhemSkillPriority>
                 {
@@ -784,6 +789,8 @@ namespace FACM.League
                 meta.IndexOf("#3", StringComparison.Ordinal) < 0 ||
                 meta.IndexOf("54.3%", StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("ChampSelect assistant guide summary projection is invalid.");
+            if (!string.Equals(FormatRate(53.5), "53.5%", StringComparison.Ordinal))
+                throw new InvalidOperationException("ChampSelect assistant percent-unit contract is invalid.");
             if (!string.Equals(BuildSkillText(result), "Q → E → W", StringComparison.Ordinal))
                 throw new InvalidOperationException("ChampSelect assistant skill projection is invalid.");
             if (!string.Equals(BuildSpellText(result), "Flash + Mark", StringComparison.Ordinal))

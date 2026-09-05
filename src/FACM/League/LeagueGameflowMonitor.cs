@@ -78,7 +78,10 @@ namespace FACM.League
 
         internal static TimeSpan ResolveDelay(LeagueDashboardPhaseState state)
         {
-            if (state == null || !state.Connected) return TimeSpan.FromSeconds(10);
+            // A disconnected/not-yet-running client is exactly where a long sleep is most
+            // noticeable: startup and reconnect automation cannot react until this monitor
+            // observes the new session. Match the later lightweight 4.x recovery cadence.
+            if (state == null || !state.Connected) return TimeSpan.FromSeconds(3);
             switch (state.Activity)
             {
                 case LeagueActivityLevel.ChampSelect: return TimeSpan.FromSeconds(2);

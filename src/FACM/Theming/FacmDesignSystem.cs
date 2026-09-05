@@ -139,6 +139,7 @@ namespace FACM.Theming
             var nav = control as FacmNavButton;
             if (nav != null)
             {
+                nav.BackColor = Surface;
                 nav.ForeColor = TextMuted;
                 nav.Font = new Font(Theme.FontName, 9.2F, FontStyle.Bold);
                 nav.Invalidate();
@@ -258,7 +259,7 @@ namespace FACM.Theming
         {
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            BackColor = Color.Transparent;
+            BackColor = FacmDesignSystem.Surface;
             ForeColor = FacmDesignSystem.TextMuted;
             TextAlign = ContentAlignment.MiddleLeft;
             Padding = new Padding(14, 0, 8, 0);
@@ -301,7 +302,7 @@ namespace FACM.Theming
             {
                 var fill = _selected
                     ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceRaised, FacmDesignSystem.Accent, 0.24F)
-                    : _hover ? FacmDesignSystem.SurfaceHover : Color.FromArgb(8, FacmDesignSystem.Surface);
+                    : _hover ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface;
                 using (var brush = new SolidBrush(fill))
                     e.Graphics.FillPath(brush, path);
 
