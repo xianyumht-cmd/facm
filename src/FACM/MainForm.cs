@@ -828,6 +828,11 @@ namespace FACM
 
             _menu = new CompactMenuForm(this, _settings, _ui, _cleanup);
             _menu.FormClosed += delegate { _menu = null; };
+
+            // DesktopLauncherEnhancer trims the legacy 680px shell down to the compact launcher.
+            // Prepare that geometry before positioning or showing the window so Windows never has to
+            // display the old full-height surface and then erase the cropped area on the desktop.
+            DesktopLauncherEnhancer.Apply(_menu);
             PositionMenu(_menu);
             _menu.Show();
             _menu.Activate();
