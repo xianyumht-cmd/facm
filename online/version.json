@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.20",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.20/FACM.exe",
   "sha256": "60A93CB9D3A17199487D1B3C40DD750F986C9B92B65D9B194A31E736CCB2A026",
   "release_notes": "FACM 3.5.20：继续保持 .NET Framework 4.8 / WinForms 轻量单 EXE 架构；自动下一局改为 Lobby/ReadyCheck 立即响应，并补齐失败重试与写入结果回读确认，减少等待且避免重复操作；修复海克斯乱斗百分比显示、信息展示不完整、导航文字与紧凑控制面板残影；游戏进入 InGame 时可按归属自动隐藏桌面入口并在离开游戏后恢复；同时正式清理 4.x 工作树、迁移桥、bootstrap/CAB 与旧发布链，后续 3.5 更新清单保持 migration-free。",
-  "published_at": "2026-09-05T09:32:40.8194476+00:00"
+  "published_at": "2026-09-05T09:32:47.7193357+00:00"
 }
