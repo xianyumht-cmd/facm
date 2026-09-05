@@ -37,7 +37,12 @@ namespace FACM.League
                 if (_suppressed) return DesktopEntryGameflowAction.None;
                 _suppressed = true;
                 _hiddenByGameflow = desktopEntryVisible;
-                return desktopEntryVisible ? DesktopEntryGameflowAction.Hide : DesktopEntryGameflowAction.None;
+
+                // Entering suppression always emits one hide action. MainForm also owns a transient
+                // control-center window that can be open from the tray even when the ball/pet itself
+                // was manually hidden. The action closes that surface, while restore ownership stays
+                // tied only to desktopEntryVisible so a manually hidden launcher is never force-shown.
+                return DesktopEntryGameflowAction.Hide;
             }
 
             if (!_suppressed) return DesktopEntryGameflowAction.None;
