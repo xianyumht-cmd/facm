@@ -1,8 +1,0 @@
-{
-  "request_id": "facm-3-5-15-20260827-native-game-repair",
-  "version": "3.5.15",
-  "minimum_version": "3.0.0",
-  "force_update": false,
-  "prerelease": false,
-  "release_notes": "FACM 3.5.15：控制中心收束为“清理与修复 / LOL 工作台 / 个性化 / 更多设置”四个桌面式入口，新增清理与修复完整流程，LOL 工作台页面提示并入自绘标题栏，个性化主题升级为 FACM 全局主题。LOL 游戏修复同时完成原生现代化：不再启动旧 Fix-LCU-Window 外部 mode，窗口修复按客户端实际所在显示器与工作区处理多屏/负坐标，优先恢复合理尺寸；自动修复改为 WinEvent 事件驱动并带 debounce/cooldown，不再每 1500ms 常驻轮询；跳过卡结算复用既有 play-again writer，重启客户端界面使用专用最小权限 writer，并停止在正式 ToolBundle 中打包旧 Fix-LCU-Window EXE 与 mode scripts。"
-}

@@ -35,11 +35,10 @@ namespace FACM
             var performanceContractTest = HasArgument(args, "--performance-contract-test");
             var leagueDashboardTest = HasArgument(args, "--league-dashboard-test");
             var updateMirrorTest = HasArgument(args, "--update-mirror-test");
-            var facm4MigrationTest = HasArgument(args, "--facm4-migration-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
                            embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest ||
-                           performanceContractTest || leagueDashboardTest || updateMirrorTest || facm4MigrationTest;
+                           performanceContractTest || leagueDashboardTest || updateMirrorTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -56,8 +55,7 @@ namespace FACM
                 facmHostTest,
                 performanceContractTest,
                 leagueDashboardTest,
-                updateMirrorTest,
-                facm4MigrationTest);
+                updateMirrorTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -79,7 +77,6 @@ namespace FACM
                 if (performanceContractTest) { Environment.ExitCode = PerformanceContractSmokeTest.Run(); return; }
                 if (leagueDashboardTest) { Environment.ExitCode = LeagueDashboardSmokeTest.Run(); return; }
                 if (updateMirrorTest) { Environment.ExitCode = UpdateMirrorSmokeTest.Run(); return; }
-                if (facm4MigrationTest) { Environment.ExitCode = Facm4MigrationBridge.RunSmokeTest(); return; }
                 if (singleInstanceActivationTest) { Environment.ExitCode = SingleInstanceActivation.RunSmokeTest(); return; }
                 if (mayhemBodyCancellationTest) { Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run(); return; }
                 if (tencentMayhemPatchTest) { Environment.ExitCode = TencentMayhemPatchSmokeTest.Run(); return; }
@@ -227,14 +224,12 @@ namespace FACM
             bool facmHostTest,
             bool performanceContractTest,
             bool leagueDashboardTest,
-            bool updateMirrorTest,
-            bool facm4MigrationTest)
+            bool updateMirrorTest)
         {
             if (facmHostTest) return MutexName + "-FacmHostTest";
             if (performanceContractTest) return MutexName + "-PerformanceContractTest";
             if (leagueDashboardTest) return MutexName + "-LeagueDashboardTest";
             if (updateMirrorTest) return MutexName + "-UpdateMirrorTest";
-            if (facm4MigrationTest) return MutexName + "-Facm4MigrationTest";
             if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";
