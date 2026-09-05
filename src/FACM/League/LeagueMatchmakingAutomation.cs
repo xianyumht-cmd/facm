@@ -220,7 +220,7 @@ namespace FACM.League
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
             // Gameflow already proved that Lobby is active. Evaluate immediately; if the
-            // lobby payload has not caught up yet, the existing bounded observer retries.
+            // lobby payload has not caught up yet, the existing phase-bounded observer retries.
             while (IsSearchActive())
             {
                 var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
@@ -252,7 +252,6 @@ namespace FACM.League
                     LogSearchDiagnosticLocked("already-attempted");
                     return false;
                 }
-                _lastSearchFingerprint = fingerprint;
                 _lastSearchDiagnostic = null;
             }
 
@@ -263,6 +262,14 @@ namespace FACM.League
                 LeagueMatchmakingWriteApiClient.SearchPath,
                 cancellationToken).ConfigureAwait(false);
             var ok = response != null && response.IsSuccessStatusCode;
+            if (ok)
+            {
+                lock (_sync)
+                {
+                    _lastSearchFingerprint = fingerprint;
+                    _lastSearchDiagnostic = null;
+                }
+            }
             AppLog.Info("League auto matchmaking: " + (ok ? "success" : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
             return ok;
         }
