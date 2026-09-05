@@ -238,14 +238,6 @@ jobs:
             sha256 = $hash
             release_notes = $env:RELEASE_NOTES
             published_at = [DateTimeOffset]::UtcNow.ToString('o')
-            migration = [ordered]@{
-              enabled = $false
-              version = ''
-              bootstrapper_url = ''
-              bootstrapper_sha256 = ''
-              manifest_url = ''
-              release_notes = ''
-            }
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content online/version.json -Encoding utf8
           "FACM_RELEASE_SHA256=$hash" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
