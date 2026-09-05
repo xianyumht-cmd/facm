@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FACM.AppHost;
+using FACM.League;
 using FACM.Theming;
 
 namespace FACM.AppHost.Modules
@@ -76,9 +77,6 @@ namespace FACM.AppHost.Modules
             if (_settings.Settings == null || _settings.UiText == null)
                 throw new InvalidOperationException("Settings module must initialize before shell.");
 
-            // Normal top-level FACM windows share one borderless shell. Existing purposeful
-            // borderless surfaces keep their own rendering, but transient ones still inherit the
-            // same desktop/outside-click close behavior as the compact control center.
             FacmWindowChrome.InstallGlobal();
             FacmBorderlessOutsideClose.InstallGlobal();
 
@@ -91,10 +89,21 @@ namespace FACM.AppHost.Modules
                 _mayhem,
                 _cleanup,
                 _startCleanup);
+
+            _leagueDashboard.GameflowStateChanged += HandleGameflowStateChanged;
+            MainForm.ApplyGameflowState(_leagueDashboard.CurrentGameflowState);
+        }
+
+        private void HandleGameflowStateChanged(LeagueDashboardPhaseState state)
+        {
+            var form = MainForm;
+            if (form == null || form.IsDisposed) return;
+            form.ApplyGameflowState(state);
         }
 
         public void Dispose()
         {
+            _leagueDashboard.GameflowStateChanged -= HandleGameflowStateChanged;
             var form = MainForm;
             MainForm = null;
             if (form == null || form.IsDisposed) return;
