@@ -153,10 +153,20 @@ namespace FACM
                         Phase = "Reconnect",
                         Activity = LeagueActivityLevel.InGame
                     },
-                    false) == DesktopEntryGameflowAction.None,
-                "Already-hidden desktop entry should not be marked for a gameflow hide.");
+                    false) == DesktopEntryGameflowAction.Hide,
+                "Entering in-game suppression must emit one hide action so a transient control center cannot remain open.");
             Require(manuallyHidden.IsSuppressed && !manuallyHidden.HiddenByGameflow,
                 "Already-hidden desktop entry lost its manual-hidden ownership contract.");
+            Require(
+                manuallyHidden.Observe(
+                    new LeagueDashboardPhaseState
+                    {
+                        Connected = true,
+                        Phase = "InProgress",
+                        Activity = LeagueActivityLevel.InGame
+                    },
+                    false) == DesktopEntryGameflowAction.None,
+                "Repeated in-game observations must not close a control center that the user explicitly reopened.");
             Require(
                 manuallyHidden.Observe(
                     new LeagueDashboardPhaseState
