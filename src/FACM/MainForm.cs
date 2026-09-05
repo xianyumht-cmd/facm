@@ -175,7 +175,7 @@ namespace FACM
                 CloseMenu();
                 try
                 {
-                    if (_pets.IsActive) _pets.SetVisible(false);
+                    if (_settings.AnimalPetEnabled) _pets.SetVisible(false);
                 }
                 catch (Exception exception)
                 {
@@ -569,14 +569,14 @@ namespace FACM
                                 if (IsDisposed || _exiting || !_settings.AnimalPetEnabled) return;
                                 _animalPetActive = true;
                                 HideBuiltInBall();
-                                if (_gameflowVisibility.IsSuppressed && _pets.IsActive)
+                                if (_gameflowVisibility.IsSuppressed)
                                     _pets.SetVisible(false);
                             }));
                         }
                         catch { }
                     });
 
-                if (_gameflowVisibility.IsSuppressed && _pets.IsActive)
+                if (_gameflowVisibility.IsSuppressed)
                     _pets.SetVisible(false);
             }
             catch (Exception exception)
@@ -599,12 +599,17 @@ namespace FACM
             if (IsDisposed || _exiting) return;
             try
             {
-                if (_settings.AnimalPetEnabled && _pets.IsActive)
+                if (_settings.AnimalPetEnabled)
                 {
+                    // SetVisible(true) also records the desired state while VPetHost is still
+                    // starting. Keep the lightweight ball visible until the pet reports ready.
                     _pets.SetVisible(true);
-                    _animalPetActive = true;
-                    HideBuiltInBall();
-                    return;
+                    if (_pets.IsActive)
+                    {
+                        _animalPetActive = true;
+                        HideBuiltInBall();
+                        return;
+                    }
                 }
             }
             catch (Exception exception)
