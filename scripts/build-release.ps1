@@ -11,8 +11,7 @@ $outputExe = Join-Path $repoRoot "src\FACM\bin\$Configuration\net48\FACM.exe"
 $packagePath = Join-Path $repoRoot "FACM-Windows-x64.zip"
 $toolManifestPath = Join-Path $repoRoot "tools\EXTRACTED-TOOLS.json"
 $petHostProject = Join-Path $repoRoot "src\FACM.PetHost\FACM.PetHost.csproj"
-$petHostPublish = Join-Path $repoRoot "out\PetHostPublish"
-$petHostBundle = Join-Path $repoRoot "out\PetHostBundle.zip"
+$stalePetHostBundle = Join-Path $repoRoot "out\PetHostBundle.zip"
 
 if (-not (Test-Path $toolManifestPath -PathType Leaf)) {
     throw "Tool manifest is missing: $toolManifestPath"
@@ -47,39 +46,31 @@ if (-not $msbuildPath) {
 }
 
 if (-not (Get-Command dotnet.exe -ErrorAction SilentlyContinue)) {
-    throw ".NET SDK was not found. FACM release builds require .NET 8 to publish PetHost."
+    throw ".NET SDK was not found. FACM release validation requires .NET 8 for optional PetHost self-test."
 }
 
 if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
 New-Item -ItemType Directory -Path $artifactDir | Out-Null
-if (Test-Path $petHostPublish) { Remove-Item $petHostPublish -Recurse -Force }
-if (Test-Path $petHostBundle) { Remove-Item $petHostBundle -Force }
 
-& dotnet publish $petHostProject `
-    -c $Configuration `
-    -r win-x64 `
-    --self-contained true `
-    -p:PublishSingleFile=false `
-    -p:PublishReadyToRun=false `
-    -p:DebugType=None `
-    -o $petHostPublish
-if ($LASTEXITCODE -ne 0) { throw "PetHost publish failed. Exit code: $LASTEXITCODE" }
-
-$petHostExe = Join-Path $petHostPublish "FACM.PetHost.exe"
-if (-not (Test-Path $petHostExe -PathType Leaf)) { throw "PetHost executable was not found: $petHostExe" }
+# 3.5.x keeps VPet as an optional compatibility runtime. Validate its source/runtime, but do not
+# publish or embed the large self-contained payload into the portable FACM.exe.
+& dotnet build $petHostProject -c $Configuration
+if ($LASTEXITCODE -ne 0) { throw "PetHost build failed. Exit code: $LASTEXITCODE" }
+$petHostDll = Get-ChildItem -Path (Join-Path $repoRoot "src\FACM.PetHost\bin\$Configuration") -Filter "FACM.PetHost.dll" -Recurse |
+    Select-Object -First 1
+if (-not $petHostDll) { throw "PetHost build output FACM.PetHost.dll was not found." }
 $selfTestRoot = Join-Path $env:TEMP "FACM-PetHost-Local-SelfTest"
 if (Test-Path $selfTestRoot) { Remove-Item $selfTestRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $selfTestRoot -Force | Out-Null
-$selfTest = Start-Process -FilePath $petHostExe -ArgumentList "--self-test --data-root `"$selfTestRoot`"" -Wait -PassThru
-if ($selfTest.ExitCode -ne 0) { throw "PetHost self-test failed. Exit code: $($selfTest.ExitCode)" }
+& dotnet $petHostDll.FullName --self-test --data-root $selfTestRoot
+if ($LASTEXITCODE -ne 0) { throw "PetHost self-test failed. Exit code: $LASTEXITCODE" }
+Write-Host "Optional PetHost build/self-test passed; it will not be embedded in FACM 3.5."
 
-Compress-Archive -Path "$petHostPublish\*" -DestinationPath $petHostBundle -CompressionLevel Optimal -Force
-if (-not (Test-Path $petHostBundle -PathType Leaf)) { throw "PetHost bundle was not created: $petHostBundle" }
-$petHostBundleHash = Get-FileHash $petHostBundle -Algorithm SHA256
-$petHostExeHash = Get-FileHash $petHostExe -Algorithm SHA256
-Write-Host "PetHost bundle verified: $($petHostBundleHash.Hash)"
+# Old embedded-PetHost builds may have left this file behind. Remove it explicitly; FACM.csproj also
+# defaults PetHost embedding off so a stale bundle can no longer silently inflate a normal build.
+if (Test-Path $stalePetHostBundle) { Remove-Item $stalePetHostBundle -Force }
 
-& $msbuildPath $solution /restore /t:Rebuild /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:RequirePetHostBundle=true /p:PetHostBundlePath="$petHostBundle" /v:minimal
+& $msbuildPath $solution /restore /t:Rebuild /m /p:Configuration=$Configuration /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "Build failed. Exit code: $LASTEXITCODE" }
 if (-not (Test-Path $outputExe -PathType Leaf)) { throw "Build completed but output was not found: $outputExe" }
 
@@ -113,18 +104,20 @@ $resources | Sort-Object | ForEach-Object { Write-Host ("  - " + $_) }
 if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
     throw "FACM.ToolBundle.dll was not embedded in FACM.exe."
 }
-if ($resources -notcontains 'FACM.Resources.PetHost.zip') {
-    throw "PetHost bundle was not embedded in FACM.exe."
+if ($resources -contains 'FACM.Resources.PetHost.zip') {
+    throw "Lightweight FACM 3.5 unexpectedly embedded FACM.Resources.PetHost.zip."
 }
-Write-Host "Embedded tool and PetHost bundles verified."
+$exeLength = (Get-Item $resolvedOutputExe).Length
+if ($exeLength -gt 10MB) {
+    throw "FACM 3.5 portable EXE size regression: $exeLength bytes"
+}
+Write-Host "Lightweight FACM.exe verified: $exeLength bytes; PetHost payload absent."
 
 $artifactExe = Join-Path $artifactDir "FACM.exe"
 Copy-Item $outputExe $artifactExe -Force
 $hash = Get-FileHash $artifactExe -Algorithm SHA256
 @(
-    "$($hash.Hash) *FACM.exe",
-    "$($petHostBundleHash.Hash) *embedded:FACM.Resources.PetHost.zip",
-    "$($petHostExeHash.Hash) *embedded:PetHost/FACM.PetHost.exe"
+    "$($hash.Hash) *FACM.exe"
 ) | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
 Get-AuthenticodeSignature $artifactExe |
     Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |
@@ -134,13 +127,12 @@ $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($artifactExe)
 $buildInfo = [ordered]@{
     file_version = $version.FileVersion
     product_version = $version.ProductVersion
+    size_bytes = (Get-Item $artifactExe).Length
     sha256 = $hash.Hash
     signature_status = [string](Get-AuthenticodeSignature $artifactExe).Status
     tool_bundle = "embedded FACM.ToolBundle.dll"
-    pet_host = "embedded ZIP; self-contained .NET 8 x64"
-    pet_host_bundle_sha256 = $petHostBundleHash.Hash
-    pet_host_exe_sha256 = $petHostExeHash.Hash
-    pet_host_runtime = "auto-extracted under FACM/runtime/pethost-host/<FACM-MVID>"
+    pet_host = "optional compatibility runtime; source/runtime self-test passed; not embedded"
+    startup = "offline-first; update check begins after shell is visible"
     built_at_utc = [DateTime]::UtcNow.ToString("o")
 }
 $buildInfo | ConvertTo-Json | Set-Content (Join-Path $artifactDir "BUILD-INFO.json") -Encoding utf8
