@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateFailedSearchRetriesAfterBackoff();
+            ValidateAmbiguousSearchReconcilesQueueState();
             ValidateLobbyBlocks();
             ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
@@ -138,11 +139,34 @@ namespace FACM.League
                 write.StatusCode = 204;
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
-                    "A failed matchmaking POST incorrectly consumed the Lobby fingerprint and blocked retry.");
+                    "A true failed matchmaking POST incorrectly consumed the Lobby fingerprint and blocked retry.");
 
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
                     "Successful retry did not commit the Lobby fingerprint exactly once.");
+            }
+        }
+
+        private static void ValidateAmbiguousSearchReconcilesQueueState()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"isCurrentlyInQueue\":true,\"readyCheck\":{\"state\":\"None\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi { ReturnNull = true };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Ambiguous matchmaking write was not attempted exactly once.");
+                Require(read.RequestCount == 2,
+                    "Ambiguous matchmaking write did not perform exactly one authoritative queue-state reconciliation read.");
+
+                write.ReturnNull = false;
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Authoritative queue=true reconciliation did not fence a duplicate matchmaking POST.");
             }
         }
 
@@ -276,6 +300,7 @@ namespace FACM.League
             public readonly List<Call> Calls = new List<Call>();
             private readonly ManualResetEventSlim _called = new ManualResetEventSlim(false);
             public int StatusCode = 204;
+            public bool ReturnNull;
 
             public bool WaitForCall(TimeSpan timeout)
             {
@@ -287,6 +312,7 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 lock (Calls) Calls.Add(new Call { Method = method, Path = path });
                 _called.Set();
+                if (ReturnNull) return Task.FromResult<LeagueClientWriteResponse>(null);
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = StatusCode, Body = new byte[0] });
             }
         }
