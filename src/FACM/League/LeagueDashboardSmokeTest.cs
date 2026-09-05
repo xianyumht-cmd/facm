@@ -52,6 +52,19 @@ namespace FACM
             Require(
                 LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.ChampSelect }) <= TimeSpan.FromSeconds(3),
                 "Champ-select Gameflow monitor became too slow.");
+            Require(
+                LeagueGameflowMonitor.ResolveDelay(null) == TimeSpan.FromSeconds(3),
+                "Disconnected Gameflow recovery cadence regressed.");
+            Require(
+                LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = false, Activity = LeagueActivityLevel.None }) == TimeSpan.FromSeconds(3),
+                "Disconnected client Gameflow recovery cadence regressed.");
+            Require(
+                LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.Queueing }) == TimeSpan.FromSeconds(3),
+                "Queueing Gameflow cadence contract regressed.");
+
+            ValidateDesktopEntryGameflowPolicy();
+            LeagueChampSelectAssistantForm.ValidateForSmokeTest();
+            LeagueMatchmakingAutomationSmokeTest.Validate();
 
             var budgets = new PerformanceBudgetProvider();
             var api = new FakeLeagueClientApi();
@@ -92,6 +105,68 @@ namespace FACM
             Require(Contains(module.Dependencies, LeagueClientModule.ModuleId), "Dashboard must depend on LeagueClient.");
             Require(Contains(module.Dependencies, PerformanceModule.ModuleId), "Dashboard must depend on Performance.");
             Require(LeagueDashboardUiBridge.HasTrayAccessForSmokeTest(), "Dashboard tray bridge lost the MainForm tray contract.");
+        }
+
+        private static void ValidateDesktopEntryGameflowPolicy()
+        {
+            var visibility = new DesktopEntryGameflowPolicy();
+            var hide = visibility.Observe(
+                new LeagueDashboardPhaseState
+                {
+                    Connected = true,
+                    Phase = "GameStart",
+                    Activity = LeagueActivityLevel.InGame
+                },
+                true);
+            Require(
+                hide == DesktopEntryGameflowAction.Hide && visibility.IsSuppressed && visibility.HiddenByGameflow,
+                "Visible desktop entry was not hidden on GameStart.");
+
+            var repeated = visibility.Observe(
+                new LeagueDashboardPhaseState
+                {
+                    Connected = true,
+                    Phase = "InProgress",
+                    Activity = LeagueActivityLevel.InGame
+                },
+                false);
+            Require(repeated == DesktopEntryGameflowAction.None,
+                "Repeated in-game observations must not repeat desktop visibility transitions.");
+
+            var restore = visibility.Observe(
+                new LeagueDashboardPhaseState
+                {
+                    Connected = true,
+                    Phase = "WaitingForStats",
+                    Activity = LeagueActivityLevel.Client
+                },
+                false);
+            Require(restore == DesktopEntryGameflowAction.Restore && !visibility.IsSuppressed,
+                "Gameflow-hidden desktop entry was not restored after leaving game.");
+
+            var manuallyHidden = new DesktopEntryGameflowPolicy();
+            Require(
+                manuallyHidden.Observe(
+                    new LeagueDashboardPhaseState
+                    {
+                        Connected = true,
+                        Phase = "Reconnect",
+                        Activity = LeagueActivityLevel.InGame
+                    },
+                    false) == DesktopEntryGameflowAction.None,
+                "Already-hidden desktop entry should not be marked for a gameflow hide.");
+            Require(manuallyHidden.IsSuppressed && !manuallyHidden.HiddenByGameflow,
+                "Already-hidden desktop entry lost its manual-hidden ownership contract.");
+            Require(
+                manuallyHidden.Observe(
+                    new LeagueDashboardPhaseState
+                    {
+                        Connected = true,
+                        Phase = "EndOfGame",
+                        Activity = LeagueActivityLevel.Client
+                    },
+                    false) == DesktopEntryGameflowAction.None,
+                "Manually hidden desktop entry must not be restored by Gameflow.");
         }
 
         private static bool Contains(IReadOnlyList<string> values, string expected)
