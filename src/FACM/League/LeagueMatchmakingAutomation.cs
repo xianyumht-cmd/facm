@@ -65,6 +65,7 @@ namespace FACM.League
 
     internal sealed class LeagueReadyCheckState
     {
+        public bool IsCurrentlyInQueue { get; set; }
         public string State { get; set; }
         public string PlayerResponse { get; set; }
 
@@ -262,6 +263,22 @@ namespace FACM.League
                 LeagueMatchmakingWriteApiClient.SearchPath,
                 cancellationToken).ConfigureAwait(false);
             var ok = response != null && response.IsSuccessStatusCode;
+            var reconciled = false;
+
+            // A timeout/connection reset can happen after LCU has already accepted the POST.
+            // Only pay for this extra read on a failed/ambiguous write; the normal success path
+            // stays immediate. An authoritative queue=true postcondition prevents a duplicate POST,
+            // while a missing/false postcondition leaves the existing 3-second retry available.
+            if (!ok && IsSearchActive())
+            {
+                var search = ParseSearch(await _read.TryGetBytesAsync(SearchStatePath, cancellationToken).ConfigureAwait(false));
+                if (search != null && search.IsCurrentlyInQueue)
+                {
+                    ok = true;
+                    reconciled = true;
+                }
+            }
+
             if (ok)
             {
                 lock (_sync)
@@ -270,7 +287,10 @@ namespace FACM.League
                     _lastSearchDiagnostic = null;
                 }
             }
-            AppLog.Info("League auto matchmaking: " + (ok ? "success" : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
+            AppLog.Info("League auto matchmaking: " +
+                        (ok
+                            ? (reconciled ? "success/reconciled-queue-state" : "success")
+                            : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
             return ok;
         }
 
@@ -365,6 +385,7 @@ namespace FACM.League
             var ready = ReadDictionary(root, "readyCheck");
             return new LeagueReadyCheckState
             {
+                IsCurrentlyInQueue = ReadBool(root, "isCurrentlyInQueue"),
                 State = ReadString(ready, "state"),
                 PlayerResponse = ReadString(ready, "playerResponse")
             };
