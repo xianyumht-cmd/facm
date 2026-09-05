@@ -26,6 +26,7 @@ namespace FACM.Pets
         private SynchronizationContext _uiContext;
         private volatile bool _intentionalStop;
         private volatile bool _readyReceived;
+        private bool _visibleRequested = true;
         private int _recoveryPosted;
         private int _startupGeneration;
         private string _activePetId = string.Empty;
@@ -48,6 +49,14 @@ namespace FACM.Pets
             }
         }
 
+        public bool IsVisible
+        {
+            get
+            {
+                lock (_sync) return IsActive && _visibleRequested;
+            }
+        }
+
         public string ActivePetId
         {
             get
@@ -65,6 +74,7 @@ namespace FACM.Pets
 
             lock (_sync)
             {
+                _visibleRequested = true;
                 if (IsActive)
                 {
                     _intentionalStop = false;
@@ -92,6 +102,16 @@ namespace FACM.Pets
                 _startupTask = Task.Run(delegate { StartHost(generation); });
                 AppLog.Info("VPet PetHost startup queued in background: " + petId);
                 return true;
+            }
+        }
+
+        public void SetVisible(bool visible)
+        {
+            lock (_sync)
+            {
+                _visibleRequested = visible;
+                if (!IsActive) return;
+                SendLocked(visible ? "show" : "hide");
             }
         }
 
@@ -123,6 +143,7 @@ namespace FACM.Pets
                 }
                 CleanupTransportLocked(false, false);
                 _activePetId = string.Empty;
+                _visibleRequested = true;
                 _ready = null;
             }
 
@@ -196,6 +217,7 @@ namespace FACM.Pets
                     _process.Exited += HandleProcessExited;
                     _readerTask = Task.Run((Func<Task>)ReadLoopAsync);
                     SendLocked("activate|" + _activePetId);
+                    if (!_visibleRequested) SendLocked("hide");
                     AppLog.Info("VPet PetHost connected; data-root=" + RuntimePaths.PetHostDataDirectory);
                 }
             }
