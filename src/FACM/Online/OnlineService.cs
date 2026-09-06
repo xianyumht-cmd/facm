@@ -18,13 +18,12 @@ namespace FACM.Online
         internal const string UpdateManifestUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/version.json";
 
-        internal const string GiteeUpdateManifestUrl =
-            "https://gitee.com/xymhtcmd/facm/raw/main/online/version.json";
-
         internal const string AnnouncementManifestUrl =
             "https://raw.githubusercontent.com/xianyumht-cmd/facm/main/online/announcement.json";
 
         private const int MetadataRaceWidth = 3;
+        private const int UpdateManifestProbeWidth = 6;
+        private static readonly TimeSpan UpdateManifestProbeTimeout = TimeSpan.FromSeconds(4);
         private const int MaxMetadataBytes = 128 * 1024;
 
         public static async Task<OnlineSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken)
@@ -53,12 +52,15 @@ namespace FACM.Online
                     MetadataRaceWidth,
                     cancellationToken,
                     UpdateMirrorRouter.IsValidCatalog);
-                var updateTask = TryDownloadFromMirrorsAsync<UpdateManifest>(
-                    new[] { GiteeUpdateManifestUrl, UpdateManifestUrl },
+
+                // GitHub main is the canonical 3.5 release manifest. Do not race a separately
+                // maintained Gitee manifest against it: a stale first-party mirror can be valid JSON
+                // while advertising an older release. Probe several transports for the same canonical
+                // GitHub object and choose the highest valid version seen in the bounded probe.
+                var updateTask = TryDownloadNewestUpdateManifestAsync(
                     sources,
-                    MetadataRaceWidth,
-                    cancellationToken,
-                    IsValidUpdateManifest);
+                    snapshot.CurrentVersion,
+                    cancellationToken);
                 var announcementTask = TryDownloadAnnouncementAsync(cancellationToken);
 
                 var updateResult = await updateTask.ConfigureAwait(false);
@@ -98,12 +100,22 @@ namespace FACM.Online
                 Version latest;
                 if (snapshot.Update.Enabled && TryParseVersion(snapshot.Update.Version, out latest))
                 {
+                    var advertisedLatest = latest;
+                    latest = PreventLatestVersionRegression(snapshot.CurrentVersion, advertisedLatest);
+                    if (CompareProductVersions(advertisedLatest, snapshot.CurrentVersion) < 0)
+                    {
+                        AppLog.Info(
+                            "Ignoring stale update metadata; source=" + (snapshot.MetadataSourceName ?? "unknown") +
+                            "; advertised=" + advertisedLatest +
+                            "; current=" + snapshot.CurrentVersion);
+                    }
+
                     snapshot.LatestVersion = latest;
-                    snapshot.UpdateAvailable = latest.CompareTo(snapshot.CurrentVersion) > 0;
+                    snapshot.UpdateAvailable = CompareProductVersions(latest, snapshot.CurrentVersion) > 0;
 
                     Version minimum;
                     var belowMinimum = TryParseVersion(snapshot.Update.MinimumVersion, out minimum) &&
-                                       snapshot.CurrentVersion.CompareTo(minimum) < 0;
+                                       CompareProductVersions(snapshot.CurrentVersion, minimum) < 0;
                     snapshot.ForceUpdateRequired = snapshot.UpdateAvailable &&
                                                    (snapshot.Update.ForceUpdate || belowMinimum);
                 }
@@ -150,6 +162,86 @@ namespace FACM.Online
                 AppLog.Info("Announcement metadata request skipped: " + exception.GetType().Name);
                 return null;
             }
+        }
+
+        private static async Task<MirrorFetchResult<UpdateManifest>> TryDownloadNewestUpdateManifestAsync(
+            UpdateMirrorSource[] sources,
+            Version currentVersion,
+            CancellationToken cancellationToken)
+        {
+            var candidates = UpdateMirrorRouter.BuildCandidates(UpdateManifestUrl, sources)
+                .GroupBy(candidate => candidate.Url, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
+            if (candidates.Length == 0) return new MirrorFetchResult<UpdateManifest>();
+
+            var direct = candidates
+                .Where(candidate => string.Equals(candidate.Url, UpdateManifestUrl, StringComparison.OrdinalIgnoreCase))
+                .Take(1)
+                .ToArray();
+            var selected = candidates
+                .Where(candidate => !string.Equals(candidate.Url, UpdateManifestUrl, StringComparison.OrdinalIgnoreCase))
+                .Take(Math.Max(1, UpdateManifestProbeWidth - direct.Length))
+                .Concat(direct)
+                .Take(UpdateManifestProbeWidth)
+                .ToArray();
+
+            var results = new List<MirrorFetchResult<UpdateManifest>>();
+            using (var probeCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                probeCancellation.CancelAfter(UpdateManifestProbeTimeout);
+                var tasks = selected
+                    .Select(candidate => DownloadCandidateAsync<UpdateManifest>(
+                        candidate,
+                        probeCancellation.Token,
+                        IsValidUpdateManifest))
+                    .ToArray();
+
+                foreach (var task in tasks)
+                {
+                    try
+                    {
+                        var result = await task.ConfigureAwait(false);
+                        if (result.Value != null) results.Add(result);
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                    }
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var selectedManifest = SelectNewestManifest(results.Select(result => result.Value));
+            if (selectedManifest != null)
+            {
+                var selectedResult = results.First(result => ReferenceEquals(result.Value, selectedManifest));
+                Version selectedVersion;
+                if (TryParseVersion(selectedManifest.Version, out selectedVersion) &&
+                    CompareProductVersions(selectedVersion, currentVersion) < 0)
+                {
+                    // A client must never stop at metadata that is provably older than itself. Scan
+                    // the full canonical GitHub transport pool for an equal/newer manifest before
+                    // falling back to the stale probe result.
+                    var recovered = await TryDownloadFromMirrorsAsync<UpdateManifest>(
+                        new[] { UpdateManifestUrl },
+                        sources,
+                        MetadataRaceWidth,
+                        cancellationToken,
+                        manifest => IsValidUpdateManifest(manifest) &&
+                                    IsManifestAtLeastVersion(manifest, currentVersion)).ConfigureAwait(false);
+                    if (recovered.Value != null) return recovered;
+                }
+
+                return selectedResult;
+            }
+
+            return await TryDownloadFromMirrorsAsync<UpdateManifest>(
+                new[] { UpdateManifestUrl },
+                sources,
+                MetadataRaceWidth,
+                cancellationToken,
+                IsValidUpdateManifest).ConfigureAwait(false);
         }
 
         private static async Task<MirrorFetchResult<T>> TryDownloadFromMirrorsAsync<T>(
@@ -333,6 +425,69 @@ namespace FACM.Online
             }
 
             return true;
+        }
+
+        private static bool IsManifestAtLeastVersion(UpdateManifest manifest, Version minimumVersion)
+        {
+            Version parsed;
+            return manifest != null &&
+                   TryParseVersion(manifest.Version, out parsed) &&
+                   CompareProductVersions(parsed, minimumVersion) >= 0;
+        }
+
+        internal static UpdateManifest SelectNewestManifest(IEnumerable<UpdateManifest> manifests)
+        {
+            UpdateManifest best = null;
+            Version bestVersion = null;
+            foreach (var manifest in manifests ?? Enumerable.Empty<UpdateManifest>())
+            {
+                Version candidateVersion;
+                if (manifest == null || !TryParseVersion(manifest.Version, out candidateVersion)) continue;
+
+                if (best == null)
+                {
+                    best = manifest;
+                    bestVersion = candidateVersion;
+                    continue;
+                }
+
+                var comparison = CompareProductVersions(candidateVersion, bestVersion);
+                if (comparison > 0 || comparison == 0 && manifest.Enabled && !best.Enabled)
+                {
+                    best = manifest;
+                    bestVersion = candidateVersion;
+                }
+            }
+
+            return best;
+        }
+
+        internal static Version PreventLatestVersionRegression(Version currentVersion, Version advertisedVersion)
+        {
+            if (advertisedVersion == null) return currentVersion;
+            if (currentVersion == null) return advertisedVersion;
+            return CompareProductVersions(advertisedVersion, currentVersion) < 0
+                ? currentVersion
+                : advertisedVersion;
+        }
+
+        internal static int CompareProductVersions(Version left, Version right)
+        {
+            if (ReferenceEquals(left, right)) return 0;
+            if (left == null) return -1;
+            if (right == null) return 1;
+
+            var normalizedLeft = new Version(
+                left.Major,
+                left.Minor,
+                Math.Max(0, left.Build),
+                Math.Max(0, left.Revision));
+            var normalizedRight = new Version(
+                right.Major,
+                right.Minor,
+                Math.Max(0, right.Build),
+                Math.Max(0, right.Revision));
+            return normalizedLeft.CompareTo(normalizedRight);
         }
 
         private static bool IsApprovedReleaseUrl(Uri uri, Version version, string assetName)
