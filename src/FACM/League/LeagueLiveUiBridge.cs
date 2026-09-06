@@ -37,9 +37,7 @@ namespace FACM.League
 
         public static void RequestOpen(MainForm owner)
         {
-            if (_dialogOpen || _module == null || owner == null || owner.IsDisposed) return;
-            owner.CloseMenu();
-            Open(owner);
+            LeagueHubUiBridge.RequestOpen(owner, LeagueHubNavigation.Live);
         }
 
         internal static bool HasTrayAccessForSmokeTest()
