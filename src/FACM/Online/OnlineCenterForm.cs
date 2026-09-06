@@ -111,7 +111,7 @@ namespace FACM.Online
             };
             _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 124), 100, FacmButtonTone.Secondary);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(392, 124), 110, FacmButtonTone.Primary);
+            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(392, 124), 110, FacmButtonTone.Primary);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
@@ -143,7 +143,7 @@ namespace FACM.Online
                 BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text
             };
-            _linkButton = CreateButton(UiTextRuntime.Text(UiTextKeys.Open), new Point(16, 209), 100, FacmButtonTone.Secondary);
+            _linkButton = CreateButton(OnlineCenterUiText.ViewDetails, new Point(16, 209), 100, FacmButtonTone.Secondary);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -298,13 +298,13 @@ namespace FACM.Online
             {
                 _updateStatus.Text = "暂时无法获取更新信息。";
                 _updateButton.Enabled = false;
-                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.ShellUnavailable), FacmStatusTone.Error);
+                SetUpdateBadge(OnlineCenterUiText.FetchFailed, FacmStatusTone.Error);
             }
             else if (_snapshot.ForceUpdateRequired)
             {
                 _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
-                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Error);
+                SetUpdateBadge(OnlineCenterUiText.ForceRequired, FacmStatusTone.Error);
             }
             else if (_snapshot.UpdateAvailable)
             {
@@ -312,13 +312,13 @@ namespace FACM.Online
                     ? "发现新版本。"
                     : _snapshot.Update.ReleaseNotes;
                 _updateButton.Enabled = true;
-                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Accent);
+                SetUpdateBadge(OnlineCenterUiText.UpdateAvailable, FacmStatusTone.Accent);
             }
             else
             {
                 _updateStatus.Text = "当前已是最新版本。";
                 _updateButton.Enabled = false;
-                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.Ready), FacmStatusTone.Success);
+                SetUpdateBadge(OnlineCenterUiText.UpToDate, FacmStatusTone.Success);
             }
 
             var announcement = _snapshot.Announcement;
@@ -352,7 +352,7 @@ namespace FACM.Online
             if (!string.IsNullOrWhiteSpace(status))
             {
                 _updateStatus.Text = status;
-                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Accent);
+                SetUpdateBadge(OnlineCenterUiText.Processing, FacmStatusTone.Accent);
             }
             UseWaitCursor = busy;
         }
