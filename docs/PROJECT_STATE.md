@@ -14,27 +14,40 @@
 
 # FACM Project State
 
-更新时间：2026-09-05
+更新时间：2026-09-06
 
 ## 当前产品线
 
-FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 EXE。4.x 已完成能力审计并退出默认工作树；历史实现保留在 Git 历史中，不再参与当前构建或发布。
+FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 EXE。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch 中。
 
-当前在线正式版为 `3.5.20`。P1 轻量回灌已合并到 `main`，4.x 工作树清理 PR #242 也已合并；3.5.20 随后由 lightweight publisher 构建、签名、公开验证并启用在线更新。
+当前在线正式版为 `3.5.21`。3.5.20 是 P1 回灌和 4.x 工作树清理后的首个正式版；3.5.21 随后修复更新元数据竞速会接受旧缓存清单的问题。当前 `main` 发布指针为 3.5.21，更新启用且不强制更新。
 
-## 3.5.20 已交付行为
+## 当前已交付行为
 
 - Mayhem 百分比单位修正，长内容/装备/强化展示完整性改善；3.5 快速数据链未重写。
 - Lobby 进入后立即评估自动寻找，不再固定等待 1500 ms。
-- ReadyCheck 立即评估自动接受，不再固定等待 450 ms；失败可在同一 episode 内短间隔重试并做最终状态 reconciliation。
+- ReadyCheck 立即评估自动接受；失败可在同一 episode 内短间隔重试并做最终状态 reconciliation。
 - Matchmaking 写失败/结果不明确时读取 queue state，避免“已生效但响应丢失”造成重复 POST。
-- disconnected/null Gameflow cadence 为 3 秒；ChampSelect 2 秒级、Queue/ReadyCheck 3 秒、InGame 10 秒。
-- InGame 自动隐藏悬浮入口/桌宠，离开 InGame 后只恢复由 Gameflow 自己隐藏的入口。
+- disconnected/null Gameflow cadence 为 3 秒；ChampSelect 约 2 秒、Queue/ReadyCheck 3 秒、InGame 10 秒。
+- InGame 自动隐藏悬浮入口/桌宠，离开 InGame 后只恢复由 Gameflow 自己隐藏的入口；用户在同一 InGame 显式重开控制中心不会被 heartbeat 重复关闭。
 - PetHost 启动过程中保留 desired visibility，避免游戏中晚启动闪现。
 - 导航 owner-draw 残影与紧凑控制中心首次裁剪残影已修复。
 - 普通构建不内嵌 self-contained PetHost；轻量 FACM.exe 体积 gate <10 MiB。
+- 更新 manifest 以 GitHub main 的 3.5 清单为唯一版本基准；多个传输候选选择最高有效版本，旧镜像不能把服务器版本倒退到当前客户端以下。
 
-P1 合并 PR：#241。cleanup 合并 PR：#242。cleanup exact head 的 Windows Build #1549、UI Text Contract #657、Mayhem Source Probe #464 均通过。无法由 CI 完整模拟的 Windows/League 实机交互仍应在后续真实使用中作为普通 3.5.x 回归观察，而不是恢复 4.x 产品线。
+P1 合并 PR：#241；4.x working-tree cleanup 合并 PR：#242；3.5.21 更新一致性修复 PR：#243。
+
+## 当前进行中的产品体验任务
+
+Round 1 UI 统一正在 PR **#244**、分支 `feat/3.5.22-ui-design-system-20260906` 上进行。目标保持 WinForms/net48/single-EXE，不改变 League 自动化语义或更新协议：
+
+- `ThemeCatalog` 继续作为唯一 palette source，`FacmThemeRuntime` 继续拥有 process-wide active theme。
+- 新增共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`。
+- Update Center 与 League Efficiency 已迁移到共享 semantic colors/controls；Compact Launcher tile 也消费相同 design tokens。
+- 共享控件 smoke contract 已接入 `--facm-host-test`。
+- UI Text Contract 首次抓到新增硬编码 copy 后已修正；后续新增用户可见文字继续服从现有 UI text contract。
+
+Round 1 合并后进入 Round 2：状态首页 + 悬浮球场景导航。计划在 Round 1 与 Round 2 都通过 CI/审查后再决定 3.5.22 正式发布，不把中间 UI 半成品直接推给在线客户端。
 
 ## 当前保留组件
 
@@ -53,12 +66,10 @@ P1 合并 PR：#241。cleanup 合并 PR：#242。cleanup exact head 的 Windows 
 
 ## 当前发布状态
 
-- `online/version.json`：3.5.20，enabled=true，force_update=false。
-- GitHub Release：`v3.5.20`，非 draft、非 prerelease。
-- Release `FACM.exe`：1,850,776 bytes。
-- Release SHA-256：`60A93CB9D3A17199487D1B3C40DD750F986C9B92B65D9B194A31E736CCB2A026`。
-- 发布工作流 `FACM 3.5 Lightweight Release` run #2 全步骤通过，包括构建、签名、公开制品回读验证和在线启用。
-- 下一版本不预占固定号；需要发布时使用尚未存在的新 3.5.x patch 版本。
+- `online/version.json`：3.5.21，enabled=true，force_update=false。
+- GitHub Release：`v3.5.21`，非 draft、非 prerelease。
+- Release `FACM.exe` SHA-256：`EE86DA07E7723C7952056C604A4961FBA9434F06FAAD36A738BF9DCFFFD93D5D`。
+- 当前开发中的 UI Round 1 尚未发布，不修改线上 3.5.21 manifest。
 
 ## 当前维护 Gate
 
@@ -71,5 +82,6 @@ P1 合并 PR：#241。cleanup 合并 PR：#242。cleanup exact head 的 Windows 
 5. Updater self-test PASS。
 6. retained source/workflow 不依赖已删除 4.x 项目/脚本。
 7. `online/version.json` 和 publisher 不重新引入 4.x migration 配置。
+8. UI 重构保留原 WinForms 交互语义；不得为了视觉一致性改变 League 写入、更新协议、Launcher 路由等业务行为。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
