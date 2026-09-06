@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
@@ -8,6 +9,8 @@ namespace FACM.League
 {
     internal static class LeagueHubUiBridge
     {
+        private static readonly MethodInfo ShowViewMethod = typeof(LeagueHubForm).GetMethod(
+            "ShowView", BindingFlags.Instance | BindingFlags.NonPublic);
         private static LeagueHubModule _module;
         private static bool _dialogOpen;
         private static bool _openPending;
@@ -35,7 +38,7 @@ namespace FACM.League
                 owner.BeginInvoke(new Action(delegate
                 {
                     _openPending = false;
-                    Open(owner);
+                    Open(owner, string.Empty);
                 }));
             }
             catch
@@ -44,7 +47,14 @@ namespace FACM.League
             }
         }
 
-        private static void Open(MainForm owner)
+        public static void RequestOpen(MainForm owner, string viewId)
+        {
+            if (_dialogOpen || _openPending || _module == null || owner == null || owner.IsDisposed) return;
+            owner.CloseMenu();
+            Open(owner, NormalizeViewId(viewId));
+        }
+
+        private static void Open(MainForm owner, string requestedViewId)
         {
             if (_dialogOpen || _module == null || owner == null || owner.IsDisposed) return;
             _dialogOpen = true;
@@ -55,6 +65,24 @@ namespace FACM.League
                 using (var form = _module.CreateForm(ui))
                 {
                     FACM.HoverDescriptionEnhancer.ApplyLeagueHub(form, ui);
+                    if (!string.IsNullOrWhiteSpace(requestedViewId) && ShowViewMethod != null)
+                    {
+                        form.Shown += delegate
+                        {
+                            try
+                            {
+                                ShowViewMethod.Invoke(form, new object[] { requestedViewId, true });
+                            }
+                            catch (TargetInvocationException exception)
+                            {
+                                AppLog.Error("LOL Hub contextual navigation failed", exception.InnerException ?? exception);
+                            }
+                            catch (Exception exception)
+                            {
+                                AppLog.Error("LOL Hub contextual navigation failed", exception);
+                            }
+                        };
+                    }
                     form.ShowDialog(owner);
                 }
             }
@@ -64,9 +92,22 @@ namespace FACM.League
             }
         }
 
+        private static string NormalizeViewId(string viewId)
+        {
+            if (string.IsNullOrWhiteSpace(viewId)) return string.Empty;
+            return LeagueHubNavigation.Views.Any(item => string.Equals(item.Id, viewId, StringComparison.Ordinal))
+                ? viewId
+                : string.Empty;
+        }
+
         internal static bool InstalledForSmokeTest()
         {
             return _module != null;
+        }
+
+        internal static bool ContextNavigationAvailableForSmokeTest()
+        {
+            return ShowViewMethod != null;
         }
     }
 }
