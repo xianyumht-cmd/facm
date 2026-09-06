@@ -84,8 +84,29 @@ namespace FACM.Theming
                 ReplaceFont(pill, next.FontName, 8.6F, FontStyle.Bold);
             }
 
+            var actionButton = control as FacmActionButton;
+            if (actionButton != null)
+            {
+                ReplaceFont(actionButton, next.FontName, actionButton.Font == null ? 8.8F : actionButton.Font.Size, FontStyle.Bold);
+                actionButton.Invalidate();
+            }
+
+            var toggle = control as FacmToggleSwitch;
+            if (toggle != null)
+            {
+                ReplaceFont(toggle, next.FontName, toggle.Font == null ? 9F : toggle.Font.Size, toggle.Font == null ? FontStyle.Regular : toggle.Font.Style);
+                toggle.Invalidate();
+            }
+
+            var statusBadge = control as FacmStatusBadge;
+            if (statusBadge != null)
+            {
+                ReplaceFont(statusBadge, next.FontName, statusBadge.Font == null ? 8F : statusBadge.Font.Size, FontStyle.Bold);
+                statusBadge.Invalidate();
+            }
+
             var button = control as Button;
-            if (button != null && nav == null && pill == null)
+            if (button != null && nav == null && pill == null && actionButton == null)
             {
                 button.ForeColor = next.TextPrimary;
                 button.FlatAppearance.BorderColor = next.Border;
