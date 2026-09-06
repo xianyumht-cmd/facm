@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -30,9 +31,10 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(720, 680);
             MinimumSize = new Size(680, 610);
-            BackColor = Color.FromArgb(17, 24, 39);
-            ForeColor = Color.FromArgb(241, 245, 249);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            FacmWindowChrome.SetSubtitle(this, T(LeagueEfficiencyUiTextKeys.Hint));
 
             var root = new TableLayoutPanel
             {
@@ -40,7 +42,7 @@ namespace FACM.League
                 Padding = new Padding(24),
                 ColumnCount = 1,
                 RowCount = 13,
-                BackColor = BackColor,
+                BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
@@ -62,14 +64,16 @@ namespace FACM.League
                 Text = T(LeagueEfficiencyUiTextKeys.Title),
                 Dock = DockStyle.Fill,
                 Font = new Font(Font.FontFamily, 18F, FontStyle.Bold),
-                ForeColor = ForeColor,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleLeft
             }, 0, 0);
             _help = new Label
             {
                 Text = T(LeagueEfficiencyUiTextKeys.Hint),
                 Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.TopLeft,
                 AutoEllipsis = true
             };
@@ -84,7 +88,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 1,
-                BackColor = BackColor
+                BackColor = FacmDesignSystem.Canvas
             };
             hotkeyFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             hotkeyFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
@@ -92,10 +96,11 @@ namespace FACM.League
             {
                 Text = string.Empty,
                 Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleLeft
             };
-            var save = CreateButton(T(LeagueEfficiencyUiTextKeys.Save), 140);
+            var save = CreateButton(T(LeagueEfficiencyUiTextKeys.Save), 140, FacmButtonTone.Primary);
             save.Click += delegate { SaveBindings(); };
             hotkeyFooter.Controls.Add(_status, 0, 0);
             hotkeyFooter.Controls.Add(save, 1, 0);
@@ -104,7 +109,8 @@ namespace FACM.League
             _honorStatus = new Label
             {
                 Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(148, 163, 184),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleRight,
                 AutoEllipsis = true,
                 Text = FormatHonorStatus(_module.LastHonorStatus)
@@ -134,7 +140,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 1,
-                BackColor = BackColor,
+                BackColor = FacmDesignSystem.Canvas,
                 Margin = Padding.Empty
             };
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
@@ -151,7 +157,8 @@ namespace FACM.League
                 Text = text,
                 Dock = DockStyle.Fill,
                 Font = new Font(Font.FontFamily, 11F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(226, 232, 240),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleLeft
             };
         }
@@ -164,7 +171,7 @@ namespace FACM.League
                 ColumnCount = 4,
                 RowCount = 1,
                 Margin = new Padding(0, 4, 0, 4),
-                BackColor = Color.FromArgb(24, 33, 49),
+                BackColor = FacmDesignSystem.Surface,
                 Padding = new Padding(12, 7, 12, 7)
             };
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -177,7 +184,8 @@ namespace FACM.League
                 Text = title,
                 Dock = DockStyle.Fill,
                 Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-                ForeColor = ForeColor,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleLeft
             };
             panel.Controls.Add(titleLabel, 0, 0);
@@ -187,13 +195,13 @@ namespace FACM.League
                 Text = value ?? string.Empty,
                 Dock = DockStyle.Fill,
                 Margin = new Padding(6, 3, 6, 3),
-                BackColor = Color.FromArgb(15, 23, 42),
-                ForeColor = ForeColor,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle
             };
             panel.Controls.Add(box, 1, 0);
 
-            var capture = CreateButton(T(LeagueEfficiencyUiTextKeys.Capture), 68);
+            var capture = CreateButton(T(LeagueEfficiencyUiTextKeys.Capture), 68, FacmButtonTone.Secondary);
             capture.Click += delegate
             {
                 using (var dialog = new LeagueHotkeyCaptureDialog(_ui))
@@ -205,7 +213,7 @@ namespace FACM.League
             };
             panel.Controls.Add(capture, 2, 0);
 
-            var clear = CreateButton(T(LeagueEfficiencyUiTextKeys.Clear), 68);
+            var clear = CreateButton(T(LeagueEfficiencyUiTextKeys.Clear), 68, FacmButtonTone.Secondary);
             clear.Click += delegate { box.Text = string.Empty; };
             panel.Controls.Add(clear, 3, 0);
 
@@ -226,17 +234,15 @@ namespace FACM.League
                 ColumnCount = 1,
                 RowCount = 1,
                 Margin = new Padding(0, 4, 0, 4),
-                BackColor = Color.FromArgb(24, 33, 49),
+                BackColor = FacmDesignSystem.Surface,
                 Padding = new Padding(12, 7, 12, 7)
             };
-            var check = new CheckBox
+            var check = new FacmToggleSwitch
             {
                 Text = title,
                 Checked = value,
                 Dock = DockStyle.Fill,
-                ForeColor = ForeColor,
-                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-                AutoSize = false
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
             };
             panel.Controls.Add(check, 0, 0);
             WireHelp(panel, hint);
@@ -258,17 +264,16 @@ namespace FACM.League
             };
         }
 
-        private Button CreateButton(string text, int width)
+        private FacmActionButton CreateButton(string text, int width, FacmButtonTone tone)
         {
-            return new Button
+            return new FacmActionButton
             {
                 Text = text,
                 Width = width,
                 Height = 30,
                 Dock = DockStyle.Fill,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(51, 65, 85),
-                ForeColor = ForeColor,
+                Tone = tone,
+                Font = new Font(Font.FontFamily, 8.8F, FontStyle.Bold),
                 Margin = new Padding(4, 2, 4, 2)
             };
         }
@@ -280,12 +285,12 @@ namespace FACM.League
             {
                 _exitGame.Text = _module.ExitGameHotkey;
                 _closeLobby.Text = _module.CloseLobbyHotkey;
-                _status.ForeColor = Color.FromArgb(134, 239, 172);
+                _status.ForeColor = FacmDesignSystem.Success;
                 _status.Text = T(LeagueEfficiencyUiTextKeys.Saved);
             }
             else
             {
-                _status.ForeColor = Color.FromArgb(253, 186, 116);
+                _status.ForeColor = FacmDesignSystem.Warning;
                 _status.Text = string.Format(T(LeagueEfficiencyUiTextKeys.SaveFailed), error ?? string.Empty);
             }
         }
@@ -294,7 +299,7 @@ namespace FACM.League
         {
             if (_loading) return;
             _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked);
-            _status.ForeColor = Color.FromArgb(134, 239, 172);
+            _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.PostGameSaved);
         }
 
@@ -302,7 +307,7 @@ namespace FACM.League
         {
             if (_loading) return;
             _module.UpdateMatchmakingSettings(_autoSearch.Checked, _autoAccept.Checked);
-            _status.ForeColor = Color.FromArgb(134, 239, 172);
+            _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
 
@@ -323,13 +328,13 @@ namespace FACM.League
             _honorStatus.Text = FormatHonorStatus(status);
             var state = status == null ? string.Empty : status.State ?? string.Empty;
             if (string.Equals(state, "success", StringComparison.Ordinal))
-                _honorStatus.ForeColor = Color.FromArgb(134, 239, 172);
+                _honorStatus.ForeColor = FacmDesignSystem.Success;
             else if (string.Equals(state, "failed", StringComparison.Ordinal))
-                _honorStatus.ForeColor = Color.FromArgb(253, 186, 116);
+                _honorStatus.ForeColor = FacmDesignSystem.Warning;
             else if (string.Equals(state, "unknown", StringComparison.Ordinal))
-                _honorStatus.ForeColor = Color.FromArgb(253, 224, 71);
+                _honorStatus.ForeColor = FacmDesignSystem.Warning;
             else
-                _honorStatus.ForeColor = Color.FromArgb(148, 163, 184);
+                _honorStatus.ForeColor = FacmDesignSystem.TextMuted;
         }
 
         private string FormatHonorStatus(LeagueHonorAttemptStatus status)
@@ -370,16 +375,18 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             KeyPreview = true;
-            BackColor = Color.FromArgb(17, 24, 39);
-            ForeColor = Color.FromArgb(241, 245, 249);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            FacmWindowChrome.SetSubtitle(this, LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.CapturePrompt));
             _prompt = new Label
             {
                 Text = LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.CapturePrompt),
                 Dock = DockStyle.Fill,
                 Padding = new Padding(20),
                 TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = ForeColor
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent
             };
             Controls.Add(_prompt);
             KeyDown += HandleKeyDown;
@@ -404,7 +411,7 @@ namespace FACM.League
             LeagueHotkeyBinding parsed;
             if (!LeagueHotkeyBinding.TryParse(candidate.ToString(), out parsed, out parsedError) || !parsed.Enabled)
             {
-                _prompt.ForeColor = Color.FromArgb(253, 186, 116);
+                _prompt.ForeColor = FacmDesignSystem.Warning;
                 _prompt.Text = LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.CaptureUnsafe);
                 return;
             }

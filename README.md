@@ -4,9 +4,9 @@ FACM 是面向 Windows 的轻量桌面悬浮控制中心。当前产品线固定
 
 ## 当前状态
 
-- 当前在线正式版：`3.5.20`（以 `online/version.json` 与 GitHub Release 为准）。
+- 当前在线正式版：`3.5.21`（以 `online/version.json` 与 GitHub Release 为准）。
 - 当前源码主线：3.5.x lightweight。
-- 3.5.20 是完成 P1 回灌与 4.x 工作树清理后的首个正式版本。
+- 3.5.20 是完成 P1 回灌与 4.x 工作树清理后的首个正式版本；3.5.21 修复旧镜像清单可能把“最新版本”倒退显示的问题。
 - 普通发布产物：单个 `FACM.exe`，CI 要求小于 10 MiB。
 - `FACM.PetHost` 源码继续保留并 build/self-test，但普通 FACM.exe **不内嵌 self-contained PetHost bundle**。
 

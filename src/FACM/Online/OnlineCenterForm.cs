@@ -5,30 +5,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.Online
 {
     internal sealed class OnlineCenterForm : Form
     {
-        private static readonly Color Background = Color.FromArgb(13, 18, 29);
-        private static readonly Color Surface = Color.FromArgb(25, 33, 48);
-        private static readonly Color TextPrimary = Color.FromArgb(242, 247, 255);
-        private static readonly Color TextMuted = Color.FromArgb(155, 169, 193);
-        private static readonly Color Accent = Color.FromArgb(76, 132, 255);
-
         private readonly MainForm _owner;
         private readonly AppSettings _settings;
         private readonly bool _forceMode;
         private readonly Label _versionValue;
         private readonly Label _updateStatus;
+        private readonly FacmStatusBadge _updateBadge;
         private readonly Label _announcementTitle;
         private readonly TextBox _announcementBody;
-        private readonly Button _refreshButton;
-        private readonly Button _updateButton;
-        private readonly Button _linkButton;
-        private readonly Button _closeButton;
+        private readonly FacmActionButton _refreshButton;
+        private readonly FacmActionButton _updateButton;
+        private readonly FacmActionButton _linkButton;
+        private readonly FacmActionButton _closeButton;
         private readonly ProgressBar _progress;
-        private readonly CheckBox _autoUpdate;
+        private readonly FacmToggleSwitch _autoUpdate;
         private OnlineSnapshot _snapshot;
         private CancellationTokenSource _cancellation;
         private bool _updateStarted;
@@ -49,18 +45,20 @@ namespace FACM.Online
             ShowInTaskbar = false;
             TopMost = forceMode;
             ClientSize = new Size(560, 620);
-            BackColor = Background;
-            ForeColor = TextPrimary;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
             ControlBox = !forceMode;
+            FacmWindowChrome.SetSubtitle(this, UiTextRuntime.Text(UiTextKeys.UpdateAndAnnouncements));
 
             var header = new Label
             {
                 Text = forceMode ? "检测到必须安装的新版本" : "检查更新与公告",
                 Location = new Point(24, 18),
                 Size = new Size(510, 34),
-                Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold),
-                ForeColor = TextPrimary
+                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent
             };
             var subtitle = new Label
             {
@@ -69,45 +67,55 @@ namespace FACM.Online
                     : "查看版本更新和最新公告。",
                 Location = new Point(26, 55),
                 Size = new Size(508, 24),
-                ForeColor = TextMuted
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent
             };
 
             var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 172));
             var versionTitle = CreateSectionTitle("版本更新", new Point(16, 13));
+            _updateBadge = new FacmStatusBadge
+            {
+                Location = new Point(398, 11),
+                Size = new Size(104, 27),
+                Text = UiTextRuntime.Text(UiTextKeys.CheckUpdate),
+                Tone = FacmStatusTone.Neutral
+            };
             _versionValue = new Label
             {
                 Location = new Point(16, 43),
                 Size = new Size(486, 25),
-                ForeColor = TextPrimary,
-                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
             };
             _updateStatus = new Label
             {
                 Location = new Point(16, 70),
                 Size = new Size(486, 40),
                 AutoEllipsis = true,
-                ForeColor = TextMuted
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent
             };
-            _autoUpdate = new CheckBox
+            _autoUpdate = new FacmToggleSwitch
             {
                 Text = "启动时自动检查更新",
-                Location = new Point(16, 126),
-                Size = new Size(240, 28),
+                Location = new Point(16, 124),
+                Size = new Size(244, 32),
                 Checked = _settings.AutoUpdateEnabled,
-                ForeColor = TextPrimary,
-                BackColor = Color.Transparent
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _autoUpdate.CheckedChanged += delegate
             {
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            _refreshButton = CreateButton("立即检查", new Point(282, 124), 100, false);
+            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 124), 100, FacmButtonTone.Secondary);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton("立即更新", new Point(392, 124), 110, true);
+            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(392, 124), 110, FacmButtonTone.Primary);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
+            versionPanel.Controls.Add(_updateBadge);
             versionPanel.Controls.Add(_versionValue);
             versionPanel.Controls.Add(_updateStatus);
             versionPanel.Controls.Add(_autoUpdate);
@@ -120,8 +128,9 @@ namespace FACM.Online
             {
                 Location = new Point(16, 43),
                 Size = new Size(486, 28),
-                ForeColor = TextPrimary,
-                Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10.5F, FontStyle.Bold)
             };
             _announcementBody = new TextBox
             {
@@ -131,10 +140,10 @@ namespace FACM.Online
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(18, 24, 36),
-                ForeColor = TextPrimary
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text
             };
-            _linkButton = CreateButton("查看详情", new Point(16, 209), 100, false);
+            _linkButton = CreateButton(OnlineCenterUiText.ViewDetails, new Point(16, 209), 100, FacmButtonTone.Secondary);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -149,7 +158,11 @@ namespace FACM.Online
                 Maximum = 100,
                 Visible = false
             };
-            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(420, 570), 120, false);
+            _closeButton = CreateButton(
+                UiTextRuntime.Text(forceMode ? UiTextKeys.Exit : UiTextKeys.Close),
+                new Point(420, 570),
+                120,
+                forceMode ? FacmButtonTone.Danger : FacmButtonTone.Secondary);
             _closeButton.Click += delegate
             {
                 if (_updateStarted) return;
@@ -285,11 +298,13 @@ namespace FACM.Online
             {
                 _updateStatus.Text = "暂时无法获取更新信息。";
                 _updateButton.Enabled = false;
+                SetUpdateBadge(OnlineCenterUiText.FetchFailed, FacmStatusTone.Error);
             }
             else if (_snapshot.ForceUpdateRequired)
             {
                 _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
+                SetUpdateBadge(OnlineCenterUiText.ForceRequired, FacmStatusTone.Error);
             }
             else if (_snapshot.UpdateAvailable)
             {
@@ -297,11 +312,13 @@ namespace FACM.Online
                     ? "发现新版本。"
                     : _snapshot.Update.ReleaseNotes;
                 _updateButton.Enabled = true;
+                SetUpdateBadge(OnlineCenterUiText.UpdateAvailable, FacmStatusTone.Accent);
             }
             else
             {
                 _updateStatus.Text = "当前已是最新版本。";
                 _updateButton.Enabled = false;
+                SetUpdateBadge(OnlineCenterUiText.UpToDate, FacmStatusTone.Success);
             }
 
             var announcement = _snapshot.Announcement;
@@ -319,6 +336,12 @@ namespace FACM.Online
             }
         }
 
+        private void SetUpdateBadge(string text, FacmStatusTone tone)
+        {
+            _updateBadge.Text = text;
+            _updateBadge.Tone = tone;
+        }
+
         private void SetBusy(bool busy, string status)
         {
             if (IsDisposed || Disposing) return;
@@ -326,7 +349,11 @@ namespace FACM.Online
             _updateButton.Enabled = !busy && _snapshot != null && _snapshot.UpdateAvailable;
             _autoUpdate.Enabled = !busy;
             _closeButton.Enabled = !busy || !_forceMode;
-            if (!string.IsNullOrWhiteSpace(status)) _updateStatus.Text = status;
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                _updateStatus.Text = status;
+                SetUpdateBadge(OnlineCenterUiText.Processing, FacmStatusTone.Accent);
+            }
             UseWaitCursor = busy;
         }
 
@@ -354,14 +381,15 @@ namespace FACM.Online
             }
         }
 
-        private static Panel CreatePanel(Point location, Size size)
+        private static FacmGlassPanel CreatePanel(Point location, Size size)
         {
-            return new Panel
+            return new FacmGlassPanel
             {
                 Location = location,
                 Size = size,
-                BackColor = Surface,
-                BorderStyle = BorderStyle.FixedSingle
+                Radius = FacmDesignSystem.CardRadius,
+                BackColor = FacmDesignSystem.Surface,
+                DrawBorder = true
             };
         }
 
@@ -371,28 +399,23 @@ namespace FACM.Online
             {
                 Text = text,
                 Location = location,
-                Size = new Size(486, 25),
-                ForeColor = TextMuted,
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                Size = new Size(360, 25),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
         }
 
-        private static Button CreateButton(string text, Point location, int width, bool primary)
+        private static FacmActionButton CreateButton(string text, Point location, int width, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
                 Location = location,
                 Size = new Size(width, 32),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = primary ? Accent : Color.FromArgb(38, 49, 68),
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                TabStop = false
+                Tone = tone,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.8F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(65, 80, 105);
-            button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(88, 144, 255) : Color.FromArgb(48, 61, 82);
-            return button;
         }
 
         private static bool IsHttpsUrl(string value)

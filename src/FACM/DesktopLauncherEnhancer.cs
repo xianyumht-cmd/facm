@@ -241,23 +241,26 @@ namespace FACM
                 var full = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
                 if (_hovered || _pressed || Focused)
                 {
-                    using (var hoverPath = RoundedPath(full, Math.Max(6, _theme.ButtonRadius + 4)))
-                    using (var hoverBrush = new SolidBrush(Color.FromArgb(_pressed ? 46 : 24, _theme.TextPrimary)))
+                    var hoverFill = _pressed
+                        ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.10F)
+                        : FacmDesignSystem.SurfaceHover;
+                    using (var hoverPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(6, FacmDesignSystem.ControlRadius + 4)))
+                    using (var hoverBrush = new SolidBrush(hoverFill))
                         e.Graphics.FillPath(hoverBrush, hoverPath);
 
                     if (Focused)
                     {
-                        using (var focusPath = RoundedPath(full, Math.Max(6, _theme.ButtonRadius + 4)))
-                        using (var focusPen = new Pen(Color.FromArgb(150, _theme.AccentSecondary), 1F))
+                        using (var focusPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(6, FacmDesignSystem.ControlRadius + 4)))
+                        using (var focusPen = new Pen(FacmDesignSystem.AccentSecondary, 1F))
                             e.Graphics.DrawPath(focusPen, focusPath);
                     }
                 }
 
                 var iconSize = Math.Max(32, Math.Min(40, Height / 2));
                 var icon = new Rectangle((Width - iconSize) / 2, 4, iconSize, iconSize);
-                using (var iconPath = RoundedPath(icon, Math.Max(7, Math.Min(10, _theme.ButtonRadius + 4))))
-                using (var iconBrush = new SolidBrush(_theme.Accent))
-                using (var iconPen = new Pen(Color.FromArgb(135, _theme.AccentSecondary), 1F))
+                using (var iconPath = FacmDesignSystem.RoundedRectangle(icon, Math.Max(7, Math.Min(10, FacmDesignSystem.ControlRadius + 4))))
+                using (var iconBrush = new SolidBrush(FacmDesignSystem.Accent))
+                using (var iconPen = new Pen(FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.BorderSoft, 0.25F), 1F))
                 {
                     e.Graphics.FillPath(iconBrush, iconPath);
                     e.Graphics.DrawPath(iconPen, iconPath);
@@ -285,21 +288,9 @@ namespace FACM
                         Text,
                         titleFont,
                         titleBounds,
-                        _theme.TextPrimary,
+                        FacmDesignSystem.Text,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
                 }
-            }
-
-            private static GraphicsPath RoundedPath(Rectangle bounds, int radius)
-            {
-                var path = new GraphicsPath();
-                var diameter = Math.Max(2, Math.Min(Math.Min(bounds.Width, bounds.Height), radius * 2));
-                path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
-                path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
-                path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-                path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-                path.CloseFigure();
-                return path;
             }
         }
     }
