@@ -64,3 +64,16 @@ Future public brand target may be GGman（鸡鸡侠）, but do not globally repl
 ## D-012 — 3.5.20 is the first post-cleanup release
 
 3.5.20 was published after P1 and the 4.x working-tree cleanup reached `main`. It is a new lightweight Release rather than mutated/reused 3.5.19 bytes. Future releases must use a new 3.5.x patch version and keep the online manifest migration-free.
+
+## D-013 — One shared WinForms design system
+
+**Decision (2026-09-06):** product-experience work stays on WinForms and converges existing surfaces on the current theme runtime instead of introducing a second UI framework or page-local palettes.
+
+- `ThemeCatalog` remains the palette source.
+- `FacmThemeRuntime` remains the process-wide active-theme owner.
+- `FacmDesignSystem` owns semantic colors, radii and common styling.
+- `FacmWindowChrome` owns ordinary FACM top-level window chrome.
+- reusable interactive primitives such as action buttons, toggle switches and status badges must preserve native WinForms `Button`/`CheckBox` behavior.
+- visual refactors must not change update protocol, League write semantics, polling ownership, or launcher routing merely to achieve consistency.
+
+This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
