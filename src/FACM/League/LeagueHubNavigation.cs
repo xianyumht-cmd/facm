@@ -147,6 +147,8 @@ namespace FACM.League
                 if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value))
                     throw new InvalidOperationException("League recommendation UI text contains an empty key/default.");
             }
+
+            LeagueShellContextRouter.ValidateForSmokeTest();
         }
     }
 }

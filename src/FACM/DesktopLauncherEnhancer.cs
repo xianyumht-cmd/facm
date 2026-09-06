@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.League;
@@ -15,6 +16,8 @@ namespace FACM
     /// Turns CompactMenuForm into a launcher surface: the control center answers only “what do I
     /// want to open?”. Business state, directory selection and repair guidance live inside their
     /// product pages. Shortcuts flow left-to-right like desktop icons and wrap only when needed.
+    /// A direct floating-entry click can additionally expose the already-owned League context;
+    /// tray/external control-center opens remain the generic four-shortcut home.
     /// </summary>
     internal static class DesktopLauncherEnhancer
     {
@@ -23,15 +26,19 @@ namespace FACM
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
         private const int CompactBaseHeight = 236;
+        private const int ContextCompactBaseHeight = 322;
         private const int TileBaseWidth = 82;
         private const int TileBaseHeight = 84;
         private const int TileGapX = 7;
         private const int TileGapY = 8;
         private const string LauncherName = "FACM.DesktopLauncher";
+        private const string ContextName = "FACM.DesktopLauncher.Context";
         private const ControlStyles DesktopTileStyles =
             ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
             ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
             ControlStyles.Selectable;
+
+        private static int _contextualOpenArmed;
 
         private static readonly FieldInfo ThemeField = typeof(CompactMenuForm).GetField(
             "_theme", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -46,14 +53,26 @@ namespace FACM
         private static readonly MethodInfo MoreMethod = typeof(CompactMenuForm).GetMethod(
             "OpenMoreMenu", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        public static void ArmContextualOpen()
+        {
+            Interlocked.Exchange(ref _contextualOpenArmed, 1);
+        }
+
+        public static void CancelContextualOpen()
+        {
+            Interlocked.Exchange(ref _contextualOpenArmed, 0);
+        }
+
         public static bool Apply(CompactMenuForm menu)
         {
             if (menu == null || menu.IsDisposed) return false;
             if (menu.Controls.Find(LauncherName, true).Length > 0) return true;
 
+            var contextual = Interlocked.Exchange(ref _contextualOpenArmed, 0) != 0;
             var theme = ThemeField == null ? null : ThemeField.GetValue(menu) as ThemeDefinition;
             if (theme == null) return false;
             var ui = UiTextCatalog.Load();
+            var settings = SettingsField == null ? null : SettingsField.GetValue(menu) as AppSettings;
 
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
@@ -70,7 +89,8 @@ namespace FACM
                 if (!ReferenceEquals(control, header)) control.Visible = false;
             }
 
-            var compactHeight = Math.Max(sy(210), sy(CompactBaseHeight));
+            var compactBaseHeight = contextual ? ContextCompactBaseHeight : CompactBaseHeight;
+            var compactHeight = Math.Max(sy(contextual ? 296 : 210), sy(compactBaseHeight));
             menu.ClientSize = new Size(menu.ClientSize.Width, compactHeight);
             if (header != null)
             {
@@ -78,11 +98,25 @@ namespace FACM
                 header.Width = menu.ClientSize.Width;
             }
 
+            var launcherTop = contextual ? 184 : 82;
+            if (contextual)
+            {
+                var contextCard = new LauncherContextCard(theme, settings, LeagueShellContextState.Current)
+                {
+                    Name = ContextName,
+                    Location = new Point(sx(16), sy(78)),
+                    Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(96)),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                menu.Controls.Add(contextCard);
+                contextCard.BringToFront();
+            }
+
             var launcher = new LauncherFlowPanel
             {
                 Name = LauncherName,
-                Location = new Point(sx(16), sy(82)),
-                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), Math.Max(sy(98), compactHeight - sy(98))),
+                Location = new Point(sx(16), sy(launcherTop)),
+                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), Math.Max(sy(98), compactHeight - sy(launcherTop + 16))),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 AutoScroll = false,
@@ -94,7 +128,7 @@ namespace FACM
             AddTile(launcher, theme, sx, sy, "◈", CleanupRepairUiText.LauncherTitle,
                 (Action)delegate { OpenCleanupRepair(menu); });
             AddTile(launcher, theme, sx, sy, "L", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title),
-                (Action)delegate { LeagueHubUiBridge.RequestOpen(); });
+                (Action)delegate { OpenLeague(menu, contextual); });
             AddTile(launcher, theme, sx, sy, "✦", ui.Get(UiTextKeys.ShellPersonalization),
                 tile => InvokeLegacy(menu, PersonalizationMethod, tile));
             AddTile(launcher, theme, sx, sy, "⋯", ui.Get(UiTextKeys.ShellMoreSettings),
@@ -109,6 +143,8 @@ namespace FACM
         {
             if (TileCount != 4) throw new InvalidOperationException("Control-center launcher must expose exactly four primary desktop shortcuts.");
             if (LauncherColumns != 4) throw new InvalidOperationException("Control-center launcher must prefer four left-to-right desktop shortcuts before wrapping.");
+            if (ContextCompactBaseHeight <= CompactBaseHeight)
+                throw new InvalidOperationException("Contextual launcher must reserve room for the state card without shrinking the four shortcuts.");
             if (ThemeField == null || OwnerField == null || SettingsField == null || CleanupField == null ||
                 PersonalizationMethod == null || MoreMethod == null)
                 throw new InvalidOperationException("Desktop launcher lost access to its bounded control-center actions.");
@@ -116,6 +152,10 @@ namespace FACM
                 throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
             if ((4 * TileBaseWidth) + (3 * TileGapX) > BaseWidth - 32)
                 throw new InvalidOperationException("Default control-center width can no longer hold four natural desktop shortcuts.");
+
+            ArmContextualOpen();
+            CancelContextualOpen();
+            LeagueShellContextRouter.ValidateForSmokeTest();
         }
 
         private static void OpenCleanupRepair(CompactMenuForm menu)
@@ -139,6 +179,36 @@ namespace FACM
             {
                 AppLog.Error("Cleanup/repair launcher action failed", exception);
             }
+        }
+
+        private static void OpenLeague(CompactMenuForm menu, bool contextual)
+        {
+            if (menu == null || menu.IsDisposed) return;
+            var owner = OwnerField == null ? null : OwnerField.GetValue(menu) as MainForm;
+            if (!contextual || owner == null)
+            {
+                LeagueHubUiBridge.RequestOpen();
+                return;
+            }
+
+            var action = LeagueShellContextRouter.Resolve(LeagueShellContextState.Current);
+            if (action == LeagueShellContextAction.Live)
+            {
+                LeagueLiveUiBridge.RequestOpen(owner);
+                return;
+            }
+            if (action == LeagueShellContextAction.Efficiency)
+            {
+                LeagueEfficiencyUiBridge.RequestOpen(owner);
+                return;
+            }
+            if (action == LeagueShellContextAction.Dashboard)
+            {
+                LeagueDashboardUiBridge.RequestOpen(owner);
+                return;
+            }
+
+            LeagueHubUiBridge.RequestOpen();
         }
 
         private static void AddTile(
@@ -192,6 +262,68 @@ namespace FACM
             {
                 SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer, true);
                 BackColor = Color.Transparent;
+            }
+        }
+
+        private sealed class LauncherContextCard : Control
+        {
+            private readonly ThemeDefinition _theme;
+            private readonly string _leagueStatus;
+            private readonly string _automationStatus;
+            private readonly string _contextHint;
+            private readonly string _directoryHint;
+
+            public LauncherContextCard(ThemeDefinition theme, AppSettings settings, LeagueDashboardPhaseState state)
+            {
+                _theme = theme ?? throw new ArgumentNullException(nameof(theme));
+                _leagueStatus = DesktopLauncherContextUiText.LeagueStatus(state);
+                _automationStatus = DesktopLauncherContextUiText.AutomationStatus(settings);
+                _contextHint = DesktopLauncherContextUiText.ContextHint(state);
+                _directoryHint = settings == null || string.IsNullOrWhiteSpace(settings.GamePath)
+                    ? DesktopLauncherContextUiText.DirectoryMissing
+                    : string.Empty;
+                SetStyle(
+                    ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor,
+                    true);
+                BackColor = Color.Transparent;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var bounds = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+                using (var path = FacmDesignSystem.RoundedRectangle(bounds, Math.Max(8, FacmDesignSystem.CardRadius)))
+                using (var fill = new SolidBrush(FacmDesignSystem.Surface))
+                using (var border = new Pen(FacmDesignSystem.BorderSoft, 1F))
+                {
+                    e.Graphics.FillPath(fill, path);
+                    e.Graphics.DrawPath(border, path);
+                }
+
+                var left = 12;
+                var width = Math.Max(1, Width - 24);
+                using (var titleFont = new Font(_theme.FontName, 9.2F, FontStyle.Bold))
+                using (var detailFont = new Font(_theme.FontName, 7.8F, FontStyle.Bold))
+                using (var hintFont = new Font(_theme.FontName, 7.5F, FontStyle.Regular))
+                {
+                    TextRenderer.DrawText(e.Graphics, _leagueStatus, titleFont,
+                        new Rectangle(left, 9, width, 20), FacmDesignSystem.Text,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(e.Graphics, _automationStatus, detailFont,
+                        new Rectangle(left, 31, width, 18), FacmDesignSystem.TextMuted,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(e.Graphics, _contextHint, hintFont,
+                        new Rectangle(left, 51, width, 18), FacmDesignSystem.AccentSecondary,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                    if (!string.IsNullOrWhiteSpace(_directoryHint))
+                    {
+                        TextRenderer.DrawText(e.Graphics, _directoryHint, hintFont,
+                            new Rectangle(left, 71, width, 17), FacmDesignSystem.Warning,
+                            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                    }
+                }
             }
         }
 

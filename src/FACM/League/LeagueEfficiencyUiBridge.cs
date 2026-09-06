@@ -35,6 +35,11 @@ namespace FACM.League
             _module = null;
         }
 
+        public static void RequestOpen(MainForm owner)
+        {
+            LeagueHubUiBridge.RequestOpen(owner, LeagueHubNavigation.Efficiency);
+        }
+
         internal static bool HasTrayAccessForSmokeTest()
         {
             return TrayField != null && TrayField.FieldType == typeof(NotifyIcon);

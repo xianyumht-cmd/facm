@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
 using FACM.Theming;
@@ -90,12 +91,30 @@ namespace FACM.AppHost.Modules
                 _cleanup,
                 _startCleanup);
 
+            MainForm.MouseDown += HandleDesktopEntryMouseDown;
+            MainForm.MouseUp += HandleDesktopEntryMouseUp;
             _leagueDashboard.GameflowStateChanged += HandleGameflowStateChanged;
-            MainForm.ApplyGameflowState(_leagueDashboard.CurrentGameflowState);
+
+            var initialState = _leagueDashboard.CurrentGameflowState;
+            LeagueShellContextState.Update(initialState);
+            MainForm.ApplyGameflowState(initialState);
+        }
+
+        private void HandleDesktopEntryMouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                DesktopLauncherEnhancer.ArmContextualOpen();
+        }
+
+        private void HandleDesktopEntryMouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                DesktopLauncherEnhancer.CancelContextualOpen();
         }
 
         private void HandleGameflowStateChanged(LeagueDashboardPhaseState state)
         {
+            LeagueShellContextState.Update(state);
             var form = MainForm;
             if (form == null || form.IsDisposed) return;
             form.ApplyGameflowState(state);
@@ -104,9 +123,13 @@ namespace FACM.AppHost.Modules
         public void Dispose()
         {
             _leagueDashboard.GameflowStateChanged -= HandleGameflowStateChanged;
+            LeagueShellContextState.Clear();
+
             var form = MainForm;
             MainForm = null;
             if (form == null || form.IsDisposed) return;
+            form.MouseDown -= HandleDesktopEntryMouseDown;
+            form.MouseUp -= HandleDesktopEntryMouseUp;
             form.Dispose();
         }
     }

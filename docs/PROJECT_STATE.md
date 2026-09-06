@@ -14,7 +14,7 @@
 
 # FACM Project State
 
-更新时间：2026-09-06
+更新时间：2026-09-07
 
 ## 当前产品线
 
@@ -34,20 +34,22 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 EXE�
 - 导航 owner-draw 残影与紧凑控制中心首次裁剪残影已修复。
 - 普通构建不内嵌 self-contained PetHost；轻量 FACM.exe 体积 gate <10 MiB。
 - 更新 manifest 以 GitHub main 的 3.5 清单为唯一版本基准；多个传输候选选择最高有效版本，旧镜像不能把服务器版本倒退到当前客户端以下。
+- UI Round 1 已合并：共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`、统一 ThemeCatalog/FacmDesignSystem 视觉语义、Update Center / League Efficiency / Compact Launcher 共享设计 token，并保留原业务交互语义。
 
-P1 合并 PR：#241；4.x working-tree cleanup 合并 PR：#242；3.5.21 更新一致性修复 PR：#243。
+P1 合并 PR：#241；4.x working-tree cleanup 合并 PR：#242；3.5.21 更新一致性修复 PR：#243；UI Round 1 合并 PR：#244。
 
 ## 当前进行中的产品体验任务
 
-Round 1 UI 统一正在 PR **#244**、分支 `feat/3.5.22-ui-design-system-20260906` 上进行。目标保持 WinForms/net48/single-EXE，不改变 League 自动化语义或更新协议：
+Round 2 正在 PR **#245**、分支 `feat/3.5.22-context-home-navigation-20260906` 上进行。目标是让悬浮入口从“固定四个快捷方式”升级成轻量的场景首页，同时继续复用唯一 Gameflow owner：
 
-- `ThemeCatalog` 继续作为唯一 palette source，`FacmThemeRuntime` 继续拥有 process-wide active theme。
-- 新增共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`。
-- Update Center 与 League Efficiency 已迁移到共享 semantic colors/controls；Compact Launcher tile 也消费相同 design tokens。
-- 共享控件 smoke contract 已接入 `--facm-host-test`。
-- UI Text Contract 首次抓到新增硬编码 copy 后已修正；后续新增用户可见文字继续服从现有 UI text contract。
+- `LeagueShellContextRouter` 只消费现有 `LeagueDashboardModule` 的 Gameflow 状态，不新增 LCU polling 或写入。
+- 直接左键点击内置悬浮入口时，在原四个快捷方式上方显示当前 LOL 状态、自动下一局设置摘要与场景提示。
+- Lobby / Matchmaking / ReadyCheck / 结算后场景指向“下一局设置”；ChampSelect / InGame 指向“实时对局”；普通客户端状态指向“当前状态”。
+- 场景跳转进入现有统一 LOL Hub 的对应 view，不建立第二套 League 窗口所有权或 session。
+- 托盘/第二实例唤起“控制中心”仍打开普通四快捷方式首页；右键完整菜单保持原行为。
+- 工作目录不再占普通首页主要空间，只在缺失时作为小提示出现。
 
-Round 1 合并后进入 Round 2：状态首页 + 悬浮球场景导航。计划在 Round 1 与 Round 2 都通过 CI/审查后再决定 3.5.22 正式发布，不把中间 UI 半成品直接推给在线客户端。
+Round 2 在 CI、静态交互审查和必要的实机视觉检查完成前保持 Draft，不修改线上 3.5.21 manifest，也不预先发布 3.5.22。
 
 ## 当前保留组件
 
@@ -69,7 +71,7 @@ Round 1 合并后进入 Round 2：状态首页 + 悬浮球场景导航。计划�
 - `online/version.json`：3.5.21，enabled=true，force_update=false。
 - GitHub Release：`v3.5.21`，非 draft、非 prerelease。
 - Release `FACM.exe` SHA-256：`EE86DA07E7723C7952056C604A4961FBA9434F06FAAD36A738BF9DCFFFD93D5D`。
-- 当前开发中的 UI Round 1 尚未发布，不修改线上 3.5.21 manifest。
+- 当前开发中的 UI Round 2 尚未发布，不修改线上 3.5.21 manifest。
 
 ## 当前维护 Gate
 
@@ -82,6 +84,7 @@ Round 1 合并后进入 Round 2：状态首页 + 悬浮球场景导航。计划�
 5. Updater self-test PASS。
 6. retained source/workflow 不依赖已删除 4.x 项目/脚本。
 7. `online/version.json` 和 publisher 不重新引入 4.x migration 配置。
-8. UI 重构保留原 WinForms 交互语义；不得为了视觉一致性改变 League 写入、更新协议、Launcher 路由等业务行为。
+8. UI 重构保留原 WinForms 交互语义；不得为了视觉一致性改变 League 写入、更新协议或现有业务所有权。
+9. 场景首页必须复用共享 Gameflow 状态；不得为导航速度新建轮询器或第二 League session。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
