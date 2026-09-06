@@ -32,26 +32,31 @@ namespace FACM.League
             var owner = Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed);
             if (owner == null || !owner.IsHandleCreated) return;
 
+            QueueOpen(owner, string.Empty);
+        }
+
+        public static void RequestOpen(MainForm owner, string viewId)
+        {
+            if (_dialogOpen || _openPending || _module == null || owner == null || owner.IsDisposed || !owner.IsHandleCreated) return;
+            QueueOpen(owner, NormalizeViewId(viewId));
+        }
+
+        private static void QueueOpen(MainForm owner, string requestedViewId)
+        {
             _openPending = true;
             try
             {
                 owner.BeginInvoke(new Action(delegate
                 {
                     _openPending = false;
-                    Open(owner, string.Empty);
+                    if (owner.IsDisposed) return;
+                    Open(owner, requestedViewId);
                 }));
             }
             catch
             {
                 _openPending = false;
             }
-        }
-
-        public static void RequestOpen(MainForm owner, string viewId)
-        {
-            if (_dialogOpen || _openPending || _module == null || owner == null || owner.IsDisposed) return;
-            owner.CloseMenu();
-            Open(owner, NormalizeViewId(viewId));
         }
 
         private static void Open(MainForm owner, string requestedViewId)
