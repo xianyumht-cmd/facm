@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.20
-- GitHub Release：v3.5.20
+- 版本：FACM 3.5.21
+- GitHub Release：v3.5.21
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：8ecd56500807a2a314a341c6803a6afe2eb8fc9e
-- 发布元数据提交：72f9d28793c9f9c93d8f1287a70241e83ffff7b3
-- Release FACM.exe SHA-256：60A93CB9D3A17199487D1B3C40DD750F986C9B92B65D9B194A31E736CCB2A026
-- release_notes：FACM 3.5.20：继续保持 .NET Framework 4.8 / WinForms 轻量单 EXE 架构；自动下一局改为 Lobby/ReadyCheck 立即响应，并补齐失败重试与写入结果回读确认，减少等待且避免重复操作；修复海克斯乱斗百分比显示、信息展示不完整、导航文字与紧凑控制面板残影；游戏进入 InGame 时可按归属自动隐藏桌面入口并在离开游戏后恢复；同时正式清理 4.x 工作树、迁移桥、bootstrap/CAB 与旧发布链，后续 3.5 更新清单保持 migration-free。
+- 发布基础 main：de43006f9943f9f7f5af59f810849b94777c0cb1
+- 发布元数据提交：912be35c9816dc95c2b68887f63afcfcced81f9a
+- Release FACM.exe SHA-256：EE86DA07E7723C7952056C604A4961FBA9434F06FAAD36A738BF9DCFFFD93D5D
+- release_notes：FACM 3.5.21：修复检查更新可能读取到过期镜像清单的问题。更新元数据现在以 GitHub main 的 3.5 清单为唯一版本基准，并在多个传输源中选择最高有效版本；旧镜像不能再把“最新版本”显示成低于当前客户端的版本。同时修正 3 段发布版本与 4 段程序集版本的比较语义，并加入 3.5.18/3.5.20 旧清单竞争回归测试。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
