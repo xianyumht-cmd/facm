@@ -108,6 +108,36 @@ namespace FACM.Online
                 "Direct Gitee release candidate is missing.");
             Require(!giteeCandidates.Any(item => item.Url.IndexOf("https://gitee.com/https://", StringComparison.OrdinalIgnoreCase) >= 0),
                 "Gitee release candidates must not be wrapped in GitHub proxy prefixes.");
+
+            var stale = CreateManifest("3.5.18", true);
+            var freshDisabled = CreateManifest("3.5.20", false);
+            var fresh = CreateManifest("3.5.20", true);
+            var selected = OnlineService.SelectNewestManifest(new[] { stale, freshDisabled, fresh });
+            Require(ReferenceEquals(selected, fresh),
+                "Update manifest selection must choose 3.5.20 over a faster stale 3.5.18 response and prefer enabled metadata on a tie.");
+
+            Require(
+                OnlineService.CompareProductVersions(new Version(3, 5, 20), new Version(3, 5, 20, 0)) == 0,
+                "Three-part release versions and four-part assembly versions must compare as the same product version.");
+
+            var protectedLatest = OnlineService.PreventLatestVersionRegression(
+                new Version(3, 5, 20, 0),
+                new Version(3, 5, 18));
+            Require(protectedLatest != null && protectedLatest.Equals(new Version(3, 5, 20, 0)),
+                "A stale manifest must never make the UI report a latest version older than the running client.");
+        }
+
+        private static UpdateManifest CreateManifest(string version, bool enabled)
+        {
+            return new UpdateManifest
+            {
+                Enabled = enabled,
+                Version = version,
+                MinimumVersion = "3.0.0",
+                DownloadUrl = "https://github.com/xianyumht-cmd/facm/releases/download/v" + version + "/FACM.exe",
+                Sha256 = new string('A', 64),
+                ReleaseNotes = "smoke"
+            };
         }
 
         private static void Require(bool condition, string message)
