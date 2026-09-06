@@ -35,6 +35,13 @@ namespace FACM.League
             _module = null;
         }
 
+        public static void RequestOpen(MainForm owner)
+        {
+            if (_dialogOpen || _module == null || owner == null || owner.IsDisposed) return;
+            owner.CloseMenu();
+            Open(owner);
+        }
+
         internal static bool HasTrayAccessForSmokeTest()
         {
             return TrayField != null && TrayField.FieldType == typeof(NotifyIcon);
