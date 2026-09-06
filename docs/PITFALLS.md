@@ -71,3 +71,9 @@ Clients may encounter older JSON with unknown properties. Removing a retired mod
 ## Clean Git history separately
 
 Removing files from `main` does not remove them from old commits, releases, tags or remote branches. History rewriting is a separate, higher-risk operation. Do not mix it into ordinary cleanup.
+
+## Create the task branch before the first write
+
+Do not use a placeholder file on `main` as a way to obtain a commit for a new task branch. Resolve the current `main` SHA first, create the feature branch from that SHA/ref, and only then write task files.
+
+If an accidental no-op content change does land on `main`, reverse it with an ordinary commit and verify the resulting tree matches the intended prior tree. Do not hide the mistake with reset, force-push or history rewriting.
