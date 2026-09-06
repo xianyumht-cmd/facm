@@ -282,7 +282,10 @@ namespace FACM
                 _directoryHint = settings == null || string.IsNullOrWhiteSpace(settings.GamePath)
                     ? DesktopLauncherContextUiText.DirectoryMissing
                     : string.Empty;
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+                SetStyle(
+                    ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor,
+                    true);
                 BackColor = Color.Transparent;
             }
 
