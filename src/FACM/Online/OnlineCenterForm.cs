@@ -49,7 +49,7 @@ namespace FACM.Online
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
             ControlBox = !forceMode;
-            FacmWindowChrome.SetSubtitle(this, forceMode ? "必须完成更新后继续" : "版本、公告与自动更新");
+            FacmWindowChrome.SetSubtitle(this, UiTextRuntime.Text(UiTextKeys.UpdateAndAnnouncements));
 
             var header = new Label
             {
@@ -77,7 +77,7 @@ namespace FACM.Online
             {
                 Location = new Point(398, 11),
                 Size = new Size(104, 27),
-                Text = "检查中",
+                Text = UiTextRuntime.Text(UiTextKeys.CheckUpdate),
                 Tone = FacmStatusTone.Neutral
             };
             _versionValue = new Label
@@ -109,9 +109,9 @@ namespace FACM.Online
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            _refreshButton = CreateButton("立即检查", new Point(282, 124), 100, FacmButtonTone.Secondary);
+            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 124), 100, FacmButtonTone.Secondary);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton("立即更新", new Point(392, 124), 110, FacmButtonTone.Primary);
+            _updateButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(392, 124), 110, FacmButtonTone.Primary);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
@@ -143,7 +143,7 @@ namespace FACM.Online
                 BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text
             };
-            _linkButton = CreateButton("查看详情", new Point(16, 209), 100, FacmButtonTone.Secondary);
+            _linkButton = CreateButton(UiTextRuntime.Text(UiTextKeys.Open), new Point(16, 209), 100, FacmButtonTone.Secondary);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -158,7 +158,10 @@ namespace FACM.Online
                 Maximum = 100,
                 Visible = false
             };
-            _closeButton = CreateButton(forceMode ? "退出程序" : "关闭", new Point(420, 570), 120,
+            _closeButton = CreateButton(
+                UiTextRuntime.Text(forceMode ? UiTextKeys.Exit : UiTextKeys.Close),
+                new Point(420, 570),
+                120,
                 forceMode ? FacmButtonTone.Danger : FacmButtonTone.Secondary);
             _closeButton.Click += delegate
             {
@@ -295,13 +298,13 @@ namespace FACM.Online
             {
                 _updateStatus.Text = "暂时无法获取更新信息。";
                 _updateButton.Enabled = false;
-                SetUpdateBadge("获取失败", FacmStatusTone.Error);
+                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.ShellUnavailable), FacmStatusTone.Error);
             }
             else if (_snapshot.ForceUpdateRequired)
             {
                 _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
-                SetUpdateBadge("必须更新", FacmStatusTone.Error);
+                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Error);
             }
             else if (_snapshot.UpdateAvailable)
             {
@@ -309,13 +312,13 @@ namespace FACM.Online
                     ? "发现新版本。"
                     : _snapshot.Update.ReleaseNotes;
                 _updateButton.Enabled = true;
-                SetUpdateBadge("发现更新", FacmStatusTone.Accent);
+                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Accent);
             }
             else
             {
                 _updateStatus.Text = "当前已是最新版本。";
                 _updateButton.Enabled = false;
-                SetUpdateBadge("已是最新", FacmStatusTone.Success);
+                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.Ready), FacmStatusTone.Success);
             }
 
             var announcement = _snapshot.Announcement;
@@ -349,7 +352,7 @@ namespace FACM.Online
             if (!string.IsNullOrWhiteSpace(status))
             {
                 _updateStatus.Text = status;
-                SetUpdateBadge("处理中", FacmStatusTone.Accent);
+                SetUpdateBadge(UiTextRuntime.Text(UiTextKeys.CheckUpdate), FacmStatusTone.Accent);
             }
             UseWaitCursor = busy;
         }
