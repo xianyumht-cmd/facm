@@ -24,6 +24,7 @@ namespace FACM.AppHost
                 AppSettingsRecovery.ValidateForSmokeTest();
                 AppLog.ValidateForSmokeTest();
                 DiagnosticsExportService.ValidateForSmokeTest();
+                FACM.Theming.FacmControlPrimitivesSmokeTest.Validate();
                 FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
                 LeagueChampSelectAssistantForm.ValidateForSmokeTest();
                 LeagueClientSmokeTest.Validate();
