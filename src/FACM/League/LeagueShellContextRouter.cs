@@ -77,6 +77,8 @@ namespace FACM.League
                 "Efficiency shell action lost its Hub route.");
             Require(string.IsNullOrEmpty(ResolveHubView(LeagueShellContextAction.Home)),
                 "Generic home action must not claim a League Hub view.");
+            Require(LeagueHubUiBridge.ContextNavigationAvailableForSmokeTest(),
+                "Contextual shell navigation lost its bounded LOL Hub view switch hook.");
         }
 
         private static bool IsPhase(string actual, string expected)
