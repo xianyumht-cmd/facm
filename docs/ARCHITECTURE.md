@@ -21,6 +21,20 @@ The normal 3.5 build embeds ToolBundle but does **not** embed a self-contained P
 
 The module layer is an ownership/lifecycle boundary, not a separate 4.x application architecture. Do not split the product into a new Core/Infrastructure/Platform stack without a concrete 3.5 requirement.
 
+## WinForms design system
+
+FACM UI evolution stays inside the lightweight WinForms product. `ThemeCatalog` is the palette source, `FacmThemeRuntime` owns the active process theme, `FacmDesignSystem` owns semantic colors/geometry/common League styling, and `FacmWindowChrome` owns the normal top-level FACM window shell.
+
+Shared interactive primitives live under `src/FACM/Theming/` and must preserve native WinForms behavior:
+
+- `FacmActionButton` keeps `Button` click/focus/keyboard semantics while rendering primary/secondary/danger states from the shared palette.
+- `FacmToggleSwitch` remains a `CheckBox`; `Checked` and `CheckedChanged` are the behavior contract.
+- `FacmStatusBadge` displays semantic neutral/accent/success/warning/error states without introducing page-local palettes.
+
+New or materially redesigned product surfaces should prefer these shared tokens/primitives instead of adding private `Color.FromArgb(...)` design systems. Theme changes must refresh already-open shared controls. Visual refactors must not change feature routing, update semantics or League read/write ownership merely to achieve consistency.
+
+The compact launcher has a special borderless shell, but its visible launcher tiles consume the same semantic design tokens. League Hub is already based on `FacmDesignSystem`, `FacmGlassPanel`, `FacmNavButton` and `FacmPillButton`.
+
 ## League runtime
 
 League features share one client/session boundary and one Gameflow monitor.
@@ -67,6 +81,7 @@ CI must enforce:
 - no `FACM.Resources.PetHost.zip` in ordinary FACM.exe.
 - FACM.exe <10 MiB.
 - host, League dashboard/automation, performance, updater, floating-ball, pet and Mayhem smoke tests.
+- shared control primitive contract checks.
 - UI text contract.
 
 ## State ownership rules
