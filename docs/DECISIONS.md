@@ -77,3 +77,15 @@ Future public brand target may be GGman（鸡鸡侠）, but do not globally repl
 - visual refactors must not change update protocol, League write semantics, polling ownership, or launcher routing merely to achieve consistency.
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
+
+## D-014 — Contextual shell navigation consumes shared state only
+
+**Decision (2026-09-07):** the floating entry may adapt its home surface and LOL destination to the current Gameflow scene, but navigation is a consumer of the existing `LeagueDashboardModule` state, never a new League runtime owner.
+
+- the shell may cache the latest shared `LeagueDashboardPhaseState` for display/routing only;
+- no contextual-home feature may add LCU polling, matchmaking writes, ReadyCheck writes or a second League session;
+- a direct floating-entry click may show the context card, while tray/external control-center opens remain the generic four-shortcut home;
+- contextual LOL navigation reuses the unified LOL Hub and selects an existing view rather than creating a second product hierarchy;
+- Gameflow visibility ownership remains independent: navigation context must not weaken the existing in-game hide/restore policy.
+
+This keeps the home surface useful in the moment without turning shell UX work into a new automation or transport subsystem.
