@@ -91,18 +91,19 @@ namespace FACM.Theming
                 FacmWindowChrome.Prepare(form, new FacmWindowChromeOptions
                 {
                     CloseOnDeactivate = false,
-                    CloseOnEscape = false,
-                    TitleBarHeight = 42
+                    CloseOnEscape = false
                 });
                 form.PerformLayout();
 
                 RequireChromeSeparated(form, "initial");
+                RequireIntegratedChromeVisual(form, "initial");
                 if (page.Parent == form)
                     throw new InvalidOperationException("FACM window chrome did not move page content into its reserved content host.");
 
                 form.ClientSize = new Size(980, 660);
                 form.PerformLayout();
                 RequireChromeSeparated(form, "resized");
+                RequireIntegratedChromeVisual(form, "resized");
             }
         }
 
@@ -113,13 +114,26 @@ namespace FACM.Theming
             if (!FacmWindowChrome.TryGetLayoutForSmokeTest(form, out title, out content))
                 throw new InvalidOperationException("FACM window chrome layout snapshot was unavailable during " + stage + " smoke validation.");
             if (title.Height < 34)
-                throw new InvalidOperationException("FACM window chrome title band collapsed during " + stage + " smoke validation.");
+                throw new InvalidOperationException("FACM window chrome interaction band collapsed during " + stage + " smoke validation.");
             if (content.Top < title.Bottom)
-                throw new InvalidOperationException("FACM window chrome content overlaps the title band during " + stage + " smoke validation.");
+                throw new InvalidOperationException("FACM window chrome content overlaps the interaction band during " + stage + " smoke validation.");
             if (content.Top != title.Bottom)
-                throw new InvalidOperationException("FACM window chrome left an unexpected layout gap below the title band during " + stage + " smoke validation.");
+                throw new InvalidOperationException("FACM window chrome left an unexpected layout gap below the interaction band during " + stage + " smoke validation.");
             if (title.Left != content.Left || title.Width != content.Width)
-                throw new InvalidOperationException("FACM window chrome title/content horizontal bounds diverged during " + stage + " smoke validation.");
+                throw new InvalidOperationException("FACM window chrome interaction/content horizontal bounds diverged during " + stage + " smoke validation.");
+        }
+
+        private static void RequireIntegratedChromeVisual(Form form, string stage)
+        {
+            Color topBackground;
+            Color contentBackground;
+            int topHeight;
+            if (!FacmWindowChrome.TryGetVisualForSmokeTest(form, out topBackground, out contentBackground, out topHeight))
+                throw new InvalidOperationException("FACM integrated chrome visual snapshot was unavailable during " + stage + " smoke validation.");
+            if (topBackground.ToArgb() != contentBackground.ToArgb())
+                throw new InvalidOperationException("FACM interaction band visually split from the page canvas during " + stage + " smoke validation.");
+            if (topHeight < 34 || topHeight > 38)
+                throw new InvalidOperationException("FACM integrated interaction band drifted outside the compact 34-38px contract during " + stage + " smoke validation.");
         }
     }
 }
