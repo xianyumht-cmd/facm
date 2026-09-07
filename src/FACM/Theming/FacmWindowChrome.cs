@@ -15,15 +15,15 @@ namespace FACM.Theming
         public bool? ShowClose { get; set; }
         public bool? ShowMinimize { get; set; }
         public bool? ShowMaximize { get; set; }
-        public int TitleBarHeight { get; set; } = 42;
+        public int TitleBarHeight { get; set; } = 36;
     }
 
     /// <summary>
     /// Shared borderless FACM window shell for normal interactive top-level WinForms.
+    /// The top interaction band is intentionally integrated into the page canvas: it keeps drag,
+    /// minimize/maximize/close and resize behavior without looking like a separate title bar.
     /// Embedded League pages are deliberately skipped at Load time, so a Form may still be
-    /// composed into LeagueHub without gaining a second title bar. Outside-click semantics match
-    /// the control center: losing activation to the desktop or another process closes the surface,
-    /// while focus moving to another FACM/native child dialog in this process does not.
+    /// composed into LeagueHub without gaining a second shell.
     /// </summary>
     internal static class FacmWindowChrome
     {
@@ -66,15 +66,13 @@ namespace FACM.Theming
         }
 
         /// <summary>
-        /// Sets muted, single-line context text beside the stable window title. The value may be
-        /// supplied before the top-level form gets a handle; it is retained until chrome attaches.
+        /// Compatibility hook retained for callers compiled around the earlier chrome subtitle API.
+        /// The integrated borderless shell deliberately omits secondary title-bar copy.
         /// </summary>
         public static void SetSubtitle(Form form, string subtitle)
         {
             if (form == null || form.IsDisposed) return;
             Prepare(form);
-            ChromeState state;
-            if (States.TryGetValue(form, out state)) state.SetSubtitle(subtitle);
         }
 
         public static void RefreshTheme(Form form)
@@ -96,6 +94,16 @@ namespace FACM.Theming
             ChromeState state;
             return form != null && States.TryGetValue(form, out state) &&
                    state.TryGetLayoutForSmokeTest(out titleBounds, out contentBounds);
+        }
+
+        internal static bool TryGetVisualForSmokeTest(Form form, out Color topBackground, out Color contentBackground, out int topHeight)
+        {
+            topBackground = Color.Empty;
+            contentBackground = Color.Empty;
+            topHeight = 0;
+            ChromeState state;
+            return form != null && States.TryGetValue(form, out state) &&
+                   state.TryGetVisualForSmokeTest(out topBackground, out contentBackground, out topHeight);
         }
 
         public static void EnableOutsideClose(Form form, bool closeOnEscape = true)
@@ -182,13 +190,11 @@ namespace FACM.Theming
             private readonly bool _showMinimize;
             private readonly bool _showMaximize;
             private Label _titleLabel;
-            private Label _subtitleLabel;
             private Label _badge;
             private Panel _titleBar;
             private Panel _content;
             private FacmChromeButton _maximizeButton;
             private BorderlessResizeWindow _resizeWindow;
-            private string _subtitle = string.Empty;
             private int _titleHeight;
             private bool _attached;
 
@@ -220,20 +226,13 @@ namespace FACM.Theming
                 AttachIfPossible();
             }
 
-            public void SetSubtitle(string subtitle)
-            {
-                _subtitle = (subtitle ?? string.Empty).Trim();
-                UpdateTitleLayout();
-            }
-
             public void RefreshTheme()
             {
                 if (!_attached || _form.IsDisposed) return;
                 _form.BackColor = FacmDesignSystem.BorderSoft;
                 if (_content != null && !_content.IsDisposed) _content.BackColor = FacmDesignSystem.Canvas;
-                if (_titleBar != null && !_titleBar.IsDisposed) _titleBar.BackColor = FacmDesignSystem.CanvasRaised;
+                if (_titleBar != null && !_titleBar.IsDisposed) _titleBar.BackColor = FacmDesignSystem.Canvas;
                 if (_titleLabel != null && !_titleLabel.IsDisposed) _titleLabel.ForeColor = FacmDesignSystem.Text;
-                if (_subtitleLabel != null && !_subtitleLabel.IsDisposed) _subtitleLabel.ForeColor = FacmDesignSystem.TextMuted;
                 if (_badge != null && !_badge.IsDisposed)
                 {
                     _badge.BackColor = FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.Accent, 0.18F);
@@ -271,6 +270,14 @@ namespace FACM.Theming
                 titleBounds = _titleBar == null || _titleBar.IsDisposed ? Rectangle.Empty : _titleBar.Bounds;
                 contentBounds = _content == null || _content.IsDisposed ? Rectangle.Empty : _content.Bounds;
                 return _attached && !titleBounds.IsEmpty && !contentBounds.IsEmpty;
+            }
+
+            public bool TryGetVisualForSmokeTest(out Color topBackground, out Color contentBackground, out int topHeight)
+            {
+                topBackground = _titleBar == null || _titleBar.IsDisposed ? Color.Empty : _titleBar.BackColor;
+                contentBackground = _content == null || _content.IsDisposed ? Color.Empty : _content.BackColor;
+                topHeight = _titleHeight;
+                return _attached && topBackground != Color.Empty && contentBackground != Color.Empty && topHeight > 0;
             }
 
             private void Attach()
@@ -348,10 +355,9 @@ namespace FACM.Theming
                 var height = Math.Max(0, _form.ClientSize.Height - _form.Padding.Vertical);
                 var titleHeight = Math.Min(_titleHeight, height);
 
-                // Do not rely on sibling Dock/Z-order here. WinForms can let Dock.Fill consume the
-                // whole client rectangle before the top-docked title bar is processed, which paints
-                // page navigation underneath the chrome. Explicit non-overlapping bounds make the
-                // title band and page content mutually exclusive at every resize/DPI layout pass.
+                // Keep the interaction band and page content in explicit, non-overlapping bounds.
+                // The two regions intentionally share the same canvas color so the shell reads as
+                // one borderless surface instead of a title bar stacked above a page.
                 _titleBar.SetBounds(left, top, width, titleHeight);
                 _content.SetBounds(left, top + titleHeight, width, Math.Max(0, height - titleHeight));
                 _titleBar.BringToFront();
@@ -363,113 +369,86 @@ namespace FACM.Theming
                 {
                     Dock = DockStyle.None,
                     Size = new Size(Math.Max(1, _form.ClientSize.Width - _form.Padding.Horizontal), height),
-                    BackColor = FacmDesignSystem.CanvasRaised,
+                    BackColor = FacmDesignSystem.Canvas,
                     Padding = Padding.Empty
                 };
                 bar.MouseDown += BeginDrag;
                 bar.DoubleClick += ToggleMaximize;
 
+                const int badgeSize = 24;
                 _badge = new Label
                 {
                     Text = "F", // ui-text-contract: allow brand glyph
-                    Location = new Point(10, 7),
-                    Size = new Size(28, 28),
+                    Location = new Point(8, Math.Max(0, (height - badgeSize) / 2)),
+                    Size = new Size(badgeSize, badgeSize),
                     TextAlign = ContentAlignment.MiddleCenter,
                     ForeColor = Color.White,
                     BackColor = FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.Accent, 0.18F),
-                    Font = new Font("Segoe UI", 10F, FontStyle.Bold)
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold)
                 };
-                FacmDesignSystem.Round(_badge, 8);
+                FacmDesignSystem.Round(_badge, 7);
                 _badge.MouseDown += BeginDrag;
+                _badge.DoubleClick += ToggleMaximize;
 
                 _titleLabel = new Label
                 {
                     Text = _form.Text,
-                    Location = new Point(46, 0),
+                    Location = new Point(40, 0),
                     Height = height,
                     AutoEllipsis = true,
                     TextAlign = ContentAlignment.MiddleLeft,
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
-                    Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                    Font = new Font("Microsoft YaHei UI", 8.6F, FontStyle.Bold)
                 };
                 _titleLabel.MouseDown += BeginDrag;
                 _titleLabel.DoubleClick += ToggleMaximize;
 
-                _subtitleLabel = new Label
-                {
-                    Text = _subtitle,
-                    Height = height,
-                    AutoEllipsis = true,
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    ForeColor = FacmDesignSystem.TextMuted,
-                    BackColor = Color.Transparent,
-                    Font = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular)
-                };
-                _subtitleLabel.MouseDown += BeginDrag;
-                _subtitleLabel.DoubleClick += ToggleMaximize;
-
-                var right = 8;
+                var right = 4;
+                var buttonTop = Math.Max(0, (height - 28) / 2);
                 if (_showClose)
                 {
                     var close = CreateChromeButton("×", ChromeButtonKind.Close);
                     close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    close.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - close.Width), 5);
+                    close.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - close.Width), buttonTop);
                     close.Click += delegate { _form.Close(); };
                     bar.Controls.Add(close);
-                    right += close.Width + 4;
+                    right += close.Width + 2;
                 }
 
                 if (_showMaximize)
                 {
                     _maximizeButton = CreateChromeButton("□", ChromeButtonKind.Normal);
                     _maximizeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    _maximizeButton.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - _maximizeButton.Width), 5);
+                    _maximizeButton.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - _maximizeButton.Width), buttonTop);
                     _maximizeButton.Click += delegate { ToggleMaximize(null, EventArgs.Empty); };
                     bar.Controls.Add(_maximizeButton);
-                    right += _maximizeButton.Width + 4;
+                    right += _maximizeButton.Width + 2;
                 }
 
                 if (_showMinimize)
                 {
                     var minimize = CreateChromeButton("─", ChromeButtonKind.Normal);
                     minimize.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    minimize.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - minimize.Width), 5);
+                    minimize.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - minimize.Width), buttonTop);
                     minimize.Click += delegate { _form.WindowState = FormWindowState.Minimized; };
                     bar.Controls.Add(minimize);
-                    right += minimize.Width + 4;
+                    right += minimize.Width + 2;
                 }
 
                 _titleLabel.Tag = right;
                 bar.Controls.Add(_badge);
                 bar.Controls.Add(_titleLabel);
-                bar.Controls.Add(_subtitleLabel);
                 return bar;
             }
 
             private void UpdateTitleLayout()
             {
-                if (!_attached || _titleLabel == null || _titleLabel.IsDisposed || _subtitleLabel == null || _subtitleLabel.IsDisposed) return;
-                var right = _titleLabel.Tag is int ? (int)_titleLabel.Tag : 8;
+                if (!_attached || _titleLabel == null || _titleLabel.IsDisposed) return;
+                var right = _titleLabel.Tag is int ? (int)_titleLabel.Tag : 4;
                 var chromeWidth = _titleBar == null || _titleBar.IsDisposed ? _form.ClientSize.Width : _titleBar.ClientSize.Width;
-                var available = Math.Max(80, chromeWidth - 54 - right);
-                var hasSubtitle = !string.IsNullOrWhiteSpace(_subtitle);
-                _subtitleLabel.Text = _subtitle;
-                _subtitleLabel.Visible = hasSubtitle;
-
-                if (!hasSubtitle || available < 260)
-                {
-                    _titleLabel.Location = new Point(46, 0);
-                    _titleLabel.Width = available;
-                    _subtitleLabel.Width = 0;
-                    return;
-                }
-
-                var titleWidth = Math.Max(120, Math.Min(220, available / 3));
-                _titleLabel.Location = new Point(46, 0);
-                _titleLabel.Width = titleWidth;
-                _subtitleLabel.Location = new Point(46 + titleWidth + 10, 0);
-                _subtitleLabel.Width = Math.Max(60, available - titleWidth - 10);
+                _titleLabel.Location = new Point(40, 0);
+                _titleLabel.Width = Math.Max(60, chromeWidth - 44 - right);
             }
 
             private static FacmChromeButton CreateChromeButton(string text, ChromeButtonKind kind)
@@ -478,8 +457,8 @@ namespace FACM.Theming
                 {
                     Text = text,
                     Kind = kind,
-                    Size = new Size(34, 30),
-                    Font = new Font("Segoe UI", text == "×" ? 15F : 10F, FontStyle.Regular)
+                    Size = new Size(32, 28),
+                    Font = new Font("Segoe UI", text == "×" ? 14F : 9.5F, FontStyle.Regular)
                 };
             }
 

@@ -61,10 +61,6 @@ namespace FACM.League
             DoubleBuffered = true;
             Padding = new Padding(8);
 
-            // The old 52px in-content title/hint strip was redundant with FACM custom chrome and
-            // could overlap secondary navigation. Page context now lives in the single-line chrome subtitle.
-            FacmWindowChrome.SetSubtitle(this, LeagueHubSubtitleText.ForSection(_ui, LeagueHubUiTextKeys.SectionMatch));
-
             var body = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -88,9 +84,9 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 7.8F, FontStyle.Bold)
             });
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.SectionMatchHint, 35);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.SectionRecommendHint, 78);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.SectionEfficiencyHint, 121);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, 35);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, 78);
+            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, 121);
 
             var mainShell = new Panel
             {
@@ -306,7 +302,7 @@ namespace FACM.League
             };
         }
 
-        private void AddSectionButton(Panel sidebar, string sectionKey, string hintKey, int top)
+        private void AddSectionButton(Panel sidebar, string sectionKey, int top)
         {
             var button = new FacmNavButton
             {
@@ -315,8 +311,6 @@ namespace FACM.League
                 Size = new Size(116, 36)
             };
             button.Click += delegate { ShowSection(sectionKey); };
-            button.MouseEnter += delegate { FacmWindowChrome.SetSubtitle(this, LeagueHubText.Get(_ui, hintKey)); };
-            button.MouseLeave += delegate { UpdateChromeSubtitle(); };
             sidebar.Controls.Add(button);
             _sectionButtons[sectionKey] = button;
         }
@@ -333,14 +327,6 @@ namespace FACM.League
 
             var target = views.FirstOrDefault(item => string.Equals(item.Id, _currentViewId, StringComparison.Ordinal)) ?? views[0];
             ShowView(target.Id, false);
-        }
-
-        private void UpdateChromeSubtitle()
-        {
-            var subtitle = !string.IsNullOrWhiteSpace(_currentViewId)
-                ? LeagueHubSubtitleText.ForView(_ui, _currentViewId)
-                : LeagueHubSubtitleText.ForSection(_ui, _currentSectionKey);
-            FacmWindowChrome.SetSubtitle(this, subtitle);
         }
 
         private void RebuildSubnav(IReadOnlyList<LeagueHubViewDefinition> views)
@@ -373,8 +359,6 @@ namespace FACM.League
                     Margin = new Padding(0, 0, 6, 0)
                 };
                 button.Click += delegate { ShowView(captured.Id, true); };
-                button.MouseEnter += delegate { FacmWindowChrome.SetSubtitle(this, LeagueHubSubtitleText.ForView(_ui, captured.Id)); };
-                button.MouseLeave += delegate { UpdateChromeSubtitle(); };
                 _subnav.Controls.Add(button);
                 _viewButtons[captured.Id] = button;
             }
@@ -402,7 +386,6 @@ namespace FACM.League
             }
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) && _currentChild != null && !_currentChild.IsDisposed)
             {
-                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 return;
@@ -436,7 +419,6 @@ namespace FACM.League
                 _currentSectionKey = definition.SectionKey;
                 UpdateSectionSelection();
                 UpdateViewSelection();
-                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 child.Show();
@@ -451,7 +433,6 @@ namespace FACM.League
                 _currentChild = null;
                 _currentViewId = null;
                 UpdateViewSelection();
-                UpdateChromeSubtitle();
                 UpdateContextActions();
                 UpdateResponsiveChrome();
                 throw;
