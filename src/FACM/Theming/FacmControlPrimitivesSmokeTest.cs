@@ -11,6 +11,8 @@ namespace FACM.Theming
             using (var button = new FacmActionButton())
             using (var toggle = new FacmToggleSwitch())
             using (var badge = new FacmStatusBadge())
+            using (var nav = new FacmNavButton())
+            using (var tab = new FacmPillButton())
             {
                 if (!(button is Button) || !button.TabStop)
                     throw new InvalidOperationException("FACM shared action button must retain native Button keyboard/focus semantics.");
@@ -29,6 +31,11 @@ namespace FACM.Theming
                 badge.Tone = FacmStatusTone.Success;
                 if (badge.Tone != FacmStatusTone.Success)
                     throw new InvalidOperationException("FACM shared status badge lost its semantic tone state.");
+
+                if (!(nav is Button) || !nav.TabStop)
+                    throw new InvalidOperationException("FACM shared navigation button must remain keyboard reachable.");
+                if (!(tab is Button) || !tab.TabStop)
+                    throw new InvalidOperationException("FACM shared tab button must remain keyboard reachable.");
             }
 
             if (FacmDesignSystem.ControlRadius < 0 || FacmDesignSystem.CardRadius < 0 || FacmDesignSystem.WindowRadius < 0)

@@ -297,7 +297,7 @@ namespace FACM.Theming
             TextAlign = ContentAlignment.MiddleLeft;
             Padding = new Padding(14, 0, 8, 0);
             Cursor = Cursors.Hand;
-            TabStop = false;
+            TabStop = true;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Opaque, true);
         }
@@ -327,6 +327,18 @@ namespace FACM.Theming
             base.OnMouseLeave(e);
         }
 
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            Invalidate();
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            Invalidate();
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -341,9 +353,15 @@ namespace FACM.Theming
                 {
                     var fill = _selected
                         ? FacmDesignSystem.SurfaceRaised
-                        : _hover ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface;
+                        : (_hover || Focused) ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface;
                     using (var brush = new SolidBrush(fill))
                         e.Graphics.FillPath(brush, path);
+
+                    if (Focused && ShowFocusCues)
+                    {
+                        using (var focus = new Pen(FacmDesignSystem.Accent, 1F))
+                            e.Graphics.DrawPath(focus, path);
+                    }
                 }
 
                 if (_selected)
@@ -353,7 +371,7 @@ namespace FACM.Theming
                 }
             }
 
-            var textColor = _selected || _hover ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted;
+            var textColor = _selected || _hover || Focused ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted;
             TextRenderer.DrawText(
                 e.Graphics,
                 Text,
@@ -375,7 +393,7 @@ namespace FACM.Theming
             FlatAppearance.BorderSize = 0;
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
-            TabStop = false;
+            TabStop = true;
             Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold);
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Opaque, true);
         }
@@ -405,6 +423,18 @@ namespace FACM.Theming
             base.OnMouseLeave(e);
         }
 
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            Invalidate();
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            Invalidate();
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -419,8 +449,14 @@ namespace FACM.Theming
                 {
                     var fill = _selected
                         ? FacmDesignSystem.SurfaceRaised
-                        : _hover ? FacmDesignSystem.SurfaceHover : Color.Transparent;
+                        : (_hover || Focused) ? FacmDesignSystem.SurfaceHover : Color.Transparent;
                     using (var brush = new SolidBrush(fill)) e.Graphics.FillPath(brush, path);
+
+                    if (Focused && ShowFocusCues)
+                    {
+                        using (var focus = new Pen(FacmDesignSystem.Accent, 1F))
+                            e.Graphics.DrawPath(focus, path);
+                    }
                 }
 
                 if (_selected)
@@ -435,7 +471,7 @@ namespace FACM.Theming
                 Text,
                 Font,
                 ClientRectangle,
-                _selected || _hover ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted,
+                _selected || _hover || Focused ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         }
     }
