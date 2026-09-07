@@ -23,17 +23,28 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 
 ## WinForms design system
 
-FACM UI evolution stays inside the lightweight WinForms product. `ThemeCatalog` is the palette source, `FacmThemeRuntime` owns the active process theme, `FacmDesignSystem` owns semantic colors/geometry/common League styling, and `FacmWindowChrome` owns the normal top-level FACM window shell.
+FACM UI evolution stays inside the lightweight WinForms product. `ThemeCatalog` is the palette source, `FacmThemeRuntime` owns the active process theme, `FacmDesignSystem` owns semantic colors/geometry/common product styling, and `FacmWindowChrome` owns the normal top-level FACM window shell.
 
 Shared interactive primitives live under `src/FACM/Theming/` and must preserve native WinForms behavior:
 
 - `FacmActionButton` keeps `Button` click/focus/keyboard semantics while rendering primary/secondary/danger states from the shared palette.
 - `FacmToggleSwitch` remains a `CheckBox`; `Checked` and `CheckedChanged` are the behavior contract.
 - `FacmStatusBadge` displays semantic neutral/accent/success/warning/error states without introducing page-local palettes.
+- `FacmNavButton` and `FacmPillButton` provide shared League navigation visuals; their remaining keyboard/focus debt must be fixed in the shared primitive rather than by page-local workarounds.
 
-New or materially redesigned product surfaces should prefer these shared tokens/primitives instead of adding private `Color.FromArgb(...)` design systems. Theme changes must refresh already-open shared controls. Visual refactors must not change feature routing, update semantics or League read/write ownership merely to achieve consistency.
+New or materially redesigned product surfaces should use these shared tokens/primitives instead of adding private `Color.FromArgb(...)` design systems. Theme changes must refresh already-open shared controls. Visual refactors must not change feature routing, update semantics or League read/write ownership merely to achieve consistency.
 
-The compact launcher has a special borderless shell, but its visible launcher tiles consume the same semantic design tokens. League Hub is already based on `FacmDesignSystem`, `FacmGlassPanel`, `FacmNavButton` and `FacmPillButton`.
+### Current UI migration state
+
+The design system is intentionally **in transition**, not fully unified yet:
+
+- `LeagueHubForm` already uses `FacmDesignSystem`, `FacmGlassPanel`, `FacmNavButton` and `FacmPillButton` for its outer shell.
+- `OnlineCenterForm` and other newer surfaces use shared semantic primitives directly.
+- `CompactMenuForm` still has a special borderless shell **and a legacy private rendering layer** (`ThemedPanel`, `ThemedButton`, gradient/theme decorations, direct raw `ThemeDefinition` radii). Treat this as known migration debt, not as a second approved design system.
+- Several older League forms, including dashboard/player surfaces, still contain page-local RGB colors and fixed-position layouts. `ApplyLeagueSurface` helps normalize embedded pages, but long-term convergence requires replacing private palette/layout decisions with shared semantic tokens and reusable layout/accessibility contracts.
+- Historical `ThemeCatalog` styles remain for compatibility, but shared product chrome clamps geometry and should avoid reviving large glass radii, decorative dual-accent gradients, generic equal-card dashboards or pill-heavy navigation.
+
+The target direction is one restrained modern Windows desktop product language influenced by Fluent/PowerToys interaction behavior while staying native WinForms. External design skills may inform audit criteria, but Web-only implementation advice (CSS/React/GSAP/etc.) does not define FACM architecture.
 
 ## League runtime
 
@@ -81,7 +92,7 @@ CI must enforce:
 - no `FACM.Resources.PetHost.zip` in ordinary FACM.exe.
 - FACM.exe <10 MiB.
 - host, League dashboard/automation, performance, updater, floating-ball, pet and Mayhem smoke tests.
-- shared control primitive contract checks.
+- shared control primitive contract checks, including anti-regression geometry/chrome repaint rules.
 - UI text contract.
 
 ## State ownership rules
@@ -93,6 +104,7 @@ Prefer one owner per mutable runtime concern:
 - one updater replacement path;
 - one desired pet visibility state;
 - one online version manifest;
-- one canonical 3.5 lightweight publisher.
+- one canonical 3.5 lightweight publisher;
+- one shared UI design-system direction rather than page-local theme engines.
 
 When asynchronous work can finish after context changes, use cancellation/generation/fingerprint/postcondition checks rather than adding arbitrary sleeps.
