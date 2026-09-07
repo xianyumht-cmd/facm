@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.23",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.23/FACM.exe",
   "sha256": "76F3D091AD5344EC1EC0FAD7DC1ADB798842DE084D2F945A240DB8446B6C97A9",
   "release_notes": "FACM 3.5.23：修复 3.5.22 中 LOL 工作台顶部自绘标题栏遮挡页面内容、二级导航被覆盖的问题。根因是统一 WinForms 自绘外壳依赖同级 Dock.Fill / Dock.Top 与控件层级分配空间，在部分布局/重绘过程中页面内容会延伸到标题栏下方。本次改为由共享 FacmWindowChrome 显式划分互不重叠的标题区和内容区，并在窗口缩放时重新计算；同时修正标题栏按钮初始宽度定位，并加入初始布局与缩放后的不重叠回归测试。",
-  "published_at": "2026-09-07T05:42:17.6219531+00:00"
+  "published_at": "2026-09-07T05:42:26.0614794+00:00"
 }

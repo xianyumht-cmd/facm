@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.22
-- GitHub Release：v3.5.22
+- 版本：FACM 3.5.23
+- GitHub Release：v3.5.23
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：7d53860d9abd8885b1ba528b835b1841cbfb349b
-- 发布元数据提交：8717eebf1381f4dd58eb9481d2ad01aa3905c713
-- Release FACM.exe SHA-256：6091A6A3F08FA7BCE01CC4901C5291A851670F3F0235222AA4EB7197404B3465
-- release_notes：FACM 3.5.22：完成两轮产品体验升级。统一 WinForms 设计体系，让更新中心、LOL 效率页与紧凑控制中心使用一致的按钮、开关、状态色和主题语义；悬浮入口新增基于共享 Gameflow 状态的场景首页，可显示 LOL 当前阶段与自动下一局状态，并在大厅/寻找/接受/选人/游戏中等场景把 LOL 助手直接带到对应的统一 Hub 页面。此次更新不增加第二套 Gameflow 轮询，不改变自动寻找、自动接受等 League 写入语义，并继续保持 lightweight 单 EXE 架构。
+- 发布基础 main：4211c70f09a9491f3d4fe7be711780aa2222c065
+- 发布元数据提交：f079b3965ea1cf334e39fc8cc5c69b10e3f42b6b
+- Release FACM.exe SHA-256：76F3D091AD5344EC1EC0FAD7DC1ADB798842DE084D2F945A240DB8446B6C97A9
+- release_notes：FACM 3.5.23：修复 3.5.22 中 LOL 工作台顶部自绘标题栏遮挡页面内容、二级导航被覆盖的问题。根因是统一 WinForms 自绘外壳依赖同级 Dock.Fill / Dock.Top 与控件层级分配空间，在部分布局/重绘过程中页面内容会延伸到标题栏下方。本次改为由共享 FacmWindowChrome 显式划分互不重叠的标题区和内容区，并在窗口缩放时重新计算；同时修正标题栏按钮初始宽度定位，并加入初始布局与缩放后的不重叠回归测试。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
