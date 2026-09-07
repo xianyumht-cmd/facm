@@ -33,6 +33,7 @@ namespace FACM
         private const int TileGapY = 8;
         private const string LauncherName = "FACM.DesktopLauncher";
         private const string ContextName = "FACM.DesktopLauncher.Context";
+        private const string BackdropName = "FACM.DesktopLauncher.Backdrop";
         private const ControlStyles DesktopTileStyles =
             ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
             ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor |
@@ -92,10 +93,25 @@ namespace FACM
             var compactBaseHeight = contextual ? ContextCompactBaseHeight : CompactBaseHeight;
             var compactHeight = Math.Max(sy(contextual ? 296 : 210), sy(compactBaseHeight));
             menu.ClientSize = new Size(menu.ClientSize.Width, compactHeight);
+            menu.BackColor = FacmDesignSystem.Canvas;
+            FacmDesignSystem.Round(menu, FacmDesignSystem.WindowRadius);
+
+            var backdrop = new Panel
+            {
+                Name = BackdropName,
+                Dock = DockStyle.Fill,
+                BackColor = FacmDesignSystem.Canvas,
+                TabStop = false
+            };
+            menu.Controls.Add(backdrop);
+            backdrop.SendToBack();
+
             if (header != null)
             {
                 header.Visible = true;
                 header.Width = menu.ClientSize.Width;
+                NormalizeHeader(header);
+                header.BringToFront();
             }
 
             var launcherTop = contextual ? 184 : 82;
@@ -152,10 +168,49 @@ namespace FACM
                 throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
             if ((4 * TileBaseWidth) + (3 * TileGapX) > BaseWidth - 32)
                 throw new InvalidOperationException("Default control-center width can no longer hold four natural desktop shortcuts.");
+            if (FacmDesignSystem.WindowRadius > 12 || FacmDesignSystem.ControlRadius > 6)
+                throw new InvalidOperationException("Desktop launcher escaped the shared compact geometry contract.");
 
             ArmContextualOpen();
             CancelContextualOpen();
             LeagueShellContextRouter.ValidateForSmokeTest();
+        }
+
+        private static void NormalizeHeader(Control header)
+        {
+            if (header == null || header.IsDisposed) return;
+            header.BackColor = FacmDesignSystem.Canvas;
+
+            foreach (Control child in header.Controls)
+            {
+                var label = child as Label;
+                if (label != null)
+                {
+                    label.BackColor = Color.Transparent;
+                    if (string.Equals(label.Text, "F", StringComparison.Ordinal))
+                    {
+                        label.BackColor = FacmDesignSystem.Accent;
+                        label.ForeColor = Color.White;
+                        FacmDesignSystem.Round(label, Math.Max(4, FacmDesignSystem.ControlRadius + 1));
+                    }
+                    else if (string.Equals(label.Text, "×", StringComparison.Ordinal))
+                    {
+                        label.ForeColor = FacmDesignSystem.TextMuted;
+                    }
+                    else
+                    {
+                        label.ForeColor = label.Font != null && label.Font.Size >= 12F
+                            ? FacmDesignSystem.Text
+                            : FacmDesignSystem.TextMuted;
+                    }
+                    continue;
+                }
+
+                // The old administrator/status badge is a legacy ThemedButton. The launcher is a
+                // navigation surface, so this secondary status does not belong in its compact header.
+                if (string.Equals(child.GetType().Name, "ThemedButton", StringComparison.Ordinal))
+                    child.Visible = false;
+            }
         }
 
         private static void OpenCleanupRepair(CompactMenuForm menu)
@@ -261,7 +316,7 @@ namespace FACM
             public LauncherFlowPanel()
             {
                 SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer, true);
-                BackColor = Color.Transparent;
+                BackColor = FacmDesignSystem.Canvas;
             }
         }
 
@@ -284,9 +339,9 @@ namespace FACM
                     : string.Empty;
                 SetStyle(
                     ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor,
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw,
                     true);
-                BackColor = Color.Transparent;
+                BackColor = FacmDesignSystem.Canvas;
             }
 
             protected override void OnPaint(PaintEventArgs e)
@@ -294,7 +349,7 @@ namespace FACM
                 base.OnPaint(e);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 var bounds = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
-                using (var path = FacmDesignSystem.RoundedRectangle(bounds, Math.Max(8, FacmDesignSystem.CardRadius)))
+                using (var path = FacmDesignSystem.RoundedRectangle(bounds, FacmDesignSystem.CardRadius))
                 using (var fill = new SolidBrush(FacmDesignSystem.Surface))
                 using (var border = new Pen(FacmDesignSystem.BorderSoft, 1F))
                 {
@@ -315,7 +370,7 @@ namespace FACM
                         new Rectangle(left, 31, width, 18), FacmDesignSystem.TextMuted,
                         TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
                     TextRenderer.DrawText(e.Graphics, _contextHint, hintFont,
-                        new Rectangle(left, 51, width, 18), FacmDesignSystem.AccentSecondary,
+                        new Rectangle(left, 51, width, 18), FacmDesignSystem.Accent,
                         TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
                     if (!string.IsNullOrWhiteSpace(_directoryHint))
                     {
@@ -355,6 +410,18 @@ namespace FACM
                 MouseUp += delegate { _pressed = false; Invalidate(); };
             }
 
+            protected override void OnGotFocus(EventArgs e)
+            {
+                base.OnGotFocus(e);
+                Invalidate();
+            }
+
+            protected override void OnLostFocus(EventArgs e)
+            {
+                base.OnLostFocus(e);
+                Invalidate();
+            }
+
             protected override void OnKeyDown(KeyEventArgs e)
             {
                 base.OnKeyDown(e);
@@ -376,23 +443,23 @@ namespace FACM
                     var hoverFill = _pressed
                         ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.10F)
                         : FacmDesignSystem.SurfaceHover;
-                    using (var hoverPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(6, FacmDesignSystem.ControlRadius + 4)))
+                    using (var hoverPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(5, FacmDesignSystem.ControlRadius + 2)))
                     using (var hoverBrush = new SolidBrush(hoverFill))
                         e.Graphics.FillPath(hoverBrush, hoverPath);
 
-                    if (Focused)
+                    if (Focused && ShowFocusCues)
                     {
-                        using (var focusPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(6, FacmDesignSystem.ControlRadius + 4)))
-                        using (var focusPen = new Pen(FacmDesignSystem.AccentSecondary, 1F))
+                        using (var focusPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(5, FacmDesignSystem.ControlRadius + 2)))
+                        using (var focusPen = new Pen(FacmDesignSystem.Accent, 1F))
                             e.Graphics.DrawPath(focusPen, focusPath);
                     }
                 }
 
                 var iconSize = Math.Max(32, Math.Min(40, Height / 2));
                 var icon = new Rectangle((Width - iconSize) / 2, 4, iconSize, iconSize);
-                using (var iconPath = FacmDesignSystem.RoundedRectangle(icon, Math.Max(7, Math.Min(10, FacmDesignSystem.ControlRadius + 4))))
+                using (var iconPath = FacmDesignSystem.RoundedRectangle(icon, Math.Max(5, Math.Min(8, FacmDesignSystem.ControlRadius + 2))))
                 using (var iconBrush = new SolidBrush(FacmDesignSystem.Accent))
-                using (var iconPen = new Pen(FacmDesignSystem.Blend(FacmDesignSystem.AccentSecondary, FacmDesignSystem.BorderSoft, 0.25F), 1F))
+                using (var iconPen = new Pen(FacmDesignSystem.Blend(FacmDesignSystem.Accent, FacmDesignSystem.BorderSoft, 0.35F), 1F))
                 {
                     e.Graphics.FillPath(iconBrush, iconPath);
                     e.Graphics.DrawPath(iconPen, iconPath);
