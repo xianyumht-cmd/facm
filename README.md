@@ -4,15 +4,16 @@ FACM 是面向 Windows 的轻量桌面悬浮控制中心。当前产品线固定
 
 ## 当前状态
 
-- 当前在线正式版：`3.5.21`（以 `online/version.json` 与 GitHub Release 为准）。
+- 当前在线正式版：`3.5.22`（以 `online/version.json` 与 GitHub Release 为准）。
 - 当前源码主线：3.5.x lightweight。
-- 3.5.20 是完成 P1 回灌与 4.x 工作树清理后的首个正式版本；3.5.21 修复旧镜像清单可能把“最新版本”倒退显示的问题。
+- 3.5.20 完成 P1 回灌与 4.x 工作树清理；3.5.21 修复旧镜像清单可能把“最新版本”倒退显示的问题；3.5.22 完成两轮 UI/交互体验升级。
 - 普通发布产物：单个 `FACM.exe`，CI 要求小于 10 MiB。
 - `FACM.PetHost` 源码继续保留并 build/self-test，但普通 FACM.exe **不内嵌 self-contained PetHost bundle**。
 
 ## 主要能力
 
-- 悬浮入口、托盘与紧凑控制中心。
+- 悬浮入口、托盘与紧凑控制中心；直接点击悬浮入口可按当前 LOL Gameflow 显示场景状态首页。
+- 统一 WinForms 设计体系，Update Center、League Efficiency 与 Compact Launcher 共用主题/按钮/开关/状态语义。
 - 环境清理与内置工具资源。
 - League Client 发现、概览/玩家/实时对局、推荐与一键应用、效率功能。
 - Lobby 自动寻找、ReadyCheck 自动接受、赛后相关自动化。
@@ -21,7 +22,7 @@ FACM 是面向 Windows 的轻量桌面悬浮控制中心。当前产品线固定
 - 桌面动物与可选 VPet PetHost。
 - 公告、镜像、在线更新、SHA-256/发布校验与原子替换回滚。
 
-League 自动化默认保持受控、去重和 best-effort；不做游戏内注入或 Overlay。
+League 自动化默认保持受控、去重和 best-effort；场景导航只消费现有共享 Gameflow 状态，不创建第二轮询器或第二 League session，不做游戏内注入或 Overlay。
 
 ## 仓库结构
 
