@@ -20,7 +20,7 @@
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 EXE。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch 中。
 
-当前在线正式版为 `3.5.21`。3.5.20 是 P1 回灌和 4.x 工作树清理后的首个正式版；3.5.21 随后修复更新元数据竞速会接受旧缓存清单的问题。当前 `main` 发布指针为 3.5.21，更新启用且不强制更新。
+当前在线正式版为 `3.5.22`。3.5.20 是 P1 回灌和 4.x 工作树清理后的首个正式版；3.5.21 修复更新元数据竞速会接受旧缓存清单的问题；3.5.22 合并 UI Round 1 + Round 2，完成共享 WinForms Design System 和悬浮入口场景首页/导航。当前更新已启用且不强制更新。
 
 ## 当前已交付行为
 
@@ -34,22 +34,22 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 EXE�
 - 导航 owner-draw 残影与紧凑控制中心首次裁剪残影已修复。
 - 普通构建不内嵌 self-contained PetHost；轻量 FACM.exe 体积 gate <10 MiB。
 - 更新 manifest 以 GitHub main 的 3.5 清单为唯一版本基准；多个传输候选选择最高有效版本，旧镜像不能把服务器版本倒退到当前客户端以下。
-- UI Round 1 已合并：共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`、统一 ThemeCatalog/FacmDesignSystem 视觉语义、Update Center / League Efficiency / Compact Launcher 共享设计 token，并保留原业务交互语义。
+- UI Round 1 已合并：共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`、统一 ThemeCatalog/FacmDesignSystem 视觉语义，Update Center / League Efficiency / Compact Launcher 共用设计 token。
+- UI Round 2 已合并：直接左键点击内置悬浮入口时可显示当前 LOL 状态、自动下一局摘要和场景提示；Lobby / Matchmaking / ReadyCheck / 结算后指向下一局设置，ChampSelect / InGame 指向实时对局，普通客户端状态指向当前状态。
+- 场景导航只消费 `LeagueDashboardModule` 的共享 Gameflow 状态，不新增 LCU polling、第二 League session 或新的 League 写入路径；托盘/第二实例普通控制中心和右键完整菜单保持原行为。
 
-P1 合并 PR：#241；4.x working-tree cleanup 合并 PR：#242；3.5.21 更新一致性修复 PR：#243；UI Round 1 合并 PR：#244。
+P1 合并 PR：#241；4.x working-tree cleanup 合并 PR：#242；3.5.21 更新一致性修复 PR：#243；UI Round 1 合并 PR：#244；UI Round 2 合并 PR：#245。
 
-## 当前进行中的产品体验任务
+## 当前产品体验状态
 
-Round 2 正在 PR **#245**、分支 `feat/3.5.22-context-home-navigation-20260906` 上进行。目标是让悬浮入口从“固定四个快捷方式”升级成轻量的场景首页，同时继续复用唯一 Gameflow owner：
+3.5.22 已把 Round 1 + Round 2 作为正式版直接发布，不再保留候选包阶段。后续若实机发现 DPI、主题、鼠标交互或其它问题，按普通 3.5.x patch bugfix 处理并发布新的版本，不回滚到候选流程。
 
-- `LeagueShellContextRouter` 只消费现有 `LeagueDashboardModule` 的 Gameflow 状态，不新增 LCU polling 或写入。
-- 直接左键点击内置悬浮入口时，在原四个快捷方式上方显示当前 LOL 状态、自动下一局设置摘要与场景提示。
-- Lobby / Matchmaking / ReadyCheck / 结算后场景指向“下一局设置”；ChampSelect / InGame 指向“实时对局”；普通客户端状态指向“当前状态”。
-- 场景跳转进入现有统一 LOL Hub 的对应 view，不建立第二套 League 窗口所有权或 session。
-- 托盘/第二实例唤起“控制中心”仍打开普通四快捷方式首页；右键完整菜单保持原行为。
-- 工作目录不再占普通首页主要空间，只在缺失时作为小提示出现。
+当前体验方向：
 
-Round 2 在 CI、静态交互审查和必要的实机视觉检查完成前保持 Draft，不修改线上 3.5.21 manifest，也不预先发布 3.5.22。
+- 继续保持 WinForms/net48/single-EXE，不为视觉升级引入第二 UI 框架。
+- `ThemeCatalog` 为 palette source，`FacmThemeRuntime` 为 process-wide active theme owner，`FacmDesignSystem`/共享控件承载公共视觉语义。
+- 悬浮入口场景化仅复用唯一 Gameflow owner；不得为了“更快”再建轮询器。
+- 高频用户操作优先收敛到状态首页、统一 LOL Hub 与自动化设置，不再增加重复入口。
 
 ## 当前保留组件
 
@@ -68,10 +68,10 @@ Round 2 在 CI、静态交互审查和必要的实机视觉检查完成前保持
 
 ## 当前发布状态
 
-- `online/version.json`：3.5.21，enabled=true，force_update=false。
-- GitHub Release：`v3.5.21`，非 draft、非 prerelease。
-- Release `FACM.exe` SHA-256：`EE86DA07E7723C7952056C604A4961FBA9434F06FAAD36A738BF9DCFFFD93D5D`。
-- 当前开发中的 UI Round 2 尚未发布，不修改线上 3.5.21 manifest。
+- `online/version.json`：3.5.22，enabled=true，force_update=false。
+- GitHub Release：`v3.5.22`，非 draft、非 prerelease。
+- Release `FACM.exe`：1,869,208 bytes。
+- Release `FACM.exe` SHA-256：`6091A6A3F08FA7BCE01CC4901C5291A851670F3F0235222AA4EB7197404B3465`。
 
 ## 当前维护 Gate
 
