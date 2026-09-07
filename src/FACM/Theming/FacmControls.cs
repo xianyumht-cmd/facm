@@ -151,7 +151,17 @@ namespace FACM.Theming
             Height = 32;
             Cursor = Cursors.Hand;
             TextAlign = ContentAlignment.MiddleLeft;
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            // LeagueHub compacts and then re-expands these dock-filled switches while embedding
+            // pages. Repaint the full client area on every size change; otherwise old text/track
+            // pixels can survive at their previous coordinates and appear as duplicated labels or
+            // black horizontal bars.
+            SetStyle(
+                ControlStyles.UserPaint |
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.ResizeRedraw |
+                ControlStyles.Opaque,
+                true);
         }
 
         protected override void OnMouseEnter(EventArgs e)
@@ -180,8 +190,24 @@ namespace FACM.Theming
             Invalidate();
         }
 
+        protected override void OnParentBackColorChanged(EventArgs e)
+        {
+            base.OnParentBackColorChanged(e);
+            Invalidate();
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
+            // AllPaintingInWmPaint + owner drawing means the native CheckBox background is not a
+            // reliable eraser. Clear the whole control first so a previous layout pass cannot leave
+            // stale glyphs/track pixels behind when Width changes.
+            var background = Parent != null && !Parent.IsDisposed
+                ? Parent.BackColor
+                : FacmDesignSystem.Surface;
+            if (background == Color.Transparent || background.A == 0)
+                background = FacmDesignSystem.Surface;
+            e.Graphics.Clear(background);
+
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var switchWidth = 42;
             var switchHeight = 22;
@@ -217,7 +243,7 @@ namespace FACM.Theming
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
 
             if (Focused && ShowFocusCues)
-                ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -1, -2), FacmDesignSystem.Text, Color.Transparent);
+                ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -1, -2), FacmDesignSystem.Text, background);
         }
     }
 
