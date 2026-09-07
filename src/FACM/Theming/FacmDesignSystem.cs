@@ -137,6 +137,19 @@ namespace FACM.Theming
             return control != null && string.Equals(control.GetType().Name, "FacmChromeButton", StringComparison.Ordinal);
         }
 
+        internal static Color ResolveOwnedBackground(Control control)
+        {
+            var parent = control == null ? null : control.Parent;
+            while (parent != null)
+            {
+                var color = parent.BackColor;
+                if (color != Color.Transparent && color.A > 0)
+                    return color;
+                parent = parent.Parent;
+            }
+            return Canvas;
+        }
+
         private static void Soften(Control control)
         {
             var glass = control as FacmGlassPanel;
@@ -286,7 +299,7 @@ namespace FACM.Theming
             Cursor = Cursors.Hand;
             TabStop = false;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Opaque, true);
         }
 
         public bool Selected
@@ -317,7 +330,7 @@ namespace FACM.Theming
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var background = new SolidBrush(Parent == null ? FacmDesignSystem.Surface : Parent.BackColor))
+            using (var background = new SolidBrush(FacmDesignSystem.ResolveOwnedBackground(this)))
                 e.Graphics.FillRectangle(background, ClientRectangle);
 
             var bounds = new Rectangle(0, 0, Math.Max(0, Width - 1), Math.Max(0, Height - 1));
@@ -364,7 +377,7 @@ namespace FACM.Theming
             Cursor = Cursors.Hand;
             TabStop = false;
             Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold);
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Opaque, true);
         }
 
         public bool Selected
@@ -395,7 +408,7 @@ namespace FACM.Theming
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var background = new SolidBrush(Parent == null ? FacmDesignSystem.Surface : Parent.BackColor))
+            using (var background = new SolidBrush(FacmDesignSystem.ResolveOwnedBackground(this)))
                 e.Graphics.FillRectangle(background, ClientRectangle);
 
             var bounds = new Rectangle(0, 0, Math.Max(0, Width - 1), Math.Max(0, Height - 1));
