@@ -9,6 +9,36 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+    internal static class LeagueGameRepairLayout
+    {
+        public const float IntroRowHeight = 68F;
+        public const float WindowRowHeight = 132F;
+        public const float LobbyRowHeight = 180F;
+        public const float StatusRowHeight = 64F;
+
+        internal static Rectangle IntroTitleBoundsForSmokeTest(int width)
+        {
+            return new Rectangle(2, 0, Math.Max(180, width - 4), 28);
+        }
+
+        internal static Rectangle IntroHintBoundsForSmokeTest(int width)
+        {
+            return new Rectangle(2, 32, Math.Max(180, width - 4), 26);
+        }
+
+        internal static void ValidateForSmokeTest()
+        {
+            var title = IntroTitleBoundsForSmokeTest(700);
+            var hint = IntroHintBoundsForSmokeTest(700);
+            if (title.Bottom > hint.Top)
+                throw new InvalidOperationException("Game-repair intro title overlaps its hint.");
+            if (hint.Bottom > IntroRowHeight - 4F)
+                throw new InvalidOperationException("Game-repair intro hint can be clipped by the first action card.");
+            if (StatusRowHeight < 48F || StatusRowHeight > 80F)
+                throw new InvalidOperationException("Game-repair status surface drifted back into an oversized fill card.");
+        }
+    }
+
     internal sealed class LeagueGameRepairForm : Form
     {
         private readonly LeagueGameRepairService _repair;
@@ -21,6 +51,8 @@ namespace FACM.League
             _repair = repair ?? throw new ArgumentNullException(nameof(repair));
             _efficiency = efficiency ?? throw new ArgumentNullException(nameof(efficiency));
 
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             Text = LeagueGameRepairUiText.Title;
             FormBorderStyle = FormBorderStyle.None;
             TopLevel = false;
@@ -34,22 +66,25 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(18),
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 BackColor = Color.Transparent
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 180F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LeagueGameRepairLayout.IntroRowHeight));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LeagueGameRepairLayout.WindowRowHeight));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LeagueGameRepairLayout.LobbyRowHeight));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LeagueGameRepairLayout.StatusRowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             Controls.Add(root);
 
             var intro = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
             var title = Label(LeagueGameRepairUiText.Title, 13F, FontStyle.Bold, FacmDesignSystem.Text);
             title.Location = new Point(2, 0);
-            title.Size = new Size(180, 26);
+            title.Size = new Size(180, 28);
+            title.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             var hint = Label(LeagueGameRepairUiText.Hint, 8.5F, FontStyle.Regular, FacmDesignSystem.TextMuted);
-            hint.Location = new Point(2, 28);
-            hint.Size = new Size(690, 22);
+            hint.Location = new Point(2, 32);
+            hint.Size = new Size(690, 26);
+            hint.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             intro.Controls.Add(title);
             intro.Controls.Add(hint);
             root.Controls.Add(intro, 0, 0);
@@ -73,7 +108,12 @@ namespace FACM.League
             lobbyCard.Controls.Add(ActionButton(LeagueGameRepairUiText.ExitGame, LeagueGameRepairUiText.ExitGameHint, 16, 106, ExitGameAsync, null));
             root.Controls.Add(lobbyCard, 0, 2);
 
-            var statusCard = new FacmGlassPanel { Dock = DockStyle.Fill, DrawBorder = true };
+            var statusCard = new FacmGlassPanel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0, 0, 0, 10),
+                DrawBorder = true
+            };
             _status = Label(LeagueGameRepairUiText.Ready, 8.7F, FontStyle.Bold, FacmDesignSystem.TextMuted);
             _status.Dock = DockStyle.Fill;
             _status.Padding = new Padding(16, 0, 16, 0);
@@ -99,18 +139,16 @@ namespace FACM.League
                 Size = new Size(318, 58),
                 BackColor = Color.Transparent
             };
-            var button = new Button
+            var button = new FacmActionButton
             {
                 Text = title,
                 Location = new Point(0, 0),
                 Size = new Size(126, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = FacmDesignSystem.SurfaceRaised,
-                ForeColor = FacmDesignSystem.Text,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
-                TabStop = true
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.7F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = FacmDesignSystem.Border;
             button.Click += async delegate
             {
                 if (action == null || button.IsDisposed) return;
