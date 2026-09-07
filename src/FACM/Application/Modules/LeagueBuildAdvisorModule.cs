@@ -84,7 +84,10 @@ namespace FACM.AppHost.Modules
         {
             if (_service == null || _applyService == null || _itemSetService == null || _autoApply == null)
                 throw new InvalidOperationException("League recommendation module is not initialized.");
-            return new LeagueRecommendationForm(_service, _applyService, _itemSetService, _autoApply, ui);
+
+            var form = new LeagueRecommendationForm(_service, _applyService, _itemSetService, _autoApply, ui);
+            LeagueRecommendationDesignEnhancer.Apply(form);
+            return form;
         }
 
         public Form CreateForm(UiTextCatalog ui)
