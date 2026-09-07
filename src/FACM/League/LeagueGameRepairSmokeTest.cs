@@ -7,6 +7,8 @@ namespace FACM.League
     {
         public static void Validate()
         {
+            LeagueGameRepairLayout.ValidateForSmokeTest();
+
             var hdWork = new Rectangle(0, 0, 1920, 1040);
             Require(LeagueWindowRepairPlanner.IsSane(new Rectangle(120, 80, 1280, 720), hdWork),
                 "Native League repair rejected a normal 16:9 client window.");
