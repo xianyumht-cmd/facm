@@ -20,7 +20,7 @@
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版仍是 **3.5.26**，在线更新已启用且不强制。3.5.26 发布后的 `main` 正在继续 UI Design System 收口；这些源码变化在下一次新的 3.5.x patch 发布前都不改变现有线上二进制。
+当前在线正式版是 **3.5.27**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
 ## 当前已交付行为
 
@@ -34,37 +34,44 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - 导航 owner-draw 残影、紧凑控制中心首次裁剪残影、LOL Hub 顶部遮挡、共享 Toggle 重影和窗口控制按钮旧像素残留均已有 deterministic 回归保护。
 - 普通构建不内嵌 self-contained PetHost；轻量 FACM.exe 体积 gate <10 MiB。
 - 更新 manifest 以 GitHub main 的 3.5 清单为唯一版本基准；多个传输候选选择最高有效版本，旧镜像不能把服务器版本倒退到当前客户端以下。
-- UI Round 1：引入共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`，建立 `ThemeCatalog` / `FacmThemeRuntime` / `FacmDesignSystem` 语义边界，并迁移 Update Center 等表面。
-- UI Round 2：直接左键点击内置悬浮入口时可显示当前 LOL 状态、自动下一局摘要和场景提示；Lobby / Matchmaking / ReadyCheck / 结算后指向下一局设置，ChampSelect / InGame 指向实时对局，普通客户端状态指向当前状态。
-- 场景导航只消费 `LeagueDashboardModule` 的共享 Gameflow 状态，不新增 LCU polling、第二 League session 或新的 League 写入路径；托盘/第二实例普通控制中心和右键完整菜单保持原行为。
-- 3.5.25 普通顶层 WinForms 使用共享视觉无标题栏外壳：36px 默认交互区与内容画布同色，只保留品牌、拖动、最小化/最大化/关闭；LOL Hub 不再展示副标题层。
-- 3.5.26 UI Reskin Pass 1：共享卡片改为纯 surface、公共圆角上限收紧为 window 12 / card 8 / control 6；LOL Hub 左侧导航使用轻选中面与 2px accent indicator，顶部子导航改为标签式底部选中线；`FacmChromeButton` 被显式排除在通用 Button 主题之外。
+- UI Round 1 引入共享 `FacmActionButton` / `FacmToggleSwitch` / `FacmStatusBadge`，建立 `ThemeCatalog` / `FacmThemeRuntime` / `FacmDesignSystem` 语义边界。
+- UI Round 2 的场景导航只消费 `LeagueDashboardModule` 的共享 Gameflow 状态，不新增 LCU polling、第二 League session 或新的 League 写入路径。
+- 3.5.25 普通顶层 WinForms 使用共享视觉无标题栏外壳：36px 默认交互区与内容画布同色，只保留品牌、拖动、最小化/最大化/关闭；LOL Hub 不展示副标题层。
+- 3.5.26 UI Reskin Pass 1：共享卡片改为纯 surface、公共圆角收紧为 window 12 / card 8 / control 6；LOL Hub 左侧导航改为轻选中面 + 2px accent indicator，顶部子导航改为紧凑标签式底部选中线；`FacmChromeButton` 与通用业务 Button 主题隔离。
 
-## 3.5.26 之后已合并 / 正在合并的 UI 收口
+## 3.5.27 UI Design System 收口
 
-- PR #251：`FacmNavButton` / `FacmPillButton` 恢复键盘 Tab 可达性并显示 focus cue；smoke test 固化该 contract。League Dashboard 移除六张等权矩阵卡片，改为“连接 + Gameflow”主状态区和账号/平台/性能/更新时间元数据列表；按钮与状态色改用共享 semantic primitives。Windows Build #1604 与 UI Text Contract #712 均通过后合并。
-- PR #252：League Player 战绩页移除 page-local 深色 RGB palette 和私有按钮样式，改用 `FacmDesignSystem`、`FacmActionButton`、共享 success/error/muted tones；英雄统计与最近战绩保持高密度、虚拟化、无额外卡片堆叠，不改变分页、缓存、网络和取消语义。
-- PR #253：正常控制中心仍由 `DesktopLauncherEnhancer` 接管，但此前能看到 `CompactMenuForm` 的旧玻璃渐变、双色强调和大圆角。增强器现在在正常 launcher path 上铺共享 `Canvas`、把 header 收敛到共享文字/强调色、隐藏 legacy 管理员 pill、把窗口 Region 钳制到共享 `WindowRadius`，并将 context/tile focus/icon 装饰从双 accent 收敛到单 accent；路由、Gameflow owner 和 legacy fallback action 不变。
+3.5.27 将 3.5.26 发布后已合并的高频可见页面统一打包为正式版本：
 
-P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性：#243；UI Round 1：#244；UI Round 2：#245；3.5.23 顶部布局修复：#246；3.5.24 Toggle 重绘修复：#247；3.5.25 一体化无边框外壳：#248；3.5.26 UI Reskin Pass 1：#249；Agent knowledge consistency：#250；UI Design System Pass 2：#251；League Player shared-design convergence：#252；Compact Launcher flattening：#253。
+- PR #251：共享侧栏/顶部标签恢复键盘 Tab/focus contract；League Dashboard 从六张等权卡片改为“连接 + Gameflow”主状态区与紧凑元数据列表。
+- PR #252：League Player 战绩页移除主要 page-local 深色 RGB palette 和私有按钮样式，改用共享 semantic tokens/primitives；保持高密度虚拟化列表，不把每条数据包装成卡片。
+- PR #253：正常 Compact Launcher 可见增强路径覆盖旧玻璃渐变、双色强调和大圆角，使用共享 Canvas/header/tile/context 视觉；legacy fallback action 不变。
+- PR #254：LOL Hub 增加 DPI 感知和自适应布局；sidebar/context/subnav 根据可用宽度分配空间，实时 Live 页优先保留高密度宽视图。
+- PR #255：League Live 的 phase/status/bench/player list/actions 收敛到共享设计系统，同时保留原 polling、snapshot 和 bench-swap ownership。
+- PR #256：统一 Recommendation 页面从 legacy cyan/violet presentation 收敛到共享语义色；旧双色 header glow 改为单 accent 细线；推荐选择和刷新/应用恢复键盘可达。
+- PR #257：Presence 不再直接消费 page-local `ThemeDefinition` 视觉；状态改用共享 accent/success/warning/error；Presence 与 Game Repair 操作恢复 Tab 可达性。
+- PR #258：Mayhem Lookup 外壳、输入框、状态和四个操作按钮迁移到共享设计系统；Search 是唯一 primary action。**MayhemCardRenderer 保持领域专用攻略图视觉与信息密度，不做模板式“统一”。** Windows Build、UI Text Contract 和 Mayhem Source Probe 均通过后合并。
+- PR #259：请求并发布正式 FACM 3.5.27；发布链完成签名、公开字节校验、manifest 启用与项目 release-state 更新。
+
+历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259。
 
 ## 当前产品体验方向
 
-- 继续保持 WinForms/net48/single-EXE，不为视觉升级引入第二 UI 框架。
-- `ThemeCatalog` 为 palette source，`FacmThemeRuntime` 为 process-wide active theme owner，`FacmDesignSystem`/共享控件承载公共视觉语义。
-- `FacmWindowChrome` 保留窗口行为所有权，但顶部交互区和页面视觉合并；不得重新引入独立标题栏式副标题层。
+- 继续保持 WinForms / net48 / single-EXE，不为视觉升级引入第二 UI 框架。
+- `ThemeCatalog` 是 palette source，`FacmThemeRuntime` 是 process-wide active theme owner，`FacmDesignSystem` / 共享控件承载公共视觉语义。
+- `FacmWindowChrome` 保留窗口行为所有权；36px 顶部交互区与内容视觉合并，不重新引入独立标题栏式副标题层。
 - 顶部交互区与内容区继续使用显式互不重叠坐标，不回到依赖 Dock/Z-order 的布局。
-- 悬浮入口场景化仅复用唯一 Gameflow owner；不得为了“更快”再建轮询器。
-- 高频用户操作优先收敛到状态首页、统一 LOL Hub 与自动化设置，不再增加重复入口。
-- UI 目标参考现代 Windows / Fluent / PowerToys 的克制桌面产品行为，并用 anti-template 审计规则抑制大圆角、蓝紫双强调、卡片滥用、胶囊滥用、强制对称矩阵和无意义装饰。
-- 数据密集页优先保持表格/列表密度与明确层级，不为了“现代化”把每一行数据包装成独立卡片。
+- 悬浮入口场景化仅复用唯一 Gameflow owner；不得为了“更快”再建轮询器或第二 League session。
+- 高频用户操作优先收敛到状态首页、统一 LOL Hub 与自动化设置，不增加重复入口。
+- UI 参考现代 Windows / Fluent / PowerToys 的克制桌面产品行为，并用 anti-template 审计规则抑制大圆角、蓝紫双强调、卡片滥用、胶囊滥用、强制对称矩阵和无意义装饰。
+- 数据密集页优先保持表格/列表密度与明确层级；领域专用可视化（例如 Mayhem 攻略图）允许保留自己的信息设计，不为了表面统一损失可读性。
 
 ### 已确认但尚未收口的 UI 技术债
 
-- 正常可见 Compact Launcher 已由 `DesktopLauncherEnhancer` 覆盖为共享 flat canvas/header/tile/context 视觉；`CompactMenuForm` 内部仍保留 `ThemedPanel` / `ThemedButton`、主题渐变和 Style-specific 装饰作为 fallback/legacy 实现。后续只有在 fallback 路径仍真实可达或需要维护时才继续收敛，不为了删代码冒行为回归风险。
-- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 应继续只消费 semantic tokens/受控 geometry，不把这些历史 Style 的装饰规则重新带回高频页面。
-- Dashboard 和 Player 已脱离主要 page-local palette；其余较早 League Form 仍需逐项审计是否存在私有 RGB、固定布局和通用 Button 样式。优先迁移真实用户高频页，不为了“零 Color.FromArgb”做无收益大改。
-- `LeagueHubForm` 的 130px sidebar、232px context dock、100x29 subnav 等仍以固定 WinForms 几何为主；当前 responsive contract 主要是小窗口隐藏 context dock。后续布局 pass 应优先解决真实缩放/DPI/空间分配问题，而不是迁移 UI 框架。
+- 正常可见 Compact Launcher 已由 `DesktopLauncherEnhancer` 覆盖为共享 flat 视觉；`CompactMenuForm` 内部仍保留 `ThemedPanel` / `ThemedButton`、主题渐变和 Style-specific 装饰作为 fallback/legacy 实现。只有确认 fallback 仍真实可达或存在维护价值时才继续收敛，不为了删代码冒行为回归风险。
+- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 应继续只消费 semantic tokens/受控 geometry，不把历史 Style 的装饰规则重新带回高频页面。
+- Dashboard、Player、Live、Recommendation、Presence、Mayhem Lookup 等高频表面已经完成主要视觉收口；较早的 standalone `LeagueBuildAdvisorForm` / `LeagueBuildApplyForm` / `LeagueItemSetForm` 等仍可见 page-local RGB/native styling。后续先确认这些旧入口的真实可达性和用户价值，再决定是否迁移，不以“零 Color.FromArgb”为目标。
+- LOL Hub 的自适应 geometry 已在 #254 引入；后续布局工作应以真实 DPI/缩放/窄窗口问题为证据，不再把旧固定 130/232/100px 数值当作当前 contract。
 
 ## 当前保留组件
 
@@ -73,7 +80,7 @@ P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性�
 - `src/FACM.Updater`：3.5 单 EXE 更新替换、校验、回滚。
 - `src/FACM.PetHost`：可选桌宠 runtime 源码与 IPC。
 - `online/version.json`、`online/announcement.json`、`online/mirrors.json`。
-- 3.5 Windows Build、UI Text Contract、Mayhem probe、Online Management、3.5 Lightweight Release workflows。
+- 3.5 Windows Build、UI Text Contract、Mayhem Source Probe、Online Management、3.5 Lightweight Release workflows。
 
 ## 已退出的 4.x 范围
 
@@ -83,12 +90,13 @@ P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性�
 
 ## 当前发布状态
 
-- `online/version.json`：**3.5.26**，enabled=true，force_update=false。
-- GitHub Release：`v3.5.26`，非 draft、非 prerelease，Release id `384029059`。
-- Release `FACM.exe`：**1,874,328 bytes**。
-- Release `FACM.exe` SHA-256：`E150CDECC5C09295C42CE23A91A86BA7F7589AF6FAC8DFA9A2B8D872F169B852`。
-- Release target / 发布元数据提交：`829e8634dc4aca6f115d48c166107115a5207afe`。
-- 在线更新启用提交：`705a0b5ea47bf5e59b8cefb1327c58a729652119`。
+- `online/version.json`：**3.5.27**，enabled=true，minimum_version=3.0.0，force_update=false。
+- GitHub Release：`v3.5.27`，非 draft、非 prerelease，Release id `384161604`。
+- Release `FACM.exe`：**1,887,640 bytes**。
+- Release `FACM.exe` SHA-256：`3AD38E8D76CEEBB23A3F75ED4C39F3D09466F60A4484EA3E16EF6CB19B7CAF28`。
+- 发布请求合并 / frozen base：`9f5e92d8ca35edecb1a5bf39bf94b55dfba0bf17`。
+- Release target / 发布元数据提交：`102689cc5c679e4ef6342e7fa075b09a3b7cb894`。
+- 在线更新启用提交：`e11d39e1273473256f9281a2939ba2b7d7b5d588`。
 
 ## 当前维护 Gate
 
@@ -107,5 +115,6 @@ P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性�
 11. 新增或实质重做的 UI 不得再创建 page-local 主题体系；优先使用 `FacmDesignSystem`、共享 primitives 和明确的布局/可访问性 contract。
 12. `FacmNavButton` / `FacmPillButton` 必须保持 native `Button` + `TabStop=true` 的键盘可达 contract。
 13. 默认 Compact Launcher 的可见增强路径应覆盖 legacy 渐变/双强调背景并使用共享 Canvas/WindowRadius；legacy fallback rendering 不能重新成为默认可见 surface。
+14. 领域专用 UI（例如 MayhemCardRenderer）应优先保留其信息密度与功能语义；共享设计系统主要约束窗口壳、导航、状态和通用控件，不强行抹平领域视觉。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
