@@ -25,21 +25,16 @@
 
 目标是让 FACM 更像一个完整产品，而不是多个小工具被装进同一个 EXE。具体信息架构由 AI 根据代码边界、风险和用户任务流主动规划，不需要用户逐个指定哪些页面合并。
 
-## 云端 ChatGPT 发布与源码管理
+## 云端 ChatGPT / Codex 发布与源码管理
 
-后续由云端 ChatGPT 接手时，默认目标是维护 `main`、构建可审计的 4.0.x 发布包、管理 GitHub/Gitee 源码和 Release，
-而不是把命令交给用户手工照抄。每次接手先读取 `AGENTS.md`、`docs/PROJECT_STATE.md`、`docs/OPERATIONS.md`、
-`docs/SIGNING.md`，再检查当前分支、工作树、远端 `main` 和已有 Release；以仓库和远端的实际证据为准，不以旧聊天结论为准。
+后续由云端 ChatGPT、Codex 或其他 coding agent 接手时，默认目标是维护当前 **FACM 3.5.x lightweight** 产品线：`main` + WinForms + .NET Framework 4.8 + 单 `FACM.exe`。4.x WinUI/bootstrapper/manifest 体系已经退出当前产品线，除非用户明确要求历史研究，否则不要把旧 4.x 分支、PR、tag 或文档片段当成当前发布方案。
 
-云端任务可以自行完成源码修改、构建、静态门禁、bundle validator、提交和非破坏性推送。发布前必须把目标版本、源码
-提交 SHA、包哈希、签名指纹、Release id 和验证结果写入 `PROJECT_STATE.md`。任何未完成的步骤要明确标为 blocked，不能用
-“上传成功”代替签名或真实迁移证据。
+每次接手先读取 `AGENTS.md`、`docs/PROJECT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/PITFALLS.md`、`docs/OPERATIONS.md`，再核对远端 `main`、当前任务 branch/PR、Release 和 `online/version.json`。仓库与 GitHub 的当前证据优先于旧聊天、旧分支和过期说明。
 
-签名密钥边界固定不变：3.5 PFX 只用于 native/legacy `FACM.exe` 的 Authenticode，4.0 detached 清单使用独立 RSA 私钥。
-云端拿不到仓库外的 PFX、密码或 detached 私钥时，不得要求用户在聊天中粘贴秘密，也不得上传未签名包冒充正式版本；应停在
-签名前，交接一个包含目标提交和待签名文件哈希的本地签名步骤，或使用已授权的安全凭据连接器后再继续。
+云端任务可以自行完成源码修改、deterministic smoke、CI、提交、PR 和非破坏性推送。正式发布只使用 `.github/workflows/publish-3.5-lightweight.yml`（**FACM 3.5 Lightweight Release**）及 `release/3.5-request.json` / workflow dispatch，不恢复旧 heavyweight publisher，也不重新引入 4.x migration 字段。
 
-截图或用户反馈与代码事实冲突时，先核对当前加载的版本和对应的更新通道。4.0 模块化客户端维护页读取
-`online/facm4-version.json`，以 `.facm/state/active.json` 的 activeVersion 判断当前版本；下载到的引导程序
-只作为连通性和身份校验材料，真正的 4.x 组件更新统一通过已签名的 `manifest.json` 交给原生引导程序执行。
-legacy 3.x 迁移仍单独使用 `online/version.json`，两条通道不能混用。
+生产发布的可信链固定为：冻结 `main` -> 构建 3.5 lightweight -> 执行 smoke/gates -> Authenticode 签名 -> 发布新的 `v3.5.x` GitHub Release -> 重新下载公开 `FACM.exe` 验证 size/SHA-256/signer -> 最后启用 `online/version.json`。不得复用旧版本号，也不得把 CI artifact、branch 文件或未签名候选冒充正式 Release。
+
+签名边界当前只涉及 3.5 `FACM.exe` 的 Authenticode PFX。仓库或会话拿不到 PFX/密码时，不得要求用户在聊天中粘贴秘密，也不得绕过生产签名门禁；应使用已授权的 GitHub Actions secret / 安全连接器，或者明确停在签名前并交接可审计的候选提交与哈希。
+
+截图或用户反馈与代码事实冲突时，先确认用户正在运行的 FACM 版本和 `online/version.json` 当前指向，再定位对应源码。当前唯一在线更新通道是 3.5 的 `online/version.json`；`online/facm4-version.json`、`.facm/state/active.json`、4.x detached manifest/bootstrapper 等只属于已退出的历史实现，不是当前运行依据。
