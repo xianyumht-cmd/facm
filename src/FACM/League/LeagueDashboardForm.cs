@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -19,7 +20,7 @@ namespace FACM.League
         private readonly Label _phaseValue;
         private readonly Label _performanceValue;
         private readonly Label _updatedValue;
-        private readonly Button _refreshButton;
+        private readonly FacmActionButton _refreshButton;
         private readonly System.Windows.Forms.Timer _timer;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private LeagueDashboardSnapshot _snapshot;
@@ -39,25 +40,56 @@ namespace FACM.League
             ClientSize = new Size(650, 430);
             MinimumSize = new Size(650, 430);
             MaximizeBox = false;
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
-            var title = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardTitle), Location = new Point(28, 22), Size = new Size(440, 36), ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold) };
-            var hint = new Label { Text = _ui.Get(UiTextKeys.LeagueDashboardHint), Location = new Point(30, 62), Size = new Size(560, 24), ForeColor = Color.FromArgb(146, 161, 188) };
+            var title = new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeagueDashboardTitle),
+                Location = new Point(28, 20),
+                Size = new Size(440, 34),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
+            };
+            var hint = new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeagueDashboardHint),
+                Location = new Point(30, 58),
+                Size = new Size(560, 24),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent
+            };
             Controls.Add(title);
             Controls.Add(hint);
 
-            _connectionValue = AddCard(UiTextKeys.LeagueDashboardConnection, new Rectangle(28, 102, 286, 80));
-            _accountValue = AddCard(UiTextKeys.LeagueDashboardAccount, new Rectangle(336, 102, 286, 80));
-            _platformValue = AddCard(UiTextKeys.LeagueDashboardPlatformRegion, new Rectangle(28, 198, 286, 80));
-            _phaseValue = AddCard(UiTextKeys.LeagueDashboardGameflow, new Rectangle(336, 198, 286, 80));
-            _performanceValue = AddCard(UiTextKeys.LeagueDashboardPerformance, new Rectangle(28, 294, 286, 80));
-            _updatedValue = AddCard(UiTextKeys.LeagueDashboardLastUpdated, new Rectangle(336, 294, 286, 80));
+            var overview = CreatePanel(new Rectangle(28, 96, 594, 98));
+            overview.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardConnection, new Point(16, 13), 250));
+            _connectionValue = CreateOverviewValue(new Point(16, 39), 250);
+            overview.Controls.Add(_connectionValue);
+            overview.Controls.Add(CreateSeparator(new Rectangle(296, 14, 1, 68)));
+            overview.Controls.Add(CreateCaption(UiTextKeys.LeagueDashboardGameflow, new Point(316, 13), 250));
+            _phaseValue = CreateOverviewValue(new Point(316, 39), 250);
+            overview.Controls.Add(_phaseValue);
+            Controls.Add(overview);
 
-            _refreshButton = CreateButton(UiTextKeys.LeagueDashboardRefresh, new Rectangle(432, 389, 92, 30), Color.FromArgb(55, 104, 214));
+            var details = CreatePanel(new Rectangle(28, 210, 594, 164));
+            _accountValue = AddDetailRow(details, UiTextKeys.LeagueDashboardAccount, 10, true);
+            _platformValue = AddDetailRow(details, UiTextKeys.LeagueDashboardPlatformRegion, 48, true);
+            _performanceValue = AddDetailRow(details, UiTextKeys.LeagueDashboardPerformance, 86, true);
+            _updatedValue = AddDetailRow(details, UiTextKeys.LeagueDashboardLastUpdated, 124, false);
+            Controls.Add(details);
+
+            _refreshButton = CreateButton(
+                UiTextKeys.LeagueDashboardRefresh,
+                new Rectangle(432, 389, 92, 30),
+                FacmButtonTone.Primary);
             _refreshButton.Click += async delegate { await RefreshAsync(true); };
-            var close = CreateButton(UiTextKeys.Close, new Rectangle(530, 389, 92, 30), Color.FromArgb(35, 43, 60));
+            var close = CreateButton(
+                UiTextKeys.Close,
+                new Rectangle(530, 389, 92, 30),
+                FacmButtonTone.Secondary);
             close.Click += delegate { Close(); };
             Controls.Add(_refreshButton);
             Controls.Add(close);
@@ -79,21 +111,81 @@ namespace FACM.League
             };
         }
 
-        private Label AddCard(string key, Rectangle bounds)
+        private static FacmGlassPanel CreatePanel(Rectangle bounds)
         {
-            var panel = new Panel { Bounds = bounds, BackColor = Color.FromArgb(22, 29, 44), BorderStyle = BorderStyle.FixedSingle };
-            panel.Controls.Add(new Label { Text = _ui.Get(key), Location = new Point(15, 9), Size = new Size(252, 21), ForeColor = Color.FromArgb(139, 157, 190), Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold) });
-            var value = new Label { Location = new Point(15, 36), Size = new Size(252, 28), AutoEllipsis = true, ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold) };
-            panel.Controls.Add(value);
-            Controls.Add(panel);
+            return new FacmGlassPanel
+            {
+                Bounds = bounds,
+                Radius = FacmDesignSystem.CardRadius,
+                DrawBorder = true,
+                BackColor = FacmDesignSystem.Surface
+            };
+        }
+
+        private Label CreateCaption(string key, Point location, int width)
+        {
+            return new Label
+            {
+                Text = _ui.Get(key),
+                Location = location,
+                Size = new Size(width, 20),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.4F, FontStyle.Bold)
+            };
+        }
+
+        private static Label CreateOverviewValue(Point location, int width)
+        {
+            return new Label
+            {
+                Location = location,
+                Size = new Size(width, 36),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 13F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+        }
+
+        private Label AddDetailRow(Control parent, string key, int top, bool separator)
+        {
+            parent.Controls.Add(CreateCaption(key, new Point(16, top), 146));
+            var value = new Label
+            {
+                Location = new Point(170, top - 1),
+                Size = new Size(400, 24),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.3F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            parent.Controls.Add(value);
+            if (separator) parent.Controls.Add(CreateSeparator(new Rectangle(16, top + 28, 554, 1)));
             return value;
         }
 
-        private Button CreateButton(string key, Rectangle bounds, Color background)
+        private static Panel CreateSeparator(Rectangle bounds)
         {
-            var button = new Button { Text = _ui.Get(key), Bounds = bounds, FlatStyle = FlatStyle.Flat, BackColor = background, ForeColor = Color.White, Cursor = Cursors.Hand };
-            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            return button;
+            return new Panel
+            {
+                Bounds = bounds,
+                BackColor = FacmDesignSystem.BorderSoft,
+                TabStop = false
+            };
+        }
+
+        private FacmActionButton CreateButton(string key, Rectangle bounds, FacmButtonTone tone)
+        {
+            return new FacmActionButton
+            {
+                Text = _ui.Get(key),
+                Bounds = bounds,
+                Tone = tone,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold)
+            };
         }
 
         private async Task RefreshAsync(bool forceDetails)
@@ -150,7 +242,7 @@ namespace FACM.League
         {
             if (_snapshot == null || !_snapshot.Connected) { ShowEmptyState(_snapshot); return; }
             _connectionValue.Text = _ui.Get(UiTextKeys.LeagueDashboardConnected);
-            _connectionValue.ForeColor = Color.FromArgb(103, 218, 166);
+            _connectionValue.ForeColor = FacmDesignSystem.Success;
             var account = string.IsNullOrWhiteSpace(_snapshot.AccountName) ? _ui.Get(UiTextKeys.LeagueDashboardUnknown) : _snapshot.AccountName;
             if (_snapshot.SummonerLevel > 0) account += "  ·  " + _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + _snapshot.SummonerLevel;
             _accountValue.Text = account;
@@ -168,7 +260,7 @@ namespace FACM.League
             var unknown = _ui.Get(UiTextKeys.LeagueDashboardUnknown);
             var processDetected = state != null && (state.ClientProcessDetected || state.GameProcessDetected);
             _connectionValue.Text = processDetected ? unknown : _ui.Get(UiTextKeys.LeagueDashboardDisconnected);
-            _connectionValue.ForeColor = Color.FromArgb(244, 169, 104);
+            _connectionValue.ForeColor = FacmDesignSystem.Warning;
             _accountValue.Text = processDetected ? unknown : _ui.Get(UiTextKeys.LeagueDashboardWaitingClient);
             _platformValue.Text = unknown;
             _phaseValue.Text = unknown;
