@@ -33,9 +33,36 @@ namespace FACM.Theming
 
             if (FacmDesignSystem.ControlRadius < 0 || FacmDesignSystem.CardRadius < 0 || FacmDesignSystem.WindowRadius < 0)
                 throw new InvalidOperationException("FACM shared design radii must remain non-negative.");
+            if (FacmDesignSystem.ControlRadius > 6 || FacmDesignSystem.CardRadius > 8 || FacmDesignSystem.WindowRadius > 12)
+                throw new InvalidOperationException("FACM product radii drifted back into oversized template-style rounding.");
 
+            ValidateChromeButtonIsolation();
             ValidateToggleResizeRepaint();
             ValidateWindowChromeLayout();
+        }
+
+        private static void ValidateChromeButtonIsolation()
+        {
+            using (var button = new FacmChromeButton
+            {
+                Size = new Size(32, 28),
+                BackColor = Color.Red
+            })
+            {
+                FacmDesignSystem.Round(button, 6);
+                if (button.Region == null)
+                    throw new InvalidOperationException("FACM chrome isolation smoke failed to create its pre-theme rounded state.");
+
+                FacmDesignSystem.ApplyRecursive(button);
+                if (!FacmDesignSystem.IsWindowChromeButton(button))
+                    throw new InvalidOperationException("FACM shared theme no longer recognizes window chrome controls.");
+                if (button.Region != null)
+                    throw new InvalidOperationException("FACM window chrome button was rounded by generic business-button styling.");
+                if (button.FlatAppearance.BorderSize != 0)
+                    throw new InvalidOperationException("FACM window chrome button gained a generic business-button border.");
+                if (button.BackColor != Color.Transparent)
+                    throw new InvalidOperationException("FACM window chrome button gained a persistent generic business-button fill.");
+            }
         }
 
         private static void ValidateToggleResizeRepaint()
@@ -134,6 +161,12 @@ namespace FACM.Theming
                 throw new InvalidOperationException("FACM interaction band visually split from the page canvas during " + stage + " smoke validation.");
             if (topHeight < 34 || topHeight > 38)
                 throw new InvalidOperationException("FACM integrated interaction band drifted outside the compact 34-38px contract during " + stage + " smoke validation.");
+        }
+
+        // Deliberately named like FacmWindowChrome's private nested button so the shared styling
+        // exclusion can be regression-tested without widening the production chrome API.
+        private sealed class FacmChromeButton : Button
+        {
         }
     }
 }

@@ -74,7 +74,7 @@ namespace FACM.Theming
             if (nav != null)
             {
                 nav.ForeColor = next.TextMuted;
-                ReplaceFont(nav, next.FontName, 9.2F, FontStyle.Bold);
+                ReplaceFont(nav, next.FontName, 9F, FontStyle.Bold);
             }
 
             var pill = control as FacmPillButton;
@@ -108,11 +108,25 @@ namespace FACM.Theming
             var button = control as Button;
             if (button != null && nav == null && pill == null && actionButton == null)
             {
-                button.ForeColor = next.TextPrimary;
-                button.FlatAppearance.BorderColor = next.Border;
-                button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
-                button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, next.Accent, 0.12F);
-                FacmDesignSystem.Round(button, FacmDesignSystem.ResolveButtonRadius(button));
+                if (FacmDesignSystem.IsWindowChromeButton(button))
+                {
+                    // Chrome owns its own drawing. Do not turn minimize/maximize/close into themed
+                    // rounded business buttons during a global theme refresh.
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderSize = 0;
+                    button.BackColor = Color.Transparent;
+                    button.ForeColor = next.TextMuted;
+                    FacmDesignSystem.Round(button, 0);
+                    button.Invalidate();
+                }
+                else
+                {
+                    button.ForeColor = next.TextPrimary;
+                    button.FlatAppearance.BorderColor = FacmDesignSystem.BorderSoft;
+                    button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
+                    button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, next.Accent, 0.08F);
+                    FacmDesignSystem.Round(button, FacmDesignSystem.ResolveButtonRadius(button));
+                }
             }
 
             var textBox = control as TextBoxBase;

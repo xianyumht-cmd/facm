@@ -541,7 +541,13 @@ namespace FACM.Theming
                 ForeColor = FacmDesignSystem.TextMuted;
                 Cursor = Cursors.Hand;
                 TabStop = false;
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+                SetStyle(
+                    ControlStyles.UserPaint |
+                    ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer |
+                    ControlStyles.ResizeRedraw |
+                    ControlStyles.Opaque,
+                    true);
             }
 
             protected override void OnMouseEnter(EventArgs e)
@@ -560,10 +566,21 @@ namespace FACM.Theming
 
             protected override void OnPaint(PaintEventArgs e)
             {
-                var fill = _hover
-                    ? (Kind == ChromeButtonKind.Close ? FacmDesignSystem.Error : FacmDesignSystem.SurfaceHover)
-                    : Color.Transparent;
-                using (var brush = new SolidBrush(fill)) e.Graphics.FillRectangle(brush, ClientRectangle);
+                // This is a fully owner-drawn surface. Clear every pixel first so switching
+                // maximize/restore glyphs, hover states or theme colors can never leave stale text
+                // or the rounded business-button residue that was visible in the top-right corner.
+                using (var background = new SolidBrush(FacmDesignSystem.ResolveOwnedBackground(this)))
+                    e.Graphics.FillRectangle(background, ClientRectangle);
+
+                if (_hover)
+                {
+                    var hoverFill = Kind == ChromeButtonKind.Close
+                        ? FacmDesignSystem.Error
+                        : FacmDesignSystem.SurfaceHover;
+                    using (var brush = new SolidBrush(hoverFill))
+                        e.Graphics.FillRectangle(brush, ClientRectangle);
+                }
+
                 TextRenderer.DrawText(
                     e.Graphics,
                     Text,
