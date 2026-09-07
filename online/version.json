@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.24",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.24/FACM.exe",
   "sha256": "7E91F3142CEAB0A8E03C8E3D2DE45FB22777D0C50C1DAF414C1E48945E52B69B",
   "release_notes": "FACM 3.5.24：修复 3.5.23 中 LOL 工作台自动化页面的开关文字重复、黑色横条和旧绘制残影。根因是共享 FacmToggleSwitch 使用完全自绘与 AllPaintingInWmPaint，但在 LeagueHub 紧凑布局/嵌入页面导致控件宽度变化时没有先清空整个客户区，旧文字和旧开关轨道像素会残留在之前坐标。本次让开关在尺寸变化时完整重绘，并在每次绘制前使用当前父容器背景显式清空整个控件区域，同时加入宽度变化后旧轨道位置必须被擦除的位图回归测试。",
-  "published_at": "2026-09-07T06:40:06.0448806+00:00"
+  "published_at": "2026-09-07T06:40:13.2242176+00:00"
 }

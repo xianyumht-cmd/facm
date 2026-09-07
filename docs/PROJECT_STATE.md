@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.23
-- GitHub Release：v3.5.23
+- 版本：FACM 3.5.24
+- GitHub Release：v3.5.24
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：4211c70f09a9491f3d4fe7be711780aa2222c065
-- 发布元数据提交：f079b3965ea1cf334e39fc8cc5c69b10e3f42b6b
-- Release FACM.exe SHA-256：76F3D091AD5344EC1EC0FAD7DC1ADB798842DE084D2F945A240DB8446B6C97A9
-- release_notes：FACM 3.5.23：修复 3.5.22 中 LOL 工作台顶部自绘标题栏遮挡页面内容、二级导航被覆盖的问题。根因是统一 WinForms 自绘外壳依赖同级 Dock.Fill / Dock.Top 与控件层级分配空间，在部分布局/重绘过程中页面内容会延伸到标题栏下方。本次改为由共享 FacmWindowChrome 显式划分互不重叠的标题区和内容区，并在窗口缩放时重新计算；同时修正标题栏按钮初始宽度定位，并加入初始布局与缩放后的不重叠回归测试。
+- 发布基础 main：71be3fd297af456818d4912f86ff620e441c6f2b
+- 发布元数据提交：e9915632ec6aa939e2eec04aa0d9c463a8f99e1a
+- Release FACM.exe SHA-256：7E91F3142CEAB0A8E03C8E3D2DE45FB22777D0C50C1DAF414C1E48945E52B69B
+- release_notes：FACM 3.5.24：修复 3.5.23 中 LOL 工作台自动化页面的开关文字重复、黑色横条和旧绘制残影。根因是共享 FacmToggleSwitch 使用完全自绘与 AllPaintingInWmPaint，但在 LeagueHub 紧凑布局/嵌入页面导致控件宽度变化时没有先清空整个客户区，旧文字和旧开关轨道像素会残留在之前坐标。本次让开关在尺寸变化时完整重绘，并在每次绘制前使用当前父容器背景显式清空整个控件区域，同时加入宽度变化后旧轨道位置必须被擦除的位图回归测试。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
