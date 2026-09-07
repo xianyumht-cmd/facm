@@ -10,11 +10,22 @@ namespace FACM.League
 {
     internal sealed class LeagueHubForm : Form
     {
+        private const int DefaultSidebarWidth = 130;
+        private const int CompactSidebarWidth = 116;
+        private const int SidebarCompactThreshold = 980;
+        private const int ContextMinWidth = 212;
+        private const int ContextMaxWidth = 248;
+        private const int ContextMinContentWidth = 620;
+        private const int SubnavMinButtonWidth = 84;
+        private const int SubnavMaxButtonWidth = 146;
+
         private readonly UiTextCatalog _ui;
         private readonly Dictionary<string, Func<UiTextCatalog, Form>> _factories;
         private readonly Dictionary<string, FacmNavButton> _sectionButtons = new Dictionary<string, FacmNavButton>(StringComparer.Ordinal);
         private readonly Dictionary<string, FacmPillButton> _viewButtons = new Dictionary<string, FacmPillButton>(StringComparer.Ordinal);
+        private readonly FacmGlassPanel _sidebar;
         private readonly FlowLayoutPanel _subnav;
+        private readonly Panel _workspace;
         private readonly Panel _content;
         private readonly FacmGlassPanel _contextDock;
         private FlowLayoutPanel _contextActions;
@@ -51,6 +62,8 @@ namespace FACM.League
                 { LeagueHubNavigation.Presence, presence ?? throw new ArgumentNullException(nameof(presence)) }
             };
 
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(1120, 640);
@@ -68,25 +81,26 @@ namespace FACM.League
                 Padding = Padding.Empty
             };
 
-            var sidebar = new FacmGlassPanel
+            _sidebar = new FacmGlassPanel
             {
                 Dock = DockStyle.Left,
-                Width = 130,
-                Radius = 12,
+                Width = DefaultSidebarWidth,
+                Radius = FacmDesignSystem.CardRadius,
                 Padding = new Padding(7, 10, 7, 8)
             };
-            sidebar.Controls.Add(new Label
+            _sidebar.Controls.Add(new Label
             {
                 Text = LeagueHubText.Get(_ui, LeagueHubUiTextKeys.Title),
                 Location = new Point(11, 10),
                 Size = new Size(100, 18),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 7.8F, FontStyle.Bold)
             });
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionMatch, 35);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionRecommend, 78);
-            AddSectionButton(sidebar, LeagueHubUiTextKeys.SectionEfficiency, 121);
+            AddSectionButton(_sidebar, LeagueHubUiTextKeys.SectionMatch, 35);
+            AddSectionButton(_sidebar, LeagueHubUiTextKeys.SectionRecommend, 78);
+            AddSectionButton(_sidebar, LeagueHubUiTextKeys.SectionEfficiency, 121);
 
             var mainShell = new Panel
             {
@@ -97,7 +111,7 @@ namespace FACM.League
             var mainCard = new FacmGlassPanel
             {
                 Dock = DockStyle.Fill,
-                Radius = 12,
+                Radius = FacmDesignSystem.CardRadius,
                 Padding = Padding.Empty
             };
 
@@ -112,7 +126,7 @@ namespace FACM.League
                 AutoScroll = false
             };
 
-            var workspace = new Panel
+            _workspace = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent,
@@ -125,14 +139,14 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.CanvasRaised,
                 Padding = Padding.Empty
             };
-            workspace.Controls.Add(_content);
-            workspace.Controls.Add(_contextDock);
+            _workspace.Controls.Add(_content);
+            _workspace.Controls.Add(_contextDock);
 
-            mainCard.Controls.Add(workspace);
+            mainCard.Controls.Add(_workspace);
             mainCard.Controls.Add(_subnav);
             mainShell.Controls.Add(mainCard);
             body.Controls.Add(mainShell);
-            body.Controls.Add(sidebar);
+            body.Controls.Add(_sidebar);
             Controls.Add(body);
 
             Resize += delegate { UpdateResponsiveChrome(); };
@@ -152,6 +166,33 @@ namespace FACM.League
         internal string CurrentSectionForSmokeTest
         {
             get { return _currentSectionKey ?? string.Empty; }
+        }
+
+        internal static int ResolveSidebarWidthForSmokeTest(int clientWidth)
+        {
+            return clientWidth < SidebarCompactThreshold ? CompactSidebarWidth : DefaultSidebarWidth;
+        }
+
+        internal static int ResolveContextDockWidthForSmokeTest(int workspaceWidth)
+        {
+            if (workspaceWidth <= 0) return ContextMinWidth;
+            return Math.Max(ContextMinWidth, Math.Min(ContextMaxWidth, workspaceWidth / 4));
+        }
+
+        internal static int ResolveSubnavButtonWidthForSmokeTest(int measuredTextWidth)
+        {
+            return Math.Max(SubnavMinButtonWidth, Math.Min(SubnavMaxButtonWidth, Math.Max(0, measuredTextWidth) + 28));
+        }
+
+        internal static bool ShouldShowContextDockForSmokeTest(string viewId, int workspaceWidth)
+        {
+            var sparseView = string.Equals(viewId, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                             string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal) ||
+                             string.Equals(viewId, LeagueHubNavigation.Repair, StringComparison.Ordinal) ||
+                             string.Equals(viewId, LeagueHubNavigation.Presence, StringComparison.Ordinal);
+            if (!sparseView) return false;
+            var contextWidth = ResolveContextDockWidthForSmokeTest(workspaceWidth);
+            return workspaceWidth >= ContextMinContentWidth + contextWidth;
         }
 
         internal void UpdateGameflowContext(LeagueDashboardPhaseState state)
@@ -190,8 +231,8 @@ namespace FACM.League
             var dock = new FacmGlassPanel
             {
                 Dock = DockStyle.Right,
-                Width = 232,
-                Radius = 10,
+                Width = ResolveContextDockWidthForSmokeTest(960),
+                Radius = FacmDesignSystem.CardRadius,
                 DrawBorder = true,
                 Padding = Padding.Empty,
                 Visible = false
@@ -222,7 +263,7 @@ namespace FACM.League
 
             layout.Controls.Add(CreateContextLabel(
                 LeagueHubText.Get(_ui, LeagueHubUiTextKeys.ContextTitle),
-                Color.White,
+                FacmDesignSystem.Text,
                 10F,
                 FontStyle.Bold), 0, 0);
 
@@ -308,7 +349,8 @@ namespace FACM.League
             {
                 Text = LeagueHubText.Get(_ui, sectionKey),
                 Location = new Point(7, top),
-                Size = new Size(116, 36)
+                Size = new Size(Math.Max(90, sidebar.ClientSize.Width - 14), 36),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             button.Click += delegate { ShowSection(sectionKey); };
             sidebar.Controls.Add(button);
@@ -355,9 +397,15 @@ namespace FACM.League
                 {
                     Text = ResolveViewText(captured.TextKey),
                     AutoSize = false,
-                    Size = new Size(100, 29),
+                    Height = 29,
                     Margin = new Padding(0, 0, 6, 0)
                 };
+                var measured = TextRenderer.MeasureText(
+                    button.Text ?? string.Empty,
+                    button.Font,
+                    new Size(int.MaxValue, button.Height),
+                    TextFormatFlags.NoPadding).Width;
+                button.Width = ResolveSubnavButtonWidthForSmokeTest(measured);
                 button.Click += delegate { ShowView(captured.Id, true); };
                 _subnav.Controls.Add(button);
                 _viewButtons[captured.Id] = button;
@@ -441,12 +489,17 @@ namespace FACM.League
 
         private void UpdateResponsiveChrome()
         {
-            if (_contextDock == null || _contextDock.IsDisposed) return;
-            var sparseView = string.Equals(_currentViewId, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
-                             string.Equals(_currentViewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal) ||
-                             string.Equals(_currentViewId, LeagueHubNavigation.Repair, StringComparison.Ordinal) ||
-                             string.Equals(_currentViewId, LeagueHubNavigation.Presence, StringComparison.Ordinal);
-            _contextDock.Visible = sparseView && ClientSize.Width >= 1040;
+            if (_contextDock == null || _contextDock.IsDisposed || _workspace == null || _workspace.IsDisposed) return;
+
+            _sidebar.Width = ResolveSidebarWidthForSmokeTest(ClientSize.Width);
+            foreach (var button in _sectionButtons.Values)
+                button.Width = Math.Max(90, _sidebar.ClientSize.Width - 14);
+
+            var workspaceWidth = Math.Max(0, _workspace.ClientSize.Width);
+            var contextWidth = ResolveContextDockWidthForSmokeTest(workspaceWidth);
+            _contextDock.Width = contextWidth;
+            _contextDock.Visible = ShouldShowContextDockForSmokeTest(_currentViewId, workspaceWidth);
+            ResizeContextActions();
         }
 
         private void UpdateContextActions()
@@ -471,13 +524,21 @@ namespace FACM.League
                 var button = new FacmPillButton
                 {
                     Text = ResolveViewText(captured.TextKey),
-                    Size = new Size(196, 30),
+                    Size = new Size(Math.Max(160, _contextDock.Width - 36), 30),
                     Margin = new Padding(0, 0, 0, 6),
                     Font = new Font(Font.FontFamily, 8F, FontStyle.Bold)
                 };
                 button.Click += delegate { ShowView(captured.Id, true); };
                 _contextActions.Controls.Add(button);
             }
+        }
+
+        private void ResizeContextActions()
+        {
+            if (_contextActions == null || _contextActions.IsDisposed) return;
+            var width = Math.Max(160, _contextDock.Width - 36);
+            foreach (Control control in _contextActions.Controls)
+                control.Width = width;
         }
 
         private void HandleEmbeddedClosing(object sender, FormClosingEventArgs e)
