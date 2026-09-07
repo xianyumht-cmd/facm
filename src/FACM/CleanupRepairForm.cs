@@ -30,6 +30,8 @@ namespace FACM
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
 
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             Text = CleanupRepairUiText.WindowTitle;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -37,7 +39,7 @@ namespace FACM
             MinimizeBox = false;
             ShowInTaskbar = true;
             ClientSize = new Size(760, 560);
-            MinimumSize = MaximumSize = Size;
+            MinimumSize = new Size(760, 560);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -69,11 +71,11 @@ namespace FACM
             _directoryInstruction.Location = new Point(18, 68);
             _directoryInstruction.Size = new Size(540, 48);
             _directoryInstruction.AutoEllipsis = false;
-            _directoryButton = CreateButton(CleanupRepairUiText.SelectDirectory, false);
+            _directoryButton = CreateButton(CleanupRepairUiText.SelectDirectory, FacmButtonTone.Secondary);
             _directoryButton.Location = new Point(582, 43);
             _directoryButton.Size = new Size(118, 38);
             _directoryButton.Click += delegate { SelectDirectory(); };
-            var detectButton = CreateButton(CleanupRepairUiText.AutoDetect, false);
+            var detectButton = CreateButton(CleanupRepairUiText.AutoDetect, FacmButtonTone.Secondary);
             detectButton.Location = new Point(582, 84);
             detectButton.Size = new Size(118, 30);
             detectButton.Click += delegate { AutoDetectDirectory(); };
@@ -84,19 +86,20 @@ namespace FACM
             directoryCard.Controls.Add(detectButton);
             root.Controls.Add(directoryCard, 0, 0);
 
-            var actionsCard = CreateCard();
-            actionsCard.Margin = new Padding(0, 0, 0, 10);
+            // Keep the two independent maintenance actions as the visual regions. The previous
+            // outer card added a third border around both cards and made this section read as a
+            // generic card-inside-card dashboard rather than a compact desktop action row.
             var actions = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(18, 14, 18, 14),
+                Margin = new Padding(0, 0, 0, 10),
+                Padding = new Padding(0),
                 ColumnCount = 2,
                 RowCount = 1,
                 BackColor = Color.Transparent
             };
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            actionsCard.Controls.Add(actions);
 
             var driver = BuildAction(
                 CleanupRepairUiText.DriverRepair,
@@ -117,7 +120,7 @@ namespace FACM
             cleanupAction.Margin = new Padding(8, 0, 0, 0);
             actions.Controls.Add(driver, 0, 0);
             actions.Controls.Add(cleanupAction, 1, 0);
-            root.Controls.Add(actionsCard, 0, 1);
+            root.Controls.Add(actions, 0, 1);
 
             var statusCard = CreateCard();
             statusCard.Margin = new Padding(0, 0, 0, 10);
@@ -165,7 +168,7 @@ namespace FACM
             state = CreateLabel(CleanupRepairUiText.DriverNotRun, 8.4F, FontStyle.Bold, FacmDesignSystem.TextMuted);
             state.Location = new Point(16, 86);
             state.Size = new Size(130, 22);
-            var button = CreateButton(title, true);
+            var button = CreateButton(title, FacmButtonTone.Secondary);
             button.Location = new Point(176, 82);
             button.Size = new Size(114, 34);
             button.Click += delegate { if (action != null) action(); };
@@ -193,19 +196,16 @@ namespace FACM
             };
         }
 
-        private static Button CreateButton(string text, bool primary)
+        private static Button CreateButton(string text, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = primary ? FacmDesignSystem.Accent : FacmDesignSystem.SurfaceRaised,
-                ForeColor = primary ? Color.White : FacmDesignSystem.Text,
+                Tone = tone,
                 Cursor = Cursors.Hand,
-                TabStop = false
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = primary ? FacmDesignSystem.AccentSecondary : FacmDesignSystem.Border;
-            return button;
         }
 
         private bool HasValidDirectory()
