@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.28
-- GitHub Release：v3.5.28
+- 版本：FACM 3.5.29
+- GitHub Release：v3.5.29
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：dbf61e5e8f44beaf06df3904d1d76bd865fe3ee5
-- 发布元数据提交：f6e672b7d5d9d8539b6dc86057f955e7f57032b8
-- Release FACM.exe SHA-256：D1DC6E07AD885729D9207B877BDDF82D0E6C7E135309E14744677911099DB8C6
-- release_notes：FACM 3.5.28：根据 3.5.27 Windows 真机截图完成 UI 收尾。海斗攻略查询区改为自适应布局，右侧查询/取消/保存/复制操作不再因 LOL 工作台可用宽度变窄而被截断；攻略预览在出现纵向滚动条前预留宽度并按可用区域等比缩放，消除正常窗口下不必要的横向滚动。共享产品边框进一步从历史主题的高饱和描边收敛到克制的 surface 语义，让强调色主要用于选中、操作和状态。清理与修复页移除操作区卡片套卡片的一层外框，驱动修复/环境清理改用共享键盘可达操作按钮，并补充 DPI 缩放支持。继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe；Mayhem 攻略图 renderer、League/OP.GG/LCU 数据链、Gameflow、自动化、清理目标与修复执行逻辑均未改动。
+- 发布基础 main：e94dbb7149d94a61dd7e06bf4f43221127097af0
+- 发布元数据提交：b02c8fcedbf7d670bc0fff0be356f0e5a1eebb26
+- Release FACM.exe SHA-256：2CB51D24B6D565B299EAE78FF0FDFEB22A7F798AB218FB073BDDADD3970C8D53
+- release_notes：FACM 3.5.29：根据 3.5.28 Windows 真机截图修复 LOL 工作台“游戏修复”页面布局。页面标题下方说明区增加明确的 DPI 安全空间，不再被“客户端窗口”操作卡片遮挡；底部状态区从占满剩余高度的大空卡片收敛为紧凑状态条，其余空间保持普通画布；五个游戏修复操作统一使用 FACM 共享键盘可达操作按钮，并补充确定性布局回归保护。继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe；LeagueGameRepairService、LCU 路由、Gameflow、结算处理、窗口修复规划、进程结束及其它 League 业务行为均未改动。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
