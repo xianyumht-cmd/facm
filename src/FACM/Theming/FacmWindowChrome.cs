@@ -89,6 +89,15 @@ namespace FACM.Theming
             return form != null && States.ContainsKey(form);
         }
 
+        internal static bool TryGetLayoutForSmokeTest(Form form, out Rectangle titleBounds, out Rectangle contentBounds)
+        {
+            titleBounds = Rectangle.Empty;
+            contentBounds = Rectangle.Empty;
+            ChromeState state;
+            return form != null && States.TryGetValue(form, out state) &&
+                   state.TryGetLayoutForSmokeTest(out titleBounds, out contentBounds);
+        }
+
         public static void EnableOutsideClose(Form form, bool closeOnEscape = true)
         {
             if (form == null || form.IsDisposed) return;
@@ -180,6 +189,7 @@ namespace FACM.Theming
             private FacmChromeButton _maximizeButton;
             private BorderlessResizeWindow _resizeWindow;
             private string _subtitle = string.Empty;
+            private int _titleHeight;
             private bool _attached;
 
             public ChromeState(Form form, FacmWindowChromeOptions options)
@@ -256,17 +266,24 @@ namespace FACM.Theming
                 States.Remove(_form);
             }
 
+            public bool TryGetLayoutForSmokeTest(out Rectangle titleBounds, out Rectangle contentBounds)
+            {
+                titleBounds = _titleBar == null || _titleBar.IsDisposed ? Rectangle.Empty : _titleBar.Bounds;
+                contentBounds = _content == null || _content.IsDisposed ? Rectangle.Empty : _content.Bounds;
+                return _attached && !titleBounds.IsEmpty && !contentBounds.IsEmpty;
+            }
+
             private void Attach()
             {
                 _attached = true;
-                var titleHeight = Math.Max(34, _options.TitleBarHeight);
+                _titleHeight = Math.Max(34, _options.TitleBarHeight);
                 var controls = new Control[_form.Controls.Count];
                 for (var index = 0; index < controls.Length; index++)
                     controls[index] = _form.Controls[index];
 
                 _content = new Panel
                 {
-                    Dock = DockStyle.Fill,
+                    Dock = DockStyle.None,
                     Padding = _originalPadding,
                     BackColor = FacmDesignSystem.Canvas
                 };
@@ -288,16 +305,16 @@ namespace FACM.Theming
                     _form.MaximizeBox = false;
                     _form.Padding = new Padding(1);
                     _form.BackColor = FacmDesignSystem.BorderSoft;
-                    _form.ClientSize = new Size(_originalClientSize.Width, _originalClientSize.Height + titleHeight);
+                    _form.ClientSize = new Size(_originalClientSize.Width, _originalClientSize.Height + _titleHeight);
                     if (!_originalMinimumSize.IsEmpty)
-                        _form.MinimumSize = new Size(_originalMinimumSize.Width, _originalMinimumSize.Height + titleHeight);
+                        _form.MinimumSize = new Size(_originalMinimumSize.Width, _originalMinimumSize.Height + _titleHeight);
                     if (!_originalMaximumSize.IsEmpty)
-                        _form.MaximumSize = new Size(_originalMaximumSize.Width, _originalMaximumSize.Height + titleHeight);
+                        _form.MaximumSize = new Size(_originalMaximumSize.Width, _originalMaximumSize.Height + _titleHeight);
 
-                    _titleBar = BuildTitleBar(titleHeight);
+                    _titleBar = BuildTitleBar(_titleHeight);
                     _form.Controls.Add(_content);
                     _form.Controls.Add(_titleBar);
-                    _form.Controls.SetChildIndex(_titleBar, 0);
+                    LayoutChrome();
                 }
                 finally
                 {
@@ -320,12 +337,32 @@ namespace FACM.Theming
                 UpdateRegion();
             }
 
+            private void LayoutChrome()
+            {
+                if (!_attached || _form.IsDisposed || _titleBar == null || _titleBar.IsDisposed || _content == null || _content.IsDisposed)
+                    return;
+
+                var left = _form.Padding.Left;
+                var top = _form.Padding.Top;
+                var width = Math.Max(0, _form.ClientSize.Width - _form.Padding.Horizontal);
+                var height = Math.Max(0, _form.ClientSize.Height - _form.Padding.Vertical);
+                var titleHeight = Math.Min(_titleHeight, height);
+
+                // Do not rely on sibling Dock/Z-order here. WinForms can let Dock.Fill consume the
+                // whole client rectangle before the top-docked title bar is processed, which paints
+                // page navigation underneath the chrome. Explicit non-overlapping bounds make the
+                // title band and page content mutually exclusive at every resize/DPI layout pass.
+                _titleBar.SetBounds(left, top, width, titleHeight);
+                _content.SetBounds(left, top + titleHeight, width, Math.Max(0, height - titleHeight));
+                _titleBar.BringToFront();
+            }
+
             private Panel BuildTitleBar(int height)
             {
                 var bar = new Panel
                 {
-                    Dock = DockStyle.Top,
-                    Height = height,
+                    Dock = DockStyle.None,
+                    Size = new Size(Math.Max(1, _form.ClientSize.Width - _form.Padding.Horizontal), height),
                     BackColor = FacmDesignSystem.CanvasRaised,
                     Padding = Padding.Empty
                 };
@@ -377,7 +414,7 @@ namespace FACM.Theming
                 {
                     var close = CreateChromeButton("×", ChromeButtonKind.Close);
                     close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    close.Location = new Point(Math.Max(0, _form.ClientSize.Width - right - close.Width), 5);
+                    close.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - close.Width), 5);
                     close.Click += delegate { _form.Close(); };
                     bar.Controls.Add(close);
                     right += close.Width + 4;
@@ -387,7 +424,7 @@ namespace FACM.Theming
                 {
                     _maximizeButton = CreateChromeButton("□", ChromeButtonKind.Normal);
                     _maximizeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    _maximizeButton.Location = new Point(Math.Max(0, _form.ClientSize.Width - right - _maximizeButton.Width), 5);
+                    _maximizeButton.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - _maximizeButton.Width), 5);
                     _maximizeButton.Click += delegate { ToggleMaximize(null, EventArgs.Empty); };
                     bar.Controls.Add(_maximizeButton);
                     right += _maximizeButton.Width + 4;
@@ -397,7 +434,7 @@ namespace FACM.Theming
                 {
                     var minimize = CreateChromeButton("─", ChromeButtonKind.Normal);
                     minimize.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-                    minimize.Location = new Point(Math.Max(0, _form.ClientSize.Width - right - minimize.Width), 5);
+                    minimize.Location = new Point(Math.Max(0, bar.ClientSize.Width - right - minimize.Width), 5);
                     minimize.Click += delegate { _form.WindowState = FormWindowState.Minimized; };
                     bar.Controls.Add(minimize);
                     right += minimize.Width + 4;
@@ -414,7 +451,8 @@ namespace FACM.Theming
             {
                 if (!_attached || _titleLabel == null || _titleLabel.IsDisposed || _subtitleLabel == null || _subtitleLabel.IsDisposed) return;
                 var right = _titleLabel.Tag is int ? (int)_titleLabel.Tag : 8;
-                var available = Math.Max(80, _form.ClientSize.Width - 54 - right);
+                var chromeWidth = _titleBar == null || _titleBar.IsDisposed ? _form.ClientSize.Width : _titleBar.ClientSize.Width;
+                var available = Math.Max(80, chromeWidth - 54 - right);
                 var hasSubtitle = !string.IsNullOrWhiteSpace(_subtitle);
                 _subtitleLabel.Text = _subtitle;
                 _subtitleLabel.Visible = hasSubtitle;
@@ -474,6 +512,7 @@ namespace FACM.Theming
             {
                 if (_maximizeButton != null && !_maximizeButton.IsDisposed)
                     _maximizeButton.Text = _form.WindowState == FormWindowState.Maximized ? "❐" : "□";
+                LayoutChrome();
                 UpdateTitleLayout();
                 UpdateRegion();
             }
