@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -17,8 +18,8 @@ namespace FACM.League
         private readonly Label _statsSection;
         private readonly ListView _championStatsList;
         private readonly ListView _matchesList;
-        private readonly Button _refreshButton;
-        private readonly Button _loadMoreButton;
+        private readonly FacmActionButton _refreshButton;
+        private readonly FacmActionButton _loadMoreButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
         private LeaguePlayerProfile _profile;
@@ -36,91 +37,55 @@ namespace FACM.League
             ClientSize = new Size(860, 720);
             MinimumSize = new Size(760, 620);
             MaximizeBox = true;
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePlayerTitle),
                 Location = new Point(28, 20),
-                Size = new Size(300, 36),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+                Size = new Size(300, 34),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePlayerHint),
-                Location = new Point(30, 60),
+                Location = new Point(30, 58),
                 Size = new Size(760, 24),
-                ForeColor = Color.FromArgb(146, 161, 188)
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent
             };
             _accountLabel = new Label
             {
-                Location = new Point(30, 96),
+                Location = new Point(30, 94),
                 Size = new Size(760, 32),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 13F, FontStyle.Bold),
                 AutoEllipsis = true
             };
             _statusLabel = new Label
             {
-                Location = new Point(30, 132),
+                Location = new Point(30, 128),
                 Size = new Size(760, 22),
-                ForeColor = Color.FromArgb(139, 157, 190)
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent
             };
 
-            _statsSection = new Label
-            {
-                Text = FormatChampionStatsTitle(0),
-                Location = new Point(30, 166),
-                Size = new Size(500, 25),
-                ForeColor = Color.FromArgb(190, 205, 231),
-                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
-            };
-            _championStatsList = new ListView
-            {
-                Location = new Point(28, 194),
-                Size = new Size(804, 112),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(18, 25, 39),
-                ForeColor = Color.FromArgb(226, 234, 247),
-                BorderStyle = BorderStyle.FixedSingle,
-                FullRowSelect = true,
-                GridLines = false,
-                HeaderStyle = ColumnHeaderStyle.Nonclickable,
-                HideSelection = true,
-                View = View.Details
-            };
+            _statsSection = CreateSectionLabel(FormatChampionStatsTitle(0), new Point(30, 164), 500);
+            _championStatsList = CreateListView(new Rectangle(28, 194, 804, 112), false);
+            _championStatsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _championStatsList.Columns.Add(ChampionHeaderText(), 300);
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 160);
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 250);
 
-            var section = new Label
-            {
-                Text = _ui.Get(UiTextKeys.LeaguePlayerRecentMatches),
-                Location = new Point(30, 320),
-                Size = new Size(300, 25),
-                ForeColor = Color.FromArgb(190, 205, 231),
-                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
-            };
+            var section = CreateSectionLabel(_ui.Get(UiTextKeys.LeaguePlayerRecentMatches), new Point(30, 320), 300);
 
-            _matchesList = new ListView
-            {
-                Location = new Point(28, 352),
-                Size = new Size(804, 302),
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(22, 29, 44),
-                ForeColor = Color.FromArgb(238, 243, 252),
-                BorderStyle = BorderStyle.FixedSingle,
-                FullRowSelect = true,
-                GridLines = false,
-                HeaderStyle = ColumnHeaderStyle.Nonclickable,
-                HideSelection = true,
-                View = View.Details,
-                VirtualMode = true,
-                VirtualListSize = 0
-            };
+            _matchesList = CreateListView(new Rectangle(28, 352, 804, 302), true);
+            _matchesList.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerTime), 122);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerMode), 140);
             _matchesList.Columns.Add(ChampionHeaderText(), 122);
@@ -130,17 +95,17 @@ namespace FACM.League
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerDuration), 76);
             _matchesList.RetrieveVirtualItem += RetrieveVirtualItem;
 
-            _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, Color.FromArgb(55, 104, 214));
+            _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(542, 672);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAllAsync(true); };
 
-            _loadMoreButton = CreateButton(UiTextKeys.LeaguePlayerLoadMore, Color.FromArgb(35, 43, 60));
+            _loadMoreButton = CreateButton(UiTextKeys.LeaguePlayerLoadMore, FacmButtonTone.Secondary);
             _loadMoreButton.Location = new Point(640, 672);
             _loadMoreButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _loadMoreButton.Click += async delegate { await LoadMoreAsync(); };
 
-            var close = CreateButton(UiTextKeys.Close, Color.FromArgb(35, 43, 60));
+            var close = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
             close.Location = new Point(738, 672);
             close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             close.Click += delegate { Close(); };
@@ -166,19 +131,46 @@ namespace FACM.League
             };
         }
 
-        private Button CreateButton(string key, Color background)
+        private static Label CreateSectionLabel(string text, Point location, int width)
         {
-            var button = new Button
+            return new Label
+            {
+                Text = text,
+                Location = location,
+                Size = new Size(width, 25),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
+            };
+        }
+
+        private static ListView CreateListView(Rectangle bounds, bool virtualMode)
+        {
+            return new ListView
+            {
+                Bounds = bounds,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.None,
+                FullRowSelect = true,
+                GridLines = false,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable,
+                HideSelection = false,
+                View = View.Details,
+                VirtualMode = virtualMode,
+                VirtualListSize = 0
+            };
+        }
+
+        private FacmActionButton CreateButton(string key, FacmButtonTone tone)
+        {
+            return new FacmActionButton
             {
                 Text = _ui.Get(key),
                 Size = new Size(92, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Tone = tone,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            return button;
         }
 
         private void ApplyCached()
@@ -358,8 +350,8 @@ namespace FACM.League
                 : unknown;
             var item = new ListViewItem(new[] { time, mode, champion, kda, cs, result, duration });
             item.ForeColor = match.ParticipantResolved
-                ? (match.Win ? Color.FromArgb(103, 218, 166) : Color.FromArgb(244, 145, 145))
-                : Color.FromArgb(180, 190, 207);
+                ? (match.Win ? FacmDesignSystem.Success : FacmDesignSystem.Error)
+                : FacmDesignSystem.TextMuted;
             e.Item = item;
         }
 
