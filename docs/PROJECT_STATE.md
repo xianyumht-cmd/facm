@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.25
-- GitHub Release：v3.5.25
+- 版本：FACM 3.5.26
+- GitHub Release：v3.5.26
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：cc7489e16a5df80254f96e721461be17c8155edd
-- 发布元数据提交：58640aebe07d66113cb1151db5b841b8f0cca219
-- Release FACM.exe SHA-256：A5A86EA731DB37BFB22BF2B9F2C5AA611C38F18153672B9703CB5B0E7660043F
-- release_notes：FACM 3.5.25：将共享 WinForms 窗口外壳调整为视觉无标题栏的一体化无边框模式。顶部仅保留紧凑的品牌、拖动区和最小化/最大化/关闭能力，并与页面内容使用同一背景，不再呈现独立标题栏层。LOL 工作台同时移除顶部二级说明文字及悬停时动态切换的副标题，只保留必要的窗口名称与页面内导航。继续保留 3.5.23 的标题区/内容区显式不重叠布局和 3.5.24 的自绘开关完整重绘修复，并新增一体化顶部区域背景与 34-38px 高度回归测试。
+- 发布基础 main：0c6ba1378a94eb099262efdb199550d79f09b5d9
+- 发布元数据提交：829e8634dc4aca6f115d48c166107115a5207afe
+- Release FACM.exe SHA-256：E150CDECC5C09295C42CE23A91A86BA7F7589AF6FAC8DFA9A2B8D872F169B852
+- release_notes：FACM 3.5.26：启动第一轮整体换皮，继续保持 .NET Framework 4.8 + WinForms + 单 EXE 的 3.5.x lightweight 路线。共享设计系统改为更克制的现代 Windows 桌面风格：压低卡片/按钮圆角，弱化蓝紫强调色对 hover 和边框的污染，移除旧玻璃卡片中的渐变、高光和装饰性双色光斑；LOL 工作台左侧导航改为更轻的选中/悬停层级，顶部子导航从大胶囊按钮调整为紧凑标签式选中下划线。右上角最小化/最大化/关闭按钮从通用 Button 主题中隔离，并在每次 owner-draw 前完整清理自身像素，修复圆角业务按钮样式污染、图标叠画和旧像素残留。继续保留 3.5.23 的标题区/内容区显式不重叠几何、3.5.24 的开关完整重绘，以及 3.5.25 的 36px 一体化无标题栏交互区域。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
