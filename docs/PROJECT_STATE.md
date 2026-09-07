@@ -14,13 +14,13 @@
 
 # FACM Project State
 
-更新时间：2026-09-07
+更新时间：2026-09-08
 
 ## 当前产品线
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版是 **3.5.27**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
+当前在线正式版是 **3.5.28**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
 ## 当前已交付行为
 
@@ -53,7 +53,16 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - PR #258：Mayhem Lookup 外壳、输入框、状态和四个操作按钮迁移到共享设计系统；Search 是唯一 primary action。**MayhemCardRenderer 保持领域专用攻略图视觉与信息密度，不做模板式“统一”。** Windows Build、UI Text Contract 和 Mayhem Source Probe 均通过后合并。
 - PR #259：请求并发布正式 FACM 3.5.27；发布链完成签名、公开字节校验、manifest 启用与项目 release-state 更新。
 
-历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259。
+## 3.5.28 Windows 真机 UI 收尾
+
+3.5.28 只处理 3.5.27 真机截图暴露出的具体问题，不再开启新一轮大换皮：
+
+- PR #261：Mayhem Lookup 新增共享响应式几何策略，查询/取消/保存/复制从实际 client width 反向分配，920px 正常窗口和更窄的 Hub 嵌入区域都不再截断；攻略预览提前预留垂直滚动条宽度并只建立纵向滚动范围，避免正常窗口出现横向滚动。共享 smoke 固化 1120/920/700px 几何边界，Windows Build #1628、UI Text Contract #736、Mayhem Source Probe #477 全绿后合并。
+- PR #261：共享 `Border` / `BorderSoft` 从历史主题的高饱和原始 border 向 material surface 收敛，使强调色重新集中到选中、动作和状态；不删除任何历史 ThemeCatalog id。
+- PR #261：清理与修复页去掉动作区的一层外卡片，驱动修复/环境清理改用 `FacmActionButton` Secondary 语义并恢复 Tab 可达性，同时补充 DPI autoscale；清理目标、提权、进程检查、驱动工具和执行逻辑不变。
+- PR #262：请求并发布正式 FACM 3.5.28；发布工作流完成 Release build/smoke、Authenticode 签名、公开字节与签名者复验，并在公开验证通过后启用在线更新。
+
+历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259；3.5.28 真机 UI 收尾 #261–#262。
 
 ## 当前产品体验方向
 
@@ -69,9 +78,9 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 ### 已确认但尚未收口的 UI 技术债
 
 - 正常可见 Compact Launcher 已由 `DesktopLauncherEnhancer` 覆盖为共享 flat 视觉；`CompactMenuForm` 内部仍保留 `ThemedPanel` / `ThemedButton`、主题渐变和 Style-specific 装饰作为 fallback/legacy 实现。只有确认 fallback 仍真实可达或存在维护价值时才继续收敛，不为了删代码冒行为回归风险。
-- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 应继续只消费 semantic tokens/受控 geometry，不把历史 Style 的装饰规则重新带回高频页面。
+- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 只消费 semantic tokens/受控 geometry；3.5.28 已进一步压低共享 border 的高饱和主题泄漏。
 - Dashboard、Player、Live、Recommendation、Presence、Mayhem Lookup 等高频表面已经完成主要视觉收口；较早的 standalone `LeagueBuildAdvisorForm` / `LeagueBuildApplyForm` / `LeagueItemSetForm` 等仍可见 page-local RGB/native styling。后续先确认这些旧入口的真实可达性和用户价值，再决定是否迁移，不以“零 Color.FromArgb”为目标。
-- LOL Hub 的自适应 geometry 已在 #254 引入；后续布局工作应以真实 DPI/缩放/窄窗口问题为证据，不再把旧固定 130/232/100px 数值当作当前 contract。
+- LOL Hub 的自适应 geometry 已在 #254 引入，Mayhem 嵌入页的剩余宽度/滚动问题已在 #261 收口；后续布局工作只以新的真机 DPI/缩放/窄窗口问题为证据。
 
 ## 当前保留组件
 
@@ -90,13 +99,13 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 
 ## 当前发布状态
 
-- `online/version.json`：**3.5.27**，enabled=true，minimum_version=3.0.0，force_update=false。
-- GitHub Release：`v3.5.27`，非 draft、非 prerelease，Release id `384161604`。
-- Release `FACM.exe`：**1,887,640 bytes**。
-- Release `FACM.exe` SHA-256：`3AD38E8D76CEEBB23A3F75ED4C39F3D09466F60A4484EA3E16EF6CB19B7CAF28`。
-- 发布请求合并 / frozen base：`9f5e92d8ca35edecb1a5bf39bf94b55dfba0bf17`。
-- Release target / 发布元数据提交：`102689cc5c679e4ef6342e7fa075b09a3b7cb894`。
-- 在线更新启用提交：`e11d39e1273473256f9281a2939ba2b7d7b5d588`。
+- `online/version.json`：**3.5.28**，enabled=true，minimum_version=3.0.0，force_update=false。
+- GitHub Release：`v3.5.28`，非 draft、非 prerelease，Release id `384240270`。
+- Release `FACM.exe`：**1,891,736 bytes**。
+- Release `FACM.exe` SHA-256：`D1DC6E07AD885729D9207B877BDDF82D0E6C7E135309E14744677911099DB8C6`。
+- 发布请求合并 / frozen base：`dbf61e5e8f44beaf06df3904d1d76bd865fe3ee5`。
+- Release target / 发布元数据提交：`f6e672b7d5d9d8539b6dc86057f955e7f57032b8`。
+- 在线更新启用提交：`f0ad628c71294f4f62dd7d2d1214d07b7264615f`。
 
 ## 当前维护 Gate
 
@@ -116,5 +125,6 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 12. `FacmNavButton` / `FacmPillButton` 必须保持 native `Button` + `TabStop=true` 的键盘可达 contract。
 13. 默认 Compact Launcher 的可见增强路径应覆盖 legacy 渐变/双强调背景并使用共享 Canvas/WindowRadius；legacy fallback rendering 不能重新成为默认可见 surface。
 14. 领域专用 UI（例如 MayhemCardRenderer）应优先保留其信息密度与功能语义；共享设计系统主要约束窗口壳、导航、状态和通用控件，不强行抹平领域视觉。
+15. Mayhem Lookup 的 toolbar 必须保持在 client bounds 内，攻略预览应预留纵向滚动条宽度并避免正常窗口产生横向滚动；1120/920/700px 几何由 deterministic smoke 保护。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
