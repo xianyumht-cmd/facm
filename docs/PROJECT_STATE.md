@@ -44,8 +44,9 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 
 - PR #251：`FacmNavButton` / `FacmPillButton` 恢复键盘 Tab 可达性并显示 focus cue；smoke test 固化该 contract。League Dashboard 移除六张等权矩阵卡片，改为“连接 + Gameflow”主状态区和账号/平台/性能/更新时间元数据列表；按钮与状态色改用共享 semantic primitives。Windows Build #1604 与 UI Text Contract #712 均通过后合并。
 - PR #252：League Player 战绩页移除 page-local 深色 RGB palette 和私有按钮样式，改用 `FacmDesignSystem`、`FacmActionButton`、共享 success/error/muted tones；英雄统计与最近战绩保持高密度、虚拟化、无额外卡片堆叠，不改变分页、缓存、网络和取消语义。
+- PR #253：正常控制中心仍由 `DesktopLauncherEnhancer` 接管，但此前能看到 `CompactMenuForm` 的旧玻璃渐变、双色强调和大圆角。增强器现在在正常 launcher path 上铺共享 `Canvas`、把 header 收敛到共享文字/强调色、隐藏 legacy 管理员 pill、把窗口 Region 钳制到共享 `WindowRadius`，并将 context/tile focus/icon 装饰从双 accent 收敛到单 accent；路由、Gameflow owner 和 legacy fallback action 不变。
 
-P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性：#243；UI Round 1：#244；UI Round 2：#245；3.5.23 顶部布局修复：#246；3.5.24 Toggle 重绘修复：#247；3.5.25 一体化无边框外壳：#248；3.5.26 UI Reskin Pass 1：#249；Agent knowledge consistency：#250；UI Design System Pass 2：#251；League Player shared-design convergence：#252。
+P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性：#243；UI Round 1：#244；UI Round 2：#245；3.5.23 顶部布局修复：#246；3.5.24 Toggle 重绘修复：#247；3.5.25 一体化无边框外壳：#248；3.5.26 UI Reskin Pass 1：#249；Agent knowledge consistency：#250；UI Design System Pass 2：#251；League Player shared-design convergence：#252；Compact Launcher flattening：#253。
 
 ## 当前产品体验方向
 
@@ -60,8 +61,8 @@ P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性�
 
 ### 已确认但尚未收口的 UI 技术债
 
-- `CompactMenuForm` 仍保留自己的 `ThemedPanel` / `ThemedButton`、主题渐变与 Style-specific 装饰绘制。实际默认控制中心会由 `DesktopLauncherEnhancer` 隐藏大部分 legacy body 并注入使用 `FacmDesignSystem` 的四个 launcher tile / context card，因此可见入口并非完全旧 UI；但窗口背景、header、fallback body 仍需要继续扁平化和共享化。
-- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史视觉风格；共享设计系统会钳制公共组件几何，但 legacy CompactMenu rendering 仍可能直接消费较夸张的原始 radius/双色 palette。
+- 正常可见 Compact Launcher 已由 `DesktopLauncherEnhancer` 覆盖为共享 flat canvas/header/tile/context 视觉；`CompactMenuForm` 内部仍保留 `ThemedPanel` / `ThemedButton`、主题渐变和 Style-specific 装饰作为 fallback/legacy 实现。后续只有在 fallback 路径仍真实可达或需要维护时才继续收敛，不为了删代码冒行为回归风险。
+- `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 应继续只消费 semantic tokens/受控 geometry，不把这些历史 Style 的装饰规则重新带回高频页面。
 - Dashboard 和 Player 已脱离主要 page-local palette；其余较早 League Form 仍需逐项审计是否存在私有 RGB、固定布局和通用 Button 样式。优先迁移真实用户高频页，不为了“零 Color.FromArgb”做无收益大改。
 - `LeagueHubForm` 的 130px sidebar、232px context dock、100x29 subnav 等仍以固定 WinForms 几何为主；当前 responsive contract 主要是小窗口隐藏 context dock。后续布局 pass 应优先解决真实缩放/DPI/空间分配问题，而不是迁移 UI 框架。
 
@@ -105,5 +106,6 @@ P1 合并 PR：#241；4.x working-tree cleanup：#242；3.5.21 更新一致性�
 10. 共享无边框顶部交互区和内容区必须保持显式不重叠；默认顶部视觉应与内容画布一致，不重新引入副标题层。
 11. 新增或实质重做的 UI 不得再创建 page-local 主题体系；优先使用 `FacmDesignSystem`、共享 primitives 和明确的布局/可访问性 contract。
 12. `FacmNavButton` / `FacmPillButton` 必须保持 native `Button` + `TabStop=true` 的键盘可达 contract。
+13. 默认 Compact Launcher 的可见增强路径应覆盖 legacy 渐变/双强调背景并使用共享 Canvas/WindowRadius；legacy fallback rendering 不能重新成为默认可见 surface。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
