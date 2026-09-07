@@ -15,7 +15,8 @@ namespace FACM.League
     /// </summary>
     internal static class LeagueRecommendationDesignEnhancer
     {
-        private const string HeaderAccentOverlayName = "FACM.Recommendation.HeaderAccent";
+        private const string HeaderAccentOverlayName = "FACM.Recommendation.HeaderAccentOverlay";
+        private const string HeaderAccentLineName = "FACM.Recommendation.HeaderAccentLine";
 
         private static readonly string[] RequiredFieldNames =
         {
@@ -144,12 +145,22 @@ namespace FACM.League
                 {
                     Name = HeaderAccentOverlayName,
                     Dock = DockStyle.Bottom,
+                    Height = 4,
+                    TabStop = false
+                };
+                var accentLine = new Panel
+                {
+                    Name = HeaderAccentLineName,
+                    Dock = DockStyle.Bottom,
                     Height = 2,
                     TabStop = false
                 };
+                overlay.Controls.Add(accentLine);
                 header.Controls.Add(overlay);
             }
-            overlay.BackColor = FacmDesignSystem.Accent;
+            overlay.BackColor = FacmDesignSystem.CanvasRaised;
+            var line = overlay.Controls.Find(HeaderAccentLineName, false).FirstOrDefault() as Panel;
+            if (line != null) line.BackColor = FacmDesignSystem.Accent;
             overlay.BringToFront();
         }
 
