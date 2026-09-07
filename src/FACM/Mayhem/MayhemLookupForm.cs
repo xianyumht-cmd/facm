@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.League;
+using FACM.Theming;
 
 namespace FACM.Mayhem
 {
@@ -31,50 +32,53 @@ namespace FACM.Mayhem
         public MayhemLookupForm(ILeagueClientApi leagueClient)
         {
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             Text = MayhemUiCopy.WindowTitle;
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(920, 700);
             ClientSize = new Size(1120, 820);
-            BackColor = Color.FromArgb(10, 15, 25);
-            ForeColor = Color.FromArgb(240, 245, 255);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
                 Text = MayhemUiCopy.WindowTitle,
                 Location = new Point(24, 16),
                 AutoSize = true,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold),
-                ForeColor = Color.White
+                Font = new Font(FacmThemeRuntime.Current.FontName, 18F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text
             };
             var hint = new Label
             {
                 Text = MayhemUiCopy.PageHint,
                 Location = new Point(26, 54),
                 Size = new Size(980, 24),
-                ForeColor = Color.FromArgb(150, 166, 196)
+                ForeColor = FacmDesignSystem.TextMuted
             };
 
             _query = new TextBox
             {
                 Location = new Point(24, 90),
                 Size = new Size(510, 36),
-                Font = new Font("Microsoft YaHei UI", 11F),
-                BackColor = Color.FromArgb(28, 37, 56),
-                ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                Font = new Font(FacmThemeRuntime.Current.FontName, 11F),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                TabStop = true
             };
             _query.KeyDown += QueryKeyDown;
 
-            _search = CreateButton(MayhemUiCopy.Search, new Rectangle(546, 88, 100, 40), Color.FromArgb(69, 112, 255));
+            _search = CreateButton(MayhemUiCopy.Search, new Rectangle(546, 88, 100, 40), FacmButtonTone.Primary);
             _search.Click += async delegate { await SearchAsync(); };
-            _cancel = CreateButton(MayhemUiCopy.Cancel, new Rectangle(656, 88, 92, 40), Color.FromArgb(53, 62, 82));
+            _cancel = CreateButton(MayhemUiCopy.Cancel, new Rectangle(656, 88, 92, 40), FacmButtonTone.Secondary);
             _cancel.Enabled = false;
             _cancel.Click += delegate { CancelCurrentQuery(); };
-            _saveImage = CreateButton(MayhemUiCopy.SaveImage, new Rectangle(778, 88, 108, 40), Color.FromArgb(43, 126, 102));
+            _saveImage = CreateButton(MayhemUiCopy.SaveImage, new Rectangle(778, 88, 108, 40), FacmButtonTone.Secondary);
             _saveImage.Enabled = false;
             _saveImage.Click += SaveImage;
-            _copyImage = CreateButton(MayhemUiCopy.CopyImage, new Rectangle(896, 88, 108, 40), Color.FromArgb(73, 83, 112));
+            _copyImage = CreateButton(MayhemUiCopy.CopyImage, new Rectangle(896, 88, 108, 40), FacmButtonTone.Secondary);
             _copyImage.Enabled = false;
             _copyImage.Click += CopyImage;
 
@@ -93,8 +97,8 @@ namespace FACM.Mayhem
                 Text = _stageText,
                 Location = new Point(24, 151),
                 Size = new Size(1080, 26),
-                ForeColor = Color.FromArgb(99, 205, 166),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Success,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
@@ -104,14 +108,14 @@ namespace FACM.Mayhem
                 Size = new Size(1080, 612),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 AutoScroll = true,
-                BackColor = Color.FromArgb(15, 22, 35),
+                BackColor = FacmDesignSystem.CanvasRaised,
                 BorderStyle = BorderStyle.FixedSingle
             };
             _resultImage = new PictureBox
             {
                 Location = new Point(12, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(15, 22, 35)
+                BackColor = FacmDesignSystem.CanvasRaised
             };
             _imageHost.Controls.Add(_resultImage);
             _imageHost.Resize += delegate { ResizePreview(); };
@@ -174,7 +178,7 @@ namespace FACM.Mayhem
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
                     _stageText = CleanErrorText(result.ErrorMessage);
-                    _status.ForeColor = Color.FromArgb(255, 155, 120);
+                    _status.ForeColor = FacmDesignSystem.Error;
                     UpdateStatusText(false);
                     return;
                 }
@@ -201,7 +205,7 @@ namespace FACM.Mayhem
                 _saveImage.Enabled = true;
                 _copyImage.Enabled = true;
                 _stageText = MayhemUiCopy.Completed + " · " + DescribeAugmentSource(result);
-                _status.ForeColor = Color.FromArgb(99, 205, 166);
+                _status.ForeColor = FacmDesignSystem.Success;
                 UpdateStatusText(false);
             }
             catch (OperationCanceledException)
@@ -210,7 +214,7 @@ namespace FACM.Mayhem
                 {
                     var elapsed = DateTime.UtcNow - _queryStartedAt;
                     _stageText = elapsed.TotalSeconds >= 12.5 ? MayhemUiCopy.Timeout : MayhemUiCopy.QueryCanceled;
-                    _status.ForeColor = elapsed.TotalSeconds >= 12.5 ? Color.FromArgb(255, 155, 120) : Color.FromArgb(170, 180, 200);
+                    _status.ForeColor = elapsed.TotalSeconds >= 12.5 ? FacmDesignSystem.Error : FacmDesignSystem.TextMuted;
                     UpdateStatusText(false);
                 }
             }
@@ -220,7 +224,7 @@ namespace FACM.Mayhem
                 if (!IsDisposed)
                 {
                     _stageText = MayhemUiCopy.Failed;
-                    _status.ForeColor = Color.FromArgb(255, 155, 120);
+                    _status.ForeColor = FacmDesignSystem.Error;
                     UpdateStatusText(false);
                 }
             }
@@ -267,7 +271,7 @@ namespace FACM.Mayhem
                 {
                     _resultImage.Image.Save(dialog.FileName, ImageFormat.Png);
                     _stageText = MayhemUiCopy.Saved;
-                    _status.ForeColor = Color.FromArgb(99, 205, 166);
+                    _status.ForeColor = FacmDesignSystem.Success;
                     UpdateStatusText(false);
                 }
                 catch (Exception exception)
@@ -285,7 +289,7 @@ namespace FACM.Mayhem
             {
                 using (var clone = new Bitmap(_resultImage.Image)) Clipboard.SetImage(clone);
                 _stageText = MayhemUiCopy.Copied;
-                _status.ForeColor = Color.FromArgb(99, 205, 166);
+                _status.ForeColor = FacmDesignSystem.Success;
                 UpdateStatusText(false);
             }
             catch (Exception exception)
@@ -357,7 +361,7 @@ namespace FACM.Mayhem
             if (!busy) _progress.Value = 0;
             if (busy)
             {
-                _status.ForeColor = Color.FromArgb(112, 165, 255);
+                _status.ForeColor = FacmDesignSystem.Accent;
                 _elapsedTimer.Start();
             }
             else
@@ -404,21 +408,17 @@ namespace FACM.Mayhem
             if (!_busy) _ = SearchAsync();
         }
 
-        private static Button CreateButton(string text, Rectangle bounds, Color background)
+        private static Button CreateButton(string text, Rectangle bounds, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
                 Location = bounds.Location,
                 Size = bounds.Size,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold)
+                Tone = tone,
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(100, 128, 174);
-            return button;
         }
 
         private static Bitmap CreateEmptyCard()
