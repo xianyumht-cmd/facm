@@ -108,7 +108,7 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.SurfaceRaised,
                 ForeColor = FacmDesignSystem.Text,
                 Cursor = Cursors.Hand,
-                TabStop = false
+                TabStop = true
             };
             button.FlatAppearance.BorderColor = FacmDesignSystem.Border;
             button.Click += async delegate
