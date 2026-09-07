@@ -34,7 +34,40 @@ namespace FACM.Theming
             if (FacmDesignSystem.ControlRadius < 0 || FacmDesignSystem.CardRadius < 0 || FacmDesignSystem.WindowRadius < 0)
                 throw new InvalidOperationException("FACM shared design radii must remain non-negative.");
 
+            ValidateToggleResizeRepaint();
             ValidateWindowChromeLayout();
+        }
+
+        private static void ValidateToggleResizeRepaint()
+        {
+            var background = Color.FromArgb(17, 25, 47);
+            using (var host = new Panel { BackColor = background, Size = new Size(600, 40) })
+            using (var toggle = new FacmToggleSwitch
+            {
+                Checked = true,
+                Text = string.Empty,
+                Location = Point.Empty,
+                Size = new Size(240, 32)
+            })
+            using (var bitmap = new Bitmap(600, 40))
+            {
+                host.Controls.Add(toggle);
+                var unused = toggle.Handle;
+
+                using (var graphics = Graphics.FromImage(bitmap)) graphics.Clear(background);
+                toggle.DrawToBitmap(bitmap, new Rectangle(0, 0, toggle.Width, toggle.Height));
+
+                // Probe the center of the original checked track. The first render must actually
+                // paint it, then a wider layout pass must erase that old coordinate completely.
+                var oldTrackCenter = new Point(217, 16);
+                if (bitmap.GetPixel(oldTrackCenter.X, oldTrackCenter.Y).ToArgb() == background.ToArgb())
+                    throw new InvalidOperationException("FACM toggle repaint smoke did not capture the original switch track.");
+
+                toggle.Width = 520;
+                toggle.DrawToBitmap(bitmap, new Rectangle(0, 0, toggle.Width, toggle.Height));
+                if (bitmap.GetPixel(oldTrackCenter.X, oldTrackCenter.Y).ToArgb() != background.ToArgb())
+                    throw new InvalidOperationException("FACM toggle left stale pixels at its previous track position after resize.");
+            }
         }
 
         private static void ValidateWindowChromeLayout()
