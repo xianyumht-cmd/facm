@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.26
-- GitHub Release：v3.5.26
+- 版本：FACM 3.5.27
+- GitHub Release：v3.5.27
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：0c6ba1378a94eb099262efdb199550d79f09b5d9
-- 发布元数据提交：829e8634dc4aca6f115d48c166107115a5207afe
-- Release FACM.exe SHA-256：E150CDECC5C09295C42CE23A91A86BA7F7589AF6FAC8DFA9A2B8D872F169B852
-- release_notes：FACM 3.5.26：启动第一轮整体换皮，继续保持 .NET Framework 4.8 + WinForms + 单 EXE 的 3.5.x lightweight 路线。共享设计系统改为更克制的现代 Windows 桌面风格：压低卡片/按钮圆角，弱化蓝紫强调色对 hover 和边框的污染，移除旧玻璃卡片中的渐变、高光和装饰性双色光斑；LOL 工作台左侧导航改为更轻的选中/悬停层级，顶部子导航从大胶囊按钮调整为紧凑标签式选中下划线。右上角最小化/最大化/关闭按钮从通用 Button 主题中隔离，并在每次 owner-draw 前完整清理自身像素，修复圆角业务按钮样式污染、图标叠画和旧像素残留。继续保留 3.5.23 的标题区/内容区显式不重叠几何、3.5.24 的开关完整重绘，以及 3.5.25 的 36px 一体化无标题栏交互区域。
+- 发布基础 main：9f5e92d8ca35edecb1a5bf39bf94b55dfba0bf17
+- 发布元数据提交：102689cc5c679e4ef6342e7fa075b09a3b7cb894
+- Release FACM.exe SHA-256：3AD38E8D76CEEBB23A3F75ED4C39F3D09466F60A4484EA3E16EF6CB19B7CAF28
+- release_notes：FACM 3.5.27：完成 3.5.26 之后的第二阶段整体 UI 收口，继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe 的 3.5.x lightweight 路线。LOL 工作台 Dashboard 从六张等权卡片改为主状态 + 紧凑元数据层级；Player、Live、统一推荐、在线状态与 Mayhem 查询壳层统一到 FacmDesignSystem 语义色和共享控件，减少 page-local RGB、双色强调、胶囊与卡片堆叠；正常 Compact Launcher 改为更克制的 flat canvas/header/tile 视觉；LOL Hub 增加 DPI 感知与自适应 sidebar/context/subnav 尺寸，在窄窗口优先保留主内容空间，实时对局继续保持高密度宽视图。共享侧栏/标签、推荐选择、Presence、Mayhem 与游戏修复操作恢复键盘 Tab/focus 可达性。Mayhem 攻略图 renderer、League/OP.GG/LCU 数据链、Gameflow 单 owner、自动化与写入行为均未改动。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

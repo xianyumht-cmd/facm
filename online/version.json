@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.27",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.27/FACM.exe",
   "sha256": "3AD38E8D76CEEBB23A3F75ED4C39F3D09466F60A4484EA3E16EF6CB19B7CAF28",
   "release_notes": "FACM 3.5.27：完成 3.5.26 之后的第二阶段整体 UI 收口，继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe 的 3.5.x lightweight 路线。LOL 工作台 Dashboard 从六张等权卡片改为主状态 + 紧凑元数据层级；Player、Live、统一推荐、在线状态与 Mayhem 查询壳层统一到 FacmDesignSystem 语义色和共享控件，减少 page-local RGB、双色强调、胶囊与卡片堆叠；正常 Compact Launcher 改为更克制的 flat canvas/header/tile 视觉；LOL Hub 增加 DPI 感知与自适应 sidebar/context/subnav 尺寸，在窄窗口优先保留主内容空间，实时对局继续保持高密度宽视图。共享侧栏/标签、推荐选择、Presence、Mayhem 与游戏修复操作恢复键盘 Tab/focus 可达性。Mayhem 攻略图 renderer、League/OP.GG/LCU 数据链、Gameflow 单 owner、自动化与写入行为均未改动。",
-  "published_at": "2026-09-07T14:52:35.4419141+00:00"
+  "published_at": "2026-09-07T14:52:43.2651162+00:00"
 }
