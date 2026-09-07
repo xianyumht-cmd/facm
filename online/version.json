@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.22",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.22/FACM.exe",
   "sha256": "6091A6A3F08FA7BCE01CC4901C5291A851670F3F0235222AA4EB7197404B3465",
   "release_notes": "FACM 3.5.22：完成两轮产品体验升级。统一 WinForms 设计体系，让更新中心、LOL 效率页与紧凑控制中心使用一致的按钮、开关、状态色和主题语义；悬浮入口新增基于共享 Gameflow 状态的场景首页，可显示 LOL 当前阶段与自动下一局状态，并在大厅/寻找/接受/选人/游戏中等场景把 LOL 助手直接带到对应的统一 Hub 页面。此次更新不增加第二套 Gameflow 轮询，不改变自动寻找、自动接受等 League 写入语义，并继续保持 lightweight 单 EXE 架构。",
-  "published_at": "2026-09-07T04:29:22.1568679+00:00"
+  "published_at": "2026-09-07T04:29:28.8988409+00:00"
 }

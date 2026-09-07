@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.21
-- GitHub Release：v3.5.21
+- 版本：FACM 3.5.22
+- GitHub Release：v3.5.22
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：de43006f9943f9f7f5af59f810849b94777c0cb1
-- 发布元数据提交：912be35c9816dc95c2b68887f63afcfcced81f9a
-- Release FACM.exe SHA-256：EE86DA07E7723C7952056C604A4961FBA9434F06FAAD36A738BF9DCFFFD93D5D
-- release_notes：FACM 3.5.21：修复检查更新可能读取到过期镜像清单的问题。更新元数据现在以 GitHub main 的 3.5 清单为唯一版本基准，并在多个传输源中选择最高有效版本；旧镜像不能再把“最新版本”显示成低于当前客户端的版本。同时修正 3 段发布版本与 4 段程序集版本的比较语义，并加入 3.5.18/3.5.20 旧清单竞争回归测试。
+- 发布基础 main：7d53860d9abd8885b1ba528b835b1841cbfb349b
+- 发布元数据提交：8717eebf1381f4dd58eb9481d2ad01aa3905c713
+- Release FACM.exe SHA-256：6091A6A3F08FA7BCE01CC4901C5291A851670F3F0235222AA4EB7197404B3465
+- release_notes：FACM 3.5.22：完成两轮产品体验升级。统一 WinForms 设计体系，让更新中心、LOL 效率页与紧凑控制中心使用一致的按钮、开关、状态色和主题语义；悬浮入口新增基于共享 Gameflow 状态的场景首页，可显示 LOL 当前阶段与自动下一局状态，并在大厅/寻找/接受/选人/游戏中等场景把 LOL 助手直接带到对应的统一 Hub 页面。此次更新不增加第二套 Gameflow 轮询，不改变自动寻找、自动接受等 League 写入语义，并继续保持 lightweight 单 EXE 架构。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
