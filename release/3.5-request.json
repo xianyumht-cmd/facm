@@ -1,7 +1,7 @@
 {
-  "version": "3.5.22",
+  "version": "3.5.23",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.5.22：完成两轮产品体验升级。统一 WinForms 设计体系，让更新中心、LOL 效率页与紧凑控制中心使用一致的按钮、开关、状态色和主题语义；悬浮入口新增基于共享 Gameflow 状态的场景首页，可显示 LOL 当前阶段与自动下一局状态，并在大厅/寻找/接受/选人/游戏中等场景把 LOL 助手直接带到对应的统一 Hub 页面。此次更新不增加第二套 Gameflow 轮询，不改变自动寻找、自动接受等 League 写入语义，并继续保持 lightweight 单 EXE 架构。"
+  "release_notes": "FACM 3.5.23：修复 3.5.22 中 LOL 工作台顶部自绘标题栏遮挡页面内容、二级导航被覆盖的问题。根因是统一 WinForms 自绘外壳依赖同级 Dock.Fill / Dock.Top 与控件层级分配空间，在部分布局/重绘过程中页面内容会延伸到标题栏下方。本次改为由共享 FacmWindowChrome 显式划分互不重叠的标题区和内容区，并在窗口缩放时重新计算；同时修正标题栏按钮初始宽度定位，并加入初始布局与缩放后的不重叠回归测试。"
 }
