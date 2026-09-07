@@ -12,7 +12,6 @@ namespace FACM.League
     {
         private readonly LeaguePresenceService _service;
         private readonly UiTextCatalog _ui;
-        private readonly ThemeDefinition _theme;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _currentValue;
         private readonly Label _statusValue;
@@ -24,8 +23,9 @@ namespace FACM.League
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? UiTextCatalog.Load();
-            _theme = theme ?? ThemeCatalog.Get(ThemeCatalog.DefaultThemeId);
 
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             Text = T(LeaguePresenceUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -33,27 +33,27 @@ namespace FACM.League
             MinimizeBox = false;
             ShowInTaskbar = false;
             ClientSize = new Size(430, 438);
-            BackColor = _theme.Background;
-            ForeColor = _theme.TextPrimary;
-            Font = new Font(_theme.FontName, 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Title),
                 Location = new Point(24, 20),
                 Size = new Size(280, 30),
-                ForeColor = _theme.TextPrimary,
+                ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, 15F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Hint),
                 Location = new Point(24, 55),
                 Size = new Size(382, 42),
-                ForeColor = _theme.TextMuted,
+                ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, 8.5F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F)
             };
             _refreshButton = CreateFlatButton(T(LeaguePresenceUiTextKeys.Refresh), new Rectangle(330, 20, 76, 30));
             _refreshButton.Click += async delegate { await RefreshPresenceAsync(); };
@@ -63,7 +63,7 @@ namespace FACM.League
                 Text = T(LeaguePresenceUiTextKeys.Current),
                 Location = new Point(24, 110),
                 Size = new Size(80, 22),
-                ForeColor = _theme.TextMuted,
+                ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
             _currentValue = new Label
@@ -71,9 +71,9 @@ namespace FACM.League
                 Text = T(LeaguePresenceUiTextKeys.Waiting),
                 Location = new Point(104, 108),
                 Size = new Size(302, 26),
-                ForeColor = _theme.TextPrimary,
+                ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, 10F, FontStyle.Bold),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold),
                 AutoEllipsis = true
             };
 
@@ -105,19 +105,19 @@ namespace FACM.League
                 Text = T(LeaguePresenceUiTextKeys.Waiting),
                 Location = new Point(24, 337),
                 Size = new Size(382, 24),
-                ForeColor = _theme.AccentSecondary,
+                ForeColor = FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true,
-                Font = new Font(_theme.FontName, 8.5F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold)
             };
             var footer = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Footer),
                 Location = new Point(24, 372),
                 Size = new Size(382, 48),
-                ForeColor = _theme.TextMuted,
+                ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(_theme.FontName, 7.8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
             };
 
             Controls.Add(title);
@@ -128,6 +128,7 @@ namespace FACM.League
             Controls.Add(_statusValue);
             Controls.Add(footer);
 
+            FacmDesignSystem.ApplyLeagueSurface(this);
             Shown += async delegate { await RefreshPresenceAsync(); };
             FormClosed += delegate { _lifetime.Cancel(); _lifetime.Dispose(); };
         }
@@ -140,15 +141,17 @@ namespace FACM.League
                 Location = bounds.Location,
                 Size = bounds.Size,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = _theme.Surface,
-                ForeColor = _theme.TextPrimary,
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 Cursor = Cursors.Hand,
-                TabStop = false,
-                Font = new Font(_theme.FontName, 8F, FontStyle.Bold)
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = _theme.SurfaceSecondary;
-            button.FlatAppearance.MouseDownBackColor = _theme.Accent;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = FacmDesignSystem.BorderSoft;
+            button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
+            button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.08F);
+            FacmDesignSystem.Round(button, FacmDesignSystem.ControlRadius);
             return button;
         }
 
@@ -157,7 +160,7 @@ namespace FACM.League
             var button = CreateFlatButton(text, bounds);
             button.TextAlign = ContentAlignment.MiddleLeft;
             button.Padding = new Padding(16, 0, 8, 0);
-            button.Font = new Font(_theme.FontName, 9.5F, FontStyle.Bold);
+            button.Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold);
             return button;
         }
 
@@ -167,13 +170,14 @@ namespace FACM.League
             SetBusy(true);
             try
             {
-                _statusValue.Text = T(LeaguePresenceUiTextKeys.Waiting);
+                SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
                 var snapshot = await _service.ReadAsync(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 ApplySnapshot(snapshot);
-                _statusValue.Text = snapshot != null && snapshot.Connected
-                    ? T(LeaguePresenceUiTextKeys.Applied)
-                    : T(LeaguePresenceUiTextKeys.Unavailable);
+                if (snapshot != null && snapshot.Connected)
+                    SetStatus(T(LeaguePresenceUiTextKeys.Applied), FacmDesignSystem.Success);
+                else
+                    SetStatus(T(LeaguePresenceUiTextKeys.Unavailable), FacmDesignSystem.TextMuted);
             }
             catch (OperationCanceledException)
             {
@@ -181,7 +185,7 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Error("League presence refresh failed", exception);
-                if (!IsDisposed) _statusValue.Text = T(LeaguePresenceUiTextKeys.Unavailable);
+                if (!IsDisposed) SetStatus(T(LeaguePresenceUiTextKeys.Unavailable), FacmDesignSystem.Warning);
             }
             finally
             {
@@ -195,19 +199,19 @@ namespace FACM.League
             SetBusy(true);
             try
             {
-                _statusValue.Text = T(LeaguePresenceUiTextKeys.Waiting);
+                SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
                 var result = await _service.ApplyAsync(mode, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (result != null && result.Observed != null) ApplySnapshot(result.Observed);
 
                 if (result == null || string.Equals(result.Status, "unavailable", StringComparison.OrdinalIgnoreCase))
-                    _statusValue.Text = T(LeaguePresenceUiTextKeys.Unavailable);
+                    SetStatus(T(LeaguePresenceUiTextKeys.Unavailable), FacmDesignSystem.Warning);
                 else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
-                    _statusValue.Text = T(LeaguePresenceUiTextKeys.Applied);
+                    SetStatus(T(LeaguePresenceUiTextKeys.Applied), FacmDesignSystem.Success);
                 else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
-                    _statusValue.Text = T(LeaguePresenceUiTextKeys.Overridden);
+                    SetStatus(T(LeaguePresenceUiTextKeys.Overridden), FacmDesignSystem.Warning);
                 else
-                    _statusValue.Text = T(LeaguePresenceUiTextKeys.WriteFailed);
+                    SetStatus(T(LeaguePresenceUiTextKeys.WriteFailed), FacmDesignSystem.Error);
             }
             catch (OperationCanceledException)
             {
@@ -215,7 +219,7 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Error("League presence apply failed", exception);
-                if (!IsDisposed) _statusValue.Text = T(LeaguePresenceUiTextKeys.WriteFailed);
+                if (!IsDisposed) SetStatus(T(LeaguePresenceUiTextKeys.WriteFailed), FacmDesignSystem.Error);
             }
             finally
             {
@@ -228,11 +232,13 @@ namespace FACM.League
             if (snapshot == null || !snapshot.Connected)
             {
                 _currentValue.Text = T(LeaguePresenceUiTextKeys.Unavailable);
+                _currentValue.ForeColor = FacmDesignSystem.TextMuted;
                 return;
             }
             _currentValue.Text = string.Format(
                 T(LeaguePresenceUiTextKeys.CurrentFormat),
                 DisplayMode(snapshot));
+            _currentValue.ForeColor = FacmDesignSystem.Text;
         }
 
         private string DisplayMode(LeaguePresenceSnapshot snapshot)
@@ -252,6 +258,13 @@ namespace FACM.League
             if (string.Equals(availability, "offline", StringComparison.OrdinalIgnoreCase))
                 return T(LeaguePresenceUiTextKeys.Offline);
             return availability.Length == 0 ? T(LeaguePresenceUiTextKeys.Unavailable) : availability;
+        }
+
+        private void SetStatus(string text, Color color)
+        {
+            if (_statusValue == null || _statusValue.IsDisposed) return;
+            _statusValue.Text = text ?? string.Empty;
+            _statusValue.ForeColor = color;
         }
 
         private void SetBusy(bool busy)
