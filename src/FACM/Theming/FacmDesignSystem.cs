@@ -22,8 +22,11 @@ namespace FACM.Theming
         public static Color Surface { get { return Theme.Surface; } }
         public static Color SurfaceRaised { get { return Theme.SurfaceSecondary; } }
         public static Color SurfaceHover { get { return Blend(Theme.SurfaceSecondary, Theme.Accent, Theme.IsLight ? 0.04F : 0.07F); } }
-        public static Color Border { get { return Theme.Border; } }
-        public static Color BorderSoft { get { return Blend(Theme.Border, Theme.Background, Theme.IsLight ? 0.56F : 0.64F); } }
+        // Historical themes intentionally keep vivid border colors for compatibility, but shared
+        // product surfaces should not use that color at full strength. Pull it toward the material
+        // surface first so accent remains reserved for selection, actions and semantic status.
+        public static Color Border { get { return Blend(Theme.Border, Theme.SurfaceSecondary, Theme.IsLight ? 0.52F : 0.72F); } }
+        public static Color BorderSoft { get { return Blend(Border, Theme.Background, Theme.IsLight ? 0.48F : 0.58F); } }
         public static Color Text { get { return Theme.TextPrimary; } }
         public static Color TextMuted { get { return Theme.TextMuted; } }
         public static Color Accent { get { return Theme.Accent; } }

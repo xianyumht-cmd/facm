@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using FACM.Mayhem;
 
 namespace FACM.Theming
 {
@@ -46,6 +47,7 @@ namespace FACM.Theming
             ValidateChromeButtonIsolation();
             ValidateToggleResizeRepaint();
             ValidateWindowChromeLayout();
+            MayhemLookupLayoutPolicy.ValidateForSmokeTest();
         }
 
         private static void ValidateChromeButtonIsolation()
