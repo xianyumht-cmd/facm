@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.24
-- GitHub Release：v3.5.24
+- 版本：FACM 3.5.25
+- GitHub Release：v3.5.25
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：71be3fd297af456818d4912f86ff620e441c6f2b
-- 发布元数据提交：e9915632ec6aa939e2eec04aa0d9c463a8f99e1a
-- Release FACM.exe SHA-256：7E91F3142CEAB0A8E03C8E3D2DE45FB22777D0C50C1DAF414C1E48945E52B69B
-- release_notes：FACM 3.5.24：修复 3.5.23 中 LOL 工作台自动化页面的开关文字重复、黑色横条和旧绘制残影。根因是共享 FacmToggleSwitch 使用完全自绘与 AllPaintingInWmPaint，但在 LeagueHub 紧凑布局/嵌入页面导致控件宽度变化时没有先清空整个客户区，旧文字和旧开关轨道像素会残留在之前坐标。本次让开关在尺寸变化时完整重绘，并在每次绘制前使用当前父容器背景显式清空整个控件区域，同时加入宽度变化后旧轨道位置必须被擦除的位图回归测试。
+- 发布基础 main：cc7489e16a5df80254f96e721461be17c8155edd
+- 发布元数据提交：58640aebe07d66113cb1151db5b841b8f0cca219
+- Release FACM.exe SHA-256：A5A86EA731DB37BFB22BF2B9F2C5AA611C38F18153672B9703CB5B0E7660043F
+- release_notes：FACM 3.5.25：将共享 WinForms 窗口外壳调整为视觉无标题栏的一体化无边框模式。顶部仅保留紧凑的品牌、拖动区和最小化/最大化/关闭能力，并与页面内容使用同一背景，不再呈现独立标题栏层。LOL 工作台同时移除顶部二级说明文字及悬停时动态切换的副标题，只保留必要的窗口名称与页面内导航。继续保留 3.5.23 的标题区/内容区显式不重叠布局和 3.5.24 的自绘开关完整重绘修复，并新增一体化顶部区域背景与 34-38px 高度回归测试。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

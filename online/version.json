@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.25",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.25/FACM.exe",
   "sha256": "A5A86EA731DB37BFB22BF2B9F2C5AA611C38F18153672B9703CB5B0E7660043F",
   "release_notes": "FACM 3.5.25：将共享 WinForms 窗口外壳调整为视觉无标题栏的一体化无边框模式。顶部仅保留紧凑的品牌、拖动区和最小化/最大化/关闭能力，并与页面内容使用同一背景，不再呈现独立标题栏层。LOL 工作台同时移除顶部二级说明文字及悬停时动态切换的副标题，只保留必要的窗口名称与页面内导航。继续保留 3.5.23 的标题区/内容区显式不重叠布局和 3.5.24 的自绘开关完整重绘修复，并新增一体化顶部区域背景与 34-38px 高度回归测试。",
-  "published_at": "2026-09-07T08:28:48.7272077+00:00"
+  "published_at": "2026-09-07T08:28:57.5850792+00:00"
 }
