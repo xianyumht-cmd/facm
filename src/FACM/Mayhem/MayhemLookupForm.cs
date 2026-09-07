@@ -55,7 +55,9 @@ namespace FACM.Mayhem
                 Text = MayhemUiCopy.PageHint,
                 Location = new Point(26, 54),
                 Size = new Size(980, 24),
-                ForeColor = FacmDesignSystem.TextMuted
+                ForeColor = FacmDesignSystem.TextMuted,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                AutoEllipsis = true
             };
 
             _query = new TextBox
@@ -89,8 +91,7 @@ namespace FACM.Mayhem
                 Style = ProgressBarStyle.Blocks,
                 Minimum = 0,
                 Maximum = 100,
-                Value = 0,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Value = 0
             };
             _status = new Label
             {
@@ -99,28 +100,26 @@ namespace FACM.Mayhem
                 Size = new Size(1080, 26),
                 ForeColor = FacmDesignSystem.Success,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                AutoEllipsis = true
             };
 
             _imageHost = new Panel
             {
                 Location = new Point(24, 184),
                 Size = new Size(1080, 612),
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 AutoScroll = true,
                 BackColor = FacmDesignSystem.CanvasRaised,
                 BorderStyle = BorderStyle.FixedSingle
             };
             _resultImage = new PictureBox
             {
-                Location = new Point(12, 12),
+                Location = new Point(8, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = FacmDesignSystem.CanvasRaised
             };
             _imageHost.Controls.Add(_resultImage);
             _imageHost.Resize += delegate { ResizePreview(); };
             _resultImage.Image = CreateEmptyCard();
-            ResizePreview();
 
             Controls.Add(title);
             Controls.Add(hint);
@@ -132,6 +131,9 @@ namespace FACM.Mayhem
             Controls.Add(_progress);
             Controls.Add(_status);
             Controls.Add(_imageHost);
+
+            Resize += delegate { ApplyResponsiveLayout(); };
+            ApplyResponsiveLayout();
 
             _elapsedTimer = new System.Windows.Forms.Timer { Interval = 250 };
             _elapsedTimer.Tick += UpdateElapsed;
@@ -243,16 +245,33 @@ namespace FACM.Mayhem
             if (old != null) old.Dispose();
         }
 
+        private void ApplyResponsiveLayout()
+        {
+            if (_query == null || _imageHost == null || IsDisposed) return;
+            var layout = MayhemLookupLayoutPolicy.Resolve(ClientSize.Width, ClientSize.Height);
+            _query.Bounds = layout.Query;
+            _search.Bounds = layout.Search;
+            _cancel.Bounds = layout.Cancel;
+            _saveImage.Bounds = layout.Save;
+            _copyImage.Bounds = layout.Copy;
+            _progress.Bounds = layout.Progress;
+            _status.Bounds = layout.Status;
+            _imageHost.Bounds = layout.ImageHost;
+            ResizePreview();
+        }
+
         private void ResizePreview()
         {
-            if (_imageHost == null || _resultImage == null) return;
-            var availableWidth = Math.Max(420, _imageHost.ClientSize.Width - 42);
+            if (_imageHost == null || _resultImage == null || _imageHost.ClientSize.Width <= 0) return;
+            var availableWidth = MayhemLookupLayoutPolicy.ResolvePreviewWidth(_imageHost.ClientSize.Width);
             var image = _resultImage.Image;
             var ratio = image != null && image.Width > 0
                 ? image.Height / (double)image.Width
                 : MayhemCardRenderer.CardHeight / (double)MayhemCardRenderer.CardWidth;
-            var height = Math.Max(360, (int)Math.Round(availableWidth * ratio));
+            var height = Math.Max(120, (int)Math.Round(availableWidth * ratio));
+            _resultImage.Location = new Point(8, 12);
             _resultImage.Size = new Size(availableWidth, height);
+            _imageHost.AutoScrollMinSize = new Size(0, height + 24);
         }
 
         private void SaveImage(object sender, EventArgs e)
