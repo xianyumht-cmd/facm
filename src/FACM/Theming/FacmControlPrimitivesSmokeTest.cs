@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace FACM.Theming
@@ -32,6 +33,60 @@ namespace FACM.Theming
 
             if (FacmDesignSystem.ControlRadius < 0 || FacmDesignSystem.CardRadius < 0 || FacmDesignSystem.WindowRadius < 0)
                 throw new InvalidOperationException("FACM shared design radii must remain non-negative.");
+
+            ValidateWindowChromeLayout();
+        }
+
+        private static void ValidateWindowChromeLayout()
+        {
+            using (var form = new Form
+            {
+                ClientSize = new Size(800, 500),
+                Padding = new Padding(8),
+                FormBorderStyle = FormBorderStyle.Sizable,
+                ControlBox = true,
+                MinimizeBox = true,
+                MaximizeBox = true,
+                ShowInTaskbar = true
+            })
+            using (var page = new Panel { Dock = DockStyle.Fill })
+            {
+                form.Controls.Add(page);
+
+                // Force a handle so Prepare attaches without showing a real window in CI.
+                var unused = form.Handle;
+                FacmWindowChrome.Prepare(form, new FacmWindowChromeOptions
+                {
+                    CloseOnDeactivate = false,
+                    CloseOnEscape = false,
+                    TitleBarHeight = 42
+                });
+                form.PerformLayout();
+
+                RequireChromeSeparated(form, "initial");
+                if (page.Parent == form)
+                    throw new InvalidOperationException("FACM window chrome did not move page content into its reserved content host.");
+
+                form.ClientSize = new Size(980, 660);
+                form.PerformLayout();
+                RequireChromeSeparated(form, "resized");
+            }
+        }
+
+        private static void RequireChromeSeparated(Form form, string stage)
+        {
+            Rectangle title;
+            Rectangle content;
+            if (!FacmWindowChrome.TryGetLayoutForSmokeTest(form, out title, out content))
+                throw new InvalidOperationException("FACM window chrome layout snapshot was unavailable during " + stage + " smoke validation.");
+            if (title.Height < 34)
+                throw new InvalidOperationException("FACM window chrome title band collapsed during " + stage + " smoke validation.");
+            if (content.Top < title.Bottom)
+                throw new InvalidOperationException("FACM window chrome content overlaps the title band during " + stage + " smoke validation.");
+            if (content.Top != title.Bottom)
+                throw new InvalidOperationException("FACM window chrome left an unexpected layout gap below the title band during " + stage + " smoke validation.");
+            if (title.Left != content.Left || title.Width != content.Width)
+                throw new InvalidOperationException("FACM window chrome title/content horizontal bounds diverged during " + stage + " smoke validation.");
         }
     }
 }
