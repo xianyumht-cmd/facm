@@ -42,9 +42,9 @@ The design system is intentionally **in transition**, not fully unified yet:
 - `LeagueDashboardForm` uses a primary connection/Gameflow status surface plus compact metadata rows instead of a six-card equal grid; its actions and status tones use shared primitives.
 - `LeaguePlayerForm` keeps its dense ListView/virtualization structure but now uses shared semantic colors and `FacmActionButton` rather than a page-local dark palette.
 - `OnlineCenterForm` and other newer surfaces use shared semantic primitives directly.
-- `CompactMenuForm` still has a special borderless shell **and a legacy private rendering layer** (`ThemedPanel`, `ThemedButton`, gradient/theme decorations, direct raw `ThemeDefinition` radii). The normal visible launcher is partly replaced at runtime by `DesktopLauncherEnhancer`, whose tiles/context card already use `FacmDesignSystem`; the remaining legacy window background/header/fallback path is known migration debt, not a second approved design system.
+- `CompactMenuForm` still contains a legacy private fallback rendering layer (`ThemedPanel`, `ThemedButton`, gradient/theme decorations, raw `ThemeDefinition` radii), but the normal visible control-center path is owned by `DesktopLauncherEnhancer`. The enhancer hides the legacy body, overlays a flat `FacmDesignSystem.Canvas`, normalizes the visible header, uses the shared `WindowRadius`, and renders launcher tiles/context state with one restrained shared accent. Treat the hidden fallback renderer as compatibility debt, not as an approved second visual system.
 - Other older League forms must be audited individually for page-local RGB colors, private button styling and rigid fixed geometry. Migrate high-value user surfaces first rather than mechanically rewriting every `Color.FromArgb` occurrence.
-- Historical `ThemeCatalog` styles remain for compatibility, but shared product chrome clamps geometry and should avoid reviving large glass radii, decorative dual-accent gradients, generic equal-card dashboards or pill-heavy navigation.
+- Historical `ThemeCatalog` styles remain for palette compatibility, but shared visible product surfaces should not revive large glass radii, decorative dual-accent gradients, generic equal-card dashboards or pill-heavy navigation.
 
 The target direction is one restrained modern Windows desktop product language influenced by Fluent/PowerToys interaction behavior while staying native WinForms. External design skills may inform audit criteria, but Web-only implementation advice (CSS/React/GSAP/etc.) does not define FACM architecture.
 
@@ -95,6 +95,7 @@ CI must enforce:
 - FACM.exe <10 MiB.
 - host, League dashboard/automation, performance, updater, floating-ball, pet and Mayhem smoke tests.
 - shared control primitive contract checks, including keyboard-reachable navigation, anti-regression geometry/chrome repaint rules.
+- desktop launcher definition/geometry rules and shared compact geometry constraints.
 - UI text contract.
 
 ## State ownership rules
