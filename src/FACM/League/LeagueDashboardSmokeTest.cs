@@ -63,6 +63,7 @@ namespace FACM
                 "Queueing Gameflow cadence contract regressed.");
 
             ValidateDesktopEntryGameflowPolicy();
+            ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
 
@@ -105,6 +106,26 @@ namespace FACM
             Require(Contains(module.Dependencies, LeagueClientModule.ModuleId), "Dashboard must depend on LeagueClient.");
             Require(Contains(module.Dependencies, PerformanceModule.ModuleId), "Dashboard must depend on Performance.");
             Require(LeagueDashboardUiBridge.HasTrayAccessForSmokeTest(), "Dashboard tray bridge lost the MainForm tray contract.");
+        }
+
+        private static void ValidateLeagueHubResponsiveLayout()
+        {
+            Require(LeagueHubForm.ResolveSidebarWidthForSmokeTest(900) < LeagueHubForm.ResolveSidebarWidthForSmokeTest(1120),
+                "LOL Hub sidebar no longer compacts at the minimum window width.");
+            Require(LeagueHubForm.ResolveContextDockWidthForSmokeTest(700) == 212,
+                "LOL Hub context dock minimum-width clamp regressed.");
+            Require(LeagueHubForm.ResolveContextDockWidthForSmokeTest(1400) == 248,
+                "LOL Hub context dock maximum-width clamp regressed.");
+            Require(!LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Dashboard, 800),
+                "LOL Hub context dock must yield to primary content at narrow workspace widths.");
+            Require(LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Dashboard, 920),
+                "LOL Hub dashboard should expose context when the workspace has enough room.");
+            Require(!LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Live, 1200),
+                "LOL Hub dense live view must not lose content width to the context dock.");
+            Require(LeagueHubForm.ResolveSubnavButtonWidthForSmokeTest(20) == 84,
+                "LOL Hub sub-navigation minimum tap target regressed.");
+            Require(LeagueHubForm.ResolveSubnavButtonWidthForSmokeTest(240) == 146,
+                "LOL Hub sub-navigation width cap regressed.");
         }
 
         private static void ValidateDesktopEntryGameflowPolicy()
