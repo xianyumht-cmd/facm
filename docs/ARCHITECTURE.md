@@ -30,7 +30,7 @@ Shared interactive primitives live under `src/FACM/Theming/` and must preserve n
 - `FacmActionButton` keeps `Button` click/focus/keyboard semantics while rendering primary/secondary/danger states from the shared palette.
 - `FacmToggleSwitch` remains a `CheckBox`; `Checked` and `CheckedChanged` are the behavior contract.
 - `FacmStatusBadge` displays semantic neutral/accent/success/warning/error states without introducing page-local palettes.
-- `FacmNavButton` and `FacmPillButton` provide shared League navigation visuals; their remaining keyboard/focus debt must be fixed in the shared primitive rather than by page-local workarounds.
+- `FacmNavButton` and `FacmPillButton` remain native `Button` controls, are keyboard reachable (`TabStop=true`), and show focus cues from the shared palette. Fix navigation behavior in these primitives rather than adding page-local workarounds.
 
 New or materially redesigned product surfaces should use these shared tokens/primitives instead of adding private `Color.FromArgb(...)` design systems. Theme changes must refresh already-open shared controls. Visual refactors must not change feature routing, update semantics or League read/write ownership merely to achieve consistency.
 
@@ -38,10 +38,12 @@ New or materially redesigned product surfaces should use these shared tokens/pri
 
 The design system is intentionally **in transition**, not fully unified yet:
 
-- `LeagueHubForm` already uses `FacmDesignSystem`, `FacmGlassPanel`, `FacmNavButton` and `FacmPillButton` for its outer shell.
+- `LeagueHubForm` uses `FacmDesignSystem`, `FacmGlassPanel`, `FacmNavButton` and `FacmPillButton` for its outer shell.
+- `LeagueDashboardForm` uses a primary connection/Gameflow status surface plus compact metadata rows instead of a six-card equal grid; its actions and status tones use shared primitives.
+- `LeaguePlayerForm` keeps its dense ListView/virtualization structure but now uses shared semantic colors and `FacmActionButton` rather than a page-local dark palette.
 - `OnlineCenterForm` and other newer surfaces use shared semantic primitives directly.
-- `CompactMenuForm` still has a special borderless shell **and a legacy private rendering layer** (`ThemedPanel`, `ThemedButton`, gradient/theme decorations, direct raw `ThemeDefinition` radii). Treat this as known migration debt, not as a second approved design system.
-- Several older League forms, including dashboard/player surfaces, still contain page-local RGB colors and fixed-position layouts. `ApplyLeagueSurface` helps normalize embedded pages, but long-term convergence requires replacing private palette/layout decisions with shared semantic tokens and reusable layout/accessibility contracts.
+- `CompactMenuForm` still has a special borderless shell **and a legacy private rendering layer** (`ThemedPanel`, `ThemedButton`, gradient/theme decorations, direct raw `ThemeDefinition` radii). The normal visible launcher is partly replaced at runtime by `DesktopLauncherEnhancer`, whose tiles/context card already use `FacmDesignSystem`; the remaining legacy window background/header/fallback path is known migration debt, not a second approved design system.
+- Other older League forms must be audited individually for page-local RGB colors, private button styling and rigid fixed geometry. Migrate high-value user surfaces first rather than mechanically rewriting every `Color.FromArgb` occurrence.
 - Historical `ThemeCatalog` styles remain for compatibility, but shared product chrome clamps geometry and should avoid reviving large glass radii, decorative dual-accent gradients, generic equal-card dashboards or pill-heavy navigation.
 
 The target direction is one restrained modern Windows desktop product language influenced by Fluent/PowerToys interaction behavior while staying native WinForms. External design skills may inform audit criteria, but Web-only implementation advice (CSS/React/GSAP/etc.) does not define FACM architecture.
@@ -92,7 +94,7 @@ CI must enforce:
 - no `FACM.Resources.PetHost.zip` in ordinary FACM.exe.
 - FACM.exe <10 MiB.
 - host, League dashboard/automation, performance, updater, floating-ball, pet and Mayhem smoke tests.
-- shared control primitive contract checks, including anti-regression geometry/chrome repaint rules.
+- shared control primitive contract checks, including keyboard-reachable navigation, anti-regression geometry/chrome repaint rules.
 - UI text contract.
 
 ## State ownership rules
