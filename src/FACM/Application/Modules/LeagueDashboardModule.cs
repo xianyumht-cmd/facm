@@ -49,8 +49,9 @@ namespace FACM.AppHost.Modules
 
         private void ForwardGameflowState(LeagueDashboardPhaseState state)
         {
-            var handler = GameflowStateChanged;
-            if (handler != null) handler(state);
+            // The dashboard monitor is the single authoritative Gameflow owner. A faulty UI or
+            // automation subscriber must not starve the remaining consumers or fault that owner.
+            LeagueGameflowEventDispatcher.DispatchSafely(GameflowStateChanged, state, "dashboard-module");
         }
 
         public Form CreateDashboardForm(UiTextCatalog ui)
