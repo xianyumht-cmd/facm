@@ -26,11 +26,8 @@ namespace FACM.League
         internal const string LegacySwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
         internal const string TeamBuilderSwapPathPrefix = "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/";
 
-        private readonly object _sync = new object();
         private readonly LeagueClientSessionProvider _sessions;
-        private readonly List<HttpClient> _retiredClients = new List<HttpClient>();
-        private LeagueClientSession _clientSession;
-        private HttpClient _client;
+        private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
         private bool _disposed;
 
         public LeagueBenchSwapWriteApiClient(LeagueClientSessionProvider sessions)
@@ -50,54 +47,57 @@ namespace FACM.League
             var session = _sessions.GetSession();
             if (session == null) return null;
 
-            HttpClient client;
+            LeagueSessionHttpClientPool.Lease lease;
             try
             {
-                client = GetOrCreateClient(session);
+                lease = _clients.Acquire(session);
             }
             catch (ObjectDisposedException)
             {
                 return null;
             }
 
-            try
+            using (lease)
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Post, BuildPathForSmokeTest(championId, route)))
-                using (var response = await client.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken).ConfigureAwait(false))
+                try
                 {
-                    if (response.StatusCode == HttpStatusCode.Unauthorized ||
-                        response.StatusCode == HttpStatusCode.Forbidden)
-                        _sessions.Invalidate(session);
-
-                    return new LeagueClientWriteResponse
+                    using (var request = new HttpRequestMessage(HttpMethod.Post, BuildPathForSmokeTest(championId, route)))
+                    using (var response = await lease.Client.SendAsync(
+                        request,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        cancellationToken).ConfigureAwait(false))
                     {
-                        StatusCode = (int)response.StatusCode,
-                        Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
-                    };
+                        if (response.StatusCode == HttpStatusCode.Unauthorized ||
+                            response.StatusCode == HttpStatusCode.Forbidden)
+                            _sessions.Invalidate(session);
+
+                        return new LeagueClientWriteResponse
+                        {
+                            StatusCode = (int)response.StatusCode,
+                            Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
+                        };
+                    }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                if (cancellationToken.IsCancellationRequested) throw;
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (HttpRequestException)
-            {
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (ObjectDisposedException)
-            {
-                return null;
-            }
-            catch
-            {
-                _sessions.Invalidate(session);
-                return null;
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (HttpRequestException)
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return null;
+                }
+                catch
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
             }
         }
 
@@ -114,43 +114,11 @@ namespace FACM.League
                 : LegacySwapPathPrefix) + championId;
         }
 
-        private HttpClient GetOrCreateClient(LeagueClientSession session)
-        {
-            lock (_sync)
-            {
-                if (_disposed) throw new ObjectDisposedException(nameof(LeagueBenchSwapWriteApiClient));
-                if (_client != null && _clientSession != null && _clientSession.Matches(session)) return _client;
-
-                if (_client != null) _retiredClients.Add(_client);
-                var handler = new HttpClientHandler();
-                handler.ServerCertificateCustomValidationCallback = delegate { return true; };
-                var client = new HttpClient(handler)
-                {
-                    BaseAddress = session.BaseUri,
-                    Timeout = TimeSpan.FromSeconds(2)
-                };
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-                    "Basic",
-                    LeagueClientSessionParser.CreateBasicAuthorizationParameter(session));
-
-                _clientSession = session;
-                _client = client;
-                return client;
-            }
-        }
-
         public void Dispose()
         {
-            lock (_sync)
-            {
-                if (_disposed) return;
-                _disposed = true;
-                if (_client != null) _client.Dispose();
-                _client = null;
-                _clientSession = null;
-                foreach (var client in _retiredClients) client.Dispose();
-                _retiredClients.Clear();
-            }
+            if (_disposed) return;
+            _disposed = true;
+            _clients.Dispose();
         }
     }
 }
