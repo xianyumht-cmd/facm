@@ -135,7 +135,10 @@ namespace FACM.League
                 }
                 if (!autoAccept && _autoAccept)
                 {
-                    _acceptAttemptedThisReadyCheck = false;
+                    // A settings toggle does not end the current ReadyCheck episode. Preserve the
+                    // episode's at-most-once accept claim so OFF -> ON cannot duplicate an accept
+                    // that already succeeded or became ambiguous while cancellation was in flight.
+                    // Observe clears the claim only when Gameflow actually leaves ReadyCheck.
                     CancelReadyLocked();
                 }
                 _autoSearch = autoSearch;
