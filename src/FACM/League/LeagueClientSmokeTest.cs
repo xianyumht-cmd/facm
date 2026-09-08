@@ -16,6 +16,7 @@ namespace FACM.League
             ValidateCommandLineParser();
             ValidateSessionRefreshBoundary();
             ValidateLateStartRediscoveryBoundary();
+            ValidateSessionHttpClientRetirementBoundary();
             ValidateDisconnectedModuleIsNonFatal();
         }
 
@@ -125,6 +126,45 @@ namespace FACM.League
                 "LeagueClient session provider did not rediscover after an earlier no-session result.");
             Require(discovery.Calls == 2,
                 "LeagueClient late-start rediscovery did not invoke discovery exactly once after League became available.");
+        }
+
+        private static void ValidateSessionHttpClientRetirementBoundary()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 11, 50101, "one", "https", "lease-test");
+            var second = new LeagueClientSession("LeagueClientUx", 12, 50102, "two", "https", "lease-test");
+            var pool = new LeagueSessionHttpClientPool();
+            try
+            {
+                var firstLease = pool.Acquire(first);
+                Require(pool.OutstandingLeaseCountForSmokeTest == 1, "LCU client lease pool lost the first active request.");
+                Require(pool.RetiredClientCountForSmokeTest == 0, "LCU client lease pool retired a healthy current client.");
+
+                using (var secondLease = pool.Acquire(second))
+                {
+                    Require(pool.OutstandingLeaseCountForSmokeTest == 2, "LCU client lease pool lost an in-flight request across session rotation.");
+                    Require(pool.RetiredClientCountForSmokeTest == 1, "LCU client lease pool did not retain the old client while it was still in flight.");
+                }
+
+                Require(pool.RetiredClientCountForSmokeTest == 1,
+                    "LCU client lease pool disposed an old client before its final request released it.");
+                firstLease.Dispose();
+                Require(pool.RetiredClientCountForSmokeTest == 0,
+                    "LCU client lease pool retained a drained old session client for process lifetime.");
+                Require(pool.OutstandingLeaseCountForSmokeTest == 0,
+                    "LCU client lease pool leaked an active lease after all requests completed.");
+
+                var finalLease = pool.Acquire(first);
+                pool.Dispose();
+                Require(pool.RetiredClientCountForSmokeTest == 1,
+                    "LCU client lease pool disposed an in-flight client during owner shutdown.");
+                finalLease.Dispose();
+                Require(pool.RetiredClientCountForSmokeTest == 0,
+                    "LCU client lease pool retained a shutdown client after its final request completed.");
+            }
+            finally
+            {
+                pool.Dispose();
+            }
         }
 
         private static void ValidateDisconnectedModuleIsNonFatal()
