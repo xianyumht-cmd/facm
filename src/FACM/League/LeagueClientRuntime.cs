@@ -266,6 +266,169 @@ namespace FACM.League
         }
     }
 
+    /// <summary>
+    /// Owns the HttpClient for the current LCU session. A client from a previous League process is
+    /// retired as soon as the last request using it releases its lease, instead of being retained
+    /// for the full FACM process lifetime. This keeps reconnect/restart handling safe for in-flight
+    /// requests without accumulating handlers across many League restarts.
+    /// </summary>
+    internal sealed class LeagueSessionHttpClientPool : IDisposable
+    {
+        internal sealed class Lease : IDisposable
+        {
+            private LeagueSessionHttpClientPool _owner;
+            private Entry _entry;
+
+            internal Lease(LeagueSessionHttpClientPool owner, Entry entry)
+            {
+                _owner = owner;
+                _entry = entry;
+            }
+
+            public HttpClient Client
+            {
+                get
+                {
+                    var entry = _entry;
+                    if (entry == null) throw new ObjectDisposedException(nameof(Lease));
+                    return entry.Client;
+                }
+            }
+
+            public void Dispose()
+            {
+                var owner = _owner;
+                var entry = _entry;
+                _owner = null;
+                _entry = null;
+                if (owner != null && entry != null) owner.Release(entry);
+            }
+        }
+
+        private sealed class Entry
+        {
+            public LeagueClientSession Session;
+            public HttpClient Client;
+            public int LeaseCount;
+            public bool Retired;
+            public bool Disposed;
+        }
+
+        private readonly object _sync = new object();
+        private readonly List<Entry> _retired = new List<Entry>();
+        private Entry _current;
+        private bool _disposed;
+
+        public Lease Acquire(LeagueClientSession session)
+        {
+            if (session == null) throw new ArgumentNullException(nameof(session));
+            lock (_sync)
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(LeagueSessionHttpClientPool));
+                if (_current == null || _current.Session == null || !_current.Session.Matches(session))
+                {
+                    RetireCurrentLocked();
+                    _current = new Entry
+                    {
+                        Session = session,
+                        Client = CreateClient(session)
+                    };
+                    DisposeUnusedRetiredLocked();
+                }
+
+                _current.LeaseCount++;
+                return new Lease(this, _current);
+            }
+        }
+
+        internal int RetiredClientCountForSmokeTest
+        {
+            get { lock (_sync) return _retired.Count; }
+        }
+
+        internal int OutstandingLeaseCountForSmokeTest
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    var count = _current == null ? 0 : _current.LeaseCount;
+                    foreach (var entry in _retired) count += entry.LeaseCount;
+                    return count;
+                }
+            }
+        }
+
+        private static HttpClient CreateClient(LeagueClientSession session)
+        {
+            var handler = new HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = delegate { return true; };
+            var client = new HttpClient(handler)
+            {
+                BaseAddress = session.BaseUri,
+                Timeout = TimeSpan.FromSeconds(2)
+            };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Basic",
+                LeagueClientSessionParser.CreateBasicAuthorizationParameter(session));
+            return client;
+        }
+
+        private void RetireCurrentLocked()
+        {
+            if (_current == null) return;
+            _current.Retired = true;
+            _retired.Add(_current);
+            _current = null;
+        }
+
+        private void Release(Entry entry)
+        {
+            lock (_sync)
+            {
+                if (entry == null || entry.Disposed) return;
+                if (entry.LeaseCount > 0) entry.LeaseCount--;
+                if (entry.Retired && entry.LeaseCount == 0)
+                {
+                    DisposeEntryLocked(entry);
+                    _retired.Remove(entry);
+                }
+            }
+        }
+
+        private void DisposeUnusedRetiredLocked()
+        {
+            for (var i = _retired.Count - 1; i >= 0; i--)
+            {
+                var entry = _retired[i];
+                if (entry.LeaseCount != 0) continue;
+                DisposeEntryLocked(entry);
+                _retired.RemoveAt(i);
+            }
+        }
+
+        private static void DisposeEntryLocked(Entry entry)
+        {
+            if (entry == null || entry.Disposed) return;
+            entry.Disposed = true;
+            if (entry.Client != null) entry.Client.Dispose();
+            entry.Client = null;
+            entry.Session = null;
+        }
+
+        public void Dispose()
+        {
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                RetireCurrentLocked();
+                DisposeUnusedRetiredLocked();
+                // Entries with an active request stay alive until their final lease is released.
+            }
+        }
+    }
+
     internal interface ILeagueClientApi
     {
         Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken);
@@ -273,11 +436,8 @@ namespace FACM.League
 
     internal sealed class LeagueClientApiClient : ILeagueClientApi, IDisposable
     {
-        private readonly object _sync = new object();
         private readonly LeagueClientSessionProvider _sessions;
-        private readonly List<HttpClient> _retiredClients = new List<HttpClient>();
-        private LeagueClientSession _clientSession;
-        private HttpClient _client;
+        private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
         private bool _disposed;
 
         public LeagueClientApiClient(LeagueClientSessionProvider sessions)
@@ -293,70 +453,48 @@ namespace FACM.League
             var session = _sessions.GetSession();
             if (session == null) return null;
 
-            HttpClient client;
+            LeagueSessionHttpClientPool.Lease lease;
             try
             {
-                client = GetOrCreateClient(session);
+                lease = _clients.Acquire(session);
             }
             catch (ObjectDisposedException)
             {
                 return null;
             }
 
-            try
+            using (lease)
             {
-                using (var response = await client.GetAsync(NormalizePath(path), cancellationToken).ConfigureAwait(false))
+                try
                 {
-                    if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                        _sessions.Invalidate(session);
-                    if (!response.IsSuccessStatusCode) return null;
-                    return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                    using (var response = await lease.Client.GetAsync(NormalizePath(path), cancellationToken).ConfigureAwait(false))
+                    {
+                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                            _sessions.Invalidate(session);
+                        if (!response.IsSuccessStatusCode) return null;
+                        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                    }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                if (cancellationToken.IsCancellationRequested) throw;
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (HttpRequestException)
-            {
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (ObjectDisposedException)
-            {
-                return null;
-            }
-            catch
-            {
-                _sessions.Invalidate(session);
-                return null;
-            }
-        }
-
-        private HttpClient GetOrCreateClient(LeagueClientSession session)
-        {
-            lock (_sync)
-            {
-                if (_disposed) throw new ObjectDisposedException(nameof(LeagueClientApiClient));
-                if (_client != null && _clientSession != null && _clientSession.Matches(session)) return _client;
-
-                if (_client != null) _retiredClients.Add(_client);
-                var handler = new HttpClientHandler();
-                handler.ServerCertificateCustomValidationCallback = delegate { return true; };
-                var client = new HttpClient(handler)
+                catch (OperationCanceledException)
                 {
-                    BaseAddress = session.BaseUri,
-                    Timeout = TimeSpan.FromSeconds(2)
-                };
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-                    "Basic",
-                    LeagueClientSessionParser.CreateBasicAuthorizationParameter(session));
-
-                _clientSession = session;
-                _client = client;
-                return client;
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (HttpRequestException)
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return null;
+                }
+                catch
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
             }
         }
 
@@ -369,16 +507,9 @@ namespace FACM.League
 
         public void Dispose()
         {
-            lock (_sync)
-            {
-                if (_disposed) return;
-                _disposed = true;
-                if (_client != null) _client.Dispose();
-                _client = null;
-                _clientSession = null;
-                foreach (var client in _retiredClients) client.Dispose();
-                _retiredClients.Clear();
-            }
+            if (_disposed) return;
+            _disposed = true;
+            _clients.Dispose();
         }
     }
 }
