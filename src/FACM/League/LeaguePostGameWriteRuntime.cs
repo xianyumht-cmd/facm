@@ -25,11 +25,8 @@ namespace FACM.League
         internal const string HonorBallotSubmitPath = "/lol-honor/v1/ballot";
         internal const string PlayAgainPath = "/lol-lobby/v2/play-again";
 
-        private readonly object _sync = new object();
         private readonly LeagueClientSessionProvider _sessions;
-        private readonly List<HttpClient> _retiredClients = new List<HttpClient>();
-        private LeagueClientSession _clientSession;
-        private HttpClient _client;
+        private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
         private bool _disposed;
 
         public LeaguePostGameWriteApiClient(LeagueClientSessionProvider sessions)
@@ -52,47 +49,50 @@ namespace FACM.League
             var session = _sessions.GetSession();
             if (session == null) return null;
 
-            HttpClient client;
-            try { client = GetOrCreateClient(session); }
+            LeagueSessionHttpClientPool.Lease lease;
+            try { lease = _clients.Acquire(session); }
             catch (ObjectDisposedException) { return null; }
 
-            try
+            using (lease)
             {
-                using (var request = new HttpRequestMessage(new HttpMethod(verb), normalizedPath))
+                try
                 {
-                    if (json != null)
-                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-                    using (var response = await client.SendAsync(
-                        request,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        cancellationToken).ConfigureAwait(false))
+                    using (var request = new HttpRequestMessage(new HttpMethod(verb), normalizedPath))
                     {
-                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                            _sessions.Invalidate(session);
-                        return new LeagueClientWriteResponse
+                        if (json != null)
+                            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        using (var response = await lease.Client.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            cancellationToken).ConfigureAwait(false))
                         {
-                            StatusCode = (int)response.StatusCode,
-                            Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
-                        };
+                            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                                _sessions.Invalidate(session);
+                            return new LeagueClientWriteResponse
+                            {
+                                StatusCode = (int)response.StatusCode,
+                                Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
+                            };
+                        }
                     }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                if (cancellationToken.IsCancellationRequested) throw;
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (HttpRequestException)
-            {
-                _sessions.Invalidate(session);
-                return null;
-            }
-            catch (ObjectDisposedException) { return null; }
-            catch
-            {
-                _sessions.Invalidate(session);
-                return null;
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (HttpRequestException)
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
+                catch (ObjectDisposedException) { return null; }
+                catch
+                {
+                    _sessions.Invalidate(session);
+                    return null;
+                }
             }
         }
 
@@ -110,30 +110,6 @@ namespace FACM.League
                    string.Equals(path, PlayAgainPath, StringComparison.Ordinal);
         }
 
-        private HttpClient GetOrCreateClient(LeagueClientSession session)
-        {
-            lock (_sync)
-            {
-                if (_disposed) throw new ObjectDisposedException(nameof(LeaguePostGameWriteApiClient));
-                if (_client != null && _clientSession != null && _clientSession.Matches(session)) return _client;
-                if (_client != null) _retiredClients.Add(_client);
-
-                var handler = new HttpClientHandler();
-                handler.ServerCertificateCustomValidationCallback = delegate { return true; };
-                var client = new HttpClient(handler)
-                {
-                    BaseAddress = session.BaseUri,
-                    Timeout = TimeSpan.FromSeconds(2)
-                };
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-                    "Basic",
-                    LeagueClientSessionParser.CreateBasicAuthorizationParameter(session));
-                _clientSession = session;
-                _client = client;
-                return client;
-            }
-        }
-
         private static string NormalizePath(string path)
         {
             var value = (path ?? string.Empty).Trim();
@@ -143,16 +119,9 @@ namespace FACM.League
 
         public void Dispose()
         {
-            lock (_sync)
-            {
-                if (_disposed) return;
-                _disposed = true;
-                if (_client != null) _client.Dispose();
-                _client = null;
-                _clientSession = null;
-                foreach (var client in _retiredClients) client.Dispose();
-                _retiredClients.Clear();
-            }
+            if (_disposed) return;
+            _disposed = true;
+            _clients.Dispose();
         }
     }
 }
