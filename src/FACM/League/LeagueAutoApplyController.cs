@@ -353,6 +353,44 @@ namespace FACM.League
         public string Fingerprint { get; private set; }
     }
 
+    internal static class LeagueAutoApplyStatusDispatcher
+    {
+        internal static int DispatchSafely(
+            object sender,
+            EventHandler<LeagueAutoApplyStatusChangedEventArgs> handler,
+            string status,
+            string fingerprint)
+        {
+            if (handler == null) return 0;
+
+            var failures = 0;
+            foreach (var entry in handler.GetInvocationList())
+            {
+                var subscriber = entry as EventHandler<LeagueAutoApplyStatusChangedEventArgs>;
+                if (subscriber == null) continue;
+                try
+                {
+                    subscriber(sender, new LeagueAutoApplyStatusChangedEventArgs(status, fingerprint));
+                }
+                catch (Exception exception)
+                {
+                    failures++;
+                    AppLog.Info(
+                        "League auto apply status subscriber failed; handler=" + Describe(subscriber) +
+                        "; error=" + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
+            return failures;
+        }
+
+        private static string Describe(Delegate subscriber)
+        {
+            if (subscriber == null || subscriber.Method == null) return "unknown";
+            var type = subscriber.Method.DeclaringType;
+            return (type == null ? "unknown" : type.Name) + "." + subscriber.Method.Name;
+        }
+    }
+
     /// <summary>
     /// Lifecycle owner for the optional background observation loop. Disabled means no League/OP.GG
     /// polling at all. When enabled, it reuses the existing global gameflow/performance phase signal:
@@ -593,8 +631,7 @@ namespace FACM.League
                 _lastStatus = status ?? string.Empty;
                 handler = StatusChanged;
             }
-            if (handler != null)
-                handler(this, new LeagueAutoApplyStatusChangedEventArgs(status, fingerprint));
+            LeagueAutoApplyStatusDispatcher.DispatchSafely(this, handler, status, fingerprint);
         }
 
         private void ThrowIfDisposed()
