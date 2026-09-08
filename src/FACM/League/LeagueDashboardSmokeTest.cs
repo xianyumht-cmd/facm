@@ -62,6 +62,7 @@ namespace FACM
                 LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.Queueing }) == TimeSpan.FromSeconds(3),
                 "Queueing Gameflow cadence contract regressed.");
 
+            ValidateGameflowSubscriberIsolation();
             ValidateDesktopEntryGameflowPolicy();
             ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
@@ -106,6 +107,42 @@ namespace FACM
             Require(Contains(module.Dependencies, LeagueClientModule.ModuleId), "Dashboard must depend on LeagueClient.");
             Require(Contains(module.Dependencies, PerformanceModule.ModuleId), "Dashboard must depend on Performance.");
             Require(LeagueDashboardUiBridge.HasTrayAccessForSmokeTest(), "Dashboard tray bridge lost the MainForm tray contract.");
+        }
+
+        private static void ValidateGameflowSubscriberIsolation()
+        {
+            var source = new LeagueDashboardPhaseState
+            {
+                Connected = true,
+                ClientProcessDetected = true,
+                Phase = "Lobby",
+                Activity = LeagueActivityLevel.Client,
+                BudgetName = "desktop",
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            var delivered = 0;
+            string observedPhase = null;
+            Action<LeagueDashboardPhaseState> handlers = null;
+            handlers += state =>
+            {
+                state.Phase = "mutated-by-faulty-subscriber";
+                throw new InvalidOperationException("expected subscriber fault");
+            };
+            handlers += state =>
+            {
+                delivered++;
+                observedPhase = state == null ? null : state.Phase;
+            };
+
+            var failures = LeagueGameflowEventDispatcher.DispatchSafely(handlers, source, "smoke");
+            Require(failures == 1, "Gameflow dispatch did not isolate exactly one faulty subscriber.");
+            Require(delivered == 1, "A faulty Gameflow subscriber starved a later subscriber.");
+            Require(string.Equals(observedPhase, "Lobby", StringComparison.Ordinal),
+                "Gameflow subscribers no longer receive isolated state snapshots.");
+            Require(string.Equals(source.Phase, "Lobby", StringComparison.Ordinal),
+                "A Gameflow subscriber mutated the canonical state snapshot.");
+            Require(LeagueGameflowEventDispatcher.DispatchSafely(null, source, "smoke-null") == 0,
+                "Gameflow dispatch should tolerate an empty subscriber list.");
         }
 
         private static void ValidateLeagueHubResponsiveLayout()
