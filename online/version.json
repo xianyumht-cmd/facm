@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.30",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.30/FACM.exe",
   "sha256": "C036DA83B653DD130B1BA8B1216AE62DE67C728A492C67FFBD689089744E9BC3",
   "release_notes": "FACM 3.5.30：加强 LOL Gameflow 与自动化运行可靠性。唯一 Gameflow 监视器和模块分发层现在会逐个隔离订阅者异常；某个 UI 或自动化消费者抛出异常时，不再能够终止中心 Gameflow 循环，也不会阻断后续消费者接收状态。每个订阅者获得独立的状态快照，避免错误消费者修改共享状态影响其它自动化。新增确定性 smoke 覆盖“首个订阅者修改并抛错、后续订阅者仍收到原始状态”的回归场景。Gameflow 轮询频率、LCU 会话与路由、自动排队/接受对局、ChampSelect、赛后处理、Presence、游戏修复和性能预算行为均未改动；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。",
-  "published_at": "2026-09-08T05:06:45.9509848+00:00"
+  "published_at": "2026-09-08T05:06:54.3801157+00:00"
 }

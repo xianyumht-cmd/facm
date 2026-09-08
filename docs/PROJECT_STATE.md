@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.29
-- GitHub Release：v3.5.29
+- 版本：FACM 3.5.30
+- GitHub Release：v3.5.30
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：e94dbb7149d94a61dd7e06bf4f43221127097af0
-- 发布元数据提交：b02c8fcedbf7d670bc0fff0be356f0e5a1eebb26
-- Release FACM.exe SHA-256：2CB51D24B6D565B299EAE78FF0FDFEB22A7F798AB218FB073BDDADD3970C8D53
-- release_notes：FACM 3.5.29：根据 3.5.28 Windows 真机截图修复 LOL 工作台“游戏修复”页面布局。页面标题下方说明区增加明确的 DPI 安全空间，不再被“客户端窗口”操作卡片遮挡；底部状态区从占满剩余高度的大空卡片收敛为紧凑状态条，其余空间保持普通画布；五个游戏修复操作统一使用 FACM 共享键盘可达操作按钮，并补充确定性布局回归保护。继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe；LeagueGameRepairService、LCU 路由、Gameflow、结算处理、窗口修复规划、进程结束及其它 League 业务行为均未改动。
+- 发布基础 main：46297f32f98ce6c4e23d62c639157f19c3fea812
+- 发布元数据提交：7f13df7144c8b70800664c4bebac71d3a1ae5591
+- Release FACM.exe SHA-256：C036DA83B653DD130B1BA8B1216AE62DE67C728A492C67FFBD689089744E9BC3
+- release_notes：FACM 3.5.30：加强 LOL Gameflow 与自动化运行可靠性。唯一 Gameflow 监视器和模块分发层现在会逐个隔离订阅者异常；某个 UI 或自动化消费者抛出异常时，不再能够终止中心 Gameflow 循环，也不会阻断后续消费者接收状态。每个订阅者获得独立的状态快照，避免错误消费者修改共享状态影响其它自动化。新增确定性 smoke 覆盖“首个订阅者修改并抛错、后续订阅者仍收到原始状态”的回归场景。Gameflow 轮询频率、LCU 会话与路由、自动排队/接受对局、ChampSelect、赛后处理、Presence、游戏修复和性能预算行为均未改动；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
