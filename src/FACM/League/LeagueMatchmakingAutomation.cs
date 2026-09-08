@@ -128,8 +128,9 @@ namespace FACM.League
                 if (!autoSearch && _autoSearch)
                 {
                     // Turning the feature off pauses this Lobby episode; it does not create a new one.
-                    // Preserve a confirmed/reconciled fingerprint so re-enabling cannot duplicate
-                    // the same matchmaking POST. Observe clears it on the real Lobby phase boundary.
+                    // Preserve a claimed/confirmed/reconciled fingerprint so re-enabling cannot
+                    // duplicate a matchmaking POST whose wire outcome became ambiguous on cancel.
+                    // Observe clears it on the real Lobby phase boundary.
                     _lastSearchDiagnostic = null;
                     CancelLobbyLocked();
                 }
@@ -252,17 +253,23 @@ namespace FACM.League
             }
 
             var fingerprint = lobby.Fingerprint;
+            cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
+                if (_disposed || !_autoSearch || !IsPhase("Lobby")) return false;
                 if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
                 {
                     LogSearchDiagnosticLocked("already-attempted");
                     return false;
                 }
+
+                // Claim before the wire side effect. Cancellation can be observed after LCU has
+                // already accepted the POST, so an in-flight OFF/ON toggle must retain this claim.
+                // A definite live failure releases the claim below so the normal retry still works.
+                _lastSearchFingerprint = fingerprint;
                 _lastSearchDiagnostic = null;
             }
 
-            if (!IsSearchActive()) return false;
             AppLog.Info("League auto matchmaking: attempt");
             var response = await _write.TrySendAsync(
                 "POST",
@@ -289,10 +296,23 @@ namespace FACM.League
             {
                 lock (_sync)
                 {
-                    _lastSearchFingerprint = fingerprint;
                     _lastSearchDiagnostic = null;
                 }
             }
+            else if (IsSearchActive() && !cancellationToken.IsCancellationRequested)
+            {
+                // The write returned a definite failure while this same Lobby is still live.
+                // Release only our own claim so the existing observer can retry after backoff.
+                lock (_sync)
+                {
+                    if (!_disposed && _autoSearch && IsPhase("Lobby") &&
+                        string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
+                    {
+                        _lastSearchFingerprint = null;
+                    }
+                }
+            }
+
             AppLog.Info("League auto matchmaking: " +
                         (ok
                             ? (reconciled ? "success/reconciled-queue-state" : "success")
