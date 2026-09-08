@@ -127,7 +127,9 @@ namespace FACM.League
                 restartReady = autoAccept && !_autoAccept && IsPhase("ReadyCheck");
                 if (!autoSearch && _autoSearch)
                 {
-                    _lastSearchFingerprint = null;
+                    // Turning the feature off pauses this Lobby episode; it does not create a new one.
+                    // Preserve a confirmed/reconciled fingerprint so re-enabling cannot duplicate
+                    // the same matchmaking POST. Observe clears it on the real Lobby phase boundary.
                     _lastSearchDiagnostic = null;
                     CancelLobbyLocked();
                 }
