@@ -23,6 +23,7 @@ namespace FACM.League
             ValidateLobbyBlocks();
             ValidateTencentReadyCheckWithoutFingerprintFields();
             ValidateReadyCheckExactlyOnce();
+            ValidateAutoAcceptToggleKeepsSameReadyCheckExactlyOnce();
             ValidateFailedReadyCheckRetries();
             ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
@@ -241,6 +242,30 @@ namespace FACM.League
             }
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
                 "Same continuous ReadyCheck episode must accept exactly once.");
+        }
+
+        private static void ValidateAutoAcceptToggleKeepsSameReadyCheckExactlyOnce()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                    "Initial ReadyCheck accept was not emitted.");
+
+                controller.Configure(false, false);
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 1,
+                    "Toggling auto accept OFF/ON in the same ReadyCheck forgot the episode claim and duplicated accept.");
+
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Matchmaking" });
+                controller.EvaluateReadyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.AcceptPath) == 2,
+                    "Leaving ReadyCheck did not reset the accept claim for a new ReadyCheck episode.");
+            }
         }
 
         private static void ValidateFailedReadyCheckRetries()
