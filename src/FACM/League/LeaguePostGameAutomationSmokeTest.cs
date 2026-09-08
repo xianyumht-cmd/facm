@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateSafeRetryAfterReadbackProvesNotApplied();
             ValidateV2UnsupportedFallsBackToLegacy();
             ValidateNoVoteSkipsWrite();
+            ValidateHonorDisableCancelsInFlightButPreservesReturn();
             ValidateExactlyOnceCycle();
             ValidateReturnOnly();
             ValidatePhaseContract();
@@ -208,6 +209,37 @@ namespace FACM.League
                 "No-vote ballot did not produce an observable skipped result.");
         }
 
+        private static void ValidateHonorDisableCancelsInFlightButPreservesReturn()
+        {
+            var read = StandardRead();
+            var clock = new FakeClock();
+            LeagueHonorAttemptStatus result = null;
+            using (var write = new BlockingHonorWriteApi())
+            using (var controller = new LeaguePostGameAutomationController(read, write, clock, count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, true);
+                var task = controller.ObserveForSmokeTestAsync(State("EndOfGame"));
+                Require(write.HonorStarted.Wait(TimeSpan.FromSeconds(1)),
+                    "Auto honor did not reach the in-flight write needed for cancellation smoke.");
+
+                controller.Configure(false, true);
+                task.GetAwaiter().GetResult();
+
+                Require(write.HonorCancellationObserved,
+                    "Disabling auto honor did not cancel the in-flight honor write.");
+                Require(write.Paths.Count(path => path == LeaguePostGameWriteApiClient.HonorV2Path) == 1,
+                    "Disabling auto honor caused a duplicate Honor V2 write.");
+                Require(write.Paths.All(path => path != LeaguePostGameWriteApiClient.HonorPath &&
+                                                path != LeaguePostGameWriteApiClient.HonorBallotSubmitPath),
+                    "Disabling auto honor allowed legacy fallback/ballot writes to continue.");
+                Require(write.Paths.Count(path => path == LeaguePostGameWriteApiClient.PlayAgainPath) == 1,
+                    "Disabling auto honor incorrectly cancelled the independently enabled auto-return action.");
+                Require(result == null,
+                    "A cancelled honor transaction published a false completion result.");
+            }
+        }
+
         private static void ValidateExactlyOnceCycle()
         {
             var read = StandardRead();
@@ -362,6 +394,42 @@ namespace FACM.League
             private static LeagueClientWriteResponse Response(int status)
             {
                 return new LeagueClientWriteResponse { StatusCode = status, Body = new byte[0] };
+            }
+        }
+
+        private sealed class BlockingHonorWriteApi : ILeaguePostGameWriteApi, IDisposable
+        {
+            public readonly List<string> Paths = new List<string>();
+            public readonly ManualResetEventSlim HonorStarted = new ManualResetEventSlim(false);
+            public bool HonorCancellationObserved;
+
+            public async Task<LeagueClientWriteResponse> TrySendAsync(
+                string method,
+                string path,
+                string json,
+                CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                lock (Paths) Paths.Add(path);
+                if (path == LeaguePostGameWriteApiClient.HonorV2Path)
+                {
+                    HonorStarted.Set();
+                    try
+                    {
+                        await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        HonorCancellationObserved = true;
+                        throw;
+                    }
+                }
+                return new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] };
+            }
+
+            public void Dispose()
+            {
+                HonorStarted.Dispose();
             }
         }
 
