@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.32",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.32/FACM.exe",
   "sha256": "19B73FF1B5ED938291CEEF6F29AA2407ADD6B93613E417C309A180EF62A7893F",
   "release_notes": "FACM 3.5.32：继续收口 LOL 长时间运行与客户端反复重启后的 LCU 连接生命周期。ChampSelect/符文、自动排队与 ReadyCheck、ARAM/Mayhem 备选席交换、赛后点赞/再来一局、Presence 和客户端 UX 修复这六条写入传输统一改用 3.5.31 已验证的按 League 会话 HttpClient lease；客户端重启或凭据轮换后，旧写入连接只保留到最后一个在途请求结束，随后立即释放，不再累计到 FACM 退出；FACM 关闭时也不会直接销毁仍被在途写请求使用的传输。所有原有写入 endpoint allowlist、HTTP 方法、请求体、2 秒超时、401/403 会话失效、调用方取消与自动化决策/重试/reconciliation 规则均保持不变；不新增 LCU 轮询或第二会话，继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。",
-  "published_at": "2026-09-08T05:40:06.5212230+00:00"
+  "published_at": "2026-09-08T05:40:14.2873241+00:00"
 }

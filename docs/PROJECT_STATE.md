@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.31
-- GitHub Release：v3.5.31
+- 版本：FACM 3.5.32
+- GitHub Release：v3.5.32
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：bbb47a8f94880e8146e185e0995b1eff1a050cb5
-- 发布元数据提交：213adc6c28f4691d489692e59710bd2363d3c292
-- Release FACM.exe SHA-256：486D19B9444E5FE6C49B854AC4638D8415B81511D93A26B6B96BCF48EE987307
-- release_notes：FACM 3.5.31：继续加强 LOL 长时间运行与客户端重启后的数据链稳定性。高频 LCU 读取传输改为按 League 会话持有带引用计数的 HttpClient lease：客户端重启或凭据轮换时，旧连接只在仍有请求执行期间保留，最后一个请求结束后立即释放，不再把每一代旧 HttpClient/handler 一直留到 FACM 退出；FACM 关闭时也不会在请求尚未完成时直接从底层销毁其传输。新增确定性 smoke 覆盖会话切换、在途请求保留、请求结束后的旧连接释放和关闭边界。LCU 路由、会话发现频率、Gameflow、自动排队/接受对局、ChampSelect、赛后处理、Presence、游戏修复与 UI 行为均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
+- 发布基础 main：2577a954b94cda6ec8afc64e0a45b54106a5f96f
+- 发布元数据提交：2461613dc402c0557704e4e919b799edf4584a90
+- Release FACM.exe SHA-256：19B73FF1B5ED938291CEEF6F29AA2407ADD6B93613E417C309A180EF62A7893F
+- release_notes：FACM 3.5.32：继续收口 LOL 长时间运行与客户端反复重启后的 LCU 连接生命周期。ChampSelect/符文、自动排队与 ReadyCheck、ARAM/Mayhem 备选席交换、赛后点赞/再来一局、Presence 和客户端 UX 修复这六条写入传输统一改用 3.5.31 已验证的按 League 会话 HttpClient lease；客户端重启或凭据轮换后，旧写入连接只保留到最后一个在途请求结束，随后立即释放，不再累计到 FACM 退出；FACM 关闭时也不会直接销毁仍被在途写请求使用的传输。所有原有写入 endpoint allowlist、HTTP 方法、请求体、2 秒超时、401/403 会话失效、调用方取消与自动化决策/重试/reconciliation 规则均保持不变；不新增 LCU 轮询或第二会话，继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
