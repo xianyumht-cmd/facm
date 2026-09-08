@@ -1,7 +1,7 @@
 {
-  "version": "3.5.36",
+  "version": "3.5.37",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.5.36：继续加固 LOL Gate 7 自动接受 ReadyCheck 的 exactly-once 语义。此前自动接受已经会在同一个连续 ReadyCheck 中记录一次 accept claim，防止正常轮询重复 POST；但把自动接受从开启切换为关闭时会清空这个 claim，而设置开关本身并不代表 ReadyCheck 周期结束。如果同一 ReadyCheck 内重新开启，且 LCU 的本地 playerResponse 尚未及时更新，就可能忘记一次已经成功或在取消过程中结果不确定的 accept，并再次发送接受请求。现在关闭自动接受仍会立即取消当前 observer，但会保留本 ReadyCheck 的 at-most-once claim，只有 Gameflow 真正离开 ReadyCheck 才清空；因此同一 ReadyCheck 内 OFF→ON 不会重复接受。明确返回失败的 accept 仍沿用原有失败路径释放 claim 并允许重试，新 ReadyCheck 周期也会正常重新接受。新增确定性 smoke 覆盖同 ReadyCheck 开关切换去重与真实阶段边界重置。匹配搜索逻辑、endpoint/请求体/轮询节奏、LCU 会话与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。"
+  "release_notes": "FACM 3.5.37：继续加固 LOL Gate 7 自动匹配的 exactly-once 语义，修复匹配搜索 POST 已经发出但仍在进行中时关闭自动匹配，随后在同一 Lobby 重新开启可能重复发送开始匹配请求的问题。此前 Lobby 指纹只会在 POST 明确成功或通过 isCurrentlyInQueue=true 对账确认成功后记录；如果关闭开关触发取消，而请求实际已经到达 LCU 但客户端在记录指纹前收到 OperationCanceledException，这次写入结果就会变成不确定状态，同一 Lobby 重新开启时可能再次 POST。现在会在匹配写入发生前先声明当前 Lobby 的队列与真实成员指纹作为 at-most-once claim；取消或关闭功能造成的结果不确定会保留该 claim，只有 Gameflow 真正离开 Lobby 才重置。明确返回失败且当前仍处于启用状态和同一 Lobby 时，会只释放本次 claim，继续沿用原有 3 秒退避重试，因此不会牺牲真实失败后的恢复能力。新增阻塞式确定性 smoke，覆盖进行中的搜索被关闭取消、同 Lobby 重新开启不重复，以及真实 Lobby 阶段边界后允许新一轮搜索。ReadyCheck 自动接受、endpoint/请求体/轮询节奏、LCU 会话/传输与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。"
 }
