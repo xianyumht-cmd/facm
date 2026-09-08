@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.30
-- GitHub Release：v3.5.30
+- 版本：FACM 3.5.31
+- GitHub Release：v3.5.31
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：46297f32f98ce6c4e23d62c639157f19c3fea812
-- 发布元数据提交：7f13df7144c8b70800664c4bebac71d3a1ae5591
-- Release FACM.exe SHA-256：C036DA83B653DD130B1BA8B1216AE62DE67C728A492C67FFBD689089744E9BC3
-- release_notes：FACM 3.5.30：加强 LOL Gameflow 与自动化运行可靠性。唯一 Gameflow 监视器和模块分发层现在会逐个隔离订阅者异常；某个 UI 或自动化消费者抛出异常时，不再能够终止中心 Gameflow 循环，也不会阻断后续消费者接收状态。每个订阅者获得独立的状态快照，避免错误消费者修改共享状态影响其它自动化。新增确定性 smoke 覆盖“首个订阅者修改并抛错、后续订阅者仍收到原始状态”的回归场景。Gameflow 轮询频率、LCU 会话与路由、自动排队/接受对局、ChampSelect、赛后处理、Presence、游戏修复和性能预算行为均未改动；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
+- 发布基础 main：bbb47a8f94880e8146e185e0995b1eff1a050cb5
+- 发布元数据提交：213adc6c28f4691d489692e59710bd2363d3c292
+- Release FACM.exe SHA-256：486D19B9444E5FE6C49B854AC4638D8415B81511D93A26B6B96BCF48EE987307
+- release_notes：FACM 3.5.31：继续加强 LOL 长时间运行与客户端重启后的数据链稳定性。高频 LCU 读取传输改为按 League 会话持有带引用计数的 HttpClient lease：客户端重启或凭据轮换时，旧连接只在仍有请求执行期间保留，最后一个请求结束后立即释放，不再把每一代旧 HttpClient/handler 一直留到 FACM 退出；FACM 关闭时也不会在请求尚未完成时直接从底层销毁其传输。新增确定性 smoke 覆盖会话切换、在途请求保留、请求结束后的旧连接释放和关闭边界。LCU 路由、会话发现频率、Gameflow、自动排队/接受对局、ChampSelect、赛后处理、Presence、游戏修复与 UI 行为均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
