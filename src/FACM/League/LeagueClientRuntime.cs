@@ -305,7 +305,7 @@ namespace FACM.League
             }
         }
 
-        private sealed class Entry
+        internal sealed class Entry
         {
             public LeagueClientSession Session;
             public HttpClient Client;
