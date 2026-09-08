@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateDisableAndPhaseContract();
             ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
+            ValidateStatusObserverIsolation();
             ValidateUiTextDefaults();
         }
 
@@ -174,6 +175,34 @@ namespace FACM.League
 
             Require(LeagueAutoApplyAttemptResult.Aggregate(false, null, true, fullItems).Status == "success",
                 "Gate 4 must allow a valid item-set-only recommendation to report success.");
+        }
+
+        private static void ValidateStatusObserverIsolation()
+        {
+            var delivered = 0;
+            EventHandler<LeagueAutoApplyStatusChangedEventArgs> handlers = delegate
+            {
+                throw new InvalidOperationException("intentional auto-apply status observer failure");
+            };
+            handlers += delegate(object sender, LeagueAutoApplyStatusChangedEventArgs args)
+            {
+                delivered++;
+                Require(args != null && args.Status == "applying" && args.Fingerprint == "stable-fingerprint",
+                    "Gate 4 status dispatcher changed the status payload after an earlier observer failed.");
+            };
+
+            var failures = LeagueAutoApplyStatusDispatcher.DispatchSafely(
+                new object(),
+                handlers,
+                "applying",
+                "stable-fingerprint");
+
+            Require(failures == 1,
+                "Gate 4 status dispatcher did not isolate exactly one throwing observer.");
+            Require(delivered == 1,
+                "A throwing Gate 4 status observer blocked a later observer from receiving status.");
+            Require(LeagueAutoApplyStatusDispatcher.DispatchSafely(null, null, "waiting", null) == 0,
+                "Gate 4 status dispatcher changed the no-subscriber contract.");
         }
 
         private static void ValidateUiTextDefaults()
