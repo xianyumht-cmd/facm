@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
+            ValidateCancelledInFlightSearchKeepsSameLobbyExactlyOnce();
             ValidateFailedSearchRetriesAfterBackoff();
             ValidateAmbiguousSearchReconcilesQueueState();
             ValidateLobbyBlocks();
@@ -154,6 +155,34 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 3,
                     "Leaving Lobby did not reset the search fingerprint for a new Lobby episode.");
+            }
+        }
+
+        private static void ValidateCancelledInFlightSearchKeepsSameLobbyExactlyOnce()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            using (var write = new BlockingSearchWriteApi())
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.Configure(true, false);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(write.SearchStarted.Wait(TimeSpan.FromSeconds(1)),
+                    "Auto matchmaking did not reach the in-flight search needed for cancellation smoke.");
+
+                controller.Configure(false, false);
+                Require(write.SearchCancelled.Wait(TimeSpan.FromSeconds(1)),
+                    "Disabling auto matchmaking did not cancel the in-flight search write.");
+
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Paths.Count(path => path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Cancellation-ambiguous search lost its Lobby claim and duplicated after same-Lobby re-enable.");
+
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Matchmaking" });
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Paths.Count(path => path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "A real Lobby phase boundary did not reset the cancellation-ambiguous search claim.");
             }
         }
 
@@ -394,6 +423,45 @@ namespace FACM.League
                 _called.Set();
                 if (ReturnNull) return Task.FromResult<LeagueClientWriteResponse>(null);
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = StatusCode, Body = new byte[0] });
+            }
+        }
+
+        private sealed class BlockingSearchWriteApi : ILeagueMatchmakingWriteApi, IDisposable
+        {
+            public readonly List<string> Paths = new List<string>();
+            public readonly ManualResetEventSlim SearchStarted = new ManualResetEventSlim(false);
+            public readonly ManualResetEventSlim SearchCancelled = new ManualResetEventSlim(false);
+            private int _searchCalls;
+
+            public async Task<LeagueClientWriteResponse> TrySendAsync(
+                string method,
+                string path,
+                CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                lock (Paths) Paths.Add(path);
+                if (string.Equals(path, LeagueMatchmakingWriteApiClient.SearchPath, StringComparison.Ordinal) &&
+                    Interlocked.Increment(ref _searchCalls) == 1)
+                {
+                    SearchStarted.Set();
+                    try
+                    {
+                        await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        SearchCancelled.Set();
+                        throw;
+                    }
+                }
+
+                return new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] };
+            }
+
+            public void Dispose()
+            {
+                SearchStarted.Dispose();
+                SearchCancelled.Dispose();
             }
         }
 
