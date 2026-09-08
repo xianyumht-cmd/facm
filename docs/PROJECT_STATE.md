@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.32
-- GitHub Release：v3.5.32
+- 版本：FACM 3.5.33
+- GitHub Release：v3.5.33
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：2577a954b94cda6ec8afc64e0a45b54106a5f96f
-- 发布元数据提交：2461613dc402c0557704e4e919b799edf4584a90
-- Release FACM.exe SHA-256：19B73FF1B5ED938291CEEF6F29AA2407ADD6B93613E417C309A180EF62A7893F
-- release_notes：FACM 3.5.32：继续收口 LOL 长时间运行与客户端反复重启后的 LCU 连接生命周期。ChampSelect/符文、自动排队与 ReadyCheck、ARAM/Mayhem 备选席交换、赛后点赞/再来一局、Presence 和客户端 UX 修复这六条写入传输统一改用 3.5.31 已验证的按 League 会话 HttpClient lease；客户端重启或凭据轮换后，旧写入连接只保留到最后一个在途请求结束，随后立即释放，不再累计到 FACM 退出；FACM 关闭时也不会直接销毁仍被在途写请求使用的传输。所有原有写入 endpoint allowlist、HTTP 方法、请求体、2 秒超时、401/403 会话失效、调用方取消与自动化决策/重试/reconciliation 规则均保持不变；不新增 LCU 轮询或第二会话，继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
+- 发布基础 main：d8d7b9eed3e0787ec9d8133814262acd9e2a6712
+- 发布元数据提交：1b7bc7dd4ee8899f0b0951adc86078eb2bdffc68
+- Release FACM.exe SHA-256：D9AD42767CB726E011CF4BC8AE8441DA79138B40CD2232678087F993BAD20299
+- release_notes：FACM 3.5.33：修复 LOL OP.GG 自动应用状态通知中的单点异常传播。此前 `LeagueAutoApplyController` 直接调用多播 `StatusChanged`；如果某个 UI/状态观察者抛异常，异常可能穿透状态发布路径，而后台循环在恢复发布 `failed` 状态时再次命中同一异常观察者，最终可能让 Gate 4 自动应用观察循环在本次 FACM 进程中永久停止。现在状态订阅者逐个隔离调用，单个观察者失败只记录日志，不再阻断后续观察者，也不能终止自动应用 owner；每个观察者获得独立的不可变状态事件参数。新增确定性 smoke 覆盖“首个观察者抛错、后续观察者仍收到完整 applying/fingerprint 状态”和无订阅者 no-op。OP.GG 请求、ChampSelect 稳定窗口、2 秒观察节奏、符文/召唤师技能/装备写入、Gameflow 与 LCU 会话行为均未改动；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
