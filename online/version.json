@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.36",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.36/FACM.exe",
   "sha256": "6D5D92A4E251C20B051F1F274F665619DA2C65696F5035CA4D383DEA82F13922",
   "release_notes": "FACM 3.5.36：继续加固 LOL Gate 7 自动接受 ReadyCheck 的 exactly-once 语义。此前自动接受已经会在同一个连续 ReadyCheck 中记录一次 accept claim，防止正常轮询重复 POST；但把自动接受从开启切换为关闭时会清空这个 claim，而设置开关本身并不代表 ReadyCheck 周期结束。如果同一 ReadyCheck 内重新开启，且 LCU 的本地 playerResponse 尚未及时更新，就可能忘记一次已经成功或在取消过程中结果不确定的 accept，并再次发送接受请求。现在关闭自动接受仍会立即取消当前 observer，但会保留本 ReadyCheck 的 at-most-once claim，只有 Gameflow 真正离开 ReadyCheck 才清空；因此同一 ReadyCheck 内 OFF→ON 不会重复接受。明确返回失败的 accept 仍沿用原有失败路径释放 claim 并允许重试，新 ReadyCheck 周期也会正常重新接受。新增确定性 smoke 覆盖同 ReadyCheck 开关切换去重与真实阶段边界重置。匹配搜索逻辑、endpoint/请求体/轮询节奏、LCU 会话与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。",
-  "published_at": "2026-09-08T07:20:30.9202121+00:00"
+  "published_at": "2026-09-08T07:20:38.9607785+00:00"
 }
