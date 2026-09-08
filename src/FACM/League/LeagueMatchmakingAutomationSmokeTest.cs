@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateImmediatePhaseReaction();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
+            ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
             ValidateFailedSearchRetriesAfterBackoff();
             ValidateAmbiguousSearchReconcilesQueueState();
             ValidateLobbyBlocks();
@@ -122,6 +123,36 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
                     "Changed member context should allow one new matchmaking attempt.");
+            }
+        }
+
+        private static void ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Initial same-Lobby search was not emitted.");
+
+                controller.Configure(false, false);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Toggling auto matchmaking OFF/ON in the same Lobby forgot a confirmed fingerprint and duplicated search.");
+
+                read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                    LobbyJson(420, true, true, true, new[] { "self", "ally", "ally2" }, false));
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 2,
+                    "Preserving the same-Lobby fingerprint blocked a genuinely changed member context.");
+
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Matchmaking" });
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 3,
+                    "Leaving Lobby did not reset the search fingerprint for a new Lobby episode.");
             }
         }
 
