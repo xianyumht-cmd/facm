@@ -6,6 +6,60 @@ using FACM.Services;
 
 namespace FACM.League
 {
+    internal static class LeagueGameflowEventDispatcher
+    {
+        internal static int DispatchSafely(
+            Action<LeagueDashboardPhaseState> handler,
+            LeagueDashboardPhaseState state,
+            string scope)
+        {
+            if (handler == null) return 0;
+
+            var failures = 0;
+            foreach (var entry in handler.GetInvocationList())
+            {
+                var subscriber = entry as Action<LeagueDashboardPhaseState>;
+                if (subscriber == null) continue;
+                try
+                {
+                    // Every subscriber gets its own snapshot. A UI or automation consumer that
+                    // mutates its argument cannot corrupt the canonical state or another consumer.
+                    subscriber(Clone(state));
+                }
+                catch (Exception exception)
+                {
+                    failures++;
+                    AppLog.Info(
+                        "League Gameflow subscriber failed; scope=" + (scope ?? "unknown") +
+                        "; handler=" + Describe(subscriber) +
+                        "; error=" + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
+            return failures;
+        }
+
+        internal static LeagueDashboardPhaseState Clone(LeagueDashboardPhaseState state)
+        {
+            return state == null ? null : new LeagueDashboardPhaseState
+            {
+                Connected = state.Connected,
+                ClientProcessDetected = state.ClientProcessDetected,
+                GameProcessDetected = state.GameProcessDetected,
+                Phase = state.Phase,
+                Activity = state.Activity,
+                BudgetName = state.BudgetName,
+                UpdatedAtUtc = state.UpdatedAtUtc
+            };
+        }
+
+        private static string Describe(Delegate subscriber)
+        {
+            if (subscriber == null || subscriber.Method == null) return "unknown";
+            var type = subscriber.Method.DeclaringType;
+            return (type == null ? "unknown" : type.Name) + "." + subscriber.Method.Name;
+        }
+    }
+
     internal sealed class LeagueGameflowMonitor : IDisposable
     {
         private readonly object _sync = new object();
@@ -26,7 +80,7 @@ namespace FACM.League
         {
             get
             {
-                lock (_sync) return Clone(_current);
+                lock (_sync) return LeagueGameflowEventDispatcher.Clone(_current);
             }
         }
 
@@ -60,9 +114,8 @@ namespace FACM.League
 
                 if (next != null)
                 {
-                    lock (_sync) _current = Clone(next);
-                    var handler = StateChanged;
-                    if (handler != null) handler(Clone(next));
+                    lock (_sync) _current = LeagueGameflowEventDispatcher.Clone(next);
+                    LeagueGameflowEventDispatcher.DispatchSafely(StateChanged, next, "monitor");
                 }
 
                 try
@@ -80,7 +133,7 @@ namespace FACM.League
         {
             // A disconnected/not-yet-running client is exactly where a long sleep is most
             // noticeable: startup and reconnect automation cannot react until this monitor
-            // observes the new session. Match the later lightweight 4.x recovery cadence.
+            // observes the new session. Match the established lightweight recovery cadence.
             if (state == null || !state.Connected) return TimeSpan.FromSeconds(3);
             switch (state.Activity)
             {
@@ -89,20 +142,6 @@ namespace FACM.League
                 case LeagueActivityLevel.InGame: return TimeSpan.FromSeconds(10);
                 default: return TimeSpan.FromSeconds(5);
             }
-        }
-
-        private static LeagueDashboardPhaseState Clone(LeagueDashboardPhaseState state)
-        {
-            return state == null ? null : new LeagueDashboardPhaseState
-            {
-                Connected = state.Connected,
-                ClientProcessDetected = state.ClientProcessDetected,
-                GameProcessDetected = state.GameProcessDetected,
-                Phase = state.Phase,
-                Activity = state.Activity,
-                BudgetName = state.BudgetName,
-                UpdatedAtUtc = state.UpdatedAtUtc
-            };
         }
 
         public void Dispose()
