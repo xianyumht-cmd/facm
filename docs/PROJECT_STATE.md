@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.34
-- GitHub Release：v3.5.34
+- 版本：FACM 3.5.35
+- GitHub Release：v3.5.35
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：043178b9d592adbb84686acc3014823cd2e8c937
-- 发布元数据提交：83a522ff02d5577abc3b8cb65c1f50fac0afcd09
-- Release FACM.exe SHA-256：2C512ED6FCFAA08D8C20D8FA7641610DCF4938CE7171187FC709B29437E78ABD
-- release_notes：FACM 3.5.34：修复 LOL 赛后自动点赞在运行途中关闭开关时仍可能继续写入的问题。此前 Gate 6 的点赞与自动返回大厅共用同一个赛后周期取消令牌；为了保留独立开启的自动返回大厅，关闭自动点赞并不会取消已经进入 ballot/点赞流程的在途任务，后续 Honor V2 验证、安全重试或 legacy fallback 仍可能继续。现在自动点赞拥有独立的 linked cancellation token：从开启切换为关闭时立即取消点赞链路，但不影响仍开启的自动返回大厅；离开赛后阶段、同时关闭两项功能或退出 FACM 时仍由整周期取消统一收口。点赞写入前后、V2→legacy fallback 与安全重试前均增加取消栅栏，避免关闭后产生后续写入；主动取消不会伪报 ballot-timeout 或点赞完成。新增确定性 smoke：阻塞首个 Honor V2 在途请求后关闭自动点赞，验证请求观察到取消、无重复 V2、无 legacy/ballot 续写、无假完成状态，同时自动返回大厅仍恰好执行一次。Honor endpoint/请求体、验证时间、自动返回 endpoint/时序、Gameflow/LCU 会话均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
+- 发布基础 main：2cc09e387024c20e02857a63b37796819e0711ba
+- 发布元数据提交：df66988357edb91cdd6bb7825d639b0d05be6b82
+- Release FACM.exe SHA-256：A432E4C6852DA929A713536BDDCDBC72A013203BF373FDF159720A41927B5812
+- release_notes：FACM 3.5.35：修复 LOL 自动匹配在同一 Lobby 内关闭后重新开启时，可能重复发送开始匹配请求的问题。此前 Gate 7 在匹配成功或通过队列状态确认成功后，会记录当前 Lobby 的队列与真实成员指纹用于 exactly-once 去重；但把自动匹配从开启切换为关闭时会清空该指纹，而开关切换本身并不代表 Lobby 周期已经结束，因此仍停留在同一 Lobby 时重新开启可能忘记已经确认过的搜索并再次 POST。现在关闭自动匹配只立即取消当前 Lobby observer 并清理诊断抑制状态，已确认/已对账的 Lobby 指纹会保留到真正离开 Lobby 为止；同一 Lobby 内 OFF→ON 不再重复开始匹配，队伍成员或队列上下文真实变化后仍允许一次新的搜索，离开并重新进入 Lobby 后也会正常开始新的匹配周期。新增确定性 smoke 覆盖同 Lobby 开关切换去重、成员变化重新搜索以及新 Lobby 周期重置。匹配 endpoint/请求体/轮询节奏、ReadyCheck 自动接受、LCU 会话与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

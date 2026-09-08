@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.35",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.35/FACM.exe",
   "sha256": "A432E4C6852DA929A713536BDDCDBC72A013203BF373FDF159720A41927B5812",
   "release_notes": "FACM 3.5.35：修复 LOL 自动匹配在同一 Lobby 内关闭后重新开启时，可能重复发送开始匹配请求的问题。此前 Gate 7 在匹配成功或通过队列状态确认成功后，会记录当前 Lobby 的队列与真实成员指纹用于 exactly-once 去重；但把自动匹配从开启切换为关闭时会清空该指纹，而开关切换本身并不代表 Lobby 周期已经结束，因此仍停留在同一 Lobby 时重新开启可能忘记已经确认过的搜索并再次 POST。现在关闭自动匹配只立即取消当前 Lobby observer 并清理诊断抑制状态，已确认/已对账的 Lobby 指纹会保留到真正离开 Lobby 为止；同一 Lobby 内 OFF→ON 不再重复开始匹配，队伍成员或队列上下文真实变化后仍允许一次新的搜索，离开并重新进入 Lobby 后也会正常开始新的匹配周期。新增确定性 smoke 覆盖同 Lobby 开关切换去重、成员变化重新搜索以及新 Lobby 周期重置。匹配 endpoint/请求体/轮询节奏、ReadyCheck 自动接受、LCU 会话与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。",
-  "published_at": "2026-09-08T07:04:50.6791296+00:00"
+  "published_at": "2026-09-08T07:04:58.6352454+00:00"
 }
