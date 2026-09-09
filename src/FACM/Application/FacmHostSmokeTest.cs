@@ -21,12 +21,14 @@ namespace FACM.AppHost
                 ValidateFirstModuleFailureReport();
                 ValidateShellFeatureDependencyContract();
                 AppSettings.ValidateAtomicSaveForSmokeTest();
+                AppSettings.ValidateRuntimeCompanionPreferencesForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
                 AppLog.ValidateForSmokeTest();
                 DiagnosticsExportService.ValidateForSmokeTest();
                 FACM.Theming.FacmControlPrimitivesSmokeTest.Validate();
                 FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
                 LeagueChampSelectAssistantForm.ValidateForSmokeTest();
+                LeagueRuntimeCompanionWindowState.ValidateForSmokeTest();
                 LeagueClientSmokeTest.Validate();
                 LeagueEfficiencySmokeTest.Validate();
                 LeagueGameRepairSmokeTest.Validate();
