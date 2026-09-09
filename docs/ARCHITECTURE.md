@@ -62,6 +62,23 @@ Important rules:
 - Failed/ambiguous matchmaking writes reconcile `/lol-matchmaking/v1/search` before deciding to retry.
 - ReadyCheck attempts use an episode fence; true failures can retry after a short delay, while a final local response prevents duplicate writes.
 
+### Champion Select dodge evidence
+
+The 3.5.38 public field-test probe remains a **consumer** of `LeagueDashboardModule`'s shared Gameflow state. `LeagueDodgeProbeService` owns the episode lifecycle and `LeagueDodgeSideEvidenceProbe` owns short-lived read-only evidence correlation. Neither owns Gameflow or a separate League session.
+
+The probe reads only local LCU GET endpoints:
+
+- `/lol-matchmaking/v1/search` for `dodgeData`;
+- `/lol-champ-select/v1/session` for visible `myTeam` / `theirTeam` identity and `chatDetails.chatRoomName`;
+- `/lol-chat/v1/conversations` plus selected conversation `messages` / `participants` for room system/departure evidence;
+- `/lol-lobby/v2/lobby` for positive party/lobby member departure evidence.
+
+Normal sampling is bounded: conversation details are baselined once and the normal loop relies primarily on conversation `lastMessage`; only a confirmed dodge opens an approximately one-second high-frequency evidence burst. This is intentionally separate from the process-wide Gameflow cadence and does not create a second phase poller.
+
+Tencent live evidence has shown `StrangerDodged` with `dodgerId=0`, a complete visible ally identity set, and hidden opponent identities. The classifier therefore uses positive evidence and fails closed. `StrangerDodged`, hidden opponent IDs, or the absence of an ally departure signal are not sufficient enemy evidence.
+
+The probe is read-only by construction because it receives `ILeagueClientApi`, not a League write interface. It must not send chat, accept/decline ReadyCheck, start/cancel matchmaking, alter Champion Select, or introduce any LCU `POST`/`PUT`/`PATCH`/`DELETE` path.
+
 ## Mayhem / ChampSelect
 
 Mayhem keeps the established 3.5 service/cache/network path. UI code must treat win-rate values as **0..100 percentage points** and must not multiply by 100 again.
@@ -97,6 +114,8 @@ CI must enforce:
 - shared control primitive contract checks, including keyboard-reachable navigation, anti-regression geometry/chrome repaint rules.
 - desktop launcher definition/geometry rules and shared compact geometry constraints.
 - UI text contract.
+
+`--league-dashboard-test` also covers the deterministic dodge-probe classifier/departure-text smoke so its fail-closed classification and read-only evidence parser are exercised by the normal Windows build gate.
 
 ## State ownership rules
 
