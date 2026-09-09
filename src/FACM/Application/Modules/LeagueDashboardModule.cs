@@ -15,6 +15,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
         private LeagueGameflowMonitor _monitor;
+        private LeagueDodgeProbeService _dodgeProbe;
 
         public LeagueDashboardModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
@@ -36,6 +37,7 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _monitor = new LeagueGameflowMonitor(_leagueClient, _performance.Budgets);
+            _dodgeProbe = new LeagueDodgeProbeService(_leagueClient);
             _monitor.StateChanged += ForwardGameflowState;
             LeaguePresenceUiBridge.Install(this);
             Application.Idle += StartMonitor;
@@ -49,8 +51,17 @@ namespace FACM.AppHost.Modules
 
         private void ForwardGameflowState(LeagueDashboardPhaseState state)
         {
-            // The dashboard monitor is the single authoritative Gameflow owner. A faulty UI or
-            // automation subscriber must not starve the remaining consumers or fault that owner.
+            // The dashboard monitor is the single authoritative Gameflow owner. The read-only Dodge
+            // Probe is phase-driven from this same snapshot and never creates a competing Gameflow loop.
+            var dodgeProbe = _dodgeProbe;
+            if (dodgeProbe != null)
+            {
+                try { dodgeProbe.Observe(state); }
+                catch (Exception exception) { AppLog.Info("League Dodge Probe observe skipped: " + exception.Message); }
+            }
+
+            // A faulty UI or automation subscriber must not starve the remaining consumers or fault
+            // the authoritative Gameflow owner.
             LeagueGameflowEventDispatcher.DispatchSafely(GameflowStateChanged, state, "dashboard-module");
         }
 
@@ -76,6 +87,8 @@ namespace FACM.AppHost.Modules
                 _monitor.StateChanged -= ForwardGameflowState;
                 _monitor.Dispose();
             }
+            if (_dodgeProbe != null) _dodgeProbe.Dispose();
+            _dodgeProbe = null;
             _monitor = null;
         }
     }

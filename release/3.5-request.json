@@ -1,7 +1,7 @@
 {
-  "version": "3.5.37",
+  "version": "3.5.38",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.5.37：继续加固 LOL Gate 7 自动匹配的 exactly-once 语义，修复匹配搜索 POST 已经发出但仍在进行中时关闭自动匹配，随后在同一 Lobby 重新开启可能重复发送开始匹配请求的问题。此前 Lobby 指纹只会在 POST 明确成功或通过 isCurrentlyInQueue=true 对账确认成功后记录；如果关闭开关触发取消，而请求实际已经到达 LCU 但客户端在记录指纹前收到 OperationCanceledException，这次写入结果就会变成不确定状态，同一 Lobby 重新开启时可能再次 POST。现在会在匹配写入发生前先声明当前 Lobby 的队列与真实成员指纹作为 at-most-once claim；取消或关闭功能造成的结果不确定会保留该 claim，只有 Gameflow 真正离开 Lobby 才重置。明确返回失败且当前仍处于启用状态和同一 Lobby 时，会只释放本次 claim，继续沿用原有 3 秒退避重试，因此不会牺牲真实失败后的恢复能力。新增阻塞式确定性 smoke，覆盖进行中的搜索被关闭取消、同 Lobby 重新开启不重复，以及真实 Lobby 阶段边界后允许新一轮搜索。ReadyCheck 自动接受、endpoint/请求体/轮询节奏、LCU 会话/传输与 UI 均未改变；继续保持 .NET Framework 4.8 + WinForms + 单 FACM.exe。"
+  "release_notes": "FACM 3.5.38：新增 LOL Champion Select 秒退阵营只读公开测试 Probe。腾讯服实机已确认真实秒退会返回 StrangerDodged，但 dodgerId=0，且对方 Summoner ID 被隐藏，因此本版不把 StrangerDodged 单独当作对方秒退。Probe 保留 dodgeData，并组合 ChampSelect myTeam 瞬时变化、chatDetails/chat room system 退出消息、聊天参与者变化和 Lobby 成员变化等 GET-only 旁路证据；确认秒退后仅进行约 1 秒的短时高频取证，平时会话详情只做基线，避免长期高频轮询。没有正向证据时继续保持 unknown，不猜测 enemy。普通玩家聊天正文不记录，仅与秒退诊断相关的 system/event departure 文本可能写入本地日志；Probe 不发送聊天、不改变匹配/ReadyCheck/选人行为、不新增 LCU 写请求或第二 Gameflow owner。"
 }

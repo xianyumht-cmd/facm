@@ -14,13 +14,13 @@
 
 # FACM Project State
 
-更新时间：2026-09-08
+更新时间：2026-09-09
 
 ## 当前产品线
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版是 **3.5.28**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
+当前在线正式版是 **3.5.37**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
 ## 当前已交付行为
 
@@ -62,6 +62,18 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - PR #261：清理与修复页去掉动作区的一层外卡片，驱动修复/环境清理改用 `FacmActionButton` Secondary 语义并恢复 Tab 可达性，同时补充 DPI autoscale；清理目标、提权、进程检查、驱动工具和执行逻辑不变。
 - PR #262：请求并发布正式 FACM 3.5.28；发布工作流完成 Release build/smoke、Authenticode 签名、公开字节与签名者复验，并在公开验证通过后启用在线更新。
 
+## 3.5.38 Champion Select 秒退阵营只读公开测试
+
+- 实现来源：PR #282，`feat/read-only-dodge-probe-20260909`。
+- 2026-09-09 腾讯客户端实机日志已经抓到多次自然秒退：`dodgeData.state=StrangerDodged`，但 `dodgerId=0`；同时 `myTeam` 5 人身份完整可读、`theirTeam` 只有槽位且对方 Summoner ID 全部隐藏。
+- 因此 `StrangerDodged` 本身不再被视为对方秒退证据。阵营判断必须 fail closed，没有正向证据就保持 `unknown`。
+- 新 Probe 保留 `/lol-matchmaking/v1/search`，并组合 ChampSelect 原始 `myTeam` 瞬时变化、`chatDetails.chatRoomName`、房间 system/event 退出消息、聊天参与者变化和 Lobby 成员变化等只读信号。
+- 正常选人阶段的会话详情只做一次基线；确认秒退后才进入约 1 秒、125 ms cadence 的短时证据 burst，避免公共版本长期高频读取消息/参与者接口。
+- 普通玩家聊天正文不记录；只有与秒退诊断相关的 system/event departure 文本允许以 160 字符上限写入本地 FACM 日志。会话 ID 使用 `c1`/`c2` 等本地标签。
+- Probe 只接收 `ILeagueClientApi`，不新增任何 LCU `POST` / `PUT` / `PATCH` / `DELETE`，不发送聊天、不改变匹配/ReadyCheck/选人行为，也不新增第二 Gameflow owner。
+- `LeagueDodgeProbeService.ValidateForSmokeTest()` 已接入 `--league-dashboard-test`，公共发布仍要求 Windows Build 与 UI Text Contract 通过。
+- 3.5.38 定位为公开实机取证版本；正常用户可通过在线更新共同积累真实 Tencent dodge evidence。最终“己方玩家秒退 / 对方玩家秒退”用户提示仍需等公开数据证明某个正向映射稳定后再产品化。
+
 历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259；3.5.28 真机 UI 收尾 #261–#262。
 
 ## 当前产品体验方向
@@ -99,13 +111,9 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 
 ## 当前发布状态
 
-- `online/version.json`：**3.5.28**，enabled=true，minimum_version=3.0.0，force_update=false。
-- GitHub Release：`v3.5.28`，非 draft、非 prerelease，Release id `384240270`。
-- Release `FACM.exe`：**1,891,736 bytes**。
-- Release `FACM.exe` SHA-256：`D1DC6E07AD885729D9207B877BDDF82D0E6C7E135309E14744677911099DB8C6`。
-- 发布请求合并 / frozen base：`dbf61e5e8f44beaf06df3904d1d76bd865fe3ee5`。
-- Release target / 发布元数据提交：`f6e672b7d5d9d8539b6dc86057f955e7f57032b8`。
-- 在线更新启用提交：`f0ad628c71294f4f62dd7d2d1214d07b7264615f`。
+正式发布状态以文件顶部 `FACM_RELEASE_STATE_BEGIN/END` 自动块为唯一权威。该块由 3.5 lightweight publisher 在成功发布后维护；普通功能 PR 不手工伪造未来版本的正式发布结果。
+
+当前进入发布流程前的在线正式版为 **3.5.37**；PR #282 包含 3.5.38 的公开只读秒退证据测试与发布请求，合并后由 canonical publisher 构建、签名、公开字节复验并最终启用在线 manifest。
 
 ## 当前维护 Gate
 
@@ -126,5 +134,6 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 13. 默认 Compact Launcher 的可见增强路径应覆盖 legacy 渐变/双强调背景并使用共享 Canvas/WindowRadius；legacy fallback rendering 不能重新成为默认可见 surface。
 14. 领域专用 UI（例如 MayhemCardRenderer）应优先保留其信息密度与功能语义；共享设计系统主要约束窗口壳、导航、状态和通用控件，不强行抹平领域视觉。
 15. Mayhem Lookup 的 toolbar 必须保持在 client bounds 内，攻略预览应预留纵向滚动条宽度并避免正常窗口产生横向滚动；1120/920/700px 几何由 deterministic smoke 保护。
+16. Champion Select 秒退阵营 probe 必须保持 GET-only、复用唯一 Gameflow owner、普通聊天正文不记录，并对 `StrangerDodged`/缺失身份 fail closed；没有正向阵营证据不得猜测 enemy。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
