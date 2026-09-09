@@ -30,6 +30,7 @@ namespace FACM.League
         private readonly Dictionary<string, string> _conversationLabels = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly HashSet<string> _baselineConversationIds = new HashSet<string>(StringComparer.Ordinal);
         private readonly Dictionary<string, HashSet<string>> _seenMessageKeys = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _lastConversationMessageKeys = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, HashSet<long>> _lastParticipantIds = new Dictionary<string, HashSet<long>>(StringComparer.Ordinal);
         private readonly Dictionary<long, HashSet<string>> _participantNamesById = new Dictionary<long, HashSet<string>>();
         private readonly HashSet<string> _loggedConversationCandidates = new HashSet<string>(StringComparer.Ordinal);
@@ -117,10 +118,10 @@ namespace FACM.League
             if (IsFresh(_recentParticipantDropUtc) && _recentParticipantDropId > 0 && roster.MySummonerIds.Contains(_recentParticipantDropId))
                 return new LeagueDodgeClassification("ally", "chat-participant-drop");
 
-            if (IsFresh(_recentSystemUtc) && _recentSystemActorId > 0 && _recentSystemActorOnMyTeam)
+            if (IsFresh(_recentSystemUtc) && _recentDepartureMessageSeen && _recentSystemActorId > 0 && _recentSystemActorOnMyTeam)
                 return new LeagueDodgeClassification("ally", "chat-system-actor-id");
 
-            if (IsFresh(_recentSystemUtc) && _recentSystemBodyMatchesAlly)
+            if (IsFresh(_recentSystemUtc) && _recentDepartureMessageSeen && _recentSystemBodyMatchesAlly)
                 return new LeagueDodgeClassification("ally", "chat-system-name-match");
 
             if (IsFresh(_recentLobbyDropUtc) && _recentLobbyDropId > 0 && roster.MySummonerIds.Contains(_recentLobbyDropId))
@@ -229,7 +230,18 @@ namespace FACM.League
                         "; newThisEpisode=" + (!_baselineConversationIds.Contains(id)).ToString().ToLowerInvariant());
                 }
 
-                ProcessMessage(candidate.Value.ContainsKey("lastMessage") ? candidate.Value["lastMessage"] as Dictionary<string, object> : null, label, roster, true);
+                var lastMessage = candidate.Value.ContainsKey("lastMessage")
+                    ? candidate.Value["lastMessage"] as Dictionary<string, object>
+                    : null;
+                var lastMessageKey = MessageKey(lastMessage);
+                string previousLastMessageKey;
+                if (!string.IsNullOrWhiteSpace(lastMessageKey) &&
+                    (!_lastConversationMessageKeys.TryGetValue(id, out previousLastMessageKey) ||
+                     !string.Equals(previousLastMessageKey, lastMessageKey, StringComparison.Ordinal)))
+                {
+                    _lastConversationMessageKeys[id] = lastMessageKey;
+                    ProcessMessage(lastMessage, label, roster, true);
+                }
 
                 var needsMessageBaseline = !_seenMessageKeys.ContainsKey(id);
                 var needsParticipantBaseline = !_lastParticipantIds.ContainsKey(id);
