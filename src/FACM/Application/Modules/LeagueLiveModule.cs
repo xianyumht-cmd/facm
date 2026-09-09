@@ -42,11 +42,13 @@ namespace FACM.AppHost.Modules
             return form;
         }
 
-        public Form CreateChampSelectAssistantForm(LeagueBuildAdvisorDataService advisor = null)
+        public Form CreateChampSelectAssistantForm(
+            LeagueBuildAdvisorDataService advisor = null,
+            LeagueBuildApplyService apply = null)
         {
             if (_service == null || _benchQuickPick == null)
                 throw new InvalidOperationException("League Live module is not initialized.");
-            return new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor);
+            return new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply);
         }
 
         public void Dispose()
