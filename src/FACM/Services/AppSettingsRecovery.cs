@@ -36,7 +36,11 @@ namespace FACM.Services
             "LeagueAutoHonorTeammateEnabled",
             "LeagueAutoReturnLobbyEnabled",
             "LeagueAutoMatchmakingEnabled",
-            "LeagueAutoAcceptEnabled"
+            "LeagueAutoAcceptEnabled",
+            "LeagueRuntimeCompanionX",
+            "LeagueRuntimeCompanionY",
+            "LeagueRuntimeCompanionPinned",
+            "LeagueRuntimeCompanionCollapsed"
         };
 
         public static AppSettings Load(string primaryPath, string recoveryPath, out AppSettingsLoadOrigin origin)
@@ -163,13 +167,20 @@ namespace FACM.Services
                     "BallX=123",
                     "BallY=456",
                     "AutoUpdateEnabled=True",
-                    "ThemeId=glass-blue"
+                    "ThemeId=glass-blue",
+                    "LeagueRuntimeCompanionX=-900",
+                    "LeagueRuntimeCompanionY=180",
+                    "LeagueRuntimeCompanionPinned=False",
+                    "LeagueRuntimeCompanionCollapsed=True"
                 });
 
                 AppSettingsLoadOrigin origin;
                 var first = Load(primary, recovery, out origin);
                 if (origin != AppSettingsLoadOrigin.Primary || first.BallX != 123 || first.BallY != 456)
                     throw new InvalidOperationException("Primary settings recovery smoke load failed.");
+                if (first.LeagueRuntimeCompanionX != -900 || first.LeagueRuntimeCompanionY != 180 ||
+                    first.LeagueRuntimeCompanionPinned || !first.LeagueRuntimeCompanionCollapsed)
+                    throw new InvalidOperationException("Runtime Companion primary settings did not load.");
                 if (!File.Exists(recovery))
                     throw new InvalidOperationException("Primary settings did not create an LKG snapshot.");
 
@@ -177,11 +188,16 @@ namespace FACM.Services
                 var recovered = Load(primary, recovery, out origin);
                 if (origin != AppSettingsLoadOrigin.LastKnownGood || recovered.BallX != 123 || recovered.BallY != 456)
                     throw new InvalidOperationException("Last-known-good settings recovery failed.");
+                if (recovered.LeagueRuntimeCompanionX != -900 || recovered.LeagueRuntimeCompanionY != 180 ||
+                    recovered.LeagueRuntimeCompanionPinned || !recovered.LeagueRuntimeCompanionCollapsed)
+                    throw new InvalidOperationException("Runtime Companion settings were not preserved by LKG recovery.");
 
                 File.WriteAllText(recovery, string.Empty);
                 var defaults = Load(primary, recovery, out origin);
                 if (origin != AppSettingsLoadOrigin.RecoveryDefaults || defaults.AutoUpdateEnabled)
                     throw new InvalidOperationException("Settings recovery defaults are not fail-safe.");
+                if (!defaults.LeagueRuntimeCompanionPinned || defaults.LeagueRuntimeCompanionCollapsed)
+                    throw new InvalidOperationException("Runtime Companion recovery defaults are unsafe.");
 
                 var oversized = new string('x', 260 * 1024);
                 File.WriteAllText(primary, "GamePath=" + oversized);
