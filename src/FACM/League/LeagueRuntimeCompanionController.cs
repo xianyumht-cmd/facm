@@ -11,8 +11,8 @@ namespace FACM.League
     /// Runtime Companion orchestration boundary.
     ///
     /// It deliberately does not own Gameflow. LeagueHubModule decides when the companion exists.
-    /// This controller reuses the existing Bench owner, existing Build Advisor owner and existing
-    /// Mayhem guide path. Bench writes remain delegated to LeagueBenchQuickPickService.
+    /// This controller reuses the existing Bench owner, Build Advisor owner, Build Apply owner and
+    /// Mayhem guide path. No raw LCU write method is exposed to the Form.
     /// </summary>
     internal sealed class LeagueRuntimeCompanionController : IDisposable
     {
@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly LeagueBenchQuickPickService _bench;
         private readonly ILeagueClientApi _leagueClient;
         private readonly LeagueBuildAdvisorDataService _advisor;
+        private readonly LeagueBuildApplyService _apply;
         private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly SemaphoreSlim _refreshGate = new SemaphoreSlim(1, 1);
@@ -39,15 +40,22 @@ namespace FACM.League
         public LeagueRuntimeCompanionController(
             LeagueBenchQuickPickService bench,
             ILeagueClientApi leagueClient,
-            LeagueBuildAdvisorDataService advisor = null)
+            LeagueBuildAdvisorDataService advisor = null,
+            LeagueBuildApplyService apply = null)
         {
             _bench = bench ?? throw new ArgumentNullException(nameof(bench));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _advisor = advisor;
+            _apply = apply;
             _guide = new MayhemAutomaticGuideService(_leagueClient);
         }
 
         public event EventHandler<LeagueRuntimeCompanionUpdateEventArgs> SnapshotChanged;
+
+        public bool SupportsBuildApply
+        {
+            get { return _apply != null && _advisor != null && !_disposed; }
+        }
 
         public LeagueRuntimeCompanionSnapshot CurrentSnapshot
         {
@@ -145,6 +153,62 @@ namespace FACM.League
         {
             ThrowIfDisposed();
             return RiotGameDataService.DownloadImageAsync(reference, _leagueClient, cancellationToken);
+        }
+
+        public async Task<LeagueRuntimeCompanionApplyPreparation> PrepareApplyAsync(
+            LeagueRuntimeCompanionApplyTarget target,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_apply == null) return null;
+
+            var snapshot = CurrentSnapshot;
+            var build = snapshot.Build;
+            if (build == null || !snapshot.HasBuild) return null;
+
+            var plan = await _apply.PrepareAsync(build, cancellationToken).ConfigureAwait(false);
+            if (plan == null) return null;
+            TrimPlanForTarget(plan, target);
+            var preparation = new LeagueRuntimeCompanionApplyPreparation
+            {
+                Target = target,
+                Plan = plan,
+                SourceSnapshot = LeagueRuntimeCompanionSnapshot.CloneBuild(build)
+            };
+            return preparation.IsUsable ? preparation : null;
+        }
+
+        public Task<LeagueBuildApplyResult> ApplyPreparedAsync(
+            LeagueRuntimeCompanionApplyPreparation preparation,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_apply == null || preparation == null || !preparation.IsUsable)
+                throw new InvalidOperationException("Runtime Companion apply preparation is not usable.");
+            // LeagueBuildApplyService re-reads phase/champion/queue and verifies settled state after
+            // writes. This call intentionally does not duplicate those rules in presentation code.
+            return _apply.ApplyAsync(preparation.Plan, cancellationToken);
+        }
+
+        internal static void TrimPlanForTarget(
+            LeagueBuildApplyPlan plan,
+            LeagueRuntimeCompanionApplyTarget target)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (target == LeagueRuntimeCompanionApplyTarget.Runes)
+            {
+                plan.Spell1Id = 0;
+                plan.Spell2Id = 0;
+                plan.SpellPreview = null;
+                return;
+            }
+
+            plan.PrimaryStyleId = 0;
+            plan.SecondaryStyleId = 0;
+            plan.PrimaryRuneIds.Clear();
+            plan.SecondaryRuneIds.Clear();
+            plan.StatModIds.Clear();
+            plan.RunePreview = null;
         }
 
         private void MaybeStartBuildRequest(int championHint)
@@ -314,7 +378,6 @@ namespace FACM.League
             }
             catch (Exception exception)
             {
-                // A presentation subscriber must not break the refresh/data owner.
                 AppLog.Info("Runtime Companion snapshot subscriber failed: " + exception.Message);
             }
         }
@@ -355,8 +418,8 @@ namespace FACM.League
             CancelAndDispose(buildRequest);
 
             // Do not dispose _refreshGate here. A canceled in-flight RefreshAsync still executes its
-            // finally block and must be able to Release() safely. The semaphore is a tiny managed
-            // lifetime object and becomes collectible with this controller after pending work exits.
+            // finally block and must be able to Release() safely. It becomes collectible with this
+            // controller after pending work exits.
             _lifetime.Dispose();
         }
 
@@ -405,6 +468,35 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion build snapshot was not defensively cloned.");
             if (clone.Build.Recommendation.Rows.Count != 1 || clone.Build.Recommendation.Rows[0].Category != "runes")
                 throw new InvalidOperationException("Runtime Companion build rows were not cloned.");
+
+            var fullPlan = CreateSmokePlan();
+            TrimPlanForTarget(fullPlan, LeagueRuntimeCompanionApplyTarget.Runes);
+            if (!fullPlan.HasRunes || fullPlan.HasSpells)
+                throw new InvalidOperationException("Runtime Companion rune-only plan trimming is unsafe.");
+
+            fullPlan = CreateSmokePlan();
+            TrimPlanForTarget(fullPlan, LeagueRuntimeCompanionApplyTarget.SummonerSpells);
+            if (fullPlan.HasRunes || !fullPlan.HasSpells)
+                throw new InvalidOperationException("Runtime Companion spell-only plan trimming is unsafe.");
+        }
+
+        private static LeagueBuildApplyPlan CreateSmokePlan()
+        {
+            var plan = new LeagueBuildApplyPlan
+            {
+                ChampionId = 58,
+                QueueId = 420,
+                PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                Spell1Id = 4,
+                Spell2Id = 12,
+                RunePreview = "runes",
+                SpellPreview = "spells"
+            };
+            plan.PrimaryRuneIds.Add(8005);
+            plan.SecondaryRuneIds.Add(8139);
+            plan.StatModIds.Add(5008);
+            return plan;
         }
     }
 }
