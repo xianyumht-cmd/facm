@@ -4,6 +4,28 @@ using FACM.Mayhem;
 
 namespace FACM.League
 {
+    internal enum LeagueRuntimeCompanionApplyTarget
+    {
+        Runes,
+        SummonerSpells
+    }
+
+    internal sealed class LeagueRuntimeCompanionApplyPreparation
+    {
+        public LeagueRuntimeCompanionApplyTarget Target { get; set; }
+        public LeagueBuildApplyPlan Plan { get; set; }
+        public LeagueBuildAdvisorSnapshot SourceSnapshot { get; set; }
+
+        public bool IsUsable
+        {
+            get
+            {
+                if (Plan == null || SourceSnapshot == null) return false;
+                return Target == LeagueRuntimeCompanionApplyTarget.Runes ? Plan.HasRunes : Plan.HasSpells;
+            }
+        }
+    }
+
     /// <summary>
     /// Presentation snapshot for the Runtime Companion. The UI receives projected state instead of
     /// owning League/OP.GG/Mayhem request orchestration. Mutable collections are copied before
@@ -76,7 +98,7 @@ namespace FACM.League
             };
         }
 
-        private static LeagueBuildAdvisorSnapshot CloneBuild(LeagueBuildAdvisorSnapshot source)
+        internal static LeagueBuildAdvisorSnapshot CloneBuild(LeagueBuildAdvisorSnapshot source)
         {
             if (source == null) return null;
             return new LeagueBuildAdvisorSnapshot
