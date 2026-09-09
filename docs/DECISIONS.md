@@ -107,3 +107,18 @@ For the 3.5.38 public read-only field test:
 - the probe remains GET-only and must not gain a League write interface or a second Gameflow owner.
 
 A normal user-facing ally/enemy notification is deferred until public field evidence demonstrates a stable positive mapping. This keeps the experiment useful without turning missing Tencent data into false certainty.
+
+## D-016 — Runtime Companion is a presentation/orchestration layer, not a new League runtime
+
+**Decision (2026-09-10, task PR #283):** the Champion Select helper may become a narrow context-aware Runtime Companion, but it must reuse current 3.5 owners instead of creating a parallel product stack.
+
+- `LeagueHubModule` keeps one-presentation-per-Champion-Select-episode ownership and remains the only automatic-popup lifecycle owner.
+- `LeagueRuntimeCompanionController` projects Bench, Build Advisor and Mayhem state into presentation snapshots; it does not own Gameflow or a second League session.
+- Bench swaps continue through `LeagueBenchQuickPickService`.
+- Rune and summoner-spell inline actions continue through `LeagueBuildApplyService`, including its confirmation-adjacent preparation, phase/champion/queue revalidation and settled postcondition checks; the Form has no raw LCU write path.
+- recommendation categories without an intentionally wired safe owner remain display-only in the companion even when another FACM page supports a broader workflow.
+- pin, collapse and dragged position preferences use the process-shared `AppSettings` owner and its last-known-good recovery path; the transient Form must not create a private settings file or load a stale second settings object.
+- initial placement and saved-position clamping happen after the Form reaches `Shown`, when the existing PerMonitorV2 manifest contract has established its physical DPI-scaled geometry. Pre-Show 96-DPI placement math is not authoritative on mixed-DPI desktops.
+- saved coordinates may be negative for monitors left of the primary display; monitor topology changes must clamp the companion back into a current working area.
+
+This keeps the Akari-style narrow interaction model as a UI improvement while preserving FACM's single-session, lightweight WinForms architecture. PR #283 remains a review task until Windows CI and real Tencent-client acceptance are complete; this decision does not authorize merge or release.
