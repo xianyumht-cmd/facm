@@ -16,8 +16,8 @@ namespace FACM.League
     /// <summary>
     /// Narrow Champion Select Runtime Companion presentation surface.
     ///
-    /// The Form renders snapshots and delegates refresh/write/image orchestration to
-    /// LeagueRuntimeCompanionController. It does not own Gameflow or a League transport.
+    /// The Form renders controller snapshots. It owns no Gameflow reader, OP.GG transport, Mayhem
+    /// request orchestration or LCU write path. Existing owners remain authoritative.
     /// </summary>
     internal sealed class LeagueRuntimeCompanionForm : Form
     {
@@ -29,14 +29,15 @@ namespace FACM.League
         internal const int MaximumExpandedHeight = 720;
         internal const int BodyContentWidth = 348;
         internal const int AugmentColumnTotalWidth = 334;
-        private const int BodyContentHeight = 520;
+        private const int SectionWidth = 348;
+        private const int RecommendationSectionHeight = 74;
 
         private readonly LeagueRuntimeCompanionController _controller;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly System.Windows.Forms.Timer _pollTimer;
         private readonly ToolTip _toolTip;
-        private readonly Dictionary<int, Bitmap> _benchIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _championIcons = new Dictionary<int, Bitmap>();
 
         private readonly Panel _header;
         private readonly Label _title;
@@ -47,24 +48,31 @@ namespace FACM.League
         private readonly Panel _benchHost;
         private readonly FlowLayoutPanel _benchPanel;
         private readonly Panel _body;
+        private readonly FlowLayoutPanel _sections;
         private readonly PictureBox _championIcon;
         private readonly Label _championTitle;
         private readonly Label _championMeta;
-        private readonly Label _guideStatus;
-        private readonly Label _skills;
-        private readonly Label _spells;
-        private readonly Label _items;
+        private readonly Label _contextStatus;
+        private readonly RecommendationSection _runes;
+        private readonly RecommendationSection _spells;
+        private readonly RecommendationSection _skills;
+        private readonly RecommendationSection _starter;
+        private readonly RecommendationSection _boots;
+        private readonly RecommendationSection _core;
+        private readonly Panel _mayhemSection;
         private readonly ListView _augments;
 
         private bool _refreshing;
-        private bool _benchConfirmed;
+        private bool _surfaceConfirmed;
         private bool _collapsed;
         private bool _pinned = true;
         private int _expandedClientWidth;
         private int _expandedClientHeight;
         private int _collapsedClientHeight;
+        private int _renderedChampionIconId;
         private int _renderedGuideChampionId;
         private MayhemChampionResult _renderedGuide;
+        private string _renderedBuildFingerprint;
         private bool _dragging;
         private Point _dragCursor;
         private Point _dragWindow;
@@ -75,13 +83,21 @@ namespace FACM.League
             public LeagueBenchSwapRoute Route { get; set; }
         }
 
+        private sealed class RecommendationSection
+        {
+            public Panel Host { get; set; }
+            public Label Value { get; set; }
+            public Label Evidence { get; set; }
+        }
+
         public LeagueRuntimeCompanionForm(
             LeagueBenchQuickPickService bench,
-            ILeagueClientApi leagueClient)
+            ILeagueClientApi leagueClient,
+            LeagueBuildAdvisorDataService advisor = null)
         {
             if (bench == null) throw new ArgumentNullException(nameof(bench));
             if (leagueClient == null) throw new ArgumentNullException(nameof(leagueClient));
-            _controller = new LeagueRuntimeCompanionController(bench, leagueClient);
+            _controller = new LeagueRuntimeCompanionController(bench, leagueClient, advisor);
             _ui = UiTextCatalog.Load();
 
             Text = BuildWindowTitle();
@@ -96,7 +112,7 @@ namespace FACM.League
             DoubleBuffered = true;
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96F, 96F);
-            Opacity = 0d; // Do not flash before the existing Bench owner confirms this mode.
+            Opacity = 0d;
 
             _expandedClientWidth = DesignWidth;
             _expandedClientHeight = ResolveExpandedHeight(Screen.FromPoint(Cursor.Position).WorkingArea.Height);
@@ -114,7 +130,7 @@ namespace FACM.League
             {
                 Text = UiTextRuntime.Text(UiTextKeys.AppName),
                 Location = new Point(10, 0),
-                Size = new Size(128, HeaderHeight),
+                Size = new Size(126, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
@@ -123,9 +139,9 @@ namespace FACM.League
             };
             _status = new Label
             {
-                Text = BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
-                Location = new Point(140, 0),
-                Size = new Size(142, HeaderHeight),
+                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting),
+                Location = new Point(138, 0),
+                Size = new Size(144, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleRight,
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
@@ -165,8 +181,8 @@ namespace FACM.League
             FacmDesignSystem.Round(_championIcon, FacmDesignSystem.ControlRadius);
             _championTitle = new Label
             {
-                Text = MayhemUiCopy.ReadingHero,
-                Location = new Point(74, 8),
+                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionWaiting),
+                Location = new Point(74, 7),
                 Size = new Size(294, 28),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
@@ -175,16 +191,16 @@ namespace FACM.League
             };
             _championMeta = new Label
             {
-                Text = MayhemUiCopy.CardSubtitle,
+                Text = string.Empty,
                 Location = new Point(74, 35),
                 Size = new Size(294, 19),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
-            _guideStatus = new Label
+            _contextStatus = new Label
             {
-                Text = MayhemUiCopy.ReadingLatest,
+                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting),
                 Location = new Point(74, 54),
                 Size = new Size(294, 18),
                 AutoEllipsis = true,
@@ -195,14 +211,15 @@ namespace FACM.League
             _context.Controls.Add(_championIcon);
             _context.Controls.Add(_championTitle);
             _context.Controls.Add(_championMeta);
-            _context.Controls.Add(_guideStatus);
+            _context.Controls.Add(_contextStatus);
 
             _benchHost = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = BenchHeight,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(10, 6, 10, 6)
+                Padding = new Padding(10, 6, 10, 6),
+                Visible = false
             };
             var benchLabel = new Label
             {
@@ -231,34 +248,64 @@ namespace FACM.League
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
-                AutoScrollMinSize = new Size(0, BodyContentHeight),
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(10, 0, 10, 10)
+                Padding = new Padding(10, 8, 10, 10)
+            };
+            _sections = new FlowLayoutPanel
+            {
+                Location = Point.Empty,
+                Width = SectionWidth,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                BackColor = FacmDesignSystem.Canvas,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty
             };
 
-            _skills = CreateGuideLine(MayhemUiCopy.Skills, 12, 48);
-            _spells = CreateGuideLine(MayhemUiCopy.Summoner, 66, 48);
-            _items = CreateGuideLine(MayhemUiCopy.CompactBuild, 120, 74);
-            var separator = new Panel
+            _runes = CreateRecommendationSection(LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Runes));
+            _spells = CreateRecommendationSection(LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Spells));
+            _skills = CreateRecommendationSection(LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Skills));
+            _starter = CreateRecommendationSection(CompanionText(LeagueRuntimeCompanionUiTextKeys.StarterItems));
+            _boots = CreateRecommendationSection(CompanionText(LeagueRuntimeCompanionUiTextKeys.Boots));
+            _core = CreateRecommendationSection(CompanionText(LeagueRuntimeCompanionUiTextKeys.CoreItems));
+
+            _sections.Controls.Add(_runes.Host);
+            _sections.Controls.Add(_spells.Host);
+            _sections.Controls.Add(_skills.Host);
+            _sections.Controls.Add(_starter.Host);
+            _sections.Controls.Add(_boots.Host);
+            _sections.Controls.Add(_core.Host);
+
+            _mayhemSection = new Panel
             {
-                Location = new Point(10, 201),
-                Size = new Size(BodyContentWidth, 1),
-                BackColor = FacmDesignSystem.BorderSoft
+                Width = SectionWidth,
+                Height = 310,
+                Margin = Padding.Empty,
+                BackColor = FacmDesignSystem.Canvas,
+                Visible = false
             };
             var augmentTitle = new Label
             {
-                Text = MayhemUiCopy.AugmentBoard,
-                Location = new Point(10, 212),
-                Size = new Size(BodyContentWidth, 24),
+                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments),
+                Location = new Point(0, 10),
+                Size = new Size(SectionWidth, 24),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
+            var augmentRule = new Panel
+            {
+                Location = new Point(0, 38),
+                Size = new Size(SectionWidth, 1),
+                BackColor = FacmDesignSystem.BorderSoft
+            };
             _augments = new ListView
             {
-                Location = new Point(10, 240),
-                Size = new Size(BodyContentWidth, 258),
+                Location = new Point(0, 48),
+                Size = new Size(SectionWidth, 252),
                 View = View.Details,
                 FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
@@ -273,27 +320,28 @@ namespace FACM.League
             _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 48, HorizontalAlignment.Right);
             _augments.Columns.Add(MayhemUiCopy.PickRate, 48, HorizontalAlignment.Right);
             _augments.Columns.Add(MayhemUiCopy.Sample, 54, HorizontalAlignment.Right);
+            _mayhemSection.Controls.Add(augmentTitle);
+            _mayhemSection.Controls.Add(augmentRule);
+            _mayhemSection.Controls.Add(_augments);
+            _sections.Controls.Add(_mayhemSection);
+            _body.Controls.Add(_sections);
 
-            _body.Controls.Add(_skills);
-            _body.Controls.Add(_spells);
-            _body.Controls.Add(_items);
-            _body.Controls.Add(separator);
-            _body.Controls.Add(augmentTitle);
-            _body.Controls.Add(_augments);
-
-            // WinForms docking uses z-order. Add Fill first and fixed top regions afterward so
-            // the body receives only the remaining client area rather than sitting under them.
+            // WinForms docking consumes the remaining area according to z-order. Add Fill first,
+            // then the fixed top regions so body content never paints below context/Bench.
             Controls.Add(_body);
             Controls.Add(_benchHost);
             Controls.Add(_context);
             Controls.Add(_header);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
+            _toolTip.SetToolTip(_pinButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Unpin));
+            _toolTip.SetToolTip(_collapseButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Collapse));
             _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
             _pollTimer.Tick += async delegate { await RefreshSnapshotAsync(); };
             _controller.SnapshotChanged += HandleSnapshotChanged;
             Shown += HandleShown;
             FormClosed += HandleClosed;
+            ResetRecommendationSections();
         }
 
         protected override bool ShowWithoutActivation
@@ -309,8 +357,8 @@ namespace FACM.League
 
         private void HandleShown(object sender, EventArgs e)
         {
-            // AutoScaleMode=Dpi has now applied the physical scale. Capture those actual dimensions
-            // once so later collapse/restore never snaps a high-DPI window back to 96-DPI pixels.
+            // AutoScaleMode=Dpi has now applied physical scale. Capture actual dimensions once so a
+            // later collapse/restore never snaps the window back to 96-DPI pixels.
             _expandedClientWidth = ClientSize.Width;
             _expandedClientHeight = ClientSize.Height;
             _collapsedClientHeight = _header.Height;
@@ -337,9 +385,7 @@ namespace FACM.League
             {
                 AppLog.Info("Runtime Companion refresh skipped: " + exception.Message);
                 if (!IsDisposed)
-                    SetStatus(
-                        _benchConfirmed ? MayhemUiCopy.Failed : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
-                        _benchConfirmed ? FacmDesignSystem.Warning : FacmDesignSystem.TextMuted);
+                    SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildUnavailable), FacmDesignSystem.Warning);
             }
             finally
             {
@@ -371,55 +417,289 @@ namespace FACM.League
         private void ApplySnapshot(LeagueRuntimeCompanionSnapshot snapshot)
         {
             if (snapshot == null || IsDisposed) return;
-            if (!snapshot.SessionAvailable)
-            {
-                SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Waiting), FacmDesignSystem.TextMuted);
-                return;
-            }
 
-            // Phase 1 deliberately preserves the old visibility boundary. Phase 3 will broaden the
-            // controller to normal ranked/other contexts using existing build/live services.
-            if (!snapshot.BenchEnabled)
+            var hasContext = snapshot.HasVisibleChampSelectContext;
+            if (hasContext && !_surfaceConfirmed)
             {
-                Close();
-                return;
-            }
-
-            if (!_benchConfirmed)
-            {
-                _benchConfirmed = true;
+                _surfaceConfirmed = true;
                 Opacity = 1d;
             }
 
-            SetStatus(
-                snapshot.BenchChampionIds != null && snapshot.BenchChampionIds.Count > 0
-                    ? BenchText(LeagueBenchQuickPickUiTextKeys.Title) + ": " + snapshot.BenchChampionIds.Count.ToString(CultureInfo.InvariantCulture)
-                    : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
-                FacmDesignSystem.TextMuted);
-            RenderBench(snapshot);
+            _benchHost.Visible = snapshot.BenchEnabled && !_collapsed;
+            if (snapshot.BenchEnabled) RenderBench(snapshot);
+            else ClearBenchButtons();
+
+            if (snapshot.Build != null)
+                RenderBuild(snapshot.Build, snapshot.BuildLoading, snapshot.BuildError);
+            else if (snapshot.BuildLoading)
+                SetBuildLoadingState(snapshot.LocalChampionId);
+            else if (!string.IsNullOrWhiteSpace(snapshot.BuildError))
+                SetBuildUnavailableState();
+            else if (hasContext && snapshot.LocalChampionId <= 0 && _renderedBuildFingerprint == null)
+                SetChampionWaitingState();
 
             if (snapshot.GuideChampionId > 0 && snapshot.GuideChampionId != _renderedGuideChampionId)
             {
                 _renderedGuideChampionId = snapshot.GuideChampionId;
                 _renderedGuide = null;
-                ResetGuide(snapshot.GuideChampionId);
             }
 
-            if (snapshot.GuideLoading)
+            if (snapshot.GuideLoading && snapshot.Build == null)
             {
-                _guideStatus.ForeColor = FacmDesignSystem.Accent;
-                _guideStatus.Text = MayhemUiCopy.ReadingLatest;
+                _contextStatus.ForeColor = FacmDesignSystem.Accent;
+                _contextStatus.Text = MayhemUiCopy.ReadingLatest;
             }
-            else if (!string.IsNullOrWhiteSpace(snapshot.GuideError))
+            else if (!string.IsNullOrWhiteSpace(snapshot.GuideError) && snapshot.Build == null)
             {
-                _guideStatus.ForeColor = FacmDesignSystem.Warning;
-                _guideStatus.Text = snapshot.GuideError;
+                _contextStatus.ForeColor = FacmDesignSystem.Warning;
+                _contextStatus.Text = snapshot.GuideError;
             }
-            else if (snapshot.HasGuide && !ReferenceEquals(_renderedGuide, snapshot.Guide))
+
+            if (snapshot.HasGuide && !ReferenceEquals(_renderedGuide, snapshot.Guide))
             {
                 _renderedGuide = snapshot.Guide;
-                RenderGuide(snapshot.Guide);
+                RenderGuideFallbackAndAugments(snapshot.Guide, snapshot.Build != null);
             }
+
+            if (!hasContext)
+                SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting), FacmDesignSystem.TextMuted);
+        }
+
+        private void RenderBuild(LeagueBuildAdvisorSnapshot build, bool loading, string error)
+        {
+            if (build == null) return;
+            var fingerprint = BuildFingerprint(build);
+            var changed = !string.Equals(_renderedBuildFingerprint, fingerprint, StringComparison.Ordinal);
+            if (changed)
+            {
+                _renderedBuildFingerprint = fingerprint;
+                ResetRecommendationSections();
+            }
+
+            var championId = build.ChampionId > 0 ? build.ChampionId : 0;
+            if (championId > 0)
+            {
+                _championTitle.Text = FirstNonEmpty(build.ChampionName, "#" + championId.ToString(CultureInfo.InvariantCulture));
+                EnsureLocalChampionIcon(championId);
+            }
+            else
+            {
+                _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionWaiting);
+                ReplacePicture(_championIcon, null);
+                _renderedChampionIconId = 0;
+            }
+
+            _championMeta.Text = BuildAdvisorMeta(build);
+
+            if (build.Recommendation != null)
+            {
+                ApplyBuildRow(_runes, FindBuildRow(build.Recommendation, "runes"));
+                ApplyBuildRow(_spells, FindBuildRow(build.Recommendation, "summoner-spells"));
+                ApplyBuildRow(_skills, FindBuildRow(build.Recommendation, "skills"));
+                ApplyBuildRow(_starter, FindBuildRow(build.Recommendation, "starter-items"));
+                ApplyBuildRow(_boots, FindBuildRow(build.Recommendation, "boots"));
+                ApplyBuildRow(_core, FindBuildRow(build.Recommendation, "core-items"));
+            }
+
+            if (string.Equals(build.Status, "ready", StringComparison.OrdinalIgnoreCase))
+            {
+                var cacheSuffix = build.FromCache
+                    ? " · " + CompanionText(LeagueRuntimeCompanionUiTextKeys.SourceCache)
+                    : string.Empty;
+                _contextStatus.ForeColor = FacmDesignSystem.Success;
+                _contextStatus.Text = FirstNonEmpty(build.Source, LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Ready)) + cacheSuffix;
+                SetStatus(LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Ready), FacmDesignSystem.Success);
+            }
+            else if (loading)
+            {
+                _contextStatus.ForeColor = FacmDesignSystem.Accent;
+                _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildLoading);
+                SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildLoading), FacmDesignSystem.Accent);
+            }
+            else if (string.Equals(build.Status, "waiting-champion", StringComparison.OrdinalIgnoreCase))
+            {
+                SetChampionWaitingState();
+            }
+            else if (!string.IsNullOrWhiteSpace(error) ||
+                     string.Equals(build.Status, "opgg-unavailable", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(build.Status, "timeout", StringComparison.OrdinalIgnoreCase))
+            {
+                SetBuildUnavailableState();
+            }
+            else
+            {
+                _contextStatus.ForeColor = FacmDesignSystem.TextMuted;
+                _contextStatus.Text = LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Waiting);
+                SetStatus(LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Waiting), FacmDesignSystem.TextMuted);
+            }
+        }
+
+        private void RenderGuideFallbackAndAugments(MayhemChampionResult result, bool hasBuildContext)
+        {
+            if (result == null) return;
+            if (!hasBuildContext)
+            {
+                _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
+                _championMeta.Text = BuildMayhemMeta(result);
+                _contextStatus.ForeColor = FacmDesignSystem.Success;
+                _contextStatus.Text = MayhemUiCopy.Completed;
+                ApplyFallbackValue(_skills, BuildSkillText(result));
+                ApplyFallbackValue(_spells, BuildSpellText(result));
+                ApplyFallbackValue(_core, BuildItemText(result));
+                if (_renderedChampionIconId <= 0 && !string.IsNullOrWhiteSpace(result.ChampionIconUrl))
+                    _ = LoadGuideChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
+            }
+
+            _augments.BeginUpdate();
+            try
+            {
+                _augments.Items.Clear();
+                foreach (var row in (result.AugmentRows ?? new List<MayhemAugmentRow>())
+                    .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
+                    .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
+                    .ThenBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
+                    .Take(40))
+                {
+                    var item = new ListViewItem(row.Rank > 0 ? row.Rank.ToString(CultureInfo.InvariantCulture) : "—");
+                    item.SubItems.Add(row.Name);
+                    item.SubItems.Add(string.IsNullOrWhiteSpace(row.Rarity) ? "—" : row.Rarity);
+                    item.SubItems.Add(FormatRate(row.WinRate));
+                    item.SubItems.Add(FormatRate(row.PickRate));
+                    item.SubItems.Add(row.Games.HasValue ? row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
+                    item.ToolTipText = row.Description ?? string.Empty;
+                    _augments.Items.Add(item);
+                }
+            }
+            finally
+            {
+                _augments.EndUpdate();
+            }
+            _mayhemSection.Visible = _augments.Items.Count > 0;
+        }
+
+        private void SetBuildLoadingState(int championId)
+        {
+            if (championId > 0)
+            {
+                _championTitle.Text = "#" + championId.ToString(CultureInfo.InvariantCulture);
+                EnsureLocalChampionIcon(championId);
+            }
+            else
+            {
+                _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionWaiting);
+            }
+            _contextStatus.ForeColor = FacmDesignSystem.Accent;
+            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildLoading);
+            SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildLoading), FacmDesignSystem.Accent);
+        }
+
+        private void SetBuildUnavailableState()
+        {
+            _contextStatus.ForeColor = FacmDesignSystem.Warning;
+            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildUnavailable);
+            SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildUnavailable), FacmDesignSystem.Warning);
+        }
+
+        private void SetChampionWaitingState()
+        {
+            _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionWaiting);
+            _championMeta.Text = string.Empty;
+            _contextStatus.ForeColor = FacmDesignSystem.TextMuted;
+            _contextStatus.Text = LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Waiting);
+            SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting), FacmDesignSystem.TextMuted);
+        }
+
+        private RecommendationSection CreateRecommendationSection(string title)
+        {
+            var host = new Panel
+            {
+                Width = SectionWidth,
+                Height = RecommendationSectionHeight,
+                Margin = Padding.Empty,
+                BackColor = FacmDesignSystem.Canvas,
+                Visible = false
+            };
+            var caption = new Label
+            {
+                Text = title ?? string.Empty,
+                Location = new Point(0, 9),
+                Size = new Size(92, 20),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+            };
+            var value = new Label
+            {
+                Location = new Point(92, 6),
+                Size = new Size(256, 36),
+                AutoEllipsis = false,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.8F)
+            };
+            var evidence = new Label
+            {
+                Location = new Point(92, 43),
+                Size = new Size(256, 18),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+            };
+            var rule = new Panel
+            {
+                Location = new Point(0, RecommendationSectionHeight - 1),
+                Size = new Size(SectionWidth, 1),
+                BackColor = FacmDesignSystem.BorderSoft
+            };
+            host.Controls.Add(caption);
+            host.Controls.Add(value);
+            host.Controls.Add(evidence);
+            host.Controls.Add(rule);
+            return new RecommendationSection { Host = host, Value = value, Evidence = evidence };
+        }
+
+        private void ApplyBuildRow(RecommendationSection section, LeagueBuildAdvisorRow row)
+        {
+            if (section == null) return;
+            if (row == null || string.IsNullOrWhiteSpace(row.Recommendation))
+            {
+                section.Host.Visible = false;
+                section.Value.Text = string.Empty;
+                section.Evidence.Text = string.Empty;
+                return;
+            }
+            section.Value.Text = row.Recommendation;
+            section.Evidence.Text = row.Evidence ?? string.Empty;
+            section.Host.Visible = true;
+        }
+
+        private static void ApplyFallbackValue(RecommendationSection section, string value)
+        {
+            if (section == null || section.Host.Visible || string.IsNullOrWhiteSpace(value) ||
+                string.Equals(value, MayhemUiCopy.NoValue, StringComparison.Ordinal)) return;
+            section.Value.Text = value;
+            section.Evidence.Text = string.Empty;
+            section.Host.Visible = true;
+        }
+
+        private void ResetRecommendationSections()
+        {
+            foreach (var section in new[] { _runes, _spells, _skills, _starter, _boots, _core })
+            {
+                section.Host.Visible = false;
+                section.Value.Text = string.Empty;
+                section.Evidence.Text = string.Empty;
+            }
+            _mayhemSection.Visible = false;
+            _augments.Items.Clear();
+        }
+
+        private static LeagueBuildAdvisorRow FindBuildRow(LeagueBuildRecommendation recommendation, string category)
+        {
+            if (recommendation == null || recommendation.Rows == null) return null;
+            return recommendation.Rows.FirstOrDefault(row => row != null && string.Equals(row.Category, category, StringComparison.OrdinalIgnoreCase));
         }
 
         private void RenderBench(LeagueRuntimeCompanionSnapshot snapshot)
@@ -463,6 +743,14 @@ namespace FACM.League
             }
         }
 
+        private void ClearBenchButtons()
+        {
+            if (_benchPanel.Controls.Count == 0) return;
+            var controls = _benchPanel.Controls.Cast<Control>().ToArray();
+            _benchPanel.Controls.Clear();
+            foreach (var control in controls) control.Dispose();
+        }
+
         private Button CreateBenchButton(int championId)
         {
             var button = new Button
@@ -491,24 +779,10 @@ namespace FACM.League
 
         private async Task LoadBenchIconAsync(Button button, int championId)
         {
-            Bitmap cached;
-            if (_benchIcons.TryGetValue(championId, out cached))
-            {
-                if (!button.IsDisposed)
-                {
-                    button.Image = cached;
-                    button.Text = string.Empty;
-                }
-                return;
-            }
-
             try
             {
-                var bytes = await _controller.LoadBenchChampionIconAsync(championId, _lifetime.Token);
-                if (bytes == null || bytes.Length == 0 || IsDisposed || button.IsDisposed) return;
-                var bitmap = DecodeBitmap(bytes, new Size(32, 32));
-                if (bitmap == null) return;
-                _benchIcons[championId] = bitmap;
+                var bitmap = await LoadChampionBitmapAsync(championId);
+                if (bitmap == null || IsDisposed || button.IsDisposed) return;
                 button.Image = bitmap;
                 button.Text = string.Empty;
             }
@@ -520,8 +794,48 @@ namespace FACM.League
             }
             catch
             {
-                // Champion ID remains as a readable fallback if the optional image path fails.
+                // Champion ID remains as a readable fallback when the optional portrait fails.
             }
+        }
+
+        private void EnsureLocalChampionIcon(int championId)
+        {
+            if (championId <= 0 || championId == _renderedChampionIconId) return;
+            _renderedChampionIconId = championId;
+            ReplacePicture(_championIcon, null);
+            _ = LoadLocalChampionPictureAsync(championId);
+        }
+
+        private async Task LoadLocalChampionPictureAsync(int championId)
+        {
+            try
+            {
+                var bitmap = await LoadChampionBitmapAsync(championId);
+                if (bitmap == null || IsDisposed || championId != _renderedChampionIconId) return;
+                // The cache owns the bitmap; PictureBox must not dispose it while cached.
+                _championIcon.Image = bitmap;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task<Bitmap> LoadChampionBitmapAsync(int championId)
+        {
+            Bitmap cached;
+            if (_championIcons.TryGetValue(championId, out cached)) return cached;
+            var bytes = await _controller.LoadBenchChampionIconAsync(championId, _lifetime.Token);
+            if (bytes == null || bytes.Length == 0 || IsDisposed) return null;
+            var bitmap = DecodeBitmap(bytes, new Size(52, 52));
+            if (bitmap == null) return null;
+            _championIcons[championId] = bitmap;
+            return bitmap;
         }
 
         private async Task SwapToAsync(int championId, LeagueBenchSwapRoute route)
@@ -551,66 +865,7 @@ namespace FACM.League
             }
         }
 
-        private void ResetGuide(int championId)
-        {
-            ReplacePicture(_championIcon, null);
-            _championTitle.Text = MayhemUiCopy.ReadingHero;
-            _championMeta.Text = _ui.Get(UiTextKeys.LeagueLiveChampion) + " " +
-                                 championId.ToString(CultureInfo.InvariantCulture) + " · " +
-                                 _ui.Get(UiTextKeys.LeagueLiveReadOnly);
-            _guideStatus.ForeColor = FacmDesignSystem.Accent;
-            _guideStatus.Text = MayhemUiCopy.ReadingLatest;
-            _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache);
-            _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache);
-            _items.Text = BuildGuideLine(MayhemUiCopy.CompactBuild, MayhemUiCopy.ReadingCache);
-            _augments.Items.Clear();
-        }
-
-        private void RenderGuide(MayhemChampionResult result)
-        {
-            if (result == null) return;
-            _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
-            _championMeta.Text = BuildChampionMeta(result);
-            _guideStatus.ForeColor = FacmDesignSystem.Success;
-            _guideStatus.Text = MayhemUiCopy.Completed + " · " + _ui.Get(UiTextKeys.LeagueLiveReadOnly);
-            _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, BuildSkillText(result));
-            _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, BuildSpellText(result));
-            _items.Text = BuildGuideLine(MayhemUiCopy.CompactBuild, BuildItemText(result));
-            _toolTip.SetToolTip(_championMeta, _championMeta.Text);
-            _toolTip.SetToolTip(_skills, _skills.Text);
-            _toolTip.SetToolTip(_spells, _spells.Text);
-            _toolTip.SetToolTip(_items, _items.Text);
-
-            _augments.BeginUpdate();
-            try
-            {
-                _augments.Items.Clear();
-                foreach (var row in (result.AugmentRows ?? new List<MayhemAugmentRow>())
-                    .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
-                    .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
-                    .ThenBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
-                    .Take(40))
-                {
-                    var item = new ListViewItem(row.Rank > 0 ? row.Rank.ToString(CultureInfo.InvariantCulture) : "—");
-                    item.SubItems.Add(row.Name);
-                    item.SubItems.Add(string.IsNullOrWhiteSpace(row.Rarity) ? "—" : row.Rarity);
-                    item.SubItems.Add(FormatRate(row.WinRate));
-                    item.SubItems.Add(FormatRate(row.PickRate));
-                    item.SubItems.Add(row.Games.HasValue ? row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
-                    item.ToolTipText = row.Description ?? string.Empty;
-                    _augments.Items.Add(item);
-                }
-            }
-            finally
-            {
-                _augments.EndUpdate();
-            }
-
-            if (!string.IsNullOrWhiteSpace(result.ChampionIconUrl))
-                _ = LoadChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
-        }
-
-        private async Task LoadChampionPictureAsync(string reference, int championId)
+        private async Task LoadGuideChampionPictureAsync(string reference, int championId)
         {
             try
             {
@@ -627,7 +882,6 @@ namespace FACM.League
             }
             catch
             {
-                // Text guide remains complete when the optional icon is unavailable.
             }
         }
 
@@ -636,6 +890,9 @@ namespace FACM.League
             _pinned = !_pinned;
             TopMost = _pinned;
             _pinButton.ForeColor = _pinned ? FacmDesignSystem.Accent : FacmDesignSystem.TextMuted;
+            _toolTip.SetToolTip(
+                _pinButton,
+                CompanionText(_pinned ? LeagueRuntimeCompanionUiTextKeys.Unpin : LeagueRuntimeCompanionUiTextKeys.Pin));
             _pinButton.Invalidate();
         }
 
@@ -644,9 +901,12 @@ namespace FACM.League
             if (_collapsed == collapsed) return;
             _collapsed = collapsed;
             _context.Visible = !collapsed;
-            _benchHost.Visible = !collapsed;
+            _benchHost.Visible = !collapsed && _controller.CurrentSnapshot.BenchEnabled;
             _body.Visible = !collapsed;
             _collapseButton.Text = collapsed ? "+" : "−";
+            _toolTip.SetToolTip(
+                _collapseButton,
+                CompanionText(collapsed ? LeagueRuntimeCompanionUiTextKeys.Expand : LeagueRuntimeCompanionUiTextKeys.Collapse));
             SetFixedClientSize(
                 _expandedClientWidth,
                 collapsed ? _collapsedClientHeight : _expandedClientHeight);
@@ -687,20 +947,6 @@ namespace FACM.League
             button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
             button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.SurfaceRaised;
             return button;
-        }
-
-        private Label CreateGuideLine(string label, int y, int height)
-        {
-            return new Label
-            {
-                Text = BuildGuideLine(label, MayhemUiCopy.ReadingCache),
-                Location = new Point(10, y),
-                Size = new Size(BodyContentWidth, height),
-                AutoEllipsis = false,
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.8F)
-            };
         }
 
         private void WireDrag(Control control)
@@ -746,9 +992,12 @@ namespace FACM.League
             _controller.SnapshotChanged -= HandleSnapshotChanged;
             try { _lifetime.Cancel(); }
             catch { }
-            ReplacePicture(_championIcon, null);
-            foreach (var bitmap in _benchIcons.Values) bitmap.Dispose();
-            _benchIcons.Clear();
+
+            // Cached local portraits own their bitmap lifetime. Detach the PictureBox first so it
+            // cannot dispose a shared cached instance through ReplacePicture.
+            _championIcon.Image = null;
+            foreach (var bitmap in _championIcons.Values) bitmap.Dispose();
+            _championIcons.Clear();
             _toolTip.Dispose();
             _controller.Dispose();
             _lifetime.Dispose();
@@ -756,7 +1005,7 @@ namespace FACM.League
 
         private string BuildWindowTitle()
         {
-            return UiTextRuntime.Text(UiTextKeys.AppName) + " · " + MayhemUiCopy.CardSubtitle;
+            return UiTextRuntime.Text(UiTextKeys.AppName) + " · " + LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Title);
         }
 
         private string BenchText(string key)
@@ -764,9 +1013,55 @@ namespace FACM.League
             return LeagueBenchQuickPickText.Get(_ui, key);
         }
 
-        private static string BuildGuideLine(string label, string value)
+        private string CompanionText(string key)
         {
-            return (label ?? string.Empty) + ": " + (value ?? string.Empty);
+            return LeagueRuntimeCompanionText.Get(_ui, key);
+        }
+
+        private static string BuildFingerprint(LeagueBuildAdvisorSnapshot build)
+        {
+            if (build == null) return null;
+            return build.ChampionId.ToString(CultureInfo.InvariantCulture) + "|" +
+                   (build.Mode ?? string.Empty) + "|" +
+                   (build.Position ?? string.Empty) + "|" +
+                   (build.Version ?? string.Empty) + "|" +
+                   (build.Status ?? string.Empty);
+        }
+
+        private static string BuildAdvisorMeta(LeagueBuildAdvisorSnapshot build)
+        {
+            if (build == null) return string.Empty;
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(build.Mode)) parts.Add(build.Mode.ToUpperInvariant());
+            if (!string.IsNullOrWhiteSpace(build.Position) && !string.Equals(build.Position, "none", StringComparison.OrdinalIgnoreCase))
+                parts.Add(build.Position.ToUpperInvariant());
+            if (!string.IsNullOrWhiteSpace(build.Version)) parts.Add(build.Version);
+            if (build.Recommendation != null)
+            {
+                if (!string.IsNullOrWhiteSpace(build.Recommendation.Tier)) parts.Add(build.Recommendation.Tier);
+                if (build.Recommendation.Rank > 0) parts.Add("#" + build.Recommendation.Rank.ToString(CultureInfo.InvariantCulture));
+                if (build.Recommendation.WinRate.HasValue) parts.Add(FormatNormalizedRate(build.Recommendation.WinRate));
+            }
+            return string.Join(" · ", parts);
+        }
+
+        private static string BuildMayhemMeta(MayhemChampionResult result)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add(result.Tier);
+            if (result.Rank.HasValue) parts.Add(MayhemUiCopy.RankPrefix + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
+            if (result.WinRate.HasValue)
+                parts.Add(MayhemUiCopy.Win + result.WinRate.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%");
+            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
+            return parts.Count == 0 ? MayhemUiCopy.CardSubtitle : string.Join(" · ", parts);
+        }
+
+        private static string FormatNormalizedRate(double? rate)
+        {
+            if (!rate.HasValue) return string.Empty;
+            var value = rate.Value;
+            if (Math.Abs(value) <= 1.0) value *= 100.0;
+            return value.ToString("0.0", CultureInfo.InvariantCulture) + "%";
         }
 
         private static Bitmap DecodeBitmap(byte[] bytes, Size size)
@@ -842,17 +1137,6 @@ namespace FACM.League
             return values.Count == 0 ? MayhemUiCopy.NoValue : string.Join(" → ", values);
         }
 
-        private static string BuildChampionMeta(MayhemChampionResult result)
-        {
-            var parts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add(result.Tier);
-            if (result.Rank.HasValue) parts.Add(MayhemUiCopy.RankPrefix + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
-            if (result.WinRate.HasValue)
-                parts.Add(MayhemUiCopy.Win + result.WinRate.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%");
-            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
-            return parts.Count == 0 ? MayhemUiCopy.CardSubtitle : string.Join(" · ", parts);
-        }
-
         private static string FormatRate(double? value)
         {
             return value.HasValue ? value.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
@@ -895,10 +1179,41 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion fixed regions leave no useful scroll body.");
             if (AugmentColumnTotalWidth > BodyContentWidth)
                 throw new InvalidOperationException("Runtime Companion augment table would require horizontal scrolling at the design width.");
+            if (RecommendationSectionHeight < 56 || SectionWidth != BodyContentWidth)
+                throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
+            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 10)
+                throw new InvalidOperationException("Runtime Companion localized copy is incomplete.");
 
-            var result = new MayhemChampionResult
+            var recommendation = new LeagueBuildRecommendation
+            {
+                Tier = "T1",
+                Rank = 3,
+                WinRate = 0.5432
+            };
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow { Category = "runes", Recommendation = "Conqueror", Evidence = "pick 60.0%" });
+            recommendation.Rows.Add(new LeagueBuildAdvisorRow { Category = "starter-items", Recommendation = "Doran's Blade", Evidence = "pick 55.0%" });
+            var build = new LeagueBuildAdvisorSnapshot
+            {
+                ChampionId = 58,
+                ChampionName = "Renekton",
+                Mode = "ranked",
+                Position = "top",
+                Version = "16.18",
+                Status = "ready",
+                Recommendation = recommendation
+            };
+            var meta = BuildAdvisorMeta(build);
+            if (meta.IndexOf("RANKED", StringComparison.Ordinal) < 0 ||
+                meta.IndexOf("TOP", StringComparison.Ordinal) < 0 ||
+                meta.IndexOf("T1", StringComparison.Ordinal) < 0 ||
+                meta.IndexOf("54.3%", StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("Runtime Companion ranked context projection is invalid.");
+            if (FindBuildRow(recommendation, "runes") == null || FindBuildRow(recommendation, "core-items") != null)
+                throw new InvalidOperationException("Runtime Companion build category mapping is invalid.");
+
+            var mayhem = new MayhemChampionResult
             {
                 ChampionName = "Seraphine",
                 Tier = "S+",
@@ -917,17 +1232,10 @@ namespace FACM.League
                     new MayhemBuildItem { Name = "Mark" }
                 }
             };
-            var meta = BuildChampionMeta(result);
-            if (meta.IndexOf("S+", StringComparison.Ordinal) < 0 ||
-                meta.IndexOf("#3", StringComparison.Ordinal) < 0 ||
-                meta.IndexOf("54.3%", StringComparison.Ordinal) < 0)
-                throw new InvalidOperationException("Runtime Companion guide summary projection is invalid.");
-            if (!string.Equals(FormatRate(53.5), "53.5%", StringComparison.Ordinal))
-                throw new InvalidOperationException("Runtime Companion percent-unit contract is invalid.");
-            if (!string.Equals(BuildSkillText(result), "Q → E → W", StringComparison.Ordinal))
-                throw new InvalidOperationException("Runtime Companion skill projection is invalid.");
-            if (!string.Equals(BuildSpellText(result), "Flash + Mark", StringComparison.Ordinal))
-                throw new InvalidOperationException("Runtime Companion spell projection is invalid.");
+            if (!string.Equals(BuildSkillText(mayhem), "Q → E → W", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime Companion Mayhem skill fallback is invalid.");
+            if (!string.Equals(BuildSpellText(mayhem), "Flash + Mark", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime Companion Mayhem spell fallback is invalid.");
         }
     }
 }
