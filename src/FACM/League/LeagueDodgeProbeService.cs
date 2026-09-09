@@ -23,8 +23,10 @@ namespace FACM.League
         internal const string ChampSelectPath = "/lol-champ-select/v1/session";
 
         private static readonly TimeSpan SampleInterval = TimeSpan.FromMilliseconds(250);
-        private static readonly TimeSpan TeamRefreshInterval = TimeSpan.FromMilliseconds(500);
+        private static readonly TimeSpan TeamRefreshInterval = TimeSpan.FromMilliseconds(250);
         private static readonly TimeSpan PostChampSelectGrace = TimeSpan.FromSeconds(12);
+        private static readonly TimeSpan PostDodgeEvidenceWindow = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan PostDodgeEvidenceInterval = TimeSpan.FromMilliseconds(125);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _client;
@@ -42,6 +44,8 @@ namespace FACM.League
             AppLog.Info(
                 "League Dodge Probe initialized; mode=read-only; search=" + SearchPath +
                 "; champSelect=" + ChampSelectPath +
+                "; chat=" + LeagueDodgeSideEvidenceProbe.ConversationsPath +
+                "; lobby=" + LeagueDodgeSideEvidenceProbe.LobbyPath +
                 "; sampleMs=" + ((int)SampleInterval.TotalMilliseconds).ToString(CultureInfo.InvariantCulture) +
                 "; postSelectGraceMs=" + ((int)PostChampSelectGrace.TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
         }
@@ -106,11 +110,13 @@ namespace FACM.League
         private async Task RunEpisodeAsync(long generation, CancellationToken cancellationToken)
         {
             var roster = new LeagueDodgeTeamSnapshot();
+            var evidence = new LeagueDodgeSideEvidenceProbe(_client, generation);
             string lastRosterFingerprint = null;
             string baselineDodgeFingerprint = null;
             string lastReportedDodgeFingerprint = null;
             bool baselineCaptured = false;
             bool searchUnavailableLogged = false;
+            bool confirmedDodgeReported = false;
             var nextTeamRefreshUtc = DateTime.MinValue;
 
             try
@@ -141,6 +147,7 @@ namespace FACM.League
                         var observedRoster = ParseTeamSnapshot(teamBytes);
                         if (observedRoster != null && observedRoster.SessionAvailable)
                         {
+                            evidence.ObserveChampSelectSnapshot(observedRoster);
                             roster.MergeFrom(observedRoster);
                             var fingerprint = roster.Fingerprint;
                             if (!string.Equals(lastRosterFingerprint, fingerprint, StringComparison.Ordinal))
@@ -153,12 +160,15 @@ namespace FACM.League
                                     "; myKnown=" + roster.MySummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
                                     "; theirSlots=" + roster.TheirTeamSlots.ToString(CultureInfo.InvariantCulture) +
                                     "; theirKnown=" + roster.TheirSummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
+                                    "; chatRoomKnown=" + (!string.IsNullOrWhiteSpace(roster.ChatRoomName)).ToString().ToLowerInvariant() +
                                     "; mySummonerIds=" + FormatIds(roster.MySummonerIds) +
                                     "; theirSummonerIds=" + FormatIds(roster.TheirSummonerIds));
                             }
                         }
                         nextTeamRefreshUtc = DateTime.UtcNow + TeamRefreshInterval;
                     }
+
+                    await evidence.SampleAsync(roster, cancellationToken).ConfigureAwait(false);
 
                     var searchBytes = await _client.TryGetBytesAsync(SearchPath, cancellationToken).ConfigureAwait(false);
                     var dodge = ParseDodgeSnapshot(searchBytes);
@@ -192,28 +202,53 @@ namespace FACM.League
                                 "; phase=" + Safe(phase) +
                                 "; dodgePresent=" + dodge.Present.ToString().ToLowerInvariant() +
                                 (dodge.Present
-                                    ? "; state=" + Safe(dodge.State) + "; dodgerId=" + dodge.DodgerId.ToString(CultureInfo.InvariantCulture)
+                                    ? "; state=" + Safe(dodge.State) +
+                                      "; dodgerId=" + dodge.DodgerId.ToString(CultureInfo.InvariantCulture) +
+                                      "; dodgeData=" + Safe(dodge.RawSummary)
                                     : string.Empty));
                         }
                         else if (dodge.Present &&
                                  !string.Equals(fingerprint, baselineDodgeFingerprint, StringComparison.Ordinal) &&
                                  !string.Equals(fingerprint, lastReportedDodgeFingerprint, StringComparison.Ordinal))
                         {
+                            confirmedDodgeReported = true;
                             lastReportedDodgeFingerprint = fingerprint;
-                            var classification = Classify(dodge, roster);
-                            AppLog.Info(
-                                "League Dodge Probe: DODGE; episode=" + generation.ToString(CultureInfo.InvariantCulture) +
-                                "; phase=" + Safe(phase) +
-                                "; state=" + Safe(dodge.State) +
-                                "; dodgerId=" + dodge.DodgerId.ToString(CultureInfo.InvariantCulture) +
-                                "; side=" + classification.Side +
-                                "; basis=" + classification.Basis +
-                                "; mySlots=" + roster.MyTeamSlots.ToString(CultureInfo.InvariantCulture) +
-                                "; myKnown=" + roster.MySummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
-                                "; theirSlots=" + roster.TheirTeamSlots.ToString(CultureInfo.InvariantCulture) +
-                                "; theirKnown=" + roster.TheirSummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
-                                "; mySummonerIds=" + FormatIds(roster.MySummonerIds) +
-                                "; theirSummonerIds=" + FormatIds(roster.TheirSummonerIds));
+                            var classification = evidence.Refine(Classify(dodge, roster), roster);
+                            LogDodge(
+                                "DODGE",
+                                generation,
+                                phase,
+                                dodge,
+                                classification,
+                                roster,
+                                evidence.BuildSummary(roster));
+
+                            await CapturePostDodgeEvidenceAsync(evidence, roster, generation, cancellationToken).ConfigureAwait(false);
+                            classification = evidence.Refine(Classify(dodge, roster), roster);
+                            LogDodge(
+                                "DODGE-EVIDENCE",
+                                generation,
+                                phase,
+                                dodge,
+                                classification,
+                                roster,
+                                evidence.BuildSummary(roster));
+                        }
+
+                        if (!confirmedDodgeReported && !IsChampSelect(phase) && IsDodgeReturnPhase(phase) &&
+                            dodge.Present && IsRecognizedDodgeState(dodge.State))
+                        {
+                            confirmedDodgeReported = true;
+                            await CapturePostDodgeEvidenceAsync(evidence, roster, generation, cancellationToken).ConfigureAwait(false);
+                            var classification = evidence.Refine(Classify(dodge, roster), roster);
+                            LogDodge(
+                                "DODGE-PHASE-RETURN",
+                                generation,
+                                phase,
+                                dodge,
+                                classification,
+                                roster,
+                                evidence.BuildSummary(roster));
                         }
                     }
 
@@ -244,6 +279,62 @@ namespace FACM.League
             }
         }
 
+        private async Task CapturePostDodgeEvidenceAsync(
+            LeagueDodgeSideEvidenceProbe evidence,
+            LeagueDodgeTeamSnapshot roster,
+            long generation,
+            CancellationToken cancellationToken)
+        {
+            var deadlineUtc = DateTime.UtcNow + PostDodgeEvidenceWindow;
+            AppLog.Info(
+                "League Dodge Probe: evidence-burst-start; episode=" + generation.ToString(CultureInfo.InvariantCulture) +
+                "; windowMs=" + ((int)PostDodgeEvidenceWindow.TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
+
+            while (DateTime.UtcNow < deadlineUtc && !cancellationToken.IsCancellationRequested)
+            {
+                var teamBytes = await _client.TryGetBytesAsync(ChampSelectPath, cancellationToken).ConfigureAwait(false);
+                var observedRoster = ParseTeamSnapshot(teamBytes);
+                if (observedRoster != null && observedRoster.SessionAvailable)
+                {
+                    evidence.ObserveChampSelectSnapshot(observedRoster);
+                    roster.MergeFrom(observedRoster);
+                }
+
+                await evidence.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);
+                await Task.Delay(PostDodgeEvidenceInterval, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private static void LogDodge(
+            string marker,
+            long generation,
+            string phase,
+            LeagueDodgeSnapshot dodge,
+            LeagueDodgeClassification classification,
+            LeagueDodgeTeamSnapshot roster,
+            string evidenceSummary)
+        {
+            dodge = dodge ?? new LeagueDodgeSnapshot();
+            classification = classification ?? new LeagueDodgeClassification("unknown", "missing-classification");
+            roster = roster ?? new LeagueDodgeTeamSnapshot();
+            AppLog.Info(
+                "League Dodge Probe: " + marker +
+                "; episode=" + generation.ToString(CultureInfo.InvariantCulture) +
+                "; phase=" + Safe(phase) +
+                "; state=" + Safe(dodge.State) +
+                "; dodgerId=" + dodge.DodgerId.ToString(CultureInfo.InvariantCulture) +
+                "; side=" + classification.Side +
+                "; basis=" + classification.Basis +
+                "; dodgeData=" + Safe(dodge.RawSummary) +
+                "; mySlots=" + roster.MyTeamSlots.ToString(CultureInfo.InvariantCulture) +
+                "; myKnown=" + roster.MySummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
+                "; theirSlots=" + roster.TheirTeamSlots.ToString(CultureInfo.InvariantCulture) +
+                "; theirKnown=" + roster.TheirSummonerIds.Count.ToString(CultureInfo.InvariantCulture) +
+                "; mySummonerIds=" + FormatIds(roster.MySummonerIds) +
+                "; theirSummonerIds=" + FormatIds(roster.TheirSummonerIds) +
+                "; evidence=" + Safe(evidenceSummary));
+        }
+
         internal LeagueDodgeTeamSnapshot ParseTeamSnapshot(byte[] bytes)
         {
             var root = ParseObject(bytes);
@@ -252,6 +343,8 @@ namespace FACM.League
             var output = new LeagueDodgeTeamSnapshot { SessionAvailable = true };
             AppendTeam(output.MySummonerIds, ReadValue(root, "myTeam"), value => output.MyTeamSlots++);
             AppendTeam(output.TheirSummonerIds, ReadValue(root, "theirTeam"), value => output.TheirTeamSlots++);
+            var chatDetails = ReadDictionary(root, "chatDetails");
+            output.ChatRoomName = ReadString(chatDetails, "chatRoomName");
             return output;
         }
 
@@ -268,6 +361,7 @@ namespace FACM.League
             {
                 DodgerId = dodgerId,
                 State = state,
+                RawSummary = SummarizePrimitiveDictionary(data),
                 Present = dodgerId > 0 || !string.IsNullOrWhiteSpace(state)
             };
         }
@@ -332,14 +426,24 @@ namespace FACM.League
             var party = Classify(new LeagueDodgeSnapshot { Present = true, DodgerId = 0, State = "PartyDodged" }, partial);
             if (party.Side != "ally-party")
                 throw new InvalidOperationException("Dodge Probe party classification regressed.");
+
+            LeagueDodgeSideEvidenceProbe.ValidateForSmokeTest();
         }
 
         private static bool ShouldKeepPostSelectProbe(string phase)
         {
             return string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(phase, "ReadyCheck", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(phase, "WaitingForStats", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(phase, "PreEndOfGame", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsDodgeReturnPhase(string phase)
+        {
+            return string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "ReadyCheck", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsChampSelect(string phase)
@@ -350,6 +454,35 @@ namespace FACM.League
         private static bool IsPartyDodged(string state)
         {
             return string.Equals(state, "PartyDodged", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsRecognizedDodgeState(string state)
+        {
+            return string.Equals(state, "PartyDodged", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(state, "StrangerDodged", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(state, "TournamentDodged", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string SummarizePrimitiveDictionary(Dictionary<string, object> source)
+        {
+            if (source == null || source.Count == 0) return "-";
+            var parts = new List<string>();
+            foreach (var pair in source.OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                if (parts.Count >= 12) break;
+                var value = pair.Value;
+                if (value == null || value is string || value is bool || value is byte || value is sbyte ||
+                    value is short || value is ushort || value is int || value is uint || value is long ||
+                    value is ulong || value is float || value is double || value is decimal)
+                {
+                    parts.Add(Safe(pair.Key) + "=" + Safe(value == null ? "null" : Convert.ToString(value, CultureInfo.InvariantCulture)));
+                }
+                else
+                {
+                    parts.Add(Safe(pair.Key) + "=<" + value.GetType().Name + ">");
+                }
+            }
+            return parts.Count == 0 ? "-" : string.Join(",", parts.ToArray());
         }
 
         private static string FormatIds(IEnumerable<long> ids)
@@ -465,6 +598,7 @@ namespace FACM.League
         public bool SessionAvailable { get; set; }
         public int MyTeamSlots { get; set; }
         public int TheirTeamSlots { get; set; }
+        public string ChatRoomName { get; set; }
         public HashSet<long> MySummonerIds { get; private set; } = new HashSet<long>();
         public HashSet<long> TheirSummonerIds { get; private set; } = new HashSet<long>();
 
@@ -473,7 +607,8 @@ namespace FACM.League
             get
             {
                 return MyTeamSlots.ToString(CultureInfo.InvariantCulture) + ":" + Join(MySummonerIds) +
-                       "|" + TheirTeamSlots.ToString(CultureInfo.InvariantCulture) + ":" + Join(TheirSummonerIds);
+                       "|" + TheirTeamSlots.ToString(CultureInfo.InvariantCulture) + ":" + Join(TheirSummonerIds) +
+                       "|chat=" + (!string.IsNullOrWhiteSpace(ChatRoomName)).ToString().ToLowerInvariant();
             }
         }
 
@@ -483,6 +618,7 @@ namespace FACM.League
             SessionAvailable = true;
             MyTeamSlots = Math.Max(MyTeamSlots, other.MyTeamSlots);
             TheirTeamSlots = Math.Max(TheirTeamSlots, other.TheirTeamSlots);
+            if (!string.IsNullOrWhiteSpace(other.ChatRoomName)) ChatRoomName = other.ChatRoomName;
             foreach (var id in other.MySummonerIds) if (id > 0) MySummonerIds.Add(id);
             foreach (var id in other.TheirSummonerIds) if (id > 0) TheirSummonerIds.Add(id);
         }
@@ -501,6 +637,7 @@ namespace FACM.League
         public bool Present { get; set; }
         public long DodgerId { get; set; }
         public string State { get; set; }
+        public string RawSummary { get; set; }
 
         public string Fingerprint
         {
