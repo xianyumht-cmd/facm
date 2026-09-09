@@ -67,6 +67,15 @@ namespace FACM.AppHost.Modules
             }
         }
 
+        internal AppSettings RuntimeCompanionSettings
+        {
+            get
+            {
+                if (_settings.Settings == null) throw new InvalidOperationException("Settings module is not initialized.");
+                return _settings.Settings;
+            }
+        }
+
         public void Initialize()
         {
             if (_settings.Settings == null)
