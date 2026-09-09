@@ -40,6 +40,33 @@ namespace FACM.AppHost.Modules
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
+        internal LeagueBuildAdvisorDataService RuntimeCompanionReadService
+        {
+            get
+            {
+                if (_service == null) throw new InvalidOperationException("League Build Advisor module is not initialized.");
+                return _service;
+            }
+        }
+
+        internal LeagueBuildApplyService RuntimeCompanionApplyService
+        {
+            get
+            {
+                if (_applyService == null) throw new InvalidOperationException("League Build Apply module is not initialized.");
+                return _applyService;
+            }
+        }
+
+        internal LeagueItemSetService RuntimeCompanionItemSetService
+        {
+            get
+            {
+                if (_itemSetService == null) throw new InvalidOperationException("League Item Set module is not initialized.");
+                return _itemSetService;
+            }
+        }
+
         public void Initialize()
         {
             if (_settings.Settings == null)
