@@ -60,6 +60,18 @@ Transparent/low-alpha idle backgrounds can leave stale text pixels after state c
 
 For compact windows, apply final geometry before the first `Show()`; showing a full historical size and cropping afterward can leave desktop compositor artifacts.
 
+## Per-monitor transient windows must not trust pre-Show 96-DPI geometry
+
+FACM is PerMonitorV2-aware. A transient borderless window can have the correct logical WinForms size but a different physical size after its handle is created on a 125/150/200% display. Computing upper-right placement from the logical width before `Show()` can therefore leave a Runtime Companion clipped or restore it to the wrong place.
+
+For the Runtime Companion, let its normal `Shown` path establish DPI-scaled geometry, then fit/clamp the physical bounds before the surface becomes visible to the user. Saved monitor coordinates may legitimately be negative when a display is left of the primary monitor; negative values are not corruption. Clamp to a current `Screen.WorkingArea` when topology changes instead of resetting to `(0,0)`.
+
+## Runtime Companion preferences must use the shared settings owner
+
+Do not call `AppSettings.Load()` from the transient Form and do not create a companion-specific INI/JSON file. That creates two mutable settings objects and can overwrite unrelated changes when either copy saves.
+
+Reuse the already-initialized `SettingsModule.Settings` object and its normal atomic/LKG save path. Restore pin/collapse through the Form's existing behavior owner so `TopMost`, internal state, glyphs and tooltips cannot drift apart.
+
 ## Updater migration residue is not needed
 
 Current 3.5 updates use the embedded small updater for one-EXE replacement/rollback. Do not add back FACM 4 bootstrapper/manifest/migration arguments to solve ordinary 3.5 update issues.
