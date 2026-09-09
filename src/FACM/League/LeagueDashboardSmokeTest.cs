@@ -66,6 +66,7 @@ namespace FACM
             ValidateDesktopEntryGameflowPolicy();
             ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
+            LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
 
             var budgets = new PerformanceBudgetProvider();
