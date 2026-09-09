@@ -163,9 +163,11 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                // Reuse the already-initialized Build Advisor owner. The Runtime Companion must not
-                // create a second OP.GG cache/transport or duplicate the recommendation write stack.
-                form = _live.CreateChampSelectAssistantForm(_advisor.RuntimeCompanionReadService);
+                // Reuse the already-initialized Build Advisor / Build Apply owners. The Runtime
+                // Companion must not create a second OP.GG transport or a parallel LCU write stack.
+                form = _live.CreateChampSelectAssistantForm(
+                    _advisor.RuntimeCompanionReadService,
+                    _advisor.RuntimeCompanionApplyService);
                 form.TopMost = true;
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
