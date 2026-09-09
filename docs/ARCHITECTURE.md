@@ -62,6 +62,22 @@ Important rules:
 - Failed/ambiguous matchmaking writes reconcile `/lol-matchmaking/v1/search` before deciding to retry.
 - ReadyCheck attempts use an episode fence; true failures can retry after a short delay, while a final local response prevents duplicate writes.
 
+### Runtime Companion (task PR #283)
+
+The Runtime Companion is a narrow transient **consumer/orchestration surface**, not another League runtime.
+
+- `LeagueHubModule` remains the automatic Champion Select episode owner. It decides when one companion instance may exist and when leaving Champion Select closes it.
+- `LeagueLiveModule` constructs the companion from the already-initialized Live/Bench services; it does not create another League session.
+- `LeagueRuntimeCompanionController` projects the existing Bench, Build Advisor and Mayhem owners into defensively copied presentation snapshots. Generation/cancellation rules reject stale champion/build/guide work.
+- build recommendation reads reuse `LeagueBuildAdvisorModule.RuntimeCompanionReadService`, including the existing shared OP.GG cache/transport.
+- Bench swaps reuse `LeagueBenchQuickPickService`; explicit rune/summoner-spell actions reuse `LeagueBuildApplyService`. The presentation Form has no raw League write interface.
+- item/build rows that are not deliberately wired to an inline owner remain display-only in the companion. Broader workflows may continue to exist in the unified Recommendation page.
+- the transient window has no taskbar entry and keeps `ShowWithoutActivation`; pin/collapse/drag are presentation concerns only.
+
+Window preferences are also shared ownership rather than Form-local state. `LeagueBuildAdvisorModule.RuntimeCompanionSettings` exposes the already-loaded `SettingsModule.Settings` object; `LeagueRuntimeCompanionWindowState` persists position, pin and collapse values through `AppSettings.Save()` and the existing last-known-good recovery file. It never opens a private settings file.
+
+FACM already declares PerMonitorV2 awareness in `app.manifest`. Runtime Companion placement therefore occurs from the Form's `Shown` path, after WinForms has established DPI-scaled physical geometry. Saved coordinates may be negative for displays left of the primary monitor; restore and user drag are clamped to the chosen monitor's current working area. Expanded height is capped against physical working-area height after DPI scaling so 125/150/200% configurations do not reuse a 96-DPI pre-show size assumption.
+
 ### Champion Select dodge evidence
 
 The 3.5.38 public field-test probe remains a **consumer** of `LeagueDashboardModule`'s shared Gameflow state. `LeagueDodgeProbeService` owns the episode lifecycle and `LeagueDodgeSideEvidenceProbe` owns short-lived read-only evidence correlation. Neither owns Gameflow or a separate League session.
@@ -115,7 +131,7 @@ CI must enforce:
 - desktop launcher definition/geometry rules and shared compact geometry constraints.
 - UI text contract.
 
-`--league-dashboard-test` also covers the deterministic dodge-probe classifier/departure-text smoke so its fail-closed classification and read-only evidence parser are exercised by the normal Windows build gate.
+`--facm-host-test` covers Runtime Companion settings serialization/recovery and deterministic DPI/multi-monitor window-state geometry. `--league-dashboard-test` covers Runtime Companion presentation/controller projection invariants in addition to the deterministic dodge-probe classifier/departure-text smoke. The Windows build remains the executable gate; real Tencent-client acceptance is still required before the task PR is considered shippable.
 
 ## State ownership rules
 
@@ -127,6 +143,7 @@ Prefer one owner per mutable runtime concern:
 - one desired pet visibility state;
 - one online version manifest;
 - one canonical 3.5 lightweight publisher;
+- one shared settings object for Runtime Companion window preferences;
 - one shared UI design-system direction rather than page-local theme engines.
 
 When asynchronous work can finish after context changes, use cancellation/generation/fingerprint/postcondition checks rather than adding arbitrary sleeps.
