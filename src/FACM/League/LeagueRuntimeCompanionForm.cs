@@ -14,11 +14,10 @@ using FACM.Theming;
 namespace FACM.League
 {
     /// <summary>
-    /// Narrow Champion Select Runtime Companion.
+    /// Narrow Champion Select Runtime Companion presentation surface.
     ///
-    /// Phase 1 intentionally preserves the existing behavior boundary: this surface is shown only
-    /// for Bench-enabled ARAM/Mayhem-style Champion Select, uses the existing Bench owner for swaps,
-    /// uses the existing Mayhem automatic-guide service, and adds no League transport or write path.
+    /// The Form renders snapshots and delegates refresh/write/image orchestration to
+    /// LeagueRuntimeCompanionController. It does not own Gameflow or a League transport.
     /// </summary>
     internal sealed class LeagueRuntimeCompanionForm : Form
     {
@@ -28,11 +27,11 @@ namespace FACM.League
         internal const int BenchHeight = 70;
         internal const int MinimumExpandedHeight = 480;
         internal const int MaximumExpandedHeight = 720;
+        internal const int BodyContentWidth = 348;
+        internal const int AugmentColumnTotalWidth = 334;
         private const int BodyContentHeight = 520;
 
-        private readonly LeagueBenchQuickPickService _bench;
-        private readonly ILeagueClientApi _leagueClient;
-        private readonly MayhemAutomaticGuideService _guide;
+        private readonly LeagueRuntimeCompanionController _controller;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly System.Windows.Forms.Timer _pollTimer;
@@ -45,6 +44,7 @@ namespace FACM.League
         private readonly Button _pinButton;
         private readonly Button _collapseButton;
         private readonly Panel _context;
+        private readonly Panel _benchHost;
         private readonly FlowLayoutPanel _benchPanel;
         private readonly Panel _body;
         private readonly PictureBox _championIcon;
@@ -56,14 +56,15 @@ namespace FACM.League
         private readonly Label _items;
         private readonly ListView _augments;
 
-        private CancellationTokenSource _guideRequest;
         private bool _refreshing;
         private bool _benchConfirmed;
         private bool _collapsed;
         private bool _pinned = true;
-        private int _guideChampionId;
-        private int _guideGeneration;
-        private int _expandedHeight;
+        private int _expandedClientWidth;
+        private int _expandedClientHeight;
+        private int _collapsedClientHeight;
+        private int _renderedGuideChampionId;
+        private MayhemChampionResult _renderedGuide;
         private bool _dragging;
         private Point _dragCursor;
         private Point _dragWindow;
@@ -78,9 +79,9 @@ namespace FACM.League
             LeagueBenchQuickPickService bench,
             ILeagueClientApi leagueClient)
         {
-            _bench = bench ?? throw new ArgumentNullException(nameof(bench));
-            _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
-            _guide = new MayhemAutomaticGuideService(_leagueClient);
+            if (bench == null) throw new ArgumentNullException(nameof(bench));
+            if (leagueClient == null) throw new ArgumentNullException(nameof(leagueClient));
+            _controller = new LeagueRuntimeCompanionController(bench, leagueClient);
             _ui = UiTextCatalog.Load();
 
             Text = BuildWindowTitle();
@@ -97,8 +98,10 @@ namespace FACM.League
             AutoScaleDimensions = new SizeF(96F, 96F);
             Opacity = 0d; // Do not flash before the existing Bench owner confirms this mode.
 
-            _expandedHeight = ResolveExpandedHeight(Screen.FromPoint(Cursor.Position).WorkingArea.Height);
-            SetFixedClientSize(DesignWidth, _expandedHeight);
+            _expandedClientWidth = DesignWidth;
+            _expandedClientHeight = ResolveExpandedHeight(Screen.FromPoint(Cursor.Position).WorkingArea.Height);
+            _collapsedClientHeight = HeaderHeight;
+            SetFixedClientSize(_expandedClientWidth, _expandedClientHeight);
 
             _header = new Panel
             {
@@ -129,6 +132,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted
             };
             _pinButton = CreateChromeButton("↑", 284, 30);
+            _pinButton.ForeColor = FacmDesignSystem.Accent;
             _pinButton.Click += delegate { TogglePin(); };
             _collapseButton = CreateChromeButton("−", 316, 30);
             _collapseButton.Click += delegate { SetCollapsed(!_collapsed); };
@@ -193,7 +197,7 @@ namespace FACM.League
             _context.Controls.Add(_championMeta);
             _context.Controls.Add(_guideStatus);
 
-            var benchHost = new Panel
+            _benchHost = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = BenchHeight,
@@ -220,8 +224,8 @@ namespace FACM.League
                 Padding = new Padding(0, 2, 0, 0),
                 Margin = Padding.Empty
             };
-            benchHost.Controls.Add(_benchPanel);
-            benchHost.Controls.Add(benchLabel);
+            _benchHost.Controls.Add(_benchPanel);
+            _benchHost.Controls.Add(benchLabel);
 
             _body = new Panel
             {
@@ -238,14 +242,14 @@ namespace FACM.League
             var separator = new Panel
             {
                 Location = new Point(10, 201),
-                Size = new Size(348, 1),
+                Size = new Size(BodyContentWidth, 1),
                 BackColor = FacmDesignSystem.BorderSoft
             };
             var augmentTitle = new Label
             {
                 Text = MayhemUiCopy.AugmentBoard,
                 Location = new Point(10, 212),
-                Size = new Size(348, 24),
+                Size = new Size(BodyContentWidth, 24),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -254,7 +258,7 @@ namespace FACM.League
             _augments = new ListView
             {
                 Location = new Point(10, 240),
-                Size = new Size(348, 258),
+                Size = new Size(BodyContentWidth, 258),
                 View = View.Details,
                 FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
@@ -263,12 +267,12 @@ namespace FACM.League
                 BorderStyle = BorderStyle.None,
                 ShowItemToolTips = true
             };
-            _augments.Columns.Add("#", 34, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 128, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 50, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 58, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PickRate, 58, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.Sample, 72, HorizontalAlignment.Right);
+            _augments.Columns.Add("#", 30, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 112, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 42, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 48, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PickRate, 48, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.Sample, 54, HorizontalAlignment.Right);
 
             _body.Controls.Add(_skills);
             _body.Controls.Add(_spells);
@@ -277,20 +281,18 @@ namespace FACM.League
             _body.Controls.Add(augmentTitle);
             _body.Controls.Add(_augments);
 
+            // WinForms docking uses z-order. Add Fill first and fixed top regions afterward so
+            // the body receives only the remaining client area rather than sitting under them.
             Controls.Add(_body);
-            Controls.Add(benchHost);
+            Controls.Add(_benchHost);
             Controls.Add(_context);
             Controls.Add(_header);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
             _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
-            _pollTimer.Tick += async delegate { await RefreshBenchAsync(); };
-            Shown += delegate
-            {
-                FacmDesignSystem.Round(this, FacmDesignSystem.WindowRadius);
-                _pollTimer.Start();
-                _ = RefreshBenchAsync();
-            };
+            _pollTimer.Tick += async delegate { await RefreshSnapshotAsync(); };
+            _controller.SnapshotChanged += HandleSnapshotChanged;
+            Shown += HandleShown;
             FormClosed += HandleClosed;
         }
 
@@ -305,52 +307,31 @@ namespace FACM.League
             return Math.Max(MinimumExpandedHeight, Math.Min(MaximumExpandedHeight, available));
         }
 
-        private async Task RefreshBenchAsync()
+        private void HandleShown(object sender, EventArgs e)
+        {
+            // AutoScaleMode=Dpi has now applied the physical scale. Capture those actual dimensions
+            // once so later collapse/restore never snaps a high-DPI window back to 96-DPI pixels.
+            _expandedClientWidth = ClientSize.Width;
+            _expandedClientHeight = ClientSize.Height;
+            _collapsedClientHeight = _header.Height;
+            FacmDesignSystem.Round(this, FacmDesignSystem.WindowRadius);
+            _pollTimer.Start();
+            _ = RefreshSnapshotAsync();
+        }
+
+        private async Task RefreshSnapshotAsync()
         {
             if (_refreshing || IsDisposed || _lifetime.IsCancellationRequested) return;
             _refreshing = true;
             try
             {
-                LeagueBenchQuickPickState state;
-                try
-                {
-                    state = await _bench.RefreshAsync(_lifetime.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-
-                if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                if (state == null || !state.SessionAvailable)
-                {
-                    SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Waiting), FacmDesignSystem.TextMuted);
-                    return;
-                }
-
-                // Phase 1 intentionally retains the old behavior boundary: no popup in modes
-                // where the existing Bench owner says the Bench surface is not applicable.
-                if (!state.BenchEnabled)
-                {
-                    Close();
-                    return;
-                }
-
-                if (!_benchConfirmed)
-                {
-                    _benchConfirmed = true;
-                    Opacity = 1d;
-                }
-
-                SetStatus(
-                    state.ChampionIds.Count > 0
-                        ? BenchText(LeagueBenchQuickPickUiTextKeys.Title) + ": " + state.ChampionIds.Count.ToString(CultureInfo.InvariantCulture)
-                        : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
-                    FacmDesignSystem.TextMuted);
-                RenderBench(state);
-
-                if (state.LocalChampionId > 0 && state.LocalChampionId != _guideChampionId)
-                    StartAutomaticGuide(state.LocalChampionId);
+                await _controller.RefreshAsync(_lifetime.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
             }
             catch (Exception exception)
             {
@@ -366,9 +347,85 @@ namespace FACM.League
             }
         }
 
-        private void RenderBench(LeagueBenchQuickPickState state)
+        private void HandleSnapshotChanged(object sender, LeagueRuntimeCompanionUpdateEventArgs e)
         {
-            var wanted = new HashSet<int>(state.ChampionIds.Where(id => id > 0));
+            var snapshot = e == null ? null : e.Snapshot;
+            if (snapshot == null || IsDisposed || _lifetime.IsCancellationRequested) return;
+            try
+            {
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(delegate { ApplySnapshot(snapshot); }));
+                    return;
+                }
+                ApplySnapshot(snapshot);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void ApplySnapshot(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            if (snapshot == null || IsDisposed) return;
+            if (!snapshot.SessionAvailable)
+            {
+                SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Waiting), FacmDesignSystem.TextMuted);
+                return;
+            }
+
+            // Phase 1 deliberately preserves the old visibility boundary. Phase 3 will broaden the
+            // controller to normal ranked/other contexts using existing build/live services.
+            if (!snapshot.BenchEnabled)
+            {
+                Close();
+                return;
+            }
+
+            if (!_benchConfirmed)
+            {
+                _benchConfirmed = true;
+                Opacity = 1d;
+            }
+
+            SetStatus(
+                snapshot.BenchChampionIds != null && snapshot.BenchChampionIds.Count > 0
+                    ? BenchText(LeagueBenchQuickPickUiTextKeys.Title) + ": " + snapshot.BenchChampionIds.Count.ToString(CultureInfo.InvariantCulture)
+                    : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting),
+                FacmDesignSystem.TextMuted);
+            RenderBench(snapshot);
+
+            if (snapshot.GuideChampionId > 0 && snapshot.GuideChampionId != _renderedGuideChampionId)
+            {
+                _renderedGuideChampionId = snapshot.GuideChampionId;
+                _renderedGuide = null;
+                ResetGuide(snapshot.GuideChampionId);
+            }
+
+            if (snapshot.GuideLoading)
+            {
+                _guideStatus.ForeColor = FacmDesignSystem.Accent;
+                _guideStatus.Text = MayhemUiCopy.ReadingLatest;
+            }
+            else if (!string.IsNullOrWhiteSpace(snapshot.GuideError))
+            {
+                _guideStatus.ForeColor = FacmDesignSystem.Warning;
+                _guideStatus.Text = snapshot.GuideError;
+            }
+            else if (snapshot.HasGuide && !ReferenceEquals(_renderedGuide, snapshot.Guide))
+            {
+                _renderedGuide = snapshot.Guide;
+                RenderGuide(snapshot.Guide);
+            }
+        }
+
+        private void RenderBench(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            var ids = snapshot.BenchChampionIds ?? Array.Empty<int>();
+            var wanted = new HashSet<int>(ids.Where(id => id > 0));
             var existing = _benchPanel.Controls.OfType<Button>()
                 .Where(button => button.Tag is BenchTarget)
                 .ToDictionary(button => ((BenchTarget)button.Tag).ChampionId, button => button);
@@ -380,7 +437,7 @@ namespace FACM.League
                 pair.Value.Dispose();
             }
 
-            foreach (var championId in state.ChampionIds.Where(id => id > 0))
+            foreach (var championId in ids.Where(id => id > 0))
             {
                 Button button;
                 if (!existing.TryGetValue(championId, out button))
@@ -396,11 +453,11 @@ namespace FACM.League
                     _ = LoadBenchIconAsync(button, championId);
                 }
 
-                button.Tag = new BenchTarget { ChampionId = championId, Route = state.SwapRoute };
+                button.Tag = new BenchTarget { ChampionId = championId, Route = snapshot.SwapRoute };
                 _toolTip.SetToolTip(
                     button,
                     BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
-                button.FlatAppearance.BorderColor = championId == state.LocalChampionId
+                button.FlatAppearance.BorderColor = championId == snapshot.LocalChampionId
                     ? FacmDesignSystem.Accent
                     : FacmDesignSystem.BorderSoft;
             }
@@ -447,7 +504,7 @@ namespace FACM.League
 
             try
             {
-                var bytes = await _bench.LoadChampionIconAsync(championId, _lifetime.Token);
+                var bytes = await _controller.LoadBenchChampionIconAsync(championId, _lifetime.Token);
                 if (bytes == null || bytes.Length == 0 || IsDisposed || button.IsDisposed) return;
                 var bitmap = DecodeBitmap(bytes, new Size(32, 32));
                 if (bitmap == null) return;
@@ -458,9 +515,12 @@ namespace FACM.League
             catch (OperationCanceledException)
             {
             }
+            catch (ObjectDisposedException)
+            {
+            }
             catch
             {
-                // Champion ID remains as a readable fallback if the image path fails.
+                // Champion ID remains as a readable fallback if the optional image path fails.
             }
         }
 
@@ -470,14 +530,17 @@ namespace FACM.League
             SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Swapping), FacmDesignSystem.Accent);
             try
             {
-                var result = await _bench.TrySwapAsync(championId, route, _lifetime.Token);
+                var result = await _controller.TrySwapAsync(championId, route, _lifetime.Token);
                 if (IsDisposed) return;
                 SetStatus(
                     result.Success ? BenchText(LeagueBenchQuickPickUiTextKeys.Success) : DescribeSwapFailure(result.Status),
                     result.Success ? FacmDesignSystem.Success : FacmDesignSystem.Warning);
-                _ = RefreshBenchAsync();
+                await _controller.RefreshAsync(_lifetime.Token);
             }
             catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
             {
             }
             catch (Exception exception)
@@ -486,65 +549,6 @@ namespace FACM.League
                 if (!IsDisposed)
                     SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Rejected), FacmDesignSystem.Warning);
             }
-        }
-
-        private void StartAutomaticGuide(int championId)
-        {
-            CancelGuideRequest();
-            _guideChampionId = championId;
-            var generation = ++_guideGeneration;
-            _guideRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-            _guideRequest.CancelAfter(TimeSpan.FromSeconds(15));
-            ResetGuide(championId);
-            _ = LoadAutomaticGuideAsync(generation, championId, _guideRequest);
-        }
-
-        private async Task LoadAutomaticGuideAsync(int generation, int championId, CancellationTokenSource request)
-        {
-            try
-            {
-                var result = await _guide.QueryForChampionIdAsync(championId, request.Token);
-                if (!IsCurrentGuide(generation, championId, request)) return;
-                if (result == null || !string.IsNullOrWhiteSpace(result.ErrorMessage))
-                {
-                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
-                    _guideStatus.Text = result == null || string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? MayhemUiCopy.NoData
-                        : result.ErrorMessage;
-                    return;
-                }
-                RenderGuide(result, generation, request.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                if (!IsDisposed && !_lifetime.IsCancellationRequested && generation == _guideGeneration)
-                {
-                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
-                    _guideStatus.Text = MayhemUiCopy.TimeoutShort;
-                }
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Runtime Companion automatic guide failed: " + exception.Message);
-                if (!IsDisposed && generation == _guideGeneration)
-                {
-                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
-                    _guideStatus.Text = MayhemUiCopy.Failed;
-                }
-            }
-            finally
-            {
-                if (ReferenceEquals(_guideRequest, request))
-                {
-                    _guideRequest = null;
-                    request.Dispose();
-                }
-            }
-        }
-
-        private bool IsCurrentGuide(int generation, int championId, CancellationTokenSource request)
-        {
-            return !IsDisposed && !request.IsCancellationRequested && generation == _guideGeneration && championId == _guideChampionId;
         }
 
         private void ResetGuide(int championId)
@@ -562,8 +566,9 @@ namespace FACM.League
             _augments.Items.Clear();
         }
 
-        private void RenderGuide(MayhemChampionResult result, int generation, CancellationToken token)
+        private void RenderGuide(MayhemChampionResult result)
         {
+            if (result == null) return;
             _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
             _championMeta.Text = BuildChampionMeta(result);
             _guideStatus.ForeColor = FacmDesignSystem.Success;
@@ -602,24 +607,27 @@ namespace FACM.League
             }
 
             if (!string.IsNullOrWhiteSpace(result.ChampionIconUrl))
-                _ = LoadChampionPictureAsync(result.ChampionIconUrl, generation, token);
+                _ = LoadChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
         }
 
-        private async Task LoadChampionPictureAsync(string reference, int generation, CancellationToken token)
+        private async Task LoadChampionPictureAsync(string reference, int championId)
         {
             try
             {
-                var bytes = await RiotGameDataService.DownloadImageAsync(reference, _leagueClient, token);
-                if (bytes == null || bytes.Length == 0 || IsDisposed || generation != _guideGeneration) return;
+                var bytes = await _controller.LoadGuideChampionIconAsync(reference, _lifetime.Token);
+                if (bytes == null || bytes.Length == 0 || IsDisposed || championId != _renderedGuideChampionId) return;
                 var bitmap = DecodeBitmap(bytes, new Size(52, 52));
                 if (bitmap != null) ReplacePicture(_championIcon, bitmap);
             }
             catch (OperationCanceledException)
             {
             }
+            catch (ObjectDisposedException)
+            {
+            }
             catch
             {
-                // Text remains complete when the optional icon is unavailable.
+                // Text guide remains complete when the optional icon is unavailable.
             }
         }
 
@@ -636,13 +644,12 @@ namespace FACM.League
             if (_collapsed == collapsed) return;
             _collapsed = collapsed;
             _context.Visible = !collapsed;
-            foreach (Control control in Controls)
-            {
-                if (ReferenceEquals(control, _header) || ReferenceEquals(control, _context)) continue;
-                control.Visible = !collapsed;
-            }
+            _benchHost.Visible = !collapsed;
+            _body.Visible = !collapsed;
             _collapseButton.Text = collapsed ? "+" : "−";
-            SetFixedClientSize(DesignWidth, collapsed ? HeaderHeight : _expandedHeight);
+            SetFixedClientSize(
+                _expandedClientWidth,
+                collapsed ? _collapsedClientHeight : _expandedClientHeight);
             KeepInsideWorkingArea();
             FacmDesignSystem.Round(this, FacmDesignSystem.WindowRadius);
         }
@@ -688,7 +695,7 @@ namespace FACM.League
             {
                 Text = BuildGuideLine(label, MayhemUiCopy.ReadingCache),
                 Location = new Point(10, y),
-                Size = new Size(348, height),
+                Size = new Size(BodyContentWidth, height),
                 AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -736,24 +743,15 @@ namespace FACM.League
         {
             _pollTimer.Stop();
             _pollTimer.Dispose();
-            CancelGuideRequest();
+            _controller.SnapshotChanged -= HandleSnapshotChanged;
             try { _lifetime.Cancel(); }
             catch { }
-            _lifetime.Dispose();
             ReplacePicture(_championIcon, null);
             foreach (var bitmap in _benchIcons.Values) bitmap.Dispose();
             _benchIcons.Clear();
             _toolTip.Dispose();
-        }
-
-        private void CancelGuideRequest()
-        {
-            var request = _guideRequest;
-            _guideRequest = null;
-            if (request == null) return;
-            try { request.Cancel(); }
-            catch { }
-            request.Dispose();
+            _controller.Dispose();
+            _lifetime.Dispose();
         }
 
         private string BuildWindowTitle()
@@ -889,12 +887,16 @@ namespace FACM.League
         {
             if (DesignWidth < 360 || DesignWidth > 430)
                 throw new InvalidOperationException("Runtime Companion width left the compact design contract.");
-            if (ResolveExpandedHeight(768) < MinimumExpandedHeight || ResolveExpandedHeight(768) > MaximumExpandedHeight)
-                throw new InvalidOperationException("Runtime Companion 768p height policy is invalid.");
+            if (ResolveExpandedHeight(728) < MinimumExpandedHeight || ResolveExpandedHeight(728) > MaximumExpandedHeight)
+                throw new InvalidOperationException("Runtime Companion 768p working-area height policy is invalid.");
             if (ResolveExpandedHeight(2160) != MaximumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion maximum height cap drifted.");
             if (HeaderHeight + ContextHeight + BenchHeight >= MinimumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion fixed regions leave no useful scroll body.");
+            if (AugmentColumnTotalWidth > BodyContentWidth)
+                throw new InvalidOperationException("Runtime Companion augment table would require horizontal scrolling at the design width.");
+
+            LeagueRuntimeCompanionController.ValidateForSmokeTest();
 
             var result = new MayhemChampionResult
             {
