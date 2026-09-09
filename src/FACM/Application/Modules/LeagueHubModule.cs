@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -163,19 +162,16 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                // Reuse the already-initialized Build Advisor / Build Apply owners. The Runtime
-                // Companion must not create a second OP.GG transport or a parallel LCU write stack.
+                // Reuse the already-initialized Build Advisor / Build Apply / Settings owners.
+                // The Runtime Companion must not create a second OP.GG transport, a parallel LCU
+                // write stack, or a stale settings copy. Placement is intentionally deferred to the
+                // Form's Shown path so per-monitor DPI has already established the real pixel size.
                 form = _live.CreateChampSelectAssistantForm(
                     _advisor.RuntimeCompanionReadService,
-                    _advisor.RuntimeCompanionApplyService);
-                form.TopMost = true;
+                    _advisor.RuntimeCompanionApplyService,
+                    _advisor.RuntimeCompanionSettings);
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
-
-                var area = Screen.FromPoint(Cursor.Position).WorkingArea;
-                form.Location = new Point(
-                    Math.Max(area.Left + 12, area.Right - form.Width - 18),
-                    area.Top + 18);
 
                 form.FormClosed += HandleAutomaticLivePopupClosed;
                 _automaticLivePopup = form;
