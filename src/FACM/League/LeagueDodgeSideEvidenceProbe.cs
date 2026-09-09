@@ -95,7 +95,7 @@ namespace FACM.League
             var conversationBytes = await _client.TryGetBytesAsync(ConversationsPath, cancellationToken).ConfigureAwait(false);
             var conversations = ParseArray(conversationBytes);
             if (conversations != null)
-                await SampleConversationsAsync(conversations, roster, cancellationToken).ConfigureAwait(false);
+                await SampleConversationsAsync(conversations, roster, cancellationToken, force).ConfigureAwait(false);
 
             var now = DateTime.UtcNow;
             if (force || now >= _nextLobbySampleUtc)
@@ -167,12 +167,15 @@ namespace FACM.League
                 throw new InvalidOperationException("Dodge side evidence English departure detection regressed.");
             if (IsDepartureLike("今晚一起玩吗", "chat"))
                 throw new InvalidOperationException("Dodge side evidence must not treat ordinary chat as a departure event.");
+            if (IsSystemLike("chat"))
+                throw new InvalidOperationException("Dodge side evidence must not log ordinary chat solely because sender identity is absent.");
         }
 
         private async Task SampleConversationsAsync(
             List<Dictionary<string, object>> conversations,
             LeagueDodgeTeamSnapshot roster,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool includeDetails)
         {
             var currentIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var conversation in conversations)
@@ -227,8 +230,13 @@ namespace FACM.League
                 }
 
                 ProcessMessage(candidate.Value.ContainsKey("lastMessage") ? candidate.Value["lastMessage"] as Dictionary<string, object> : null, label, roster, true);
-                await SampleConversationMessagesAsync(id, label, roster, cancellationToken).ConfigureAwait(false);
-                await SampleConversationParticipantsAsync(id, label, roster, cancellationToken).ConfigureAwait(false);
+
+                var needsMessageBaseline = !_seenMessageKeys.ContainsKey(id);
+                var needsParticipantBaseline = !_lastParticipantIds.ContainsKey(id);
+                if (includeDetails || needsMessageBaseline)
+                    await SampleConversationMessagesAsync(id, label, roster, cancellationToken).ConfigureAwait(false);
+                if (includeDetails || needsParticipantBaseline)
+                    await SampleConversationParticipantsAsync(id, label, roster, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -355,8 +363,8 @@ namespace FACM.League
                 ReadLong(message, "fromSummonerId"),
                 ReadLong(message, "fromObfuscatedSummonerId"),
                 ReadLong(message, "fromId"));
-            var systemLike = IsSystemLike(type, actorId);
             var departure = IsDepartureLike(body, type);
+            var systemLike = IsSystemLike(type);
             if (!systemLike && !departure) return;
 
             _recentSystemUtc = DateTime.UtcNow;
@@ -475,9 +483,9 @@ namespace FACM.League
             return "fallback:" + Safe(ReadString(message, "timestamp")) + "|" + Safe(ReadString(message, "type")) + "|" + Safe(ReadString(message, "body"));
         }
 
-        private static bool IsSystemLike(string type, long actorId)
+        private static bool IsSystemLike(string type)
         {
-            return actorId == 0 || ContainsAny(type, "system", "event", "notification", "info");
+            return ContainsAny(type, "system", "event", "notification", "info");
         }
 
         private static bool IsDepartureLike(string body, string type)
