@@ -66,6 +66,7 @@ namespace FACM
             ValidateDesktopEntryGameflowPolicy();
             ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
+            LeagueRuntimeCompanionForm.ValidateForSmokeTest();
             LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
 
