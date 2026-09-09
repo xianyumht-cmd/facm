@@ -89,3 +89,21 @@ This lets the 3.5 lightweight product look coherent without paying the architect
 - Gameflow visibility ownership remains independent: navigation context must not weaken the existing in-game hide/restore policy.
 
 This keeps the home surface useful in the moment without turning shell UX work into a new automation or transport subsystem.
+
+## D-015 — Tencent dodge-side classification requires positive evidence
+
+**Decision (2026-09-09):** Champion Select dodge-side classification must fail closed and may not treat `StrangerDodged` as enemy proof.
+
+Live Tencent-client evidence captured natural dodges where `/lol-matchmaking/v1/search` reported `state=StrangerDodged` but `dodgerId=0`; at the same time the local `myTeam` identity set was complete while opponent Summoner IDs were hidden. The public LCU schema therefore cannot be assumed to expose a usable dodger identity on Tencent.
+
+For the 3.5.38 public read-only field test:
+
+- keep `dodgeData` as the authoritative signal that a dodge occurred;
+- correlate only positive side evidence from the existing ChampSelect session, room/chat system events, conversation participant changes and lobby member changes;
+- a positively identified local-team departure can classify `ally` / `ally-party`;
+- `enemy` requires a positive opponent identity or a non-zero dodger identity excluded from a known-complete local roster;
+- hidden opponent identities, `StrangerDodged`, or failure to observe an ally signal must remain `unknown` rather than being converted to enemy;
+- ordinary player chat bodies are not diagnostic data and must not be logged; only bounded system/event-style departure evidence may be recorded locally;
+- the probe remains GET-only and must not gain a League write interface or a second Gameflow owner.
+
+A normal user-facing ally/enemy notification is deferred until public field evidence demonstrates a stable positive mapping. This keeps the experiment useful without turning missing Tencent data into false certainty.
