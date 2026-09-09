@@ -44,11 +44,12 @@ namespace FACM.AppHost.Modules
 
         public Form CreateChampSelectAssistantForm(
             LeagueBuildAdvisorDataService advisor = null,
-            LeagueBuildApplyService apply = null)
+            LeagueBuildApplyService apply = null,
+            AppSettings settings = null)
         {
             if (_service == null || _benchQuickPick == null)
                 throw new InvalidOperationException("League Live module is not initialized.");
-            return new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply);
+            return new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply, settings);
         }
 
         public void Dispose()
