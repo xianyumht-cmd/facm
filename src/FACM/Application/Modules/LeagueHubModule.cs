@@ -163,7 +163,9 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                form = _live.CreateChampSelectAssistantForm();
+                // Reuse the already-initialized Build Advisor owner. The Runtime Companion must not
+                // create a second OP.GG cache/transport or duplicate the recommendation write stack.
+                form = _live.CreateChampSelectAssistantForm(_advisor.RuntimeCompanionReadService);
                 form.TopMost = true;
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
@@ -178,7 +180,7 @@ namespace FACM.AppHost.Modules
                 _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
-                AppLog.Info("Lightweight ChampSelect assistant opened for episode.");
+                AppLog.Info("Runtime Companion opened for Champion Select episode.");
             }
             catch (Exception exception)
             {
@@ -186,7 +188,7 @@ namespace FACM.AppHost.Modules
                 _automaticLivePopup = null;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = true;
-                AppLog.Info("ChampSelect assistant skipped: " + exception.Message);
+                AppLog.Info("Runtime Companion skipped: " + exception.Message);
             }
         }
 
