@@ -38,6 +38,10 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public int LeagueRuntimeCompanionX { get; set; } = int.MinValue;
+        public int LeagueRuntimeCompanionY { get; set; } = int.MinValue;
+        public bool LeagueRuntimeCompanionPinned { get; set; } = true;
+        public bool LeagueRuntimeCompanionCollapsed { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -115,7 +119,11 @@ namespace FACM.Services
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
-                "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled
+                "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueRuntimeCompanionX=" + LeagueRuntimeCompanionX.ToString(CultureInfo.InvariantCulture),
+                "LeagueRuntimeCompanionY=" + LeagueRuntimeCompanionY.ToString(CultureInfo.InvariantCulture),
+                "LeagueRuntimeCompanionPinned=" + LeagueRuntimeCompanionPinned,
+                "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed
             };
         }
 
@@ -154,6 +162,27 @@ namespace FACM.Services
                 try { Directory.Delete(root, true); }
                 catch { }
             }
+        }
+
+        internal static void ValidateRuntimeCompanionPreferencesForSmokeTest()
+        {
+            var settings = ParseLines(new[]
+            {
+                "LeagueRuntimeCompanionX=-1250",
+                "LeagueRuntimeCompanionY=240",
+                "LeagueRuntimeCompanionPinned=False",
+                "LeagueRuntimeCompanionCollapsed=True"
+            });
+            if (settings.LeagueRuntimeCompanionX != -1250 || settings.LeagueRuntimeCompanionY != 240 ||
+                settings.LeagueRuntimeCompanionPinned || !settings.LeagueRuntimeCompanionCollapsed)
+                throw new InvalidOperationException("Runtime Companion settings parsing drifted.");
+
+            var lines = settings.BuildLines();
+            if (Array.IndexOf(lines, "LeagueRuntimeCompanionX=-1250") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionY=240") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionPinned=False") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionCollapsed=True") < 0)
+                throw new InvalidOperationException("Runtime Companion settings serialization drifted.");
         }
 
         private static void WriteLinesAtomically(string path, IEnumerable<string> lines)
@@ -265,6 +294,10 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueRuntimeCompanionX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionX = number;
+            else if (key.Equals("LeagueRuntimeCompanionY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionY = number;
+            else if (key.Equals("LeagueRuntimeCompanionPinned", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionPinned = flag;
+            else if (key.Equals("LeagueRuntimeCompanionCollapsed", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionCollapsed = flag;
         }
 
         private static void Normalize(AppSettings result)
