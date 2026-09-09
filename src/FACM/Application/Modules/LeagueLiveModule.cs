@@ -49,7 +49,10 @@ namespace FACM.AppHost.Modules
         {
             if (_service == null || _benchQuickPick == null)
                 throw new InvalidOperationException("League Live module is not initialized.");
-            return new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply, settings);
+
+            var form = new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply);
+            LeagueRuntimeCompanionWindowState.Attach(form, settings);
+            return form;
         }
 
         public void Dispose()
