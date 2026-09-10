@@ -58,6 +58,8 @@ namespace FACM.League
 
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public int QueueId { get; set; }
+        public string GameMode { get; set; }
         public int LocalPlayerCellId { get; set; }
         public int LocalChampionId { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
@@ -89,6 +91,26 @@ namespace FACM.League
                     return string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
                 return DisplayName;
             }
+        }
+    }
+
+    internal static class LeagueQueueModePolicy
+    {
+        internal const int BaseAramQueueId = 450;
+        internal const int GlobalAramMayhemQueueId = 2400;
+        internal const int TencentAramMayhemQueueId = 3270;
+
+        public static bool IsAramMayhem(int queueId, string gameMode)
+        {
+            if (queueId == GlobalAramMayhemQueueId || queueId == TencentAramMayhemQueueId) return true;
+            return string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(gameMode, "ARAM_MAYHEM", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsBaseAram(int queueId, string gameMode)
+        {
+            if (IsAramMayhem(queueId, gameMode)) return false;
+            return queueId == BaseAramQueueId || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase);
         }
     }
 

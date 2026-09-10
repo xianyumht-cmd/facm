@@ -342,7 +342,11 @@ namespace FACM.League
 
         internal static string ResolveOpggMode(int queueId, string gameMode)
         {
-            if (queueId == 450 || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase)) return "aram";
+            // ARAM Mayhem is a separate data domain. In particular the CN/WeGame queue has been
+            // observed as 3270 while global clients use 2400. Never fall through to ordinary ARAM
+            // merely because a regional client also reports an ARAM-like gameMode token.
+            if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return null;
+            if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return "aram";
             if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";
             if (queueId == 400 || queueId == 420 || queueId == 430 || queueId == 440 || queueId == 0 ||
                 string.IsNullOrWhiteSpace(gameMode) || string.Equals(gameMode, "CLASSIC", StringComparison.OrdinalIgnoreCase))

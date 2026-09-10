@@ -174,6 +174,7 @@ namespace FACM.League
 
             snapshot.GameId = ReadLong(data, "gameId");
             snapshot.QueueId = ReadInt(data, "queueId");
+            snapshot.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             snapshot.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
 
             var timer = ReadDictionary(data, "timer");
@@ -211,6 +212,8 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
+            state.QueueId = ReadInt(data, "queueId");
+            state.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
             state.SwapRoute = ResolveBenchSwapRoute(data);
             RememberBenchSwapRoute(state.SwapRoute);

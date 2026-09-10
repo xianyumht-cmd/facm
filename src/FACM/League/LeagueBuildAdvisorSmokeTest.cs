@@ -121,6 +121,8 @@ namespace FACM.League
         private static void ValidateModeAndPositionMapping()
         {
             Require(LeagueBuildAdvisorDataService.ResolveOpggMode(450, null) == "aram", "ARAM queue mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(2400, "KIWI") == null, "Global ARAM Mayhem must not reuse ordinary ARAM builds.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(3270, "ARAM") == null, "Tencent ARAM Mayhem must not reuse ordinary ARAM builds.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggMode(420, null) == "ranked", "Ranked queue mapping changed.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("UTILITY", "ranked") == "support", "Support position mapping changed.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("BOTTOM", "ranked") == "adc", "ADC position mapping changed.");

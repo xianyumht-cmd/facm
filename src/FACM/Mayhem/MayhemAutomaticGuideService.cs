@@ -50,6 +50,34 @@ namespace FACM.Mayhem
             return result;
         }
 
+        public async Task<MayhemChampionResult> QueryAramBalanceForChampionIdAsync(
+            int championId,
+            string expectedPatch,
+            CancellationToken token)
+        {
+            if (championId <= 0)
+                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄。" };
+
+            var query = await ResolveChampionQueryAsync(championId, token).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(query))
+                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄名称。" };
+
+            string slug;
+            if (!ChampionAliases.TryResolve(query, out slug)) slug = ChampionAliases.Slugify(query);
+            if (string.IsNullOrWhiteSpace(slug))
+                return new MayhemChampionResult { Query = query, ErrorMessage = "当前英雄无法映射到大乱斗平衡数据。" };
+
+            var result = new MayhemChampionResult
+            {
+                Query = query,
+                ChampionName = query,
+                ChampionSlug = slug,
+                Patch = expectedPatch
+            };
+            await OpggAramBaseBalanceService.EnrichAsync(result, token).ConfigureAwait(false);
+            return result;
+        }
+
         internal async Task<string> ResolveChampionQueryAsync(int championId, CancellationToken token)
         {
             if (championId <= 0) return string.Empty;

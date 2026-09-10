@@ -7,6 +7,24 @@ using FACM.Services;
 
 namespace FACM.League
 {
+    internal enum LeagueRuntimeCompanionGuideKind
+    {
+        None,
+        AramBalance,
+        Mayhem
+    }
+
+    internal static class LeagueRuntimeCompanionModePolicy
+    {
+        public static LeagueRuntimeCompanionGuideKind Resolve(bool sessionAvailable, bool benchEnabled, int queueId, string gameMode)
+        {
+            if (!sessionAvailable || !benchEnabled) return LeagueRuntimeCompanionGuideKind.None;
+            if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.Mayhem;
+            if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.AramBalance;
+            return LeagueRuntimeCompanionGuideKind.None;
+        }
+    }
+
     /// <summary>
     /// Runtime Companion orchestration boundary.
     ///
@@ -32,6 +50,8 @@ namespace FACM.League
         private CancellationTokenSource _guideRequest;
         private CancellationTokenSource _buildRequest;
         private int _guideChampionId;
+        private LeagueRuntimeCompanionGuideKind _guideKind;
+        private string _guideExpectedPatch;
         private int _guideGeneration;
         private int _buildGeneration;
         private int _buildChampionHint;
@@ -115,24 +135,36 @@ namespace FACM.League
                     _snapshot.UpdatedAtUtc = DateTime.UtcNow;
                 }
 
-                if (state != null && state.BenchEnabled)
+                MaybeStartBuildRequest(championHint);
+
+                var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(
+                    sessionAvailable,
+                    state != null && state.BenchEnabled,
+                    state == null ? 0 : state.QueueId,
+                    state == null ? null : state.GameMode);
+                if (championHint <= 0 || guideKind == LeagueRuntimeCompanionGuideKind.None)
                 {
-                    if (state.LocalChampionId > 0 && state.LocalChampionId != _guideChampionId)
-                        StartGuideRequest(state.LocalChampionId);
+                    ClearGuideSurface();
+                }
+                else if (guideKind == LeagueRuntimeCompanionGuideKind.Mayhem)
+                {
+                    if (!GuideContextMatches(championHint, guideKind, null))
+                        StartGuideRequest(championHint, guideKind, null);
                 }
                 else
                 {
-                    CancelGuideForContextLoss();
-                    lock (_stateGate)
+                    // Base ARAM waits for Build Advisor's version-bound snapshot so the balance
+                    // parser can fail closed on patch mismatch instead of accepting stale values.
+                    var expectedPatch = ResolveAramPatchHint(championHint);
+                    if (string.IsNullOrWhiteSpace(expectedPatch))
                     {
-                        _snapshot.GuideLoading = false;
-                        _snapshot.GuideChampionId = 0;
-                        _snapshot.Guide = null;
-                        _snapshot.GuideError = null;
+                        if (!GuideContextMatches(championHint, guideKind, null)) ClearGuideSurface();
+                    }
+                    else if (!GuideContextMatches(championHint, guideKind, expectedPatch))
+                    {
+                        StartGuideRequest(championHint, guideKind, expectedPatch);
                     }
                 }
-
-                MaybeStartBuildRequest(championHint);
                 PublishSnapshot();
                 return CurrentSnapshot;
             }
@@ -315,7 +347,46 @@ namespace FACM.League
             if (publish) PublishSnapshot();
         }
 
-        private void StartGuideRequest(int championId)
+        private string ResolveAramPatchHint(int championId)
+        {
+            lock (_stateGate)
+            {
+                var build = _snapshot.Build;
+                if (build == null || build.ChampionId != championId ||
+                    !string.Equals(build.Mode, "aram", StringComparison.OrdinalIgnoreCase)) return null;
+                return build.Version;
+            }
+        }
+
+        private bool GuideContextMatches(
+            int championId,
+            LeagueRuntimeCompanionGuideKind kind,
+            string expectedPatch)
+        {
+            lock (_stateGate)
+            {
+                return _guideChampionId == championId &&
+                       _guideKind == kind &&
+                       string.Equals(_guideExpectedPatch ?? string.Empty, expectedPatch ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private void ClearGuideSurface()
+        {
+            CancelGuideForContextLoss();
+            lock (_stateGate)
+            {
+                _snapshot.GuideLoading = false;
+                _snapshot.GuideChampionId = 0;
+                _snapshot.Guide = null;
+                _snapshot.GuideError = null;
+            }
+        }
+
+        private void StartGuideRequest(
+            int championId,
+            LeagueRuntimeCompanionGuideKind kind,
+            string expectedPatch)
         {
             CancellationTokenSource previous;
             CancellationTokenSource request;
@@ -328,6 +399,8 @@ namespace FACM.League
                 _guideRequest.CancelAfter(TimeSpan.FromSeconds(15));
                 request = _guideRequest;
                 _guideChampionId = championId;
+                _guideKind = kind;
+                _guideExpectedPatch = expectedPatch;
                 generation = ++_guideGeneration;
                 _snapshot.GuideLoading = true;
                 _snapshot.GuideChampionId = championId;
@@ -338,16 +411,23 @@ namespace FACM.League
 
             CancelAndDispose(previous);
             PublishSnapshot();
-            _ = LoadGuideAsync(generation, championId, request);
+            _ = LoadGuideAsync(generation, championId, kind, expectedPatch, request);
         }
 
-        private async Task LoadGuideAsync(int generation, int championId, CancellationTokenSource request)
+        private async Task LoadGuideAsync(
+            int generation,
+            int championId,
+            LeagueRuntimeCompanionGuideKind kind,
+            string expectedPatch,
+            CancellationTokenSource request)
         {
             MayhemChampionResult result = null;
             string error = null;
             try
             {
-                result = await _guide.QueryForChampionIdAsync(championId, request.Token).ConfigureAwait(false);
+                result = kind == LeagueRuntimeCompanionGuideKind.AramBalance
+                    ? await _guide.QueryAramBalanceForChampionIdAsync(championId, expectedPatch, request.Token).ConfigureAwait(false)
+                    : await _guide.QueryForChampionIdAsync(championId, request.Token).ConfigureAwait(false);
                 if (result == null)
                     error = MayhemUiCopy.NoData;
                 else if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
@@ -367,7 +447,10 @@ namespace FACM.League
             var publish = false;
             lock (_stateGate)
             {
-                if (!_disposed && generation == _guideGeneration && championId == _guideChampionId && ReferenceEquals(_guideRequest, request))
+                if (!_disposed && generation == _guideGeneration && championId == _guideChampionId &&
+                    kind == _guideKind &&
+                    string.Equals(_guideExpectedPatch ?? string.Empty, expectedPatch ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                    ReferenceEquals(_guideRequest, request))
                 {
                     _snapshot.GuideLoading = false;
                     _snapshot.GuideChampionId = championId;
@@ -390,7 +473,10 @@ namespace FACM.League
             {
                 request = _guideRequest;
                 _guideRequest = null;
+                if (_guideRequest == null && _guideChampionId == 0 && _guideKind == LeagueRuntimeCompanionGuideKind.None) return;
                 _guideChampionId = 0;
+                _guideKind = LeagueRuntimeCompanionGuideKind.None;
+                _guideExpectedPatch = null;
                 _guideGeneration++;
             }
             CancelAndDispose(request);
@@ -456,6 +542,14 @@ namespace FACM.League
         {
             if (BuildRefreshInterval < TimeSpan.FromSeconds(2))
                 throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)
+                throw new InvalidOperationException("Runtime Companion base ARAM routing regressed.");
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 2400, null) != LeagueRuntimeCompanionGuideKind.Mayhem ||
+                LeagueRuntimeCompanionModePolicy.Resolve(true, true, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.Mayhem)
+                throw new InvalidOperationException("Runtime Companion ARAM Mayhem routing regressed.");
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 420, "CLASSIC") != LeagueRuntimeCompanionGuideKind.None ||
+                LeagueRuntimeCompanionModePolicy.Resolve(true, false, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.None)
+                throw new InvalidOperationException("Runtime Companion guide routing leaked into an unsupported context.");
 
             var build = new LeagueBuildAdvisorSnapshot
             {
