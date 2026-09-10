@@ -39,6 +39,10 @@ namespace FACM.Mayhem
             if (result == null) return new MayhemChampionResult { Query = query, ErrorMessage = "自动攻略暂时没有结果。" };
             if (!string.IsNullOrWhiteSpace(result.ErrorMessage)) return result;
 
+            // The base ARAM balance service is already bounded and cached for ten minutes per
+            // champion. Reusing it here gives the visible companion the underlying ARAM modifier
+            // without another poller, another League session, or bundled static balance data.
+            await OpggAramBaseBalanceService.EnrichAsync(result, token).ConfigureAwait(false);
             await RiotGameDataService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
             await MayhemRankedAugmentService.EnrichAsync(result, token).ConfigureAwait(false);
             await MayhemDecisionLocalizationService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
@@ -124,6 +128,7 @@ namespace FACM.Mayhem
             {
                 CoreItems = new List<string> { "A", "B" },
                 Augments = new List<string> { "X", "Y" },
+                BaseBalanceSummary = "造成伤害 +5%",
                 AugmentRows = new List<MayhemAugmentRow>
                 {
                     new MayhemAugmentRow { Name = "棱彩强化", Rank = 1, Rarity = "棱彩" }
@@ -132,6 +137,8 @@ namespace FACM.Mayhem
             Sanitize(model);
             if (model.AugmentRows.Count != 1 || model.CoreItems.Count != 2)
                 throw new InvalidOperationException("Automatic Mayhem guide sanitization dropped valid guide data.");
+            if (!string.Equals(model.BaseBalanceSummary, "造成伤害 +5%", StringComparison.Ordinal))
+                throw new InvalidOperationException("Automatic Mayhem guide sanitization dropped ARAM balance data.");
         }
 
         private static string FirstUsable(params string[] values)
