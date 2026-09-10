@@ -174,7 +174,7 @@ namespace FACM.League
             };
             _status = new Label
             {
-                Text = "●",
+                Text = char.ConvertFromUtf32(0x25CF),
                 Location = new Point(188, 0),
                 Size = new Size(20, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -1602,7 +1602,7 @@ namespace FACM.League
 
         private void SetStatus(string text, Color color)
         {
-            _status.Text = "●";
+            _status.Text = char.ConvertFromUtf32(0x25CF);
             _status.ForeColor = color;
             if (_toolTip != null) _toolTip.SetToolTip(_status, text ?? string.Empty);
         }
