@@ -82,9 +82,9 @@ Baseline at 100% DPI after live Tencent-client review feedback:
 - initial placement: upper-right of the active/League display using the existing episode popup owner;
 - final geometry must be applied before first visible paint to avoid compositor residue.
 
-The compact revision is intentionally smaller than the earlier 388x720 review candidate. Recommendation rows, alternative rows, champion icon, action buttons and the Mayhem augment surface are all reduced together; this is not an outer-window-only scale change. The Mayhem table keeps internal scrolling rather than expanding the whole companion to display many rows at once.
+The compact revision is intentionally smaller than the earlier 388x720 review candidate. Recommendation rows, alternative rows, champion icon, action buttons and the Mayhem augment surface are all reduced together; this is not an outer-window-only scale change. Mayhem augments use bounded local paging inside FACM-native rows rather than a native Details table or a system scrollbar.
 
-The fixed top region must not scroll. The detail body may scroll vertically and must not expose a normal horizontal scrollbar at supported widths.
+The fixed top region must not scroll. The detail body may scroll vertically by wheel/input, but the transient companion must not expose a native light-themed WinForms scrollbar or a horizontal scrollbar at supported widths.
 
 ### Live readability acceptance
 
@@ -219,13 +219,12 @@ The first implementation phase changes shell/layout only and must preserve the c
 
 A final candidate is not ready only because it looks modern. It must also prove:
 
-- 1366x768, 1920x1080 and 2560x1440 working-area behavior;
-- 100/125/150/200% DPI geometry;
-- no title/chrome overlap, clipped controls, stale owner-draw pixels, or horizontal body scroll at normal widths;
-- champion/context replacement does not show stale async results;
-- Ranked/ARAM/Mayhem omit irrelevant sections;
-- rapid champion changes cancel stale work;
-- closing the popup dismisses only the current episode;
-- Gameflow and LCU ownership remain singular;
-- Windows Build and UI Text Contract remain green;
-- canonical `ARCHITECTURE.md`, `DECISIONS.md`, `PROJECT_STATE.md`, and `PITFALLS.md` are reconciled when the implementation materially changes their contracts.
+- all relevant modes render meaningful data without empty decorative sections;
+- primary recommendations remain readable at the 320 px baseline and no native white scrollbar/table chrome appears;
+- pin/collapse/close behavior remains predictable;
+- repeated Champion Select episodes do not leak Forms, timers, requests, bitmaps, or event handlers;
+- context changes cannot apply a stale build to another champion or queue;
+- direct/cached data paths preserve their current fallbacks;
+- WinForms remains responsive under slow or unavailable external data;
+- CI passes before a review candidate is handed off;
+- live Tencent-client review confirms 100%, 125%, 150%, and 200% DPI behavior before closeout.
