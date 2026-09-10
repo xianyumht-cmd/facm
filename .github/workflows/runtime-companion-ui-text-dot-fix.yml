@@ -1,0 +1,43 @@
+name: Runtime Companion UI Text Dot Fix
+
+on:
+  push:
+    branches: [feat/runtime-companion-20260910]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace status glyph literals with code point
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/FACM/League/LeagueRuntimeCompanionForm.cs')
+          s = p.read_text(encoding='utf-8')
+          old = 'Text = "●",'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one constructor glyph, found {s.count(old)}')
+          s = s.replace(old, 'Text = char.ConvertFromUtf32(0x25CF),', 1)
+          old = '_status.Text = "●";'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one status glyph, found {s.count(old)}')
+          s = s.replace(old, '_status.Text = char.ConvertFromUtf32(0x25CF);', 1)
+          p.write_text(s, encoding='utf-8', newline='\n')
+          PY
+      - name: Commit fix and remove helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-ui-text-dot-fix.yml
+          git add src/FACM/League/LeagueRuntimeCompanionForm.cs
+          git commit -m "Fix Runtime Companion UI text contract"
+          git push origin HEAD:feat/runtime-companion-20260910
