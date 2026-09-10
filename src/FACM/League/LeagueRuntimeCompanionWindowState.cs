@@ -16,9 +16,10 @@ namespace FACM.League
     /// </summary>
     internal sealed class LeagueRuntimeCompanionWindowState : IDisposable
     {
-        private const int DesignMinimumExpandedHeight = 480;
-        private const int DesignMaximumExpandedHeight = 720;
-        private const int DesignVerticalMargin = 40;
+        private const int DesignMinimumExpandedHeight = 420;
+        private const int DesignMaximumExpandedHeight = 560;
+        private const int DesignVerticalMargin = 32;
+        private const double WorkingAreaHeightRatio = 0.70;
         private const int DesignAnchorMargin = 18;
         private const int DesignLeftSafetyMargin = 12;
 
@@ -225,8 +226,10 @@ namespace FACM.League
             var maximum = ScalePixels(DesignMaximumExpandedHeight, scale);
             var margin = ScalePixels(DesignVerticalMargin, scale);
             var usable = Math.Max(1, workingAreaHeight - margin);
-            if (usable < minimum) return usable;
-            return Math.Min(maximum, usable);
+            var compactCap = Math.Max(1, (int)Math.Round(workingAreaHeight * WorkingAreaHeightRatio, MidpointRounding.AwayFromZero));
+            var target = Math.Min(usable, compactCap);
+            if (target < minimum) return target;
+            return Math.Min(maximum, target);
         }
 
         internal static Point ResolveDefaultLocation(Rectangle workingArea, Size windowSize, float dpiScale)
@@ -256,40 +259,40 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (ResolveExpandedHeight(728, 1F) != 688)
+            if (ResolveExpandedHeight(728, 1F) != 510)
                 throw new InvalidOperationException("Runtime Companion 100% DPI height policy drifted.");
-            if (ResolveExpandedHeight(728, 1.25F) != 678)
+            if (ResolveExpandedHeight(728, 1.25F) != 510)
                 throw new InvalidOperationException("Runtime Companion 125% DPI height policy drifted.");
-            if (ResolveExpandedHeight(1040, 1.5F) != 980)
+            if (ResolveExpandedHeight(1040, 1.5F) != 728)
                 throw new InvalidOperationException("Runtime Companion 150% DPI height policy drifted.");
-            if (ResolveExpandedHeight(1040, 2F) != 960)
+            if (ResolveExpandedHeight(1040, 2F) != 728)
                 throw new InvalidOperationException("Runtime Companion 200% DPI height policy drifted.");
-            if (ResolveExpandedHeight(2160, 2F) != 1440)
+            if (ResolveExpandedHeight(2160, 2F) != 1120)
                 throw new InvalidOperationException("Runtime Companion 200% DPI maximum height cap drifted.");
             if (ResolveExpandedHeight(2160, 1F) != DesignMaximumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion maximum expanded height drifted.");
 
             var leftMonitor = new Rectangle(-1920, 0, 1920, 1080);
-            var size = new Size(582, 900);
+            var size = new Size(480, 728);
             var clamped = ClampLocation(leftMonitor, size, new Point(-4000, 2000));
             if (clamped.X != leftMonitor.Left || clamped.Y != leftMonitor.Bottom - size.Height)
                 throw new InvalidOperationException("Runtime Companion negative-coordinate monitor clamp failed.");
 
-            var anchored = ResolveDefaultLocation(leftMonitor, new Size(582, 900), 1.5F);
+            var anchored = ResolveDefaultLocation(leftMonitor, new Size(480, 728), 1.5F);
             if (anchored.X < leftMonitor.Left || anchored.Y < leftMonitor.Top ||
-                anchored.X + 582 > leftMonitor.Right || anchored.Y + 900 > leftMonitor.Bottom)
+                anchored.X + 480 > leftMonitor.Right || anchored.Y + 728 > leftMonitor.Bottom)
                 throw new InvalidOperationException("Runtime Companion DPI-aware default anchor left the working area.");
 
             var compact125 = new Rectangle(0, 0, 1366, 728);
-            var anchored125 = ResolveDefaultLocation(compact125, new Size(485, 678), 1.25F);
+            var anchored125 = ResolveDefaultLocation(compact125, new Size(400, 510), 1.25F);
             if (anchored125.X < compact125.Left || anchored125.Y < compact125.Top ||
-                anchored125.X + 485 > compact125.Right || anchored125.Y + 678 > compact125.Bottom)
+                anchored125.X + 400 > compact125.Right || anchored125.Y + 510 > compact125.Bottom)
                 throw new InvalidOperationException("Runtime Companion 125% DPI compact-display anchor left the working area.");
 
             var fullHd200 = new Rectangle(0, 0, 1920, 1040);
-            var anchored200 = ResolveDefaultLocation(fullHd200, new Size(776, 960), 2F);
+            var anchored200 = ResolveDefaultLocation(fullHd200, new Size(640, 728), 2F);
             if (anchored200.X < fullHd200.Left || anchored200.Y < fullHd200.Top ||
-                anchored200.X + 776 > fullHd200.Right || anchored200.Y + 960 > fullHd200.Bottom)
+                anchored200.X + 640 > fullHd200.Right || anchored200.Y + 728 > fullHd200.Bottom)
                 throw new InvalidOperationException("Runtime Companion 200% DPI anchor left the working area.");
 
             var settings = new AppSettings();

@@ -21,17 +21,17 @@ namespace FACM.League
     /// </summary>
     internal sealed class LeagueRuntimeCompanionForm : Form
     {
-        internal const int DesignWidth = 388;
-        internal const int HeaderHeight = 42;
-        internal const int ContextHeight = 96;
-        internal const int BenchHeight = 70;
-        internal const int MinimumExpandedHeight = 480;
-        internal const int MaximumExpandedHeight = 720;
-        internal const int BodyContentWidth = 348;
-        internal const int AugmentColumnTotalWidth = 334;
-        private const int SectionWidth = 348;
-        private const int RecommendationBaseHeight = 74;
-        private const int AlternativeRowHeight = 42;
+        internal const int DesignWidth = 320;
+        internal const int HeaderHeight = 36;
+        internal const int ContextHeight = 82;
+        internal const int BenchHeight = 58;
+        internal const int MinimumExpandedHeight = 420;
+        internal const int MaximumExpandedHeight = 560;
+        internal const int BodyContentWidth = 284;
+        internal const int AugmentColumnTotalWidth = 268;
+        private const int SectionWidth = 284;
+        private const int RecommendationBaseHeight = 64;
+        private const int AlternativeRowHeight = 36;
 
         private readonly LeagueRuntimeCompanionController _controller;
         private readonly UiTextCatalog _ui;
@@ -146,7 +146,7 @@ namespace FACM.League
             {
                 Text = UiTextRuntime.Text(UiTextKeys.AppName),
                 Location = new Point(10, 0),
-                Size = new Size(126, HeaderHeight),
+                Size = new Size(80, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
@@ -156,19 +156,19 @@ namespace FACM.League
             _status = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting),
-                Location = new Point(138, 0),
-                Size = new Size(144, HeaderHeight),
+                Location = new Point(92, 0),
+                Size = new Size(116, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleRight,
                 AutoEllipsis = true,
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted
             };
-            _pinButton = CreateChromeButton("↑", 284, 30);
+            _pinButton = CreateChromeButton("↑", 216, 30);
             _pinButton.ForeColor = FacmDesignSystem.Accent;
             _pinButton.Click += delegate { TogglePin(); };
-            _collapseButton = CreateChromeButton("−", 316, 30);
+            _collapseButton = CreateChromeButton("−", 248, 30);
             _collapseButton.Click += delegate { SetCollapsed(!_collapsed); };
-            var close = CreateChromeButton("×", 348, 32);
+            var close = CreateChromeButton("×", 280, 32);
             close.Font = new Font("Segoe UI", 13F, FontStyle.Regular);
             close.Click += delegate { Close(); };
 
@@ -185,12 +185,12 @@ namespace FACM.League
                 Dock = DockStyle.Top,
                 Height = ContextHeight,
                 BackColor = FacmDesignSystem.CanvasRaised,
-                Padding = new Padding(10, 8, 10, 8)
+                Padding = new Padding(8, 6, 8, 6)
             };
             _championIcon = new PictureBox
             {
-                Location = new Point(10, 13),
-                Size = new Size(52, 52),
+                Location = new Point(8, 11),
+                Size = new Size(44, 44),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = FacmDesignSystem.SurfaceRaised
             };
@@ -198,18 +198,18 @@ namespace FACM.League
             _championTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionWaiting),
-                Location = new Point(74, 5),
-                Size = new Size(294, 27),
+                Location = new Point(60, 4),
+                Size = new Size(252, 24),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 12F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 11F, FontStyle.Bold)
             };
             _championMeta = new Label
             {
                 Text = string.Empty,
-                Location = new Point(74, 32),
-                Size = new Size(294, 18),
+                Location = new Point(60, 29),
+                Size = new Size(252, 16),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -218,8 +218,8 @@ namespace FACM.League
             _championStats = new Label
             {
                 Text = string.Empty,
-                Location = new Point(74, 50),
-                Size = new Size(294, 18),
+                Location = new Point(60, 46),
+                Size = new Size(252, 16),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -228,8 +228,8 @@ namespace FACM.League
             _contextStatus = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting),
-                Location = new Point(74, 70),
-                Size = new Size(294, 18),
+                Location = new Point(60, 63),
+                Size = new Size(252, 15),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
@@ -246,14 +246,14 @@ namespace FACM.League
                 Dock = DockStyle.Top,
                 Height = BenchHeight,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(10, 6, 10, 6),
+                Padding = new Padding(8, 4, 8, 4),
                 Visible = false
             };
             var benchLabel = new Label
             {
                 Text = BenchText(LeagueBenchQuickPickUiTextKeys.Title),
                 Dock = DockStyle.Top,
-                Height = 18,
+                Height = 16,
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -277,7 +277,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(10, 8, 10, 10)
+                Padding = new Padding(8, 6, 8, 8)
             };
             _sections = new FlowLayoutPanel
             {
@@ -326,7 +326,7 @@ namespace FACM.League
             _aramBalanceSection = new Panel
             {
                 Width = SectionWidth,
-                Height = 70,
+                Height = 58,
                 Margin = Padding.Empty,
                 BackColor = FacmDesignSystem.Canvas,
                 Visible = false
@@ -334,8 +334,8 @@ namespace FACM.League
             var aramBalanceTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.AramBaseBalance),
-                Location = new Point(0, 9),
-                Size = new Size(82, 20),
+                Location = new Point(0, 8),
+                Size = new Size(68, 18),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -344,8 +344,8 @@ namespace FACM.League
             _aramBalanceText = new Label
             {
                 Text = string.Empty,
-                Location = new Point(82, 5),
-                Size = new Size(266, 56),
+                Location = new Point(70, 4),
+                Size = new Size(214, 46),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -353,7 +353,7 @@ namespace FACM.League
             };
             var aramBalanceRule = new Panel
             {
-                Location = new Point(0, 69),
+                Location = new Point(0, 57),
                 Size = new Size(SectionWidth, 1),
                 BackColor = FacmDesignSystem.BorderSoft
             };
@@ -365,7 +365,7 @@ namespace FACM.League
             _mayhemSection = new Panel
             {
                 Width = SectionWidth,
-                Height = 310,
+                Height = 228,
                 Margin = Padding.Empty,
                 BackColor = FacmDesignSystem.Canvas,
                 Visible = false
@@ -373,8 +373,8 @@ namespace FACM.League
             var augmentTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments),
-                Location = new Point(0, 10),
-                Size = new Size(SectionWidth, 24),
+                Location = new Point(0, 7),
+                Size = new Size(SectionWidth, 20),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -382,14 +382,14 @@ namespace FACM.League
             };
             var augmentRule = new Panel
             {
-                Location = new Point(0, 38),
+                Location = new Point(0, 31),
                 Size = new Size(SectionWidth, 1),
                 BackColor = FacmDesignSystem.BorderSoft
             };
             _augments = new ListView
             {
-                Location = new Point(0, 48),
-                Size = new Size(SectionWidth, 252),
+                Location = new Point(0, 38),
+                Size = new Size(SectionWidth, 182),
                 View = View.Details,
                 FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
@@ -398,12 +398,12 @@ namespace FACM.League
                 BorderStyle = BorderStyle.None,
                 ShowItemToolTips = true
             };
-            _augments.Columns.Add("#", 30, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 112, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 42, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 48, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PickRate, 48, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.Sample, 54, HorizontalAlignment.Right);
+            _augments.Columns.Add("#", 24, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 92, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 32, HorizontalAlignment.Left);
+            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 38, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.PickRate, 38, HorizontalAlignment.Right);
+            _augments.Columns.Add(MayhemUiCopy.Sample, 44, HorizontalAlignment.Right);
             _mayhemSection.Controls.Add(augmentTitle);
             _mayhemSection.Controls.Add(augmentRule);
             _mayhemSection.Controls.Add(_augments);
@@ -433,8 +433,11 @@ namespace FACM.League
 
         internal static int ResolveExpandedHeight(int workingAreaHeight)
         {
-            var available = Math.Max(MinimumExpandedHeight, workingAreaHeight - 40);
-            return Math.Max(MinimumExpandedHeight, Math.Min(MaximumExpandedHeight, available));
+            var usable = Math.Max(1, workingAreaHeight - 32);
+            var compactCap = Math.Max(1, (int)Math.Round(workingAreaHeight * 0.70, MidpointRounding.AwayFromZero));
+            var available = Math.Min(usable, compactCap);
+            if (available < MinimumExpandedHeight) return available;
+            return Math.Min(MaximumExpandedHeight, available);
         }
 
         private IEnumerable<RecommendationSection> RecommendationSections()
@@ -968,8 +971,8 @@ namespace FACM.League
             };
             var value = new Label
             {
-                Location = new Point(82, 6),
-                Size = new Size(actionText == null ? 266 : 200, 36),
+                Location = new Point(70, 5),
+                Size = new Size(actionText == null ? 214 : 148, 31),
                 AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -977,8 +980,8 @@ namespace FACM.League
             };
             var evidence = new Label
             {
-                Location = new Point(82, 43),
-                Size = new Size(206, 18),
+                Location = new Point(70, 38),
+                Size = new Size(154, 16),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -987,16 +990,16 @@ namespace FACM.League
             Button action = null;
             if (!string.IsNullOrWhiteSpace(actionText))
             {
-                action = CreateInlineButton(actionText, new Point(286, 8), new Size(62, 28));
+                action = CreateInlineButton(actionText, new Point(222, 6), new Size(62, 26));
                 host.Controls.Add(action);
             }
-            var more = CreateInlineButton(string.Empty, new Point(294, 42), new Size(54, 22));
+            var more = CreateInlineButton(string.Empty, new Point(230, 36), new Size(54, 20));
             more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);
             more.Visible = false;
             var alternatives = new Panel
             {
-                Location = new Point(82, RecommendationBaseHeight - 2),
-                Size = new Size(266, 0),
+                Location = new Point(70, RecommendationBaseHeight - 2),
+                Size = new Size(214, 0),
                 BackColor = FacmDesignSystem.Canvas,
                 Visible = false
             };
@@ -1114,14 +1117,14 @@ namespace FACM.League
                 var divider = new Panel
                 {
                     Location = new Point(0, y),
-                    Size = new Size(266, 1),
+                    Size = new Size(214, 1),
                     BackColor = FacmDesignSystem.BorderSoft
                 };
                 var value = new Label
                 {
                     Text = row.Recommendation ?? string.Empty,
                     Location = new Point(0, y + 3),
-                    Size = new Size(266, 19),
+                    Size = new Size(214, 17),
                     AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
@@ -1130,8 +1133,8 @@ namespace FACM.League
                 var evidence = new Label
                 {
                     Text = row.Evidence ?? string.Empty,
-                    Location = new Point(0, y + 22),
-                    Size = new Size(266, 17),
+                    Location = new Point(0, y + 19),
+                    Size = new Size(214, 15),
                     AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.TextMuted,
                     BackColor = Color.Transparent,
@@ -1261,8 +1264,8 @@ namespace FACM.League
         {
             var button = new Button
             {
-                Width = 48,
-                Height = 42,
+                Width = 44,
+                Height = 38,
                 Margin = new Padding(0, 1, 5, 1),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Surface,
@@ -1337,7 +1340,7 @@ namespace FACM.League
             if (_championIcons.TryGetValue(championId, out cached)) return cached;
             var bytes = await _controller.LoadBenchChampionIconAsync(championId, _lifetime.Token);
             if (bytes == null || bytes.Length == 0 || IsDisposed) return null;
-            var bitmap = DecodeBitmap(bytes, new Size(52, 52));
+            var bitmap = DecodeBitmap(bytes, new Size(44, 44));
             if (bitmap == null) return null;
             _championIcons[championId] = bitmap;
             return bitmap;
@@ -1376,7 +1379,7 @@ namespace FACM.League
             {
                 var bytes = await _controller.LoadGuideChampionIconAsync(reference, _lifetime.Token);
                 if (bytes == null || bytes.Length == 0 || IsDisposed || championId != _renderedGuideChampionId) return;
-                var bitmap = DecodeBitmap(bytes, new Size(52, 52));
+                var bitmap = DecodeBitmap(bytes, new Size(44, 44));
                 if (bitmap == null) return;
                 DetachChampionImage();
                 _ownedGuideIcon = bitmap;
@@ -1455,7 +1458,7 @@ namespace FACM.League
             var button = new Button
             {
                 Text = text,
-                Location = new Point(x, 7),
+                Location = new Point(x, 4),
                 Size = new Size(width, 28),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Canvas,
@@ -1712,7 +1715,7 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (DesignWidth < 360 || DesignWidth > 430)
+            if (DesignWidth < 300 || DesignWidth > 340)
                 throw new InvalidOperationException("Runtime Companion width left the compact design contract.");
             if (ResolveExpandedHeight(728) < MinimumExpandedHeight || ResolveExpandedHeight(728) > MaximumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion 768p working-area height policy is invalid.");
