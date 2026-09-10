@@ -86,7 +86,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - Bench 快速换英雄继续走 `LeagueBenchQuickPickService`，但 `benchEnabled` 不再被当作 Mayhem 证明。`LeagueQueueModePolicy` 将普通 ARAM（450/ARAM）与 Mayhem（2400、CN/WeGame 3270、KIWI/ARAM_MAYHEM）分开：普通 ARAM 只读取版本绑定的基础平衡补充，Mayhem 才启动完整攻略/强化链；未知 Bench 模式 fail closed。普通空状态不生成装饰性 N/A 卡片。
 - Runtime Companion 的位置、置顶、收起状态通过共享 `AppSettings` 与现有 last-known-good recovery 持久化；不创建 Form 私有配置文件，也不重新加载第二份 settings。
 - `app.manifest` 已有 PerMonitorV2。Companion 的恢复/默认定位延迟到 `Shown` 后按物理 DPI 尺寸处理，允许左侧屏幕负坐标，并在显示器拓扑变化时 clamp 到当前 working area。
-- deterministic smoke 覆盖紧凑宽度/高度、100%/150% DPI 高度策略、负坐标多屏 clamp、settings round-trip/LKG recovery、snapshot clone、最多 3 套方案投影、缺失胜率不伪造、rune/spell scoped apply、item-set owner 边界，以及 ARAM balance 有值显示/无值省略。
+- deterministic smoke 覆盖紧凑宽度/高度、100%/125%/150%/200% DPI 高度与默认锚点策略、负坐标多屏 clamp、settings round-trip/LKG recovery、snapshot clone、最多 3 套方案投影、缺失胜率不伪造、rune/spell scoped apply、item-set owner 边界，以及 ARAM balance 有值显示/无值省略。Team Builder fallback 若只返回 Bench roster 而缺少 queue/mode，会保留 generic ChampSelect 已读到的 queue/mode，避免国服 Mayhem 模式路由退化为 unknown。
 - ARAM 可视化补丁之前的完整实现 head `df835a040f90caa242d1069bc9d4afbd3d680ff4` 已通过 UI Text Contract #831、Mayhem Source Probe #491 与 Windows Build #1723（含 lightweight FACM.exe verification 和 optional PetHost self-test）。当前收口 head 必须重新通过同样 Gate；旧成功记录不能替代最新代码验证。
 - 剩余外部 Gate 是真实 Tencent 客户端验收：普通 Ranked 的自动出现/不抢焦点/英雄切换；Rune/召唤师技能 Apply；装备导入；ARAM/Mayhem 基础平衡/强化/Bench；关闭仅 dismiss 当前 episode；拖动/置顶/收起跨 episode 恢复，以及有条件时的多屏/125%/150%/200% DPI。未通过这些实机 Gate 前不 merge、不 bump version、不改在线 manifest、不生产发布。
 

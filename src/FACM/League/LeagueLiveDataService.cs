@@ -111,6 +111,14 @@ namespace FACM.League
                     var teamBuilderState = ParseBenchState(teamBuilderBytes);
                     if (teamBuilderState != null && teamBuilderState.SessionAvailable)
                     {
+                        // Some Team Builder session shapes expose the bench roster but omit the
+                        // queue/mode fields present on the generic ChampSelect session. Preserve
+                        // that already-read context so Runtime Companion mode routing does not
+                        // silently degrade to an unknown guide kind after the compatibility GET.
+                        if (teamBuilderState.QueueId <= 0 && state != null)
+                            teamBuilderState.QueueId = state.QueueId;
+                        if (string.IsNullOrWhiteSpace(teamBuilderState.GameMode) && state != null)
+                            teamBuilderState.GameMode = state.GameMode;
                         teamBuilderState.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
                         RememberBenchSwapRoute(LeagueBenchSwapRoute.TeamBuilder);
                         return teamBuilderState;

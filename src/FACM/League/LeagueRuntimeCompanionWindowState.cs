@@ -258,8 +258,14 @@ namespace FACM.League
         {
             if (ResolveExpandedHeight(728, 1F) != 688)
                 throw new InvalidOperationException("Runtime Companion 100% DPI height policy drifted.");
+            if (ResolveExpandedHeight(728, 1.25F) != 678)
+                throw new InvalidOperationException("Runtime Companion 125% DPI height policy drifted.");
             if (ResolveExpandedHeight(1040, 1.5F) != 980)
                 throw new InvalidOperationException("Runtime Companion 150% DPI height policy drifted.");
+            if (ResolveExpandedHeight(1040, 2F) != 960)
+                throw new InvalidOperationException("Runtime Companion 200% DPI height policy drifted.");
+            if (ResolveExpandedHeight(2160, 2F) != 1440)
+                throw new InvalidOperationException("Runtime Companion 200% DPI maximum height cap drifted.");
             if (ResolveExpandedHeight(2160, 1F) != DesignMaximumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion maximum expanded height drifted.");
 
@@ -273,6 +279,18 @@ namespace FACM.League
             if (anchored.X < leftMonitor.Left || anchored.Y < leftMonitor.Top ||
                 anchored.X + 582 > leftMonitor.Right || anchored.Y + 900 > leftMonitor.Bottom)
                 throw new InvalidOperationException("Runtime Companion DPI-aware default anchor left the working area.");
+
+            var compact125 = new Rectangle(0, 0, 1366, 728);
+            var anchored125 = ResolveDefaultLocation(compact125, new Size(485, 678), 1.25F);
+            if (anchored125.X < compact125.Left || anchored125.Y < compact125.Top ||
+                anchored125.X + 485 > compact125.Right || anchored125.Y + 678 > compact125.Bottom)
+                throw new InvalidOperationException("Runtime Companion 125% DPI compact-display anchor left the working area.");
+
+            var fullHd200 = new Rectangle(0, 0, 1920, 1040);
+            var anchored200 = ResolveDefaultLocation(fullHd200, new Size(776, 960), 2F);
+            if (anchored200.X < fullHd200.Left || anchored200.Y < fullHd200.Top ||
+                anchored200.X + 776 > fullHd200.Right || anchored200.Y + 960 > fullHd200.Bottom)
+                throw new InvalidOperationException("Runtime Companion 200% DPI anchor left the working area.");
 
             var settings = new AppSettings();
             if (HasSavedPosition(settings))
