@@ -14,6 +14,7 @@ namespace FACM.League
         public const string BuildUnavailable = "LeagueRuntimeCompanionBuildUnavailable";
         public const string ChampionWaiting = "LeagueRuntimeCompanionChampionWaiting";
         public const string SourceCache = "LeagueRuntimeCompanionSourceCache";
+        public const string AramBaseBalance = "LeagueRuntimeCompanionAramBaseBalance";
         public const string MayhemAugments = "LeagueRuntimeCompanionMayhemAugments";
         public const string Pin = "LeagueRuntimeCompanionPin";
         public const string Unpin = "LeagueRuntimeCompanionUnpin";
@@ -47,6 +48,7 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.BuildUnavailable, "当前推荐暂不可用" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionWaiting, "等待你选定英雄" },
             { LeagueRuntimeCompanionUiTextKeys.SourceCache, "缓存" },
+            { LeagueRuntimeCompanionUiTextKeys.AramBaseBalance, "大乱斗基础平衡" },
             { LeagueRuntimeCompanionUiTextKeys.MayhemAugments, "海克斯强化" },
             { LeagueRuntimeCompanionUiTextKeys.Pin, "保持置顶" },
             { LeagueRuntimeCompanionUiTextKeys.Unpin, "取消置顶" },
