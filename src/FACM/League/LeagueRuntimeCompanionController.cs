@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Mayhem;
@@ -194,6 +195,18 @@ namespace FACM.League
         {
             ThrowIfDisposed();
             return RiotGameDataService.DownloadImageAsync(reference, _leagueClient, cancellationToken);
+        }
+
+        public Task<Bitmap> LoadGuideAssetAsync(string reference, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            return MayhemImageCache.GetAsync(reference, _leagueClient, cancellationToken);
+        }
+
+        public Task<string> ResolveChampionNameAsync(int championId, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            return RiotGameDataService.ResolveChampionNameAsync(championId, _leagueClient, cancellationToken);
         }
 
         public async Task<LeagueRuntimeCompanionApplyPreparation> PrepareApplyAsync(

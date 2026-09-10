@@ -86,6 +86,12 @@ The compact revision is intentionally smaller than the earlier 388x720 review ca
 
 The fixed top region must not scroll. The detail body may scroll vertically and must not expose a normal horizontal scrollbar at supported widths.
 
+### Live readability acceptance
+
+The 320 px runtime surface must remain readable rather than merely fit. Primary recommendation text gets the first line(s), source metrics are secondary, and full detail may use tooltip/progressive disclosure. Raw champion ids such as `#904` are not a valid user-facing identity.
+
+Native light WinForms scrollbars and Details-view table headers are not allowed on this dark transient surface. Bench overflow uses local paging. Mayhem augments use compact FACM-native icon rows with local paging and omit unavailable metrics instead of filling narrow columns with repeated placeholder dashes.
+
 DPI targets for validation: 100%, 125%, 150%, 200%. Multi-monitor restore must clamp to the current working area and must never restore off-screen. DPI scaling may increase physical pixels, but the working-area proportional cap remains authoritative so compact displays do not regress into a full-height panel.
 
 ## Window lifecycle

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -21,6 +22,9 @@ namespace FACM.League
     /// </summary>
     internal sealed class LeagueRuntimeCompanionForm : Form
     {
+        [DllImport("user32.dll")]
+        private static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
+
         internal const int DesignWidth = 320;
         internal const int HeaderHeight = 36;
         internal const int ContextHeight = 82;
@@ -32,6 +36,11 @@ namespace FACM.League
         private const int SectionWidth = 284;
         private const int RecommendationBaseHeight = 64;
         private const int AlternativeRowHeight = 36;
+        private const int AugmentPageSize = 5;
+        private const int AugmentRowHeight = 36;
+        private const int BenchPageSize = 4;
+        private const int SbHorz = 0;
+        private const int SbVert = 1;
 
         private readonly LeagueRuntimeCompanionController _controller;
         private readonly UiTextCatalog _ui;
@@ -64,7 +73,10 @@ namespace FACM.League
         private readonly Panel _aramBalanceSection;
         private readonly Label _aramBalanceText;
         private readonly Panel _mayhemSection;
-        private readonly ListView _augments;
+        private readonly FlowLayoutPanel _augmentRows;
+        private readonly Button _augmentPrevButton;
+        private readonly Button _augmentNextButton;
+        private readonly Label _augmentPageLabel;
 
         private bool _refreshing;
         private bool _actionBusy;
@@ -82,6 +94,13 @@ namespace FACM.League
         private bool _dragging;
         private Point _dragCursor;
         private Point _dragWindow;
+        private IReadOnlyList<MayhemAugmentRow> _augmentSource = Array.Empty<MayhemAugmentRow>();
+        private readonly List<Image> _ownedAugmentIcons = new List<Image>();
+        private int _augmentPage;
+        private int _augmentRenderGeneration;
+        private int _benchPage;
+        private string _benchRosterFingerprint;
+        private string _benchRenderFingerprint;
 
         private sealed class BenchTarget
         {
@@ -155,11 +174,11 @@ namespace FACM.League
             };
             _status = new Label
             {
-                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting),
-                Location = new Point(92, 0),
-                Size = new Size(116, HeaderHeight),
-                TextAlign = ContentAlignment.MiddleRight,
-                AutoEllipsis = true,
+                Text = "●",
+                Location = new Point(188, 0),
+                Size = new Size(20, HeaderHeight),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = false,
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted
             };
@@ -264,7 +283,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
-                AutoScroll = true,
+                AutoScroll = false,
                 BackColor = FacmDesignSystem.Canvas,
                 Padding = new Padding(0, 2, 0, 0),
                 Margin = Padding.Empty
@@ -295,11 +314,11 @@ namespace FACM.League
             _runes = CreateRecommendationSection(
                 "runes",
                 LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Runes),
-                T(LeagueBuildApplyUiTextKeys.Apply));
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.ApplyShort));
             _spells = CreateRecommendationSection(
                 "summoner-spells",
                 LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Spells),
-                T(LeagueBuildApplyUiTextKeys.Apply));
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.ApplyShort));
             _skills = CreateRecommendationSection(
                 "skills",
                 LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Skills),
@@ -315,7 +334,7 @@ namespace FACM.League
             _core = CreateRecommendationSection(
                 "core-items",
                 CompanionText(LeagueRuntimeCompanionUiTextKeys.CoreItems),
-                CompanionText(LeagueRuntimeCompanionUiTextKeys.ImportItems));
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.ImportShort));
 
             _runes.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.Runes, _runes); };
             _spells.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.SummonerSpells, _spells); };
@@ -364,51 +383,47 @@ namespace FACM.League
 
             _mayhemSection = new Panel
             {
-                Width = SectionWidth,
-                Height = 228,
-                Margin = Padding.Empty,
-                BackColor = FacmDesignSystem.Canvas,
-                Visible = false
+                Width = SectionWidth, Height = 226, Margin = Padding.Empty,
+                BackColor = FacmDesignSystem.Canvas, Visible = false
             };
             var augmentTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments),
-                Location = new Point(0, 7),
-                Size = new Size(SectionWidth, 20),
-                AutoEllipsis = true,
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
+                Location = new Point(0, 7), Size = new Size(176, 20), AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text, BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
+            _augmentPrevButton = CreateInlineButton("‹", new Point(184, 3), new Size(24, 24));
+            _augmentPageLabel = new Label
+            {
+                Location = new Point(208, 5), Size = new Size(48, 20), TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = FacmDesignSystem.TextMuted, BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+            };
+            _augmentNextButton = CreateInlineButton("›", new Point(258, 3), new Size(24, 24));
+            _augmentPrevButton.Click += delegate { SetAugmentPage(_augmentPage - 1); };
+            _augmentNextButton.Click += delegate { SetAugmentPage(_augmentPage + 1); };
             var augmentRule = new Panel
             {
-                Location = new Point(0, 31),
-                Size = new Size(SectionWidth, 1),
-                BackColor = FacmDesignSystem.BorderSoft
+                Location = new Point(0, 31), Size = new Size(SectionWidth, 1), BackColor = FacmDesignSystem.BorderSoft
             };
-            _augments = new ListView
+            _augmentRows = new FlowLayoutPanel
             {
-                Location = new Point(0, 38),
-                Size = new Size(SectionWidth, 182),
-                View = View.Details,
-                FullRowSelect = true,
-                HeaderStyle = ColumnHeaderStyle.Nonclickable,
-                BackColor = FacmDesignSystem.CanvasRaised,
-                ForeColor = FacmDesignSystem.Text,
-                BorderStyle = BorderStyle.None,
-                ShowItemToolTips = true
+                Location = new Point(0, 38), Size = new Size(SectionWidth, AugmentPageSize * AugmentRowHeight),
+                FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = false,
+                Margin = Padding.Empty, Padding = Padding.Empty, BackColor = FacmDesignSystem.Canvas
             };
-            _augments.Columns.Add("#", 24, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PriorityAugment, 92, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.MetricQuality, 32, HorizontalAlignment.Left);
-            _augments.Columns.Add(MayhemUiCopy.HeroWinRate, 38, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.PickRate, 38, HorizontalAlignment.Right);
-            _augments.Columns.Add(MayhemUiCopy.Sample, 44, HorizontalAlignment.Right);
             _mayhemSection.Controls.Add(augmentTitle);
+            _mayhemSection.Controls.Add(_augmentPrevButton);
+            _mayhemSection.Controls.Add(_augmentPageLabel);
+            _mayhemSection.Controls.Add(_augmentNextButton);
             _mayhemSection.Controls.Add(augmentRule);
-            _mayhemSection.Controls.Add(_augments);
+            _mayhemSection.Controls.Add(_augmentRows);
             _sections.Controls.Add(_mayhemSection);
             _body.Controls.Add(_sections);
+            _body.HandleCreated += delegate { HideNativeBodyScrollBars(); };
+            _body.Layout += delegate { HideNativeBodyScrollBars(); };
+            _sections.SizeChanged += delegate { HideNativeBodyScrollBars(); };
 
             Controls.Add(_body);
             Controls.Add(_benchHost);
@@ -416,6 +431,9 @@ namespace FACM.League
             Controls.Add(_header);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
+            _toolTip.SetToolTip(_status, CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting));
+            _toolTip.SetToolTip(_augmentPrevButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.PreviousPage));
+            _toolTip.SetToolTip(_augmentNextButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.NextPage));
             _toolTip.SetToolTip(_pinButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Unpin));
             _toolTip.SetToolTip(_collapseButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Collapse));
             _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
@@ -852,7 +870,15 @@ namespace FACM.League
             RenderAramBaseBalance(result);
             if (!hasBuildContext)
             {
-                _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
+                if (!string.IsNullOrWhiteSpace(result.ChampionName))
+                    _championTitle.Text = result.ChampionName;
+                else if (_renderedGuideChampionId > 0)
+                {
+                    _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionResolving);
+                    _ = ResolveGuideChampionNameAsync(_renderedGuideChampionId);
+                }
+                else
+                    _championTitle.Text = MayhemUiCopy.Unknown;
                 _championMeta.Text = BuildMayhemMeta(result);
                 _championStats.Text = string.Empty;
                 _contextStatus.ForeColor = FacmDesignSystem.Success;
@@ -864,31 +890,139 @@ namespace FACM.League
                     _ = LoadGuideChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
             }
 
-            _augments.BeginUpdate();
+            _augmentSource = (result.AugmentRows ?? new List<MayhemAugmentRow>())
+                .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
+                .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
+                .ThenBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(40).ToList().AsReadOnly();
+            SetAugmentPage(0);
+        }
+
+        private void SetAugmentPage(int page)
+        {
+            var count = _augmentSource == null ? 0 : _augmentSource.Count;
+            var pages = Math.Max(1, (int)Math.Ceiling(count / (double)AugmentPageSize));
+            _augmentPage = Math.Max(0, Math.Min(page, pages - 1));
+            RenderAugmentPage();
+        }
+
+        private void RenderAugmentPage()
+        {
+            DisposeAugmentRows();
+            if (_augmentSource == null || _augmentSource.Count == 0)
+            {
+                _augmentPageLabel.Text = string.Empty;
+                _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
+                _mayhemSection.Visible = false;
+                return;
+            }
+            var pages = Math.Max(1, (int)Math.Ceiling(_augmentSource.Count / (double)AugmentPageSize));
+            _augmentPage = Math.Max(0, Math.Min(_augmentPage, pages - 1));
+            _augmentPageLabel.Text = (_augmentPage + 1).ToString(CultureInfo.InvariantCulture) + "/" + pages.ToString(CultureInfo.InvariantCulture);
+            _augmentPrevButton.Enabled = _augmentPage > 0;
+            _augmentNextButton.Enabled = _augmentPage + 1 < pages;
+            var generation = ++_augmentRenderGeneration;
+            foreach (var row in _augmentSource.Skip(_augmentPage * AugmentPageSize).Take(AugmentPageSize))
+                _augmentRows.Controls.Add(CreateAugmentRow(row, generation));
+            _mayhemSection.Visible = _augmentRows.Controls.Count > 0;
+            HideNativeBodyScrollBars();
+        }
+
+        private Panel CreateAugmentRow(MayhemAugmentRow row, int generation)
+        {
+            var host = new Panel { Width = SectionWidth, Height = AugmentRowHeight, Margin = Padding.Empty, BackColor = FacmDesignSystem.Canvas };
+            var icon = new PictureBox
+            {
+                Location = new Point(0, 5), Size = new Size(26, 26), SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = FacmDesignSystem.SurfaceRaised
+            };
+            FacmDesignSystem.Round(icon, Math.Min(4, FacmDesignSystem.ControlRadius));
+            var title = new Label
+            {
+                Text = (row.Rank > 0 ? row.Rank.ToString(CultureInfo.InvariantCulture) + "  " : string.Empty) + row.Name,
+                Location = new Point(34, 1), Size = new Size(178, 17), AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text, BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold)
+            };
+            var rarityText = string.Equals(row.Rarity, MayhemUiCopy.Unknown, StringComparison.OrdinalIgnoreCase) ? string.Empty : (row.Rarity ?? string.Empty);
+            var rarity = new Label
+            {
+                Text = rarityText, Location = new Point(216, 1), Size = new Size(68, 17), TextAlign = ContentAlignment.TopRight,
+                AutoEllipsis = true, ForeColor = FacmDesignSystem.TextMuted, BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.4F)
+            };
+            var metrics = new Label
+            {
+                Text = BuildAugmentMetrics(row), Location = new Point(34, 18), Size = new Size(250, 16), AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted, BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.5F)
+            };
+            var rule = new Panel { Location = new Point(0, AugmentRowHeight - 1), Size = new Size(SectionWidth, 1), BackColor = FacmDesignSystem.BorderSoft };
+            host.Controls.Add(icon); host.Controls.Add(title); host.Controls.Add(rarity); host.Controls.Add(metrics); host.Controls.Add(rule);
+            var detail = string.IsNullOrWhiteSpace(row.Description) ? row.Name : row.Name + Environment.NewLine + row.Description;
+            _toolTip.SetToolTip(host, detail); _toolTip.SetToolTip(title, detail); _toolTip.SetToolTip(metrics, detail);
+            if (!string.IsNullOrWhiteSpace(row.IconUrl)) _ = LoadAugmentIconAsync(icon, row.IconUrl, generation);
+            return host;
+        }
+
+        private static string BuildAugmentMetrics(MayhemAugmentRow row)
+        {
+            if (row == null) return string.Empty;
+            var parts = new List<string>();
+            if (row.WinRate.HasValue) parts.Add(MayhemUiCopy.WinShort + FormatRate(row.WinRate));
+            if (row.PickRate.HasValue) parts.Add(MayhemUiCopy.PickShort + FormatRate(row.PickRate));
+            if (row.Games.HasValue) parts.Add(row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) + MayhemUiCopy.GamesSuffix);
+            return string.Join(MayhemUiCopy.SeparatorDot, parts);
+        }
+
+        private async Task LoadAugmentIconAsync(PictureBox target, string reference, int generation)
+        {
             try
             {
-                _augments.Items.Clear();
-                foreach (var row in (result.AugmentRows ?? new List<MayhemAugmentRow>())
-                    .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
-                    .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
-                    .ThenBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
-                    .Take(40))
-                {
-                    var item = new ListViewItem(row.Rank > 0 ? row.Rank.ToString(CultureInfo.InvariantCulture) : "—");
-                    item.SubItems.Add(row.Name);
-                    item.SubItems.Add(string.IsNullOrWhiteSpace(row.Rarity) ? "—" : row.Rarity);
-                    item.SubItems.Add(FormatRate(row.WinRate));
-                    item.SubItems.Add(FormatRate(row.PickRate));
-                    item.SubItems.Add(row.Games.HasValue ? row.Games.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
-                    item.ToolTipText = row.Description ?? string.Empty;
-                    _augments.Items.Add(item);
-                }
+                var bitmap = await _controller.LoadGuideAssetAsync(reference, _lifetime.Token);
+                if (bitmap == null) return;
+                if (IsDisposed || target.IsDisposed || generation != _augmentRenderGeneration) { bitmap.Dispose(); return; }
+                _ownedAugmentIcons.Add(bitmap);
+                target.Image = bitmap;
             }
-            finally
+            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }
+        }
+
+        private void DisposeAugmentRows()
+        {
+            _augmentRenderGeneration++;
+            var controls = _augmentRows.Controls.Cast<Control>().ToArray();
+            _augmentRows.Controls.Clear();
+            foreach (var control in controls) control.Dispose();
+            foreach (var image in _ownedAugmentIcons) image.Dispose();
+            _ownedAugmentIcons.Clear();
+        }
+
+        private void ClearAugments()
+        {
+            _augmentSource = Array.Empty<MayhemAugmentRow>();
+            _augmentPage = 0;
+            DisposeAugmentRows();
+            _augmentPageLabel.Text = string.Empty;
+            _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
+        }
+
+        private async Task ResolveGuideChampionNameAsync(int championId)
+        {
+            try
             {
-                _augments.EndUpdate();
+                var name = await _controller.ResolveChampionNameAsync(championId, _lifetime.Token);
+                if (!string.IsNullOrWhiteSpace(name) && !IsDisposed && championId == _renderedGuideChampionId)
+                    _championTitle.Text = name;
             }
-            _mayhemSection.Visible = _augments.Items.Count > 0;
+            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }
+        }
+
+        private void HideNativeBodyScrollBars()
+        {
+            if (_body == null || !_body.IsHandleCreated) return;
+            ShowScrollBar(_body.Handle, SbHorz, false);
+            ShowScrollBar(_body.Handle, SbVert, false);
         }
 
         private void RenderAramBaseBalance(MayhemChampionResult result)
@@ -901,6 +1035,7 @@ namespace FACM.League
             }
 
             _aramBalanceText.Text = result.BaseBalanceSummary.Trim();
+            _toolTip.SetToolTip(_aramBalanceText, _aramBalanceText.Text);
             var status = (result.BaseBalanceStatus ?? string.Empty).Trim();
             _aramBalanceText.ForeColor =
                 string.Equals(status, "syncing", StringComparison.OrdinalIgnoreCase) ||
@@ -919,7 +1054,7 @@ namespace FACM.League
         {
             if (championId > 0)
             {
-                _championTitle.Text = FormatChampionId(championId);
+                _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionResolving);
                 EnsureLocalChampionIcon(championId);
             }
             else
@@ -972,7 +1107,7 @@ namespace FACM.League
             var value = new Label
             {
                 Location = new Point(70, 5),
-                Size = new Size(actionText == null ? 214 : 148, 31),
+                Size = new Size(actionText == null ? 214 : 168, 31),
                 AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -981,7 +1116,7 @@ namespace FACM.League
             var evidence = new Label
             {
                 Location = new Point(70, 38),
-                Size = new Size(154, 16),
+                Size = new Size(214, 16),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -990,10 +1125,10 @@ namespace FACM.League
             Button action = null;
             if (!string.IsNullOrWhiteSpace(actionText))
             {
-                action = CreateInlineButton(actionText, new Point(222, 6), new Size(62, 26));
+                action = CreateInlineButton(actionText, new Point(242, 6), new Size(42, 26));
                 host.Controls.Add(action);
             }
-            var more = CreateInlineButton(string.Empty, new Point(230, 36), new Size(54, 20));
+            var more = CreateInlineButton(string.Empty, new Point(8, 36), new Size(54, 20));
             more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);
             more.Visible = false;
             var alternatives = new Panel
@@ -1072,8 +1207,10 @@ namespace FACM.League
 
             section.Host.Visible = true;
             section.Value.Text = usable[0].Recommendation;
+            _toolTip.SetToolTip(section.Value, usable[0].Recommendation ?? string.Empty);
             if (!_actionBusy || section.Action == null)
                 section.Evidence.Text = usable[0].Evidence ?? string.Empty;
+            _toolTip.SetToolTip(section.Evidence, usable[0].Evidence ?? string.Empty);
             section.Evidence.ForeColor = FacmDesignSystem.TextMuted;
             section.More.Visible = usable.Count > 1;
             section.More.Text = section.Expanded
@@ -1186,7 +1323,7 @@ namespace FACM.League
             _aramBalanceSection.Visible = false;
             _aramBalanceText.Text = string.Empty;
             _mayhemSection.Visible = false;
-            _augments.Items.Clear();
+            ClearAugments();
             foreach (var section in RecommendationSections())
             {
                 if (section.GuideFallback) HideRecommendationSection(section);
@@ -1199,7 +1336,7 @@ namespace FACM.League
             _aramBalanceSection.Visible = false;
             _aramBalanceText.Text = string.Empty;
             _mayhemSection.Visible = false;
-            _augments.Items.Clear();
+            ClearAugments();
         }
 
         private static IReadOnlyList<LeagueBuildAdvisorRow> FindBuildRows(LeagueBuildRecommendation recommendation, string category)
@@ -1213,43 +1350,56 @@ namespace FACM.League
 
         private void RenderBench(LeagueRuntimeCompanionSnapshot snapshot)
         {
-            var ids = snapshot.BenchChampionIds ?? Array.Empty<int>();
-            var wanted = new HashSet<int>(ids.Where(id => id > 0));
-            var existing = _benchPanel.Controls.OfType<Button>()
-                .Where(button => button.Tag is BenchTarget)
-                .ToDictionary(button => ((BenchTarget)button.Tag).ChampionId, button => button);
-
-            foreach (var pair in existing)
+            var ids = (snapshot.BenchChampionIds ?? Array.Empty<int>()).Where(id => id > 0).Distinct().ToArray();
+            var rosterFingerprint = string.Join(",", ids.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+            if (!string.Equals(_benchRosterFingerprint, rosterFingerprint, StringComparison.Ordinal))
             {
-                if (wanted.Contains(pair.Key)) continue;
-                _benchPanel.Controls.Remove(pair.Value);
-                pair.Value.Dispose();
+                _benchRosterFingerprint = rosterFingerprint;
+                _benchPage = 0;
+                _benchRenderFingerprint = null;
             }
+            var pages = Math.Max(1, (int)Math.Ceiling(ids.Length / (double)BenchPageSize));
+            _benchPage = Math.Max(0, Math.Min(_benchPage, pages - 1));
+            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.LocalChampionId + "|" + snapshot.SwapRoute;
+            if (string.Equals(_benchRenderFingerprint, fingerprint, StringComparison.Ordinal)) return;
+            _benchRenderFingerprint = fingerprint;
 
-            foreach (var championId in ids.Where(id => id > 0))
+            var old = _benchPanel.Controls.Cast<Control>().ToArray();
+            _benchPanel.Controls.Clear();
+            foreach (var control in old) control.Dispose();
+            if (pages > 1) _benchPanel.Controls.Add(CreateBenchNavButton(false));
+            foreach (var championId in ids.Skip(_benchPage * BenchPageSize).Take(BenchPageSize))
             {
-                Button button;
-                if (!existing.TryGetValue(championId, out button))
-                {
-                    button = CreateBenchButton(championId);
-                    button.Click += async delegate
-                    {
-                        var target = button.Tag as BenchTarget;
-                        if (target != null) await SwapToAsync(target.ChampionId, target.Route);
-                    };
-                    _benchPanel.Controls.Add(button);
-                    existing[championId] = button;
-                    _ = LoadBenchIconAsync(button, championId);
-                }
-
+                var button = CreateBenchButton(championId);
                 button.Tag = new BenchTarget { ChampionId = championId, Route = snapshot.SwapRoute };
-                _toolTip.SetToolTip(
-                    button,
-                    BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
-                button.FlatAppearance.BorderColor = championId == snapshot.LocalChampionId
-                    ? FacmDesignSystem.Accent
-                    : FacmDesignSystem.BorderSoft;
+                button.Click += async delegate
+                {
+                    var target = button.Tag as BenchTarget;
+                    if (target != null) await SwapToAsync(target.ChampionId, target.Route);
+                };
+                button.FlatAppearance.BorderColor = championId == snapshot.LocalChampionId ? FacmDesignSystem.Accent : FacmDesignSystem.BorderSoft;
+                _toolTip.SetToolTip(button, BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
+                _benchPanel.Controls.Add(button);
+                _ = LoadBenchIconAsync(button, championId);
             }
+            if (pages > 1) _benchPanel.Controls.Add(CreateBenchNavButton(true));
+        }
+
+        private Button CreateBenchNavButton(bool next)
+        {
+            var button = CreateInlineButton(next ? "›" : "‹", Point.Empty, new Size(20, 38));
+            button.Margin = new Padding(0, 1, 4, 1);
+            button.Click += delegate
+            {
+                var snapshot = _controller.CurrentSnapshot;
+                var count = (snapshot.BenchChampionIds ?? Array.Empty<int>()).Count(id => id > 0);
+                var pages = Math.Max(1, (int)Math.Ceiling(count / (double)BenchPageSize));
+                _benchPage = next ? Math.Min(pages - 1, _benchPage + 1) : Math.Max(0, _benchPage - 1);
+                _benchRenderFingerprint = null;
+                RenderBench(snapshot);
+            };
+            _toolTip.SetToolTip(button, CompanionText(next ? LeagueRuntimeCompanionUiTextKeys.NextPage : LeagueRuntimeCompanionUiTextKeys.PreviousPage));
+            return button;
         }
 
         private void ClearBenchButtons()
@@ -1258,6 +1408,9 @@ namespace FACM.League
             var controls = _benchPanel.Controls.Cast<Control>().ToArray();
             _benchPanel.Controls.Clear();
             foreach (var control in controls) control.Dispose();
+            _benchRosterFingerprint = null;
+            _benchRenderFingerprint = null;
+            _benchPage = 0;
         }
 
         private Button CreateBenchButton(int championId)
@@ -1449,8 +1602,9 @@ namespace FACM.League
 
         private void SetStatus(string text, Color color)
         {
-            _status.Text = text ?? string.Empty;
+            _status.Text = "●";
             _status.ForeColor = color;
+            if (_toolTip != null) _toolTip.SetToolTip(_status, text ?? string.Empty);
         }
 
         private Button CreateChromeButton(string text, int x, int width)
@@ -1518,6 +1672,7 @@ namespace FACM.League
             catch { }
 
             DetachChampionImage();
+            ClearAugments();
             foreach (var bitmap in _championIcons.Values) bitmap.Dispose();
             _championIcons.Clear();
             _toolTip.Dispose();
@@ -1724,7 +1879,9 @@ namespace FACM.League
             if (HeaderHeight + ContextHeight + BenchHeight >= MinimumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion fixed regions leave no useful scroll body.");
             if (AugmentColumnTotalWidth > BodyContentWidth)
-                throw new InvalidOperationException("Runtime Companion augment table would require horizontal scrolling at the design width.");
+                throw new InvalidOperationException("Runtime Companion compact content width contract drifted.");
+            if (AugmentPageSize != 5 || BenchPageSize != 4 || AugmentRowHeight < 32)
+                throw new InvalidOperationException("Runtime Companion compact paging contract drifted.");
             if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
 

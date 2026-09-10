@@ -27,6 +27,11 @@ namespace FACM.League
         public const string BanShort = "LeagueRuntimeCompanionBanShort";
         public const string RankShort = "LeagueRuntimeCompanionRankShort";
         public const string ImportItems = "LeagueRuntimeCompanionImportItems";
+        public const string ApplyShort = "LeagueRuntimeCompanionApplyShort";
+        public const string ImportShort = "LeagueRuntimeCompanionImportShort";
+        public const string PreviousPage = "LeagueRuntimeCompanionPreviousPage";
+        public const string NextPage = "LeagueRuntimeCompanionNextPage";
+        public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";
         public const string ItemSetPreparing = "LeagueRuntimeCompanionItemSetPreparing";
         public const string ItemSetUnavailable = "LeagueRuntimeCompanionItemSetUnavailable";
         public const string ItemSetSucceeded = "LeagueRuntimeCompanionItemSetSucceeded";
@@ -61,6 +66,11 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.BanShort, "禁" },
             { LeagueRuntimeCompanionUiTextKeys.RankShort, "排名" },
             { LeagueRuntimeCompanionUiTextKeys.ImportItems, "导入装备" },
+            { LeagueRuntimeCompanionUiTextKeys.ApplyShort, "应用" },
+            { LeagueRuntimeCompanionUiTextKeys.ImportShort, "导入" },
+            { LeagueRuntimeCompanionUiTextKeys.PreviousPage, "上一页" },
+            { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
+            { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetPreparing, "正在准备装备方案" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetUnavailable, "当前没有可导入的装备方案" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetSucceeded, "装备方案已导入" },
