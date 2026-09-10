@@ -165,7 +165,6 @@ namespace FACM.League
                 snapshot.Position = position;
                 snapshot.Source = "OP.GG Global";
 
-                // In-game is cache-only by contract. Do not load LCU static catalogs or OP.GG here.
                 if (live.Activity == LeagueActivityLevel.InGame)
                 {
                     var cached = FindFreshBuild(championId, mode, position, null);
@@ -193,8 +192,6 @@ namespace FACM.League
                     return snapshot;
                 }
 
-                // These are loopback game-data tables verified in Akari and already used by FACM Player.
-                // They are loaded only while this visible helper is being refreshed, never in background.
                 var catalog = await EnsureCatalogAsync(cancellationToken).ConfigureAwait(false);
                 snapshot.ChampionName = ResolveName(catalog == null ? null : catalog.Champions, championId, "#" + championId);
 
@@ -206,10 +203,6 @@ namespace FACM.League
 
                 var version = await ResolveVersionAsync(mode, force, cancellationToken).ConfigureAwait(false);
                 snapshot.Version = version;
-
-                // Akari's current OP.GG flow requires a concrete ranked lane. Tencent queues can omit
-                // assignedPosition, so "all" is only an unresolved sentinel inside FACM and is never
-                // sent directly to the ranked champion-build endpoint.
                 if (string.Equals(mode, "ranked", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(position, "all", StringComparison.OrdinalIgnoreCase))
                 {
@@ -286,9 +279,8 @@ namespace FACM.League
             output.Tier = tier > 0 ? "T" + tier : null;
             output.Rank = ReadInt(tierData, "rank");
 
-            // Keep the OP.GG ordering authoritative. The first row remains the default used by the
-            // existing Apply owners; the next rows are read-only alternatives for dense Companion/
-            // Advisor presentation. This expands information without another network request.
+            // Preserve the source ordering. Row zero remains the default consumed by existing Apply
+            // owners; up to two additional rows are display-only alternatives. No extra request is made.
             AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, AlternativeRowLimit);
             AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"), catalog == null ? null : catalog.Perks, AlternativeRowLimit);
             AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
@@ -352,8 +344,6 @@ namespace FACM.League
         {
             if (queueId == 450 || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase)) return "aram";
             if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";
-            // Ranked data is the useful OP.GG baseline for Summoner's Rift, including normal/custom
-            // Tencent queues that still report CLASSIC but do not have their own OP.GG dataset.
             if (queueId == 400 || queueId == 420 || queueId == 430 || queueId == 440 || queueId == 0 ||
                 string.IsNullOrWhiteSpace(gameMode) || string.Equals(gameMode, "CLASSIC", StringComparison.OrdinalIgnoreCase))
                 return "ranked";
@@ -414,7 +404,6 @@ namespace FACM.League
                 timeout.CancelAfter(TimeSpan.FromSeconds(3));
                 try
                 {
-                    // Keep concurrency one even though Champ Select allows two; LCU remains first priority.
                     var champions = await _client.TryGetBytesAsync(ChampionSummaryPath, timeout.Token).ConfigureAwait(false);
                     var items = await _client.TryGetBytesAsync(ItemsPath, timeout.Token).ConfigureAwait(false);
                     var spells = await _client.TryGetBytesAsync(SummonerSpellsPath, timeout.Token).ConfigureAwait(false);
@@ -498,8 +487,6 @@ namespace FACM.League
                 }
             }
 
-            // Akari's saved default ranked position is top. Use it only as a final read-only fallback
-            // when Tencent omits assignedPosition and OP.GG's champion list cannot be read.
             if (string.IsNullOrWhiteSpace(resolved)) resolved = "top";
             lock (_sync)
             {
@@ -672,11 +659,20 @@ namespace FACM.League
 
         private static double? ResolveWinRate(Dictionary<string, object> row, int play)
         {
+            if (row == null) return null;
             var rate = ReadDoubleNullable(row, "win_rate");
             if (rate.HasValue) return rate;
-            var wins = ReadInt(row, "win");
-            if (wins <= 0) wins = ReadInt(row, "wins");
-            return play > 0 && wins >= 0 ? (double?)wins / play : null;
+
+            var rawWins = ReadValue(row, "win") ?? ReadValue(row, "wins");
+            if (rawWins == null || play <= 0) return null;
+            int wins;
+            if (!int.TryParse(
+                    Convert.ToString(rawWins, CultureInfo.InvariantCulture),
+                    NumberStyles.Any,
+                    CultureInfo.InvariantCulture,
+                    out wins) || wins < 0)
+                return null;
+            return (double)wins / play;
         }
 
         private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output)
@@ -721,7 +717,11 @@ namespace FACM.League
         {
             var value = ReadValue(source, key);
             int parsed;
-            return value != null && int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+            return value != null && int.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                NumberStyles.Any,
+                CultureInfo.InvariantCulture,
+                out parsed)
                 ? parsed
                 : 0;
         }
@@ -730,7 +730,11 @@ namespace FACM.League
         {
             var value = ReadValue(source, key);
             double parsed;
-            return value != null && double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+            return value != null && double.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                NumberStyles.Any,
+                CultureInfo.InvariantCulture,
+                out parsed)
                 ? (double?)parsed
                 : null;
         }
