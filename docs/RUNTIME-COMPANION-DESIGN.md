@@ -68,19 +68,25 @@ Do not copy:
 
 ## Window geometry
 
-Baseline at 100% DPI:
+Baseline at 100% DPI after live Tencent-client review feedback:
 
-- target client width: 388 px;
-- acceptable design range: 360-430 px where content requirements justify it;
-- expanded target height: min(720 px, active working-area height minus 40 px);
-- collapsed height: approximately 42-52 px;
-- minimum usable expanded height: approximately 480 px;
+- target client width: 320 px;
+- normal design range: approximately 300-340 px;
+- normal expanded height cap: 560 px;
+- small working areas additionally cap expanded height to about 70% of the monitor working-area height so the companion does not become a near-full-height sidebar;
+- minimum preferred expanded height: approximately 420 px, but small-screen/DPI fitting may go lower rather than overflow the working area;
+- header: approximately 36 px logical height;
+- champion/context region: approximately 82 px logical height;
+- Bench strip: approximately 58 px logical height when present;
+- collapsed height: header-only;
 - initial placement: upper-right of the active/League display using the existing episode popup owner;
 - final geometry must be applied before first visible paint to avoid compositor residue.
 
+The compact revision is intentionally smaller than the earlier 388x720 review candidate. Recommendation rows, alternative rows, champion icon, action buttons and the Mayhem augment surface are all reduced together; this is not an outer-window-only scale change. The Mayhem table keeps internal scrolling rather than expanding the whole companion to display many rows at once.
+
 The fixed top region must not scroll. The detail body may scroll vertically and must not expose a normal horizontal scrollbar at supported widths.
 
-DPI targets for validation: 100%, 125%, 150%, 200%. Multi-monitor restore must clamp to the current working area and must never restore off-screen.
+DPI targets for validation: 100%, 125%, 150%, 200%. Multi-monitor restore must clamp to the current working area and must never restore off-screen. DPI scaling may increase physical pixels, but the working-area proportional cap remains authoritative so compact displays do not regress into a full-height panel.
 
 ## Window lifecycle
 
