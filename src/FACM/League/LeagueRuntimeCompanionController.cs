@@ -16,9 +16,11 @@ namespace FACM.League
 
     internal static class LeagueRuntimeCompanionModePolicy
     {
-        public static LeagueRuntimeCompanionGuideKind Resolve(bool sessionAvailable, bool benchEnabled, int queueId, string gameMode)
+        public static LeagueRuntimeCompanionGuideKind Resolve(bool sessionAvailable, int queueId, string gameMode)
         {
-            if (!sessionAvailable || !benchEnabled) return LeagueRuntimeCompanionGuideKind.None;
+            // Bench availability only controls the quick-swap strip. Guide relevance comes from
+            // the valid ChampSelect session and its queue/mode context.
+            if (!sessionAvailable) return LeagueRuntimeCompanionGuideKind.None;
             if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.Mayhem;
             if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.AramBalance;
             return LeagueRuntimeCompanionGuideKind.None;
@@ -139,7 +141,6 @@ namespace FACM.League
 
                 var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(
                     sessionAvailable,
-                    state != null && state.BenchEnabled,
                     state == null ? 0 : state.QueueId,
                     state == null ? null : state.GameMode);
                 if (championHint <= 0 || guideKind == LeagueRuntimeCompanionGuideKind.None)
@@ -542,13 +543,13 @@ namespace FACM.League
         {
             if (BuildRefreshInterval < TimeSpan.FromSeconds(2))
                 throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");
-            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)
                 throw new InvalidOperationException("Runtime Companion base ARAM routing regressed.");
-            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 2400, null) != LeagueRuntimeCompanionGuideKind.Mayhem ||
-                LeagueRuntimeCompanionModePolicy.Resolve(true, true, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.Mayhem)
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, 2400, null) != LeagueRuntimeCompanionGuideKind.Mayhem ||
+                LeagueRuntimeCompanionModePolicy.Resolve(true, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.Mayhem)
                 throw new InvalidOperationException("Runtime Companion ARAM Mayhem routing regressed.");
-            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 420, "CLASSIC") != LeagueRuntimeCompanionGuideKind.None ||
-                LeagueRuntimeCompanionModePolicy.Resolve(true, false, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.None)
+            if (LeagueRuntimeCompanionModePolicy.Resolve(true, 420, "CLASSIC") != LeagueRuntimeCompanionGuideKind.None ||
+                LeagueRuntimeCompanionModePolicy.Resolve(false, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.None)
                 throw new InvalidOperationException("Runtime Companion guide routing leaked into an unsupported context.");
 
             var build = new LeagueBuildAdvisorSnapshot

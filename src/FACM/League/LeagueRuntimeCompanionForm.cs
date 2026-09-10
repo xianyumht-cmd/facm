@@ -100,6 +100,7 @@ namespace FACM.League
             public Panel Alternatives { get; set; }
             public Panel Rule { get; set; }
             public bool Expanded { get; set; }
+            public bool GuideFallback { get; set; }
             public IReadOnlyList<LeagueBuildAdvisorRow> Rows { get; set; } = Array.Empty<LeagueBuildAdvisorRow>();
         }
 
@@ -543,6 +544,15 @@ namespace FACM.League
             {
                 _renderedGuide = snapshot.Guide;
                 RenderGuideFallbackAndAugments(snapshot.Guide, snapshot.Build != null);
+            }
+            else if (!snapshot.HasGuide && !snapshot.GuideLoading && _renderedGuide != null)
+            {
+                // Queue/mode changes or a failed version-bound refresh can withdraw a guide.
+                // Clear only presentation that was owned by that guide so stale ARAM/Mayhem
+                // content never survives into the next context.
+                _renderedGuide = null;
+                _renderedGuideChampionId = snapshot.GuideChampionId;
+                ClearGuidePresentation();
             }
 
             if (!hasContext)
@@ -1050,6 +1060,7 @@ namespace FACM.League
                 .ToList()
                 .AsReadOnly();
             section.Rows = usable;
+            section.GuideFallback = false;
             if (usable.Count == 0)
             {
                 HideRecommendationSection(section);
@@ -1144,6 +1155,7 @@ namespace FACM.League
             section.Evidence.Text = string.Empty;
             section.Rows = Array.Empty<LeagueBuildAdvisorRow>();
             section.Expanded = false;
+            section.GuideFallback = false;
             section.More.Visible = false;
             section.Alternatives.Visible = false;
             section.Alternatives.Height = 0;
@@ -1163,6 +1175,19 @@ namespace FACM.League
             {
                 new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = value }
             }.AsReadOnly();
+            section.GuideFallback = true;
+        }
+
+        private void ClearGuidePresentation()
+        {
+            _aramBalanceSection.Visible = false;
+            _aramBalanceText.Text = string.Empty;
+            _mayhemSection.Visible = false;
+            _augments.Items.Clear();
+            foreach (var section in RecommendationSections())
+            {
+                if (section.GuideFallback) HideRecommendationSection(section);
+            }
         }
 
         private void ResetRecommendationSections()
