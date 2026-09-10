@@ -471,9 +471,9 @@ namespace FACM.League
             CancellationTokenSource request;
             lock (_stateGate)
             {
+                if (_guideRequest == null && _guideChampionId == 0 && _guideKind == LeagueRuntimeCompanionGuideKind.None) return;
                 request = _guideRequest;
                 _guideRequest = null;
-                if (_guideRequest == null && _guideChampionId == 0 && _guideKind == LeagueRuntimeCompanionGuideKind.None) return;
                 _guideChampionId = 0;
                 _guideKind = LeagueRuntimeCompanionGuideKind.None;
                 _guideExpectedPatch = null;

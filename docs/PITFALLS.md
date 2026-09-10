@@ -60,6 +60,12 @@ The current cache/network/service path is intentionally retained. UI fixes shoul
 
 Keep one automatic-guide enrichment owner. The Runtime Companion should render the resulting `BaseBalanceSummary`; it must not create another balance fetch loop merely because the data has a new visible section.
 
+## Bench availability is not proof of ARAM Mayhem
+
+Ordinary ARAM and ARAM Mayhem can both expose Bench. Starting the full Mayhem guide whenever `benchEnabled=true` leaks Mayhem-only augments/data into normal ARAM and wastes external requests. Classify the queue first: current Runtime Companion policy recognizes base ARAM separately from global/CN Mayhem queue identifiers and mode tokens, and unknown Bench queues fail closed.
+
+Base ARAM should wait for the matching Build Advisor version before requesting its balance-only supplement so patch mismatch remains visible instead of silently accepting stale values.
+
 ## Owner-drawn UI must repaint deterministically
 
 Transparent/low-alpha idle backgrounds can leave stale text pixels after state changes. Idle owner-draw backgrounds should cover prior content deterministically.

@@ -136,3 +136,15 @@ This keeps the Akari-style narrow interaction model as a UI improvement while pr
 - base ARAM balance enrichment reuses the existing bounded ten-minute cache service. `RiotGameDataService.EnrichAsync` owns the single automatic-guide call and starts it in parallel with visual metadata; `MayhemAutomaticGuideService` must not call the same service first and then enter Riot enrichment. Available/fail-closed balance text is projected into a dedicated companion section without a periodic balance poller.
 
 This is the preferred pattern for future lightweight parity work: first reuse an existing response/cache/owner, then expose more of it. Do not buy UI richness with duplicated background work.
+
+## D-018 — Bench availability does not define ARAM Mayhem
+
+**Decision (2026-09-10, PR #283):** mode-specific Runtime Companion data must be selected from queue/mode context, not from `benchEnabled` alone.
+
+- ordinary ARAM remains queue 450 / ARAM and uses Build Advisor plus a version-bound base-ARAM balance-only supplement;
+- ARAM Mayhem is recognized separately by observed global queue 2400, CN/WeGame queue 3270, or `KIWI` / `ARAM_MAYHEM` mode tokens and may use the full Mayhem build/augment pipeline;
+- Bench remains only a capability signal for quick swap; it is not sufficient evidence that Mayhem-only recommendations apply;
+- unsupported or unrecognized Bench modes fail closed and do not start Mayhem external work;
+- ordinary ARAM waits for its matching Build Advisor version before the balance request so the base-balance parser can retain patch-mismatch semantics.
+
+This prevents a UI similarity feature from changing data truth: normal ARAM must never show Mayhem augments merely because both modes have a Bench.
