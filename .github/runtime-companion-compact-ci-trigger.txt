@@ -1,0 +1,1 @@
+Temporary CI trigger for compact Runtime Companion geometry validation.
