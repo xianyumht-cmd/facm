@@ -1,0 +1,141 @@
+name: Dodge Side Evidence Probe Patch
+
+on:
+  push:
+    branches: [feat/dodge-side-evidence-probe-20260911]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch read-only dodge probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def load(p): return Path(p).read_text(encoding='utf-8')
+          def save(p,s): Path(p).write_text(s,encoding='utf-8',newline='\n')
+          def rep(s,a,b,name,count=1):
+              actual=s.count(a)
+              if actual < count: raise SystemExit(f'missing anchor {name}: expected >= {count}, found {actual}')
+              return s.replace(a,b,count)
+
+          # Service: widen the evidence burst and combine the new notification probe without changing write ownership.
+          p='src/FACM/League/LeagueDodgeProbeService.cs'; s=load(p)
+          s=rep(s,
+              '        private static readonly TimeSpan PostDodgeEvidenceWindow = TimeSpan.FromSeconds(1);\n',
+              '        private static readonly TimeSpan PostDodgeEvidenceWindow = TimeSpan.FromSeconds(4);\n',
+              'evidence window')
+          s=rep(s,
+              '                "; lobby=" + LeagueDodgeSideEvidenceProbe.LobbyPath +\n',
+              '                "; lobby=" + LeagueDodgeSideEvidenceProbe.LobbyPath +\n'
+              '                "; notifications=" + LeagueDodgeNotificationEvidenceProbe.NotificationsPath +\n',
+              'notification init log')
+          s=rep(s,
+              '            var evidence = new LeagueDodgeSideEvidenceProbe(_client, generation);\n',
+              '            var evidence = new LeagueDodgeSideEvidenceProbe(_client, generation);\n'
+              '            var notifications = new LeagueDodgeNotificationEvidenceProbe(_client, generation);\n',
+              'notification probe instance')
+          s=rep(s,
+              '            bool confirmedDodgeReported = false;\n',
+              '            bool confirmedDodgeReported = false;\n'
+              '            bool postSelectTransitionLogged = false;\n',
+              'transition state')
+          s=rep(s,
+              '''                    if (!IsChampSelect(phase) && graceDeadlineUtc != DateTime.MaxValue &&\n                        graceDeadlineUtc != DateTime.MinValue && DateTime.UtcNow >= graceDeadlineUtc)\n                    {\n''',
+              '''                    if (!IsChampSelect(phase) && !postSelectTransitionLogged && IsPostSelectReturnPhase(phase))\n                    {\n                        postSelectTransitionLogged = true;\n                        AppLog.Info(\n                            "League Dodge Probe: post-select-transition; episode=" + generation.ToString(CultureInfo.InvariantCulture) +\n                            "; phase=" + Safe(phase) +\n                            "; confirmedDodge=" + confirmedDodgeReported.ToString().ToLowerInvariant());\n                    }\n\n                    if (!IsChampSelect(phase) && graceDeadlineUtc != DateTime.MaxValue &&\n                        graceDeadlineUtc != DateTime.MinValue && DateTime.UtcNow >= graceDeadlineUtc)\n                    {\n''',
+              'post select transition log')
+          s=rep(s,
+              '                    await evidence.SampleAsync(roster, cancellationToken).ConfigureAwait(false);\n\n                    var searchBytes',
+              '                    await evidence.SampleAsync(roster, cancellationToken).ConfigureAwait(false);\n'
+              '                    await notifications.SampleAsync(roster, cancellationToken).ConfigureAwait(false);\n\n'
+              '                    var searchBytes',
+              'normal notification sampling')
+
+          base_class='evidence.Refine(Classify(dodge, roster), roster)'
+          new_class='notifications.Refine(evidence.Refine(Classify(dodge, roster), roster), roster)'
+          if s.count(base_class) != 3:
+              raise SystemExit('classification anchor count changed: '+str(s.count(base_class)))
+          s=s.replace(base_class,new_class)
+
+          old_summary='evidence.BuildSummary(roster)'
+          new_summary='BuildCombinedEvidenceSummary(evidence, notifications, roster)'
+          if s.count(old_summary) != 3:
+              raise SystemExit('summary anchor count changed: '+str(s.count(old_summary)))
+          s=s.replace(old_summary,new_summary)
+
+          s=rep(s,
+              '                            await CapturePostDodgeEvidenceAsync(evidence, roster, generation, cancellationToken).ConfigureAwait(false);\n',
+              '                            await CapturePostDodgeEvidenceAsync(evidence, notifications, roster, generation, cancellationToken).ConfigureAwait(false);\n',
+              'capture calls',2)
+          s=rep(s,
+              '''        private async Task CapturePostDodgeEvidenceAsync(\n            LeagueDodgeSideEvidenceProbe evidence,\n            LeagueDodgeTeamSnapshot roster,\n''',
+              '''        private async Task CapturePostDodgeEvidenceAsync(\n            LeagueDodgeSideEvidenceProbe evidence,\n            LeagueDodgeNotificationEvidenceProbe notifications,\n            LeagueDodgeTeamSnapshot roster,\n''',
+              'capture signature')
+          s=rep(s,
+              '                await evidence.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);\n                await Task.Delay',
+              '                await evidence.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);\n'
+              '                await notifications.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);\n'
+              '                await Task.Delay',
+              'burst notification sample')
+          s=rep(s,
+              '            LeagueDodgeSideEvidenceProbe.ValidateForSmokeTest();\n',
+              '            LeagueDodgeSideEvidenceProbe.ValidateForSmokeTest();\n'
+              '            LeagueDodgeNotificationEvidenceProbe.ValidateForSmokeTest();\n',
+              'notification smoke')
+          s=rep(s,
+              '''        private static bool ShouldKeepPostSelectProbe(string phase)\n        {\n''',
+              '''        private static string BuildCombinedEvidenceSummary(\n            LeagueDodgeSideEvidenceProbe evidence,\n            LeagueDodgeNotificationEvidenceProbe notifications,\n            LeagueDodgeTeamSnapshot roster)\n        {\n            var side = evidence == null ? string.Empty : evidence.BuildSummary(roster);\n            var notification = notifications == null ? string.Empty : notifications.BuildSummary(roster);\n            if (string.IsNullOrWhiteSpace(side)) return notification;\n            if (string.IsNullOrWhiteSpace(notification)) return side;\n            return side + "," + notification;\n        }\n\n        private static bool IsPostSelectReturnPhase(string phase)\n        {\n            return string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(phase, "ReadyCheck", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase);\n        }\n\n        private static bool ShouldKeepPostSelectProbe(string phase)\n        {\n''',
+              'helpers')
+          save(p,s)
+
+          # Side evidence: preserve the best own-team baseline and add endpoint-shape diagnostics.
+          p='src/FACM/League/LeagueDodgeSideEvidenceProbe.cs'; s=load(p)
+          s=rep(s,
+              '        private readonly HashSet<string> _loggedConversationCandidates = new HashSet<string>(StringComparer.Ordinal);\n\n        private HashSet<long> _lastObservedMyTeam = new HashSet<long>();\n',
+              '        private readonly HashSet<string> _loggedConversationCandidates = new HashSet<string>(StringComparer.Ordinal);\n'
+              '        private readonly Dictionary<string, string> _lastMessageShapes = new Dictionary<string, string>(StringComparer.Ordinal);\n'
+              '        private readonly Dictionary<string, string> _lastParticipantShapes = new Dictionary<string, string>(StringComparer.Ordinal);\n\n'
+              '        private HashSet<long> _bestObservedMyTeam = new HashSet<long>();\n'
+              '        private string _lastMyTeamDiffFingerprint;\n',
+              'side diagnostic fields')
+
+          old='''            var current = new HashSet<long>(snapshot.MySummonerIds.Where(value => value > 0));\n            if (_lastObservedMyTeam.Count >= 4 && current.Count >= 3 && current.Count == _lastObservedMyTeam.Count - 1)\n            {\n                var dropped = _lastObservedMyTeam.Where(value => !current.Contains(value)).ToArray();\n                if (dropped.Length == 1)\n                {\n                    _recentRosterDropId = dropped[0];\n                    _recentRosterDropUtc = DateTime.UtcNow;\n                    AppLog.Info(\n                        "League Dodge Probe: my-team-transient-drop; episode=" + EpisodeText +\n                        "; summonerId=" + dropped[0].ToString(CultureInfo.InvariantCulture) +\n                        "; remaining=" + current.Count.ToString(CultureInfo.InvariantCulture));\n                }\n            }\n\n            if (current.Count > 0)\n                _lastObservedMyTeam = current;\n'''
+          new='''            var current = new HashSet<long>(snapshot.MySummonerIds.Where(value => value > 0));\n            if (current.Count > _bestObservedMyTeam.Count)\n            {\n                _bestObservedMyTeam = new HashSet<long>(current);\n                _lastMyTeamDiffFingerprint = null;\n            }\n\n            if (_bestObservedMyTeam.Count >= 4 && current.Count < _bestObservedMyTeam.Count)\n            {\n                var dropped = _bestObservedMyTeam.Where(value => !current.Contains(value)).OrderBy(value => value).ToArray();\n                var fingerprint = _bestObservedMyTeam.Count.ToString(CultureInfo.InvariantCulture) + ">" +\n                                  current.Count.ToString(CultureInfo.InvariantCulture) + ":" +\n                                  string.Join(",", dropped.Select(value => value.ToString(CultureInfo.InvariantCulture)).ToArray());\n                if (!string.Equals(fingerprint, _lastMyTeamDiffFingerprint, StringComparison.Ordinal))\n                {\n                    _lastMyTeamDiffFingerprint = fingerprint;\n                    AppLog.Info(\n                        "League Dodge Probe: my-team-diff; episode=" + EpisodeText +\n                        "; baseline=" + _bestObservedMyTeam.Count.ToString(CultureInfo.InvariantCulture) +\n                        "; current=" + current.Count.ToString(CultureInfo.InvariantCulture) +\n                        "; removedCount=" + dropped.Length.ToString(CultureInfo.InvariantCulture) +\n                        "; removedIds=" + (dropped.Length == 0 ? "-" : string.Join(",", dropped.Select(value => value.ToString(CultureInfo.InvariantCulture)).ToArray())));\n                }\n\n                if (dropped.Length == 1 && current.Count >= 3)\n                {\n                    _recentRosterDropId = dropped[0];\n                    _recentRosterDropUtc = DateTime.UtcNow;\n                    AppLog.Info(\n                        "League Dodge Probe: my-team-transient-drop; episode=" + EpisodeText +\n                        "; summonerId=" + dropped[0].ToString(CultureInfo.InvariantCulture) +\n                        "; remaining=" + current.Count.ToString(CultureInfo.InvariantCulture));\n                }\n            }\n            else if (current.Count == _bestObservedMyTeam.Count)\n            {\n                _lastMyTeamDiffFingerprint = null;\n            }\n'''
+          s=rep(s,old,new,'own team baseline')
+
+          s=rep(s,
+              '''            var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);\n            var messages = ParseArray(bytes);\n            if (messages == null) return;\n\n            HashSet<string> seen;\n''',
+              '''            var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);\n            var messages = ParseArray(bytes);\n            if (messages == null)\n            {\n                LogDetailShape(_lastMessageShapes, conversationId, "chat-messages-shape", label, "available=false");\n                return;\n            }\n            var systemCount = messages.Count(message => IsSystemLike(ReadString(message, "type")));\n            var departureCount = messages.Count(message => IsDepartureLike(ReadString(message, "body"), ReadString(message, "type")));\n            LogDetailShape(\n                _lastMessageShapes,\n                conversationId,\n                "chat-messages-shape",\n                label,\n                "available=true,rows=" + messages.Count.ToString(CultureInfo.InvariantCulture) +\n                ",system=" + systemCount.ToString(CultureInfo.InvariantCulture) +\n                ",departure=" + departureCount.ToString(CultureInfo.InvariantCulture));\n\n            HashSet<string> seen;\n''',
+              'message shape')
+          s=rep(s,
+              '''            var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);\n            var participants = ParseArray(bytes);\n            if (participants == null) return;\n\n            var current = new HashSet<long>();\n''',
+              '''            var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);\n            var participants = ParseArray(bytes);\n            if (participants == null)\n            {\n                LogDetailShape(_lastParticipantShapes, conversationId, "chat-participants-shape", label, "available=false");\n                return;\n            }\n\n            var current = new HashSet<long>();\n''',
+              'participant unavailable shape')
+          s=rep(s,
+              '''            HashSet<long> previous;\n            if (_lastParticipantIds.TryGetValue(conversationId, out previous) && previous.Count >= 2 &&\n''',
+              '''            LogDetailShape(\n                _lastParticipantShapes,\n                conversationId,\n                "chat-participants-shape",\n                label,\n                "available=true,rows=" + participants.Count.ToString(CultureInfo.InvariantCulture) +\n                ",knownIds=" + current.Count.ToString(CultureInfo.InvariantCulture));\n\n            HashSet<long> previous;\n            if (_lastParticipantIds.TryGetValue(conversationId, out previous) && previous.Count >= 2 &&\n''',
+              'participant shape')
+          s=rep(s,
+              '''        private static string SafeBody(string value)\n        {\n''',
+              '''        private void LogDetailShape(\n            Dictionary<string, string> store,\n            string conversationId,\n            string marker,\n            string label,\n            string shape)\n        {\n            if (store == null || string.IsNullOrWhiteSpace(conversationId)) return;\n            string previous;\n            if (store.TryGetValue(conversationId, out previous) && string.Equals(previous, shape, StringComparison.Ordinal)) return;\n            store[conversationId] = shape ?? string.Empty;\n            AppLog.Info(\n                "League Dodge Probe: " + marker +\n                "; episode=" + EpisodeText +\n                "; key=" + Safe(label) +\n                "; " + Safe(shape));\n        }\n\n        private static string SafeBody(string value)\n        {\n''',
+              'detail shape logger')
+          save(p,s)
+          PY
+      - name: Commit and remove one-shot helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/dodge-side-evidence-probe-patch.yml
+          git add src/FACM/League/LeagueDodgeProbeService.cs src/FACM/League/LeagueDodgeSideEvidenceProbe.cs
+          git commit -m "Expand read-only dodge side evidence probe"
+          git push origin HEAD:feat/dodge-side-evidence-probe-20260911
