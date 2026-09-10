@@ -133,6 +133,6 @@ This keeps the Akari-style narrow interaction model as a UI improvement while pr
 - Runtime Companion uses progressive disclosure for rows two and three. Expanding a section performs no network request.
 - champion Tier/rank/win/pick/ban summary is projected from the existing recommendation object, not a new statistics endpoint.
 - equipment import routes through the existing `LeagueItemSetService`; preparation remains read-only, the user confirms explicitly, the owner revalidates phase/champion/queue before writing, only FACM-owned recommendation files are changed, and committed JSON is verified.
-- base ARAM balance enrichment reuses the existing bounded ten-minute cache service and is attached to the already-running automatic guide path; it must not create a periodic balance poller.
+- base ARAM balance enrichment reuses the existing bounded ten-minute cache service. `RiotGameDataService.EnrichAsync` owns the single automatic-guide call and starts it in parallel with visual metadata; `MayhemAutomaticGuideService` must not call the same service first and then enter Riot enrichment. Available/fail-closed balance text is projected into a dedicated companion section without a periodic balance poller.
 
 This is the preferred pattern for future lightweight parity work: first reuse an existing response/cache/owner, then expose more of it. Do not buy UI richness with duplicated background work.

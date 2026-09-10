@@ -54,6 +54,12 @@ A value such as `53.5` means `53.5%`, not `5350%`. Do not multiply by 100 in the
 
 The current cache/network/service path is intentionally retained. UI fixes should not trigger a rewrite or extra normal-path network requests unless a concrete functional defect requires it.
 
+## Do not enrich the same ARAM balance twice
+
+`RiotGameDataService.EnrichAsync` already starts the bounded `OpggAramBaseBalanceService` task in parallel with visual metadata. Calling the same balance service in `MayhemAutomaticGuideService` immediately before Riot enrichment looks harmless when a complete result hits the ten-minute cache, but an unavailable result can cause a second external attempt and lengthen the visible failure path.
+
+Keep one automatic-guide enrichment owner. The Runtime Companion should render the resulting `BaseBalanceSummary`; it must not create another balance fetch loop merely because the data has a new visible section.
+
 ## Owner-drawn UI must repaint deterministically
 
 Transparent/low-alpha idle backgrounds can leave stale text pixels after state changes. Idle owner-draw backgrounds should cover prior content deterministically.

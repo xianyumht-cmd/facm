@@ -1763,7 +1763,7 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion Mayhem spell fallback is invalid.");
             if (ShouldShowAramBaseBalance(mayhem))
                 throw new InvalidOperationException("Runtime Companion rendered an empty ARAM balance section.");
-            mayhem.BaseBalanceSummary = "基础 ARAM（完整）：造成伤害 +5%";
+            mayhem.BaseBalanceSummary = "基础 ARAM（完整）：造成伤害 +5%"; // ui-text-contract: allow
             if (!ShouldShowAramBaseBalance(mayhem))
                 throw new InvalidOperationException("Runtime Companion lost available ARAM balance presentation.");
         }
