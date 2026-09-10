@@ -1,0 +1,138 @@
+name: Runtime Companion One-Shot Mode Policy Patch
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch ARAM versus Mayhem routing
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def patch(path, replacements):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              changed = False
+              for old, new, label in replacements:
+                  if new in text:
+                      continue
+                  if old not in text:
+                      raise SystemExit(f'{path}: missing anchor: {label}')
+                  text = text.replace(old, new, 1)
+                  changed = True
+              if changed:
+                  p.write_text(text, encoding='utf-8', newline='\n')
+
+          patch('src/FACM/League/LeagueLiveModels.cs', [
+              (
+                  '''        public bool SessionAvailable { get; set; }\n        public bool BenchEnabled { get; set; }\n        public int LocalPlayerCellId { get; set; }\n''',
+                  '''        public bool SessionAvailable { get; set; }\n        public bool BenchEnabled { get; set; }\n        public int QueueId { get; set; }\n        public string GameMode { get; set; }\n        public int LocalPlayerCellId { get; set; }\n''',
+                  'bench queue context'),
+              (
+                  '''    internal static class LeagueLivePolling\n''',
+                  '''    internal static class LeagueQueueModePolicy\n    {\n        internal const int BaseAramQueueId = 450;\n        internal const int GlobalAramMayhemQueueId = 2400;\n        internal const int TencentAramMayhemQueueId = 3270;\n\n        public static bool IsAramMayhem(int queueId, string gameMode)\n        {\n            if (queueId == GlobalAramMayhemQueueId || queueId == TencentAramMayhemQueueId) return true;\n            return string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(gameMode, "ARAM_MAYHEM", StringComparison.OrdinalIgnoreCase);\n        }\n\n        public static bool IsBaseAram(int queueId, string gameMode)\n        {\n            if (IsAramMayhem(queueId, gameMode)) return false;\n            return queueId == BaseAramQueueId || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase);\n        }\n    }\n\n    internal static class LeagueLivePolling\n''',
+                  'shared queue mode policy')
+          ])
+
+          patch('src/FACM/League/LeagueLiveDataService.cs', [
+              (
+                  '''            snapshot.GameId = ReadLong(data, "gameId");\n            snapshot.QueueId = ReadInt(data, "queueId");\n            snapshot.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");\n''',
+                  '''            snapshot.GameId = ReadLong(data, "gameId");\n            snapshot.QueueId = ReadInt(data, "queueId");\n            snapshot.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));\n            snapshot.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");\n''',
+                  'ChampSelect mode projection'),
+              (
+                  '''            state.SessionAvailable = true;\n            state.BenchEnabled = ReadBool(data, "benchEnabled");\n            state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");\n''',
+                  '''            state.SessionAvailable = true;\n            state.BenchEnabled = ReadBool(data, "benchEnabled");\n            state.QueueId = ReadInt(data, "queueId");\n            state.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));\n            state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");\n''',
+                  'Bench mode projection')
+          ])
+
+          patch('src/FACM/League/LeagueBuildAdvisorDataService.cs', [
+              (
+                  '''        internal static string ResolveOpggMode(int queueId, string gameMode)\n        {\n            if (queueId == 450 || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase)) return "aram";\n            if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";\n''',
+                  '''        internal static string ResolveOpggMode(int queueId, string gameMode)\n        {\n            // ARAM Mayhem is a separate data domain. In particular the CN/WeGame queue has been\n            // observed as 3270 while global clients use 2400. Never fall through to ordinary ARAM\n            // merely because a regional client also reports an ARAM-like gameMode token.\n            if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return null;\n            if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return "aram";\n            if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";\n''',
+                  'Build Advisor mode separation')
+          ])
+
+          patch('src/FACM/Mayhem/MayhemAutomaticGuideService.cs', [
+              (
+                  '''        internal async Task<string> ResolveChampionQueryAsync(int championId, CancellationToken token)\n''',
+                  '''        public async Task<MayhemChampionResult> QueryAramBalanceForChampionIdAsync(\n            int championId,\n            string expectedPatch,\n            CancellationToken token)\n        {\n            if (championId <= 0)\n                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄。" };\n\n            var query = await ResolveChampionQueryAsync(championId, token).ConfigureAwait(false);\n            if (string.IsNullOrWhiteSpace(query))\n                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄名称。" };\n\n            string slug;\n            if (!ChampionAliases.TryResolve(query, out slug)) slug = ChampionAliases.Slugify(query);\n            if (string.IsNullOrWhiteSpace(slug))\n                return new MayhemChampionResult { Query = query, ErrorMessage = "当前英雄无法映射到大乱斗平衡数据。" };\n\n            var result = new MayhemChampionResult\n            {\n                Query = query,\n                ChampionName = query,\n                ChampionSlug = slug,\n                Patch = expectedPatch\n            };\n            await OpggAramBaseBalanceService.EnrichAsync(result, token).ConfigureAwait(false);\n            return result;\n        }\n\n        internal async Task<string> ResolveChampionQueryAsync(int championId, CancellationToken token)\n''',
+                  'base ARAM balance-only guide')
+          ])
+
+          patch('src/FACM/League/LeagueRuntimeCompanionController.cs', [
+              (
+                  '''namespace FACM.League\n{\n    /// <summary>\n''',
+                  '''namespace FACM.League\n{\n    internal enum LeagueRuntimeCompanionGuideKind\n    {\n        None,\n        AramBalance,\n        Mayhem\n    }\n\n    internal static class LeagueRuntimeCompanionModePolicy\n    {\n        public static LeagueRuntimeCompanionGuideKind Resolve(bool sessionAvailable, bool benchEnabled, int queueId, string gameMode)\n        {\n            if (!sessionAvailable || !benchEnabled) return LeagueRuntimeCompanionGuideKind.None;\n            if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.Mayhem;\n            if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return LeagueRuntimeCompanionGuideKind.AramBalance;\n            return LeagueRuntimeCompanionGuideKind.None;\n        }\n    }\n\n    /// <summary>\n''',
+                  'guide kind policy'),
+              (
+                  '''        private int _guideChampionId;\n        private int _guideGeneration;\n''',
+                  '''        private int _guideChampionId;\n        private LeagueRuntimeCompanionGuideKind _guideKind;\n        private string _guideExpectedPatch;\n        private int _guideGeneration;\n''',
+                  'guide context fields'),
+              (
+                  '''                if (state != null && state.BenchEnabled)\n                {\n                    if (state.LocalChampionId > 0 && state.LocalChampionId != _guideChampionId)\n                        StartGuideRequest(state.LocalChampionId);\n                }\n                else\n                {\n                    CancelGuideForContextLoss();\n                    lock (_stateGate)\n                    {\n                        _snapshot.GuideLoading = false;\n                        _snapshot.GuideChampionId = 0;\n                        _snapshot.Guide = null;\n                        _snapshot.GuideError = null;\n                    }\n                }\n\n                MaybeStartBuildRequest(championHint);\n''',
+                  '''                MaybeStartBuildRequest(championHint);\n\n                var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(\n                    sessionAvailable,\n                    state != null && state.BenchEnabled,\n                    state == null ? 0 : state.QueueId,\n                    state == null ? null : state.GameMode);\n                if (championHint <= 0 || guideKind == LeagueRuntimeCompanionGuideKind.None)\n                {\n                    ClearGuideSurface();\n                }\n                else if (guideKind == LeagueRuntimeCompanionGuideKind.Mayhem)\n                {\n                    if (!GuideContextMatches(championHint, guideKind, null))\n                        StartGuideRequest(championHint, guideKind, null);\n                }\n                else\n                {\n                    // Base ARAM waits for Build Advisor's version-bound snapshot so the balance\n                    // parser can fail closed on patch mismatch instead of accepting stale values.\n                    var expectedPatch = ResolveAramPatchHint(championHint);\n                    if (string.IsNullOrWhiteSpace(expectedPatch))\n                    {\n                        if (!GuideContextMatches(championHint, guideKind, null)) ClearGuideSurface();\n                    }\n                    else if (!GuideContextMatches(championHint, guideKind, expectedPatch))\n                    {\n                        StartGuideRequest(championHint, guideKind, expectedPatch);\n                    }\n                }\n''',
+                  'mode-specific guide routing'),
+              (
+                  '''        private void StartGuideRequest(int championId)\n        {\n''',
+                  '''        private string ResolveAramPatchHint(int championId)\n        {\n            lock (_stateGate)\n            {\n                var build = _snapshot.Build;\n                if (build == null || build.ChampionId != championId ||\n                    !string.Equals(build.Mode, "aram", StringComparison.OrdinalIgnoreCase)) return null;\n                return build.Version;\n            }\n        }\n\n        private bool GuideContextMatches(\n            int championId,\n            LeagueRuntimeCompanionGuideKind kind,\n            string expectedPatch)\n        {\n            lock (_stateGate)\n            {\n                return _guideChampionId == championId &&\n                       _guideKind == kind &&\n                       string.Equals(_guideExpectedPatch ?? string.Empty, expectedPatch ?? string.Empty, StringComparison.OrdinalIgnoreCase);\n            }\n        }\n\n        private void ClearGuideSurface()\n        {\n            CancelGuideForContextLoss();\n            lock (_stateGate)\n            {\n                _snapshot.GuideLoading = false;\n                _snapshot.GuideChampionId = 0;\n                _snapshot.Guide = null;\n                _snapshot.GuideError = null;\n            }\n        }\n\n        private void StartGuideRequest(\n            int championId,\n            LeagueRuntimeCompanionGuideKind kind,\n            string expectedPatch)\n        {\n''',
+                  'guide routing helpers'),
+              (
+                  '''                _guideChampionId = championId;\n                generation = ++_guideGeneration;\n''',
+                  '''                _guideChampionId = championId;\n                _guideKind = kind;\n                _guideExpectedPatch = expectedPatch;\n                generation = ++_guideGeneration;\n''',
+                  'store guide context'),
+              (
+                  '''            _ = LoadGuideAsync(generation, championId, request);\n        }\n\n        private async Task LoadGuideAsync(int generation, int championId, CancellationTokenSource request)\n''',
+                  '''            _ = LoadGuideAsync(generation, championId, kind, expectedPatch, request);\n        }\n\n        private async Task LoadGuideAsync(\n            int generation,\n            int championId,\n            LeagueRuntimeCompanionGuideKind kind,\n            string expectedPatch,\n            CancellationTokenSource request)\n''',
+                  'guide async signature'),
+              (
+                  '''                result = await _guide.QueryForChampionIdAsync(championId, request.Token).ConfigureAwait(false);\n''',
+                  '''                result = kind == LeagueRuntimeCompanionGuideKind.AramBalance\n                    ? await _guide.QueryAramBalanceForChampionIdAsync(championId, expectedPatch, request.Token).ConfigureAwait(false)\n                    : await _guide.QueryForChampionIdAsync(championId, request.Token).ConfigureAwait(false);\n''',
+                  'guide service selection'),
+              (
+                  '''                if (!_disposed && generation == _guideGeneration && championId == _guideChampionId && ReferenceEquals(_guideRequest, request))\n''',
+                  '''                if (!_disposed && generation == _guideGeneration && championId == _guideChampionId &&\n                    kind == _guideKind &&\n                    string.Equals(_guideExpectedPatch ?? string.Empty, expectedPatch ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&\n                    ReferenceEquals(_guideRequest, request))\n''',
+                  'guide publish context fence'),
+              (
+                  '''                _guideChampionId = 0;\n                _guideGeneration++;\n''',
+                  '''                if (_guideRequest == null && _guideChampionId == 0 && _guideKind == LeagueRuntimeCompanionGuideKind.None) return;\n                _guideChampionId = 0;\n                _guideKind = LeagueRuntimeCompanionGuideKind.None;\n                _guideExpectedPatch = null;\n                _guideGeneration++;\n''',
+                  'guide cancel context reset'),
+              (
+                  '''            if (BuildRefreshInterval < TimeSpan.FromSeconds(2))\n                throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");\n\n''',
+                  '''            if (BuildRefreshInterval < TimeSpan.FromSeconds(2))\n                throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");\n            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)\n                throw new InvalidOperationException("Runtime Companion base ARAM routing regressed.");\n            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 2400, null) != LeagueRuntimeCompanionGuideKind.Mayhem ||\n                LeagueRuntimeCompanionModePolicy.Resolve(true, true, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.Mayhem)\n                throw new InvalidOperationException("Runtime Companion ARAM Mayhem routing regressed.");\n            if (LeagueRuntimeCompanionModePolicy.Resolve(true, true, 420, "CLASSIC") != LeagueRuntimeCompanionGuideKind.None ||\n                LeagueRuntimeCompanionModePolicy.Resolve(true, false, 3270, "KIWI") != LeagueRuntimeCompanionGuideKind.None)\n                throw new InvalidOperationException("Runtime Companion guide routing leaked into an unsupported context.");\n\n''',
+                  'mode policy smoke')
+          ])
+
+          patch('src/FACM/League/LeagueBuildAdvisorSmokeTest.cs', [
+              (
+                  '''            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(450, null) == "aram", "ARAM queue mapping changed.");\n            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(420, null) == "ranked", "Ranked queue mapping changed.");\n''',
+                  '''            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(450, null) == "aram", "ARAM queue mapping changed.");\n            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(2400, "KIWI") == null, "Global ARAM Mayhem must not reuse ordinary ARAM builds.");\n            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(3270, "ARAM") == null, "Tencent ARAM Mayhem must not reuse ordinary ARAM builds.");\n            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(420, null) == "ranked", "Ranked queue mapping changed.");\n''',
+                  'Build Advisor Mayhem separation smoke')
+          ])
+          PY
+
+      - name: Commit mode policy patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No mode policy changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FACM/League/LeagueLiveModels.cs src/FACM/League/LeagueLiveDataService.cs src/FACM/League/LeagueBuildAdvisorDataService.cs src/FACM/League/LeagueBuildAdvisorSmokeTest.cs src/FACM/League/LeagueRuntimeCompanionController.cs src/FACM/Mayhem/MayhemAutomaticGuideService.cs
+          git commit -m "Separate ARAM and Mayhem companion data paths"
+          git push origin HEAD:feat/runtime-companion-20260910
