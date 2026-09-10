@@ -33,18 +33,38 @@ namespace FACM.League
                 Require(first.Mode == "ranked" && first.Position == "jungle", "Build Advisor mapped ranked position incorrectly.");
                 Require(first.Source == "OP.GG Global", "Build Advisor must label Tencent fallback data as OP.GG Global.");
                 Require(first.Version == "16.16", "Build Advisor did not parse OP.GG version metadata.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "runes" && row.Recommendation.Contains("电刑")),
-                    "Build Advisor did not map rune IDs to local names.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "core-items" && row.Recommendation.Contains("卢登")),
-                    "Build Advisor did not map item IDs to local names.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "summoner-spells" && row.Recommendation.Contains("闪现")),
-                    "Build Advisor did not map summoner-spell IDs to local names.");
+
+                var runeRows = first.Recommendation.Rows.Where(row => row.Category == "runes").ToList();
+                var spellRows = first.Recommendation.Rows.Where(row => row.Category == "summoner-spells").ToList();
+                var starterRows = first.Recommendation.Rows.Where(row => row.Category == "starter-items").ToList();
+                var coreRows = first.Recommendation.Rows.Where(row => row.Category == "core-items").ToList();
+                var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();
+
+                Require(runeRows.Count == 2 && runeRows[0].Recommendation.Contains("电刑") && runeRows[1].Recommendation.Contains("奥术彗星"),
+                    "Build Advisor did not preserve ordered rune alternatives.");
+                Require(spellRows.Count == 2 && spellRows[0].Recommendation.Contains("闪现") && spellRows[0].Recommendation.Contains("惩戒"),
+                    "Build Advisor did not preserve ordered summoner-spell alternatives.");
+                Require(spellRows[0].Evidence.Contains("win 54.2%") && spellRows[0].Evidence.Contains("1,200 games"),
+                    "Build Advisor did not project available win/sample evidence.");
+                Require(spellRows[1].Evidence.IndexOf("win 0.0%", StringComparison.OrdinalIgnoreCase) < 0,
+                    "Missing OP.GG win evidence was incorrectly rendered as a zero-percent win rate.");
+                Require(starterRows.Count == 2 && starterRows[0].Recommendation.Contains("多兰之戒") && starterRows[1].Recommendation.Contains("多兰之刃"),
+                    "Build Advisor did not preserve ordered starter-item alternatives.");
+                Require(coreRows.Count == 3 && coreRows[0].Recommendation.Contains("卢登") && coreRows[2].Recommendation.Contains("振奋盔甲"),
+                    "Build Advisor alternative cap/order contract drifted.");
+                Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",
+                    "Build Advisor did not preserve ordered skill alternatives.");
+
+                Require(first.Recommendation.WinRate.HasValue && first.Recommendation.PickRate.HasValue && first.Recommendation.BanRate.HasValue,
+                    "Build Advisor lost champion summary rates used by Runtime Companion.");
                 Require(opgg.Paths.Count == 2, "First Build Advisor refresh must request one version and one build payload.");
                 Require(opgg.Paths.Last() == "/api/global/champions/ranked/53/jungle?tier=all&version=16.16",
                     "Build Advisor did not bind the OP.GG build request to tier/version.");
 
                 var second = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
                 Require(second.Recommendation != null && second.FromCache, "Repeated Build Advisor refresh did not use the 10-minute cache.");
+                Require(second.Recommendation.Rows.Count == first.Recommendation.Rows.Count,
+                    "Build Advisor cache clone lost alternative recommendation rows.");
                 Require(opgg.Paths.Count == 2, "Repeated identical Build Advisor refresh caused OP.GG fan-out.");
 
                 lcu.ChampionId = 145;
@@ -160,11 +180,11 @@ namespace FACM.League
                 if (path == LeagueBuildAdvisorDataService.ChampionSummaryPath)
                     return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\"},{\"id\":145,\"name\":\"虚空之女\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\"}]");
                 if (path == LeagueBuildAdvisorDataService.ItemsPath)
-                    return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\"},{\"id\":3020,\"name\":\"法师之靴\"},{\"id\":6655,\"name\":\"卢登伴侣\"}]");
+                    return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\"},{\"id\":1055,\"name\":\"多兰之刃\"},{\"id\":3020,\"name\":\"法师之靴\"},{\"id\":3117,\"name\":\"疾行之靴\"},{\"id\":6655,\"name\":\"卢登伴侣\"},{\"id\":3071,\"name\":\"黑色切割者\"},{\"id\":3065,\"name\":\"振奋盔甲\"},{\"id\":3089,\"name\":\"灭世者的死亡之帽\"}]");
                 if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
-                    return Bytes("[{\"id\":4,\"name\":\"闪现\"},{\"id\":11,\"name\":\"惩戒\"}]");
+                    return Bytes("[{\"id\":4,\"name\":\"闪现\"},{\"id\":11,\"name\":\"惩戒\"},{\"id\":12,\"name\":\"传送\"}]");
                 if (path == LeagueBuildAdvisorDataService.PerksPath)
-                    return Bytes("[{\"id\":8112,\"name\":\"电刑\"},{\"id\":8143,\"name\":\"突然冲击\"},{\"id\":8347,\"name\":\"饼干配送\"}]");
+                    return Bytes("[{\"id\":8112,\"name\":\"电刑\"},{\"id\":8143,\"name\":\"突然冲击\"},{\"id\":8347,\"name\":\"饼干配送\"},{\"id\":8214,\"name\":\"奥术彗星\"},{\"id\":8226,\"name\":\"法力流系带\"}]");
                 return Task.FromResult<byte[]>(null);
             }
 
@@ -190,7 +210,7 @@ namespace FACM.League
                     return Bytes("{\"data\":[{\"id\":157,\"positions\":[{\"name\":\"TOP\",\"stats\":{\"play\":100,\"role_rate\":0.21}},{\"name\":\"MID\",\"stats\":{\"play\":900,\"role_rate\":0.79}}]}]}");
                 }
 
-                return Bytes("{\"data\":{\"summary\":{\"average_stats\":{\"win_rate\":0.512,\"pick_rate\":0.073,\"ban_rate\":0.021,\"tier_data\":{\"tier\":2,\"rank\":17}}},\"summoner_spells\":[{\"ids\":[4,11],\"play\":1200,\"pick_rate\":0.66}],\"runes\":[{\"primary_rune_ids\":[8112,8143],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":900,\"pick_rate\":0.55}],\"starter_items\":[{\"ids\":[1056],\"play\":800,\"pick_rate\":0.48}],\"boots\":[{\"ids\":[3020],\"play\":700,\"pick_rate\":0.42}],\"core_items\":[{\"ids\":[6655],\"play\":600,\"pick_rate\":0.36}],\"skill_masteries\":[{\"ids\":[\"Q\",\"E\",\"W\"],\"play\":1000,\"pick_rate\":0.61}],\"counters\":[{\"champion_id\":64,\"play\":321,\"win\":144}]},\"meta\":{\"version\":\"16.16\"}}");
+                return Bytes("{\"data\":{\"summary\":{\"average_stats\":{\"win_rate\":0.512,\"pick_rate\":0.073,\"ban_rate\":0.021,\"tier_data\":{\"tier\":2,\"rank\":17}}},\"summoner_spells\":[{\"ids\":[4,11],\"play\":1200,\"win\":650,\"pick_rate\":0.66},{\"ids\":[4,12],\"play\":300,\"pick_rate\":0.18}],\"runes\":[{\"primary_rune_ids\":[8112,8143],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":900,\"win\":500,\"pick_rate\":0.55},{\"primary_rune_ids\":[8214,8226],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":220,\"pick_rate\":0.13}],\"starter_items\":[{\"ids\":[1056],\"play\":800,\"win_rate\":0.51,\"pick_rate\":0.48},{\"ids\":[1055],\"play\":260,\"pick_rate\":0.16}],\"boots\":[{\"ids\":[3020],\"play\":700,\"pick_rate\":0.42},{\"ids\":[3117],\"play\":190,\"pick_rate\":0.11}],\"core_items\":[{\"ids\":[6655],\"play\":600,\"pick_rate\":0.36},{\"ids\":[3071],\"play\":310,\"pick_rate\":0.19},{\"ids\":[3065],\"play\":180,\"pick_rate\":0.11},{\"ids\":[3089],\"play\":100,\"pick_rate\":0.06}],\"skill_masteries\":[{\"ids\":[\"Q\",\"E\",\"W\"],\"play\":1000,\"pick_rate\":0.61},{\"ids\":[\"Q\",\"W\",\"E\"],\"play\":280,\"pick_rate\":0.17}],\"counters\":[{\"champion_id\":64,\"play\":321,\"win\":144}]},\"meta\":{\"version\":\"16.16\"}}");
             }
 
             private static Task<byte[]> Bytes(string text)
