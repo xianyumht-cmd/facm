@@ -61,6 +61,8 @@ namespace FACM.League
         private readonly RecommendationSection _starter;
         private readonly RecommendationSection _boots;
         private readonly RecommendationSection _core;
+        private readonly Panel _aramBalanceSection;
+        private readonly Label _aramBalanceText;
         private readonly Panel _mayhemSection;
         private readonly ListView _augments;
 
@@ -319,6 +321,45 @@ namespace FACM.League
             _core.Action.Click += async delegate { await ImportItemSetAsync(); };
 
             foreach (var section in RecommendationSections()) _sections.Controls.Add(section.Host);
+
+            _aramBalanceSection = new Panel
+            {
+                Width = SectionWidth,
+                Height = 70,
+                Margin = Padding.Empty,
+                BackColor = FacmDesignSystem.Canvas,
+                Visible = false
+            };
+            var aramBalanceTitle = new Label
+            {
+                Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.AramBaseBalance),
+                Location = new Point(0, 9),
+                Size = new Size(82, 20),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+            };
+            _aramBalanceText = new Label
+            {
+                Text = string.Empty,
+                Location = new Point(82, 5),
+                Size = new Size(266, 56),
+                AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.2F)
+            };
+            var aramBalanceRule = new Panel
+            {
+                Location = new Point(0, 69),
+                Size = new Size(SectionWidth, 1),
+                BackColor = FacmDesignSystem.BorderSoft
+            };
+            _aramBalanceSection.Controls.Add(aramBalanceTitle);
+            _aramBalanceSection.Controls.Add(_aramBalanceText);
+            _aramBalanceSection.Controls.Add(aramBalanceRule);
+            _sections.Controls.Add(_aramBalanceSection);
 
             _mayhemSection = new Panel
             {
@@ -795,6 +836,7 @@ namespace FACM.League
         private void RenderGuideFallbackAndAugments(MayhemChampionResult result, bool hasBuildContext)
         {
             if (result == null) return;
+            RenderAramBaseBalance(result);
             if (!hasBuildContext)
             {
                 _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
@@ -834,6 +876,30 @@ namespace FACM.League
                 _augments.EndUpdate();
             }
             _mayhemSection.Visible = _augments.Items.Count > 0;
+        }
+
+        private void RenderAramBaseBalance(MayhemChampionResult result)
+        {
+            if (!ShouldShowAramBaseBalance(result))
+            {
+                _aramBalanceSection.Visible = false;
+                _aramBalanceText.Text = string.Empty;
+                return;
+            }
+
+            _aramBalanceText.Text = result.BaseBalanceSummary.Trim();
+            var status = (result.BaseBalanceStatus ?? string.Empty).Trim();
+            _aramBalanceText.ForeColor =
+                string.Equals(status, "syncing", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "unavailable", StringComparison.OrdinalIgnoreCase)
+                    ? FacmDesignSystem.Warning
+                    : FacmDesignSystem.Text;
+            _aramBalanceSection.Visible = true;
+        }
+
+        private static bool ShouldShowAramBaseBalance(MayhemChampionResult result)
+        {
+            return result != null && !string.IsNullOrWhiteSpace(result.BaseBalanceSummary);
         }
 
         private void SetBuildLoadingState(int championId)
@@ -1102,6 +1168,8 @@ namespace FACM.League
         private void ResetRecommendationSections()
         {
             foreach (var section in RecommendationSections()) HideRecommendationSection(section);
+            _aramBalanceSection.Visible = false;
+            _aramBalanceText.Text = string.Empty;
             _mayhemSection.Visible = false;
             _augments.Items.Clear();
         }
@@ -1633,7 +1701,7 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
-            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 24)
+            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 25)
                 throw new InvalidOperationException("Runtime Companion localized P0 copy is incomplete.");
 
             var recommendation = new LeagueBuildRecommendation
@@ -1693,6 +1761,11 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion Mayhem skill fallback is invalid.");
             if (!string.Equals(BuildSpellText(mayhem), "Flash + Mark", StringComparison.Ordinal))
                 throw new InvalidOperationException("Runtime Companion Mayhem spell fallback is invalid.");
+            if (ShouldShowAramBaseBalance(mayhem))
+                throw new InvalidOperationException("Runtime Companion rendered an empty ARAM balance section.");
+            mayhem.BaseBalanceSummary = "基础 ARAM（完整）：造成伤害 +5%";
+            if (!ShouldShowAramBaseBalance(mayhem))
+                throw new InvalidOperationException("Runtime Companion lost available ARAM balance presentation.");
         }
     }
 }
