@@ -39,10 +39,10 @@ namespace FACM.Mayhem
             if (result == null) return new MayhemChampionResult { Query = query, ErrorMessage = "自动攻略暂时没有结果。" };
             if (!string.IsNullOrWhiteSpace(result.ErrorMessage)) return result;
 
-            // The base ARAM balance service is already bounded and cached for ten minutes per
-            // champion. Reusing it here gives the visible companion the underlying ARAM modifier
-            // without another poller, another League session, or bundled static balance data.
-            await OpggAramBaseBalanceService.EnrichAsync(result, token).ConfigureAwait(false);
+            // RiotGameDataService already owns the bounded/cached base-ARAM enrichment and runs it
+            // in parallel with visual metadata. Do not call OpggAramBaseBalanceService again here:
+            // complete results would only hit cache, while unavailable results could otherwise cause
+            // a second network attempt and extend the visible companion's failure path.
             await RiotGameDataService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
             await MayhemRankedAugmentService.EnrichAsync(result, token).ConfigureAwait(false);
             await MayhemDecisionLocalizationService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
