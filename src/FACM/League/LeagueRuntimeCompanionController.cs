@@ -11,8 +11,8 @@ namespace FACM.League
     /// Runtime Companion orchestration boundary.
     ///
     /// It deliberately does not own Gameflow. LeagueHubModule decides when the companion exists.
-    /// This controller reuses the existing Bench owner, Build Advisor owner, Build Apply owner and
-    /// Mayhem guide path. No raw LCU write method is exposed to the Form.
+    /// This controller reuses the existing Bench owner, Build Advisor owner, Build Apply owner,
+    /// Item Set owner and Mayhem guide path. No raw LCU write method is exposed to the Form.
     /// </summary>
     internal sealed class LeagueRuntimeCompanionController : IDisposable
     {
@@ -22,6 +22,7 @@ namespace FACM.League
         private readonly ILeagueClientApi _leagueClient;
         private readonly LeagueBuildAdvisorDataService _advisor;
         private readonly LeagueBuildApplyService _apply;
+        private readonly LeagueItemSetService _itemSet;
         private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly SemaphoreSlim _refreshGate = new SemaphoreSlim(1, 1);
@@ -41,12 +42,14 @@ namespace FACM.League
             LeagueBenchQuickPickService bench,
             ILeagueClientApi leagueClient,
             LeagueBuildAdvisorDataService advisor = null,
-            LeagueBuildApplyService apply = null)
+            LeagueBuildApplyService apply = null,
+            LeagueItemSetService itemSet = null)
         {
             _bench = bench ?? throw new ArgumentNullException(nameof(bench));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _advisor = advisor;
             _apply = apply;
+            _itemSet = itemSet;
             _guide = new MayhemAutomaticGuideService(_leagueClient);
         }
 
@@ -55,6 +58,11 @@ namespace FACM.League
         public bool SupportsBuildApply
         {
             get { return _apply != null && _advisor != null && !_disposed; }
+        }
+
+        public bool SupportsItemSetApply
+        {
+            get { return _itemSet != null && _advisor != null && !_disposed; }
         }
 
         public LeagueRuntimeCompanionSnapshot CurrentSnapshot
@@ -188,6 +196,27 @@ namespace FACM.League
             // LeagueBuildApplyService re-reads phase/champion/queue and verifies settled state after
             // writes. This call intentionally does not duplicate those rules in presentation code.
             return _apply.ApplyAsync(preparation.Plan, cancellationToken);
+        }
+
+        public async Task<LeagueItemSetPlan> PrepareItemSetAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_itemSet == null) return null;
+            var snapshot = CurrentSnapshot;
+            if (!snapshot.HasBuild || snapshot.Build == null) return null;
+            return await _itemSet.PrepareAsync(snapshot.Build, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task<LeagueItemSetWriteResult> ApplyItemSetAsync(
+            LeagueItemSetPlan plan,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_itemSet == null || plan == null || !plan.HasItems)
+                throw new InvalidOperationException("Runtime Companion item-set plan is not usable.");
+            // LeagueItemSetService rechecks live phase/champion/queue before the first disk write,
+            // writes only FACM-owned recommendation files and verifies the committed JSON.
+            return _itemSet.ApplyAsync(plan, cancellationToken);
         }
 
         internal static void TrimPlanForTarget(
