@@ -122,3 +122,17 @@ A normal user-facing ally/enemy notification is deferred until public field evid
 - saved coordinates may be negative for monitors left of the primary display; monitor topology changes must clamp the companion back into a current working area.
 
 This keeps the Akari-style narrow interaction model as a UI improvement while preserving FACM's single-session, lightweight WinForms architecture. PR #283 remains a review task until Windows CI and real Tencent-client acceptance are complete; this decision does not authorize merge or release.
+
+## D-017 — Runtime Companion alternatives are bounded projections of one source payload
+
+**Decision (2026-09-10, PR #283 P0):** richer Akari-style recommendation density must not multiply transports, polling loops, or write owners.
+
+- Build Advisor may retain at most the first three OP.GG alternatives for runes, summoner spells, starter items, boots, core items and skill order from the same already-fetched build payload.
+- source ordering remains authoritative: row zero is the existing default and remains the option used by `LeagueBuildApplyService`; later alternatives are presentation-only until a separately designed chooser exists.
+- `pick_rate`, sample count and win evidence are projected only when the source actually supplies them. Missing win evidence stays unknown and must never be rendered as `0%` merely because a JSON key is absent.
+- Runtime Companion uses progressive disclosure for rows two and three. Expanding a section performs no network request.
+- champion Tier/rank/win/pick/ban summary is projected from the existing recommendation object, not a new statistics endpoint.
+- equipment import routes through the existing `LeagueItemSetService`; preparation remains read-only, the user confirms explicitly, the owner revalidates phase/champion/queue before writing, only FACM-owned recommendation files are changed, and committed JSON is verified.
+- base ARAM balance enrichment reuses the existing bounded ten-minute cache service and is attached to the already-running automatic guide path; it must not create a periodic balance poller.
+
+This is the preferred pattern for future lightweight parity work: first reuse an existing response/cache/owner, then expose more of it. Do not buy UI richness with duplicated background work.
