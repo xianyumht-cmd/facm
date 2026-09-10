@@ -85,6 +85,7 @@ namespace FACM.League
         internal const string PerksPath = "/lol-game-data/assets/v1/perks.json";
         internal const string DefaultOpggTier = "all";
         internal static readonly TimeSpan BuildCacheDuration = TimeSpan.FromMinutes(10);
+        private const int AlternativeRowLimit = 3;
         private static readonly TimeSpan CatalogCacheDuration = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan VersionCacheDuration = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan RankedPositionCacheDuration = TimeSpan.FromMinutes(30);
@@ -285,12 +286,15 @@ namespace FACM.League
             output.Tier = tier > 0 ? "T" + tier : null;
             output.Rank = ReadInt(tierData, "rank");
 
-            AddPickRow(output, "summoner-spells", ReadFirstDictionary(data, "summoner_spells"), catalog == null ? null : catalog.Spells);
-            AddRuneRow(output, FirstNonNullDictionary(ReadFirstDictionary(data, "runes"), ReadFirstDictionary(data, "rune_pages")), catalog == null ? null : catalog.Perks);
-            AddPickRow(output, "starter-items", ReadFirstDictionary(data, "starter_items"), catalog == null ? null : catalog.Items);
-            AddPickRow(output, "boots", ReadFirstDictionary(data, "boots"), catalog == null ? null : catalog.Items);
-            AddPickRow(output, "core-items", ReadFirstDictionary(data, "core_items"), catalog == null ? null : catalog.Items);
-            AddSkillRow(output, ReadFirstDictionary(data, "skill_masteries"));
+            // Keep the OP.GG ordering authoritative. The first row remains the default used by the
+            // existing Apply owners; the next rows are read-only alternatives for dense Companion/
+            // Advisor presentation. This expands information without another network request.
+            AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, AlternativeRowLimit);
+            AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"), catalog == null ? null : catalog.Perks, AlternativeRowLimit);
+            AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
+            AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
+            AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
+            AddSkillRows(output, ReadValue(data, "skill_masteries"), AlternativeRowLimit);
             AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions);
             return output;
         }
@@ -554,50 +558,81 @@ namespace FACM.League
             return championId + "|" + (mode ?? string.Empty) + "|" + (position ?? string.Empty) + "|" + (version ?? string.Empty);
         }
 
-        private void AddPickRow(LeagueBuildRecommendation output, string category, Dictionary<string, object> row, IDictionary<int, string> names)
+        private void AddPickRows(
+            LeagueBuildRecommendation output,
+            string category,
+            object value,
+            IDictionary<int, string> names,
+            int limit)
         {
-            if (row == null) return;
-            var ids = ReadIntArray(ReadValue(row, "ids"));
-            if (ids.Count == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var added = 0;
+            foreach (var row in EnumerateDictionaries(value))
             {
-                Category = category,
-                Recommendation = JoinNames(ids, names),
-                Evidence = BuildEvidence(row)
-            });
+                var ids = ReadIntArray(ReadValue(row, "ids"));
+                if (ids.Count == 0) continue;
+                output.Rows.Add(new LeagueBuildAdvisorRow
+                {
+                    Category = category,
+                    Recommendation = JoinNames(ids, names),
+                    Evidence = BuildEvidence(row, null)
+                });
+                if (++added >= limit) break;
+            }
         }
 
-        private void AddRuneRow(LeagueBuildRecommendation output, Dictionary<string, object> runePage, IDictionary<int, string> names)
+        private void AddRuneRows(
+            LeagueBuildRecommendation output,
+            object runesValue,
+            object runePagesValue,
+            IDictionary<int, string> names,
+            int limit)
         {
-            if (runePage == null) return;
-            var build = FirstDictionary(ReadValue(runePage, "builds")) ?? runePage;
-            if (build == null) return;
-            var ids = new List<int>();
-            ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
-            ids.AddRange(ReadIntArray(ReadValue(build, "secondary_rune_ids")));
-            if (ids.Count == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var pages = EnumerateDictionaries(runesValue).ToList();
+            if (pages.Count == 0) pages = EnumerateDictionaries(runePagesValue).ToList();
+
+            var added = 0;
+            foreach (var page in pages)
             {
-                Category = "runes",
-                Recommendation = JoinNames(ids, names),
-                Evidence = BuildEvidence(build)
-            });
+                var builds = EnumerateDictionaries(ReadValue(page, "builds")).ToList();
+                if (builds.Count == 0) builds.Add(page);
+                foreach (var build in builds)
+                {
+                    var ids = new List<int>();
+                    ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
+                    ids.AddRange(ReadIntArray(ReadValue(build, "secondary_rune_ids")));
+                    if (ids.Count == 0) continue;
+                    output.Rows.Add(new LeagueBuildAdvisorRow
+                    {
+                        Category = "runes",
+                        Recommendation = JoinNames(ids, names),
+                        Evidence = BuildEvidence(build, page)
+                    });
+                    if (++added >= limit) return;
+                }
+            }
         }
 
-        private void AddSkillRow(LeagueBuildRecommendation output, Dictionary<string, object> row)
+        private void AddSkillRows(LeagueBuildRecommendation output, object value, int limit)
         {
-            if (row == null) return;
-            var ids = EnumerateValues(ReadValue(row, "ids"))
-                .Select(value => Convert.ToString(value, CultureInfo.InvariantCulture))
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToArray();
-            if (ids.Length == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var added = 0;
+            foreach (var row in EnumerateDictionaries(value))
             {
-                Category = "skills",
-                Recommendation = string.Join(" > ", ids),
-                Evidence = BuildEvidence(row)
-            });
+                var ids = EnumerateValues(ReadValue(row, "ids"))
+                    .Select(item => Convert.ToString(item, CultureInfo.InvariantCulture))
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .ToArray();
+                if (ids.Length == 0) continue;
+                output.Rows.Add(new LeagueBuildAdvisorRow
+                {
+                    Category = "skills",
+                    Recommendation = string.Join(" > ", ids),
+                    Evidence = BuildEvidence(row, null)
+                });
+                if (++added >= limit) break;
+            }
         }
 
         private void AddCounterRow(LeagueBuildRecommendation output, object value, IDictionary<int, string> championNames)
@@ -620,14 +655,28 @@ namespace FACM.League
             });
         }
 
-        private string BuildEvidence(Dictionary<string, object> row)
+        private string BuildEvidence(Dictionary<string, object> row, Dictionary<string, object> fallback)
         {
-            var pick = ReadDoubleNullable(row, "pick_rate");
+            var pick = ReadDoubleNullable(row, "pick_rate") ?? ReadDoubleNullable(fallback, "pick_rate");
             var play = ReadInt(row, "play");
+            if (play <= 0) play = ReadInt(fallback, "play");
+            var winRate = ResolveWinRate(row, play);
+            if (!winRate.HasValue && fallback != null) winRate = ResolveWinRate(fallback, play);
+
             var parts = new List<string>();
             if (pick.HasValue) parts.Add("pick " + FormatRate(pick));
-            if (play > 0) parts.Add(play + " games");
+            if (winRate.HasValue) parts.Add("win " + FormatRate(winRate));
+            if (play > 0) parts.Add(play.ToString("N0", CultureInfo.InvariantCulture) + " games");
             return string.Join(" · ", parts);
+        }
+
+        private static double? ResolveWinRate(Dictionary<string, object> row, int play)
+        {
+            var rate = ReadDoubleNullable(row, "win_rate");
+            if (rate.HasValue) return rate;
+            var wins = ReadInt(row, "win");
+            if (wins <= 0) wins = ReadInt(row, "wins");
+            return play > 0 && wins >= 0 ? (double?)wins / play : null;
         }
 
         private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output)
@@ -649,23 +698,6 @@ namespace FACM.League
             if (bytes == null || bytes.Length == 0) return null;
             try { return _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
             catch { return null; }
-        }
-
-        private static Dictionary<string, object> ReadFirstDictionary(Dictionary<string, object> source, string key)
-        {
-            return FirstDictionary(ReadValue(source, key));
-        }
-
-        private static Dictionary<string, object> FirstDictionary(object value)
-        {
-            return EnumerateDictionaries(value).FirstOrDefault();
-        }
-
-        private static Dictionary<string, object> FirstNonNullDictionary(
-            Dictionary<string, object> first,
-            Dictionary<string, object> second)
-        {
-            return first ?? second;
         }
 
         private static Dictionary<string, object> ReadDictionary(Dictionary<string, object> source, string key)
