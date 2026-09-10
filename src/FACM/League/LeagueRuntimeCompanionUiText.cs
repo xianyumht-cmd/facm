@@ -19,6 +19,20 @@ namespace FACM.League
         public const string Unpin = "LeagueRuntimeCompanionUnpin";
         public const string Collapse = "LeagueRuntimeCompanionCollapse";
         public const string Expand = "LeagueRuntimeCompanionExpand";
+        public const string ShowMore = "LeagueRuntimeCompanionShowMore";
+        public const string ShowLess = "LeagueRuntimeCompanionShowLess";
+        public const string WinShort = "LeagueRuntimeCompanionWinShort";
+        public const string PickShort = "LeagueRuntimeCompanionPickShort";
+        public const string BanShort = "LeagueRuntimeCompanionBanShort";
+        public const string RankShort = "LeagueRuntimeCompanionRankShort";
+        public const string ImportItems = "LeagueRuntimeCompanionImportItems";
+        public const string ItemSetPreparing = "LeagueRuntimeCompanionItemSetPreparing";
+        public const string ItemSetUnavailable = "LeagueRuntimeCompanionItemSetUnavailable";
+        public const string ItemSetSucceeded = "LeagueRuntimeCompanionItemSetSucceeded";
+        public const string ItemSetBlocked = "LeagueRuntimeCompanionItemSetBlocked";
+        public const string ItemSetFailed = "LeagueRuntimeCompanionItemSetFailed";
+        public const string ItemSetConfirmTitle = "LeagueRuntimeCompanionItemSetConfirmTitle";
+        public const string ItemSetConfirmFormat = "LeagueRuntimeCompanionItemSetConfirmFormat";
     }
 
     internal static class LeagueRuntimeCompanionText
@@ -37,7 +51,21 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.Pin, "保持置顶" },
             { LeagueRuntimeCompanionUiTextKeys.Unpin, "取消置顶" },
             { LeagueRuntimeCompanionUiTextKeys.Collapse, "收起" },
-            { LeagueRuntimeCompanionUiTextKeys.Expand, "展开" }
+            { LeagueRuntimeCompanionUiTextKeys.Expand, "展开" },
+            { LeagueRuntimeCompanionUiTextKeys.ShowMore, "更多" },
+            { LeagueRuntimeCompanionUiTextKeys.ShowLess, "收起" },
+            { LeagueRuntimeCompanionUiTextKeys.WinShort, "胜" },
+            { LeagueRuntimeCompanionUiTextKeys.PickShort, "登" },
+            { LeagueRuntimeCompanionUiTextKeys.BanShort, "禁" },
+            { LeagueRuntimeCompanionUiTextKeys.RankShort, "排名" },
+            { LeagueRuntimeCompanionUiTextKeys.ImportItems, "导入装备" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetPreparing, "正在准备装备方案" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetUnavailable, "当前没有可导入的装备方案" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetSucceeded, "装备方案已导入" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetBlocked, "选人状态已变化" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetFailed, "装备方案导入失败" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetConfirmTitle, "导入装备方案" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetConfirmFormat, "{0}\n\n将导入 {1} 件推荐装备到英雄联盟推荐装备目录。\n仅写入 FACM 自有方案，是否继续？" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
