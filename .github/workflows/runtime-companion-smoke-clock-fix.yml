@@ -25,42 +25,17 @@ jobs:
 
           path = Path('src/FACM/League/LeagueMatchmakingAutomationSmokeTest.cs')
           text = path.read_text(encoding='utf-8')
-          old = '''        private sealed class FakeClock : ILeagueMatchmakingClock
-        {
-            public int DelayCalls;
-            public readonly List<TimeSpan> Delays = new List<TimeSpan>();
-
-            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref DelayCalls);
-                lock (Delays) Delays.Add(delay);
-                return Task.CompletedTask;
-            }
-        }
-'''
-          new = '''        private sealed class FakeClock : ILeagueMatchmakingClock
-        {
-            public int DelayCalls;
-            public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays =
-                new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
-
-            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref DelayCalls);
-                Delays.Enqueue(delay);
-
-                // The production clock always yields for positive delays. Returning a completed
-                // task here turns the observer retry loop into a synchronous spin and can hang the
-                // host smoke test when a lobby is intentionally below the configured minimum.
-                return Task.Delay(1, cancellationToken);
-            }
-        }
-'''
-          if old not in text:
-              raise SystemExit('FakeClock anchor not found')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+          replacements = [
+              ('public readonly List<TimeSpan> Delays = new List<TimeSpan>();',
+               'public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays = new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();'),
+              ('lock (Delays) Delays.Add(delay);', 'Delays.Enqueue(delay);'),
+              ('return Task.CompletedTask;', 'return Task.Delay(1, cancellationToken);'),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit('unexpected smoke anchor count for: ' + old)
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8', newline='\n')
           PY
 
       - name: Commit smoke fix and remove helper
