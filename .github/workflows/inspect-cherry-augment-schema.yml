@@ -15,7 +15,7 @@ jobs:
       - name: Inspect current CommunityDragon augment schema
         shell: python
         run: |
-          import json, urllib.request
+          import collections, json, urllib.request
           url = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json'
           req = urllib.request.Request(url, headers={
               'User-Agent': 'Mozilla/5.0 FACM-schema-probe/1.0',
@@ -25,12 +25,20 @@ jobs:
               rows = json.load(r)
           print('row_count=', len(rows))
           print('first_keys=', sorted(rows[0].keys()) if rows else [])
-          candidates = ('Tank Engine', 'Goliath', 'Heavy Hitter', 'Transmute: Prismatic', 'Transmute: Gold')
-          for wanted in candidates:
-              wanted_key = wanted.lower().replace(' ', '').replace(':', '')
-              row = next((x for x in rows if str(x.get('name','')).lower() == wanted.lower()), None)
-              if row is None:
-                  row = next((x for x in rows if wanted_key in str(x.get('apiName','')).lower().replace('_','').replace(' ','').replace(':','')), None)
-              if row:
-                  safe = {k: row.get(k) for k in sorted(row.keys()) if k.lower() in {'id','apiname','name','nametra','rarity','grade','tier','augmenttier','rarityname','quality','augmenticonpath','augmentsmalliconpath'}}
-                  print(wanted, json.dumps(safe, ensure_ascii=False, sort_keys=True))
+          counts = collections.Counter(str(row.get('rarity')) for row in rows)
+          print('rarity_counts=', json.dumps(dict(sorted(counts.items())), ensure_ascii=False, sort_keys=True))
+          for rarity in sorted(counts):
+              samples = []
+              for row in rows:
+                  if str(row.get('rarity')) != rarity:
+                      continue
+                  samples.append({
+                      'id': row.get('id'),
+                      'rarity': row.get('rarity'),
+                      'nameTRA': row.get('nameTRA'),
+                      'augmentNameId': row.get('augmentNameId'),
+                      'icon': row.get('augmentSmallIconPath')
+                  })
+                  if len(samples) >= 3:
+                      break
+              print('rarity_samples', rarity, json.dumps(samples, ensure_ascii=False, sort_keys=True))
