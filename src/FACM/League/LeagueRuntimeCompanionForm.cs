@@ -34,6 +34,10 @@ namespace FACM.League
         internal const int BodyContentWidth = 284;
         internal const int AugmentColumnTotalWidth = 268;
         private const int SectionWidth = 284;
+        private const int SectionCaptionWidth = 72;
+        private const int SectionContentX = 78;
+        private const int SectionContentWidth = 206;
+        private const int SectionActionContentWidth = 160;
         private const int RecommendationBaseHeight = 64;
         private const int AlternativeRowHeight = 36;
         private const int AugmentPageSize = 5;
@@ -312,7 +316,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(8, 6, 8, 8)
+                Padding = new Padding(8, 2, 8, 4)
             };
             _sections = new FlowLayoutPanel
             {
@@ -370,7 +374,7 @@ namespace FACM.League
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.AramBaseBalance),
                 Location = new Point(0, 8),
-                Size = new Size(68, 18),
+                Size = new Size(SectionCaptionWidth, 18),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -379,8 +383,8 @@ namespace FACM.League
             _aramBalanceText = new Label
             {
                 Text = string.Empty,
-                Location = new Point(70, 4),
-                Size = new Size(214, 46),
+                Location = new Point(SectionContentX, 4),
+                Size = new Size(SectionContentWidth, 46),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -625,7 +629,13 @@ namespace FACM.League
             var championId = build.ChampionId > 0 ? build.ChampionId : 0;
             if (championId > 0)
             {
-                _championTitle.Text = FirstNonEmpty(build.ChampionName, FormatChampionId(championId));
+                if (!string.IsNullOrWhiteSpace(build.ChampionName))
+                    _championTitle.Text = build.ChampionName;
+                else
+                {
+                    _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionResolving);
+                    _ = ResolveBuildChampionNameAsync(championId, fingerprint);
+                }
                 EnsureLocalChampionIcon(championId);
             }
             else
@@ -1156,6 +1166,20 @@ namespace FACM.League
             _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
         }
 
+        private async Task ResolveBuildChampionNameAsync(int championId, string fingerprint)
+        {
+            try
+            {
+                var name = await _controller.ResolveChampionNameAsync(championId, _lifetime.Token);
+                if (string.IsNullOrWhiteSpace(name) || IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (!string.Equals(_renderedBuildFingerprint, fingerprint, StringComparison.Ordinal)) return;
+                var snapshot = _controller.CurrentSnapshot;
+                if (snapshot == null || snapshot.LocalChampionId != championId) return;
+                _championTitle.Text = name;
+            }
+            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }
+        }
+
         private async Task ResolveGuideChampionNameAsync(int championId)
         {
             try
@@ -1247,7 +1271,7 @@ namespace FACM.League
             {
                 Text = title ?? string.Empty,
                 Location = new Point(0, 9),
-                Size = new Size(82, 20),
+                Size = new Size(SectionCaptionWidth, 20),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -1255,8 +1279,8 @@ namespace FACM.League
             };
             var value = new Label
             {
-                Location = new Point(70, 5),
-                Size = new Size(actionText == null ? 214 : 168, 31),
+                Location = new Point(SectionContentX, 5),
+                Size = new Size(actionText == null ? SectionContentWidth : SectionActionContentWidth, 31),
                 AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
@@ -1264,8 +1288,8 @@ namespace FACM.League
             };
             var visuals = new FlowLayoutPanel
             {
-                Location = new Point(70, 4),
-                Size = new Size(actionText == null ? 214 : 168, 32),
+                Location = new Point(SectionContentX, 4),
+                Size = new Size(actionText == null ? SectionContentWidth : SectionActionContentWidth, 32),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoScroll = false,
@@ -1276,8 +1300,8 @@ namespace FACM.League
             };
             var evidence = new Label
             {
-                Location = new Point(70, 38),
-                Size = new Size(214, 16),
+                Location = new Point(SectionContentX, 38),
+                Size = new Size(SectionContentWidth, 16),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -1294,8 +1318,8 @@ namespace FACM.League
             more.Visible = false;
             var alternatives = new Panel
             {
-                Location = new Point(70, RecommendationBaseHeight - 2),
-                Size = new Size(214, 0),
+                Location = new Point(SectionContentX, RecommendationBaseHeight - 2),
+                Size = new Size(SectionContentWidth, 0),
                 BackColor = FacmDesignSystem.Canvas,
                 Visible = false
             };
@@ -1419,14 +1443,14 @@ namespace FACM.League
                 var divider = new Panel
                 {
                     Location = new Point(0, y),
-                    Size = new Size(214, 1),
+                    Size = new Size(SectionContentWidth, 1),
                     BackColor = FacmDesignSystem.BorderSoft
                 };
                 var value = new Label
                 {
                     Text = row.Recommendation ?? string.Empty,
                     Location = new Point(0, y + 3),
-                    Size = new Size(214, 17),
+                    Size = new Size(SectionContentWidth, 17),
                     AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
@@ -1436,7 +1460,7 @@ namespace FACM.League
                 {
                     Text = row.Evidence ?? string.Empty,
                     Location = new Point(0, y + 19),
-                    Size = new Size(214, 15),
+                    Size = new Size(SectionContentWidth, 15),
                     AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.TextMuted,
                     BackColor = Color.Transparent,
@@ -2247,6 +2271,12 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion augment rarity mapping regressed.");
             if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
+            if (SectionCaptionWidth >= SectionContentX || SectionContentX + SectionContentWidth != SectionWidth)
+                throw new InvalidOperationException("Runtime Companion caption/content columns overlap or leave the compact body width.");
+            var mayhemFirstViewport = MaximumExpandedHeight - HeaderHeight - ContextHeight - BenchHeight;
+            var mayhemFirstStack = (5 * RecommendationBaseHeight) + 58 + 6; // five Mayhem build rows + ARAM row + body vertical padding
+            if (mayhemFirstStack > mayhemFirstViewport)
+                throw new InvalidOperationException("Runtime Companion Mayhem first viewport clips the ARAM balance row.");
             if (GuideTokenSize * 5 + GuideTokenGap * 4 > 214)
                 throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");
 

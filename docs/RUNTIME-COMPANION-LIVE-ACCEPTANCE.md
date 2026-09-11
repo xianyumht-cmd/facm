@@ -33,6 +33,8 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - Drag, pin/unpin and collapse/expand, restart FACM and verify persisted state.
 - Test 100%, 125%, 150% and a secondary monitor if available; the window must remain on-screen and unclipped.
 - Verify compactness does not hide the Mayhem build modules behind an unsupported Build Advisor shell, and that the champion title resolves to a real champion name instead of a raw internal `#ID` token.
+- At the 320 px baseline, verify left-side section captions never overlap the first character/icon of recommendation content in Ranked or Mayhem.
+- With Mayhem Bench visible at the 560 px height cap, the first viewport must show the five mode-specific build rows and the complete ARAM balance row without the bottom edge slicing through that row; deeper augment content remains wheel-scrollable.
 
 ## Closeout rule
 
