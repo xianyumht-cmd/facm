@@ -17,14 +17,20 @@ jobs:
         run: |
           import json, urllib.request
           url = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json'
-          with urllib.request.urlopen(url, timeout=20) as r:
+          req = urllib.request.Request(url, headers={
+              'User-Agent': 'Mozilla/5.0 FACM-schema-probe/1.0',
+              'Accept': 'application/json,text/plain,*/*'
+          })
+          with urllib.request.urlopen(req, timeout=20) as r:
               rows = json.load(r)
           print('row_count=', len(rows))
           print('first_keys=', sorted(rows[0].keys()) if rows else [])
-          for wanted in ('Tank Engine', 'Goliath', 'Heavy Hitter', 'Transmute: Prismatic', 'Transmute: Gold'):
+          candidates = ('Tank Engine', 'Goliath', 'Heavy Hitter', 'Transmute: Prismatic', 'Transmute: Gold')
+          for wanted in candidates:
+              wanted_key = wanted.lower().replace(' ', '').replace(':', '')
               row = next((x for x in rows if str(x.get('name','')).lower() == wanted.lower()), None)
               if row is None:
-                  row = next((x for x in rows if wanted.lower().replace(' ','') in str(x.get('apiName','')).lower().replace('_','').replace(' ','') ), None)
+                  row = next((x for x in rows if wanted_key in str(x.get('apiName','')).lower().replace('_','').replace(' ','').replace(':','')), None)
               if row:
                   safe = {k: row.get(k) for k in sorted(row.keys()) if k.lower() in {'id','apiname','name','nametra','rarity','grade','tier','augmenttier','rarityname','quality','augmenticonpath','augmentsmalliconpath'}}
                   print(wanted, json.dumps(safe, ensure_ascii=False, sort_keys=True))
