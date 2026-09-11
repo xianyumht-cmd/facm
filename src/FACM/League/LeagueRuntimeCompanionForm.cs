@@ -52,6 +52,7 @@ namespace FACM.League
         private readonly Panel _header;
         private readonly Label _title;
         private readonly Label _status;
+        private readonly Button _quitButton;
         private readonly Button _pinButton;
         private readonly Button _collapseButton;
         private readonly Panel _context;
@@ -175,13 +176,17 @@ namespace FACM.League
             _status = new Label
             {
                 Text = char.ConvertFromUtf32(0x25CF),
-                Location = new Point(188, 0),
-                Size = new Size(20, HeaderHeight),
+                Location = new Point(158, 0),
+                Size = new Size(18, HeaderHeight),
                 TextAlign = ContentAlignment.MiddleCenter,
                 AutoEllipsis = false,
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted
             };
+            _quitButton = CreateChromeButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectShort), 180, 32);
+            _quitButton.ForeColor = FacmDesignSystem.Warning;
+            _quitButton.Enabled = false;
+            _quitButton.Click += async delegate { await QuitChampSelectAsync(); };
             _pinButton = CreateChromeButton("↑", 216, 30);
             _pinButton.ForeColor = FacmDesignSystem.Accent;
             _pinButton.Click += delegate { TogglePin(); };
@@ -193,6 +198,7 @@ namespace FACM.League
 
             _header.Controls.Add(_title);
             _header.Controls.Add(_status);
+            _header.Controls.Add(_quitButton);
             _header.Controls.Add(_pinButton);
             _header.Controls.Add(_collapseButton);
             _header.Controls.Add(close);
@@ -432,6 +438,7 @@ namespace FACM.League
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
             _toolTip.SetToolTip(_status, CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting));
+            _toolTip.SetToolTip(_quitButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip));
             _toolTip.SetToolTip(_augmentPrevButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.PreviousPage));
             _toolTip.SetToolTip(_augmentNextButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.NextPage));
             _toolTip.SetToolTip(_pinButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Unpin));
@@ -725,6 +732,52 @@ namespace FACM.League
             }
         }
 
+        private async Task QuitChampSelectAsync()
+        {
+            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit) return;
+            _actionBusy = true;
+            SetActionButtonsEnabled(false);
+            _contextStatus.ForeColor = FacmDesignSystem.Warning;
+            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBusy);
+            SetStatus(_contextStatus.Text, FacmDesignSystem.Warning);
+            try
+            {
+                var result = await _controller.QuitChampSelectAsync(_lifetime.Token);
+                if (result != null && result.Success)
+                {
+                    _contextStatus.ForeColor = FacmDesignSystem.Success;
+                    _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded);
+                    SetStatus(_contextStatus.Text, FacmDesignSystem.Success);
+                    AppLog.Info("Runtime Companion quit Champion Select: success; phase=" + (result.PhaseAfter ?? "-") + "; lobbyPreserved=" + result.LobbyPreserved.ToString().ToLowerInvariant());
+                    Close();
+                    return;
+                }
+
+                var blocked = result != null && result.Status == LeagueChampSelectQuitStatus.NotInChampSelect;
+                _contextStatus.ForeColor = blocked ? FacmDesignSystem.Warning : FacmDesignSystem.Error;
+                _contextStatus.Text = CompanionText(blocked
+                    ? LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked
+                    : LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed);
+                SetStatus(_contextStatus.Text, _contextStatus.ForeColor);
+                AppLog.Info("Runtime Companion quit Champion Select: " + (result == null ? "no-result" : result.Status.ToString()) +
+                            "; http=" + (result == null ? "0" : result.StatusCode.ToString(CultureInfo.InvariantCulture)) +
+                            "; lobbyPreserved=" + (result != null && result.LobbyPreserved).ToString().ToLowerInvariant());
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                _contextStatus.ForeColor = FacmDesignSystem.Error;
+                _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed);
+                SetStatus(_contextStatus.Text, FacmDesignSystem.Error);
+                AppLog.Info("Runtime Companion quit Champion Select failed: " + exception.Message);
+            }
+            finally
+            {
+                _actionBusy = false;
+                if (!IsDisposed) SetActionButtonsEnabled(true);
+            }
+        }
+
         private async Task ImportItemSetAsync()
         {
             if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsItemSetApply) return;
@@ -856,6 +909,8 @@ namespace FACM.League
 
         private void SetActionButtonsEnabled(bool enabled)
         {
+            if (_quitButton != null)
+                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.SessionAvailable;
             if (_runes.Action != null)
                 _runes.Action.Enabled = enabled && _controller.SupportsBuildApply && _runes.Host.Visible;
             if (_spells.Action != null)

@@ -148,3 +148,17 @@ This is the preferred pattern for future lightweight parity work: first reuse an
 - ordinary ARAM waits for its matching Build Advisor version before the balance request so the base-balance parser can retain patch-mismatch semantics.
 
 This prevents a UI similarity feature from changing data truth: normal ARAM must never show Mayhem augments merely because both modes have a Bench.
+
+## D-019 — Quit Champion Select without closing the lobby
+
+**Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of FACM's process-killing `close-lobby` action.
+
+- use only the League Client team-builder quit route `POST /lol-lobby-team-builder/champ-select/v1/session/quit`;
+- never call `DELETE /lol-lobby/v2/lobby` and never kill `LeagueClient`, `LeagueClientUx`, or `LeagueClientUxRender` for this workflow;
+- require a live ChampSelect preflight;
+- send one POST per explicit click, without automatic retry;
+- verify that Gameflow leaves ChampSelect and the lobby remains readable before reporting success;
+- keep the action behind a dedicated write interface sharing the existing League session, not the generic build writer;
+- leave League's own dodge/queue penalty semantics untouched and communicate that in the UI tooltip.
+
+This provides the Akari-style convenience the user asked for without weakening FACM's write-target fences or lightweight single-session architecture.

@@ -14,7 +14,7 @@ Work from the canonical 3.5.x lightweight product: WinForms, .NET Framework 4.8,
 
 Preserve all existing ownership boundaries. The Runtime Companion consumes the existing shared League Gameflow state. It must not create a second Gameflow poller or League session. UI code must not invent new direct LCU writes. Inline actions may call an existing FACM write owner only after its existing confirmation/context/postcondition contract is preserved. A recommendation without an existing safe write owner is display-only.
 
-Akari is an interaction-density and window-behavior reference only. FACM owns the visual language and architecture. External GitHub UI/UX agents or skills are advisory review standards only; they are not runtime dependencies and web/CSS implementation guidance does not override WinForms constraints.
+Akari is an interaction-density, window-behavior, and appropriate feature-workflow reference. FACM owns the visual language and architecture; Akari parity is adopted only when the capability fits FACM lightweight ownership and can be implemented safely. External GitHub UI/UX agents or skills are advisory review standards only; they are not runtime dependencies and web/CSS implementation guidance does not override WinForms constraints.
 
 Use `github/awesome-copilot` `gem-designer` as the anti-template review standard and its UI/UX design guidance for hierarchy, state coverage, accessibility, and disciplined spacing. In particular, reject generic AI defaults: interchangeable SaaS card grids, wrappers without semantic purpose, pill clusters, purple/blue dual-accent styling, gratuitous gradients or glassmorphism, excessive rounding, ornamental icons, filler copy, and motion without hierarchy or feedback value.
 
@@ -186,6 +186,10 @@ Runtime Companion UI must not call raw LCU write methods because it wants an Aka
 Known example: `LeagueBuildApplyService` already owns rune/summoner-spell apply planning, phase/champion/queue revalidation, writes, and settled postcondition verification. A future inline action must route through that owner rather than reimplementing writes in the Form.
 
 Other actions must be audited one by one. No existing safe owner means display-only until a separately justified owner is added in the proper module/service layer.
+
+## Explicit quit-current-Champion-Select action
+
+Akari-style workflow parity includes an explicit one-click action that leaves the current Champion Select episode while preserving the existing lobby/party. FACM implements this through a dedicated single-route owner for `POST /lol-lobby-team-builder/champ-select/v1/session/quit`; the Runtime Companion Form never owns the endpoint. The transaction preflights ChampSelect, sends exactly one POST, then verifies that Gameflow left ChampSelect and `/lol-lobby/v2/lobby` still exists. It must never fall back to killing LeagueClient processes or deleting the lobby. The button remains disabled outside a live ChampSelect session and its tooltip makes clear that League's own dodge penalties can still apply.
 
 ## Performance rules
 

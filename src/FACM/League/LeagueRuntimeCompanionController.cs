@@ -44,6 +44,7 @@ namespace FACM.League
         private readonly LeagueBuildAdvisorDataService _advisor;
         private readonly LeagueBuildApplyService _apply;
         private readonly LeagueItemSetService _itemSet;
+        private readonly LeagueChampSelectQuitService _quitService;
         private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly SemaphoreSlim _refreshGate = new SemaphoreSlim(1, 1);
@@ -73,6 +74,8 @@ namespace FACM.League
             _advisor = advisor;
             _apply = apply;
             _itemSet = itemSet;
+            var quitWriter = leagueClient as ILeagueChampSelectQuitWriteApi;
+            _quitService = quitWriter == null ? null : new LeagueChampSelectQuitService(_leagueClient, quitWriter);
             _guide = new MayhemAutomaticGuideService(_leagueClient);
         }
 
@@ -86,6 +89,11 @@ namespace FACM.League
         public bool SupportsItemSetApply
         {
             get { return _itemSet != null && _advisor != null && !_disposed; }
+        }
+
+        public bool SupportsChampSelectQuit
+        {
+            get { return _quitService != null && !_disposed; }
         }
 
         public LeagueRuntimeCompanionSnapshot CurrentSnapshot
@@ -263,6 +271,14 @@ namespace FACM.League
             // LeagueItemSetService rechecks live phase/champion/queue before the first disk write,
             // writes only FACM-owned recommendation files and verifies the committed JSON.
             return _itemSet.ApplyAsync(plan, cancellationToken);
+        }
+
+        public Task<LeagueChampSelectQuitResult> QuitChampSelectAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_quitService == null)
+                throw new InvalidOperationException("Runtime Companion Champion Select quit owner is unavailable.");
+            return _quitService.QuitAsync(cancellationToken);
         }
 
         internal static void TrimPlanForTarget(
@@ -554,6 +570,10 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
+            if (!LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeagueChampSelectQuitWriteApiClient.QuitPath) ||
+                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", "/lol-lobby/v2/lobby") ||
+                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-lobby/v2/lobby"))
+                throw new InvalidOperationException("Runtime Companion Champion Select quit writer escaped its single-route fence.");
             if (BuildRefreshInterval < TimeSpan.FromSeconds(2))
                 throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");
             if (LeagueRuntimeCompanionModePolicy.Resolve(true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)

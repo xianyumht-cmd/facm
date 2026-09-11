@@ -32,6 +32,12 @@ namespace FACM.League
         public const string PreviousPage = "LeagueRuntimeCompanionPreviousPage";
         public const string NextPage = "LeagueRuntimeCompanionNextPage";
         public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";
+        public const string QuitChampSelectShort = "LeagueRuntimeCompanionQuitChampSelectShort";
+        public const string QuitChampSelectTooltip = "LeagueRuntimeCompanionQuitChampSelectTooltip";
+        public const string QuitChampSelectBusy = "LeagueRuntimeCompanionQuitChampSelectBusy";
+        public const string QuitChampSelectSucceeded = "LeagueRuntimeCompanionQuitChampSelectSucceeded";
+        public const string QuitChampSelectBlocked = "LeagueRuntimeCompanionQuitChampSelectBlocked";
+        public const string QuitChampSelectFailed = "LeagueRuntimeCompanionQuitChampSelectFailed";
         public const string ItemSetPreparing = "LeagueRuntimeCompanionItemSetPreparing";
         public const string ItemSetUnavailable = "LeagueRuntimeCompanionItemSetUnavailable";
         public const string ItemSetSucceeded = "LeagueRuntimeCompanionItemSetSucceeded";
@@ -71,6 +77,12 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.PreviousPage, "上一页" },
             { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectShort, "退" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip, "退出当前选人，保留大厅/队伍；游戏自身的秒退处罚仍可能生效" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBusy, "正在退出当前选人" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded, "已退出选人并保留大厅" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked, "当前不在可退出的选人阶段" },
+            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed, "退出选人未确认成功" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetPreparing, "正在准备装备方案" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetUnavailable, "当前没有可导入的装备方案" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetSucceeded, "装备方案已导入" },
