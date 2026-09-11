@@ -1,0 +1,192 @@
+name: Runtime Companion Quit ChampSelect Integration
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Wire guarded quit owner into Runtime Companion
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8', newline='\n')
+
+          def once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit('missing anchor: ' + label)
+              return text.replace(old, new, 1)
+
+          # LeagueClientModule owns the single shared authenticated writer instance.
+          path = 'src/FACM/Application/Modules/LeagueClientModule.cs'
+          text = read(path)
+          text = once(text,
+              'ILeagueBenchSwapWriteApi, ILeaguePresenceWriteApi, ILeagueClientUxRepairWriteApi',
+              'ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueClientUxRepairWriteApi',
+              'client module interface')
+          text = once(text,
+              '        private LeagueBenchSwapWriteApiClient _benchSwapWriter;\n',
+              '        private LeagueBenchSwapWriteApiClient _benchSwapWriter;\n        private LeagueChampSelectQuitWriteApiClient _champSelectQuitWriter;\n',
+              'client module quit field')
+          text = once(text,
+              '            _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);\n',
+              '            _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);\n            _champSelectQuitWriter = new LeagueChampSelectQuitWriteApiClient(_sessions);\n',
+              'client module init')
+          marker = '''        Task<LeagueClientWriteResponse> ILeaguePresenceWriteApi.TrySetPresenceAsync(string json, CancellationToken cancellationToken)\n'''
+          addition = '''        Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryQuitAsync(CancellationToken cancellationToken)\n        {\n            var writer = _champSelectQuitWriter;\n            return writer == null\n                ? Task.FromResult<LeagueClientWriteResponse>(null)\n                : writer.TryQuitAsync(cancellationToken);\n        }\n\n'''
+          text = once(text, marker, addition + marker, 'client module quit bridge')
+          text = once(text,
+              '            var benchSwapWriter = _benchSwapWriter;\n',
+              '            var benchSwapWriter = _benchSwapWriter;\n            var champSelectQuitWriter = _champSelectQuitWriter;\n',
+              'client module dispose local')
+          text = once(text,
+              '            _benchSwapWriter = null;\n',
+              '            _benchSwapWriter = null;\n            _champSelectQuitWriter = null;\n',
+              'client module dispose clear')
+          text = once(text,
+              '            if (benchSwapWriter != null) benchSwapWriter.Dispose();\n',
+              '            if (benchSwapWriter != null) benchSwapWriter.Dispose();\n            if (champSelectQuitWriter != null) champSelectQuitWriter.Dispose();\n',
+              'client module dispose writer')
+          write(path, text)
+
+          # Controller keeps the Form transport-free and owns the explicit transaction service.
+          path = 'src/FACM/League/LeagueRuntimeCompanionController.cs'
+          text = read(path)
+          text = once(text,
+              '        private readonly LeagueItemSetService _itemSet;\n',
+              '        private readonly LeagueItemSetService _itemSet;\n        private readonly LeagueChampSelectQuitService _quitService;\n',
+              'controller quit field')
+          text = once(text,
+              '''            _itemSet = itemSet;\n            _guide = new MayhemAutomaticGuideService(_leagueClient);\n''',
+              '''            _itemSet = itemSet;\n            var quitWriter = leagueClient as ILeagueChampSelectQuitWriteApi;\n            _quitService = quitWriter == null ? null : new LeagueChampSelectQuitService(_leagueClient, quitWriter);\n            _guide = new MayhemAutomaticGuideService(_leagueClient);\n''',
+              'controller quit owner init')
+          marker = '''        public bool SupportsItemSetApply\n        {\n            get { return _itemSet != null && _advisor != null && !_disposed; }\n        }\n\n'''
+          addition = marker + '''        public bool SupportsChampSelectQuit\n        {\n            get { return _quitService != null && !_disposed; }\n        }\n\n'''
+          text = once(text, marker, addition, 'controller quit capability')
+          marker = '''        internal static void TrimPlanForTarget(\n'''
+          addition = '''        public Task<LeagueChampSelectQuitResult> QuitChampSelectAsync(CancellationToken cancellationToken)\n        {\n            ThrowIfDisposed();\n            if (_quitService == null)\n                throw new InvalidOperationException("Runtime Companion Champion Select quit owner is unavailable.");\n            return _quitService.QuitAsync(cancellationToken);\n        }\n\n'''
+          text = once(text, marker, addition + marker, 'controller quit action')
+          text = once(text,
+              '''        internal static void ValidateForSmokeTest()\n        {\n            if (BuildRefreshInterval < TimeSpan.FromSeconds(2))\n''',
+              '''        internal static void ValidateForSmokeTest()\n        {\n            if (!LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeagueChampSelectQuitWriteApiClient.QuitPath) ||\n                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", "/lol-lobby/v2/lobby") ||\n                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-lobby/v2/lobby"))\n                throw new InvalidOperationException("Runtime Companion Champion Select quit writer escaped its single-route fence.");\n            if (BuildRefreshInterval < TimeSpan.FromSeconds(2))\n''',
+              'controller quit smoke')
+          write(path, text)
+
+          # Localized compact action copy.
+          path = 'src/FACM/League/LeagueRuntimeCompanionUiText.cs'
+          text = read(path)
+          text = once(text,
+              '        public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";\n',
+              '        public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";\n'
+              '        public const string QuitChampSelectShort = "LeagueRuntimeCompanionQuitChampSelectShort";\n'
+              '        public const string QuitChampSelectTooltip = "LeagueRuntimeCompanionQuitChampSelectTooltip";\n'
+              '        public const string QuitChampSelectBusy = "LeagueRuntimeCompanionQuitChampSelectBusy";\n'
+              '        public const string QuitChampSelectSucceeded = "LeagueRuntimeCompanionQuitChampSelectSucceeded";\n'
+              '        public const string QuitChampSelectBlocked = "LeagueRuntimeCompanionQuitChampSelectBlocked";\n'
+              '        public const string QuitChampSelectFailed = "LeagueRuntimeCompanionQuitChampSelectFailed";\n',
+              'quit text keys')
+          text = once(text,
+              '            { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },\n',
+              '            { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectShort, "退" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip, "退出当前选人，保留大厅/队伍；游戏自身的秒退处罚仍可能生效" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBusy, "正在退出当前选人" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded, "已退出选人并保留大厅" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked, "当前不在可退出的选人阶段" },\n'
+              '            { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed, "退出选人未确认成功" },\n',
+              'quit text defaults')
+          write(path, text)
+
+          # Compact header action. The Form still owns no raw endpoint or write interface.
+          path = 'src/FACM/League/LeagueRuntimeCompanionForm.cs'
+          text = read(path)
+          text = once(text,
+              '        private readonly Label _status;\n        private readonly Button _pinButton;\n',
+              '        private readonly Label _status;\n        private readonly Button _quitButton;\n        private readonly Button _pinButton;\n',
+              'form quit field')
+          text = once(text,
+              '''                Location = new Point(188, 0),\n                Size = new Size(20, HeaderHeight),\n''',
+              '''                Location = new Point(158, 0),\n                Size = new Size(18, HeaderHeight),\n''',
+              'form status geometry')
+          text = once(text,
+              '''            _pinButton = CreateChromeButton("↑", 216, 30);\n''',
+              '''            _quitButton = CreateChromeButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectShort), 180, 32);\n            _quitButton.ForeColor = FacmDesignSystem.Warning;\n            _quitButton.Enabled = false;\n            _quitButton.Click += async delegate { await QuitChampSelectAsync(); };\n            _pinButton = CreateChromeButton("↑", 216, 30);\n''',
+              'form quit button')
+          text = once(text,
+              '''            _header.Controls.Add(_status);\n            _header.Controls.Add(_pinButton);\n''',
+              '''            _header.Controls.Add(_status);\n            _header.Controls.Add(_quitButton);\n            _header.Controls.Add(_pinButton);\n''',
+              'form add quit control')
+          text = once(text,
+              '''            _toolTip.SetToolTip(_status, CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting));\n''',
+              '''            _toolTip.SetToolTip(_status, CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting));\n            _toolTip.SetToolTip(_quitButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip));\n''',
+              'form quit tooltip')
+          text = once(text,
+              '''        private async Task ImportItemSetAsync()\n''',
+              '''        private async Task QuitChampSelectAsync()\n        {\n            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit) return;\n            _actionBusy = true;\n            SetActionButtonsEnabled(false);\n            _contextStatus.ForeColor = FacmDesignSystem.Warning;\n            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBusy);\n            SetStatus(_contextStatus.Text, FacmDesignSystem.Warning);\n            try\n            {\n                var result = await _controller.QuitChampSelectAsync(_lifetime.Token);\n                if (result != null && result.Success)\n                {\n                    _contextStatus.ForeColor = FacmDesignSystem.Success;\n                    _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded);\n                    SetStatus(_contextStatus.Text, FacmDesignSystem.Success);\n                    AppLog.Info("Runtime Companion quit Champion Select: success; phase=" + (result.PhaseAfter ?? "-") + "; lobbyPreserved=" + result.LobbyPreserved.ToString().ToLowerInvariant());\n                    Close();\n                    return;\n                }\n\n                var blocked = result != null && result.Status == LeagueChampSelectQuitStatus.NotInChampSelect;\n                _contextStatus.ForeColor = blocked ? FacmDesignSystem.Warning : FacmDesignSystem.Error;\n                _contextStatus.Text = CompanionText(blocked\n                    ? LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked\n                    : LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed);\n                SetStatus(_contextStatus.Text, _contextStatus.ForeColor);\n                AppLog.Info("Runtime Companion quit Champion Select: " + (result == null ? "no-result" : result.Status.ToString()) +\n                            "; http=" + (result == null ? "0" : result.StatusCode.ToString(CultureInfo.InvariantCulture)) +\n                            "; lobbyPreserved=" + (result != null && result.LobbyPreserved).ToString().ToLowerInvariant());\n            }\n            catch (OperationCanceledException) { }\n            catch (Exception exception)\n            {\n                _contextStatus.ForeColor = FacmDesignSystem.Error;\n                _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed);\n                SetStatus(_contextStatus.Text, FacmDesignSystem.Error);\n                AppLog.Info("Runtime Companion quit Champion Select failed: " + exception.Message);\n            }\n            finally\n            {\n                _actionBusy = false;\n                if (!IsDisposed) SetActionButtonsEnabled(true);\n            }\n        }\n\n        private async Task ImportItemSetAsync()\n''',
+              'form quit transaction')
+          text = once(text,
+              '''        private void SetActionButtonsEnabled(bool enabled)\n        {\n            if (_runes.Action != null)\n''',
+              '''        private void SetActionButtonsEnabled(bool enabled)\n        {\n            if (_quitButton != null)\n                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.SessionAvailable;\n            if (_runes.Action != null)\n''',
+              'form quit enabled state')
+          write(path, text)
+
+          # Durable design correction: Akari is also a functional reference where the capability is safe/lightweight.
+          path = 'docs/RUNTIME-COMPANION-DESIGN.md'
+          text = read(path)
+          text = once(text,
+              'Akari is an interaction-density and window-behavior reference only. FACM owns the visual language and architecture.',
+              'Akari is an interaction-density, window-behavior, and appropriate feature-workflow reference. FACM owns the visual language and architecture; Akari parity is adopted only when the capability fits FACM lightweight ownership and can be implemented safely.',
+              'design Akari scope correction')
+          marker = '## Performance rules\n'
+          addition = '''## Explicit quit-current-Champion-Select action\n\nAkari-style workflow parity includes an explicit one-click action that leaves the current Champion Select episode while preserving the existing lobby/party. FACM implements this through a dedicated single-route owner for `POST /lol-lobby-team-builder/champ-select/v1/session/quit`; the Runtime Companion Form never owns the endpoint. The transaction preflights ChampSelect, sends exactly one POST, then verifies that Gameflow left ChampSelect and `/lol-lobby/v2/lobby` still exists. It must never fall back to killing LeagueClient processes or deleting the lobby. The button remains disabled outside a live ChampSelect session and its tooltip makes clear that League's own dodge penalties can still apply.\n\n'''
+          text = once(text, marker, addition + marker, 'design quit action')
+          write(path, text)
+
+          # Architecture boundary.
+          path = 'docs/ARCHITECTURE.md'
+          text = read(path)
+          marker = '- core-build import reuses `LeagueItemSetService`; preparation is read-only, the user confirms explicitly, live context is revalidated before the first filesystem write, only FACM-owned recommendation files are changed, and the committed JSON is verified. Categories without a deliberately wired safe owner remain display-only.\n'
+          addition = marker + '- explicit quit-current-Champion-Select uses `LeagueChampSelectQuitService` plus a dedicated `ILeagueChampSelectQuitWriteApi`. The writer can issue only `POST /lol-lobby-team-builder/champ-select/v1/session/quit`; it cannot delete/close the lobby. The service preflights ChampSelect and verifies both phase exit and surviving `/lol-lobby/v2/lobby` state before reporting success.\n'
+          text = once(text, marker, addition, 'architecture quit owner')
+          write(path, text)
+
+          # Product decision.
+          path = 'docs/DECISIONS.md'
+          text = read(path)
+          if '## D-019 — Quit Champion Select without closing the lobby' not in text:
+              text += '''\n## D-019 — Quit Champion Select without closing the lobby\n\n**Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of FACM's process-killing `close-lobby` action.\n\n- use only the League Client team-builder quit route `POST /lol-lobby-team-builder/champ-select/v1/session/quit`;\n- never call `DELETE /lol-lobby/v2/lobby` and never kill `LeagueClient`, `LeagueClientUx`, or `LeagueClientUxRender` for this workflow;\n- require a live ChampSelect preflight;\n- send one POST per explicit click, without automatic retry;\n- verify that Gameflow leaves ChampSelect and the lobby remains readable before reporting success;\n- keep the action behind a dedicated write interface sharing the existing League session, not the generic build writer;\n- leave League's own dodge/queue penalty semantics untouched and communicate that in the UI tooltip.\n\nThis provides the Akari-style convenience the user asked for without weakening FACM's write-target fences or lightweight single-session architecture.\n'''
+          write(path, text)
+          PY
+
+      - name: Commit integration and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-quit-champselect.yml
+          git add src/FACM/Application/Modules/LeagueClientModule.cs \
+                  src/FACM/League/LeagueRuntimeCompanionController.cs \
+                  src/FACM/League/LeagueRuntimeCompanionForm.cs \
+                  src/FACM/League/LeagueRuntimeCompanionUiText.cs \
+                  docs/RUNTIME-COMPANION-DESIGN.md \
+                  docs/ARCHITECTURE.md \
+                  docs/DECISIONS.md
+          git commit -m "Add guarded one-click Champion Select quit"
+          git push origin HEAD:feat/runtime-companion-20260910
