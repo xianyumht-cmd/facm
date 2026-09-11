@@ -43,6 +43,8 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - The Ranked/Summoner's Rift clipping was traced to a 12 px caption/content column overlap in the compact recommendation rows.
 - The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible.
 - The same correction pass also removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
+- Review candidate head `838c83c5476419604043216f3decc96094ce6083` passed UI Text Contract #903, Mayhem Source Probe #566 and Windows Build #1795.
+- Windows Build #1795 produced FACM 3.5.38, 2,067,352 bytes, SHA-256 `E10FD41373ADB914CCBEC7F1F2C3E2147D6474B9E6AC3E6EF30D19DBA73FFA92`.
 
 ## Closeout rule
 
