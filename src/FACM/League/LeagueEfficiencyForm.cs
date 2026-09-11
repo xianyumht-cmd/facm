@@ -132,9 +132,9 @@ namespace FACM.League
             _autoAccept = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
-            _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, "人");
-            _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, "秒");
-            _acceptDelaySeconds = AddNumberRow(root, 14, T(LeagueEfficiencyUiTextKeys.AcceptDelay), T(LeagueEfficiencyUiTextKeys.AcceptDelayHint), 0m, 15m, 0.5m, _module.AutoAcceptDelayMs / 1000m, "秒");
+            _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, string.Empty);
+            _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, string.Empty);
+            _acceptDelaySeconds = AddNumberRow(root, 14, T(LeagueEfficiencyUiTextKeys.AcceptDelay), T(LeagueEfficiencyUiTextKeys.AcceptDelayHint), 0m, 15m, 0.5m, _module.AutoAcceptDelayMs / 1000m, string.Empty);
             _minPartySize.ValueChanged += MatchmakingSettingChanged;
             _matchmakingDelaySeconds.ValueChanged += MatchmakingSettingChanged;
             _acceptDelaySeconds.ValueChanged += MatchmakingSettingChanged;
