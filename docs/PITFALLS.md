@@ -28,6 +28,10 @@ Akari-style auto-match/auto-accept delays belong inside the existing phase-bound
 
 The default remains zero delay. User values are clamped in shared `AppSettings` (minimum party 1-5, matchmaking wait 0-60 seconds, accept wait 0-15 seconds), and changing them reuses the same episode fences so a settings toggle cannot duplicate an ambiguous write.
 
+## Keep compact numeric-unit copy localized
+
+Small automation controls still participate in the UI text contract. Do not hard-code unit suffixes such as Chinese `人` / `秒` in a Form merely because they are one character. Put the complete localized label in the feature text catalog (for example `自动排队最低人数（人）` or `接受对局延迟（秒）`) so custom language catalogs and the UI copy gate stay authoritative.
+
 ## Do not add arbitrary first-action sleeps
 
 Lobby/ReadyCheck previously felt slower because of fixed initial delays. If an endpoint may lag behind Gameflow, use the phase-bounded observer/retry path rather than sleeping before every first attempt. The optional Akari-style delays are explicit user policy; they must not become hidden mandatory latency.
