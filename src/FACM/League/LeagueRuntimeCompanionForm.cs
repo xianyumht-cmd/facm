@@ -38,6 +38,8 @@ namespace FACM.League
         private const int AlternativeRowHeight = 36;
         private const int AugmentPageSize = 5;
         private const int AugmentRowHeight = 36;
+        private const int GuideTokenSize = 28;
+        private const int GuideTokenGap = 4;
         private const int BenchPageSize = 4;
         private const int SbHorz = 0;
         private const int SbVert = 1;
@@ -101,6 +103,8 @@ namespace FACM.League
         private Point _dragWindow;
         private IReadOnlyList<MayhemAugmentRow> _augmentSource = Array.Empty<MayhemAugmentRow>();
         private readonly List<Image> _ownedAugmentIcons = new List<Image>();
+        private readonly List<Image> _ownedGuideSectionIcons = new List<Image>();
+        private int _guideSectionRenderGeneration;
         private int _augmentPage;
         private int _augmentRenderGeneration;
         private string _augmentFilter = "all";
@@ -119,6 +123,7 @@ namespace FACM.League
             public string Category { get; set; }
             public Panel Host { get; set; }
             public Label Value { get; set; }
+            public FlowLayoutPanel Visuals { get; set; }
             public Label Evidence { get; set; }
             public Button Action { get; set; }
             public Button More { get; set; }
@@ -941,6 +946,7 @@ namespace FACM.League
         private void RenderGuideFallbackAndAugments(MayhemChampionResult result, bool hasBuildContext)
         {
             if (result == null) return;
+            ResetGuideSectionIcons();
             RenderAramBaseBalance(result);
             if (!hasBuildContext)
             {
@@ -957,11 +963,11 @@ namespace FACM.League
                 _championStats.Text = BuildMayhemStats(result);
                 _contextStatus.ForeColor = FacmDesignSystem.Success;
                 _contextStatus.Text = MayhemUiCopy.Completed;
-                ApplyFallbackValue(_spells, BuildSpellText(result));
-                ApplyFallbackValue(_skills, BuildSkillText(result));
-                ApplyFallbackValue(_starter, BuildMayhemItemListText(result.StarterItems, 3));
-                ApplyFallbackValue(_boots, BuildMayhemItemListText(result.BootItems, 2));
-                ApplyFallbackValue(_core, BuildMayhemCoreText(result));
+                ApplyGuideFallbackIcons(_spells, result.SummonerSpells, BuildSpellText(result), 2);
+                ApplyGuideFallbackSkills(_skills, result.SkillPriority, BuildSkillText(result));
+                ApplyGuideFallbackIcons(_starter, result.StarterItems, BuildMayhemItemListText(result.StarterItems, 3), 3);
+                ApplyGuideFallbackIcons(_boots, result.BootItems, BuildMayhemItemListText(result.BootItems, 2), 2);
+                ApplyGuideFallbackIcons(_core, FirstMayhemCoreItems(result), BuildMayhemCoreText(result), 5);
                 if (_renderedChampionIconId <= 0 && !string.IsNullOrWhiteSpace(result.ChampionIconUrl))
                     _ = LoadGuideChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
             }
@@ -1256,6 +1262,18 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 8.8F)
             };
+            var visuals = new FlowLayoutPanel
+            {
+                Location = new Point(70, 4),
+                Size = new Size(actionText == null ? 214 : 168, 32),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = false,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
             var evidence = new Label
             {
                 Location = new Point(70, 38),
@@ -1293,6 +1311,7 @@ namespace FACM.League
                 Category = category,
                 Host = host,
                 Value = value,
+                Visuals = visuals,
                 Evidence = evidence,
                 Action = action,
                 More = more,
@@ -1303,6 +1322,7 @@ namespace FACM.League
 
             host.Controls.Add(caption);
             host.Controls.Add(value);
+            host.Controls.Add(visuals);
             host.Controls.Add(evidence);
             host.Controls.Add(more);
             host.Controls.Add(alternatives);
@@ -1342,6 +1362,8 @@ namespace FACM.League
                 .AsReadOnly();
             section.Rows = usable;
             section.GuideFallback = false;
+            ClearSectionVisuals(section);
+            section.Value.Visible = true;
             if (usable.Count == 0)
             {
                 HideRecommendationSection(section);
@@ -1435,6 +1457,8 @@ namespace FACM.League
         {
             section.Host.Visible = false;
             section.Value.Text = string.Empty;
+            section.Value.Visible = true;
+            ClearSectionVisuals(section);
             section.Evidence.Text = string.Empty;
             section.Rows = Array.Empty<LeagueBuildAdvisorRow>();
             section.Expanded = false;
@@ -1451,6 +1475,7 @@ namespace FACM.League
         {
             if (section == null || section.Host.Visible || string.IsNullOrWhiteSpace(value) ||
                 string.Equals(value, MayhemUiCopy.NoValue, StringComparison.Ordinal)) return;
+            section.Value.Visible = true;
             section.Value.Text = value;
             section.Evidence.Text = string.Empty;
             section.Host.Visible = true;
@@ -1461,8 +1486,150 @@ namespace FACM.League
             section.GuideFallback = true;
         }
 
+        private void ApplyGuideFallbackIcons(RecommendationSection section, IEnumerable<MayhemBuildItem> items, string fallbackText, int maxItems)
+        {
+            if (section == null || section.Host.Visible || items == null || maxItems <= 0)
+            {
+                ApplyFallbackValue(section, fallbackText);
+                return;
+            }
+
+            var values = items
+                .Where(item => item != null && !string.IsNullOrWhiteSpace(FirstNonEmpty(item.Name, item.Id)))
+                .Take(maxItems)
+                .ToList();
+            if (values.Count == 0)
+            {
+                ApplyFallbackValue(section, fallbackText);
+                return;
+            }
+
+            section.Value.Visible = false;
+            section.Value.Text = string.Empty;
+            ClearSectionVisuals(section);
+            foreach (var item in values)
+                section.Visuals.Controls.Add(CreateGuideToken(FirstNonEmpty(item.Name, item.Id), item.IconUrl, _guideSectionRenderGeneration));
+            section.Visuals.Visible = section.Visuals.Controls.Count > 0;
+            section.Evidence.Text = fallbackText ?? string.Empty;
+            _toolTip.SetToolTip(section.Evidence, fallbackText ?? string.Empty);
+            section.Host.Visible = true;
+            section.Rows = new List<LeagueBuildAdvisorRow>
+            {
+                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = fallbackText ?? string.Empty }
+            }.AsReadOnly();
+            section.GuideFallback = true;
+        }
+
+        private void ApplyGuideFallbackSkills(RecommendationSection section, IEnumerable<MayhemSkillPriority> skills, string fallbackText)
+        {
+            if (section == null || section.Host.Visible || skills == null)
+            {
+                ApplyFallbackValue(section, fallbackText);
+                return;
+            }
+            var values = skills.Where(skill => skill != null).Take(4).ToList();
+            if (values.Count == 0)
+            {
+                ApplyFallbackValue(section, fallbackText);
+                return;
+            }
+
+            section.Value.Visible = false;
+            section.Value.Text = string.Empty;
+            ClearSectionVisuals(section);
+            foreach (var skill in values)
+                section.Visuals.Controls.Add(CreateGuideToken(FirstNonEmpty(skill.Key, skill.Name), skill.IconUrl, _guideSectionRenderGeneration));
+            section.Visuals.Visible = section.Visuals.Controls.Count > 0;
+            section.Evidence.Text = fallbackText ?? string.Empty;
+            _toolTip.SetToolTip(section.Evidence, fallbackText ?? string.Empty);
+            section.Host.Visible = true;
+            section.Rows = new List<LeagueBuildAdvisorRow>
+            {
+                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = fallbackText ?? string.Empty }
+            }.AsReadOnly();
+            section.GuideFallback = true;
+        }
+
+        private Control CreateGuideToken(string text, string iconReference, int generation)
+        {
+            var host = new Panel
+            {
+                Size = new Size(GuideTokenSize, GuideTokenSize),
+                Margin = new Padding(0, 2, GuideTokenGap, 0),
+                BackColor = FacmDesignSystem.SurfaceRaised
+            };
+            FacmDesignSystem.Round(host, Math.Min(4, FacmDesignSystem.ControlRadius));
+            var picture = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent
+            };
+            var fallback = new Label
+            {
+                Dock = DockStyle.Fill,
+                Text = ShortGuideToken(text),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.5F, FontStyle.Bold)
+            };
+            host.Controls.Add(picture);
+            host.Controls.Add(fallback);
+            fallback.BringToFront();
+            _toolTip.SetToolTip(host, text ?? string.Empty);
+            _toolTip.SetToolTip(picture, text ?? string.Empty);
+            _toolTip.SetToolTip(fallback, text ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(iconReference))
+                _ = LoadGuideSectionIconAsync(picture, fallback, iconReference, generation);
+            return host;
+        }
+
+        private async Task LoadGuideSectionIconAsync(PictureBox picture, Label fallback, string reference, int generation)
+        {
+            try
+            {
+                var bitmap = await _controller.LoadGuideAssetAsync(reference, _lifetime.Token);
+                if (bitmap == null) return;
+                if (IsDisposed || picture.IsDisposed || generation != _guideSectionRenderGeneration)
+                {
+                    bitmap.Dispose();
+                    return;
+                }
+                _ownedGuideSectionIcons.Add(bitmap);
+                picture.Image = bitmap;
+                if (fallback != null && !fallback.IsDisposed) fallback.Visible = false;
+            }
+            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }
+        }
+
+        private static string ShortGuideToken(string value)
+        {
+            var text = (value ?? string.Empty).Trim();
+            if (text.Length <= 2) return text;
+            return text.Substring(0, 1);
+        }
+
+        private static void ClearSectionVisuals(RecommendationSection section)
+        {
+            if (section == null || section.Visuals == null) return;
+            var controls = section.Visuals.Controls.Cast<Control>().ToArray();
+            section.Visuals.Controls.Clear();
+            foreach (var control in controls) control.Dispose();
+            section.Visuals.Visible = false;
+        }
+
+        private void ResetGuideSectionIcons()
+        {
+            _guideSectionRenderGeneration++;
+            foreach (var section in RecommendationSections()) ClearSectionVisuals(section);
+            foreach (var image in _ownedGuideSectionIcons) image.Dispose();
+            _ownedGuideSectionIcons.Clear();
+        }
+
         private void ClearGuidePresentation()
         {
+            ResetGuideSectionIcons();
             _aramBalanceSection.Visible = false;
             _aramBalanceText.Text = string.Empty;
             _mayhemSection.Visible = false;
@@ -1475,6 +1642,7 @@ namespace FACM.League
 
         private void ResetRecommendationSections()
         {
+            ResetGuideSectionIcons();
             foreach (var section in RecommendationSections()) HideRecommendationSection(section);
             _aramBalanceSection.Visible = false;
             _aramBalanceText.Text = string.Empty;
@@ -1816,6 +1984,7 @@ namespace FACM.League
 
             DetachChampionImage();
             ClearAugments();
+            ResetGuideSectionIcons();
             foreach (var bitmap in _championIcons.Values) bitmap.Dispose();
             _championIcons.Clear();
             _toolTip.Dispose();
@@ -1975,6 +2144,13 @@ namespace FACM.League
             return values.Length == 0 ? MayhemUiCopy.NoValue : string.Join(MayhemUiCopy.CoreArrow, values);
         }
 
+        private static IEnumerable<MayhemBuildItem> FirstMayhemCoreItems(MayhemChampionResult result)
+        {
+            if (result == null || result.CoreBuilds == null || result.CoreBuilds.Count == 0 || result.CoreBuilds[0] == null)
+                return Array.Empty<MayhemBuildItem>();
+            return result.CoreBuilds[0].Items ?? new List<MayhemBuildItem>();
+        }
+
         private static string BuildMayhemCoreText(MayhemChampionResult result)
         {
             if (result == null) return MayhemUiCopy.NoValue;
@@ -2071,6 +2247,8 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion augment rarity mapping regressed.");
             if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
+            if (GuideTokenSize * 5 + GuideTokenGap * 4 > 214)
+                throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
             if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 25)
