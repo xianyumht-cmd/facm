@@ -38,6 +38,9 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public int LeagueAutoMatchmakingMinPartySize { get; set; } = 1;
+        public int LeagueAutoMatchmakingStartDelayMs { get; set; } = 0;
+        public int LeagueAutoAcceptDelayMs { get; set; } = 0;
         public int LeagueRuntimeCompanionX { get; set; } = int.MinValue;
         public int LeagueRuntimeCompanionY { get; set; } = int.MinValue;
         public bool LeagueRuntimeCompanionPinned { get; set; } = true;
@@ -120,6 +123,9 @@ namespace FACM.Services
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueAutoMatchmakingMinPartySize=" + LeagueAutoMatchmakingMinPartySize.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoMatchmakingStartDelayMs=" + LeagueAutoMatchmakingStartDelayMs.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoAcceptDelayMs=" + LeagueAutoAcceptDelayMs.ToString(CultureInfo.InvariantCulture),
                 "LeagueRuntimeCompanionX=" + LeagueRuntimeCompanionX.ToString(CultureInfo.InvariantCulture),
                 "LeagueRuntimeCompanionY=" + LeagueRuntimeCompanionY.ToString(CultureInfo.InvariantCulture),
                 "LeagueRuntimeCompanionPinned=" + LeagueRuntimeCompanionPinned,
@@ -294,6 +300,9 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueAutoMatchmakingMinPartySize", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingMinPartySize = number;
+            else if (key.Equals("LeagueAutoMatchmakingStartDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStartDelayMs = number;
+            else if (key.Equals("LeagueAutoAcceptDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoAcceptDelayMs = number;
             else if (key.Equals("LeagueRuntimeCompanionX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionX = number;
             else if (key.Equals("LeagueRuntimeCompanionY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionY = number;
             else if (key.Equals("LeagueRuntimeCompanionPinned", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionPinned = flag;
@@ -307,6 +316,9 @@ namespace FACM.Services
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
+            result.LeagueAutoMatchmakingMinPartySize = Math.Max(1, Math.Min(5, result.LeagueAutoMatchmakingMinPartySize));
+            result.LeagueAutoMatchmakingStartDelayMs = Math.Max(0, Math.Min(60000, result.LeagueAutoMatchmakingStartDelayMs));
+            result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));
         }
 
         private static void MigrateLegacySettings()

@@ -17,6 +17,9 @@ namespace FACM.League
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
+        private readonly NumericUpDown _minPartySize;
+        private readonly NumericUpDown _matchmakingDelaySeconds;
+        private readonly NumericUpDown _acceptDelaySeconds;
         private readonly Label _help;
         private readonly Label _status;
         private readonly Label _honorStatus;
@@ -29,8 +32,8 @@ namespace FACM.League
 
             Text = T(LeagueEfficiencyUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(720, 680);
-            MinimumSize = new Size(680, 610);
+            ClientSize = new Size(720, 760);
+            MinimumSize = new Size(680, 650);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -41,7 +44,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 13,
+                RowCount = 16,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -55,6 +58,9 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -126,11 +132,18 @@ namespace FACM.League
             _autoAccept = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
+            _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, "人");
+            _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, "秒");
+            _acceptDelaySeconds = AddNumberRow(root, 14, T(LeagueEfficiencyUiTextKeys.AcceptDelay), T(LeagueEfficiencyUiTextKeys.AcceptDelayHint), 0m, 15m, 0.5m, _module.AutoAcceptDelayMs / 1000m, "秒");
+            _minPartySize.ValueChanged += MatchmakingSettingChanged;
+            _matchmakingDelaySeconds.ValueChanged += MatchmakingSettingChanged;
+            _acceptDelaySeconds.ValueChanged += MatchmakingSettingChanged;
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;
             Controls.Add(root);
             _loading = false;
+            UpdateMatchmakingControlStates();
         }
 
         private Control CreatePostGameHeader()
@@ -251,6 +264,71 @@ namespace FACM.League
             return check;
         }
 
+        private NumericUpDown AddNumberRow(
+            TableLayoutPanel parent,
+            int row,
+            string title,
+            string hint,
+            decimal minimum,
+            decimal maximum,
+            decimal increment,
+            decimal value,
+            string suffix)
+        {
+            var panel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0, 4, 0, 4),
+                BackColor = FacmDesignSystem.Surface,
+                Padding = new Padding(12, 7, 12, 7)
+            };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
+            var titleLabel = new Label
+            {
+                Text = title,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            var input = new NumericUpDown
+            {
+                Minimum = minimum,
+                Maximum = maximum,
+                Increment = increment,
+                DecimalPlaces = increment < 1m ? 1 : 0,
+                Value = Math.Max(minimum, Math.Min(maximum, value)),
+                Dock = DockStyle.Fill,
+                Margin = new Padding(4, 2, 4, 2),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                TextAlign = HorizontalAlignment.Right
+            };
+            var unit = new Label
+            {
+                Text = suffix ?? string.Empty,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            panel.Controls.Add(titleLabel, 0, 0);
+            panel.Controls.Add(input, 1, 0);
+            panel.Controls.Add(unit, 2, 0);
+            WireHelp(panel, hint);
+            WireHelp(titleLabel, hint);
+            WireHelp(input, hint);
+            WireHelp(unit, hint);
+            parent.Controls.Add(panel, 0, row);
+            return input;
+        }
+
         private void WireHelp(Control control, string text)
         {
             if (control == null) return;
@@ -306,9 +384,22 @@ namespace FACM.League
         private void MatchmakingSettingChanged(object sender, EventArgs e)
         {
             if (_loading) return;
-            _module.UpdateMatchmakingSettings(_autoSearch.Checked, _autoAccept.Checked);
+            UpdateMatchmakingControlStates();
+            _module.UpdateMatchmakingSettings(
+                _autoSearch.Checked,
+                _autoAccept.Checked,
+                Decimal.ToInt32(_minPartySize.Value),
+                Decimal.ToInt32(_matchmakingDelaySeconds.Value * 1000m),
+                Decimal.ToInt32(_acceptDelaySeconds.Value * 1000m));
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void UpdateMatchmakingControlStates()
+        {
+            if (_minPartySize != null) _minPartySize.Enabled = _autoSearch != null && _autoSearch.Checked;
+            if (_matchmakingDelaySeconds != null) _matchmakingDelaySeconds.Enabled = _autoSearch != null && _autoSearch.Checked;
+            if (_acceptDelaySeconds != null) _acceptDelaySeconds.Enabled = _autoAccept != null && _autoAccept.Checked;
         }
 
         private void HandleHonorStatusChanged(LeagueHonorAttemptStatus status)

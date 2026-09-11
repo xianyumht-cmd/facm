@@ -79,7 +79,7 @@ namespace FACM.AppHost.Modules
             _postGame.HonorAttemptCompleted += HandleHonorAttemptCompleted;
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
             _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, (ILeagueMatchmakingWriteApi)_leagueClient);
-            _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled);
+            _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs);
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -102,6 +102,9 @@ namespace FACM.AppHost.Modules
         public bool AutoReturnLobbyEnabled { get { return _settingsModule.Settings.LeagueAutoReturnLobbyEnabled; } }
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
+        public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
+        public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
+        public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
 
         public Task<LeagueEfficiencyActionResult> RunExitGameAsync()
         {
@@ -129,15 +132,26 @@ namespace FACM.AppHost.Modules
             }
         }
 
-        public void UpdateMatchmakingSettings(bool autoSearch, bool autoAccept)
+        public void UpdateMatchmakingSettings(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs)
         {
             ThrowIfDisposed();
+            minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
+            searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
+            acceptDelayMs = Math.Max(0, Math.Min(15000, acceptDelayMs));
             _settingsModule.Settings.LeagueAutoMatchmakingEnabled = autoSearch;
             _settingsModule.Settings.LeagueAutoAcceptEnabled = autoAccept;
+            _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize = minimumPartySize;
+            _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs = searchStartDelayMs;
+            _settingsModule.Settings.LeagueAutoAcceptDelayMs = acceptDelayMs;
             _settingsModule.Settings.Save();
             if (_matchmaking != null)
             {
-                _matchmaking.Configure(autoSearch, autoAccept);
+                _matchmaking.Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs);
                 var current = _dashboard.CurrentGameflowState;
                 if (current != null) _matchmaking.Observe(current);
             }
