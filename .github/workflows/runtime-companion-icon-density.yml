@@ -1,0 +1,133 @@
+name: Runtime Companion Icon Density
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add icon-first Mayhem recommendation rows
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/FACM/League/LeagueRuntimeCompanionForm.cs')
+          text = path.read_text(encoding='utf-8')
+
+          def rep(old, new, label):
+              global text
+              if old not in text:
+                  raise SystemExit('missing anchor: ' + label)
+              text = text.replace(old, new, 1)
+
+          rep(
+              '        private const int AugmentRowHeight = 36;\n        private const int BenchPageSize = 4;\n',
+              '        private const int AugmentRowHeight = 36;\n        private const int GuideTokenSize = 28;\n        private const int GuideTokenGap = 4;\n        private const int BenchPageSize = 4;\n',
+              'guide token constants')
+
+          rep(
+              '        private readonly List<Image> _ownedAugmentIcons = new List<Image>();\n        private int _augmentPage;\n',
+              '        private readonly List<Image> _ownedAugmentIcons = new List<Image>();\n        private readonly List<Image> _ownedGuideSectionIcons = new List<Image>();\n        private int _guideSectionRenderGeneration;\n        private int _augmentPage;\n',
+              'guide icon ownership')
+
+          rep(
+              '            public Label Value { get; set; }\n            public Label Evidence { get; set; }\n',
+              '            public Label Value { get; set; }\n            public FlowLayoutPanel Visuals { get; set; }\n            public Label Evidence { get; set; }\n',
+              'recommendation visuals field')
+
+          rep(
+              '''            var evidence = new Label\n            {\n                Location = new Point(70, 38),\n''',
+              '''            var visuals = new FlowLayoutPanel\n            {\n                Location = new Point(70, 4),\n                Size = new Size(actionText == null ? 214 : 168, 32),\n                FlowDirection = FlowDirection.LeftToRight,\n                WrapContents = false,\n                AutoScroll = false,\n                Margin = Padding.Empty,\n                Padding = Padding.Empty,\n                BackColor = Color.Transparent,\n                Visible = false\n            };\n            var evidence = new Label\n            {\n                Location = new Point(70, 38),\n''',
+              'visual strip construction')
+
+          rep(
+              '''                Host = host,\n                Value = value,\n                Evidence = evidence,\n''',
+              '''                Host = host,\n                Value = value,\n                Visuals = visuals,\n                Evidence = evidence,\n''',
+              'section visuals assignment')
+
+          rep(
+              '''            host.Controls.Add(caption);\n            host.Controls.Add(value);\n            host.Controls.Add(evidence);\n''',
+              '''            host.Controls.Add(caption);\n            host.Controls.Add(value);\n            host.Controls.Add(visuals);\n            host.Controls.Add(evidence);\n''',
+              'section visuals control')
+
+          rep(
+              '''            section.Rows = usable;\n            section.GuideFallback = false;\n''',
+              '''            section.Rows = usable;\n            section.GuideFallback = false;\n            ClearSectionVisuals(section);\n            section.Value.Visible = true;\n''',
+              'build rows clear visuals')
+
+          rep(
+              '''            section.Value.Text = string.Empty;\n            section.Evidence.Text = string.Empty;\n''',
+              '''            section.Value.Text = string.Empty;\n            section.Value.Visible = true;\n            ClearSectionVisuals(section);\n            section.Evidence.Text = string.Empty;\n''',
+              'hide section clear visuals')
+
+          old_fallback = '''        private static void ApplyFallbackValue(RecommendationSection section, string value)\n        {\n            if (section == null || section.Host.Visible || string.IsNullOrWhiteSpace(value) ||\n                string.Equals(value, MayhemUiCopy.NoValue, StringComparison.Ordinal)) return;\n            section.Value.Text = value;\n            section.Evidence.Text = string.Empty;\n            section.Host.Visible = true;\n            section.Rows = new List<LeagueBuildAdvisorRow>\n            {\n                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = value }\n            }.AsReadOnly();\n            section.GuideFallback = true;\n        }\n'''
+          new_fallback = '''        private static void ApplyFallbackValue(RecommendationSection section, string value)\n        {\n            if (section == null || section.Host.Visible || string.IsNullOrWhiteSpace(value) ||\n                string.Equals(value, MayhemUiCopy.NoValue, StringComparison.Ordinal)) return;\n            section.Value.Visible = true;\n            section.Value.Text = value;\n            section.Evidence.Text = string.Empty;\n            section.Host.Visible = true;\n            section.Rows = new List<LeagueBuildAdvisorRow>\n            {\n                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = value }\n            }.AsReadOnly();\n            section.GuideFallback = true;\n        }\n\n        private void ApplyGuideFallbackIcons(RecommendationSection section, IEnumerable<MayhemBuildItem> items, string fallbackText, int maxItems)\n        {\n            if (section == null || section.Host.Visible || items == null || maxItems <= 0)\n            {\n                ApplyFallbackValue(section, fallbackText);\n                return;\n            }\n\n            var values = items\n                .Where(item => item != null && !string.IsNullOrWhiteSpace(FirstNonEmpty(item.Name, item.Id)))\n                .Take(maxItems)\n                .ToList();\n            if (values.Count == 0)\n            {\n                ApplyFallbackValue(section, fallbackText);\n                return;\n            }\n\n            section.Value.Visible = false;\n            section.Value.Text = string.Empty;\n            ClearSectionVisuals(section);\n            foreach (var item in values)\n                section.Visuals.Controls.Add(CreateGuideToken(FirstNonEmpty(item.Name, item.Id), item.IconUrl, _guideSectionRenderGeneration));\n            section.Visuals.Visible = section.Visuals.Controls.Count > 0;\n            section.Evidence.Text = fallbackText ?? string.Empty;\n            _toolTip.SetToolTip(section.Evidence, fallbackText ?? string.Empty);\n            section.Host.Visible = true;\n            section.Rows = new List<LeagueBuildAdvisorRow>\n            {\n                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = fallbackText ?? string.Empty }\n            }.AsReadOnly();\n            section.GuideFallback = true;\n        }\n\n        private void ApplyGuideFallbackSkills(RecommendationSection section, IEnumerable<MayhemSkillPriority> skills, string fallbackText)\n        {\n            if (section == null || section.Host.Visible || skills == null)\n            {\n                ApplyFallbackValue(section, fallbackText);\n                return;\n            }\n            var values = skills.Where(skill => skill != null).Take(4).ToList();\n            if (values.Count == 0)\n            {\n                ApplyFallbackValue(section, fallbackText);\n                return;\n            }\n\n            section.Value.Visible = false;\n            section.Value.Text = string.Empty;\n            ClearSectionVisuals(section);\n            foreach (var skill in values)\n                section.Visuals.Controls.Add(CreateGuideToken(FirstNonEmpty(skill.Key, skill.Name), skill.IconUrl, _guideSectionRenderGeneration));\n            section.Visuals.Visible = section.Visuals.Controls.Count > 0;\n            section.Evidence.Text = fallbackText ?? string.Empty;\n            _toolTip.SetToolTip(section.Evidence, fallbackText ?? string.Empty);\n            section.Host.Visible = true;\n            section.Rows = new List<LeagueBuildAdvisorRow>\n            {\n                new LeagueBuildAdvisorRow { Category = section.Category, Recommendation = fallbackText ?? string.Empty }\n            }.AsReadOnly();\n            section.GuideFallback = true;\n        }\n\n        private Control CreateGuideToken(string text, string iconReference, int generation)\n        {\n            var host = new Panel\n            {\n                Size = new Size(GuideTokenSize, GuideTokenSize),\n                Margin = new Padding(0, 2, GuideTokenGap, 0),\n                BackColor = FacmDesignSystem.SurfaceRaised\n            };\n            FacmDesignSystem.Round(host, Math.Min(4, FacmDesignSystem.ControlRadius));\n            var picture = new PictureBox\n            {\n                Dock = DockStyle.Fill,\n                SizeMode = PictureBoxSizeMode.Zoom,\n                BackColor = Color.Transparent\n            };\n            var fallback = new Label\n            {\n                Dock = DockStyle.Fill,\n                Text = ShortGuideToken(text),\n                TextAlign = ContentAlignment.MiddleCenter,\n                ForeColor = FacmDesignSystem.Text,\n                BackColor = Color.Transparent,\n                Font = new Font(FacmThemeRuntime.Current.FontName, 7.5F, FontStyle.Bold)\n            };\n            host.Controls.Add(picture);\n            host.Controls.Add(fallback);\n            fallback.BringToFront();\n            _toolTip.SetToolTip(host, text ?? string.Empty);\n            _toolTip.SetToolTip(picture, text ?? string.Empty);\n            _toolTip.SetToolTip(fallback, text ?? string.Empty);\n            if (!string.IsNullOrWhiteSpace(iconReference))\n                _ = LoadGuideSectionIconAsync(picture, fallback, iconReference, generation);\n            return host;\n        }\n\n        private async Task LoadGuideSectionIconAsync(PictureBox picture, Label fallback, string reference, int generation)\n        {\n            try\n            {\n                var bitmap = await _controller.LoadGuideAssetAsync(reference, _lifetime.Token);\n                if (bitmap == null) return;\n                if (IsDisposed || picture.IsDisposed || generation != _guideSectionRenderGeneration)\n                {\n                    bitmap.Dispose();\n                    return;\n                }\n                _ownedGuideSectionIcons.Add(bitmap);\n                picture.Image = bitmap;\n                if (fallback != null && !fallback.IsDisposed) fallback.Visible = false;\n            }\n            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }\n        }\n\n        private static string ShortGuideToken(string value)\n        {\n            var text = (value ?? string.Empty).Trim();\n            if (text.Length <= 2) return text;\n            return text.Substring(0, 1);\n        }\n\n        private static void ClearSectionVisuals(RecommendationSection section)\n        {\n            if (section == null || section.Visuals == null) return;\n            var controls = section.Visuals.Controls.Cast<Control>().ToArray();\n            section.Visuals.Controls.Clear();\n            foreach (var control in controls) control.Dispose();\n            section.Visuals.Visible = false;\n        }\n\n        private void ResetGuideSectionIcons()\n        {\n            _guideSectionRenderGeneration++;\n            foreach (var section in RecommendationSections()) ClearSectionVisuals(section);\n            foreach (var image in _ownedGuideSectionIcons) image.Dispose();\n            _ownedGuideSectionIcons.Clear();\n        }\n'''
+          rep(old_fallback, new_fallback, 'fallback icon helpers')
+
+          rep(
+              '''        private void RenderGuideFallbackAndAugments(MayhemChampionResult result, bool hasBuildContext)\n        {\n            if (result == null) return;\n            RenderAramBaseBalance(result);\n''',
+              '''        private void RenderGuideFallbackAndAugments(MayhemChampionResult result, bool hasBuildContext)\n        {\n            if (result == null) return;\n            ResetGuideSectionIcons();\n            RenderAramBaseBalance(result);\n''',
+              'guide icon render generation')
+
+          rep(
+              '''                ApplyFallbackValue(_spells, BuildSpellText(result));\n                ApplyFallbackValue(_skills, BuildSkillText(result));\n                ApplyFallbackValue(_starter, BuildMayhemItemListText(result.StarterItems, 3));\n                ApplyFallbackValue(_boots, BuildMayhemItemListText(result.BootItems, 2));\n                ApplyFallbackValue(_core, BuildMayhemCoreText(result));\n''',
+              '''                ApplyGuideFallbackIcons(_spells, result.SummonerSpells, BuildSpellText(result), 2);\n                ApplyGuideFallbackSkills(_skills, result.SkillPriority, BuildSkillText(result));\n                ApplyGuideFallbackIcons(_starter, result.StarterItems, BuildMayhemItemListText(result.StarterItems, 3), 3);\n                ApplyGuideFallbackIcons(_boots, result.BootItems, BuildMayhemItemListText(result.BootItems, 2), 2);\n                ApplyGuideFallbackIcons(_core, FirstMayhemCoreItems(result), BuildMayhemCoreText(result), 5);\n''',
+              'Mayhem icon-first fallbacks')
+
+          rep(
+              '''        private static string BuildMayhemCoreText(MayhemChampionResult result)\n        {\n''',
+              '''        private static IEnumerable<MayhemBuildItem> FirstMayhemCoreItems(MayhemChampionResult result)\n        {\n            if (result == null || result.CoreBuilds == null || result.CoreBuilds.Count == 0 || result.CoreBuilds[0] == null)\n                return Array.Empty<MayhemBuildItem>();\n            return result.CoreBuilds[0].Items ?? new List<MayhemBuildItem>();\n        }\n\n        private static string BuildMayhemCoreText(MayhemChampionResult result)\n        {\n''',
+              'first core items helper')
+
+          rep(
+              '''        private void ClearGuidePresentation()\n        {\n            _aramBalanceSection.Visible = false;\n''',
+              '''        private void ClearGuidePresentation()\n        {\n            ResetGuideSectionIcons();\n            _aramBalanceSection.Visible = false;\n''',
+              'clear guide icons')
+
+          rep(
+              '''        private void ResetRecommendationSections()\n        {\n            foreach (var section in RecommendationSections()) HideRecommendationSection(section);\n''',
+              '''        private void ResetRecommendationSections()\n        {\n            ResetGuideSectionIcons();\n            foreach (var section in RecommendationSections()) HideRecommendationSection(section);\n''',
+              'reset guide icons')
+
+          rep(
+              '''            ClearAugments();\n            foreach (var bitmap in _championIcons.Values) bitmap.Dispose();\n''',
+              '''            ClearAugments();\n            ResetGuideSectionIcons();\n            foreach (var bitmap in _championIcons.Values) bitmap.Dispose();\n''',
+              'dispose guide icons')
+
+          rep(
+              '''            if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)\n                throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");\n''',
+              '''            if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)\n                throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");\n            if (GuideTokenSize * 5 + GuideTokenGap * 4 > 214)\n                throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");\n''',
+              'guide token smoke')
+
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          doc = Path('docs/RUNTIME-COMPANION-DESIGN.md')
+          d = doc.read_text(encoding='utf-8')
+          anchor = 'When Riot game-data supplies augment rarity, the compact ranking may locally filter `全部 / 棱彩 / 黄金 / 白银`; switching the filter must not trigger a new external recommendation request. Event-choice or unknown rarity remains available through `全部` only.\n'
+          addition = anchor + 'For Mayhem fallback guidance, summoner spells, skill priority and item rows should prefer compact game-data icons with concise text retained as evidence/tooltips; icon loading remains presentation-only and must reuse the existing guide asset loader rather than introduce a new network owner.\n'
+          if anchor not in d:
+              raise SystemExit('missing anchor: design icon density')
+          doc.write_text(d.replace(anchor, addition, 1), encoding='utf-8', newline='\n')
+          PY
+
+      - name: Commit icon density pass and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-icon-density.yml
+          git add src/FACM/League/LeagueRuntimeCompanionForm.cs docs/RUNTIME-COMPANION-DESIGN.md
+          git commit -m "Make Mayhem companion recommendations icon-first"
+          git push origin HEAD:feat/runtime-companion-20260910
