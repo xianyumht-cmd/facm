@@ -1,0 +1,30 @@
+name: Inspect Cherry Augment Schema
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect current CommunityDragon augment schema
+        shell: python
+        run: |
+          import json, urllib.request
+          url = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json'
+          with urllib.request.urlopen(url, timeout=20) as r:
+              rows = json.load(r)
+          print('row_count=', len(rows))
+          print('first_keys=', sorted(rows[0].keys()) if rows else [])
+          for wanted in ('Tank Engine', 'Goliath', 'Heavy Hitter', 'Transmute: Prismatic', 'Transmute: Gold'):
+              row = next((x for x in rows if str(x.get('name','')).lower() == wanted.lower()), None)
+              if row is None:
+                  row = next((x for x in rows if wanted.lower().replace(' ','') in str(x.get('apiName','')).lower().replace('_','').replace(' ','') ), None)
+              if row:
+                  safe = {k: row.get(k) for k in sorted(row.keys()) if k.lower() in {'id','apiname','name','nametra','rarity','grade','tier','augmenttier','rarityname','quality','augmenticonpath','augmentsmalliconpath'}}
+                  print(wanted, json.dumps(safe, ensure_ascii=False, sort_keys=True))
