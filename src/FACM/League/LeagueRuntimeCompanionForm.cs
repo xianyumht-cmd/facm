@@ -78,6 +78,10 @@ namespace FACM.League
         private readonly Button _augmentPrevButton;
         private readonly Button _augmentNextButton;
         private readonly Label _augmentPageLabel;
+        private readonly Button _augmentAllButton;
+        private readonly Button _augmentPrismButton;
+        private readonly Button _augmentGoldButton;
+        private readonly Button _augmentSilverButton;
 
         private bool _refreshing;
         private bool _actionBusy;
@@ -99,6 +103,7 @@ namespace FACM.League
         private readonly List<Image> _ownedAugmentIcons = new List<Image>();
         private int _augmentPage;
         private int _augmentRenderGeneration;
+        private string _augmentFilter = "all";
         private int _benchPage;
         private string _benchRosterFingerprint;
         private string _benchRenderFingerprint;
@@ -409,6 +414,16 @@ namespace FACM.League
             _augmentNextButton = CreateInlineButton("›", new Point(258, 3), new Size(24, 24));
             _augmentPrevButton.Click += delegate { SetAugmentPage(_augmentPage - 1); };
             _augmentNextButton.Click += delegate { SetAugmentPage(_augmentPage + 1); };
+            _augmentAllButton = CreateInlineButton(MayhemUiCopy.AugmentAll, new Point(0, 35), new Size(44, 22));
+            _augmentPrismButton = CreateInlineButton(MayhemUiCopy.Prism, new Point(50, 35), new Size(44, 22));
+            _augmentGoldButton = CreateInlineButton(MayhemUiCopy.Gold, new Point(100, 35), new Size(44, 22));
+            _augmentSilverButton = CreateInlineButton(MayhemUiCopy.Silver, new Point(150, 35), new Size(44, 22));
+            foreach (var filter in new[] { _augmentAllButton, _augmentPrismButton, _augmentGoldButton, _augmentSilverButton })
+                filter.Visible = false;
+            _augmentAllButton.Click += delegate { SetAugmentFilter("all"); };
+            _augmentPrismButton.Click += delegate { SetAugmentFilter("prism"); };
+            _augmentGoldButton.Click += delegate { SetAugmentFilter("gold"); };
+            _augmentSilverButton.Click += delegate { SetAugmentFilter("silver"); };
             var augmentRule = new Panel
             {
                 Location = new Point(0, 31), Size = new Size(SectionWidth, 1), BackColor = FacmDesignSystem.BorderSoft
@@ -423,6 +438,10 @@ namespace FACM.League
             _mayhemSection.Controls.Add(_augmentPrevButton);
             _mayhemSection.Controls.Add(_augmentPageLabel);
             _mayhemSection.Controls.Add(_augmentNextButton);
+            _mayhemSection.Controls.Add(_augmentAllButton);
+            _mayhemSection.Controls.Add(_augmentPrismButton);
+            _mayhemSection.Controls.Add(_augmentGoldButton);
+            _mayhemSection.Controls.Add(_augmentSilverButton);
             _mayhemSection.Controls.Add(augmentRule);
             _mayhemSection.Controls.Add(_augmentRows);
             _sections.Controls.Add(_mayhemSection);
@@ -957,10 +976,61 @@ namespace FACM.League
 
         private void SetAugmentPage(int page)
         {
-            var count = _augmentSource == null ? 0 : _augmentSource.Count;
-            var pages = Math.Max(1, (int)Math.Ceiling(count / (double)AugmentPageSize));
+            var source = FilteredAugments();
+            var pages = Math.Max(1, (int)Math.Ceiling(source.Count / (double)AugmentPageSize));
             _augmentPage = Math.Max(0, Math.Min(page, pages - 1));
             RenderAugmentPage();
+        }
+
+        private void SetAugmentFilter(string filter)
+        {
+            var normalized = string.IsNullOrWhiteSpace(filter) ? "all" : filter.Trim().ToLowerInvariant();
+            if (normalized != "all" && !(_augmentSource ?? Array.Empty<MayhemAugmentRow>()).Any(row => row != null && row.RarityKind == normalized))
+                normalized = "all";
+            _augmentFilter = normalized;
+            _augmentPage = 0;
+            RenderAugmentPage();
+        }
+
+        private IReadOnlyList<MayhemAugmentRow> FilteredAugments()
+        {
+            var source = _augmentSource ?? Array.Empty<MayhemAugmentRow>();
+            if (string.Equals(_augmentFilter, "all", StringComparison.Ordinal)) return source;
+            return source.Where(row => row != null && string.Equals(row.RarityKind, _augmentFilter, StringComparison.Ordinal)).ToList().AsReadOnly();
+        }
+
+        private void UpdateAugmentFilterControls()
+        {
+            var source = _augmentSource ?? Array.Empty<MayhemAugmentRow>();
+            var hasPrism = source.Any(row => row != null && row.RarityKind == "prism");
+            var hasGold = source.Any(row => row != null && row.RarityKind == "gold");
+            var hasSilver = source.Any(row => row != null && row.RarityKind == "silver");
+            var showFilters = hasPrism || hasGold || hasSilver;
+            if (!showFilters) _augmentFilter = "all";
+            if (_augmentFilter == "prism" && !hasPrism) _augmentFilter = "all";
+            if (_augmentFilter == "gold" && !hasGold) _augmentFilter = "all";
+            if (_augmentFilter == "silver" && !hasSilver) _augmentFilter = "all";
+
+            foreach (var button in new[] { _augmentAllButton, _augmentPrismButton, _augmentGoldButton, _augmentSilverButton })
+                button.Visible = showFilters;
+            _augmentPrismButton.Enabled = hasPrism;
+            _augmentGoldButton.Enabled = hasGold;
+            _augmentSilverButton.Enabled = hasSilver;
+            StyleAugmentFilterButton(_augmentAllButton, "all");
+            StyleAugmentFilterButton(_augmentPrismButton, "prism");
+            StyleAugmentFilterButton(_augmentGoldButton, "gold");
+            StyleAugmentFilterButton(_augmentSilverButton, "silver");
+
+            _augmentRows.Location = new Point(0, showFilters ? 64 : 38);
+            _mayhemSection.Height = showFilters ? 252 : 226;
+        }
+
+        private void StyleAugmentFilterButton(Button button, string filter)
+        {
+            if (button == null) return;
+            var selected = string.Equals(_augmentFilter, filter, StringComparison.Ordinal);
+            button.ForeColor = selected ? FacmDesignSystem.Accent : FacmDesignSystem.TextMuted;
+            button.FlatAppearance.BorderColor = selected ? FacmDesignSystem.Accent : FacmDesignSystem.BorderSoft;
         }
 
         private void RenderAugmentPage()
@@ -970,16 +1040,19 @@ namespace FACM.League
             {
                 _augmentPageLabel.Text = string.Empty;
                 _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
+                UpdateAugmentFilterControls();
                 _mayhemSection.Visible = false;
                 return;
             }
-            var pages = Math.Max(1, (int)Math.Ceiling(_augmentSource.Count / (double)AugmentPageSize));
+            UpdateAugmentFilterControls();
+            var source = FilteredAugments();
+            var pages = Math.Max(1, (int)Math.Ceiling(source.Count / (double)AugmentPageSize));
             _augmentPage = Math.Max(0, Math.Min(_augmentPage, pages - 1));
             _augmentPageLabel.Text = (_augmentPage + 1).ToString(CultureInfo.InvariantCulture) + "/" + pages.ToString(CultureInfo.InvariantCulture);
             _augmentPrevButton.Enabled = _augmentPage > 0;
             _augmentNextButton.Enabled = _augmentPage + 1 < pages;
             var generation = ++_augmentRenderGeneration;
-            foreach (var row in _augmentSource.Skip(_augmentPage * AugmentPageSize).Take(AugmentPageSize))
+            foreach (var row in source.Skip(_augmentPage * AugmentPageSize).Take(AugmentPageSize))
                 _augmentRows.Controls.Add(CreateAugmentRow(row, generation));
             _mayhemSection.Visible = _augmentRows.Controls.Count > 0;
             HideNativeBodyScrollBars();
@@ -1001,7 +1074,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text, BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold)
             };
-            var rarityText = string.Equals(row.Rarity, MayhemUiCopy.Unknown, StringComparison.OrdinalIgnoreCase) ? string.Empty : (row.Rarity ?? string.Empty);
+            var rarityText = AugmentRarityLabel(row);
             var rarity = new Label
             {
                 Text = rarityText, Location = new Point(216, 1), Size = new Size(68, 17), TextAlign = ContentAlignment.TopRight,
@@ -1020,6 +1093,18 @@ namespace FACM.League
             _toolTip.SetToolTip(host, detail); _toolTip.SetToolTip(title, detail); _toolTip.SetToolTip(metrics, detail);
             if (!string.IsNullOrWhiteSpace(row.IconUrl)) _ = LoadAugmentIconAsync(icon, row.IconUrl, generation);
             return host;
+        }
+
+        private static string AugmentRarityLabel(MayhemAugmentRow row)
+        {
+            if (row == null) return string.Empty;
+            switch (row.RarityKind)
+            {
+                case "prism": return MayhemUiCopy.Prism;
+                case "gold": return MayhemUiCopy.Gold;
+                case "silver": return MayhemUiCopy.Silver;
+                default: return string.Empty;
+            }
         }
 
         private static string BuildAugmentMetrics(MayhemAugmentRow row)
@@ -1059,6 +1144,7 @@ namespace FACM.League
         {
             _augmentSource = Array.Empty<MayhemAugmentRow>();
             _augmentPage = 0;
+            _augmentFilter = "all";
             DisposeAugmentRows();
             _augmentPageLabel.Text = string.Empty;
             _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
@@ -1978,6 +2064,11 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion compact content width contract drifted.");
             if (AugmentPageSize != 5 || BenchPageSize != 4 || AugmentRowHeight < 32)
                 throw new InvalidOperationException("Runtime Companion compact paging contract drifted.");
+            if (new MayhemAugmentRow { Rarity = "kPrismatic" }.RarityKind != "prism" ||
+                new MayhemAugmentRow { Rarity = "kGold" }.RarityKind != "gold" ||
+                new MayhemAugmentRow { Rarity = "kSilver" }.RarityKind != "silver" ||
+                new MayhemAugmentRow { Rarity = "kEventChoice" }.RarityKind != "other")
+                throw new InvalidOperationException("Runtime Companion augment rarity mapping regressed.");
             if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
 
