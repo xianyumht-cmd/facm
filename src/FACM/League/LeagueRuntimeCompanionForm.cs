@@ -571,7 +571,7 @@ namespace FACM.League
             if (snapshot.HasGuide && !ReferenceEquals(_renderedGuide, snapshot.Guide))
             {
                 _renderedGuide = snapshot.Guide;
-                RenderGuideFallbackAndAugments(snapshot.Guide, snapshot.Build != null);
+                RenderGuideFallbackAndAugments(snapshot.Guide, snapshot.HasBuild);
             }
             else if (!snapshot.HasGuide && !snapshot.GuideLoading && _renderedGuide != null)
             {
@@ -934,13 +934,15 @@ namespace FACM.League
                 }
                 else
                     _championTitle.Text = MayhemUiCopy.Unknown;
-                _championMeta.Text = BuildMayhemMeta(result);
-                _championStats.Text = string.Empty;
+                _championMeta.Text = BuildMayhemContextMeta(result);
+                _championStats.Text = BuildMayhemStats(result);
                 _contextStatus.ForeColor = FacmDesignSystem.Success;
                 _contextStatus.Text = MayhemUiCopy.Completed;
-                ApplyFallbackValue(_skills, BuildSkillText(result));
                 ApplyFallbackValue(_spells, BuildSpellText(result));
-                ApplyFallbackValue(_core, BuildItemText(result));
+                ApplyFallbackValue(_skills, BuildSkillText(result));
+                ApplyFallbackValue(_starter, BuildMayhemItemListText(result.StarterItems, 3));
+                ApplyFallbackValue(_boots, BuildMayhemItemListText(result.BootItems, 2));
+                ApplyFallbackValue(_core, BuildMayhemCoreText(result));
                 if (_renderedChampionIconId <= 0 && !string.IsNullOrWhiteSpace(result.ChampionIconUrl))
                     _ = LoadGuideChampionPictureAsync(result.ChampionIconUrl, _renderedGuideChampionId);
             }
@@ -1803,15 +1805,25 @@ namespace FACM.League
                    (snapshot.Source ?? string.Empty) + " " + (snapshot.Version ?? string.Empty);
         }
 
-        private static string BuildMayhemMeta(MayhemChampionResult result)
+        private static string BuildMayhemContextMeta(MayhemChampionResult result)
         {
+            if (result == null) return MayhemUiCopy.CardSubtitle;
+            var parts = new List<string> { MayhemUiCopy.CompactCardSubtitle };
+            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
+            return string.Join(MayhemUiCopy.SeparatorDot, parts);
+        }
+
+        private static string BuildMayhemStats(MayhemChampionResult result)
+        {
+            if (result == null) return string.Empty;
             var parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(result.Tier)) parts.Add(result.Tier);
             if (result.Rank.HasValue) parts.Add(MayhemUiCopy.RankPrefix + result.Rank.Value.ToString(CultureInfo.InvariantCulture));
             if (result.WinRate.HasValue)
                 parts.Add(MayhemUiCopy.Win + result.WinRate.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%");
-            if (!string.IsNullOrWhiteSpace(result.Patch)) parts.Add(MayhemUiCopy.PatchPrefix + result.Patch);
-            return parts.Count == 0 ? MayhemUiCopy.CardSubtitle : string.Join(" · ", parts);
+            if (result.PickRate.HasValue)
+                parts.Add(MayhemUiCopy.Pick + result.PickRate.Value.ToString("0.0", CultureInfo.InvariantCulture) + "%");
+            return string.Join(MayhemUiCopy.SeparatorDot, parts);
         }
 
         private static string FormatChampionId(int value)
@@ -1862,6 +1874,35 @@ namespace FACM.League
                 .Take(2)
                 .ToArray();
             return values.Length == 0 ? MayhemUiCopy.NoValue : string.Join(" + ", values);
+        }
+
+        private static string BuildMayhemItemListText(IEnumerable<MayhemBuildItem> items, int maxItems)
+        {
+            if (items == null || maxItems <= 0) return MayhemUiCopy.NoValue;
+            var values = items
+                .Where(item => item != null)
+                .Select(item => FirstNonEmpty(item.Name, item.Id))
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(maxItems)
+                .ToArray();
+            return values.Length == 0 ? MayhemUiCopy.NoValue : string.Join(MayhemUiCopy.CoreArrow, values);
+        }
+
+        private static string BuildMayhemCoreText(MayhemChampionResult result)
+        {
+            if (result == null) return MayhemUiCopy.NoValue;
+            if (result.CoreBuilds != null && result.CoreBuilds.Count > 0 && result.CoreBuilds[0] != null)
+            {
+                var projected = BuildMayhemItemListText(result.CoreBuilds[0].Items, 5);
+                if (!string.Equals(projected, MayhemUiCopy.NoValue, StringComparison.Ordinal)) return projected;
+            }
+            var legacy = (result.CoreItems ?? new List<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(5)
+                .ToArray();
+            return legacy.Length == 0 ? MayhemUiCopy.NoValue : string.Join(MayhemUiCopy.CoreArrow, legacy);
         }
 
         private static string BuildItemText(MayhemChampionResult result)
@@ -2001,6 +2042,36 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion Mayhem skill fallback is invalid.");
             if (!string.Equals(BuildSpellText(mayhem), "Flash + Mark", StringComparison.Ordinal))
                 throw new InvalidOperationException("Runtime Companion Mayhem spell fallback is invalid.");
+            mayhem.StarterItems = new List<MayhemBuildItem>
+            {
+                new MayhemBuildItem { Name = "Starter A" },
+                new MayhemBuildItem { Name = "Starter B" }
+            };
+            mayhem.BootItems = new List<MayhemBuildItem>
+            {
+                new MayhemBuildItem { Name = "Boot A" }
+            };
+            mayhem.CoreBuilds = new List<MayhemBuildPath>
+            {
+                new MayhemBuildPath
+                {
+                    Rank = 1,
+                    Items = new List<MayhemBuildItem>
+                    {
+                        new MayhemBuildItem { Name = "Core A" },
+                        new MayhemBuildItem { Name = "Core B" }
+                    }
+                }
+            };
+            if (!string.Equals(BuildMayhemItemListText(mayhem.StarterItems, 3), "Starter A" + MayhemUiCopy.CoreArrow + "Starter B", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime Companion Mayhem starter-item projection is invalid.");
+            if (!string.Equals(BuildMayhemItemListText(mayhem.BootItems, 2), "Boot A", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime Companion Mayhem boots projection is invalid.");
+            if (!string.Equals(BuildMayhemCoreText(mayhem), "Core A" + MayhemUiCopy.CoreArrow + "Core B", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime Companion Mayhem core-build projection is invalid.");
+            if (BuildMayhemStats(mayhem).IndexOf(MayhemUiCopy.RankPrefix, StringComparison.Ordinal) < 0 ||
+                BuildMayhemStats(mayhem).IndexOf(MayhemUiCopy.Win, StringComparison.Ordinal) < 0)
+                throw new InvalidOperationException("Runtime Companion Mayhem headline statistics are incomplete.");
             if (ShouldShowAramBaseBalance(mayhem))
                 throw new InvalidOperationException("Runtime Companion rendered an empty ARAM balance section.");
             mayhem.BaseBalanceSummary = "基础 ARAM（完整）：造成伤害 +5%"; // ui-text-contract: allow

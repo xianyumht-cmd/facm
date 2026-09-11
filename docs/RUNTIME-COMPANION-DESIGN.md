@@ -86,6 +86,10 @@ The compact revision is intentionally smaller than the earlier 388x720 review ca
 
 The fixed top region must not scroll. The detail body may scroll vertically by wheel/input, but the transient companion must not expose a native light-themed WinForms scrollbar or a horizontal scrollbar at supported widths.
 
+### Mode-specific information completeness
+
+A non-null Build Advisor snapshot is not equivalent to a usable recommendation. For unsupported modes such as ARAM Mayhem, Runtime Companion must continue projecting the mode-specific guide when `HasBuild` is false. Mayhem should expose verified summoner spells, skill priority, starter items, boots and core build when those fields are available, followed by ARAM balance and augment ranking. Ordinary ranked/ARAM rune recommendations must not be fabricated into Mayhem when the active Mayhem source does not publish rune data.
+
 ### Live readability acceptance
 
 The 320 px runtime surface must remain readable rather than merely fit. Primary recommendation text gets the first line(s), source metrics are secondary, and full detail may use tooltip/progressive disclosure. Raw champion ids such as `#904` are not a valid user-facing identity.
