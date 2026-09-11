@@ -1,0 +1,74 @@
+name: Runtime Companion Smoke Clock Fix
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix fake clock yielding without changing production delays
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/FACM/League/LeagueMatchmakingAutomationSmokeTest.cs')
+          text = path.read_text(encoding='utf-8')
+          old = '''        private sealed class FakeClock : ILeagueMatchmakingClock
+        {
+            public int DelayCalls;
+            public readonly List<TimeSpan> Delays = new List<TimeSpan>();
+
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref DelayCalls);
+                lock (Delays) Delays.Add(delay);
+                return Task.CompletedTask;
+            }
+        }
+'''
+          new = '''        private sealed class FakeClock : ILeagueMatchmakingClock
+        {
+            public int DelayCalls;
+            public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays =
+                new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
+
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref DelayCalls);
+                Delays.Enqueue(delay);
+
+                // The production clock always yields for positive delays. Returning a completed
+                // task here turns the observer retry loop into a synchronous spin and can hang the
+                // host smoke test when a lobby is intentionally below the configured minimum.
+                return Task.Delay(1, cancellationToken);
+            }
+        }
+'''
+          if old not in text:
+              raise SystemExit('FakeClock anchor not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+          PY
+
+      - name: Commit smoke fix and remove helper
+        shell: bash
+        run: |
+          rm .github/workflows/runtime-companion-smoke-clock-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FACM/League/LeagueMatchmakingAutomationSmokeTest.cs .github/workflows/runtime-companion-smoke-clock-fix.yml
+          git commit -m "Fix matchmaking smoke fake clock busy loop"
+          git push origin HEAD:feat/runtime-companion-20260910
