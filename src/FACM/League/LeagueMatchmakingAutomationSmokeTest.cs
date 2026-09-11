@@ -521,14 +521,14 @@ namespace FACM.League
         private sealed class FakeClock : ILeagueMatchmakingClock
         {
             public int DelayCalls;
-            public readonly List<TimeSpan> Delays = new List<TimeSpan>();
+            public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays = new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
 
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref DelayCalls);
-                lock (Delays) Delays.Add(delay);
-                return Task.CompletedTask;
+                Delays.Enqueue(delay);
+                return Task.Delay(1, cancellationToken);
             }
         }
     }
