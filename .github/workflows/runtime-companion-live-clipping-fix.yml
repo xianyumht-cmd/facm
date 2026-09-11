@@ -1,0 +1,118 @@
+name: Runtime Companion Live Clipping Fix
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix live compact layout clipping
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8', newline='\n')
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit('missing anchor: ' + label)
+              return text.replace(old, new, 1)
+
+          path = 'src/FACM/League/LeagueRuntimeCompanionForm.cs'
+          text = read(path)
+
+          text = replace_once(text,
+              '''        private const int SectionWidth = 284;\n        private const int RecommendationBaseHeight = 64;\n''',
+              '''        private const int SectionWidth = 284;\n        private const int SectionCaptionWidth = 72;\n        private const int SectionContentX = 78;\n        private const int SectionContentWidth = 206;\n        private const int SectionActionContentWidth = 160;\n        private const int RecommendationBaseHeight = 64;\n''',
+              'section geometry constants')
+
+          text = replace_once(text,
+              '                Padding = new Padding(8, 6, 8, 8)\n',
+              '                Padding = new Padding(8, 2, 8, 4)\n',
+              'body compact padding')
+
+          text = replace_once(text,
+              '''                Location = new Point(0, 8),\n                Size = new Size(68, 18),\n''',
+              '''                Location = new Point(0, 8),\n                Size = new Size(SectionCaptionWidth, 18),\n''',
+              'aram caption width')
+          text = replace_once(text,
+              '''                Location = new Point(70, 4),\n                Size = new Size(214, 46),\n''',
+              '''                Location = new Point(SectionContentX, 4),\n                Size = new Size(SectionContentWidth, 46),\n''',
+              'aram value geometry')
+
+          text = replace_once(text,
+              '''                Location = new Point(0, 9),\n                Size = new Size(82, 20),\n''',
+              '''                Location = new Point(0, 9),\n                Size = new Size(SectionCaptionWidth, 20),\n''',
+              'recommendation caption geometry')
+          text = replace_once(text,
+              '''                Location = new Point(70, 5),\n                Size = new Size(actionText == null ? 214 : 168, 31),\n''',
+              '''                Location = new Point(SectionContentX, 5),\n                Size = new Size(actionText == null ? SectionContentWidth : SectionActionContentWidth, 31),\n''',
+              'recommendation value geometry')
+          text = replace_once(text,
+              '''                Location = new Point(70, 4),\n                Size = new Size(actionText == null ? 214 : 168, 32),\n''',
+              '''                Location = new Point(SectionContentX, 4),\n                Size = new Size(actionText == null ? SectionContentWidth : SectionActionContentWidth, 32),\n''',
+              'recommendation visual geometry')
+          text = replace_once(text,
+              '''                Location = new Point(70, 38),\n                Size = new Size(214, 16),\n''',
+              '''                Location = new Point(SectionContentX, 38),\n                Size = new Size(SectionContentWidth, 16),\n''',
+              'recommendation evidence geometry')
+          text = replace_once(text,
+              '''                Location = new Point(70, RecommendationBaseHeight - 2),\n                Size = new Size(214, 0),\n''',
+              '''                Location = new Point(SectionContentX, RecommendationBaseHeight - 2),\n                Size = new Size(SectionContentWidth, 0),\n''',
+              'recommendation alternatives geometry')
+
+          # Alternative rows use the same non-overlapping content column.
+          text = text.replace('Size = new Size(214, 1),', 'Size = new Size(SectionContentWidth, 1),')
+          text = text.replace('Size = new Size(214, 17),', 'Size = new Size(SectionContentWidth, 17),')
+          text = text.replace('Size = new Size(214, 15),', 'Size = new Size(SectionContentWidth, 15),')
+
+          # Raw #ID must never be the visible hero identity. Resolve the name asynchronously instead.
+          text = replace_once(text,
+              '''            if (championId > 0)\n            {\n                _championTitle.Text = FirstNonEmpty(build.ChampionName, FormatChampionId(championId));\n                EnsureLocalChampionIcon(championId);\n            }\n''',
+              '''            if (championId > 0)\n            {\n                if (!string.IsNullOrWhiteSpace(build.ChampionName))\n                    _championTitle.Text = build.ChampionName;\n                else\n                {\n                    _championTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.ChampionResolving);\n                    _ = ResolveBuildChampionNameAsync(championId, fingerprint);\n                }\n                EnsureLocalChampionIcon(championId);\n            }\n''',
+              'visible build champion identity')
+
+          marker = '''        private async Task ResolveGuideChampionNameAsync(int championId)\n'''
+          helper = '''        private async Task ResolveBuildChampionNameAsync(int championId, string fingerprint)\n        {\n            try\n            {\n                var name = await _controller.ResolveChampionNameAsync(championId, _lifetime.Token);\n                if (string.IsNullOrWhiteSpace(name) || IsDisposed || _lifetime.IsCancellationRequested) return;\n                if (!string.Equals(_renderedBuildFingerprint, fingerprint, StringComparison.Ordinal)) return;\n                var snapshot = _controller.CurrentSnapshot;\n                if (snapshot == null || snapshot.LocalChampionId != championId) return;\n                _championTitle.Text = name;\n            }\n            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }\n        }\n\n'''
+          text = replace_once(text, marker, helper + marker, 'build champion name resolver')
+
+          # Geometry smoke protects the exact live defects observed at 320x560.
+          smoke_anchor = '''            if (RecommendationBaseHeight < 56 || SectionWidth != BodyContentWidth || AlternativeRowHeight > 48)\n                throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");\n'''
+          smoke_add = smoke_anchor + '''            if (SectionCaptionWidth >= SectionContentX || SectionContentX + SectionContentWidth != SectionWidth)\n                throw new InvalidOperationException("Runtime Companion caption/content columns overlap or leave the compact body width.");\n            var mayhemFirstViewport = MaximumExpandedHeight - HeaderHeight - ContextHeight - BenchHeight;\n            var mayhemFirstStack = (5 * RecommendationBaseHeight) + 58 + 6; // five Mayhem build rows + ARAM row + body vertical padding\n            if (mayhemFirstStack > mayhemFirstViewport)\n                throw new InvalidOperationException("Runtime Companion Mayhem first viewport clips the ARAM balance row.");\n'''
+          text = replace_once(text, smoke_anchor, smoke_add, 'live clipping smoke')
+
+          write(path, text)
+
+          path = 'docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md'
+          text = read(path)
+          anchor = '''- Verify compactness does not hide the Mayhem build modules behind an unsupported Build Advisor shell, and that the champion title resolves to a real champion name instead of a raw internal `#ID` token.\n'''
+          addition = anchor + '''- At the 320 px baseline, verify left-side section captions never overlap the first character/icon of recommendation content in Ranked or Mayhem.\n- With Mayhem Bench visible at the 560 px height cap, the first viewport must show the five mode-specific build rows and the complete ARAM balance row without the bottom edge slicing through that row; deeper augment content remains wheel-scrollable.\n'''
+          text = replace_once(text, anchor, addition, 'live clipping acceptance')
+          write(path, text)
+          PY
+
+      - name: Commit clipping fix and remove helper workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-live-clipping-fix.yml
+          git add src/FACM/League/LeagueRuntimeCompanionForm.cs docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md
+          git commit -m "Fix Runtime Companion live clipping"
+          git push origin HEAD:feat/runtime-companion-20260910
