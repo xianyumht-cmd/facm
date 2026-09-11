@@ -36,6 +36,14 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - At the 320 px baseline, verify left-side section captions never overlap the first character/icon of recommendation content in Ranked or Mayhem.
 - With Mayhem Bench visible at the 560 px height cap, the first viewport must show the five mode-specific build rows and the complete ARAM balance row without the bottom edge slicing through that row; deeper augment content remains wheel-scrollable.
 
+## Latest live observations
+
+- Tencent live review covered a Summoner's Rift / training Champion Select and ARAM Mayhem.
+- No new functional defect was reported beyond minor clipping in both modes.
+- The Ranked/Summoner's Rift clipping was traced to a 12 px caption/content column overlap in the compact recommendation rows.
+- The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible.
+- The same correction pass also removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
+
 ## Closeout rule
 
 Do not merge, release or bump the production version until the live Tencent-client checks above are accepted and the current PR head has green Windows Build, UI Text Contract and Mayhem Source Probe checks.
