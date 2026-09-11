@@ -22,9 +22,15 @@ League automation, UI and presence should consume the shared monitor. Adding a �
 
 Improve perceived latency by reacting immediately when a phase is observed and by using the correct shared cadence.
 
+## Do not turn configurable delay into an unbounded sleep
+
+Akari-style auto-match/auto-accept delays belong inside the existing phase-bounded matchmaking controller. A Lobby start delay must be cancelled as soon as Lobby ownership/settings change; an accept delay must be cancelled as soon as ReadyCheck/settings change. Never implement these options with a detached background timer or a second Gameflow observer.
+
+The default remains zero delay. User values are clamped in shared `AppSettings` (minimum party 1-5, matchmaking wait 0-60 seconds, accept wait 0-15 seconds), and changing them reuses the same episode fences so a settings toggle cannot duplicate an ambiguous write.
+
 ## Do not add arbitrary first-action sleeps
 
-Lobby/ReadyCheck previously felt slower because of fixed initial delays. If an endpoint may lag behind Gameflow, use the phase-bounded observer/retry path rather than sleeping before every first attempt.
+Lobby/ReadyCheck previously felt slower because of fixed initial delays. If an endpoint may lag behind Gameflow, use the phase-bounded observer/retry path rather than sleeping before every first attempt. The optional Akari-style delays are explicit user policy; they must not become hidden mandatory latency.
 
 ## Do not mark writes successful before they are known to be successful
 
@@ -35,6 +41,12 @@ For ambiguous matchmaking writes, reconcile authoritative queue state before ret
 ## Do not treat HTTP 2xx as the only postcondition where the write can outlive the response
 
 LCU can apply a request and the client can still see a timeout/reset. Blind retry then duplicates the action. Use postcondition reads only on failure/ambiguity so the normal success path remains fast.
+
+## Do not confuse “close lobby” with “leave current Champion Select”
+
+The legacy `close-lobby` efficiency action terminates LeagueClient/LeagueClientUx processes. It is not a safe implementation of “退出当前选人但保留大厅/队伍”.
+
+Runtime Companion uses a dedicated writer that can issue only `POST /lol-lobby-team-builder/champ-select/v1/session/quit`. The transaction must preflight live ChampSelect and read back both “phase left ChampSelect” and “`/lol-lobby/v2/lobby` still exists” before reporting success. Never fall back to killing the client or `DELETE /lol-lobby/v2/lobby` when this route fails; League/Tencent dodge penalties also remain outside FACM ownership.
 
 ## Do not restore UI visibility you did not hide
 
