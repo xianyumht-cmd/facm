@@ -53,6 +53,9 @@ namespace FACM.League
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();
+            AllyBans = new List<int>();
+            EnemyBans = new List<int>();
+            Players = new List<LeagueLivePlayerRow>();
             SwapRoute = LeagueBenchSwapRoute.Legacy;
         }
 
@@ -62,8 +65,13 @@ namespace FACM.League
         public string GameMode { get; set; }
         public int LocalPlayerCellId { get; set; }
         public int LocalChampionId { get; set; }
+        public string TimerPhase { get; set; }
+        public int TimerMillisecondsLeft { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public List<int> ChampionIds { get; private set; }
+        public List<int> AllyBans { get; private set; }
+        public List<int> EnemyBans { get; private set; }
+        public List<LeagueLivePlayerRow> Players { get; private set; }
     }
 
     internal sealed class LeagueLivePlayerRow

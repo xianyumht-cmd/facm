@@ -60,6 +60,10 @@ namespace FACM.League
             Require(bench.SessionAvailable && bench.BenchEnabled, "Bench state did not retain availability flags.");
             Require(bench.LocalPlayerCellId == 1 && bench.LocalChampionId == 22, "Bench state did not resolve the local champion.");
             Require(bench.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Legacy bench ids did not preserve client order.");
+            Require(bench.TimerPhase == "BAN_PICK" && bench.TimerMillisecondsLeft == 25000, "Bench-compatible draft projection lost the timer.");
+            Require(bench.AllyBans.SequenceEqual(new[] { 11, 22 }) && bench.EnemyBans.SequenceEqual(new[] { 33 }), "Bench-compatible draft projection lost bans.");
+            Require(bench.Players.Count == 3 && bench.Players.Exists(row => row.IsLocalPlayer && row.AccountName == "Me#CQ100"),
+                "Bench-compatible draft projection lost team rows or local identity.");
 
             api.Phase = "InProgress";
             api.Paths.Clear();

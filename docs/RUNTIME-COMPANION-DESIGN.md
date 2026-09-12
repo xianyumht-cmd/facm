@@ -92,6 +92,10 @@ A non-null Build Advisor snapshot is not equivalent to a usable recommendation. 
 When Riot game-data supplies augment rarity, the compact ranking may locally filter `全部 / 棱彩 / 黄金 / 白银`; switching the filter must not trigger a new external recommendation request. Event-choice or unknown rarity remains available through `全部` only.
 For Mayhem fallback guidance, summoner spells, skill priority and item rows should prefer compact game-data icons with concise text retained as evidence/tooltips; icon loading remains presentation-only and must reuse the existing guide asset loader rather than introduce a new network owner.
 
+### Draft-context projection
+
+The existing lightweight ChampSelect session read also carries timer, ally/enemy draft rows and ban counts into the Runtime Companion snapshot. This must not add another ChampSelect GET, another Gameflow observer or automatic per-player match-history fan-out. The compact surface may show allied pick intent because it is already local-team context; enemy rows fail closed to actually revealed champion/account context. Team rows are icon-first, tooltip-assisted and scroll with the existing body rather than increasing the fixed header/context footprint.
+
 ### Live readability acceptance
 
 The 320 px runtime surface must remain readable rather than merely fit. Primary recommendation text gets the first line(s), source metrics are secondary, and full detail may use tooltip/progressive disclosure. Raw champion ids such as `#904` are not a valid user-facing identity.

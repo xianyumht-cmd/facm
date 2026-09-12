@@ -143,6 +143,11 @@ namespace FACM.League
                     _snapshot.LocalChampionId = championHint;
                     _snapshot.SwapRoute = state == null ? LeagueBenchSwapRoute.Legacy : state.SwapRoute;
                     _snapshot.BenchChampionIds = championIds.AsReadOnly();
+                    _snapshot.TimerPhase = state == null ? null : state.TimerPhase;
+                    _snapshot.TimerMillisecondsLeft = state == null ? 0 : state.TimerMillisecondsLeft;
+                    _snapshot.AllyBans = CopyInts(state == null ? null : state.AllyBans);
+                    _snapshot.EnemyBans = CopyInts(state == null ? null : state.EnemyBans);
+                    _snapshot.Players = CopyPlayers(state == null ? null : state.Players);
                     _snapshot.UpdatedAtUtc = DateTime.UtcNow;
                 }
 
@@ -300,6 +305,32 @@ namespace FACM.League
             plan.SecondaryRuneIds.Clear();
             plan.StatModIds.Clear();
             plan.RunePreview = null;
+        }
+
+        private static IReadOnlyList<int> CopyInts(IReadOnlyList<int> source)
+        {
+            return source == null || source.Count == 0
+                ? Array.Empty<int>()
+                : new List<int>(source).AsReadOnly();
+        }
+
+        private static IReadOnlyList<LeagueLivePlayerRow> CopyPlayers(IReadOnlyList<LeagueLivePlayerRow> source)
+        {
+            if (source == null || source.Count == 0) return Array.Empty<LeagueLivePlayerRow>();
+            var rows = new List<LeagueLivePlayerRow>(source.Count);
+            foreach (var row in source)
+            {
+                if (row == null) continue;
+                rows.Add(new LeagueLivePlayerRow
+                {
+                    Side = row.Side, CellId = row.CellId, IsLocalPlayer = row.IsLocalPlayer,
+                    GameName = row.GameName, TagLine = row.TagLine, DisplayName = row.DisplayName,
+                    PuuId = row.PuuId, SummonerId = row.SummonerId, Position = row.Position, Role = row.Role,
+                    ChampionId = row.ChampionId, ChampionPickIntent = row.ChampionPickIntent,
+                    Spell1Id = row.Spell1Id, Spell2Id = row.Spell2Id
+                });
+            }
+            return rows.AsReadOnly();
         }
 
         private void MaybeStartBuildRequest(int championHint)
@@ -611,6 +642,14 @@ namespace FACM.League
                 LocalChampionId = 58,
                 SwapRoute = LeagueBenchSwapRoute.TeamBuilder,
                 BenchChampionIds = new List<int> { 266, 55 }.AsReadOnly(),
+                TimerPhase = "BAN_PICK",
+                TimerMillisecondsLeft = 25000,
+                AllyBans = new List<int> { 11, 22 }.AsReadOnly(),
+                EnemyBans = new List<int> { 33 }.AsReadOnly(),
+                Players = new List<LeagueLivePlayerRow>
+                {
+                    new LeagueLivePlayerRow { Side = "ally", CellId = 1, IsLocalPlayer = true, GameName = "Me", TagLine = "CN1", ChampionId = 58, Position = "TOP" }
+                }.AsReadOnly(),
                 Build = build,
                 GuideLoading = false,
                 GuideChampionId = 0,
@@ -621,6 +660,11 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion snapshot clone lost ranked context fields.");
             if (clone.BenchChampionIds == null || clone.BenchChampionIds.Count != 2 || clone.BenchChampionIds[0] != 266)
                 throw new InvalidOperationException("Runtime Companion snapshot clone lost Bench order.");
+            if (clone.TimerMillisecondsLeft != 25000 || clone.AllyBans.Count != 2 || clone.EnemyBans.Count != 1 ||
+                clone.Players.Count != 1 || clone.Players[0].AccountName != "Me#CN1")
+                throw new InvalidOperationException("Runtime Companion snapshot clone lost projected draft context.");
+            if (ReferenceEquals(clone.Players[0], source.Players[0]))
+                throw new InvalidOperationException("Runtime Companion draft players were not defensively cloned.");
             if (clone.Build == source.Build || clone.Build.Recommendation == source.Build.Recommendation)
                 throw new InvalidOperationException("Runtime Companion build snapshot was not defensively cloned.");
             if (clone.Build.Recommendation.Rows.Count != 1 || clone.Build.Recommendation.Rows[0].Category != "runes")

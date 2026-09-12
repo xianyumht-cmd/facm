@@ -64,6 +64,7 @@ namespace FACM.League
         private readonly Panel _header;
         private readonly Label _title;
         private readonly Label _status;
+        private readonly Label _timerLabel;
         private readonly Button _quitButton;
         private readonly Button _pinButton;
         private readonly Button _collapseButton;
@@ -84,6 +85,8 @@ namespace FACM.League
         private readonly RecommendationSection _boots;
         private readonly RecommendationSection _core;
         private readonly RecommendationSection _counters;
+        private readonly RecommendationSection _allyTeam;
+        private readonly RecommendationSection _enemyTeam;
         private readonly Panel _aramBalanceSection;
         private readonly Label _aramBalanceText;
         private readonly Panel _mayhemSection;
@@ -122,6 +125,7 @@ namespace FACM.League
         private int _benchPage;
         private string _benchRosterFingerprint;
         private string _benchRenderFingerprint;
+        private string _draftTeamFingerprint;
 
         private sealed class BenchTarget
         {
@@ -194,6 +198,17 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
+            _timerLabel = new Label
+            {
+                Text = string.Empty,
+                Location = new Point(94, 0),
+                Size = new Size(60, HeaderHeight),
+                TextAlign = ContentAlignment.MiddleRight,
+                AutoEllipsis = true,
+                BackColor = Color.Transparent,
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+            };
             _status = new Label
             {
                 Text = char.ConvertFromUtf32(0x25CF),
@@ -218,6 +233,7 @@ namespace FACM.League
             close.Click += delegate { Close(); };
 
             _header.Controls.Add(_title);
+            _header.Controls.Add(_timerLabel);
             _header.Controls.Add(_status);
             _header.Controls.Add(_quitButton);
             _header.Controls.Add(_pinButton);
@@ -366,12 +382,22 @@ namespace FACM.League
                 "counters",
                 LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Counters),
                 null);
+            _allyTeam = CreateRecommendationSection(
+                "ally-team",
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.AllyTeam),
+                null);
+            _enemyTeam = CreateRecommendationSection(
+                "enemy-team",
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.EnemyTeam),
+                null);
 
             _runes.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.Runes, _runes); };
             _spells.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.SummonerSpells, _spells); };
             _core.Action.Click += async delegate { await ImportItemSetAsync(); };
 
             foreach (var section in RecommendationSections()) _sections.Controls.Add(section.Host);
+            _sections.Controls.Add(_allyTeam.Host);
+            _sections.Controls.Add(_enemyTeam.Host);
 
             _aramBalanceSection = new Panel
             {
@@ -570,6 +596,8 @@ namespace FACM.League
         {
             if (snapshot == null || IsDisposed) return;
 
+            RenderChampSelectTimer(snapshot);
+            RenderDraftTeams(snapshot);
             var hasContext = snapshot.HasVisibleChampSelectContext;
             if (hasContext && !_surfaceConfirmed)
             {
@@ -624,6 +652,181 @@ namespace FACM.League
 
             if (!hasContext)
                 SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting), FacmDesignSystem.TextMuted);
+        }
+
+        private void RenderChampSelectTimer(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            if (snapshot == null || !snapshot.SessionAvailable || snapshot.TimerMillisecondsLeft <= 0)
+            {
+                _timerLabel.Text = string.Empty;
+                _toolTip.SetToolTip(_timerLabel, string.Empty);
+                return;
+            }
+            var seconds = Math.Max(0, (int)Math.Ceiling(snapshot.TimerMillisecondsLeft / 1000d));
+            _timerLabel.Text = seconds.ToString(CultureInfo.InvariantCulture) + "s";
+            _timerLabel.ForeColor = seconds <= 5 ? FacmDesignSystem.Warning : FacmDesignSystem.TextMuted;
+            _toolTip.SetToolTip(_timerLabel, FirstNonEmpty(snapshot.TimerPhase, _timerLabel.Text) + " · " + _timerLabel.Text);
+        }
+
+        private void RenderDraftTeams(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            if (snapshot == null || !snapshot.SessionAvailable)
+            {
+                _draftTeamFingerprint = null;
+                HideRecommendationSection(_allyTeam);
+                HideRecommendationSection(_enemyTeam);
+                return;
+            }
+
+            var fingerprint = BuildDraftFingerprint(snapshot);
+            if (string.Equals(_draftTeamFingerprint, fingerprint, StringComparison.Ordinal)) return;
+            _draftTeamFingerprint = fingerprint;
+            RenderDraftTeamSection(_allyTeam, snapshot.Players, "ally", snapshot.AllyBans == null ? 0 : snapshot.AllyBans.Count, true, fingerprint);
+            RenderDraftTeamSection(_enemyTeam, snapshot.Players, "enemy", snapshot.EnemyBans == null ? 0 : snapshot.EnemyBans.Count, false, fingerprint);
+            HideNativeBodyScrollBars();
+        }
+
+        private static string BuildDraftFingerprint(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            if (snapshot == null) return string.Empty;
+            var parts = new List<string>();
+            foreach (var row in snapshot.Players ?? Array.Empty<LeagueLivePlayerRow>())
+            {
+                if (row == null) continue;
+                parts.Add((row.Side ?? string.Empty) + ":" + row.CellId + ":" + row.ChampionId + ":" + row.ChampionPickIntent + ":" +
+                          (row.Position ?? string.Empty) + ":" + (row.AccountName ?? string.Empty));
+            }
+            parts.Add("ab:" + string.Join(",", snapshot.AllyBans ?? Array.Empty<int>()));
+            parts.Add("eb:" + string.Join(",", snapshot.EnemyBans ?? Array.Empty<int>()));
+            return string.Join("|", parts);
+        }
+
+        private void RenderDraftTeamSection(
+            RecommendationSection section,
+            IReadOnlyList<LeagueLivePlayerRow> players,
+            string side,
+            int banCount,
+            bool allowIntent,
+            string fingerprint)
+        {
+            if (section == null) return;
+            var rows = (players ?? Array.Empty<LeagueLivePlayerRow>())
+                .Where(row => row != null && string.Equals(row.Side, side, StringComparison.OrdinalIgnoreCase))
+                .Where(row => allowIntent || row.ChampionId > 0 || !string.IsNullOrWhiteSpace(row.AccountName))
+                .OrderBy(row => row.CellId)
+                .Take(5)
+                .ToList();
+            if (rows.Count == 0)
+            {
+                HideRecommendationSection(section);
+                return;
+            }
+
+            ClearSectionVisuals(section);
+            section.Value.Text = string.Empty;
+            section.Value.Visible = false;
+            section.Host.Visible = true;
+            section.More.Visible = false;
+            section.Alternatives.Visible = false;
+            section.Alternatives.Height = 0;
+            section.Host.Height = RecommendationBaseHeight;
+            section.Rule.Top = RecommendationBaseHeight - 1;
+            section.Rows = Array.Empty<LeagueBuildAdvisorRow>();
+            foreach (var row in rows)
+                section.Visuals.Controls.Add(CreateDraftChampionToken(row, allowIntent, fingerprint));
+            section.Visuals.Visible = section.Visuals.Controls.Count > 0;
+
+            var picked = rows.Count(row => ResolveDraftChampionId(row, allowIntent) > 0);
+            section.Evidence.ForeColor = FacmDesignSystem.TextMuted;
+            section.Evidence.Text = picked.ToString(CultureInfo.InvariantCulture) + "/5 " +
+                                    CompanionText(LeagueRuntimeCompanionUiTextKeys.DraftPickedShort) + " · " +
+                                    CompanionText(LeagueRuntimeCompanionUiTextKeys.BanShort) + " " +
+                                    Math.Max(0, banCount).ToString(CultureInfo.InvariantCulture);
+            _toolTip.SetToolTip(section.Evidence, section.Evidence.Text);
+        }
+
+        private Control CreateDraftChampionToken(LeagueLivePlayerRow row, bool allowIntent, string fingerprint)
+        {
+            var host = new Panel
+            {
+                Size = new Size(GuideTokenSize, GuideTokenSize),
+                Margin = new Padding(0, 2, GuideTokenGap, 0),
+                BackColor = FacmDesignSystem.SurfaceRaised
+            };
+            FacmDesignSystem.Round(host, Math.Min(4, FacmDesignSystem.ControlRadius));
+            var picture = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent
+            };
+            var fallback = new Label
+            {
+                Dock = DockStyle.Fill,
+                Text = ShortPosition(row == null ? null : row.Position),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.5F, FontStyle.Bold)
+            };
+            host.Controls.Add(picture);
+            host.Controls.Add(fallback);
+            fallback.BringToFront();
+            var tooltip = BuildDraftPlayerTooltip(row);
+            _toolTip.SetToolTip(host, tooltip);
+            _toolTip.SetToolTip(picture, tooltip);
+            _toolTip.SetToolTip(fallback, tooltip);
+            var championId = ResolveDraftChampionId(row, allowIntent);
+            if (championId > 0) _ = LoadDraftChampionIconAsync(picture, fallback, championId, fingerprint);
+            return host;
+        }
+
+        private async Task LoadDraftChampionIconAsync(PictureBox picture, Label fallback, int championId, string fingerprint)
+        {
+            try
+            {
+                var bitmap = await LoadChampionBitmapAsync(championId);
+                if (bitmap == null || IsDisposed || picture.IsDisposed ||
+                    !string.Equals(_draftTeamFingerprint, fingerprint, StringComparison.Ordinal)) return;
+                picture.Image = bitmap;
+                if (fallback != null && !fallback.IsDisposed) fallback.Visible = false;
+            }
+            catch (OperationCanceledException) { } catch (ObjectDisposedException) { } catch { }
+        }
+
+        private string BuildDraftPlayerTooltip(LeagueLivePlayerRow row)
+        {
+            if (row == null) return string.Empty;
+            var values = new List<string>();
+            var position = ShortPosition(row.Position);
+            if (!string.IsNullOrWhiteSpace(position)) values.Add(position);
+            if (!string.IsNullOrWhiteSpace(row.AccountName)) values.Add(row.AccountName);
+            if (row.IsLocalPlayer) values.Add(UiTextRuntime.Text(UiTextKeys.AppName));
+            return string.Join(" · ", values);
+        }
+
+        private static int ResolveDraftChampionId(LeagueLivePlayerRow row, bool allowIntent)
+        {
+            if (row == null) return 0;
+            if (row.ChampionId > 0) return row.ChampionId;
+            return allowIntent && row.ChampionPickIntent > 0 ? row.ChampionPickIntent : 0;
+        }
+
+        private string ShortPosition(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return CompanionText(LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition);
+            switch (value.Trim().ToUpperInvariant())
+            {
+                case "TOP": return "上"; // ui-text-contract: allow
+                case "JUNGLE": return "野"; // ui-text-contract: allow
+                case "MIDDLE":
+                case "MID": return "中"; // ui-text-contract: allow
+                case "BOTTOM":
+                case "ADC": return "下"; // ui-text-contract: allow
+                case "UTILITY":
+                case "SUPPORT": return "辅"; // ui-text-contract: allow
+                default: return value.Length <= 2 ? value : value.Substring(0, 1).ToUpperInvariant();
+            }
         }
 
         private void RenderBuild(LeagueBuildAdvisorSnapshot build, bool loading, string error)
@@ -2342,8 +2545,11 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
-            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 25)
+            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 29)
                 throw new InvalidOperationException("Runtime Companion localized P0 copy is incomplete.");
+            if (ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, true) != 58 ||
+                ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, false) != 0)
+                throw new InvalidOperationException("Runtime Companion draft intent visibility policy regressed.");
 
             var recommendation = new LeagueBuildRecommendation
             {

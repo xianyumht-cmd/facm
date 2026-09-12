@@ -38,6 +38,11 @@ namespace FACM.League
         public int LocalChampionId { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public IReadOnlyList<int> BenchChampionIds { get; set; } = Array.Empty<int>();
+        public string TimerPhase { get; set; }
+        public int TimerMillisecondsLeft { get; set; }
+        public IReadOnlyList<int> AllyBans { get; set; } = Array.Empty<int>();
+        public IReadOnlyList<int> EnemyBans { get; set; } = Array.Empty<int>();
+        public IReadOnlyList<LeagueLivePlayerRow> Players { get; set; } = Array.Empty<LeagueLivePlayerRow>();
 
         public bool BuildLoading { get; set; }
         public string BuildError { get; set; }
@@ -87,6 +92,11 @@ namespace FACM.League
                 BenchChampionIds = BenchChampionIds == null
                     ? Array.Empty<int>()
                     : new List<int>(BenchChampionIds).AsReadOnly(),
+                TimerPhase = TimerPhase,
+                TimerMillisecondsLeft = TimerMillisecondsLeft,
+                AllyBans = AllyBans == null ? Array.Empty<int>() : new List<int>(AllyBans).AsReadOnly(),
+                EnemyBans = EnemyBans == null ? Array.Empty<int>() : new List<int>(EnemyBans).AsReadOnly(),
+                Players = ClonePlayers(Players),
                 BuildLoading = BuildLoading,
                 BuildError = BuildError,
                 Build = CloneBuild(Build),
@@ -96,6 +106,34 @@ namespace FACM.League
                 GuideError = GuideError,
                 UpdatedAtUtc = UpdatedAtUtc
             };
+        }
+
+        private static IReadOnlyList<LeagueLivePlayerRow> ClonePlayers(IReadOnlyList<LeagueLivePlayerRow> source)
+        {
+            if (source == null || source.Count == 0) return Array.Empty<LeagueLivePlayerRow>();
+            var rows = new List<LeagueLivePlayerRow>(source.Count);
+            foreach (var row in source)
+            {
+                if (row == null) continue;
+                rows.Add(new LeagueLivePlayerRow
+                {
+                    Side = row.Side,
+                    CellId = row.CellId,
+                    IsLocalPlayer = row.IsLocalPlayer,
+                    GameName = row.GameName,
+                    TagLine = row.TagLine,
+                    DisplayName = row.DisplayName,
+                    PuuId = row.PuuId,
+                    SummonerId = row.SummonerId,
+                    Position = row.Position,
+                    Role = row.Role,
+                    ChampionId = row.ChampionId,
+                    ChampionPickIntent = row.ChampionPickIntent,
+                    Spell1Id = row.Spell1Id,
+                    Spell2Id = row.Spell2Id
+                });
+            }
+            return rows.AsReadOnly();
         }
 
         internal static LeagueBuildAdvisorSnapshot CloneBuild(LeagueBuildAdvisorSnapshot source)
