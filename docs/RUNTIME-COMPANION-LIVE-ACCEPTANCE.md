@@ -39,11 +39,13 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 ## Latest live observations
 
 - Tencent live review covered a Summoner's Rift / training Champion Select and ARAM Mayhem.
-- No new functional defect was reported beyond minor clipping in both modes.
-- The Ranked/Summoner's Rift clipping was traced to a 12 px caption/content column overlap in the compact recommendation rows.
-- The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible.
-- The same correction pass also removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
-- Review candidate head `838c83c5476419604043216f3decc96094ce6083` passed UI Text Contract #903, Mayhem Source Probe #566 and Windows Build #1795.
+- The 320 px horizontal geometry is accepted; no further width increase is requested.
+- The previous 560 px logical height still felt too tall beside the League client. The next review baseline is 420 px maximum logical height, a 25% reduction, with content reached by the existing body wheel scroll rather than by shrinking text or restoring native scrollbars.
+- The `更多 2` progressive-disclosure button was visibly clipped vertically on live Windows. Its compact geometry is now 58 x 24 at y=33 with centered text/padding so the glyph baseline remains fully visible under DPI scaling.
+- The Ranked/Summoner's Rift clipping was traced to a 12 px caption/content column overlap in the compact recommendation rows and is already corrected.
+- The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible; with the new intentionally shorter window, lower modules are expected to scroll instead of being forced into the first viewport.
+- The same correction pass removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
+- Review candidate head `838c83c5476419604043216f3decc96094ce6083` passed UI Text Contract #903, Mayhem Source Probe #566 and Windows Build #1795. The newer compact-height candidate requires fresh CI before it is treated as the next live-test build.
 - Windows Build #1795 produced FACM 3.5.38, 2,067,352 bytes, SHA-256 `E10FD41373ADB914CCBEC7F1F2C3E2147D6474B9E6AC3E6EF30D19DBA73FFA92`.
 
 ## Closeout rule
