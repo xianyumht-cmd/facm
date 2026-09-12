@@ -1631,14 +1631,33 @@ namespace FACM.League
 
         private bool TryRenderBuildPrimaryIcons(RecommendationSection section, LeagueBuildAdvisorRow row)
         {
-            if (section == null || row == null || !SupportsBuildPrimaryIcons(section.Category) ||
-                row.IconReferences == null || row.IconReferences.Count == 0) return false;
+            if (section == null || row == null || !SupportsBuildPrimaryIcons(section.Category)) return false;
+
+            if (string.Equals(section.Category, "skills", StringComparison.OrdinalIgnoreCase))
+            {
+                var skills = (row.Recommendation ?? string.Empty)
+                    .Split(new[] { '>', '→' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(value => value.Trim())
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Take(4)
+                    .ToArray();
+                foreach (var skill in skills)
+                    section.Visuals.Controls.Add(CreateGuideToken(skill, null, _guideSectionRenderGeneration));
+                section.Visuals.Visible = section.Visuals.Controls.Count > 0;
+                if (section.Visuals.Visible) _toolTip.SetToolTip(section.Visuals, row.Recommendation ?? string.Empty);
+                return section.Visuals.Visible;
+            }
+
+            if (row.IconReferences == null || row.IconReferences.Count == 0) return false;
             var labels = (row.Recommendation ?? string.Empty).Split(new[] { " · " }, StringSplitOptions.None);
             var count = Math.Min(BuildPrimaryIconLimit(section.Category), row.IconReferences.Count);
+            var compactRunes = string.Equals(section.Category, "runes", StringComparison.OrdinalIgnoreCase);
+            var tokenSize = compactRunes ? 24 : GuideTokenSize;
+            var tokenGap = compactRunes ? 3 : GuideTokenGap;
             for (var index = 0; index < count; index++)
             {
                 var label = index < labels.Length ? labels[index] : row.Recommendation;
-                section.Visuals.Controls.Add(CreateGuideToken(label, row.IconReferences[index], _guideSectionRenderGeneration));
+                section.Visuals.Controls.Add(CreateGuideToken(label, row.IconReferences[index], _guideSectionRenderGeneration, tokenSize, tokenGap));
             }
             section.Visuals.Visible = section.Visuals.Controls.Count > 0;
             if (section.Visuals.Visible) _toolTip.SetToolTip(section.Visuals, row.Recommendation ?? string.Empty);
@@ -1647,7 +1666,9 @@ namespace FACM.League
 
         private static bool SupportsBuildPrimaryIcons(string category)
         {
-            return string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase) ||
+            return string.Equals(category, "runes", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "skills", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(category, "starter-items", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase) ||
@@ -1656,6 +1677,8 @@ namespace FACM.League
 
         private static int BuildPrimaryIconLimit(string category)
         {
+            if (string.Equals(category, "runes", StringComparison.OrdinalIgnoreCase)) return 6;
+            if (string.Equals(category, "skills", StringComparison.OrdinalIgnoreCase)) return 4;
             if (string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase)) return 2;
             if (string.Equals(category, "starter-items", StringComparison.OrdinalIgnoreCase)) return 3;
             if (string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase)) return 2;
@@ -1828,12 +1851,14 @@ namespace FACM.League
             section.GuideFallback = true;
         }
 
-        private Control CreateGuideToken(string text, string iconReference, int generation)
+        private Control CreateGuideToken(string text, string iconReference, int generation, int tokenSize = GuideTokenSize, int tokenGap = GuideTokenGap)
         {
+            tokenSize = Math.Max(18, tokenSize);
+            tokenGap = Math.Max(0, tokenGap);
             var host = new Panel
             {
-                Size = new Size(GuideTokenSize, GuideTokenSize),
-                Margin = new Padding(0, 2, GuideTokenGap, 0),
+                Size = new Size(tokenSize, tokenSize),
+                Margin = new Padding(0, 2, tokenGap, 0),
                 BackColor = FacmDesignSystem.SurfaceRaised
             };
             FacmDesignSystem.Round(host, Math.Min(4, FacmDesignSystem.ControlRadius));
@@ -2543,6 +2568,10 @@ namespace FACM.League
             // must remain valid, but total content height is allowed to exceed compactBodyViewport.
             if (GuideTokenSize * 5 + GuideTokenGap * 4 > 214)
                 throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");
+            if ((24 * 6) + (3 * 5) > SectionActionContentWidth)
+                throw new InvalidOperationException("Runtime Companion grouped rune icons no longer fit beside the Apply action.");
+            if (BuildPrimaryIconLimit("runes") != 6 || BuildPrimaryIconLimit("skills") != 4)
+                throw new InvalidOperationException("Runtime Companion grouped rune/skill visual limits drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
             if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 29)

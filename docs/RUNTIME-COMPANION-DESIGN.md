@@ -88,6 +88,7 @@ The fixed top region must not scroll. The detail body may scroll vertically by w
 
 ### Mode-specific information completeness
 
+Grouped ordinary-mode rune schemes should remain grouped while becoming icon-first when the LCU perk catalog supplies `iconPath`; six compact rune icons must fit beside the existing Apply action. Normal skill priority may use compact Q/W/E/R tokens because those letters are already the source recommendation, not invented metadata.
 A non-null Build Advisor snapshot is not equivalent to a usable recommendation. For unsupported modes such as ARAM Mayhem, Runtime Companion must continue projecting the mode-specific guide when `HasBuild` is false. Mayhem should expose verified summoner spells, skill priority, starter items, boots and core build when those fields are available, followed by ARAM balance and augment ranking. Ordinary ranked/ARAM rune recommendations must not be fabricated into Mayhem when the active Mayhem source does not publish rune data.
 When Riot game-data supplies augment rarity, the compact ranking may locally filter `全部 / 棱彩 / 黄金 / 白银`; switching the filter must not trigger a new external recommendation request. Event-choice or unknown rarity remains available through `全部` only.
 For Mayhem fallback guidance, summoner spells, skill priority and item rows should prefer compact game-data icons with concise text retained as evidence/tooltips; icon loading remains presentation-only and must reuse the existing guide asset loader rather than introduce a new network owner.

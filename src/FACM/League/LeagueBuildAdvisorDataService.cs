@@ -282,7 +282,8 @@ namespace FACM.League
             // Preserve the source ordering. Row zero remains the default consumed by existing Apply
             // owners; up to two additional rows are display-only alternatives. No extra request is made.
             AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, catalog == null ? null : catalog.SpellIcons, AlternativeRowLimit);
-            AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"), catalog == null ? null : catalog.Perks, AlternativeRowLimit);
+            AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"),
+                catalog == null ? null : catalog.Perks, catalog == null ? null : catalog.PerkIcons, AlternativeRowLimit);
             AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
             AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
             AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
@@ -301,7 +302,7 @@ namespace FACM.League
             ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
             ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
             ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
-            ParseIdNameArray(perksBytes, catalog.Perks);
+            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons);
             return catalog;
         }
 
@@ -579,6 +580,7 @@ namespace FACM.League
             object runesValue,
             object runePagesValue,
             IDictionary<int, string> names,
+            IDictionary<int, string> icons,
             int limit)
         {
             if (output == null || limit <= 0) return;
@@ -600,7 +602,8 @@ namespace FACM.League
                     {
                         Category = "runes",
                         Recommendation = JoinNames(ids, names),
-                        Evidence = BuildEvidence(build, page)
+                        Evidence = BuildEvidence(build, page),
+                        IconReferences = BuildIconReferences(ids, icons)
                     });
                     if (++added >= limit) return;
                 }
@@ -897,6 +900,7 @@ namespace FACM.League
             Copy(source.Perks, clone.Perks);
             Copy(source.ItemIcons, clone.ItemIcons);
             Copy(source.SpellIcons, clone.SpellIcons);
+            Copy(source.PerkIcons, clone.PerkIcons);
             Copy(source.ChampionIcons, clone.ChampionIcons);
             return clone;
         }

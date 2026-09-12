@@ -43,6 +43,8 @@ namespace FACM.League
 
                 Require(runeRows.Count == 2 && runeRows[0].Recommendation.Contains("电刑") && runeRows[1].Recommendation.Contains("奥术彗星"),
                     "Build Advisor did not preserve ordered rune alternatives.");
+                Require(runeRows[0].IconReferences.Count == 3 && runeRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve grouped rune icon references for Runtime Companion.");
                 Require(spellRows.Count == 2 && spellRows[0].Recommendation.Contains("闪现") && spellRows[0].Recommendation.Contains("惩戒"),
                     "Build Advisor did not preserve ordered summoner-spell alternatives.");
                 Require(spellRows[0].Evidence.Contains("win 54.2%") && spellRows[0].Evidence.Contains("1,200 games"),
@@ -197,7 +199,7 @@ namespace FACM.League
                 if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
                     return Bytes("[{\"id\":4,\"name\":\"闪现\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerFlash.png\"},{\"id\":11,\"name\":\"惩戒\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerSmite.png\"},{\"id\":12,\"name\":\"传送\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerTeleport.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.PerksPath)
-                    return Bytes("[{\"id\":8112,\"name\":\"电刑\"},{\"id\":8143,\"name\":\"突然冲击\"},{\"id\":8347,\"name\":\"饼干配送\"},{\"id\":8214,\"name\":\"奥术彗星\"},{\"id\":8226,\"name\":\"法力流系带\"}]");
+                    return Bytes("[{\"id\":8112,\"name\":\"电刑\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/Electrocute/Electrocute.png\"},{\"id\":8143,\"name\":\"突然冲击\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/SuddenImpact/SuddenImpact.png\"},{\"id\":8347,\"name\":\"饼干配送\",\"iconPath\":\"ASSETS/Perks/Styles/Inspiration/BiscuitDelivery/BiscuitDelivery.png\"},{\"id\":8214,\"name\":\"奥术彗星\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ArcaneComet/ArcaneComet.png\"},{\"id\":8226,\"name\":\"法力流系带\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ManaflowBand/ManaflowBand.png\"}]");
                 return Task.FromResult<byte[]>(null);
             }
 
