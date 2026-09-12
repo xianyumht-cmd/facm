@@ -49,12 +49,26 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - The Ranked/Summoner's Rift clipping was traced to a 12 px caption/content column overlap in the compact recommendation rows and is already corrected.
 - The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible; with the intentionally shorter window, lower modules scroll instead of being forced into the first viewport.
 - The Mayhem Bench crop was traced to two simultaneous geometry causes: the old 58 px Bench host was shorter than its title/button/padding stack, and a decoded 44 x 44 bitmap was assigned unscaled to a 44 x 38 `Button.Image`. The current implementation uses a 64 logical px fixed Bench host, reduced dead vertical padding, and a zoomed background image inside the 44 x 38 button. A deterministic fit check protects the fixed Bench stack.
-- The same pass iconified ordinary Build Advisor primary summoner-spell / starter / boots / core rows by projecting existing LCU catalog `iconPath` values through the existing Runtime Companion asset loader. Rune recommendations remain grouped by scheme.
-- **2026-09-12 live retest accepted the Bench portrait correction and the current icon-first presentation as visually good.** No further width/height increase was requested from that pass.
-- The next incremental pass surfaces data the Build Advisor already fetched but the Runtime Companion previously hid: OP.GG `counters`. Source commit `d181e4e54b17afc521ff59d1760232883f752d7d` adds a display-only `克制` row, reuses champion-summary `iconPath` data for compact champion portraits, caps the row at five champions, and introduces no new network or write owner.
+- The ordinary Build Advisor presentation now projects existing LCU catalog `iconPath` data into grouped rune icons, summoner-spell/item icons and counter-champion icons. Skill priority remains source-derived and is rendered as compact Q/W/E/R tokens instead of inventing ability metadata.
+- **2026-09-12 live retest accepted the Bench portrait correction and the icon-first presentation that preceded this final batch as visually good.** No further width/height increase was requested from that pass.
+- OP.GG `counters` are no longer hidden: the display-only `克制` row reuses champion-summary icon data, caps the row at five champions, and introduces no new network or write owner.
+- The existing lightweight ChampSelect read now also projects the selection countdown, ally/enemy draft rows and ban counts. This reuses the same session payload and does not create another Gameflow observer, another ChampSelect GET, or automatic per-player match-history/scouting fan-out.
+- Allied draft rows may use local-team pick intent. Enemy rows fail closed to information actually exposed by the client. The local player tooltip uses `你` rather than product branding.
+- Deep match history, long-term trends and richer post-game analysis stay in their existing FACM-owned views instead of being duplicated into the 320 px transient surface. In-game overlay ownership is likewise not introduced by this Champion Select-only task.
 - The same correction series removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
-- The deterministic smoke contract matches the intentionally scrollable 420 px surface: it protects a useful body viewport and the full `更多` control bounds, but no longer requires all Mayhem build + ARAM content to fit in the first viewport.
+- The deterministic smoke contract matches the intentionally scrollable 420 px surface: it protects a useful body viewport and the full `更多` control bounds, but no longer requires all build/ARAM/augment/draft content to fit in the first viewport.
+
+## Final batched candidate before consolidated live test
+
+The implementation batch is feature-frozen for one consolidated real-machine check rather than incremental per-change testing. Product source milestones in this batch are:
+
+- `d181e4e54b17afc521ff59d1760232883f752d7d` — counter-matchup row and champion icons;
+- `5b2cac80cfe7dc6c9b52853ec74d788be923072c` — countdown plus ally/enemy draft-context projection from the existing session read;
+- `6a09f13091010ed716c61b110642042a97e14bd4` — grouped rune icons and compact skill-priority tokens;
+- `1fd7df4febb12520f314939791aaa2299b0d6b7a` — final draft-context copy/tooltip polish.
+
+No production version bump, online manifest change, merge, release or destructive cleanup is authorized by this feature freeze.
 
 ## Closeout rule
 
-Do not merge, release or bump the production version until the live Tencent-client checks above are accepted and the current PR head has green Windows Build, UI Text Contract and Mayhem Source Probe checks.
+Do not merge, release or bump the production version until the consolidated live Tencent-client checks above are accepted and the current PR head has green Windows Build, UI Text Contract and Mayhem Source Probe checks.
