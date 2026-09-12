@@ -801,7 +801,7 @@ namespace FACM.League
             var position = ShortPosition(row.Position);
             if (!string.IsNullOrWhiteSpace(position)) values.Add(position);
             if (!string.IsNullOrWhiteSpace(row.AccountName)) values.Add(row.AccountName);
-            if (row.IsLocalPlayer) values.Add(UiTextRuntime.Text(UiTextKeys.AppName));
+            if (row.IsLocalPlayer) values.Add(CompanionText(LeagueRuntimeCompanionUiTextKeys.LocalPlayer));
             return string.Join(" · ", values);
         }
 
@@ -2574,7 +2574,7 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion grouped rune/skill visual limits drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
-            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 29)
+            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 30)
                 throw new InvalidOperationException("Runtime Companion localized P0 copy is incomplete.");
             if (ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, true) != 58 ||
                 ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, false) != 0)

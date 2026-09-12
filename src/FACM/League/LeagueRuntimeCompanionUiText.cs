@@ -49,6 +49,7 @@ namespace FACM.League
         public const string EnemyTeam = "LeagueRuntimeCompanionEnemyTeam";
         public const string DraftPickedShort = "LeagueRuntimeCompanionDraftPickedShort";
         public const string DraftUnknownPosition = "LeagueRuntimeCompanionDraftUnknownPosition";
+        public const string LocalPlayer = "LeagueRuntimeCompanionLocalPlayer";
     }
 
     internal static class LeagueRuntimeCompanionText
@@ -97,7 +98,8 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.AllyTeam, "我方阵容" },
             { LeagueRuntimeCompanionUiTextKeys.EnemyTeam, "对方阵容" },
             { LeagueRuntimeCompanionUiTextKeys.DraftPickedShort, "已选" },
-            { LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition, "?" }
+            { LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition, "?" },
+            { LeagueRuntimeCompanionUiTextKeys.LocalPlayer, "你" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
