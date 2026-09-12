@@ -107,3 +107,58 @@ For the 3.5.38 public read-only field test:
 - the probe remains GET-only and must not gain a League write interface or a second Gameflow owner.
 
 A normal user-facing ally/enemy notification is deferred until public field evidence demonstrates a stable positive mapping. This keeps the experiment useful without turning missing Tencent data into false certainty.
+
+## D-016 — Runtime Companion is a presentation/orchestration layer, not a new League runtime
+
+**Decision (2026-09-10, task PR #283):** the Champion Select helper may become a narrow context-aware Runtime Companion, but it must reuse current 3.5 owners instead of creating a parallel product stack.
+
+- `LeagueHubModule` keeps one-presentation-per-Champion-Select-episode ownership and remains the only automatic-popup lifecycle owner.
+- `LeagueRuntimeCompanionController` projects Bench, Build Advisor and Mayhem state into presentation snapshots; it does not own Gameflow or a second League session.
+- Bench swaps continue through `LeagueBenchQuickPickService`.
+- Rune and summoner-spell inline actions continue through `LeagueBuildApplyService`, including its confirmation-adjacent preparation, phase/champion/queue revalidation and settled postcondition checks; the Form has no raw LCU write path.
+- recommendation categories without an intentionally wired safe owner remain display-only in the companion even when another FACM page supports a broader workflow.
+- pin, collapse and dragged position preferences use the process-shared `AppSettings` owner and its last-known-good recovery path; the transient Form must not create a private settings file or load a stale second settings object.
+- initial placement and saved-position clamping happen after the Form reaches `Shown`, when the existing PerMonitorV2 manifest contract has established its physical DPI-scaled geometry. Pre-Show 96-DPI placement math is not authoritative on mixed-DPI desktops.
+- saved coordinates may be negative for monitors left of the primary display; monitor topology changes must clamp the companion back into a current working area.
+
+This keeps the Akari-style narrow interaction model as a UI improvement while preserving FACM's single-session, lightweight WinForms architecture. PR #283 remains a review task until Windows CI and real Tencent-client acceptance are complete; this decision does not authorize merge or release.
+
+## D-017 — Runtime Companion alternatives are bounded projections of one source payload
+
+**Decision (2026-09-10, PR #283 P0):** richer Akari-style recommendation density must not multiply transports, polling loops, or write owners.
+
+- Build Advisor may retain at most the first three OP.GG alternatives for runes, summoner spells, starter items, boots, core items and skill order from the same already-fetched build payload.
+- source ordering remains authoritative: row zero is the existing default and remains the option used by `LeagueBuildApplyService`; later alternatives are presentation-only until a separately designed chooser exists.
+- `pick_rate`, sample count and win evidence are projected only when the source actually supplies them. Missing win evidence stays unknown and must never be rendered as `0%` merely because a JSON key is absent.
+- Runtime Companion uses progressive disclosure for rows two and three. Expanding a section performs no network request.
+- champion Tier/rank/win/pick/ban summary is projected from the existing recommendation object, not a new statistics endpoint.
+- equipment import routes through the existing `LeagueItemSetService`; preparation remains read-only, the user confirms explicitly, the owner revalidates phase/champion/queue before writing, only FACM-owned recommendation files are changed, and committed JSON is verified.
+- base ARAM balance enrichment reuses the existing bounded ten-minute cache service. `RiotGameDataService.EnrichAsync` owns the single automatic-guide call and starts it in parallel with visual metadata; `MayhemAutomaticGuideService` must not call the same service first and then enter Riot enrichment. Available/fail-closed balance text is projected into a dedicated companion section without a periodic balance poller.
+
+This is the preferred pattern for future lightweight parity work: first reuse an existing response/cache/owner, then expose more of it. Do not buy UI richness with duplicated background work.
+
+## D-018 — Bench availability does not define ARAM Mayhem
+
+**Decision (2026-09-10, PR #283):** mode-specific Runtime Companion data must be selected from queue/mode context, not from `benchEnabled` alone.
+
+- ordinary ARAM remains queue 450 / ARAM and uses Build Advisor plus a version-bound base-ARAM balance-only supplement;
+- ARAM Mayhem is recognized separately by observed global queue 2400, CN/WeGame queue 3270, or `KIWI` / `ARAM_MAYHEM` mode tokens and may use the full Mayhem build/augment pipeline;
+- Bench remains only a capability signal for quick swap; it is not sufficient evidence that Mayhem-only recommendations apply;
+- unsupported or unrecognized Bench modes fail closed and do not start Mayhem external work;
+- ordinary ARAM waits for its matching Build Advisor version before the balance request so the base-balance parser can retain patch-mismatch semantics.
+
+This prevents a UI similarity feature from changing data truth: normal ARAM must never show Mayhem augments merely because both modes have a Bench.
+
+## D-019 — Quit Champion Select without closing the lobby
+
+**Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of FACM's process-killing `close-lobby` action.
+
+- use only the League Client team-builder quit route `POST /lol-lobby-team-builder/champ-select/v1/session/quit`;
+- never call `DELETE /lol-lobby/v2/lobby` and never kill `LeagueClient`, `LeagueClientUx`, or `LeagueClientUxRender` for this workflow;
+- require a live ChampSelect preflight;
+- send one POST per explicit click, without automatic retry;
+- verify that Gameflow leaves ChampSelect and the lobby remains readable before reporting success;
+- keep the action behind a dedicated write interface sharing the existing League session, not the generic build writer;
+- leave League's own dodge/queue penalty semantics untouched and communicate that in the UI tooltip.
+
+This provides the Akari-style convenience the user asked for without weakening FACM's write-target fences or lightweight single-session architecture.

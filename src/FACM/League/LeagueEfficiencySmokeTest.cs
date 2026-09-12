@@ -69,7 +69,10 @@ namespace FACM.League
                 "LeagueAutoHonorTeammateEnabled=True",
                 "LeagueAutoReturnLobbyEnabled=True",
                 "LeagueAutoMatchmakingEnabled=True",
-                "LeagueAutoAcceptEnabled=True"
+                "LeagueAutoAcceptEnabled=True",
+                "LeagueAutoMatchmakingMinPartySize=3",
+                "LeagueAutoMatchmakingStartDelayMs=2000",
+                "LeagueAutoAcceptDelayMs=500"
             });
             Require(settings.LeagueExitGameHotkey == "F8", "Exit-game hotkey setting did not parse.");
             Require(settings.LeagueCloseLobbyHotkey == "Ctrl+F9", "Close-lobby hotkey setting did not parse.");
@@ -77,6 +80,8 @@ namespace FACM.League
                 "Post-game automation settings did not parse.");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Next-game automation settings did not parse.");
+            Require(settings.LeagueAutoMatchmakingMinPartySize == 3 && settings.LeagueAutoMatchmakingStartDelayMs == 2000 && settings.LeagueAutoAcceptDelayMs == 500,
+                "Next-game policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLines());
             Require(serialized.Contains("LeagueExitGameHotkey=F8"), "Exit-game hotkey setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");

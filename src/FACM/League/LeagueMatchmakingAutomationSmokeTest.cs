@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSettings();
             ValidateTransportFence();
             ValidateImmediatePhaseReaction();
+            ValidateAkariStyleAutomationPolicies();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
@@ -37,11 +38,24 @@ namespace FACM.League
                 "Legacy settings must default Gate 7 OFF.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptEnabled=True");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingMinPartySize=4");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingStartDelayMs=2500");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptDelayMs=750");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Gate 7 settings did not parse.");
+            Require(settings.LeagueAutoMatchmakingMinPartySize == 4 && settings.LeagueAutoMatchmakingStartDelayMs == 2500 && settings.LeagueAutoAcceptDelayMs == 750,
+                "Akari-style matchmaking policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLinesForSmokeTest());
             Require(serialized.Contains("LeagueAutoMatchmakingEnabled=True"), "Auto-matchmaking setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingMinPartySize=4"), "Minimum-party setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingStartDelayMs=2500"), "Matchmaking delay setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoAcceptDelayMs=750"), "Accept delay setting did not serialize.");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingMinPartySize=99");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingStartDelayMs=999999");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptDelayMs=-1");
+            Require(settings.LeagueAutoMatchmakingMinPartySize == 5 && settings.LeagueAutoMatchmakingStartDelayMs == 60000 && settings.LeagueAutoAcceptDelayMs == 0,
+                "Akari-style matchmaking policy clamps regressed.");
         }
 
         private static void ValidateTransportFence()
@@ -90,6 +104,45 @@ namespace FACM.League
                     "ReadyCheck phase did not trigger accept promptly.");
                 Require(readyClock.DelayCalls == 0,
                     "ReadyCheck automation inserted a fixed delay before its first accept attempt.");
+            }
+        }
+
+        private static void ValidateAkariStyleAutomationPolicies()
+        {
+            var lobbyRead = new FakeReadApi();
+            lobbyRead.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var lobbyWrite = new FakeWriteApi();
+            var lobbyClock = new FakeClock();
+            using (var controller = new LeagueMatchmakingAutomationController(lobbyRead, lobbyWrite, lobbyClock))
+            {
+                controller.Configure(true, false, 3, 1500, 0);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Thread.Sleep(40);
+                Require(lobbyWrite.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 0,
+                    "Minimum party size did not block auto matchmaking.");
+                Require(lobbyClock.Delays.Any(value => value == TimeSpan.FromMilliseconds(1500)),
+                    "Configured matchmaking start delay was not observed exactly at episode start.");
+
+                lobbyRead.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                    LobbyJson(420, true, true, true, new[] { "self", "ally", "ally2" }, false));
+                Require(lobbyWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "Reaching the configured minimum party size did not allow matchmaking.");
+            }
+
+            var readyRead = new FakeReadApi();
+            readyRead.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var readyWrite = new FakeWriteApi();
+            var readyClock = new FakeClock();
+            using (var controller = new LeagueMatchmakingAutomationController(readyRead, readyWrite, readyClock))
+            {
+                controller.Configure(false, true, 1, 0, 750);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "ReadyCheck" });
+                Require(readyWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "Configured delayed ReadyCheck did not eventually accept.");
+                Require(readyClock.Delays.Any(value => value == TimeSpan.FromMilliseconds(750)),
+                    "Configured auto-accept delay was not applied before the first accept attempt.");
             }
         }
 
@@ -468,12 +521,14 @@ namespace FACM.League
         private sealed class FakeClock : ILeagueMatchmakingClock
         {
             public int DelayCalls;
+            public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays = new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
 
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref DelayCalls);
-                return Task.CompletedTask;
+                Delays.Enqueue(delay);
+                return Task.Delay(1, cancellationToken);
             }
         }
     }

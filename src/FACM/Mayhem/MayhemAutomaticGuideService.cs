@@ -39,10 +39,42 @@ namespace FACM.Mayhem
             if (result == null) return new MayhemChampionResult { Query = query, ErrorMessage = "自动攻略暂时没有结果。" };
             if (!string.IsNullOrWhiteSpace(result.ErrorMessage)) return result;
 
+            // RiotGameDataService already owns the bounded/cached base-ARAM enrichment and runs it
+            // in parallel with visual metadata. Do not call OpggAramBaseBalanceService again here:
+            // complete results would only hit cache, while unavailable results could otherwise cause
+            // a second network attempt and extend the visible companion's failure path.
             await RiotGameDataService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
             await MayhemRankedAugmentService.EnrichAsync(result, token).ConfigureAwait(false);
             await MayhemDecisionLocalizationService.EnrichAsync(result, _leagueClient, token).ConfigureAwait(false);
             Sanitize(result);
+            return result;
+        }
+
+        public async Task<MayhemChampionResult> QueryAramBalanceForChampionIdAsync(
+            int championId,
+            string expectedPatch,
+            CancellationToken token)
+        {
+            if (championId <= 0)
+                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄。" };
+
+            var query = await ResolveChampionQueryAsync(championId, token).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(query))
+                return new MayhemChampionResult { ErrorMessage = "客户端暂未提供当前英雄名称。" };
+
+            string slug;
+            if (!ChampionAliases.TryResolve(query, out slug)) slug = ChampionAliases.Slugify(query);
+            if (string.IsNullOrWhiteSpace(slug))
+                return new MayhemChampionResult { Query = query, ErrorMessage = "当前英雄无法映射到大乱斗平衡数据。" };
+
+            var result = new MayhemChampionResult
+            {
+                Query = query,
+                ChampionName = query,
+                ChampionSlug = slug,
+                Patch = expectedPatch
+            };
+            await OpggAramBaseBalanceService.EnrichAsync(result, token).ConfigureAwait(false);
             return result;
         }
 
@@ -124,6 +156,7 @@ namespace FACM.Mayhem
             {
                 CoreItems = new List<string> { "A", "B" },
                 Augments = new List<string> { "X", "Y" },
+                BaseBalanceSummary = "造成伤害 +5%",
                 AugmentRows = new List<MayhemAugmentRow>
                 {
                     new MayhemAugmentRow { Name = "棱彩强化", Rank = 1, Rarity = "棱彩" }
@@ -132,6 +165,8 @@ namespace FACM.Mayhem
             Sanitize(model);
             if (model.AugmentRows.Count != 1 || model.CoreItems.Count != 2)
                 throw new InvalidOperationException("Automatic Mayhem guide sanitization dropped valid guide data.");
+            if (!string.Equals(model.BaseBalanceSummary, "造成伤害 +5%", StringComparison.Ordinal))
+                throw new InvalidOperationException("Automatic Mayhem guide sanitization dropped ARAM balance data.");
         }
 
         private static string FirstUsable(params string[] values)

@@ -69,6 +69,7 @@ namespace FACM.Mayhem
         public const string NotEnough = "暂无足够数据";
         public const string AutoGenerate = "有可用统计时自动生成";
         public const string AugmentBoard = "强化符文决策榜";
+        public const string AugmentAll = "全部";
         public const string Prism = "棱彩";
         public const string Gold = "黄金";
         public const string Silver = "白银";

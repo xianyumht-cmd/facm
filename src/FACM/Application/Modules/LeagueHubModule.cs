@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -163,22 +162,24 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                form = _live.CreateChampSelectAssistantForm();
-                form.TopMost = true;
+                // Reuse the already-initialized Build Advisor / Build Apply / Item Set / Settings owners.
+                // The Runtime Companion must not create a second OP.GG transport, a parallel LCU
+                // write stack, or a stale settings copy. Placement is intentionally deferred to the
+                // Form's Shown path so per-monitor DPI has already established the real pixel size.
+                form = _live.CreateChampSelectAssistantForm(
+                    _advisor.RuntimeCompanionReadService,
+                    _advisor.RuntimeCompanionApplyService,
+                    _advisor.RuntimeCompanionItemSetService,
+                    _advisor.RuntimeCompanionSettings);
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
-
-                var area = Screen.FromPoint(Cursor.Position).WorkingArea;
-                form.Location = new Point(
-                    Math.Max(area.Left + 12, area.Right - form.Width - 18),
-                    area.Top + 18);
 
                 form.FormClosed += HandleAutomaticLivePopupClosed;
                 _automaticLivePopup = form;
                 _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
-                AppLog.Info("Lightweight ChampSelect assistant opened for episode.");
+                AppLog.Info("Runtime Companion opened for Champion Select episode.");
             }
             catch (Exception exception)
             {
@@ -186,7 +187,7 @@ namespace FACM.AppHost.Modules
                 _automaticLivePopup = null;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = true;
-                AppLog.Info("ChampSelect assistant skipped: " + exception.Message);
+                AppLog.Info("Runtime Companion skipped: " + exception.Message);
             }
         }
 

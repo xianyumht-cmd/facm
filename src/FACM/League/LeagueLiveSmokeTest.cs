@@ -60,6 +60,10 @@ namespace FACM.League
             Require(bench.SessionAvailable && bench.BenchEnabled, "Bench state did not retain availability flags.");
             Require(bench.LocalPlayerCellId == 1 && bench.LocalChampionId == 22, "Bench state did not resolve the local champion.");
             Require(bench.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Legacy bench ids did not preserve client order.");
+            Require(bench.TimerPhase == "BAN_PICK" && bench.TimerMillisecondsLeft == 25000, "Bench-compatible draft projection lost the timer.");
+            Require(bench.AllyBans.SequenceEqual(new[] { 11, 22 }) && bench.EnemyBans.SequenceEqual(new[] { 33 }), "Bench-compatible draft projection lost bans.");
+            Require(bench.Players.Count == 3 && bench.Players.Exists(row => row.IsLocalPlayer && row.AccountName == "Me#CQ100"),
+                "Bench-compatible draft projection lost team rows or local identity.");
 
             api.Phase = "InProgress";
             api.Paths.Clear();
@@ -74,13 +78,17 @@ namespace FACM.League
 
         private static void ValidateCurrentMayhemBenchShape()
         {
-            var mayhem = "{\"gameId\":500861493625,\"queueId\":2400,\"localPlayerCellId\":2,\"benchEnabled\":true," +
+            var mayhem = "{\"gameId\":500861493625,\"queueId\":2400,\"gameMode\":\"KIWI\",\"localPlayerCellId\":2,\"benchEnabled\":true," +
                          "\"isLegacyChampSelect\":false,\"benchChampionIds\":[]," +
                          "\"benchChampions\":[{\"championId\":266},{\"championId\":55},{\"championId\":266}]," +
                          "\"myTeam\":[{\"cellId\":2,\"championId\":58}]}";
             var service = new LeagueLiveDataService(new FixtureApi("ChampSelect", mayhem, "{}"), new PerformanceBudgetProvider());
             var state = service.ParseBenchState(Encoding.UTF8.GetBytes(mayhem));
             Require(state.SessionAvailable && state.BenchEnabled, "Mayhem bench session was not recognized.");
+            Require(state.QueueId == 2400 && string.Equals(state.GameMode, "KIWI", StringComparison.OrdinalIgnoreCase),
+                "Mayhem bench queue/mode context did not parse.");
+            Require(LeagueQueueModePolicy.IsAramMayhem(state.QueueId, state.GameMode),
+                "Parsed global Mayhem context did not reach the shared mode policy.");
             Require(state.ChampionIds.SequenceEqual(new[] { 266, 55 }), "Mayhem benchChampions did not parse/deduplicate in client order.");
             Require(state.LocalChampionId == 58, "Mayhem local champion did not parse.");
             Require(state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder, "Mayhem isLegacyChampSelect=false did not select Team Builder route.");
@@ -89,12 +97,16 @@ namespace FACM.League
 
         private static void ValidateTeamBuilderFallback()
         {
-            var generic = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":false,\"benchChampions\":[],\"myTeam\":[{\"cellId\":1,\"championId\":34}]}";
+            var generic = "{\"queueId\":3270,\"gameMode\":\"KIWI\",\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":false,\"benchChampions\":[],\"myTeam\":[{\"cellId\":1,\"championId\":34}]}";
             var teamBuilder = "{\"localPlayerCellId\":1,\"benchEnabled\":true,\"benchChampions\":[{\"championId\":55},{\"championId\":99}],\"myTeam\":[{\"cellId\":1,\"championId\":34}]}";
             var api = new TeamBuilderFallbackApi(generic, teamBuilder);
             var service = new LeagueLiveDataService(api, new PerformanceBudgetProvider());
             var state = service.RefreshBenchAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(state.SessionAvailable && state.BenchEnabled, "Team Builder fallback did not return a bench session.");
+            Require(state.QueueId == 3270 && string.Equals(state.GameMode, "KIWI", StringComparison.OrdinalIgnoreCase),
+                "Team Builder fallback lost Tencent queue/mode context from the generic session.");
+            Require(LeagueQueueModePolicy.IsAramMayhem(state.QueueId, state.GameMode),
+                "Team Builder fallback no longer resolves as Tencent ARAM Mayhem.");
             Require(state.ChampionIds.SequenceEqual(new[] { 55, 99 }), "Team Builder fallback did not recover bench champions.");
             Require(state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder, "Team Builder fallback lost its write route.");
             Require(api.GenericReads == 1 && api.TeamBuilderReads == 1, "Team Builder fallback must be narrow and bounded to one extra GET.");

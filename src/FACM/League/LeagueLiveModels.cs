@@ -53,15 +53,25 @@ namespace FACM.League
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();
+            AllyBans = new List<int>();
+            EnemyBans = new List<int>();
+            Players = new List<LeagueLivePlayerRow>();
             SwapRoute = LeagueBenchSwapRoute.Legacy;
         }
 
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public int QueueId { get; set; }
+        public string GameMode { get; set; }
         public int LocalPlayerCellId { get; set; }
         public int LocalChampionId { get; set; }
+        public string TimerPhase { get; set; }
+        public int TimerMillisecondsLeft { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public List<int> ChampionIds { get; private set; }
+        public List<int> AllyBans { get; private set; }
+        public List<int> EnemyBans { get; private set; }
+        public List<LeagueLivePlayerRow> Players { get; private set; }
     }
 
     internal sealed class LeagueLivePlayerRow
@@ -89,6 +99,26 @@ namespace FACM.League
                     return string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
                 return DisplayName;
             }
+        }
+    }
+
+    internal static class LeagueQueueModePolicy
+    {
+        internal const int BaseAramQueueId = 450;
+        internal const int GlobalAramMayhemQueueId = 2400;
+        internal const int TencentAramMayhemQueueId = 3270;
+
+        public static bool IsAramMayhem(int queueId, string gameMode)
+        {
+            if (queueId == GlobalAramMayhemQueueId || queueId == TencentAramMayhemQueueId) return true;
+            return string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(gameMode, "ARAM_MAYHEM", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsBaseAram(int queueId, string gameMode)
+        {
+            if (IsAramMayhem(queueId, gameMode)) return false;
+            return queueId == BaseAramQueueId || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase);
         }
     }
 

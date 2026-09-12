@@ -85,6 +85,7 @@ namespace FACM.League
         internal const string PerksPath = "/lol-game-data/assets/v1/perks.json";
         internal const string DefaultOpggTier = "all";
         internal static readonly TimeSpan BuildCacheDuration = TimeSpan.FromMinutes(10);
+        private const int AlternativeRowLimit = 3;
         private static readonly TimeSpan CatalogCacheDuration = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan VersionCacheDuration = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan RankedPositionCacheDuration = TimeSpan.FromMinutes(30);
@@ -164,7 +165,6 @@ namespace FACM.League
                 snapshot.Position = position;
                 snapshot.Source = "OP.GG Global";
 
-                // In-game is cache-only by contract. Do not load LCU static catalogs or OP.GG here.
                 if (live.Activity == LeagueActivityLevel.InGame)
                 {
                     var cached = FindFreshBuild(championId, mode, position, null);
@@ -192,8 +192,6 @@ namespace FACM.League
                     return snapshot;
                 }
 
-                // These are loopback game-data tables verified in Akari and already used by FACM Player.
-                // They are loaded only while this visible helper is being refreshed, never in background.
                 var catalog = await EnsureCatalogAsync(cancellationToken).ConfigureAwait(false);
                 snapshot.ChampionName = ResolveName(catalog == null ? null : catalog.Champions, championId, "#" + championId);
 
@@ -205,10 +203,6 @@ namespace FACM.League
 
                 var version = await ResolveVersionAsync(mode, force, cancellationToken).ConfigureAwait(false);
                 snapshot.Version = version;
-
-                // Akari's current OP.GG flow requires a concrete ranked lane. Tencent queues can omit
-                // assignedPosition, so "all" is only an unresolved sentinel inside FACM and is never
-                // sent directly to the ranked champion-build endpoint.
                 if (string.Equals(mode, "ranked", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(position, "all", StringComparison.OrdinalIgnoreCase))
                 {
@@ -285,13 +279,16 @@ namespace FACM.League
             output.Tier = tier > 0 ? "T" + tier : null;
             output.Rank = ReadInt(tierData, "rank");
 
-            AddPickRow(output, "summoner-spells", ReadFirstDictionary(data, "summoner_spells"), catalog == null ? null : catalog.Spells);
-            AddRuneRow(output, FirstNonNullDictionary(ReadFirstDictionary(data, "runes"), ReadFirstDictionary(data, "rune_pages")), catalog == null ? null : catalog.Perks);
-            AddPickRow(output, "starter-items", ReadFirstDictionary(data, "starter_items"), catalog == null ? null : catalog.Items);
-            AddPickRow(output, "boots", ReadFirstDictionary(data, "boots"), catalog == null ? null : catalog.Items);
-            AddPickRow(output, "core-items", ReadFirstDictionary(data, "core_items"), catalog == null ? null : catalog.Items);
-            AddSkillRow(output, ReadFirstDictionary(data, "skill_masteries"));
-            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions);
+            // Preserve the source ordering. Row zero remains the default consumed by existing Apply
+            // owners; up to two additional rows are display-only alternatives. No extra request is made.
+            AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, catalog == null ? null : catalog.SpellIcons, AlternativeRowLimit);
+            AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"),
+                catalog == null ? null : catalog.Perks, catalog == null ? null : catalog.PerkIcons, AlternativeRowLimit);
+            AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
+            AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
+            AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
+            AddSkillRows(output, ReadValue(data, "skill_masteries"), AlternativeRowLimit);
+            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions, catalog == null ? null : catalog.ChampionIcons);
             return output;
         }
 
@@ -302,10 +299,10 @@ namespace FACM.League
             byte[] perksBytes)
         {
             var catalog = new LeagueBuildAdvisorCatalog();
-            ParseIdNameArray(championsBytes, catalog.Champions);
-            ParseIdNameArray(itemsBytes, catalog.Items);
-            ParseIdNameArray(spellsBytes, catalog.Spells);
-            ParseIdNameArray(perksBytes, catalog.Perks);
+            ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
+            ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
+            ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
+            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons);
             return catalog;
         }
 
@@ -346,10 +343,12 @@ namespace FACM.League
 
         internal static string ResolveOpggMode(int queueId, string gameMode)
         {
-            if (queueId == 450 || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase)) return "aram";
+            // ARAM Mayhem is a separate data domain. In particular the CN/WeGame queue has been
+            // observed as 3270 while global clients use 2400. Never fall through to ordinary ARAM
+            // merely because a regional client also reports an ARAM-like gameMode token.
+            if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return null;
+            if (LeagueQueueModePolicy.IsBaseAram(queueId, gameMode)) return "aram";
             if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";
-            // Ranked data is the useful OP.GG baseline for Summoner's Rift, including normal/custom
-            // Tencent queues that still report CLASSIC but do not have their own OP.GG dataset.
             if (queueId == 400 || queueId == 420 || queueId == 430 || queueId == 440 || queueId == 0 ||
                 string.IsNullOrWhiteSpace(gameMode) || string.Equals(gameMode, "CLASSIC", StringComparison.OrdinalIgnoreCase))
                 return "ranked";
@@ -410,7 +409,6 @@ namespace FACM.League
                 timeout.CancelAfter(TimeSpan.FromSeconds(3));
                 try
                 {
-                    // Keep concurrency one even though Champ Select allows two; LCU remains first priority.
                     var champions = await _client.TryGetBytesAsync(ChampionSummaryPath, timeout.Token).ConfigureAwait(false);
                     var items = await _client.TryGetBytesAsync(ItemsPath, timeout.Token).ConfigureAwait(false);
                     var spells = await _client.TryGetBytesAsync(SummonerSpellsPath, timeout.Token).ConfigureAwait(false);
@@ -494,8 +492,6 @@ namespace FACM.League
                 }
             }
 
-            // Akari's saved default ranked position is top. Use it only as a final read-only fallback
-            // when Tencent omits assignedPosition and OP.GG's champion list cannot be read.
             if (string.IsNullOrWhiteSpace(resolved)) resolved = "top";
             lock (_sync)
             {
@@ -554,61 +550,102 @@ namespace FACM.League
             return championId + "|" + (mode ?? string.Empty) + "|" + (position ?? string.Empty) + "|" + (version ?? string.Empty);
         }
 
-        private void AddPickRow(LeagueBuildRecommendation output, string category, Dictionary<string, object> row, IDictionary<int, string> names)
+        private void AddPickRows(
+            LeagueBuildRecommendation output,
+            string category,
+            object value,
+            IDictionary<int, string> names,
+            IDictionary<int, string> icons,
+            int limit)
         {
-            if (row == null) return;
-            var ids = ReadIntArray(ReadValue(row, "ids"));
-            if (ids.Count == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var added = 0;
+            foreach (var row in EnumerateDictionaries(value))
             {
-                Category = category,
-                Recommendation = JoinNames(ids, names),
-                Evidence = BuildEvidence(row)
-            });
+                var ids = ReadIntArray(ReadValue(row, "ids"));
+                if (ids.Count == 0) continue;
+                output.Rows.Add(new LeagueBuildAdvisorRow
+                {
+                    Category = category,
+                    Recommendation = JoinNames(ids, names),
+                    Evidence = BuildEvidence(row, null),
+                    IconReferences = BuildIconReferences(ids, icons)
+                });
+                if (++added >= limit) break;
+            }
         }
 
-        private void AddRuneRow(LeagueBuildRecommendation output, Dictionary<string, object> runePage, IDictionary<int, string> names)
+        private void AddRuneRows(
+            LeagueBuildRecommendation output,
+            object runesValue,
+            object runePagesValue,
+            IDictionary<int, string> names,
+            IDictionary<int, string> icons,
+            int limit)
         {
-            if (runePage == null) return;
-            var build = FirstDictionary(ReadValue(runePage, "builds")) ?? runePage;
-            if (build == null) return;
-            var ids = new List<int>();
-            ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
-            ids.AddRange(ReadIntArray(ReadValue(build, "secondary_rune_ids")));
-            if (ids.Count == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var pages = EnumerateDictionaries(runesValue).ToList();
+            if (pages.Count == 0) pages = EnumerateDictionaries(runePagesValue).ToList();
+
+            var added = 0;
+            foreach (var page in pages)
             {
-                Category = "runes",
-                Recommendation = JoinNames(ids, names),
-                Evidence = BuildEvidence(build)
-            });
+                var builds = EnumerateDictionaries(ReadValue(page, "builds")).ToList();
+                if (builds.Count == 0) builds.Add(page);
+                foreach (var build in builds)
+                {
+                    var ids = new List<int>();
+                    ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
+                    ids.AddRange(ReadIntArray(ReadValue(build, "secondary_rune_ids")));
+                    if (ids.Count == 0) continue;
+                    output.Rows.Add(new LeagueBuildAdvisorRow
+                    {
+                        Category = "runes",
+                        Recommendation = JoinNames(ids, names),
+                        Evidence = BuildEvidence(build, page),
+                        IconReferences = BuildIconReferences(ids, icons)
+                    });
+                    if (++added >= limit) return;
+                }
+            }
         }
 
-        private void AddSkillRow(LeagueBuildRecommendation output, Dictionary<string, object> row)
+        private void AddSkillRows(LeagueBuildRecommendation output, object value, int limit)
         {
-            if (row == null) return;
-            var ids = EnumerateValues(ReadValue(row, "ids"))
-                .Select(value => Convert.ToString(value, CultureInfo.InvariantCulture))
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToArray();
-            if (ids.Length == 0) return;
-            output.Rows.Add(new LeagueBuildAdvisorRow
+            if (output == null || limit <= 0) return;
+            var added = 0;
+            foreach (var row in EnumerateDictionaries(value))
             {
-                Category = "skills",
-                Recommendation = string.Join(" > ", ids),
-                Evidence = BuildEvidence(row)
-            });
+                var ids = EnumerateValues(ReadValue(row, "ids"))
+                    .Select(item => Convert.ToString(item, CultureInfo.InvariantCulture))
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .ToArray();
+                if (ids.Length == 0) continue;
+                output.Rows.Add(new LeagueBuildAdvisorRow
+                {
+                    Category = "skills",
+                    Recommendation = string.Join(" > ", ids),
+                    Evidence = BuildEvidence(row, null)
+                });
+                if (++added >= limit) break;
+            }
         }
 
-        private void AddCounterRow(LeagueBuildRecommendation output, object value, IDictionary<int, string> championNames)
+        private void AddCounterRow(
+            LeagueBuildRecommendation output,
+            object value,
+            IDictionary<int, string> championNames,
+            IDictionary<int, string> championIcons)
         {
             var rows = EnumerateDictionaries(value).Take(5).ToArray();
             if (rows.Length == 0) return;
             var labels = new List<string>();
+            var ids = new List<int>();
             foreach (var row in rows)
             {
                 var id = ReadInt(row, "champion_id");
                 if (id <= 0) continue;
+                ids.Add(id);
                 labels.Add(ResolveName(championNames, id, "#" + id));
             }
             if (labels.Count == 0) return;
@@ -616,21 +653,45 @@ namespace FACM.League
             {
                 Category = "counters",
                 Recommendation = string.Join(" · ", labels),
-                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games"
+                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games",
+                IconReferences = BuildIconReferences(ids, championIcons)
             });
         }
 
-        private string BuildEvidence(Dictionary<string, object> row)
+        private string BuildEvidence(Dictionary<string, object> row, Dictionary<string, object> fallback)
         {
-            var pick = ReadDoubleNullable(row, "pick_rate");
+            var pick = ReadDoubleNullable(row, "pick_rate") ?? ReadDoubleNullable(fallback, "pick_rate");
             var play = ReadInt(row, "play");
+            if (play <= 0) play = ReadInt(fallback, "play");
+            var winRate = ResolveWinRate(row, play);
+            if (!winRate.HasValue && fallback != null) winRate = ResolveWinRate(fallback, play);
+
             var parts = new List<string>();
             if (pick.HasValue) parts.Add("pick " + FormatRate(pick));
-            if (play > 0) parts.Add(play + " games");
+            if (winRate.HasValue) parts.Add("win " + FormatRate(winRate));
+            if (play > 0) parts.Add(play.ToString("N0", CultureInfo.InvariantCulture) + " games");
             return string.Join(" · ", parts);
         }
 
-        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output)
+        private static double? ResolveWinRate(Dictionary<string, object> row, int play)
+        {
+            if (row == null) return null;
+            var rate = ReadDoubleNullable(row, "win_rate");
+            if (rate.HasValue) return rate;
+
+            var rawWins = ReadValue(row, "win") ?? ReadValue(row, "wins");
+            if (rawWins == null || play <= 0) return null;
+            int wins;
+            if (!int.TryParse(
+                    Convert.ToString(rawWins, CultureInfo.InvariantCulture),
+                    NumberStyles.Any,
+                    CultureInfo.InvariantCulture,
+                    out wins) || wins < 0)
+                return null;
+            return (double)wins / play;
+        }
+
+        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
         {
             if (bytes == null || bytes.Length == 0 || output == null) return;
             object decoded;
@@ -640,7 +701,10 @@ namespace FACM.League
             {
                 var id = ReadInt(row, "id");
                 var name = ReadString(row, "name");
+                var iconPath = ReadString(row, "iconPath");
                 if (id > 0 && !string.IsNullOrWhiteSpace(name)) output[id] = name.Trim();
+                if (id > 0 && icons != null && !string.IsNullOrWhiteSpace(iconPath))
+                    icons[id] = AssetReference(iconPath);
             }
         }
 
@@ -649,23 +713,6 @@ namespace FACM.League
             if (bytes == null || bytes.Length == 0) return null;
             try { return _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
             catch { return null; }
-        }
-
-        private static Dictionary<string, object> ReadFirstDictionary(Dictionary<string, object> source, string key)
-        {
-            return FirstDictionary(ReadValue(source, key));
-        }
-
-        private static Dictionary<string, object> FirstDictionary(object value)
-        {
-            return EnumerateDictionaries(value).FirstOrDefault();
-        }
-
-        private static Dictionary<string, object> FirstNonNullDictionary(
-            Dictionary<string, object> first,
-            Dictionary<string, object> second)
-        {
-            return first ?? second;
         }
 
         private static Dictionary<string, object> ReadDictionary(Dictionary<string, object> source, string key)
@@ -689,7 +736,11 @@ namespace FACM.League
         {
             var value = ReadValue(source, key);
             int parsed;
-            return value != null && int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+            return value != null && int.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                NumberStyles.Any,
+                CultureInfo.InvariantCulture,
+                out parsed)
                 ? parsed
                 : 0;
         }
@@ -698,7 +749,11 @@ namespace FACM.League
         {
             var value = ReadValue(source, key);
             double parsed;
-            return value != null && double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+            return value != null && double.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                NumberStyles.Any,
+                CultureInfo.InvariantCulture,
+                out parsed)
                 ? (double?)parsed
                 : null;
         }
@@ -773,6 +828,28 @@ namespace FACM.League
             return string.Join(" · ", ids.Select(id => ResolveName(names, id, "#" + id)));
         }
 
+        private static IReadOnlyList<string> BuildIconReferences(IEnumerable<int> ids, IDictionary<int, string> icons)
+        {
+            var output = new List<string>();
+            foreach (var id in ids ?? Array.Empty<int>())
+            {
+                string reference;
+                output.Add(icons != null && icons.TryGetValue(id, out reference) ? reference : null);
+            }
+            return output.AsReadOnly();
+        }
+
+        private static string AssetReference(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            var value = path.Trim();
+            if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return value;
+            if (!value.StartsWith("/", StringComparison.Ordinal))
+                value = "/lol-game-data/assets/" + value.TrimStart('/');
+            return "lcu:" + value;
+        }
+
         private static string ResolveName(IDictionary<int, string> names, int id, string fallback)
         {
             string name;
@@ -804,7 +881,10 @@ namespace FACM.League
                 {
                     Category = row.Category,
                     Recommendation = row.Recommendation,
-                    Evidence = row.Evidence
+                    Evidence = row.Evidence,
+                    IconReferences = row.IconReferences == null
+                        ? Array.Empty<string>()
+                        : new List<string>(row.IconReferences).AsReadOnly()
                 });
             }
             return clone;
@@ -818,6 +898,10 @@ namespace FACM.League
             Copy(source.Items, clone.Items);
             Copy(source.Spells, clone.Spells);
             Copy(source.Perks, clone.Perks);
+            Copy(source.ItemIcons, clone.ItemIcons);
+            Copy(source.SpellIcons, clone.SpellIcons);
+            Copy(source.PerkIcons, clone.PerkIcons);
+            Copy(source.ChampionIcons, clone.ChampionIcons);
             return clone;
         }
 

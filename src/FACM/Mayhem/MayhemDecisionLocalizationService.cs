@@ -195,6 +195,7 @@ namespace FACM.Mayhem
                 if (localized == null) continue;
 
                 var name = FirstText(localized, "nameTRA", "name");
+                var rarity = FirstText(localized, "rarity");
                 var icon = FirstText(
                     localized,
                     "augmentSmallIconPath",
@@ -213,6 +214,7 @@ namespace FACM.Mayhem
                     "desc",
                     "tooltip"));
                 if (!string.IsNullOrWhiteSpace(name) && ContainsCjk(name)) row.Name = name.Trim();
+                if (!string.IsNullOrWhiteSpace(rarity)) row.Rarity = rarity.Trim();
                 if (!string.IsNullOrWhiteSpace(icon)) row.IconUrl = AssetReference(icon);
                 if (!string.IsNullOrWhiteSpace(description)) row.Description = description;
                 if (string.IsNullOrWhiteSpace(row.Id)) row.Id = FirstText(localized, "id", "augmentId", "apiName");

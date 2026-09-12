@@ -33,18 +33,51 @@ namespace FACM.League
                 Require(first.Mode == "ranked" && first.Position == "jungle", "Build Advisor mapped ranked position incorrectly.");
                 Require(first.Source == "OP.GG Global", "Build Advisor must label Tencent fallback data as OP.GG Global.");
                 Require(first.Version == "16.16", "Build Advisor did not parse OP.GG version metadata.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "runes" && row.Recommendation.Contains("电刑")),
-                    "Build Advisor did not map rune IDs to local names.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "core-items" && row.Recommendation.Contains("卢登")),
-                    "Build Advisor did not map item IDs to local names.");
-                Require(first.Recommendation.Rows.Any(row => row.Category == "summoner-spells" && row.Recommendation.Contains("闪现")),
-                    "Build Advisor did not map summoner-spell IDs to local names.");
+
+                var runeRows = first.Recommendation.Rows.Where(row => row.Category == "runes").ToList();
+                var spellRows = first.Recommendation.Rows.Where(row => row.Category == "summoner-spells").ToList();
+                var starterRows = first.Recommendation.Rows.Where(row => row.Category == "starter-items").ToList();
+                var coreRows = first.Recommendation.Rows.Where(row => row.Category == "core-items").ToList();
+                var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();
+                var counterRows = first.Recommendation.Rows.Where(row => row.Category == "counters").ToList();
+
+                Require(runeRows.Count == 2 && runeRows[0].Recommendation.Contains("电刑") && runeRows[1].Recommendation.Contains("奥术彗星"),
+                    "Build Advisor did not preserve ordered rune alternatives.");
+                Require(runeRows[0].IconReferences.Count == 3 && runeRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve grouped rune icon references for Runtime Companion.");
+                Require(spellRows.Count == 2 && spellRows[0].Recommendation.Contains("闪现") && spellRows[0].Recommendation.Contains("惩戒"),
+                    "Build Advisor did not preserve ordered summoner-spell alternatives.");
+                Require(spellRows[0].Evidence.Contains("win 54.2%") && spellRows[0].Evidence.Contains("1,200 games"),
+                    "Build Advisor did not project available win/sample evidence.");
+                Require(spellRows[0].IconReferences.Count == 2 && spellRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve summoner-spell icon references for Runtime Companion.");
+                Require(starterRows[0].IconReferences.Count > 0 && coreRows[0].IconReferences.Count > 0,
+                    "Build Advisor did not preserve item icon references for Runtime Companion.");
+                Require(spellRows[1].Evidence.IndexOf("win 0.0%", StringComparison.OrdinalIgnoreCase) < 0,
+                    "Missing OP.GG win evidence was incorrectly rendered as a zero-percent win rate.");
+                Require(starterRows.Count == 2 && starterRows[0].Recommendation.Contains("多兰之戒") && starterRows[1].Recommendation.Contains("多兰之刃"),
+                    "Build Advisor did not preserve ordered starter-item alternatives.");
+                Require(coreRows.Count == 3 && coreRows[0].Recommendation.Contains("卢登") && coreRows[2].Recommendation.Contains("振奋盔甲"),
+                    "Build Advisor alternative cap/order contract drifted.");
+                Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",
+                    "Build Advisor did not preserve ordered skill alternatives.");
+                Require(counterRows.Count == 1 && counterRows[0].Recommendation.Contains("盲僧"),
+                    "Build Advisor lost existing counter-matchup data used by Runtime Companion.");
+                Require(counterRows[0].IconReferences.Count == 1 &&
+                        counterRows[0].IconReferences[0] != null &&
+                        counterRows[0].IconReferences[0].StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase),
+                    "Build Advisor did not preserve counter champion icon references for Runtime Companion.");
+
+                Require(first.Recommendation.WinRate.HasValue && first.Recommendation.PickRate.HasValue && first.Recommendation.BanRate.HasValue,
+                    "Build Advisor lost champion summary rates used by Runtime Companion.");
                 Require(opgg.Paths.Count == 2, "First Build Advisor refresh must request one version and one build payload.");
                 Require(opgg.Paths.Last() == "/api/global/champions/ranked/53/jungle?tier=all&version=16.16",
                     "Build Advisor did not bind the OP.GG build request to tier/version.");
 
                 var second = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
                 Require(second.Recommendation != null && second.FromCache, "Repeated Build Advisor refresh did not use the 10-minute cache.");
+                Require(second.Recommendation.Rows.Count == first.Recommendation.Rows.Count,
+                    "Build Advisor cache clone lost alternative recommendation rows.");
                 Require(opgg.Paths.Count == 2, "Repeated identical Build Advisor refresh caused OP.GG fan-out.");
 
                 lcu.ChampionId = 145;
@@ -101,6 +134,8 @@ namespace FACM.League
         private static void ValidateModeAndPositionMapping()
         {
             Require(LeagueBuildAdvisorDataService.ResolveOpggMode(450, null) == "aram", "ARAM queue mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(2400, "KIWI") == null, "Global ARAM Mayhem must not reuse ordinary ARAM builds.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(3270, "ARAM") == null, "Tencent ARAM Mayhem must not reuse ordinary ARAM builds.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggMode(420, null) == "ranked", "Ranked queue mapping changed.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("UTILITY", "ranked") == "support", "Support position mapping changed.");
             Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("BOTTOM", "ranked") == "adc", "ADC position mapping changed.");
@@ -158,13 +193,13 @@ namespace FACM.League
                 if (path == LeagueLiveDataService.GameflowSessionPath)
                     return Bytes("{\"phase\":\"InProgress\",\"map\":{\"id\":11,\"gameMode\":\"CLASSIC\"},\"gameData\":{\"gameId\":123,\"queue\":{\"id\":420,\"gameMode\":\"CLASSIC\"},\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":" + ChampionId + "}],\"teamTwo\":[]}}");
                 if (path == LeagueBuildAdvisorDataService.ChampionSummaryPath)
-                    return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\"},{\"id\":145,\"name\":\"虚空之女\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\"}]");
+                    return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\",\"iconPath\":\"ASSETS/Characters/Blitzcrank/HUD/Blitzcrank_Square.png\"},{\"id\":145,\"name\":\"虚空之女\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\",\"iconPath\":\"ASSETS/Characters/LeeSin/HUD/LeeSin_Square.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.ItemsPath)
-                    return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\"},{\"id\":3020,\"name\":\"法师之靴\"},{\"id\":6655,\"name\":\"卢登伴侣\"}]");
+                    return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\",\"iconPath\":\"ASSETS/Items/Icons2D/1056.png\"},{\"id\":1055,\"name\":\"多兰之刃\",\"iconPath\":\"ASSETS/Items/Icons2D/1055.png\"},{\"id\":3020,\"name\":\"法师之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3020.png\"},{\"id\":3117,\"name\":\"疾行之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3117.png\"},{\"id\":6655,\"name\":\"卢登伴侣\",\"iconPath\":\"ASSETS/Items/Icons2D/6655.png\"},{\"id\":3071,\"name\":\"黑色切割者\",\"iconPath\":\"ASSETS/Items/Icons2D/3071.png\"},{\"id\":3065,\"name\":\"振奋盔甲\",\"iconPath\":\"ASSETS/Items/Icons2D/3065.png\"},{\"id\":3089,\"name\":\"灭世者的死亡之帽\",\"iconPath\":\"ASSETS/Items/Icons2D/3089.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
-                    return Bytes("[{\"id\":4,\"name\":\"闪现\"},{\"id\":11,\"name\":\"惩戒\"}]");
+                    return Bytes("[{\"id\":4,\"name\":\"闪现\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerFlash.png\"},{\"id\":11,\"name\":\"惩戒\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerSmite.png\"},{\"id\":12,\"name\":\"传送\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerTeleport.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.PerksPath)
-                    return Bytes("[{\"id\":8112,\"name\":\"电刑\"},{\"id\":8143,\"name\":\"突然冲击\"},{\"id\":8347,\"name\":\"饼干配送\"}]");
+                    return Bytes("[{\"id\":8112,\"name\":\"电刑\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/Electrocute/Electrocute.png\"},{\"id\":8143,\"name\":\"突然冲击\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/SuddenImpact/SuddenImpact.png\"},{\"id\":8347,\"name\":\"饼干配送\",\"iconPath\":\"ASSETS/Perks/Styles/Inspiration/BiscuitDelivery/BiscuitDelivery.png\"},{\"id\":8214,\"name\":\"奥术彗星\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ArcaneComet/ArcaneComet.png\"},{\"id\":8226,\"name\":\"法力流系带\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ManaflowBand/ManaflowBand.png\"}]");
                 return Task.FromResult<byte[]>(null);
             }
 
@@ -190,7 +225,7 @@ namespace FACM.League
                     return Bytes("{\"data\":[{\"id\":157,\"positions\":[{\"name\":\"TOP\",\"stats\":{\"play\":100,\"role_rate\":0.21}},{\"name\":\"MID\",\"stats\":{\"play\":900,\"role_rate\":0.79}}]}]}");
                 }
 
-                return Bytes("{\"data\":{\"summary\":{\"average_stats\":{\"win_rate\":0.512,\"pick_rate\":0.073,\"ban_rate\":0.021,\"tier_data\":{\"tier\":2,\"rank\":17}}},\"summoner_spells\":[{\"ids\":[4,11],\"play\":1200,\"pick_rate\":0.66}],\"runes\":[{\"primary_rune_ids\":[8112,8143],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":900,\"pick_rate\":0.55}],\"starter_items\":[{\"ids\":[1056],\"play\":800,\"pick_rate\":0.48}],\"boots\":[{\"ids\":[3020],\"play\":700,\"pick_rate\":0.42}],\"core_items\":[{\"ids\":[6655],\"play\":600,\"pick_rate\":0.36}],\"skill_masteries\":[{\"ids\":[\"Q\",\"E\",\"W\"],\"play\":1000,\"pick_rate\":0.61}],\"counters\":[{\"champion_id\":64,\"play\":321,\"win\":144}]},\"meta\":{\"version\":\"16.16\"}}");
+                return Bytes("{\"data\":{\"summary\":{\"average_stats\":{\"win_rate\":0.512,\"pick_rate\":0.073,\"ban_rate\":0.021,\"tier_data\":{\"tier\":2,\"rank\":17}}},\"summoner_spells\":[{\"ids\":[4,11],\"play\":1200,\"win\":650,\"pick_rate\":0.66},{\"ids\":[4,12],\"play\":300,\"pick_rate\":0.18}],\"runes\":[{\"primary_rune_ids\":[8112,8143],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":900,\"win\":500,\"pick_rate\":0.55},{\"primary_rune_ids\":[8214,8226],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":220,\"pick_rate\":0.13}],\"starter_items\":[{\"ids\":[1056],\"play\":800,\"win_rate\":0.51,\"pick_rate\":0.48},{\"ids\":[1055],\"play\":260,\"pick_rate\":0.16}],\"boots\":[{\"ids\":[3020],\"play\":700,\"pick_rate\":0.42},{\"ids\":[3117],\"play\":190,\"pick_rate\":0.11}],\"core_items\":[{\"ids\":[6655],\"play\":600,\"pick_rate\":0.36},{\"ids\":[3071],\"play\":310,\"pick_rate\":0.19},{\"ids\":[3065],\"play\":180,\"pick_rate\":0.11},{\"ids\":[3089],\"play\":100,\"pick_rate\":0.06}],\"skill_masteries\":[{\"ids\":[\"Q\",\"E\",\"W\"],\"play\":1000,\"pick_rate\":0.61},{\"ids\":[\"Q\",\"W\",\"E\"],\"play\":280,\"pick_rate\":0.17}],\"counters\":[{\"champion_id\":64,\"play\":321,\"win\":144}]},\"meta\":{\"version\":\"16.16\"}}");
             }
 
             private static Task<byte[]> Bytes(string text)
