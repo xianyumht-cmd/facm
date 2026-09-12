@@ -1,0 +1,80 @@
+name: Runtime Companion final polish
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runtime-companion-20260910
+          fetch-depth: 0
+      - name: Apply final compact polish
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'{label}: anchor not found in {path}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/FACM/League/LeagueRuntimeCompanionUiText.cs',
+              '        public const string DraftUnknownPosition = "LeagueRuntimeCompanionDraftUnknownPosition";\n',
+              '        public const string DraftUnknownPosition = "LeagueRuntimeCompanionDraftUnknownPosition";\n        public const string LocalPlayer = "LeagueRuntimeCompanionLocalPlayer";\n',
+              'add local player ui key')
+
+          replace_once(
+              'src/FACM/League/LeagueRuntimeCompanionUiText.cs',
+              '            { LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition, "?" }\n',
+              '            { LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition, "?" },\n            { LeagueRuntimeCompanionUiTextKeys.LocalPlayer, "你" }\n',
+              'add local player ui text')
+
+          replace_once(
+              'src/FACM/League/LeagueRuntimeCompanionForm.cs',
+              '            if (row.IsLocalPlayer) values.Add(UiTextRuntime.Text(UiTextKeys.AppName));\n',
+              '            if (row.IsLocalPlayer) values.Add(CompanionText(LeagueRuntimeCompanionUiTextKeys.LocalPlayer));\n',
+              'fix local player tooltip marker')
+
+          replace_once(
+              'src/FACM/League/LeagueRuntimeCompanionForm.cs',
+              '            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 29)\n',
+              '            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 30)\n',
+              'update localized copy smoke threshold')
+
+          # Keep the final UI checklist aligned with the batched implementation. This does not mark live acceptance complete.
+          p = Path('docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace(
+              '- For ordinary Ranked / Summoner\'s Rift Build Advisor, verify the primary summoner-spell, starter-item, boots and core-item rows prefer compact LCU game-data icons when the client catalog supplies an `iconPath`; missing assets must fall back to the existing readable token/text behavior. Runes remain grouped by full scheme and are not flattened into isolated perk icons in this pass.\n',
+              '- For ordinary Ranked / Summoner\'s Rift Build Advisor, verify runes stay grouped by full scheme while the primary scheme uses compact LCU perk icons when available; skill priority uses compact source-derived Q/W/E/R tokens; summoner-spell, starter-item, boots and core-item rows remain icon-first. Missing assets must fall back to readable token/text behavior.\n')
+          marker = '- When the existing OP.GG build payload contains `counters`, verify the compact `克制` row appears after the core build, shows up to five counter champions as LCU champion icons, keeps champion names available through tooltips/text fallback, and disappears entirely when counter data is absent. This display-only row must not create another OP.GG request or any LCU write path.\n'
+          addition = '- Verify the existing ChampSelect session payload projects the compact countdown plus `我方阵容 / 对方阵容` rows without a second session request: allied pick intent may be shown, enemy information remains limited to actually exposed client data, and ban counts are informational only.\n'
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit('live acceptance counter anchor missing')
+              text = text.replace(marker, marker + addition, 1)
+          p.write_text(text, encoding='utf-8')
+
+          Path('.github/workflows/runtime-companion-final-polish.yml').unlink()
+          PY
+      - name: Commit final Runtime Companion polish
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Polish final Runtime Companion draft context"
+          git push origin HEAD:feat/runtime-companion-20260910
