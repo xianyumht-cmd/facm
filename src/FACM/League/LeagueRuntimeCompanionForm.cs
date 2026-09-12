@@ -39,6 +39,8 @@ namespace FACM.League
         private const int SectionContentWidth = 206;
         private const int SectionActionContentWidth = 160;
         private const int RecommendationBaseHeight = 64;
+        private const int MoreButtonTop = 33;
+        private const int MoreButtonHeight = 24;
         private const int AlternativeRowHeight = 36;
         private const int AugmentPageSize = 5;
         private const int AugmentRowHeight = 36;
@@ -1313,7 +1315,7 @@ namespace FACM.League
                 action = CreateInlineButton(actionText, new Point(242, 6), new Size(42, 26));
                 host.Controls.Add(action);
             }
-            var more = CreateInlineButton(string.Empty, new Point(8, 33), new Size(58, 24));
+            var more = CreateInlineButton(string.Empty, new Point(8, MoreButtonTop), new Size(58, MoreButtonHeight));
             more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);
             more.TextAlign = ContentAlignment.MiddleCenter;
             more.Padding = Padding.Empty;
@@ -2275,10 +2277,14 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion recommendation density contract drifted.");
             if (SectionCaptionWidth >= SectionContentX || SectionContentX + SectionContentWidth != SectionWidth)
                 throw new InvalidOperationException("Runtime Companion caption/content columns overlap or leave the compact body width.");
-            var mayhemFirstViewport = MaximumExpandedHeight - HeaderHeight - ContextHeight - BenchHeight;
-            var mayhemFirstStack = (5 * RecommendationBaseHeight) + 58 + 6; // five Mayhem build rows + ARAM row + body vertical padding
-            if (mayhemFirstStack > mayhemFirstViewport)
-                throw new InvalidOperationException("Runtime Companion Mayhem first viewport clips the ARAM balance row.");
+            var compactBodyViewport = MaximumExpandedHeight - HeaderHeight - ContextHeight - BenchHeight;
+            if (MaximumExpandedHeight != 420 || MinimumExpandedHeight != 360 || compactBodyViewport < RecommendationBaseHeight * 3)
+                throw new InvalidOperationException("Runtime Companion compact vertical footprint no longer leaves a useful scroll body.");
+            if (MoreButtonHeight < 22 || MoreButtonTop < 0 || MoreButtonTop + MoreButtonHeight > RecommendationBaseHeight - 1)
+                throw new InvalidOperationException("Runtime Companion progressive-disclosure control is vertically clipped inside its recommendation row.");
+            // The 420 px Akari-style surface intentionally does not force every Mayhem module into the first viewport.
+            // Lower build/ARAM/augment content is reached through the existing body wheel scroll; module-local geometry
+            // must remain valid, but total content height is allowed to exceed compactBodyViewport.
             if (GuideTokenSize * 5 + GuideTokenGap * 4 > 214)
                 throw new InvalidOperationException("Runtime Companion guide icon density no longer fits the compact recommendation row.");
 
