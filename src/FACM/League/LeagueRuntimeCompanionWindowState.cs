@@ -16,8 +16,8 @@ namespace FACM.League
     /// </summary>
     internal sealed class LeagueRuntimeCompanionWindowState : IDisposable
     {
-        private const int DesignMinimumExpandedHeight = 420;
-        private const int DesignMaximumExpandedHeight = 560;
+        private const int DesignMinimumExpandedHeight = 360;
+        private const int DesignMaximumExpandedHeight = 420;
         private const int DesignVerticalMargin = 32;
         private const double WorkingAreaHeightRatio = 0.70;
         private const int DesignAnchorMargin = 18;
@@ -259,28 +259,28 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (ResolveExpandedHeight(728, 1F) != 510)
-                throw new InvalidOperationException("Runtime Companion 100% DPI height policy drifted.");
+            if (ResolveExpandedHeight(728, 1F) != 420)
+                throw new InvalidOperationException("Runtime Companion 100% DPI compact height policy drifted.");
             if (ResolveExpandedHeight(728, 1.25F) != 510)
-                throw new InvalidOperationException("Runtime Companion 125% DPI height policy drifted.");
-            if (ResolveExpandedHeight(1040, 1.5F) != 728)
-                throw new InvalidOperationException("Runtime Companion 150% DPI height policy drifted.");
+                throw new InvalidOperationException("Runtime Companion 125% DPI compact-display height policy drifted.");
+            if (ResolveExpandedHeight(1040, 1.5F) != 630)
+                throw new InvalidOperationException("Runtime Companion 150% DPI compact height policy drifted.");
             if (ResolveExpandedHeight(1040, 2F) != 728)
-                throw new InvalidOperationException("Runtime Companion 200% DPI height policy drifted.");
-            if (ResolveExpandedHeight(2160, 2F) != 1120)
-                throw new InvalidOperationException("Runtime Companion 200% DPI maximum height cap drifted.");
+                throw new InvalidOperationException("Runtime Companion 200% DPI working-area guard drifted.");
+            if (ResolveExpandedHeight(2160, 2F) != 840)
+                throw new InvalidOperationException("Runtime Companion 200% DPI compact maximum height cap drifted.");
             if (ResolveExpandedHeight(2160, 1F) != DesignMaximumExpandedHeight)
-                throw new InvalidOperationException("Runtime Companion maximum expanded height drifted.");
+                throw new InvalidOperationException("Runtime Companion compact maximum expanded height drifted.");
 
             var leftMonitor = new Rectangle(-1920, 0, 1920, 1080);
-            var size = new Size(480, 728);
+            var size = new Size(480, 630);
             var clamped = ClampLocation(leftMonitor, size, new Point(-4000, 2000));
             if (clamped.X != leftMonitor.Left || clamped.Y != leftMonitor.Bottom - size.Height)
                 throw new InvalidOperationException("Runtime Companion negative-coordinate monitor clamp failed.");
 
-            var anchored = ResolveDefaultLocation(leftMonitor, new Size(480, 728), 1.5F);
+            var anchored = ResolveDefaultLocation(leftMonitor, new Size(480, 630), 1.5F);
             if (anchored.X < leftMonitor.Left || anchored.Y < leftMonitor.Top ||
-                anchored.X + 480 > leftMonitor.Right || anchored.Y + 728 > leftMonitor.Bottom)
+                anchored.X + 480 > leftMonitor.Right || anchored.Y + 630 > leftMonitor.Bottom)
                 throw new InvalidOperationException("Runtime Companion DPI-aware default anchor left the working area.");
 
             var compact125 = new Rectangle(0, 0, 1366, 728);

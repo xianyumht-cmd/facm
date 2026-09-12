@@ -34,7 +34,7 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - Test 100%, 125%, 150% and a secondary monitor if available; the window must remain on-screen and unclipped.
 - Verify compactness does not hide the Mayhem build modules behind an unsupported Build Advisor shell, and that the champion title resolves to a real champion name instead of a raw internal `#ID` token.
 - At the 320 px baseline, verify left-side section captions never overlap the first character/icon of recommendation content in Ranked or Mayhem.
-- With Mayhem Bench visible at the 560 px height cap, the first viewport must show the five mode-specific build rows and the complete ARAM balance row without the bottom edge slicing through that row; deeper augment content remains wheel-scrollable.
+- At the 320 x 420 logical baseline, the window stays deliberately short: no individual module or `更多` control may be vertically clipped, while lower build/ARAM/augment modules remain reachable through the existing body wheel scroll. Bench/header/context stay fixed and the hidden native scrollbar must not reappear.
 
 ## Latest live observations
 

@@ -29,8 +29,8 @@ namespace FACM.League
         internal const int HeaderHeight = 36;
         internal const int ContextHeight = 82;
         internal const int BenchHeight = 58;
-        internal const int MinimumExpandedHeight = 420;
-        internal const int MaximumExpandedHeight = 560;
+        internal const int MinimumExpandedHeight = 360;
+        internal const int MaximumExpandedHeight = 420;
         internal const int BodyContentWidth = 284;
         internal const int AugmentColumnTotalWidth = 268;
         private const int SectionWidth = 284;
@@ -1313,8 +1313,10 @@ namespace FACM.League
                 action = CreateInlineButton(actionText, new Point(242, 6), new Size(42, 26));
                 host.Controls.Add(action);
             }
-            var more = CreateInlineButton(string.Empty, new Point(8, 36), new Size(54, 20));
+            var more = CreateInlineButton(string.Empty, new Point(8, 33), new Size(58, 24));
             more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);
+            more.TextAlign = ContentAlignment.MiddleCenter;
+            more.Padding = Padding.Empty;
             more.Visible = false;
             var alternatives = new Panel
             {
