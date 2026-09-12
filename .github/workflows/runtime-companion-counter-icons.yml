@@ -1,0 +1,107 @@
+name: Runtime Companion Counter Icons Pass
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+    paths:
+      - .github/workflows/runtime-companion-counter-icons.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runtime-companion-20260910
+          fetch-depth: 0
+
+      - name: Patch existing counter data into Runtime Companion
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match in {path}, got {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          models = 'src/FACM/League/LeagueBuildAdvisorModels.cs'
+          replace_once(models,
+              '            ItemIcons = new Dictionary<int, string>();\n            SpellIcons = new Dictionary<int, string>();\n',
+              '            ItemIcons = new Dictionary<int, string>();\n            SpellIcons = new Dictionary<int, string>();\n            ChampionIcons = new Dictionary<int, string>();\n',
+              'catalog champion icon ctor')
+          replace_once(models,
+              '        public Dictionary<int, string> ItemIcons { get; private set; }\n        public Dictionary<int, string> SpellIcons { get; private set; }\n',
+              '        public Dictionary<int, string> ItemIcons { get; private set; }\n        public Dictionary<int, string> SpellIcons { get; private set; }\n        public Dictionary<int, string> ChampionIcons { get; private set; }\n',
+              'catalog champion icon property')
+
+          data = 'src/FACM/League/LeagueBuildAdvisorDataService.cs'
+          replace_once(data,
+              '            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions);\n',
+              '            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions, catalog == null ? null : catalog.ChampionIcons);\n',
+              'counter row icon source')
+          replace_once(data,
+              '            ParseIdNameArray(championsBytes, catalog.Champions);\n',
+              '            ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);\n',
+              'champion catalog icon paths')
+          replace_once(data,
+              '        private void AddCounterRow(LeagueBuildRecommendation output, object value, IDictionary<int, string> championNames)\n        {\n            var rows = EnumerateDictionaries(value).Take(5).ToArray();\n            if (rows.Length == 0) return;\n            var labels = new List<string>();\n            foreach (var row in rows)\n            {\n                var id = ReadInt(row, "champion_id");\n                if (id <= 0) continue;\n                labels.Add(ResolveName(championNames, id, "#" + id));\n            }\n            if (labels.Count == 0) return;\n            output.Rows.Add(new LeagueBuildAdvisorRow\n            {\n                Category = "counters",\n                Recommendation = string.Join(" · ", labels),\n                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games"\n            });\n        }\n',
+              '        private void AddCounterRow(\n            LeagueBuildRecommendation output,\n            object value,\n            IDictionary<int, string> championNames,\n            IDictionary<int, string> championIcons)\n        {\n            var rows = EnumerateDictionaries(value).Take(5).ToArray();\n            if (rows.Length == 0) return;\n            var labels = new List<string>();\n            var ids = new List<int>();\n            foreach (var row in rows)\n            {\n                var id = ReadInt(row, "champion_id");\n                if (id <= 0) continue;\n                ids.Add(id);\n                labels.Add(ResolveName(championNames, id, "#" + id));\n            }\n            if (labels.Count == 0) return;\n            output.Rows.Add(new LeagueBuildAdvisorRow\n            {\n                Category = "counters",\n                Recommendation = string.Join(" · ", labels),\n                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games",\n                IconReferences = BuildIconReferences(ids, championIcons)\n            });\n        }\n',
+              'counter row icon projection')
+          replace_once(data,
+              '            Copy(source.ItemIcons, clone.ItemIcons);\n            Copy(source.SpellIcons, clone.SpellIcons);\n',
+              '            Copy(source.ItemIcons, clone.ItemIcons);\n            Copy(source.SpellIcons, clone.SpellIcons);\n            Copy(source.ChampionIcons, clone.ChampionIcons);\n',
+              'clone champion icons')
+
+          form = 'src/FACM/League/LeagueRuntimeCompanionForm.cs'
+          replace_once(form,
+              '        private readonly RecommendationSection _core;\n',
+              '        private readonly RecommendationSection _core;\n        private readonly RecommendationSection _counters;\n',
+              'counter section field')
+          replace_once(form,
+              '            _core = CreateRecommendationSection(\n                "core-items",\n                CompanionText(LeagueRuntimeCompanionUiTextKeys.CoreItems),\n                CompanionText(LeagueRuntimeCompanionUiTextKeys.ImportShort));\n\n            _runes.Action.Click += async delegate',
+              '            _core = CreateRecommendationSection(\n                "core-items",\n                CompanionText(LeagueRuntimeCompanionUiTextKeys.CoreItems),\n                CompanionText(LeagueRuntimeCompanionUiTextKeys.ImportShort));\n            _counters = CreateRecommendationSection(\n                "counters",\n                LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Counters),\n                null);\n\n            _runes.Action.Click += async delegate',
+              'counter section construction')
+          replace_once(form,
+              '            return new[] { _runes, _spells, _skills, _starter, _boots, _core };\n',
+              '            return new[] { _runes, _spells, _skills, _starter, _boots, _core, _counters };\n',
+              'counter section order')
+          replace_once(form,
+              '                   string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase);\n',
+              '                   string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase) ||\n                   string.Equals(category, "counters", StringComparison.OrdinalIgnoreCase);\n',
+              'counter icon support')
+
+          smoke = 'src/FACM/League/LeagueBuildAdvisorSmokeTest.cs'
+          replace_once(smoke,
+              '                var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();\n',
+              '                var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();\n                var counterRows = first.Recommendation.Rows.Where(row => row.Category == "counters").ToList();\n',
+              'counter smoke rows')
+          replace_once(smoke,
+              '                Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",\n                    "Build Advisor did not preserve ordered skill alternatives.");\n',
+              '                Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",\n                    "Build Advisor did not preserve ordered skill alternatives.");\n                Require(counterRows.Count == 1 && counterRows[0].Recommendation.Contains("盲僧"),\n                    "Build Advisor lost existing counter-matchup data used by Runtime Companion.");\n                Require(counterRows[0].IconReferences.Count == 1 &&\n                        counterRows[0].IconReferences[0] != null &&\n                        counterRows[0].IconReferences[0].StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase),\n                    "Build Advisor did not preserve counter champion icon references for Runtime Companion.");\n',
+              'counter smoke assertions')
+          replace_once(smoke,
+              'return Bytes("[{\\\"id\\\":53,\\\"name\\\":\\\"蒸汽机器人\\\"},{\\\"id\\\":145,\\\"name\\\":\\\"虚空之女\\\"},{\\\"id\\\":157,\\\"name\\\":\\\"疾风剑豪\\\"},{\\\"id\\\":64,\\\"name\\\":\\\"盲僧\\\"}]");',
+              'return Bytes("[{\\\"id\\\":53,\\\"name\\\":\\\"蒸汽机器人\\\",\\\"iconPath\\\":\\\"ASSETS/Characters/Blitzcrank/HUD/Blitzcrank_Square.png\\\"},{\\\"id\\\":145,\\\"name\\\":\\\"虚空之女\\\"},{\\\"id\\\":157,\\\"name\\\":\\\"疾风剑豪\\\"},{\\\"id\\\":64,\\\"name\\\":\\\"盲僧\\\",\\\"iconPath\\\":\\\"ASSETS/Characters/LeeSin/HUD/LeeSin_Square.png\\\"}]");',
+              'champion icon fixture')
+
+      - name: Commit product patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-counter-icons.yml
+          git add src/FACM/League/LeagueBuildAdvisorModels.cs \
+                  src/FACM/League/LeagueBuildAdvisorDataService.cs \
+                  src/FACM/League/LeagueRuntimeCompanionForm.cs \
+                  src/FACM/League/LeagueBuildAdvisorSmokeTest.cs
+          git commit -m "Surface icon-first counter matchups in Runtime Companion"
+          git push origin HEAD:feat/runtime-companion-20260910
