@@ -139,7 +139,10 @@ namespace FACM.League
                 {
                     Category = row.Category,
                     Recommendation = row.Recommendation,
-                    Evidence = row.Evidence
+                    Evidence = row.Evidence,
+                    IconReferences = row.IconReferences == null
+                        ? Array.Empty<string>()
+                        : new List<string>(row.IconReferences).AsReadOnly()
                 });
             }
             return clone;

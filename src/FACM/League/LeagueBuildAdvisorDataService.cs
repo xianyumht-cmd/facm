@@ -281,11 +281,11 @@ namespace FACM.League
 
             // Preserve the source ordering. Row zero remains the default consumed by existing Apply
             // owners; up to two additional rows are display-only alternatives. No extra request is made.
-            AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, AlternativeRowLimit);
+            AddPickRows(output, "summoner-spells", ReadValue(data, "summoner_spells"), catalog == null ? null : catalog.Spells, catalog == null ? null : catalog.SpellIcons, AlternativeRowLimit);
             AddRuneRows(output, ReadValue(data, "runes"), ReadValue(data, "rune_pages"), catalog == null ? null : catalog.Perks, AlternativeRowLimit);
-            AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
-            AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
-            AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, AlternativeRowLimit);
+            AddPickRows(output, "starter-items", ReadValue(data, "starter_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
+            AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
+            AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
             AddSkillRows(output, ReadValue(data, "skill_masteries"), AlternativeRowLimit);
             AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions);
             return output;
@@ -299,8 +299,8 @@ namespace FACM.League
         {
             var catalog = new LeagueBuildAdvisorCatalog();
             ParseIdNameArray(championsBytes, catalog.Champions);
-            ParseIdNameArray(itemsBytes, catalog.Items);
-            ParseIdNameArray(spellsBytes, catalog.Spells);
+            ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
+            ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
             ParseIdNameArray(perksBytes, catalog.Perks);
             return catalog;
         }
@@ -554,6 +554,7 @@ namespace FACM.League
             string category,
             object value,
             IDictionary<int, string> names,
+            IDictionary<int, string> icons,
             int limit)
         {
             if (output == null || limit <= 0) return;
@@ -566,7 +567,8 @@ namespace FACM.League
                 {
                     Category = category,
                     Recommendation = JoinNames(ids, names),
-                    Evidence = BuildEvidence(row, null)
+                    Evidence = BuildEvidence(row, null),
+                    IconReferences = BuildIconReferences(ids, icons)
                 });
                 if (++added >= limit) break;
             }
@@ -679,7 +681,7 @@ namespace FACM.League
             return (double)wins / play;
         }
 
-        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output)
+        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
         {
             if (bytes == null || bytes.Length == 0 || output == null) return;
             object decoded;
@@ -689,7 +691,10 @@ namespace FACM.League
             {
                 var id = ReadInt(row, "id");
                 var name = ReadString(row, "name");
+                var iconPath = ReadString(row, "iconPath");
                 if (id > 0 && !string.IsNullOrWhiteSpace(name)) output[id] = name.Trim();
+                if (id > 0 && icons != null && !string.IsNullOrWhiteSpace(iconPath))
+                    icons[id] = AssetReference(iconPath);
             }
         }
 
@@ -813,6 +818,28 @@ namespace FACM.League
             return string.Join(" · ", ids.Select(id => ResolveName(names, id, "#" + id)));
         }
 
+        private static IReadOnlyList<string> BuildIconReferences(IEnumerable<int> ids, IDictionary<int, string> icons)
+        {
+            var output = new List<string>();
+            foreach (var id in ids ?? Array.Empty<int>())
+            {
+                string reference;
+                output.Add(icons != null && icons.TryGetValue(id, out reference) ? reference : null);
+            }
+            return output.AsReadOnly();
+        }
+
+        private static string AssetReference(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            var value = path.Trim();
+            if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return value;
+            if (!value.StartsWith("/", StringComparison.Ordinal))
+                value = "/lol-game-data/assets/" + value.TrimStart('/');
+            return "lcu:" + value;
+        }
+
         private static string ResolveName(IDictionary<int, string> names, int id, string fallback)
         {
             string name;
@@ -844,7 +871,10 @@ namespace FACM.League
                 {
                     Category = row.Category,
                     Recommendation = row.Recommendation,
-                    Evidence = row.Evidence
+                    Evidence = row.Evidence,
+                    IconReferences = row.IconReferences == null
+                        ? Array.Empty<string>()
+                        : new List<string>(row.IconReferences).AsReadOnly()
                 });
             }
             return clone;
@@ -858,6 +888,8 @@ namespace FACM.League
             Copy(source.Items, clone.Items);
             Copy(source.Spells, clone.Spells);
             Copy(source.Perks, clone.Perks);
+            Copy(source.ItemIcons, clone.ItemIcons);
+            Copy(source.SpellIcons, clone.SpellIcons);
             return clone;
         }
 

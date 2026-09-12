@@ -28,7 +28,11 @@ namespace FACM.League
         internal const int DesignWidth = 320;
         internal const int HeaderHeight = 36;
         internal const int ContextHeight = 82;
-        internal const int BenchHeight = 58;
+        internal const int BenchHeight = 64;
+        internal const int BenchLabelHeight = 16;
+        internal const int BenchButtonHeight = 38;
+        private const int BenchHostVerticalPadding = 2;
+        private const int BenchControlVerticalMargin = 2;
         internal const int MinimumExpandedHeight = 360;
         internal const int MaximumExpandedHeight = 420;
         internal const int BodyContentWidth = 284;
@@ -287,14 +291,14 @@ namespace FACM.League
                 Dock = DockStyle.Top,
                 Height = BenchHeight,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(8, 4, 8, 4),
+                Padding = new Padding(8, BenchHostVerticalPadding, 8, BenchHostVerticalPadding),
                 Visible = false
             };
             var benchLabel = new Label
             {
                 Text = BenchText(LeagueBenchQuickPickUiTextKeys.Title),
                 Dock = DockStyle.Top,
-                Height = 16,
+                Height = BenchLabelHeight,
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -307,7 +311,7 @@ namespace FACM.League
                 WrapContents = false,
                 AutoScroll = false,
                 BackColor = FacmDesignSystem.Canvas,
-                Padding = new Padding(0, 2, 0, 0),
+                Padding = Padding.Empty,
                 Margin = Padding.Empty
             };
             _benchHost.Controls.Add(_benchPanel);
@@ -1388,10 +1392,13 @@ namespace FACM.League
                 .Take(3)
                 .ToList()
                 .AsReadOnly();
+            var preservePrimaryIcons = SupportsBuildPrimaryIcons(section.Category) &&
+                section.Visuals.Visible && section.Rows != null && section.Rows.Count > 0 &&
+                usable.Count > 0 && string.Equals(section.Rows[0].Recommendation, usable[0].Recommendation, StringComparison.Ordinal);
             section.Rows = usable;
             section.GuideFallback = false;
-            ClearSectionVisuals(section);
-            section.Value.Visible = true;
+            if (!preservePrimaryIcons) ClearSectionVisuals(section);
+            section.Value.Visible = !preservePrimaryIcons;
             if (usable.Count == 0)
             {
                 HideRecommendationSection(section);
@@ -1400,6 +1407,8 @@ namespace FACM.League
 
             section.Host.Visible = true;
             section.Value.Text = usable[0].Recommendation;
+            var renderedIcons = preservePrimaryIcons || TryRenderBuildPrimaryIcons(section, usable[0]);
+            section.Value.Visible = !renderedIcons;
             _toolTip.SetToolTip(section.Value, usable[0].Recommendation ?? string.Empty);
             if (!_actionBusy || section.Action == null)
                 section.Evidence.Text = usable[0].Evidence ?? string.Empty;
@@ -1410,6 +1419,38 @@ namespace FACM.League
                 ? CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowLess)
                 : CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowMore) + " " + (usable.Count - 1).ToString(CultureInfo.InvariantCulture);
             RenderAlternatives(section);
+        }
+
+        private bool TryRenderBuildPrimaryIcons(RecommendationSection section, LeagueBuildAdvisorRow row)
+        {
+            if (section == null || row == null || !SupportsBuildPrimaryIcons(section.Category) ||
+                row.IconReferences == null || row.IconReferences.Count == 0) return false;
+            var labels = (row.Recommendation ?? string.Empty).Split(new[] { " · " }, StringSplitOptions.None);
+            var count = Math.Min(BuildPrimaryIconLimit(section.Category), row.IconReferences.Count);
+            for (var index = 0; index < count; index++)
+            {
+                var label = index < labels.Length ? labels[index] : row.Recommendation;
+                section.Visuals.Controls.Add(CreateGuideToken(label, row.IconReferences[index], _guideSectionRenderGeneration));
+            }
+            section.Visuals.Visible = section.Visuals.Controls.Count > 0;
+            if (section.Visuals.Visible) _toolTip.SetToolTip(section.Visuals, row.Recommendation ?? string.Empty);
+            return section.Visuals.Visible;
+        }
+
+        private static bool SupportsBuildPrimaryIcons(string category)
+        {
+            return string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "starter-items", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int BuildPrimaryIconLimit(string category)
+        {
+            if (string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (string.Equals(category, "starter-items", StringComparison.OrdinalIgnoreCase)) return 3;
+            if (string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase)) return 2;
+            return 5;
         }
 
         private void SetAlternativesExpanded(RecommendationSection section, bool expanded)
@@ -1726,7 +1767,7 @@ namespace FACM.League
 
         private Button CreateBenchNavButton(bool next)
         {
-            var button = CreateInlineButton(next ? "›" : "‹", Point.Empty, new Size(20, 38));
+            var button = CreateInlineButton(next ? "›" : "‹", Point.Empty, new Size(20, BenchButtonHeight));
             button.Margin = new Padding(0, 1, 4, 1);
             button.Click += delegate
             {
@@ -1757,13 +1798,14 @@ namespace FACM.League
             var button = new Button
             {
                 Width = 44,
-                Height = 38,
+                Height = BenchButtonHeight,
                 Margin = new Padding(0, 1, 5, 1),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Surface,
                 ForeColor = FacmDesignSystem.Text,
                 Text = championId.ToString(CultureInfo.InvariantCulture),
                 ImageAlign = ContentAlignment.MiddleCenter,
+                BackgroundImageLayout = ImageLayout.Zoom,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
                 TabStop = true,
@@ -1784,7 +1826,9 @@ namespace FACM.League
             {
                 var bitmap = await LoadChampionBitmapAsync(championId);
                 if (bitmap == null || IsDisposed || button.IsDisposed) return;
-                button.Image = bitmap;
+                button.Image = null;
+                button.BackgroundImage = bitmap;
+                button.BackgroundImageLayout = ImageLayout.Zoom;
                 button.Text = string.Empty;
             }
             catch (OperationCanceledException)
@@ -2264,6 +2308,9 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion maximum height cap drifted.");
             if (HeaderHeight + ContextHeight + BenchHeight >= MinimumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion fixed regions leave no useful scroll body.");
+            var benchRequiredHeight = (BenchHostVerticalPadding * 2) + BenchLabelHeight + BenchButtonHeight + BenchControlVerticalMargin;
+            if (benchRequiredHeight > BenchHeight)
+                throw new InvalidOperationException("Runtime Companion Bench controls exceed the fixed Bench host height.");
             if (AugmentColumnTotalWidth > BodyContentWidth)
                 throw new InvalidOperationException("Runtime Companion compact content width contract drifted.");
             if (AugmentPageSize != 5 || BenchPageSize != 4 || AugmentRowHeight < 32)
