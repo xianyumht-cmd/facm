@@ -1,0 +1,95 @@
+name: Runtime Companion Compact Height Pass
+
+on:
+  push:
+    branches:
+      - feat/runtime-companion-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply compact height and disclosure fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit('missing anchor: ' + label)
+              return text.replace(old, new, 1)
+
+          # Runtime Companion: keep 320px width, cut expanded height by 25%, and give
+          # the progressive-disclosure control enough vertical room at scaled DPIs.
+          path = Path('src/FACM/League/LeagueRuntimeCompanionForm.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(text,
+              '        internal const int MinimumExpandedHeight = 420;\n        internal const int MaximumExpandedHeight = 560;\n',
+              '        internal const int MinimumExpandedHeight = 360;\n        internal const int MaximumExpandedHeight = 420;\n',
+              'form height constants')
+          text = replace_once(text,
+              '            var more = CreateInlineButton(string.Empty, new Point(8, 36), new Size(54, 20));\n            more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);\n',
+              '            var more = CreateInlineButton(string.Empty, new Point(8, 33), new Size(58, 24));\n            more.Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F);\n            more.TextAlign = ContentAlignment.MiddleCenter;\n            more.Padding = Padding.Empty;\n',
+              'more button geometry')
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # DPI/state adapter must use the same logical design cap. Keep the existing
+          # physical working-area guard so high-DPI/small monitors can still shrink below it.
+          path = Path('src/FACM/League/LeagueRuntimeCompanionWindowState.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(text,
+              '        private const int DesignMinimumExpandedHeight = 420;\n        private const int DesignMaximumExpandedHeight = 560;\n',
+              '        private const int DesignMinimumExpandedHeight = 360;\n        private const int DesignMaximumExpandedHeight = 420;\n',
+              'window-state height constants')
+          old_smoke = '''            if (ResolveExpandedHeight(728, 1F) != 510)\n                throw new InvalidOperationException("Runtime Companion 100% DPI height policy drifted.");\n            if (ResolveExpandedHeight(728, 1.25F) != 510)\n                throw new InvalidOperationException("Runtime Companion 125% DPI height policy drifted.");\n            if (ResolveExpandedHeight(1040, 1.5F) != 728)\n                throw new InvalidOperationException("Runtime Companion 150% DPI height policy drifted.");\n            if (ResolveExpandedHeight(1040, 2F) != 728)\n                throw new InvalidOperationException("Runtime Companion 200% DPI height policy drifted.");\n            if (ResolveExpandedHeight(2160, 2F) != 1120)\n                throw new InvalidOperationException("Runtime Companion 200% DPI maximum height cap drifted.");\n            if (ResolveExpandedHeight(2160, 1F) != DesignMaximumExpandedHeight)\n                throw new InvalidOperationException("Runtime Companion maximum expanded height drifted.");\n'''
+          new_smoke = '''            if (ResolveExpandedHeight(728, 1F) != 420)\n                throw new InvalidOperationException("Runtime Companion 100% DPI compact height policy drifted.");\n            if (ResolveExpandedHeight(728, 1.25F) != 510)\n                throw new InvalidOperationException("Runtime Companion 125% DPI compact-display height policy drifted.");\n            if (ResolveExpandedHeight(1040, 1.5F) != 630)\n                throw new InvalidOperationException("Runtime Companion 150% DPI compact height policy drifted.");\n            if (ResolveExpandedHeight(1040, 2F) != 728)\n                throw new InvalidOperationException("Runtime Companion 200% DPI working-area guard drifted.");\n            if (ResolveExpandedHeight(2160, 2F) != 840)\n                throw new InvalidOperationException("Runtime Companion 200% DPI compact maximum height cap drifted.");\n            if (ResolveExpandedHeight(2160, 1F) != DesignMaximumExpandedHeight)\n                throw new InvalidOperationException("Runtime Companion compact maximum expanded height drifted.");\n'''
+          text = replace_once(text, old_smoke, new_smoke, 'window-state height smoke')
+          text = replace_once(text,
+              '            var size = new Size(480, 728);\n',
+              '            var size = new Size(480, 630);\n',
+              'negative monitor smoke size')
+          text = replace_once(text,
+              '            var anchored = ResolveDefaultLocation(leftMonitor, new Size(480, 728), 1.5F);\n',
+              '            var anchored = ResolveDefaultLocation(leftMonitor, new Size(480, 630), 1.5F);\n',
+              '150 dpi anchor size')
+          text = text.replace('anchored.Y + 728 > leftMonitor.Bottom', 'anchored.Y + 630 > leftMonitor.Bottom', 1)
+          text = replace_once(text,
+              '            var anchored125 = ResolveDefaultLocation(compact125, new Size(400, 510), 1.25F);\n',
+              '            var anchored125 = ResolveDefaultLocation(compact125, new Size(400, 510), 1.25F);\n',
+              '125 dpi anchor unchanged')
+          text = replace_once(text,
+              '            var anchored200 = ResolveDefaultLocation(fullHd200, new Size(640, 728), 2F);\n',
+              '            var anchored200 = ResolveDefaultLocation(fullHd200, new Size(640, 728), 2F);\n',
+              '200 dpi anchor unchanged')
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # Live acceptance now treats vertical scrolling as intentional compact behavior.
+          path = Path('docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(text,
+              '- With Mayhem Bench visible at the 560 px height cap, the first viewport must show the five mode-specific build rows and the complete ARAM balance row without the bottom edge slicing through that row; deeper augment content remains wheel-scrollable.\n',
+              '- At the 320 x 420 logical baseline, the window stays deliberately short: no individual module or `更多` control may be vertically clipped, while lower build/ARAM/augment modules remain reachable through the existing body wheel scroll. Bench/header/context stay fixed and the hidden native scrollbar must not reappear.\n',
+              'live compact-height acceptance')
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+      - name: Commit compact height pass and remove helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/runtime-companion-height-compact.yml
+          git add src/FACM/League/LeagueRuntimeCompanionForm.cs \
+                  src/FACM/League/LeagueRuntimeCompanionWindowState.cs \
+                  docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md
+          git commit -m "Compact Runtime Companion vertical footprint"
+          git push origin HEAD:feat/runtime-companion-20260910
