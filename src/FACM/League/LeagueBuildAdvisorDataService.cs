@@ -287,7 +287,7 @@ namespace FACM.League
             AddPickRows(output, "boots", ReadValue(data, "boots"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
             AddPickRows(output, "core-items", ReadValue(data, "core_items"), catalog == null ? null : catalog.Items, catalog == null ? null : catalog.ItemIcons, AlternativeRowLimit);
             AddSkillRows(output, ReadValue(data, "skill_masteries"), AlternativeRowLimit);
-            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions);
+            AddCounterRow(output, ReadValue(data, "counters"), catalog == null ? null : catalog.Champions, catalog == null ? null : catalog.ChampionIcons);
             return output;
         }
 
@@ -298,7 +298,7 @@ namespace FACM.League
             byte[] perksBytes)
         {
             var catalog = new LeagueBuildAdvisorCatalog();
-            ParseIdNameArray(championsBytes, catalog.Champions);
+            ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
             ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
             ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
             ParseIdNameArray(perksBytes, catalog.Perks);
@@ -628,15 +628,21 @@ namespace FACM.League
             }
         }
 
-        private void AddCounterRow(LeagueBuildRecommendation output, object value, IDictionary<int, string> championNames)
+        private void AddCounterRow(
+            LeagueBuildRecommendation output,
+            object value,
+            IDictionary<int, string> championNames,
+            IDictionary<int, string> championIcons)
         {
             var rows = EnumerateDictionaries(value).Take(5).ToArray();
             if (rows.Length == 0) return;
             var labels = new List<string>();
+            var ids = new List<int>();
             foreach (var row in rows)
             {
                 var id = ReadInt(row, "champion_id");
                 if (id <= 0) continue;
+                ids.Add(id);
                 labels.Add(ResolveName(championNames, id, "#" + id));
             }
             if (labels.Count == 0) return;
@@ -644,7 +650,8 @@ namespace FACM.League
             {
                 Category = "counters",
                 Recommendation = string.Join(" · ", labels),
-                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games"
+                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games",
+                IconReferences = BuildIconReferences(ids, championIcons)
             });
         }
 
@@ -890,6 +897,7 @@ namespace FACM.League
             Copy(source.Perks, clone.Perks);
             Copy(source.ItemIcons, clone.ItemIcons);
             Copy(source.SpellIcons, clone.SpellIcons);
+            Copy(source.ChampionIcons, clone.ChampionIcons);
             return clone;
         }
 

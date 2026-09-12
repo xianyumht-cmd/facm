@@ -56,6 +56,7 @@ namespace FACM.League
             Perks = new Dictionary<int, string>();
             ItemIcons = new Dictionary<int, string>();
             SpellIcons = new Dictionary<int, string>();
+            ChampionIcons = new Dictionary<int, string>();
         }
 
         public Dictionary<int, string> Champions { get; private set; }
@@ -64,5 +65,6 @@ namespace FACM.League
         public Dictionary<int, string> Perks { get; private set; }
         public Dictionary<int, string> ItemIcons { get; private set; }
         public Dictionary<int, string> SpellIcons { get; private set; }
+        public Dictionary<int, string> ChampionIcons { get; private set; }
     }
 }

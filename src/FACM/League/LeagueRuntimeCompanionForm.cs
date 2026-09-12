@@ -83,6 +83,7 @@ namespace FACM.League
         private readonly RecommendationSection _starter;
         private readonly RecommendationSection _boots;
         private readonly RecommendationSection _core;
+        private readonly RecommendationSection _counters;
         private readonly Panel _aramBalanceSection;
         private readonly Label _aramBalanceText;
         private readonly Panel _mayhemSection;
@@ -361,6 +362,10 @@ namespace FACM.League
                 "core-items",
                 CompanionText(LeagueRuntimeCompanionUiTextKeys.CoreItems),
                 CompanionText(LeagueRuntimeCompanionUiTextKeys.ImportShort));
+            _counters = CreateRecommendationSection(
+                "counters",
+                LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Counters),
+                null);
 
             _runes.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.Runes, _runes); };
             _spells.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.SummonerSpells, _spells); };
@@ -501,7 +506,7 @@ namespace FACM.League
 
         private IEnumerable<RecommendationSection> RecommendationSections()
         {
-            return new[] { _runes, _spells, _skills, _starter, _boots, _core };
+            return new[] { _runes, _spells, _skills, _starter, _boots, _core, _counters };
         }
 
         private void HandleShown(object sender, EventArgs e)
@@ -1442,7 +1447,8 @@ namespace FACM.League
             return string.Equals(category, "summoner-spells", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(category, "starter-items", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(category, "boots", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(category, "core-items", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(category, "counters", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int BuildPrimaryIconLimit(string category)

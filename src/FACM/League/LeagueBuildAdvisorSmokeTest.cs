@@ -39,6 +39,7 @@ namespace FACM.League
                 var starterRows = first.Recommendation.Rows.Where(row => row.Category == "starter-items").ToList();
                 var coreRows = first.Recommendation.Rows.Where(row => row.Category == "core-items").ToList();
                 var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();
+                var counterRows = first.Recommendation.Rows.Where(row => row.Category == "counters").ToList();
 
                 Require(runeRows.Count == 2 && runeRows[0].Recommendation.Contains("电刑") && runeRows[1].Recommendation.Contains("奥术彗星"),
                     "Build Advisor did not preserve ordered rune alternatives.");
@@ -58,6 +59,12 @@ namespace FACM.League
                     "Build Advisor alternative cap/order contract drifted.");
                 Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",
                     "Build Advisor did not preserve ordered skill alternatives.");
+                Require(counterRows.Count == 1 && counterRows[0].Recommendation.Contains("盲僧"),
+                    "Build Advisor lost existing counter-matchup data used by Runtime Companion.");
+                Require(counterRows[0].IconReferences.Count == 1 &&
+                        counterRows[0].IconReferences[0] != null &&
+                        counterRows[0].IconReferences[0].StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase),
+                    "Build Advisor did not preserve counter champion icon references for Runtime Companion.");
 
                 Require(first.Recommendation.WinRate.HasValue && first.Recommendation.PickRate.HasValue && first.Recommendation.BanRate.HasValue,
                     "Build Advisor lost champion summary rates used by Runtime Companion.");
@@ -184,7 +191,7 @@ namespace FACM.League
                 if (path == LeagueLiveDataService.GameflowSessionPath)
                     return Bytes("{\"phase\":\"InProgress\",\"map\":{\"id\":11,\"gameMode\":\"CLASSIC\"},\"gameData\":{\"gameId\":123,\"queue\":{\"id\":420,\"gameMode\":\"CLASSIC\"},\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":" + ChampionId + "}],\"teamTwo\":[]}}");
                 if (path == LeagueBuildAdvisorDataService.ChampionSummaryPath)
-                    return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\"},{\"id\":145,\"name\":\"虚空之女\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\"}]");
+                    return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\",\"iconPath\":\"ASSETS/Characters/Blitzcrank/HUD/Blitzcrank_Square.png\"},{\"id\":145,\"name\":\"虚空之女\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\",\"iconPath\":\"ASSETS/Characters/LeeSin/HUD/LeeSin_Square.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.ItemsPath)
                     return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\",\"iconPath\":\"ASSETS/Items/Icons2D/1056.png\"},{\"id\":1055,\"name\":\"多兰之刃\",\"iconPath\":\"ASSETS/Items/Icons2D/1055.png\"},{\"id\":3020,\"name\":\"法师之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3020.png\"},{\"id\":3117,\"name\":\"疾行之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3117.png\"},{\"id\":6655,\"name\":\"卢登伴侣\",\"iconPath\":\"ASSETS/Items/Icons2D/6655.png\"},{\"id\":3071,\"name\":\"黑色切割者\",\"iconPath\":\"ASSETS/Items/Icons2D/3071.png\"},{\"id\":3065,\"name\":\"振奋盔甲\",\"iconPath\":\"ASSETS/Items/Icons2D/3065.png\"},{\"id\":3089,\"name\":\"灭世者的死亡之帽\",\"iconPath\":\"ASSETS/Items/Icons2D/3089.png\"}]");
                 if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
