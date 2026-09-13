@@ -13,7 +13,7 @@ This matrix records the intended feature boundary for draft PR #283. Akari is us
 | Summoner spell recommendations | Implemented | Icon-first LCU assets, source alternatives through progressive disclosure, Apply through the existing guarded owner. |
 | Skill priority | Implemented | Compact source-derived Q/W/E/R tokens and source evidence; no fabricated ability metadata. |
 | Starter items / boots / core build | Implemented | Icon-first LCU assets with readable text/tooltips; core import stays on `LeagueItemSetService`. |
-| Counter matchups | Implemented | Existing OP.GG `counters` payload projected as up to five champion icons; display-only and no extra request. |
+| Counter matchups | Implemented, draft-aware | Existing OP.GG `counters` payload is projected as up to five champion icons. When a champion already revealed on the enemy draft is present in that same verified counter list, the cloned Runtime Companion presentation moves that counter to the front while preserving source order for the rest. No extra OP.GG/LCU request, hidden-intent inference or mutation of the Build Advisor owner's source snapshot is introduced. |
 | Champion Select countdown | Implemented | Reuses timer data from the same lightweight ChampSelect session read; no second observer/request owner. |
 | Ally draft context | Implemented | Up to five local-team rows; locked champion or local-team pick intent may be shown, with position/player tooltip and ban count. |
 | Enemy draft context | Implemented fail-closed | Only champion/account information actually exposed by the client is rendered; hidden enemy intent/identity is never inferred. |
@@ -39,11 +39,11 @@ These are not accidental omissions. They either already belong to another FACM-o
 | Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history; the companion only projects a bounded local current-champion sample rather than becoming another dashboard. |
 | Full post-game analysis | Keep outside Runtime Companion | Post-game is a different lifecycle and should not extend a Champion Select-only popup owner. |
 | Persistent in-game overlay / timers | Separate future task | Current popup closes when Champion Select ends. Adding an in-game overlay would require a separately justified lifecycle and presentation owner rather than quietly extending this PR. |
-| Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed; FACM must not infer or fabricate it. |
+| Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed; FACM must not infer or fabricate it. Draft-aware counter ordering only uses enemy champions already revealed by the client and only intersects them with the already-fetched OP.GG counter list. |
 | Akari branding / exact visual clone | Rejected | FACM keeps `FacmDesignSystem` semantics, typography and native WinForms architecture. |
 
 ## Current acceptance rule
 
-Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, the lightweight matchmaking-delay settings, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft rows, Bench, and at least the user's normal desktop DPI.
+Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, the lightweight matchmaking-delay settings, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, and at least the user's normal desktop DPI.
 
 Production merge/version bump/update-manifest/release still require explicit closeout intent.
