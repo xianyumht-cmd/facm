@@ -1,11 +1,13 @@
 # Runtime Companion live acceptance
 
-This checklist belongs to draft PR #283 and is intentionally pre-release. Passing CI is necessary but does not replace a real Tencent League client check.
+This checklist belongs to draft PR #283 and is intentionally pre-release. Passing CI is necessary but does not replace a final real Tencent League client check. Development after 2026-09-13 is explicitly allowed to continue without pausing for another incremental manual test; the items below remain the consolidated closeout checklist.
 
 ## Champion Select surface
 
 - Enter Champion Select and verify the Runtime Companion appears once for the episode without stealing focus.
 - For Ranked / modes with Build Advisor support, verify champion/context, runes, summoner spells, skill order, starter items, boots and core items render as separate modules for the selected champion; alternative rune/build schemes must remain grouped by scheme rather than flattened into one list.
+- Verify the scroll-body `近期使用` module is local-player-only: it should use a bounded recent sample for the currently selected champion, show the sample size, current-champion games, wins/losses and average K/D/A when resolved data exists, and show no fabricated zero-performance row when that champion has no recent resolved games.
+- Switch the local selected champion while the recent-history read is in flight and verify stale statistics from the previous champion never appear under the new champion. Teammates/opponents must not trigger automatic match-history requests.
 - For ordinary Ranked / Summoner's Rift Build Advisor, verify runes stay grouped by full scheme while the primary scheme uses compact LCU perk icons when available; skill priority uses compact source-derived Q/W/E/R tokens; summoner-spell, starter-item, boots and core-item rows remain icon-first. Missing assets must fall back to readable token/text behavior.
 - When the existing OP.GG build payload contains `counters`, verify the compact `克制` row appears after the core build, shows up to five counter champions as LCU champion icons, keeps champion names available through tooltips/text fallback, and disappears entirely when counter data is absent. This display-only row must not create another OP.GG request or any LCU write path.
 - Verify the existing ChampSelect session payload projects the compact countdown plus `我方阵容 / 对方阵容` rows without a second session request: allied pick intent may be shown, enemy information remains limited to actually exposed client data, and ban counts are informational only.
@@ -37,7 +39,7 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - Test 100%, 125%, 150% and a secondary monitor if available; the window must remain on-screen and unclipped.
 - Verify compactness does not hide the Mayhem build modules behind an unsupported Build Advisor shell, and that the champion title resolves to a real champion name instead of a raw internal `#ID` token.
 - At the 320 px baseline, verify left-side section captions never overlap the first character/icon of recommendation content in Ranked or Mayhem.
-- At the 320 x 420 logical baseline, the window stays deliberately short: no individual module or `更多` control may be vertically clipped, while lower build/ARAM/augment modules remain reachable through the existing body wheel scroll. Bench/header/context stay fixed and the hidden native scrollbar must not reappear.
+- At the 320 x 420 logical baseline, the window stays deliberately short: no individual module or `更多` control may be vertically clipped, while lower recent-use/build/ARAM/augment modules remain reachable through the existing body wheel scroll. Bench/header/context stay fixed and the hidden native scrollbar must not reappear.
 - In Mayhem with Bench enabled, every clickable Bench champion portrait must be fully visible vertically. The 44 x 44 decoded champion image is intentionally zoomed into the compact 44 x 38 button instead of being assigned as an unscaled `Button.Image`, and the fixed Bench host must have enough height for its title + controls + margins.
 
 ## Latest live observations
@@ -50,25 +52,21 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - The Mayhem bottom clipping was traced to body vertical padding exceeding the exact first-viewport budget when Bench + five guide rows + ARAM balance were visible; with the intentionally shorter window, lower modules scroll instead of being forced into the first viewport.
 - The Mayhem Bench crop was traced to two simultaneous geometry causes: the old 58 px Bench host was shorter than its title/button/padding stack, and a decoded 44 x 44 bitmap was assigned unscaled to a 44 x 38 `Button.Image`. The current implementation uses a 64 logical px fixed Bench host, reduced dead vertical padding, and a zoomed background image inside the 44 x 38 button. A deterministic fit check protects the fixed Bench stack.
 - The ordinary Build Advisor presentation now projects existing LCU catalog `iconPath` data into grouped rune icons, summoner-spell/item icons and counter-champion icons. Skill priority remains source-derived and is rendered as compact Q/W/E/R tokens instead of inventing ability metadata.
-- **2026-09-12 live retest accepted the Bench portrait correction and the icon-first presentation that preceded this final batch as visually good.** No further width/height increase was requested from that pass.
+- **2026-09-12 live retest accepted the Bench portrait correction and the icon-first presentation that preceded the latest context extension as visually good.** No further width/height increase was requested from that pass.
 - OP.GG `counters` are no longer hidden: the display-only `克制` row reuses champion-summary icon data, caps the row at five champions, and introduces no new network or write owner.
-- The existing lightweight ChampSelect read now also projects the selection countdown, ally/enemy draft rows and ban counts. This reuses the same session payload and does not create another Gameflow observer, another ChampSelect GET, or automatic per-player match-history/scouting fan-out.
+- The existing lightweight ChampSelect read projects the selection countdown, ally/enemy draft rows and ban counts. This reuses the same session payload and does not create another Gameflow observer, another ChampSelect GET, or automatic per-player match-history/scouting fan-out.
 - Allied draft rows may use local-team pick intent. Enemy rows fail closed to information actually exposed by the client. The local player tooltip uses `你` rather than product branding.
+- The 2026-09-13 local recent-use extension reuses the already-owned `LeaguePlayerDataService` and reads history only for the signed-in local account. It does not add teammate/opponent history lookup, another Gameflow owner or another ChampSelect read. Its result is generation-fenced to the current local champion and rendered progressively in the scroll body.
 - Deep match history, long-term trends and richer post-game analysis stay in their existing FACM-owned views instead of being duplicated into the 320 px transient surface. In-game overlay ownership is likewise not introduced by this Champion Select-only task.
 - The same correction series removes the remaining raw `#championId` fallback from the visible champion title; unresolved names stay in the localized resolving state until game-data resolves them.
-- The deterministic smoke contract matches the intentionally scrollable 420 px surface: it protects a useful body viewport and the full `更多` control bounds, but no longer requires all build/ARAM/augment/draft content to fit in the first viewport.
+- The deterministic smoke contract matches the intentionally scrollable 420 px surface: it protects a useful body viewport and the full `更多` control bounds, but no longer requires all build/ARAM/augment/draft/recent-use content to fit in the first viewport.
 
-## Final batched candidate before consolidated live test
+## Consolidated candidate rule
 
-The implementation batch is feature-frozen for one consolidated real-machine check rather than incremental per-change testing. Product source milestones in this batch are:
+Do not create an intermediate user-test requirement after every lightweight development batch. Keep this file as the final batched Tencent-client checklist. Product-source commits may continue to accumulate on the draft task branch while automated gates stay authoritative for code regressions.
 
-- `d181e4e54b17afc521ff59d1760232883f752d7d` — counter-matchup row and champion icons;
-- `5b2cac80cfe7dc6c9b52853ec74d788be923072c` — countdown plus ally/enemy draft-context projection from the existing session read;
-- `6a09f13091010ed716c61b110642042a97e14bd4` — grouped rune icons and compact skill-priority tokens;
-- `1fd7df4febb12520f314939791aaa2299b0d6b7a` — final draft-context copy/tooltip polish.
-
-No production version bump, online manifest change, merge, release or destructive cleanup is authorized by this feature freeze.
+No production version bump, online manifest change, merge, release or destructive cleanup is authorized by continuing development.
 
 ## Closeout rule
 
-Do not merge, release or bump the production version until the consolidated live Tencent-client checks above are accepted and the current PR head has green Windows Build, UI Text Contract and Mayhem Source Probe checks.
+Do not merge, release or bump the production version until the consolidated live Tencent-client checks above are eventually accepted and the closeout head has green Windows Build, UI Text Contract and Mayhem Source Probe checks.

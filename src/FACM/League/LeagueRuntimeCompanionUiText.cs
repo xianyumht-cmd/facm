@@ -50,6 +50,14 @@ namespace FACM.League
         public const string DraftPickedShort = "LeagueRuntimeCompanionDraftPickedShort";
         public const string DraftUnknownPosition = "LeagueRuntimeCompanionDraftUnknownPosition";
         public const string LocalPlayer = "LeagueRuntimeCompanionLocalPlayer";
+        public const string RecentUse = "LeagueRuntimeCompanionRecentUse";
+        public const string RecentUseLoading = "LeagueRuntimeCompanionRecentUseLoading";
+        public const string RecentUseEmpty = "LeagueRuntimeCompanionRecentUseEmpty";
+        public const string RecentUseUnavailable = "LeagueRuntimeCompanionRecentUseUnavailable";
+        public const string RecentUseSampleFormat = "LeagueRuntimeCompanionRecentUseSampleFormat";
+        public const string RecentUseResolvedFormat = "LeagueRuntimeCompanionRecentUseResolvedFormat";
+        public const string RecentUseWinLossFormat = "LeagueRuntimeCompanionRecentUseWinLossFormat";
+        public const string RecentUseKdaFormat = "LeagueRuntimeCompanionRecentUseKdaFormat";
     }
 
     internal static class LeagueRuntimeCompanionText
@@ -99,7 +107,15 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.EnemyTeam, "对方阵容" },
             { LeagueRuntimeCompanionUiTextKeys.DraftPickedShort, "已选" },
             { LeagueRuntimeCompanionUiTextKeys.DraftUnknownPosition, "?" },
-            { LeagueRuntimeCompanionUiTextKeys.LocalPlayer, "你" }
+            { LeagueRuntimeCompanionUiTextKeys.LocalPlayer, "你" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUse, "近期使用" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseLoading, "正在读取近期记录" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseEmpty, "近期暂无使用记录" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseUnavailable, "近期记录暂不可用" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseSampleFormat, "近 {0} 场中使用 {1} 场" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseResolvedFormat, "已解析 {0}/{1} 场" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseWinLossFormat, "{0}胜 {1}负" },
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseKdaFormat, "KDA {0} / {1} / {2}" }
         };
 
         public static string Get(UiTextCatalog ui, string key)

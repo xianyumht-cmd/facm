@@ -1,6 +1,6 @@
 # Runtime Companion Akari parity matrix
 
-This matrix freezes the intended feature boundary for draft PR #283 before the consolidated Tencent-client acceptance pass. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences.
+This matrix records the intended feature boundary for draft PR #283. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences. The 2026-09-13 local-player context extension was explicitly authorized to continue development without inserting another incremental Tencent-client test gate; production merge/release boundaries are unchanged.
 
 ## Implemented in the transient Champion Select Runtime Companion
 
@@ -8,6 +8,7 @@ This matrix freezes the intended feature boundary for draft PR #283 before the c
 | --- | --- | --- |
 | Narrow side companion | Implemented | 320 logical px width, 420 logical px max height; fixed header/context/Bench and wheel-scroll body; native light scrollbars hidden. |
 | Champion context | Implemented | Champion portrait/name, mode/position/patch and source stats where verified data exists; raw internal `#championId` is not accepted as visible identity. |
+| Local current-champion recent use | Implemented | Reuses the existing `LeaguePlayerDataService` owner for the local account only. A bounded recent sample projects current-champion games, wins/losses and average K/D/A into the scroll body. Unresolved participant rows are excluded from performance statistics, small samples remain explicit, and champion switches cancel/reject stale work. |
 | Grouped rune recommendations | Implemented | OP.GG source schemes remain grouped; primary scheme uses up to six LCU perk icons when `iconPath` exists; Apply stays on `LeagueBuildApplyService`. |
 | Summoner spell recommendations | Implemented | Icon-first LCU assets, source alternatives through progressive disclosure, Apply through the existing guarded owner. |
 | Skill priority | Implemented | Compact source-derived Q/W/E/R tokens and source evidence; no fabricated ability metadata. |
@@ -34,15 +35,15 @@ These are not accidental omissions. They either already belong to another FACM-o
 
 | Capability | Decision | Reason |
 | --- | --- | --- |
-| Automatic match-history scan for every ally/enemy | Not in this task | Would fan out per-player requests during Champion Select and conflict with the lightweight/no-extra-scouting contract. Current draft context uses only the already-read session payload. |
-| Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history; duplicating them into the transient companion would turn it into a dashboard. |
+| Automatic match-history scan for every ally/enemy | Not in this task | The new recent-use module is **local player only**. Per-player fan-out during Champion Select would conflict with the lightweight/no-extra-scouting contract; draft context continues to use only the already-read session payload. |
+| Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history; the companion only projects a bounded local current-champion sample rather than becoming another dashboard. |
 | Full post-game analysis | Keep outside Runtime Companion | Post-game is a different lifecycle and should not extend a Champion Select-only popup owner. |
 | Persistent in-game overlay / timers | Separate future task | Current popup closes when Champion Select ends. Adding an in-game overlay would require a separately justified lifecycle and presentation owner rather than quietly extending this PR. |
 | Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed; FACM must not infer or fabricate it. |
 | Akari branding / exact visual clone | Rejected | FACM keeps `FacmDesignSystem` semantics, typography and native WinForms architecture. |
 
-## Final acceptance rule
+## Current acceptance rule
 
-PR #283 is feature-frozen at this boundary. Do not add another Akari-like capability to this PR unless a consolidated live test reveals a correctness/usability defect in an implemented feature.
+Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, the lightweight matchmaking-delay settings, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft rows, Bench, and at least the user's normal desktop DPI.
 
-Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, the lightweight matchmaking-delay settings, wheel scrolling, grouped rune/build alternatives, draft rows, Bench, and at least the user's normal desktop DPI. CI must remain green. Production merge/version bump/update-manifest/release still require explicit closeout intent.
+Production merge/version bump/update-manifest/release still require explicit closeout intent.

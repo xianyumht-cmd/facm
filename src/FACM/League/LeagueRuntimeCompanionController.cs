@@ -33,7 +33,8 @@ namespace FACM.League
     ///
     /// It deliberately does not own Gameflow. LeagueHubModule decides when the companion exists.
     /// This controller reuses the existing Bench owner, Build Advisor owner, Build Apply owner,
-    /// Item Set owner and Mayhem guide path. No raw LCU write method is exposed to the Form.
+    /// Item Set owner, local Player-history owner and Mayhem guide path. No raw LCU write method is
+    /// exposed to the Form and no teammate/opponent history fan-out is performed.
     /// </summary>
     internal sealed class LeagueRuntimeCompanionController : IDisposable
     {
@@ -44,6 +45,7 @@ namespace FACM.League
         private readonly LeagueBuildAdvisorDataService _advisor;
         private readonly LeagueBuildApplyService _apply;
         private readonly LeagueItemSetService _itemSet;
+        private readonly LeaguePlayerDataService _player;
         private readonly LeagueChampSelectQuitService _quitService;
         private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -53,12 +55,15 @@ namespace FACM.League
         private LeagueRuntimeCompanionSnapshot _snapshot = new LeagueRuntimeCompanionSnapshot();
         private CancellationTokenSource _guideRequest;
         private CancellationTokenSource _buildRequest;
+        private CancellationTokenSource _recentRequest;
         private int _guideChampionId;
         private LeagueRuntimeCompanionGuideKind _guideKind;
         private string _guideExpectedPatch;
         private int _guideGeneration;
         private int _buildGeneration;
         private int _buildChampionHint;
+        private int _recentGeneration;
+        private int _recentChampionId;
         private DateTime _lastBuildStartedUtc = DateTime.MinValue;
         private bool _disposed;
 
@@ -67,13 +72,15 @@ namespace FACM.League
             ILeagueClientApi leagueClient,
             LeagueBuildAdvisorDataService advisor = null,
             LeagueBuildApplyService apply = null,
-            LeagueItemSetService itemSet = null)
+            LeagueItemSetService itemSet = null,
+            LeaguePlayerDataService player = null)
         {
             _bench = bench ?? throw new ArgumentNullException(nameof(bench));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _advisor = advisor;
             _apply = apply;
             _itemSet = itemSet;
+            _player = player;
             var quitWriter = leagueClient as ILeagueChampSelectQuitWriteApi;
             _quitService = quitWriter == null ? null : new LeagueChampSelectQuitService(_leagueClient, quitWriter);
             _guide = new MayhemAutomaticGuideService(_leagueClient);
@@ -151,6 +158,7 @@ namespace FACM.League
                     _snapshot.UpdatedAtUtc = DateTime.UtcNow;
                 }
 
+                MaybeStartRecentChampionRequest(championHint);
                 MaybeStartBuildRequest(championHint);
 
                 var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(
@@ -331,6 +339,136 @@ namespace FACM.League
                 });
             }
             return rows.AsReadOnly();
+        }
+
+        private void MaybeStartRecentChampionRequest(int championId)
+        {
+            if (_player == null || _disposed)
+            {
+                if (championId <= 0) ClearRecentChampionSurface();
+                return;
+            }
+            if (championId <= 0)
+            {
+                ClearRecentChampionSurface();
+                return;
+            }
+
+            CancellationTokenSource previous = null;
+            CancellationTokenSource request = null;
+            int generation = 0;
+            lock (_stateGate)
+            {
+                var current = _snapshot.RecentChampion;
+                if (_recentChampionId == championId &&
+                    (_recentRequest != null || (current != null && current.ChampionId == championId)))
+                    return;
+
+                previous = _recentRequest;
+                _recentRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                _recentRequest.CancelAfter(TimeSpan.FromSeconds(10));
+                request = _recentRequest;
+                _recentChampionId = championId;
+                generation = ++_recentGeneration;
+                _snapshot.RecentChampion = new LeagueRuntimeCompanionRecentChampion
+                {
+                    Status = "loading",
+                    ChampionId = championId,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+                _snapshot.UpdatedAtUtc = DateTime.UtcNow;
+            }
+
+            CancelAndDispose(previous);
+            PublishSnapshot();
+            _ = LoadRecentChampionAsync(generation, championId, request);
+        }
+
+        private async Task LoadRecentChampionAsync(
+            int generation,
+            int championId,
+            CancellationTokenSource request)
+        {
+            LeagueRuntimeCompanionRecentChampion result = null;
+            try
+            {
+                var profile = await _player.LoadProfileAsync(false, request.Token).ConfigureAwait(false);
+                if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId))
+                {
+                    result = new LeagueRuntimeCompanionRecentChampion
+                    {
+                        Status = "unavailable",
+                        ChampionId = championId,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    };
+                }
+                else
+                {
+                    var page = await _player.LoadRecentMatchesAsync(
+                        profile,
+                        0,
+                        LeaguePlayerDataService.MaximumMatchCount,
+                        false,
+                        request.Token).ConfigureAwait(false);
+                    if (page != null)
+                        page = await _player.EnrichIncompleteMatchesAsync(profile, page, request.Token).ConfigureAwait(false);
+                    result = LeagueRuntimeCompanionRecentChampionProjection.Project(page, championId);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                result = new LeagueRuntimeCompanionRecentChampion
+                {
+                    Status = "unavailable",
+                    ChampionId = championId,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Runtime Companion local recent champion context failed: " + exception.Message);
+                result = new LeagueRuntimeCompanionRecentChampion
+                {
+                    Status = "unavailable",
+                    ChampionId = championId,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+            }
+
+            var publish = false;
+            lock (_stateGate)
+            {
+                if (!_disposed && generation == _recentGeneration && championId == _recentChampionId &&
+                    ReferenceEquals(_recentRequest, request) && _snapshot.LocalChampionId == championId)
+                {
+                    _snapshot.RecentChampion = result;
+                    _snapshot.UpdatedAtUtc = DateTime.UtcNow;
+                    _recentRequest = null;
+                    publish = true;
+                }
+            }
+
+            request.Dispose();
+            if (publish) PublishSnapshot();
+        }
+
+        private void ClearRecentChampionSurface()
+        {
+            CancellationTokenSource request = null;
+            var changed = false;
+            lock (_stateGate)
+            {
+                if (_recentRequest == null && _recentChampionId == 0 && _snapshot.RecentChampion == null) return;
+                request = _recentRequest;
+                _recentRequest = null;
+                _recentChampionId = 0;
+                _recentGeneration++;
+                _snapshot.RecentChampion = null;
+                _snapshot.UpdatedAtUtc = DateTime.UtcNow;
+                changed = true;
+            }
+            CancelAndDispose(request);
+            if (changed) PublishSnapshot();
         }
 
         private void MaybeStartBuildRequest(int championHint)
@@ -581,17 +719,22 @@ namespace FACM.League
 
             CancellationTokenSource guideRequest;
             CancellationTokenSource buildRequest;
+            CancellationTokenSource recentRequest;
             lock (_stateGate)
             {
                 guideRequest = _guideRequest;
                 buildRequest = _buildRequest;
+                recentRequest = _recentRequest;
                 _guideRequest = null;
                 _buildRequest = null;
+                _recentRequest = null;
                 _guideGeneration++;
                 _buildGeneration++;
+                _recentGeneration++;
             }
             CancelAndDispose(guideRequest);
             CancelAndDispose(buildRequest);
+            CancelAndDispose(recentRequest);
 
             // Do not dispose _refreshGate here. A canceled in-flight RefreshAsync still executes its
             // finally block and must be able to Release() safely. It becomes collectible with this
@@ -635,6 +778,24 @@ namespace FACM.League
                 Evidence = "pick 60.0%"
             });
 
+            var recent = BuildRecentChampionSmokeProjection();
+            if (recent == null || !recent.HasStats || recent.SampleMatches != 20 || recent.ResolvedMatches != 19 ||
+                recent.ChampionGames != 3 || recent.Wins != 2 || recent.Losses != 1 ||
+                Math.Abs(recent.AverageKills - 6d) > 0.001d ||
+                Math.Abs(recent.AverageDeaths - 3d) > 0.001d ||
+                Math.Abs(recent.AverageAssists - 8d) > 0.001d)
+                throw new InvalidOperationException("Runtime Companion local recent-champion projection is invalid.");
+
+            var emptyPage = new LeaguePlayerMatchPage { RequestedCount = 20 };
+            emptyPage.Matches.Add(new LeaguePlayerMatchSummary
+            {
+                ChampionId = 22, ParticipantResolved = true, Win = true, Kills = 5, Deaths = 2, Assists = 7
+            });
+            var emptyRecent = LeagueRuntimeCompanionRecentChampionProjection.Project(emptyPage, 58);
+            if (emptyRecent == null || !string.Equals(emptyRecent.Status, "empty", StringComparison.Ordinal) ||
+                emptyRecent.ChampionGames != 0 || emptyRecent.Wins != 0)
+                throw new InvalidOperationException("Runtime Companion zero-use recent sample did not fail closed.");
+
             var source = new LeagueRuntimeCompanionSnapshot
             {
                 SessionAvailable = true,
@@ -650,6 +811,7 @@ namespace FACM.League
                 {
                     new LeagueLivePlayerRow { Side = "ally", CellId = 1, IsLocalPlayer = true, GameName = "Me", TagLine = "CN1", ChampionId = 58, Position = "TOP" }
                 }.AsReadOnly(),
+                RecentChampion = recent,
                 Build = build,
                 GuideLoading = false,
                 GuideChampionId = 0,
@@ -665,6 +827,9 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion snapshot clone lost projected draft context.");
             if (ReferenceEquals(clone.Players[0], source.Players[0]))
                 throw new InvalidOperationException("Runtime Companion draft players were not defensively cloned.");
+            if (clone.RecentChampion == null || clone.RecentChampion.ChampionGames != 3 ||
+                ReferenceEquals(clone.RecentChampion, source.RecentChampion))
+                throw new InvalidOperationException("Runtime Companion recent champion context was not defensively cloned.");
             if (clone.Build == source.Build || clone.Build.Recommendation == source.Build.Recommendation)
                 throw new InvalidOperationException("Runtime Companion build snapshot was not defensively cloned.");
             if (clone.Build.Recommendation.Rows.Count != 1 || clone.Build.Recommendation.Rows[0].Category != "runes")
@@ -679,6 +844,28 @@ namespace FACM.League
             TrimPlanForTarget(fullPlan, LeagueRuntimeCompanionApplyTarget.SummonerSpells);
             if (fullPlan.HasRunes || !fullPlan.HasSpells)
                 throw new InvalidOperationException("Runtime Companion spell-only plan trimming is unsafe.");
+        }
+
+        private static LeagueRuntimeCompanionRecentChampion BuildRecentChampionSmokeProjection()
+        {
+            var page = new LeaguePlayerMatchPage { RequestedCount = 20 };
+            page.Matches.Add(new LeaguePlayerMatchSummary { ChampionId = 58, ParticipantResolved = true, Win = true, Kills = 6, Deaths = 2, Assists = 8 });
+            page.Matches.Add(new LeaguePlayerMatchSummary { ChampionId = 58, ParticipantResolved = true, Win = false, Kills = 3, Deaths = 5, Assists = 6 });
+            page.Matches.Add(new LeaguePlayerMatchSummary { ChampionId = 58, ParticipantResolved = true, Win = true, Kills = 9, Deaths = 2, Assists = 10 });
+            page.Matches.Add(new LeaguePlayerMatchSummary { ChampionId = 58, ParticipantResolved = false, Win = true, Kills = 99, Deaths = 0, Assists = 99 });
+            for (var index = page.Matches.Count; index < 20; index++)
+            {
+                page.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    ChampionId = 22,
+                    ParticipantResolved = true,
+                    Win = (index % 2) == 0,
+                    Kills = 4,
+                    Deaths = 4,
+                    Assists = 4
+                });
+            }
+            return LeagueRuntimeCompanionRecentChampionProjection.Project(page, 58);
         }
 
         private static LeagueBuildApplyPlan CreateSmokePlan()

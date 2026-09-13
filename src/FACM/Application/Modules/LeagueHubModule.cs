@@ -162,15 +162,16 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                // Reuse the already-initialized Build Advisor / Build Apply / Item Set / Settings owners.
-                // The Runtime Companion must not create a second OP.GG transport, a parallel LCU
-                // write stack, or a stale settings copy. Placement is intentionally deferred to the
-                // Form's Shown path so per-monitor DPI has already established the real pixel size.
+                // Reuse the already-initialized Build Advisor / Build Apply / Item Set / Player /
+                // Settings owners. Runtime Companion must not create a second OP.GG transport,
+                // duplicate local-player history owner, parallel LCU write stack or stale settings
+                // copy. Placement is deferred to Shown so per-monitor DPI has the real pixel size.
                 form = _live.CreateChampSelectAssistantForm(
                     _advisor.RuntimeCompanionReadService,
                     _advisor.RuntimeCompanionApplyService,
                     _advisor.RuntimeCompanionItemSetService,
-                    _advisor.RuntimeCompanionSettings);
+                    _advisor.RuntimeCompanionSettings,
+                    _player.RuntimeCompanionReadService);
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
 

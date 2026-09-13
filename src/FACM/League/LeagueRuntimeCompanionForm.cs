@@ -78,6 +78,7 @@ namespace FACM.League
         private readonly Label _championMeta;
         private readonly Label _championStats;
         private readonly Label _contextStatus;
+        private readonly RecommendationSection _recentUse;
         private readonly RecommendationSection _runes;
         private readonly RecommendationSection _spells;
         private readonly RecommendationSection _skills;
@@ -154,11 +155,12 @@ namespace FACM.League
             ILeagueClientApi leagueClient,
             LeagueBuildAdvisorDataService advisor = null,
             LeagueBuildApplyService apply = null,
-            LeagueItemSetService itemSet = null)
+            LeagueItemSetService itemSet = null,
+            LeaguePlayerDataService player = null)
         {
             if (bench == null) throw new ArgumentNullException(nameof(bench));
             if (leagueClient == null) throw new ArgumentNullException(nameof(leagueClient));
-            _controller = new LeagueRuntimeCompanionController(bench, leagueClient, advisor, apply, itemSet);
+            _controller = new LeagueRuntimeCompanionController(bench, leagueClient, advisor, apply, itemSet, player);
             _ui = UiTextCatalog.Load();
 
             Text = BuildWindowTitle();
@@ -354,6 +356,10 @@ namespace FACM.League
                 Padding = Padding.Empty
             };
 
+            _recentUse = CreateRecommendationSection(
+                "recent-use",
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUse),
+                null);
             _runes = CreateRecommendationSection(
                 "runes",
                 LeagueRecommendationText.Get(_ui, LeagueRecommendationUiTextKeys.Runes),
@@ -395,6 +401,7 @@ namespace FACM.League
             _spells.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.SummonerSpells, _spells); };
             _core.Action.Click += async delegate { await ImportItemSetAsync(); };
 
+            _sections.Controls.Add(_recentUse.Host);
             foreach (var section in RecommendationSections()) _sections.Controls.Add(section.Host);
             _sections.Controls.Add(_allyTeam.Host);
             _sections.Controls.Add(_enemyTeam.Host);
@@ -514,6 +521,7 @@ namespace FACM.League
             Shown += HandleShown;
             FormClosed += HandleClosed;
             ResetRecommendationSections();
+            HideRecommendationSection(_recentUse);
         }
 
         protected override bool ShowWithoutActivation
@@ -598,6 +606,7 @@ namespace FACM.League
 
             RenderChampSelectTimer(snapshot);
             RenderDraftTeams(snapshot);
+            RenderRecentChampion(snapshot);
             var hasContext = snapshot.HasVisibleChampSelectContext;
             if (hasContext && !_surfaceConfirmed)
             {
@@ -666,6 +675,93 @@ namespace FACM.League
             _timerLabel.Text = seconds.ToString(CultureInfo.InvariantCulture) + "s";
             _timerLabel.ForeColor = seconds <= 5 ? FacmDesignSystem.Warning : FacmDesignSystem.TextMuted;
             _toolTip.SetToolTip(_timerLabel, FirstNonEmpty(snapshot.TimerPhase, _timerLabel.Text) + " · " + _timerLabel.Text);
+        }
+
+        private void RenderRecentChampion(LeagueRuntimeCompanionSnapshot snapshot)
+        {
+            var recent = snapshot == null ? null : snapshot.RecentChampion;
+            if (snapshot == null || snapshot.LocalChampionId <= 0 || recent == null ||
+                recent.ChampionId != snapshot.LocalChampionId ||
+                string.Equals(recent.Status, "unavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                HideRecommendationSection(_recentUse);
+                return;
+            }
+
+            _recentUse.Host.Visible = true;
+            _recentUse.Value.Visible = true;
+            _recentUse.Visuals.Visible = false;
+            _recentUse.More.Visible = false;
+            _recentUse.Alternatives.Visible = false;
+            _recentUse.Alternatives.Height = 0;
+            _recentUse.Host.Height = RecommendationBaseHeight;
+            _recentUse.Rule.Top = RecommendationBaseHeight - 1;
+            _recentUse.Rows = Array.Empty<LeagueBuildAdvisorRow>();
+
+            if (string.Equals(recent.Status, "loading", StringComparison.OrdinalIgnoreCase))
+            {
+                _recentUse.Value.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseLoading);
+                _recentUse.Value.ForeColor = FacmDesignSystem.Accent;
+                _recentUse.Evidence.Text = string.Empty;
+                return;
+            }
+
+            _recentUse.Value.ForeColor = FacmDesignSystem.Text;
+            if (!recent.HasStats)
+            {
+                _recentUse.Value.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseEmpty);
+                _recentUse.Evidence.Text = BuildRecentUseSampleText(recent);
+                _recentUse.Evidence.ForeColor = FacmDesignSystem.TextMuted;
+                _toolTip.SetToolTip(_recentUse.Evidence, BuildRecentUseTooltip(recent));
+                return;
+            }
+
+            _recentUse.Value.Text = BuildRecentUseSampleText(recent);
+            _recentUse.Evidence.Text = BuildRecentUseEvidenceText(recent);
+            _recentUse.Evidence.ForeColor = FacmDesignSystem.TextMuted;
+            var tooltip = BuildRecentUseTooltip(recent);
+            _toolTip.SetToolTip(_recentUse.Value, tooltip);
+            _toolTip.SetToolTip(_recentUse.Evidence, tooltip);
+        }
+
+        private string BuildRecentUseSampleText(LeagueRuntimeCompanionRecentChampion recent)
+        {
+            if (recent == null) return string.Empty;
+            return string.Format(
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseSampleFormat),
+                Math.Max(0, recent.SampleMatches).ToString(CultureInfo.InvariantCulture),
+                Math.Max(0, recent.ChampionGames).ToString(CultureInfo.InvariantCulture));
+        }
+
+        private string BuildRecentUseEvidenceText(LeagueRuntimeCompanionRecentChampion recent)
+        {
+            if (recent == null || !recent.HasStats) return string.Empty;
+            var winLoss = string.Format(
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseWinLossFormat),
+                Math.Max(0, recent.Wins).ToString(CultureInfo.InvariantCulture),
+                Math.Max(0, recent.Losses).ToString(CultureInfo.InvariantCulture));
+            var kda = string.Format(
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseKdaFormat),
+                recent.AverageKills.ToString("0.0", CultureInfo.InvariantCulture),
+                recent.AverageDeaths.ToString("0.0", CultureInfo.InvariantCulture),
+                recent.AverageAssists.ToString("0.0", CultureInfo.InvariantCulture));
+            return winLoss + " · " + kda;
+        }
+
+        private string BuildRecentUseTooltip(LeagueRuntimeCompanionRecentChampion recent)
+        {
+            if (recent == null) return string.Empty;
+            var parts = new List<string> { BuildRecentUseSampleText(recent) };
+            if (recent.ResolvedMatches < recent.SampleMatches)
+            {
+                parts.Add(string.Format(
+                    CompanionText(LeagueRuntimeCompanionUiTextKeys.RecentUseResolvedFormat),
+                    Math.Max(0, recent.ResolvedMatches).ToString(CultureInfo.InvariantCulture),
+                    Math.Max(0, recent.SampleMatches).ToString(CultureInfo.InvariantCulture)));
+            }
+            var evidence = BuildRecentUseEvidenceText(recent);
+            if (!string.IsNullOrWhiteSpace(evidence)) parts.Add(evidence);
+            return string.Join(" · ", parts.Where(value => !string.IsNullOrWhiteSpace(value)));
         }
 
         private void RenderDraftTeams(LeagueRuntimeCompanionSnapshot snapshot)
@@ -2574,8 +2670,8 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion grouped rune/skill visual limits drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
-            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 30)
-                throw new InvalidOperationException("Runtime Companion localized P0 copy is incomplete.");
+            if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 38)
+                throw new InvalidOperationException("Runtime Companion localized copy is incomplete.");
             if (ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, true) != 58 ||
                 ResolveDraftChampionId(new LeagueLivePlayerRow { ChampionPickIntent = 58 }, false) != 0)
                 throw new InvalidOperationException("Runtime Companion draft intent visibility policy regressed.");
