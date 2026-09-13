@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using FACM.Mayhem;
 
 namespace FACM.League
@@ -280,17 +281,30 @@ namespace FACM.League
                     Evidence = row.Evidence,
                     IconReferences = row.IconReferences == null
                         ? Array.Empty<string>()
-                        : new List<string>(row.IconReferences).AsReadOnly()
+                        : new List<string>(row.IconReferences).AsReadOnly(),
+                    CounterStats = CloneCounterStats(row.CounterStats)
                 });
             }
             return clone;
         }
 
+        private static IReadOnlyList<LeagueBuildCounterStat> CloneCounterStats(IReadOnlyList<LeagueBuildCounterStat> source)
+        {
+            if (source == null || source.Count == 0) return Array.Empty<LeagueBuildCounterStat>();
+            var output = new List<LeagueBuildCounterStat>(source.Count);
+            foreach (var item in source)
+            {
+                if (item != null) output.Add(item.Clone());
+            }
+            return output.AsReadOnly();
+        }
+
         /// <summary>
-        /// Reorders the already-fetched OP.GG counter row so counters that are actually revealed on
-        /// the enemy draft are shown first. This is presentation-only: it uses the existing counter
-        /// row plus the existing ChampSelect player snapshot, performs no network request, does not
-        /// infer hidden enemy intent, and never mutates the Build Advisor owner's source snapshot.
+        /// Reorders the already-fetched OP.GG counter row against the already-visible enemy draft.
+        /// An enemy in the local player's actually assigned position wins priority over another
+        /// revealed enemy. Unknown/inferred positions never become a lane claim. The selected
+        /// counter's own OP.GG sample evidence is projected into the existing evidence line.
+        /// No additional League/OP.GG request is made and hidden enemy intent is never consulted.
         /// </summary>
         private static void PrioritizeRevealedEnemyCounters(
             LeagueBuildAdvisorSnapshot build,
@@ -299,36 +313,56 @@ namespace FACM.League
             if (build == null || build.Recommendation == null || build.Recommendation.Rows == null ||
                 players == null || players.Count == 0) return;
 
-            var revealedEnemies = new HashSet<int>();
+            string localPosition = null;
+            var revealedEnemies = new Dictionary<int, string>();
             foreach (var player in players)
             {
-                if (player == null || player.ChampionId <= 0 ||
+                if (player == null) continue;
+                if (player.IsLocalPlayer)
+                {
+                    localPosition = NormalizeDraftPosition(player.Position);
+                    continue;
+                }
+                if (player.ChampionId <= 0 ||
                     !string.Equals(player.Side, "enemy", StringComparison.OrdinalIgnoreCase)) continue;
-                revealedEnemies.Add(player.ChampionId);
+                revealedEnemies[player.ChampionId] = NormalizeDraftPosition(player.Position);
             }
             if (revealedEnemies.Count == 0) return;
 
             foreach (var row in build.Recommendation.Rows)
             {
                 if (row == null || !string.Equals(row.Category, "counters", StringComparison.OrdinalIgnoreCase) ||
-                    row.IconReferences == null || row.IconReferences.Count == 0 ||
                     string.IsNullOrWhiteSpace(row.Recommendation)) continue;
 
                 var labels = row.Recommendation.Split(new[] { " · " }, StringSplitOptions.None);
-                var entries = new List<CounterEntry>();
-                var count = Math.Max(labels.Length, row.IconReferences.Count);
+                var icons = row.IconReferences ?? Array.Empty<string>();
+                var stats = row.CounterStats ?? Array.Empty<LeagueBuildCounterStat>();
+                var count = Math.Max(labels.Length, Math.Max(icons.Count, stats.Count));
+                if (count <= 0) continue;
+
+                var entries = new List<CounterEntry>(count);
                 var hasRevealedCounter = false;
                 for (var index = 0; index < count; index++)
                 {
-                    var reference = index < row.IconReferences.Count ? row.IconReferences[index] : null;
-                    var championId = ExtractChampionId(reference);
-                    var matched = championId > 0 && revealedEnemies.Contains(championId);
+                    var reference = index < icons.Count ? icons[index] : null;
+                    var stat = index < stats.Count ? stats[index] : null;
+                    var championId = stat != null && stat.ChampionId > 0
+                        ? stat.ChampionId
+                        : ExtractChampionId(reference);
+                    string enemyPosition;
+                    var matched = championId > 0 && revealedEnemies.TryGetValue(championId, out enemyPosition);
+                    var laneMatched = matched &&
+                                      !string.IsNullOrWhiteSpace(localPosition) &&
+                                      !string.IsNullOrWhiteSpace(enemyPosition) &&
+                                      string.Equals(localPosition, enemyPosition, StringComparison.OrdinalIgnoreCase);
                     hasRevealedCounter |= matched;
                     entries.Add(new CounterEntry
                     {
                         Label = index < labels.Length ? labels[index] : string.Empty,
                         IconReference = reference,
+                        CounterStat = stat == null ? null : stat.Clone(),
                         RevealedEnemy = matched,
+                        LaneMatched = laneMatched,
                         SourceIndex = index
                     });
                 }
@@ -336,6 +370,8 @@ namespace FACM.League
 
                 entries.Sort(delegate(CounterEntry left, CounterEntry right)
                 {
+                    if (left.LaneMatched != right.LaneMatched)
+                        return left.LaneMatched ? -1 : 1;
                     if (left.RevealedEnemy != right.RevealedEnemy)
                         return left.RevealedEnemy ? -1 : 1;
                     return left.SourceIndex.CompareTo(right.SourceIndex);
@@ -343,13 +379,48 @@ namespace FACM.League
 
                 var orderedLabels = new List<string>();
                 var orderedIcons = new List<string>();
+                var orderedStats = new List<LeagueBuildCounterStat>();
+                CounterEntry leadingMatch = null;
                 foreach (var entry in entries)
                 {
                     if (!string.IsNullOrWhiteSpace(entry.Label)) orderedLabels.Add(entry.Label);
                     orderedIcons.Add(entry.IconReference);
+                    if (entry.CounterStat != null) orderedStats.Add(entry.CounterStat.Clone());
+                    if (leadingMatch == null && entry.RevealedEnemy) leadingMatch = entry;
                 }
                 if (orderedLabels.Count > 0) row.Recommendation = string.Join(" · ", orderedLabels);
                 row.IconReferences = orderedIcons.AsReadOnly();
+                row.CounterStats = orderedStats.AsReadOnly();
+                var focusedEvidence = BuildCounterEvidence(leadingMatch == null ? null : leadingMatch.CounterStat);
+                if (!string.IsNullOrWhiteSpace(focusedEvidence)) row.Evidence = focusedEvidence;
+            }
+        }
+
+        private static string BuildCounterEvidence(LeagueBuildCounterStat stat)
+        {
+            if (stat == null) return string.Empty;
+            var parts = new List<string>();
+            if (stat.WinRate.HasValue)
+                parts.Add("win " + (stat.WinRate.Value * 100.0).ToString("0.0", CultureInfo.InvariantCulture) + "%");
+            if (stat.Games > 0)
+                parts.Add(stat.Games.ToString("N0", CultureInfo.InvariantCulture) + " games");
+            return string.Join(" · ", parts);
+        }
+
+        private static string NormalizeDraftPosition(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            switch (value.Trim().ToUpperInvariant())
+            {
+                case "TOP": return "top";
+                case "JUNGLE": return "jungle";
+                case "MIDDLE":
+                case "MID": return "mid";
+                case "BOTTOM":
+                case "ADC": return "adc";
+                case "UTILITY":
+                case "SUPPORT": return "support";
+                default: return null;
             }
         }
 
@@ -357,7 +428,9 @@ namespace FACM.League
         {
             public string Label { get; set; }
             public string IconReference { get; set; }
+            public LeagueBuildCounterStat CounterStat { get; set; }
             public bool RevealedEnemy { get; set; }
+            public bool LaneMatched { get; set; }
             public int SourceIndex { get; set; }
         }
 
