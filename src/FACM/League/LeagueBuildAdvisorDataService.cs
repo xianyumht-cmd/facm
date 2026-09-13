@@ -641,20 +641,30 @@ namespace FACM.League
             if (rows.Length == 0) return;
             var labels = new List<string>();
             var ids = new List<int>();
+            var stats = new List<LeagueBuildCounterStat>();
             foreach (var row in rows)
             {
                 var id = ReadInt(row, "champion_id");
                 if (id <= 0) continue;
                 ids.Add(id);
                 labels.Add(ResolveName(championNames, id, "#" + id));
+                var rawWins = ReadValue(row, "win") ?? ReadValue(row, "wins");
+                stats.Add(new LeagueBuildCounterStat
+                {
+                    ChampionId = id,
+                    Games = Math.Max(0, ReadInt(row, "play")),
+                    Wins = rawWins == null ? 0 : Math.Max(0, ReadInt(row, "win") > 0 ? ReadInt(row, "win") : ReadInt(row, "wins")),
+                    HasWins = rawWins != null
+                });
             }
             if (labels.Count == 0) return;
             output.Rows.Add(new LeagueBuildAdvisorRow
             {
                 Category = "counters",
                 Recommendation = string.Join(" · ", labels),
-                Evidence = rows.Sum(row => Math.Max(0, ReadInt(row, "play"))) + " games",
-                IconReferences = BuildIconReferences(ids, championIcons)
+                Evidence = stats.Sum(stat => Math.Max(0, stat.Games)) + " games",
+                IconReferences = BuildIconReferences(ids, championIcons),
+                CounterStats = stats.AsReadOnly()
             });
         }
 
@@ -884,10 +894,22 @@ namespace FACM.League
                     Evidence = row.Evidence,
                     IconReferences = row.IconReferences == null
                         ? Array.Empty<string>()
-                        : new List<string>(row.IconReferences).AsReadOnly()
+                        : new List<string>(row.IconReferences).AsReadOnly(),
+                    CounterStats = CloneCounterStats(row.CounterStats)
                 });
             }
             return clone;
+        }
+
+        private static IReadOnlyList<LeagueBuildCounterStat> CloneCounterStats(IReadOnlyList<LeagueBuildCounterStat> source)
+        {
+            if (source == null || source.Count == 0) return Array.Empty<LeagueBuildCounterStat>();
+            var output = new List<LeagueBuildCounterStat>(source.Count);
+            foreach (var item in source)
+            {
+                if (item != null) output.Add(item.Clone());
+            }
+            return output.AsReadOnly();
         }
 
         private static LeagueBuildAdvisorCatalog CloneCatalog(LeagueBuildAdvisorCatalog source)
