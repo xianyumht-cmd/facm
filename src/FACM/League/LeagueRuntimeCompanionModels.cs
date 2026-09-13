@@ -178,6 +178,10 @@ namespace FACM.League
 
         public LeagueRuntimeCompanionSnapshot Clone()
         {
+            var players = ClonePlayers(Players);
+            var build = CloneBuild(Build);
+            PrioritizeRevealedEnemyCounters(build, players);
+
             return new LeagueRuntimeCompanionSnapshot
             {
                 SessionAvailable = SessionAvailable,
@@ -191,11 +195,11 @@ namespace FACM.League
                 TimerMillisecondsLeft = TimerMillisecondsLeft,
                 AllyBans = AllyBans == null ? Array.Empty<int>() : new List<int>(AllyBans).AsReadOnly(),
                 EnemyBans = EnemyBans == null ? Array.Empty<int>() : new List<int>(EnemyBans).AsReadOnly(),
-                Players = ClonePlayers(Players),
+                Players = players,
                 RecentChampion = RecentChampion == null ? null : RecentChampion.Clone(),
                 BuildLoading = BuildLoading,
                 BuildError = BuildError,
-                Build = CloneBuild(Build),
+                Build = build,
                 GuideLoading = GuideLoading,
                 GuideChampionId = GuideChampionId,
                 Guide = Guide,
@@ -280,6 +284,98 @@ namespace FACM.League
                 });
             }
             return clone;
+        }
+
+        /// <summary>
+        /// Reorders the already-fetched OP.GG counter row so counters that are actually revealed on
+        /// the enemy draft are shown first. This is presentation-only: it uses the existing counter
+        /// row plus the existing ChampSelect player snapshot, performs no network request, does not
+        /// infer hidden enemy intent, and never mutates the Build Advisor owner's source snapshot.
+        /// </summary>
+        private static void PrioritizeRevealedEnemyCounters(
+            LeagueBuildAdvisorSnapshot build,
+            IReadOnlyList<LeagueLivePlayerRow> players)
+        {
+            if (build == null || build.Recommendation == null || build.Recommendation.Rows == null ||
+                players == null || players.Count == 0) return;
+
+            var revealedEnemies = new HashSet<int>();
+            foreach (var player in players)
+            {
+                if (player == null || player.ChampionId <= 0 ||
+                    !string.Equals(player.Side, "enemy", StringComparison.OrdinalIgnoreCase)) continue;
+                revealedEnemies.Add(player.ChampionId);
+            }
+            if (revealedEnemies.Count == 0) return;
+
+            foreach (var row in build.Recommendation.Rows)
+            {
+                if (row == null || !string.Equals(row.Category, "counters", StringComparison.OrdinalIgnoreCase) ||
+                    row.IconReferences == null || row.IconReferences.Count == 0 ||
+                    string.IsNullOrWhiteSpace(row.Recommendation)) continue;
+
+                var labels = row.Recommendation.Split(new[] { " · " }, StringSplitOptions.None);
+                var entries = new List<CounterEntry>();
+                var count = Math.Max(labels.Length, row.IconReferences.Count);
+                var hasRevealedCounter = false;
+                for (var index = 0; index < count; index++)
+                {
+                    var reference = index < row.IconReferences.Count ? row.IconReferences[index] : null;
+                    var championId = ExtractChampionId(reference);
+                    var matched = championId > 0 && revealedEnemies.Contains(championId);
+                    hasRevealedCounter |= matched;
+                    entries.Add(new CounterEntry
+                    {
+                        Label = index < labels.Length ? labels[index] : string.Empty,
+                        IconReference = reference,
+                        RevealedEnemy = matched,
+                        SourceIndex = index
+                    });
+                }
+                if (!hasRevealedCounter) continue;
+
+                entries.Sort(delegate(CounterEntry left, CounterEntry right)
+                {
+                    if (left.RevealedEnemy != right.RevealedEnemy)
+                        return left.RevealedEnemy ? -1 : 1;
+                    return left.SourceIndex.CompareTo(right.SourceIndex);
+                });
+
+                var orderedLabels = new List<string>();
+                var orderedIcons = new List<string>();
+                foreach (var entry in entries)
+                {
+                    if (!string.IsNullOrWhiteSpace(entry.Label)) orderedLabels.Add(entry.Label);
+                    orderedIcons.Add(entry.IconReference);
+                }
+                if (orderedLabels.Count > 0) row.Recommendation = string.Join(" · ", orderedLabels);
+                row.IconReferences = orderedIcons.AsReadOnly();
+            }
+        }
+
+        private sealed class CounterEntry
+        {
+            public string Label { get; set; }
+            public string IconReference { get; set; }
+            public bool RevealedEnemy { get; set; }
+            public int SourceIndex { get; set; }
+        }
+
+        private static int ExtractChampionId(string reference)
+        {
+            if (string.IsNullOrWhiteSpace(reference)) return 0;
+            var value = reference.Trim();
+            var query = value.IndexOfAny(new[] { '?', '#' });
+            if (query >= 0) value = value.Substring(0, query);
+            var slash = value.LastIndexOf('/');
+            var start = slash >= 0 ? slash + 1 : 0;
+            var dot = value.LastIndexOf('.');
+            var end = dot > start ? dot : value.Length;
+            if (end <= start) return 0;
+            int championId;
+            return int.TryParse(value.Substring(start, end - start), out championId) && championId > 0
+                ? championId
+                : 0;
         }
     }
 
