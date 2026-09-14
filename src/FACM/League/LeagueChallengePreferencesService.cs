@@ -345,7 +345,7 @@ namespace FACM.League
             LeagueChallengePreferencesSnapshot expected,
             LeagueChallengePreferencesSnapshot observed)
         {
-            if (!MatchesPreservedNonTokenPreferences(expected, observed)) return false;
+            if (!MatchesPreservedCorePreferences(expected, observed)) return false;
             return (expected.ChallengeIds ?? new List<long>()).SequenceEqual(observed.ChallengeIds ?? new List<long>());
         }
 
@@ -353,19 +353,19 @@ namespace FACM.League
             LeagueChallengePreferencesSnapshot expected,
             LeagueChallengePreferencesSnapshot observed)
         {
-            return MatchesPreservedNonTokenPreferences(expected, observed) &&
+            return MatchesPreservedCorePreferences(expected, observed) &&
+                   MatchesBanner(observed, expected.BannerAccent) &&
                    observed.ChallengeIds != null && observed.ChallengeIds.Count == 0;
         }
 
-        private static bool MatchesPreservedNonTokenPreferences(
+        private static bool MatchesPreservedCorePreferences(
             LeagueChallengePreferencesSnapshot expected,
             LeagueChallengePreferencesSnapshot observed)
         {
             if (expected == null || observed == null || !expected.CanPreservePreferences || !observed.CanPreservePreferences)
                 return false;
 
-            return MatchesBanner(observed, expected.BannerAccent) &&
-                   string.Equals(expected.Title ?? string.Empty, observed.Title ?? string.Empty, StringComparison.Ordinal) &&
+            return string.Equals(expected.Title ?? string.Empty, observed.Title ?? string.Empty, StringComparison.Ordinal) &&
                    string.Equals(expected.CrestBorder ?? string.Empty, observed.CrestBorder ?? string.Empty, StringComparison.Ordinal) &&
                    expected.PrestigeCrestBorderLevel == observed.PrestigeCrestBorderLevel;
         }
