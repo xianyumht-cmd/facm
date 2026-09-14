@@ -35,6 +35,7 @@ namespace FACM.AppHost.Modules
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
+        private LeagueMatchmakingStopController _matchmakingStop;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _disposed;
 
@@ -78,8 +79,12 @@ namespace FACM.AppHost.Modules
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
             _postGame.HonorAttemptCompleted += HandleHonorAttemptCompleted;
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
-            _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, (ILeagueMatchmakingWriteApi)_leagueClient);
+
+            var matchmakingWriter = (ILeagueMatchmakingWriteApi)_leagueClient;
+            _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, matchmakingWriter);
             _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs);
+            _matchmakingStop = new LeagueMatchmakingStopController(_leagueClient, matchmakingWriter);
+            ConfigureMatchmakingStopController();
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -87,6 +92,7 @@ namespace FACM.AppHost.Modules
             {
                 _postGame.Observe(current);
                 _matchmaking.Observe(current);
+                _matchmakingStop.Observe(current);
             }
         }
 
@@ -105,6 +111,8 @@ namespace FACM.AppHost.Modules
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
         public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
+        public string AutoMatchmakingStopPolicy { get { return LeagueMatchmakingStopPolicyCodec.Normalize(_settingsModule.Settings.LeagueAutoMatchmakingStopPolicy); } }
+        public int AutoMatchmakingStopAfterMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStopAfterMs; } }
 
         public Task<LeagueEfficiencyActionResult> RunExitGameAsync()
         {
@@ -137,24 +145,45 @@ namespace FACM.AppHost.Modules
             bool autoAccept,
             int minimumPartySize,
             int searchStartDelayMs,
-            int acceptDelayMs)
+            int acceptDelayMs,
+            string stopPolicy,
+            int stopAfterMs)
         {
             ThrowIfDisposed();
             minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
             searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
             acceptDelayMs = Math.Max(0, Math.Min(15000, acceptDelayMs));
+            stopPolicy = LeagueMatchmakingStopPolicyCodec.Normalize(stopPolicy);
+            stopAfterMs = Math.Max(1000, Math.Min(600000, stopAfterMs));
             _settingsModule.Settings.LeagueAutoMatchmakingEnabled = autoSearch;
             _settingsModule.Settings.LeagueAutoAcceptEnabled = autoAccept;
             _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize = minimumPartySize;
             _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs = searchStartDelayMs;
             _settingsModule.Settings.LeagueAutoAcceptDelayMs = acceptDelayMs;
+            _settingsModule.Settings.LeagueAutoMatchmakingStopPolicy = stopPolicy;
+            _settingsModule.Settings.LeagueAutoMatchmakingStopAfterMs = stopAfterMs;
             _settingsModule.Settings.Save();
             if (_matchmaking != null)
-            {
                 _matchmaking.Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs);
-                var current = _dashboard.CurrentGameflowState;
-                if (current != null) _matchmaking.Observe(current);
+            ConfigureMatchmakingStopController();
+
+            var current = _dashboard.CurrentGameflowState;
+            if (current != null)
+            {
+                if (_matchmaking != null) _matchmaking.Observe(current);
+                if (_matchmakingStop != null) _matchmakingStop.Observe(current);
             }
+        }
+
+        private void ConfigureMatchmakingStopController()
+        {
+            if (_matchmakingStop == null) return;
+            // The stop strategy belongs to the auto-matchmaking workflow. Turning auto matchmaking
+            // off also turns this automatic DELETE behavior off, even when an old policy is saved.
+            var effective = AutoMatchmakingEnabled
+                ? AutoMatchmakingStopPolicy
+                : LeagueMatchmakingStopPolicyCodec.Never;
+            _matchmakingStop.Configure(effective, AutoMatchmakingStopAfterMs);
         }
 
         private bool TryApplyBindings(string exitGame, string closeLobby, bool persist, out string error)
@@ -199,6 +228,7 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             if (_postGame != null) _postGame.Observe(state);
             if (_matchmaking != null) _matchmaking.Observe(state);
+            if (_matchmakingStop != null) _matchmakingStop.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -234,6 +264,11 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_matchmakingStop != null)
+            {
+                _matchmakingStop.Dispose();
+                _matchmakingStop = null;
+            }
             if (_matchmaking != null)
             {
                 _matchmaking.Dispose();
