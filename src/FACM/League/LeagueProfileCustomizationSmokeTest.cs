@@ -26,10 +26,10 @@ namespace FACM.League
             var fake = new FakeProfileApi();
             var service = CreateService(fake);
             var parsed = service.ParseChampionSummaryForSmokeTest(Encoding.UTF8.GetBytes(
-                "[{\"id\":2,\"name\":\"奥拉夫\"},{\"id\":1,\"name\":\"安妮\"},{\"id\":-1,\"name\":\"None\"},{\"id\":1,\"name\":\"重复\"}]"));
+                "[{\"id\":2,\"name\":\"Olaf\"},{\"id\":1,\"name\":\"Annie\"},{\"id\":-1,\"name\":\"None\"},{\"id\":1,\"name\":\"Duplicate\"}]"));
             Require(parsed.Count == 2, "Profile champion parser did not filter invalid/duplicate IDs.");
-            Require(parsed[0].Id == 1 && parsed[0].Name == "安妮", "Profile champion parser did not keep deterministic name ordering.");
-            Require(parsed[1].Id == 2 && parsed[1].Name == "奥拉夫", "Profile champion parser lost the second valid champion.");
+            Require(parsed[0].Id == 1 && parsed[0].Name == "Annie", "Profile champion parser did not keep deterministic name ordering.");
+            Require(parsed[1].Id == 2 && parsed[1].Name == "Olaf", "Profile champion parser lost the second valid champion.");
         }
 
         private static void ValidateSkinParsingAndQuestTierDeduplication()
