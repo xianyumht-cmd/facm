@@ -39,6 +39,14 @@ namespace FACM.League
         public const string BannerUnverified = "LeagueProfileCustomizationBannerUnverified";
         public const string BannerUnavailable = "LeagueProfileCustomizationBannerUnavailable";
         public const string BannerWriteFailed = "LeagueProfileCustomizationBannerWriteFailed";
+        public const string TokensTitle = "LeagueProfileCustomizationTokensTitle";
+        public const string TokensHint = "LeagueProfileCustomizationTokensHint";
+        public const string TokensAction = "LeagueProfileCustomizationTokensAction";
+        public const string TokensApplied = "LeagueProfileCustomizationTokensApplied";
+        public const string TokensOverridden = "LeagueProfileCustomizationTokensOverridden";
+        public const string TokensUnverified = "LeagueProfileCustomizationTokensUnverified";
+        public const string TokensUnavailable = "LeagueProfileCustomizationTokensUnavailable";
+        public const string TokensWriteFailed = "LeagueProfileCustomizationTokensWriteFailed";
         public const string Footer = "LeagueProfileCustomizationFooter";
         public const string Entry = "LeagueProfileCustomizationEntry";
         public const string EntryHint = "LeagueProfileCustomizationEntryHint";
@@ -74,16 +82,24 @@ namespace FACM.League
             { LeagueProfileCustomizationUiTextKeys.RegaliaUnavailable, "未读取到当前召唤师 regalia 状态" },
             { LeagueProfileCustomizationUiTextKeys.RegaliaWriteFailed, "客户端拒绝或未完成这次边框修改" },
             { LeagueProfileCustomizationUiTextKeys.BannerTitle, "赛季旗帜" },
-            { LeagueProfileCustomizationUiTextKeys.BannerHint, "切换为上赛季旗帜。FACM 会先读取当前挑战偏好，再写入并有限读回确认；部分客户端状态可能稍后覆盖。" },
+            { LeagueProfileCustomizationUiTextKeys.BannerHint, "切换为上赛季旗帜。FACM 会先读取当前挑战偏好，保留其它资料字段，再写入并有限读回确认。" },
             { LeagueProfileCustomizationUiTextKeys.BannerAction, "切换旗帜" },
             { LeagueProfileCustomizationUiTextKeys.BannerApplied, "赛季旗帜已读回确认" },
             { LeagueProfileCustomizationUiTextKeys.BannerOverridden, "客户端已恢复其它旗帜状态；FACM 没有继续强制覆盖" },
             { LeagueProfileCustomizationUiTextKeys.BannerUnverified, "客户端接受了旗帜修改，但暂时无法读回确认" },
-            { LeagueProfileCustomizationUiTextKeys.BannerUnavailable, "未读取到当前挑战偏好或旗帜状态" },
+            { LeagueProfileCustomizationUiTextKeys.BannerUnavailable, "未读取到足够的当前挑战偏好，未执行旗帜修改" },
             { LeagueProfileCustomizationUiTextKeys.BannerWriteFailed, "客户端拒绝或未完成这次旗帜修改" },
+            { LeagueProfileCustomizationUiTextKeys.TokensTitle, "挑战徽章" },
+            { LeagueProfileCustomizationUiTextKeys.TokensHint, "清空当前展示的挑战徽章。FACM 会保留标题、旗帜和边框等其它挑战资料字段，只写入一次并有限读回确认。" },
+            { LeagueProfileCustomizationUiTextKeys.TokensAction, "清除徽章" },
+            { LeagueProfileCustomizationUiTextKeys.TokensApplied, "挑战徽章已清空并读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.TokensOverridden, "客户端已恢复挑战徽章或其它资料状态；FACM 没有继续强制覆盖" },
+            { LeagueProfileCustomizationUiTextKeys.TokensUnverified, "客户端接受了清除请求，但暂时无法完整读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.TokensUnavailable, "未读取到足够的当前挑战偏好，未执行徽章清除" },
+            { LeagueProfileCustomizationUiTextKeys.TokensWriteFailed, "客户端拒绝或未完成这次挑战徽章清除" },
             { LeagueProfileCustomizationUiTextKeys.Footer, "这些操作只在你点击按钮时写入一次，并进行有限读回验证；不会在后台轮询或反复覆盖客户端。" },
             { LeagueProfileCustomizationUiTextKeys.Entry, "召唤师外观" },
-            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景与资料边框等召唤师展示项" }
+            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景、资料边框与挑战展示项" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
