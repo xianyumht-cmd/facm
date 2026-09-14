@@ -10,6 +10,7 @@ namespace FACM.League
         {
             ValidateExactPositionCounterEvidence();
             ValidateRevealedCounterWithoutPositionKeepsSourceEvidenceShape();
+            ValidateNetworkFreeSpellPresentation();
         }
 
         private static void ValidateExactPositionCounterEvidence()
@@ -90,6 +91,52 @@ namespace FACM.League
             Require(row.Evidence.IndexOf("win 55.0%", StringComparison.Ordinal) >= 0 &&
                     row.Evidence.IndexOf("80 games", StringComparison.Ordinal) >= 0,
                 "Revealed counter evidence lost source statistics.");
+        }
+
+        private static void ValidateNetworkFreeSpellPresentation()
+        {
+            Require(string.Equals(
+                    LeagueRuntimeCompanionSpellPresentation.Format(4, 14),
+                    "Flash/Ignite",
+                    StringComparison.Ordinal),
+                "Known summoner-spell IDs did not resolve to compact fallback labels.");
+            Require(string.Equals(
+                    LeagueRuntimeCompanionSpellPresentation.Format(4, 9999),
+                    "Flash/S9999",
+                    StringComparison.Ordinal),
+                "Unknown summoner-spell IDs were guessed instead of remaining explicit.");
+            Require(string.Equals(
+                    LeagueRuntimeCompanionSpellPresentation.Format(0, 4),
+                    "Flash",
+                    StringComparison.Ordinal),
+                "Missing summoner-spell slots should be omitted from compact presentation.");
+
+            var sourcePlayer = new LeagueLivePlayerRow
+            {
+                Side = "ally",
+                CellId = 1,
+                IsLocalPlayer = true,
+                GameName = "Me",
+                TagLine = "CN1",
+                ChampionId = 58,
+                Spell1Id = 4,
+                Spell2Id = 14
+            };
+            var source = new LeagueRuntimeCompanionSnapshot
+            {
+                SessionAvailable = true,
+                LocalChampionId = 58,
+                Players = new[] { sourcePlayer }
+            };
+            var clone = source.Clone();
+
+            Require(string.Equals(sourcePlayer.AccountName, "Me#CN1", StringComparison.Ordinal),
+                "Runtime spell presentation leaked into the shared LeagueLive source row.");
+            Require(clone.Players.Count == 1 &&
+                    string.Equals(clone.Players[0].PresentationSuffix, "Flash/Ignite", StringComparison.Ordinal),
+                "Runtime Companion clone did not project exposed spell IDs into a presentation suffix.");
+            Require(string.Equals(clone.Players[0].AccountName, "Me#CN1 · Flash/Ignite", StringComparison.Ordinal),
+                "Draft tooltip account presentation did not include the compact spell suffix.");
         }
 
         private static void Require(bool condition, string message)
