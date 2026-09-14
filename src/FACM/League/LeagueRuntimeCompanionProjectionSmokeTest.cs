@@ -122,21 +122,33 @@ namespace FACM.League
                 Spell1Id = 4,
                 Spell2Id = 14
             };
+            var hiddenEnemy = new LeagueLivePlayerRow
+            {
+                Side = "enemy",
+                CellId = 7,
+                ChampionId = 0,
+                Spell1Id = 4,
+                Spell2Id = 14
+            };
             var source = new LeagueRuntimeCompanionSnapshot
             {
                 SessionAvailable = true,
                 LocalChampionId = 58,
-                Players = new[] { sourcePlayer }
+                Players = new[] { sourcePlayer, hiddenEnemy }
             };
             var clone = source.Clone();
 
             Require(string.Equals(sourcePlayer.AccountName, "Me#CN1", StringComparison.Ordinal),
                 "Runtime spell presentation leaked into the shared LeagueLive source row.");
-            Require(clone.Players.Count == 1 &&
+            Require(clone.Players.Count == 2 &&
                     string.Equals(clone.Players[0].PresentationSuffix, "Flash/Ignite", StringComparison.Ordinal),
                 "Runtime Companion clone did not project exposed spell IDs into a presentation suffix.");
             Require(string.Equals(clone.Players[0].AccountName, "Me#CN1 · Flash/Ignite", StringComparison.Ordinal),
                 "Draft tooltip account presentation did not include the compact spell suffix.");
+            Require(string.IsNullOrWhiteSpace(clone.Players[1].AccountName),
+                "Spell presentation made a hidden anonymous enemy row visible by itself.");
+            Require(string.Equals(clone.Players[1].PresentationSuffix, "Flash/Ignite", StringComparison.Ordinal),
+                "Hidden-row fail-closed behavior unexpectedly discarded exposed spell IDs from the defensive clone.");
         }
 
         private static void Require(bool condition, string message)
