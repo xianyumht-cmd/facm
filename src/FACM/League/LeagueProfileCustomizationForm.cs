@@ -11,12 +11,14 @@ namespace FACM.League
     internal sealed class LeagueProfileCustomizationForm : Form
     {
         private readonly LeagueProfileCustomizationService _service;
+        private readonly LeagueRegaliaCustomizationService _regaliaService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly ComboBox _champions;
         private readonly ComboBox _skins;
         private readonly Button _apply;
         private readonly Button _refresh;
+        private readonly Button _removePrestigeCrest;
         private readonly Label _status;
         private int _selectionGeneration;
         private bool _busy;
@@ -24,10 +26,12 @@ namespace FACM.League
 
         public LeagueProfileCustomizationForm(
             LeagueProfileCustomizationService service,
+            LeagueRegaliaCustomizationService regaliaService,
             UiTextCatalog ui,
             ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _regaliaService = regaliaService ?? throw new ArgumentNullException(nameof(regaliaService));
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -38,7 +42,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(470, 360);
+            ClientSize = new Size(470, 472);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -77,10 +81,25 @@ namespace FACM.League
             _apply = CreateButton(T(LeagueProfileCustomizationUiTextKeys.Apply), new Rectangle(348, 206, 98, 32));
             _apply.Click += async delegate { await ApplySelectedSkinAsync(); };
 
+            var regaliaTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.RegaliaTitle), new Rectangle(24, 260, 180, 20));
+            var regaliaHint = new Label
+            {
+                Text = T(LeagueProfileCustomizationUiTextKeys.RegaliaHint),
+                Location = new Point(24, 282),
+                Size = new Size(316, 62),
+                BackColor = Color.Transparent,
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+            };
+            _removePrestigeCrest = CreateButton(
+                T(LeagueProfileCustomizationUiTextKeys.RemovePrestigeCrest),
+                new Rectangle(348, 292, 98, 38));
+            _removePrestigeCrest.Click += async delegate { await RemovePrestigeCrestAsync(); };
+
             _status = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Loading),
-                Location = new Point(24, 260),
+                Location = new Point(24, 366),
                 Size = new Size(422, 24),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.Accent,
@@ -90,8 +109,8 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Footer),
-                Location = new Point(24, 296),
-                Size = new Size(422, 46),
+                Location = new Point(24, 402),
+                Size = new Size(422, 52),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
@@ -103,6 +122,9 @@ namespace FACM.League
             Controls.Add(_refresh);
             Controls.Add(_skins);
             Controls.Add(_apply);
+            Controls.Add(regaliaTitle);
+            Controls.Add(regaliaHint);
+            Controls.Add(_removePrestigeCrest);
             Controls.Add(_status);
             Controls.Add(footer);
 
@@ -310,6 +332,41 @@ namespace FACM.League
             }
         }
 
+        private async Task RemovePrestigeCrestAsync()
+        {
+            if (_busy || _lifetime.IsCancellationRequested) return;
+            SetBusy(true);
+            SetStatus(T(LeagueProfileCustomizationUiTextKeys.Loading), FacmDesignSystem.Accent);
+            try
+            {
+                var result = await _regaliaService.RemovePrestigeCrestAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+
+                if (result == null || string.Equals(result.Status, "write-failed", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaWriteFailed), FacmDesignSystem.Error);
+                else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaApplied), FacmDesignSystem.Success);
+                else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaOverridden), FacmDesignSystem.Warning);
+                else if (string.Equals(result.Status, "unverified", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaUnverified), FacmDesignSystem.Warning);
+                else
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaUnavailable), FacmDesignSystem.Warning);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League regalia prestige-crest apply failed", exception);
+                if (!IsDisposed) SetStatus(T(LeagueProfileCustomizationUiTextKeys.RegaliaWriteFailed), FacmDesignSystem.Error);
+            }
+            finally
+            {
+                if (!IsDisposed) SetBusy(false);
+            }
+        }
+
         private void SetBusy(bool busy)
         {
             _busy = busy;
@@ -323,6 +380,8 @@ namespace FACM.League
         {
             if (_apply != null && !_apply.IsDisposed)
                 _apply.Enabled = !_busy && _skins.SelectedItem is SkinItem;
+            if (_removePrestigeCrest != null && !_removePrestigeCrest.IsDisposed)
+                _removePrestigeCrest.Enabled = !_busy;
         }
 
         private void SetStatus(string text, Color color)
