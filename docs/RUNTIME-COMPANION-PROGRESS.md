@@ -49,6 +49,7 @@ Updated: 2026-09-14
 - `MASTER / GRANDMASTER / CHALLENGER` omit the division field rather than preserving a stale division.
 - displayed-rank writes preserve chat signature, availability, gameStatus and unrelated Presence metadata, then use first + settled readback verification. Client overwrite is reported without a rewrite loop.
 - the UI states explicitly that this changes only chat-card display metadata and does **not** change server rank, LP or match history.
+- canonical mixed-case queue tokens such as `RANKED_SOLO_5x5` are preserved through normalization; the host smoke no longer fails by uppercasing `x` into a non-allowlisted token.
 - presence/signature/displayed-rank smoke coverage is wired into the host smoke suite.
 
 ## DONE — summon/profile background parity
@@ -64,21 +65,30 @@ Updated: 2026-09-14
 - the existing online/presence tool surface now links to a lightweight **召唤师外观 → 生涯背景** picker rather than creating a duplicate League session owner.
 - parser/payload/readback/fence smoke coverage is wired into the host smoke suite.
 
-## ACTIVE — banner / regalia owner audit
+## DONE — profile border / prestige-crest regalia parity
 
-Verified upstream reference routes:
+- upstream Akari behavior was audited before implementation: it reads `GET /lol-regalia/v2/current-summoner/regalia`, preserves the returned `bannerType`, then writes `preferredCrestType=prestige`, the preserved banner type and `selectedPrestigeCrest=22` through the regalia owner.
+- FACM now has a dedicated `ILeagueRegaliaWriteApi` / `LeagueRegaliaWriteApiClient` hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`; it shares the existing `LeagueClientSessionProvider` and cannot reach chat, matchmaking, ChampSelect, inventory or arbitrary routes.
+- `LeagueRegaliaCustomizationService` performs one authoritative pre-read, one user-directed PUT, then bounded first + settled readback verification.
+- missing current regalia/banner evidence fails closed without a write; rejected writes are reported as failed; unavailable readback is reported as unverified; client overwrite is reported as overridden without a rewrite loop.
+- the existing **召唤师外观** window now exposes **资料边框 → 隐藏等级边框** alongside the existing background picker rather than creating a separate session or polling owner.
+- parser/payload/readback/override/fence smoke coverage is wired into the main host smoke suite.
+- Windows Build #1882 and UI Text Contract #990 both passed at head `5e5e1b3a797a1146ac7a0c2f062329e9924c01a4` after the UI integration.
 
-- last-season style banner preference: `POST /lol-challenges/v1/update-player-preferences/` with `bannerAccent` in the challenge preferences document;
-- regalia read/write: `GET/PUT /lol-regalia/v2/current-summoner/regalia`;
-- Akari's prestige-crest removal flow first reads current regalia, then preserves the current banner type while applying a prestige crest selection.
+## ACTIVE — last-season banner preference audit
 
-FACM should prefer the regalia path first because it has explicit readback semantics. Banner preference has a verified write route but no matching preference read endpoint in the audited Akari helper, so it must not be presented as “verified applied” unless FACM can verify the effect from another authoritative client document.
+Verified upstream reference route:
+
+- `POST /lol-challenges/v1/update-player-preferences/` with `bannerAccent` in the challenge preferences document.
+- Akari currently uses a fixed `bannerAccent` value for its screenshot-driven banner action.
+
+The audited Akari helper exposes the write path but not a matching authoritative preference read endpoint. FACM must therefore either find an independent authoritative client document that proves the resulting banner state or present the operation honestly as accepted/unverified. It must not call a 2xx write “verified applied” without evidence.
 
 ## NEXT — remaining Akari toolbox/profile audit
 
-1. profile border/prestige crest through a dedicated, narrowly fenced regalia owner with read-modify-write + verification;
-2. last-season banner preference only with honest accepted/unverified semantics if no authoritative readback is available;
-3. challenge-token cleanup and emote cleanup only after their exact ownership/readback semantics are verified;
+1. last-season banner preference only with honest accepted/unverified semantics if no authoritative readback is available;
+2. challenge-token cleanup after its exact challenge-preference ownership and preservation semantics are verified;
+3. emote cleanup only after account-scope loadout selection and exact mutation/readback semantics are verified;
 4. lobby/profile inspection utilities;
 5. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
 
