@@ -42,6 +42,7 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 ## Presence and summoner profile
 
 - Open the existing online/presence surface and verify the six existing presence modes still work without creating a second League session owner.
+- In the LOL 工作台嵌入视图中，将窗口保持在常用的 1120 x 640 左右尺寸，确认 **在线状态** 主内容出现纵向滚动能力：能够滚动到聊天签名、展示段位、召唤师外观、上赛季旗帜、状态提示和底部说明；右侧“接着做”上下文栏与左侧导航保持固定。不得因为修复纵向滚动而引入水平滚动条。
 - Set a non-empty chat signature, then clear it with an empty value. In both directions, verify availability, gameStatus and unrelated Presence fields survive; if the client restores another value, FACM must report the overwrite and must not enter a rewrite loop.
 - Apply a displayed-rank queue/tier/division combination and verify only chat/social-card display metadata changes. Actual server rank, LP and match history must remain unchanged. For `MASTER / GRANDMASTER / CHALLENGER`, no stale division should be retained.
 - Open **召唤师外观**, choose an explicit champion/skin and apply the profile background. Verify the client reports the selected `backgroundSkinId`; FACM must not claim to unlock or purchase a skin.
