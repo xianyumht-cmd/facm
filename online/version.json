@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.39",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.39/FACM.exe",
   "sha256": "8D71AE9616449524CECFEA1ED5B24B8F549B85661364B738F0C033FA18A03F6B",
   "release_notes": "FACM 3.5.39：正式发布 LOL 工作台与 Runtime Companion 现代化更新。新增轻量选人助手，整合英雄/符文/召唤师技能/加点/出装/克制位、敌我阵容、ARAM/海克斯与 Bench 信息，并复用单一 League/LCU ownership，避免额外玩家历史 fan-out 与隐藏信息推断；新增自动荣誉/回大厅、自动排队/接受及延迟/停止策略、全局快捷键；完善在线状态、聊天签名、展示段位、资料背景、边框/巅峰徽章、上赛季旗帜、挑战徽章清理与表情清理；支持 DPI/多显示器与窗口状态持久化。腾讯客户端实机验收同时修复 LOL 工作台“在线状态”和“快捷工具”嵌入页面内容被截断、无法完整滚动的问题。",
-  "published_at": "2026-09-14T20:41:00.8651670+00:00"
+  "published_at": "2026-09-14T20:41:09.5818032+00:00"
 }

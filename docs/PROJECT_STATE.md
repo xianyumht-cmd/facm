@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.38
-- GitHub Release：v3.5.38
+- 版本：FACM 3.5.39
+- GitHub Release：v3.5.39
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c8eaa274d768881608bb5381f90cb9407ba98b23
-- 发布元数据提交：8632e243e5faff2c59313afd30aa4ba17eccb361
-- Release FACM.exe SHA-256：C113ECB881A597191A1F0022DE763686805B508FB12080A693AECFABA6B77C85
-- release_notes：FACM 3.5.38：新增 LOL Champion Select 秒退阵营只读公开测试 Probe。腾讯服实机已确认真实秒退会返回 StrangerDodged，但 dodgerId=0，且对方 Summoner ID 被隐藏，因此本版不把 StrangerDodged 单独当作对方秒退。Probe 保留 dodgeData，并组合 ChampSelect myTeam 瞬时变化、chatDetails/chat room system 退出消息、聊天参与者变化和 Lobby 成员变化等 GET-only 旁路证据；确认秒退后仅进行约 1 秒的短时高频取证，平时会话详情只做基线，避免长期高频轮询。没有正向证据时继续保持 unknown，不猜测 enemy。普通玩家聊天正文不记录，仅与秒退诊断相关的 system/event departure 文本可能写入本地日志；Probe 不发送聊天、不改变匹配/ReadyCheck/选人行为、不新增 LCU 写请求或第二 Gameflow owner。
+- 发布基础 main：f6bc184f5a9782525bb2784343d73b35a705d9ec
+- 发布元数据提交：ea36937a829275674739dd87e462233a5fb54c33
+- Release FACM.exe SHA-256：8D71AE9616449524CECFEA1ED5B24B8F549B85661364B738F0C033FA18A03F6B
+- release_notes：FACM 3.5.39：正式发布 LOL 工作台与 Runtime Companion 现代化更新。新增轻量选人助手，整合英雄/符文/召唤师技能/加点/出装/克制位、敌我阵容、ARAM/海克斯与 Bench 信息，并复用单一 League/LCU ownership，避免额外玩家历史 fan-out 与隐藏信息推断；新增自动荣誉/回大厅、自动排队/接受及延迟/停止策略、全局快捷键；完善在线状态、聊天签名、展示段位、资料背景、边框/巅峰徽章、上赛季旗帜、挑战徽章清理与表情清理；支持 DPI/多显示器与窗口状态持久化。腾讯客户端实机验收同时修复 LOL 工作台“在线状态”和“快捷工具”嵌入页面内容被截断、无法完整滚动的问题。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
