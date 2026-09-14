@@ -49,31 +49,30 @@ Updated: 2026-09-14
 - `MASTER / GRANDMASTER / CHALLENGER` omit the division field rather than preserving a stale division.
 - displayed-rank writes preserve chat signature, availability, gameStatus and unrelated Presence metadata, then use first + settled readback verification. Client overwrite is reported without a rewrite loop.
 - the UI states explicitly that this changes only chat-card display metadata and does **not** change server rank, LP or match history.
-- canonical mixed-case queue tokens such as `RANKED_SOLO_5x5` are preserved through normalization; the host smoke no longer fails by uppercasing `x` into a non-allowlisted token.
+- canonical mixed-case queue tokens such as `RANKED_SOLO_5x5` are preserved through normalization.
 - presence/signature/displayed-rank smoke coverage is wired into the host smoke suite.
 
 ## DONE — summon/profile background parity
 
 - Akari reference semantics were verified before implementation instead of guessed.
-- FACM now has a dedicated `ILeagueProfileWriteApi` / `LeagueProfileWriteApiClient` hard-fenced to `POST /lol-summoner/v1/current-summoner/summoner-profile`; it cannot mutate chat, inventory, ChampSelect or arbitrary LCU routes.
+- FACM has a dedicated `ILeagueProfileWriteApi` / `LeagueProfileWriteApiClient` hard-fenced to `POST /lol-summoner/v1/current-summoner/summoner-profile`; it cannot mutate chat, inventory, ChampSelect or arbitrary LCU routes.
 - `LeagueProfileCustomizationService` reads the local champion summary only when the explicit profile tool opens, then reads one champion-detail document only after the user chooses that champion. There is no background catalog prefetch or second poller.
 - background selection uses the verified `{ "key": "backgroundSkinId", "value": <skinId> }` payload.
 - the write is user-directed, occurs once, and is followed by bounded first + settled reads of `GET /lol-summoner/v1/current-summoner/summoner-profile`.
 - client overwrite is reported without a rewrite loop; missing verification is reported as unverified rather than falsely claimed successful.
 - invalid/non-positive skin IDs fail closed without a write.
 - base skins and unique quest-skin tiers are projected from local `/lol-game-data/assets/v1/champions/{id}.json` data; FACM does not claim to grant skin ownership.
-- the existing online/presence tool surface now links to a lightweight **召唤师外观 → 生涯背景** picker rather than creating a duplicate League session owner.
+- the existing online/presence tool surface links to a lightweight **召唤师外观 → 生涯背景** picker rather than creating a duplicate League session owner.
 - parser/payload/readback/fence smoke coverage is wired into the host smoke suite.
 
 ## DONE — profile border / prestige-crest regalia parity
 
 - upstream Akari behavior was audited before implementation: it reads `GET /lol-regalia/v2/current-summoner/regalia`, preserves the returned `bannerType`, then writes `preferredCrestType=prestige`, the preserved banner type and `selectedPrestigeCrest=22` through the regalia owner.
-- FACM now has a dedicated `ILeagueRegaliaWriteApi` / `LeagueRegaliaWriteApiClient` hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`; it shares the existing `LeagueClientSessionProvider` and cannot reach chat, matchmaking, ChampSelect, inventory or arbitrary routes.
+- FACM has a dedicated `ILeagueRegaliaWriteApi` / `LeagueRegaliaWriteApiClient` hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`; it shares the existing `LeagueClientSessionProvider` and cannot reach chat, matchmaking, ChampSelect, inventory or arbitrary routes.
 - `LeagueRegaliaCustomizationService` performs one authoritative pre-read, one user-directed PUT, then bounded first + settled readback verification.
 - missing current regalia/banner evidence fails closed without a write; rejected writes are reported as failed; unavailable readback is reported as unverified; client overwrite is reported as overridden without a rewrite loop.
-- the existing **召唤师外观** window now exposes **资料边框 → 隐藏等级边框** alongside the existing background picker rather than creating a separate session or polling owner.
+- the existing **召唤师外观** window exposes **资料边框 → 隐藏等级边框** alongside the background picker rather than creating a separate session or polling owner.
 - parser/payload/readback/override/fence smoke coverage is wired into the main host smoke suite.
-- Windows Build #1882 and UI Text Contract #990 both passed at head `5e5e1b3a797a1146ac7a0c2f062329e9924c01a4` after the UI integration.
 
 ## DONE — last-season banner preference parity
 
@@ -85,33 +84,53 @@ Updated: 2026-09-14
 - missing title/challenge/crest/prestige preservation evidence fails closed without a write instead of risking a destructive replacement update.
 - the dedicated `ILeagueChallengePreferencesWriteApi` remains hard-fenced to the exact POST route and cannot write chat, regalia, matchmaking, ChampSelect or arbitrary LCU paths.
 - apply remains one user-directed POST followed by bounded first + settled summary readback. A result is called `success` only when `bannerAccent=2` is observed **and** title/challenge tokens/crest/prestige state still matches the pre-write snapshot. Missing evidence is `unverified`; drift/client overwrite is `overridden`; there is no rewrite loop.
-- smoke coverage now models replacement semantics deliberately: omission of preserved fields would clear the fake profile and fail the suite; incomplete pre-read fails closed; preservation drift cannot be reported as success; endpoint/method fencing remains covered.
-- `LeagueChallengePreferencesSmokeTest.Validate()` is wired into the main Host smoke flow.
-- validated functional head `3cef79f2332021d1377784fc7000a044119dc255`: UI Text Contract #1002 PASS, Mayhem Source Probe #676 PASS, Windows Build #1894 PASS. Windows Build completed PetHost self-test, lightweight Release build, FACM.exe verification, signing step, package creation and artifact upload successfully.
+- smoke coverage models replacement semantics deliberately: omission of preserved fields would clear the fake profile and fail the suite; incomplete pre-read fails closed; preservation drift cannot be reported as success; endpoint/method fencing remains covered.
 
-## ACTIVE — challenge-token cleanup audit
+## DONE — challenge-token cleanup parity
 
-Verified upstream reference behavior so far:
+- Akari's remove-token action was audited: it sends `challengeIds: []` through the same challenge-preferences route and forwards its current banner selection.
+- FACM reuses the preservation-safe `LeagueChallengePreferencesService` and the existing exact-route writer; there is no second preference/session owner.
+- before a token cleanup write, FACM reconstructs the current title, banner accent, crest border, prestige-crest level and current challenge IDs; if the current numeric banner or any required preservation evidence is missing, it fails closed with zero POSTs.
+- the outgoing replacement-safe document preserves title/banner/crest/prestige and exposed `signedJWTPayload`, and changes only the selected challenge-token list to `[]`.
+- cleanup is one explicit user-directed POST followed by bounded first + settled summary readback. Success requires an empty challenge-token list while title/banner/crest/prestige remain unchanged.
+- missing readback is `unverified`; restored tokens or preservation drift are `overridden`; FACM never enters a rewrite loop.
+- banner-change and token-cleanup preservation checks are separate, preventing the banner flow from incorrectly comparing the new requested banner against the old pre-read banner.
+- **召唤师外观 → 挑战徽章 → 清除徽章** exposes the action without introducing background polling.
+- replacement-style fake coverage verifies exactly one POST, bounded readback, banner-evidence fail-closed behavior, unrelated-field preservation, client token restoration and endpoint fencing.
+- validated token-cleanup functional head `b50549a2df4f84a3a8c9819177e25b8c06a5ef8c`: UI Text Contract #1011 PASS, Mayhem Source Probe #685 PASS, Windows Build #1903 PASS.
 
-- Akari exposes **remove challenge tokens** through the same challenge-preferences owner and sends `challengeIds: []`; its current implementation also forwards the chat presence `lol.bannerIdSelected` as `bannerAccent`.
-- Seraphine-derived implementations use the same `challengeIds: []` + current banner pattern.
-- because the preference route has replacement-style risk, FACM must reuse the preservation model established above rather than copying a two-field payload that could clear title/crest/prestige state.
+## DONE — account emote cleanup parity
 
-Next engineering step: implement token cleanup only after defining readback proof that the token list is empty while the pre-write title/banner/crest/prestige fields remain unchanged. The existing challenge-preferences writer should be reused; no second owner is needed.
+- Akari's emote cleanup path was audited before implementation: it reads `GET /lol-loadouts/v4/loadouts/scope/account`, takes an account loadout ID, and PATCHes `/lol-loadouts/v4/loadouts/{id}` with a `loadout` document whose emote slots use `inventoryType=EMOTE` and `itemId=-1`.
+- generated/public LCU API models independently confirm the PATCH route and `{ "loadout": ... }` body wrapper.
+- FACM intentionally does **not** copy Akari's `data[0]` selection literally. `LeagueEmoteLoadoutService` requires exactly one account-scoped loadout with the complete audited emote-slot contract; zero, incomplete or multiple candidates fail closed without a write.
+- the audited slot set is `EMOTES_ACE`, `EMOTES_FIRST_BLOOD`, `EMOTES_VICTORY`, `EMOTES_WHEEL_CENTER`, `EMOTES_WHEEL_UPPER`, `EMOTES_WHEEL_RIGHT`, `EMOTES_WHEEL_UPPER_RIGHT`, `EMOTES_WHEEL_UPPER_LEFT`, `EMOTES_WHEEL_LOWER`, `EMOTES_START`, `EMOTES_WHEEL_LEFT`, `EMOTES_WHEEL_LOWER_RIGHT`, and `EMOTES_WHEEL_LOWER_LEFT`.
+- the outgoing payload touches only those 13 slots; unrelated account-loadout slots are not included in the PATCH document.
+- `ILeagueEmoteLoadoutWriteApi` / `LeagueEmoteLoadoutWriteApiClient` shares the unique `LeagueClientSessionProvider` and is hard-fenced to PATCH plus one validated `/lol-loadouts/v4/loadouts/{id}` segment. Path traversal, query-string escape and wrong-method inputs are rejected.
+- cleanup emits exactly one user-directed PATCH and then performs bounded first + settled reads of the account-scope collection. Success requires the same uniquely resolved loadout ID and all 13 audited slots at `itemId=-1`.
+- missing/ambiguous ownership or readback fails closed/unverified; if the client restores an emote, FACM reports `overridden` and does not fight it with repeated writes.
+- **召唤师外观 → 表情轮盘 → 清空表情** exposes the action; no background poller or second LCU connection is introduced.
+- host smoke covers unique/ambiguous owner selection, narrow payload, unrelated-slot preservation, one-write/bounded-readback behavior, incomplete loadout fail-closed behavior, client restoration and writer fencing.
+- validated emote functional head `befde045d3f4d1fdefb74024dc2031f33cdf7f84`: UI Text Contract #1020 PASS, Mayhem Source Probe #694 PASS, Windows Build #1912 PASS. Windows #1912 completed PetHost self-test, lightweight Release build, FACM.exe verification, signing step, package creation and artifact upload successfully.
+
+## ACTIVE — lobby/profile inspection utilities audit
+
+The next phase is read-mostly. Before adding any new surface, audit Akari's lobby/profile inspection utilities against FACM's existing `LeagueDashboard`, `LeaguePlayer`, `LeagueLive` and shared LCU owners. Do not duplicate an existing FACM player/history/live view into the transient Runtime Companion or create another Gameflow/session owner.
+
+Engineering rule for this phase: prefer projections from already-owned/local read APIs; add a new narrow reader only when the information is not already exposed by an existing service. Inspection utilities must remain non-mutating unless a separately audited explicit writer is justified.
 
 ## NEXT — remaining Akari toolbox/profile audit
 
-1. challenge-token cleanup through the existing preservation-safe challenge-preferences owner;
-2. emote cleanup only after account-scope loadout selection and exact mutation/readback semantics are verified;
-3. lobby/profile inspection utilities;
-4. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
+1. lobby/profile inspection utilities after overlap/ownership audit;
+2. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
 
-Verified upstream reference routes so far:
+Verified upstream/reference routes so far:
 
 - profile background: `GET/POST /lol-summoner/v1/current-summoner/summoner-profile`;
 - banner preference / challenge tokens: `POST /lol-challenges/v1/update-player-preferences/` with preservation-safe preference semantics required by FACM;
 - regalia read/write: `GET/PUT /lol-regalia/v2/current-summoner/regalia`;
-- chat-card displayed rank: `PUT /lol-chat/v1/me` with `lol.rankedLeagueQueue`, `lol.rankedLeagueTier`, optional `lol.rankedLeagueDivision`.
+- chat-card displayed rank: `PUT /lol-chat/v1/me` with `lol.rankedLeagueQueue`, `lol.rankedLeagueTier`, optional `lol.rankedLeagueDivision`;
+- account emote loadout: `GET /lol-loadouts/v4/loadouts/scope/account`, then `PATCH /lol-loadouts/v4/loadouts/{id}` for the uniquely identified account emote loadout.
 
 ## NEXT — Runtime Companion presentation follow-ups
 
