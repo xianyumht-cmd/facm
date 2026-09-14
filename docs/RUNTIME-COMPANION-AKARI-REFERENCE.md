@@ -14,6 +14,7 @@ The target is a compact League-side companion that exposes useful current-contex
 6. **ARAM / Mayhem stays mode-specific.** Bench, build modules, ARAM balance and augment ranking should appear only when the active mode makes them relevant. Rarity filtering is local and should not refetch.
 7. **Secondary detail is progressive.** The most useful recommendation is shown first; alternatives/details stay behind compact expansion, paging or tooltips.
 8. **The window remains transient and non-disruptive.** No taskbar entry, no focus stealing, fixed compact top context, wheel-scroll details, pin/collapse/close controls.
+9. **Automation follows the shared League lifecycle.** Akari-style automation settings may be adopted only when they can reuse FACM's existing Gameflow owner and narrow write transports. A UI option must not create a second Gameflow poller or an unrestricted LCU writer.
 
 ## Current implementation alignment
 
@@ -28,6 +29,7 @@ The target is a compact League-side companion that exposes useful current-contex
 - Per-counter OP.GG sample/win evidence retained so the focused visible matchup can show source evidence rather than a fabricated score.
 - Ordinary ARAM balance and Mayhem build/augment modules remain separated.
 - Bench quick swap, one-click leave-Champion-Select owner, matchmaking delay/ReadyCheck automation and persistent window state remain owned by their existing FACM services.
+- Akari-style **停止匹配策略** is now part of the existing automation owner: `永不`, `固定时间`, and `超过队列预估时间`. Fixed mode is bounded to 1-600 seconds; estimated mode uses the client's existing `/lol-matchmaking/v1/search` elapsed/estimate state. The controller is driven by the shared Gameflow state, cancels as soon as phase leaves `Matchmaking` (including `ReadyCheck`), and the transport permits only the existing search POST, the new narrowly fenced search DELETE, and ReadyCheck accept POST. A stop is considered successful only after search-state reconciliation confirms the queue ended.
 
 ## Remaining screenshot-driven follow-ups
 
@@ -36,6 +38,7 @@ These are the next useful parity directions, subject to the same no-duplicate-ow
 - enrich compact team rows with more already-exposed live context, especially summoner-spell presentation, without per-player history fan-out;
 - make the focused matchup visually clearer when a revealed exact-position opponent intersects verified source data;
 - reuse already-loaded catalog/icon metadata instead of issuing a second catalog request from the Form;
+- audit the existing FACM presence/toolbox owners against the Akari screenshots before adding duplicate chat-status, signature, profile/background, rank-card or lobby utilities;
 - continue improving compact player/team readability before adding any new external data source;
 - keep deeper scouting, long-term player history and post-game analysis in their existing FACM-owned surfaces unless a later task explicitly changes that lifecycle boundary.
 
