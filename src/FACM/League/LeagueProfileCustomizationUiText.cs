@@ -23,6 +23,14 @@ namespace FACM.League
         public const string Unavailable = "LeagueProfileCustomizationUnavailable";
         public const string WriteFailed = "LeagueProfileCustomizationWriteFailed";
         public const string Invalid = "LeagueProfileCustomizationInvalid";
+        public const string RegaliaTitle = "LeagueProfileCustomizationRegaliaTitle";
+        public const string RegaliaHint = "LeagueProfileCustomizationRegaliaHint";
+        public const string RemovePrestigeCrest = "LeagueProfileCustomizationRemovePrestigeCrest";
+        public const string RegaliaApplied = "LeagueProfileCustomizationRegaliaApplied";
+        public const string RegaliaOverridden = "LeagueProfileCustomizationRegaliaOverridden";
+        public const string RegaliaUnverified = "LeagueProfileCustomizationRegaliaUnverified";
+        public const string RegaliaUnavailable = "LeagueProfileCustomizationRegaliaUnavailable";
+        public const string RegaliaWriteFailed = "LeagueProfileCustomizationRegaliaWriteFailed";
         public const string Footer = "LeagueProfileCustomizationFooter";
         public const string Entry = "LeagueProfileCustomizationEntry";
         public const string EntryHint = "LeagueProfileCustomizationEntryHint";
@@ -49,9 +57,17 @@ namespace FACM.League
             { LeagueProfileCustomizationUiTextKeys.Unavailable, "未读取到英雄联盟客户端召唤师资料" },
             { LeagueProfileCustomizationUiTextKeys.WriteFailed, "客户端拒绝或未完成这次背景修改" },
             { LeagueProfileCustomizationUiTextKeys.Invalid, "请选择有效的英雄和皮肤" },
-            { LeagueProfileCustomizationUiTextKeys.Footer, "该操作只在你点击“设为背景”时写入一次，并进行有限读回验证；不会在后台轮询或反复覆盖客户端。" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaTitle, "资料边框" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaHint, "按已验证的客户端 regalia 语义隐藏等级边框：保留当前旗帜类型，只修改首选徽章字段。不会改变等级、段位或历史数据。" },
+            { LeagueProfileCustomizationUiTextKeys.RemovePrestigeCrest, "隐藏等级边框" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaApplied, "资料边框状态已读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaOverridden, "客户端已恢复其它边框状态；FACM 没有继续强制覆盖" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaUnverified, "客户端接受了边框修改，但暂时无法读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaUnavailable, "未读取到当前召唤师 regalia 状态" },
+            { LeagueProfileCustomizationUiTextKeys.RegaliaWriteFailed, "客户端拒绝或未完成这次边框修改" },
+            { LeagueProfileCustomizationUiTextKeys.Footer, "这些操作只在你点击按钮时写入一次，并进行有限读回验证；不会在后台轮询或反复覆盖客户端。" },
             { LeagueProfileCustomizationUiTextKeys.Entry, "召唤师外观" },
-            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景等召唤师展示项" }
+            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景与资料边框等召唤师展示项" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
