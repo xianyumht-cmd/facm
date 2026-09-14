@@ -108,7 +108,8 @@ Updated: 2026-09-15
 - the horizontal minimum remains zero, so the repair does not intentionally create a horizontal scroll range. Left navigation and the right contextual **接着做** dock remain outside the scrolling child surface.
 - host smoke now asserts the embedded presence surface keeps vertical AutoScroll enabled, preserves zero forced horizontal extent, and covers the complete 760px logical content height.
 - the consolidated live-acceptance checklist now explicitly requires scrolling to the signature/rank/profile/banner/footer content at the normal Hub size while both side regions remain fixed.
-- validated branch head `e04afb3c4086a4aca8706aea41f8bfbc8639bb47`: UI Text Contract #1043 PASS, Mayhem Source Probe #717 PASS, Windows Build #1935 PASS.
+- functional scroll-fix code + smoke were green at `e2c14c2bf428d3e7da56bfd49f1742f82b7a3789`: UI Text Contract #1042 PASS, Mayhem Source Probe #716 PASS, Windows Build #1934 PASS.
+- final documentation-synchronized head `0436749ed27fd962a867ca6b991bc9cc12974845`: UI Text Contract #1044 PASS, Mayhem Source Probe #718 PASS, Windows Build #1936 PASS.
 
 ## NEXT — remaining lightweight follow-ups
 
