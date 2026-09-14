@@ -17,6 +17,8 @@ namespace FACM.League
         private readonly Label _statusValue;
         private readonly Button[] _choiceButtons;
         private readonly Button _refreshButton;
+        private readonly TextBox _signature;
+        private readonly Button _signatureSave;
         private bool _busy;
 
         public LeaguePresenceForm(LeaguePresenceService service, UiTextCatalog ui, ThemeDefinition theme)
@@ -32,7 +34,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(430, 438);
+            ClientSize = new Size(430, 530);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -100,10 +102,42 @@ namespace FACM.League
                 Controls.Add(button);
             }
 
+            var signatureCaption = new Label
+            {
+                Text = T(LeaguePresenceUiTextKeys.Signature),
+                Location = new Point(24, 329),
+                Size = new Size(90, 22),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
+            };
+            var signatureHint = new Label
+            {
+                Text = T(LeaguePresenceUiTextKeys.SignatureHint),
+                Location = new Point(112, 329),
+                Size = new Size(294, 22),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F),
+                AutoEllipsis = true
+            };
+            _signature = new TextBox
+            {
+                Location = new Point(24, 356),
+                Size = new Size(300, 30),
+                MaxLength = LeaguePresenceService.MaximumStatusMessageLength,
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
+            };
+            _signatureSave = CreateFlatButton(T(LeaguePresenceUiTextKeys.SignatureSave), new Rectangle(330, 353, 76, 32));
+            _signatureSave.Click += async delegate { await ApplyStatusMessageAsync(); };
+
             _statusValue = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Waiting),
-                Location = new Point(24, 337),
+                Location = new Point(24, 405),
                 Size = new Size(382, 24),
                 ForeColor = FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
@@ -113,8 +147,8 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Footer),
-                Location = new Point(24, 372),
-                Size = new Size(382, 48),
+                Location = new Point(24, 440),
+                Size = new Size(382, 66),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
@@ -125,6 +159,10 @@ namespace FACM.League
             Controls.Add(_refreshButton);
             Controls.Add(currentCaption);
             Controls.Add(_currentValue);
+            Controls.Add(signatureCaption);
+            Controls.Add(signatureHint);
+            Controls.Add(_signature);
+            Controls.Add(_signatureSave);
             Controls.Add(_statusValue);
             Controls.Add(footer);
 
@@ -173,7 +211,7 @@ namespace FACM.League
                 SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
                 var snapshot = await _service.ReadAsync(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                ApplySnapshot(snapshot);
+                ApplySnapshot(snapshot, true);
                 if (snapshot != null && snapshot.Connected)
                     SetStatus(T(LeaguePresenceUiTextKeys.Applied), FacmDesignSystem.Success);
                 else
@@ -202,7 +240,7 @@ namespace FACM.League
                 SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
                 var result = await _service.ApplyAsync(mode, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                if (result != null && result.Observed != null) ApplySnapshot(result.Observed);
+                if (result != null && result.Observed != null) ApplySnapshot(result.Observed, false);
 
                 if (result == null || string.Equals(result.Status, "unavailable", StringComparison.OrdinalIgnoreCase))
                     SetStatus(T(LeaguePresenceUiTextKeys.Unavailable), FacmDesignSystem.Warning);
@@ -227,7 +265,41 @@ namespace FACM.League
             }
         }
 
-        private void ApplySnapshot(LeaguePresenceSnapshot snapshot)
+        private async Task ApplyStatusMessageAsync()
+        {
+            if (_busy || _lifetime.IsCancellationRequested) return;
+            SetBusy(true);
+            try
+            {
+                SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
+                var result = await _service.ApplyStatusMessageAsync(_signature.Text, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (result != null && result.Observed != null) ApplySnapshot(result.Observed, true);
+
+                if (result == null || string.Equals(result.Status, "unavailable", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeaguePresenceUiTextKeys.Unavailable), FacmDesignSystem.Warning);
+                else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeaguePresenceUiTextKeys.SignatureSaved), FacmDesignSystem.Success);
+                else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeaguePresenceUiTextKeys.SignatureOverridden), FacmDesignSystem.Warning);
+                else
+                    SetStatus(T(LeaguePresenceUiTextKeys.WriteFailed), FacmDesignSystem.Error);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League chat signature apply failed", exception);
+                if (!IsDisposed) SetStatus(T(LeaguePresenceUiTextKeys.WriteFailed), FacmDesignSystem.Error);
+            }
+            finally
+            {
+                if (!IsDisposed) SetBusy(false);
+            }
+        }
+
+        private void ApplySnapshot(LeaguePresenceSnapshot snapshot, bool updateSignature)
         {
             if (snapshot == null || !snapshot.Connected)
             {
@@ -239,6 +311,8 @@ namespace FACM.League
                 T(LeaguePresenceUiTextKeys.CurrentFormat),
                 DisplayMode(snapshot));
             _currentValue.ForeColor = FacmDesignSystem.Text;
+            if (updateSignature && _signature != null && !_signature.IsDisposed)
+                _signature.Text = snapshot.StatusMessage ?? string.Empty;
         }
 
         private string DisplayMode(LeaguePresenceSnapshot snapshot)
@@ -271,6 +345,8 @@ namespace FACM.League
         {
             _busy = busy;
             _refreshButton.Enabled = !busy;
+            _signature.Enabled = !busy;
+            _signatureSave.Enabled = !busy;
             foreach (var button in _choiceButtons) button.Enabled = !busy;
         }
 
