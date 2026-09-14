@@ -92,19 +92,20 @@ Updated: 2026-09-15
 - revealed counters with incomplete position evidence still reorder only by revealed-source membership and do not receive an invented position marker.
 - dedicated projection smoke verifies ordering, icon/stat alignment, exact-position evidence and the no-position fail-closed case. It is wired into the main Host smoke suite.
 
-## ACTIVE — Runtime Companion compact team spell presentation audit
+## DONE — Runtime Companion compact team spell presentation
 
-- ChampSelect player rows already carry `Spell1Id` / `Spell2Id` through `LeagueLivePlayerRow`; no new per-player lookup is required to know the IDs.
-- the existing Build Advisor owns a cached Riot game-data catalog containing spell names/icons, but that catalog is currently private to `LeagueBuildAdvisorDataService` and is not exposed through the Runtime Companion snapshot/controller.
-- do **not** add a Form-owned `/lol-game-data/assets/v1/summoner-spells.json` request merely to decorate team rows.
-- next engineering step: determine the smallest safe read-only projection of already-loaded spell metadata from the existing Build Advisor owner. If that cannot be exposed without widening ownership or forcing a catalog fetch, keep the team-row enhancement text/fail-closed rather than adding network fan-out.
+- ChampSelect player rows already carry `Spell1Id` / `Spell2Id` through `LeagueLivePlayerRow`; the feature reuses those values and adds no per-player lookup, catalog fetch or second observer.
+- the shared LeagueLive source rows remain unchanged. Runtime Companion adds the compact spell text only to its defensive clone through the presentation-only suffix.
+- known exposed spell IDs resolve to compact labels such as `Flash/Ignite`; missing slots are omitted and unknown IDs stay explicit as `S<ID>` instead of being guessed.
+- anonymous hidden enemy rows remain fail-closed: exposed spell IDs in the defensive clone do not by themselves make a row visible or invent enemy identity.
+- focused projection smoke covers source-row isolation, compact labels, unknown-ID fallback, missing-slot behavior and hidden-enemy fail-closed behavior.
+- validated functional head `3263fa409987f1489ff1bbb6062a25a223701a4c`: UI Text Contract #1036 PASS, Mayhem Source Probe #710 PASS, Windows Build #1928 PASS.
 
 ## NEXT — remaining lightweight follow-ups
 
-1. compact ally/enemy spell presentation only through already-owned/cached metadata, with no per-player history or catalog fan-out;
-2. continue compact player/team readability improvements that use the existing ChampSelect snapshot;
-3. optional arbitrary cross-source game-ID preview only as a separately scoped future feature;
-4. queue-ID lobby creation only as a separately authorized mutation task with narrow fencing and reconciliation.
+1. continue compact player/team readability improvements that use only the existing ChampSelect snapshot;
+2. optional arbitrary cross-source game-ID preview only as a separately scoped future feature;
+3. queue-ID lobby creation only as a separately authorized mutation task with narrow fencing and reconciliation.
 
 Verified upstream/reference routes so far:
 
