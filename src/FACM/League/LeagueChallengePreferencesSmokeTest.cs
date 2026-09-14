@@ -20,6 +20,10 @@ namespace FACM.League
             ValidateIncompleteSummaryFailsClosed();
             ValidateOverrideDoesNotRewriteLoop();
             ValidatePreservationDriftIsNotSuccess();
+            ValidateTokenCleanupPayloadPreservesCurrentPreferences();
+            ValidateTokenCleanupUsesOneWriteAndBoundedReadback();
+            ValidateTokenCleanupRequiresBannerEvidence();
+            ValidateTokenCleanupOverrideDoesNotRewriteLoop();
             ValidateDedicatedWriterFence();
         }
 
@@ -132,6 +136,74 @@ namespace FACM.League
                 "Preservation drift must not start a rewrite loop.");
         }
 
+        private static void ValidateTokenCleanupPayloadPreservesCurrentPreferences()
+        {
+            var fake = new FakeChallengePreferencesApi();
+            var service = CreateService(fake);
+            var current = service.ParseForSmokeTest(fake.BuildSummaryBytes());
+            var payload = service.BuildTokenCleanupPayloadForSmokeTest(current);
+            var root = new JavaScriptSerializer().DeserializeObject(payload) as Dictionary<string, object>;
+
+            Require(root != null,
+                "Challenge-token cleanup payload was not valid JSON.");
+            Require(Convert.ToString(root["bannerAccent"], CultureInfo.InvariantCulture) == "1",
+                "Challenge-token cleanup payload did not preserve the current banner accent.");
+            Require(Convert.ToString(root["title"], CultureInfo.InvariantCulture) == "123",
+                "Challenge-token cleanup payload did not preserve the current title.");
+            Require(Convert.ToString(root["crestBorder"], CultureInfo.InvariantCulture) == "9",
+                "Challenge-token cleanup payload did not preserve the current crest border.");
+            Require(Convert.ToInt32(root["prestigeCrestBorderLevel"], CultureInfo.InvariantCulture) == 500,
+                "Challenge-token cleanup payload did not preserve prestige crest level.");
+            Require(ReadIds(root["challengeIds"]).Count == 0,
+                "Challenge-token cleanup payload did not explicitly clear challengeIds.");
+            Require(root.ContainsKey("signedJWTPayload"),
+                "Challenge-token cleanup payload dropped signedJWTPayload that was exposed by the current summary.");
+        }
+
+        private static void ValidateTokenCleanupUsesOneWriteAndBoundedReadback()
+        {
+            var fake = new FakeChallengePreferencesApi();
+            var service = CreateService(fake);
+            var result = service.ClearChallengeTokensAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+            Require(result != null && result.Status == "success",
+                "Challenge-token cleanup did not verify successfully.");
+            Require(fake.WriteCount == 1,
+                "Challenge-token cleanup must emit exactly one POST.");
+            Require(fake.ReadCount == 3,
+                "Challenge-token cleanup must use one pre-read plus bounded first + settled readback.");
+            Require(fake.ChallengeIds.Count == 0,
+                "Challenge-token cleanup did not clear the fake replacement document.");
+            Require(fake.BannerAccent == "1" && fake.Title == "123" && fake.CrestBorder == "9" && fake.PrestigeLevel == 500,
+                "Challenge-token cleanup changed unrelated challenge preferences.");
+        }
+
+        private static void ValidateTokenCleanupRequiresBannerEvidence()
+        {
+            var fake = new FakeChallengePreferencesApi { OmitBannerEvidence = true };
+            var service = CreateService(fake);
+            var result = service.ClearChallengeTokensAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+            Require(result != null && result.Status == "unavailable",
+                "Challenge-token cleanup without banner evidence did not fail closed.");
+            Require(fake.WriteCount == 0,
+                "Challenge-token cleanup must not write when the current banner cannot be preserved.");
+        }
+
+        private static void ValidateTokenCleanupOverrideDoesNotRewriteLoop()
+        {
+            var fake = new FakeChallengePreferencesApi { RestoreTokensOnSettledRead = true };
+            var service = CreateService(fake);
+            var result = service.ClearChallengeTokensAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+            Require(result != null && result.Status == "overridden",
+                "Challenge-token restoration by the client must be reported honestly.");
+            Require(fake.WriteCount == 1,
+                "FACM must not fight the League client with a challenge-token rewrite loop.");
+            Require(fake.ReadCount == 3,
+                "Challenge-token override escaped the bounded verification contract.");
+        }
+
         private static void ValidateDedicatedWriterFence()
         {
             Require(LeagueChallengePreferencesWriteApiClient.IsAllowedTargetForSmokeTest(
@@ -174,6 +246,7 @@ namespace FACM.League
         private sealed class FakeChallengePreferencesApi : ILeagueClientApi, ILeagueChallengePreferencesWriteApi
         {
             private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
+            private readonly List<long> _originalChallengeIds = new List<long> { 456, 789 };
             private string _bannerAccent = "1";
             private string _title = "123";
             private string _crestBorder = "9";
@@ -186,10 +259,13 @@ namespace FACM.League
 
             public bool ReturnUnavailable { get; set; }
             public bool OmitPreservationEvidence { get; set; }
+            public bool OmitBannerEvidence { get; set; }
             public bool OverrideOnSettledRead { get; set; }
             public bool ChangeTitleOnSettledRead { get; set; }
+            public bool RestoreTokensOnSettledRead { get; set; }
             public int ReadCount { get; private set; }
             public int WriteCount { get; private set; }
+            public string BannerAccent { get { return _bannerAccent; } }
             public string Title { get { return _title; } }
             public string CrestBorder { get { return _crestBorder; } }
             public int PrestigeLevel { get { return _prestigeLevel; } }
@@ -206,13 +282,14 @@ namespace FACM.League
                 var topChallenges = _challengeIds.Select(id => (object)new Dictionary<string, object> { { "id", id } }).ToArray();
                 var root = new Dictionary<string, object>
                 {
-                    { "bannerAccent", _bannerAccent },
                     { "title", new Dictionary<string, object> { { "itemId", _title } } },
                     { "crestId", _crestBorder },
                     { "prestigeCrestBorderLevel", _prestigeLevel },
                     { "topChallenges", topChallenges },
                     { "signedJWTPayload", _signedJwtPayload }
                 };
+                if (!OmitBannerEvidence)
+                    root["bannerAccent"] = _bannerAccent;
                 return Encoding.UTF8.GetBytes(_json.Serialize(root));
             }
 
@@ -226,6 +303,7 @@ namespace FACM.League
                 if (ReturnUnavailable) return Task.FromResult<byte[]>(null);
                 if (OverrideOnSettledRead && ReadCount >= 3) _bannerAccent = "1";
                 if (ChangeTitleOnSettledRead && ReadCount >= 3) _title = "999";
+                if (RestoreTokensOnSettledRead && ReadCount >= 3) _challengeIds = new List<long>(_originalChallengeIds);
                 return Task.FromResult(BuildSummaryBytes());
             }
 
