@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -21,6 +21,7 @@ namespace FACM.AppHost.Modules
         private LeagueChampSelectQuitWriteApiClient _champSelectQuitWriter;
         private LeaguePresenceWriteApiClient _presenceWriter;
         private LeagueProfileWriteApiClient _profileWriter;
+        private LeagueRegaliaWriteApiClient _regaliaWriter;
         private LeagueClientUxRepairWriteApiClient _uxRepairWriter;
 
         public LeagueClientModule() : this(new ResilientLeagueClientSessionDiscovery()) { }
@@ -46,6 +47,7 @@ namespace FACM.AppHost.Modules
             _champSelectQuitWriter = new LeagueChampSelectQuitWriteApiClient(_sessions);
             _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
             _profileWriter = new LeagueProfileWriteApiClient(_sessions);
+            _regaliaWriter = new LeagueRegaliaWriteApiClient(_sessions);
             _uxRepairWriter = new LeagueClientUxRepairWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
@@ -106,6 +108,14 @@ namespace FACM.AppHost.Modules
                 : writer.TrySetSummonerProfileAsync(json, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueRegaliaWriteApi.TrySetRegaliaAsync(string json, CancellationToken cancellationToken)
+        {
+            var writer = _regaliaWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySetRegaliaAsync(json, cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueClientUxRepairWriteApi.TryRestartUxAsync(CancellationToken cancellationToken)
         {
             var writer = _uxRepairWriter;
@@ -117,6 +127,7 @@ namespace FACM.AppHost.Modules
         public void Dispose()
         {
             var uxRepairWriter = _uxRepairWriter;
+            var regaliaWriter = _regaliaWriter;
             var profileWriter = _profileWriter;
             var presenceWriter = _presenceWriter;
             var benchSwapWriter = _benchSwapWriter;
@@ -126,6 +137,7 @@ namespace FACM.AppHost.Modules
             var writer = _writer;
             var api = _api;
             _uxRepairWriter = null;
+            _regaliaWriter = null;
             _profileWriter = null;
             _presenceWriter = null;
             _benchSwapWriter = null;
@@ -136,6 +148,7 @@ namespace FACM.AppHost.Modules
             _api = null;
             _sessions = null;
             if (uxRepairWriter != null) uxRepairWriter.Dispose();
+            if (regaliaWriter != null) regaliaWriter.Dispose();
             if (profileWriter != null) profileWriter.Dispose();
             if (presenceWriter != null) presenceWriter.Dispose();
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
