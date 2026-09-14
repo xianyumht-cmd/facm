@@ -94,9 +94,12 @@ namespace FACM.League
 
         private static bool IsAllowedTarget(string verb, string path)
         {
-            if (!string.Equals(verb, "POST", StringComparison.Ordinal)) return false;
-            return string.Equals(path, SearchPath, StringComparison.Ordinal) ||
-                   string.Equals(path, AcceptPath, StringComparison.Ordinal);
+            if (string.Equals(path, SearchPath, StringComparison.Ordinal))
+                return string.Equals(verb, "POST", StringComparison.Ordinal) ||
+                       string.Equals(verb, "DELETE", StringComparison.Ordinal);
+            if (string.Equals(path, AcceptPath, StringComparison.Ordinal))
+                return string.Equals(verb, "POST", StringComparison.Ordinal);
+            return false;
         }
 
         private static string NormalizePath(string path)
