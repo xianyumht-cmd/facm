@@ -11,6 +11,7 @@ namespace FACM.League
     internal sealed class LeaguePresenceForm : Form
     {
         private readonly LeaguePresenceService _service;
+        private readonly LeagueProfileCustomizationService _profileService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _currentValue;
@@ -23,11 +24,22 @@ namespace FACM.League
         private readonly ComboBox _rankTier;
         private readonly ComboBox _rankDivision;
         private readonly Button _rankSave;
+        private readonly Button _profileButton;
         private bool _busy;
 
         public LeaguePresenceForm(LeaguePresenceService service, UiTextCatalog ui, ThemeDefinition theme)
+            : this(service, null, ui, theme)
+        {
+        }
+
+        public LeaguePresenceForm(
+            LeaguePresenceService service,
+            LeagueProfileCustomizationService profileService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _profileService = profileService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -38,7 +50,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(430, 680);
+            ClientSize = new Size(430, 735);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -169,10 +181,33 @@ namespace FACM.League
             _rankSave = CreateFlatButton(T(LeaguePresenceUiTextKeys.RankedSave), new Rectangle(352, 484, 54, 32));
             _rankSave.Click += async delegate { await ApplyRankedStatusAsync(); };
 
+            var profileCaption = new Label
+            {
+                Text = TP(LeagueProfileCustomizationUiTextKeys.Entry),
+                Location = new Point(24, 536),
+                Size = new Size(100, 22),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
+            };
+            var profileHint = new Label
+            {
+                Text = TP(LeagueProfileCustomizationUiTextKeys.EntryHint),
+                Location = new Point(126, 536),
+                Size = new Size(194, 22),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                AutoEllipsis = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+            };
+            _profileButton = CreateFlatButton(TP(LeagueProfileCustomizationUiTextKeys.Entry), new Rectangle(330, 531, 76, 32));
+            _profileButton.Enabled = _profileService != null;
+            _profileButton.Click += delegate { OpenProfileCustomization(); };
+
             _statusValue = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Waiting),
-                Location = new Point(24, 535),
+                Location = new Point(24, 584),
                 Size = new Size(382, 24),
                 ForeColor = FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
@@ -182,8 +217,8 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Footer),
-                Location = new Point(24, 568),
-                Size = new Size(382, 86),
+                Location = new Point(24, 617),
+                Size = new Size(382, 94),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
@@ -204,12 +239,25 @@ namespace FACM.League
             Controls.Add(_rankTier);
             Controls.Add(_rankDivision);
             Controls.Add(_rankSave);
+            Controls.Add(profileCaption);
+            Controls.Add(profileHint);
+            Controls.Add(_profileButton);
             Controls.Add(_statusValue);
             Controls.Add(footer);
 
             FacmDesignSystem.ApplyLeagueSurface(this);
             Shown += async delegate { await RefreshPresenceAsync(); };
             FormClosed += delegate { _lifetime.Cancel(); _lifetime.Dispose(); };
+        }
+
+        private void OpenProfileCustomization()
+        {
+            if (_busy || _profileService == null || IsDisposed) return;
+            using (var form = new LeagueProfileCustomizationForm(_profileService, _ui, null))
+            {
+                form.TopMost = TopMost;
+                form.ShowDialog(this);
+            }
         }
 
         private Button CreateFlatButton(string text, Rectangle bounds)
@@ -539,6 +587,7 @@ namespace FACM.League
             _rankTier.Enabled = !busy;
             _rankDivision.Enabled = !busy;
             _rankSave.Enabled = !busy;
+            _profileButton.Enabled = !busy && _profileService != null;
             foreach (var button in _choiceButtons) button.Enabled = !busy;
             UpdateRankDivisionEnabled();
         }
@@ -546,6 +595,11 @@ namespace FACM.League
         private string T(string key)
         {
             return LeaguePresenceText.Get(_ui, key);
+        }
+
+        private string TP(string key)
+        {
+            return LeagueProfileCustomizationText.Get(_ui, key);
         }
 
         private sealed class Choice
