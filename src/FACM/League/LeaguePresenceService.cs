@@ -35,9 +35,17 @@ namespace FACM.League
         public LeaguePresenceSnapshot Observed { get; set; }
     }
 
+    internal sealed class LeaguePresenceStatusMessageApplyResult
+    {
+        public string Status { get; set; }
+        public string StatusMessage { get; set; }
+        public LeaguePresenceSnapshot Observed { get; set; }
+    }
+
     internal sealed class LeaguePresenceService
     {
         internal const string PresencePath = "/lol-chat/v1/me";
+        internal const int MaximumStatusMessageLength = 512;
         private readonly ILeagueClientApi _client;
         private readonly ILeaguePresenceWriteApi _writer;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 512 * 1024 };
@@ -108,6 +116,73 @@ namespace FACM.League
             return new LeaguePresenceApplyResult { Status = "success", Mode = mode, Observed = settled };
         }
 
+        public async Task<LeaguePresenceStatusMessageApplyResult> ApplyStatusMessageAsync(
+            string statusMessage,
+            CancellationToken cancellationToken)
+        {
+            var normalized = NormalizeStatusMessage(statusMessage);
+            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
+            if (root == null)
+            {
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "unavailable",
+                    StatusMessage = normalized
+                };
+            }
+
+            // Reuse the exact same fenced PUT owner as presence mode changes. Read-modify-write the
+            // current document so availability, gameStatus and unrelated client metadata survive.
+            root["statusMessage"] = normalized;
+            var payload = _json.Serialize(root);
+            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                AppLog.Info("League chat signature write rejected; status=" + (response == null ? 0 : response.StatusCode));
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "write-failed",
+                    StatusMessage = normalized
+                };
+            }
+
+            if (_firstVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_firstVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var first = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!StatusMessageMatches(first, normalized))
+            {
+                AppLog.Info("League chat signature readback did not match; stage=first");
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "overridden",
+                    StatusMessage = normalized,
+                    Observed = first
+                };
+            }
+
+            if (_settleVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_settleVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var settled = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!StatusMessageMatches(settled, normalized))
+            {
+                AppLog.Info("League chat signature readback was overwritten by client; stage=settled");
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "overridden",
+                    StatusMessage = normalized,
+                    Observed = settled
+                };
+            }
+
+            AppLog.Info("League chat signature applied and verified.");
+            return new LeaguePresenceStatusMessageApplyResult
+            {
+                Status = "success",
+                StatusMessage = normalized,
+                Observed = settled
+            };
+        }
+
         internal string BuildPayloadForSmokeTest(byte[] currentPresence, LeaguePresenceMode mode)
         {
             var root = ParseRoot(currentPresence);
@@ -116,9 +191,22 @@ namespace FACM.League
             return _json.Serialize(root);
         }
 
+        internal string BuildStatusMessagePayloadForSmokeTest(byte[] currentPresence, string statusMessage)
+        {
+            var root = ParseRoot(currentPresence);
+            if (root == null) return null;
+            root["statusMessage"] = NormalizeStatusMessage(statusMessage);
+            return _json.Serialize(root);
+        }
+
         internal static bool MatchesForSmokeTest(LeaguePresenceSnapshot snapshot, LeaguePresenceMode mode)
         {
             return Matches(snapshot, mode);
+        }
+
+        internal static string NormalizeStatusMessageForSmokeTest(string value)
+        {
+            return NormalizeStatusMessage(value);
         }
 
         private async Task<Dictionary<string, object>> ReadRootAsync(CancellationToken cancellationToken)
@@ -169,6 +257,20 @@ namespace FACM.League
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode));
             }
+        }
+
+        private static string NormalizeStatusMessage(string value)
+        {
+            var normalized = (value ?? string.Empty).Replace("\0", string.Empty);
+            if (normalized.Length > MaximumStatusMessageLength)
+                normalized = normalized.Substring(0, MaximumStatusMessageLength);
+            return normalized;
+        }
+
+        private static bool StatusMessageMatches(LeaguePresenceSnapshot snapshot, string expected)
+        {
+            return snapshot != null && snapshot.Connected &&
+                   string.Equals(snapshot.StatusMessage ?? string.Empty, expected ?? string.Empty, StringComparison.Ordinal);
         }
 
         private static void SetGameStatus(Dictionary<string, object> root, string gameStatus)
