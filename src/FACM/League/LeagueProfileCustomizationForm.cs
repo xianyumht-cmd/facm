@@ -13,6 +13,7 @@ namespace FACM.League
         private readonly LeagueProfileCustomizationService _service;
         private readonly LeagueRegaliaCustomizationService _regaliaService;
         private readonly LeagueChallengePreferencesService _challengePreferencesService;
+        private readonly LeagueEmoteLoadoutService _emoteLoadoutService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly ComboBox _champions;
@@ -21,6 +22,7 @@ namespace FACM.League
         private readonly Button _refresh;
         private readonly Button _removePrestigeCrest;
         private readonly Button _clearChallengeTokens;
+        private readonly Button _clearEmotes;
         private readonly Label _status;
         private int _selectionGeneration;
         private bool _busy;
@@ -31,7 +33,7 @@ namespace FACM.League
             LeagueRegaliaCustomizationService regaliaService,
             UiTextCatalog ui,
             ThemeDefinition theme)
-            : this(service, regaliaService, null, ui, theme)
+            : this(service, regaliaService, null, null, ui, theme)
         {
         }
 
@@ -41,10 +43,22 @@ namespace FACM.League
             LeagueChallengePreferencesService challengePreferencesService,
             UiTextCatalog ui,
             ThemeDefinition theme)
+            : this(service, regaliaService, challengePreferencesService, null, ui, theme)
+        {
+        }
+
+        public LeagueProfileCustomizationForm(
+            LeagueProfileCustomizationService service,
+            LeagueRegaliaCustomizationService regaliaService,
+            LeagueChallengePreferencesService challengePreferencesService,
+            LeagueEmoteLoadoutService emoteLoadoutService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _regaliaService = regaliaService ?? throw new ArgumentNullException(nameof(regaliaService));
             _challengePreferencesService = challengePreferencesService;
+            _emoteLoadoutService = emoteLoadoutService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -55,7 +69,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(470, 566);
+            ClientSize = new Size(470, 660);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -124,10 +138,25 @@ namespace FACM.League
                 new Rectangle(348, 384, 98, 38));
             _clearChallengeTokens.Click += async delegate { await ClearChallengeTokensAsync(); };
 
+            var emotesTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.EmotesTitle), new Rectangle(24, 442, 180, 20));
+            var emotesHint = new Label
+            {
+                Text = T(LeagueProfileCustomizationUiTextKeys.EmotesHint),
+                Location = new Point(24, 464),
+                Size = new Size(316, 58),
+                BackColor = Color.Transparent,
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+            };
+            _clearEmotes = CreateButton(
+                T(LeagueProfileCustomizationUiTextKeys.EmotesAction),
+                new Rectangle(348, 474, 98, 38));
+            _clearEmotes.Click += async delegate { await ClearEmotesAsync(); };
+
             _status = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Loading),
-                Location = new Point(24, 454),
+                Location = new Point(24, 544),
                 Size = new Size(422, 24),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.Accent,
@@ -137,7 +166,7 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Footer),
-                Location = new Point(24, 490),
+                Location = new Point(24, 580),
                 Size = new Size(422, 58),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
@@ -156,6 +185,9 @@ namespace FACM.League
             Controls.Add(tokensTitle);
             Controls.Add(tokensHint);
             Controls.Add(_clearChallengeTokens);
+            Controls.Add(emotesTitle);
+            Controls.Add(emotesHint);
+            Controls.Add(_clearEmotes);
             Controls.Add(_status);
             Controls.Add(footer);
 
@@ -433,6 +465,41 @@ namespace FACM.League
             }
         }
 
+        private async Task ClearEmotesAsync()
+        {
+            if (_busy || _lifetime.IsCancellationRequested || _emoteLoadoutService == null) return;
+            SetBusy(true);
+            SetStatus(T(LeagueProfileCustomizationUiTextKeys.Loading), FacmDesignSystem.Accent);
+            try
+            {
+                var result = await _emoteLoadoutService.ClearEmotesAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+
+                if (result == null || string.Equals(result.Status, "write-failed", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesWriteFailed), FacmDesignSystem.Error);
+                else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesApplied), FacmDesignSystem.Success);
+                else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesOverridden), FacmDesignSystem.Warning);
+                else if (string.Equals(result.Status, "unverified", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesUnverified), FacmDesignSystem.Warning);
+                else
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesUnavailable), FacmDesignSystem.Warning);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League emote cleanup failed", exception);
+                if (!IsDisposed) SetStatus(T(LeagueProfileCustomizationUiTextKeys.EmotesWriteFailed), FacmDesignSystem.Error);
+            }
+            finally
+            {
+                if (!IsDisposed) SetBusy(false);
+            }
+        }
+
         private void SetBusy(bool busy)
         {
             _busy = busy;
@@ -450,6 +517,8 @@ namespace FACM.League
                 _removePrestigeCrest.Enabled = !_busy;
             if (_clearChallengeTokens != null && !_clearChallengeTokens.IsDisposed)
                 _clearChallengeTokens.Enabled = !_busy && _challengePreferencesService != null;
+            if (_clearEmotes != null && !_clearEmotes.IsDisposed)
+                _clearEmotes.Enabled = !_busy && _emoteLoadoutService != null;
         }
 
         private void SetStatus(string text, Color color)
