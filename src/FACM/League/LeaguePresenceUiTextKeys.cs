@@ -14,6 +14,12 @@ namespace FACM.League
         public const string Mobile = "LeaguePresenceMobile";
         public const string Offline = "LeaguePresenceOffline";
         public const string InGame = "LeaguePresenceInGame";
+        public const string Signature = "LeaguePresenceSignature";
+        public const string SignatureHint = "LeaguePresenceSignatureHint";
+        public const string SignaturePlaceholder = "LeaguePresenceSignaturePlaceholder";
+        public const string SignatureSave = "LeaguePresenceSignatureSave";
+        public const string SignatureSaved = "LeaguePresenceSignatureSaved";
+        public const string SignatureOverridden = "LeaguePresenceSignatureOverridden";
         public const string Waiting = "LeaguePresenceWaiting";
         public const string Applied = "LeaguePresenceApplied";
         public const string Overridden = "LeaguePresenceOverridden";
