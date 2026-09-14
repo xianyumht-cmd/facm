@@ -66,8 +66,8 @@ namespace FACM.League
     /// <summary>
     /// Akari-style matchmaking stop policy built on FACM's existing shared Gameflow owner.
     /// The module feeds Observe from LeagueDashboardModule; this class never creates a second
-    /// Gameflow monitor. It reads only the existing matchmaking search state while queueing and
-    /// delegates the one allowed stop write to ILeagueMatchmakingWriteApi.
+    /// Gameflow monitor. It reads only the existing matchmaking search state while Matchmaking is
+    /// active and delegates the one allowed stop write to ILeagueMatchmakingWriteApi.
     /// </summary>
     internal sealed class LeagueMatchmakingStopController : IDisposable
     {
@@ -131,19 +131,19 @@ namespace FACM.League
                 if (_disposed) return;
                 var nextPhase = state == null ? string.Empty : state.Phase ?? string.Empty;
                 var nextActivity = state == null ? LeagueActivityLevel.None : state.Activity;
-                var wasQueueing = IsQueueing(_phase, _activity);
-                var isQueueing = IsQueueing(nextPhase, nextActivity);
+                var wasMatchmaking = IsMatchmaking(_phase, _activity);
+                var isMatchmaking = IsMatchmaking(nextPhase, nextActivity);
                 _phase = nextPhase;
                 _activity = nextActivity;
 
-                if (!isQueueing)
+                if (!isMatchmaking)
                 {
                     previous = _episode;
                     _episode = null;
                     _generation++;
                     _stopConfirmed = false;
                 }
-                else if (!wasQueueing || _episode == null)
+                else if (!wasMatchmaking || _episode == null)
                 {
                     start = _policy != LeagueMatchmakingStopPolicy.Never;
                     _stopConfirmed = false;
@@ -159,7 +159,7 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || _episode != null) return;
-                start = _policy != LeagueMatchmakingStopPolicy.Never && IsQueueing(_phase, _activity);
+                start = _policy != LeagueMatchmakingStopPolicy.Never && IsMatchmaking(_phase, _activity);
             }
             if (start) StartEpisode();
         }
@@ -172,7 +172,7 @@ namespace FACM.League
             int delayMs;
             lock (_sync)
             {
-                if (_disposed || _episode != null || _policy == LeagueMatchmakingStopPolicy.Never || !IsQueueing(_phase, _activity))
+                if (_disposed || _episode != null || _policy == LeagueMatchmakingStopPolicy.Never || !IsMatchmaking(_phase, _activity))
                     return;
                 _episode = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
                 request = _episode;
@@ -192,7 +192,7 @@ namespace FACM.League
             try
             {
                 await Task.Delay(Math.Max(1000, delayMs), cancellationToken).ConfigureAwait(false);
-                if (!IsCurrentQueueEpisode(generation)) return;
+                if (!IsCurrentMatchmakingEpisode(generation)) return;
                 var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
                 if (state == null || !state.IsCurrentlyInQueue) return;
                 await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
@@ -208,11 +208,11 @@ namespace FACM.League
         {
             try
             {
-                while (!cancellationToken.IsCancellationRequested && IsCurrentQueueEpisode(generation))
+                while (!cancellationToken.IsCancellationRequested && IsCurrentMatchmakingEpisode(generation))
                 {
                     var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
                     if (state == null || !state.IsCurrentlyInQueue) return;
-                    if (state.HasUsableEstimate && state.TimeInQueueSeconds.Value >= state.EstimatedQueueTimeSeconds.Value)
+                    if (ShouldStopForEstimate(state))
                     {
                         var stopped = await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
                         if (stopped) return;
@@ -235,7 +235,7 @@ namespace FACM.League
         {
             lock (_sync)
             {
-                if (!IsCurrentQueueEpisodeLocked(generation) || _stopConfirmed) return _stopConfirmed;
+                if (!IsCurrentMatchmakingEpisodeLocked(generation) || _stopConfirmed) return _stopConfirmed;
             }
 
             LeagueClientWriteResponse response = null;
@@ -252,7 +252,7 @@ namespace FACM.League
                 AppLog.Info("League matchmaking stop write failed: " + exception.Message);
             }
 
-            if (!IsCurrentQueueEpisode(generation)) return false;
+            if (!IsCurrentMatchmakingEpisode(generation)) return false;
             var after = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
             var confirmed = after != null && !after.IsCurrentlyInQueue;
             if (!confirmed)
@@ -265,7 +265,7 @@ namespace FACM.League
 
             lock (_sync)
             {
-                if (!IsCurrentQueueEpisodeLocked(generation)) return false;
+                if (!IsCurrentMatchmakingEpisodeLocked(generation)) return false;
                 _stopConfirmed = true;
             }
             AppLog.Info("League matchmaking stop confirmed by search-state reconciliation.");
@@ -307,6 +307,17 @@ namespace FACM.League
             {
                 return null;
             }
+        }
+
+        internal static bool ShouldStopForEstimate(LeagueMatchmakingSearchState state)
+        {
+            return state != null && state.HasUsableEstimate &&
+                   state.TimeInQueueSeconds.Value >= state.EstimatedQueueTimeSeconds.Value;
+        }
+
+        internal static bool IsMatchmakingForSmokeTest(string phase, LeagueActivityLevel activity)
+        {
+            return IsMatchmaking(phase, activity);
         }
 
         private static double? FirstPositive(params double?[] values)
@@ -352,20 +363,22 @@ namespace FACM.League
             return value != null;
         }
 
-        private bool IsCurrentQueueEpisode(int generation)
+        private bool IsCurrentMatchmakingEpisode(int generation)
         {
-            lock (_sync) return IsCurrentQueueEpisodeLocked(generation);
+            lock (_sync) return IsCurrentMatchmakingEpisodeLocked(generation);
         }
 
-        private bool IsCurrentQueueEpisodeLocked(int generation)
+        private bool IsCurrentMatchmakingEpisodeLocked(int generation)
         {
             return !_disposed && generation == _generation && _episode != null &&
-                   _policy != LeagueMatchmakingStopPolicy.Never && IsQueueing(_phase, _activity);
+                   _policy != LeagueMatchmakingStopPolicy.Never && IsMatchmaking(_phase, _activity);
         }
 
-        private static bool IsQueueing(string phase, LeagueActivityLevel activity)
+        private static bool IsMatchmaking(string phase, LeagueActivityLevel activity)
         {
-            return activity == LeagueActivityLevel.Queueing ||
+            // ReadyCheck shares the Queueing activity bucket, but a pending stop timer must be
+            // cancelled as soon as Matchmaking ends. Never DELETE the search route in ReadyCheck.
+            return activity == LeagueActivityLevel.Queueing &&
                    string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase);
         }
 
