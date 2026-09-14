@@ -11,7 +11,7 @@ namespace FACM.League
             { LeaguePresenceUiTextKeys.Menu, "在线状态" },
             { LeaguePresenceUiTextKeys.WindowTitle, "FACM · 在线状态" },
             { LeaguePresenceUiTextKeys.Title, "好友展示状态" },
-            { LeaguePresenceUiTextKeys.Hint, "修改好友列表里看到的状态；每次点击只写一次，不在后台反复抢写。" },
+            { LeaguePresenceUiTextKeys.Hint, "修改好友列表里看到的状态和聊天签名；每次操作只写一次，不在后台反复抢写。" },
             { LeaguePresenceUiTextKeys.Current, "当前" },
             { LeaguePresenceUiTextKeys.Refresh, "刷新" },
             { LeaguePresenceUiTextKeys.Online, "在线" },
@@ -20,12 +20,18 @@ namespace FACM.League
             { LeaguePresenceUiTextKeys.Mobile, "手机在线" },
             { LeaguePresenceUiTextKeys.Offline, "隐身" },
             { LeaguePresenceUiTextKeys.InGame, "显示为游戏中" },
+            { LeaguePresenceUiTextKeys.Signature, "聊天签名" },
+            { LeaguePresenceUiTextKeys.SignatureHint, "保存到当前客户端好友展示签名；会保留在线状态和其它 Presence 字段，并读回确认。留空可清除。" },
+            { LeaguePresenceUiTextKeys.SignaturePlaceholder, "输入聊天签名" },
+            { LeaguePresenceUiTextKeys.SignatureSave, "保存" },
+            { LeaguePresenceUiTextKeys.SignatureSaved, "聊天签名已读回确认" },
+            { LeaguePresenceUiTextKeys.SignatureOverridden, "客户端已恢复其它签名；FACM 没有继续强制覆盖" },
             { LeaguePresenceUiTextKeys.Waiting, "正在读取客户端状态..." },
             { LeaguePresenceUiTextKeys.Applied, "状态已读回确认" },
             { LeaguePresenceUiTextKeys.Overridden, "客户端已恢复实际状态；FACM 没有继续强制覆盖" },
             { LeaguePresenceUiTextKeys.Unavailable, "未读取到英雄联盟客户端在线状态" },
             { LeaguePresenceUiTextKeys.WriteFailed, "客户端拒绝或未完成这次状态修改" },
-            { LeaguePresenceUiTextKeys.Footer, "隐身和“显示为游戏中”是否长期保持取决于当前客户端。FACM 会读回验证，但不会使用代理、拦截或后台循环去强制伪装。" },
+            { LeaguePresenceUiTextKeys.Footer, "隐身、“显示为游戏中”和聊天签名是否长期保持取决于当前客户端。FACM 会读回验证，但不会使用代理、拦截或后台循环去强制伪装。" },
             { LeaguePresenceUiTextKeys.CurrentFormat, "{0}" }
         };
 
