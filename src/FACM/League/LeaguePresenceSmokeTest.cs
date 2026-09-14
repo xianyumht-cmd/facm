@@ -15,6 +15,10 @@ namespace FACM.League
             ValidateUserDirectedApplyUsesOneWrite();
             ValidateDisplayInGame();
             ValidateClientOverrideIsReportedWithoutRewriteLoop();
+            ValidateStatusMessagePayloadPreservesPresence();
+            ValidateStatusMessageApplyUsesOneWrite();
+            ValidateStatusMessageClearAndBounds();
+            ValidateStatusMessageOverrideIsReportedWithoutRewriteLoop();
             ValidateDedicatedWriterFence();
         }
 
@@ -62,6 +66,60 @@ namespace FACM.League
             var result = service.ApplyAsync(LeaguePresenceMode.Away, CancellationToken.None).GetAwaiter().GetResult();
             Require(result.Status == "overridden", "Client overwrite must be reported honestly.");
             Require(fake.WriteCount == 1, "FACM must not fight the League client with a presence rewrite loop.");
+        }
+
+        private static void ValidateStatusMessagePayloadPreservesPresence()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var payload = service.BuildStatusMessagePayloadForSmokeTest(fake.CurrentBytes, "FACM 签名");
+            var root = new JavaScriptSerializer().DeserializeObject(payload) as Dictionary<string, object>;
+            Require(root != null, "Chat signature payload could not be parsed.");
+            Require(ReadString(root, "statusMessage") == "FACM 签名", "Chat signature payload lost the requested text.");
+            Require(ReadString(root, "availability") == "chat", "Chat signature write changed availability.");
+            Require(ReadString(root, "customRoot") == "preserve", "Chat signature write dropped unrelated root metadata.");
+            var lol = ReadDictionary(root, "lol");
+            Require(ReadString(lol, "gameStatus") == "outOfGame", "Chat signature write changed gameStatus.");
+            Require(ReadString(lol, "rankedLeagueName") == "Gold", "Chat signature write dropped unrelated lol metadata.");
+        }
+
+        private static void ValidateStatusMessageApplyUsesOneWrite()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var result = service.ApplyStatusMessageAsync("新的签名", CancellationToken.None).GetAwaiter().GetResult();
+            Require(result != null && result.Status == "success", "Chat signature did not verify successfully.");
+            Require(fake.WriteCount == 1, "A chat signature save must produce exactly one PUT.");
+            Require(result.Observed != null && result.Observed.StatusMessage == "新的签名",
+                "Chat signature readback was not returned.");
+            Require(result.Observed.Availability == "chat" && result.Observed.GameStatus == "outOfGame",
+                "Chat signature update changed current presence mode.");
+        }
+
+        private static void ValidateStatusMessageClearAndBounds()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var cleared = service.ApplyStatusMessageAsync(string.Empty, CancellationToken.None).GetAwaiter().GetResult();
+            Require(cleared != null && cleared.Status == "success" && cleared.Observed != null && cleared.Observed.StatusMessage == string.Empty,
+                "Empty chat signature did not clear statusMessage.");
+
+            var longValue = new string('x', LeaguePresenceService.MaximumStatusMessageLength + 50) + "\0tail";
+            var normalized = LeaguePresenceService.NormalizeStatusMessageForSmokeTest(longValue);
+            Require(normalized.Length == LeaguePresenceService.MaximumStatusMessageLength,
+                "Chat signature defensive length bound drifted.");
+            Require(normalized.IndexOf('\0') < 0, "Chat signature normalization retained a NUL character.");
+        }
+
+        private static void ValidateStatusMessageOverrideIsReportedWithoutRewriteLoop()
+        {
+            var fake = new FakePresenceApi { OverrideOnSecondPostWriteRead = true };
+            var service = CreateService(fake);
+            var result = service.ApplyStatusMessageAsync("temporary", CancellationToken.None).GetAwaiter().GetResult();
+            Require(result != null && result.Status == "overridden",
+                "Client chat-signature overwrite must be reported honestly.");
+            Require(fake.WriteCount == 1,
+                "FACM must not fight the League client with a chat-signature rewrite loop.");
         }
 
         private static void ValidateDedicatedWriterFence()
