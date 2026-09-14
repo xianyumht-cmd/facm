@@ -16,6 +16,7 @@ namespace FACM.League
         public const string Loading = "LeagueProfileCustomizationLoading";
         public const string ChooseChampion = "LeagueProfileCustomizationChooseChampion";
         public const string NoSkins = "LeagueProfileCustomizationNoSkins";
+        public const string CandidateFormat = "LeagueProfileCustomizationCandidateFormat";
         public const string Applied = "LeagueProfileCustomizationApplied";
         public const string Overridden = "LeagueProfileCustomizationOverridden";
         public const string Unverified = "LeagueProfileCustomizationUnverified";
@@ -41,6 +42,7 @@ namespace FACM.League
             { LeagueProfileCustomizationUiTextKeys.Loading, "正在读取客户端游戏数据..." },
             { LeagueProfileCustomizationUiTextKeys.ChooseChampion, "请选择英雄" },
             { LeagueProfileCustomizationUiTextKeys.NoSkins, "当前英雄未读取到可用皮肤" },
+            { LeagueProfileCustomizationUiTextKeys.CandidateFormat, "{0} · {1} 个背景候选" },
             { LeagueProfileCustomizationUiTextKeys.Applied, "生涯背景已读回确认" },
             { LeagueProfileCustomizationUiTextKeys.Overridden, "客户端已恢复其它背景；FACM 没有继续强制覆盖" },
             { LeagueProfileCustomizationUiTextKeys.Unverified, "客户端接受了修改，但暂时无法读回确认" },
