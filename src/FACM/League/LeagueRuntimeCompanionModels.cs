@@ -68,10 +68,6 @@ namespace FACM.League
         }
     }
 
-    /// <summary>
-    /// Pure local-player projection used by Runtime Companion. It never looks up another player's
-    /// history and ignores unresolved participant rows for champion performance statistics.
-    /// </summary>
     internal static class LeagueRuntimeCompanionRecentChampionProjection
     {
         public static LeagueRuntimeCompanionRecentChampion Project(LeaguePlayerMatchPage page, int championId)
@@ -121,11 +117,6 @@ namespace FACM.League
         }
     }
 
-    /// <summary>
-    /// Presentation snapshot for the Runtime Companion. The UI receives projected state instead of
-    /// owning League/OP.GG/Mayhem request orchestration. Mutable collections are copied before
-    /// publication so a later refresh cannot rewrite an already-rendered snapshot.
-    /// </summary>
     internal sealed class LeagueRuntimeCompanionSnapshot
     {
         public bool SessionAvailable { get; set; }
@@ -299,13 +290,6 @@ namespace FACM.League
             return output.AsReadOnly();
         }
 
-        /// <summary>
-        /// Reorders the already-fetched OP.GG counter row against the already-visible enemy draft.
-        /// An enemy in the local player's actually assigned position wins priority over another
-        /// revealed enemy. Unknown/inferred positions never become a lane claim. The selected
-        /// counter's own OP.GG sample evidence is projected into the existing evidence line.
-        /// No additional League/OP.GG request is made and hidden enemy intent is never consulted.
-        /// </summary>
         private static void PrioritizeRevealedEnemyCounters(
             LeagueBuildAdvisorSnapshot build,
             IReadOnlyList<LeagueLivePlayerRow> players)
@@ -349,7 +333,7 @@ namespace FACM.League
                     var championId = stat != null && stat.ChampionId > 0
                         ? stat.ChampionId
                         : ExtractChampionId(reference);
-                    string enemyPosition;
+                    string enemyPosition = null;
                     var matched = championId > 0 && revealedEnemies.TryGetValue(championId, out enemyPosition);
                     var laneMatched = matched &&
                                       !string.IsNullOrWhiteSpace(localPosition) &&
