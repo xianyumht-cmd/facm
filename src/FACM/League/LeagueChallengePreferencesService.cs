@@ -48,9 +48,9 @@ namespace FACM.League
     /// <summary>
     /// Explicit, user-directed profile challenge-preference customization. Riot's
     /// update-player-preferences route is treated as a replacement-style write: FACM reads the
-    /// local summary first, preserves title/challenge/crest preference fields, changes only
-    /// bannerAccent, then performs bounded first + settled verification. It never polls or rewrites
-    /// in a loop, and it fails closed when the current preference state cannot be reconstructed.
+    /// local summary first, preserves title/challenge/crest preference fields, changes only the
+    /// requested preference, then performs bounded first + settled verification. It never polls or
+    /// rewrites in a loop, and it fails closed when the current preference state cannot be reconstructed.
     /// </summary>
     internal sealed class LeagueChallengePreferencesService
     {
@@ -95,36 +95,19 @@ namespace FACM.League
             if (current == null || !current.CanPreservePreferences)
             {
                 AppLog.Info("League challenge preferences could not be reconstructed safely before banner-accent change.");
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "unavailable",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = current
-                };
+                return Result("unavailable", LastSeasonBannerAccent, current);
             }
 
             var payload = BuildBannerPayload(current, LastSeasonBannerAccent);
             if (string.IsNullOrWhiteSpace(payload))
-            {
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "unavailable",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = current
-                };
-            }
+                return Result("unavailable", LastSeasonBannerAccent, current);
 
             var response = await _writer.TryUpdatePlayerPreferencesAsync(payload, cancellationToken).ConfigureAwait(false);
             if (response == null || !response.IsSuccessStatusCode)
             {
                 AppLog.Info("League challenge-preferences banner write rejected; status=" +
                             (response == null ? 0 : response.StatusCode));
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "write-failed",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = current
-                };
+                return Result("write-failed", LastSeasonBannerAccent, current);
             }
 
             if (_firstVerificationDelay > TimeSpan.Zero)
@@ -133,22 +116,12 @@ namespace FACM.League
             if (!CanVerify(first))
             {
                 AppLog.Info("League banner-accent first readback unavailable or incomplete.");
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "unverified",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = first
-                };
+                return Result("unverified", LastSeasonBannerAccent, first);
             }
             if (!MatchesBanner(first, LastSeasonBannerAccent) || !MatchesPreservedPreferences(current, first))
             {
                 AppLog.Info("League banner-accent first readback did not preserve the requested profile preference state.");
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "overridden",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = first
-                };
+                return Result("overridden", LastSeasonBannerAccent, first);
             }
 
             if (_settleVerificationDelay > TimeSpan.Zero)
@@ -157,31 +130,70 @@ namespace FACM.League
             if (!CanVerify(settled))
             {
                 AppLog.Info("League banner-accent settled readback unavailable or incomplete.");
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "unverified",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = settled
-                };
+                return Result("unverified", LastSeasonBannerAccent, settled);
             }
             if (!MatchesBanner(settled, LastSeasonBannerAccent) || !MatchesPreservedPreferences(current, settled))
             {
                 AppLog.Info("League banner-accent or preserved challenge preferences were overwritten by the League client.");
-                return new LeagueChallengePreferencesApplyResult
-                {
-                    Status = "overridden",
-                    RequestedBannerAccent = LastSeasonBannerAccent,
-                    Observed = settled
-                };
+                return Result("overridden", LastSeasonBannerAccent, settled);
             }
 
             AppLog.Info("League last-season banner accent applied and verified with challenge preferences preserved.");
-            return new LeagueChallengePreferencesApplyResult
+            return Result("success", LastSeasonBannerAccent, settled);
+        }
+
+        public async Task<LeagueChallengePreferencesApplyResult> ClearChallengeTokensAsync(
+            CancellationToken cancellationToken)
+        {
+            var current = await ReadCurrentAsync(cancellationToken).ConfigureAwait(false);
+            if (current == null || !current.CanPreservePreferences || !IsValidBannerAccent(current.BannerAccent))
             {
-                Status = "success",
-                RequestedBannerAccent = LastSeasonBannerAccent,
-                Observed = settled
-            };
+                AppLog.Info("League challenge preferences could not be reconstructed safely before token cleanup.");
+                return Result("unavailable", current == null ? string.Empty : current.BannerAccent, current);
+            }
+
+            var payload = BuildTokenCleanupPayload(current);
+            if (string.IsNullOrWhiteSpace(payload))
+                return Result("unavailable", current.BannerAccent, current);
+
+            var response = await _writer.TryUpdatePlayerPreferencesAsync(payload, cancellationToken).ConfigureAwait(false);
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                AppLog.Info("League challenge-token cleanup write rejected; status=" +
+                            (response == null ? 0 : response.StatusCode));
+                return Result("write-failed", current.BannerAccent, current);
+            }
+
+            if (_firstVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_firstVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var first = await ReadCurrentAsync(cancellationToken).ConfigureAwait(false);
+            if (!CanVerify(first))
+            {
+                AppLog.Info("League challenge-token first readback unavailable or incomplete.");
+                return Result("unverified", current.BannerAccent, first);
+            }
+            if (!MatchesTokenCleanup(current, first))
+            {
+                AppLog.Info("League challenge-token first readback did not preserve the requested profile preference state.");
+                return Result("overridden", current.BannerAccent, first);
+            }
+
+            if (_settleVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_settleVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var settled = await ReadCurrentAsync(cancellationToken).ConfigureAwait(false);
+            if (!CanVerify(settled))
+            {
+                AppLog.Info("League challenge-token settled readback unavailable or incomplete.");
+                return Result("unverified", current.BannerAccent, settled);
+            }
+            if (!MatchesTokenCleanup(current, settled))
+            {
+                AppLog.Info("League challenge tokens or preserved preferences were overwritten by the League client.");
+                return Result("overridden", current.BannerAccent, settled);
+            }
+
+            AppLog.Info("League challenge tokens cleared and verified with unrelated preferences preserved.");
+            return Result("success", current.BannerAccent, settled);
         }
 
         internal LeagueChallengePreferencesSnapshot ParseForSmokeTest(byte[] bytes)
@@ -192,6 +204,11 @@ namespace FACM.League
         internal string BuildBannerPayloadForSmokeTest(LeagueChallengePreferencesSnapshot current, string bannerAccent)
         {
             return BuildBannerPayload(current, bannerAccent);
+        }
+
+        internal string BuildTokenCleanupPayloadForSmokeTest(LeagueChallengePreferencesSnapshot current)
+        {
+            return BuildTokenCleanupPayload(current);
         }
 
         private async Task<byte[]> ReadWithTimeoutAsync(string path, CancellationToken cancellationToken)
@@ -270,12 +287,25 @@ namespace FACM.League
         private string BuildBannerPayload(LeagueChallengePreferencesSnapshot current, string bannerAccent)
         {
             if (current == null || !current.CanPreservePreferences || !IsValidBannerAccent(bannerAccent)) return null;
+            return BuildPreferencesPayload(current, bannerAccent, current.ChallengeIds);
+        }
 
+        private string BuildTokenCleanupPayload(LeagueChallengePreferencesSnapshot current)
+        {
+            if (current == null || !current.CanPreservePreferences || !IsValidBannerAccent(current.BannerAccent)) return null;
+            return BuildPreferencesPayload(current, current.BannerAccent, new long[0]);
+        }
+
+        private string BuildPreferencesPayload(
+            LeagueChallengePreferencesSnapshot current,
+            string bannerAccent,
+            IEnumerable<long> challengeIds)
+        {
             var payload = new Dictionary<string, object>
             {
                 { "bannerAccent", bannerAccent },
                 { "title", current.Title ?? string.Empty },
-                { "challengeIds", current.ChallengeIds == null ? new long[0] : current.ChallengeIds.ToArray() },
+                { "challengeIds", challengeIds == null ? new long[0] : challengeIds.Where(id => id > 0).Take(3).ToArray() },
                 { "crestBorder", current.CrestBorder ?? string.Empty },
                 { "prestigeCrestBorderLevel", current.PrestigeCrestBorderLevel }
             };
@@ -283,6 +313,19 @@ namespace FACM.League
                 payload["signedJWTPayload"] = current.SignedJwtPayload;
 
             return _json.Serialize(payload);
+        }
+
+        private static LeagueChallengePreferencesApplyResult Result(
+            string status,
+            string requestedBannerAccent,
+            LeagueChallengePreferencesSnapshot observed)
+        {
+            return new LeagueChallengePreferencesApplyResult
+            {
+                Status = status,
+                RequestedBannerAccent = requestedBannerAccent ?? string.Empty,
+                Observed = observed
+            };
         }
 
         private static bool CanVerify(LeagueChallengePreferencesSnapshot snapshot)
@@ -302,13 +345,29 @@ namespace FACM.League
             LeagueChallengePreferencesSnapshot expected,
             LeagueChallengePreferencesSnapshot observed)
         {
+            if (!MatchesPreservedNonTokenPreferences(expected, observed)) return false;
+            return (expected.ChallengeIds ?? new List<long>()).SequenceEqual(observed.ChallengeIds ?? new List<long>());
+        }
+
+        private static bool MatchesTokenCleanup(
+            LeagueChallengePreferencesSnapshot expected,
+            LeagueChallengePreferencesSnapshot observed)
+        {
+            return MatchesPreservedNonTokenPreferences(expected, observed) &&
+                   observed.ChallengeIds != null && observed.ChallengeIds.Count == 0;
+        }
+
+        private static bool MatchesPreservedNonTokenPreferences(
+            LeagueChallengePreferencesSnapshot expected,
+            LeagueChallengePreferencesSnapshot observed)
+        {
             if (expected == null || observed == null || !expected.CanPreservePreferences || !observed.CanPreservePreferences)
                 return false;
 
-            return string.Equals(expected.Title ?? string.Empty, observed.Title ?? string.Empty, StringComparison.Ordinal) &&
+            return MatchesBanner(observed, expected.BannerAccent) &&
+                   string.Equals(expected.Title ?? string.Empty, observed.Title ?? string.Empty, StringComparison.Ordinal) &&
                    string.Equals(expected.CrestBorder ?? string.Empty, observed.CrestBorder ?? string.Empty, StringComparison.Ordinal) &&
-                   expected.PrestigeCrestBorderLevel == observed.PrestigeCrestBorderLevel &&
-                   (expected.ChallengeIds ?? new List<long>()).SequenceEqual(observed.ChallengeIds ?? new List<long>());
+                   expected.PrestigeCrestBorderLevel == observed.PrestigeCrestBorderLevel;
         }
 
         private static bool IsValidBannerAccent(string value)
