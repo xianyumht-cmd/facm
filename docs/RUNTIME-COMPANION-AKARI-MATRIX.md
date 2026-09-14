@@ -2,7 +2,7 @@
 
 This matrix records the intended feature boundary for draft PR #283. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences. The 2026-09-13 local-player context extension was explicitly authorized to continue development without inserting another incremental Tencent-client test gate; production merge/release boundaries are unchanged.
 
-## Implemented in the transient Champion Select Runtime Companion
+## Implemented in the transient Champion Select Runtime Companion / shared automation workflow
 
 | Capability | Status | FACM implementation boundary |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ This matrix records the intended feature boundary for draft PR #283. Akari is us
 | Summoner spell recommendations | Implemented | Icon-first LCU assets, source alternatives through progressive disclosure, Apply through the existing guarded owner. |
 | Skill priority | Implemented | Compact source-derived Q/W/E/R tokens and source evidence; no fabricated ability metadata. |
 | Starter items / boots / core build | Implemented | Icon-first LCU assets with readable text/tooltips; core import stays on `LeagueItemSetService`. |
-| Counter matchups | Implemented, draft-aware | Existing OP.GG `counters` payload is projected as up to five champion icons. When a champion already revealed on the enemy draft is present in that same verified counter list, the cloned Runtime Companion presentation moves that counter to the front while preserving source order for the rest. No extra OP.GG/LCU request, hidden-intent inference or mutation of the Build Advisor owner's source snapshot is introduced. |
+| Counter matchups | Implemented, draft-aware | Existing OP.GG `counters` payload is projected as up to five champion icons. Revealed enemies may be prioritized; when both local/enemy assigned positions are explicitly exposed, the exact-position revealed counter wins priority. Per-counter source games/wins remain aligned and the focused counter may show its OP.GG sample evidence. No extra OP.GG/LCU request, hidden-intent inference or mutation of the Build Advisor owner's source snapshot is introduced. |
 | Champion Select countdown | Implemented | Reuses timer data from the same lightweight ChampSelect session read; no second observer/request owner. |
 | Ally draft context | Implemented | Up to five local-team rows; locked champion or local-team pick intent may be shown, with position/player tooltip and ban count. |
 | Enemy draft context | Implemented fail-closed | Only champion/account information actually exposed by the client is rendered; hidden enemy intent/identity is never inferred. |
@@ -26,6 +26,7 @@ This matrix records the intended feature boundary for draft PR #283. Akari is us
 | Auto matchmaking minimum party | Implemented | Existing matchmaking controller; 1-5 members, no second Gameflow observer. |
 | Matchmaking start delay | Implemented | 0-60 s, phase/settings bounded and cancellable. |
 | ReadyCheck accept delay | Implemented | 0-15 s, phase/settings bounded and cancellable. |
+| Matchmaking stop strategy | Implemented | Shared Gameflow-driven owner exposes `永不 / 固定时间 / 超过队列预估时间`. Fixed stop is bounded to 1-600 s. Estimated mode reads only existing `/lol-matchmaking/v1/search` elapsed/estimate state. Pending stop work is cancelled when phase leaves `Matchmaking`, including `ReadyCheck`; the narrow transport allows DELETE only on the existing matchmaking-search route and post-write success requires search-state reconciliation. |
 | Pin / collapse / drag persistence | Implemented | Shared `AppSettings` + existing LKG recovery, not a private companion settings file. |
 | DPI / multi-monitor placement | Implemented | PerMonitorV2-aware placement and working-area clamping, including negative monitor coordinates. |
 
@@ -44,6 +45,6 @@ These are not accidental omissions. They either already belong to another FACM-o
 
 ## Current acceptance rule
 
-Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, the lightweight matchmaking-delay settings, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, and at least the user's normal desktop DPI.
+Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, minimum-party/start-delay/ReadyCheck-delay automation, all three matchmaking-stop strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, and at least the user's normal desktop DPI.
 
 Production merge/version bump/update-manifest/release still require explicit closeout intent.
