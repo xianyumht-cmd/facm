@@ -10,6 +10,8 @@ namespace FACM.AppHost.Modules
 {
     internal sealed class LeagueHubModule : IFacmModule
     {
+        private const int PresenceHubContentHeight = 760;
+
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
         {
             LeagueDashboardModule.ModuleId,
@@ -91,7 +93,24 @@ namespace FACM.AppHost.Modules
         private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
         private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
         private Form CreateRepair(UiTextCatalog ui) { return Skin(_gameRepair.CreateForm(_efficiency)); }
-        private Form CreatePresence(UiTextCatalog ui) { return Skin(_dashboard.CreatePresenceForm(ui, null)); }
+
+        private Form CreatePresence(UiTextCatalog ui)
+        {
+            var form = Skin(_dashboard.CreatePresenceForm(ui, null));
+            ConfigurePresenceForHub(form);
+            return form;
+        }
+
+        internal static void ConfigurePresenceForHub(Form form)
+        {
+            if (form == null) throw new ArgumentNullException(nameof(form));
+
+            // The presence surface uses a fixed logical 760px layout when opened standalone.
+            // Inside the shorter Hub viewport it must own the scroll range itself because the
+            // Hub docks child forms to Fill. Width stays unconstrained to avoid horizontal scroll.
+            form.AutoScroll = true;
+            form.AutoScrollMinSize = new System.Drawing.Size(0, PresenceHubContentHeight);
+        }
 
         private static Form Skin(Form form)
         {
