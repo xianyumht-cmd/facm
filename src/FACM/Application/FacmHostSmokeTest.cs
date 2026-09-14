@@ -29,6 +29,7 @@ namespace FACM.AppHost
                 FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
                 LeagueChampSelectAssistantForm.ValidateForSmokeTest();
                 LeagueRuntimeCompanionWindowState.ValidateForSmokeTest();
+                LeagueRuntimeCompanionProjectionSmokeTest.Validate();
                 LeagueClientSmokeTest.Validate();
                 LeaguePresenceSmokeTest.Validate();
                 LeagueProfileCustomizationSmokeTest.Validate();
@@ -69,7 +70,7 @@ namespace FACM.AppHost
         {
             using (var host = new FacmHost())
             {
-                host.Register(new TestModule("a", new[] { "missing" }, new List<string>()));
+                host.Register(new TestModule("a", Array.Empty<string>(), events: new List<string>()));
                 RequireThrows(delegate { host.Initialize(); }, "depends on missing module", "FACM host accepted a missing dependency.");
             }
         }
