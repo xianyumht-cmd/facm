@@ -2,6 +2,8 @@
 
 This matrix records the intended feature boundary for draft PR #283. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences. The 2026-09-13 local-player context extension was explicitly authorized to continue development without inserting another incremental Tencent-client test gate; production merge/release boundaries are unchanged.
 
+Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANION-PROGRESS.md` so a later task can continue from repository state rather than chat history.
+
 ## Implemented in the transient Champion Select Runtime Companion / shared automation workflow
 
 | Capability | Status | FACM implementation boundary |
@@ -27,8 +29,14 @@ This matrix records the intended feature boundary for draft PR #283. Akari is us
 | Matchmaking start delay | Implemented | 0-60 s, phase/settings bounded and cancellable. |
 | ReadyCheck accept delay | Implemented | 0-15 s, phase/settings bounded and cancellable. |
 | Matchmaking stop strategy | Implemented | Shared Gameflow-driven owner exposes `永不 / 固定时间 / 超过队列预估时间`. Fixed stop is bounded to 1-600 s. Estimated mode reads only existing `/lol-matchmaking/v1/search` elapsed/estimate state. Pending stop work is cancelled when phase leaves `Matchmaking`, including `ReadyCheck`; the narrow transport allows DELETE only on the existing matchmaking-search route and post-write success requires search-state reconciliation. |
+| Presence modes | Implemented | Existing narrow `PUT /lol-chat/v1/me` owner supports `在线 / 离开 / 勿扰 / 手机在线 / 隐身 / 显示为游戏中`; writes are read back and FACM does not run a background fight-loop against the client. |
+| Chat signature | Implemented | Reuses the same fenced presence owner. Signature changes are read-modify-write so availability, gameStatus and unrelated fields survive; empty text clears it, first + settled readback detects client overwrite, and the 512-character bound is only a defensive FACM input guard. |
 | Pin / collapse / drag persistence | Implemented | Shared `AppSettings` + existing LKG recovery, not a private companion settings file. |
 | DPI / multi-monitor placement | Implemented | PerMonitorV2-aware placement and working-area clamping, including negative monitor coordinates. |
+
+## Active screenshot-driven parity work
+
+The next execution batch audits Akari-style profile/toolbox actions against existing FACM owners before adding any writer. Current order is: displayed rank/chat-card metadata, profile background, banner/regalia, frame/token/emote cleanup, game-view/lobby utilities, then login-time reapply only if a shared login lifecycle can be reused safely. Exact status and boundaries live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
 
 ## Deliberately not duplicated into this 320x420 transient surface
 
