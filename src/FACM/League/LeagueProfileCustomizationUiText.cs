@@ -47,6 +47,14 @@ namespace FACM.League
         public const string TokensUnverified = "LeagueProfileCustomizationTokensUnverified";
         public const string TokensUnavailable = "LeagueProfileCustomizationTokensUnavailable";
         public const string TokensWriteFailed = "LeagueProfileCustomizationTokensWriteFailed";
+        public const string EmotesTitle = "LeagueProfileCustomizationEmotesTitle";
+        public const string EmotesHint = "LeagueProfileCustomizationEmotesHint";
+        public const string EmotesAction = "LeagueProfileCustomizationEmotesAction";
+        public const string EmotesApplied = "LeagueProfileCustomizationEmotesApplied";
+        public const string EmotesOverridden = "LeagueProfileCustomizationEmotesOverridden";
+        public const string EmotesUnverified = "LeagueProfileCustomizationEmotesUnverified";
+        public const string EmotesUnavailable = "LeagueProfileCustomizationEmotesUnavailable";
+        public const string EmotesWriteFailed = "LeagueProfileCustomizationEmotesWriteFailed";
         public const string Footer = "LeagueProfileCustomizationFooter";
         public const string Entry = "LeagueProfileCustomizationEntry";
         public const string EntryHint = "LeagueProfileCustomizationEntryHint";
@@ -97,9 +105,17 @@ namespace FACM.League
             { LeagueProfileCustomizationUiTextKeys.TokensUnverified, "客户端接受了清除请求，但暂时无法完整读回确认" },
             { LeagueProfileCustomizationUiTextKeys.TokensUnavailable, "未读取到足够的当前挑战偏好，未执行徽章清除" },
             { LeagueProfileCustomizationUiTextKeys.TokensWriteFailed, "客户端拒绝或未完成这次挑战徽章清除" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesTitle, "表情轮盘" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesHint, "清空账号范围的表情槽位。FACM 只在能唯一确认完整账号配置时执行一次 PATCH，并进行有限读回确认。" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesAction, "清空表情" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesApplied, "表情槽位已清空并读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesOverridden, "客户端已恢复一个或多个表情槽位；FACM 没有继续强制覆盖" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesUnverified, "客户端接受了清空请求，但账号配置暂时无法完整读回确认" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesUnavailable, "没有唯一确认到完整的账号表情配置，未执行清空" },
+            { LeagueProfileCustomizationUiTextKeys.EmotesWriteFailed, "客户端拒绝或未完成这次表情清空" },
             { LeagueProfileCustomizationUiTextKeys.Footer, "这些操作只在你点击按钮时写入一次，并进行有限读回验证；不会在后台轮询或反复覆盖客户端。" },
             { LeagueProfileCustomizationUiTextKeys.Entry, "召唤师外观" },
-            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景、资料边框与挑战展示项" }
+            { LeagueProfileCustomizationUiTextKeys.EntryHint, "生涯背景、资料边框、挑战展示与表情槽位" }
         };
 
         public static string Get(UiTextCatalog ui, string key)
