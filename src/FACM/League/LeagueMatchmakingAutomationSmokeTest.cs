@@ -64,8 +64,8 @@ namespace FACM.League
                 "Gate 7 transport blocked matchmaking search.");
             Require(LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeagueMatchmakingWriteApiClient.AcceptPath),
                 "Gate 7 transport blocked ready-check accept.");
-            Require(!LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", LeagueMatchmakingWriteApiClient.SearchPath),
-                "Gate 7 transport must hard-block matchmaking cancellation.");
+            Require(LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", LeagueMatchmakingWriteApiClient.SearchPath),
+                "Gate 7 transport blocked configured matchmaking cancellation.");
             Require(!LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-matchmaking/v1/ready-check/decline"),
                 "Gate 7 transport must hard-block ready-check decline.");
             Require(!LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-champ-select/v1/session/actions/1"),
