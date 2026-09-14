@@ -113,16 +113,25 @@ Updated: 2026-09-14
 - host smoke covers unique/ambiguous owner selection, narrow payload, unrelated-slot preservation, one-write/bounded-readback behavior, incomplete loadout fail-closed behavior, client restoration and writer fencing.
 - validated emote functional head `befde045d3f4d1fdefb74024dc2031f33cdf7f84`: UI Text Contract #1020 PASS, Mayhem Source Probe #694 PASS, Windows Build #1912 PASS. Windows #1912 completed PetHost self-test, lightweight Release build, FACM.exe verification, signing step, package creation and artifact upload successfully.
 
-## ACTIVE — lobby/profile inspection utilities audit
+## DONE — lobby / arbitrary-game inspection ownership audit
 
-The next phase is read-mostly. Before adding any new surface, audit Akari's lobby/profile inspection utilities against FACM's existing `LeagueDashboard`, `LeaguePlayer`, `LeagueLive` and shared LCU owners. Do not duplicate an existing FACM player/history/live view into the transient Runtime Companion or create another Gameflow/session owner.
+- Akari's `LobbyTool` is **not** a read-only inspection utility. It POSTs `/lol-lobby/v2/eligibility/party` and `/lol-lobby/v2/eligibility/self` to classify queue IDs, then explicitly creates a lobby with `POST /lol-lobby/v2/lobby { queueId }`.
+- that lobby action is therefore a new mutation, not something FACM should smuggle into a read-only inspection pass. Existing FACM matchmaking/lobby owners remain authoritative until a separate explicit lobby-creation task audits mutation fencing and post-write reconciliation.
+- Akari's `GameView` accepts an arbitrary game ID and delegates to `ConnectedMatchPreviewer`. The previewer chooses SGP when supported, otherwise LCU. Its LCU summary route is `GET /lol-match-history/v1/games/{gameId}` and its LCU detail route is `GET /lol-match-history/v1/game-timelines/{gameId}`.
+- FACM already owns local-player match history in `LeaguePlayerDataService` and already uses `/lol-match-history/v1/games/{gameId}` only to enrich incomplete rows from the signed-in local player's bounded recent-history page. It has no equivalent arbitrary-game SGP/timeline preview owner today.
+- a superficial LCU-only “GameView clone” would regress Akari's source fallback behavior and duplicate player/history ownership. No product code was added in this audit. Arbitrary cross-source game preview remains a separately scoped future enhancement if explicitly desired.
 
-Engineering rule for this phase: prefer projections from already-owned/local read APIs; add a new narrow reader only when the information is not already exposed by an existing service. Inspection utilities must remain non-mutating unless a separately audited explicit writer is justified.
+## ACTIVE — login-time signature / displayed-rank reapply lifecycle audit
+
+- Akari's current implementation is now verified: it watches existing connected/chat-me state, resets its one-shot flag on disconnect or missing `chat.me`, waits 2 seconds for chat state to settle, then applies enabled status-message and displayed-rank automations once. Manual apply interrupts the pending automation. It does not continuously rewrite the fields.
+- FACM already has the fenced, read-modify-write `LeaguePresenceService` needed for manual signature/display-rank changes, but its shared `AppSettings` currently does not persist a signature/rank reapply policy/value set and the existing Dashboard Gameflow owner is not equivalent to Akari's explicit chat-ready signal.
+- next engineering decision: either identify a shared FACM client/chat readiness event that can own a once-per-session settle task without a new poller, or leave login-time reapply deferred. Do not approximate chat-ready with an unrelated recurring Gameflow loop.
 
 ## NEXT — remaining Akari toolbox/profile audit
 
-1. lobby/profile inspection utilities after overlap/ownership audit;
-2. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
+1. login-time signature/displayed-rank reapply only if an existing shared chat/client lifecycle can own a bounded once-per-session settle task;
+2. optional arbitrary cross-source game-ID preview only as a separately scoped future feature, not as an incomplete LCU-only clone;
+3. queue-ID lobby creation only as a separately authorized mutation task with narrow fencing and reconciliation.
 
 Verified upstream/reference routes so far:
 
@@ -130,7 +139,9 @@ Verified upstream/reference routes so far:
 - banner preference / challenge tokens: `POST /lol-challenges/v1/update-player-preferences/` with preservation-safe preference semantics required by FACM;
 - regalia read/write: `GET/PUT /lol-regalia/v2/current-summoner/regalia`;
 - chat-card displayed rank: `PUT /lol-chat/v1/me` with `lol.rankedLeagueQueue`, `lol.rankedLeagueTier`, optional `lol.rankedLeagueDivision`;
-- account emote loadout: `GET /lol-loadouts/v4/loadouts/scope/account`, then `PATCH /lol-loadouts/v4/loadouts/{id}` for the uniquely identified account emote loadout.
+- account emote loadout: `GET /lol-loadouts/v4/loadouts/scope/account`, then `PATCH /lol-loadouts/v4/loadouts/{id}` for the uniquely identified account emote loadout;
+- Akari lobby eligibility / creation: `POST /lol-lobby/v2/eligibility/party`, `POST /lol-lobby/v2/eligibility/self`, then explicit `POST /lol-lobby/v2/lobby { queueId }`;
+- Akari LCU game preview: `GET /lol-match-history/v1/games/{gameId}` plus `GET /lol-match-history/v1/game-timelines/{gameId}`, with SGP preferred when available.
 
 ## NEXT — Runtime Companion presentation follow-ups
 
