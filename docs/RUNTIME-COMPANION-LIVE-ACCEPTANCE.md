@@ -38,6 +38,18 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - Verify a successful automatic stop is based on post-write `/lol-matchmaking/v1/search` reconciliation (`isCurrentlyInQueue=false`), not on HTTP 2xx alone.
 - Confirm minimum-party, start-delay, accept-delay and matchmaking-stop settings survive restart through the shared AppSettings/LKG path.
 
+## Presence and summoner profile
+
+- Open the existing online/presence surface and verify the six existing presence modes still work without creating a second League session owner.
+- Set a non-empty chat signature, then clear it with an empty value. In both directions, verify availability, gameStatus and unrelated Presence fields survive; if the client restores another value, FACM must report the overwrite and must not enter a rewrite loop.
+- Apply a displayed-rank queue/tier/division combination and verify only chat/social-card display metadata changes. Actual server rank, LP and match history must remain unchanged. For `MASTER / GRANDMASTER / CHALLENGER`, no stale division should be retained.
+- Open **召唤师外观**, choose an explicit champion/skin and apply the profile background. Verify the client reports the selected `backgroundSkinId`; FACM must not claim to unlock or purchase a skin.
+- Run **隐藏等级边框** and verify current banner type is preserved while the requested prestige-crest state is read back. If the client overwrites it, FACM must report that state instead of repeatedly writing.
+- Before **切换为上赛季旗帜**, record the current challenge title, selected challenge tokens, crest border and prestige-crest level. Run the action once and verify the resulting banner uses the audited last-season accent while all recorded unrelated challenge-profile preferences remain unchanged.
+- If the current challenge summary cannot provide enough title/token/crest/prestige evidence to reconstruct the replacement preference document safely, the banner action must fail closed without sending a destructive partial POST.
+- If banner readback is missing, call the result unverified; if the banner or a preserved challenge-profile field drifts, report overridden. HTTP 2xx alone is not enough to call the operation verified success.
+- None of the profile/presence actions may start a background fight-loop against LeagueClient.
+
 ## Window behavior
 
 - Drag, pin/unpin and collapse/expand, restart FACM and verify persisted state.
