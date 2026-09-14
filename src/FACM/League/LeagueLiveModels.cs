@@ -91,13 +91,23 @@ namespace FACM.League
         public int Spell1Id { get; set; }
         public int Spell2Id { get; set; }
 
+        // Optional presentation-only suffix used by defensively cloned consumers such as the
+        // Runtime Companion. Source LeagueLive rows leave this empty, so account identity semantics
+        // in the shared Live owner do not change.
+        public string PresentationSuffix { get; set; }
+
         public string AccountName
         {
             get
             {
+                string name;
                 if (!string.IsNullOrWhiteSpace(GameName))
-                    return string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
-                return DisplayName;
+                    name = string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
+                else
+                    name = DisplayName;
+
+                if (string.IsNullOrWhiteSpace(PresentationSuffix)) return name;
+                return string.IsNullOrWhiteSpace(name) ? PresentationSuffix : name + " · " + PresentationSuffix;
             }
         }
     }
