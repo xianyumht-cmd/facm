@@ -75,27 +75,41 @@ Updated: 2026-09-14
 - parser/payload/readback/override/fence smoke coverage is wired into the main host smoke suite.
 - Windows Build #1882 and UI Text Contract #990 both passed at head `5e5e1b3a797a1146ac7a0c2f062329e9924c01a4` after the UI integration.
 
-## ACTIVE — last-season banner preference audit
+## DONE — last-season banner preference parity
 
-Verified upstream reference route:
+- the upstream Akari action was verified: it calls `POST /lol-challenges/v1/update-player-preferences/` with fixed `bannerAccent=2` for the screenshot-driven “switch to last season banner” action.
+- the Akari challenge preference type defines the replacement document as `bannerAccent`, `title`, `challengeIds`, `crestBorder`, and `prestigeCrestBorderLevel`.
+- independent LCU implementations and generated challenge API models were audited before closeout. They show that treating this route as a single-field patch can erase unrelated challenge-profile preferences on clients where the route behaves as a replacement write.
+- FACM therefore does **not** copy Akari's single-field POST literally. `LeagueChallengePreferencesService` first reads `/lol-challenges/v1/summary-player-data/local-player`, reconstructs the current title, challenge-token IDs, crest border and prestige-crest level, then changes only `bannerAccent` in the outgoing preference document. If `signedJWTPayload` is exposed by the current summary it is preserved as well.
+- title sentinel `-1` is normalized to the empty-title representation rather than echoed back as an invalid title ID.
+- missing title/challenge/crest/prestige preservation evidence fails closed without a write instead of risking a destructive replacement update.
+- the dedicated `ILeagueChallengePreferencesWriteApi` remains hard-fenced to the exact POST route and cannot write chat, regalia, matchmaking, ChampSelect or arbitrary LCU paths.
+- apply remains one user-directed POST followed by bounded first + settled summary readback. A result is called `success` only when `bannerAccent=2` is observed **and** title/challenge tokens/crest/prestige state still matches the pre-write snapshot. Missing evidence is `unverified`; drift/client overwrite is `overridden`; there is no rewrite loop.
+- smoke coverage now models replacement semantics deliberately: omission of preserved fields would clear the fake profile and fail the suite; incomplete pre-read fails closed; preservation drift cannot be reported as success; endpoint/method fencing remains covered.
+- `LeagueChallengePreferencesSmokeTest.Validate()` is wired into the main Host smoke flow.
+- validated functional head `3cef79f2332021d1377784fc7000a044119dc255`: UI Text Contract #1002 PASS, Mayhem Source Probe #676 PASS, Windows Build #1894 PASS. Windows Build completed PetHost self-test, lightweight Release build, FACM.exe verification, signing step, package creation and artifact upload successfully.
 
-- `POST /lol-challenges/v1/update-player-preferences/` with `bannerAccent` in the challenge preferences document.
-- Akari currently uses a fixed `bannerAccent` value for its screenshot-driven banner action.
+## ACTIVE — challenge-token cleanup audit
 
-The audited Akari helper exposes the write path but not a matching authoritative preference read endpoint. FACM must therefore either find an independent authoritative client document that proves the resulting banner state or present the operation honestly as accepted/unverified. It must not call a 2xx write “verified applied” without evidence.
+Verified upstream reference behavior so far:
+
+- Akari exposes **remove challenge tokens** through the same challenge-preferences owner and sends `challengeIds: []`; its current implementation also forwards the chat presence `lol.bannerIdSelected` as `bannerAccent`.
+- Seraphine-derived implementations use the same `challengeIds: []` + current banner pattern.
+- because the preference route has replacement-style risk, FACM must reuse the preservation model established above rather than copying a two-field payload that could clear title/crest/prestige state.
+
+Next engineering step: implement token cleanup only after defining readback proof that the token list is empty while the pre-write title/banner/crest/prestige fields remain unchanged. The existing challenge-preferences writer should be reused; no second owner is needed.
 
 ## NEXT — remaining Akari toolbox/profile audit
 
-1. last-season banner preference only with honest accepted/unverified semantics if no authoritative readback is available;
-2. challenge-token cleanup after its exact challenge-preference ownership and preservation semantics are verified;
-3. emote cleanup only after account-scope loadout selection and exact mutation/readback semantics are verified;
-4. lobby/profile inspection utilities;
-5. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
+1. challenge-token cleanup through the existing preservation-safe challenge-preferences owner;
+2. emote cleanup only after account-scope loadout selection and exact mutation/readback semantics are verified;
+3. lobby/profile inspection utilities;
+4. Akari-style `登录时重设签名` / displayed-rank reapply only if FACM can reuse the shared League connection/chat-ready lifecycle without adding a second poller or a background fight-loop.
 
 Verified upstream reference routes so far:
 
 - profile background: `GET/POST /lol-summoner/v1/current-summoner/summoner-profile`;
-- banner preference: `POST /lol-challenges/v1/update-player-preferences/`;
+- banner preference / challenge tokens: `POST /lol-challenges/v1/update-player-preferences/` with preservation-safe preference semantics required by FACM;
 - regalia read/write: `GET/PUT /lol-regalia/v2/current-summoner/regalia`;
 - chat-card displayed rank: `PUT /lol-chat/v1/me` with `lol.rankedLeagueQueue`, `lol.rankedLeagueTier`, optional `lol.rankedLeagueDivision`.
 
