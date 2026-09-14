@@ -12,6 +12,7 @@ namespace FACM.League
     {
         private readonly LeagueProfileCustomizationService _service;
         private readonly LeagueRegaliaCustomizationService _regaliaService;
+        private readonly LeagueChallengePreferencesService _challengePreferencesService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly ComboBox _champions;
@@ -19,6 +20,7 @@ namespace FACM.League
         private readonly Button _apply;
         private readonly Button _refresh;
         private readonly Button _removePrestigeCrest;
+        private readonly Button _clearChallengeTokens;
         private readonly Label _status;
         private int _selectionGeneration;
         private bool _busy;
@@ -29,9 +31,20 @@ namespace FACM.League
             LeagueRegaliaCustomizationService regaliaService,
             UiTextCatalog ui,
             ThemeDefinition theme)
+            : this(service, regaliaService, null, ui, theme)
+        {
+        }
+
+        public LeagueProfileCustomizationForm(
+            LeagueProfileCustomizationService service,
+            LeagueRegaliaCustomizationService regaliaService,
+            LeagueChallengePreferencesService challengePreferencesService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _regaliaService = regaliaService ?? throw new ArgumentNullException(nameof(regaliaService));
+            _challengePreferencesService = challengePreferencesService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -42,7 +55,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(470, 472);
+            ClientSize = new Size(470, 566);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -96,10 +109,25 @@ namespace FACM.League
                 new Rectangle(348, 292, 98, 38));
             _removePrestigeCrest.Click += async delegate { await RemovePrestigeCrestAsync(); };
 
+            var tokensTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.TokensTitle), new Rectangle(24, 352, 180, 20));
+            var tokensHint = new Label
+            {
+                Text = T(LeagueProfileCustomizationUiTextKeys.TokensHint),
+                Location = new Point(24, 374),
+                Size = new Size(316, 58),
+                BackColor = Color.Transparent,
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+            };
+            _clearChallengeTokens = CreateButton(
+                T(LeagueProfileCustomizationUiTextKeys.TokensAction),
+                new Rectangle(348, 384, 98, 38));
+            _clearChallengeTokens.Click += async delegate { await ClearChallengeTokensAsync(); };
+
             _status = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Loading),
-                Location = new Point(24, 366),
+                Location = new Point(24, 454),
                 Size = new Size(422, 24),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.Accent,
@@ -109,8 +137,8 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Footer),
-                Location = new Point(24, 402),
-                Size = new Size(422, 52),
+                Location = new Point(24, 490),
+                Size = new Size(422, 58),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
@@ -125,6 +153,9 @@ namespace FACM.League
             Controls.Add(regaliaTitle);
             Controls.Add(regaliaHint);
             Controls.Add(_removePrestigeCrest);
+            Controls.Add(tokensTitle);
+            Controls.Add(tokensHint);
+            Controls.Add(_clearChallengeTokens);
             Controls.Add(_status);
             Controls.Add(footer);
 
@@ -367,6 +398,41 @@ namespace FACM.League
             }
         }
 
+        private async Task ClearChallengeTokensAsync()
+        {
+            if (_busy || _lifetime.IsCancellationRequested || _challengePreferencesService == null) return;
+            SetBusy(true);
+            SetStatus(T(LeagueProfileCustomizationUiTextKeys.Loading), FacmDesignSystem.Accent);
+            try
+            {
+                var result = await _challengePreferencesService.ClearChallengeTokensAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+
+                if (result == null || string.Equals(result.Status, "write-failed", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensWriteFailed), FacmDesignSystem.Error);
+                else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensApplied), FacmDesignSystem.Success);
+                else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensOverridden), FacmDesignSystem.Warning);
+                else if (string.Equals(result.Status, "unverified", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensUnverified), FacmDesignSystem.Warning);
+                else
+                    SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensUnavailable), FacmDesignSystem.Warning);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League challenge-token cleanup failed", exception);
+                if (!IsDisposed) SetStatus(T(LeagueProfileCustomizationUiTextKeys.TokensWriteFailed), FacmDesignSystem.Error);
+            }
+            finally
+            {
+                if (!IsDisposed) SetBusy(false);
+            }
+        }
+
         private void SetBusy(bool busy)
         {
             _busy = busy;
@@ -382,6 +448,8 @@ namespace FACM.League
                 _apply.Enabled = !_busy && _skins.SelectedItem is SkinItem;
             if (_removePrestigeCrest != null && !_removePrestigeCrest.IsDisposed)
                 _removePrestigeCrest.Enabled = !_busy;
+            if (_clearChallengeTokens != null && !_clearChallengeTokens.IsDisposed)
+                _clearChallengeTokens.Enabled = !_busy && _challengePreferencesService != null;
         }
 
         private void SetStatus(string text, Color color)
