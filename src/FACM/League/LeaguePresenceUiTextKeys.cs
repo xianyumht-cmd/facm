@@ -20,6 +20,15 @@ namespace FACM.League
         public const string SignatureSave = "LeaguePresenceSignatureSave";
         public const string SignatureSaved = "LeaguePresenceSignatureSaved";
         public const string SignatureOverridden = "LeaguePresenceSignatureOverridden";
+        public const string DisplayedRank = "LeaguePresenceDisplayedRank";
+        public const string DisplayedRankHint = "LeaguePresenceDisplayedRankHint";
+        public const string RankedQueue = "LeaguePresenceRankedQueue";
+        public const string RankedTier = "LeaguePresenceRankedTier";
+        public const string RankedDivision = "LeaguePresenceRankedDivision";
+        public const string RankedSave = "LeaguePresenceRankedSave";
+        public const string RankedSaved = "LeaguePresenceRankedSaved";
+        public const string RankedOverridden = "LeaguePresenceRankedOverridden";
+        public const string RankedInvalid = "LeaguePresenceRankedInvalid";
         public const string Waiting = "LeaguePresenceWaiting";
         public const string Applied = "LeaguePresenceApplied";
         public const string Overridden = "LeaguePresenceOverridden";
