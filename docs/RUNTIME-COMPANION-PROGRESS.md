@@ -101,16 +101,22 @@ Updated: 2026-09-15
 - focused projection smoke covers source-row isolation, compact labels, unknown-ID fallback, missing-slot behavior and hidden-enemy fail-closed behavior.
 - validated functional head `3263fa409987f1489ff1bbb6062a25a223701a4c`: UI Text Contract #1036 PASS, Mayhem Source Probe #710 PASS, Windows Build #1928 PASS.
 
-## CLOSEOUT — awaiting consolidated Tencent-client acceptance
+## DONE — embedded presence-page scroll regression
 
-- current fully validated candidate before this documentation checkpoint: `b4ac43f1dd74257b61d6416dee4928f1a5f32e2f`.
-- exact-head CI is green: UI Text Contract #1039 PASS, Mayhem Source Probe #713 PASS, Windows Build #1931 PASS.
-- PR #283 has no submitted reviews, no inline review threads and no conversation comments at this checkpoint; there is no known review blocker to resolve.
-- the changed-file set is confined to `docs/` and `src/FACM/`; it does not include `online/version.json`, a production release manifest or a production rollout file.
-- no additional lightweight Runtime Companion feature is required to satisfy the current scoped implementation. Further compact readability work is optional and should not delay closeout.
-- optional arbitrary cross-source game-ID preview and queue-ID lobby creation remain separately scoped future work, not blockers for this PR.
-- the next executable gate is one consolidated real Tencent-client acceptance pass using `docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md`.
-- merge, production version bump, manifest mutation, release and destructive cleanup remain blocked until that live acceptance is completed and the user explicitly authorizes closeout.
+- Tencent-client closeout review exposed that the Hub-embedded **在线状态** page used a 760 logical-pixel fixed presence layout while `LeagueHubForm` docked the child to a shorter `Fill` viewport, leaving lower controls unreachable.
+- the fix stays at the Hub embedding boundary: the Presence form receives `AutoScroll=true` plus a 760px vertical `AutoScrollMinSize` only when created for the Hub. Standalone Presence ownership/layout is unchanged.
+- the horizontal minimum remains zero, so the repair does not intentionally create a horizontal scroll range. Left navigation and the right contextual **接着做** dock remain outside the scrolling child surface.
+- host smoke now asserts the embedded presence surface keeps vertical AutoScroll enabled, preserves zero forced horizontal extent, and covers the complete 760px logical content height.
+- the consolidated live-acceptance checklist now explicitly requires scrolling to the signature/rank/profile/banner/footer content at the normal Hub size while both side regions remain fixed.
+- validated branch head `e04afb3c4086a4aca8706aea41f8bfbc8639bb47`: UI Text Contract #1043 PASS, Mayhem Source Probe #717 PASS, Windows Build #1935 PASS.
+
+## NEXT — remaining lightweight follow-ups
+
+No additional Runtime Companion or embedded Presence feature is required for the current closeout scope. Optional future work remains separately scoped:
+
+1. compact player/team readability improvements only when they reuse the existing ChampSelect snapshot;
+2. arbitrary cross-source game-ID preview only as a separately scoped future feature;
+3. queue-ID lobby creation only as a separately authorized mutation task with narrow fencing and reconciliation.
 
 Verified upstream/reference routes so far:
 
@@ -132,8 +138,10 @@ Verified upstream/reference routes so far:
 - automatic login-time signature/display-rank reapply until an explicit shared chat-ready lifecycle exists.
 - arbitrary cross-source game preview and queue-ID lobby creation until separately scoped/authorized.
 
-## CLOSEOUT boundaries
+## CLOSEOUT — awaiting consolidated Tencent-client acceptance
 
-Do not merge PR #283, bump the production version, modify `online/version.json`, publish a production release, or delete the legacy rollback assistant from an incremental round.
+The branch is back in closeout readiness after the embedded Presence scrolling regression was fixed and the exact head passed all automated gates.
 
-When feature work is complete, run one consolidated real Tencent-client acceptance pass using `docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md`. Merge/release remains an explicit user closeout decision.
+Do not merge PR #283, bump the production version, modify `online/version.json`, publish a production release, mark the PR ready, or delete the legacy rollback assistant before the remaining real-client acceptance is explicitly completed.
+
+Run the final consolidated real Tencent-client acceptance pass using `docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md`. Merge/release remains an explicit user closeout decision.
