@@ -20,6 +20,7 @@ namespace FACM.AppHost
                 ValidateInitializationFailureRollback();
                 ValidateFirstModuleFailureReport();
                 ValidateShellFeatureDependencyContract();
+                ValidateLeagueHubPresenceScrollContract();
                 AppSettings.ValidateAtomicSaveForSmokeTest();
                 AppSettings.ValidateRuntimeCompanionPreferencesForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
@@ -183,6 +184,19 @@ namespace FACM.AppHost
                 CleanupModule.ModuleId
             };
             Require(shell.Dependencies.SequenceEqual(expected), "FACM shell direct dependency contract changed unexpectedly.");
+        }
+
+        private static void ValidateLeagueHubPresenceScrollContract()
+        {
+            using (var form = new System.Windows.Forms.Form())
+            {
+                LeagueHubModule.ConfigurePresenceForHub(form);
+                Require(form.AutoScroll, "League Hub embedded presence view must remain vertically scrollable.");
+                Require(form.AutoScrollMinSize.Width == 0,
+                    "League Hub embedded presence scroll contract must not force a horizontal scroll range.");
+                Require(form.AutoScrollMinSize.Height >= 760,
+                    "League Hub embedded presence scroll range no longer covers the full logical presence surface.");
+            }
         }
 
         private static void RequireThrows(Action action, string expectedText, string failureMessage)
