@@ -19,6 +19,7 @@ Durable round-by-round execution status is tracked in `docs/RUNTIME-COMPANION-PR
 | Champion Select countdown | Implemented | Reuses timer data from the same lightweight ChampSelect session read; no second observer/request owner. |
 | Ally draft context | Implemented | Up to five local-team rows; locked champion or local-team pick intent may be shown, with position/player tooltip and ban count. |
 | Enemy draft context | Implemented fail-closed | Only champion/account information actually exposed by the client is rendered; hidden enemy intent/identity is never inferred. |
+| Team summoner-spell context | Implemented, network-free | Reuses `Spell1Id` / `Spell2Id` already present in `LeagueLivePlayerRow`; Runtime Companion projects compact labels only on its defensive clone, adds no per-player/catalog request, keeps unknown IDs explicit as `S<ID>`, and does not let spell IDs alone make an anonymous hidden enemy row visible. |
 | ARAM Bench quick swap | Implemented | Existing `LeagueBenchQuickPickService`, compact paging and fully visible zoomed portraits. |
 | Ordinary ARAM balance | Implemented | Version-bound base-balance supplement; no Mayhem-only augment leakage. |
 | ARAM Mayhem guide | Implemented | Summoner spells, skill priority, starter, boots, core build, balance and augment ranking when verified source data exists. |
@@ -48,9 +49,9 @@ Durable round-by-round execution status is tracked in `docs/RUNTIME-COMPANION-PR
 | Queue-ID lobby creation from Akari LobbyTool | Separate explicit mutation task | Akari performs eligibility POSTs then `POST /lol-lobby/v2/lobby`. This requires its own narrow write fence and reconciliation instead of being mislabeled as inspection parity. |
 | Arbitrary cross-source game-ID preview | Separate future task | Akari's `ConnectedMatchPreviewer` can prefer SGP and fall back to LCU summary/timeline data. FACM's current local-player history owner is intentionally narrower; an LCU-only clone would regress source behavior and duplicate ownership. |
 
-## Active lightweight presentation work
+## Remaining lightweight presentation work
 
-The next presentation target is compact ally/enemy summoner-spell context. `LeagueLivePlayerRow` already carries `Spell1Id` and `Spell2Id`, so no per-player lookup is necessary for IDs. The existing Build Advisor also owns a cached Riot game-data catalog with spell names/icons, but that cache is currently private to `LeagueBuildAdvisorDataService`. FACM must not add a Form-owned summoner-spell catalog request merely for decoration. The next implementation should expose only already-owned/cached presentation metadata or fail closed to a text fallback; it must not force a catalog fetch or add network fan-out.
+No currently planned presentation item requires a new data owner. Further compact player/team readability improvements may continue only when they can reuse the existing ChampSelect snapshot and defensive Runtime Companion projection without adding per-player history, catalog fan-out, hidden-information inference or a second observer.
 
 ## Deliberately not duplicated into this 320x420 transient surface
 
@@ -65,6 +66,6 @@ The next presentation target is compact ally/enemy summoner-spell context. `Leag
 
 ## Current acceptance rule
 
-Development may continue on lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated gates remain authoritative for code regressions during development. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, matchmaking automation strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering/evidence, draft rows, Bench, explicit profile-background apply, profile-border/prestige-crest action, last-season-banner preservation, challenge-token cleanup preservation, account-emote cleanup ownership/readback behavior, and normal desktop DPI.
+Development may continue on lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated gates remain authoritative for code regressions during development. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, matchmaking automation strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering/evidence, draft rows, compact team summoner-spell context, Bench, explicit profile-background apply, profile-border/prestige-crest action, last-season-banner preservation, challenge-token cleanup preservation, account-emote cleanup ownership/readback behavior, and normal desktop DPI.
 
 Production merge/version bump/update-manifest/release still require explicit closeout intent.
