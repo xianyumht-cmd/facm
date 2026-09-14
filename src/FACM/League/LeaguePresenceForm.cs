@@ -12,6 +12,7 @@ namespace FACM.League
     {
         private readonly LeaguePresenceService _service;
         private readonly LeagueProfileCustomizationService _profileService;
+        private readonly LeagueRegaliaCustomizationService _regaliaService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _currentValue;
@@ -28,7 +29,7 @@ namespace FACM.League
         private bool _busy;
 
         public LeaguePresenceForm(LeaguePresenceService service, UiTextCatalog ui, ThemeDefinition theme)
-            : this(service, null, ui, theme)
+            : this(service, null, null, ui, theme)
         {
         }
 
@@ -37,9 +38,20 @@ namespace FACM.League
             LeagueProfileCustomizationService profileService,
             UiTextCatalog ui,
             ThemeDefinition theme)
+            : this(service, profileService, null, ui, theme)
+        {
+        }
+
+        public LeaguePresenceForm(
+            LeaguePresenceService service,
+            LeagueProfileCustomizationService profileService,
+            LeagueRegaliaCustomizationService regaliaService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _profileService = profileService;
+            _regaliaService = regaliaService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -201,7 +213,7 @@ namespace FACM.League
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
             };
             _profileButton = CreateFlatButton(TP(LeagueProfileCustomizationUiTextKeys.Entry), new Rectangle(330, 531, 76, 32));
-            _profileButton.Enabled = _profileService != null;
+            _profileButton.Enabled = _profileService != null && _regaliaService != null;
             _profileButton.Click += delegate { OpenProfileCustomization(); };
 
             _statusValue = new Label
@@ -252,8 +264,8 @@ namespace FACM.League
 
         private void OpenProfileCustomization()
         {
-            if (_busy || _profileService == null || IsDisposed) return;
-            using (var form = new LeagueProfileCustomizationForm(_profileService, _ui, null))
+            if (_busy || _profileService == null || _regaliaService == null || IsDisposed) return;
+            using (var form = new LeagueProfileCustomizationForm(_profileService, _regaliaService, _ui, null))
             {
                 form.TopMost = TopMost;
                 form.ShowDialog(this);
@@ -587,7 +599,7 @@ namespace FACM.League
             _rankTier.Enabled = !busy;
             _rankDivision.Enabled = !busy;
             _rankSave.Enabled = !busy;
-            _profileButton.Enabled = !busy && _profileService != null;
+            _profileButton.Enabled = !busy && _profileService != null && _regaliaService != null;
             foreach (var button in _choiceButtons) button.Enabled = !busy;
             UpdateRankDivisionEnabled();
         }
