@@ -4,7 +4,7 @@ This matrix records the intended feature boundary for draft PR #283. Akari is us
 
 Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANION-PROGRESS.md` so a later task can continue from repository state rather than chat history.
 
-## Implemented in the transient Champion Select Runtime Companion / shared automation workflow
+## Implemented in the transient Champion Select Runtime Companion / shared lightweight League workflow
 
 | Capability | Status | FACM implementation boundary |
 | --- | --- | --- |
@@ -31,12 +31,17 @@ Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANI
 | Matchmaking stop strategy | Implemented | Shared Gameflow-driven owner exposes `永不 / 固定时间 / 超过队列预估时间`. Fixed stop is bounded to 1-600 s. Estimated mode reads only existing `/lol-matchmaking/v1/search` elapsed/estimate state. Pending stop work is cancelled when phase leaves `Matchmaking`, including `ReadyCheck`; the narrow transport allows DELETE only on the existing matchmaking-search route and post-write success requires search-state reconciliation. |
 | Presence modes | Implemented | Existing narrow `PUT /lol-chat/v1/me` owner supports `在线 / 离开 / 勿扰 / 手机在线 / 隐身 / 显示为游戏中`; writes are read back and FACM does not run a background fight-loop against the client. |
 | Chat signature | Implemented | Reuses the same fenced presence owner. Signature changes are read-modify-write so availability, gameStatus and unrelated fields survive; empty text clears it, first + settled readback detects client overwrite, and the 512-character bound is only a defensive FACM input guard. |
+| Displayed rank metadata | Implemented | Reuses the same fenced presence owner; queue/tier/division values are allowlisted, apex tiers omit division, unrelated Presence fields survive, canonical queue tokens such as `RANKED_SOLO_5x5` are preserved, and first + settled readback detects client overwrite without a rewrite loop. |
+| Profile background | Implemented | Dedicated profile writer is hard-fenced to `POST /lol-summoner/v1/current-summoner/summoner-profile`; local game-data supplies champion/skin candidates only on explicit UI demand, writes occur once, and bounded readback verifies `backgroundSkinId`. |
+| Profile border / prestige crest | Implemented | Dedicated regalia writer is hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`. FACM first reads current regalia, preserves `bannerType`, writes `preferredCrestType=prestige`, preserved `preferredBannerType` and `selectedPrestigeCrest=22`, then uses bounded first + settled readback. Missing evidence fails closed and client overwrite never starts a fight-loop. |
 | Pin / collapse / drag persistence | Implemented | Shared `AppSettings` + existing LKG recovery, not a private companion settings file. |
 | DPI / multi-monitor placement | Implemented | PerMonitorV2-aware placement and working-area clamping, including negative monitor coordinates. |
 
 ## Active screenshot-driven parity work
 
-The next execution batch audits Akari-style profile/toolbox actions against existing FACM owners before adding any writer. Current order is: displayed rank/chat-card metadata, profile background, banner/regalia, frame/token/emote cleanup, game-view/lobby utilities, then login-time reapply only if a shared login lifecycle can be reused safely. Exact status and boundaries live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
+The next execution batch audits Akari-style profile/toolbox actions against existing FACM owners before adding any writer. Current order is: last-season banner preference, challenge-token cleanup, emote cleanup, game-view/lobby utilities, then login-time signature/display-rank reapply only if the shared login lifecycle can be reused safely. Exact status and boundaries live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
+
+The last-season banner path is currently **audit-only**: Akari writes `bannerAccent` through `/lol-challenges/v1/update-player-preferences/`, but the audited helper does not expose a matching authoritative read endpoint. FACM must either identify independent authoritative readback evidence or present the action as accepted/unverified rather than claiming verified success from HTTP 2xx alone.
 
 ## Deliberately not duplicated into this 320x420 transient surface
 
@@ -53,6 +58,6 @@ These are not accidental omissions. They either already belong to another FACM-o
 
 ## Current acceptance rule
 
-Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, minimum-party/start-delay/ReadyCheck-delay automation, all three matchmaking-stop strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, and at least the user's normal desktop DPI.
+Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, minimum-party/start-delay/ReadyCheck-delay automation, all three matchmaking-stop strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, explicit profile-background apply, explicit profile-border/prestige-crest action, and at least the user's normal desktop DPI.
 
 Production merge/version bump/update-manifest/release still require explicit closeout intent.
