@@ -305,7 +305,12 @@ namespace FACM.League
         private void OpenProfileCustomization()
         {
             if (_busy || _profileService == null || _regaliaService == null || IsDisposed) return;
-            using (var form = new LeagueProfileCustomizationForm(_profileService, _regaliaService, _ui, null))
+            using (var form = new LeagueProfileCustomizationForm(
+                _profileService,
+                _regaliaService,
+                _challengePreferencesService,
+                _ui,
+                null))
             {
                 form.TopMost = TopMost;
                 form.ShowDialog(this);
