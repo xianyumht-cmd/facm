@@ -48,6 +48,11 @@ This checklist belongs to draft PR #283 and is intentionally pre-release. Passin
 - Before **切换为上赛季旗帜**, record the current challenge title, selected challenge tokens, crest border and prestige-crest level. Run the action once and verify the resulting banner uses the audited last-season accent while all recorded unrelated challenge-profile preferences remain unchanged.
 - If the current challenge summary cannot provide enough title/token/crest/prestige evidence to reconstruct the replacement preference document safely, the banner action must fail closed without sending a destructive partial POST.
 - If banner readback is missing, call the result unverified; if the banner or a preserved challenge-profile field drifts, report overridden. HTTP 2xx alone is not enough to call the operation verified success.
+- Before **清除徽章**, record the current title, banner accent, crest border, prestige-crest level and selected challenge-token list. Run the action once and verify the resulting challenge-token list is empty while title/banner/crest/prestige remain unchanged.
+- If the current challenge summary cannot provide the numeric banner or another required preservation field, **清除徽章** must fail closed with zero preference POSTs. If the client restores one or more tokens or changes a preserved field during settled readback, report overridden instead of starting a rewrite loop.
+- Before **清空表情**, verify the account-scope loadout query resolves exactly one loadout containing the complete audited 13-slot emote contract. Zero, incomplete or multiple candidates must leave the button operation unavailable and send no PATCH.
+- Run **清空表情** once and verify all audited `EMOTES_*` slots read back with `itemId=-1` on the same uniquely resolved loadout. The request must not include unrelated account-loadout slots such as companion/customization entries.
+- If account-loadout readback disappears or becomes ambiguous, report unverified. If the League client restores any audited emote slot after the first successful readback, report overridden; FACM must not repeat the PATCH in a fight-loop.
 - None of the profile/presence actions may start a background fight-loop against LeagueClient.
 
 ## Window behavior
