@@ -1,3 +1,5 @@
+using System;
+using System.Drawing;
 using System.Windows.Forms;
 using FACM.Theming;
 
@@ -24,8 +26,35 @@ namespace FACM.League
             if (!(form is LeagueHubForm))
                 LeagueCompactDensity.Apply(form);
 
+            var efficiency = form as LeagueEfficiencyForm;
+            if (efficiency != null && efficiency.Controls.Count > 0)
+            {
+                var scrollRoot = efficiency.Controls[0] as TableLayoutPanel;
+                if (scrollRoot != null)
+                    ConfigureEfficiencyScrollSurfaceForSmokeTest(scrollRoot);
+            }
+
             FacmDesignSystem.ApplyLeagueSurface(form);
             return form;
+        }
+
+        internal static void ConfigureEfficiencyScrollSurfaceForSmokeTest(TableLayoutPanel scrollRoot)
+        {
+            if (scrollRoot == null) throw new ArgumentNullException(nameof(scrollRoot));
+
+            // LeagueEfficiencyForm uses fixed-height business rows followed by a Percent spacer.
+            // TableLayoutPanel does not reliably infer a vertical scroll extent from that mixture
+            // once the form is embedded and Dock=Fill. Derive the extent from the actual compacted
+            // absolute rows instead of hard-coding a screen or DPI-specific height.
+            var height = Math.Max(0, scrollRoot.Padding.Vertical);
+            foreach (RowStyle row in scrollRoot.RowStyles)
+            {
+                if (row.SizeType != SizeType.Absolute) continue;
+                height += Math.Max(0, (int)Math.Ceiling(row.Height));
+            }
+
+            scrollRoot.AutoScroll = true;
+            scrollRoot.AutoScrollMinSize = new Size(0, height);
         }
     }
 }
