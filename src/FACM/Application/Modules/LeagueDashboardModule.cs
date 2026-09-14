@@ -75,6 +75,7 @@ namespace FACM.AppHost.Modules
             return new LeaguePresenceForm(
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient),
                 new LeagueProfileCustomizationService(_leagueClient, (ILeagueProfileWriteApi)_leagueClient),
+                new LeagueRegaliaCustomizationService(_leagueClient, (ILeagueRegaliaWriteApi)_leagueClient),
                 ui,
                 theme);
         }
