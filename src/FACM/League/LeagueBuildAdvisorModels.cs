@@ -38,11 +38,39 @@ namespace FACM.League
         public List<LeagueBuildAdvisorRow> Rows { get; private set; }
     }
 
+    internal sealed class LeagueBuildCounterStat
+    {
+        public int ChampionId { get; set; }
+        public int Games { get; set; }
+        public int Wins { get; set; }
+        public bool HasWins { get; set; }
+        public double? WinRate
+        {
+            get
+            {
+                return HasWins && Games > 0 ? (double?)Wins / Games : null;
+            }
+        }
+
+        public LeagueBuildCounterStat Clone()
+        {
+            return new LeagueBuildCounterStat
+            {
+                ChampionId = ChampionId,
+                Games = Games,
+                Wins = Wins,
+                HasWins = HasWins
+            };
+        }
+    }
+
     internal sealed class LeagueBuildAdvisorRow
     {
         public string Category { get; set; }
         public string Recommendation { get; set; }
         public string Evidence { get; set; }
+        public IReadOnlyList<string> IconReferences { get; set; } = Array.Empty<string>();
+        public IReadOnlyList<LeagueBuildCounterStat> CounterStats { get; set; } = Array.Empty<LeagueBuildCounterStat>();
     }
 
     internal sealed class LeagueBuildAdvisorCatalog
@@ -53,11 +81,19 @@ namespace FACM.League
             Items = new Dictionary<int, string>();
             Spells = new Dictionary<int, string>();
             Perks = new Dictionary<int, string>();
+            ItemIcons = new Dictionary<int, string>();
+            SpellIcons = new Dictionary<int, string>();
+            PerkIcons = new Dictionary<int, string>();
+            ChampionIcons = new Dictionary<int, string>();
         }
 
         public Dictionary<int, string> Champions { get; private set; }
         public Dictionary<int, string> Items { get; private set; }
         public Dictionary<int, string> Spells { get; private set; }
         public Dictionary<int, string> Perks { get; private set; }
+        public Dictionary<int, string> ItemIcons { get; private set; }
+        public Dictionary<int, string> SpellIcons { get; private set; }
+        public Dictionary<int, string> PerkIcons { get; private set; }
+        public Dictionary<int, string> ChampionIcons { get; private set; }
     }
 }

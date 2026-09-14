@@ -26,6 +26,9 @@ namespace FACM.League
         public string GameStatus { get; set; }
         public string StatusMessage { get; set; }
         public string DisplayName { get; set; }
+        public string RankedLeagueQueue { get; set; }
+        public string RankedLeagueTier { get; set; }
+        public string RankedLeagueDivision { get; set; }
     }
 
     internal sealed class LeaguePresenceApplyResult
@@ -35,9 +38,54 @@ namespace FACM.League
         public LeaguePresenceSnapshot Observed { get; set; }
     }
 
+    internal sealed class LeaguePresenceStatusMessageApplyResult
+    {
+        public string Status { get; set; }
+        public string StatusMessage { get; set; }
+        public LeaguePresenceSnapshot Observed { get; set; }
+    }
+
+    internal sealed class LeaguePresenceRankedApplyResult
+    {
+        public string Status { get; set; }
+        public string Queue { get; set; }
+        public string Tier { get; set; }
+        public string Division { get; set; }
+        public LeaguePresenceSnapshot Observed { get; set; }
+    }
+
     internal sealed class LeaguePresenceService
     {
         internal const string PresencePath = "/lol-chat/v1/me";
+        internal const int MaximumStatusMessageLength = 512;
+
+        private static readonly string[] AllowedRankedQueues =
+        {
+            "RANKED_SOLO_5x5",
+            "RANKED_FLEX_SR",
+            "RANKED_TFT",
+            "RANKED_FLEX_TT",
+            "CHERRY",
+            "RANKED_TFT_TURBO",
+            "RANKED_TFT_DOUBLE_UP"
+        };
+
+        private static readonly string[] AllowedRankedTiers =
+        {
+            "IRON",
+            "BRONZE",
+            "SILVER",
+            "GOLD",
+            "PLATINUM",
+            "EMERALD",
+            "DIAMOND",
+            "MASTER",
+            "GRANDMASTER",
+            "CHALLENGER"
+        };
+
+        private static readonly string[] AllowedRankedDivisions = { "I", "II", "III", "IV" };
+
         private readonly ILeagueClientApi _client;
         private readonly ILeaguePresenceWriteApi _writer;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 512 * 1024 };
@@ -60,6 +108,10 @@ namespace FACM.League
             _firstVerificationDelay = firstVerificationDelay < TimeSpan.Zero ? TimeSpan.Zero : firstVerificationDelay;
             _settleVerificationDelay = settleVerificationDelay < TimeSpan.Zero ? TimeSpan.Zero : settleVerificationDelay;
         }
+
+        internal static IReadOnlyList<string> RankedQueues { get { return AllowedRankedQueues; } }
+        internal static IReadOnlyList<string> RankedTiers { get { return AllowedRankedTiers; } }
+        internal static IReadOnlyList<string> RankedDivisions { get { return AllowedRankedDivisions; } }
 
         public async Task<LeaguePresenceSnapshot> ReadAsync(CancellationToken cancellationToken)
         {
@@ -108,6 +160,161 @@ namespace FACM.League
             return new LeaguePresenceApplyResult { Status = "success", Mode = mode, Observed = settled };
         }
 
+        public async Task<LeaguePresenceStatusMessageApplyResult> ApplyStatusMessageAsync(
+            string statusMessage,
+            CancellationToken cancellationToken)
+        {
+            var normalized = NormalizeStatusMessage(statusMessage);
+            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
+            if (root == null)
+            {
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "unavailable",
+                    StatusMessage = normalized
+                };
+            }
+
+            root["statusMessage"] = normalized;
+            var payload = _json.Serialize(root);
+            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                AppLog.Info("League chat signature write rejected; status=" + (response == null ? 0 : response.StatusCode));
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "write-failed",
+                    StatusMessage = normalized
+                };
+            }
+
+            if (_firstVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_firstVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var first = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!StatusMessageMatches(first, normalized))
+            {
+                AppLog.Info("League chat signature readback did not match; stage=first");
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "overridden",
+                    StatusMessage = normalized,
+                    Observed = first
+                };
+            }
+
+            if (_settleVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_settleVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var settled = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!StatusMessageMatches(settled, normalized))
+            {
+                AppLog.Info("League chat signature readback was overwritten by client; stage=settled");
+                return new LeaguePresenceStatusMessageApplyResult
+                {
+                    Status = "overridden",
+                    StatusMessage = normalized,
+                    Observed = settled
+                };
+            }
+
+            AppLog.Info("League chat signature applied and verified.");
+            return new LeaguePresenceStatusMessageApplyResult
+            {
+                Status = "success",
+                StatusMessage = normalized,
+                Observed = settled
+            };
+        }
+
+        public async Task<LeaguePresenceRankedApplyResult> ApplyRankedStatusAsync(
+            string queue,
+            string tier,
+            string division,
+            CancellationToken cancellationToken)
+        {
+            string normalizedQueue;
+            string normalizedTier;
+            string normalizedDivision;
+            if (!TryNormalizeRankedStatus(queue, tier, division, out normalizedQueue, out normalizedTier, out normalizedDivision))
+            {
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "invalid",
+                    Queue = NormalizeRankedToken(queue),
+                    Tier = NormalizeRankedToken(tier),
+                    Division = NormalizeRankedToken(division)
+                };
+            }
+
+            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
+            if (root == null)
+            {
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "unavailable",
+                    Queue = normalizedQueue,
+                    Tier = normalizedTier,
+                    Division = normalizedDivision
+                };
+            }
+
+            ApplyRankedStatus(root, normalizedQueue, normalizedTier, normalizedDivision);
+            var payload = _json.Serialize(root);
+            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                AppLog.Info("League displayed-rank write rejected; status=" + (response == null ? 0 : response.StatusCode));
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "write-failed",
+                    Queue = normalizedQueue,
+                    Tier = normalizedTier,
+                    Division = normalizedDivision
+                };
+            }
+
+            if (_firstVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_firstVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var first = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!RankedStatusMatches(first, normalizedQueue, normalizedTier, normalizedDivision))
+            {
+                AppLog.Info("League displayed-rank readback did not match; stage=first");
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "overridden",
+                    Queue = normalizedQueue,
+                    Tier = normalizedTier,
+                    Division = normalizedDivision,
+                    Observed = first
+                };
+            }
+
+            if (_settleVerificationDelay > TimeSpan.Zero)
+                await Task.Delay(_settleVerificationDelay, cancellationToken).ConfigureAwait(false);
+            var settled = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (!RankedStatusMatches(settled, normalizedQueue, normalizedTier, normalizedDivision))
+            {
+                AppLog.Info("League displayed-rank readback was overwritten by client; stage=settled");
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "overridden",
+                    Queue = normalizedQueue,
+                    Tier = normalizedTier,
+                    Division = normalizedDivision,
+                    Observed = settled
+                };
+            }
+
+            AppLog.Info("League displayed rank applied and verified; queue=" + normalizedQueue + "; tier=" + normalizedTier);
+            return new LeaguePresenceRankedApplyResult
+            {
+                Status = "success",
+                Queue = normalizedQueue,
+                Tier = normalizedTier,
+                Division = normalizedDivision,
+                Observed = settled
+            };
+        }
+
         internal string BuildPayloadForSmokeTest(byte[] currentPresence, LeaguePresenceMode mode)
         {
             var root = ParseRoot(currentPresence);
@@ -116,9 +323,46 @@ namespace FACM.League
             return _json.Serialize(root);
         }
 
+        internal string BuildStatusMessagePayloadForSmokeTest(byte[] currentPresence, string statusMessage)
+        {
+            var root = ParseRoot(currentPresence);
+            if (root == null) return null;
+            root["statusMessage"] = NormalizeStatusMessage(statusMessage);
+            return _json.Serialize(root);
+        }
+
+        internal string BuildRankedStatusPayloadForSmokeTest(byte[] currentPresence, string queue, string tier, string division)
+        {
+            string normalizedQueue;
+            string normalizedTier;
+            string normalizedDivision;
+            if (!TryNormalizeRankedStatus(queue, tier, division, out normalizedQueue, out normalizedTier, out normalizedDivision))
+                return null;
+            var root = ParseRoot(currentPresence);
+            if (root == null) return null;
+            ApplyRankedStatus(root, normalizedQueue, normalizedTier, normalizedDivision);
+            return _json.Serialize(root);
+        }
+
         internal static bool MatchesForSmokeTest(LeaguePresenceSnapshot snapshot, LeaguePresenceMode mode)
         {
             return Matches(snapshot, mode);
+        }
+
+        internal static string NormalizeStatusMessageForSmokeTest(string value)
+        {
+            return NormalizeStatusMessage(value);
+        }
+
+        internal static bool TryNormalizeRankedStatusForSmokeTest(
+            string queue,
+            string tier,
+            string division,
+            out string normalizedQueue,
+            out string normalizedTier,
+            out string normalizedDivision)
+        {
+            return TryNormalizeRankedStatus(queue, tier, division, out normalizedQueue, out normalizedTier, out normalizedDivision);
         }
 
         private async Task<Dictionary<string, object>> ReadRootAsync(CancellationToken cancellationToken)
@@ -171,6 +415,106 @@ namespace FACM.League
             }
         }
 
+        private static void ApplyRankedStatus(
+            Dictionary<string, object> root,
+            string queue,
+            string tier,
+            string division)
+        {
+            if (root == null) return;
+            object lolValue;
+            var lol = root.TryGetValue("lol", out lolValue) ? lolValue as Dictionary<string, object> : null;
+            if (lol == null)
+            {
+                lol = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                root["lol"] = lol;
+            }
+
+            lol["rankedLeagueQueue"] = queue;
+            lol["rankedLeagueTier"] = tier;
+            if (IsApexTier(tier))
+                lol.Remove("rankedLeagueDivision");
+            else
+                lol["rankedLeagueDivision"] = division;
+        }
+
+        private static string NormalizeStatusMessage(string value)
+        {
+            var normalized = (value ?? string.Empty).Replace("\0", string.Empty);
+            if (normalized.Length > MaximumStatusMessageLength)
+                normalized = normalized.Substring(0, MaximumStatusMessageLength);
+            return normalized;
+        }
+
+        private static string NormalizeRankedToken(string value)
+        {
+            return (value ?? string.Empty).Trim().ToUpperInvariant();
+        }
+
+        private static string NormalizeRankedQueue(string value)
+        {
+            var candidate = (value ?? string.Empty).Trim();
+            for (var index = 0; index < AllowedRankedQueues.Length; index++)
+            {
+                if (string.Equals(AllowedRankedQueues[index], candidate, StringComparison.OrdinalIgnoreCase))
+                    return AllowedRankedQueues[index];
+            }
+            return string.Empty;
+        }
+
+        private static bool TryNormalizeRankedStatus(
+            string queue,
+            string tier,
+            string division,
+            out string normalizedQueue,
+            out string normalizedTier,
+            out string normalizedDivision)
+        {
+            normalizedQueue = NormalizeRankedQueue(queue);
+            normalizedTier = NormalizeRankedToken(tier);
+            normalizedDivision = NormalizeRankedToken(division);
+
+            if (string.IsNullOrEmpty(normalizedQueue) ||
+                Array.IndexOf(AllowedRankedTiers, normalizedTier) < 0)
+                return false;
+
+            if (IsApexTier(normalizedTier))
+            {
+                normalizedDivision = string.Empty;
+                return true;
+            }
+
+            return Array.IndexOf(AllowedRankedDivisions, normalizedDivision) >= 0;
+        }
+
+        private static bool IsApexTier(string tier)
+        {
+            return string.Equals(tier, "MASTER", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(tier, "GRANDMASTER", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(tier, "CHALLENGER", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool StatusMessageMatches(LeaguePresenceSnapshot snapshot, string expected)
+        {
+            return snapshot != null && snapshot.Connected &&
+                   string.Equals(snapshot.StatusMessage ?? string.Empty, expected ?? string.Empty, StringComparison.Ordinal);
+        }
+
+        private static bool RankedStatusMatches(
+            LeaguePresenceSnapshot snapshot,
+            string queue,
+            string tier,
+            string division)
+        {
+            if (snapshot == null || !snapshot.Connected) return false;
+            if (!string.Equals(snapshot.RankedLeagueQueue ?? string.Empty, queue ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (!string.Equals(snapshot.RankedLeagueTier ?? string.Empty, tier ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                return false;
+            return IsApexTier(tier) ||
+                   string.Equals(snapshot.RankedLeagueDivision ?? string.Empty, division ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void SetGameStatus(Dictionary<string, object> root, string gameStatus)
         {
             object lolValue;
@@ -193,7 +537,10 @@ namespace FACM.League
                 Availability = ReadString(root, "availability"),
                 GameStatus = ReadString(lol, "gameStatus"),
                 StatusMessage = ReadString(root, "statusMessage"),
-                DisplayName = ReadString(root, "name")
+                DisplayName = ReadString(root, "name"),
+                RankedLeagueQueue = ReadString(lol, "rankedLeagueQueue"),
+                RankedLeagueTier = ReadString(lol, "rankedLeagueTier"),
+                RankedLeagueDivision = ReadString(lol, "rankedLeagueDivision")
             };
         }
 

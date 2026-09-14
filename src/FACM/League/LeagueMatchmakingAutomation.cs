@@ -48,18 +48,28 @@ namespace FACM.League
 
         public bool IsEligible
         {
-            get { return CanStartActivity && IsLeader && RealMemberCount > 0; }
+            get { return IsEligibleFor(1); }
         }
 
         public string BlockReason
         {
-            get
-            {
-                if (!CanStartActivity) return "cannot-start";
-                if (!IsLeader) return "not-leader";
-                if (RealMemberCount <= 0) return "no-members";
-                return null;
-            }
+            get { return BlockReasonFor(1); }
+        }
+
+        public bool IsEligibleFor(int minimumPartySize)
+        {
+            var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
+            return CanStartActivity && IsLeader && RealMemberCount >= minimum;
+        }
+
+        public string BlockReasonFor(int minimumPartySize)
+        {
+            var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
+            if (!CanStartActivity) return "cannot-start";
+            if (!IsLeader) return "not-leader";
+            if (RealMemberCount <= 0) return "no-members";
+            if (RealMemberCount < minimum) return "party-below-minimum-" + minimum.ToString();
+            return null;
         }
     }
 
@@ -99,6 +109,9 @@ namespace FACM.League
         private bool _acceptAttemptedThisReadyCheck;
         private bool _autoSearch;
         private bool _autoAccept;
+        private int _minimumPartySize = 1;
+        private int _searchStartDelayMs;
+        private int _acceptDelayMs;
         private bool _disposed;
 
         public LeagueMatchmakingAutomationController(ILeagueClientApi read, ILeagueMatchmakingWriteApi write)
@@ -118,32 +131,48 @@ namespace FACM.League
 
         public void Configure(bool autoSearch, bool autoAccept)
         {
+            Configure(autoSearch, autoAccept, 1, 0, 0);
+        }
+
+        public void Configure(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs)
+        {
+            minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
+            searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
+            acceptDelayMs = Math.Max(0, Math.Min(15000, acceptDelayMs));
+
             bool restartLobby;
             bool restartReady;
             lock (_sync)
             {
                 if (_disposed) return;
-                restartLobby = autoSearch && !_autoSearch && IsPhase("Lobby");
-                restartReady = autoAccept && !_autoAccept && IsPhase("ReadyCheck");
-                if (!autoSearch && _autoSearch)
+                var wasAutoSearch = _autoSearch;
+                var wasAutoAccept = _autoAccept;
+                var lobbyPolicyChanged = _minimumPartySize != minimumPartySize || _searchStartDelayMs != searchStartDelayMs;
+                var readyPolicyChanged = _acceptDelayMs != acceptDelayMs;
+
+                restartLobby = autoSearch && IsPhase("Lobby") && (!wasAutoSearch || lobbyPolicyChanged);
+                restartReady = autoAccept && IsPhase("ReadyCheck") && (!wasAutoAccept || readyPolicyChanged);
+
+                if ((!autoSearch && wasAutoSearch) || (autoSearch && wasAutoSearch && lobbyPolicyChanged))
                 {
-                    // Turning the feature off pauses this Lobby episode; it does not create a new one.
-                    // Preserve a claimed/confirmed/reconciled fingerprint so re-enabling cannot
-                    // duplicate a matchmaking POST whose wire outcome became ambiguous on cancel.
-                    // Observe clears it on the real Lobby phase boundary.
                     _lastSearchDiagnostic = null;
                     CancelLobbyLocked();
                 }
-                if (!autoAccept && _autoAccept)
+                if ((!autoAccept && wasAutoAccept) || (autoAccept && wasAutoAccept && readyPolicyChanged))
                 {
-                    // A settings toggle does not end the current ReadyCheck episode. Preserve the
-                    // episode's at-most-once accept claim so OFF -> ON cannot duplicate an accept
-                    // that already succeeded or became ambiguous while cancellation was in flight.
-                    // Observe clears the claim only when Gameflow actually leaves ReadyCheck.
                     CancelReadyLocked();
                 }
+
                 _autoSearch = autoSearch;
                 _autoAccept = autoAccept;
+                _minimumPartySize = minimumPartySize;
+                _searchStartDelayMs = searchStartDelayMs;
+                _acceptDelayMs = acceptDelayMs;
             }
             if (restartLobby) StartLobbyObserver();
             if (restartReady) StartReadyObserver();
@@ -227,8 +256,12 @@ namespace FACM.League
 
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
-            // Gameflow already proved that Lobby is active. Evaluate immediately; if the
-            // lobby payload has not caught up yet, the existing phase-bounded observer retries.
+            var initialDelay = GetSearchStartDelay();
+            if (initialDelay > TimeSpan.Zero)
+            {
+                AppLog.Info("League auto matchmaking: wait/start-delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
+                await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+            }
             while (IsSearchActive())
             {
                 var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
@@ -246,9 +279,10 @@ namespace FACM.League
                 LogSearchDiagnostic("lobby-unavailable");
                 return false;
             }
-            if (!lobby.IsEligible)
+            var minimumPartySize = GetMinimumPartySize();
+            if (!lobby.IsEligibleFor(minimumPartySize))
             {
-                LogSearchDiagnostic(lobby.BlockReason ?? "not-eligible");
+                LogSearchDiagnostic(lobby.BlockReasonFor(minimumPartySize) ?? "not-eligible");
                 return false;
             }
 
@@ -335,8 +369,12 @@ namespace FACM.League
 
         private async Task RunReadyObserverAsync(CancellationToken cancellationToken)
         {
-            // The first attempt stays immediate. Only a real failed/ambiguous write pays the
-            // short retry delay, and every retry is bounded by the same ReadyCheck episode.
+            var initialDelay = GetAcceptDelay();
+            if (initialDelay > TimeSpan.Zero)
+            {
+                AppLog.Info("League auto accept: wait/delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
+                await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+            }
             while (IsAcceptActive())
             {
                 var done = await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
@@ -459,6 +497,21 @@ namespace FACM.League
             if (string.Equals(_lastSearchDiagnostic, reason, StringComparison.Ordinal)) return;
             _lastSearchDiagnostic = reason;
             AppLog.Info("League auto matchmaking: skip/" + reason);
+        }
+
+        private int GetMinimumPartySize()
+        {
+            lock (_sync) return _minimumPartySize;
+        }
+
+        private TimeSpan GetSearchStartDelay()
+        {
+            lock (_sync) return TimeSpan.FromMilliseconds(_searchStartDelayMs);
+        }
+
+        private TimeSpan GetAcceptDelay()
+        {
+            lock (_sync) return TimeSpan.FromMilliseconds(_acceptDelayMs);
         }
 
         private bool IsSearchActive()

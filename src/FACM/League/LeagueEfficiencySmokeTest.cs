@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSettings();
             ValidateProcessActions();
             ValidateUiContract();
+            ValidateScrollContract();
             LeaguePostGameAutomationSmokeTest.Validate();
         }
 
@@ -69,7 +70,10 @@ namespace FACM.League
                 "LeagueAutoHonorTeammateEnabled=True",
                 "LeagueAutoReturnLobbyEnabled=True",
                 "LeagueAutoMatchmakingEnabled=True",
-                "LeagueAutoAcceptEnabled=True"
+                "LeagueAutoAcceptEnabled=True",
+                "LeagueAutoMatchmakingMinPartySize=3",
+                "LeagueAutoMatchmakingStartDelayMs=2000",
+                "LeagueAutoAcceptDelayMs=500"
             });
             Require(settings.LeagueExitGameHotkey == "F8", "Exit-game hotkey setting did not parse.");
             Require(settings.LeagueCloseLobbyHotkey == "Ctrl+F9", "Close-lobby hotkey setting did not parse.");
@@ -77,6 +81,8 @@ namespace FACM.League
                 "Post-game automation settings did not parse.");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Next-game automation settings did not parse.");
+            Require(settings.LeagueAutoMatchmakingMinPartySize == 3 && settings.LeagueAutoMatchmakingStartDelayMs == 2000 && settings.LeagueAutoAcceptDelayMs == 500,
+                "Next-game policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLines());
             Require(serialized.Contains("LeagueExitGameHotkey=F8"), "Exit-game hotkey setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
@@ -114,6 +120,29 @@ namespace FACM.League
                     "League Efficiency UI text contract contains an empty key/default.");
                 Require(pair.Key.IndexOf("Credential", StringComparison.OrdinalIgnoreCase) < 0,
                     "Abandoned credential UI key must not ship.");
+            }
+        }
+
+        private static void ValidateScrollContract()
+        {
+            using (var root = new TableLayoutPanel
+            {
+                Padding = new Padding(17),
+                AutoScroll = false
+            })
+            {
+                root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+                root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+                root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+                LeagueSoftGlassSkin.ConfigureEfficiencyScrollSurfaceForSmokeTest(root);
+
+                Require(root.AutoScroll, "League Efficiency embedded content must remain vertically scrollable.");
+                Require(root.AutoScrollMinSize.Width == 0,
+                    "League Efficiency scroll contract must not force a horizontal scroll range.");
+                Require(root.AutoScrollMinSize.Height == root.Padding.Vertical + 34 + 48 + 43,
+                    "League Efficiency scroll extent must be derived from compacted absolute rows plus padding.");
             }
         }
 

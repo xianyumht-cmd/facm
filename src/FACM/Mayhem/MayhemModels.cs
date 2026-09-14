@@ -19,6 +19,17 @@ namespace FACM.Mayhem
         public string Name { get; set; }
         public string Slug { get; set; }
         public string Rarity { get; set; }
+        public string RarityKind
+        {
+            get
+            {
+                var value = (Rarity ?? string.Empty).Trim().ToLowerInvariant();
+                if (value.Contains("prism") || value.Contains("棱")) return "prism"; // ui-text-contract: allow
+                if (value.Contains("gold") || value.Contains("黄金") || value == "金") return "gold"; // ui-text-contract: allow
+                if (value.Contains("silver") || value.Contains("白银") || value == "银") return "silver"; // ui-text-contract: allow
+                return "other";
+            }
+        }
         public double? WinRate { get; set; }
         public double? PickRate { get; set; }
         public int? Games { get; set; }

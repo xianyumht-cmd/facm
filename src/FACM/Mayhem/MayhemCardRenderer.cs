@@ -693,7 +693,7 @@ namespace FACM.Mayhem
             var other = new AugmentGroup { Title = MayhemUiCopy.OtherSection, Accent = Cyan };
             foreach (var row in rows)
             {
-                switch (RarityKind(row.Rarity))
+                switch (row == null ? "other" : row.RarityKind)
                 {
                     case "prism": prism.Items.Add(row); break;
                     case "gold": gold.Items.Add(row); break;

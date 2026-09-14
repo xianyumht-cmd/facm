@@ -38,6 +38,15 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public int LeagueAutoMatchmakingMinPartySize { get; set; } = 1;
+        public int LeagueAutoMatchmakingStartDelayMs { get; set; } = 0;
+        public int LeagueAutoAcceptDelayMs { get; set; } = 0;
+        public string LeagueAutoMatchmakingStopPolicy { get; set; } = "never";
+        public int LeagueAutoMatchmakingStopAfterMs { get; set; } = 120000;
+        public int LeagueRuntimeCompanionX { get; set; } = int.MinValue;
+        public int LeagueRuntimeCompanionY { get; set; } = int.MinValue;
+        public bool LeagueRuntimeCompanionPinned { get; set; } = true;
+        public bool LeagueRuntimeCompanionCollapsed { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -115,7 +124,16 @@ namespace FACM.Services
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
-                "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled
+                "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueAutoMatchmakingMinPartySize=" + LeagueAutoMatchmakingMinPartySize.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoMatchmakingStartDelayMs=" + LeagueAutoMatchmakingStartDelayMs.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoAcceptDelayMs=" + LeagueAutoAcceptDelayMs.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoMatchmakingStopPolicy=" + Sanitize(LeagueAutoMatchmakingStopPolicy),
+                "LeagueAutoMatchmakingStopAfterMs=" + LeagueAutoMatchmakingStopAfterMs.ToString(CultureInfo.InvariantCulture),
+                "LeagueRuntimeCompanionX=" + LeagueRuntimeCompanionX.ToString(CultureInfo.InvariantCulture),
+                "LeagueRuntimeCompanionY=" + LeagueRuntimeCompanionY.ToString(CultureInfo.InvariantCulture),
+                "LeagueRuntimeCompanionPinned=" + LeagueRuntimeCompanionPinned,
+                "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed
             };
         }
 
@@ -154,6 +172,48 @@ namespace FACM.Services
                 try { Directory.Delete(root, true); }
                 catch { }
             }
+        }
+
+        internal static void ValidateRuntimeCompanionPreferencesForSmokeTest()
+        {
+            var settings = ParseLines(new[]
+            {
+                "LeagueRuntimeCompanionX=-1250",
+                "LeagueRuntimeCompanionY=240",
+                "LeagueRuntimeCompanionPinned=False",
+                "LeagueRuntimeCompanionCollapsed=True"
+            });
+            if (settings.LeagueRuntimeCompanionX != -1250 || settings.LeagueRuntimeCompanionY != 240 ||
+                settings.LeagueRuntimeCompanionPinned || !settings.LeagueRuntimeCompanionCollapsed)
+                throw new InvalidOperationException("Runtime Companion settings parsing drifted.");
+
+            var lines = settings.BuildLines();
+            if (Array.IndexOf(lines, "LeagueRuntimeCompanionX=-1250") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionY=240") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionPinned=False") < 0 ||
+                Array.IndexOf(lines, "LeagueRuntimeCompanionCollapsed=True") < 0)
+                throw new InvalidOperationException("Runtime Companion settings serialization drifted.");
+        }
+
+        internal static void ValidateMatchmakingStopPreferencesForSmokeTest()
+        {
+            var settings = ParseLines(new[]
+            {
+                "LeagueAutoMatchmakingStopPolicy=FIXED",
+                "LeagueAutoMatchmakingStopAfterMs=42000"
+            });
+            if (!string.Equals(settings.LeagueAutoMatchmakingStopPolicy, "fixed", StringComparison.Ordinal) ||
+                settings.LeagueAutoMatchmakingStopAfterMs != 42000)
+                throw new InvalidOperationException("Matchmaking stop settings parsing drifted.");
+
+            var invalid = ParseLines(new[]
+            {
+                "LeagueAutoMatchmakingStopPolicy=unknown",
+                "LeagueAutoMatchmakingStopAfterMs=-5"
+            });
+            if (!string.Equals(invalid.LeagueAutoMatchmakingStopPolicy, "never", StringComparison.Ordinal) ||
+                invalid.LeagueAutoMatchmakingStopAfterMs != 1000)
+                throw new InvalidOperationException("Matchmaking stop settings fail-closed normalization drifted.");
         }
 
         private static void WriteLinesAtomically(string path, IEnumerable<string> lines)
@@ -265,6 +325,15 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueAutoMatchmakingMinPartySize", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingMinPartySize = number;
+            else if (key.Equals("LeagueAutoMatchmakingStartDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStartDelayMs = number;
+            else if (key.Equals("LeagueAutoAcceptDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoAcceptDelayMs = number;
+            else if (key.Equals("LeagueAutoMatchmakingStopPolicy", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoMatchmakingStopPolicy = value;
+            else if (key.Equals("LeagueAutoMatchmakingStopAfterMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStopAfterMs = number;
+            else if (key.Equals("LeagueRuntimeCompanionX", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionX = number;
+            else if (key.Equals("LeagueRuntimeCompanionY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionY = number;
+            else if (key.Equals("LeagueRuntimeCompanionPinned", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionPinned = flag;
+            else if (key.Equals("LeagueRuntimeCompanionCollapsed", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionCollapsed = flag;
         }
 
         private static void Normalize(AppSettings result)
@@ -274,6 +343,18 @@ namespace FACM.Services
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
+            result.LeagueAutoMatchmakingMinPartySize = Math.Max(1, Math.Min(5, result.LeagueAutoMatchmakingMinPartySize));
+            result.LeagueAutoMatchmakingStartDelayMs = Math.Max(0, Math.Min(60000, result.LeagueAutoMatchmakingStartDelayMs));
+            result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));
+            result.LeagueAutoMatchmakingStopPolicy = NormalizeMatchmakingStopPolicy(result.LeagueAutoMatchmakingStopPolicy);
+            result.LeagueAutoMatchmakingStopAfterMs = Math.Max(1000, Math.Min(600000, result.LeagueAutoMatchmakingStopAfterMs));
+        }
+
+        private static string NormalizeMatchmakingStopPolicy(string value)
+        {
+            var normalized = Sanitize(value).Trim().ToLowerInvariant();
+            if (normalized == "fixed" || normalized == "estimated") return normalized;
+            return "never";
         }
 
         private static void MigrateLegacySettings()

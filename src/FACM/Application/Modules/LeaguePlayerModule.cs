@@ -25,6 +25,15 @@ namespace FACM.AppHost.Modules
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
+        internal LeaguePlayerDataService RuntimeCompanionReadService
+        {
+            get
+            {
+                if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
+                return _service;
+            }
+        }
+
         public void Initialize()
         {
             _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets);

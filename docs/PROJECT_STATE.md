@@ -14,7 +14,7 @@
 
 # FACM Project State
 
-更新时间：2026-09-09
+更新时间：2026-09-10
 
 ## 当前产品线
 
@@ -74,7 +74,24 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - `LeagueDodgeProbeService.ValidateForSmokeTest()` 已接入 `--league-dashboard-test`，公共发布仍要求 Windows Build 与 UI Text Contract 通过。
 - 3.5.38 定位为公开实机取证版本；正常用户可通过在线更新共同积累真实 Tencent dodge evidence。最终“己方玩家秒退 / 对方玩家秒退”用户提示仍需等公开数据证明某个正向映射稳定后再产品化。
 
-历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259；3.5.28 真机 UI 收尾 #261–#262；3.5.38 秒退阵营只读公开测试 #282。
+## Runtime Companion modernization（PR #283，未合并/未发布）
+
+- 唯一任务分支：`feat/runtime-companion-20260910`；唯一任务 PR：#283，保持 draft，正式版仍是 3.5.38。
+- 旧 660px 横向 ChampSelect assistant 的正常创建入口已切换为约 388px 逻辑宽度的纵向 Runtime Companion；旧实现暂时保留为未使用兼容代码，待真实 Tencent 客户端验收后再决定是否删除。
+- `LeagueHubModule` 继续持有 Champion Select episode/popup 生命周期；Runtime Companion 不新增 Gameflow owner、第二 League session 或 page-local LCU write stack。
+- `LeagueRuntimeCompanionController` 将现有 Bench、Build Advisor、Mayhem 数据投影为 snapshot，并用 generation/cancellation 阻止换英雄后的旧异步结果覆盖新上下文。
+- Build Advisor 从同一份已获取的 OP.GG payload 中为符文、召唤师技能、出门装、鞋子、核心装和技能顺序保留最多 3 套源顺序方案；第 1 套仍是既有默认，额外方案仅用于“更多”展开，不增加网络请求。英雄头部同时投影 mode/position/patch 与源数据真实存在的 Tier、排名、胜率、登场率、禁用率；缺失统计保持未知，不伪造为 `0%`。
+- Rune / Summoner Spell 就地 Apply 复用 `LeagueBuildApplyService`，继续执行用户确认、phase/champion/queue 重验与 settled postcondition。Core 的“导入装备”复用 `LeagueItemSetService`：准备阶段只读，确认后再次验证选人上下文，只维护 FACM 自有推荐装备文件，并验证最终 JSON；其他没有安全 owner 的类别继续只读。
+- ARAM 基础平衡复用现有 `OpggAramBaseBalanceService` 的 bounded/10 分钟完整结果缓存，并由 `RiotGameDataService.EnrichAsync` 作为 automatic-guide 的唯一调用 owner 与视觉元数据并行获取；已移除 `MayhemAutomaticGuideService` 中的重复预调用，避免失败态触发第二次外部请求。Runtime Companion 已新增独立“大乱斗基础平衡”行：有真实 `BaseBalanceSummary` 才显示，`syncing`/`unavailable` 保持警告语义，缺失时直接省略。
+- Bench 快速换英雄继续走 `LeagueBenchQuickPickService`。`benchEnabled` 既不作为 Mayhem 证明，也不再作为 ARAM/Mayhem 攻略加载的前置条件：Bench availability 只控制快速换英雄条；只要 ChampSelect session、英雄与模式有效，攻略仍按模式加载。`LeagueQueueModePolicy` 将普通 ARAM（450/ARAM）与 Mayhem（2400、CN/WeGame 3270、KIWI/ARAM_MAYHEM）分开：普通 ARAM 只读取版本绑定的基础平衡补充，Mayhem 才启动完整攻略/强化链；未知模式 fail closed。普通空状态不生成装饰性 N/A 卡片。
+- Guide snapshot 被撤回、模式切换或版本绑定刷新失败时，Runtime Companion 会清除上一份 ARAM/Mayhem 专属展示；只有被 guide fallback 实际占用的推荐行会被回收，不会误删 Build Advisor 已接管的普通推荐行。
+- Runtime Companion 的位置、置顶、收起状态通过共享 `AppSettings` 与现有 last-known-good recovery 持久化；不创建 Form 私有配置文件，也不重新加载第二份 settings。
+- `app.manifest` 已有 PerMonitorV2。Companion 的恢复/默认定位延迟到 `Shown` 后按物理 DPI 尺寸处理，允许左侧屏幕负坐标，并在显示器拓扑变化时 clamp 到当前 working area。
+- deterministic smoke 覆盖紧凑宽度/高度、100%/125%/150%/200% DPI 高度与默认锚点策略、负坐标多屏 clamp、settings round-trip/LKG recovery、snapshot clone、最多 3 套方案投影、缺失胜率不伪造、rune/spell scoped apply、item-set owner 边界，以及 ARAM balance 有值显示/无值省略。Team Builder fallback 若只返回 Bench roster 而缺少 queue/mode，会保留 generic ChampSelect 已读到的 queue/mode，避免国服 Mayhem 模式路由退化为 unknown。
+- ARAM 可视化补丁之前的完整实现 head `df835a040f90caa242d1069bc9d4afbd3d680ff4` 已通过 UI Text Contract #831、Mayhem Source Probe #491 与 Windows Build #1723（含 lightweight FACM.exe verification 和 optional PetHost self-test）。当前收口 head 必须重新通过同样 Gate；旧成功记录不能替代最新代码验证。
+- 剩余外部 Gate 是真实 Tencent 客户端验收：普通 Ranked 的自动出现/不抢焦点/英雄切换；Rune/召唤师技能 Apply；装备导入；ARAM/Mayhem 基础平衡/强化/Bench；关闭仅 dismiss 当前 episode；拖动/置顶/收起跨 episode 恢复，以及有条件时的多屏/125%/150%/200% DPI。未通过这些实机 Gate 前不 merge、不 bump version、不改在线 manifest、不生产发布。
+
+历史主线：P1 合并 #241；4.x working-tree cleanup #242；3.5.21 更新一致性 #243；UI Round 1 #244；UI Round 2 #245；3.5.23 顶部布局修复 #246；3.5.24 Toggle 重绘 #247；3.5.25 一体化无边框外壳 #248；3.5.26 UI Reskin Pass 1 #249；Agent knowledge consistency #250；3.5.27 UI 收口 #251–#259；3.5.28 真机 UI 收尾 #261–#262；3.5.38 秒退阵营只读公开测试 #282。PR #283 当前仅为 Runtime Companion review task，尚未进入正式历史主线。
 
 ## 当前产品体验方向
 
@@ -93,6 +110,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - `ThemeCatalog` 仍保留 Glass/Luxury/Cyber/Soft/Brutalist/Holographic/Minimal/Rgb/Aurora/Synthwave 等历史 palette 兼容项。共享可见产品 surface 只消费 semantic tokens/受控 geometry；3.5.28 已进一步压低共享 border 的高饱和主题泄漏。
 - Dashboard、Player、Live、Recommendation、Presence、Mayhem Lookup 等高频表面已经完成主要视觉收口；较早的 standalone `LeagueBuildAdvisorForm` / `LeagueBuildApplyForm` / `LeagueItemSetForm` 等仍可见 page-local RGB/native styling。后续先确认这些旧入口的真实可达性和用户价值，再决定是否迁移，不以“零 Color.FromArgb”为目标。
 - LOL Hub 的自适应 geometry 已在 #254 引入，Mayhem 嵌入页的剩余宽度/滚动问题已在 #261 收口；后续布局工作只以新的真机 DPI/缩放/窄窗口问题为证据。
+- PR #283 的旧 `LeagueChampSelectAssistantForm` 暂时保留为未使用兼容代码；只有 Runtime Companion 完成真实 Tencent 客户端验收后，才判断是否删除旧类/旧 smoke，不在同一未验收阶段提前清理回退路径。
 
 ## 当前保留组件
 
@@ -115,6 +133,8 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 
 FACM **3.5.38 已正式发布并启用在线更新**。PR #282 已合并；canonical publisher 已完成 Release build/smoke、签名、GitHub Release 发布、公共 FACM.exe 字节与签名者复验，并在复验成功后将 `online/version.json` 设为 `enabled=true`。`force_update=false`，因此这是正常可选更新而不是强制升级。
 
+PR #283 的 Runtime Companion 仍是 **review candidate**：没有修改 `release/3.5-request.json`、`online/version.json`、版本号、tag 或 Release，也没有合并到 main。CI 通过只证明构建/smoke contract，不等于生产发布或腾讯客户端实机验收。
+
 ## 当前维护 Gate
 
 后续修改继续满足：
@@ -135,5 +155,6 @@ FACM **3.5.38 已正式发布并启用在线更新**。PR #282 已合并；canon
 14. 领域专用 UI（例如 MayhemCardRenderer）应优先保留其信息密度与功能语义；共享设计系统主要约束窗口壳、导航、状态和通用控件，不强行抹平领域视觉。
 15. Mayhem Lookup 的 toolbar 必须保持在 client bounds 内，攻略预览应预留纵向滚动条宽度并避免正常窗口产生横向滚动；1120/920/700px 几何由 deterministic smoke 保护。
 16. Champion Select 秒退阵营 probe 必须保持 GET-only、复用唯一 Gameflow owner、普通聊天正文不记录，并对 `StrangerDodged`/缺失身份 fail closed；没有正向阵营证据不得猜测 enemy。
+17. Runtime Companion 必须继续复用 `LeagueHubModule` episode owner、共享 League/Build/Settings owners；位置恢复应在 PerMonitorV2 DPI 生效后 clamp，inline write 必须走现有安全 owner。真实 Tencent 客户端验收前不得把 PR #283 当作已发布行为，也不得删除旧 assistant 回退代码。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。

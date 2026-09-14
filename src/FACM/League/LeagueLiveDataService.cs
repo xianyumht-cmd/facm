@@ -111,6 +111,27 @@ namespace FACM.League
                     var teamBuilderState = ParseBenchState(teamBuilderBytes);
                     if (teamBuilderState != null && teamBuilderState.SessionAvailable)
                     {
+                        // Some Team Builder session shapes expose the bench roster but omit the
+                        // queue/mode fields present on the generic ChampSelect session. Preserve
+                        // that already-read context so Runtime Companion mode routing does not
+                        // silently degrade to an unknown guide kind after the compatibility GET.
+                        if (teamBuilderState.QueueId <= 0 && state != null)
+                            teamBuilderState.QueueId = state.QueueId;
+                        if (string.IsNullOrWhiteSpace(teamBuilderState.GameMode) && state != null)
+                            teamBuilderState.GameMode = state.GameMode;
+                        if (state != null)
+                        {
+                            if (string.IsNullOrWhiteSpace(teamBuilderState.TimerPhase))
+                                teamBuilderState.TimerPhase = state.TimerPhase;
+                            if (teamBuilderState.TimerMillisecondsLeft <= 0)
+                                teamBuilderState.TimerMillisecondsLeft = state.TimerMillisecondsLeft;
+                            if (teamBuilderState.AllyBans.Count == 0)
+                                foreach (var value in state.AllyBans) teamBuilderState.AllyBans.Add(value);
+                            if (teamBuilderState.EnemyBans.Count == 0)
+                                foreach (var value in state.EnemyBans) teamBuilderState.EnemyBans.Add(value);
+                            if (teamBuilderState.Players.Count == 0)
+                                foreach (var value in state.Players) teamBuilderState.Players.Add(value);
+                        }
                         teamBuilderState.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
                         RememberBenchSwapRoute(LeagueBenchSwapRoute.TeamBuilder);
                         return teamBuilderState;
@@ -174,6 +195,7 @@ namespace FACM.League
 
             snapshot.GameId = ReadLong(data, "gameId");
             snapshot.QueueId = ReadInt(data, "queueId");
+            snapshot.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             snapshot.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
 
             var timer = ReadDictionary(data, "timer");
@@ -211,15 +233,32 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
+            state.QueueId = ReadInt(data, "queueId");
+            state.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
             state.SwapRoute = ResolveBenchSwapRoute(data);
             RememberBenchSwapRoute(state.SwapRoute);
             AppendBenchChampionIds(state.ChampionIds, data);
 
-            foreach (var member in EnumerateDictionaries(ReadValue(data, "myTeam")))
+            var timer = ReadDictionary(data, "timer");
+            state.TimerPhase = ReadString(timer, "phase");
+            state.TimerMillisecondsLeft = ReadInt(timer, "adjustedTimeLeftInPhase");
+
+            var bans = ReadDictionary(data, "bans");
+            AppendInts(state.AllyBans, ReadValue(bans, "myTeamBans"));
+            AppendInts(state.EnemyBans, ReadValue(bans, "theirTeamBans"));
+
+            // Reuse the same parser as League Live so the compact quick state can project draft
+            // context without a second ChampSelect GET or a second Gameflow owner.
+            var projected = new LeagueLiveSnapshot { LocalPlayerCellId = state.LocalPlayerCellId };
+            AppendChampSelectTeam(projected, ReadValue(data, "myTeam"), "ally");
+            AppendChampSelectTeam(projected, ReadValue(data, "theirTeam"), "enemy");
+            foreach (var member in projected.Players) state.Players.Add(member);
+
+            foreach (var member in state.Players)
             {
-                if (ReadInt(member, "cellId") != state.LocalPlayerCellId) continue;
-                state.LocalChampionId = ReadInt(member, "championId");
+                if (!member.IsLocalPlayer) continue;
+                state.LocalChampionId = member.ChampionId;
                 break;
             }
             return state;

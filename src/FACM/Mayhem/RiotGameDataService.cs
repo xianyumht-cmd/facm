@@ -96,6 +96,23 @@ namespace FACM.Mayhem
             }
         }
 
+        public static async Task<string> ResolveChampionNameAsync(
+            int championId,
+            ILeagueClientApi leagueClient,
+            CancellationToken token)
+        {
+            if (championId <= 0) return null;
+            try
+            {
+                var detail = await ReadGameDataAsync(
+                    "champions/" + championId + ".json", leagueClient, token).ConfigureAwait(false) as Dictionary<string, object>;
+                var name = ReadString(detail, "name");
+                return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { return null; }
+        }
+
         public static async Task<byte[]> DownloadImageAsync(
             string reference,
             ILeagueClientApi leagueClient,

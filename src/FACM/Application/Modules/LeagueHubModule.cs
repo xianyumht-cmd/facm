@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -11,6 +10,8 @@ namespace FACM.AppHost.Modules
 {
     internal sealed class LeagueHubModule : IFacmModule
     {
+        private const int PresenceHubContentHeight = 760;
+
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
         {
             LeagueDashboardModule.ModuleId,
@@ -92,7 +93,24 @@ namespace FACM.AppHost.Modules
         private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
         private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
         private Form CreateRepair(UiTextCatalog ui) { return Skin(_gameRepair.CreateForm(_efficiency)); }
-        private Form CreatePresence(UiTextCatalog ui) { return Skin(_dashboard.CreatePresenceForm(ui, null)); }
+
+        private Form CreatePresence(UiTextCatalog ui)
+        {
+            var form = Skin(_dashboard.CreatePresenceForm(ui, null));
+            ConfigurePresenceForHub(form);
+            return form;
+        }
+
+        internal static void ConfigurePresenceForHub(Form form)
+        {
+            if (form == null) throw new ArgumentNullException(nameof(form));
+
+            // The presence surface uses a fixed logical 760px layout when opened standalone.
+            // Inside the shorter Hub viewport it must own the scroll range itself because the
+            // Hub docks child forms to Fill. Width stays unconstrained to avoid horizontal scroll.
+            form.AutoScroll = true;
+            form.AutoScrollMinSize = new System.Drawing.Size(0, PresenceHubContentHeight);
+        }
 
         private static Form Skin(Form form)
         {
@@ -163,22 +181,25 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                form = _live.CreateChampSelectAssistantForm();
-                form.TopMost = true;
+                // Reuse the already-initialized Build Advisor / Build Apply / Item Set / Player /
+                // Settings owners. Runtime Companion must not create a second OP.GG transport,
+                // duplicate local-player history owner, parallel LCU write stack or stale settings
+                // copy. Placement is deferred to Shown so per-monitor DPI has the real pixel size.
+                form = _live.CreateChampSelectAssistantForm(
+                    _advisor.RuntimeCompanionReadService,
+                    _advisor.RuntimeCompanionApplyService,
+                    _advisor.RuntimeCompanionItemSetService,
+                    _advisor.RuntimeCompanionSettings,
+                    _player.RuntimeCompanionReadService);
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
-
-                var area = Screen.FromPoint(Cursor.Position).WorkingArea;
-                form.Location = new Point(
-                    Math.Max(area.Left + 12, area.Right - form.Width - 18),
-                    area.Top + 18);
 
                 form.FormClosed += HandleAutomaticLivePopupClosed;
                 _automaticLivePopup = form;
                 _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
-                AppLog.Info("Lightweight ChampSelect assistant opened for episode.");
+                AppLog.Info("Runtime Companion opened for Champion Select episode.");
             }
             catch (Exception exception)
             {
@@ -186,7 +207,7 @@ namespace FACM.AppHost.Modules
                 _automaticLivePopup = null;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = true;
-                AppLog.Info("ChampSelect assistant skipped: " + exception.Message);
+                AppLog.Info("Runtime Companion skipped: " + exception.Message);
             }
         }
 

@@ -40,6 +40,19 @@ namespace FACM.League
         public const string AutoMatchmakingHint = "LeagueEfficiencyAutoMatchmakingHint";
         public const string AutoAccept = "LeagueEfficiencyAutoAccept";
         public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
+        public const string MinPartySize = "LeagueEfficiencyMinPartySize";
+        public const string MinPartySizeHint = "LeagueEfficiencyMinPartySizeHint";
+        public const string MatchmakingDelay = "LeagueEfficiencyMatchmakingDelay";
+        public const string MatchmakingDelayHint = "LeagueEfficiencyMatchmakingDelayHint";
+        public const string AcceptDelay = "LeagueEfficiencyAcceptDelay";
+        public const string AcceptDelayHint = "LeagueEfficiencyAcceptDelayHint";
+        public const string MatchmakingStopPolicy = "LeagueEfficiencyMatchmakingStopPolicy";
+        public const string MatchmakingStopPolicyHint = "LeagueEfficiencyMatchmakingStopPolicyHint";
+        public const string MatchmakingStopNever = "LeagueEfficiencyMatchmakingStopNever";
+        public const string MatchmakingStopFixed = "LeagueEfficiencyMatchmakingStopFixed";
+        public const string MatchmakingStopEstimated = "LeagueEfficiencyMatchmakingStopEstimated";
+        public const string MatchmakingStopAfter = "LeagueEfficiencyMatchmakingStopAfter";
+        public const string MatchmakingStopAfterHint = "LeagueEfficiencyMatchmakingStopAfterHint";
         public const string NextGameSaved = "LeagueEfficiencyNextGameSaved";
     }
 
@@ -81,6 +94,19 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoMatchmakingHint, "你是房主且队伍满足开局条件时自动开始排队；条件不满足就不操作。" },
             { LeagueEfficiencyUiTextKeys.AutoAccept, "自动接受对局" },
             { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "匹配成功后自动接受一次；已经接受或你主动拒绝时不会反复操作。" },
+            { LeagueEfficiencyUiTextKeys.MinPartySize, "自动排队最低人数（人）" },
+            { LeagueEfficiencyUiTextKeys.MinPartySizeHint, "只有当前大厅真人数量达到这个值时才自动开始排队；1-5 人。" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingDelay, "排队前等待（秒）" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingDelayHint, "进入大厅并满足条件后等待一段时间再开始排队；期间离开大厅会立即取消。" },
+            { LeagueEfficiencyUiTextKeys.AcceptDelay, "接受对局延迟（秒）" },
+            { LeagueEfficiencyUiTextKeys.AcceptDelayHint, "ReadyCheck 出现后等待指定时间再接受；离开 ReadyCheck 或关闭自动接受会立即取消。" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopPolicy, "停止匹配策略" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopPolicyHint, "自动匹配开启时，可选择永不停止、到固定时间停止，或超过客户端给出的预计排队时间后停止。只使用当前匹配状态，不新建 Gameflow 监听。" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopNever, "永不" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopFixed, "固定时间" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopEstimated, "超过队列预估时间" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopAfter, "退出匹配时间（秒）" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingStopAfterHint, "仅“固定时间”策略生效；排队达到该时长后停止当前匹配。离开匹配或进入 ReadyCheck 会取消待执行操作。" },
             { LeagueEfficiencyUiTextKeys.NextGameSaved, "下一局设置已保存。" }
         };
 

@@ -53,15 +53,25 @@ namespace FACM.League
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();
+            AllyBans = new List<int>();
+            EnemyBans = new List<int>();
+            Players = new List<LeagueLivePlayerRow>();
             SwapRoute = LeagueBenchSwapRoute.Legacy;
         }
 
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public int QueueId { get; set; }
+        public string GameMode { get; set; }
         public int LocalPlayerCellId { get; set; }
         public int LocalChampionId { get; set; }
+        public string TimerPhase { get; set; }
+        public int TimerMillisecondsLeft { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public List<int> ChampionIds { get; private set; }
+        public List<int> AllyBans { get; private set; }
+        public List<int> EnemyBans { get; private set; }
+        public List<LeagueLivePlayerRow> Players { get; private set; }
     }
 
     internal sealed class LeagueLivePlayerRow
@@ -81,14 +91,49 @@ namespace FACM.League
         public int Spell1Id { get; set; }
         public int Spell2Id { get; set; }
 
+        // Optional presentation-only suffix used by defensively cloned consumers such as the
+        // Runtime Companion. Source LeagueLive rows leave this empty, so account identity semantics
+        // in the shared Live owner do not change.
+        public string PresentationSuffix { get; set; }
+
         public string AccountName
         {
             get
             {
+                string name;
                 if (!string.IsNullOrWhiteSpace(GameName))
-                    return string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
-                return DisplayName;
+                    name = string.IsNullOrWhiteSpace(TagLine) ? GameName : GameName + "#" + TagLine;
+                else
+                    name = DisplayName;
+
+                if (string.IsNullOrWhiteSpace(PresentationSuffix)) return name;
+                if (!string.IsNullOrWhiteSpace(name)) return name + " · " + PresentationSuffix;
+
+                // Do not let presentation-only spell text make a previously hidden/anonymous enemy
+                // row visible by itself. The suffix may stand alone only when the champion is already
+                // revealed by the client (or this is the signed-in local player).
+                return ChampionId > 0 || IsLocalPlayer ? PresentationSuffix : name;
             }
+        }
+    }
+
+    internal static class LeagueQueueModePolicy
+    {
+        internal const int BaseAramQueueId = 450;
+        internal const int GlobalAramMayhemQueueId = 2400;
+        internal const int TencentAramMayhemQueueId = 3270;
+
+        public static bool IsAramMayhem(int queueId, string gameMode)
+        {
+            if (queueId == GlobalAramMayhemQueueId || queueId == TencentAramMayhemQueueId) return true;
+            return string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(gameMode, "ARAM_MAYHEM", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsBaseAram(int queueId, string gameMode)
+        {
+            if (IsAramMayhem(queueId, gameMode)) return false;
+            return queueId == BaseAramQueueId || string.Equals(gameMode, "ARAM", StringComparison.OrdinalIgnoreCase);
         }
     }
 
