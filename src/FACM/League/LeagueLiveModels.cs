@@ -107,7 +107,12 @@ namespace FACM.League
                     name = DisplayName;
 
                 if (string.IsNullOrWhiteSpace(PresentationSuffix)) return name;
-                return string.IsNullOrWhiteSpace(name) ? PresentationSuffix : name + " · " + PresentationSuffix;
+                if (!string.IsNullOrWhiteSpace(name)) return name + " · " + PresentationSuffix;
+
+                // Do not let presentation-only spell text make a previously hidden/anonymous enemy
+                // row visible by itself. The suffix may stand alone only when the champion is already
+                // revealed by the client (or this is the signed-in local player).
+                return ChampionId > 0 || IsLocalPlayer ? PresentationSuffix : name;
             }
         }
     }
