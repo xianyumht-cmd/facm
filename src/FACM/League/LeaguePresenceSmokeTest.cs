@@ -19,6 +19,11 @@ namespace FACM.League
             ValidateStatusMessageApplyUsesOneWrite();
             ValidateStatusMessageClearAndBounds();
             ValidateStatusMessageOverrideIsReportedWithoutRewriteLoop();
+            ValidateRankedPayloadPreservesPresence();
+            ValidateRankedApplyUsesOneWrite();
+            ValidateApexRankedTierOmitsDivision();
+            ValidateInvalidRankedStatusFailsClosed();
+            ValidateRankedOverrideIsReportedWithoutRewriteLoop();
             ValidateDedicatedWriterFence();
         }
 
@@ -122,6 +127,87 @@ namespace FACM.League
                 "FACM must not fight the League client with a chat-signature rewrite loop.");
         }
 
+        private static void ValidateRankedPayloadPreservesPresence()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var payload = service.BuildRankedStatusPayloadForSmokeTest(fake.CurrentBytes, "ranked_flex_sr", "emerald", "iii");
+            var root = new JavaScriptSerializer().DeserializeObject(payload) as Dictionary<string, object>;
+            Require(root != null, "Displayed-rank payload could not be parsed.");
+            Require(ReadString(root, "availability") == "chat", "Displayed-rank write changed availability.");
+            Require(ReadString(root, "statusMessage") == "keep-me", "Displayed-rank write changed chat signature.");
+            Require(ReadString(root, "customRoot") == "preserve", "Displayed-rank write dropped unrelated root metadata.");
+            var lol = ReadDictionary(root, "lol");
+            Require(ReadString(lol, "gameStatus") == "outOfGame", "Displayed-rank write changed gameStatus.");
+            Require(ReadString(lol, "rankedLeagueName") == "Gold", "Displayed-rank write dropped unrelated lol metadata.");
+            Require(ReadString(lol, "rankedLeagueQueue") == "RANKED_FLEX_SR", "Displayed-rank queue was not normalized.");
+            Require(ReadString(lol, "rankedLeagueTier") == "EMERALD", "Displayed-rank tier was not normalized.");
+            Require(ReadString(lol, "rankedLeagueDivision") == "III", "Displayed-rank division was not normalized.");
+        }
+
+        private static void ValidateRankedApplyUsesOneWrite()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var result = service.ApplyRankedStatusAsync("RANKED_SOLO_5x5", "DIAMOND", "I", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(result != null && result.Status == "success", "Displayed rank did not verify successfully.");
+            Require(fake.WriteCount == 1, "A displayed-rank apply must produce exactly one PUT.");
+            Require(result.Observed != null &&
+                    result.Observed.RankedLeagueQueue == "RANKED_SOLO_5x5" &&
+                    result.Observed.RankedLeagueTier == "DIAMOND" &&
+                    result.Observed.RankedLeagueDivision == "I",
+                "Displayed-rank readback was not returned.");
+            Require(result.Observed.Availability == "chat" && result.Observed.StatusMessage == "keep-me",
+                "Displayed-rank update changed unrelated presence fields.");
+        }
+
+        private static void ValidateApexRankedTierOmitsDivision()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var payload = service.BuildRankedStatusPayloadForSmokeTest(fake.CurrentBytes, "RANKED_SOLO_5x5", "CHALLENGER", "IV");
+            var root = new JavaScriptSerializer().DeserializeObject(payload) as Dictionary<string, object>;
+            var lol = ReadDictionary(root, "lol");
+            Require(lol != null, "Apex displayed-rank payload lost lol metadata.");
+            Require(ReadString(lol, "rankedLeagueTier") == "CHALLENGER", "Apex tier was not applied.");
+            Require(!lol.ContainsKey("rankedLeagueDivision"), "Apex tier must omit the stale division field.");
+
+            string queue;
+            string tier;
+            string division;
+            Require(LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                    "RANKED_SOLO_5x5", "MASTER", "not-used", out queue, out tier, out division) && division == string.Empty,
+                "Apex-tier normalization should not require a division.");
+        }
+
+        private static void ValidateInvalidRankedStatusFailsClosed()
+        {
+            var fake = new FakePresenceApi();
+            var service = CreateService(fake);
+            var badTier = service.ApplyRankedStatusAsync("RANKED_SOLO_5x5", "MYTHIC", "I", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(badTier != null && badTier.Status == "invalid", "Unknown displayed-rank tier did not fail closed.");
+            Require(fake.WriteCount == 0, "Invalid displayed-rank input must not write to the client.");
+
+            var badDivision = service.ApplyRankedStatusAsync("RANKED_SOLO_5x5", "GOLD", "V", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(badDivision != null && badDivision.Status == "invalid", "Unknown displayed-rank division did not fail closed.");
+            Require(fake.WriteCount == 0, "Invalid displayed-rank division must not write to the client.");
+        }
+
+        private static void ValidateRankedOverrideIsReportedWithoutRewriteLoop()
+        {
+            var fake = new FakePresenceApi { OverrideOnSecondPostWriteRead = true };
+            var service = CreateService(fake);
+            var result = service.ApplyRankedStatusAsync("RANKED_SOLO_5x5", "EMERALD", "II", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(result != null && result.Status == "overridden",
+                "Client displayed-rank overwrite must be reported honestly.");
+            Require(fake.WriteCount == 1,
+                "FACM must not fight the League client with a displayed-rank rewrite loop.");
+        }
+
         private static void ValidateDedicatedWriterFence()
         {
             Require(LeaguePresenceWriteApiClient.IsAllowedTargetForSmokeTest("PUT", "/lol-chat/v1/me"),
@@ -158,8 +244,10 @@ namespace FACM.League
 
         private sealed class FakePresenceApi : ILeagueClientApi, ILeaguePresenceWriteApi
         {
-            private byte[] _current = Encoding.UTF8.GetBytes(
-                "{\"availability\":\"chat\",\"name\":\"Tester\",\"statusMessage\":\"keep-me\",\"customRoot\":\"preserve\",\"lol\":{\"gameStatus\":\"outOfGame\",\"rankedLeagueName\":\"Gold\"}}");
+            private static readonly byte[] Baseline = Encoding.UTF8.GetBytes(
+                "{\"availability\":\"chat\",\"name\":\"Tester\",\"statusMessage\":\"keep-me\",\"customRoot\":\"preserve\",\"lol\":{\"gameStatus\":\"outOfGame\",\"rankedLeagueName\":\"Gold\",\"rankedLeagueQueue\":\"RANKED_SOLO_5x5\",\"rankedLeagueTier\":\"GOLD\",\"rankedLeagueDivision\":\"II\"}}");
+
+            private byte[] _current = (byte[])Baseline.Clone();
             private bool _written;
             private int _postWriteReads;
 
@@ -176,10 +264,7 @@ namespace FACM.League
                 {
                     _postWriteReads++;
                     if (OverrideOnSecondPostWriteRead && _postWriteReads >= 2)
-                    {
-                        _current = Encoding.UTF8.GetBytes(
-                            "{\"availability\":\"chat\",\"name\":\"Tester\",\"statusMessage\":\"keep-me\",\"customRoot\":\"preserve\",\"lol\":{\"gameStatus\":\"outOfGame\",\"rankedLeagueName\":\"Gold\"}}");
-                    }
+                        _current = (byte[])Baseline.Clone();
                 }
                 return Task.FromResult(_current);
             }
