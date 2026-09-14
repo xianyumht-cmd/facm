@@ -13,6 +13,7 @@ namespace FACM.League
         private readonly LeaguePresenceService _service;
         private readonly LeagueProfileCustomizationService _profileService;
         private readonly LeagueRegaliaCustomizationService _regaliaService;
+        private readonly LeagueChallengePreferencesService _challengePreferencesService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _currentValue;
@@ -26,10 +27,11 @@ namespace FACM.League
         private readonly ComboBox _rankDivision;
         private readonly Button _rankSave;
         private readonly Button _profileButton;
+        private readonly Button _bannerButton;
         private bool _busy;
 
         public LeaguePresenceForm(LeaguePresenceService service, UiTextCatalog ui, ThemeDefinition theme)
-            : this(service, null, null, ui, theme)
+            : this(service, null, null, null, ui, theme)
         {
         }
 
@@ -38,7 +40,7 @@ namespace FACM.League
             LeagueProfileCustomizationService profileService,
             UiTextCatalog ui,
             ThemeDefinition theme)
-            : this(service, profileService, null, ui, theme)
+            : this(service, profileService, null, null, ui, theme)
         {
         }
 
@@ -48,10 +50,22 @@ namespace FACM.League
             LeagueRegaliaCustomizationService regaliaService,
             UiTextCatalog ui,
             ThemeDefinition theme)
+            : this(service, profileService, regaliaService, null, ui, theme)
+        {
+        }
+
+        public LeaguePresenceForm(
+            LeaguePresenceService service,
+            LeagueProfileCustomizationService profileService,
+            LeagueRegaliaCustomizationService regaliaService,
+            LeagueChallengePreferencesService challengePreferencesService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _profileService = profileService;
             _regaliaService = regaliaService;
+            _challengePreferencesService = challengePreferencesService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -62,7 +76,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(430, 735);
+            ClientSize = new Size(430, 760);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -216,10 +230,33 @@ namespace FACM.League
             _profileButton.Enabled = _profileService != null && _regaliaService != null;
             _profileButton.Click += delegate { OpenProfileCustomization(); };
 
+            var bannerCaption = new Label
+            {
+                Text = TP(LeagueProfileCustomizationUiTextKeys.BannerTitle),
+                Location = new Point(24, 575),
+                Size = new Size(100, 22),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
+            };
+            var bannerHint = new Label
+            {
+                Text = TP(LeagueProfileCustomizationUiTextKeys.BannerHint),
+                Location = new Point(126, 570),
+                Size = new Size(194, 42),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                AutoEllipsis = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F)
+            };
+            _bannerButton = CreateFlatButton(TP(LeagueProfileCustomizationUiTextKeys.BannerAction), new Rectangle(330, 570, 76, 32));
+            _bannerButton.Enabled = _challengePreferencesService != null;
+            _bannerButton.Click += async delegate { await ApplyLastSeasonBannerAsync(); };
+
             _statusValue = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Waiting),
-                Location = new Point(24, 584),
+                Location = new Point(24, 625),
                 Size = new Size(382, 24),
                 ForeColor = FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
@@ -229,8 +266,8 @@ namespace FACM.League
             var footer = new Label
             {
                 Text = T(LeaguePresenceUiTextKeys.Footer),
-                Location = new Point(24, 617),
-                Size = new Size(382, 94),
+                Location = new Point(24, 658),
+                Size = new Size(382, 78),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
@@ -254,6 +291,9 @@ namespace FACM.League
             Controls.Add(profileCaption);
             Controls.Add(profileHint);
             Controls.Add(_profileButton);
+            Controls.Add(bannerCaption);
+            Controls.Add(bannerHint);
+            Controls.Add(_bannerButton);
             Controls.Add(_statusValue);
             Controls.Add(footer);
 
@@ -506,6 +546,42 @@ namespace FACM.League
             }
         }
 
+        private async Task ApplyLastSeasonBannerAsync()
+        {
+            if (_busy || _lifetime.IsCancellationRequested || _challengePreferencesService == null) return;
+            SetBusy(true);
+            try
+            {
+                SetStatus(T(LeaguePresenceUiTextKeys.Waiting), FacmDesignSystem.Accent);
+                var result = await _challengePreferencesService.ApplyLastSeasonBannerAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+
+                if (result == null || string.Equals(result.Status, "write-failed", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerWriteFailed), FacmDesignSystem.Error);
+                else if (string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerApplied), FacmDesignSystem.Success);
+                else if (string.Equals(result.Status, "overridden", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerOverridden), FacmDesignSystem.Warning);
+                else if (string.Equals(result.Status, "unverified", StringComparison.OrdinalIgnoreCase))
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerUnverified), FacmDesignSystem.Warning);
+                else
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerUnavailable), FacmDesignSystem.Warning);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League last-season banner apply failed", exception);
+                if (!IsDisposed)
+                    SetStatus(TP(LeagueProfileCustomizationUiTextKeys.BannerWriteFailed), FacmDesignSystem.Error);
+            }
+            finally
+            {
+                if (!IsDisposed) SetBusy(false);
+            }
+        }
+
         private void ApplySnapshot(LeaguePresenceSnapshot snapshot, bool updateSignature, bool updateRank)
         {
             if (snapshot == null || !snapshot.Connected)
@@ -600,6 +676,7 @@ namespace FACM.League
             _rankDivision.Enabled = !busy;
             _rankSave.Enabled = !busy;
             _profileButton.Enabled = !busy && _profileService != null && _regaliaService != null;
+            _bannerButton.Enabled = !busy && _challengePreferencesService != null;
             foreach (var button in _choiceButtons) button.Enabled = !busy;
             UpdateRankDivisionEnabled();
         }
