@@ -109,7 +109,7 @@ Updated: 2026-09-15
 - host smoke now asserts the embedded presence surface keeps vertical AutoScroll enabled, preserves zero forced horizontal extent, and covers the complete 760px logical content height.
 - the consolidated live-acceptance checklist now explicitly requires scrolling to the signature/rank/profile/banner/footer content at the normal Hub size while both side regions remain fixed.
 - functional scroll-fix code + smoke were green at `e2c14c2bf428d3e7da56bfd49f1742f82b7a3789`: UI Text Contract #1042 PASS, Mayhem Source Probe #716 PASS, Windows Build #1934 PASS.
-- final closeout documentation-synchronized head `94b815936cff5d6ee70e81d35ac5afc083da1cfd`: UI Text Contract #1045 PASS, Mayhem Source Probe #719 PASS, Windows Build #1937 PASS.
+- fully synchronized closeout candidate `94b815936cff5d6ee70e81d35ac5afc083da1cfd`: UI Text Contract #1045 PASS, Mayhem Source Probe #719 PASS, Windows Build #1937 PASS.
 
 ## NEXT — remaining lightweight follow-ups
 
@@ -141,7 +141,7 @@ Verified upstream/reference routes so far:
 
 ## CLOSEOUT — awaiting consolidated Tencent-client acceptance
 
-The branch is back in closeout readiness after the embedded Presence scrolling regression was fixed and the exact head passed all automated gates.
+The branch is back in closeout readiness after the embedded Presence scrolling regression was fixed and the validated candidate passed all automated gates.
 
 Do not merge PR #283, bump the production version, modify `online/version.json`, publish a production release, mark the PR ready, or delete the legacy rollback assistant before the remaining real-client acceptance is explicitly completed.
 
