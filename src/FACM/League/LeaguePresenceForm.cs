@@ -14,6 +14,7 @@ namespace FACM.League
         private readonly LeagueProfileCustomizationService _profileService;
         private readonly LeagueRegaliaCustomizationService _regaliaService;
         private readonly LeagueChallengePreferencesService _challengePreferencesService;
+        private readonly LeagueEmoteLoadoutService _emoteLoadoutService;
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _currentValue;
@@ -31,7 +32,7 @@ namespace FACM.League
         private bool _busy;
 
         public LeaguePresenceForm(LeaguePresenceService service, UiTextCatalog ui, ThemeDefinition theme)
-            : this(service, null, null, null, ui, theme)
+            : this(service, null, null, null, null, ui, theme)
         {
         }
 
@@ -40,7 +41,7 @@ namespace FACM.League
             LeagueProfileCustomizationService profileService,
             UiTextCatalog ui,
             ThemeDefinition theme)
-            : this(service, profileService, null, null, ui, theme)
+            : this(service, profileService, null, null, null, ui, theme)
         {
         }
 
@@ -50,7 +51,7 @@ namespace FACM.League
             LeagueRegaliaCustomizationService regaliaService,
             UiTextCatalog ui,
             ThemeDefinition theme)
-            : this(service, profileService, regaliaService, null, ui, theme)
+            : this(service, profileService, regaliaService, null, null, ui, theme)
         {
         }
 
@@ -61,11 +62,24 @@ namespace FACM.League
             LeagueChallengePreferencesService challengePreferencesService,
             UiTextCatalog ui,
             ThemeDefinition theme)
+            : this(service, profileService, regaliaService, challengePreferencesService, null, ui, theme)
+        {
+        }
+
+        public LeaguePresenceForm(
+            LeaguePresenceService service,
+            LeagueProfileCustomizationService profileService,
+            LeagueRegaliaCustomizationService regaliaService,
+            LeagueChallengePreferencesService challengePreferencesService,
+            LeagueEmoteLoadoutService emoteLoadoutService,
+            UiTextCatalog ui,
+            ThemeDefinition theme)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _profileService = profileService;
             _regaliaService = regaliaService;
             _challengePreferencesService = challengePreferencesService;
+            _emoteLoadoutService = emoteLoadoutService;
             _ui = ui ?? UiTextCatalog.Load();
 
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -309,6 +323,7 @@ namespace FACM.League
                 _profileService,
                 _regaliaService,
                 _challengePreferencesService,
+                _emoteLoadoutService,
                 _ui,
                 null))
             {
