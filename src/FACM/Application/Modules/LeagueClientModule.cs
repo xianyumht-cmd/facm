@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -23,6 +23,7 @@ namespace FACM.AppHost.Modules
         private LeagueProfileWriteApiClient _profileWriter;
         private LeagueRegaliaWriteApiClient _regaliaWriter;
         private LeagueChallengePreferencesWriteApiClient _challengePreferencesWriter;
+        private LeagueEmoteLoadoutWriteApiClient _emoteLoadoutWriter;
         private LeagueClientUxRepairWriteApiClient _uxRepairWriter;
 
         public LeagueClientModule() : this(new ResilientLeagueClientSessionDiscovery()) { }
@@ -50,6 +51,7 @@ namespace FACM.AppHost.Modules
             _profileWriter = new LeagueProfileWriteApiClient(_sessions);
             _regaliaWriter = new LeagueRegaliaWriteApiClient(_sessions);
             _challengePreferencesWriter = new LeagueChallengePreferencesWriteApiClient(_sessions);
+            _emoteLoadoutWriter = new LeagueEmoteLoadoutWriteApiClient(_sessions);
             _uxRepairWriter = new LeagueClientUxRepairWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
@@ -128,6 +130,17 @@ namespace FACM.AppHost.Modules
                 : writer.TryUpdatePlayerPreferencesAsync(json, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueEmoteLoadoutWriteApi.TryPatchEmotesAsync(
+            string loadoutId,
+            string json,
+            CancellationToken cancellationToken)
+        {
+            var writer = _emoteLoadoutWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryPatchEmotesAsync(loadoutId, json, cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueClientUxRepairWriteApi.TryRestartUxAsync(CancellationToken cancellationToken)
         {
             var writer = _uxRepairWriter;
@@ -139,6 +152,7 @@ namespace FACM.AppHost.Modules
         public void Dispose()
         {
             var uxRepairWriter = _uxRepairWriter;
+            var emoteLoadoutWriter = _emoteLoadoutWriter;
             var challengePreferencesWriter = _challengePreferencesWriter;
             var regaliaWriter = _regaliaWriter;
             var profileWriter = _profileWriter;
@@ -150,6 +164,7 @@ namespace FACM.AppHost.Modules
             var writer = _writer;
             var api = _api;
             _uxRepairWriter = null;
+            _emoteLoadoutWriter = null;
             _challengePreferencesWriter = null;
             _regaliaWriter = null;
             _profileWriter = null;
@@ -162,6 +177,7 @@ namespace FACM.AppHost.Modules
             _api = null;
             _sessions = null;
             if (uxRepairWriter != null) uxRepairWriter.Dispose();
+            if (emoteLoadoutWriter != null) emoteLoadoutWriter.Dispose();
             if (challengePreferencesWriter != null) challengePreferencesWriter.Dispose();
             if (regaliaWriter != null) regaliaWriter.Dispose();
             if (profileWriter != null) profileWriter.Dispose();
