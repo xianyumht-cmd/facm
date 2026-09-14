@@ -322,24 +322,24 @@ namespace FACM.League
 
         private void PopulateRankOptions()
         {
-            AddOption(_rankQueue, "单双排", "RANKED_SOLO_5x5");
-            AddOption(_rankQueue, "灵活组排", "RANKED_FLEX_SR");
-            AddOption(_rankQueue, "斗魂竞技场", "CHERRY");
-            AddOption(_rankQueue, "云顶之弈", "RANKED_TFT");
-            AddOption(_rankQueue, "云顶极速", "RANKED_TFT_TURBO");
-            AddOption(_rankQueue, "云顶双人", "RANKED_TFT_DOUBLE_UP");
-            AddOption(_rankQueue, "3v3灵活", "RANKED_FLEX_TT");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueSolo), "RANKED_SOLO_5x5");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueFlex), "RANKED_FLEX_SR");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueArena), "CHERRY");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTft), "RANKED_TFT");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTftTurbo), "RANKED_TFT_TURBO");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTftDoubleUp), "RANKED_TFT_DOUBLE_UP");
+            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueFlex3v3), "RANKED_FLEX_TT");
 
-            AddOption(_rankTier, "黑铁", "IRON");
-            AddOption(_rankTier, "青铜", "BRONZE");
-            AddOption(_rankTier, "白银", "SILVER");
-            AddOption(_rankTier, "黄金", "GOLD");
-            AddOption(_rankTier, "铂金", "PLATINUM");
-            AddOption(_rankTier, "翡翠", "EMERALD");
-            AddOption(_rankTier, "钻石", "DIAMOND");
-            AddOption(_rankTier, "大师", "MASTER");
-            AddOption(_rankTier, "宗师", "GRANDMASTER");
-            AddOption(_rankTier, "王者", "CHALLENGER");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierIron), "IRON");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierBronze), "BRONZE");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierSilver), "SILVER");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierGold), "GOLD");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierPlatinum), "PLATINUM");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierEmerald), "EMERALD");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierDiamond), "DIAMOND");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierMaster), "MASTER");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierGrandmaster), "GRANDMASTER");
+            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierChallenger), "CHALLENGER");
 
             AddOption(_rankDivision, "I", "I");
             AddOption(_rankDivision, "II", "II");
