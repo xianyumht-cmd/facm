@@ -32,6 +32,7 @@ namespace FACM.AppHost
                 LeagueClientSmokeTest.Validate();
                 LeaguePresenceSmokeTest.Validate();
                 LeagueProfileCustomizationSmokeTest.Validate();
+                LeagueRegaliaCustomizationSmokeTest.Validate();
                 LeagueEfficiencySmokeTest.Validate();
                 LeagueGameRepairSmokeTest.Validate();
                 LeagueHubNavigation.ValidateForSmokeTest();
