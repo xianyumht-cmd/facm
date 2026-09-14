@@ -451,6 +451,17 @@ namespace FACM.League
             return (value ?? string.Empty).Trim().ToUpperInvariant();
         }
 
+        private static string NormalizeRankedQueue(string value)
+        {
+            var candidate = (value ?? string.Empty).Trim();
+            for (var index = 0; index < AllowedRankedQueues.Length; index++)
+            {
+                if (string.Equals(AllowedRankedQueues[index], candidate, StringComparison.OrdinalIgnoreCase))
+                    return AllowedRankedQueues[index];
+            }
+            return string.Empty;
+        }
+
         private static bool TryNormalizeRankedStatus(
             string queue,
             string tier,
@@ -459,11 +470,11 @@ namespace FACM.League
             out string normalizedTier,
             out string normalizedDivision)
         {
-            normalizedQueue = NormalizeRankedToken(queue);
+            normalizedQueue = NormalizeRankedQueue(queue);
             normalizedTier = NormalizeRankedToken(tier);
             normalizedDivision = NormalizeRankedToken(division);
 
-            if (Array.IndexOf(AllowedRankedQueues, normalizedQueue) < 0 ||
+            if (string.IsNullOrEmpty(normalizedQueue) ||
                 Array.IndexOf(AllowedRankedTiers, normalizedTier) < 0)
                 return false;
 
