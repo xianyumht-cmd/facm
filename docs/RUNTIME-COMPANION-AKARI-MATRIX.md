@@ -42,11 +42,11 @@ Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANI
 
 ## Active screenshot-driven parity work
 
-Challenge-token and emote cleanup are now implemented behind explicit user actions and bounded readback. The current batch audits **lobby/profile inspection utilities** against existing FACM surfaces before adding anything new.
+The lobby/game-view ownership audit is complete. Akari's visible lobby utility is an explicit **queue-lobby creation mutation**, not read-only inspection: it checks party/self eligibility and then POSTs a queue ID to `/lol-lobby/v2/lobby`. That mutation is not being slipped into this read-only audit. Akari's arbitrary-game view is also more than a local LCU row: it selects SGP when available, falls back to LCU `games/{gameId}`, and may load LCU `game-timelines/{gameId}` details. FACM already owns local-player history and uses the game-summary endpoint only for bounded local-row enrichment, so an incomplete LCU-only clone was rejected for this phase.
 
-The ownership rule is stricter than a feature checklist: if Akari displays information that FACM already owns in `LeagueDashboard`, `LeaguePlayer`, `LeagueLive`, Build Advisor or the existing profile window, FACM should reuse/project that owner rather than create another page-local request loop. Read-only inspection belongs outside the transient 320x420 Champion Select surface when it is not Champion Select context. A new writer is out of scope for this inspection batch unless a separately audited explicit mutation is justified.
+The current active audit is **login-time signature/display-rank reapply**. Akari waits for its existing `chat.me` state to exist, waits a 2-second settle period, applies each enabled automation once, resets only after disconnect/chat loss, and lets manual apply cancel the pending automatic operation. FACM should only add parity if the same once-per-session semantics can be attached to an existing shared client/chat lifecycle; it must not approximate chat-ready with a new poller or recurring Gameflow fight-loop.
 
-After inspection utilities, the remaining screenshot-driven item is login-time signature/display-rank reapply, and only if the existing League connection/chat-ready lifecycle can own a bounded one-shot reapply without a second poller or background fight-loop. Exact status and boundaries live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
+Exact implementation status and future-scope decisions live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
 
 ## Deliberately not duplicated into this 320x420 transient surface
 
@@ -58,6 +58,8 @@ These are not accidental omissions. They either already belong to another FACM-o
 | Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history; the companion only projects a bounded local current-champion sample rather than becoming another dashboard. |
 | Full post-game analysis | Keep outside Runtime Companion | Post-game is a different lifecycle and should not extend a Champion Select-only popup owner. |
 | Persistent in-game overlay / timers | Separate future task | Current popup closes when Champion Select ends. Adding an in-game overlay would require a separately justified lifecycle and presentation owner rather than quietly extending this PR. |
+| Queue-ID lobby creation from Akari LobbyTool | Separate explicit mutation task | Akari performs eligibility POSTs then `POST /lol-lobby/v2/lobby`. This needs its own write fence and reconciliation contract rather than being mislabeled as inspection parity. |
+| Arbitrary cross-source game-ID preview | Separate future task | Akari's view can use SGP or LCU and load summary/timeline data. FACM's current local history owner is intentionally narrower; a partial LCU-only clone would regress source behavior and duplicate ownership. |
 | Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed; FACM must not infer or fabricate it. Draft-aware counter ordering only uses enemy champions already revealed by the client and only intersects them with the already-fetched OP.GG counter list. |
 | Akari branding / exact visual clone | Rejected | FACM keeps `FacmDesignSystem` semantics, typography and native WinForms architecture. |
 
