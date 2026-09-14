@@ -1,8 +1,8 @@
 # Runtime Companion Akari parity matrix
 
-This matrix records the intended feature boundary for draft PR #283. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences. The 2026-09-13 local-player context extension was explicitly authorized to continue development without inserting another incremental Tencent-client test gate; production merge/release boundaries are unchanged.
+This matrix records the intended feature boundary for draft PR #283. Akari is used as an interaction-density and workflow reference; FACM keeps its own WinForms/.NET Framework 4.8 architecture, data owners and safety fences. Production merge/release boundaries are unchanged.
 
-Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANION-PROGRESS.md` so a later task can continue from repository state rather than chat history.
+Durable round-by-round execution status is tracked in `docs/RUNTIME-COMPANION-PROGRESS.md`.
 
 ## Implemented in the transient Champion Select Runtime Companion / shared lightweight League workflow
 
@@ -10,12 +10,12 @@ Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANI
 | --- | --- | --- |
 | Narrow side companion | Implemented | 320 logical px width, 420 logical px max height; fixed header/context/Bench and wheel-scroll body; native light scrollbars hidden. |
 | Champion context | Implemented | Champion portrait/name, mode/position/patch and source stats where verified data exists; raw internal `#championId` is not accepted as visible identity. |
-| Local current-champion recent use | Implemented | Reuses the existing `LeaguePlayerDataService` owner for the local account only. A bounded recent sample projects current-champion games, wins/losses and average K/D/A into the scroll body. Unresolved participant rows are excluded from performance statistics, small samples remain explicit, and champion switches cancel/reject stale work. |
-| Grouped rune recommendations | Implemented | OP.GG source schemes remain grouped; primary scheme uses up to six LCU perk icons when `iconPath` exists; Apply stays on `LeagueBuildApplyService`. |
+| Local current-champion recent use | Implemented | Reuses `LeaguePlayerDataService` for the signed-in local account only. A bounded recent sample projects current-champion games, wins/losses and average K/D/A; no ally/enemy history fan-out. |
+| Grouped rune recommendations | Implemented | OP.GG source schemes remain grouped; primary scheme uses cached LCU perk icon metadata when available; Apply stays on `LeagueBuildApplyService`. |
 | Summoner spell recommendations | Implemented | Icon-first LCU assets, source alternatives through progressive disclosure, Apply through the existing guarded owner. |
 | Skill priority | Implemented | Compact source-derived Q/W/E/R tokens and source evidence; no fabricated ability metadata. |
 | Starter items / boots / core build | Implemented | Icon-first LCU assets with readable text/tooltips; core import stays on `LeagueItemSetService`. |
-| Counter matchups | Implemented, draft-aware | Existing OP.GG `counters` payload is projected as up to five champion icons. Revealed enemies may be prioritized; when both local/enemy assigned positions are explicitly exposed, the exact-position revealed counter wins priority. Per-counter source games/wins remain aligned and the focused counter may show its OP.GG sample evidence. No extra OP.GG/LCU request, hidden-intent inference or mutation of the Build Advisor owner's source snapshot is introduced. |
+| Counter matchups | Implemented, draft-aware | Existing OP.GG `counters` payload is projected as up to five source counters. Revealed enemies may be prioritized; when local/enemy assigned positions are explicit and equal, that exact-position revealed source counter wins priority. Label/icon/stat alignment is preserved, and focused evidence now prefixes the verified normalized position token before the existing source win/sample evidence. No matchup score is invented and no extra OP.GG/LCU request is added. |
 | Champion Select countdown | Implemented | Reuses timer data from the same lightweight ChampSelect session read; no second observer/request owner. |
 | Ally draft context | Implemented | Up to five local-team rows; locked champion or local-team pick intent may be shown, with position/player tooltip and ban count. |
 | Enemy draft context | Implemented fail-closed | Only champion/account information actually exposed by the client is rendered; hidden enemy intent/identity is never inferred. |
@@ -28,43 +28,43 @@ Durable round-by-round execution status is also tracked in `docs/RUNTIME-COMPANI
 | Auto matchmaking minimum party | Implemented | Existing matchmaking controller; 1-5 members, no second Gameflow observer. |
 | Matchmaking start delay | Implemented | 0-60 s, phase/settings bounded and cancellable. |
 | ReadyCheck accept delay | Implemented | 0-15 s, phase/settings bounded and cancellable. |
-| Matchmaking stop strategy | Implemented | Shared Gameflow-driven owner exposes `永不 / 固定时间 / 超过队列预估时间`. Fixed stop is bounded to 1-600 s. Estimated mode reads only existing `/lol-matchmaking/v1/search` elapsed/estimate state. Pending stop work is cancelled when phase leaves `Matchmaking`, including `ReadyCheck`; the narrow transport allows DELETE only on the existing matchmaking-search route and post-write success requires search-state reconciliation. |
-| Presence modes | Implemented | Existing narrow `PUT /lol-chat/v1/me` owner supports `在线 / 离开 / 勿扰 / 手机在线 / 隐身 / 显示为游戏中`; writes are read back and FACM does not run a background fight-loop against the client. |
-| Chat signature | Implemented | Reuses the same fenced presence owner. Signature changes are read-modify-write so availability, gameStatus and unrelated fields survive; empty text clears it, first + settled readback detects client overwrite, and the 512-character bound is only a defensive FACM input guard. |
-| Displayed rank metadata | Implemented | Reuses the same fenced presence owner; queue/tier/division values are allowlisted, apex tiers omit division, unrelated Presence fields survive, canonical queue tokens such as `RANKED_SOLO_5x5` are preserved, and first + settled readback detects client overwrite without a rewrite loop. |
-| Profile background | Implemented | Dedicated profile writer is hard-fenced to `POST /lol-summoner/v1/current-summoner/summoner-profile`; local game-data supplies champion/skin candidates only on explicit UI demand, writes occur once, and bounded readback verifies `backgroundSkinId`. |
-| Profile border / prestige crest | Implemented | Dedicated regalia writer is hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`. FACM first reads current regalia, preserves `bannerType`, writes `preferredCrestType=prestige`, preserved `preferredBannerType` and `selectedPrestigeCrest=22`, then uses bounded first + settled readback. Missing evidence fails closed and client overwrite never starts a fight-loop. |
-| Last-season banner preference | Implemented, preservation-safe | Reuses a dedicated challenge-preferences writer hard-fenced to `POST /lol-challenges/v1/update-player-preferences`. FACM reconstructs the current title, challenge-token IDs, crest border and prestige-crest level from the local challenge summary, preserves those fields (and `signedJWTPayload` when exposed), changes only `bannerAccent` to the audited value `2`, then performs bounded first + settled readback. Missing preservation evidence fails closed; success requires the banner **and** preserved fields to match. |
-| Challenge-token cleanup | Implemented, preservation-safe | Reuses the same challenge-preferences owner. FACM requires current title/banner/crest/prestige/token evidence, preserves all unrelated preference fields, writes `challengeIds=[]` once, and reports success only after bounded readback proves the list is empty while title/banner/crest/prestige remain unchanged. Missing banner/preservation evidence fails closed and restored tokens do not trigger a rewrite loop. |
-| Account emote cleanup | Implemented, ownership-safe | Reads `/lol-loadouts/v4/loadouts/scope/account` only on explicit demand, requires exactly one account loadout exposing the complete audited 13-slot emote contract, and PATCHes only `/lol-loadouts/v4/loadouts/{id}` through a dedicated fenced writer. All audited emote slots are set to `itemId=-1`; unrelated loadout slots are omitted. First + settled readback requires the same unique loadout and all audited slots cleared. Ambiguous/incomplete ownership fails closed and client restoration is reported without a rewrite loop. |
+| Matchmaking stop strategy | Implemented | Shared Gameflow owner exposes `永不 / 固定时间 / 超过队列预估时间`; DELETE is narrowly fenced and success requires post-write search-state reconciliation. |
+| Presence modes | Implemented | Existing narrow `PUT /lol-chat/v1/me` owner supports online/away/dnd/mobile/offline-ish/show-in-game; writes are read back with no background fight-loop. |
+| Chat signature | Implemented | Reuses the same fenced Presence owner. Read-modify-write preserves unrelated fields; empty text clears; first + settled readback detects client overwrite. |
+| Displayed rank metadata | Implemented | Reuses the same Presence owner; queue/tier/division are allowlisted, apex tiers omit division, unrelated state survives and mixed-case canonical queue tokens remain intact. |
+| Profile background | Implemented | Dedicated writer hard-fenced to `POST /lol-summoner/v1/current-summoner/summoner-profile`; explicit game-data selection and bounded `backgroundSkinId` readback. |
+| Profile border / prestige crest | Implemented | Dedicated writer hard-fenced to `PUT /lol-regalia/v2/current-summoner/regalia`; current banner type is preserved and requested crest state is read back. |
+| Last-season banner preference | Implemented, preservation-safe | Reuses challenge-preferences writer hard-fenced to `POST /lol-challenges/v1/update-player-preferences`; title/tokens/crest/prestige and exposed JWT state are preserved while only the audited banner accent changes. |
+| Challenge-token cleanup | Implemented, preservation-safe | Reuses the same challenge-preferences owner, preserves unrelated preference state and reports success only after bounded readback proves the token list is empty. |
+| Account emote cleanup | Implemented, ownership-safe | Reads account-scope loadouts only on explicit demand, requires exactly one complete audited 13-slot emote owner, PATCHes only the validated loadout ID and verifies all audited slots cleared without touching unrelated slots. |
 | Pin / collapse / drag persistence | Implemented | Shared `AppSettings` + existing LKG recovery, not a private companion settings file. |
 | DPI / multi-monitor placement | Implemented | PerMonitorV2-aware placement and working-area clamping, including negative monitor coordinates. |
 
-## Active screenshot-driven parity work
-
-The lobby/game-view ownership audit is complete. Akari's visible lobby utility is an explicit **queue-lobby creation mutation**, not read-only inspection: it checks party/self eligibility and then POSTs a queue ID to `/lol-lobby/v2/lobby`. That mutation is not being slipped into this read-only audit. Akari's arbitrary-game view is also more than a local LCU row: it selects SGP when available, falls back to LCU `games/{gameId}`, and may load LCU `game-timelines/{gameId}` details. FACM already owns local-player history and uses the game-summary endpoint only for bounded local-row enrichment, so an incomplete LCU-only clone was rejected for this phase.
-
-The current active audit is **login-time signature/display-rank reapply**. Akari waits for its existing `chat.me` state to exist, waits a 2-second settle period, applies each enabled automation once, resets only after disconnect/chat loss, and lets manual apply cancel the pending automatic operation. FACM should only add parity if the same once-per-session semantics can be attached to an existing shared client/chat lifecycle; it must not approximate chat-ready with a new poller or recurring Gameflow fight-loop.
-
-Exact implementation status and future-scope decisions live in `docs/RUNTIME-COMPANION-PROGRESS.md`.
-
-## Deliberately not duplicated into this 320x420 transient surface
-
-These are not accidental omissions. They either already belong to another FACM-owned view or would require a materially different runtime/data-ownership design.
+## Audited but deliberately deferred
 
 | Capability | Decision | Reason |
 | --- | --- | --- |
-| Automatic match-history scan for every ally/enemy | Not in this task | The new recent-use module is **local player only**. Per-player fan-out during Champion Select would conflict with the lightweight/no-extra-scouting contract; draft context continues to use only the already-read session payload. |
-| Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history; the companion only projects a bounded local current-champion sample rather than becoming another dashboard. |
-| Full post-game analysis | Keep outside Runtime Companion | Post-game is a different lifecycle and should not extend a Champion Select-only popup owner. |
-| Persistent in-game overlay / timers | Separate future task | Current popup closes when Champion Select ends. Adding an in-game overlay would require a separately justified lifecycle and presentation owner rather than quietly extending this PR. |
-| Queue-ID lobby creation from Akari LobbyTool | Separate explicit mutation task | Akari performs eligibility POSTs then `POST /lol-lobby/v2/lobby`. This needs its own write fence and reconciliation contract rather than being mislabeled as inspection parity. |
-| Arbitrary cross-source game-ID preview | Separate future task | Akari's view can use SGP or LCU and load summary/timeline data. FACM's current local history owner is intentionally narrower; a partial LCU-only clone would regress source behavior and duplicate ownership. |
-| Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed; FACM must not infer or fabricate it. Draft-aware counter ordering only uses enemy champions already revealed by the client and only intersects them with the already-fetched OP.GG counter list. |
-| Akari branding / exact visual clone | Rejected | FACM keeps `FacmDesignSystem` semantics, typography and native WinForms architecture. |
+| Login-time signature/display-rank reapply | Deferred pending shared chat-ready lifecycle | Akari owns this from existing `chat.me`/connection readiness and runs once after a 2-second settle. FACM currently has on-demand LCU session discovery and Gameflow, but no equivalent shared chat-ready event. Adding a new poller or treating recurring Gameflow as chat readiness would violate the lightweight/single-owner boundary. Manual signature/rank controls remain implemented. |
+| Queue-ID lobby creation from Akari LobbyTool | Separate explicit mutation task | Akari performs eligibility POSTs then `POST /lol-lobby/v2/lobby`. This requires its own narrow write fence and reconciliation instead of being mislabeled as inspection parity. |
+| Arbitrary cross-source game-ID preview | Separate future task | Akari's `ConnectedMatchPreviewer` can prefer SGP and fall back to LCU summary/timeline data. FACM's current local-player history owner is intentionally narrower; an LCU-only clone would regress source behavior and duplicate ownership. |
+
+## Active lightweight presentation work
+
+The next presentation target is compact ally/enemy summoner-spell context. `LeagueLivePlayerRow` already carries `Spell1Id` and `Spell2Id`, so no per-player lookup is necessary for IDs. The existing Build Advisor also owns a cached Riot game-data catalog with spell names/icons, but that cache is currently private to `LeagueBuildAdvisorDataService`. FACM must not add a Form-owned summoner-spell catalog request merely for decoration. The next implementation should expose only already-owned/cached presentation metadata or fail closed to a text fallback; it must not force a catalog fetch or add network fan-out.
+
+## Deliberately not duplicated into this 320x420 transient surface
+
+| Capability | Decision | Reason |
+| --- | --- | --- |
+| Automatic match-history scan for every ally/enemy | Not in this task | Recent-use is local player only. Per-player fan-out during Champion Select conflicts with the lightweight contract. |
+| Deep player scouting / long-term trend pages | Keep in existing FACM player views | Existing player/history services already own deeper history. |
+| Full post-game analysis | Keep outside Runtime Companion | Post-game is a different lifecycle. |
+| Persistent in-game overlay / timers | Separate future task | Current popup closes when Champion Select ends; an in-game overlay needs separately justified ownership. |
+| Hidden enemy identity / intent prediction | Rejected | Tencent/LCU hidden information must fail closed. |
+| Akari branding / exact visual clone | Rejected | FACM keeps `FacmDesignSystem`, native WinForms architecture and its own visual language. |
 
 ## Current acceptance rule
 
-Development may continue on explicitly authorized lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated source/build gates should still remain green. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, minimum-party/start-delay/ReadyCheck-delay automation, all three matchmaking-stop strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering, draft rows, Bench, explicit profile-background apply, explicit profile-border/prestige-crest action, explicit last-season-banner apply with title/challenge-token/crest/prestige preservation, explicit challenge-token cleanup with unrelated preference preservation, account emote cleanup with unique-owner/readback behavior, and at least the user's normal desktop DPI.
+Development may continue on lightweight follow-ups without stopping for an incremental real-machine test after every batch. Automated gates remain authoritative for code regressions during development. Before merge/release, one consolidated Tencent-client pass should cover Ranked/Training Champion Select, ordinary ARAM where available, ARAM Mayhem, `退` preserving lobby, matchmaking automation strategies, wheel scrolling, grouped rune/build alternatives, local recent-use context, draft-aware counter ordering/evidence, draft rows, Bench, explicit profile-background apply, profile-border/prestige-crest action, last-season-banner preservation, challenge-token cleanup preservation, account-emote cleanup ownership/readback behavior, and normal desktop DPI.
 
 Production merge/version bump/update-manifest/release still require explicit closeout intent.
