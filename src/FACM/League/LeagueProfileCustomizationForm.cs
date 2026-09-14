@@ -243,7 +243,9 @@ namespace FACM.League
                 if (_skins.Items.Count > 0)
                 {
                     _skins.SelectedIndex = 0;
-                    SetStatus(selected.Name + " · " + _skins.Items.Count + " 个背景候选", FacmDesignSystem.TextMuted);
+                    SetStatus(
+                        string.Format(T(LeagueProfileCustomizationUiTextKeys.CandidateFormat), selected.Name, _skins.Items.Count),
+                        FacmDesignSystem.TextMuted);
                 }
                 else
                 {
