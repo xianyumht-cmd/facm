@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -84,7 +83,7 @@ namespace FACM.League
         private LeagueMatchmakingStopPolicy _policy;
         private int _fixedStopAfterMs;
         private string _phase = string.Empty;
-        private LeagueActivityLevel _activity = LeagueActivityLevel.Unknown;
+        private LeagueActivityLevel _activity = LeagueActivityLevel.None;
         private int _generation;
         private bool _stopConfirmed;
         private bool _disposed;
@@ -131,7 +130,7 @@ namespace FACM.League
             {
                 if (_disposed) return;
                 var nextPhase = state == null ? string.Empty : state.Phase ?? string.Empty;
-                var nextActivity = state == null ? LeagueActivityLevel.Unknown : state.Activity;
+                var nextActivity = state == null ? LeagueActivityLevel.None : state.Activity;
                 var wasQueueing = IsQueueing(_phase, _activity);
                 var isQueueing = IsQueueing(nextPhase, nextActivity);
                 _phase = nextPhase;
