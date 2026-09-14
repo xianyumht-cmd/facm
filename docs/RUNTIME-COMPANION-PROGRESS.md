@@ -101,11 +101,16 @@ Updated: 2026-09-15
 - focused projection smoke covers source-row isolation, compact labels, unknown-ID fallback, missing-slot behavior and hidden-enemy fail-closed behavior.
 - validated functional head `3263fa409987f1489ff1bbb6062a25a223701a4c`: UI Text Contract #1036 PASS, Mayhem Source Probe #710 PASS, Windows Build #1928 PASS.
 
-## NEXT — remaining lightweight follow-ups
+## CLOSEOUT — awaiting consolidated Tencent-client acceptance
 
-1. continue compact player/team readability improvements that use only the existing ChampSelect snapshot;
-2. optional arbitrary cross-source game-ID preview only as a separately scoped future feature;
-3. queue-ID lobby creation only as a separately authorized mutation task with narrow fencing and reconciliation.
+- current fully validated candidate before this documentation checkpoint: `b4ac43f1dd74257b61d6416dee4928f1a5f32e2f`.
+- exact-head CI is green: UI Text Contract #1039 PASS, Mayhem Source Probe #713 PASS, Windows Build #1931 PASS.
+- PR #283 has no submitted reviews, no inline review threads and no conversation comments at this checkpoint; there is no known review blocker to resolve.
+- the changed-file set is confined to `docs/` and `src/FACM/`; it does not include `online/version.json`, a production release manifest or a production rollout file.
+- no additional lightweight Runtime Companion feature is required to satisfy the current scoped implementation. Further compact readability work is optional and should not delay closeout.
+- optional arbitrary cross-source game-ID preview and queue-ID lobby creation remain separately scoped future work, not blockers for this PR.
+- the next executable gate is one consolidated real Tencent-client acceptance pass using `docs/RUNTIME-COMPANION-LIVE-ACCEPTANCE.md`.
+- merge, production version bump, manifest mutation, release and destructive cleanup remain blocked until that live acceptance is completed and the user explicitly authorizes closeout.
 
 Verified upstream/reference routes so far:
 
@@ -127,7 +132,7 @@ Verified upstream/reference routes so far:
 - automatic login-time signature/display-rank reapply until an explicit shared chat-ready lifecycle exists.
 - arbitrary cross-source game preview and queue-ID lobby creation until separately scoped/authorized.
 
-## CLOSEOUT
+## CLOSEOUT boundaries
 
 Do not merge PR #283, bump the production version, modify `online/version.json`, publish a production release, or delete the legacy rollback assistant from an incremental round.
 
