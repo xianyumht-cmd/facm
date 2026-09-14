@@ -117,6 +117,47 @@ namespace FACM.League
         }
     }
 
+    /// <summary>
+    /// Network-free fallback labels for summoner-spell IDs already exposed by ChampSelect.
+    /// This deliberately does not own or fetch Riot game-data. Unknown IDs remain explicit tokens
+    /// instead of being guessed, and richer icon/name projection can reuse a shared catalog later.
+    /// </summary>
+    internal static class LeagueRuntimeCompanionSpellPresentation
+    {
+        public static string Format(int spell1Id, int spell2Id)
+        {
+            var labels = new List<string>(2);
+            Add(labels, spell1Id);
+            Add(labels, spell2Id);
+            return string.Join("/", labels);
+        }
+
+        private static void Add(ICollection<string> labels, int spellId)
+        {
+            if (labels == null || spellId <= 0) return;
+            labels.Add(Resolve(spellId));
+        }
+
+        private static string Resolve(int spellId)
+        {
+            switch (spellId)
+            {
+                case 1: return "Cleanse";
+                case 3: return "Exhaust";
+                case 4: return "Flash";
+                case 6: return "Ghost";
+                case 7: return "Heal";
+                case 11: return "Smite";
+                case 12: return "Teleport";
+                case 13: return "Clarity";
+                case 14: return "Ignite";
+                case 21: return "Barrier";
+                case 32: return "Mark";
+                default: return "S" + spellId.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+    }
+
     internal sealed class LeagueRuntimeCompanionSnapshot
     {
         public bool SessionAvailable { get; set; }
@@ -222,7 +263,8 @@ namespace FACM.League
                     ChampionId = row.ChampionId,
                     ChampionPickIntent = row.ChampionPickIntent,
                     Spell1Id = row.Spell1Id,
-                    Spell2Id = row.Spell2Id
+                    Spell2Id = row.Spell2Id,
+                    PresentationSuffix = LeagueRuntimeCompanionSpellPresentation.Format(row.Spell1Id, row.Spell2Id)
                 });
             }
             return rows.AsReadOnly();
