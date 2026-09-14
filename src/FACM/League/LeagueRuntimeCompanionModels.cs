@@ -290,6 +290,13 @@ namespace FACM.League
             return output.AsReadOnly();
         }
 
+        internal static void PrioritizeRevealedEnemyCountersForSmokeTest(
+            LeagueBuildAdvisorSnapshot build,
+            IReadOnlyList<LeagueLivePlayerRow> players)
+        {
+            PrioritizeRevealedEnemyCounters(build, players);
+        }
+
         private static void PrioritizeRevealedEnemyCounters(
             LeagueBuildAdvisorSnapshot build,
             IReadOnlyList<LeagueLivePlayerRow> players)
@@ -347,6 +354,7 @@ namespace FACM.League
                         CounterStat = stat == null ? null : stat.Clone(),
                         RevealedEnemy = matched,
                         LaneMatched = laneMatched,
+                        MatchPosition = laneMatched ? localPosition : null,
                         SourceIndex = index
                     });
                 }
@@ -375,18 +383,21 @@ namespace FACM.League
                 if (orderedLabels.Count > 0) row.Recommendation = string.Join(" · ", orderedLabels);
                 row.IconReferences = orderedIcons.AsReadOnly();
                 row.CounterStats = orderedStats.AsReadOnly();
-                var focusedEvidence = BuildCounterEvidence(leadingMatch == null ? null : leadingMatch.CounterStat);
+                var focusedEvidence = BuildCounterEvidence(leadingMatch);
                 if (!string.IsNullOrWhiteSpace(focusedEvidence)) row.Evidence = focusedEvidence;
             }
         }
 
-        private static string BuildCounterEvidence(LeagueBuildCounterStat stat)
+        private static string BuildCounterEvidence(CounterEntry entry)
         {
-            if (stat == null) return string.Empty;
+            if (entry == null) return string.Empty;
             var parts = new List<string>();
-            if (stat.WinRate.HasValue)
+            if (entry.LaneMatched && !string.IsNullOrWhiteSpace(entry.MatchPosition))
+                parts.Add(entry.MatchPosition.ToUpperInvariant());
+            var stat = entry.CounterStat;
+            if (stat != null && stat.WinRate.HasValue)
                 parts.Add("win " + (stat.WinRate.Value * 100.0).ToString("0.0", CultureInfo.InvariantCulture) + "%");
-            if (stat.Games > 0)
+            if (stat != null && stat.Games > 0)
                 parts.Add(stat.Games.ToString("N0", CultureInfo.InvariantCulture) + " games");
             return string.Join(" · ", parts);
         }
@@ -415,6 +426,7 @@ namespace FACM.League
             public LeagueBuildCounterStat CounterStat { get; set; }
             public bool RevealedEnemy { get; set; }
             public bool LaneMatched { get; set; }
+            public string MatchPosition { get; set; }
             public int SourceIndex { get; set; }
         }
 
