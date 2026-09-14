@@ -77,6 +77,7 @@ namespace FACM.AppHost.Modules
                 new LeagueProfileCustomizationService(_leagueClient, (ILeagueProfileWriteApi)_leagueClient),
                 new LeagueRegaliaCustomizationService(_leagueClient, (ILeagueRegaliaWriteApi)_leagueClient),
                 new LeagueChallengePreferencesService(_leagueClient, (ILeagueChallengePreferencesWriteApi)_leagueClient),
+                new LeagueEmoteLoadoutService(_leagueClient, (ILeagueEmoteLoadoutWriteApi)_leagueClient),
                 ui,
                 theme);
         }
