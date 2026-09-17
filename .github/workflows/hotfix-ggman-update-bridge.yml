@@ -1,0 +1,83 @@
+name: GGman Update Bridge Hotfix
+
+on:
+  push:
+    branches:
+      - hotfix/ggman-update-bridge-20260917
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/ggman-update-bridge-20260917
+          fetch-depth: 0
+
+      - name: Apply compatibility bridge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Replace-Exact([string]$Path, [string]$Old, [string]$New) {
+            $content = Get-Content -LiteralPath $Path -Raw -Encoding utf8
+            if (-not $content.Contains($Old)) {
+              throw "Expected text not found in $Path`n--- expected ---`n$Old"
+            }
+            $content = $content.Replace($Old, $New)
+            Set-Content -LiteralPath $Path -Value $content -Encoding utf8
+          }
+
+          $online = 'src/FACM/Online/OnlineService.cs'
+          Replace-Exact $online `
+            '!IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe"))' `
+            '!(IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe") ||`r`n                  IsApprovedReleaseUrl(download, parsedVersion, "GGman.exe")))'
+          Replace-Exact $online `
+            'client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM-Windows/3.5");' `
+            'client.DefaultRequestHeaders.UserAgent.ParseAdd("GGman-Windows/3.5");'
+
+          $release = '.github/workflows/publish-3.5-lightweight.yml'
+          Replace-Exact $release `
+            '          Copy-Item $env:OUTPUT_EXE release/GGman.exe -Force' `
+            "          Copy-Item `$env:OUTPUT_EXE release/GGman.exe -Force`r`n          Copy-Item release/GGman.exe release/FACM.exe -Force"
+          Replace-Exact $release `
+            '          "$hash *GGman.exe" | Set-Content release/SHA256.txt -Encoding ascii' `
+            "          @(`"`$hash *GGman.exe`", `"`$hash *FACM.exe`") | Set-Content release/SHA256.txt -Encoding ascii"
+          Replace-Exact $release `
+            '            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/GGman.exe"' `
+            '            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/FACM.exe"'
+          Replace-Exact $release `
+            "            'release/GGman.exe','release/SHA256.txt'," `
+            "            'release/GGman.exe','release/FACM.exe','release/SHA256.txt',"
+          Replace-Exact $release `
+            "          gh release download (`"v`" + `$env:RELEASE_VERSION) --repo `$env:GITHUB_REPOSITORY --pattern 'GGman.exe' --dir `$dir" `
+            "          gh release download (`"v`" + `$env:RELEASE_VERSION) --repo `$env:GITHUB_REPOSITORY --pattern 'GGman.exe' --pattern 'FACM.exe' --dir `$dir"
+          Replace-Exact $release `
+            "          `$size = (Get-Item `$exe).Length`r`n          if (`$hash -ne `$env:FACM_RELEASE_SHA256) { throw `"Published hash mismatch: `$hash`" }" `
+            "          `$size = (Get-Item `$exe).Length`r`n          `$legacyExe = Join-Path `$dir 'FACM.exe'`r`n          `$legacyHash = (Get-FileHash `$legacyExe -Algorithm SHA256).Hash.ToUpperInvariant()`r`n          `$legacySize = (Get-Item `$legacyExe).Length`r`n          if (`$legacyHash -ne `$hash -or `$legacySize -ne `$size) { throw 'Published FACM.exe compatibility alias does not match GGman.exe.' }`r`n          if (`$hash -ne `$env:FACM_RELEASE_SHA256) { throw `"Published hash mismatch: `$hash`" }"
+
+          $onlineText = Get-Content -LiteralPath $online -Raw -Encoding utf8
+          if ($onlineText -notmatch 'IsApprovedReleaseUrl\(download, parsedVersion, "FACM\.exe"\).*IsApprovedReleaseUrl\(download, parsedVersion, "GGman\.exe"\)') {
+            throw 'OnlineService dual-name manifest validation was not applied.'
+          }
+          $releaseText = Get-Content -LiteralPath $release -Raw -Encoding utf8
+          foreach ($required in @('release/FACM.exe','/FACM.exe"','--pattern ''FACM.exe''')) {
+            if (-not $releaseText.Contains($required)) { throw "Release bridge marker missing: $required" }
+          }
+
+      - name: Commit bridge patch
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/FACM/Online/OnlineService.cs .github/workflows/publish-3.5-lightweight.yml
+          if (-not (git status --porcelain)) {
+            Write-Host 'No patch changes to commit.'
+            exit 0
+          }
+          git commit -m "hotfix: bridge FACM clients to GGman updates"
+          git push origin HEAD:hotfix/ggman-update-bridge-20260917
