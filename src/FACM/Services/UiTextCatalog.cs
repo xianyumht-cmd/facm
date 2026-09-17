@@ -16,7 +16,7 @@ namespace FACM.Services
 
         private static readonly KeyValuePair<string, string>[] DefaultText =
         {
-            Pair(UiTextKeys.AppName, "FACM"),
+            Pair(UiTextKeys.AppName, "GGman"),
             Pair(UiTextKeys.ControlCenter, "控制中心"),
             Pair(UiTextKeys.Cleanup, "清理环境"),
             Pair(UiTextKeys.ToolGroup, "快捷工具"),
@@ -79,12 +79,12 @@ namespace FACM.Services
             // legacy global named replacement path below.
             Pair(UiTextKeys.ThemePanelAppearance, "面板外观..."),
             Pair(UiTextKeys.ThemeDesktopMode, "桌面形态"),
-            Pair(UiTextKeys.ThemeFacmShell, "FACM 悬浮入口"),
+            Pair(UiTextKeys.ThemeFacmShell, "GGman 悬浮入口"),
             Pair(UiTextKeys.ThemeSelectDesktopPet, "选择桌面宠物..."),
             Pair(UiTextKeys.ThemeResetDesktopPosition, "复位桌面位置"),
 
             Pair(UiTextKeys.LeagueDashboardMenu, "英雄联盟面板"),
-            Pair(UiTextKeys.LeagueDashboardWindowTitle, "FACM · 英雄联盟面板"),
+            Pair(UiTextKeys.LeagueDashboardWindowTitle, "GGman · 英雄联盟面板"),
             Pair(UiTextKeys.LeagueDashboardTitle, "League Dashboard"),
             Pair(UiTextKeys.LeagueDashboardHint, "读取本机英雄联盟客户端状态与召唤师信息。"),
             Pair(UiTextKeys.LeagueDashboardConnection, "客户端连接"),
@@ -101,7 +101,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueDashboardLastUpdated, "最后更新"),
 
             Pair(UiTextKeys.LeaguePlayerMenu, "玩家主页"),
-            Pair(UiTextKeys.LeaguePlayerWindowTitle, "FACM · 玩家主页"),
+            Pair(UiTextKeys.LeaguePlayerWindowTitle, "GGman · 玩家主页"),
             Pair(UiTextKeys.LeaguePlayerTitle, "Player"),
             Pair(UiTextKeys.LeaguePlayerHint, "当前账号与最近对局；先显示账号，再渐进读取战绩。"),
             Pair(UiTextKeys.LeaguePlayerLoadingProfile, "正在读取当前账号..."),
@@ -124,7 +124,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerUnknown, "--"),
 
             Pair(UiTextKeys.LeagueLiveMenu, "实时对局"),
-            Pair(UiTextKeys.LeagueLiveWindowTitle, "FACM · 实时对局"),
+            Pair(UiTextKeys.LeagueLiveWindowTitle, "GGman · 实时对局"),
             Pair(UiTextKeys.LeagueLiveTitle, "Champ Select / Current Game"),
             Pair(UiTextKeys.LeagueLiveHint, "只读显示选人和当前对局必要信息；不执行自动操作。"),
             Pair(UiTextKeys.LeagueLivePhase, "当前阶段"),
@@ -155,7 +155,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueLiveUnknown, "--"),
 
             Pair(UiTextKeys.LeagueAdvisorMenu, "OP.GG 对局助手"),
-            Pair(UiTextKeys.LeagueAdvisorWindowTitle, "FACM · OP.GG 对局助手"),
+            Pair(UiTextKeys.LeagueAdvisorWindowTitle, "GGman · OP.GG 对局助手"),
             Pair(UiTextKeys.LeagueAdvisorTitle, "OP.GG Build Advisor"),
             Pair(UiTextKeys.LeagueAdvisorHint, "自动识别当前英雄并显示 OP.GG Global 构筑建议；Gate 1 严格只读。"),
             Pair(UiTextKeys.LeagueAdvisorContext, "当前上下文"),
@@ -182,7 +182,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueAdvisorReadOnly, "只读模式 · 不修改符文、技能、装备集或客户端设置"),
 
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.Menu, "OP.GG 一键应用"),
-            Pair(FACM.League.LeagueBuildApplyUiTextKeys.WindowTitle, "FACM · OP.GG 一键应用"),
+            Pair(FACM.League.LeagueBuildApplyUiTextKeys.WindowTitle, "GGman · OP.GG 一键应用"),
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.Title, "OP.GG Loadout Apply"),
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.Hint, "仅在英雄选择阶段，由你确认后写入符文和召唤师技能；不会自动操作。"),
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.Context, "当前上下文"),
@@ -206,7 +206,7 @@ namespace FACM.Services
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.WriteFailed, "写入或读回验证失败"),
             Pair(FACM.League.LeagueBuildApplyUiTextKeys.DetailsFormat, "符文：{0}；召唤师技能：{1}"),
 
-            Pair(UiTextKeys.PetPickerWindowTitle, "FACM · 桌面宠物"),
+            Pair(UiTextKeys.PetPickerWindowTitle, "GGman · 桌面宠物"),
             Pair(UiTextKeys.PetPickerTitle, "选择桌面宠物"),
             Pair(UiTextKeys.PetPickerHint, "六种轻量飞虫会在桌面自主移动；VPet 是动作更丰富、资源占用更高的独立选项。"),
             Pair(UiTextKeys.PetCurrentPrefix, "当前："),
@@ -497,7 +497,7 @@ namespace FACM.Services
         {
             var lines = new List<string>
             {
-                "# FACM 界面文字配置",
+                "# GGman 界面文字配置",
                 "# 修改后保存即可，程序运行时会自动重新读取，不需要重新编译。",
                 "# [Text] 是正式文字契约：Key 保持稳定，只修改等号右侧即可。",
                 "# 新版本会自动补充缺失 Key，不覆盖你已经设置的值。",
@@ -510,7 +510,7 @@ namespace FACM.Services
             lines.Add(string.Empty);
             lines.Add("[Replace]");
             lines.Add("# 兼容示例（去掉前面的 # 即生效）：");
-            lines.Add("# FACM=我的程序");
+            lines.Add("# GGman=我的程序");
             lines.Add("# VPet Core=高精度桌宠");
             lines.Add("# 面向开发者=自定义文字");
             return lines.ToArray();
@@ -554,7 +554,7 @@ namespace FACM.Services
                 lines.Add(string.Empty);
                 lines.Add("[Replace]");
                 lines.Add("# 历史/全局兜底：原文=新文");
-                lines.Add("# FACM=我的程序");
+                lines.Add("# GGman=我的程序");
             }
             File.WriteAllLines(path, lines, new UTF8Encoding(false));
         }

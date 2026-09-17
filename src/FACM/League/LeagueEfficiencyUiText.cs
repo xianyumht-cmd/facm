@@ -61,7 +61,7 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { LeagueEfficiencyUiTextKeys.Menu, "快捷工具" },
-            { LeagueEfficiencyUiTextKeys.WindowTitle, "FACM · 快捷工具" },
+            { LeagueEfficiencyUiTextKeys.WindowTitle, "GGman · 快捷工具" },
             { LeagueEfficiencyUiTextKeys.Title, "快捷工具" },
             { LeagueEfficiencyUiTextKeys.Hint, "常用操作都放这里；把鼠标移到选项上方可查看说明。" },
             { LeagueEfficiencyUiTextKeys.HotkeySection, "快捷操作" },

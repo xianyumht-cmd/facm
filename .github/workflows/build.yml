@@ -1,10 +1,11 @@
-name: FACM Windows Build
+name: GGman Windows Build
 
 on:
   push:
     branches:
       - main
       - 'codex/**'
+      - 'chore/**'
   pull_request:
     branches:
       - main
@@ -14,18 +15,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: facm-windows-build-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ggman-windows-build-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   SOLUTION: FACM.sln
-  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  OUTPUT_EXE: src\FACM\bin\Release\net48\GGman.exe
   PETHOST_PROJECT: src\FACM.PetHost\FACM.PetHost.csproj
-  PACKAGE_NAME: FACM-Windows-x64
+  PACKAGE_NAME: GGman-Windows-x64
 
 jobs:
   build:
-    name: Build FACM 3.5 lightweight + validate PetHost
+    name: Build GGman 3.5 lightweight + validate PetHost
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -83,7 +84,7 @@ jobs:
             throw "CleanupProfile.cs not found at expected path: $profilePath"
           }
           elseif ($profile -match 'REPLACE_[A-Z0-9_]+') {
-            Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. FACM will build, but cleanup stays disabled until the developer fills them in.'
+            Write-Warning 'CleanupProfile.cs still contains REPLACE_ placeholders. GGman will build, but cleanup stays disabled until the developer fills them in.'
           }
           else {
             Write-Host 'CleanupProfile.cs contains no REPLACE_ placeholders.'
@@ -103,7 +104,7 @@ jobs:
             throw 'PetHost build output FACM.PetHost.dll was not found.'
           }
 
-          $selfTestRoot = Join-Path $env:RUNNER_TEMP 'FACM-PetHost-SelfTest'
+          $selfTestRoot = Join-Path $env:RUNNER_TEMP 'GGman-PetHost-SelfTest'
           if (Test-Path $selfTestRoot) {
             Remove-Item $selfTestRoot -Recurse -Force
           }
@@ -118,7 +119,7 @@ jobs:
             throw "PetHost self-test failed with exit code $LASTEXITCODE"
           }
 
-          Write-Host 'Optional PetHost build/self-test passed. It is intentionally not embedded in the FACM 3.5 portable EXE.'
+          Write-Host 'Optional PetHost build/self-test passed. It is intentionally not embedded in the GGman 3.5 portable EXE.'
 
       - name: Restore and build lightweight Release
         shell: pwsh
@@ -135,7 +136,7 @@ jobs:
             throw "Build output not found: $env:OUTPUT_EXE"
           }
 
-      - name: Verify lightweight FACM.exe
+      - name: Verify lightweight GGman.exe
         id: verify
         shell: pwsh
         run: |
@@ -147,9 +148,9 @@ jobs:
 
           $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
           if ([string]::IsNullOrWhiteSpace($version.FileVersion)) {
-            throw 'FACM.exe has no FileVersion.'
+            throw 'GGman.exe has no FileVersion.'
           }
-          if ($version.ProductName -ne 'FACM') {
+          if ($version.ProductName -ne 'GGman') {
             throw "Unexpected product name: $($version.ProductName)"
           }
 
@@ -164,10 +165,10 @@ jobs:
             throw "Source version is outside the supported 3.5.x line: $expectedVersion"
           }
           if ($version.FileVersion -ne $expectedVersion) {
-            throw "Unexpected FACM version: expected $expectedVersion, got $($version.FileVersion)"
+            throw "Unexpected GGman version: expected $expectedVersion, got $($version.FileVersion)"
           }
 
-          $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-facm-resources.ps1'
+          $resourceVerifier = Join-Path $env:RUNNER_TEMP 'verify-ggman-resources.ps1'
           @'
           param([Parameter(Mandatory=$true)][string]$ExePath)
           $ErrorActionPreference = 'Stop'
@@ -189,19 +190,19 @@ jobs:
             throw "Resource verification failed with exit code $LASTEXITCODE"
           }
           if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
-            throw 'FACM.ToolBundle.dll was not embedded into FACM.exe.'
+            throw 'FACM.ToolBundle.dll was not embedded into GGman.exe.'
           }
           if ($resources -contains 'FACM.Resources.PetHost.zip') {
-            throw 'Lightweight FACM 3.5 build unexpectedly embedded the large self-contained PetHost bundle.'
+            throw 'Lightweight GGman 3.5 build unexpectedly embedded the large self-contained PetHost bundle.'
           }
           if ($bytes.Length -gt 10MB) {
-            throw "FACM 3.5 portable EXE size regression: $($bytes.Length) bytes"
+            throw "GGman 3.5 portable EXE size regression: $($bytes.Length) bytes"
           }
 
           "file_version=$($version.FileVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "product_version=$($version.ProductVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "size_bytes=$($bytes.Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Built lightweight FACM.exe version $($version.FileVersion), size $($bytes.Length) bytes"
+          Write-Host "Built lightweight GGman.exe version $($version.FileVersion), size $($bytes.Length) bytes"
           Write-Host 'Verified embedded ToolBundle and confirmed PetHost runtime is not embedded.'
 
       - name: Sign when certificate secrets exist
@@ -232,12 +233,12 @@ jobs:
           }
           New-Item -ItemType Directory -Path $artifactDir | Out-Null
 
-          $output = Join-Path $artifactDir 'FACM.exe'
+          $output = Join-Path $artifactDir 'GGman.exe'
           Copy-Item $env:OUTPUT_EXE $output -Force
 
           $hash = Get-FileHash $output -Algorithm SHA256
           @(
-            "$($hash.Hash) *FACM.exe"
+            "$($hash.Hash) *GGman.exe"
           ) | Set-Content (Join-Path $artifactDir 'SHA256.txt') -Encoding ascii
 
           $signature = Get-AuthenticodeSignature $output
@@ -254,7 +255,7 @@ jobs:
             signature_subject = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { '' }
             signature_thumbprint = if ($signature.SignerCertificate) { $signature.SignerCertificate.Thumbprint } else { '' }
             tool_bundle = 'embedded FACM.ToolBundle.dll'
-            pet_host = 'optional compatibility runtime; validated in CI but not embedded in FACM 3.5 portable EXE'
+            pet_host = 'optional compatibility runtime; validated in CI but not embedded in GGman 3.5 portable EXE'
             startup = 'offline-first; update check begins after shell is visible'
             built_at_utc = [DateTime]::UtcNow.ToString('o')
             commit = '${{ github.sha }}'
@@ -282,13 +283,13 @@ jobs:
           Compress-Archive -Path "$artifactDir\*" -DestinationPath $zip -Force
           Write-Host "Package created: $zip"
 
-      - name: Upload FACM package
+      - name: Upload GGman package
         uses: actions/upload-artifact@v4
         with:
-          name: FACM-Windows-x64-${{ github.run_number }}
+          name: GGman-Windows-x64-${{ github.run_number }}
           path: |
-            FACM-Windows-x64.zip
-            artifacts/FACM.exe
+            GGman-Windows-x64.zip
+            artifacts/GGman.exe
             artifacts/SHA256.txt
             artifacts/SIGNATURE.txt
             artifacts/BUILD-INFO.json

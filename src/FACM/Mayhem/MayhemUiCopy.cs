@@ -90,7 +90,7 @@ namespace FACM.Mayhem
         public const string SourceFreshCache = "本地缓存 · 15 分钟内";
         public const string SourceStaleCache = "离线缓存 · 上次可用数据";
         public const string SourceOpgg = "OP.GG Global · 实时";
-        public const string FooterProduct = "FACM · 海斗攻略";
+        public const string FooterProduct = "GGman · 海斗攻略";
         public const string FooterDisclaimer = "单符统计推导 · 不代表三符组合胜率";
         public const string TenThousand = "万";
 

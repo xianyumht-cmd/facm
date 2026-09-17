@@ -41,7 +41,7 @@ namespace FACM.Online
             Directory.CreateDirectory(directory);
 
             var version = SanitizeFileName(manifest.Version ?? "latest");
-            var destination = Path.Combine(directory, "FACM-" + version + ".exe");
+            var destination = Path.Combine(directory, "GGman-" + version + ".exe");
             var temporary = destination + ".download";
             var candidates = UpdateMirrorRouter.BuildCandidates(manifest.DownloadUrl, manifest.ResolvedSources);
             if (candidates.Length == 0)
@@ -113,7 +113,7 @@ namespace FACM.Online
             using (var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan })
             using (var headerTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM-Windows-Updater/3.5");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("GGman-Windows-Updater/3.5");
                 headerTimeout.CancelAfter(TimeSpan.FromSeconds(10));
 
                 HttpResponseMessage response = null;
@@ -215,7 +215,7 @@ namespace FACM.Online
             if (bytes[0] != (byte)'M' || bytes[1] != (byte)'Z')
                 throw new InvalidDataException("Embedded updater is not a PE executable.");
 
-            var root = Path.Combine(Path.GetTempPath(), "FACM-updater-smoke-" + Guid.NewGuid().ToString("N"));
+            var root = Path.Combine(Path.GetTempPath(), "GGman-updater-smoke-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             try
             {
@@ -289,7 +289,7 @@ namespace FACM.Online
         {
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(UpdaterResourceName))
             {
-                if (stream == null) throw new InvalidDataException("FACM 内置更新器资源缺失。");
+                if (stream == null) throw new InvalidDataException("GGman 内置更新器资源缺失。");
                 using (var memory = new MemoryStream())
                 {
                     stream.CopyTo(memory);

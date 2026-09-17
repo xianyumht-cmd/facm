@@ -6,7 +6,7 @@ internal static class PetHostUiText
 {
     private static readonly Dictionary<string, string> Defaults = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["AppName"] = "FACM",
+        ["AppName"] = "GGman",
         ["ControlCenter"] = "控制中心",
         ["Cleanup"] = "清理环境",
         ["CheckUpdate"] = "检查更新",

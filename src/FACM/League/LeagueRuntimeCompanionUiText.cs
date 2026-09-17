@@ -102,7 +102,7 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.ItemSetBlocked, "选人状态已变化" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetFailed, "装备方案导入失败" },
             { LeagueRuntimeCompanionUiTextKeys.ItemSetConfirmTitle, "导入装备方案" },
-            { LeagueRuntimeCompanionUiTextKeys.ItemSetConfirmFormat, "{0}\n\n将导入 {1} 件推荐装备到英雄联盟推荐装备目录。\n仅写入 FACM 自有方案，是否继续？" },
+            { LeagueRuntimeCompanionUiTextKeys.ItemSetConfirmFormat, "{0}\n\n将导入 {1} 件推荐装备到英雄联盟推荐装备目录。\n仅写入 GGman 自有方案，是否继续？" },
             { LeagueRuntimeCompanionUiTextKeys.AllyTeam, "我方阵容" },
             { LeagueRuntimeCompanionUiTextKeys.EnemyTeam, "对方阵容" },
             { LeagueRuntimeCompanionUiTextKeys.DraftPickedShort, "已选" },

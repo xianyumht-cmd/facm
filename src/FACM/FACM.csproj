@@ -4,7 +4,7 @@
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>FACM</RootNamespace>
-    <AssemblyName>FACM</AssemblyName>
+    <AssemblyName>GGman</AssemblyName>
     <Platforms>AnyCPU</Platforms>
     <Prefer32Bit>false</Prefer32Bit>
     <LangVersion>latest</LangVersion>

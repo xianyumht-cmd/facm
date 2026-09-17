@@ -7,8 +7,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $solution = Join-Path $repoRoot "FACM.sln"
 $artifactDir = Join-Path $repoRoot "artifacts"
-$outputExe = Join-Path $repoRoot "src\FACM\bin\$Configuration\net48\FACM.exe"
-$packagePath = Join-Path $repoRoot "FACM-Windows-x64.zip"
+$outputExe = Join-Path $repoRoot "src\FACM\bin\$Configuration\net48\GGman.exe"
+$packagePath = Join-Path $repoRoot "GGman-Windows-x64.zip"
 $toolManifestPath = Join-Path $repoRoot "tools\EXTRACTED-TOOLS.json"
 $petHostProject = Join-Path $repoRoot "src\FACM.PetHost\FACM.PetHost.csproj"
 $stalePetHostBundle = Join-Path $repoRoot "out\PetHostBundle.zip"
@@ -46,25 +46,25 @@ if (-not $msbuildPath) {
 }
 
 if (-not (Get-Command dotnet.exe -ErrorAction SilentlyContinue)) {
-    throw ".NET SDK was not found. FACM release validation requires .NET 8 for optional PetHost self-test."
+    throw ".NET SDK was not found. GGman release validation requires .NET 8 for optional PetHost self-test."
 }
 
 if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
 New-Item -ItemType Directory -Path $artifactDir | Out-Null
 
 # 3.5.x keeps VPet as an optional compatibility runtime. Validate its source/runtime, but do not
-# publish or embed the large self-contained payload into the portable FACM.exe.
+# publish or embed the large self-contained payload into the portable GGman.exe.
 & dotnet build $petHostProject -c $Configuration
 if ($LASTEXITCODE -ne 0) { throw "PetHost build failed. Exit code: $LASTEXITCODE" }
 $petHostDll = Get-ChildItem -Path (Join-Path $repoRoot "src\FACM.PetHost\bin\$Configuration") -Filter "FACM.PetHost.dll" -Recurse |
     Select-Object -First 1
 if (-not $petHostDll) { throw "PetHost build output FACM.PetHost.dll was not found." }
-$selfTestRoot = Join-Path $env:TEMP "FACM-PetHost-Local-SelfTest"
+$selfTestRoot = Join-Path $env:TEMP "GGman-PetHost-Local-SelfTest"
 if (Test-Path $selfTestRoot) { Remove-Item $selfTestRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $selfTestRoot -Force | Out-Null
 & dotnet $petHostDll.FullName --self-test --data-root $selfTestRoot
 if ($LASTEXITCODE -ne 0) { throw "PetHost self-test failed. Exit code: $LASTEXITCODE" }
-Write-Host "Optional PetHost build/self-test passed; it will not be embedded in FACM 3.5."
+Write-Host "Optional PetHost build/self-test passed; it will not be embedded in GGman 3.5."
 
 # Old embedded-PetHost builds may have left this file behind. Remove it explicitly; FACM.csproj also
 # defaults PetHost embedding off so a stale bundle can no longer silently inflate a normal build.
@@ -76,7 +76,7 @@ if (-not (Test-Path $outputExe -PathType Leaf)) { throw "Build completed but out
 
 $resolvedOutputExe = (Resolve-Path $outputExe).Path
 if ($PSVersionTable.PSVersion.Major -ge 6) {
-    $resourceVerifier = Join-Path $env:TEMP "facm-local-resource-verifier.ps1"
+    $resourceVerifier = Join-Path $env:TEMP "ggman-local-resource-verifier.ps1"
     @'
 param([Parameter(Mandatory=$true)][string]$ExePath)
 $ErrorActionPreference = 'Stop'
@@ -90,7 +90,7 @@ $assembly.GetManifestResourceNames()
             -File $resourceVerifier -ExePath $resolvedOutputExe
     )
     if ($LASTEXITCODE -ne 0) {
-        throw "FACM.exe resource verification failed. Exit code: $LASTEXITCODE"
+        throw "GGman.exe resource verification failed. Exit code: $LASTEXITCODE"
     }
 }
 else {
@@ -98,26 +98,26 @@ else {
     $resources = @($assembly.GetManifestResourceNames())
 }
 
-Write-Host "FACM.exe embedded resources:"
+Write-Host "GGman.exe embedded resources:"
 $resources | Sort-Object | ForEach-Object { Write-Host ("  - " + $_) }
 
 if ($resources -notcontains 'FACM.Resources.FACM.ToolBundle.dll') {
-    throw "FACM.ToolBundle.dll was not embedded in FACM.exe."
+    throw "FACM.ToolBundle.dll was not embedded in GGman.exe."
 }
 if ($resources -contains 'FACM.Resources.PetHost.zip') {
-    throw "Lightweight FACM 3.5 unexpectedly embedded FACM.Resources.PetHost.zip."
+    throw "Lightweight GGman 3.5 unexpectedly embedded FACM.Resources.PetHost.zip."
 }
 $exeLength = (Get-Item $resolvedOutputExe).Length
 if ($exeLength -gt 10MB) {
-    throw "FACM 3.5 portable EXE size regression: $exeLength bytes"
+    throw "GGman 3.5 portable EXE size regression: $exeLength bytes"
 }
-Write-Host "Lightweight FACM.exe verified: $exeLength bytes; PetHost payload absent."
+Write-Host "Lightweight GGman.exe verified: $exeLength bytes; PetHost payload absent."
 
-$artifactExe = Join-Path $artifactDir "FACM.exe"
+$artifactExe = Join-Path $artifactDir "GGman.exe"
 Copy-Item $outputExe $artifactExe -Force
 $hash = Get-FileHash $artifactExe -Algorithm SHA256
 @(
-    "$($hash.Hash) *FACM.exe"
+    "$($hash.Hash) *GGman.exe"
 ) | Set-Content (Join-Path $artifactDir "SHA256.txt") -Encoding ascii
 Get-AuthenticodeSignature $artifactExe |
     Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate |

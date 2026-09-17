@@ -9,7 +9,7 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { LeaguePresenceUiTextKeys.Menu, "在线状态" },
-            { LeaguePresenceUiTextKeys.WindowTitle, "FACM · 在线状态" },
+            { LeaguePresenceUiTextKeys.WindowTitle, "GGman · 在线状态" },
             { LeaguePresenceUiTextKeys.Title, "好友展示状态" },
             { LeaguePresenceUiTextKeys.Hint, "修改好友列表里看到的状态、聊天签名和聊天卡片展示段位；每次操作只写一次，不在后台反复抢写。" },
             { LeaguePresenceUiTextKeys.Current, "当前" },
@@ -25,7 +25,7 @@ namespace FACM.League
             { LeaguePresenceUiTextKeys.SignaturePlaceholder, "输入聊天签名" },
             { LeaguePresenceUiTextKeys.SignatureSave, "保存" },
             { LeaguePresenceUiTextKeys.SignatureSaved, "聊天签名已读回确认" },
-            { LeaguePresenceUiTextKeys.SignatureOverridden, "客户端已恢复其它签名；FACM 没有继续强制覆盖" },
+            { LeaguePresenceUiTextKeys.SignatureOverridden, "客户端已恢复其它签名；GGman 没有继续强制覆盖" },
             { LeaguePresenceUiTextKeys.DisplayedRank, "展示段位" },
             { LeaguePresenceUiTextKeys.DisplayedRankHint, "只修改好友聊天卡片中的展示字段，不改变服务器真实排位、胜点或战绩。保存后会读回确认。" },
             { LeaguePresenceUiTextKeys.RankedQueue, "队列" },
@@ -33,7 +33,7 @@ namespace FACM.League
             { LeaguePresenceUiTextKeys.RankedDivision, "分段" },
             { LeaguePresenceUiTextKeys.RankedSave, "应用" },
             { LeaguePresenceUiTextKeys.RankedSaved, "展示段位已读回确认" },
-            { LeaguePresenceUiTextKeys.RankedOverridden, "客户端已恢复其它展示段位；FACM 没有继续强制覆盖" },
+            { LeaguePresenceUiTextKeys.RankedOverridden, "客户端已恢复其它展示段位；GGman 没有继续强制覆盖" },
             { LeaguePresenceUiTextKeys.RankedInvalid, "展示段位参数无效，未向客户端写入" },
             { LeaguePresenceUiTextKeys.RankedQueueSolo, "单双排" },
             { LeaguePresenceUiTextKeys.RankedQueueFlex, "灵活组排" },
@@ -54,10 +54,10 @@ namespace FACM.League
             { LeaguePresenceUiTextKeys.RankedTierChallenger, "王者" },
             { LeaguePresenceUiTextKeys.Waiting, "正在读取客户端状态..." },
             { LeaguePresenceUiTextKeys.Applied, "状态已读回确认" },
-            { LeaguePresenceUiTextKeys.Overridden, "客户端已恢复实际状态；FACM 没有继续强制覆盖" },
+            { LeaguePresenceUiTextKeys.Overridden, "客户端已恢复实际状态；GGman 没有继续强制覆盖" },
             { LeaguePresenceUiTextKeys.Unavailable, "未读取到英雄联盟客户端在线状态" },
             { LeaguePresenceUiTextKeys.WriteFailed, "客户端拒绝或未完成这次状态修改" },
-            { LeaguePresenceUiTextKeys.Footer, "这些项目仅影响客户端展示。FACM 会读回验证，但不会使用代理、拦截或后台循环去强制伪装；展示段位不会改变真实排位数据。" },
+            { LeaguePresenceUiTextKeys.Footer, "这些项目仅影响客户端展示。GGman 会读回验证，但不会使用代理、拦截或后台循环去强制伪装；展示段位不会改变真实排位数据。" },
             { LeaguePresenceUiTextKeys.CurrentFormat, "{0}" }
         };
 
