@@ -51,7 +51,7 @@ namespace FACM.Services
                     candidateSigner.Thumbprint,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidDataException("更新文件发布签名与当前 FACM 不一致。已停止安装。");
+                    throw new InvalidDataException("更新文件发布签名与当前 GGman 不一致。已停止安装。");
                 }
 
                 var trustStatus = VerifyAuthenticode(path);
@@ -98,7 +98,7 @@ namespace FACM.Services
             }
             catch (Exception exception)
             {
-                throw new InvalidDataException("未找到有效的 FACM 发布签名。", exception);
+                throw new InvalidDataException("未找到有效的 GGman 发布签名。", exception);
             }
         }
 
