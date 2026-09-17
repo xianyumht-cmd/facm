@@ -46,7 +46,7 @@ namespace FACM.League
     {
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { LeagueHubUiTextKeys.WindowTitle, "FACM · LOL 工作台" },
+            { LeagueHubUiTextKeys.WindowTitle, "GGman · LOL 工作台" },
             { LeagueHubUiTextKeys.Title, "LOL 工作台" },
             { LeagueHubUiTextKeys.Hint, "状态、战绩、实时、海斗、推荐和自动化都在这里接着做。" },
             { LeagueHubUiTextKeys.LauncherHint, "一个工作台处理战绩、海斗、推荐和对局工具" },
