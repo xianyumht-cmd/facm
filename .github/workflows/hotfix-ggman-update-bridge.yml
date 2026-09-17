@@ -12,13 +12,15 @@ jobs:
   patch:
     if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: hotfix/ggman-update-bridge-20260917
           fetch-depth: 0
 
-      - name: Apply compatibility bridge
+      - name: Patch client validator and online manifest
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -28,56 +30,66 @@ jobs:
             if (-not $content.Contains($Old)) {
               throw "Expected text not found in $Path`n--- expected ---`n$Old"
             }
-            $content = $content.Replace($Old, $New)
-            Set-Content -LiteralPath $Path -Value $content -Encoding utf8
+            Set-Content -LiteralPath $Path -Value ($content.Replace($Old, $New)) -Encoding utf8
           }
 
           $online = 'src/FACM/Online/OnlineService.cs'
-          Replace-Exact $online `
-            '!IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe"))' `
-            '!(IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe") ||`r`n                  IsApprovedReleaseUrl(download, parsedVersion, "GGman.exe")))'
+          $oldValidator = '!IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe"))'
+          $newValidator = "!(IsApprovedReleaseUrl(download, parsedVersion, `"FACM.exe`") ||`r`n                  IsApprovedReleaseUrl(download, parsedVersion, `"GGman.exe`")))"
+          Replace-Exact $online $oldValidator $newValidator
           Replace-Exact $online `
             'client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM-Windows/3.5");' `
             'client.DefaultRequestHeaders.UserAgent.ParseAdd("GGman-Windows/3.5");'
 
-          $release = '.github/workflows/publish-3.5-lightweight.yml'
-          Replace-Exact $release `
-            '          Copy-Item $env:OUTPUT_EXE release/GGman.exe -Force' `
-            "          Copy-Item `$env:OUTPUT_EXE release/GGman.exe -Force`r`n          Copy-Item release/GGman.exe release/FACM.exe -Force"
-          Replace-Exact $release `
-            '          "$hash *GGman.exe" | Set-Content release/SHA256.txt -Encoding ascii' `
-            "          @(`"`$hash *GGman.exe`", `"`$hash *FACM.exe`") | Set-Content release/SHA256.txt -Encoding ascii"
-          Replace-Exact $release `
-            '            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/GGman.exe"' `
-            '            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/FACM.exe"'
-          Replace-Exact $release `
-            "            'release/GGman.exe','release/SHA256.txt'," `
-            "            'release/GGman.exe','release/FACM.exe','release/SHA256.txt',"
-          Replace-Exact $release `
-            "          gh release download (`"v`" + `$env:RELEASE_VERSION) --repo `$env:GITHUB_REPOSITORY --pattern 'GGman.exe' --dir `$dir" `
-            "          gh release download (`"v`" + `$env:RELEASE_VERSION) --repo `$env:GITHUB_REPOSITORY --pattern 'GGman.exe' --pattern 'FACM.exe' --dir `$dir"
-          Replace-Exact $release `
-            "          `$size = (Get-Item `$exe).Length`r`n          if (`$hash -ne `$env:FACM_RELEASE_SHA256) { throw `"Published hash mismatch: `$hash`" }" `
-            "          `$size = (Get-Item `$exe).Length`r`n          `$legacyExe = Join-Path `$dir 'FACM.exe'`r`n          `$legacyHash = (Get-FileHash `$legacyExe -Algorithm SHA256).Hash.ToUpperInvariant()`r`n          `$legacySize = (Get-Item `$legacyExe).Length`r`n          if (`$legacyHash -ne `$hash -or `$legacySize -ne `$size) { throw 'Published FACM.exe compatibility alias does not match GGman.exe.' }`r`n          if (`$hash -ne `$env:FACM_RELEASE_SHA256) { throw `"Published hash mismatch: `$hash`" }"
-
-          $onlineText = Get-Content -LiteralPath $online -Raw -Encoding utf8
-          if ($onlineText -notmatch 'IsApprovedReleaseUrl\(download, parsedVersion, "FACM\.exe"\).*IsApprovedReleaseUrl\(download, parsedVersion, "GGman\.exe"\)') {
-            throw 'OnlineService dual-name manifest validation was not applied.'
+          $manifestPath = 'online/version.json'
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$manifest.version -ne '3.5.40') {
+            throw "Expected online version 3.5.40, got $($manifest.version)"
           }
-          $releaseText = Get-Content -LiteralPath $release -Raw -Encoding utf8
-          foreach ($required in @('release/FACM.exe','/FACM.exe"','--pattern ''FACM.exe''')) {
-            if (-not $releaseText.Contains($required)) { throw "Release bridge marker missing: $required" }
+          if ([string]$manifest.download_url -notlike '*/v3.5.40/GGman.exe') {
+            throw "Unexpected current download_url: $($manifest.download_url)"
+          }
+          $manifest.download_url = 'https://github.com/xianyumht-cmd/facm/releases/download/v3.5.40/FACM.exe'
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+
+          $patched = Get-Content -LiteralPath $online -Raw -Encoding utf8
+          if ($patched -notmatch 'IsApprovedReleaseUrl\(download, parsedVersion, "FACM\.exe"\)[\s\S]*IsApprovedReleaseUrl\(download, parsedVersion, "GGman\.exe"\)') {
+            throw 'Dual-name manifest validation was not applied.'
           }
 
-      - name: Commit bridge patch
+      - name: Add FACM.exe compatibility alias to v3.5.40
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'ggman-update-bridge'
+          if (Test-Path $root) { Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+
+          gh release download v3.5.40 --repo $env:GITHUB_REPOSITORY --pattern 'GGman.exe' --dir $root
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download GGman.exe from v3.5.40.' }
+          $ggman = Join-Path $root 'GGman.exe'
+          $facm = Join-Path $root 'FACM.exe'
+          Copy-Item $ggman $facm -Force
+          $expectedHash = (Get-FileHash $ggman -Algorithm SHA256).Hash.ToUpperInvariant()
+
+          gh release upload v3.5.40 $facm --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload FACM.exe compatibility alias.' }
+
+          $verify = Join-Path $root 'verify'
+          New-Item -ItemType Directory -Path $verify -Force | Out-Null
+          gh release download v3.5.40 --repo $env:GITHUB_REPOSITORY --pattern 'FACM.exe' --dir $verify
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download published FACM.exe compatibility alias.' }
+          $actualHash = (Get-FileHash (Join-Path $verify 'FACM.exe') -Algorithm SHA256).Hash.ToUpperInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "FACM.exe alias hash mismatch: expected $expectedHash, got $actualHash"
+          }
+          Write-Host "Compatibility alias verified: SHA256=$actualHash"
+
+      - name: Commit source and manifest bridge
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/FACM/Online/OnlineService.cs .github/workflows/publish-3.5-lightweight.yml
-          if (-not (git status --porcelain)) {
-            Write-Host 'No patch changes to commit.'
-            exit 0
-          }
-          git commit -m "hotfix: bridge FACM clients to GGman updates"
+          git add src/FACM/Online/OnlineService.cs online/version.json
+          git commit -m "hotfix: restore legacy FACM update compatibility"
           git push origin HEAD:hotfix/ggman-update-bridge-20260917
