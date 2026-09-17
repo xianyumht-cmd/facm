@@ -182,14 +182,14 @@ namespace FACM
                     AppLog.Info("Desktop pet gameflow hide skipped: " + exception.Message);
                 }
                 HideBuiltInBall();
-                AppLog.Info("FACM desktop entry hidden for in-game Gameflow.");
+                AppLog.Info("GGman desktop entry hidden for in-game Gameflow.");
                 return;
             }
 
             if (action == DesktopEntryGameflowAction.Restore)
             {
                 RestoreDesktopEntryAfterGameflow();
-                AppLog.Info("FACM desktop entry restored after in-game Gameflow.");
+                AppLog.Info("GGman desktop entry restored after in-game Gameflow.");
             }
         }
 
@@ -249,7 +249,7 @@ namespace FACM
                 _settings.Save();
                 _animalPetActive = false;
                 ShowBuiltInBall();
-                MessageBox.Show("桌宠暂时无法启用，已保留默认悬浮入口。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("桌宠暂时无法启用，已保留默认悬浮入口。", _ui.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information); // ui-text-contract: allow
             }
             finally
             {
@@ -320,7 +320,7 @@ namespace FACM
             catch (Exception exception)
             {
                 AppLog.Error("Built-in tool A failed", exception);
-                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, _ui.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error); // ui-text-contract: allow
             }
         }
 
@@ -333,7 +333,7 @@ namespace FACM
             catch (Exception exception)
             {
                 AppLog.Error("Built-in mode failed", exception);
-                MessageBox.Show("启动内置工具失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("启动内置工具失败：" + exception.Message, _ui.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error); // ui-text-contract: allow
             }
         }
 
@@ -354,7 +354,7 @@ namespace FACM
             }
             catch (Exception exception)
             {
-                MessageBox.Show("无法打开日志：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("无法打开日志：" + exception.Message, _ui.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error); // ui-text-contract: allow
             }
         }
 
@@ -386,7 +386,7 @@ namespace FACM
             RestoreBallPosition();
             ShowBuiltInBall();
 
-            // FACM Shell is the first visible product surface. Keep the default path light: optional
+            // GGman Shell is the first visible product surface. Keep the default path light: optional
             // VPet payloads are only warmed when the user has actually enabled a desktop pet.
             BeginBackgroundWarmup();
 
@@ -681,7 +681,7 @@ namespace FACM
             _settings.Save();
             RestoreBallPosition();
             ShowBuiltInBall();
-            AppLog.Info("FACM shell reset to default position: " + Left + "," + Top);
+            AppLog.Info("GGman shell reset to default position: " + Left + "," + Top);
         }
 
         private void SaveBallPosition()
@@ -754,7 +754,7 @@ namespace FACM
 
                 if (snapshot.UpdateAvailable)
                 {
-                    _tray.ShowBalloonTip(6000, "FACM", "检测到可用的新版本，可点击“" + _ui.CheckUpdate + "”处理。", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(6000, _ui.AppName, "检测到可用的新版本，可点击“" + _ui.CheckUpdate + "”处理。", ToolTipIcon.Info); // ui-text-contract: allow
                 }
                 else if (announcement != null && announcement.Enabled &&
                          !string.IsNullOrWhiteSpace(announcement.Id) &&
@@ -764,7 +764,7 @@ namespace FACM
                     _settings.Save();
                     _tray.ShowBalloonTip(
                         6000,
-                        string.IsNullOrWhiteSpace(announcement.Title) ? "FACM 公告" : announcement.Title,
+                        string.IsNullOrWhiteSpace(announcement.Title) ? _ui.AppName + " 公告" : announcement.Title, // ui-text-contract: allow
                         TrimBalloonText(announcement.Body),
                         ToolTipIcon.Info);
                 }
@@ -780,14 +780,14 @@ namespace FACM
             if (_onlineCenterOpen || IsDisposed) return;
             try
             {
-                _tray.ShowBalloonTip(1800, "FACM", "正在读取更新与公告...", ToolTipIcon.Info);
+                _tray.ShowBalloonTip(1800, _ui.AppName, "正在读取更新与公告...", ToolTipIcon.Info); // ui-text-contract: allow
                 var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
                 await ShowOnlineCenterAsync(snapshot, snapshot.ForceUpdateRequired, false);
             }
             catch (Exception exception)
             {
                 AppLog.Error("Open update center failed", exception);
-                MessageBox.Show("检查更新失败：" + exception.Message, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("检查更新失败：" + exception.Message, _ui.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error); // ui-text-contract: allow
             }
         }
 
