@@ -352,7 +352,7 @@ namespace FACM.Online
             {
                 Timeout = timeout
             };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("FACM-Windows/3.5");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("GGman-Windows/3.5");
             client.DefaultRequestHeaders.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
             {
                 NoCache = true,
@@ -411,7 +411,8 @@ namespace FACM.Online
 
             Uri download;
             if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out download) ||
-                !IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe"))
+                !(IsApprovedReleaseUrl(download, parsedVersion, "FACM.exe") ||
+                  IsApprovedReleaseUrl(download, parsedVersion, "GGman.exe")))
                 return false;
 
             if (string.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64) return false;
@@ -527,3 +528,5 @@ namespace FACM.Online
         }
     }
 }
+
+
