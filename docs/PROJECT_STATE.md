@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：FACM 3.5.39
-- GitHub Release：v3.5.39
+- 版本：GGman 3.5.40
+- GitHub Release：v3.5.40
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：f6bc184f5a9782525bb2784343d73b35a705d9ec
-- 发布元数据提交：ea36937a829275674739dd87e462233a5fb54c33
-- Release FACM.exe SHA-256：8D71AE9616449524CECFEA1ED5B24B8F549B85661364B738F0C033FA18A03F6B
-- release_notes：FACM 3.5.39：正式发布 LOL 工作台与 Runtime Companion 现代化更新。新增轻量选人助手，整合英雄/符文/召唤师技能/加点/出装/克制位、敌我阵容、ARAM/海克斯与 Bench 信息，并复用单一 League/LCU ownership，避免额外玩家历史 fan-out 与隐藏信息推断；新增自动荣誉/回大厅、自动排队/接受及延迟/停止策略、全局快捷键；完善在线状态、聊天签名、展示段位、资料背景、边框/巅峰徽章、上赛季旗帜、挑战徽章清理与表情清理；支持 DPI/多显示器与窗口状态持久化。腾讯客户端实机验收同时修复 LOL 工作台“在线状态”和“快捷工具”嵌入页面内容被截断、无法完整滚动的问题。
+- 发布基础 main：9603d0df67dbab41c857f878dbc84040c090ebe2
+- 发布元数据提交：d1292b1b8af33e2e62b7f08f129bad2cfffab776
+- Release GGman.exe SHA-256：37F74573A61871B745E5F842C4376C1F04CE34F452021086B52B4188A67909AC
+- release_notes：GGman 3.5.40：完成 FACM → GGman 正式品牌迁移。主程序、Windows 产品信息、用户可见界面、更新下载文件名、CI 构建产物与正式 GitHub Release 统一为 GGman / GGman.exe；保留 FACM 内部命名空间、嵌入资源逻辑名、仓库路径、解决方案结构、签名密钥名称与兼容协议，避免品牌改名破坏现有更新、ToolBundle、PetHost 与运行时兼容链路。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

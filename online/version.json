@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.40",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.40/GGman.exe",
   "sha256": "37F74573A61871B745E5F842C4376C1F04CE34F452021086B52B4188A67909AC",
   "release_notes": "GGman 3.5.40：完成 FACM → GGman 正式品牌迁移。主程序、Windows 产品信息、用户可见界面、更新下载文件名、CI 构建产物与正式 GitHub Release 统一为 GGman / GGman.exe；保留 FACM 内部命名空间、嵌入资源逻辑名、仓库路径、解决方案结构、签名密钥名称与兼容协议，避免品牌改名破坏现有更新、ToolBundle、PetHost 与运行时兼容链路。",
-  "published_at": "2026-09-17T14:22:43.8349465+00:00"
+  "published_at": "2026-09-17T14:22:52.2759657+00:00"
 }
