@@ -1,12 +1,12 @@
-# FACM Decisions
+# GGman / FACM Decisions
 
 This file records current product decisions. Historical implementation detail belongs in Git history and the 3.5.19 backport audit.
 
 ## D-001 — 3.5.x is the only maintained product line
 
-**Decision:** keep WinForms/.NET Framework 4.8/single-EXE as the canonical FACM product.
+**Decision:** keep WinForms/.NET Framework 4.8/single-EXE as the canonical product line.
 
-4.x is retired from the default working tree. Do not reintroduce WinUI/Morphing Surface, FACM.App/Core/Infrastructure/Platform.Windows, native bootstrapper, CAB or multi-version runtime unless a future requirement is independently justified.
+The public product name is GGman. Historical/internal FACM identifiers remain where required for compatibility. 4.x is retired from the default working tree. Do not reintroduce WinUI/Morphing Surface, FACM.App/Core/Infrastructure/Platform.Windows, native bootstrapper, CAB or multi-version runtime unless a future requirement is independently justified.
 
 ## D-002 — Backport behavior, not architecture
 
@@ -39,27 +39,48 @@ Entering InGame hides the shell/pet but does not stop the pet runtime. Gameflow 
 
 ## D-007 — Lightweight PetHost contract
 
-`FACM.PetHost` source stays because VPet compatibility is useful, but normal 3.5 publishing builds/self-tests it separately and does not embed the self-contained bundle into FACM.exe.
+`FACM.PetHost` source stays because VPet compatibility is useful, but normal 3.5 publishing builds/self-tests it separately and does not embed the self-contained bundle into `GGman.exe`.
 
 A stale local `out/PetHostBundle.zip` must never change the ordinary build output implicitly.
 
 ## D-008 — One canonical publisher
 
-The only current release workflow is `.github/workflows/publish-3.5-lightweight.yml` (**FACM 3.5 Lightweight Release**). Its file-driven request is `release/3.5-request.json`.
+The only current release workflow is `.github/workflows/publish-3.5-lightweight.yml` (**GGman 3.5 Lightweight Release**). Its file-driven request is `release/3.5-request.json`.
 
 The old heavyweight publisher and `release/request.json` are retired.
 
 ## D-009 — Normal 3.5 updater only
 
-FACM downloads a trusted 3.5 Release EXE, validates it, then uses the embedded small updater for atomic replacement/rollback/restart. 4.x bootstrapper/migration mode is retired.
+GGman downloads a trusted 3.5 Release EXE, validates it, then uses the embedded small updater for atomic replacement/rollback/restart. 4.x bootstrapper/migration mode is retired.
+
+The repository path and internal updater/resource identifiers may still contain `FACM`; that is a compatibility detail, not a public brand contract.
 
 ## D-010 — Git history is not the working tree
 
 Removing 4.x means removing it from the current working tree and current CI/release surface. Do not rewrite Git history. Old releases/tags/remote branches are separate destructive-history cleanup and require a separate explicit decision.
 
-## D-011 — Rebrand later and narrowly
+## D-011 — Public rebrand is GGman; internal FACM compatibility identifiers stay
 
-Future public brand target may be GGman（鸡鸡侠）, but do not globally replace `FACM` identifiers. First inventory update URLs, namespaces, assembly/resource names, mutex/config paths and compatibility contracts. User-facing naming can change before internals.
+**Decision (superseded on 2026-09-17):** the earlier “rebrand later and narrowly” plan is complete as of GGman 3.5.40 / PR #285.
+
+Public identity is now GGman（鸡鸡侠）:
+
+- executable and Release asset: `GGman.exe`;
+- Windows product/title/company fields: GGman;
+- user-visible product text: GGman;
+- local/CI package identity: GGman;
+- updater-visible download filename and User-Agent: GGman.
+
+Do **not** mechanically rename these internal compatibility identifiers without a separate migration design and end-to-end compatibility proof:
+
+- repository `xianyumht-cmd/facm`;
+- `FACM.sln` and `src/FACM/`;
+- `namespace FACM.*`;
+- `FACM.Resources.*` embedded logical resource names;
+- `FACM.ToolBundle`, `FACM.Updater`, `FACM.PetHost` internal component identities;
+- existing signing secret/environment variable names and other persisted protocol identifiers.
+
+A future internal-identifier migration is a separate engineering project, not unfinished branding work.
 
 ## D-012 — 3.5.20 is the first post-cleanup release
 
@@ -72,7 +93,7 @@ Future public brand target may be GGman（鸡鸡侠）, but do not globally repl
 - `ThemeCatalog` remains the palette source.
 - `FacmThemeRuntime` remains the process-wide active-theme owner.
 - `FacmDesignSystem` owns semantic colors, radii and common styling.
-- `FacmWindowChrome` owns ordinary FACM top-level window chrome.
+- `FacmWindowChrome` owns ordinary top-level window chrome.
 - reusable interactive primitives such as action buttons, toggle switches and status badges must preserve native WinForms `Button`/`CheckBox` behavior.
 - visual refactors must not change update protocol, League write semantics, polling ownership, or launcher routing merely to achieve consistency.
 
@@ -116,12 +137,12 @@ A normal user-facing ally/enemy notification is deferred until public field evid
 - `LeagueRuntimeCompanionController` projects Bench, Build Advisor and Mayhem state into presentation snapshots; it does not own Gameflow or a second League session.
 - Bench swaps continue through `LeagueBenchQuickPickService`.
 - Rune and summoner-spell inline actions continue through `LeagueBuildApplyService`, including its confirmation-adjacent preparation, phase/champion/queue revalidation and settled postcondition checks; the Form has no raw LCU write path.
-- recommendation categories without an intentionally wired safe owner remain display-only in the companion even when another FACM page supports a broader workflow.
+- recommendation categories without an intentionally wired safe owner remain display-only in the companion even when another page supports a broader workflow.
 - pin, collapse and dragged position preferences use the process-shared `AppSettings` owner and its last-known-good recovery path; the transient Form must not create a private settings file or load a stale second settings object.
 - initial placement and saved-position clamping happen after the Form reaches `Shown`, when the existing PerMonitorV2 manifest contract has established its physical DPI-scaled geometry. Pre-Show 96-DPI placement math is not authoritative on mixed-DPI desktops.
 - saved coordinates may be negative for monitors left of the primary display; monitor topology changes must clamp the companion back into a current working area.
 
-This keeps the Akari-style narrow interaction model as a UI improvement while preserving FACM's single-session, lightweight WinForms architecture. PR #283 remains a review task until Windows CI and real Tencent-client acceptance are complete; this decision does not authorize merge or release.
+This keeps the Akari-style narrow interaction model as a UI improvement while preserving the product's single-session, lightweight WinForms architecture.
 
 ## D-017 — Runtime Companion alternatives are bounded projections of one source payload
 
@@ -132,7 +153,7 @@ This keeps the Akari-style narrow interaction model as a UI improvement while pr
 - `pick_rate`, sample count and win evidence are projected only when the source actually supplies them. Missing win evidence stays unknown and must never be rendered as `0%` merely because a JSON key is absent.
 - Runtime Companion uses progressive disclosure for rows two and three. Expanding a section performs no network request.
 - champion Tier/rank/win/pick/ban summary is projected from the existing recommendation object, not a new statistics endpoint.
-- equipment import routes through the existing `LeagueItemSetService`; preparation remains read-only, the user confirms explicitly, the owner revalidates phase/champion/queue before writing, only FACM-owned recommendation files are changed, and committed JSON is verified.
+- equipment import routes through the existing `LeagueItemSetService`; preparation remains read-only, the user confirms explicitly, the owner revalidates phase/champion/queue before writing, only product-owned recommendation files are changed, and committed JSON is verified.
 - base ARAM balance enrichment reuses the existing bounded ten-minute cache service. `RiotGameDataService.EnrichAsync` owns the single automatic-guide call and starts it in parallel with visual metadata; `MayhemAutomaticGuideService` must not call the same service first and then enter Riot enrichment. Available/fail-closed balance text is projected into a dedicated companion section without a periodic balance poller.
 
 This is the preferred pattern for future lightweight parity work: first reuse an existing response/cache/owner, then expose more of it. Do not buy UI richness with duplicated background work.
@@ -151,7 +172,7 @@ This prevents a UI similarity feature from changing data truth: normal ARAM must
 
 ## D-019 — Quit Champion Select without closing the lobby
 
-**Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of FACM's process-killing `close-lobby` action.
+**Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of the process-killing `close-lobby` action.
 
 - use only the League Client team-builder quit route `POST /lol-lobby-team-builder/champ-select/v1/session/quit`;
 - never call `DELETE /lol-lobby/v2/lobby` and never kill `LeagueClient`, `LeagueClientUx`, or `LeagueClientUxRender` for this workflow;
@@ -161,4 +182,10 @@ This prevents a UI similarity feature from changing data truth: normal ARAM must
 - keep the action behind a dedicated write interface sharing the existing League session, not the generic build writer;
 - leave League's own dodge/queue penalty semantics untouched and communicate that in the UI tooltip.
 
-This provides the Akari-style convenience the user asked for without weakening FACM's write-target fences or lightweight single-session architecture.
+This provides the Akari-style convenience the user asked for without weakening the product's write-target fences or lightweight single-session architecture.
+
+## D-020 — GGman 3.5.40 is the first production release under the new public brand
+
+**Decision (2026-09-17, PR #285):** `v3.5.40` is the first formal release whose public executable, Windows product identity, release title and online-update asset are GGman / `GGman.exe`.
+
+Production release must continue to use the canonical lightweight publisher, signature verification, public-byte/hash/signer re-verification, disabled-before-publication manifest staging, and post-verification online enablement. The brand change does not weaken any release safety gate.
