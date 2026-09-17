@@ -49,9 +49,9 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { LeagueRecommendationUiTextKeys.Menu, "对局推荐" },
-            { LeagueRecommendationUiTextKeys.WindowTitle, "FACM · 对局推荐" },
+            { LeagueRecommendationUiTextKeys.WindowTitle, "GGman · 对局推荐" },
             { LeagueRecommendationUiTextKeys.Title, "对局推荐" },
-            { LeagueRecommendationUiTextKeys.Hint, "选好英雄后勾选要用的内容：符文会切到 FACM 符文页，召唤师技能保留闪现 D/F 习惯，装备写入游戏商店。" },
+            { LeagueRecommendationUiTextKeys.Hint, "选好英雄后勾选要用的内容：符文会切到 GGman 符文页，召唤师技能保留闪现 D/F 习惯，装备写入游戏商店。" },
             { LeagueRecommendationUiTextKeys.Choose, "要应用的内容" },
             { LeagueRecommendationUiTextKeys.Runes, "符文" },
             { LeagueRecommendationUiTextKeys.RunesHint, HiddenHint },
