@@ -32,7 +32,7 @@ namespace FACM.AppHost.Modules
         private CancellationTokenSource _lifetime;
         private PersonalStatsSnapshot _localSnapshot;
         private CloudPersonalRanking _cloudRanking;
-        private bool _capturedForConnection;
+        private string _lastCapturedAccountHash = string.Empty;
         private DateTime _lastCaptureAttemptUtc = DateTime.MinValue;
         private int _captureInProgress;
 
@@ -80,12 +80,12 @@ namespace FACM.AppHost.Modules
         {
             if (state == null || !state.Connected)
             {
-                _capturedForConnection = false;
+                _lastCapturedAccountHash = string.Empty;
                 return;
             }
 
             var settings = _settingsModule.Settings;
-            if (settings == null || !settings.LeaguePersonalStatsEnabled || _capturedForConnection) return;
+            if (settings == null || !settings.LeaguePersonalStatsEnabled) return;
             if (DateTime.UtcNow - _lastCaptureAttemptUtc < TimeSpan.FromSeconds(5)) return;
             if (Interlocked.CompareExchange(ref _captureInProgress, 1, 0) != 0) return;
 
@@ -109,13 +109,16 @@ namespace FACM.AppHost.Modules
                     if (current == null || string.IsNullOrWhiteSpace(current.Puuid)) return;
 
                     var hash = PersonalStatsStore.CreateAccountKeyHash(_cloud.DeviceId, current.Puuid);
+                    if (string.Equals(hash, _lastCapturedAccountHash, StringComparison.OrdinalIgnoreCase))
+                        return;
+
                     bool isNew;
                     _localSnapshot = _store.RecordAccount(
                         hash,
                         current.Region,
                         DateTimeOffset.Now,
                         out isNew);
-                    _capturedForConnection = true;
+                    _lastCapturedAccountHash = hash;
                     RaiseStatsChanged();
 
                     var settings = _settingsModule.Settings;
@@ -334,6 +337,7 @@ namespace FACM.AppHost.Modules
             _store = null;
             _localSnapshot = null;
             _cloudRanking = null;
+            _lastCapturedAccountHash = string.Empty;
         }
 
         private sealed class CurrentSummonerIdentity
