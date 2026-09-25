@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using FACM.Services;
 
 namespace FACM.Online
 {
@@ -126,7 +127,7 @@ namespace FACM.Online
                 }
                 catch (Exception exception)
                 {
-                    Services.AppLog.Info("CloudBase session refresh skipped: " + exception.GetType().Name);
+                    AppLog.Info("CloudBase session refresh skipped: " + exception.GetType().Name);
                 }
             }
 
