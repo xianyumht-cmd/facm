@@ -43,8 +43,8 @@ namespace FACM.League
             AutoScaleDimensions = new SizeF(96F, 96F);
             Text = _ui.Get(UiTextKeys.LeaguePersonalStatsWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(720, 680);
-            MinimumSize = new Size(650, 640);
+            ClientSize = new Size(720, 560);
+            MinimumSize = new Size(650, 540);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -52,8 +52,8 @@ namespace FACM.League
             var title = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsTitle),
-                Location = new Point(28, 22),
-                Size = new Size(440, 32),
+                Location = new Point(28, 16),
+                Size = new Size(440, 30),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
@@ -61,31 +61,31 @@ namespace FACM.League
             var hint = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsHint),
-                Location = new Point(30, 58),
-                Size = new Size(630, 22),
+                Location = new Point(30, 50),
+                Size = new Size(630, 20),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
             Controls.Add(title);
             Controls.Add(hint);
 
-            var summary = CreatePanel(new Rectangle(28, 94, 664, 112));
+            var summary = CreatePanel(new Rectangle(28, 78, 664, 82));
             _accountsValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsAccounts, 14);
             _daysValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsActiveDays, 230);
             _memberValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsMemberSince, 446);
             Controls.Add(summary);
 
-            var history = CreatePanel(new Rectangle(28, 220, 664, 156));
+            var history = CreatePanel(new Rectangle(28, 170, 664, 128));
             history.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsAccounts),
-                new Point(16, 12),
+                new Point(16, 10),
                 240));
             for (var index = 0; index < _historyRows.Length; index++)
             {
                 var row = new Label
                 {
-                    Location = new Point(16, 38 + index * 28),
-                    Size = new Size(632, 24),
+                    Location = new Point(16, 32 + index * 23),
+                    Size = new Size(632, 21),
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
                     Font = new Font(Font.FontFamily, 8.5F),
@@ -97,32 +97,32 @@ namespace FACM.League
             }
             Controls.Add(history);
 
-            var ranking = CreatePanel(new Rectangle(28, 390, 664, 104));
+            var ranking = CreatePanel(new Rectangle(28, 306, 664, 84));
             ranking.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsRanking),
-                new Point(16, 12),
+                new Point(16, 10),
                 240));
-            _percentileValue = CreateValue(new Point(16, 38), 630, 13F);
+            _percentileValue = CreateValue(new Point(16, 34), 630, 13F);
             ranking.Controls.Add(_percentileValue);
             Controls.Add(ranking);
 
-            var preferences = CreatePanel(new Rectangle(28, 508, 664, 118));
+            var preferences = CreatePanel(new Rectangle(28, 398, 664, 100));
             _localToggle = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsLocalToggle),
-                Location = new Point(16, 10),
-                Size = new Size(632, 32)
+                Location = new Point(16, 7),
+                Size = new Size(632, 30)
             };
             _rankingToggle = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingToggle),
-                Location = new Point(16, 44),
-                Size = new Size(632, 32)
+                Location = new Point(16, 37),
+                Size = new Size(632, 30)
             };
             _refreshButton = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRefresh),
-                Bounds = new Rectangle(548, 82, 100, 28),
+                Bounds = new Rectangle(548, 68, 100, 26),
                 Tone = FacmButtonTone.Secondary,
                 Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
             };
@@ -133,8 +133,8 @@ namespace FACM.League
 
             _statusValue = new Label
             {
-                Location = new Point(30, 636),
-                Size = new Size(660, 22),
+                Location = new Point(30, 508),
+                Size = new Size(660, 20),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 8F)
@@ -165,9 +165,9 @@ namespace FACM.League
         {
             parent.Controls.Add(CreateCaption(
                 _ui.Get(key),
-                new Point(left, 14),
+                new Point(left, 10),
                 190));
-            var value = CreateValue(new Point(left, 43), 190, 18F);
+            var value = CreateValue(new Point(left, 35), 190, 18F);
             parent.Controls.Add(value);
             return value;
         }
