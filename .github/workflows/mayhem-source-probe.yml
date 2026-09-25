@@ -28,7 +28,7 @@ concurrency:
 
 env:
   SOLUTION: FACM.sln
-  OUTPUT_EXE: src\FACM\bin\Release\net48\FACM.exe
+  OUTPUT_EXE: src\FACM\bin\Release\net48\GGman.exe
 
 jobs:
   probe:
