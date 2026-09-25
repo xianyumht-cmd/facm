@@ -37,7 +37,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 
 - 任务分支：`feat/personal-stats-profile-20260926`，基于 main `5ec5b0103937dc3bd8dab8924791efd1151b0700`；任务 PR：#290（draft）。
 - 新增 `data/personal-stats.json` + last-known-good：记录 GGman 首次/最近使用、活跃日期和去重账号哈希，不持久化原始 PUUID、账号名、密码或 LCU 凭据。
-- League 账号识别复用 `LeagueDashboardModule` 的唯一 Gameflow owner；连接 episode 中通过现有状态事件读取一次 `/lol-summoner/v1/current-summoner`，不新增第二 Gameflow 轮询器。
+- League 账号识别复用 `LeagueDashboardModule` 的唯一 Gameflow owner；只在现有 Gameflow 状态变化事件上读取 `/lol-summoner/v1/current-summoner`，用上次捕获的账号 hash 去重，因此同一客户端会话内切换账号也能被识别，同时不新增第二 Gameflow 轮询器。
 - 账号 key 使用 `HMAC-SHA256(device_id, PUUID)`；客户端只在内存短暂接触原始 PUUID，云端/本地历史均只保存派生 hash。
 - LOL 工作台新增“我的 GGman”页：玩过账号数、活跃天数、加入日期、匿名排行，以及“记录本地足迹 / 参与匿名排行”两个开关。Local stats 默认开启；cloud ranking 默认关闭。
 - CloudBase migration：`cloudbase/sql/002_personal_stats.sql`，新增 `ggman_devices.ranking_opt_in`、`ggman_record_account` 和 `ggman_get_personal_stats`；global rank 只返回 caller 的 count/rank/population/percentile，不开放其他用户记录。
