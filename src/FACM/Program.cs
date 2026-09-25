@@ -190,6 +190,7 @@ namespace FACM
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
             host.Register(settings);
+            host.Register(new CloudSyncModule());
             host.Register(tools);
             host.Register(online);
             host.Register(pets);

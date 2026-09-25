@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FACM.AppHost.Modules;
 using FACM.League;
+using FACM.Online;
 using FACM.Services;
 
 namespace FACM.AppHost
@@ -24,6 +25,8 @@ namespace FACM.AppHost
                 AppSettings.ValidateAtomicSaveForSmokeTest();
                 AppSettings.ValidateRuntimeCompanionPreferencesForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
+                CloudIdentityStore.ValidateForSmokeTest();
+                CloudBaseClient.ValidateForSmokeTest();
                 AppLog.ValidateForSmokeTest();
                 DiagnosticsExportService.ValidateForSmokeTest();
                 FACM.Theming.FacmControlPrimitivesSmokeTest.Validate();

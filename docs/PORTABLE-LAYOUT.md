@@ -7,11 +7,14 @@ FACM 3.1+ 默认使用程序目录保存运行文件，不再把新的运行数�
 首次启动并启用 VPet 桌宠后，典型目录结构：
 
 ```text
-FACM\
-├─ FACM.exe
+GGman\
+├─ GGman.exe
 ├─ settings.ini
 ├─ ui-text.ini
 ├─ logs\
+├─ data\
+│  ├─ cloud-identity.json
+│  └─ cloud-identity.last-known-good.json
 └─ runtime\
    ├─ cache\
    │  └─ mayhem-images\
@@ -53,6 +56,8 @@ FACM\
 - 设置写入 `settings.ini`。
 - 可自定义界面文字写入 `ui-text.ini`。
 - 日志写入 `logs`。
+- 用户长期数据写入 `data`；当前 CloudBase P1 仅保存随机 `device_id`、云端匿名 UID 和恢复副本，不保存 access/refresh token。
+- `data` 与可重新生成的 `runtime` 分离，在线更新或缓存清理不得删除 `data`。
 - 工具、PetHost 运行宿主和更新文件写入 `runtime`。
 - 旧 Sprite 资源缓存写入 `runtime\animal-sprites`。
 - VPet 动作资源和生成缓存写入 `runtime\pethost`。
@@ -81,4 +86,4 @@ FACM\
 
 ## 部署要求
 
-整个 FACM 文件夹必须位于当前用户可写的目录，例如 `D:\FACM`。不建议直接放入 `Program Files` 等需要管理员权限才能写入的系统目录，因为 FACM 需要写入设置、日志、工具运行文件、PetHost 释放目录和缓存。
+整个 GGman 文件夹必须位于当前用户可写的目录，例如 `D:\GGman`。不建议直接放入 `Program Files` 等需要管理员权限才能写入的系统目录，因为 GGman 需要写入设置、长期数据、日志、工具运行文件、PetHost 释放目录和缓存。

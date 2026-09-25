@@ -189,3 +189,17 @@ This provides the Akari-style convenience the user asked for without weakening t
 **Decision (2026-09-17, PR #285):** `v3.5.40` is the first formal release whose public executable, Windows product identity, release title and online-update asset are GGman / `GGman.exe`.
 
 Production release must continue to use the canonical lightweight publisher, signature verification, public-byte/hash/signer re-verification, disabled-before-publication manifest staging, and post-verification online enablement. The brand change does not weaken any release safety gate.
+
+## D-021 — Cloud identity uses a random portable device id, not a hardware/IP fingerprint
+
+**Decision (2026-09-25):** GGman cloud identity starts with a randomly generated stable `device_id` stored beside the portable application, then maps that device to a CloudBase anonymous-auth `sub`. Hardware fingerprint recovery is not part of the authoritative identity.
+
+- The device id lives under the persistent application-local `data` directory so copying the whole GGman folder preserves the portable identity.
+- Public IP, MAC address, disk serial, motherboard serial and similar machine identifiers are not part of the normal identity key.
+- CloudBase anonymous authentication is the cloud ownership source; PostgreSQL rows use `auth.uid()`/JWT `sub` and RLS rather than trusting a client-supplied owner id.
+- P1 persists no access token or refresh token. A process may refresh an in-memory session when possible; after restart it signs in again using the same stable device id.
+- The client never embeds a server API key, service-role token, Tencent SecretId/SecretKey or database administrator password.
+- Future recovery may use an explicit recovery code and a privacy-minimized hashed hardware signal as secondary evidence, but neither can silently replace the cloud owner identity.
+- User settings, account history and telemetry are separate later sync scopes and must preserve the same least-privilege/RLS boundary.
+
+This choice favors predictable portability, privacy, and recoverability over brittle device fingerprinting while keeping a path open for a future real account system.
