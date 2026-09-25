@@ -132,7 +132,8 @@ namespace FACM.Online
                 { "p_account_key_hash", account.AccountKeyHash },
                 { "p_region", account.Region ?? string.Empty },
                 { "p_first_seen_at", account.FirstSeenUtc ?? string.Empty },
-                { "p_last_seen_at", account.LastSeenUtc ?? string.Empty }
+                { "p_last_seen_at", account.LastSeenUtc ?? string.Empty },
+                { "p_seen_count", Math.Max(1, account.SeenCount) }
             });
 
             using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_record_account"))
