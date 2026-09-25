@@ -141,6 +141,7 @@ namespace FACM.League
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Repair) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Presence) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.Recommendation) ||
+                !defaults.ContainsKey(LeagueHubUiTextKeys.Profile) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.ContextTitle) ||
                 !defaults.ContainsKey(LeagueHubUiTextKeys.ContextHint))
                 throw new InvalidOperationException("LOL helper UI text defaults are incomplete.");
