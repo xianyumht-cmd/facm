@@ -15,7 +15,8 @@ CREATE OR REPLACE FUNCTION public.ggman_record_account(
     p_account_key_hash TEXT,
     p_region TEXT DEFAULT NULL,
     p_first_seen_at TEXT DEFAULT NULL,
-    p_last_seen_at TEXT DEFAULT NULL
+    p_last_seen_at TEXT DEFAULT NULL,
+    p_seen_count INTEGER DEFAULT 1
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -64,18 +65,14 @@ BEGIN
         NULLIF(left(COALESCE(p_region, ''), 32), ''),
         v_first,
         v_last,
-        1
+        GREATEST(COALESCE(p_seen_count, 1), 1)
     )
     ON CONFLICT (owner_id, account_key_hash)
     DO UPDATE SET
         region = COALESCE(EXCLUDED.region, public.ggman_account_history.region),
         first_seen_at = LEAST(public.ggman_account_history.first_seen_at, EXCLUDED.first_seen_at),
         last_seen_at = GREATEST(public.ggman_account_history.last_seen_at, EXCLUDED.last_seen_at),
-        login_count = public.ggman_account_history.login_count +
-            CASE
-                WHEN EXCLUDED.last_seen_at > public.ggman_account_history.last_seen_at THEN 1
-                ELSE 0
-            END;
+        login_count = GREATEST(public.ggman_account_history.login_count, EXCLUDED.login_count);
 END;
 $$;
 
@@ -143,8 +140,8 @@ AS $$
     CROSS JOIN population;
 $$;
 
-REVOKE ALL ON FUNCTION public.ggman_record_account(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.ggman_record_account(TEXT, TEXT, TEXT, TEXT)
+REVOKE ALL ON FUNCTION public.ggman_record_account(TEXT, TEXT, TEXT, TEXT, INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ggman_record_account(TEXT, TEXT, TEXT, TEXT, INTEGER)
     TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.ggman_get_personal_stats() FROM PUBLIC;
