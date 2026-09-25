@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.41
-- GitHub Release：v3.5.41
+- 版本：GGman 3.5.42
+- GitHub Release：v3.5.42
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：6e3a39391841e7e5d2292ab00655af5a416577b7
-- 发布元数据提交：72dacb89d2dae6ad2b825ef8f6bd36ca0a01f8a9
-- Release GGman.exe SHA-256：883E6BF1A199A9D4EF094ACA9CF0ABB01543AF303E631CB1EA84F2733E12D147
-- release_notes：GGman 3.5.41：新增 CloudBase 设备身份基础能力。首次运行生成并持久化随机 device_id，通过 CloudBase 匿名认证建立云端 UID，并以 PostgreSQL RLS 约束设备记录所有权；仅同步设备版本、系统版本与最后在线时间，access/refresh token 不落盘，云端或网络异常均 fail-soft，不阻塞 GGman 和 LOL 本地功能。新增 data 长期数据目录与身份恢复副本，并修复品牌迁移后 Mayhem Source Probe 仍查找 FACM.exe 的 CI 路径问题。本版暂不包含设置云同步、账号历史同步、遥测上传、硬件/IP 指纹或 SQLite。
+- 发布基础 main：7fa859c563904414eff9e8415b5febddbdec78ad
+- 发布元数据提交：96f7d3bdb61596bed2ab4e5b5bbfbbd3f64d441e
+- Release GGman.exe SHA-256：497CB5BB1D953EA4CDA83C7728EAE3F266557A68A74B2828BECC091A5EEF8C1A
+- release_notes：GGman 3.5.42：修复 3.5.40 客户端无法获取 3.5.41 更新的问题。3.5.40 的旧更新校验器只接受 GitHub Release 中名为 FACM.exe 的下载地址，因此 3.5.41 仅发布 GGman.exe 时会被旧客户端判定为无效更新信息。发布链现同时提供字节完全一致的 GGman.exe 与兼容 FACM.exe，并在启用在线更新前校验两份公共资产的大小、SHA-256 与签名者一致；在线 manifest 暂时继续指向 FACM.exe，确保旧客户端可正常升级。CloudBase 设备身份 P1 保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
