@@ -14,23 +14,24 @@
 
 # FACM Project State
 
-更新时间：2026-09-10
+更新时间：2026-09-26
 
 ## 当前产品线
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版是 **GGman 3.5.40**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
+当前在线正式版是 **GGman 3.5.41**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
-## CloudBase 设备身份 P1（任务分支，未合并/未发布）
+## CloudBase 设备身份 P1（已合并并发布于 GGman 3.5.41）
 
-- 任务分支：`feat/cloudbase-device-identity-p1-20260925`，基于 main `db4335959d7b461ebe8d25bf1d32c5d57f8793a8`。
-- 腾讯 CloudBase 环境使用现有 `ggman-d4gioqqcz434d9e4d`；匿名登录与 PostgreSQL/RLS 已由环境侧配置完成。
-- P1 代码只建立便携 `data` 目录、稳定随机 `device_id`、CloudBase 匿名会话和 `ggman_devices` 一次启动同步/回读验证；不上传设置、账号历史或遥测。
+- PR #288 已 squash merge 到 `main`；功能发布基础 commit 为 `6e3a39391841e7e5d2292ab00655af5a416577b7`。
+- 腾讯 CloudBase 环境使用 `ggman-d4gioqqcz434d9e4d`；P1 只建立便携 `data` 目录、稳定随机 `device_id`、匿名会话和 `ggman_devices` 一次启动同步/回读验证。
 - access/refresh token 不落盘；本地只持久化 `device_id`、匿名 CloudBase UID 与 last-known-good 身份副本。
-- 云端同步是 fail-soft 背景能力，CloudBase/网络失败不得阻止 GGman 启动或 League 本地功能。
-- 本阶段不引入 SQLite、新运行时 DLL、第二 League/LCU 轮询器、服务端 API Key 或硬件/IP 指纹。
-- 任务 PR：#288（draft）。当前验证 head `7b8ed98b3d930c9dd0cc1cf074aa54cac6febd8a` 已通过 GGman Windows Build #1956、UI Text Contract #1062 与 Mayhem Source Probe #771；Windows candidate `GGman.exe` 为 3.5.40.0、2,302,464 bytes，开发签名 SHA-256 `BA58D93FF6D7A77081F7F794999633746BF063A4DB02471D09FCD4CB37C06701`。真实 CloudBase 匿名登录 / RLS 写回仍需一次 live acceptance，因此 PR 继续保持 draft，不能描述为 main 已交付或生产发布行为。
+- 云端同步保持 fail-soft，CloudBase/网络失败不得阻止 GGman 启动或 League 本地功能。
+- 本阶段没有引入设置云同步、账号历史同步、遥测上传、SQLite、新运行时 DLL、第二 League/LCU 轮询器、服务端 API Key 或硬件/IP 指纹。
+- 发布前最终任务 head `083a8532a987b3a3bd67d83f325f7e9aac4b45a4` 通过 GGman Windows Build #1957、UI Text Contract #1063 与 Mayhem Source Probe #772；正式发布工作流 #23 全部通过。
+- v3.5.41 公共 `GGman.exe` 大小 2,304,408 bytes，SHA-256 `883E6BF1A199A9D4EF094ACA9CF0ABB01543AF303E631CB1EA84F2733E12D147`；`online/version.json` 已启用并指向该资产。
+- 自动化发布链已验证构建、签名、公共 Release 字节与 signer；真实客户端到 CloudBase 匿名认证/PostgREST/RLS 的端到端数据写入仍需要从实际运行记录中观察，不能把发布成功等同于云端业务链已实机验收。
 
 ## 当前已交付行为
 
