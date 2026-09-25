@@ -19,10 +19,13 @@ namespace FACM
                 "Control center must expose four sparse desktop-style primary shortcuts; directory/status belongs inside cleanup and repair.");
             Require(DesktopLauncherEnhancer.LauncherColumns == 4,
                 "Control center should place all four desktop shortcuts left-to-right when width allows, then wrap naturally.");
-            Require(LeagueHubNavigation.Views.Count == 8,
-                "LOL helper must expose four match views plus recommendation, shortcuts, game repair and presence.");
+            Require(LeagueHubNavigation.Views.Count == 9,
+                "LOL helper must expose five match/profile views plus recommendation, shortcuts, game repair and presence.");
             Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard,
                 "LOL helper must open from current status/dashboard.");
+            Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionMatch).Any(
+                    item => item.Id == LeagueHubNavigation.Profile),
+                "LOL helper match section must expose the My GGman personal-stats surface.");
             Require(LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend).Count == 1 &&
                     LeagueHubNavigation.ViewsForSection(LeagueHubUiTextKeys.SectionRecommend)[0].Id == LeagueHubNavigation.Recommendation,
                 "LOL helper recommendation must stay consolidated into one surface.");
