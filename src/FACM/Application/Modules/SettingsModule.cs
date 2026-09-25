@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using FACM.AppHost;
 using FACM.Services;
 using FACM.Theming;
@@ -26,8 +27,12 @@ namespace FACM.AppHost.Modules
 
         public UiTextCatalog UiText { get; private set; }
 
+        internal bool WasSettingsCreatedThisRun { get; private set; }
+
         public void Initialize()
         {
+            RuntimePaths.Initialize();
+            WasSettingsCreatedThisRun = !File.Exists(RuntimePaths.SettingsPath);
             Settings = AppSettings.Load();
             FacmThemeRuntime.Initialize(Settings.ThemeId);
             UiText = UiTextCatalog.Load();
