@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.44
-- GitHub Release：v3.5.44
+- 版本：GGman 3.5.45
+- GitHub Release：v3.5.45
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：1f0ba14bf9f77e630977e498bd6fddaa33adea58
-- 发布元数据提交：1967518e59257ce84423a7e97774572cd919ed3e
-- Release GGman.exe SHA-256：CF75C8F2CE3292F952333BB743C845FB463FDA59699FB6D7030B0843B58CD518
-- release_notes：GGman 3.5.44：扩展“我的 GGman”本地账号历史。现在会保留设备内每个已识别账号的最新显示名称，并展示最近使用的 4 个账号、所在大区、短匿名标识、使用次数、首次记录日期和最近使用时间；历史数据会从旧版个人统计格式原地迁移。显示名称只保存在本机，不上传到 CloudBase，云端仍只接收设备范围派生哈希、地区、时间和次数。继续沿用现有 Gameflow 账号识别、HMAC-SHA256 账号标识和匿名排行链路，不新增轮询器、SQLite、遥测或设置云同步。
+- 发布基础 main：c203a566611e465835e6319c8ea0d472070d2b3b
+- 发布元数据提交：129c5527124ee31f4d5e6be3f39611296d3cbe2d
+- Release GGman.exe SHA-256：81A24FE80A0AD2D0E32F1CFB7FC4700A120B252AB890D08AA98E7723220A2159
+- release_notes：GGman 3.5.45：修复“我的 GGman”窗口在较小可用高度下内容被截断的问题。压缩页面垂直布局与间距，确保账号历史、匿名百分位和设置区域在受支持窗口尺寸内完整可见，不新增可见滚动条。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

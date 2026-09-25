@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.45",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.45/FACM.exe",
   "sha256": "81A24FE80A0AD2D0E32F1CFB7FC4700A120B252AB890D08AA98E7723220A2159",
   "release_notes": "GGman 3.5.45：修复“我的 GGman”窗口在较小可用高度下内容被截断的问题。压缩页面垂直布局与间距，确保账号历史、匿名百分位和设置区域在受支持窗口尺寸内完整可见，不新增可见滚动条。",
-  "published_at": "2026-09-25T19:54:07.5869256+00:00"
+  "published_at": "2026-09-25T19:54:14.9155847+00:00"
 }
