@@ -42,7 +42,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - LOL 工作台新增“我的 GGman”页：玩过账号数、活跃天数、加入日期、匿名排行，以及“记录本地足迹 / 参与匿名排行”两个开关。Local stats 默认开启；cloud ranking 默认关闭。
 - CloudBase migration：`cloudbase/sql/002_personal_stats.sql`，新增 `ggman_devices.ranking_opt_in`、`ggman_record_account` 和 `ggman_get_personal_stats`；global rank 只返回 caller 的 count/rank/population/percentile，不开放其他用户记录。
 - 代码 Gate：任务代码 head `66e6d5d39ba94084313be2914008fc290e1d689a` 已通过 GGman Windows Build #1986、UI Text Contract #1092、Mayhem Source Probe #795；此前 CI 发现的 UI 文案注册、Host smoke 构造器和 Shell UX view-count 漂移均已按仓库 contract 修复。
-- 2026-09-26 已在生产 CloudBase 环境执行 `cloudbase/sql/002_personal_stats.sql`；控制台验收已确认 `ggman_record_account` 与 `ggman_get_personal_stats` 两个 RPC 存在。真实客户端账号捕获/排行仍需用任务构建做一次 live acceptance；通过前不得 merge/release。
+- 2026-09-26 已在生产 CloudBase 环境执行 `cloudbase/sql/002_personal_stats.sql`；控制台验收确认两个 RPC 存在。随后 Build 1987 完成真实客户端验收：`我的 GGman` 成功记录 1 个账号、CloudBase `ggman_account_history` 出现 64 位派生 hash、匿名排行返回 1/1 与百分位，证明 current-summoner → 本地 HMAC → account RPC → ranking RPC 链路已打通。根据实机截图收口：正式 UI 不再显示 `第 N / N 名`，只保留百分比；同时将旧 `ui-text.ini` 中未改动的 FACM 品牌默认词运行时迁移到 GGman。
 - 本阶段不做 general telemetry、全设置云同步、硬件/IP 指纹、SQLite/native dependency 或版本发布。
 
 ## 当前已交付行为
