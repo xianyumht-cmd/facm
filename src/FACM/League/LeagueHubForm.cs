@@ -189,7 +189,6 @@ namespace FACM.League
         internal static bool ShouldShowContextDockForSmokeTest(string viewId, int workspaceWidth)
         {
             var sparseView = string.Equals(viewId, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
-                             string.Equals(viewId, LeagueHubNavigation.Profile, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Repair, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Presence, StringComparison.Ordinal);
