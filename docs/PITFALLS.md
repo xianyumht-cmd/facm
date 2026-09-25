@@ -130,6 +130,12 @@ Do not upload raw IP, MAC, disk serial, motherboard serial, LCU credentials or R
 
 Persistent cloud/user state belongs under `data`, not `runtime`. Cache/update cleanup may regenerate `runtime`; it must never erase the portable device identity.
 
+## CloudBase owner types must match the existing subject contract
+
+GGman CloudBase ownership uses the existing anonymous subject as a `TEXT` value. Do not add a foreign key from `ggman_* .owner_id` to `auth.users(id)` unless the existing table uses the exact same PostgreSQL type and the product contract explicitly requires that relationship.
+
+CloudBase authentication can expose a subject type that does not match the internal `auth.users.id` type. For RLS and RPCs, compare the existing text owner column with `auth.uid()::text` instead of changing established GGman ownership tables merely to satisfy a foreign key.
+
 ## Renaming the release EXE can strand older updater clients
 
 `v3.5.40` was built before the updater manifest validator accepted `GGman.exe`; it accepts only GitHub Release URLs ending in `FACM.exe`. Publishing a later manifest that points only to `GGman.exe` makes 3.5.40 report update metadata retrieval failure even when the manifest and Release are otherwise healthy.

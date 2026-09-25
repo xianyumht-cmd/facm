@@ -31,9 +31,11 @@ Migration: `cloudbase/sql/003_settings_sync.sql`
 
 Table: `public.ggman_settings_sync`
 
-- `owner_id`: anonymous CloudBase subject, primary key
+- `owner_id`: anonymous CloudBase subject, stored as `TEXT` to match the existing GGman ownership contract; it is intentionally not a foreign key to `auth.users(id)`
 - `settings_json`: portable settings snapshot
 - `updated_at`: server write timestamp
+
+RLS policies compare `owner_id` with the authenticated subject as text. This keeps the settings table compatible with the existing `ggman_devices` / personal-stats schema instead of coupling it to the internal type of `auth.users.id`.
 
 RPCs:
 

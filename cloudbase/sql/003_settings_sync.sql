@@ -1,10 +1,12 @@
 -- GGman cloud settings sync.
 -- Stores only portable user preferences. Machine-local paths and window coordinates stay local.
+-- owner_id follows the existing GGman CloudBase subject contract and is intentionally TEXT;
+-- it is not a foreign key to auth.users(id).
 
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.ggman_settings_sync (
-    owner_id TEXT PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    owner_id TEXT PRIMARY KEY,
     settings_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -15,26 +17,26 @@ DROP POLICY IF EXISTS ggman_settings_sync_select_own ON public.ggman_settings_sy
 CREATE POLICY ggman_settings_sync_select_own
     ON public.ggman_settings_sync
     FOR SELECT
-    USING (owner_id = auth.uid());
+    USING (owner_id = auth.uid()::text);
 
 DROP POLICY IF EXISTS ggman_settings_sync_insert_own ON public.ggman_settings_sync;
 CREATE POLICY ggman_settings_sync_insert_own
     ON public.ggman_settings_sync
     FOR INSERT
-    WITH CHECK (owner_id = auth.uid());
+    WITH CHECK (owner_id = auth.uid()::text);
 
 DROP POLICY IF EXISTS ggman_settings_sync_update_own ON public.ggman_settings_sync;
 CREATE POLICY ggman_settings_sync_update_own
     ON public.ggman_settings_sync
     FOR UPDATE
-    USING (owner_id = auth.uid())
-    WITH CHECK (owner_id = auth.uid());
+    USING (owner_id = auth.uid()::text)
+    WITH CHECK (owner_id = auth.uid()::text);
 
 DROP POLICY IF EXISTS ggman_settings_sync_delete_own ON public.ggman_settings_sync;
 CREATE POLICY ggman_settings_sync_delete_own
     ON public.ggman_settings_sync
     FOR DELETE
-    USING (owner_id = auth.uid());
+    USING (owner_id = auth.uid()::text);
 
 REVOKE ALL ON TABLE public.ggman_settings_sync FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.ggman_settings_sync TO anon, authenticated;
@@ -52,7 +54,7 @@ AS $$
                 'updated_at', updated_at
             )
             FROM public.ggman_settings_sync
-            WHERE owner_id = auth.uid()
+            WHERE owner_id = auth.uid()::text
         ),
         '{}'::jsonb
     );
@@ -65,7 +67,7 @@ VOLATILE
 SECURITY INVOKER
 AS $$
     INSERT INTO public.ggman_settings_sync (owner_id, settings_json, updated_at)
-    VALUES (auth.uid(), p_settings, now())
+    VALUES (auth.uid()::text, p_settings, now())
     ON CONFLICT (owner_id)
     DO UPDATE SET
         settings_json = EXCLUDED.settings_json,
