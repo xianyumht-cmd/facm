@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -115,6 +116,7 @@ namespace FACM.AppHost.Modules
                     bool isNew;
                     _localSnapshot = _store.RecordAccount(
                         hash,
+                        current.DisplayName,
                         current.Region,
                         DateTimeOffset.Now,
                         out isNew);
@@ -159,7 +161,8 @@ namespace FACM.AppHost.Modules
                 CloudRank = _cloudRanking == null ? 0 : _cloudRanking.rank,
                 CloudRankedUsers = _cloudRanking == null ? 0 : _cloudRanking.total_ranked_users,
                 CloudPercentile = _cloudRanking == null ? 0D : _cloudRanking.percentile,
-                CloudPlayedAccounts = _cloudRanking == null ? 0 : _cloudRanking.played_accounts
+                CloudPlayedAccounts = _cloudRanking == null ? 0 : _cloudRanking.played_accounts,
+                RecentAccounts = BuildRecentAccountViews(local.RecentAccounts)
             };
         }
 
@@ -279,9 +282,16 @@ namespace FACM.AppHost.Modules
             {
                 var root = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
                 if (root == null) return null;
+                var gameName = ReadString(root, "gameName");
+                var tagLine = ReadString(root, "tagLine");
                 return new CurrentSummonerIdentity
                 {
                     Puuid = ReadString(root, "puuid"),
+                    DisplayName = FirstNonEmpty(
+                        ReadString(root, "displayName"),
+                        string.IsNullOrWhiteSpace(gameName) || string.IsNullOrWhiteSpace(tagLine)
+                            ? null
+                            : gameName.Trim() + "#" + tagLine.Trim()),
                     Region = FirstNonEmpty(
                         ReadString(root, "platformId"),
                         ReadString(root, "region"))
@@ -291,6 +301,39 @@ namespace FACM.AppHost.Modules
             {
                 return null;
             }
+        }
+
+        private static IReadOnlyList<LeaguePersonalStatsAccountView> BuildRecentAccountViews(
+            IReadOnlyList<PersonalStatsAccountRecord> accounts)
+        {
+            if (accounts == null || accounts.Count == 0)
+                return Array.Empty<LeaguePersonalStatsAccountView>();
+
+            return accounts
+                .Where(item => item != null)
+                .Select(item => new LeaguePersonalStatsAccountView
+                {
+                    DisplayName = item.DisplayName ?? string.Empty,
+                    AnonymousId = CreateAnonymousId(item.AccountKeyHash),
+                    Region = item.Region ?? string.Empty,
+                    FirstSeenUtc = ParseUtc(item.FirstSeenUtc),
+                    LastSeenUtc = ParseUtc(item.LastSeenUtc),
+                    SeenCount = Math.Max(1, item.SeenCount)
+                })
+                .ToArray();
+        }
+
+        private static string CreateAnonymousId(string accountKeyHash)
+        {
+            if (string.IsNullOrWhiteSpace(accountKeyHash) || accountKeyHash.Length < 8)
+                return string.Empty;
+            return accountKeyHash.Substring(0, 8).ToUpperInvariant();
+        }
+
+        private static DateTimeOffset? ParseUtc(string value)
+        {
+            DateTimeOffset parsed;
+            return DateTimeOffset.TryParse(value, out parsed) ? parsed.ToUniversalTime() : (DateTimeOffset?)null;
         }
 
         private static string ReadString(Dictionary<string, object> source, string key)
@@ -343,6 +386,7 @@ namespace FACM.AppHost.Modules
         private sealed class CurrentSummonerIdentity
         {
             public string Puuid { get; set; }
+            public string DisplayName { get; set; }
             public string Region { get; set; }
         }
     }
