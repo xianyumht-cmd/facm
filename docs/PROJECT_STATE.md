@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.40
-- GitHub Release：v3.5.40
+- 版本：GGman 3.5.41
+- GitHub Release：v3.5.41
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：9603d0df67dbab41c857f878dbc84040c090ebe2
-- 发布元数据提交：d1292b1b8af33e2e62b7f08f129bad2cfffab776
-- Release GGman.exe SHA-256：37F74573A61871B745E5F842C4376C1F04CE34F452021086B52B4188A67909AC
-- release_notes：GGman 3.5.40：完成 FACM → GGman 正式品牌迁移。主程序、Windows 产品信息、用户可见界面、更新下载文件名、CI 构建产物与正式 GitHub Release 统一为 GGman / GGman.exe；保留 FACM 内部命名空间、嵌入资源逻辑名、仓库路径、解决方案结构、签名密钥名称与兼容协议，避免品牌改名破坏现有更新、ToolBundle、PetHost 与运行时兼容链路。
+- 发布基础 main：6e3a39391841e7e5d2292ab00655af5a416577b7
+- 发布元数据提交：72dacb89d2dae6ad2b825ef8f6bd36ca0a01f8a9
+- Release GGman.exe SHA-256：883E6BF1A199A9D4EF094ACA9CF0ABB01543AF303E631CB1EA84F2733E12D147
+- release_notes：GGman 3.5.41：新增 CloudBase 设备身份基础能力。首次运行生成并持久化随机 device_id，通过 CloudBase 匿名认证建立云端 UID，并以 PostgreSQL RLS 约束设备记录所有权；仅同步设备版本、系统版本与最后在线时间，access/refresh token 不落盘，云端或网络异常均 fail-soft，不阻塞 GGman 和 LOL 本地功能。新增 data 长期数据目录与身份恢复副本，并修复品牌迁移后 Mayhem Source Probe 仍查找 FACM.exe 的 CI 路径问题。本版暂不包含设置云同步、账号历史同步、遥测上传、硬件/IP 指纹或 SQLite。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
