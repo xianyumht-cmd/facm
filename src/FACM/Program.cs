@@ -117,6 +117,7 @@ namespace FACM
                 };
 
                 var settings = new SettingsModule();
+                var cloudSync = new CloudSyncModule();
                 var tools = new ToolsModule();
                 var online = new OnlineModule();
                 var pets = new PetsModule();
@@ -128,11 +129,12 @@ namespace FACM
                 var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
                 var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
                 var leagueGameRepair = new LeagueGameRepairModule(leagueClient);
+                var personalStats = new LeaguePersonalStatsModule(settings, cloudSync, leagueClient, leagueDashboard);
                 var mayhem = new MayhemModule(leagueClient);
-                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueGameRepair);
+                var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, personalStats, mayhem, leagueGameRepair);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, leagueGameRepair, mayhem, leagueHub, cleanup, shell))
+                using (var host = CreateHost(settings, cloudSync, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, leagueGameRepair, personalStats, mayhem, leagueHub, cleanup, shell))
                 {
                     try
                     {
@@ -171,6 +173,7 @@ namespace FACM
 
         private static FacmHost CreateHost(
             SettingsModule settings,
+            CloudSyncModule cloudSync,
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
@@ -182,6 +185,7 @@ namespace FACM
             LeagueBuildAdvisorModule leagueAdvisor,
             LeagueEfficiencyModule leagueEfficiency,
             LeagueGameRepairModule leagueGameRepair,
+            LeaguePersonalStatsModule personalStats,
             MayhemModule mayhem,
             LeagueHubModule leagueHub,
             CleanupModule cleanup,
@@ -190,7 +194,7 @@ namespace FACM
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
             host.Register(settings);
-            host.Register(new CloudSyncModule());
+            host.Register(cloudSync);
             host.Register(tools);
             host.Register(online);
             host.Register(pets);
@@ -202,6 +206,7 @@ namespace FACM
             host.Register(leagueAdvisor);
             host.Register(leagueEfficiency);
             host.Register(leagueGameRepair);
+            host.Register(personalStats);
             host.Register(mayhem);
             host.Register(leagueHub);
             host.Register(cleanup);
