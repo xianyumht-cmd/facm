@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.43
-- GitHub Release：v3.5.43
+- 版本：GGman 3.5.44
+- GitHub Release：v3.5.44
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c62041167371a0cd5f05b1cfc7d53c329809f64a
-- 发布元数据提交：405aab6edafc6bf8c38ab39a68f6071c30750d9e
-- Release GGman.exe SHA-256：5B4CD5CE0B5AD2DEFC1A5A392BCEE690F4492D9D904B8CFC2808C4E6AE573602
-- release_notes：GGman 3.5.43：新增“我的 GGman”个人使用档案。现在会在本机便携 data 目录记录加入日期、活跃天数和去重后的玩过账号数量；LOL 当前账号仅在内存读取 PUUID，并立即派生为设备内 HMAC-SHA256 哈希，原始 PUUID、账号名、密码和 LCU 凭据不会进入个人历史。新增可选的匿名账号数排行，默认关闭；用户开启后仅上传派生哈希，并由 CloudBase 服务端返回自己的百分位结果，客户端不会读取其他用户明细。根据实机验收，正式 UI 仅保留“超过 X% 的参与玩家”百分比，不显示 N/N 绝对名次。同时修复旧 ui-text.ini 中未改动的 FACM 品牌默认词在新页面继续显示的问题，运行时迁移为 GGman。CloudBase 生产 migration 与真实客户端 account-history/ranking 链路已验收通过。
+- 发布基础 main：1f0ba14bf9f77e630977e498bd6fddaa33adea58
+- 发布元数据提交：1967518e59257ce84423a7e97774572cd919ed3e
+- Release GGman.exe SHA-256：CF75C8F2CE3292F952333BB743C845FB463FDA59699FB6D7030B0843B58CD518
+- release_notes：GGman 3.5.44：扩展“我的 GGman”本地账号历史。现在会保留设备内每个已识别账号的最新显示名称，并展示最近使用的 4 个账号、所在大区、短匿名标识、使用次数、首次记录日期和最近使用时间；历史数据会从旧版个人统计格式原地迁移。显示名称只保存在本机，不上传到 CloudBase，云端仍只接收设备范围派生哈希、地区、时间和次数。继续沿用现有 Gameflow 账号识别、HMAC-SHA256 账号标识和匿名排行链路，不新增轮询器、SQLite、遥测或设置云同步。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
