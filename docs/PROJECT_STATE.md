@@ -20,9 +20,9 @@
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版是 **GGman 3.5.41**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
+当前在线正式版是 **GGman 3.5.42**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
-## CloudBase 设备身份 P1（已合并并发布于 GGman 3.5.41）
+## CloudBase 设备身份 P1（已合并并随 GGman 3.5.41 引入，3.5.42 继续包含）
 
 - PR #288 已 squash merge 到 `main`；功能发布基础 commit 为 `6e3a39391841e7e5d2292ab00655af5a416577b7`。
 - 腾讯 CloudBase 环境使用 `ggman-d4gioqqcz434d9e4d`；P1 只建立便携 `data` 目录、稳定随机 `device_id`、匿名会话和 `ggman_devices` 一次启动同步/回读验证。
@@ -30,7 +30,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - 云端同步保持 fail-soft，CloudBase/网络失败不得阻止 GGman 启动或 League 本地功能。
 - 本阶段没有引入设置云同步、账号历史同步、遥测上传、SQLite、新运行时 DLL、第二 League/LCU 轮询器、服务端 API Key 或硬件/IP 指纹。
 - 发布前最终任务 head `083a8532a987b3a3bd67d83f325f7e9aac4b45a4` 通过 GGman Windows Build #1957、UI Text Contract #1063 与 Mayhem Source Probe #772；正式发布工作流 #23 全部通过。
-- v3.5.41 公共 `GGman.exe` 大小 2,304,408 bytes，SHA-256 `883E6BF1A199A9D4EF094ACA9CF0ABB01543AF303E631CB1EA84F2733E12D147`；`online/version.json` 已启用并指向该资产。
+- v3.5.42 已修复 3.5.40 更新兼容：公共 Release 同时发布字节一致的 `GGman.exe` / `FACM.exe`（2,304,408 bytes，SHA-256 `497CB5BB1D953EA4CDA83C7728EAE3F266557A68A74B2828BECC091A5EEF8C1A`），`online/version.json` 已启用并指向兼容 `FACM.exe` 资产。
 - 自动化发布链已验证构建、签名、公共 Release 字节与 signer；真实客户端到 CloudBase 匿名认证/PostgREST/RLS 的端到端数据写入仍需要从实际运行记录中观察，不能把发布成功等同于云端业务链已实机验收。
 
 ## 当前已交付行为
