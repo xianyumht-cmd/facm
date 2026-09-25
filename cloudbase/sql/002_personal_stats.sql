@@ -11,6 +11,9 @@ CREATE INDEX IF NOT EXISTS idx_ggman_devices_ranking_opt_in
     ON public.ggman_devices (ranking_opt_in)
     WHERE ranking_opt_in = TRUE;
 
+-- Remove the early four-argument draft signature if this migration was tested manually.
+DROP FUNCTION IF EXISTS public.ggman_record_account(TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.ggman_record_account(
     p_account_key_hash TEXT,
     p_region TEXT DEFAULT NULL,
