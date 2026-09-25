@@ -115,15 +115,28 @@ namespace FACM.AppHost.Modules
                     _identity.CloudUserId = subject;
                 }
 
-                await SynchronizeSettingsAsync(cancellationToken).ConfigureAwait(false);
                 AppLog.Info("Cloud device sync succeeded.");
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Cloud device sync skipped: " + exception.GetType().Name);
+                return;
+            }
+
+            try
+            {
+                await SynchronizeSettingsAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
             }
             catch (Exception exception)
             {
-                AppLog.Info("Cloud device sync skipped: " + exception.GetType().Name);
+                AppLog.Info("Cloud settings sync skipped: " + exception.GetType().Name);
             }
         }
 
