@@ -66,6 +66,15 @@ A push touching that file triggers the same publisher. The workflow rejects an a
 
 The publisher freezes `main`, builds and signs the candidate, first writes an `enabled=false` manifest, publishes the GitHub Release, downloads the public asset again to verify size/SHA-256/signer, then enables the online manifest. The current manifest schema is migration-free.
 
+### 3.5.40 update-asset compatibility
+
+`v3.5.40` validates update manifests against a `FACM.exe` GitHub Release asset name. Current source accepts both `FACM.exe` and `GGman.exe`, but the online manifest must remain consumable by 3.5.40 while that version is still supported.
+
+- Every 3.5.x release publishes byte-identical `GGman.exe` and compatibility `FACM.exe` assets.
+- `online/version.json.download_url` points to the compatibility `FACM.exe` asset.
+- The publisher verifies that both public assets have the exact same size, SHA-256 and Authenticode signer before enabling online update.
+- Do not remove the `FACM.exe` compatibility asset or switch the manifest back to `GGman.exe` until the minimum supported version is newer than 3.5.40 and old-client compatibility has been intentionally retired.
+
 After publishing, verify:
 
 1. GitHub Release `vX.Y.Z` exists and contains `FACM.exe`.
