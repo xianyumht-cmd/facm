@@ -27,6 +27,14 @@ namespace FACM.Online
         }
     }
 
+    internal sealed class CloudPersonalRanking
+    {
+        public long played_accounts { get; set; }
+        public long rank { get; set; }
+        public long total_ranked_users { get; set; }
+        public double percentile { get; set; }
+    }
+
     internal sealed class CloudDeviceRow
     {
         public string owner_id { get; set; }
@@ -46,6 +54,7 @@ namespace FACM.Online
 
         private readonly HttpClient _client;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = MaximumResponseCharacters };
+        private readonly SemaphoreSlim _sessionGate = new SemaphoreSlim(1, 1);
         private CloudBaseSession _session;
         private bool _disposed;
 
@@ -108,32 +117,108 @@ namespace FACM.Online
             get { return _session == null ? string.Empty : _session.Subject ?? string.Empty; }
         }
 
+        public async Task RecordAccountAsync(
+            string deviceId,
+            PersonalStatsAccountRecord account,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (account == null || string.IsNullOrWhiteSpace(account.AccountKeyHash))
+                throw new ArgumentException("Account history record is required.", nameof(account));
+
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "p_account_key_hash", account.AccountKeyHash },
+                { "p_region", account.Region ?? string.Empty },
+                { "p_first_seen_at", account.FirstSeenUtc ?? string.Empty },
+                { "p_last_seen_at", account.LastSeenUtc ?? string.Empty },
+                { "p_seen_count", Math.Max(1, account.SeenCount) }
+            });
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_record_account"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                await SendAsync(request, "account history sync", cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public async Task SetRankingOptInAsync(
+            string deviceId,
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "ranking_opt_in", enabled }
+            });
+
+            var relative = "v1/rdb/rest/ggman_devices?device_id=eq." + Uri.EscapeDataString(deviceId ?? string.Empty);
+            using (var request = new HttpRequestMessage(new HttpMethod("PATCH"), relative))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Headers.TryAddWithoutValidation("Prefer", "return=minimal");
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                await SendAsync(request, "ranking preference sync", cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public async Task<CloudPersonalRanking> GetPersonalRankingAsync(
+            string deviceId,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_get_personal_stats"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var responseText = await SendAsync(request, "personal ranking", cancellationToken).ConfigureAwait(false);
+                var rows = _json.Deserialize<CloudPersonalRanking[]>(responseText) ?? new CloudPersonalRanking[0];
+                return rows.Length == 0 ? null : rows[0];
+            }
+        }
+
         private async Task<CloudBaseSession> EnsureSessionAsync(string deviceId, CancellationToken cancellationToken)
         {
             var current = _session;
             if (current != null && current.IsUsable(DateTimeOffset.UtcNow)) return current;
 
-            if (current != null && !string.IsNullOrWhiteSpace(current.RefreshToken))
+            await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                try
-                {
-                    var refreshed = await RefreshAsync(deviceId, current.RefreshToken, cancellationToken).ConfigureAwait(false);
-                    _session = refreshed;
-                    return refreshed;
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Info("CloudBase session refresh skipped: " + exception.GetType().Name);
-                }
-            }
+                current = _session;
+                if (current != null && current.IsUsable(DateTimeOffset.UtcNow)) return current;
 
-            var signedIn = await SignInAnonymouslyAsync(deviceId, cancellationToken).ConfigureAwait(false);
-            _session = signedIn;
-            return signedIn;
+                if (current != null && !string.IsNullOrWhiteSpace(current.RefreshToken))
+                {
+                    try
+                    {
+                        var refreshed = await RefreshAsync(deviceId, current.RefreshToken, cancellationToken).ConfigureAwait(false);
+                        _session = refreshed;
+                        return refreshed;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Info("CloudBase session refresh skipped: " + exception.GetType().Name);
+                    }
+                }
+
+                var signedIn = await SignInAnonymouslyAsync(deviceId, cancellationToken).ConfigureAwait(false);
+                _session = signedIn;
+                return signedIn;
+            }
+            finally
+            {
+                _sessionGate.Release();
+            }
         }
 
         private async Task<CloudBaseSession> SignInAnonymouslyAsync(string deviceId, CancellationToken cancellationToken)
@@ -296,6 +381,7 @@ namespace FACM.Online
             if (_disposed) return;
             _disposed = true;
             _session = null;
+            _sessionGate.Dispose();
             _client.Dispose();
         }
 

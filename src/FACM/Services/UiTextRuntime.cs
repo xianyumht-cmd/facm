@@ -89,6 +89,10 @@ namespace FACM.Services
                 case "Champ Select / Current Game": return "实时对局";
                 case "OP.GG Build Advisor": return "出装推荐";
                 case "OP.GG Loadout Apply": return "应用推荐";
+                case "FACM · LOL 工作台": return "GGman · LOL 工作台";
+                case "我的 FACM": return "我的 GGman";
+                case "加入 FACM": return "加入 GGman";
+                case "记录我的 FACM 使用足迹": return "记录我的 GGman 使用足迹";
                 default: return value;
             }
         }

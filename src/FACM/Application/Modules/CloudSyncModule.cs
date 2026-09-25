@@ -32,6 +32,37 @@ namespace FACM.AppHost.Modules
             get { return NoDependencies; }
         }
 
+        internal bool IsReady
+        {
+            get { return _identity != null && _client != null; }
+        }
+
+        internal Task RecordAccountAsync(PersonalStatsAccountRecord account, CancellationToken cancellationToken)
+        {
+            if (_identity == null || _client == null)
+                throw new InvalidOperationException("Cloud sync is not initialized.");
+            return _client.RecordAccountAsync(_identity.DeviceId, account, cancellationToken);
+        }
+
+        internal Task SetRankingOptInAsync(bool enabled, CancellationToken cancellationToken)
+        {
+            if (_identity == null || _client == null)
+                throw new InvalidOperationException("Cloud sync is not initialized.");
+            return _client.SetRankingOptInAsync(_identity.DeviceId, enabled, cancellationToken);
+        }
+
+        internal Task<CloudPersonalRanking> GetPersonalRankingAsync(CancellationToken cancellationToken)
+        {
+            if (_identity == null || _client == null)
+                throw new InvalidOperationException("Cloud sync is not initialized.");
+            return _client.GetPersonalRankingAsync(_identity.DeviceId, cancellationToken);
+        }
+
+        internal string DeviceId
+        {
+            get { return _identity == null ? string.Empty : _identity.DeviceId ?? string.Empty; }
+        }
+
         public void Initialize()
         {
             try

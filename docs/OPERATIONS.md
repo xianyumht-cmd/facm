@@ -125,3 +125,32 @@ If CI breaks after cleanup, first check for references to removed 4.x projects/s
 ## Repository hygiene
 
 Current worktree should not contain FACM4 solution/projects, 4.x migration/bootstrapper code, 4.x-only workflows, CAB/BOOT release tooling or the old heavyweight publisher. Git history remains intact.
+
+## CloudBase schema migrations
+
+CloudBase production schema changes are explicit and must be applied before a client release depends on them. Repository SQL lives under `cloudbase/sql/` and is written to be idempotent.
+
+For the personal-stats/ranking feature, apply `cloudbase/sql/002_personal_stats.sql` in the existing `ggman` CloudBase PostgreSQL SQL editor before enabling a release that exposes anonymous ranking. The migration:
+
+- adds `ggman_devices.ranking_opt_in` (default false);
+- adds the `ggman_record_account` RPC, which derives owner identity from `auth.uid()` and upserts only hashed account history;
+- adds the `ggman_get_personal_stats` aggregate RPC, which returns only the caller's account count/rank/population/percentile;
+- grants RPC execution only to `anon` / `authenticated` and does not relax table RLS.
+
+After applying it, verify in SQL:
+
+```sql
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_schema='public'
+  AND table_name='ggman_devices'
+  AND column_name='ranking_opt_in';
+
+SELECT routine_name
+FROM information_schema.routines
+WHERE routine_schema='public'
+  AND routine_name IN ('ggman_record_account','ggman_get_personal_stats')
+ORDER BY routine_name;
+```
+
+Then run one real client acceptance: enable anonymous ranking in “我的 GGman”, connect League once, verify a hashed row appears in `ggman_account_history`, and confirm the UI receives only aggregate ranking results. Never paste service-role/server API keys into the client to bypass a migration/RLS problem.

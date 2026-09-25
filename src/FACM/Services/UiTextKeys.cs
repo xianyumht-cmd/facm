@@ -95,6 +95,24 @@ namespace FACM.Services
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
 
+        // Local-first personal history and optional anonymous ranking.
+        public const string LeaguePersonalStatsWindowTitle = "LeaguePersonalStatsWindowTitle";
+        public const string LeaguePersonalStatsTitle = "LeaguePersonalStatsTitle";
+        public const string LeaguePersonalStatsHint = "LeaguePersonalStatsHint";
+        public const string LeaguePersonalStatsAccounts = "LeaguePersonalStatsAccounts";
+        public const string LeaguePersonalStatsActiveDays = "LeaguePersonalStatsActiveDays";
+        public const string LeaguePersonalStatsMemberSince = "LeaguePersonalStatsMemberSince";
+        public const string LeaguePersonalStatsRanking = "LeaguePersonalStatsRanking";
+        public const string LeaguePersonalStatsRankingDisabled = "LeaguePersonalStatsRankingDisabled";
+        public const string LeaguePersonalStatsRankingWaiting = "LeaguePersonalStatsRankingWaiting";
+        public const string LeaguePersonalStatsRankingFormat = "LeaguePersonalStatsRankingFormat";
+        public const string LeaguePersonalStatsPercentileFormat = "LeaguePersonalStatsPercentileFormat";
+        public const string LeaguePersonalStatsLocalToggle = "LeaguePersonalStatsLocalToggle";
+        public const string LeaguePersonalStatsRankingToggle = "LeaguePersonalStatsRankingToggle";
+        public const string LeaguePersonalStatsPrivacyHint = "LeaguePersonalStatsPrivacyHint";
+        public const string LeaguePersonalStatsRefresh = "LeaguePersonalStatsRefresh";
+        public const string LeaguePersonalStatsPaused = "LeaguePersonalStatsPaused";
+
         // Player Gate 1 / Gate 2.
         public const string LeaguePlayerMenu = "LeaguePlayerMenu";
         public const string LeaguePlayerWindowTitle = "LeaguePlayerWindowTitle";

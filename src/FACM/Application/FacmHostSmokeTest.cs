@@ -24,7 +24,9 @@ namespace FACM.AppHost
                 ValidateLeagueHubPresenceScrollContract();
                 AppSettings.ValidateAtomicSaveForSmokeTest();
                 AppSettings.ValidateRuntimeCompanionPreferencesForSmokeTest();
+                AppSettings.ValidatePersonalStatsPreferencesForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
+                PersonalStatsStore.ValidateForSmokeTest();
                 CloudIdentityStore.ValidateForSmokeTest();
                 CloudBaseClient.ValidateForSmokeTest();
                 AppLog.ValidateForSmokeTest();
@@ -130,6 +132,7 @@ namespace FACM.AppHost
         private static void ValidateShellFeatureDependencyContract()
         {
             var settings = new SettingsModule();
+            var cloudSync = new CloudSyncModule();
             var tools = new ToolsModule();
             var online = new OnlineModule();
             var pets = new PetsModule();
@@ -141,8 +144,9 @@ namespace FACM.AppHost
             var leagueAdvisor = new LeagueBuildAdvisorModule(settings, leagueClient, performance);
             var leagueEfficiency = new LeagueEfficiencyModule(settings, leagueClient, leagueDashboard);
             var leagueGameRepair = new LeagueGameRepairModule(leagueClient);
+            var personalStats = new LeaguePersonalStatsModule(settings, cloudSync, leagueClient, leagueDashboard);
             var mayhem = new MayhemModule(leagueClient);
-            var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, mayhem, leagueGameRepair);
+            var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, personalStats, mayhem, leagueGameRepair);
             var cleanup = new CleanupModule();
             var shell = new ShellModule(false, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
 
@@ -160,6 +164,13 @@ namespace FACM.AppHost
                 "League Efficiency must reuse Settings, the unique LeagueClient session, and shared Dashboard gameflow.");
             Require(leagueGameRepair.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId }),
                 "League Game Repair must reuse the unique LeagueClient session instead of owning a second LCU stack.");
+            Require(personalStats.Dependencies.SequenceEqual(new[]
+            {
+                SettingsModule.ModuleId,
+                CloudSyncModule.ModuleId,
+                LeagueClientModule.ModuleId,
+                LeagueDashboardModule.ModuleId
+            }), "Personal stats must reuse settings, cloud identity, the unique LeagueClient session, and shared Dashboard gameflow.");
             Require(leagueHub.Dependencies.SequenceEqual(new[]
             {
                 LeagueDashboardModule.ModuleId,
@@ -167,9 +178,10 @@ namespace FACM.AppHost
                 LeagueLiveModule.ModuleId,
                 LeagueBuildAdvisorModule.ModuleId,
                 LeagueEfficiencyModule.ModuleId,
+                LeaguePersonalStatsModule.ModuleId,
                 MayhemModule.ModuleId,
                 LeagueGameRepairModule.ModuleId
-            }), "League Hub must aggregate the native game-repair module without depending on legacy tool entrypoints.");
+            }), "League Hub must aggregate personal stats and native game-repair modules without depending on legacy tool entrypoints.");
 
             var expected = new[]
             {

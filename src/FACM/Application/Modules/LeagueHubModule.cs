@@ -19,6 +19,7 @@ namespace FACM.AppHost.Modules
             LeagueLiveModule.ModuleId,
             LeagueBuildAdvisorModule.ModuleId,
             LeagueEfficiencyModule.ModuleId,
+            LeaguePersonalStatsModule.ModuleId,
             MayhemModule.ModuleId,
             LeagueGameRepairModule.ModuleId
         };
@@ -28,6 +29,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueLiveModule _live;
         private readonly LeagueBuildAdvisorModule _advisor;
         private readonly LeagueEfficiencyModule _efficiency;
+        private readonly LeaguePersonalStatsModule _personalStats;
         private readonly MayhemModule _mayhem;
         private readonly LeagueGameRepairModule _gameRepair;
         private LeagueHubForm _hubForm;
@@ -44,6 +46,7 @@ namespace FACM.AppHost.Modules
             LeagueLiveModule live,
             LeagueBuildAdvisorModule advisor,
             LeagueEfficiencyModule efficiency,
+            LeaguePersonalStatsModule personalStats,
             MayhemModule mayhem,
             LeagueGameRepairModule gameRepair)
         {
@@ -52,6 +55,7 @@ namespace FACM.AppHost.Modules
             _live = live ?? throw new ArgumentNullException(nameof(live));
             _advisor = advisor ?? throw new ArgumentNullException(nameof(advisor));
             _efficiency = efficiency ?? throw new ArgumentNullException(nameof(efficiency));
+            _personalStats = personalStats ?? throw new ArgumentNullException(nameof(personalStats));
             _mayhem = mayhem ?? throw new ArgumentNullException(nameof(mayhem));
             _gameRepair = gameRepair ?? throw new ArgumentNullException(nameof(gameRepair));
         }
@@ -76,6 +80,7 @@ namespace FACM.AppHost.Modules
                 CreatePlayer,
                 CreateLive,
                 CreateMayhem,
+                CreateProfile,
                 CreateRecommendation,
                 CreateEfficiency,
                 CreateRepair,
@@ -90,6 +95,7 @@ namespace FACM.AppHost.Modules
         private Form CreatePlayer(UiTextCatalog ui) { return Skin(_player.CreatePlayerForm(ui)); }
         private Form CreateLive(UiTextCatalog ui) { return _live.CreateLiveForm(ui); }
         private Form CreateMayhem(UiTextCatalog ui) { return Skin(_mayhem.CreateLookupForm()); }
+        private Form CreateProfile(UiTextCatalog ui) { return Skin(_personalStats.CreateForm(ui)); }
         private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
         private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
         private Form CreateRepair(UiTextCatalog ui) { return Skin(_gameRepair.CreateForm(_efficiency)); }

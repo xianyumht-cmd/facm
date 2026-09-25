@@ -47,6 +47,8 @@ namespace FACM.Services
         public int LeagueRuntimeCompanionY { get; set; } = int.MinValue;
         public bool LeagueRuntimeCompanionPinned { get; set; } = true;
         public bool LeagueRuntimeCompanionCollapsed { get; set; } = false;
+        public bool LeaguePersonalStatsEnabled { get; set; } = true;
+        public bool LeagueCloudRankingEnabled { get; set; } = false;
 
         public static AppSettings Load()
         {
@@ -133,7 +135,9 @@ namespace FACM.Services
                 "LeagueRuntimeCompanionX=" + LeagueRuntimeCompanionX.ToString(CultureInfo.InvariantCulture),
                 "LeagueRuntimeCompanionY=" + LeagueRuntimeCompanionY.ToString(CultureInfo.InvariantCulture),
                 "LeagueRuntimeCompanionPinned=" + LeagueRuntimeCompanionPinned,
-                "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed
+                "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed,
+                "LeaguePersonalStatsEnabled=" + LeaguePersonalStatsEnabled,
+                "LeagueCloudRankingEnabled=" + LeagueCloudRankingEnabled
             };
         }
 
@@ -193,6 +197,30 @@ namespace FACM.Services
                 Array.IndexOf(lines, "LeagueRuntimeCompanionPinned=False") < 0 ||
                 Array.IndexOf(lines, "LeagueRuntimeCompanionCollapsed=True") < 0)
                 throw new InvalidOperationException("Runtime Companion settings serialization drifted.");
+        }
+
+        internal static void ValidatePersonalStatsPreferencesForSmokeTest()
+        {
+            var enabled = ParseLines(new[]
+            {
+                "LeaguePersonalStatsEnabled=True",
+                "LeagueCloudRankingEnabled=True"
+            });
+            if (!enabled.LeaguePersonalStatsEnabled || !enabled.LeagueCloudRankingEnabled)
+                throw new InvalidOperationException("Personal stats settings parsing drifted.");
+
+            var disabled = ParseLines(new[]
+            {
+                "LeaguePersonalStatsEnabled=False",
+                "LeagueCloudRankingEnabled=True"
+            });
+            if (disabled.LeaguePersonalStatsEnabled || disabled.LeagueCloudRankingEnabled)
+                throw new InvalidOperationException("Cloud ranking must fail closed when personal stats are disabled.");
+
+            var lines = disabled.BuildLines();
+            if (Array.IndexOf(lines, "LeaguePersonalStatsEnabled=False") < 0 ||
+                Array.IndexOf(lines, "LeagueCloudRankingEnabled=False") < 0)
+                throw new InvalidOperationException("Personal stats settings serialization drifted.");
         }
 
         internal static void ValidateMatchmakingStopPreferencesForSmokeTest()
@@ -334,6 +362,8 @@ namespace FACM.Services
             else if (key.Equals("LeagueRuntimeCompanionY", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueRuntimeCompanionY = number;
             else if (key.Equals("LeagueRuntimeCompanionPinned", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionPinned = flag;
             else if (key.Equals("LeagueRuntimeCompanionCollapsed", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionCollapsed = flag;
+            else if (key.Equals("LeaguePersonalStatsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeaguePersonalStatsEnabled = flag;
+            else if (key.Equals("LeagueCloudRankingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueCloudRankingEnabled = flag;
         }
 
         private static void Normalize(AppSettings result)
@@ -348,6 +378,7 @@ namespace FACM.Services
             result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));
             result.LeagueAutoMatchmakingStopPolicy = NormalizeMatchmakingStopPolicy(result.LeagueAutoMatchmakingStopPolicy);
             result.LeagueAutoMatchmakingStopAfterMs = Math.Max(1000, Math.Min(600000, result.LeagueAutoMatchmakingStopAfterMs));
+            if (!result.LeaguePersonalStatsEnabled) result.LeagueCloudRankingEnabled = false;
         }
 
         private static string NormalizeMatchmakingStopPolicy(string value)

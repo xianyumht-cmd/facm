@@ -21,6 +21,7 @@ namespace FACM.League
         public const string Player = "LeagueHubPlayer";
         public const string Live = "LeagueHubLive";
         public const string Mayhem = "LeagueHubMayhem";
+        public const string Profile = "LeagueHubProfile";
         public const string Recommendation = "LeagueHubRecommendation";
         public const string Efficiency = "LeagueHubEfficiency";
         public const string Repair = "LeagueHubRepair";
@@ -60,6 +61,7 @@ namespace FACM.League
             { LeagueHubUiTextKeys.Player, "我的战绩" },
             { LeagueHubUiTextKeys.Live, "实时对局" },
             { LeagueHubUiTextKeys.Mayhem, "海斗攻略" },
+            { LeagueHubUiTextKeys.Profile, "我的 GGman" },
             { LeagueHubUiTextKeys.Recommendation, "出装推荐" },
             { LeagueHubUiTextKeys.Efficiency, "快捷工具" },
             { LeagueHubUiTextKeys.Repair, "游戏修复" },

@@ -135,3 +135,13 @@ Persistent cloud/user state belongs under `data`, not `runtime`. Cache/update cl
 `v3.5.40` was built before the updater manifest validator accepted `GGman.exe`; it accepts only GitHub Release URLs ending in `FACM.exe`. Publishing a later manifest that points only to `GGman.exe` makes 3.5.40 report update metadata retrieval failure even when the manifest and Release are otherwise healthy.
 
 Until the minimum supported version is intentionally moved above 3.5.40, each release must publish byte-identical `GGman.exe` and `FACM.exe` assets, keep the online manifest pointed at `FACM.exe`, and verify both public assets before enabling the manifest.
+
+## Do not turn a retention feature into hidden identity collection
+
+Personal stats need a stable way to deduplicate League accounts, but raw PUUID/account names, IP addresses, MAC addresses, disk serials and motherboard serials are not required for the product behavior.
+
+- Derive account history keys locally with the portable random `device_id` and HMAC-SHA256; discard the raw PUUID after derivation.
+- Keep local history local by default. Anonymous cross-user ranking is a separate opt-in switch.
+- Ranking endpoints must return only aggregate statistics for the current authenticated owner; never relax table RLS to make global ranking easier.
+- Do not create a second Gameflow/current-summoner poll loop. Capture identity from the existing Gameflow episode and retry only on existing state events when the first read is not yet available.
+- Do not add SQLite/native dependencies solely because the data is called a “database”; preserve the single-EXE contract until a real query/scale requirement justifies a storage-engine migration.
