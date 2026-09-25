@@ -1,7 +1,7 @@
 {
-  "version": "3.5.45",
+  "version": "3.5.46",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "GGman 3.5.45：修复“我的 GGman”窗口在较小可用高度下内容被截断的问题。压缩页面垂直布局与间距，确保账号历史、匿名百分位和设置区域在受支持窗口尺寸内完整可见，不新增可见滚动条。"
+  "release_notes": "GGman 3.5.46：新增 CloudBase 云端设置同步，按设备身份保存可迁移的 GGman 用户偏好；机器本地路径、窗口位置和账号敏感数据继续留在本机。云端失败保持静默，不阻塞启动。"
 }
