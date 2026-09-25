@@ -53,6 +53,8 @@ FACM\
 - 设置写入 `settings.ini`。
 - 可自定义界面文字写入 `ui-text.ini`。
 - 日志写入 `logs`。
+- 用户长期数据写入 `data`；当前 CloudBase P1 仅保存随机 `device_id`、云端匿名 UID 和恢复副本，不保存 access/refresh token。
+- `data` 与可重新生成的 `runtime` 分离，在线更新或缓存清理不得删除 `data`。
 - 工具、PetHost 运行宿主和更新文件写入 `runtime`。
 - 旧 Sprite 资源缓存写入 `runtime\animal-sprites`。
 - VPet 动作资源和生成缓存写入 `runtime\pethost`。
