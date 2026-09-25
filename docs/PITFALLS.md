@@ -129,3 +129,9 @@ Do not upload raw IP, MAC, disk serial, motherboard serial, LCU credentials or R
 `CloudSyncModule` may prepare local identity during module initialization, but remote authentication/database work starts asynchronously after the UI host is ready. CloudBase timeout, quota exhaustion, RLS rejection or internet failure must degrade to a skipped sync; it must not prevent GGman, League features or the updater from starting.
 
 Persistent cloud/user state belongs under `data`, not `runtime`. Cache/update cleanup may regenerate `runtime`; it must never erase the portable device identity.
+
+## Renaming the release EXE can strand older updater clients
+
+`v3.5.40` was built before the updater manifest validator accepted `GGman.exe`; it accepts only GitHub Release URLs ending in `FACM.exe`. Publishing a later manifest that points only to `GGman.exe` makes 3.5.40 report update metadata retrieval failure even when the manifest and Release are otherwise healthy.
+
+Until the minimum supported version is intentionally moved above 3.5.40, each release must publish byte-identical `GGman.exe` and `FACM.exe` assets, keep the online manifest pointed at `FACM.exe`, and verify both public assets before enabling the manifest.
