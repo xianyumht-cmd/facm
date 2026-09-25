@@ -117,3 +117,15 @@ Removing files from `main` does not remove them from old commits, releases, tags
 Do not use a placeholder file on `main` as a way to obtain a commit for a new task branch. Resolve the current `main` SHA first, create the feature branch from that SHA/ref, and only then write task files.
 
 If an accidental no-op content change does land on `main`, reverse it with an ordinary commit and verify the resulting tree matches the intended prior tree. Do not hide the mistake with reset, force-push or history rewriting.
+
+## Do not use IP or raw hardware identifiers as the cloud owner identity
+
+Public IP is not a stable machine identifier, and raw MAC/disk/mainboard identifiers create brittle device fingerprints with little product value. GGman cloud ownership is the CloudBase anonymous-auth `sub`, reached through a random stable portable `device_id`.
+
+Do not upload raw IP, MAC, disk serial, motherboard serial, LCU credentials or Riot login secrets to `ggman_devices`. A future recovery fingerprint, if added, must be privacy-minimized, hashed and secondary to explicit recovery/CloudBase ownership.
+
+## Cloud sync is never a startup dependency
+
+`CloudSyncModule` may prepare local identity during module initialization, but remote authentication/database work starts asynchronously after the UI host is ready. CloudBase timeout, quota exhaustion, RLS rejection or internet failure must degrade to a skipped sync; it must not prevent GGman, League features or the updater from starting.
+
+Persistent cloud/user state belongs under `data`, not `runtime`. Cache/update cleanup may regenerate `runtime`; it must never erase the portable device identity.
