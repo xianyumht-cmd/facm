@@ -33,6 +33,17 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - v3.5.42 已修复 3.5.40 更新兼容：公共 Release 同时发布字节一致的 `GGman.exe` / `FACM.exe`（2,304,408 bytes，SHA-256 `497CB5BB1D953EA4CDA83C7728EAE3F266557A68A74B2828BECC091A5EEF8C1A`），`online/version.json` 已启用并指向兼容 `FACM.exe` 资产。
 - 2026-09-26 已完成真实客户端 CloudBase 端到端验收：GGman 3.5.42 启动后，`ggman_devices` 成功新增 1 条真实记录，`app_version=3.5.42.0`，设备随机 `device_id` 与 CloudBase `owner_id` 均成功落库；`recovery_code_hash` / `fingerprint_hash` 仍为空，符合 P1 范围。由此确认匿名认证 → access token → PostgREST → PostgreSQL RLS → read-back 链路在真实环境已打通。
 
+## Personal stats / “我的 GGman”（PR #290，未合并/未发布）
+
+- 任务分支：`feat/personal-stats-profile-20260926`，基于 main `5ec5b0103937dc3bd8dab8924791efd1151b0700`；任务 PR：#290（draft）。
+- 新增 `data/personal-stats.json` + last-known-good：记录 GGman 首次/最近使用、活跃日期和去重账号哈希，不持久化原始 PUUID、账号名、密码或 LCU 凭据。
+- League 账号识别复用 `LeagueDashboardModule` 的唯一 Gameflow owner；连接 episode 中通过现有状态事件读取一次 `/lol-summoner/v1/current-summoner`，不新增第二 Gameflow 轮询器。
+- 账号 key 使用 `HMAC-SHA256(device_id, PUUID)`；客户端只在内存短暂接触原始 PUUID，云端/本地历史均只保存派生 hash。
+- LOL 工作台新增“我的 GGman”页：玩过账号数、活跃天数、加入日期、匿名排行，以及“记录本地足迹 / 参与匿名排行”两个开关。Local stats 默认开启；cloud ranking 默认关闭。
+- CloudBase migration：`cloudbase/sql/002_personal_stats.sql`，新增 `ggman_devices.ranking_opt_in`、`ggman_record_account` 和 `ggman_get_personal_stats`；global rank 只返回 caller 的 count/rank/population/percentile，不开放其他用户记录。
+- CloudBase schema migration 尚未在生产环境执行，因此排行功能现在必须视为 fail-soft/pending；在 migration + real-client acceptance 之前不得 merge/release。
+- 本阶段不做 general telemetry、全设置云同步、硬件/IP 指纹、SQLite/native dependency 或版本发布。
+
 ## 当前已交付行为
 
 - Mayhem 百分比单位修正，长内容/装备/强化展示完整性改善；3.5 快速数据链未重写。
