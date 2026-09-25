@@ -19,7 +19,6 @@ namespace FACM.League
         private readonly Label _accountsValue;
         private readonly Label _daysValue;
         private readonly Label _memberValue;
-        private readonly Label _rankValue;
         private readonly Label _percentileValue;
         private readonly Label _statusValue;
         private readonly FacmToggleSwitch _localToggle;
@@ -78,10 +77,7 @@ namespace FACM.League
                 _ui.Get(UiTextKeys.LeaguePersonalStatsRanking),
                 new Point(16, 12),
                 240));
-            _rankValue = CreateValue(new Point(16, 38), 300, 13F);
-            _percentileValue = CreateValue(new Point(320, 40), 326, 9.3F);
-            _percentileValue.TextAlign = ContentAlignment.MiddleRight;
-            ranking.Controls.Add(_rankValue);
+            _percentileValue = CreateValue(new Point(16, 38), 630, 13F);
             ranking.Controls.Add(_percentileValue);
             Controls.Add(ranking);
 
@@ -260,20 +256,14 @@ namespace FACM.League
 
             if (!snapshot.CloudRankingEnabled)
             {
-                _rankValue.Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingDisabled);
-                _percentileValue.Text = string.Empty;
+                _percentileValue.Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingDisabled);
             }
             else if (snapshot.CloudRank <= 0 || snapshot.CloudRankedUsers <= 0)
             {
-                _rankValue.Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingWaiting);
-                _percentileValue.Text = string.Empty;
+                _percentileValue.Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingWaiting);
             }
             else
             {
-                _rankValue.Text = string.Format(
-                    _ui.Get(UiTextKeys.LeaguePersonalStatsRankingFormat),
-                    snapshot.CloudRank,
-                    snapshot.CloudRankedUsers);
                 _percentileValue.Text = string.Format(
                     _ui.Get(UiTextKeys.LeaguePersonalStatsPercentileFormat),
                     snapshot.CloudPercentile);
