@@ -35,7 +35,7 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 
 ### Personal stats and anonymous ranking
 
-`LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On a connected League-client episode it reads `/lol-summoner/v1/current-summoner` at most once after a successful identity capture, derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, and discards the raw PUUID.
+`LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On connected Gameflow state changes it may read `/lol-summoner/v1/current-summoner`, keeps the last captured account hash as an episode fence, and records only when the observed account changes. It derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, then discards the raw PUUID.
 
 - `PersonalStatsStore` persists long-lived local history under `data/personal-stats.json` with a last-known-good recovery copy. It stores active calendar days, first/last use timestamps and hashed account records only.
 - Local personal stats are enabled by default. Cloud ranking is a separate opt-in setting and defaults off.
