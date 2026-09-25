@@ -122,7 +122,7 @@ namespace FACM.AppHost
             using (var host = new FacmHost())
             {
                 host.Register(new TestModule("first", Array.Empty<string>(), events, true));
-                RequireThrows(delegate { host.Initialize(); }, "Failed to initialize FACM module: first", "FACM host did not surface first-module initialization failure.");
+                RequireThrows(delegate { host.Initialize(); }, "Failed to initialize FACM module: first", "FACM host did not surface first-module failure report.");
                 Require(events.SequenceEqual(new[] { "init:first", "dispose:first" }), "FACM host did not dispose a first module that failed during initialization.");
                 Require(host.Report.Timings.Count == 1, "FACM first-module failure report lost timing diagnostics.");
                 Require(host.Report.SlowestModuleId == "first", "FACM first-module failure report lost slowest module identity.");
@@ -132,7 +132,7 @@ namespace FACM.AppHost
         private static void ValidateShellFeatureDependencyContract()
         {
             var settings = new SettingsModule();
-            var cloudSync = new CloudSyncModule();
+            var cloudSync = new CloudSyncModule(settings);
             var tools = new ToolsModule();
             var online = new OnlineModule();
             var pets = new PetsModule();

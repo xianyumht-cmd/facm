@@ -117,7 +117,7 @@ namespace FACM
                 };
 
                 var settings = new SettingsModule();
-                var cloudSync = new CloudSyncModule();
+                var cloudSync = new CloudSyncModule(settings);
                 var tools = new ToolsModule();
                 var online = new OnlineModule();
                 var pets = new PetsModule();

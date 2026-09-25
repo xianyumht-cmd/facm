@@ -44,6 +44,12 @@ namespace FACM.Online
         public string last_seen_at { get; set; }
     }
 
+    internal sealed class CloudSettingsRemoteState
+    {
+        public CloudSettingsSnapshot Settings { get; set; }
+        public DateTimeOffset UpdatedAtUtc { get; set; }
+    }
+
     internal sealed class CloudBaseClient : IDisposable
     {
         internal const string EnvironmentId = "ggman-d4gioqqcz434d9e4d";
@@ -179,6 +185,70 @@ namespace FACM.Online
                 var responseText = await SendAsync(request, "personal ranking", cancellationToken).ConfigureAwait(false);
                 var rows = _json.Deserialize<CloudPersonalRanking[]>(responseText) ?? new CloudPersonalRanking[0];
                 return rows.Length == 0 ? null : rows[0];
+            }
+        }
+
+        public async Task<CloudSettingsRemoteState> GetSettingsAsync(
+            string deviceId,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_get_settings_sync"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var responseText = await SendAsync(request, "settings read", cancellationToken).ConfigureAwait(false);
+                var payload = _json.DeserializeObject(responseText) as Dictionary<string, object>;
+                if (payload == null || payload.Count == 0) return null;
+
+                object settingsValue;
+                object updatedValue;
+                if (!payload.TryGetValue("settings", out settingsValue) ||
+                    !payload.TryGetValue("updated_at", out updatedValue) ||
+                    settingsValue == null || updatedValue == null)
+                    return null;
+
+                DateTimeOffset updatedAt;
+                if (!DateTimeOffset.TryParse(Convert.ToString(updatedValue), out updatedAt))
+                    throw new InvalidOperationException("CloudBase returned an invalid settings timestamp.");
+
+                return new CloudSettingsRemoteState
+                {
+                    Settings = CloudSettingsSnapshot.Deserialize(settingsValue),
+                    UpdatedAtUtc = updatedAt.ToUniversalTime()
+                };
+            }
+        }
+
+        public async Task<DateTimeOffset> SetSettingsAsync(
+            string deviceId,
+            CloudSettingsSnapshot settings,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "p_settings", settings }
+            });
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_set_settings_sync"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                var responseText = await SendAsync(request, "settings write", cancellationToken).ConfigureAwait(false);
+                var payload = _json.DeserializeObject(responseText) as Dictionary<string, object>;
+                object updatedValue;
+                if (payload == null || !payload.TryGetValue("updated_at", out updatedValue) || updatedValue == null)
+                    throw new InvalidOperationException("CloudBase returned an invalid settings write timestamp.");
+
+                DateTimeOffset updatedAt;
+                if (!DateTimeOffset.TryParse(Convert.ToString(updatedValue), out updatedAt))
+                    throw new InvalidOperationException("CloudBase returned an invalid settings write timestamp.");
+                return updatedAt.ToUniversalTime();
             }
         }
 
@@ -392,6 +462,8 @@ namespace FACM.Online
 
         internal static void ValidateForSmokeTest()
         {
+            CloudSettingsSnapshot.ValidateForSmokeTest();
+
             const string access = "access-secret-for-smoke";
             const string refresh1 = "refresh-secret-one";
             const string refresh2 = "refresh-secret-two";
