@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.46",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.46/FACM.exe",
   "sha256": "A8F8926DA8F27A320A2E6A80F47CA364080A339836D501FC2784EEB1482E70DB",
   "release_notes": "GGman 3.5.46：新增 CloudBase 云端设置同步，按设备身份保存可迁移的 GGman 用户偏好；机器本地路径、窗口位置和账号敏感数据继续留在本机。云端失败保持静默，不阻塞启动。",
-  "published_at": "2026-09-25T20:30:06.4575913+00:00"
+  "published_at": "2026-09-25T20:30:15.5683392+00:00"
 }

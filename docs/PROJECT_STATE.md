@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.45
-- GitHub Release：v3.5.45
+- 版本：GGman 3.5.46
+- GitHub Release：v3.5.46
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c203a566611e465835e6319c8ea0d472070d2b3b
-- 发布元数据提交：129c5527124ee31f4d5e6be3f39611296d3cbe2d
-- Release GGman.exe SHA-256：81A24FE80A0AD2D0E32F1CFB7FC4700A120B252AB890D08AA98E7723220A2159
-- release_notes：GGman 3.5.45：修复“我的 GGman”窗口在较小可用高度下内容被截断的问题。压缩页面垂直布局与间距，确保账号历史、匿名百分位和设置区域在受支持窗口尺寸内完整可见，不新增可见滚动条。
+- 发布基础 main：6e1a2ae5acb9c276bc45fd78b4d6fd63a62a4c44
+- 发布元数据提交：0196831bcc8bcde2b94231e4220a70c1f06636d2
+- Release GGman.exe SHA-256：A8F8926DA8F27A320A2E6A80F47CA364080A339836D501FC2784EEB1482E70DB
+- release_notes：GGman 3.5.46：新增 CloudBase 云端设置同步，按设备身份保存可迁移的 GGman 用户偏好；机器本地路径、窗口位置和账号敏感数据继续留在本机。云端失败保持静默，不阻塞启动。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
