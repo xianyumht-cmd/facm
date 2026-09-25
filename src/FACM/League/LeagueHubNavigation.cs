@@ -25,6 +25,7 @@ namespace FACM.League
         public const string Player = "player";
         public const string Live = "live";
         public const string Mayhem = "mayhem";
+        public const string Profile = "profile";
         public const string Recommendation = "recommendation";
         public const string Efficiency = "efficiency";
         public const string Repair = "repair";
@@ -41,6 +42,7 @@ namespace FACM.League
             new LeagueHubViewDefinition(Player, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Player),
             new LeagueHubViewDefinition(Live, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Live),
             new LeagueHubViewDefinition(Mayhem, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Mayhem),
+            new LeagueHubViewDefinition(Profile, LeagueHubUiTextKeys.SectionMatch, LeagueHubUiTextKeys.Profile),
             new LeagueHubViewDefinition(Recommendation, LeagueHubUiTextKeys.SectionRecommend, LeagueHubUiTextKeys.Recommendation),
             new LeagueHubViewDefinition(Efficiency, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.Efficiency),
             new LeagueHubViewDefinition(Repair, LeagueHubUiTextKeys.SectionEfficiency, LeagueHubUiTextKeys.Repair),
@@ -50,10 +52,11 @@ namespace FACM.League
         private static readonly IReadOnlyDictionary<string, string[]> Related =
             new Dictionary<string, string[]>(StringComparer.Ordinal)
             {
-                { Dashboard, new[] { Player, Live, Mayhem, Recommendation } },
-                { Player, new[] { Live, Recommendation, Mayhem, Dashboard } },
-                { Live, new[] { Recommendation, Mayhem, Repair, Player } },
-                { Mayhem, new[] { Recommendation, Live, Player, Dashboard } },
+                { Dashboard, new[] { Player, Live, Mayhem, Profile } },
+                { Player, new[] { Live, Recommendation, Mayhem, Profile } },
+                { Live, new[] { Recommendation, Mayhem, Player, Profile } },
+                { Mayhem, new[] { Recommendation, Live, Player, Profile } },
+                { Profile, new[] { Dashboard, Player, Efficiency, Presence } },
                 { Recommendation, new[] { Mayhem, Live, Efficiency, Player } },
                 { Efficiency, new[] { Repair, Dashboard, Recommendation, Presence } },
                 { Repair, new[] { Efficiency, Live, Dashboard, Presence } },
@@ -86,8 +89,8 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (Definitions.Count != 8)
-                throw new InvalidOperationException("LOL helper must expose four match views, recommendation, shortcuts, game repair and presence.");
+            if (Definitions.Count != 9)
+                throw new InvalidOperationException("LOL helper must expose five match views, recommendation, shortcuts, game repair and presence.");
             if (Definitions.Any(item => string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.SectionKey) || string.IsNullOrWhiteSpace(item.TextKey)))
                 throw new InvalidOperationException("LOL helper navigation contains an empty contract field.");
             if (Definitions.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != Definitions.Count)
