@@ -33,6 +33,18 @@ At the start of every task:
 5. verify important current-state claims against repository/runtime evidence;
 6. make the smallest safe change on one task branch when changes are authorized.
 
+## Code quality and agent-output hygiene
+
+- Inspect the nearest existing implementation, tests, naming, error handling, and ownership boundaries before introducing a pattern, library, abstraction, or file.
+- Prefer the smallest change that fully solves the requested behavior. Do not add speculative layers, generic managers/helpers, future-proofing hooks, or unrelated cleanup unless a concrete requirement justifies them.
+- Match established project style instead of pasting generic templates. New code should look like it belongs in this repository: same naming, control flow, lifecycle ownership, logging tone, and test style.
+- Keep comments sparse and durable. Explain non-obvious constraints, invariants, or trade-offs; do not narrate obvious code, the task history, the prompt, or implementation phases.
+- User-visible strings, scripts, logs, file names, comments, and diagnostics must not contain ChatGPT, OpenAI, Codex, "AI-generated", prompt references, or other authorship markers unless the product requirement explicitly needs them.
+- Do not fabricate paths, APIs, hashes, test results, runtime behavior, or compatibility claims. Verify with repository/runtime evidence and existing gates.
+- Keep secrets and sensitive values out of code, logs, tests, fixtures, documentation, and commit messages. Public client identifiers may be committed only when the upstream platform explicitly defines them as public and the design requires them.
+- Before finishing, run the narrow relevant smoke/tests first, then the repository-required gates. Report failures as failures; do not hide them behind retries or optimistic prose.
+- External coding-agent skills and high-starred repositories may inform technique, but this repository's current code, AGENTS.md, canonical docs, and verified runtime behavior are authoritative when they differ.
+
 ## Self-maintaining AI knowledge system
 
 The user should **not** need to remember or repeat documentation/knowledge-maintenance chores. When the user authorizes a repository-changing task, maintaining relevant repository knowledge is part of that task without a separate reminder. Do not perform repository writes during a purely read-only request.
