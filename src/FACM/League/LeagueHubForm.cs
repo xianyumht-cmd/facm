@@ -44,6 +44,7 @@ namespace FACM.League
             Func<UiTextCatalog, Form> player,
             Func<UiTextCatalog, Form> live,
             Func<UiTextCatalog, Form> mayhem,
+            Func<UiTextCatalog, Form> profile,
             Func<UiTextCatalog, Form> recommendation,
             Func<UiTextCatalog, Form> efficiency,
             Func<UiTextCatalog, Form> repair,
@@ -56,6 +57,7 @@ namespace FACM.League
                 { LeagueHubNavigation.Player, player ?? throw new ArgumentNullException(nameof(player)) },
                 { LeagueHubNavigation.Live, live ?? throw new ArgumentNullException(nameof(live)) },
                 { LeagueHubNavigation.Mayhem, mayhem ?? throw new ArgumentNullException(nameof(mayhem)) },
+                { LeagueHubNavigation.Profile, profile ?? throw new ArgumentNullException(nameof(profile)) },
                 { LeagueHubNavigation.Recommendation, recommendation ?? throw new ArgumentNullException(nameof(recommendation)) },
                 { LeagueHubNavigation.Efficiency, efficiency ?? throw new ArgumentNullException(nameof(efficiency)) },
                 { LeagueHubNavigation.Repair, repair ?? throw new ArgumentNullException(nameof(repair)) },
@@ -187,6 +189,7 @@ namespace FACM.League
         internal static bool ShouldShowContextDockForSmokeTest(string viewId, int workspaceWidth)
         {
             var sparseView = string.Equals(viewId, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                             string.Equals(viewId, LeagueHubNavigation.Profile, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Efficiency, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Repair, StringComparison.Ordinal) ||
                              string.Equals(viewId, LeagueHubNavigation.Presence, StringComparison.Ordinal);
