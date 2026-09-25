@@ -201,17 +201,25 @@ namespace FACM.Services
 
         internal static void ValidatePersonalStatsPreferencesForSmokeTest()
         {
-            var settings = ParseLines(new[]
+            var enabled = ParseLines(new[]
+            {
+                "LeaguePersonalStatsEnabled=True",
+                "LeagueCloudRankingEnabled=True"
+            });
+            if (!enabled.LeaguePersonalStatsEnabled || !enabled.LeagueCloudRankingEnabled)
+                throw new InvalidOperationException("Personal stats settings parsing drifted.");
+
+            var disabled = ParseLines(new[]
             {
                 "LeaguePersonalStatsEnabled=False",
                 "LeagueCloudRankingEnabled=True"
             });
-            if (settings.LeaguePersonalStatsEnabled || !settings.LeagueCloudRankingEnabled)
-                throw new InvalidOperationException("Personal stats settings parsing drifted.");
+            if (disabled.LeaguePersonalStatsEnabled || disabled.LeagueCloudRankingEnabled)
+                throw new InvalidOperationException("Cloud ranking must fail closed when personal stats are disabled.");
 
-            var lines = settings.BuildLines();
+            var lines = disabled.BuildLines();
             if (Array.IndexOf(lines, "LeaguePersonalStatsEnabled=False") < 0 ||
-                Array.IndexOf(lines, "LeagueCloudRankingEnabled=True") < 0)
+                Array.IndexOf(lines, "LeagueCloudRankingEnabled=False") < 0)
                 throw new InvalidOperationException("Personal stats settings serialization drifted.");
         }
 
@@ -370,6 +378,7 @@ namespace FACM.Services
             result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));
             result.LeagueAutoMatchmakingStopPolicy = NormalizeMatchmakingStopPolicy(result.LeagueAutoMatchmakingStopPolicy);
             result.LeagueAutoMatchmakingStopAfterMs = Math.Max(1000, Math.Min(600000, result.LeagueAutoMatchmakingStopAfterMs));
+            if (!result.LeaguePersonalStatsEnabled) result.LeagueCloudRankingEnabled = false;
         }
 
         private static string NormalizeMatchmakingStopPolicy(string value)
