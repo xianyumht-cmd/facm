@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.43",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.43/FACM.exe",
   "sha256": "5B4CD5CE0B5AD2DEFC1A5A392BCEE690F4492D9D904B8CFC2808C4E6AE573602",
   "release_notes": "GGman 3.5.43：新增“我的 GGman”个人使用档案。现在会在本机便携 data 目录记录加入日期、活跃天数和去重后的玩过账号数量；LOL 当前账号仅在内存读取 PUUID，并立即派生为设备内 HMAC-SHA256 哈希，原始 PUUID、账号名、密码和 LCU 凭据不会进入个人历史。新增可选的匿名账号数排行，默认关闭；用户开启后仅上传派生哈希，并由 CloudBase 服务端返回自己的百分位结果，客户端不会读取其他用户明细。根据实机验收，正式 UI 仅保留“超过 X% 的参与玩家”百分比，不显示 N/N 绝对名次。同时修复旧 ui-text.ini 中未改动的 FACM 品牌默认词在新页面继续显示的问题，运行时迁移为 GGman。CloudBase 生产 migration 与真实客户端 account-history/ranking 链路已验收通过。",
-  "published_at": "2026-09-25T17:50:42.2669723+00:00"
+  "published_at": "2026-09-25T17:50:50.9632916+00:00"
 }

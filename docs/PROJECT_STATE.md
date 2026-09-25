@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.42
-- GitHub Release：v3.5.42
+- 版本：GGman 3.5.43
+- GitHub Release：v3.5.43
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：7fa859c563904414eff9e8415b5febddbdec78ad
-- 发布元数据提交：96f7d3bdb61596bed2ab4e5b5bbfbbd3f64d441e
-- Release GGman.exe SHA-256：497CB5BB1D953EA4CDA83C7728EAE3F266557A68A74B2828BECC091A5EEF8C1A
-- release_notes：GGman 3.5.42：修复 3.5.40 客户端无法获取 3.5.41 更新的问题。3.5.40 的旧更新校验器只接受 GitHub Release 中名为 FACM.exe 的下载地址，因此 3.5.41 仅发布 GGman.exe 时会被旧客户端判定为无效更新信息。发布链现同时提供字节完全一致的 GGman.exe 与兼容 FACM.exe，并在启用在线更新前校验两份公共资产的大小、SHA-256 与签名者一致；在线 manifest 暂时继续指向 FACM.exe，确保旧客户端可正常升级。CloudBase 设备身份 P1 保持不变。
+- 发布基础 main：c62041167371a0cd5f05b1cfc7d53c329809f64a
+- 发布元数据提交：405aab6edafc6bf8c38ab39a68f6071c30750d9e
+- Release GGman.exe SHA-256：5B4CD5CE0B5AD2DEFC1A5A392BCEE690F4492D9D904B8CFC2808C4E6AE573602
+- release_notes：GGman 3.5.43：新增“我的 GGman”个人使用档案。现在会在本机便携 data 目录记录加入日期、活跃天数和去重后的玩过账号数量；LOL 当前账号仅在内存读取 PUUID，并立即派生为设备内 HMAC-SHA256 哈希，原始 PUUID、账号名、密码和 LCU 凭据不会进入个人历史。新增可选的匿名账号数排行，默认关闭；用户开启后仅上传派生哈希，并由 CloudBase 服务端返回自己的百分位结果，客户端不会读取其他用户明细。根据实机验收，正式 UI 仅保留“超过 X% 的参与玩家”百分比，不显示 N/N 绝对名次。同时修复旧 ui-text.ini 中未改动的 FACM 品牌默认词在新页面继续显示的问题，运行时迁移为 GGman。CloudBase 生产 migration 与真实客户端 account-history/ranking 链路已验收通过。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
