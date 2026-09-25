@@ -25,7 +25,7 @@ namespace FACM.League
         private static readonly TimeSpan SampleInterval = TimeSpan.FromMilliseconds(250);
         private static readonly TimeSpan TeamRefreshInterval = TimeSpan.FromMilliseconds(250);
         private static readonly TimeSpan PostChampSelectGrace = TimeSpan.FromSeconds(12);
-        private static readonly TimeSpan PostDodgeEvidenceWindow = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan PostDodgeEvidenceWindow = TimeSpan.FromSeconds(4);
         private static readonly TimeSpan PostDodgeEvidenceInterval = TimeSpan.FromMilliseconds(125);
 
         private readonly object _sync = new object();
@@ -46,6 +46,7 @@ namespace FACM.League
                 "; champSelect=" + ChampSelectPath +
                 "; chat=" + LeagueDodgeSideEvidenceProbe.ConversationsPath +
                 "; lobby=" + LeagueDodgeSideEvidenceProbe.LobbyPath +
+                "; notifications=" + LeagueDodgeNotificationEvidenceProbe.NotificationsPath +
                 "; sampleMs=" + ((int)SampleInterval.TotalMilliseconds).ToString(CultureInfo.InvariantCulture) +
                 "; postSelectGraceMs=" + ((int)PostChampSelectGrace.TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
         }
@@ -111,12 +112,14 @@ namespace FACM.League
         {
             var roster = new LeagueDodgeTeamSnapshot();
             var evidence = new LeagueDodgeSideEvidenceProbe(_client, generation);
+            var notifications = new LeagueDodgeNotificationEvidenceProbe(_client, generation);
             string lastRosterFingerprint = null;
             string baselineDodgeFingerprint = null;
             string lastReportedDodgeFingerprint = null;
             bool baselineCaptured = false;
             bool searchUnavailableLogged = false;
             bool confirmedDodgeReported = false;
+            bool postSelectTransitionLogged = false;
             var nextTeamRefreshUtc = DateTime.MinValue;
 
             try
@@ -130,6 +133,15 @@ namespace FACM.League
                         if (_disposed || generation != _episodeGeneration) return;
                         phase = _phase ?? string.Empty;
                         graceDeadlineUtc = _graceDeadlineUtc;
+                    }
+
+                    if (!IsChampSelect(phase) && !postSelectTransitionLogged && IsPostSelectReturnPhase(phase))
+                    {
+                        postSelectTransitionLogged = true;
+                        AppLog.Info(
+                            "League Dodge Probe: post-select-transition; episode=" + generation.ToString(CultureInfo.InvariantCulture) +
+                            "; phase=" + Safe(phase) +
+                            "; confirmedDodge=" + confirmedDodgeReported.ToString().ToLowerInvariant());
                     }
 
                     if (!IsChampSelect(phase) && graceDeadlineUtc != DateTime.MaxValue &&
@@ -169,6 +181,7 @@ namespace FACM.League
                     }
 
                     await evidence.SampleAsync(roster, cancellationToken).ConfigureAwait(false);
+                    await notifications.SampleAsync(roster, cancellationToken).ConfigureAwait(false);
 
                     var searchBytes = await _client.TryGetBytesAsync(SearchPath, cancellationToken).ConfigureAwait(false);
                     var dodge = ParseDodgeSnapshot(searchBytes);
@@ -213,7 +226,7 @@ namespace FACM.League
                         {
                             confirmedDodgeReported = true;
                             lastReportedDodgeFingerprint = fingerprint;
-                            var classification = evidence.Refine(Classify(dodge, roster), roster);
+                            var classification = notifications.Refine(evidence.Refine(Classify(dodge, roster), roster), roster);
                             LogDodge(
                                 "DODGE",
                                 generation,
@@ -221,10 +234,10 @@ namespace FACM.League
                                 dodge,
                                 classification,
                                 roster,
-                                evidence.BuildSummary(roster));
+                                BuildCombinedEvidenceSummary(evidence, notifications, roster));
 
-                            await CapturePostDodgeEvidenceAsync(evidence, roster, generation, cancellationToken).ConfigureAwait(false);
-                            classification = evidence.Refine(Classify(dodge, roster), roster);
+                            await CapturePostDodgeEvidenceAsync(evidence, notifications, roster, generation, cancellationToken).ConfigureAwait(false);
+                            classification = notifications.Refine(evidence.Refine(Classify(dodge, roster), roster), roster);
                             LogDodge(
                                 "DODGE-EVIDENCE",
                                 generation,
@@ -232,15 +245,15 @@ namespace FACM.League
                                 dodge,
                                 classification,
                                 roster,
-                                evidence.BuildSummary(roster));
+                                BuildCombinedEvidenceSummary(evidence, notifications, roster));
                         }
 
                         if (!confirmedDodgeReported && !IsChampSelect(phase) && IsDodgeReturnPhase(phase) &&
                             dodge.Present && IsRecognizedDodgeState(dodge.State))
                         {
                             confirmedDodgeReported = true;
-                            await CapturePostDodgeEvidenceAsync(evidence, roster, generation, cancellationToken).ConfigureAwait(false);
-                            var classification = evidence.Refine(Classify(dodge, roster), roster);
+                            await CapturePostDodgeEvidenceAsync(evidence, notifications, roster, generation, cancellationToken).ConfigureAwait(false);
+                            var classification = notifications.Refine(evidence.Refine(Classify(dodge, roster), roster), roster);
                             LogDodge(
                                 "DODGE-PHASE-RETURN",
                                 generation,
@@ -248,7 +261,7 @@ namespace FACM.League
                                 dodge,
                                 classification,
                                 roster,
-                                evidence.BuildSummary(roster));
+                                BuildCombinedEvidenceSummary(evidence, notifications, roster));
                         }
                     }
 
@@ -281,6 +294,7 @@ namespace FACM.League
 
         private async Task CapturePostDodgeEvidenceAsync(
             LeagueDodgeSideEvidenceProbe evidence,
+            LeagueDodgeNotificationEvidenceProbe notifications,
             LeagueDodgeTeamSnapshot roster,
             long generation,
             CancellationToken cancellationToken)
@@ -301,6 +315,7 @@ namespace FACM.League
                 }
 
                 await evidence.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);
+                await notifications.SampleAsync(roster, cancellationToken, true).ConfigureAwait(false);
                 await Task.Delay(PostDodgeEvidenceInterval, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -428,6 +443,27 @@ namespace FACM.League
                 throw new InvalidOperationException("Dodge Probe party classification regressed.");
 
             LeagueDodgeSideEvidenceProbe.ValidateForSmokeTest();
+            LeagueDodgeNotificationEvidenceProbe.ValidateForSmokeTest();
+        }
+
+        private static string BuildCombinedEvidenceSummary(
+            LeagueDodgeSideEvidenceProbe evidence,
+            LeagueDodgeNotificationEvidenceProbe notifications,
+            LeagueDodgeTeamSnapshot roster)
+        {
+            var side = evidence == null ? string.Empty : evidence.BuildSummary(roster);
+            var notification = notifications == null ? string.Empty : notifications.BuildSummary(roster);
+            if (string.IsNullOrWhiteSpace(side)) return notification;
+            if (string.IsNullOrWhiteSpace(notification)) return side;
+            return side + "," + notification;
+        }
+
+        private static bool IsPostSelectReturnPhase(string phase)
+        {
+            return string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "Matchmaking", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "ReadyCheck", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ShouldKeepPostSelectProbe(string phase)
