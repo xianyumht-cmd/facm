@@ -31,7 +31,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - 本阶段没有引入设置云同步、账号历史同步、遥测上传、SQLite、新运行时 DLL、第二 League/LCU 轮询器、服务端 API Key 或硬件/IP 指纹。
 - 发布前最终任务 head `083a8532a987b3a3bd67d83f325f7e9aac4b45a4` 通过 GGman Windows Build #1957、UI Text Contract #1063 与 Mayhem Source Probe #772；正式发布工作流 #23 全部通过。
 - v3.5.42 已修复 3.5.40 更新兼容：公共 Release 同时发布字节一致的 `GGman.exe` / `FACM.exe`（2,304,408 bytes，SHA-256 `497CB5BB1D953EA4CDA83C7728EAE3F266557A68A74B2828BECC091A5EEF8C1A`），`online/version.json` 已启用并指向兼容 `FACM.exe` 资产。
-- 自动化发布链已验证构建、签名、公共 Release 字节与 signer；真实客户端到 CloudBase 匿名认证/PostgREST/RLS 的端到端数据写入仍需要从实际运行记录中观察，不能把发布成功等同于云端业务链已实机验收。
+- 2026-09-26 已完成真实客户端 CloudBase 端到端验收：GGman 3.5.42 启动后，`ggman_devices` 成功新增 1 条真实记录，`app_version=3.5.42.0`，设备随机 `device_id` 与 CloudBase `owner_id` 均成功落库；`recovery_code_hash` / `fingerprint_hash` 仍为空，符合 P1 范围。由此确认匿名认证 → access token → PostgREST → PostgreSQL RLS → read-back 链路在真实环境已打通。
 
 ## 当前已交付行为
 
