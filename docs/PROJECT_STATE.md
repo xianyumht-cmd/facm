@@ -20,9 +20,9 @@
 
 FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM.exe`。4.x 已退出默认工作树、当前 CI 与发布链；历史实现只保留在 Git 历史、旧 tag/release/remote branch/旧 PR 中，不作为当前产品依据。
 
-当前在线正式版是 **GGman 3.5.42**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
+当前在线正式版是 **GGman 3.5.43**。在线更新已启用，`minimum_version=3.0.0`，`force_update=false`。后续实机发现问题按普通 3.5.x patch 修复，不回到 4.x 产品线。
 
-## CloudBase 设备身份 P1（已合并并随 GGman 3.5.41 引入，3.5.42 继续包含）
+## CloudBase 设备身份 P1（已合并并随 GGman 3.5.41 引入，3.5.43 继续包含）
 
 - PR #288 已 squash merge 到 `main`；功能发布基础 commit 为 `6e3a39391841e7e5d2292ab00655af5a416577b7`。
 - 腾讯 CloudBase 环境使用 `ggman-d4gioqqcz434d9e4d`；P1 只建立便携 `data` 目录、稳定随机 `device_id`、匿名会话和 `ggman_devices` 一次启动同步/回读验证。
