@@ -33,6 +33,18 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 - PostgreSQL RLS remains the data-ownership boundary. Client code must not receive a service-role/API-key credential and must not supply `owner_id` itself.
 - Settings sync, account-history sync, telemetry upload, recovery-code/hardware-fingerprint matching, and local SQLite are later scopes, not implicit P1 behavior.
 
+### Personal stats and anonymous ranking
+
+`LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On a connected League-client episode it reads `/lol-summoner/v1/current-summoner` at most once after a successful identity capture, derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, and discards the raw PUUID.
+
+- `PersonalStatsStore` persists long-lived local history under `data/personal-stats.json` with a last-known-good recovery copy. It stores active calendar days, first/last use timestamps and hashed account records only.
+- Local personal stats are enabled by default. Cloud ranking is a separate opt-in setting and defaults off.
+- Cloud account history uses `ggman_record_account`; clients never send `owner_id`. The SQL function derives ownership from `auth.uid()`.
+- Global ranking uses `ggman_get_personal_stats`, a SECURITY DEFINER aggregate that returns only the current user's account count, rank, participant count and percentile. It does not expose other users' owner IDs or account hashes.
+- `ggman_devices.ranking_opt_in` is the population gate. Turning ranking off removes the user from the aggregate population while keeping local history intact.
+- Cloud failures remain fail-soft. The local profile continues to work when the migration, network or CloudBase service is unavailable.
+- Full settings sync, general product telemetry, hardware fingerprints and raw Riot identifiers remain outside this scope.
+
 ## WinForms design system
 
 FACM UI evolution stays inside the lightweight WinForms product. `ThemeCatalog` is the palette source, `FacmThemeRuntime` owns the active process theme, `FacmDesignSystem` owns semantic colors/geometry/common product styling, and `FacmWindowChrome` owns the normal top-level FACM window shell.
