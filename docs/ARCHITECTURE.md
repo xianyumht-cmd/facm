@@ -21,6 +21,18 @@ The normal 3.5 build embeds ToolBundle but does **not** embed a self-contained P
 
 The module layer is an ownership/lifecycle boundary, not a separate 4.x application architecture. Do not split the product into a new Core/Infrastructure/Platform stack without a concrete 3.5 requirement.
 
+## Cloud identity and sync
+
+`CloudSyncModule` is a fail-soft consumer of Tencent CloudBase. It does not own UI and must never block GGman startup.
+
+- `RuntimePaths.DataDirectory` is the application-local persistent data root; it is distinct from regenerable `runtime` data.
+- `CloudIdentityStore` keeps a random stable `device_id` plus the CloudBase anonymous user id in `data/cloud-identity.json` and a last-known-good copy. Access tokens and refresh tokens are process memory only and are never persisted.
+- `CloudBaseClient` uses the existing .NET Framework `System.Net.Http` stack and fixed HTTPS gateway for environment `ggman-d4gioqqcz434d9e4d`. Anonymous auth uses `x-device-id`; PostgreSQL requests use the returned access token.
+- Remote work starts once from `Application.Idle` after the normal host/UI initialization path. Network failure, CloudBase downtime, auth failure, or RLS rejection is logged as a fail-soft skip and cannot disable League or other local features.
+- P1 writes only the `ggman_devices` record (`device_id`, app version, OS version, last-seen timestamp), omits `owner_id`, and verifies the read-back owner against the authenticated CloudBase `sub`.
+- PostgreSQL RLS remains the data-ownership boundary. Client code must not receive a service-role/API-key credential and must not supply `owner_id` itself.
+- Settings sync, account-history sync, telemetry upload, recovery-code/hardware-fingerprint matching, and local SQLite are later scopes, not implicit P1 behavior.
+
 ## WinForms design system
 
 FACM UI evolution stays inside the lightweight WinForms product. `ThemeCatalog` is the palette source, `FacmThemeRuntime` owns the active process theme, `FacmDesignSystem` owns semantic colors/geometry/common product styling, and `FacmWindowChrome` owns the normal top-level FACM window shell.
