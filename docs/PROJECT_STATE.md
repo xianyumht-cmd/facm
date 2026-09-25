@@ -30,7 +30,7 @@ FACM 只维护 **3.5.x lightweight**：WinForms / .NET Framework 4.8 / 单 `FACM
 - access/refresh token 不落盘；本地只持久化 `device_id`、匿名 CloudBase UID 与 last-known-good 身份副本。
 - 云端同步是 fail-soft 背景能力，CloudBase/网络失败不得阻止 GGman 启动或 League 本地功能。
 - 本阶段不引入 SQLite、新运行时 DLL、第二 League/LCU 轮询器、服务端 API Key 或硬件/IP 指纹。
-- 代码与文档正在任务 PR/CI Gate 中验证；通过前不能描述为 main 已交付或生产发布行为。
+- 任务 PR：#288（draft）。当前验证 head `7b8ed98b3d930c9dd0cc1cf074aa54cac6febd8a` 已通过 GGman Windows Build #1956、UI Text Contract #1062 与 Mayhem Source Probe #771；Windows candidate `GGman.exe` 为 3.5.40.0、2,302,464 bytes，开发签名 SHA-256 `BA58D93FF6D7A77081F7F794999633746BF063A4DB02471D09FCD4CB37C06701`。真实 CloudBase 匿名登录 / RLS 写回仍需一次 live acceptance，因此 PR 继续保持 draft，不能描述为 main 已交付或生产发布行为。
 
 ## 当前已交付行为
 
