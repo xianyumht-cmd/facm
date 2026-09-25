@@ -38,6 +38,11 @@ namespace FACM.Services
             get { return Path.Combine(BaseDirectoryValue, "logs"); }
         }
 
+        public static string DataDirectory
+        {
+            get { return Path.Combine(BaseDirectoryValue, "data"); }
+        }
+
         public static string RuntimeDirectory
         {
             get { return Path.Combine(BaseDirectoryValue, "runtime"); }
@@ -66,6 +71,7 @@ namespace FACM.Services
         public static void Initialize()
         {
             Directory.CreateDirectory(LogsDirectory);
+            Directory.CreateDirectory(DataDirectory);
             Directory.CreateDirectory(RuntimeDirectory);
             Directory.CreateDirectory(CacheDirectory);
             Directory.CreateDirectory(UpdatesDirectory);
