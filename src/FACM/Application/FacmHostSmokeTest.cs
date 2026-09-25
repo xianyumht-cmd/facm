@@ -154,7 +154,7 @@ namespace FACM.AppHost
                 "FACM Phase 5 Mayhem -> LeagueClient dependency contract changed unexpectedly.");
             Require(leagueDashboard.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Dashboard must depend on LeagueClient and Performance.");
-            Require(leaguePlayer.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.Id }),
+            Require(leaguePlayer.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Player must depend on LeagueClient and Performance.");
             Require(leagueLive.Dependencies.SequenceEqual(new[] { LeagueClientModule.ModuleId, FACM.Performance.PerformanceModule.ModuleId }),
                 "League Live must depend on LeagueClient and Performance.");
