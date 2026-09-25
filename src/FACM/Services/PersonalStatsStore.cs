@@ -12,6 +12,7 @@ namespace FACM.Services
     internal sealed class PersonalStatsAccountRecord
     {
         public string AccountKeyHash { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
         public string Region { get; set; } = string.Empty;
         public string FirstSeenUtc { get; set; } = string.Empty;
         public string LastSeenUtc { get; set; } = string.Empty;
@@ -20,7 +21,7 @@ namespace FACM.Services
 
     internal sealed class PersonalStatsState
     {
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
         public string FirstSeenUtc { get; set; } = string.Empty;
         public string LastSeenUtc { get; set; } = string.Empty;
         public List<string> ActiveDays { get; set; } = new List<string>();
@@ -33,13 +34,16 @@ namespace FACM.Services
         public int ActiveDays { get; set; }
         public DateTimeOffset? FirstSeenUtc { get; set; }
         public DateTimeOffset? LastSeenUtc { get; set; }
+        public IReadOnlyList<PersonalStatsAccountRecord> RecentAccounts { get; set; } = new List<PersonalStatsAccountRecord>();
     }
 
     internal sealed class PersonalStatsStore
     {
+        private const int CurrentSchemaVersion = 2;
         private const int MoveFileReplaceExisting = 0x1;
         private const int MoveFileWriteThrough = 0x8;
         private const int MaxFileBytes = 8 * 1024 * 1024;
+        private const int RecentAccountLimit = 4;
         private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
 
         private readonly object _sync = new object();
@@ -72,7 +76,7 @@ namespace FACM.Services
                 var state = LoadOrCreate(now);
                 TouchUsageDay(state, now);
                 Save(state);
-                return BuildSnapshot(state);
+                return BuildSnapshot(state, now);
             }
         }
 
@@ -80,12 +84,22 @@ namespace FACM.Services
         {
             lock (_sync)
             {
-                return BuildSnapshot(LoadOrCreate(now));
+                return BuildSnapshot(LoadOrCreate(now), now);
             }
         }
 
         public PersonalStatsSnapshot RecordAccount(
             string accountKeyHash,
+            string region,
+            DateTimeOffset now,
+            out bool isNewAccount)
+        {
+            return RecordAccount(accountKeyHash, string.Empty, region, now, out isNewAccount);
+        }
+
+        public PersonalStatsSnapshot RecordAccount(
+            string accountKeyHash,
+            string displayName,
             string region,
             DateTimeOffset now,
             out bool isNewAccount)
@@ -108,6 +122,7 @@ namespace FACM.Services
                     record = new PersonalStatsAccountRecord
                     {
                         AccountKeyHash = accountKeyHash.ToLowerInvariant(),
+                        DisplayName = NormalizeDisplayName(displayName),
                         Region = NormalizeRegion(region),
                         FirstSeenUtc = now.UtcDateTime.ToString("o"),
                         LastSeenUtc = now.UtcDateTime.ToString("o"),
@@ -119,12 +134,14 @@ namespace FACM.Services
                 {
                     record.LastSeenUtc = now.UtcDateTime.ToString("o");
                     record.SeenCount = Math.Max(1, record.SeenCount) + 1;
+                    var normalizedDisplayName = NormalizeDisplayName(displayName);
+                    if (!string.IsNullOrWhiteSpace(normalizedDisplayName)) record.DisplayName = normalizedDisplayName;
                     var normalizedRegion = NormalizeRegion(region);
                     if (!string.IsNullOrWhiteSpace(normalizedRegion)) record.Region = normalizedRegion;
                 }
 
                 Save(state);
-                return BuildSnapshot(state);
+                return BuildSnapshot(state, now);
             }
         }
 
@@ -173,7 +190,7 @@ namespace FACM.Services
 
             return new PersonalStatsState
             {
-                SchemaVersion = 1,
+                SchemaVersion = CurrentSchemaVersion,
                 FirstSeenUtc = now.UtcDateTime.ToString("o"),
                 LastSeenUtc = now.UtcDateTime.ToString("o"),
                 ActiveDays = new List<string>(),
@@ -201,8 +218,10 @@ namespace FACM.Services
 
         private static PersonalStatsState Normalize(PersonalStatsState state)
         {
-            if (state == null || state.SchemaVersion != 1)
-                throw new InvalidDataException("Unsupported personal stats state.");
+            if (state == null) throw new InvalidDataException("Unsupported personal stats state.");
+            if (state.SchemaVersion == 1) state.SchemaVersion = CurrentSchemaVersion;
+            if (state.SchemaVersion != CurrentSchemaVersion)
+                throw new InvalidDataException("Unsupported personal stats state version.");
 
             state.ActiveDays = (state.ActiveDays ?? new List<string>())
                 .Where(IsValidDay)
@@ -219,6 +238,7 @@ namespace FACM.Services
                     return new PersonalStatsAccountRecord
                     {
                         AccountKeyHash = source.AccountKeyHash.ToLowerInvariant(),
+                        DisplayName = NormalizeDisplayName(source.DisplayName),
                         Region = NormalizeRegion(source.Region),
                         FirstSeenUtc = NormalizeUtcText(source.FirstSeenUtc),
                         LastSeenUtc = NormalizeUtcText(source.LastSeenUtc),
@@ -266,14 +286,23 @@ namespace FACM.Services
             return _json.Serialize(state) + Environment.NewLine;
         }
 
-        private static PersonalStatsSnapshot BuildSnapshot(PersonalStatsState state)
+        private static PersonalStatsSnapshot BuildSnapshot(PersonalStatsState state, DateTimeOffset now)
         {
             return new PersonalStatsSnapshot
             {
                 PlayedAccounts = state == null || state.Accounts == null ? 0 : state.Accounts.Count,
                 ActiveDays = state == null || state.ActiveDays == null ? 0 : state.ActiveDays.Count,
                 FirstSeenUtc = state == null ? null : ParseUtc(state.FirstSeenUtc),
-                LastSeenUtc = state == null ? null : ParseUtc(state.LastSeenUtc)
+                LastSeenUtc = state == null ? null : ParseUtc(state.LastSeenUtc),
+                RecentAccounts = state == null || state.Accounts == null
+                    ? new List<PersonalStatsAccountRecord>()
+                    : state.Accounts
+                        .Where(item => item != null && IsValidAccountHash(item.AccountKeyHash))
+                        .OrderByDescending(item => ParseUtc(item.LastSeenUtc) ?? DateTimeOffset.MinValue)
+                        .ThenBy(item => item.AccountKeyHash, StringComparer.OrdinalIgnoreCase)
+                        .Take(RecentAccountLimit)
+                        .Select(CloneAccount)
+                        .ToArray()
             };
         }
 
@@ -282,6 +311,7 @@ namespace FACM.Services
             return new PersonalStatsAccountRecord
             {
                 AccountKeyHash = source.AccountKeyHash ?? string.Empty,
+                DisplayName = source.DisplayName ?? string.Empty,
                 Region = source.Region ?? string.Empty,
                 FirstSeenUtc = source.FirstSeenUtc ?? string.Empty,
                 LastSeenUtc = source.LastSeenUtc ?? string.Empty,
@@ -306,6 +336,16 @@ namespace FACM.Services
             var region = (value ?? string.Empty).Trim();
             if (region.Length > 32) region = region.Substring(0, 32);
             return region;
+        }
+
+        private static string NormalizeDisplayName(string value)
+        {
+            var displayName = (value ?? string.Empty)
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Trim();
+            if (displayName.Length > 64) displayName = displayName.Substring(0, 64);
+            return displayName;
         }
 
         private static bool IsValidAccountHash(string value)
@@ -398,26 +438,33 @@ namespace FACM.Services
                     "Personal stats hash exposed the player identifier.");
 
                 bool isNew;
-                var afterFirst = store.RecordAccount(hash1, "HN1", firstNow, out isNew);
-                Require(isNew && afterFirst.PlayedAccounts == 1,
-                    "Personal stats did not add the first unique account.");
+                var afterFirst = store.RecordAccount(hash1, "测试账号#ONE", "HN1", firstNow, out isNew);
+                Require(isNew && afterFirst.PlayedAccounts == 1 &&
+                        afterFirst.RecentAccounts.Count == 1 &&
+                        afterFirst.RecentAccounts[0].DisplayName == "测试账号#ONE",
+                    "Personal stats did not persist the local account display name.");
 
-                var afterRepeat = store.RecordAccount(hash1, "HN1", secondNow, out isNew);
-                Require(!isNew && afterRepeat.PlayedAccounts == 1 && afterRepeat.ActiveDays == 2,
-                    "Personal stats did not deduplicate a repeated account.");
+                var afterRepeat = store.RecordAccount(hash1, "更新后的账号#ONE", "HN1", secondNow, out isNew);
+                Require(!isNew && afterRepeat.PlayedAccounts == 1 && afterRepeat.ActiveDays == 2 &&
+                        afterRepeat.RecentAccounts[0].DisplayName == "更新后的账号#ONE" &&
+                        afterRepeat.RecentAccounts[0].SeenCount == 2,
+                    "Personal stats did not update the repeated account history.");
 
-                var afterSecond = store.RecordAccount(hash2, "HN1", secondNow, out isNew);
-                Require(isNew && afterSecond.PlayedAccounts == 2,
+                var afterSecond = store.RecordAccount(hash2, "测试账号#TWO", "HN1", secondNow, out isNew);
+                Require(isNew && afterSecond.PlayedAccounts == 2 && afterSecond.RecentAccounts.Count == 2,
                     "Personal stats did not add the second unique account.");
 
                 File.WriteAllText(Path.Combine(root, "personal-stats.json"), "{ broken");
                 var recovered = new PersonalStatsStore(root).ReadSnapshot(secondNow);
-                Require(recovered.PlayedAccounts == 2,
+                Require(recovered.PlayedAccounts == 2 && recovered.RecentAccounts.Count == 2 &&
+                        recovered.RecentAccounts.Any(item => item.DisplayName == "更新后的账号#ONE"),
                     "Personal stats last-known-good recovery lost account history.");
 
                 var raw = File.ReadAllText(Path.Combine(root, "personal-stats.last-known-good.json"));
                 Require(raw.IndexOf("puuid-example", StringComparison.OrdinalIgnoreCase) < 0,
                     "Personal stats persisted a raw player identifier.");
+                Require(raw.IndexOf("更新后的账号#ONE", StringComparison.Ordinal) >= 0,
+                    "Personal stats did not persist the local display name.");
             }
             finally
             {
