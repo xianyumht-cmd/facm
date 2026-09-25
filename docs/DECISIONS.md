@@ -203,3 +203,16 @@ Production release must continue to use the canonical lightweight publisher, sig
 - User settings, account history and telemetry are separate later sync scopes and must preserve the same least-privilege/RLS boundary.
 
 This choice favors predictable portability, privacy, and recoverability over brittle device fingerprinting while keeping a path open for a future real account system.
+
+## D-022 — Personal history is local-first; anonymous ranking is explicit opt-in
+
+**Decision (2026-09-26):** GGman personal stats keep their durable source on the user's portable application directory and upload only privacy-minimized account hashes when the user enables anonymous ranking.
+
+- Local history records active days and unique played-account hashes under `data/personal-stats.json`; raw PUUID, Riot account name, password and LCU credentials are never persisted in this store.
+- Account keys are HMAC-SHA256 values derived from the portable random `device_id` and the current PUUID. The raw PUUID is discarded after derivation.
+- Local personal stats default on because they are application-local and user-visible. Cloud ranking defaults off and is independently switchable.
+- Ranking is computed server-side from opted-in users only. The client receives only its own count/rank/population/percentile aggregate and cannot enumerate other users through RLS.
+- The current lightweight line does not add SQLite/native runtime dependencies merely for this feature. The JSON store uses the same application-local atomic/LKG durability pattern as other small portable state. A later SQLite migration must justify its release-size/runtime cost and include deterministic migration from this schema.
+- Turning a feature off stops future collection/sync; it does not silently erase existing local history. Destructive deletion, if added later, must be an explicit user action.
+
+This keeps the user-facing retention value (history, active days, rank, future summaries) without making cross-user tracking or hidden device fingerprinting a prerequisite.
