@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly Label _memberValue;
         private readonly Label _percentileValue;
         private readonly Label _statusValue;
+        private readonly Label[] _historyRows;
         private readonly FacmToggleSwitch _localToggle;
         private readonly FacmToggleSwitch _rankingToggle;
         private readonly FacmActionButton _refreshButton;
@@ -35,13 +36,14 @@ namespace FACM.League
             _module = module ?? throw new ArgumentNullException(nameof(module));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
+            _historyRows = new Label[4];
 
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96F, 96F);
             Text = _ui.Get(UiTextKeys.LeaguePersonalStatsWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(720, 500);
-            MinimumSize = new Size(650, 470);
+            ClientSize = new Size(720, 680);
+            MinimumSize = new Size(650, 640);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -72,7 +74,29 @@ namespace FACM.League
             _memberValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsMemberSince, 446);
             Controls.Add(summary);
 
-            var ranking = CreatePanel(new Rectangle(28, 220, 664, 104));
+            var history = CreatePanel(new Rectangle(28, 220, 664, 156));
+            history.Controls.Add(CreateCaption(
+                _ui.Get(UiTextKeys.LeaguePersonalStatsAccounts),
+                new Point(16, 12),
+                240));
+            for (var index = 0; index < _historyRows.Length; index++)
+            {
+                var row = new Label
+                {
+                    Location = new Point(16, 38 + index * 28),
+                    Size = new Size(632, 24),
+                    ForeColor = FacmDesignSystem.Text,
+                    BackColor = Color.Transparent,
+                    Font = new Font(Font.FontFamily, 8.5F),
+                    AutoEllipsis = true,
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                _historyRows[index] = row;
+                history.Controls.Add(row);
+            }
+            Controls.Add(history);
+
+            var ranking = CreatePanel(new Rectangle(28, 390, 664, 104));
             ranking.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsRanking),
                 new Point(16, 12),
@@ -81,7 +105,7 @@ namespace FACM.League
             ranking.Controls.Add(_percentileValue);
             Controls.Add(ranking);
 
-            var preferences = CreatePanel(new Rectangle(28, 338, 664, 118));
+            var preferences = CreatePanel(new Rectangle(28, 508, 664, 118));
             _localToggle = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsLocalToggle),
@@ -94,15 +118,6 @@ namespace FACM.League
                 Location = new Point(16, 44),
                 Size = new Size(632, 32)
             };
-            var privacy = new Label
-            {
-                Text = _ui.Get(UiTextKeys.LeaguePersonalStatsPrivacyHint),
-                Location = new Point(16, 80),
-                Size = new Size(520, 30),
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 7.8F)
-            };
             _refreshButton = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRefresh),
@@ -112,13 +127,12 @@ namespace FACM.League
             };
             preferences.Controls.Add(_localToggle);
             preferences.Controls.Add(_rankingToggle);
-            preferences.Controls.Add(privacy);
             preferences.Controls.Add(_refreshButton);
             Controls.Add(preferences);
 
             _statusValue = new Label
             {
-                Location = new Point(30, 466),
+                Location = new Point(30, 636),
                 Size = new Size(660, 22),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
@@ -253,6 +267,7 @@ namespace FACM.League
             _memberValue.Text = snapshot.FirstSeenUtc.HasValue
                 ? snapshot.FirstSeenUtc.Value.ToLocalTime().ToString("yyyy-MM-dd")
                 : "—";
+            RenderHistory(snapshot.RecentAccounts);
 
             if (!snapshot.CloudRankingEnabled)
             {
@@ -285,6 +300,49 @@ namespace FACM.League
             _statusValue.Text = snapshot.PersonalStatsEnabled
                 ? string.Empty
                 : _ui.Get(UiTextKeys.LeaguePersonalStatsPaused);
+        }
+
+        private void RenderHistory(IReadOnlyList<LeaguePersonalStatsAccountView> accounts)
+        {
+            for (var index = 0; index < _historyRows.Length; index++)
+            {
+                _historyRows[index].Text = string.Empty;
+            }
+
+            if (accounts == null || accounts.Count == 0)
+            {
+                _historyRows[0].Text = _ui.Get(UiTextKeys.LeagueDashboardUnknown);
+                return;
+            }
+
+            for (var index = 0; index < _historyRows.Length && index < accounts.Count; index++)
+            {
+                var account = accounts[index];
+                var name = string.IsNullOrWhiteSpace(account.DisplayName)
+                    ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
+                    : account.DisplayName;
+                var region = string.IsNullOrWhiteSpace(account.Region)
+                    ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
+                    : account.Region;
+                var anonymousId = string.IsNullOrWhiteSpace(account.AnonymousId)
+                    ? _ui.Get(UiTextKeys.LeagueDashboardUnknown)
+                    : account.AnonymousId;
+                var firstSeen = account.FirstSeenUtc.HasValue
+                    ? account.FirstSeenUtc.Value.ToLocalTime().ToString("MM-dd")
+                    : "—";
+                var lastSeen = account.LastSeenUtc.HasValue
+                    ? account.LastSeenUtc.Value.ToLocalTime().ToString("MM-dd HH:mm")
+                    : "—";
+
+                _historyRows[index].Text = string.Format(
+                    "{0}  ·  {1}  ·  #{2}  ·  ×{3}  ·  {4} → {5}",
+                    name,
+                    region,
+                    anonymousId,
+                    Math.Max(1, account.SeenCount),
+                    firstSeen,
+                    lastSeen);
+            }
         }
     }
 }
