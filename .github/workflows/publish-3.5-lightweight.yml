@@ -224,9 +224,18 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
           Copy-Item $env:OUTPUT_EXE release/GGman.exe -Force
+          Copy-Item release/GGman.exe release/FACM.exe -Force
           $hash = (Get-FileHash release/GGman.exe -Algorithm SHA256).Hash.ToUpperInvariant()
+          $compatHash = (Get-FileHash release/FACM.exe -Algorithm SHA256).Hash.ToUpperInvariant()
           $size = (Get-Item release/GGman.exe).Length
-          "$hash *GGman.exe" | Set-Content release/SHA256.txt -Encoding ascii
+          $compatSize = (Get-Item release/FACM.exe).Length
+          if ($compatHash -ne $hash -or $compatSize -ne $size) {
+            throw 'FACM.exe compatibility asset is not byte-identical to GGman.exe.'
+          }
+          @(
+            "$hash *GGman.exe",
+            "$hash *FACM.exe"
+          ) | Set-Content release/SHA256.txt -Encoding ascii
           Set-Content release/RELEASE-NOTES.txt $env:RELEASE_NOTES -Encoding utf8
 
           $manifest = [ordered]@{
@@ -234,7 +243,7 @@ jobs:
             version = $env:RELEASE_VERSION
             minimum_version = $env:MINIMUM_VERSION
             force_update = [bool]::Parse($env:FORCE_UPDATE)
-            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/GGman.exe"
+            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$($env:RELEASE_VERSION)/FACM.exe"
             sha256 = $hash
             release_notes = $env:RELEASE_NOTES
             published_at = [DateTimeOffset]::UtcNow.ToString('o')
@@ -265,7 +274,7 @@ jobs:
         run: |
           $args = @(
             'release','create',("v" + $env:RELEASE_VERSION),
-            'release/GGman.exe','release/SHA256.txt',
+            'release/GGman.exe','release/FACM.exe','release/SHA256.txt',
             '--repo',$env:GITHUB_REPOSITORY,
             '--target',$env:FACM_RELEASE_METADATA_SHA,
             '--title',("GGman " + $env:RELEASE_VERSION),
@@ -290,19 +299,25 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'ggman-public-release-verify'
           if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
           New-Item -ItemType Directory -Path $dir -Force | Out-Null
-          gh release download ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY --pattern 'GGman.exe' --dir $dir
-          if ($LASTEXITCODE -ne 0) { throw 'Could not download published GGman.exe.' }
-          $exe = Join-Path $dir 'GGman.exe'
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToUpperInvariant()
-          $size = (Get-Item $exe).Length
-          if ($hash -ne $env:FACM_RELEASE_SHA256) { throw "Published hash mismatch: $hash" }
-          if ($size -ne [long]$env:FACM_RELEASE_SIZE) { throw "Published size mismatch: $size" }
-          $signature = Get-AuthenticodeSignature $exe
-          if (-not $signature.SignerCertificate -or
-              $signature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $env:FACM_SIGNER_THUMBPRINT) {
-            throw 'Published signer identity does not match the signed candidate.'
+          gh release download ("v" + $env:RELEASE_VERSION) --repo $env:GITHUB_REPOSITORY --pattern 'GGman.exe' --pattern 'FACM.exe' --dir $dir
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download published GGman/FACM compatibility assets.' }
+
+          foreach ($name in @('GGman.exe','FACM.exe')) {
+            $exe = Join-Path $dir $name
+            if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+              throw "Published compatibility asset is missing: $name"
+            }
+            $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToUpperInvariant()
+            $size = (Get-Item $exe).Length
+            if ($hash -ne $env:FACM_RELEASE_SHA256) { throw "Published $name hash mismatch: $hash" }
+            if ($size -ne [long]$env:FACM_RELEASE_SIZE) { throw "Published $name size mismatch: $size" }
+            $signature = Get-AuthenticodeSignature $exe
+            if (-not $signature.SignerCertificate -or
+                $signature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $env:FACM_SIGNER_THUMBPRINT) {
+              throw "Published $name signer identity does not match the signed candidate."
+            }
           }
-          Write-Host "PUBLIC RELEASE VERIFIED: v$env:RELEASE_VERSION; size=$size; SHA256=$hash"
+          Write-Host "PUBLIC RELEASE VERIFIED: v$env:RELEASE_VERSION; both GGman.exe and FACM.exe match; size=$env:FACM_RELEASE_SIZE; SHA256=$env:FACM_RELEASE_SHA256"
 
       - name: Enable online update after public verification
         shell: pwsh
