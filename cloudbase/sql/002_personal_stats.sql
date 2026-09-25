@@ -71,7 +71,11 @@ BEGIN
         region = COALESCE(EXCLUDED.region, public.ggman_account_history.region),
         first_seen_at = LEAST(public.ggman_account_history.first_seen_at, EXCLUDED.first_seen_at),
         last_seen_at = GREATEST(public.ggman_account_history.last_seen_at, EXCLUDED.last_seen_at),
-        login_count = public.ggman_account_history.login_count + 1;
+        login_count = public.ggman_account_history.login_count +
+            CASE
+                WHEN EXCLUDED.last_seen_at > public.ggman_account_history.last_seen_at THEN 1
+                ELSE 0
+            END;
 END;
 $$;
 
