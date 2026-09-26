@@ -102,6 +102,7 @@ namespace FACM.Services
         public const string LeaguePersonalStatsAccounts = "LeaguePersonalStatsAccounts";
         public const string LeaguePersonalStatsActiveDays = "LeaguePersonalStatsActiveDays";
         public const string LeaguePersonalStatsMemberSince = "LeaguePersonalStatsMemberSince";
+        public const string LeaguePersonalStatsActivityFormat = "LeaguePersonalStatsActivityFormat";
         public const string LeaguePersonalStatsRanking = "LeaguePersonalStatsRanking";
         public const string LeaguePersonalStatsRankingDisabled = "LeaguePersonalStatsRankingDisabled";
         public const string LeaguePersonalStatsRankingWaiting = "LeaguePersonalStatsRankingWaiting";
