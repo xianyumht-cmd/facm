@@ -106,6 +106,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePersonalStatsAccounts, "玩过的账号"),
             Pair(UiTextKeys.LeaguePersonalStatsActiveDays, "活跃天数"),
             Pair(UiTextKeys.LeaguePersonalStatsMemberSince, "加入 GGman"),
+            Pair(UiTextKeys.LeaguePersonalStatsActivityFormat, "连续使用 {0} 天 · 近 7 天活跃 {1} 天 · 近 30 天活跃 {2} 天 · 本月新增 {3} 个账号"),
             Pair(UiTextKeys.LeaguePersonalStatsRanking, "匿名账号数排行"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingDisabled, "未参与"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingWaiting, "等待云端统计"),
