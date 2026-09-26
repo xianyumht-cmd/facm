@@ -75,8 +75,6 @@ namespace FACM.Services
             Pair(UiTextKeys.ShellDirectoryMissingFormat, "● {0}"),
             Pair(UiTextKeys.ShellTrayTooltipFormat, "{0} {1}"),
 
-            // Role-specific contract keys. These are resolved explicitly with Text(key), not by the
-            // legacy global named replacement path below.
             Pair(UiTextKeys.ThemePanelAppearance, "面板外观..."),
             Pair(UiTextKeys.ThemeDesktopMode, "桌面形态"),
             Pair(UiTextKeys.ThemeFacmShell, "GGman 悬浮入口"),
@@ -115,6 +113,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePersonalStatsLocalToggle, "记录我的 GGman 使用足迹"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingToggle, "参与匿名账号数排行"),
             Pair(UiTextKeys.LeaguePersonalStatsPrivacyHint, "账号历史只保存设备内派生的哈希；不上传 PUUID、账号名、密码或 LCU 凭据。排行可随时关闭。"),
+            Pair(UiTextKeys.LeaguePersonalStatsTelemetryToggle, "发送匿名功能使用统计（不包含账号、PUUID、密码或 IP）"),
             Pair(UiTextKeys.LeaguePersonalStatsRefresh, "刷新排行"),
             Pair(UiTextKeys.LeaguePersonalStatsPaused, "已暂停新增记录，已有本地历史不会删除。"),
 
@@ -272,46 +271,16 @@ namespace FACM.Services
             Pair(UiTextKeys.PetDescriptionVPet, "动作和互动更丰富，但首次启用需要准备较多资源，运行也更重。")
         };
 
-        // These 36 keys existed before the role-scoped contract. They intentionally keep the old
-        // behavior where a configured named value can translate matching legacy hard-coded copy.
         private static readonly HashSet<string> LegacyNamedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            UiTextKeys.AppName,
-            UiTextKeys.ControlCenter,
-            UiTextKeys.Cleanup,
-            UiTextKeys.ToolGroup,
-            UiTextKeys.ToolA,
-            UiTextKeys.Mode1,
-            UiTextKeys.Mode2,
-            UiTextKeys.Mode3,
-            UiTextKeys.Mode4,
-            UiTextKeys.CheckUpdate,
-            UiTextKeys.OpenLog,
-            UiTextKeys.About,
-            UiTextKeys.EditText,
-            UiTextKeys.Exit,
-            UiTextKeys.PanelTheme,
-            UiTextKeys.ThemeSettings,
-            UiTextKeys.DesktopPet,
-            UiTextKeys.PetReset,
-            UiTextKeys.RestoreFloatingBall,
-            UiTextKeys.MayhemRanking,
-            UiTextKeys.WorkDirectory,
-            UiTextKeys.AutoDetect,
-            UiTextKeys.SelectDirectory,
-            UiTextKeys.RulesConfigured,
-            UiTextKeys.WaitingConfiguration,
-            UiTextKeys.CleanupHint,
-            UiTextKeys.StartCleanup,
-            UiTextKeys.UpdateAndAnnouncements,
-            UiTextKeys.AutoCheckAtStartup,
-            UiTextKeys.Ready,
-            UiTextKeys.Administrator,
-            UiTextKeys.StandardMode,
-            UiTextKeys.Close,
-            UiTextKeys.ApplyPet,
-            UiTextKeys.PetSource,
-            UiTextKeys.Open
+            UiTextKeys.AppName, UiTextKeys.ControlCenter, UiTextKeys.Cleanup, UiTextKeys.ToolGroup, UiTextKeys.ToolA,
+            UiTextKeys.Mode1, UiTextKeys.Mode2, UiTextKeys.Mode3, UiTextKeys.Mode4, UiTextKeys.CheckUpdate,
+            UiTextKeys.OpenLog, UiTextKeys.About, UiTextKeys.EditText, UiTextKeys.Exit, UiTextKeys.PanelTheme,
+            UiTextKeys.ThemeSettings, UiTextKeys.DesktopPet, UiTextKeys.PetReset, UiTextKeys.RestoreFloatingBall,
+            UiTextKeys.MayhemRanking, UiTextKeys.WorkDirectory, UiTextKeys.AutoDetect, UiTextKeys.SelectDirectory,
+            UiTextKeys.RulesConfigured, UiTextKeys.WaitingConfiguration, UiTextKeys.CleanupHint, UiTextKeys.StartCleanup,
+            UiTextKeys.UpdateAndAnnouncements, UiTextKeys.AutoCheckAtStartup, UiTextKeys.Ready, UiTextKeys.Administrator,
+            UiTextKeys.StandardMode, UiTextKeys.Close, UiTextKeys.ApplyPet, UiTextKeys.PetSource, UiTextKeys.Open
         };
 
         private static readonly Dictionary<string, string> DefaultValues =

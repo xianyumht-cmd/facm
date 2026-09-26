@@ -26,6 +26,7 @@ namespace FACM.League
         private readonly Label[] _historyRows;
         private readonly FacmToggleSwitch _localToggle;
         private readonly FacmToggleSwitch _rankingToggle;
+        private readonly FacmToggleSwitch _telemetryToggle;
         private readonly FacmActionButton _refreshButton;
         private bool _applying;
         private bool _savingPreferences;
@@ -117,7 +118,7 @@ namespace FACM.League
             ranking.Controls.Add(_percentileValue);
             Controls.Add(ranking);
 
-            var preferences = CreatePanel(new Rectangle(28, 398, 664, 100));
+            var preferences = CreatePanel(new Rectangle(28, 398, 664, 130));
             _localToggle = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsLocalToggle),
@@ -130,22 +131,29 @@ namespace FACM.League
                 Location = new Point(16, 37),
                 Size = new Size(632, 30)
             };
+            _telemetryToggle = new FacmToggleSwitch
+            {
+                Text = _ui.Get(UiTextKeys.LeaguePersonalStatsTelemetryToggle),
+                Location = new Point(16, 67),
+                Size = new Size(632, 30)
+            };
             _refreshButton = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRefresh),
-                Bounds = new Rectangle(548, 68, 100, 26),
+                Bounds = new Rectangle(548, 98, 100, 26),
                 Tone = FacmButtonTone.Secondary,
                 Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
             };
             preferences.Controls.Add(_localToggle);
             preferences.Controls.Add(_rankingToggle);
+            preferences.Controls.Add(_telemetryToggle);
             preferences.Controls.Add(_refreshButton);
             Controls.Add(preferences);
 
             _statusValue = new Label
             {
-                Location = new Point(30, 508),
-                Size = new Size(660, 20),
+                Location = new Point(30, 532),
+                Size = new Size(660, 18),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 8F)
@@ -154,12 +162,14 @@ namespace FACM.League
 
             _localToggle.CheckedChanged += HandlePreferenceChanged;
             _rankingToggle.CheckedChanged += HandlePreferenceChanged;
+            _telemetryToggle.CheckedChanged += HandleTelemetryChanged;
             _refreshButton.Click += async delegate { await RefreshRankingAsync(); };
 
             _module.StatsChanged += HandleStatsChanged;
             Shown += async delegate
             {
                 ApplySnapshot();
+                ApplyTelemetryState();
                 if (_settings.LeagueCloudRankingEnabled) await RefreshRankingAsync();
             };
             FormClosed += delegate
@@ -170,6 +180,7 @@ namespace FACM.League
             };
 
             ApplySnapshot();
+            ApplyTelemetryState();
         }
 
         private Label AddMetric(Control parent, string key, int left)
@@ -251,6 +262,25 @@ namespace FACM.League
             {
                 _savingPreferences = false;
                 if (!IsDisposed) ApplySnapshot();
+            }
+        }
+
+        private void HandleTelemetryChanged(object sender, EventArgs e)
+        {
+            if (_applying || IsDisposed) return;
+            UsageTelemetryModule.SetEnabled(_telemetryToggle.Checked);
+        }
+
+        private void ApplyTelemetryState()
+        {
+            _applying = true;
+            try
+            {
+                _telemetryToggle.Checked = UsageTelemetryModule.IsEnabled();
+            }
+            finally
+            {
+                _applying = false;
             }
         }
 

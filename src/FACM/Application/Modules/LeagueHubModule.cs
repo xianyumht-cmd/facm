@@ -91,17 +91,57 @@ namespace FACM.AppHost.Modules
             return form;
         }
 
-        private Form CreateDashboard(UiTextCatalog ui) { return Skin(_dashboard.CreateDashboardForm(ui)); }
-        private Form CreatePlayer(UiTextCatalog ui) { return Skin(_player.CreatePlayerForm(ui)); }
-        private Form CreateLive(UiTextCatalog ui) { return _live.CreateLiveForm(ui); }
-        private Form CreateMayhem(UiTextCatalog ui) { return Skin(_mayhem.CreateLookupForm()); }
-        private Form CreateProfile(UiTextCatalog ui) { return Skin(_personalStats.CreateForm(ui)); }
-        private Form CreateRecommendation(UiTextCatalog ui) { return Skin(_advisor.CreateRecommendationForm(ui)); }
-        private Form CreateEfficiency(UiTextCatalog ui) { return Skin(_efficiency.CreateForm(ui)); }
-        private Form CreateRepair(UiTextCatalog ui) { return Skin(_gameRepair.CreateForm(_efficiency)); }
+        private Form CreateDashboard(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("league_dashboard_open");
+            return Skin(_dashboard.CreateDashboardForm(ui));
+        }
+
+        private Form CreatePlayer(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("league_player_open");
+            return Skin(_player.CreatePlayerForm(ui));
+        }
+
+        private Form CreateLive(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("league_live_open");
+            return _live.CreateLiveForm(ui);
+        }
+
+        private Form CreateMayhem(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("mayhem_lookup_open");
+            return Skin(_mayhem.CreateLookupForm());
+        }
+
+        private Form CreateProfile(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("personal_stats_open");
+            return Skin(_personalStats.CreateForm(ui));
+        }
+
+        private Form CreateRecommendation(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("opgg_advisor_open");
+            return Skin(_advisor.CreateRecommendationForm(ui));
+        }
+
+        private Form CreateEfficiency(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("efficiency_open");
+            return Skin(_efficiency.CreateForm(ui));
+        }
+
+        private Form CreateRepair(UiTextCatalog ui)
+        {
+            UsageTelemetryModule.Record("game_repair_open");
+            return Skin(_gameRepair.CreateForm(_efficiency));
+        }
 
         private Form CreatePresence(UiTextCatalog ui)
         {
+            UsageTelemetryModule.Record("presence_open");
             var form = Skin(_dashboard.CreatePresenceForm(ui, null));
             ConfigurePresenceForHub(form);
             return form;
@@ -111,9 +151,6 @@ namespace FACM.AppHost.Modules
         {
             if (form == null) throw new ArgumentNullException(nameof(form));
 
-            // The presence surface uses a fixed logical 760px layout when opened standalone.
-            // Inside the shorter Hub viewport it must own the scroll range itself because the
-            // Hub docks child forms to Fill. Width stays unconstrained to avoid horizontal scroll.
             form.AutoScroll = true;
             form.AutoScrollMinSize = new System.Drawing.Size(0, PresenceHubContentHeight);
         }
@@ -187,10 +224,6 @@ namespace FACM.AppHost.Modules
             Form form = null;
             try
             {
-                // Reuse the already-initialized Build Advisor / Build Apply / Item Set / Player /
-                // Settings owners. Runtime Companion must not create a second OP.GG transport,
-                // duplicate local-player history owner, parallel LCU write stack or stale settings
-                // copy. Placement is deferred to Shown so per-monitor DPI has the real pixel size.
                 form = _live.CreateChampSelectAssistantForm(
                     _advisor.RuntimeCompanionReadService,
                     _advisor.RuntimeCompanionApplyService,
@@ -205,6 +238,7 @@ namespace FACM.AppHost.Modules
                 _surfacePresentedForEpisode = true;
                 form.Show();
                 form.BringToFront();
+                UsageTelemetryModule.Record("champ_select_companion_open");
                 AppLog.Info("Runtime Companion opened for Champion Select episode.");
             }
             catch (Exception exception)

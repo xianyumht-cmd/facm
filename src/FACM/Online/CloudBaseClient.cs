@@ -89,14 +89,8 @@ namespace FACM.Online
             CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
-
             var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
-            using (var upsert = CreateDeviceUpsertRequest(
-                session.AccessToken,
-                deviceId,
-                appVersion,
-                osVersion,
-                DateTimeOffset.UtcNow))
+            using (var upsert = CreateDeviceUpsertRequest(session.AccessToken, deviceId, appVersion, osVersion, DateTimeOffset.UtcNow))
             {
                 await SendAsync(upsert, "device upsert", cancellationToken).ConfigureAwait(false);
             }
@@ -114,7 +108,6 @@ namespace FACM.Online
             {
                 throw new InvalidOperationException("CloudBase device ownership verification failed.");
             }
-
             return rows[0];
         }
 
@@ -150,18 +143,11 @@ namespace FACM.Online
             }
         }
 
-        public async Task SetRankingOptInAsync(
-            string deviceId,
-            bool enabled,
-            CancellationToken cancellationToken)
+        public async Task SetRankingOptInAsync(string deviceId, bool enabled, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
-            var body = _json.Serialize(new Dictionary<string, object>
-            {
-                { "ranking_opt_in", enabled }
-            });
-
+            var body = _json.Serialize(new Dictionary<string, object> { { "ranking_opt_in", enabled } });
             var relative = "v1/rdb/rest/ggman_devices?device_id=eq." + Uri.EscapeDataString(deviceId ?? string.Empty);
             using (var request = new HttpRequestMessage(new HttpMethod("PATCH"), relative))
             {
@@ -172,9 +158,7 @@ namespace FACM.Online
             }
         }
 
-        public async Task<CloudPersonalRanking> GetPersonalRankingAsync(
-            string deviceId,
-            CancellationToken cancellationToken)
+        public async Task<CloudPersonalRanking> GetPersonalRankingAsync(string deviceId, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
@@ -188,9 +172,7 @@ namespace FACM.Online
             }
         }
 
-        public async Task<CloudSettingsRemoteState> GetSettingsAsync(
-            string deviceId,
-            CancellationToken cancellationToken)
+        public async Task<CloudSettingsRemoteState> GetSettingsAsync(string deviceId, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
@@ -204,9 +186,7 @@ namespace FACM.Online
 
                 object settingsValue;
                 object updatedValue;
-                if (!payload.TryGetValue("settings", out settingsValue) ||
-                    !payload.TryGetValue("updated_at", out updatedValue) ||
-                    settingsValue == null || updatedValue == null)
+                if (!payload.TryGetValue("settings", out settingsValue) || !payload.TryGetValue("updated_at", out updatedValue) || settingsValue == null || updatedValue == null)
                     return null;
 
                 DateTimeOffset updatedAt;
@@ -221,20 +201,13 @@ namespace FACM.Online
             }
         }
 
-        public async Task<DateTimeOffset> SetSettingsAsync(
-            string deviceId,
-            CloudSettingsSnapshot settings,
-            CancellationToken cancellationToken)
+        public async Task<DateTimeOffset> SetSettingsAsync(string deviceId, CloudSettingsSnapshot settings, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             if (settings == null) throw new ArgumentNullException(nameof(settings));
 
             var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
-            var body = _json.Serialize(new Dictionary<string, object>
-            {
-                { "p_settings", settings }
-            });
-
+            var body = _json.Serialize(new Dictionary<string, object> { { "p_settings", settings } });
             using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_set_settings_sync"))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
@@ -249,6 +222,40 @@ namespace FACM.Online
                 if (!DateTimeOffset.TryParse(Convert.ToString(updatedValue), out updatedAt))
                     throw new InvalidOperationException("CloudBase returned an invalid settings write timestamp.");
                 return updatedAt.ToUniversalTime();
+            }
+        }
+
+        public async Task RecordUsageAsync(
+            string deviceId,
+            IReadOnlyDictionary<string, int> events,
+            string appVersion,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (events == null || events.Count == 0) return;
+
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var payload = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (var item in events)
+            {
+                if (!IsTelemetryEventName(item.Key))
+                    throw new ArgumentException("Telemetry event name is invalid.", nameof(events));
+                if (item.Value <= 0) continue;
+                payload[item.Key] = Math.Min(1000, item.Value);
+            }
+            if (payload.Count == 0) return;
+
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "p_events", payload },
+                { "p_app_version", appVersion ?? string.Empty }
+            });
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_record_usage"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                await SendAsync(request, "usage telemetry", cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -300,10 +307,7 @@ namespace FACM.Online
             }
         }
 
-        private async Task<CloudBaseSession> RefreshAsync(
-            string deviceId,
-            string refreshToken,
-            CancellationToken cancellationToken)
+        private async Task<CloudBaseSession> RefreshAsync(string deviceId, string refreshToken, CancellationToken cancellationToken)
         {
             using (var request = CreateRefreshRequest(deviceId, refreshToken))
             {
@@ -312,23 +316,16 @@ namespace FACM.Online
             }
         }
 
-        private async Task<string> SendAsync(
-            HttpRequestMessage request,
-            string operation,
-            CancellationToken cancellationToken)
+        private async Task<string> SendAsync(HttpRequestMessage request, string operation, CancellationToken cancellationToken)
         {
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 timeout.CancelAfter(TimeSpan.FromSeconds(8));
-                using (var response = await _client.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    timeout.Token).ConfigureAwait(false))
+                using (var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false))
                 {
                     var length = response.Content.Headers.ContentLength;
                     if (length.HasValue && length.Value > MaximumResponseCharacters)
                         throw new InvalidOperationException("CloudBase response exceeded the allowed size.");
-
                     if (!response.IsSuccessStatusCode)
                         throw new HttpRequestException(BuildFailureMessage(operation, response.StatusCode));
 
@@ -343,12 +340,8 @@ namespace FACM.Online
         private CloudBaseSession ParseSession(string text)
         {
             var response = _json.Deserialize<CloudBaseTokenResponse>(text ?? string.Empty);
-            if (response == null ||
-                string.IsNullOrWhiteSpace(response.access_token) ||
-                string.IsNullOrWhiteSpace(response.sub))
-            {
+            if (response == null || string.IsNullOrWhiteSpace(response.access_token) || string.IsNullOrWhiteSpace(response.sub))
                 throw new InvalidOperationException("CloudBase returned an invalid session.");
-            }
 
             var lifetimeSeconds = response.expires_in <= 0 ? 7200 : response.expires_in;
             return new CloudBaseSession
@@ -363,9 +356,7 @@ namespace FACM.Online
         private static HttpRequestMessage CreateAnonymousSignInRequest(string deviceId)
         {
             Guid parsed;
-            if (!Guid.TryParse(deviceId, out parsed))
-                throw new ArgumentException("A valid device ID is required.", nameof(deviceId));
-
+            if (!Guid.TryParse(deviceId, out parsed)) throw new ArgumentException("A valid device ID is required.", nameof(deviceId));
             var request = new HttpRequestMessage(HttpMethod.Post, "auth/v1/signin/anonymously");
             request.Headers.TryAddWithoutValidation("x-device-id", parsed.ToString("D"));
             request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -374,9 +365,7 @@ namespace FACM.Online
 
         private string SerializeRefreshBody(string refreshToken)
         {
-            if (string.IsNullOrWhiteSpace(refreshToken))
-                throw new ArgumentException("Refresh token is required.", nameof(refreshToken));
-
+            if (string.IsNullOrWhiteSpace(refreshToken)) throw new ArgumentException("Refresh token is required.", nameof(refreshToken));
             return _json.Serialize(new Dictionary<string, object>
             {
                 { "grant_type", "refresh_token" },
@@ -387,21 +376,14 @@ namespace FACM.Online
         private HttpRequestMessage CreateRefreshRequest(string deviceId, string refreshToken)
         {
             Guid parsed;
-            if (!Guid.TryParse(deviceId, out parsed))
-                throw new ArgumentException("A valid device ID is required.", nameof(deviceId));
-
+            if (!Guid.TryParse(deviceId, out parsed)) throw new ArgumentException("A valid device ID is required.", nameof(deviceId));
             var request = new HttpRequestMessage(HttpMethod.Post, "auth/v1/token");
             request.Headers.TryAddWithoutValidation("x-device-id", parsed.ToString("D"));
             request.Content = new StringContent(SerializeRefreshBody(refreshToken), Encoding.UTF8, "application/json");
             return request;
         }
 
-        private HttpRequestMessage CreateDeviceUpsertRequest(
-            string accessToken,
-            string deviceId,
-            string appVersion,
-            string osVersion,
-            DateTimeOffset now)
+        private HttpRequestMessage CreateDeviceUpsertRequest(string accessToken, string deviceId, string appVersion, string osVersion, DateTimeOffset now)
         {
             var body = _json.Serialize(new Dictionary<string, object>
             {
@@ -410,25 +392,18 @@ namespace FACM.Online
                 { "os_version", osVersion ?? string.Empty },
                 { "last_seen_at", now.ToString("o", CultureInfo.InvariantCulture) }
             });
-
-            var request = new HttpRequestMessage(
-                HttpMethod.Post,
-                "v1/rdb/rest/ggman_devices?on_conflict=device_id");
+            var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/ggman_devices?on_conflict=device_id");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(accessToken));
-            request.Headers.TryAddWithoutValidation(
-                "Prefer",
-                "resolution=merge-duplicates,return=representation,missing=default");
+            request.Headers.TryAddWithoutValidation("Prefer", "resolution=merge-duplicates,return=representation,missing=default");
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             return request;
         }
 
         private static HttpRequestMessage CreateDeviceReadRequest(string accessToken, string deviceId)
         {
-            var relative =
-                "v1/rdb/rest/ggman_devices" +
+            var relative = "v1/rdb/rest/ggman_devices" +
                 "?select=owner_id,device_id,app_version,os_version,last_seen_at" +
                 "&device_id=eq." + Uri.EscapeDataString(deviceId ?? string.Empty);
-
             var request = new HttpRequestMessage(HttpMethod.Get, relative);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(accessToken));
             return request;
@@ -436,14 +411,24 @@ namespace FACM.Online
 
         private static string RequireAccessToken(string accessToken)
         {
-            if (string.IsNullOrWhiteSpace(accessToken))
-                throw new ArgumentException("Access token is required.", nameof(accessToken));
+            if (string.IsNullOrWhiteSpace(accessToken)) throw new ArgumentException("Access token is required.", nameof(accessToken));
             return accessToken.Trim();
         }
 
         private static string BuildFailureMessage(string operation, HttpStatusCode statusCode)
         {
             return "CloudBase " + (operation ?? "request") + " failed; status=" + (int)statusCode + ".";
+        }
+
+        private static bool IsTelemetryEventName(string eventName)
+        {
+            if (string.IsNullOrWhiteSpace(eventName) || eventName.Length > 64) return false;
+            for (var index = 0; index < eventName.Length; index++)
+            {
+                var value = eventName[index];
+                if ((value < 'a' || value > 'z') && (value < '0' || value > '9') && value != '_') return false;
+            }
+            return true;
         }
 
         public void Dispose()
@@ -463,7 +448,6 @@ namespace FACM.Online
         internal static void ValidateForSmokeTest()
         {
             CloudSettingsSnapshot.ValidateForSmokeTest();
-
             const string access = "access-secret-for-smoke";
             const string refresh1 = "refresh-secret-one";
             const string refresh2 = "refresh-secret-two";
@@ -472,53 +456,36 @@ namespace FACM.Online
 
             using (var client = new CloudBaseClient())
             {
-                var first = client.ParseSession(
-                    "{\"token_type\":\"Bearer\",\"access_token\":\"" + access +
-                    "\",\"refresh_token\":\"" + refresh1 +
-                    "\",\"expires_in\":7200,\"sub\":\"" + subject + "\"}");
-                Require(first.Subject == subject && first.RefreshToken == refresh1,
-                    "CloudBase anonymous session parsing failed.");
+                var first = client.ParseSession("{\"token_type\":\"Bearer\",\"access_token\":\"" + access + "\",\"refresh_token\":\"" + refresh1 + "\",\"expires_in\":7200,\"sub\":\"" + subject + "\"}");
+                Require(first.Subject == subject && first.RefreshToken == refresh1, "CloudBase anonymous session parsing failed.");
 
-                var rotated = client.ParseSession(
-                    "{\"token_type\":\"Bearer\",\"access_token\":\"access-two" +
-                    "\",\"refresh_token\":\"" + refresh2 +
-                    "\",\"expires_in\":7200,\"sub\":\"" + subject + "\"}");
-                Require(rotated.RefreshToken == refresh2 && rotated.RefreshToken != first.RefreshToken,
-                    "CloudBase refresh-token rotation parsing failed.");
+                var rotated = client.ParseSession("{\"token_type\":\"Bearer\",\"access_token\":\"access-two\",\"refresh_token\":\"" + refresh2 + "\",\"expires_in\":7200,\"sub\":\"" + subject + "\"}");
+                Require(rotated.RefreshToken == refresh2 && rotated.RefreshToken != first.RefreshToken, "CloudBase refresh-token rotation parsing failed.");
 
                 using (var signIn = CreateAnonymousSignInRequest(deviceId))
                 {
-                    Require(signIn.Headers.Contains("x-device-id"),
-                        "CloudBase anonymous sign-in request lost x-device-id.");
-                    Require(signIn.Headers.Authorization == null,
-                        "CloudBase anonymous sign-in must not use a server credential.");
+                    Require(signIn.Headers.Contains("x-device-id"), "CloudBase anonymous sign-in request lost x-device-id.");
+                    Require(signIn.Headers.Authorization == null, "CloudBase anonymous sign-in must not use a server credential.");
                 }
 
-                using (var upsert = client.CreateDeviceUpsertRequest(
-                    access,
-                    deviceId,
-                    "3.5.40.0",
-                    "Windows",
-                    DateTimeOffset.UtcNow))
+                using (var upsert = client.CreateDeviceUpsertRequest(access, deviceId, "3.5.40.0", "Windows", DateTimeOffset.UtcNow))
                 {
                     var body = upsert.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    Require(body.IndexOf("owner_id", StringComparison.OrdinalIgnoreCase) < 0,
-                        "CloudBase device write must leave owner_id to auth.uid().");
-                    Require(body.IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0,
-                        "CloudBase device write lost device_id.");
+                    Require(body.IndexOf("owner_id", StringComparison.OrdinalIgnoreCase) < 0, "CloudBase device write must leave owner_id to auth.uid().");
+                    Require(body.IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0, "CloudBase device write lost device_id.");
                 }
 
                 using (var read = CreateDeviceReadRequest(access, deviceId))
                 {
-                    Require(read.RequestUri.ToString().IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0,
-                        "CloudBase device readback is not scoped to device_id.");
+                    Require(read.RequestUri.ToString().IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0, "CloudBase device readback is not scoped to device_id.");
                 }
+
+                Require(IsTelemetryEventName("league_dashboard_open"), "CloudBase telemetry event validation rejected a valid name.");
+                Require(!IsTelemetryEventName("League Dashboard Open"), "CloudBase telemetry event validation accepted an invalid name.");
             }
 
             var diagnostic = BuildFailureMessage("device readback", HttpStatusCode.Forbidden);
-            Require(diagnostic.IndexOf(access, StringComparison.Ordinal) < 0 &&
-                    diagnostic.IndexOf(refresh1, StringComparison.Ordinal) < 0,
-                "CloudBase diagnostic text leaked a token.");
+            Require(diagnostic.IndexOf(access, StringComparison.Ordinal) < 0 && diagnostic.IndexOf(refresh1, StringComparison.Ordinal) < 0, "CloudBase diagnostic text leaked a token.");
         }
 
         private static void Require(bool condition, string message)

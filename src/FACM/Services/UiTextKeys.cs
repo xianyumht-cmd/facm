@@ -47,7 +47,6 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
-        // Novice-first Shell information architecture. Root categories stay stable as modules grow.
         public const string ShellLeague = "ShellLeague";
         public const string ShellMore = "ShellMore";
         public const string ShellFeatureCenter = "ShellFeatureCenter";
@@ -70,14 +69,12 @@ namespace FACM.Services
         public const string ShellDirectoryMissingFormat = "ShellDirectoryMissingFormat";
         public const string ShellTrayTooltipFormat = "ShellTrayTooltipFormat";
 
-        // Theme popup. These keys describe UI roles, not the current Chinese wording.
         public const string ThemePanelAppearance = "ThemePanelAppearance";
         public const string ThemeDesktopMode = "ThemeDesktopMode";
         public const string ThemeFacmShell = "ThemeFacmShell";
         public const string ThemeSelectDesktopPet = "ThemeSelectDesktopPet";
         public const string ThemeResetDesktopPosition = "ThemeResetDesktopPosition";
 
-        // League Dashboard Gate 1.
         public const string LeagueDashboardMenu = "LeagueDashboardMenu";
         public const string LeagueDashboardWindowTitle = "LeagueDashboardWindowTitle";
         public const string LeagueDashboardTitle = "LeagueDashboardTitle";
@@ -95,7 +92,6 @@ namespace FACM.Services
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
 
-        // Local-first personal history and optional anonymous ranking.
         public const string LeaguePersonalStatsWindowTitle = "LeaguePersonalStatsWindowTitle";
         public const string LeaguePersonalStatsTitle = "LeaguePersonalStatsTitle";
         public const string LeaguePersonalStatsHint = "LeaguePersonalStatsHint";
@@ -111,10 +107,10 @@ namespace FACM.Services
         public const string LeaguePersonalStatsLocalToggle = "LeaguePersonalStatsLocalToggle";
         public const string LeaguePersonalStatsRankingToggle = "LeaguePersonalStatsRankingToggle";
         public const string LeaguePersonalStatsPrivacyHint = "LeaguePersonalStatsPrivacyHint";
+        public const string LeaguePersonalStatsTelemetryToggle = "LeaguePersonalStatsTelemetryToggle";
         public const string LeaguePersonalStatsRefresh = "LeaguePersonalStatsRefresh";
         public const string LeaguePersonalStatsPaused = "LeaguePersonalStatsPaused";
 
-        // Player Gate 1 / Gate 2.
         public const string LeaguePlayerMenu = "LeaguePlayerMenu";
         public const string LeaguePlayerWindowTitle = "LeaguePlayerWindowTitle";
         public const string LeaguePlayerTitle = "LeaguePlayerTitle";
@@ -138,7 +134,6 @@ namespace FACM.Services
         public const string LeaguePlayerLoss = "LeaguePlayerLoss";
         public const string LeaguePlayerUnknown = "LeaguePlayerUnknown";
 
-        // Champ Select / Current Game Gate 1.
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";
         public const string LeagueLiveTitle = "LeagueLiveTitle";
@@ -170,7 +165,6 @@ namespace FACM.Services
         public const string LeagueLiveTeamTwo = "LeagueLiveTeamTwo";
         public const string LeagueLiveUnknown = "LeagueLiveUnknown";
 
-        // Tools / Automation Gate 1: read-only OP.GG build advisor.
         public const string LeagueAdvisorMenu = "LeagueAdvisorMenu";
         public const string LeagueAdvisorWindowTitle = "LeagueAdvisorWindowTitle";
         public const string LeagueAdvisorTitle = "LeagueAdvisorTitle";
@@ -198,7 +192,6 @@ namespace FACM.Services
         public const string LeagueAdvisorReady = "LeagueAdvisorReady";
         public const string LeagueAdvisorReadOnly = "LeagueAdvisorReadOnly";
 
-        // Desktop-pet picker shell/status copy.
         public const string PetPickerWindowTitle = "PetPickerWindowTitle";
         public const string PetPickerTitle = "PetPickerTitle";
         public const string PetPickerHint = "PetPickerHint";
@@ -212,7 +205,6 @@ namespace FACM.Services
         public const string VPetPreviewTitle = "VPetPreviewTitle";
         public const string VPetPreviewDescription = "VPetPreviewDescription";
 
-        // Visible pet names.
         public const string PetNameGreenFly = "PetNameGreenFly";
         public const string PetNameBee = "PetNameBee";
         public const string PetNameRealBee = "PetNameRealBee";
@@ -221,7 +213,6 @@ namespace FACM.Services
         public const string PetNameMoth = "PetNameMoth";
         public const string PetNameVPet = "PetNameVPet";
 
-        // Picker summaries.
         public const string PetSummaryGreenFly = "PetSummaryGreenFly";
         public const string PetSummaryBee = "PetSummaryBee";
         public const string PetSummaryRealBee = "PetSummaryRealBee";
@@ -232,7 +223,6 @@ namespace FACM.Services
         public const string PetSummaryDefaultVPet = "PetSummaryDefaultVPet";
         public const string PetSummaryDefaultFlying = "PetSummaryDefaultFlying";
 
-        // Picker behavior lines.
         public const string PetBehaviorGreenFly = "PetBehaviorGreenFly";
         public const string PetBehaviorBee = "PetBehaviorBee";
         public const string PetBehaviorRealBee = "PetBehaviorRealBee";
@@ -241,7 +231,6 @@ namespace FACM.Services
         public const string PetBehaviorMoth = "PetBehaviorMoth";
         public const string PetBehaviorVPet = "PetBehaviorVPet";
 
-        // Picker descriptions.
         public const string PetDescriptionGreenFly = "PetDescriptionGreenFly";
         public const string PetDescriptionBee = "PetDescriptionBee";
         public const string PetDescriptionRealBee = "PetDescriptionRealBee";
