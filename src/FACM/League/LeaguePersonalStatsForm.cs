@@ -86,7 +86,7 @@ namespace FACM.League
             _memberValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsMemberSince, 446);
             Controls.Add(summary);
 
-            var history = CreatePanel(new Rectangle(28, 170, 664, 128);
+            var history = CreatePanel(new Rectangle(28, 170, 664, 128));
             history.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsAccounts),
                 new Point(16, 10),
