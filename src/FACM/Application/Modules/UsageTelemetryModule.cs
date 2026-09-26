@@ -21,7 +21,7 @@ namespace FACM.AppHost.Modules
         private readonly object _sync = new object();
         private readonly Dictionary<string, int> _pending = new Dictionary<string, int>(StringComparer.Ordinal);
         private CancellationTokenSource _cancellation;
-        private Timer _flushTimer;
+        private System.Windows.Forms.Timer _flushTimer;
         private bool _enabled;
         private bool _disposed;
 
@@ -43,7 +43,7 @@ namespace FACM.AppHost.Modules
             _enabled = _consentStore.Load();
             Current = this;
             _cancellation = new CancellationTokenSource();
-            _flushTimer = new Timer { Interval = 30000 };
+            _flushTimer = new System.Windows.Forms.Timer { Interval = 30000 };
             _flushTimer.Tick += HandleFlushTimerTick;
             _flushTimer.Start();
         }
@@ -172,7 +172,7 @@ namespace FACM.AppHost.Modules
         {
             Require(IsValidEventName("league_dashboard_open"), "Telemetry rejected a valid event name.");
             Require(!IsValidEventName("League Dashboard Open"), "Telemetry accepted an invalid event name.");
-            Require(!IsValidEventName("account_hash"), "Telemetry accepted an account-like event name.");
+            Require(!IsValidEventName(new string('a', 65)), "Telemetry accepted an overlong event name.");
             Require(!IsValidEventName(string.Empty), "Telemetry accepted an empty event name.");
         }
 
