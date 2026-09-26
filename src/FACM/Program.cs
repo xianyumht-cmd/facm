@@ -35,10 +35,11 @@ namespace FACM
             var performanceContractTest = HasArgument(args, "--performance-contract-test");
             var leagueDashboardTest = HasArgument(args, "--league-dashboard-test");
             var updateMirrorTest = HasArgument(args, "--update-mirror-test");
+            var usageTelemetryTest = HasArgument(args, "--usage-telemetry-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
                            tencentMayhemPatchTest || aramBaseBalanceTest || floatingBallTest || petLocatorTest ||
                            embeddedPetHostTest || gameLocatorTest || singleInstanceActivationTest || facmHostTest ||
-                           performanceContractTest || leagueDashboardTest || updateMirrorTest;
+                           performanceContractTest || leagueDashboardTest || updateMirrorTest || usageTelemetryTest;
             var instanceMutex = ResolveMutexName(
                 startCleanup,
                 petCatalogTest,
@@ -55,7 +56,8 @@ namespace FACM
                 facmHostTest,
                 performanceContractTest,
                 leagueDashboardTest,
-                updateMirrorTest);
+                updateMirrorTest,
+                usageTelemetryTest);
 
             bool createdNew;
             using (var mutex = new Mutex(true, instanceMutex, out createdNew))
@@ -77,6 +79,7 @@ namespace FACM
                 if (performanceContractTest) { Environment.ExitCode = PerformanceContractSmokeTest.Run(); return; }
                 if (leagueDashboardTest) { Environment.ExitCode = LeagueDashboardSmokeTest.Run(); return; }
                 if (updateMirrorTest) { Environment.ExitCode = UpdateMirrorSmokeTest.Run(); return; }
+                if (usageTelemetryTest) { UsageTelemetryModule.ValidateForSmokeTest(); Environment.ExitCode = 0; return; }
                 if (singleInstanceActivationTest) { Environment.ExitCode = SingleInstanceActivation.RunSmokeTest(); return; }
                 if (mayhemBodyCancellationTest) { Environment.ExitCode = CancelableHttpContentReaderSmokeTest.Run(); return; }
                 if (tencentMayhemPatchTest) { Environment.ExitCode = TencentMayhemPatchSmokeTest.Run(); return; }
@@ -118,6 +121,7 @@ namespace FACM
 
                 var settings = new SettingsModule();
                 var cloudSync = new CloudSyncModule(settings);
+                var usageTelemetry = new UsageTelemetryModule(cloudSync);
                 var tools = new ToolsModule();
                 var online = new OnlineModule();
                 var pets = new PetsModule();
@@ -134,7 +138,7 @@ namespace FACM
                 var leagueHub = new LeagueHubModule(leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, personalStats, mayhem, leagueGameRepair);
                 var cleanup = new CleanupModule();
                 var shell = new ShellModule(startCleanup, settings, tools, online, pets, leagueDashboard, leaguePlayer, leagueLive, mayhem, cleanup);
-                using (var host = CreateHost(settings, cloudSync, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, leagueGameRepair, personalStats, mayhem, leagueHub, cleanup, shell))
+                using (var host = CreateHost(settings, cloudSync, usageTelemetry, tools, online, pets, performance, leagueClient, leagueDashboard, leaguePlayer, leagueLive, leagueAdvisor, leagueEfficiency, leagueGameRepair, personalStats, mayhem, leagueHub, cleanup, shell))
                 {
                     try
                     {
@@ -156,6 +160,7 @@ namespace FACM
                         return;
                     }
 
+                    UsageTelemetryModule.Record("app_launch");
                     AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + cleanup.IsAdministrator);
                     SingleInstanceActivation activation = null;
                     try
@@ -174,6 +179,7 @@ namespace FACM
         private static FacmHost CreateHost(
             SettingsModule settings,
             CloudSyncModule cloudSync,
+            UsageTelemetryModule usageTelemetry,
             ToolsModule tools,
             OnlineModule online,
             PetsModule pets,
@@ -195,6 +201,7 @@ namespace FACM
             host.Register(new CompactMenuEnhancerModule());
             host.Register(settings);
             host.Register(cloudSync);
+            host.Register(usageTelemetry);
             host.Register(tools);
             host.Register(online);
             host.Register(pets);
@@ -230,12 +237,14 @@ namespace FACM
             bool facmHostTest,
             bool performanceContractTest,
             bool leagueDashboardTest,
-            bool updateMirrorTest)
+            bool updateMirrorTest,
+            bool usageTelemetryTest)
         {
             if (facmHostTest) return MutexName + "-FacmHostTest";
             if (performanceContractTest) return MutexName + "-PerformanceContractTest";
             if (leagueDashboardTest) return MutexName + "-LeagueDashboardTest";
             if (updateMirrorTest) return MutexName + "-UpdateMirrorTest";
+            if (usageTelemetryTest) return MutexName + "-UsageTelemetryTest";
             if (singleInstanceActivationTest) return MutexName + "-SingleInstanceActivationTest";
             if (mayhemBodyCancellationTest) return MutexName + "-MayhemBodyCancellationTest";
             if (tencentMayhemPatchTest) return MutexName + "-TencentMayhemPatchTest";
