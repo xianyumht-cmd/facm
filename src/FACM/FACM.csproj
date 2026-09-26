@@ -19,11 +19,6 @@
     <ToolBundleAssembly>$(MSBuildProjectDirectory)\..\FACM.ToolBundle\bin\$(Configuration)\net48\FACM.ToolBundle.dll</ToolBundleAssembly>
     <UpdaterAssembly>$(MSBuildProjectDirectory)\..\FACM.Updater\bin\$(Configuration)\net48\FACM.Updater.exe</UpdaterAssembly>
     <PetHostBundlePath Condition="'$(PetHostBundlePath)' == ''">$(MSBuildProjectDirectory)\..\..\out\PetHostBundle.zip</PetHostBundlePath>
-    <!--
-      3.5.x portable builds are lightweight by default. Merely leaving an old PetHostBundle.zip
-      under out/ must never inflate FACM.exe. Historical/specialized embedded-PetHost builds remain
-      available only through an explicit IncludePetHostBundle=true or RequirePetHostBundle=true.
-    -->
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == '' and '$(RequirePetHostBundle)' == 'true'">true</IncludePetHostBundle>
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
@@ -45,39 +40,18 @@
     <ProjectReference Include="..\FACM.ToolBundle\FACM.ToolBundle.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\FACM.Updater\FACM.Updater.csproj" ReferenceOutputAssembly="false" />
     <None Include="Resources\FACM-Canva.png" />
-
-    <!--
-      Gate 1 写真实蜜蜂使用项目自有透明 PNG sprite sheet。资源直接嵌入 FACM.exe，
-      避免桌宠第一次启用时依赖外网下载，也保证 360° 旋转使用同一固定版本资产。
-    -->
     <EmbeddedResource Include="Resources\real_bee_gate1_v1.png"
                       LogicalName="FACM.Resources.RealBeeGate1.png"
                       Type="Non-Resx"
                       WithCulture="false" />
-
-    <!--
-      EmbeddedResource 必须在项目加载阶段进入资源项列表。FACM.ToolBundle
-      会由上面的 ProjectReference 先构建，随后以固定资源名写入 FACM.exe。
-    -->
     <EmbeddedResource Include="$(ToolBundleAssembly)"
                       LogicalName="FACM.Resources.FACM.ToolBundle.dll"
                       Type="Non-Resx"
                       WithCulture="false" />
-
-    <!--
-      无窗口更新器同样嵌入 FACM.exe。运行时只从已签名 FACM 主程序的内置资源
-      提取，避免依赖 PowerShell/cmd，也让单 EXE 在线更新保持可用。
-    -->
     <EmbeddedResource Include="$(UpdaterAssembly)"
                       LogicalName="FACM.Resources.FACM.Updater.exe"
                       Type="Non-Resx"
                       WithCulture="false" />
-
-    <!--
-      PetHost is an optional compatibility runtime on the 3.5 lightweight line. Keep support for
-      explicitly requested historical/specialized bundles, but never embed one just because a stale
-      out/PetHostBundle.zip happens to exist on the build machine.
-    -->
     <EmbeddedResource Include="$(PetHostBundlePath)"
                       Condition="'$(IncludePetHostBundle)' == 'true' and Exists('$(PetHostBundlePath)')"
                       LogicalName="FACM.Resources.PetHost.zip"
@@ -123,6 +97,8 @@
     <Exec Command="&quot;$(TargetPath)&quot; --performance-contract-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM update mirror routing, embedded updater and GitHub fallback." />
     <Exec Command="&quot;$(TargetPath)&quot; --update-mirror-test" Timeout="120000" />
+    <Message Importance="High" Text="Validating FACM anonymous usage telemetry contract." />
+    <Exec Command="&quot;$(TargetPath)&quot; --usage-telemetry-test" Timeout="120000" />
     <Message Importance="High" Text="Validating FACM per-pixel-alpha floating ball rendering." />
     <Exec Command="&quot;$(TargetPath)&quot; --floating-ball-test" Timeout="120000" />
     <Message Importance="High" Text="Validating duplicate-launch activation channel." />
