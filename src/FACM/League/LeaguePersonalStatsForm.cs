@@ -170,7 +170,6 @@ namespace FACM.League
             {
                 ApplySnapshot();
                 ApplyTelemetryState();
-                UsageTelemetryModule.Record("personal_stats_open");
                 if (_settings.LeagueCloudRankingEnabled) await RefreshRankingAsync();
             };
             FormClosed += delegate
