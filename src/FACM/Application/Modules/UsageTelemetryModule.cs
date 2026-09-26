@@ -16,6 +16,21 @@ namespace FACM.AppHost.Modules
             CloudSyncModule.ModuleId
         };
 
+        private static readonly HashSet<string> AllowedEventNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "app_launch",
+            "league_dashboard_open",
+            "league_player_open",
+            "league_live_open",
+            "mayhem_lookup_open",
+            "personal_stats_open",
+            "opgg_advisor_open",
+            "efficiency_open",
+            "game_repair_open",
+            "presence_open",
+            "champ_select_companion_open"
+        };
+
         private readonly CloudSyncModule _cloudSync;
         private readonly UsageTelemetryConsentStore _consentStore = new UsageTelemetryConsentStore();
         private readonly object _sync = new object();
@@ -67,7 +82,7 @@ namespace FACM.AppHost.Modules
 
         private void RecordEvent(string eventName)
         {
-            if (_disposed || !_enabled || !IsValidEventName(eventName)) return;
+            if (_disposed || !_enabled || !AllowedEventNames.Contains(eventName)) return;
             lock (_sync)
             {
                 int count;
@@ -170,22 +185,10 @@ namespace FACM.AppHost.Modules
 
         internal static void ValidateForSmokeTest()
         {
-            Require(IsValidEventName("league_dashboard_open"), "Telemetry rejected a valid event name.");
-            Require(!IsValidEventName("League Dashboard Open"), "Telemetry accepted an invalid event name.");
-            Require(!IsValidEventName(new string('a', 65)), "Telemetry accepted an overlong event name.");
-            Require(!IsValidEventName(string.Empty), "Telemetry accepted an empty event name.");
-        }
-
-        private static bool IsValidEventName(string eventName)
-        {
-            if (string.IsNullOrWhiteSpace(eventName) || eventName.Length > 64) return false;
-            for (var index = 0; index < eventName.Length; index++)
-            {
-                var value = eventName[index];
-                if ((value < 'a' || value > 'z') && (value < '0' || value > '9') && value != '_')
-                    return false;
-            }
-            return true;
+            Require(AllowedEventNames.Contains("league_dashboard_open"), "Telemetry rejected a known event name.");
+            Require(AllowedEventNames.Contains("champ_select_companion_open"), "Telemetry rejected a known event name.");
+            Require(!AllowedEventNames.Contains("account_hash"), "Telemetry allowlist accepted an account-like event.");
+            Require(!AllowedEventNames.Contains("League Dashboard Open"), "Telemetry allowlist accepted an invalid event name.");
         }
 
         private static void Require(bool condition, string message)
