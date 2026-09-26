@@ -20,6 +20,7 @@ namespace FACM.League
         private readonly Label _accountsValue;
         private readonly Label _daysValue;
         private readonly Label _memberValue;
+        private readonly Label _activityValue;
         private readonly Label _percentileValue;
         private readonly Label _statusValue;
         private readonly Label[] _historyRows;
@@ -62,14 +63,24 @@ namespace FACM.League
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsHint),
                 Location = new Point(30, 50),
-                Size = new Size(630, 20),
+                Size = new Size(630, 18),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
+            _activityValue = new Label
+            {
+                Location = new Point(30, 68),
+                Size = new Size(630, 18),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 8F),
+                AutoEllipsis = true
+            };
             Controls.Add(title);
             Controls.Add(hint);
+            Controls.Add(_activityValue);
 
-            var summary = CreatePanel(new Rectangle(28, 78, 664, 82));
+            var summary = CreatePanel(new Rectangle(28, 88, 664, 72));
             _accountsValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsAccounts, 14);
             _daysValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsActiveDays, 230);
             _memberValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsMemberSince, 446);
@@ -165,9 +176,9 @@ namespace FACM.League
         {
             parent.Controls.Add(CreateCaption(
                 _ui.Get(key),
-                new Point(left, 10),
+                new Point(left, 7),
                 190));
-            var value = CreateValue(new Point(left, 35), 190, 18F);
+            var value = CreateValue(new Point(left, 29), 190, 18F);
             parent.Controls.Add(value);
             return value;
         }
@@ -268,6 +279,12 @@ namespace FACM.League
             _memberValue.Text = snapshot.FirstSeenUtc.HasValue
                 ? snapshot.FirstSeenUtc.Value.ToLocalTime().ToString("yyyy-MM-dd")
                 : "—";
+            _activityValue.Text = string.Format(
+                _ui.Get(UiTextKeys.LeaguePersonalStatsActivityFormat),
+                snapshot.CurrentStreakDays,
+                snapshot.Recent7ActiveDays,
+                snapshot.Recent30ActiveDays,
+                snapshot.NewAccountsThisMonth);
             RenderHistory(snapshot.RecentAccounts);
 
             if (!snapshot.CloudRankingEnabled)

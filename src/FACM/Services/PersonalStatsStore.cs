@@ -32,6 +32,10 @@ namespace FACM.Services
     {
         public int PlayedAccounts { get; set; }
         public int ActiveDays { get; set; }
+        public int CurrentStreakDays { get; set; }
+        public int Recent7ActiveDays { get; set; }
+        public int Recent30ActiveDays { get; set; }
+        public int NewAccountsThisMonth { get; set; }
         public DateTimeOffset? FirstSeenUtc { get; set; }
         public DateTimeOffset? LastSeenUtc { get; set; }
         public IReadOnlyList<PersonalStatsAccountRecord> RecentAccounts { get; set; } = new List<PersonalStatsAccountRecord>();
@@ -292,6 +296,10 @@ namespace FACM.Services
             {
                 PlayedAccounts = state == null || state.Accounts == null ? 0 : state.Accounts.Count,
                 ActiveDays = state == null || state.ActiveDays == null ? 0 : state.ActiveDays.Count,
+                CurrentStreakDays = CalculateCurrentStreakDays(state, now),
+                Recent7ActiveDays = CountRecentActiveDays(state, now, 7),
+                Recent30ActiveDays = CountRecentActiveDays(state, now, 30),
+                NewAccountsThisMonth = CountNewAccountsThisMonth(state, now),
                 FirstSeenUtc = state == null ? null : ParseUtc(state.FirstSeenUtc),
                 LastSeenUtc = state == null ? null : ParseUtc(state.LastSeenUtc),
                 RecentAccounts = state == null || state.Accounts == null
@@ -304,6 +312,70 @@ namespace FACM.Services
                         .Select(CloneAccount)
                         .ToArray()
             };
+        }
+
+        private static int CalculateCurrentStreakDays(PersonalStatsState state, DateTimeOffset now)
+        {
+            if (state == null || state.ActiveDays == null || state.ActiveDays.Count == 0)
+                return 0;
+
+            var activeDays = new HashSet<DateTime>(
+                state.ActiveDays
+                    .Select(ParseLocalDay)
+                    .Where(value => value.HasValue)
+                    .Select(value => value.Value));
+            var cursor = now.ToLocalTime().Date;
+            var streak = 0;
+            while (activeDays.Contains(cursor))
+            {
+                streak++;
+                cursor = cursor.AddDays(-1);
+            }
+            return streak;
+        }
+
+        private static int CountRecentActiveDays(PersonalStatsState state, DateTimeOffset now, int dayWindow)
+        {
+            if (state == null || state.ActiveDays == null || dayWindow <= 0)
+                return 0;
+
+            var today = now.ToLocalTime().Date;
+            var firstDay = today.AddDays(-(dayWindow - 1));
+            return state.ActiveDays
+                .Select(ParseLocalDay)
+                .Where(value => value.HasValue)
+                .Select(value => value.Value)
+                .Count(value => value >= firstDay && value <= today);
+        }
+
+        private static int CountNewAccountsThisMonth(PersonalStatsState state, DateTimeOffset now)
+        {
+            if (state == null || state.Accounts == null)
+                return 0;
+
+            var currentMonth = now.ToLocalTime();
+            return state.Accounts.Count(item =>
+            {
+                if (item == null) return false;
+                var firstSeen = ParseUtc(item.FirstSeenUtc);
+                if (!firstSeen.HasValue) return false;
+                var localFirstSeen = firstSeen.Value.ToLocalTime();
+                return localFirstSeen.Year == currentMonth.Year &&
+                       localFirstSeen.Month == currentMonth.Month;
+            });
+        }
+
+        private static DateTime? ParseLocalDay(string value)
+        {
+            DateTime parsed;
+            return DateTime.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                null,
+                System.Globalization.DateTimeStyles.None,
+                out parsed)
+                ? parsed.Date
+                : (DateTime?)null;
         }
 
         private static PersonalStatsAccountRecord CloneAccount(PersonalStatsAccountRecord source)
@@ -427,7 +499,9 @@ namespace FACM.Services
                 var secondNow = firstNow.AddDays(1);
 
                 var launch = store.RecordLaunch(firstNow);
-                Require(launch.ActiveDays == 1 && launch.PlayedAccounts == 0,
+                Require(launch.ActiveDays == 1 && launch.PlayedAccounts == 0 &&
+                        launch.CurrentStreakDays == 1 && launch.Recent7ActiveDays == 1 &&
+                        launch.Recent30ActiveDays == 1 && launch.NewAccountsThisMonth == 0,
                     "Personal stats launch tracking drifted.");
 
                 var hash1 = CreateAccountKeyHash(deviceId, "puuid-example-one");
@@ -441,22 +515,28 @@ namespace FACM.Services
                 var afterFirst = store.RecordAccount(hash1, "测试账号#ONE", "HN1", firstNow, out isNew);
                 Require(isNew && afterFirst.PlayedAccounts == 1 &&
                         afterFirst.RecentAccounts.Count == 1 &&
-                        afterFirst.RecentAccounts[0].DisplayName == "测试账号#ONE",
+                        afterFirst.RecentAccounts[0].DisplayName == "测试账号#ONE" &&
+                        afterFirst.NewAccountsThisMonth == 1,
                     "Personal stats did not persist the local account display name.");
 
                 var afterRepeat = store.RecordAccount(hash1, "更新后的账号#ONE", "HN1", secondNow, out isNew);
                 Require(!isNew && afterRepeat.PlayedAccounts == 1 && afterRepeat.ActiveDays == 2 &&
+                        afterRepeat.CurrentStreakDays == 2 && afterRepeat.Recent7ActiveDays == 2 &&
+                        afterRepeat.Recent30ActiveDays == 2 && afterRepeat.NewAccountsThisMonth == 1 &&
                         afterRepeat.RecentAccounts[0].DisplayName == "更新后的账号#ONE" &&
                         afterRepeat.RecentAccounts[0].SeenCount == 2,
                     "Personal stats did not update the repeated account history.");
 
                 var afterSecond = store.RecordAccount(hash2, "测试账号#TWO", "HN1", secondNow, out isNew);
-                Require(isNew && afterSecond.PlayedAccounts == 2 && afterSecond.RecentAccounts.Count == 2,
+                Require(isNew && afterSecond.PlayedAccounts == 2 && afterSecond.RecentAccounts.Count == 2 &&
+                        afterSecond.NewAccountsThisMonth == 2,
                     "Personal stats did not add the second unique account.");
 
                 File.WriteAllText(Path.Combine(root, "personal-stats.json"), "{ broken");
                 var recovered = new PersonalStatsStore(root).ReadSnapshot(secondNow);
                 Require(recovered.PlayedAccounts == 2 && recovered.RecentAccounts.Count == 2 &&
+                        recovered.CurrentStreakDays == 2 && recovered.Recent7ActiveDays == 2 &&
+                        recovered.Recent30ActiveDays == 2 && recovered.NewAccountsThisMonth == 2 &&
                         recovered.RecentAccounts.Any(item => item.DisplayName == "更新后的账号#ONE"),
                     "Personal stats last-known-good recovery lost account history.");
 

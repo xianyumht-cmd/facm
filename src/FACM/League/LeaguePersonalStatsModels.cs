@@ -17,6 +17,10 @@ namespace FACM.League
     {
         public int PlayedAccounts { get; set; }
         public int ActiveDays { get; set; }
+        public int CurrentStreakDays { get; set; }
+        public int Recent7ActiveDays { get; set; }
+        public int Recent30ActiveDays { get; set; }
+        public int NewAccountsThisMonth { get; set; }
         public DateTimeOffset? FirstSeenUtc { get; set; }
         public DateTimeOffset? LastSeenUtc { get; set; }
         public bool PersonalStatsEnabled { get; set; }
