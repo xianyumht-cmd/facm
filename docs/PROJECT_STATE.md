@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.46
-- GitHub Release：v3.5.46
+- 版本：GGman 3.5.47
+- GitHub Release：v3.5.47
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：6e1a2ae5acb9c276bc45fd78b4d6fd63a62a4c44
-- 发布元数据提交：0196831bcc8bcde2b94231e4220a70c1f06636d2
-- Release GGman.exe SHA-256：A8F8926DA8F27A320A2E6A80F47CA364080A339836D501FC2784EEB1482E70DB
-- release_notes：GGman 3.5.46：新增 CloudBase 云端设置同步，按设备身份保存可迁移的 GGman 用户偏好；机器本地路径、窗口位置和账号敏感数据继续留在本机。云端失败保持静默，不阻塞启动。
+- 发布基础 main：1792806fd02b703780277eeaa03deb0ac3541f49
+- 发布元数据提交：04f32b5a196931ac03959328526f3118190b2a88
+- Release GGman.exe SHA-256：753C665C052AE7320D27D4BED999D962AD758E01D5D36CD9C5327D58522C32E7
+- release_notes：GGman 3.5.47：补充“我的 GGman”本地活跃度统计。新增连续使用天数、近 7 天活跃天数、近 30 天活跃天数和本月新增账号统计；数据继续只来源于现有本地个人历史，不新增遥测、云端统计或可见滚动条。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State
