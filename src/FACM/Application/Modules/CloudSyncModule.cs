@@ -67,6 +67,16 @@ namespace FACM.AppHost.Modules
             return _client.GetPersonalRankingAsync(_identity.DeviceId, cancellationToken);
         }
 
+        internal Task RecordUsageAsync(
+            IReadOnlyDictionary<string, int> events,
+            string appVersion,
+            CancellationToken cancellationToken)
+        {
+            if (_identity == null || _client == null)
+                throw new InvalidOperationException("Cloud sync is not initialized.");
+            return _client.RecordUsageAsync(_identity.DeviceId, events, appVersion, cancellationToken);
+        }
+
         internal string DeviceId
         {
             get { return _identity == null ? string.Empty : _identity.DeviceId ?? string.Empty; }
