@@ -1,7 +1,7 @@
 {
-  "version": "3.5.47",
+  "version": "3.5.48",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "GGman 3.5.47：补充“我的 GGman”本地活跃度统计。新增连续使用天数、近 7 天活跃天数、近 30 天活跃天数和本月新增账号统计；数据继续只来源于现有本地个人历史，不新增遥测、云端统计或可见滚动条。"
+  "release_notes": "GGman 3.5.48：新增可选的匿名功能使用统计。默认关闭，可在“我的 GGman”中随时开启或关闭；仅上传按天聚合的功能使用次数和程序版本，不上传账号、PUUID、密码、IP、硬件标识或日志内容。CloudBase 不可用时不影响程序正常使用。"
 }
