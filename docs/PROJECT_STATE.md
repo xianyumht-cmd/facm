@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.47
-- GitHub Release：v3.5.47
+- 版本：GGman 3.5.48
+- GitHub Release：v3.5.48
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：1792806fd02b703780277eeaa03deb0ac3541f49
-- 发布元数据提交：04f32b5a196931ac03959328526f3118190b2a88
-- Release GGman.exe SHA-256：753C665C052AE7320D27D4BED999D962AD758E01D5D36CD9C5327D58522C32E7
-- release_notes：GGman 3.5.47：补充“我的 GGman”本地活跃度统计。新增连续使用天数、近 7 天活跃天数、近 30 天活跃天数和本月新增账号统计；数据继续只来源于现有本地个人历史，不新增遥测、云端统计或可见滚动条。
+- 发布基础 main：8769b2ff0bfe8101cac0b9f79d42e63165759163
+- 发布元数据提交：42967e4816cadc5049928acdf4504733ea902e76
+- Release GGman.exe SHA-256：6EBD84933F1C8DA1888A509A5A04CE29D383C43F7766AD6E8C37F9CC3D64FD1D
+- release_notes：GGman 3.5.48：新增可选的匿名功能使用统计。默认关闭，可在“我的 GGman”中随时开启或关闭；仅上传按天聚合的功能使用次数和程序版本，不上传账号、PUUID、密码、IP、硬件标识或日志内容。CloudBase 不可用时不影响程序正常使用。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

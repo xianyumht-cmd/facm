@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.48",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.48/FACM.exe",
   "sha256": "6EBD84933F1C8DA1888A509A5A04CE29D383C43F7766AD6E8C37F9CC3D64FD1D",
   "release_notes": "GGman 3.5.48：新增可选的匿名功能使用统计。默认关闭，可在“我的 GGman”中随时开启或关闭；仅上传按天聚合的功能使用次数和程序版本，不上传账号、PUUID、密码、IP、硬件标识或日志内容。CloudBase 不可用时不影响程序正常使用。",
-  "published_at": "2026-09-26T18:48:02.5764149+00:00"
+  "published_at": "2026-09-26T18:48:11.3708797+00:00"
 }
