@@ -252,6 +252,40 @@ namespace FACM.Online
             }
         }
 
+        public async Task RecordUsageAsync(
+            string deviceId,
+            IReadOnlyDictionary<string, int> events,
+            string appVersion,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (events == null || events.Count == 0) return;
+
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var payload = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (var item in events)
+            {
+                if (!IsTelemetryEventName(item.Key))
+                    throw new ArgumentException("Telemetry event name is invalid.", nameof(events));
+                if (item.Value <= 0) continue;
+                payload[item.Key] = Math.Min(1000, item.Value);
+            }
+            if (payload.Count == 0) return;
+
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "p_events", payload },
+                { "p_app_version", appVersion ?? string.Empty }
+            });
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_record_usage"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                await SendAsync(request, "usage telemetry", cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         private async Task<CloudBaseSession> EnsureSessionAsync(string deviceId, CancellationToken cancellationToken)
         {
             var current = _session;
@@ -446,6 +480,18 @@ namespace FACM.Online
             return "CloudBase " + (operation ?? "request") + " failed; status=" + (int)statusCode + ".";
         }
 
+        private static bool IsTelemetryEventName(string eventName)
+        {
+            if (string.IsNullOrWhiteSpace(eventName) || eventName.Length > 64) return false;
+            for (var index = 0; index < eventName.Length; index++)
+            {
+                var value = eventName[index];
+                if ((value < 'a' || value > 'z') && (value < '0' || value > '9') && value != '_')
+                    return false;
+            }
+            return true;
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -453,11 +499,6 @@ namespace FACM.Online
             _session = null;
             _sessionGate.Dispose();
             _client.Dispose();
-        }
-
-        private void ThrowIfDisposed()
-        {
-            if (_disposed) throw new ObjectDisposedException(nameof(CloudBaseClient));
         }
 
         internal static void ValidateForSmokeTest()
@@ -513,6 +554,11 @@ namespace FACM.Online
                     Require(read.RequestUri.ToString().IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0,
                         "CloudBase device readback is not scoped to device_id.");
                 }
+
+                Require(IsTelemetryEventName("league_dashboard_open"),
+                    "CloudBase telemetry event validation rejected a valid name.");
+                Require(!IsTelemetryEventName("League Dashboard Open"),
+                    "CloudBase telemetry event validation accepted an invalid name.");
             }
 
             var diagnostic = BuildFailureMessage("device readback", HttpStatusCode.Forbidden);
