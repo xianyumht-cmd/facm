@@ -154,6 +154,10 @@ namespace FACM.AppHost.Modules
             {
                 PlayedAccounts = local.PlayedAccounts,
                 ActiveDays = local.ActiveDays,
+                CurrentStreakDays = local.CurrentStreakDays,
+                Recent7ActiveDays = local.Recent7ActiveDays,
+                Recent30ActiveDays = local.Recent30ActiveDays,
+                NewAccountsThisMonth = local.NewAccountsThisMonth,
                 FirstSeenUtc = local.FirstSeenUtc,
                 LastSeenUtc = local.LastSeenUtc,
                 PersonalStatsEnabled = settings == null || settings.LeaguePersonalStatsEnabled,
