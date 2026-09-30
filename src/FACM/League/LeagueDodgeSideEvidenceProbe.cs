@@ -34,8 +34,11 @@ namespace FACM.League
         private readonly Dictionary<string, HashSet<long>> _lastParticipantIds = new Dictionary<string, HashSet<long>>(StringComparer.Ordinal);
         private readonly Dictionary<long, HashSet<string>> _participantNamesById = new Dictionary<long, HashSet<string>>();
         private readonly HashSet<string> _loggedConversationCandidates = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _lastMessageShapes = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _lastParticipantShapes = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        private HashSet<long> _lastObservedMyTeam = new HashSet<long>();
+        private HashSet<long> _bestObservedMyTeam = new HashSet<long>();
+        private string _lastMyTeamDiffFingerprint;
         private HashSet<long> _lastLobbyMemberIds = new HashSet<long>();
         private bool _conversationBaselineCaptured;
         private bool _conversationTypesLogged;
@@ -70,10 +73,30 @@ namespace FACM.League
                 _chatRoomName = snapshot.ChatRoomName.Trim();
 
             var current = new HashSet<long>(snapshot.MySummonerIds.Where(value => value > 0));
-            if (_lastObservedMyTeam.Count >= 4 && current.Count >= 3 && current.Count == _lastObservedMyTeam.Count - 1)
+            if (current.Count > _bestObservedMyTeam.Count)
             {
-                var dropped = _lastObservedMyTeam.Where(value => !current.Contains(value)).ToArray();
-                if (dropped.Length == 1)
+                _bestObservedMyTeam = new HashSet<long>(current);
+                _lastMyTeamDiffFingerprint = null;
+            }
+
+            if (_bestObservedMyTeam.Count >= 4 && current.Count < _bestObservedMyTeam.Count)
+            {
+                var dropped = _bestObservedMyTeam.Where(value => !current.Contains(value)).OrderBy(value => value).ToArray();
+                var fingerprint = _bestObservedMyTeam.Count.ToString(CultureInfo.InvariantCulture) + ">" +
+                                  current.Count.ToString(CultureInfo.InvariantCulture) + ":" +
+                                  string.Join(",", dropped.Select(value => value.ToString(CultureInfo.InvariantCulture)).ToArray());
+                if (!string.Equals(fingerprint, _lastMyTeamDiffFingerprint, StringComparison.Ordinal))
+                {
+                    _lastMyTeamDiffFingerprint = fingerprint;
+                    AppLog.Info(
+                        "League Dodge Probe: my-team-diff; episode=" + EpisodeText +
+                        "; baseline=" + _bestObservedMyTeam.Count.ToString(CultureInfo.InvariantCulture) +
+                        "; current=" + current.Count.ToString(CultureInfo.InvariantCulture) +
+                        "; removedCount=" + dropped.Length.ToString(CultureInfo.InvariantCulture) +
+                        "; removedIds=" + (dropped.Length == 0 ? "-" : string.Join(",", dropped.Select(value => value.ToString(CultureInfo.InvariantCulture)).ToArray())));
+                }
+
+                if (dropped.Length == 1 && current.Count >= 3)
                 {
                     _recentRosterDropId = dropped[0];
                     _recentRosterDropUtc = DateTime.UtcNow;
@@ -83,9 +106,10 @@ namespace FACM.League
                         "; remaining=" + current.Count.ToString(CultureInfo.InvariantCulture));
                 }
             }
-
-            if (current.Count > 0)
-                _lastObservedMyTeam = current;
+            else if (current.Count == _bestObservedMyTeam.Count)
+            {
+                _lastMyTeamDiffFingerprint = null;
+            }
         }
 
         public async Task SampleAsync(LeagueDodgeTeamSnapshot roster, CancellationToken cancellationToken, bool force = false)
@@ -261,7 +285,21 @@ namespace FACM.League
             var path = ConversationsPath + "/" + Uri.EscapeDataString(conversationId) + "/messages";
             var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);
             var messages = ParseArray(bytes);
-            if (messages == null) return;
+            if (messages == null)
+            {
+                LogDetailShape(_lastMessageShapes, conversationId, "chat-messages-shape", label, "available=false");
+                return;
+            }
+            var systemCount = messages.Count(message => IsSystemLike(ReadString(message, "type")));
+            var departureCount = messages.Count(message => IsDepartureLike(ReadString(message, "body"), ReadString(message, "type")));
+            LogDetailShape(
+                _lastMessageShapes,
+                conversationId,
+                "chat-messages-shape",
+                label,
+                "available=true,rows=" + messages.Count.ToString(CultureInfo.InvariantCulture) +
+                ",system=" + systemCount.ToString(CultureInfo.InvariantCulture) +
+                ",departure=" + departureCount.ToString(CultureInfo.InvariantCulture));
 
             HashSet<string> seen;
             var firstRead = !_seenMessageKeys.TryGetValue(conversationId, out seen);
@@ -291,7 +329,11 @@ namespace FACM.League
             var path = ConversationsPath + "/" + Uri.EscapeDataString(conversationId) + "/participants";
             var bytes = await _client.TryGetBytesAsync(path, cancellationToken).ConfigureAwait(false);
             var participants = ParseArray(bytes);
-            if (participants == null) return;
+            if (participants == null)
+            {
+                LogDetailShape(_lastParticipantShapes, conversationId, "chat-participants-shape", label, "available=false");
+                return;
+            }
 
             var current = new HashSet<long>();
             foreach (var participant in participants)
@@ -304,6 +346,14 @@ namespace FACM.League
                 current.Add(id);
                 RememberParticipantNames(id, participant);
             }
+
+            LogDetailShape(
+                _lastParticipantShapes,
+                conversationId,
+                "chat-participants-shape",
+                label,
+                "available=true,rows=" + participants.Count.ToString(CultureInfo.InvariantCulture) +
+                ",knownIds=" + current.Count.ToString(CultureInfo.InvariantCulture));
 
             HashSet<long> previous;
             if (_lastParticipantIds.TryGetValue(conversationId, out previous) && previous.Count >= 2 &&
@@ -526,6 +576,24 @@ namespace FACM.League
                     return true;
             }
             return false;
+        }
+
+        private void LogDetailShape(
+            Dictionary<string, string> store,
+            string conversationId,
+            string marker,
+            string label,
+            string shape)
+        {
+            if (store == null || string.IsNullOrWhiteSpace(conversationId)) return;
+            string previous;
+            if (store.TryGetValue(conversationId, out previous) && string.Equals(previous, shape, StringComparison.Ordinal)) return;
+            store[conversationId] = shape ?? string.Empty;
+            AppLog.Info(
+                "League Dodge Probe: " + marker +
+                "; episode=" + EpisodeText +
+                "; key=" + Safe(label) +
+                "; " + Safe(shape));
         }
 
         private static string SafeBody(string value)
