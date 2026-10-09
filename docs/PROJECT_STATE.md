@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.55：优化选人阶段的窄版实时对局悬浮助手。为隐藏原生滚动条的推荐内容增加细窄的滚动进度提示，内容足够少时自动隐藏，让强化符文、出装和队友信息的位置更容易判断；完善退出选人、置顶/取消置顶、展开/收起、导入/应用、查看更多方案、翻页等现有按钮的辅助提示与键盘可访问名称。保留悬浮球默认入口、320 像素轻量窗口、游戏内不抢焦点、置顶/折叠状态恢复、实时数据链与所有原有 LOL 操作保护；不新增查询轮询，不修改退出选人的逻辑。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Regression pass for six UI releases (3.5.56 target; unpublished)
+
+- Issue #300; task branch `fix/ggman-ui-regression-20261009`. Verified enabled official 3.5.55 manifest before work. Cross-page source and existing smoke review covered the floating-ball-first Hub navigation, player history, Recommendation, Mayhem responsive shell and narrow runtime companion. Deterministic issue found in the Recommendation footer introduced during v3.5.53: at narrow embedded widths, status text intersects the Refresh control.
+- Patched only `LeagueRecommendationForm` footer geometry, switching to a 94px stacked status/actions footer below 480 logical pixels, retaining 69px one-row design above. Added seven-width bounds/non-overlap smoke under the existing build-advisor tests. No League queries, LCU writes, runtime companion behavior or primary entry path changed.
+- Pending official **3.5.56** release. Require both PR Windows Build/UI Text Contract, safe merge, signed public release file checks and enabled compatible manifest before declaring deployed. Native Windows mixed-DPI and real League visual acceptance still need human validation, not inferred from smoke tests. Separate Mayhem live source issue #306 remains independent.
+
+
 ## 2026-10-09 — Narrow companion readable scroll affordance (3.5.55 published)
 
 - Issue #300; task branch `feat/ggman-companion-readability-20261009`. A passive 4px scroll-progress cue is docked beside the existing `LeagueRuntimeCompanionForm` recommendations body, using existing scroll/content metrics and hidden when all sections fit. Native Gameflow/LCU presentation/read/write owners, header identity, Bench gating, 320px compact width, pin/collapse window-state persistence, and nonactivating behavior remain intact.
