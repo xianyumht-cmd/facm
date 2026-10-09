@@ -501,6 +501,8 @@ namespace FACM
                 menu.Items.Add(new ToolStripSeparator());
                 AddPopupItem(menu, _ui.CheckUpdate, delegate { _ownerBall.OpenUpdateCenter(); });
                 AddPopupItem(menu, _ui.OpenLog, delegate { OpenLog(this, EventArgs.Empty); });
+                AddPopupItem(menu, _ui.Get(UiTextKeys.ShellGettingStartedMenu),
+                    delegate { _ownerBall.OpenGettingStarted(); });
                 menu.Items.Add(new ToolStripSeparator());
                 AddPopupItem(menu, _ui.Exit, delegate { _ownerBall.ExitApplication(); });
             });
