@@ -55,7 +55,7 @@ namespace FACM
 
             var logo = new Label
             {
-                Text = "F", // ui-text-contract: allow brand mark
+                Text = "G", // ui-text-contract: allow brand mark
                 Location = ScalePoint(18, 14),
                 Size = ScaleSize(44, 44),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -78,7 +78,7 @@ namespace FACM
             };
             var version = new Label
             {
-                Text = MainForm.DisplayMajorMinorVersion() + "  " + _ui.ControlCenter,
+                Text = Application.ProductVersion + "  " + _ui.ControlCenter,
                 AutoSize = true,
                 Location = ScalePoint(77, 42),
                 ForeColor = _theme.TextMuted,
@@ -261,6 +261,21 @@ namespace FACM
             Resize += delegate { ApplyWindowRegion(); };
         }
 
+        internal ThemeDefinition LauncherTheme { get { return _theme; } }
+        internal MainForm LauncherOwner { get { return _ownerBall; } }
+        internal AppSettings LauncherSettings { get { return _settings; } }
+        internal CleanupModule LauncherCleanup { get { return _cleanup; } }
+
+        internal void ShowLauncherPersonalization(Control anchor)
+        {
+            OpenPersonalizationMenu(anchor, EventArgs.Empty);
+        }
+
+        internal void ShowLauncherMore(Control anchor)
+        {
+            OpenMoreMenu(anchor, EventArgs.Empty);
+        }
+
         public void StartEnvironmentCleanup()
         {
             CleanEnvironment(this, EventArgs.Empty);
@@ -268,6 +283,11 @@ namespace FACM
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
+            if (Controls.Find("FACM.DesktopLauncher", true).Length > 0)
+            {
+                e.Graphics.Clear(FacmDesignSystem.Canvas);
+                return;
+            }
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (var brush = new LinearGradientBrush(ClientRectangle, _theme.BackgroundSecondary, _theme.Background, 125F))
             {
@@ -762,8 +782,10 @@ namespace FACM
 
         private void ApplyWindowRegion()
         {
-            if (_theme.Style == ThemeStyle.Brutalist) return;
-            using (var path = CreateShapePath(new Rectangle(0, 0, Width, Height), _theme.Radius, _theme.UsesAngularCorners))
+            var launcher = Controls.Find("FACM.DesktopLauncher", true).Length > 0;
+            if (!launcher && _theme.Style == ThemeStyle.Brutalist) return;
+            var radius = launcher ? FacmDesignSystem.WindowRadius : _theme.Radius;
+            using (var path = CreateShapePath(new Rectangle(0, 0, Width, Height), radius, !launcher && _theme.UsesAngularCorners))
             {
                 Region = new Region(path);
             }
