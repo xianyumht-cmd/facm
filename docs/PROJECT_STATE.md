@@ -14,11 +14,13 @@
 
 # FACM Project State
 
-## 2026-10-09 — Champion Select “退” patch (pending Windows CI and live matchmaking proof)
+## 2026-10-09 — Champion Select “退” patch (released 3.5.49; live matchmaking proof pending)
 
 - Supplied GGman logs show successful primary quits in practice/custom sessions but repeated HTTP 400 rejections on 2026-09-24 and 2026-10-02/04/07 in matchmade ChampSelect.
-- Task branch `fix/champ-select-quit-preserve-party-20261009`: a single guarded Gameflow request-lobby fallback after definite primary HTTP 400, with original party ID/member preservation and phase/session postconditions. No process kill, lobby DELETE or new lobby POST is allowed.
-- Deterministic fake-LCU regression covers primary/fallback acceptance, rejection, unavailable or replaced party, stale phases and cancellation. Tencent matchmade behavior remains **unverified on a real client**; passing build tests cannot establish server acceptance.
+- PR #298 squash merged to `main` as `9afc9470eda4e7ad3c782d7b2baf163e68c8e6d8`. The patch uses one guarded Gameflow request-lobby fallback after definite primary HTTP 400, with original party ID/member preservation and phase/session postconditions. No process kill, lobby DELETE or new lobby POST is allowed.
+- Deterministic fake-LCU regression covers primary/fallback acceptance, rejection, unavailable or replaced party, stale phases, cancellation and repeated-click cooldown. Branch head `e084370e960ace2c20018843738b6bf6d27ff520` passed GGman Windows Build #37907957751 and UI Text Contract #37907957723.
+- GGman 3.5.49 public release workflow #37908278265 passed, published signed/verified compatible `GGman.exe` and `FACM.exe` assets, enabled `online/version.json`, and recorded release SHA-256 `A83289E39E7D4E0B78B84BB3172093B8614D7D9083297600BFBB7C1CA0C8F6A1`.
+- Tencent matchmade behavior remains **unverified on a real client**; CI and release checks establish source/build/update correctness, not server acceptance.
 
 
 
