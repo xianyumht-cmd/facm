@@ -120,3 +120,8 @@ The interactive HTML review is a standalone design artifact, not GGman code and 
 - R1 scope: existing floating entry preserved; quick launcher becomes a 2-column × 2-row context-aware panel with direct Workbench/Matches/Mayhem/Tools actions, utility footer for Repair/Personalization/More, actual patch version visible in header, and typed integration with the legacy menu. No League IO changes.
 - The central workbench single-nav visual prototype remains **planned**: do not claim it shipped with R1; follow R2+ phases after evaluation.
 - Release is blocked on green Windows build, UI Text Contract, proper release signing and public-asset verification. Do not mark the manifest enabled until the canonical publisher completes.
+
+
+## R2 workbench implementation slice (2026-10-09)
+
+The second implementation slice adopts a single grouped left navigation rail in `LeagueHubForm`, retaining all nine current view IDs and existing page factories. The top global sub-navigation and conditional right-side context dock are removed, and a compact status footer uses the existing League Gameflow snapshot. The floating ball and launcher remain the primary entry. Native Windows visual/DPI and live League acceptance are still separate verification tasks, while smoke and CI cover route-preservation contracts. After green gates this scoped change is eligible for its own official patch release v3.5.51; no design-only candidate EXE is a substitute for the versioned publisher.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -150,22 +151,22 @@ namespace FACM
 
         private static void ValidateLeagueHubResponsiveLayout()
         {
-            Require(LeagueHubForm.ResolveSidebarWidthForSmokeTest(900) < LeagueHubForm.ResolveSidebarWidthForSmokeTest(1120),
-                "LOL Hub sidebar no longer compacts at the minimum window width.");
-            Require(LeagueHubForm.ResolveContextDockWidthForSmokeTest(700) == 212,
-                "LOL Hub context dock minimum-width clamp regressed.");
-            Require(LeagueHubForm.ResolveContextDockWidthForSmokeTest(1400) == 248,
-                "LOL Hub context dock maximum-width clamp regressed.");
-            Require(!LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Dashboard, 800),
-                "LOL Hub context dock must yield to primary content at narrow workspace widths.");
-            Require(LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Dashboard, 920),
-                "LOL Hub dashboard should expose context when the workspace has enough room.");
-            Require(!LeagueHubForm.ShouldShowContextDockForSmokeTest(LeagueHubNavigation.Live, 1200),
-                "LOL Hub dense live view must not lose content width to the context dock.");
-            Require(LeagueHubForm.ResolveSubnavButtonWidthForSmokeTest(20) == 84,
-                "LOL Hub sub-navigation minimum tap target regressed.");
-            Require(LeagueHubForm.ResolveSubnavButtonWidthForSmokeTest(240) == 146,
-                "LOL Hub sub-navigation width cap regressed.");
+            Require(LeagueHubForm.ResolveSidebarWidthForSmokeTest(900) <
+                    LeagueHubForm.ResolveSidebarWidthForSmokeTest(1120),
+                "LOL Hub navigation rail must compact when the workbench is narrow.");
+            Require(LeagueHubForm.ResolveSidebarWidthForSmokeTest(900) <= 180,
+                "LOL Hub compact rail leaves too little room for main page content.");
+            var routes = LeagueHubForm.VisibleRoutesForSmokeTest();
+            Require(routes.Count == LeagueHubNavigation.Views.Count,
+                "Every LOL workbench feature must remain reachable from the primary navigation.");
+            Require(routes.Distinct(StringComparer.Ordinal).Count() == routes.Count &&
+                    routes.All(id => LeagueHubNavigation.Views.Any(view =>
+                        string.Equals(view.Id, id, StringComparison.Ordinal))),
+                "LOL workbench primary navigation includes missing or duplicate routes.");
+            Require(routes[0] == LeagueHubNavigation.Dashboard,
+                "LOL workbench must open with a clear current-state entry.");
+            Require(routes[routes.Count - 1] == LeagueHubNavigation.Profile,
+                "Player history must remain directly accessible at the end of the navigation.");
         }
 
         private static void ValidateDesktopEntryGameflowPolicy()

@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.50：悬浮球仍然是默认主入口，点击后显示全新两列四入口快捷面板，可直达 LOL 工作台、我的战绩、海斗攻略与快捷工具；下方保留清理修复、个性化和更多设置。改进面板布局、圆角与背景一致性，显示完整版本号；移除快捷面板对旧窗口私有字段的反射依赖。保留原有托盘、悬浮球拖动及游戏状态识别逻辑，不修改对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — GGman workbench navigation redesign (3.5.51 target, release pending)
+
+- Issue #300; task branch `feat/ggman-hub-single-nav-20261009`. Source change replaces League Hub's category/sidebar + top subnavigation + optional right context dock with one directly clickable grouped left rail and full-width content. Existing nine view IDs, contextual `ShowView` bridge, child Form lifecycles and Gameflow state source remain intact; no new network owner, game actions or long-running UI surface.
+- Smoke tests now require route parity and compact sidebar width, rather than assertions about removed docks/tabs. Native Windows/DPI screenshots and real-client UX validation remain outstanding; automated gates must pass before publication.
+- Intended next independent numbered online release: **GGman 3.5.51** using the existing signed lightweight publisher. This paragraph records a target only, not confirmed publication.
+
+
 ## 2026-10-09 — Floating-ball-first UX 3.5.50 (published)
 
 - User confirmed floating ball is the **primary unobtrusive entry**; full workbench is optional on-demand. Iterations must use formal versioned online releases and durable changelogs after standard safety validation; detached candidate packages are not the accepted publication workflow.
