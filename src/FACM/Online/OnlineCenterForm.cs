@@ -274,7 +274,7 @@ namespace FACM.Online
                     if (IsDisposed || Disposing || _closing) return;
                     var percentage = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value));
                     _progress.Value = percentage;
-                    _updateStatus.Text = "正在下载更新：" + percentage + "%";
+                    _updateStatus.Text = string.Format(UiTextRuntime.Text(UiTextKeys.OnlineDownloadProgressFormat), percentage);
                 });
                 var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
                 if (IsDisposed || Disposing || _closing) return;
