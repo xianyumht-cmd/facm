@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.60：完成悬浮球与工作台入口的一轮一致性修复。托盘菜单中的“打开控制中心”和托盘图标双击现在都会打开或激活快捷面板，不会在面板已打开时意外关闭；悬浮球单击仍按原有方式切换显示状态。修复旧版“英雄联盟”入口跳转统一工作台后却误显示“暂无可用功能”的问题，并移除旧版菜单查找中的隐式跳转。托盘“更多”中新增“使用指南”，与快捷面板的设置入口一致。补充菜单路由回归检查。保留原有九个工作台页面、悬浮球、托盘恢复、游戏内助手、LOL 查询与自动化、更新器签名和旧客户端一键更新兼容功能。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-10 — Cross-entry and legacy UI consistency closeout (3.5.60 target, unpublished)
+## 2026-10-10 — Cross-entry and legacy UI consistency closeout (3.5.60 published)
 
 - Issue #300; task branch `fix/ggman-shell-entry-consistency-20261010`. Verified enabled official 3.5.59 manifest and new main baseline before editing. Fixed two concrete shell UX inconsistencies: tray "Open control center" and tray double-click previously called the toggle method (closing an already-open panel); the legacy compact League entry triggered the Hub through a side-effect in `FindGroup` and displayed a false unavailable status. Explicit tray opens now activate the panel, while only floating-ball clicks toggle. Legacy League entry now routes directly via typed `LeagueHubUiBridge`; group lookup is pure and the old dropdown remains absent.
 - Reused the existing `使用指南` in tray More as well as the launcher Settings menu without introducing a new window. `ShellUxSmokeTest` covers the absent legacy League dropdown and stable More lookup; existing Hub routes and smoke remain intact. No new LCU/League requests, settings migrations, update protocol changes or floating ball behavior changes.
-- Formal target **GGman 3.5.60**, subject to final-head Windows Build and UI Text Contract, PR merge, official signed publisher verification of public `GGman.exe` and compatible `FACM.exe`, and `online/version.json.enabled=true`. Source/CI checks are not a substitute for actual Windows tray, theme, DPI and League in-game visual acceptance.
+- **GGman 3.5.60 officially published and online-enabled:** PR #312 squash merged as `dc35ca29e8faa9dcc8b145ea6c267004addee9fa`; final task head `ce10f83be3d8f8253d7fc8e9e37d8f29935f59fc` passed GGman Windows Build #37998856350 and FACM UI Text Contract #37998856405. Signed lightweight publisher #37999091852 completed SUCCESS after validating release executable identities, Authenticode and publicly downloaded bytes, then enabled online manifest v3.5.60. Public `GGman.exe` and compatible `FACM.exe` are byte-identical, 2,402,200 bytes each, SHA-256 `659C8F26762DF509FE45381C53929FDE72DE1E0E545BD51B9AA2F71599B57165`; the online manifest retains `FACM.exe`, minimum 3.0.0 and `force_update=false`. Actual Windows tray/focus, mixed-DPI and in-game UI acceptance remain unverified by CI.
 
 
 ## 2026-10-09 — First-use quick launcher orientation (3.5.59 formally published)
