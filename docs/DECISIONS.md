@@ -231,3 +231,8 @@ The GGman floating ball remains the default process entry. When the optional LOL
 ## 2026-10-09 — Readability-first, data-dense player history
 
 The player history page should keep a high-density virtual ListView rather than wrapping every match into a heavy decorative card. Use responsive geometry inside the on-demand workbench, neutral text for match metadata, and semantic win/loss color only for the result cell. Empty and loading states must remain distinguishable and should reuse existing localization keys. Preserve data service ownership, cache, paging and cancellation. This is a presentation release, not a change to how matches are fetched or counted.
+
+
+## 2026-10-09 — Responsive, sober recommendation controls
+
+Preserve recommendation selection, confirmation and LCU write ownership in `LeagueRecommendationForm`, while moving its pure presentation onto existing `FacmDesignSystem` tokens. At narrow embedded workbench widths, let selections and previews wrap to two or one column and scroll vertically; keep the action/status footer visible so important applied/rejected feedback is not lost off-screen. Reuse existing UI text keys, keep actual client/hero state authoritative and distinguish failed/partial/succeeded results without implying success on a rejected or uncertain write. This is a UI-focused 3.5.53 patch, not a replacement of the underlying recommendation service.
