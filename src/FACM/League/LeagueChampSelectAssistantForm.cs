@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Mayhem;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -73,9 +74,9 @@ namespace FACM.League
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
-            BackColor = Color.FromArgb(14, 20, 32);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
             DoubleBuffered = true;
             Opacity = 0d; // Do not flash on ordinary ranked ChampSelect before Bench has been confirmed.
             SetClientHeight(CompactHeight);
@@ -84,7 +85,7 @@ namespace FACM.League
             {
                 Location = Point.Empty,
                 Size = new Size(WidthPixels, 36),
-                BackColor = Color.FromArgb(25, 34, 52),
+                BackColor = FacmDesignSystem.Surface,
                 Cursor = Cursors.SizeAll
             };
             var title = new Label
@@ -93,8 +94,8 @@ namespace FACM.League
                 Location = new Point(12, 8),
                 Size = new Size(276, 22),
                 AutoEllipsis = true,
-                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-                ForeColor = Color.White
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text
             };
             _status = new Label
             {
@@ -103,12 +104,12 @@ namespace FACM.League
                 Size = new Size(228, 20),
                 TextAlign = ContentAlignment.MiddleRight,
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(156, 176, 210)
+                ForeColor = FacmDesignSystem.TextMuted
             };
-            _guideToggle = CreateButton(MayhemUiCopy.WindowTitle, new Rectangle(526, 5, 78, 26), Color.FromArgb(55, 73, 105));
+            _guideToggle = CreateButton(MayhemUiCopy.WindowTitle, new Rectangle(526, 5, 78, 26), FacmButtonTone.Secondary);
             _guideToggle.Enabled = false;
             _guideToggle.Click += delegate { SetGuideExpanded(!_guideExpanded); };
-            var close = CreateButton("×", new Rectangle(612, 5, 36, 26), Color.FromArgb(92, 48, 58));
+            var close = CreateButton("×", new Rectangle(612, 5, 36, 26), FacmButtonTone.Secondary);
             close.Click += delegate { Close(); };
 
             header.Controls.Add(title);
@@ -129,7 +130,7 @@ namespace FACM.League
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoScroll = true,
-                BackColor = Color.FromArgb(18, 26, 40),
+                BackColor = FacmDesignSystem.CanvasRaised,
                 Padding = new Padding(4, 4, 4, 1)
             };
 
@@ -138,7 +139,7 @@ namespace FACM.League
                 Location = new Point(10, 116),
                 Size = new Size(640, 434),
                 AutoScroll = true,
-                BackColor = Color.FromArgb(18, 26, 40),
+                BackColor = FacmDesignSystem.CanvasRaised,
                 Visible = false
             };
             _championIcon = new PictureBox
@@ -146,15 +147,15 @@ namespace FACM.League
                 Location = new Point(10, 10),
                 Size = new Size(52, 52),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(30, 42, 62)
+                BackColor = FacmDesignSystem.SurfaceRaised
             };
             _championTitle = new Label
             {
                 Text = MayhemUiCopy.WindowTitle,
                 Location = new Point(72, 10),
                 Size = new Size(360, 26),
-                Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
-                ForeColor = Color.White
+                Font = new Font(FacmThemeRuntime.Current.FontName, 13F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text
             };
             _championMeta = new Label
             {
@@ -162,7 +163,7 @@ namespace FACM.League
                 Location = new Point(73, 38),
                 Size = new Size(545, 22),
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(150, 168, 198)
+                ForeColor = FacmDesignSystem.TextMuted
             };
             _guideStatus = new Label
             {
@@ -170,7 +171,7 @@ namespace FACM.League
                 Location = new Point(10, 68),
                 Size = new Size(610, 22),
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(111, 206, 165)
+                ForeColor = FacmDesignSystem.Success
             };
             _skills = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache), 96, 32);
             _spells = CreateGuideLine(BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache), 130, 32);
@@ -180,8 +181,8 @@ namespace FACM.League
                 Text = MayhemUiCopy.AugmentBoard,
                 Location = new Point(10, 224),
                 Size = new Size(260, 22),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(177, 195, 224)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.TextMuted
             };
             _augments = new ListView
             {
@@ -190,8 +191,8 @@ namespace FACM.League
                 View = View.Details,
                 FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
-                BackColor = Color.FromArgb(22, 31, 47),
-                ForeColor = Color.FromArgb(232, 238, 248),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
                 ShowItemToolTips = true
             };
@@ -217,6 +218,8 @@ namespace FACM.League
             Controls.Add(_guidePanel);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
+            _toolTip.SetToolTip(_guideToggle, MayhemUiCopy.WindowTitle);
+            _toolTip.SetToolTip(close, _ui.Get(UiTextKeys.Close));
             _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
             _pollTimer.Tick += async delegate { await RefreshBenchAsync(); };
             Shown += delegate
@@ -251,6 +254,7 @@ namespace FACM.League
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (state == null || !state.SessionAvailable)
                 {
+                    _status.ForeColor = FacmDesignSystem.TextMuted;
                     _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
                     return;
                 }
@@ -268,6 +272,7 @@ namespace FACM.League
                     Opacity = 1d;
                 }
 
+                _status.ForeColor = FacmDesignSystem.TextMuted;
                 _status.Text = state.ChampionIds.Count > 0
                     ? BenchText(LeagueBenchQuickPickUiTextKeys.Title) + ": " + state.ChampionIds.Count.ToString(CultureInfo.InvariantCulture)
                     : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
@@ -280,7 +285,10 @@ namespace FACM.League
             {
                 AppLog.Info("ChampSelect assistant refresh skipped: " + exception.Message);
                 if (!IsDisposed)
+                {
+                    _status.ForeColor = _benchConfirmed ? FacmDesignSystem.Warning : FacmDesignSystem.TextMuted;
                     _status.Text = _benchConfirmed ? MayhemUiCopy.Failed : BenchText(LeagueBenchQuickPickUiTextKeys.Waiting);
+                }
             }
             finally
             {
@@ -313,14 +321,15 @@ namespace FACM.League
                         Height = 48,
                         Margin = new Padding(2),
                         FlatStyle = FlatStyle.Flat,
-                        BackColor = Color.FromArgb(33, 47, 70),
-                        ForeColor = Color.White,
+                        BackColor = FacmDesignSystem.SurfaceRaised,
+                        ForeColor = FacmDesignSystem.Text,
                         Text = championId.ToString(CultureInfo.InvariantCulture),
                         ImageAlign = ContentAlignment.MiddleCenter,
                         TextAlign = ContentAlignment.MiddleCenter,
                         Cursor = Cursors.Hand
                     };
-                    button.FlatAppearance.BorderColor = Color.FromArgb(65, 90, 128);
+                    button.FlatAppearance.BorderColor = FacmDesignSystem.BorderSoft;
+                    button.AccessibleName = championId.ToString(CultureInfo.InvariantCulture);
                     button.Click += async delegate
                     {
                         var target = button.Tag as BenchTarget;
@@ -332,12 +341,13 @@ namespace FACM.League
                 }
 
                 button.Tag = new BenchTarget { ChampionId = championId, Route = state.SwapRoute };
+                button.AccessibleDescription = BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip);
                 _toolTip.SetToolTip(
                     button,
                     BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
                 button.FlatAppearance.BorderColor = championId == state.LocalChampionId
-                    ? Color.FromArgb(92, 208, 155)
-                    : Color.FromArgb(65, 90, 128);
+                    ? FacmDesignSystem.Success
+                    : FacmDesignSystem.BorderSoft;
             }
         }
 
@@ -376,11 +386,13 @@ namespace FACM.League
         private async Task SwapToAsync(int championId, LeagueBenchSwapRoute route)
         {
             if (championId <= 0 || IsDisposed) return;
+            _status.ForeColor = FacmDesignSystem.Accent;
             _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Swapping);
             try
             {
                 var result = await _bench.TrySwapAsync(championId, route, _lifetime.Token);
                 if (IsDisposed) return;
+                _status.ForeColor = ResolveSwapStatusColorForSmokeTest(result.Success);
                 _status.Text = result.Success
                     ? BenchText(LeagueBenchQuickPickUiTextKeys.Success)
                     : DescribeSwapFailure(result.Status);
@@ -392,7 +404,11 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Info("ChampSelect quick swap failed: " + exception.Message);
-                if (!IsDisposed) _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Rejected);
+                if (!IsDisposed)
+                {
+                    _status.ForeColor = FacmDesignSystem.Warning;
+                    _status.Text = BenchText(LeagueBenchQuickPickUiTextKeys.Rejected);
+                }
             }
         }
 
@@ -417,7 +433,7 @@ namespace FACM.League
                 if (!IsCurrentGuide(generation, championId, request)) return;
                 if (result == null || !string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
+                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
                     _guideStatus.Text = result == null || string.IsNullOrWhiteSpace(result.ErrorMessage)
                         ? MayhemUiCopy.NoData
                         : result.ErrorMessage;
@@ -429,7 +445,7 @@ namespace FACM.League
             {
                 if (!IsDisposed && !_lifetime.IsCancellationRequested && generation == _guideGeneration)
                 {
-                    _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
+                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
                     _guideStatus.Text = MayhemUiCopy.TimeoutShort;
                 }
             }
@@ -438,7 +454,7 @@ namespace FACM.League
                 AppLog.Info("Automatic Mayhem guide failed: " + exception.Message);
                 if (!IsDisposed && generation == _guideGeneration)
                 {
-                    _guideStatus.ForeColor = Color.FromArgb(245, 166, 126);
+                    _guideStatus.ForeColor = FacmDesignSystem.Warning;
                     _guideStatus.Text = MayhemUiCopy.Failed;
                 }
             }
@@ -464,7 +480,7 @@ namespace FACM.League
             _championMeta.Text = _ui.Get(UiTextKeys.LeagueLiveChampion) + " " +
                                  championId.ToString(CultureInfo.InvariantCulture) + " · " +
                                  _ui.Get(UiTextKeys.LeagueLiveReadOnly);
-            _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
+            _guideStatus.ForeColor = FacmDesignSystem.Success;
             _guideStatus.Text = MayhemUiCopy.ReadingLatest;
             _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, MayhemUiCopy.ReadingCache);
             _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, MayhemUiCopy.ReadingCache);
@@ -476,7 +492,7 @@ namespace FACM.League
         {
             _championTitle.Text = FirstNonEmpty(result.ChampionName, result.Query, MayhemUiCopy.Unknown);
             _championMeta.Text = BuildChampionMeta(result);
-            _guideStatus.ForeColor = Color.FromArgb(111, 206, 165);
+            _guideStatus.ForeColor = FacmDesignSystem.Success;
             _guideStatus.Text = MayhemUiCopy.Completed + " · " + _ui.Get(UiTextKeys.LeagueLiveReadOnly);
             _skills.Text = BuildGuideLine(MayhemUiCopy.Skills, BuildSkillText(result));
             _spells.Text = BuildGuideLine(MayhemUiCopy.Summoner, BuildSpellText(result));
@@ -628,25 +644,22 @@ namespace FACM.League
                 Location = new Point(10, y),
                 Size = new Size(610, height),
                 AutoEllipsis = false,
-                ForeColor = Color.FromArgb(218, 226, 240)
+                ForeColor = FacmDesignSystem.Text
             };
         }
 
-        private static Button CreateButton(string text, Rectangle bounds, Color background)
+        private static Button CreateButton(string text, Rectangle bounds, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
+                AccessibleName = text,
                 Location = bounds.Location,
                 Size = bounds.Size,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+                Tone = tone,
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderSize = 0;
-            return button;
         }
 
         private static Bitmap DecodeBitmap(byte[] bytes, Size size)
@@ -763,6 +776,11 @@ namespace FACM.League
             }
         }
 
+        internal static Color ResolveSwapStatusColorForSmokeTest(bool success)
+        {
+            return success ? FacmDesignSystem.Success : FacmDesignSystem.Warning;
+        }
+
         internal static void ValidateForSmokeTest()
         {
             var result = new MayhemChampionResult
@@ -795,6 +813,9 @@ namespace FACM.League
                 throw new InvalidOperationException("ChampSelect assistant skill projection is invalid.");
             if (!string.Equals(BuildSpellText(result), "Flash + Mark", StringComparison.Ordinal))
                 throw new InvalidOperationException("ChampSelect assistant spell projection is invalid.");
+            if (ResolveSwapStatusColorForSmokeTest(true) != FacmDesignSystem.Success ||
+                ResolveSwapStatusColorForSmokeTest(false) != FacmDesignSystem.Warning)
+                throw new InvalidOperationException("ChampSelect bench feedback no longer distinguishes success from rejection.");
         }
     }
 }

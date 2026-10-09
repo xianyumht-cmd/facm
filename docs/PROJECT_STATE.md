@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.53：优化 LOL 工作台的对局推荐页面。符文、召唤师技能和装备的选择卡片及推荐预览会根据可用宽度自动排成三列、两列或一列；窗口较窄时内容可滚动，而刷新、应用所选和操作结果始终显示在底部。统一按钮、文字与选择卡片的颜色和交互状态，移除原有蓝紫渐变装饰；应用成功、部分成功、失败及自动应用反馈使用清晰的状态色。保留原有的应用前确认、英雄阶段校验、数据查询及符文装备写入保护；悬浮球仍为默认主入口。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 target, pending release)
+
+- Issue #300. Branch `feat/ggman-mayhem-companion-ux-20261009` updates `MayhemLookupForm.cs`, `MayhemLookupLayout.cs` and the legacy `LeagueChampSelectAssistantForm.cs`. Scope: public GGman names in Mayhem dialogs/image defaults; native accessible labels for search/buttons; clearer cancel status; extended responsive non-overlap smoke at smaller sizes; shared design tokens and accessible action chrome/status feedback on the Bench-gated ChampSelect assistant.
+- Existing floating-ball primary shell, `ShowWithoutActivation`, fixed companion episode sizes, and canonical RuntimeCompanion, Gameflow, Bench swap, Mayhem query, LCU read/write, cache and auto-guide service owners are unchanged. Native Windows multi-DPI and real-client UI verification remain outstanding.
+- Formal release target **3.5.54** only after green Windows Build + UI Text Contract, safe PR merge and canonical signed publisher with public signer/hash verification and an enabled updater manifest.
+
+
 ## 2026-10-09 — Recommendation UX pass (3.5.53 published)
 
 - Tracking Issue #300; branch `feat/ggman-recommendation-ux-20261009`. Scope: League recommendation page only. Converted fixed body to scrollable responsive 1/2/3-column selection/preview layout, pinned action/status footer, accessible native button focus, consistent design-system token colors, semantic apply/auto-apply status feedback and matching theme restyle selector. Added deterministic layout and status smoke. Kept recommendation read, confirm, apply, deduplication, auto-apply ownership, client state, updater and floating-ball main entry unchanged.
