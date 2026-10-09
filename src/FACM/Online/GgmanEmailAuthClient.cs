@@ -126,12 +126,7 @@ namespace FACM.Online
                 { "email", email }, { "target", "ANY" }
             }, deviceId))
             {
-                if (!string.IsNullOrEmpty(captchaToken))
-                {
-                    if (captchaToken.Length > 4096 || captchaToken.IndexOfAny(new[] { '\r', '\n' }) >= 0)
-                        throw new ArgumentException("图片验证码凭证格式错误。", nameof(captchaToken));
-                    req.Headers.TryAddWithoutValidation("x-captcha-token", captchaToken);
-                }
+                AttachCaptchaToken(req, captchaToken);
                 var obj = await SendAsync(req, token).ConfigureAwait(false);
                 var verificationId = ReadString(obj, "verification_id");
                 if (string.IsNullOrWhiteSpace(verificationId))
@@ -258,6 +253,14 @@ namespace FACM.Online
             }
         }
 
+        private static void AttachCaptchaToken(HttpRequestMessage request, string captchaToken)
+        {
+            if (string.IsNullOrEmpty(captchaToken)) return;
+            RequireCaptchaToken(captchaToken);
+            if (!request.Headers.TryAddWithoutValidation("x-captcha-token", captchaToken))
+                throw new InvalidOperationException("无法附加图片验证码。");
+        }
+
         private HttpRequestMessage CreatePost(string path, object body, string deviceId)
         {
             Guid parsed;
@@ -352,6 +355,15 @@ namespace FACM.Online
                 ReadAuthErrorCodeForSmokeTest("{\"data\":{\"error\":\"captcha_invalid\"}}") != "captcha_invalid" ||
                 ReadAuthErrorCodeForSmokeTest("not-json") != string.Empty)
                 throw new InvalidOperationException("CloudBase captcha error parsing changed.");
+            using (var emailRequest = new HttpRequestMessage(HttpMethod.Post, "auth/v1/verification"))
+            {
+                AttachCaptchaToken(emailRequest, null);
+                Require(!emailRequest.Headers.Contains("x-captcha-token"),
+                    "Normal email send must not fabricate CAPTCHA headers.");
+                AttachCaptchaToken(emailRequest, "verified-captcha-placeholder");
+                Require(emailRequest.Headers.Contains("x-captcha-token"),
+                    "Challenged email send must include the verified CAPTCHA header.");
+            }
             var fakeImage = "data:image/gif;base64," + Convert.ToBase64String(
                 Encoding.ASCII.GetBytes("GIF89a123456789012345"));
             if (DecodeCaptchaImageForSmokeTest(fakeImage).Length < 16)
