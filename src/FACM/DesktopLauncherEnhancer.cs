@@ -118,7 +118,7 @@ namespace FACM
             {
                 Name = LauncherName,
                 Location = new Point(sx(16), sy(launcherTop)),
-                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(146)),
+                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(151)),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 AutoScroll = false,
