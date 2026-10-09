@@ -50,6 +50,18 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
+        public const string AccountCaptchaTitle = "AccountCaptchaTitle";
+        public const string AccountCaptchaHint = "AccountCaptchaHint";
+        public const string AccountCaptchaRefresh = "AccountCaptchaRefresh";
+        public const string AccountCaptchaCode = "AccountCaptchaCode";
+        public const string AccountCaptchaVerify = "AccountCaptchaVerify";
+        public const string AccountCaptchaLoading = "AccountCaptchaLoading";
+        public const string AccountCaptchaReady = "AccountCaptchaReady";
+        public const string AccountCaptchaFailed = "AccountCaptchaFailed";
+        public const string AccountCaptchaRetryLimit = "AccountCaptchaRetryLimit";
+        public const string AccountCaptchaCancelled = "AccountCaptchaCancelled";
+        public const string AccountCaptchaInvalid = "AccountCaptchaInvalid";
+        public const string AccountEmailInvalid = "AccountEmailInvalid";
         public const string AccountTitle = "AccountTitle";
         public const string AccountHint = "AccountHint";
         public const string AccountEmail = "AccountEmail";
