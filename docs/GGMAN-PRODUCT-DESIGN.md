@@ -1,6 +1,6 @@
 # GGman Product Experience Specification (design baseline, not approved for release)
 
-Status: **Review candidate — 2026-10-09**. Applies to the maintained **GGman 3.5.x lightweight / .NET Framework 4.8 / WinForms / single GGman.exe** product. This document defines product and interaction intent; source code and current real-client behavior remain authoritative until a review candidate is approved. Do not change release metadata, merge, or publish from this document alone.
+Status: **R1 implementation in progress — 2026-10-09**. Applies to the maintained **GGman 3.5.x lightweight / .NET Framework 4.8 / WinForms / single GGman.exe** product. This document defines product and interaction intent; source code and current real-client behavior remain authoritative until a review candidate is approved. The user explicitly approved shipping numbered formal releases after standard CI verification, starting with v3.5.50. A design change alone does not bypass release validation.
 
 ## Product thesis
 
@@ -111,4 +111,12 @@ Design references (patterns, not runtime dependencies):
 - https://learn.microsoft.com/en-us/windows/apps/design/controls/navigationview
 - https://learn.microsoft.com/en-us/windows/powertoys/general
 
-The interactive HTML review is a standalone design artifact, not GGman code and not a verified live Windows screenshot. Production conversion requires approval of screenshots and real-client behaviors.
+The interactive HTML review is a standalone design artifact, not GGman code and not a verified live Windows screenshot. Production conversion remains subject to CI and Windows/real-client behavior validation, with each approved small release carrying durable numbered release notes.
+
+## R1 approved product direction (2026-10-09)
+
+- **Floating ball remains the primary, lightweight, nonintrusive GGman entry**. There is no always-open dashboard, auto-popup full-screen window or background-only replacement for it. Workbench remains opt-in on demand.
+- Numbered **official 3.5.x patch releases**, not detached local candidate EXEs, preserve update history. Each version must have its own immutable GitHub tag/Release, changelog, verified signed assets and enabled online manifest after the publisher validates it.
+- R1 scope: existing floating entry preserved; quick launcher becomes a 2-column × 2-row context-aware panel with direct Workbench/Matches/Mayhem/Tools actions, utility footer for Repair/Personalization/More, actual patch version visible in header, and typed integration with the legacy menu. No League IO changes.
+- The central workbench single-nav visual prototype remains **planned**: do not claim it shipped with R1; follow R2+ phases after evaluation.
+- Release is blocked on green Windows build, UI Text Contract, proper release signing and public-asset verification. Do not mark the manifest enabled until the canonical publisher completes.
