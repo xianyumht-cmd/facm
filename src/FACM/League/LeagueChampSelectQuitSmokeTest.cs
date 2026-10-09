@@ -19,9 +19,9 @@ namespace FACM.League
                     Uri.UnescapeDataString(LeagueChampSelectQuitWriteApiClient.LegacyQuitPath.Split(
                         new[] { "&args=" }, StringSplitOptions.None)[1]) == "[\"\",\"teambuilder-draft\",\"quitV2\",\"\"]",
                 "Legacy quitV2 request arguments changed.");
-            Require(LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(new byte[0]) == "empty" &&
-                    LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(Encoding.UTF8.GetBytes("false")) == "bool-false" &&
-                    LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(Encoding.UTF8.GetBytes("{}")) == "object",
+            Require(LeagueChampSelectQuitService.DescribeResponseBody(new byte[0]) == "empty" &&
+                    LeagueChampSelectQuitService.DescribeResponseBody(Encoding.UTF8.GetBytes("false")) == "bool-false" &&
+                    LeagueChampSelectQuitService.DescribeResponseBody(Encoding.UTF8.GetBytes("{}")) == "object",
                 "Safe response diagnostic shape detection regressed.");
             foreach (var path in new[] { "/lol-lobby/v2/lobby", "/lol-lobby-team-builder/v1/lobby",
                                          "/lol-gameflow/v1/session/dodge", "/lol-gameflow/v1/session/request-lobby",
