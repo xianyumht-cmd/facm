@@ -256,7 +256,18 @@ namespace FACM.League
 
         private void AddGroup(string headerKey, params string[] routeIds)
         {
-            if (!string.IsNullOrWhiteSpace(headerKey))
+            if (string.IsNullOrWhiteSpace(headerKey))
+            {
+                _navigation.Controls.Add(new Panel
+                {
+                    Width = 144,
+                    Height = 1,
+                    BackColor = FacmDesignSystem.BorderSoft,
+                    Margin = new Padding(0, 10, 0, 8),
+                    TabStop = false
+                });
+            }
+            else
             {
                 _navigation.Controls.Add(new Label
                 {
