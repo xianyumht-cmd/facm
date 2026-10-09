@@ -56,6 +56,11 @@ namespace FACM.Services
         public const string ShellRepairTools = "ShellRepairTools";
         public const string ShellPersonalization = "ShellPersonalization";
         public const string ShellMoreSettings = "ShellMoreSettings";
+        public const string ShellGettingStartedTitle = "ShellGettingStartedTitle";
+        public const string ShellGettingStartedHint = "ShellGettingStartedHint";
+        public const string ShellGettingStartedOpen = "ShellGettingStartedOpen";
+        public const string ShellGettingStartedDismiss = "ShellGettingStartedDismiss";
+        public const string ShellGettingStartedMenu = "ShellGettingStartedMenu";
         public const string ShellManageDirectory = "ShellManageDirectory";
         public const string ShellRepairHint = "ShellRepairHint";
         public const string ShellLeagueHint = "ShellLeagueHint";
