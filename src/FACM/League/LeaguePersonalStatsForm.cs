@@ -24,6 +24,15 @@ namespace FACM.League
         private readonly Label _percentileValue;
         private readonly Label _statusValue;
         private readonly Label[] _historyRows;
+        private readonly Label[] _metricCaptions = new Label[3];
+        private readonly Panel _scrollArea;
+        private readonly Panel _pageContent;
+        private readonly Label _titleLabel;
+        private readonly Label _hintLabel;
+        private readonly FacmGlassPanel _summaryPanel;
+        private readonly FacmGlassPanel _historyPanel;
+        private readonly FacmGlassPanel _rankingPanel;
+        private readonly FacmGlassPanel _preferencesPanel;
         private readonly FacmToggleSwitch _localToggle;
         private readonly FacmToggleSwitch _rankingToggle;
         private readonly FacmToggleSwitch _telemetryToggle;
@@ -51,7 +60,20 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
-            var title = new Label
+            _pageContent = new Panel
+            {
+                Location = Point.Empty,
+                Size = new Size(720, 584),
+                BackColor = FacmDesignSystem.Canvas
+            };
+            _scrollArea = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas
+            };
+
+            _titleLabel = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsTitle),
                 Location = new Point(28, 16),
@@ -60,7 +82,7 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
             };
-            var hint = new Label
+            _hintLabel = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsHint),
                 Location = new Point(30, 50),
@@ -77,18 +99,18 @@ namespace FACM.League
                 Font = new Font(Font.FontFamily, 8F),
                 AutoEllipsis = true
             };
-            Controls.Add(title);
-            Controls.Add(hint);
-            Controls.Add(_activityValue);
+            _pageContent.Controls.Add(_titleLabel);
+            _pageContent.Controls.Add(_hintLabel);
+            _pageContent.Controls.Add(_activityValue);
 
-            var summary = CreatePanel(new Rectangle(28, 88, 664, 72));
-            _accountsValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsAccounts, 14);
-            _daysValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsActiveDays, 230);
-            _memberValue = AddMetric(summary, UiTextKeys.LeaguePersonalStatsMemberSince, 446);
-            Controls.Add(summary);
+            _summaryPanel = CreatePanel(new Rectangle(28, 88, 664, 72));
+            _accountsValue = AddMetric(_summaryPanel, UiTextKeys.LeaguePersonalStatsAccounts, 14, 0);
+            _daysValue = AddMetric(_summaryPanel, UiTextKeys.LeaguePersonalStatsActiveDays, 230, 1);
+            _memberValue = AddMetric(_summaryPanel, UiTextKeys.LeaguePersonalStatsMemberSince, 446, 2);
+            _pageContent.Controls.Add(_summaryPanel);
 
-            var history = CreatePanel(new Rectangle(28, 170, 664, 128));
-            history.Controls.Add(CreateCaption(
+            _historyPanel = CreatePanel(new Rectangle(28, 170, 664, 128));
+            _historyPanel.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsAccounts),
                 new Point(16, 10),
                 240));
@@ -105,20 +127,20 @@ namespace FACM.League
                     TextAlign = ContentAlignment.MiddleLeft
                 };
                 _historyRows[index] = row;
-                history.Controls.Add(row);
+                _historyPanel.Controls.Add(row);
             }
-            Controls.Add(history);
+            _pageContent.Controls.Add(_historyPanel);
 
-            var ranking = CreatePanel(new Rectangle(28, 306, 664, 84));
-            ranking.Controls.Add(CreateCaption(
+            _rankingPanel = CreatePanel(new Rectangle(28, 306, 664, 84));
+            _rankingPanel.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsRanking),
                 new Point(16, 10),
                 240));
             _percentileValue = CreateValue(new Point(16, 34), 630, 13F);
-            ranking.Controls.Add(_percentileValue);
-            Controls.Add(ranking);
+            _rankingPanel.Controls.Add(_percentileValue);
+            _pageContent.Controls.Add(_rankingPanel);
 
-            var preferences = CreatePanel(new Rectangle(28, 398, 664, 130));
+            _preferencesPanel = CreatePanel(new Rectangle(28, 398, 664, 130));
             _localToggle = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsLocalToggle),
@@ -144,11 +166,11 @@ namespace FACM.League
                 Tone = FacmButtonTone.Secondary,
                 Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
             };
-            preferences.Controls.Add(_localToggle);
-            preferences.Controls.Add(_rankingToggle);
-            preferences.Controls.Add(_telemetryToggle);
-            preferences.Controls.Add(_refreshButton);
-            Controls.Add(preferences);
+            _preferencesPanel.Controls.Add(_localToggle);
+            _preferencesPanel.Controls.Add(_rankingToggle);
+            _preferencesPanel.Controls.Add(_telemetryToggle);
+            _preferencesPanel.Controls.Add(_refreshButton);
+            _pageContent.Controls.Add(_preferencesPanel);
 
             _statusValue = new Label
             {
@@ -158,7 +180,11 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 8F)
             };
-            Controls.Add(_statusValue);
+            _pageContent.Controls.Add(_statusValue);
+            _scrollArea.Controls.Add(_pageContent);
+            Controls.Add(_scrollArea);
+            _scrollArea.ClientSizeChanged += delegate { LayoutPersonalStatsPage(); };
+            LayoutPersonalStatsPage();
 
             _localToggle.CheckedChanged += HandlePreferenceChanged;
             _rankingToggle.CheckedChanged += HandlePreferenceChanged;
@@ -183,15 +209,67 @@ namespace FACM.League
             ApplyTelemetryState();
         }
 
-        private Label AddMetric(Control parent, string key, int left)
+        private Label AddMetric(Control parent, string key, int left, int index)
         {
-            parent.Controls.Add(CreateCaption(
-                _ui.Get(key),
-                new Point(left, 7),
-                190));
+            var caption = CreateCaption(_ui.Get(key), new Point(left, 7), 190);
+            _metricCaptions[index] = caption;
+            parent.Controls.Add(caption);
             var value = CreateValue(new Point(left, 29), 190, 18F);
             parent.Controls.Add(value);
             return value;
+        }
+
+        internal static int ResolvePageWidthForSmokeTest(int viewportWidth)
+        {
+            return Math.Max(480, viewportWidth - 2);
+        }
+
+        internal static Rectangle ResolveMetricBoundsForSmokeTest(int viewportWidth, int index)
+        {
+            var cardWidth = ResolvePageWidthForSmokeTest(viewportWidth) - 56;
+            var slotWidth = (cardWidth - 28) / 3;
+            return new Rectangle(14 + index * slotWidth, 29, slotWidth - 8, 40);
+        }
+
+        private void LayoutPersonalStatsPage()
+        {
+            if (_scrollArea == null || _scrollArea.IsDisposed || _pageContent == null || _pageContent.IsDisposed)
+                return;
+            var pageWidth = ResolvePageWidthForSmokeTest(_scrollArea.ClientSize.Width);
+            var cardWidth = pageWidth - 56;
+
+            _pageContent.SuspendLayout();
+            try
+            {
+                _pageContent.Width = pageWidth;
+                _titleLabel.Width = pageWidth - 56;
+                _hintLabel.Width = pageWidth - 60;
+                _activityValue.Width = pageWidth - 60;
+                _summaryPanel.Width = cardWidth;
+                _historyPanel.Width = cardWidth;
+                _rankingPanel.Width = cardWidth;
+                _preferencesPanel.Width = cardWidth;
+                for (var index = 0; index < _metricCaptions.Length; index++)
+                {
+                    var bounds = ResolveMetricBoundsForSmokeTest(pageWidth + 2, index);
+                    _metricCaptions[index].SetBounds(bounds.Left, 7, bounds.Width, 20);
+                    var value = index == 0 ? _accountsValue : index == 1 ? _daysValue : _memberValue;
+                    value.Bounds = bounds;
+                }
+
+                foreach (var row in _historyRows)
+                    row.Width = cardWidth - 32;
+                _percentileValue.Width = cardWidth - 32;
+                _localToggle.Width = cardWidth - 32;
+                _rankingToggle.Width = cardWidth - 32;
+                _telemetryToggle.Width = cardWidth - 32;
+                _refreshButton.Left = cardWidth - _refreshButton.Width - 16;
+                _statusValue.Width = cardWidth - 4;
+            }
+            finally
+            {
+                _pageContent.ResumeLayout(false);
+            }
         }
 
         private static FacmGlassPanel CreatePanel(Rectangle bounds)
