@@ -105,7 +105,7 @@ namespace FACM.League
                 autoToggle.TabStop = true;
             }
 
-            StyleLabel(form, "_autoStatus", FacmDesignSystem.Accent, false);
+            StyleLabel(form, "_autoStatus", FacmDesignSystem.TextMuted, false);
             StyleLabel(form, "_contextValue", FacmDesignSystem.Text, false);
             StyleLabel(form, "_skillsValue", FacmDesignSystem.Text, false);
             StyleLabel(form, "_countersValue", FacmDesignSystem.Text, false);
@@ -166,6 +166,9 @@ namespace FACM.League
 
         private static void StyleTopLevelLabels(Form form)
         {
+            var content = GetField<Panel>(form, "_contentPanel");
+            if (content == null) return;
+
             var protectedLabels = new HashSet<Label>
             {
                 GetField<Label>(form, "_autoStatus"),
@@ -174,11 +177,17 @@ namespace FACM.League
                 GetField<Label>(form, "_countersValue"),
                 GetField<Label>(form, "_statusValue")
             };
+            var previewLabels = new HashSet<Label>
+            {
+                GetField<Label>(form, "_runeLabel"),
+                GetField<Label>(form, "_spellLabel"),
+                GetField<Label>(form, "_itemLabel")
+            };
 
-            foreach (var label in form.Controls.OfType<Label>())
+            foreach (var label in content.Controls.OfType<Label>())
             {
                 if (protectedLabels.Contains(label)) continue;
-                if (label.Top >= 338 && label.Top <= 366)
+                if (previewLabels.Contains(label))
                 {
                     label.ForeColor = FacmDesignSystem.Accent;
                     label.Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold);
