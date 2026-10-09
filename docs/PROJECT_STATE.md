@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.54：继续统一海斗攻略与选英雄小助手的视觉和操作细节。海斗查询支持更清晰的输入与按钮辅助信息，取消查询时显示明确的警示状态，并统一提示框与图片导出文件名为 GGman；加强窄窗口下搜索栏、进度、结果区互不遮挡的布局回归验证。选英雄候选席小助手采用 GGman 统一配色、字体和操作按钮，增加按钮辅助提示与换英雄成功/失败状态区分。保留悬浮球默认主入口、游戏内无抢焦点弹窗、候选席交互、自动攻略数据链和现有 LOL 操作保护。本版未修改海斗上游数据源。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Narrow companion readable scroll affordance (3.5.55 target, pending publication)
+
+- Issue #300; task branch `feat/ggman-companion-readability-20261009`. A passive 4px scroll-progress cue is docked beside the existing `LeagueRuntimeCompanionForm` recommendations body, using existing scroll/content metrics and hidden when all sections fit. Native Gameflow/LCU presentation/read/write owners, header identity, Bench gating, 320px compact width, pin/collapse window-state persistence, and nonactivating behavior remain intact.
+- Accessible labels for pin, collapse, quit-current-select, recommendation alternatives and Bench/augment page controls are synchronized with their visible behavior, with an existing localized tooltip that more content is available on scroll. Pure smoke asserts top/middle/end and no-overflow indicator bounds.
+- Formal release target **GGman 3.5.55** after PR Windows Build and UI Text Contract pass and signed lightweight publisher confirms compatible public executable bytes and online manifest. Native Windows DPI and real League visual interaction remain unverified and must not be represented as test successes.
+
+
 ## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 published)
 
 - Issue #300. Branch `feat/ggman-mayhem-companion-ux-20261009` updates `MayhemLookupForm.cs`, `MayhemLookupLayout.cs` and the legacy `LeagueChampSelectAssistantForm.cs`. Scope: public GGman names in Mayhem dialogs/image defaults; native accessible labels for search/buttons; clearer cancel status; extended responsive non-overlap smoke at smaller sizes; shared design tokens and accessible action chrome/status feedback on the Bench-gated ChampSelect assistant.

@@ -22,6 +22,7 @@ namespace FACM.League
         public const string Expand = "LeagueRuntimeCompanionExpand";
         public const string ShowMore = "LeagueRuntimeCompanionShowMore";
         public const string ShowLess = "LeagueRuntimeCompanionShowLess";
+        public const string ScrollForMore = "LeagueRuntimeCompanionScrollForMore";
         public const string WinShort = "LeagueRuntimeCompanionWinShort";
         public const string PickShort = "LeagueRuntimeCompanionPickShort";
         public const string BanShort = "LeagueRuntimeCompanionBanShort";
@@ -80,6 +81,7 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.Expand, "展开" },
             { LeagueRuntimeCompanionUiTextKeys.ShowMore, "更多" },
             { LeagueRuntimeCompanionUiTextKeys.ShowLess, "收起" },
+            { LeagueRuntimeCompanionUiTextKeys.ScrollForMore, "滚动查看更多对局建议" },
             { LeagueRuntimeCompanionUiTextKeys.WinShort, "胜" },
             { LeagueRuntimeCompanionUiTextKeys.PickShort, "登" },
             { LeagueRuntimeCompanionUiTextKeys.BanShort, "禁" },

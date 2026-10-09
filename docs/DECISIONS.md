@@ -241,3 +241,8 @@ Preserve recommendation selection, confirmation and LCU write ownership in `Leag
 ## 2026-10-09 — Preserve native companion lifecycle while unifying Mayhem chrome
 
 The floating ball remains GGman's primary unobtrusive process entry. The Mayhem lookup uses its proven responsive policy instead of another form rewrite. Standardize feedback, accessible button naming and public branding within that page. Keep the ChampSelect quick assistant's explicit non-activating, Bench-gated compact/expanded lifecycle and game actions intact, while replacing its private hardcoded visual palette with common design tokens and semantic result colors. Treat the narrow runtime companion as a separate high-risk lifecycle surface for a later narrowly verified release; do not conflate styling checks with real LCU interaction validation.
+
+
+## 2026-10-09 — Make hidden-overflow companion content discoverable without taking more space
+
+Keep the in-game companion narrow, lightweight, nonactivating and under existing pin/collapse/window-state ownership. Since its native body scrollbars are hidden and recommendations can exceed the ~360–420px panel, display a slim passive progress rail adjacent to the scrollable region rather than adding tall navigation chrome or a secondary scroll controller. This uses the existing scroll offset only, with no additional Gameflow/LCU reads. Preserve the current density, revealable recommendation alternatives and game actions, while improving screen-reader button labels and direct guidance that more recommendations exist below the fold.
