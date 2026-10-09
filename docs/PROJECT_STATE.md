@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.58：优化更新与公告页面。新版本的完整更新说明现在可以在独立的只读滚动区域中查看，不再被狭窄状态标签截断；版本检查、下载进度、安装准备与失败提示各自显示清晰状态。尚未获得可靠更新信息时不会误提示“已是最新”，检查失败会禁用失效的旧下载操作，下载或安装失败会保留醒目的错误提示并允许安全重试。相关提示框统一使用 GGman 名称。补充长版本说明、更新资格判断及失败状态的回归测试。原有自动检查设置、强制更新退出行为、镜像下载、哈希与签名验证、更新器替换/恢复，以及旧版 FACM.exe 在线更新兼容策略均未修改。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — First-use quick launcher orientation (3.5.59 target; pending formal release)
+
+- Issue #300; task branch `feat/ggman-first-use-orientation-20261009`. Verified public enabled 3.5.58 before changes. Existing `SettingsModule.WasSettingsCreatedThisRun` was insufficient to distinguish migration/recovery. Added `IsFreshInstallation` computed from current, recovery and legacy settings existence before `AppSettings.Load`. Only a genuinely fresh install (and not a `--cleanup` startup) can get an automatic opening of the normal floating-ball quick launcher.
+- `DesktopLauncherEnhancer` adds a dismissible lightweight guidance card with '打开工作台' and '知道了' above the four original tiles; normal menus and context card keep previous geometry, onboarding menus reserve 122 logical layout units. The popup's '更多设置' label becomes '设置', and its existing submenu gains '使用指南' for manual reopen. The auto-reveal is skipped if current League gameflow suppresses the floating entry; no second window, persisted onboarding flag, LCU read, telemetry write, network request or new setting schema was introduced.
+- `ShellUxSmokeTest` validates fresh-install eligibility vs existing/recovery/migration cases, as well as both normal/context launcher geometry and footer non-overlap. Formal **v3.5.59** publication remains gated on final-head Windows Build + UI Text Contract, PR merge, official signed release verification and online manifest enablement; actual DPI/focus/gameplay visual acceptance remains separate.
+
+
 ## 2026-10-09 — Update Center status and release notes polish (3.5.58 published)
 
 - Issue #300; branch `feat/ggman-update-center-ux-20261009`; verified enabled public 3.5.57 before work. Scoped UX fix: keep the existing 560×620 Update Center window, GGman branding and the startup auto-update setting, but give long version notes a separate native scrollable read-only field, rebalance the announcement card, and distinguish unchecked/failed/verified/update-in-progress states. Download/installation failure now retains its error state rather than being overwritten by “update available”; metadata failure also blocks stale install actions. Added pure multiline-notes/eligibility/error-snapshot checks in the existing `UpdateMirrorSmokeTest`.
