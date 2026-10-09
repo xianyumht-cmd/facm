@@ -124,17 +124,51 @@ namespace FACM
                 }
             }
 
+            var email = _email.Text.Trim();
+            if (!GgmanEmailAuthClient.IsValidEmail(email))
+            {
+                _status.Text = _ui.Get(UiTextKeys.AccountEmailInvalid);
+                return;
+            }
             _challenge = null;
             _failures = 0;
-            var email = _email.Text.Trim();
+            _lastSentUtc = DateTimeOffset.UtcNow;
             SetBusy(true);
             try
             {
-                _challenge = await _client.SendCodeAsync(email, _deviceId, _lifetime.Token);
+                try
+                {
+                    _challenge = await _client.SendCodeAsync(email, _deviceId, _lifetime.Token);
+                }
+                catch (GgmanCaptchaRequiredException)
+                {
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    string captchaToken;
+                    using (var captcha = new GgmanCaptchaForm(_ui, _client, _deviceId))
+                    {
+                        if (captcha.ShowDialog(this) != DialogResult.OK ||
+                            string.IsNullOrWhiteSpace(captcha.VerifiedToken))
+                        {
+                            _status.Text = _ui.Get(UiTextKeys.AccountCaptchaCancelled);
+                            return;
+                        }
+                        captchaToken = captcha.VerifiedToken;
+                    }
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    _challenge = await _client.SendCodeAsync(email, _deviceId,
+                        _lifetime.Token, captchaToken);
+                }
                 if (IsDisposed) return;
-                _lastSentUtc = DateTimeOffset.UtcNow;
                 _code.Text = string.Empty;
                 _status.Text = _ui.Get(UiTextKeys.AccountCodeSent);
+            }
+            catch (GgmanCaptchaInvalidException)
+            {
+                if (!IsDisposed) _status.Text = _ui.Get(UiTextKeys.AccountCaptchaInvalid);
+            }
+            catch (GgmanCaptchaRequiredException)
+            {
+                if (!IsDisposed) _status.Text = _ui.Get(UiTextKeys.AccountCaptchaInvalid);
             }
             catch (OperationCanceledException) { }
             catch (Exception error) { if (!IsDisposed) SetError(error); }
