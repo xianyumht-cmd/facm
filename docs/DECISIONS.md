@@ -276,3 +276,8 @@ For the 3.5.59 first-use slice, use the pre-existing settings-creation signal an
 ## 2026-10-10 — Opening an existing panel must not be interpreted as a toggle
 
 Keep a deliberate behavioral distinction between the floating ball (click to toggle) and explicitly named **Open** commands in native tray menus (open or activate). A tray **Open control center** command or tray double-click must never close an already-visible launcher. The legacy compact League navigation should call the current typed Hub bridge, not rely on the side effect of a shell group lookup and then report a false “unavailable” status. Share the lightweight getting-started card between settings popups and the tray's secondary More menu, without adding a new top-level entry or duplicating settings storage. This is an entry/feedback consistency correction; no automation, overlay or League data-owner changes are required.
+
+
+## 2026-10-10 — League ESC settings are opt-in snapshots, not automatic preference sync
+
+Maintain a strict separation between GGman's existing automatic portable UI settings sync (`ggman_settings_sync`) and League's account/server-persisted ESC configuration. The new feature uses an explicit local snapshot with an allowlist of `PersistedSettings.json`, `game.cfg` and `input.ini`, SHA-256 validation, hard size limits, user-confirmed restore, process-exit guard and rollback copy. CloudBase PostgreSQL receives at most one manually uploaded snapshot per authenticated anonymous device owner through a new RLS/RPC contract. No automatic upload on startup, no writes while League is open, and no unverified cross-device identity claims. The first version favors reversible manual backup and real-client validation over silent background overwrite.
