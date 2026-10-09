@@ -208,7 +208,7 @@ namespace FACM.Online
 
         public bool HasAvailableUpdate
         {
-            get { return _snapshot != null && _snapshot.UpdateAvailable; }
+            get { return CanInstallUpdateForSmokeTest(_snapshot); }
         }
 
         public async Task BeginAutomaticUpdateAsync()
@@ -259,7 +259,7 @@ namespace FACM.Online
 
         private async Task BeginUpdateAsync()
         {
-            if (_updateStarted || _snapshot == null || !_snapshot.UpdateAvailable || _snapshot.Update == null) return;
+            if (_updateStarted || !CanInstallUpdateForSmokeTest(_snapshot)) return;
 
             _updateStarted = true;
             SetBusy(true, "正在下载更新...");
@@ -278,7 +278,7 @@ namespace FACM.Online
                 });
                 var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
                 if (IsDisposed || Disposing || _closing) return;
-                _updateStatus.Text = "下载完成，正在安装...";
+                _updateStatus.Text = "下载完成，正在启动安装器...";
                 UpdateInstaller.StartReplacement(downloaded);
 
                 // From this point the replacement script is waiting for FACM to exit. Close the modal
@@ -334,7 +334,7 @@ namespace FACM.Online
                 _updateButton.Enabled = false;
                 SetUpdateBadge(OnlineCenterUiText.FetchFailed, FacmStatusTone.Error);
             }
-            else if (_snapshot.ForceUpdateRequired)
+            else if (_snapshot.ForceUpdateRequired && CanInstallUpdateForSmokeTest(_snapshot))
             {
                 _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
@@ -345,6 +345,12 @@ namespace FACM.Online
                 _updateStatus.Text = "发现新版本，可以下载并安装。";
                 _updateButton.Enabled = true;
                 SetUpdateBadge(OnlineCenterUiText.UpdateAvailable, FacmStatusTone.Accent);
+            }
+            else if (_snapshot.LatestVersion == null)
+            {
+                _updateStatus.Text = OnlineCenterUiText.NotYetVerified;
+                _updateButton.Enabled = false;
+                SetUpdateBadge(OnlineCenterUiText.Checking, FacmStatusTone.Neutral);
             }
             else
             {
