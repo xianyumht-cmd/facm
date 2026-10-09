@@ -212,7 +212,7 @@ namespace FACM.Online
 
         private static string DescribeError(HttpStatusCode status)
         {
-            if (status == HttpStatusCode.TooManyRequests)
+            if ((int)status == 429)
                 return "验证码请求过于频繁，请稍后重试。";
             if (status == HttpStatusCode.Forbidden || status == HttpStatusCode.NotImplemented)
                 return "邮箱验证码登录暂不可用。请检查 CloudBase 邮箱登录开关、邮件代发及图片验证码配置。";
