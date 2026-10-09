@@ -504,7 +504,7 @@ namespace FACM
             {
                 Name = ShellMenuGroups.OpenRootName
             };
-            open.Click += delegate { ToggleMenu(); };
+            open.Click += delegate { EnsureMenuOpenAndActive(); };
 
             var cleanup = new ToolStripMenuItem(_ui.Cleanup)
             {
