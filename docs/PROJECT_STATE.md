@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.56：完成近期多轮界面改造后的回归修复。出装推荐页面在较窄的嵌入窗口下，底部状态文字不再遮挡“刷新/应用”按钮；宽度低于 480 像素时自动改为上下两行，正常窗口继续保持紧凑单行。通过悬浮球快捷入口直接打开战绩、推荐、海斗等指定工作台页面时，不再先初始化一次概览页后立刻关闭，减少无用的页面加载；未指定页面时仍进入概览。补充七种宽度下的按钮布局与九个页面路由回归测试。未改变 LOL 查询接口、游戏内写入、退出选人、悬浮球默认入口、在线更新或任何自动化保护。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Regression pass for six UI releases (3.5.56 target; unpublished)
+## 2026-10-09 — Regression pass for six UI releases (3.5.56 published)
 
 - Issue #300; task branch `fix/ggman-ui-regression-20261009`. Verified enabled official 3.5.55 manifest before work. Cross-page source and existing smoke review covered the floating-ball-first Hub navigation, player history, Recommendation, Mayhem responsive shell and narrow runtime companion. Deterministic issue found in the Recommendation footer introduced during v3.5.53: at narrow embedded widths, status text intersects the Refresh control.
 - Patched `LeagueRecommendationForm` footer geometry: 94px stacked status/actions below 480 logical pixels, preserving the 69px row otherwise, with seven-width bounds/non-overlap smoke. Corrected `LeagueHubForm` / `LeagueHubUiBridge` contextual startup: requested valid route is resolved before `Shown`, avoiding an unnecessary Dashboard form creation/disposal; defaults to Dashboard for empty/invalid requests. Dashboard smoke now checks all nine routes and invalid-route fallback. No League queries, LCU writes, runtime companion behavior or primary floating entry path changed.
-- Pending official **3.5.56** release. Require both PR Windows Build/UI Text Contract, safe merge, signed public release file checks and enabled compatible manifest before declaring deployed. Native Windows mixed-DPI and real League visual acceptance still need human validation, not inferred from smoke tests. Separate Mayhem live source issue #306 remains independent.
+- **GGman 3.5.56 officially published and online-enabled**: PR #308 squash-merged as `1d439116f5ffe8a59ac843e8d6292809a4036c7e`; final task SHA `007b56fa5b5ce86fd47e45deabe3a02868252b9e` passed GGman Windows Build #37950464321 and FACM UI Text Contract #37950464331. Canonical signed release publisher #37950777958 completed successfully, publicly verified signer and bytes, and enabled `online/version.json` for 3.5.56. Both official `GGman.exe` and backward-compatible `FACM.exe` are 2,391,960 bytes; SHA-256 `47A84C626483E7DE3DA408CFA09E9927770A342E3DA038738C1B06B79DFF2075`, with the manifest referencing `FACM.exe`. Real Windows mixed-DPI and live League visual acceptance **remain pending**, not established by CI. Separate Mayhem live source issue #306 remains independent.
 
 
 ## 2026-10-09 — Narrow companion readable scroll affordance (3.5.55 published)
