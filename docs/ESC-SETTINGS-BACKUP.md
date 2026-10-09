@@ -2,6 +2,8 @@
 
 ## Scope and storage
 
+**UNRELEASED / BLOCKED — Issue #313.** The code is an experimental task branch only. The existing anonymous CloudBase identity is NOT a portable GGman user account. Cloud upload/download buttons are deliberately disabled until a real registered-account login and same-UID cross-device ownership/RLS contract is implemented and tested. Do not apply `005_esc_profiles.sql` to production or publish this feature as ESC sync before the authentication gate is complete. The local snapshot implementation is only a prototype; real Tencent client read-back and rollback validation are pending.
+
 This opt-in first version uses the existing Tencent CloudBase environment and its PostgreSQL RPC gateway. Cloud migration: `cloudbase/sql/005_esc_profiles.sql` (not applied automatically by a GitHub release). It adds `ggman_esc_profiles`, isolated from the existing `ggman_settings_sync` table. Its single cloud snapshot per authenticated anonymous device subject is RLS-protected and size-limited; cloud payloads contain only the three allowlisted League settings files, not local filesystem paths, CloudBase tokens, game account IDs or passwords. The existing CloudBase session obtains a token in process memory on demand.
 
 The current CloudBase anonymous identity is **device-bound**, and this first version does **not** provide cross-device account recovery, portable device-token exporting or shared profile access. GGman must not represent the cloud button as a cross-PC login system. CloudBase free-tier database/storage/traffic use shared finite resource quotas.
@@ -14,8 +16,8 @@ The user chooses a League of Legends installation directory or its `Config` chil
 
 - **Local backup**: GGman → Settings → ESC settings backup → pick directory → Local backup. The `data/esc-backups` directory under the GGman executable holds named JSON snapshots. The input validation and file boundary apply to both local and cloud reads.
 - **Local restore**: select a backup JSON file; after the file passes integrity checks, GGman shows the exact filenames and asks for an explicit confirmation. League game + client processes must be stopped. Before any overwrite, GGman saves a local `before-restore` snapshot; per-file writes use temporary files and Windows replacement. On a write failure, restoration attempts to roll back touched files. The operator should still check the actual in-game result because Riot synchronizes some settings from the account server.
-- **Cloud upload**: capture an allowed snapshot, request user confirmation to replace the one device-owned server copy, keep a local `before-upload` file, then call the new CloudBase RPC. Nothing uploads on startup or without pressing the button.
-- **Cloud restore**: read and validate the device-owned snapshot, show a file preview and explicit confirmation, and use the exact local restore safety checks.
+- **Cloud upload (blocked)**: future behavior is explicit capture + preview/confirmation + retaining local recovery + RPC bound to an authenticated registered-user UID. The prototype UI disables this action; using anonymous device identity as the cloud owner is no longer acceptable.
+- **Cloud restore (blocked)**: future behavior is fetch under the same registered-user UID on a different PC, validate, show a preview, and run the local guarded restore with rollback. The prototype UI disables this action.
 - **Failure**: network, RPC, RLS or quota failures show an error and do not modify League files. Cloud functionality is unavailable until `005_esc_profiles.sql` has been run successfully against the actual CloudBase PostgreSQL instance. `ggman_settings_sync` and existing anonymous stats are unaffected.
 
 ## Deployment & acceptance
