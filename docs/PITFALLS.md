@@ -176,3 +176,8 @@ A legacy 900x700 recommendation Form has absolute-positioned cards, preview text
 ## Mayhem and ChampSelect chrome patch safety (2026-10-09)
 
 `MayhemLookupLayoutPolicy` already supports one-row and stacked toolbar geometries; do not throw it away for fixed coordinates. Add tests for lower dimensions, including query/action overlap and progress/status/preview ordering, before changing user-facing styling. `LeagueChampSelectAssistantForm` has a non-activating transient episode and only appears once the Bench state is confirmed; introducing a general-purpose dialog, changing `ShowWithoutActivation`, or rearranging fixed sizes risks interrupting League play. Prefer palette/token and accessible-control changes without new polling, LCU writes, or inferred game state. Keep end-user branding GGman in error dialogs and exported filenames even where internal FACM compatibility identifiers remain.
+
+
+## Narrow companion scroll cue must not perturb WinForms state or Gameflow (2026-10-09)
+
+The companion hides native `Panel` scrollbars to keep a compact overlay; its long recipe/teammate/Mayhem content is still wheel-scrollable. A visual cue must be passive and outside the scrolling content, or it can accidentally contribute to `AutoScrollMinSize`/be translated by `AutoScrollPosition`. Keep the rail on a separate docked shell while leaving `_body` as the only scroll owner; the original form header remains a direct child for the existing `LeagueRuntimeCompanionWindowState` adapter's header discovery. Avoid new timers, data polling, write actions or different collapse/restore mechanics. Test pure thumb geometry and explicit no-overflow hiding rather than claiming live-client behavior from CI alone.
