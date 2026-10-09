@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using FACM.League;
+using FACM.AppHost.Modules;
 
 namespace FACM
 {
@@ -13,6 +14,27 @@ namespace FACM
             // validates the fixed Shell roots, desktop-launcher composition and LOL helper information architecture.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
             DesktopLauncherEnhancer.ValidateDefinitionForSmokeTest();
+            Require(SettingsModule.ShouldShowFirstUseForSmokeTest(false, false, false),
+                "A genuinely fresh install must receive first-use guidance.");
+            Require(!SettingsModule.ShouldShowFirstUseForSmokeTest(true, false, false) &&
+                    !SettingsModule.ShouldShowFirstUseForSmokeTest(false, true, false) &&
+                    !SettingsModule.ShouldShowFirstUseForSmokeTest(false, false, true),
+                "Migrated, existing and recoverable settings must never be treated as first use.");
+
+            foreach (var contextual in new[] { false, true })
+            {
+                var compactHeight = DesktopLauncherEnhancer.ResolveLauncherHeightForSmokeTest(contextual, false);
+                var welcomeHeight = DesktopLauncherEnhancer.ResolveLauncherHeightForSmokeTest(contextual, true);
+                var start = DesktopLauncherEnhancer.ResolveLauncherTopForSmokeTest(contextual, true);
+                var footer = DesktopLauncherEnhancer.ResolveFooterTopForSmokeTest(contextual, true);
+                Require(welcomeHeight - compactHeight == 122 &&
+                        start - DesktopLauncherEnhancer.ResolveLauncherTopForSmokeTest(contextual, false) == 122 &&
+                        footer - DesktopLauncherEnhancer.ResolveFooterTopForSmokeTest(contextual, false) == 122,
+                    "First-use orientation must reserve height without moving or clipping existing launcher rows.");
+                Require(start + 151 <= footer + 2 && footer + 38 < welcomeHeight,
+                    "First-use orientation layout overlaps the launcher footer or window edge.");
+            }
+
             LeagueHubNavigation.ValidateForSmokeTest();
 
             Require(DesktopLauncherEnhancer.TileCount == 4,
