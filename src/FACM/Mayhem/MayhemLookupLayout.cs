@@ -98,6 +98,8 @@ namespace FACM.Mayhem
             ValidateLayout(1120, 820);
             ValidateLayout(920, 700);
             ValidateLayout(700, 620);
+            ValidateLayout(520, 480);
+            ValidateLayout(360, 360);
 
             var previewWidth = ResolvePreviewWidth(640);
             if (previewWidth <= 0 || previewWidth >= 640)
@@ -120,8 +122,21 @@ namespace FACM.Mayhem
                 layout.Cancel.IntersectsWith(layout.Save) ||
                 layout.Save.IntersectsWith(layout.Copy))
                 throw new InvalidOperationException("Mayhem toolbar actions overlap at " + width + "px.");
+            if (layout.Query.IntersectsWith(layout.Search) ||
+                layout.Query.IntersectsWith(layout.Cancel) ||
+                layout.Query.IntersectsWith(layout.Save) ||
+                layout.Query.IntersectsWith(layout.Copy))
+                throw new InvalidOperationException("Mayhem search field overlaps actions at " + width + "px.");
+            if (layout.Progress.Top < layout.Search.Bottom ||
+                layout.Status.Top < layout.Progress.Bottom ||
+                layout.ImageHost.Top < layout.Status.Bottom)
+                throw new InvalidOperationException("Mayhem status or preview overlaps the toolbar at " + width + "px.");
+
             if (layout.Progress.Width <= 0 || layout.Status.Width <= 0 || layout.ImageHost.Width <= 0 || layout.ImageHost.Height <= 0)
                 throw new InvalidOperationException("Mayhem responsive shell produced invalid content geometry at " + width + "px.");
+            if (layout.ImageHost.Right > width - Right || layout.ImageHost.Bottom > height ||
+                layout.Status.Right > width - Right)
+                throw new InvalidOperationException("Mayhem result and status must fit within the client at " + width + "px.");
         }
     }
 }
