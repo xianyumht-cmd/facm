@@ -13,9 +13,19 @@ namespace FACM.League
             Require(LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST",
                 LeagueChampSelectQuitWriteApiClient.QuitPath), "Primary quit route is blocked.");
             Require(LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST",
-                LeagueChampSelectQuitWriteApiClient.RequestLobbyPath), "Lobby request route is blocked.");
+                LeagueChampSelectQuitWriteApiClient.LegacyQuitPath), "Legacy quitV2 route is blocked.");
+            Require(LeagueChampSelectQuitWriteApiClient.LegacyQuitPath.StartsWith(
+                    "/lol-login/v1/session/invoke?destination=lcdsServiceProxy&method=call&args=", StringComparison.Ordinal) &&
+                    Uri.UnescapeDataString(LeagueChampSelectQuitWriteApiClient.LegacyQuitPath.Split(
+                        new[] { "&args=" }, StringSplitOptions.None)[1]) == "[\"\",\"teambuilder-draft\",\"quitV2\",\"\"]",
+                "Legacy quitV2 request arguments changed.");
+            Require(LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(new byte[0]) == "empty" &&
+                    LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(Encoding.UTF8.GetBytes("false")) == "bool-false" &&
+                    LeagueChampSelectQuitWriteApiClient.DescribeResponseBody(Encoding.UTF8.GetBytes("{}")) == "object",
+                "Safe response diagnostic shape detection regressed.");
             foreach (var path in new[] { "/lol-lobby/v2/lobby", "/lol-lobby-team-builder/v1/lobby",
-                                         "/lol-gameflow/v1/session/dodge" })
+                                         "/lol-gameflow/v1/session/dodge", "/lol-gameflow/v1/session/request-lobby",
+                                         "/lol-login/v1/session/invoke" })
             {
                 Require(!LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", path),
                     "Quit writer can delete a lobby or gameflow session.");
@@ -26,13 +36,20 @@ namespace FACM.League
             var normal = new FakeQuitSession(200);
             AssertResult(normal, LeagueChampSelectQuitStatus.Success, true, 1, 0);
 
-            var matchmade = new FakeQuitSession(400) { FallbackResponse = Response(200, "true") };
+            var matchmade = new FakeQuitSession(400) { FallbackResponse = Response(200, "") };
             AssertResult(matchmade, LeagueChampSelectQuitStatus.Success, true, 1, 1);
 
-            var declined = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
+            var payloadFalseButExited = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
+            AssertResult(payloadFalseButExited, LeagueChampSelectQuitStatus.Success, true, 1, 1);
+
+            var unchanged = new FakeQuitSession(400) { FallbackResponse = Response(200, "true"),
+                                                      FallbackChangesPhase = false };
+            AssertResult(unchanged, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 1);
+
+            var declined = new FakeQuitSession(400) { FallbackResponse = Response(403, "{\"errorCode\":\"DISALLOWED\"}") };
             AssertResult(declined, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 1);
 
-            var repeated = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
+            var repeated = new FakeQuitSession(400) { FallbackResponse = Response(500) };
             var repeatedService = new LeagueChampSelectQuitService(repeated, repeated);
             repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
             var tooSoon = repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -48,6 +65,9 @@ namespace FACM.League
                 OriginalLobby = "{\"members\":[{\"puuid\":\"first\"}]}"
             };
             AssertResult(missingIdentity, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
+
+            var changedPartyBeforeFallback = new FakeQuitSession(400) { ReplacePartyBeforeFallback = true };
+            AssertResult(changedPartyBeforeFallback, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 0);
 
             var forbidden = new FakeQuitSession(403);
             AssertResult(forbidden, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
@@ -118,7 +138,10 @@ namespace FACM.League
             public string RestoredLobby = SameLobby;
             public bool ChangePhaseOnRejectedPrimary;
             public LeagueClientWriteResponse PrimaryResponse;
-            public LeagueClientWriteResponse FallbackResponse = Response(200, "true");
+            public LeagueClientWriteResponse FallbackResponse = Response(200, "");
+            public bool FallbackChangesPhase = true;
+            public bool ReplacePartyBeforeFallback;
+            private int _lobbyReads;
             public int PrimaryCount;
             public int FallbackCount;
             private bool _sentWrite;
@@ -133,7 +156,11 @@ namespace FACM.League
                     string.Equals(Phase, "ChampSelect", StringComparison.Ordinal))
                     body = "{}";
                 if (path == LeagueChampSelectQuitService.LobbyPath)
-                    body = _sentWrite ? RestoredLobby : OriginalLobby;
+                {
+                    _lobbyReads++;
+                    body = _sentWrite ? RestoredLobby :
+                           (ReplacePartyBeforeFallback && _lobbyReads > 1 ? DifferentLobby : OriginalLobby);
+                }
                 return Task.FromResult(body == null ? null : Encoding.UTF8.GetBytes(body));
             }
 
@@ -151,12 +178,11 @@ namespace FACM.League
                 return Task.FromResult(PrimaryResponse);
             }
 
-            public Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken)
+            public Task<LeagueClientWriteResponse> TryLegacyQuitAsync(CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 FallbackCount++;
-                if (FallbackResponse != null && FallbackResponse.IsSuccessStatusCode &&
-                    Encoding.UTF8.GetString(FallbackResponse.Body ?? new byte[0]) == "true")
+                if (FallbackChangesPhase && FallbackResponse != null && FallbackResponse.IsSuccessStatusCode)
                 {
                     _sentWrite = true;
                     Phase = "Lobby";
