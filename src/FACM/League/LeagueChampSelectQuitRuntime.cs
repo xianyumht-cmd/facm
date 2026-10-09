@@ -193,7 +193,7 @@ namespace FACM.League
                     // has already left Champion Select through another action.
                     if (!string.Equals(await ReadPhaseAsync(cancellationToken).ConfigureAwait(false),
                                        "ChampSelect", StringComparison.OrdinalIgnoreCase))
-                        return Result(LeagueChampSelectQuitStatus.VerificationFailed, response.StatusCode, phase, false);
+                        return VerifyFailedWithCooldown(response.StatusCode, phase);
 
                     usedFallback = true;
                     response = await _writer.TryRequestLobbyAsync(cancellationToken).ConfigureAwait(false);
@@ -203,7 +203,7 @@ namespace FACM.League
                     {
                         AppLog.Info("League quit Champion Select: request-lobby-rejected; http=" + response.StatusCode +
                                     "; errorCode=" + ReadErrorCode(response.Body));
-                        return Result(LeagueChampSelectQuitStatus.WriteRejected, response.StatusCode, phase, false);
+                        return RejectWithCooldown(response.StatusCode, phase);
                     }
                 }
 
@@ -320,6 +320,12 @@ namespace FACM.League
             }
             catch (ArgumentException) { return "-"; }
             catch (InvalidOperationException) { return "-"; }
+        }
+
+        private LeagueChampSelectQuitResult VerifyFailedWithCooldown(int statusCode, string phase)
+        {
+            _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
+            return Result(LeagueChampSelectQuitStatus.VerificationFailed, statusCode, phase, false);
         }
 
         private LeagueChampSelectQuitResult RejectWithCooldown(int statusCode, string phase)
