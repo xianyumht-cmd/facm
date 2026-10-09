@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,8 +17,34 @@ namespace FACM.League
             ValidateChampionMetadataAndStats();
             ValidatePaginationBoundary();
             ValidateCancellation();
+            ValidatePlayerPageLayout();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
+        }
+
+        private static void ValidatePlayerPageLayout()
+        {
+            var minimum = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(680, 540);
+            var defaultSize = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(860, 720);
+            var expanded = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(1180, 850);
+
+            Require(minimum.Left >= 0 && minimum.Top > 0 && minimum.Right <= 680 &&
+                    minimum.Bottom <= 540 - 58 && minimum.Height >= 96,
+                "Embedded Player page must preserve a visible list and bottom action row.");
+            Require(defaultSize.Width > minimum.Width && expanded.Width > defaultSize.Width,
+                "Player match list must grow with the workbench content width.");
+            Require(expanded.Height > defaultSize.Height && defaultSize.Height > minimum.Height,
+                "Player match list must grow vertically when the workbench is resized.");
+
+            foreach (var width in new[] { 580, 680, 800, 1040 })
+            {
+                var columns = LeaguePlayerForm.ResolveMatchColumnWidthsForSmokeTest(width);
+                Require(columns.Length == 7 && columns.All(value => value > 0),
+                    "Player match table lost a column or generated an invalid width.");
+                if (width >= 630)
+                    Require(columns.Sum() <= width - 10,
+                        "Player match table should fit inside its content area without horizontal scrolling.");
+            }
         }
 
         private static void ValidateProfileAndRecentMatchParsing()
