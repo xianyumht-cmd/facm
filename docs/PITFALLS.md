@@ -191,3 +191,8 @@ The 3.5.53 Recommendation form wrapped content into a scrollable responsive body
 ## Contextual workbench launch must not instantiate Dashboard first (2026-10-09)
 
 `LeagueHubForm` registered a `Shown` handler that always created Dashboard. `LeagueHubUiBridge` previously appended a later `Shown` handler that switched to a requested route using reflection; thus direct links from the floating UI created and immediately closed an unnecessary Dashboard, potentially starting data work before cancellation. Instead, inject the validated initial route before the first Show and let the form's own lifecycle create just one child. Preserve default Dashboard fallback for regular and malformed requests, and cover the full nine-view route set in deterministic smoke.
+
+
+## My GGman fixed-width panels inside compact Hub (2026-10-09)
+
+The original `LeaguePersonalStatsForm` declared a 720px client width and positioned four 664px panels at x=28, with status at y=532. As an embedded child of the single-sidebar Hub, it can receive a narrower viewport and shorter height, causing clipped controls or a status line below the visible bottom. Blanketing the form with a wider minimum size does not help once `LeagueHubForm` removes embedded child minimum-size fences. Keep responsive panel/metric widths inside a single AutoScroll content host and test both the narrow minimum plus larger viewport widths. Do not modify account counts, anonymous identity, CloudBase permissions, ranking opt-in, telemetry state or preference persistence in a presentation-only patch.
