@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.50",
+  "enabled": false,
+  "version": "3.5.51",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.50/FACM.exe",
-  "sha256": "F13A8CC1B3B3775D6B8DEFD0D2DB2E639A27432A9C090EE624E250DCD396119E",
-  "release_notes": "GGman 3.5.50：悬浮球仍然是默认主入口，点击后显示全新两列四入口快捷面板，可直达 LOL 工作台、我的战绩、海斗攻略与快捷工具；下方保留清理修复、个性化和更多设置。改进面板布局、圆角与背景一致性，显示完整版本号；移除快捷面板对旧窗口私有字段的反射依赖。保留原有托盘、悬浮球拖动及游戏状态识别逻辑，不修改对局读写行为。",
-  "published_at": "2026-10-09T13:20:57.1263919+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.51/FACM.exe",
+  "sha256": "C88811D80E8F07042B18C1FA56C21E6F0D480787FDCDE8952C9C9E3AC41DAC95",
+  "release_notes": "GGman 3.5.51：优化 LOL 工作台布局。保留悬浮球为默认主入口，打开工作台后改为单一左侧导航，当前状态、我的战绩、实时对局、出装推荐、海斗攻略、快捷工具、在线状态、游戏修复与我的 GGman 均可直接切换；取消占用页面空间的顶部二级导航及右侧常驻快捷栏，战绩与攻略内容拥有更宽的展示区域。左侧导航支持窄窗口与滚动，底部显示真实客户端连接及游戏阶段。所有原有页面、外部快捷入口和对局操作链路保持兼容。",
+  "published_at": "2026-10-09T13:36:56.4745838+00:00"
 }
