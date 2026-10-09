@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.57：优化“我的 GGman”页面的工作台内显示。账号数量、活跃天数、首次使用时间等统计卡片随窗口宽度自适应；近期使用账号、可选匿名排行和隐私/遥测开关与操作按钮统一收缩至内容宽度。窗口较矮时可以滚动查看页面底部状态，不再因原先固定 720×560 坐标而发生裁切。补充六种窗口宽度下的布局回归测试。保留原有本地账号统计、排行主动开启、遥测设置、CloudBase 身份和所有数据写入保护；悬浮球、工作台导航、LOL 查询及在线更新逻辑均未改变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — My GGman responsive profile page (3.5.57 target, unpublished)
+## 2026-10-09 — My GGman responsive profile page (3.5.57 published)
 
 - Issue #300; branch `feat/ggman-my-profile-responsive-20261009`. Current verified public release before work was 3.5.56. User reports testing the previous release, without detailed DPI/client test evidence. Next distinct UI slice: resize `LeaguePersonalStatsForm` inside the existing single-sidebar workbench instead of replacing it or adding a new page. Four original metrics/history/ranking/preferences panels now adjust to available width in an AutoScroll content canvas, and status remains vertically reachable.
 - Added deterministic layout bounds smoke (six widths) to the existing `FacmHostSmokeTest`. Retained local history, cloud ranking and telemetry controls, shared CloudBase/LCU owners and all preference saves; no new network activity or privacy/storage migrations.
-- Formal release target **v3.5.57** only after final-head Windows Build and UI Text Contract pass, green PR merge and signed release publisher verifies public executable bytes and enables the backward-compatible online manifest. Real Windows mixed-DPI and live League visual proof remains separate from CI.
+- **GGman 3.5.57 formally published and online-enabled:** PR #309 merged as `54d5c8015345ae7381d3777db4d631e21fc5f4f3`; final task head `64924d6b1cf171be320f7f12a037a869038d1c3d` passed GGman Windows Build #37952532100 and FACM UI Text Contract #37952532047. Official signed publisher #37952764428 completed SUCCESS, including public executable signer and byte verification; `online/version.json` enabled v3.5.57. Public `GGman.exe` and compatibility `FACM.exe` are byte-identical (2,394,008 bytes; SHA-256 `6EF46E621146AC64AEDC8DAA8ABFDE0A6CD49224745FDB611C920B4BDCF15A3D`). The manifest points to the compatible `FACM.exe` asset. User had reported testing v3.5.56, but no explicit results or DPI screenshots were provided; native Windows mixed-DPI and live League visual proof for v3.5.57 remain pending.
 
 
 ## 2026-10-09 — Regression pass for six UI releases (3.5.56 published)
