@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.58
-- GitHub Release：v3.5.58
+- 版本：GGman 3.5.59
+- GitHub Release：v3.5.59
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：d8249f24a572bc80ea3df01bcd15eada9f672ce9
-- 发布元数据提交：fc53f50d01f705fc33912f9231f24af9a72b67f1
-- Release GGman.exe SHA-256：42199788BD35971F698375FC5218EB5F34B5542EED0AE82330B7786E428487F5
-- release_notes：GGman 3.5.58：优化更新与公告页面。新版本的完整更新说明现在可以在独立的只读滚动区域中查看，不再被狭窄状态标签截断；版本检查、下载进度、安装准备与失败提示各自显示清晰状态。尚未获得可靠更新信息时不会误提示“已是最新”，检查失败会禁用失效的旧下载操作，下载或安装失败会保留醒目的错误提示并允许安全重试。相关提示框统一使用 GGman 名称。补充长版本说明、更新资格判断及失败状态的回归测试。原有自动检查设置、强制更新退出行为、镜像下载、哈希与签名验证、更新器替换/恢复，以及旧版 FACM.exe 在线更新兼容策略均未修改。
+- 发布基础 main：76ca1b12c52591eec50dcb970baeff63bb7851f0
+- 发布元数据提交：cd76aeb06e09b5d7b6d60f9a7ebb0def74ccaeea
+- Release GGman.exe SHA-256：DCD59D760FF0FA7D42382E2B272B05EFDA369F4E34FFF57A94C74A19CC4010B7
+- release_notes：GGman 3.5.59：优化首次使用与设置入口。真正全新安装、没有旧版配置或恢复配置时，首次启动会自动展开现有悬浮球快捷面板，在四个常用入口上方显示简短的新手使用指南，可直接打开工作台或点击“知道了”恢复正常面板。已有配置、旧版迁移及恢复用户不会被当成新用户；游戏客户端状态要求隐藏悬浮入口时，也不会自动弹出引导影响操作。快捷面板底部“更多设置”简化为“设置”，其中加入“使用指南”，可随时手动重新查看。补充首次安装判断和常规/对局快捷面板布局回归测试。保留原有悬浮球、托盘、四个快捷入口和全部 LOL 查询、自动化及更新安全机制，不增加常驻窗口或网络轮询。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — First-use quick launcher orientation (3.5.59 target; pending formal release)
