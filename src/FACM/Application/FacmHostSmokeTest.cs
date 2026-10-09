@@ -25,6 +25,7 @@ namespace FACM.AppHost
                 AppSettings.ValidateAtomicSaveForSmokeTest();
                 AppSettings.ValidateRuntimeCompanionPreferencesForSmokeTest();
                 AppSettings.ValidatePersonalStatsPreferencesForSmokeTest();
+                LeaguePersonalStatsForm.ValidateForSmokeTest();
                 AppSettingsRecovery.ValidateForSmokeTest();
                 PersonalStatsStore.ValidateForSmokeTest();
                 CloudIdentityStore.ValidateForSmokeTest();
