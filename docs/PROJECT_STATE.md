@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.49
-- GitHub Release：v3.5.49
+- 版本：GGman 3.5.50
+- GitHub Release：v3.5.50
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：6832c36d4dc1697a8c9addb17ecf48d0401f830f
-- 发布元数据提交：a37be7877a061873765e9d93c8bfa7d0414dbf94
-- Release GGman.exe SHA-256：A83289E39E7D4E0B78B84BB3172093B8614D7D9083297600BFBB7C1CA0C8F6A1
-- release_notes：GGman 3.5.49：修复选英雄界面“退”按钮在正式匹配中可能无效的问题。保留原退出方式；当客户端明确拒绝且能够识别原队伍时，尝试安全返回原大厅，并校验对局阶段和原队伍身份。不会关闭客户端、删除或重建大厅；游戏服务端不支持时会提示退出未确认，秒退处罚按游戏规则执行。
+- 发布基础 main：1de5441ec76e6d80bd088f1dc3fe0acd85f2a89f
+- 发布元数据提交：d2724ccd4d63b27a638c4ddcdf029390e5969bbf
+- Release GGman.exe SHA-256：F13A8CC1B3B3775D6B8DEFD0D2DB2E639A27432A9C090EE624E250DCD396119E
+- release_notes：GGman 3.5.50：悬浮球仍然是默认主入口，点击后显示全新两列四入口快捷面板，可直达 LOL 工作台、我的战绩、海斗攻略与快捷工具；下方保留清理修复、个性化和更多设置。改进面板布局、圆角与背景一致性，显示完整版本号；移除快捷面板对旧窗口私有字段的反射依赖。保留原有托盘、悬浮球拖动及游戏状态识别逻辑，不修改对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — Floating-ball-first UX release 3.5.50 (implementation awaiting gates)
