@@ -256,3 +256,8 @@ After 3.5.50–3.5.55, prioritize verifiable clipping/overlap and interaction re
 ## 2026-10-09 — Resolve deep-link targets before building Hub child forms
 
 Workbench contextual launch is a typed initial-state configuration, not a second navigation event. Select the first requested valid route on `LeagueHubForm` before `Shown`, retaining Dashboard for ordinary/unknown requests. This prevents avoidable child creation/disposal, reduces extraneous load from direct menu navigation, and does not change the on-demand Hub's user-facing navigation controls, forms or Gameflow ownership.
+
+
+## 2026-10-09 — Consolidate My GGman in the existing responsive workbench canvas
+
+The My GGman history, metrics and opt-in preferences are one user task, not several new windows. Keep the existing page and its local/cloud owners, but let its children fill the embedded workbench width with a vertically scrollable content panel. Allocate summary metrics in three bounded slots; reserve sufficient content height for the status line. Keep cloud ranking explicitly opt-in and avoid reading or sending any additional account information merely to improve the page presentation. Validate layout with a pure geometry policy and the existing host smoke instead of inventing a second UI framework.

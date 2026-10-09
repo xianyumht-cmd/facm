@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.56：完成近期多轮界面改造后的回归修复。出装推荐页面在较窄的嵌入窗口下，底部状态文字不再遮挡“刷新/应用”按钮；宽度低于 480 像素时自动改为上下两行，正常窗口继续保持紧凑单行。通过悬浮球快捷入口直接打开战绩、推荐、海斗等指定工作台页面时，不再先初始化一次概览页后立刻关闭，减少无用的页面加载；未指定页面时仍进入概览。补充七种宽度下的按钮布局与九个页面路由回归测试。未改变 LOL 查询接口、游戏内写入、退出选人、悬浮球默认入口、在线更新或任何自动化保护。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — My GGman responsive profile page (3.5.57 target, unpublished)
+
+- Issue #300; branch `feat/ggman-my-profile-responsive-20261009`. Current verified public release before work was 3.5.56. User reports testing the previous release, without detailed DPI/client test evidence. Next distinct UI slice: resize `LeaguePersonalStatsForm` inside the existing single-sidebar workbench instead of replacing it or adding a new page. Four original metrics/history/ranking/preferences panels now adjust to available width in an AutoScroll content canvas, and status remains vertically reachable.
+- Added deterministic layout bounds smoke (six widths) to the existing `FacmHostSmokeTest`. Retained local history, cloud ranking and telemetry controls, shared CloudBase/LCU owners and all preference saves; no new network activity or privacy/storage migrations.
+- Formal release target **v3.5.57** only after final-head Windows Build and UI Text Contract pass, green PR merge and signed release publisher verifies public executable bytes and enables the backward-compatible online manifest. Real Windows mixed-DPI and live League visual proof remains separate from CI.
+
+
 ## 2026-10-09 — Regression pass for six UI releases (3.5.56 published)
 
 - Issue #300; task branch `fix/ggman-ui-regression-20261009`. Verified enabled official 3.5.55 manifest before work. Cross-page source and existing smoke review covered the floating-ball-first Hub navigation, player history, Recommendation, Mayhem responsive shell and narrow runtime companion. Deterministic issue found in the Recommendation footer introduced during v3.5.53: at narrow embedded widths, status text intersects the Refresh control.
