@@ -441,14 +441,48 @@ namespace FACM.League
             }
         }
 
+        internal sealed class ActionBarLayout
+        {
+            public Rectangle Status { get; set; }
+            public Rectangle Refresh { get; set; }
+            public Rectangle Apply { get; set; }
+            public int Height { get; set; }
+        }
+
+        internal static ActionBarLayout ResolveActionBarLayoutForSmokeTest(int clientWidth)
+        {
+            var width = Math.Max(248, clientWidth);
+            if (width < 480)
+            {
+                var right = width - 16;
+                return new ActionBarLayout
+                {
+                    Height = 94,
+                    Status = new Rectangle(16, 5, width - 32, 32),
+                    Refresh = new Rectangle(right - 220, 48, 106, 36),
+                    Apply = new Rectangle(right - 106, 48, 106, 36)
+                };
+            }
+
+            var actionRight = width - 22;
+            var refreshLeft = actionRight - 220;
+            return new ActionBarLayout
+            {
+                Height = 69,
+                Status = new Rectangle(24, 9, refreshLeft - 38, 53),
+                Refresh = new Rectangle(refreshLeft, 16, 106, 36),
+                Apply = new Rectangle(actionRight - 106, 16, 106, 36)
+            };
+        }
+
         private void LayoutActionBar()
         {
             if (_actionBar == null || _actionBar.IsDisposed) return;
-            var width = _actionBar.ClientSize.Width;
-            var right = Math.Max(248, width - 22);
-            _applyButton.SetBounds(right - 106, 16, 106, 36);
-            _refreshButton.SetBounds(right - 220, 16, 106, 36);
-            _statusValue.SetBounds(24, 9, Math.Max(140, right - 268), 53);
+            var layout = ResolveActionBarLayoutForSmokeTest(_actionBar.ClientSize.Width);
+            if (_actionBar.Height != layout.Height) _actionBar.Height = layout.Height;
+            _statusValue.Bounds = layout.Status;
+            _refreshButton.Bounds = layout.Refresh;
+            _applyButton.Bounds = layout.Apply;
         }
 
         private void ChoiceChanged(object sender, EventArgs e)

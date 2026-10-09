@@ -205,3 +205,13 @@ When asynchronous work can finish after context changes, use cancellation/genera
 ## Real-time narrow companion scroll visibility (3.5.55)
 
 `LeagueRuntimeCompanionForm` retains its fixed 320px-width nonactivating WinForms overlay, Gameflow-derived snapshot consumer and existing scrollable recommendation body. A thin decorative scroll-progress rail lives outside the scrolling body in a local dock-fill shell; it computes thumb geometry from the current viewport, content height and scroll offset, and hides itself when all recommendations fit. It is not an interactive scrollbar and adds no polling or network work. The original compact header remains a direct Form child so `LeagueRuntimeCompanionWindowState` still resolves pin/collapse controls and persists/restores position as before. Localized button accessible names follow their current action (including pin/unpin, collapse/expand, recommendation alternatives, augment pages, Bench pages), with original click handlers unchanged. The scroll-geometry helper has deterministic smoke assertions for top/mid/end and no-overflow. This change does not touch quit-from-ChampSelect, loadout/item-set writes or League data service ownership.
+
+
+## Recommendation footer layout regression guard (3.5.56)
+
+The Recommendation page's scroll body and fixed footer remain owned by `LeagueRecommendationForm`. `ResolveActionBarLayoutForSmokeTest` now determines status/Refresh/Apply rectangles and total action-bar height from the embedded client width; the bottom action bar switches from 69px single-row to 94px stacked status/buttons below 480px. `LayoutActionBar` applies exactly that policy. `LeagueBuildAdvisorSmokeTest.ValidateRecommendationPageLayout` proves footer elements are on-screen and nonoverlapping at 280, 320, 400, 479, 480, 680 and 920 logical pixels. It does not change recommendations, write confirmation, theme system, Gameflow, floating entry, League network calls or auto-apply lifecycle.
+
+
+## Hub contextual launch without a throwaway Dashboard (3.5.56)
+
+`LeagueHubForm` now resolves an optional initial route before its first `Shown` event and creates only that route's child. `LeagueHubUiBridge` passes a verified contextual route through the form's typed `SetInitialView` method immediately after construction rather than installing an additional `Shown` handler that previously opened Dashboard and instantly discarded it before showing the requested page. Invalid/empty requests still start on Dashboard. All nine route factory mappings, ownership, child close/dispose behavior and Gameflow observers remain unchanged. The existing Dashboard smoke verifies every contextual route and unknown-route fallback without launching a real League process.

@@ -34,6 +34,25 @@ namespace FACM.League
             Require(narrow > medium && medium > wide,
                 "Recommendation page must make overflow scrollable instead of clipping narrow content.");
 
+            foreach (var width in new[] { 280, 320, 400, 479, 480, 680, 920 })
+            {
+                var actionBar = LeagueRecommendationForm.ResolveActionBarLayoutForSmokeTest(width);
+                Require(actionBar.Status.Left >= 0 && actionBar.Status.Right <= width &&
+                        actionBar.Refresh.Left >= 0 && actionBar.Refresh.Right <= width &&
+                        actionBar.Apply.Left >= 0 && actionBar.Apply.Right <= width,
+                    "Recommendation toolbar content escaped the embedded client width.");
+                Require(actionBar.Status.Top >= 0 && actionBar.Status.Bottom <= actionBar.Height &&
+                        actionBar.Refresh.Top >= 0 && actionBar.Refresh.Bottom <= actionBar.Height &&
+                        actionBar.Apply.Top >= 0 && actionBar.Apply.Bottom <= actionBar.Height,
+                    "Recommendation footer controls escaped their action bar height.");
+                Require(!actionBar.Status.IntersectsWith(actionBar.Refresh) &&
+                        !actionBar.Status.IntersectsWith(actionBar.Apply) &&
+                        !actionBar.Refresh.IntersectsWith(actionBar.Apply),
+                    "Recommendation footer status and action buttons overlap at " + width + "px.");
+                Require(actionBar.Height == (width < 480 ? 94 : 69),
+                    "Recommendation action bar breakpoint no longer keeps status readable.");
+            }
+
             Require(LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Success) ==
                     FACM.Theming.FacmDesignSystem.Success &&
                     LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Failed) ==

@@ -38,6 +38,7 @@ namespace FACM.League
         private readonly Label _phaseLabel;
         private Form _currentChild;
         private string _currentViewId;
+        private string _initialViewId = LeagueHubNavigation.Dashboard;
         private string _currentSectionKey;
         private bool _switching;
         private bool _closing;
@@ -198,9 +199,22 @@ namespace FACM.League
             Shown += delegate
             {
                 UpdateResponsiveChrome();
-                ShowView(LeagueHubNavigation.Dashboard, true);
+                ShowView(_initialViewId, true);
             };
             FormClosing += HandleHubClosing;
+        }
+
+        internal static string ResolveInitialViewForSmokeTest(string viewId)
+        {
+            return VisibleRoutes.Any(route => string.Equals(route, viewId, StringComparison.Ordinal))
+                ? viewId
+                : LeagueHubNavigation.Dashboard;
+        }
+
+        internal void SetInitialView(string viewId)
+        {
+            if (Visible || IsDisposed) return;
+            _initialViewId = ResolveInitialViewForSmokeTest(viewId);
         }
 
         internal string CurrentViewIdForSmokeTest

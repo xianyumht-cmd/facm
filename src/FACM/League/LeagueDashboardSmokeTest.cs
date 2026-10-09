@@ -163,6 +163,18 @@ namespace FACM
                     routes.All(id => LeagueHubNavigation.Views.Any(view =>
                         string.Equals(view.Id, id, StringComparison.Ordinal))),
                 "LOL workbench primary navigation includes missing or duplicate routes.");
+            foreach (var route in routes)
+            {
+                Require(string.Equals(LeagueHubForm.ResolveInitialViewForSmokeTest(route), route, StringComparison.Ordinal),
+                    "Contextual workbench launch lost its requested initial route: " + route);
+            }
+            Require(LeagueHubForm.ResolveInitialViewForSmokeTest("not-a-workbench-route") ==
+                    LeagueHubNavigation.Dashboard &&
+                    LeagueHubForm.ResolveInitialViewForSmokeTest(string.Empty) == LeagueHubNavigation.Dashboard,
+                "Unknown or empty workbench route must fall back to Dashboard before first page creation.");
+            Require(LeagueHubUiBridge.ContextNavigationAvailableForSmokeTest(),
+                "Contextual workbench navigation bridge lost its typed startup route.");
+
             Require(routes[0] == LeagueHubNavigation.Dashboard,
                 "LOL workbench must open with a clear current-state entry.");
             Require(routes[routes.Count - 1] == LeagueHubNavigation.Profile,
