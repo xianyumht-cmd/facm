@@ -72,6 +72,9 @@ namespace FACM.League
         private readonly Panel _benchHost;
         private readonly FlowLayoutPanel _benchPanel;
         private readonly Panel _body;
+        private readonly Panel _bodyShell;
+        private readonly Panel _scrollRail;
+        private readonly Panel _scrollThumb;
         private readonly FlowLayoutPanel _sections;
         private readonly PictureBox _championIcon;
         private readonly Label _championTitle;
@@ -499,20 +502,55 @@ namespace FACM.League
             _mayhemSection.Controls.Add(_augmentRows);
             _sections.Controls.Add(_mayhemSection);
             _body.Controls.Add(_sections);
-            _body.HandleCreated += delegate { HideNativeBodyScrollBars(); };
-            _body.Layout += delegate { HideNativeBodyScrollBars(); };
-            _sections.SizeChanged += delegate { HideNativeBodyScrollBars(); };
 
-            Controls.Add(_body);
+            _bodyShell = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = FacmDesignSystem.Canvas
+            };
+            _scrollRail = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = 4,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                Visible = false,
+                TabStop = false
+            };
+            _scrollThumb = new Panel
+            {
+                BackColor = FacmDesignSystem.Accent,
+                TabStop = false
+            };
+            _scrollRail.Controls.Add(_scrollThumb);
+            _bodyShell.Controls.Add(_body);
+            _bodyShell.Controls.Add(_scrollRail);
+
+            _body.HandleCreated += delegate { HideNativeBodyScrollBars(); };
+            _body.Layout += delegate { HideNativeBodyScrollBars(); UpdateScrollIndicator(); };
+            _body.Scroll += delegate { UpdateScrollIndicator(); };
+            _body.MouseWheel += delegate { UpdateScrollIndicator(); };
+            _body.Resize += delegate { UpdateScrollIndicator(); };
+            _sections.SizeChanged += delegate { HideNativeBodyScrollBars(); UpdateScrollIndicator(); };
+            _scrollRail.Resize += delegate { UpdateScrollIndicator(); };
+
+            Controls.Add(_bodyShell);
             Controls.Add(_benchHost);
             Controls.Add(_context);
             Controls.Add(_header);
 
             _toolTip = new ToolTip { ShowAlways = true, AutomaticDelay = 120 };
             _toolTip.SetToolTip(_status, CompanionText(LeagueRuntimeCompanionUiTextKeys.BuildWaiting));
+            _toolTip.SetToolTip(_body, CompanionText(LeagueRuntimeCompanionUiTextKeys.ScrollForMore));
+            _toolTip.SetToolTip(_scrollRail, CompanionText(LeagueRuntimeCompanionUiTextKeys.ScrollForMore));
+            _quitButton.AccessibleName = CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip);
+            _pinButton.AccessibleName = CompanionText(LeagueRuntimeCompanionUiTextKeys.Unpin);
+            _collapseButton.AccessibleName = CompanionText(LeagueRuntimeCompanionUiTextKeys.Collapse);
+            close.AccessibleName = _ui.Get(UiTextKeys.Close);
             _toolTip.SetToolTip(_quitButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip));
             _toolTip.SetToolTip(_augmentPrevButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.PreviousPage));
             _toolTip.SetToolTip(_augmentNextButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.NextPage));
+            _augmentPrevButton.AccessibleName = CompanionText(LeagueRuntimeCompanionUiTextKeys.PreviousPage);
+            _augmentNextButton.AccessibleName = CompanionText(LeagueRuntimeCompanionUiTextKeys.NextPage);
             _toolTip.SetToolTip(_pinButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Unpin));
             _toolTip.SetToolTip(_collapseButton, CompanionText(LeagueRuntimeCompanionUiTextKeys.Collapse));
             _pollTimer = new System.Windows.Forms.Timer { Interval = 650 };
@@ -1508,6 +1546,29 @@ namespace FACM.League
             ShowScrollBar(_body.Handle, SbVert, false);
         }
 
+        private void UpdateScrollIndicator()
+        {
+            if (_body == null || _sections == null || _scrollRail == null || _scrollRail.IsDisposed)
+                return;
+            var viewport = _body.ClientSize.Height;
+            var content = _sections.Height + _body.Padding.Vertical;
+            var bounds = ResolveScrollThumbForSmokeTest(viewport, content, -_body.AutoScrollPosition.Y);
+            _scrollRail.Visible = !bounds.IsEmpty && !_collapsed;
+            if (bounds.IsEmpty) return;
+            _scrollThumb.Bounds = bounds;
+        }
+
+        internal static Rectangle ResolveScrollThumbForSmokeTest(int viewportHeight, int contentHeight, int scrollOffset)
+        {
+            if (viewportHeight <= 0 || contentHeight <= viewportHeight) return Rectangle.Empty;
+            var thumbHeight = Math.Min(viewportHeight, Math.Max(24,
+                (int)Math.Round(viewportHeight * (double)viewportHeight / contentHeight)));
+            var maxOffset = Math.Max(1, contentHeight - viewportHeight);
+            var offset = Math.Max(0, Math.Min(scrollOffset, maxOffset));
+            var top = (int)Math.Round((viewportHeight - thumbHeight) * (double)offset / maxOffset);
+            return new Rectangle(0, top, 4, thumbHeight);
+        }
+
         private void RenderAramBaseBalance(MayhemChampionResult result)
         {
             if (!ShouldShowAramBaseBalance(result))
@@ -1655,6 +1716,7 @@ namespace FACM.League
                 Rule = rule
             };
             more.Click += delegate { SetAlternativesExpanded(section, !section.Expanded); };
+            if (action != null) action.AccessibleName = title + " · " + actionText;
 
             host.Controls.Add(caption);
             host.Controls.Add(value);
@@ -1719,6 +1781,7 @@ namespace FACM.League
             _toolTip.SetToolTip(section.Evidence, usable[0].Evidence ?? string.Empty);
             section.Evidence.ForeColor = FacmDesignSystem.TextMuted;
             section.More.Visible = usable.Count > 1;
+            section.More.AccessibleName = ResolveMoreAccessibleName(section, section.Expanded);
             section.More.Text = section.Expanded
                 ? CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowLess)
                 : CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowMore) + " " + (usable.Count - 1).ToString(CultureInfo.InvariantCulture);
@@ -1785,11 +1848,21 @@ namespace FACM.League
         {
             if (section == null || section.Rows == null || section.Rows.Count <= 1) expanded = false;
             section.Expanded = expanded;
+            section.More.AccessibleName = ResolveMoreAccessibleName(section, expanded);
             section.More.Text = expanded
                 ? CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowLess)
                 : CompanionText(LeagueRuntimeCompanionUiTextKeys.ShowMore) + " " + Math.Max(0, section.Rows.Count - 1).ToString(CultureInfo.InvariantCulture);
             RenderAlternatives(section);
             _sections.PerformLayout();
+            UpdateScrollIndicator();
+        }
+
+        private string ResolveMoreAccessibleName(RecommendationSection section, bool expanded)
+        {
+            var caption = section.Host.Controls.OfType<Label>().FirstOrDefault(label => label.Left == 0 && label.Top == 9);
+            var title = caption == null ? section.Category : caption.Text;
+            return title + " · " + CompanionText(
+                expanded ? LeagueRuntimeCompanionUiTextKeys.ShowLess : LeagueRuntimeCompanionUiTextKeys.ShowMore);
         }
 
         private void RenderAlternatives(RecommendationSection section)
@@ -2088,7 +2161,9 @@ namespace FACM.League
                     if (target != null) await SwapToAsync(target.ChampionId, target.Route);
                 };
                 button.FlatAppearance.BorderColor = championId == snapshot.LocalChampionId ? FacmDesignSystem.Accent : FacmDesignSystem.BorderSoft;
-                _toolTip.SetToolTip(button, BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture));
+                var benchLabelText = BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture);
+                button.AccessibleName = benchLabelText;
+                _toolTip.SetToolTip(button, benchLabelText);
                 _benchPanel.Controls.Add(button);
                 _ = LoadBenchIconAsync(button, championId);
             }
@@ -2108,7 +2183,9 @@ namespace FACM.League
                 _benchRenderFingerprint = null;
                 RenderBench(snapshot);
             };
-            _toolTip.SetToolTip(button, CompanionText(next ? LeagueRuntimeCompanionUiTextKeys.NextPage : LeagueRuntimeCompanionUiTextKeys.PreviousPage));
+            var pageLabel = CompanionText(next ? LeagueRuntimeCompanionUiTextKeys.NextPage : LeagueRuntimeCompanionUiTextKeys.PreviousPage);
+            button.AccessibleName = pageLabel;
+            _toolTip.SetToolTip(button, pageLabel);
             return button;
         }
 
@@ -2280,6 +2357,8 @@ namespace FACM.League
             _pinned = !_pinned;
             TopMost = _pinned;
             _pinButton.ForeColor = _pinned ? FacmDesignSystem.Accent : FacmDesignSystem.TextMuted;
+            _pinButton.AccessibleName = CompanionText(
+                _pinned ? LeagueRuntimeCompanionUiTextKeys.Unpin : LeagueRuntimeCompanionUiTextKeys.Pin);
             _toolTip.SetToolTip(
                 _pinButton,
                 CompanionText(_pinned ? LeagueRuntimeCompanionUiTextKeys.Unpin : LeagueRuntimeCompanionUiTextKeys.Pin));
@@ -2292,8 +2371,10 @@ namespace FACM.League
             _collapsed = collapsed;
             _context.Visible = !collapsed;
             _benchHost.Visible = !collapsed && _controller.CurrentSnapshot.BenchEnabled;
-            _body.Visible = !collapsed;
+            _bodyShell.Visible = !collapsed;
             _collapseButton.Text = collapsed ? "+" : "−";
+            _collapseButton.AccessibleName = CompanionText(
+                collapsed ? LeagueRuntimeCompanionUiTextKeys.Expand : LeagueRuntimeCompanionUiTextKeys.Collapse);
             _toolTip.SetToolTip(
                 _collapseButton,
                 CompanionText(collapsed ? LeagueRuntimeCompanionUiTextKeys.Expand : LeagueRuntimeCompanionUiTextKeys.Collapse));
@@ -2302,6 +2383,7 @@ namespace FACM.League
                 collapsed ? _collapsedClientHeight : _expandedClientHeight);
             KeepInsideWorkingArea();
             FacmDesignSystem.Round(this, FacmDesignSystem.WindowRadius);
+            UpdateScrollIndicator();
         }
 
         private void SetFixedClientSize(int width, int height)
@@ -2668,6 +2750,15 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion grouped rune icons no longer fit beside the Apply action.");
             if (BuildPrimaryIconLimit("runes") != 6 || BuildPrimaryIconLimit("skills") != 4)
                 throw new InvalidOperationException("Runtime Companion grouped rune/skill visual limits drifted.");
+
+            var scrollTop = ResolveScrollThumbForSmokeTest(238, 1000, 0);
+            var scrollMiddle = ResolveScrollThumbForSmokeTest(238, 1000, 381);
+            var scrollBottom = ResolveScrollThumbForSmokeTest(238, 1000, 762);
+            if (scrollTop.IsEmpty || scrollTop.Top != 0 || scrollTop.Height < 24 ||
+                scrollMiddle.Top <= 0 || scrollMiddle.Bottom >= 238 ||
+                scrollBottom.Bottom != 238 ||
+                !ResolveScrollThumbForSmokeTest(238, 238, 0).IsEmpty)
+                throw new InvalidOperationException("Runtime Companion scroll indicator geometry drifted.");
 
             LeagueRuntimeCompanionController.ValidateForSmokeTest();
             if (LeagueRuntimeCompanionText.DefaultsForSmokeTest().Count < 38)
