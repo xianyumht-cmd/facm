@@ -251,7 +251,7 @@ namespace FACM.League
                 _preferencesPanel.Width = cardWidth;
                 for (var index = 0; index < _metricCaptions.Length; index++)
                 {
-                    var bounds = ResolveMetricBoundsForSmokeTest(pageWidth + 2, index);
+                    var bounds = ResolveMetricBoundsForSmokeTest(_scrollArea.ClientSize.Width, index);
                     _metricCaptions[index].SetBounds(bounds.Left, 7, bounds.Width, 20);
                     var value = index == 0 ? _accountsValue : index == 1 ? _daysValue : _memberValue;
                     value.Bounds = bounds;
@@ -270,6 +270,31 @@ namespace FACM.League
             {
                 _pageContent.ResumeLayout(false);
             }
+        }
+
+        internal static void ValidateForSmokeTest()
+        {
+            foreach (var viewportWidth in new[] { 420, 480, 560, 680, 720, 1120 })
+            {
+                var pageWidth = ResolvePageWidthForSmokeTest(viewportWidth);
+                var cardWidth = pageWidth - 56;
+                if (pageWidth < 480 || cardWidth < 424 ||
+                    (viewportWidth >= 482 && pageWidth > viewportWidth))
+                    throw new InvalidOperationException("Personal stats content width does not fit its viewport.");
+
+                var previousRight = 0;
+                for (var index = 0; index < 3; index++)
+                {
+                    var metric = ResolveMetricBoundsForSmokeTest(viewportWidth, index);
+                    if (metric.Width < 90 || metric.Left < previousRight || metric.Right > cardWidth - 10)
+                        throw new InvalidOperationException("Personal stats summary metrics overlap or overflow.");
+                    previousRight = metric.Right;
+                }
+                if (cardWidth - 32 <= 0 || cardWidth - 100 - 16 <= 0)
+                    throw new InvalidOperationException("Personal stats history or privacy controls lost their usable width.");
+            }
+            if (398 + 130 > 532 || 532 + 18 > 584)
+                throw new InvalidOperationException("Personal stats status or privacy controls are vertically clipped.");
         }
 
         private static FacmGlassPanel CreatePanel(Rectangle bounds)
