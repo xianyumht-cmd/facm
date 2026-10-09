@@ -292,6 +292,8 @@ namespace FACM.Online
                     if (!response.IsSuccessStatusCode)
                     {
                         var code = ReadAuthErrorCodeForSmokeTest(body);
+                        if (code == "rate_limit_exceeded")
+                            throw new InvalidOperationException("腾讯云已限制验证码发送频率，请稍后重试。");
                         if (code == "captcha_required") throw new GgmanCaptchaRequiredException();
                         if (code == "captcha_invalid" || code == "invalid_captcha" ||
                             code == "captcha_expired" || code == "captcha_used")
