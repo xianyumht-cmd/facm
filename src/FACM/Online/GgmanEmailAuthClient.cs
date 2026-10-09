@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -347,8 +348,8 @@ namespace FACM.Online
 
         internal static void ValidateForSmokeTest()
         {
-            if (ReadAuthErrorCodeForSmokeTest("{\\"error\\":\\"captcha_required\\"}") != "captcha_required" ||
-                ReadAuthErrorCodeForSmokeTest("{\\"data\\":{\\"error\\":\\"captcha_invalid\\"}}") != "captcha_invalid" ||
+            if (ReadAuthErrorCodeForSmokeTest("{\"error\":\"captcha_required\"}") != "captcha_required" ||
+                ReadAuthErrorCodeForSmokeTest("{\"data\":{\"error\":\"captcha_invalid\"}}") != "captcha_invalid" ||
                 ReadAuthErrorCodeForSmokeTest("not-json") != string.Empty)
                 throw new InvalidOperationException("CloudBase captcha error parsing changed.");
             var fakeImage = "data:image/gif;base64," + Convert.ToBase64String(
