@@ -44,7 +44,7 @@ namespace FACM.League
 
             var unchanged = new FakeQuitSession(400) { FallbackResponse = Response(200, "true"),
                                                       FallbackChangesPhase = false };
-            AssertResult(unchanged, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 1);
+            AssertResult(unchanged, LeagueChampSelectQuitStatus.VerificationFailed, true, 1, 1);
 
             var declined = new FakeQuitSession(400) { FallbackResponse = Response(403, "{\"errorCode\":\"DISALLOWED\"}") };
             AssertResult(declined, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 1);
