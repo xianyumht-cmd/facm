@@ -15,11 +15,13 @@ namespace FACM.League
     internal interface ILeagueChampSelectQuitWriteApi
     {
         Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken);
     }
 
     internal sealed class LeagueChampSelectQuitWriteApiClient : ILeagueChampSelectQuitWriteApi, IDisposable
     {
         internal const string QuitPath = "/lol-lobby-team-builder/champ-select/v1/session/quit";
+        internal const string RequestLobbyPath = "/lol-gameflow/v1/session/request-lobby";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -30,8 +32,20 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken)
+        public Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken)
         {
+            return SendAsync(QuitPath, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken)
+        {
+            return SendAsync(RequestLobbyPath, cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> SendAsync(string path, CancellationToken cancellationToken)
+        {
+            if (!IsAllowedTargetForSmokeTest("POST", path))
+                throw new ArgumentException("Champ Select quit target is not allowed.", nameof(path));
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
             if (session == null) return null;
@@ -44,7 +58,7 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Post, QuitPath))
+                    using (var request = new HttpRequestMessage(HttpMethod.Post, path))
                     using (var response = await lease.Client.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
