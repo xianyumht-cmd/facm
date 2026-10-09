@@ -160,6 +160,9 @@ namespace FACM
                         return;
                     }
 
+                    if (settings.WasSettingsCreatedThisRun && !startCleanup)
+                        mainForm.EnableFirstUseWelcome();
+
                     UsageTelemetryModule.Record("app_launch");
                     AppLog.Info("FACM started; cleanupRequested=" + startCleanup + "; elevated=" + cleanup.IsAdministrator);
                     SingleInstanceActivation activation = null;
