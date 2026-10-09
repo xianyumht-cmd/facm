@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.60：完成悬浮球与工作台入口的一轮一致性修复。托盘菜单中的“打开控制中心”和托盘图标双击现在都会打开或激活快捷面板，不会在面板已打开时意外关闭；悬浮球单击仍按原有方式切换显示状态。修复旧版“英雄联盟”入口跳转统一工作台后却误显示“暂无可用功能”的问题，并移除旧版菜单查找中的隐式跳转。托盘“更多”中新增“使用指南”，与快捷面板的设置入口一致。补充菜单路由回归检查。保留原有九个工作台页面、悬浮球、托盘恢复、游戏内助手、LOL 查询与自动化、更新器签名和旧客户端一键更新兼容功能。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — Optional CloudBase email account (Issue #313; task branch, not released)
+
+- User approved CloudBase email OTP account login as prerequisite to ESC cross-device sync. Branch `feat/ggman-email-account-auth-20261010` starts from enabled public 3.5.60 `main`. Adds separate account REST client with official send/verify/sign-in/sign-up/signout endpoints and session limited to memory; adds optional login/logout dialog from the existing “我的 GGman” page. Existing anonymous CloudBase device sync, local usage history, matchmaking, LCU and current online manifest remain untouched; login never forces sign-up on startup. Regression smoke covers registered-session separation, input/transport contracts.
+- **External acceptance blocker:** verify real CloudBase email login provider + forwarding/SMTP are enabled in `ggman-d4gioqqcz434d9e4d`; manually validate six-digit OTP delivery, account creation, logout, same UID across two PCs/different UID for different accounts, token error and CAPTCHA-required cases. No ability to confirm these from GitHub only. Registered login does NOT yet own ESC RLS tables; unmerged ESC experiment stays blocked, and `cloudbase/sql/005_esc_profiles.sql` must not be executed just to enable this UI.
+- **Release decision pending** until final-head Windows Build + UI Text Contract **and** live authentication provider validation. Project's last confirmed official signed release stays 3.5.60; do not request 3.5.61 or claim working account login before live tests. See `docs/GGMAN-ACCOUNT-AUTH.md` and Issue #313.
+
+
 ## 2026-10-10 — Cross-entry and legacy UI consistency closeout (3.5.60 published)
 
 - Issue #300; task branch `fix/ggman-shell-entry-consistency-20261010`. Verified enabled official 3.5.59 manifest and new main baseline before editing. Fixed two concrete shell UX inconsistencies: tray "Open control center" and tray double-click previously called the toggle method (closing an already-open panel); the legacy compact League entry triggered the Hub through a side-effect in `FindGroup` and displayed a false unavailable status. Explicit tray opens now activate the panel, while only floating-ball clicks toggle. Legacy League entry now routes directly via typed `LeagueHubUiBridge`; group lookup is pure and the old dropdown remains absent.
