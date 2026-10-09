@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.51
-- GitHub Release：v3.5.51
+- 版本：GGman 3.5.52
+- GitHub Release：v3.5.52
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：b88c7b4f11af59337c6fb0b9520eb6948e60a3c0
-- 发布元数据提交：26d6f24127b911b8cf18156d49afc1e75ae43f53
-- Release GGman.exe SHA-256：C88811D80E8F07042B18C1FA56C21E6F0D480787FDCDE8952C9C9E3AC41DAC95
-- release_notes：GGman 3.5.51：优化 LOL 工作台布局。保留悬浮球为默认主入口，打开工作台后改为单一左侧导航，当前状态、我的战绩、实时对局、出装推荐、海斗攻略、快捷工具、在线状态、游戏修复与我的 GGman 均可直接切换；取消占用页面空间的顶部二级导航及右侧常驻快捷栏，战绩与攻略内容拥有更宽的展示区域。左侧导航支持窄窗口与滚动，底部显示真实客户端连接及游戏阶段。所有原有页面、外部快捷入口和对局操作链路保持兼容。
+- 发布基础 main：8a60c026ae78bff9c42256bbacd2ea04cdcdfa36
+- 发布元数据提交：3984bdbeda40d12242d6de600de7542e41909f0e
+- Release GGman.exe SHA-256：558F93AA78BE4796EF5F44E1D9481078C4DC5BBB468810DA16CC5AA1D9C0A43D
+- release_notes：GGman 3.5.52：继续改进 LOL 工作台的“我的战绩”页面。战绩列表、英雄统计、底部操作按钮和七列表格会随窗口大小自适应调整，缩小工作台后不再依赖固定 860×720 布局；加载、无记录或客户端未连接时在列表中直接显示对应状态；胜负结果仅对结果一列使用红绿色强调，其他数据保持清晰易读；识别到英雄名称后不再重复显示内部英雄编号。保持原有战绩查询、缓存、滚动列表、分批加载与悬浮球使用方式，不修改任何对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — Player history UX pass (3.5.52 target, unpublished at this point)

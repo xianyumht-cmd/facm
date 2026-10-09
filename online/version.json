@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.52",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.52/FACM.exe",
   "sha256": "558F93AA78BE4796EF5F44E1D9481078C4DC5BBB468810DA16CC5AA1D9C0A43D",
   "release_notes": "GGman 3.5.52：继续改进 LOL 工作台的“我的战绩”页面。战绩列表、英雄统计、底部操作按钮和七列表格会随窗口大小自适应调整，缩小工作台后不再依赖固定 860×720 布局；加载、无记录或客户端未连接时在列表中直接显示对应状态；胜负结果仅对结果一列使用红绿色强调，其他数据保持清晰易读；识别到英雄名称后不再重复显示内部英雄编号。保持原有战绩查询、缓存、滚动列表、分批加载与悬浮球使用方式，不修改任何对局读写行为。",
-  "published_at": "2026-10-09T13:52:26.7611932+00:00"
+  "published_at": "2026-10-09T13:52:34.1174654+00:00"
 }
