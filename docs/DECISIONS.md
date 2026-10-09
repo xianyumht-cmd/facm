@@ -251,3 +251,8 @@ Keep the in-game companion narrow, lightweight, nonactivating and under existing
 ## 2026-10-09 — Regression-first after successive GGman UI releases
 
 After 3.5.50–3.5.55, prioritize verifiable clipping/overlap and interaction regressions instead of adding more screens. The recommendation footer is deliberately two-row below 480px so error/success text cannot sit under the Refresh/Apply actions; above this threshold, preserve the existing single-row footprint. Continue to use a pure WinForms layout policy with deterministic geometry checks and no new custom rendering, data reads or League controller ownership. Keep floating-ball-first entry, workbench routing and on-demand runtime companion behavior unchanged.
+
+
+## 2026-10-09 — Resolve deep-link targets before building Hub child forms
+
+Workbench contextual launch is a typed initial-state configuration, not a second navigation event. Select the first requested valid route on `LeagueHubForm` before `Shown`, retaining Dashboard for ordinary/unknown requests. This prevents avoidable child creation/disposal, reduces extraneous load from direct menu navigation, and does not change the on-demand Hub's user-facing navigation controls, forms or Gameflow ownership.
