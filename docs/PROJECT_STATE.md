@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.57
-- GitHub Release：v3.5.57
+- 版本：GGman 3.5.58
+- GitHub Release：v3.5.58
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：1ef97209ca80d0e926eb5b8183e4529eb1c10ffe
-- 发布元数据提交：94dae47e08cddbea335aff082f58f7c055dc0fe6
-- Release GGman.exe SHA-256：6EF46E621146AC64AEDC8DAA8ABFDE0A6CD49224745FDB611C920B4BDCF15A3D
-- release_notes：GGman 3.5.57：优化“我的 GGman”页面的工作台内显示。账号数量、活跃天数、首次使用时间等统计卡片随窗口宽度自适应；近期使用账号、可选匿名排行和隐私/遥测开关与操作按钮统一收缩至内容宽度。窗口较矮时可以滚动查看页面底部状态，不再因原先固定 720×560 坐标而发生裁切。补充六种窗口宽度下的布局回归测试。保留原有本地账号统计、排行主动开启、遥测设置、CloudBase 身份和所有数据写入保护；悬浮球、工作台导航、LOL 查询及在线更新逻辑均未改变。
+- 发布基础 main：d8249f24a572bc80ea3df01bcd15eada9f672ce9
+- 发布元数据提交：fc53f50d01f705fc33912f9231f24af9a72b67f1
+- Release GGman.exe SHA-256：42199788BD35971F698375FC5218EB5F34B5542EED0AE82330B7786E428487F5
+- release_notes：GGman 3.5.58：优化更新与公告页面。新版本的完整更新说明现在可以在独立的只读滚动区域中查看，不再被狭窄状态标签截断；版本检查、下载进度、安装准备与失败提示各自显示清晰状态。尚未获得可靠更新信息时不会误提示“已是最新”，检查失败会禁用失效的旧下载操作，下载或安装失败会保留醒目的错误提示并允许安全重试。相关提示框统一使用 GGman 名称。补充长版本说明、更新资格判断及失败状态的回归测试。原有自动检查设置、强制更新退出行为、镜像下载、哈希与签名验证、更新器替换/恢复，以及旧版 FACM.exe 在线更新兼容策略均未修改。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — Update Center status and release notes polish (3.5.58 target, pending release)
