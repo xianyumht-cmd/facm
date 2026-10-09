@@ -73,6 +73,8 @@ namespace FACM.Services
             Pair(UiTextKeys.AccountLoggedOut, "已退出此设备的 GGman 账号。"),
             Pair(UiTextKeys.AccountNoRemember, "当前版本不保存登录凭据，关闭 GGman 后需要重新验证。"),
             Pair(UiTextKeys.AccountCaptchaRequired, "CloudBase 要求额外验证码，请先检查后台验证方式。"),
+            Pair(UiTextKeys.AccountTooManyAttempts, "验证码尝试次数过多，请稍后重新获取。"),
+            Pair(UiTextKeys.AccountEmailChanged, "邮箱已更改，请重新获取验证码。"),
             Pair(UiTextKeys.AccountMenu, "GGman 账号登录"),
 
             Pair(UiTextKeys.ShellLeague, "英雄联盟"),
