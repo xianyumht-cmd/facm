@@ -12,10 +12,10 @@
 - release_notes：GGman 3.5.53：优化 LOL 工作台的对局推荐页面。符文、召唤师技能和装备的选择卡片及推荐预览会根据可用宽度自动排成三列、两列或一列；窗口较窄时内容可滚动，而刷新、应用所选和操作结果始终显示在底部。统一按钮、文字与选择卡片的颜色和交互状态，移除原有蓝紫渐变装饰；应用成功、部分成功、失败及自动应用反馈使用清晰的状态色。保留原有的应用前确认、英雄阶段校验、数据查询及符文装备写入保护；悬浮球仍为默认主入口。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Recommendation UX pass (3.5.53 target, not yet published)
+## 2026-10-09 — Recommendation UX pass (3.5.53 published)
 
 - Tracking Issue #300; branch `feat/ggman-recommendation-ux-20261009`. Scope: League recommendation page only. Converted fixed body to scrollable responsive 1/2/3-column selection/preview layout, pinned action/status footer, accessible native button focus, consistent design-system token colors, semantic apply/auto-apply status feedback and matching theme restyle selector. Added deterministic layout and status smoke. Kept recommendation read, confirm, apply, deduplication, auto-apply ownership, client state, updater and floating-ball main entry unchanged.
-- Release target **3.5.53** after green GitHub Windows build/UI text checks, PR merge and canonical signed publishing. Do not claim native multi-DPI/League screenshot acceptance based on CI alone.
+- **GGman v3.5.53 formally published:** PR #304 squash-merged as `de7505ff5f5c5bacc1f8176c69462ef666be724b`; branch final head `88b7c9d816e3880828f6eccab4e93df55227739b` passed GGman Windows Build #37942836518 and FACM UI Text Contract #37942836778. The official signed lightweight publisher #37943085536 succeeded, verifying the publicly downloaded signature and byte-identical `GGman.exe` / compatibility `FACM.exe` (2,385,816 bytes each; SHA-256 `AA7605B7B62F200DF8283D50EEAE9B6CBE0E7BB94652BC557ADD1468A37C32A9`). `online/version.json` now exposes enabled v3.5.53. Real native Windows multi-DPI screenshots and live-client visual acceptance remain pending; do not claim these are proven by CI.
 
 
 ## 2026-10-09 — Player history UX pass (3.5.52 published)
