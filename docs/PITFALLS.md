@@ -166,3 +166,8 @@ The compact control center was originally an 680px legacy form visually covered 
 ## Embedded Player form geometry and match-result color (2026-10-09)
 
 The old Player form used fixed 860x720 positions and a fixed footer, but the workbench embeds it with `DockStyle.Fill` at different sizes. When a legacy form is embedded, adapt to actual `ClientSize` rather than the original nominal form size or desktop resolution. Update footer controls, champion summary and virtual match ListView together; test minimum and larger content areas. Coloring an entire ListViewItem red/green obscures other important metadata, so use `UseItemStyleForSubItems=false` and style only the result cell. Keep virtual ListView mode and do not add a second query loop.
+
+
+## Recommendation page hosted inside single-rail Hub (2026-10-09)
+
+A legacy 900x700 recommendation Form has absolute-positioned cards, preview textboxes and bottom buttons. After embedding inside the new compact Hub, static bottom coordinates risk clipping, and theme adaptors that identify labels by their old `Top` position stop working when the layout changes. Keep scrollable content separate from a pinned action footer; use control-identity selectors for preview captions. Theme changes must reapply semantic action/result statuses rather than turning warnings and errors into generic accent text. Keep native keyboard access on checkable choices, and preserve dialog confirmation and LCU write ownership.
