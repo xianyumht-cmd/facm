@@ -127,9 +127,13 @@ namespace FACM
         internal void OpenGettingStarted()
         {
             if (IsDisposed || _exiting) return;
-            _gettingStartedVisible = true;
-            CloseMenu();
-            EnsureMenuOpenAndActive();
+            BeginInvoke(new Action(delegate
+            {
+                if (IsDisposed || _exiting) return;
+                _gettingStartedVisible = true;
+                CloseMenu();
+                EnsureMenuOpenAndActive();
+            }));
         }
 
         internal void DismissGettingStarted(bool reopenMenu)
@@ -421,7 +425,7 @@ namespace FACM
 
             if (Interlocked.CompareExchange(ref _externalActivationPending, 0, 0) != 0)
                 BeginInvoke(new Action(ShowControlCenterFromExternalActivation));
-            else if (_showGettingStartedOnLaunch && !_startCleanup)
+            else if (_showGettingStartedOnLaunch && !_startCleanup && !_gameflowVisibility.IsSuppressed)
             {
                 _showGettingStartedOnLaunch = false;
                 BeginInvoke(new Action(EnsureMenuOpenAndActive));
