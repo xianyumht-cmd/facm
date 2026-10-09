@@ -174,11 +174,11 @@ This prevents a UI similarity feature from changing data truth: normal ARAM must
 
 **Decision (2026-09-11, PR #283):** the Runtime Companion may expose a one-click `退出选人` action, but it is a narrowly fenced Champion Select transaction rather than reuse of the process-killing `close-lobby` action.
 
-- use only the League Client team-builder quit route `POST /lol-lobby-team-builder/champ-select/v1/session/quit`;
+- first use `POST /lol-lobby-team-builder/champ-select/v1/session/quit`; after a definite HTTP 400 only, a single `POST /lol-gameflow/v1/session/request-lobby` is allowed if original party identity and members were readable;
 - never call `DELETE /lol-lobby/v2/lobby` and never kill `LeagueClient`, `LeagueClientUx`, or `LeagueClientUxRender` for this workflow;
 - require a live ChampSelect preflight;
-- send one POST per explicit click, without automatic retry;
-- verify that Gameflow leaves ChampSelect and the lobby remains readable before reporting success;
+- never retry an uncertain response, send at most one original quit and one guarded fallback per explicit click, and recheck that the phase is still ChampSelect before fallback;
+- require Lobby phase, absent ChampSelect session, and (when the original party was readable) unchanged lobby identity and membership before reporting success;
 - keep the action behind a dedicated write interface sharing the existing League session, not the generic build writer;
 - leave League's own dodge/queue penalty semantics untouched and communicate that in the UI tooltip.
 

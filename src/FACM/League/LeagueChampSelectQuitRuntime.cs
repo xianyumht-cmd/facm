@@ -1,6 +1,10 @@
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Web.Script.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,16 +14,18 @@ namespace FACM.League
 {
     /// <summary>
     /// Narrow writer for the League Client's team-builder Champion Select quit action.
-    /// This owner can issue exactly one POST target and cannot leave/delete the lobby itself.
+    /// This owner can write to two allowlisted Champion Select exit routes but cannot delete or create a lobby.
     /// </summary>
     internal interface ILeagueChampSelectQuitWriteApi
     {
         Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken);
     }
 
     internal sealed class LeagueChampSelectQuitWriteApiClient : ILeagueChampSelectQuitWriteApi, IDisposable
     {
         internal const string QuitPath = "/lol-lobby-team-builder/champ-select/v1/session/quit";
+        internal const string RequestLobbyPath = "/lol-gameflow/v1/session/request-lobby";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -30,8 +36,20 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken)
+        public Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken)
         {
+            return SendAsync(QuitPath, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken)
+        {
+            return SendAsync(RequestLobbyPath, cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> SendAsync(string path, CancellationToken cancellationToken)
+        {
+            if (!IsAllowedTargetForSmokeTest("POST", path))
+                throw new ArgumentException("Champ Select quit target is not allowed.", nameof(path));
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
             if (session == null) return null;
@@ -44,7 +62,7 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Post, QuitPath))
+                    using (var request = new HttpRequestMessage(HttpMethod.Post, path))
                     using (var response = await lease.Client.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
@@ -84,7 +102,8 @@ namespace FACM.League
         internal static bool IsAllowedTargetForSmokeTest(string method, string path)
         {
             return string.Equals((method ?? string.Empty).Trim(), "POST", StringComparison.OrdinalIgnoreCase) &&
-                   string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal);
+                   (string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal) ||
+                    string.Equals((path ?? string.Empty).Trim(), RequestLobbyPath, StringComparison.Ordinal));
         }
 
         public void Dispose()
@@ -119,8 +138,8 @@ namespace FACM.League
 
     /// <summary>
     /// Explicit one-click transaction for leaving only the current Champion Select episode.
-    /// It performs a read-only preflight, exactly one POST, then bounded read-back proving both
-    /// that ChampSelect ended and that the lobby still exists. It never calls DELETE /lol-lobby/v2/lobby.
+    /// It reads the current gameflow and original party, sends one primary quit and optionally
+    /// one guarded fallback, then verifies a settled Lobby and preserved original party.
     /// </summary>
     internal sealed class LeagueChampSelectQuitService
     {
@@ -131,6 +150,7 @@ namespace FACM.League
         private readonly ILeagueClientApi _reader;
         private readonly ILeagueChampSelectQuitWriteApi _writer;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
+        private DateTime _retryAfterUtc;
 
         public LeagueChampSelectQuitService(ILeagueClientApi reader, ILeagueChampSelectQuitWriteApi writer)
         {
@@ -143,16 +163,49 @@ namespace FACM.League
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                if (DateTime.UtcNow < _retryAfterUtc)
+                    return Result(LeagueChampSelectQuitStatus.WriteRejected, 0, null, false);
                 var phase = await ReadPhaseAsync(cancellationToken).ConfigureAwait(false);
                 var session = await _reader.TryGetBytesAsync(ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
-                if (!string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) || session == null || session.Length == 0)
+                if (!string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
+                    session == null || session.Length == 0)
                     return Result(LeagueChampSelectQuitStatus.NotInChampSelect, 0, phase, false);
 
+                var before = ReadLobbyIdentity(
+                    await _reader.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
                 var response = await _writer.TryQuitAsync(cancellationToken).ConfigureAwait(false);
                 if (response == null)
                     return Result(LeagueChampSelectQuitStatus.SessionUnavailable, 0, phase, false);
+
+                var usedFallback = false;
                 if (!response.IsSuccessStatusCode)
-                    return Result(LeagueChampSelectQuitStatus.WriteRejected, response.StatusCode, phase, false);
+                {
+                    AppLog.Info("League quit Champion Select: primary-rejected; http=" + response.StatusCode +
+                                "; errorCode=" + ReadErrorCode(response.Body) +
+                                "; originalLobbyKnown=" + (before != null).ToString().ToLowerInvariant());
+
+                    // An uncertain transport result is never retried. The fallback requires
+                    // a locally observed party identity before any further write is attempted.
+                    if (response.StatusCode != 400 || before == null)
+                        return RejectWithCooldown(response.StatusCode, phase);
+
+                    // Do not change gameflow after the initial rejection if the user
+                    // has already left Champion Select through another action.
+                    if (!string.Equals(await ReadPhaseAsync(cancellationToken).ConfigureAwait(false),
+                                       "ChampSelect", StringComparison.OrdinalIgnoreCase))
+                        return VerifyFailedWithCooldown(response.StatusCode, phase);
+
+                    usedFallback = true;
+                    response = await _writer.TryRequestLobbyAsync(cancellationToken).ConfigureAwait(false);
+                    if (response == null)
+                        return Result(LeagueChampSelectQuitStatus.SessionUnavailable, 0, phase, false);
+                    if (!response.IsSuccessStatusCode || !IsAcceptedLobbyRequest(response.Body))
+                    {
+                        AppLog.Info("League quit Champion Select: request-lobby-rejected; http=" + response.StatusCode +
+                                    "; errorCode=" + ReadErrorCode(response.Body));
+                        return RejectWithCooldown(response.StatusCode, phase);
+                    }
+                }
 
                 string settledPhase = phase;
                 var lobbyPreserved = false;
@@ -161,24 +214,124 @@ namespace FACM.League
                     if (attempt > 0) await Task.Delay(180, cancellationToken).ConfigureAwait(false);
                     settledPhase = await ReadPhaseAsync(cancellationToken).ConfigureAwait(false);
                     var lobby = await _reader.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false);
-                    lobbyPreserved = lobby != null && lobby.Length > 0;
-                    if (!string.Equals(settledPhase, "ChampSelect", StringComparison.OrdinalIgnoreCase) && lobbyPreserved)
+                    var after = ReadLobbyIdentity(lobby);
+                    lobbyPreserved = before == null
+                        ? !usedFallback && lobby != null && lobby.Length > 0
+                        : MatchesOriginalLobby(before, after);
+                    if (string.Equals(settledPhase, "Lobby", StringComparison.OrdinalIgnoreCase) && lobbyPreserved)
                     {
-                        AppLog.Info("League quit Champion Select: success; phase=" + Safe(settledPhase) + "; lobbyPreserved=true");
-                        return Result(LeagueChampSelectQuitStatus.Success, response.StatusCode, settledPhase, true);
+                        var remainingSession = await _reader.TryGetBytesAsync(
+                            ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
+                        if (remainingSession == null || remainingSession.Length == 0)
+                        {
+                            AppLog.Info("League quit Champion Select: success; route=" +
+                                        (usedFallback ? "request-lobby" : "quit") +
+                                        "; phase=Lobby; lobbyPreserved=true");
+                            return Result(LeagueChampSelectQuitStatus.Success, response.StatusCode, settledPhase, true);
+                        }
                     }
                 }
 
-                AppLog.Info(
-                    "League quit Champion Select: verification-failed; http=" + response.StatusCode +
-                    "; phase=" + Safe(settledPhase) +
-                    "; lobbyPreserved=" + lobbyPreserved.ToString().ToLowerInvariant());
+                AppLog.Info("League quit Champion Select: verification-failed; route=" +
+                            (usedFallback ? "request-lobby" : "quit") +
+                            "; http=" + response.StatusCode +
+                            "; phase=" + Safe(settledPhase) +
+                            "; lobbyPreserved=" + lobbyPreserved.ToString().ToLowerInvariant());
+                _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
                 return Result(LeagueChampSelectQuitStatus.VerificationFailed, response.StatusCode, settledPhase, lobbyPreserved);
             }
             finally
             {
                 _gate.Release();
             }
+        }
+
+        // A lobby ID proves that the returned party is the original one; merely
+        // seeing some lobby or the same local player is not sufficient.
+        private sealed class LobbyIdentity
+        {
+            public string Id;
+            public string[] Members;
+        }
+
+        private static LobbyIdentity ReadLobbyIdentity(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return null;
+            try
+            {
+                var lobby = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes))
+                    as Dictionary<string, object>;
+                if (lobby == null) return null;
+
+                var id = Field(lobby, "partyId") ?? Field(lobby, "chatRoomId") ?? Field(lobby, "chatRoomKey");
+                var members = lobby.ContainsKey("members") ? lobby["members"] as object[] : null;
+                if (string.IsNullOrWhiteSpace(id) || members == null || members.Length == 0) return null;
+
+                var identifiers = new List<string>();
+                foreach (var item in members)
+                {
+                    var member = item as Dictionary<string, object>;
+                    if (member == null) return null;
+                    var key = Field(member, "puuid") ?? Field(member, "summonerId");
+                    if (string.IsNullOrWhiteSpace(key)) return null;
+                    identifiers.Add(key.Trim());
+                }
+
+                identifiers.Sort(StringComparer.Ordinal);
+                return new LobbyIdentity { Id = id.Trim(), Members = identifiers.ToArray() };
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        private static bool MatchesOriginalLobby(LobbyIdentity before, LobbyIdentity after)
+        {
+            return before != null && after != null &&
+                   string.Equals(before.Id, after.Id, StringComparison.Ordinal) &&
+                   before.Members.SequenceEqual(after.Members, StringComparer.Ordinal);
+        }
+
+        private static string Field(Dictionary<string, object> value, string key)
+        {
+            object entry;
+            return value != null && value.TryGetValue(key, out entry) && entry != null
+                ? Convert.ToString(entry, CultureInfo.InvariantCulture)
+                : null;
+        }
+
+        private static bool IsAcceptedLobbyRequest(byte[] body)
+        {
+            return body != null && string.Equals(
+                Encoding.UTF8.GetString(body).Trim(), "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ReadErrorCode(byte[] body)
+        {
+            if (body == null || body.Length == 0 || body.Length > 4096) return "-";
+            try
+            {
+                var error = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(body))
+                    as Dictionary<string, object>;
+                var code = Field(error, "errorCode");
+                if (string.IsNullOrWhiteSpace(code)) return "-";
+                var safe = new string(code.Take(64).Where(ch =>
+                    char.IsLetterOrDigit(ch) || ch == '_' || ch == '-').ToArray());
+                return safe.Length == 0 ? "-" : safe;
+            }
+            catch (ArgumentException) { return "-"; }
+            catch (InvalidOperationException) { return "-"; }
+        }
+
+        private LeagueChampSelectQuitResult VerifyFailedWithCooldown(int statusCode, string phase)
+        {
+            _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
+            return Result(LeagueChampSelectQuitStatus.VerificationFailed, statusCode, phase, false);
+        }
+
+        private LeagueChampSelectQuitResult RejectWithCooldown(int statusCode, string phase)
+        {
+            _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
+            return Result(LeagueChampSelectQuitStatus.WriteRejected, statusCode, phase, false);
         }
 
         private async Task<string> ReadPhaseAsync(CancellationToken cancellationToken)

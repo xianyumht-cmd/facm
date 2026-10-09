@@ -50,7 +50,7 @@ LCU can apply a request and the client can still see a timeout/reset. Blind retr
 
 The legacy `close-lobby` efficiency action terminates LeagueClient/LeagueClientUx processes. It is not a safe implementation of “退出当前选人但保留大厅/队伍”.
 
-Runtime Companion uses a dedicated writer that can issue only `POST /lol-lobby-team-builder/champ-select/v1/session/quit`. The transaction must preflight live ChampSelect and read back both “phase left ChampSelect” and “`/lol-lobby/v2/lobby` still exists” before reporting success. Never fall back to killing the client or `DELETE /lol-lobby/v2/lobby` when this route fails; League/Tencent dodge penalties also remain outside FACM ownership.
+Runtime Companion uses a dedicated team-builder quit writer. Official matchmaking episodes in the 2026-09/10 logs repeatedly returned HTTP 400 while practice/custom samples succeeded. A one-time `POST /lol-gameflow/v1/session/request-lobby` fallback is permitted only after a definite 400 with an observable original party ID/roster and fresh ChampSelect phase. A 2xx or any lobby existence is not enough: require settled Lobby, no ChampSelect session, and the same party ID and members. Otherwise fail closed. Never kill the League client, delete or recreate the lobby. Live Tencent matchmaking behavior remains unverified by offline tests; dodge penalties remain game-owned.
 
 ## Do not restore UI visibility you did not hide
 

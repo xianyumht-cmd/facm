@@ -96,6 +96,14 @@ namespace FACM.AppHost.Modules
                 : writer.TryQuitAsync(cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryRequestLobbyAsync(CancellationToken cancellationToken)
+        {
+            var writer = _champSelectQuitWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryRequestLobbyAsync(cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeaguePresenceWriteApi.TrySetPresenceAsync(string json, CancellationToken cancellationToken)
         {
             var writer = _presenceWriter;
