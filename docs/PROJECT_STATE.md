@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.48
-- GitHub Release：v3.5.48
+- 版本：GGman 3.5.49
+- GitHub Release：v3.5.49
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：8769b2ff0bfe8101cac0b9f79d42e63165759163
-- 发布元数据提交：42967e4816cadc5049928acdf4504733ea902e76
-- Release GGman.exe SHA-256：6EBD84933F1C8DA1888A509A5A04CE29D383C43F7766AD6E8C37F9CC3D64FD1D
-- release_notes：GGman 3.5.48：新增可选的匿名功能使用统计。默认关闭，可在“我的 GGman”中随时开启或关闭；仅上传按天聚合的功能使用次数和程序版本，不上传账号、PUUID、密码、IP、硬件标识或日志内容。CloudBase 不可用时不影响程序正常使用。
+- 发布基础 main：6832c36d4dc1697a8c9addb17ecf48d0401f830f
+- 发布元数据提交：a37be7877a061873765e9d93c8bfa7d0414dbf94
+- Release GGman.exe SHA-256：A83289E39E7D4E0B78B84BB3172093B8614D7D9083297600BFBB7C1CA0C8F6A1
+- release_notes：GGman 3.5.49：修复选英雄界面“退”按钮在正式匹配中可能无效的问题。保留原退出方式；当客户端明确拒绝且能够识别原队伍时，尝试安全返回原大厅，并校验对局阶段和原队伍身份。不会关闭客户端、删除或重建大厅；游戏服务端不支持时会提示退出未确认，秒退处罚按游戏规则执行。
 <!-- FACM_RELEASE_STATE_END -->
 
 # FACM Project State

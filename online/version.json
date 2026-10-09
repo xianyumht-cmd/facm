@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.49",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.49/FACM.exe",
   "sha256": "A83289E39E7D4E0B78B84BB3172093B8614D7D9083297600BFBB7C1CA0C8F6A1",
   "release_notes": "GGman 3.5.49：修复选英雄界面“退”按钮在正式匹配中可能无效的问题。保留原退出方式；当客户端明确拒绝且能够识别原队伍时，尝试安全返回原大厅，并校验对局阶段和原队伍身份。不会关闭客户端、删除或重建大厅；游戏服务端不支持时会提示退出未确认，秒退处罚按游戏规则执行。",
-  "published_at": "2026-10-09T08:59:26.1512866+00:00"
+  "published_at": "2026-10-09T08:59:35.4438560+00:00"
 }
