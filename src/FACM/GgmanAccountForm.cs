@@ -98,7 +98,7 @@ namespace FACM
         private void RefreshControls()
         {
             var signedIn = GgmanAccountSession.Current;
-            _email.Enabled = !_busy && signedIn == null && _challenge == null;
+            _email.Enabled = !_busy && signedIn == null;
             _code.Enabled = !_busy && signedIn == null && _challenge != null;
             _send.Enabled = !_busy && signedIn == null;
             _verify.Enabled = !_busy && signedIn == null && _challenge != null;
@@ -147,7 +147,14 @@ namespace FACM
             if (_failures >= 5)
             {
                 _challenge = null;
-                _status.Text = _ui.Get(UiTextKeys.AccountCaptchaRequired);
+                _status.Text = _ui.Get(UiTextKeys.AccountTooManyAttempts);
+                RefreshControls();
+                return;
+            }
+            if (!string.Equals(_challenge.Email, _email.Text.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                _challenge = null;
+                _status.Text = _ui.Get(UiTextKeys.AccountCodeSent);
                 RefreshControls();
                 return;
             }
