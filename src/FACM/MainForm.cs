@@ -34,6 +34,7 @@ namespace FACM
         private bool _onlineCenterOpen;
         private bool _petPickerOpen;
         private bool _themePickerOpen;
+        private bool _escSettingsOpen;
         private bool _mayhemOpen;
         private bool _startupWarmupStarted;
         private bool _exiting;
@@ -372,6 +373,19 @@ namespace FACM
             await OpenOnlineCenterAsync();
         }
 
+        public void OpenEscSettings()
+        {
+            if (IsDisposed || _exiting || _escSettingsOpen) return;
+            _escSettingsOpen = true;
+            try
+            {
+                CloseMenu();
+                using (var dialog = new EscSettingsForm(_ui, _settings.GamePath))
+                    dialog.ShowDialog();
+            }
+            finally { _escSettingsOpen = false; }
+        }
+
         public void OpenLogFile()
         {
             try
@@ -554,6 +568,9 @@ namespace FACM
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.GettingStarted",
                 _ui.Get(UiTextKeys.ShellGettingStartedMenu), 55,
                 delegate { OpenGettingStarted(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.EscSettings",
+                _ui.Get(UiTextKeys.EscSettingsTitle), 57,
+                delegate { OpenEscSettings(); });
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.Update", _ui.CheckUpdate, 60,
                 delegate { OpenUpdateCenter(); });
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.Log", _ui.OpenLog, 70,
