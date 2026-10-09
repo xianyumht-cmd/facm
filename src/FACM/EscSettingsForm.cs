@@ -76,6 +76,10 @@ namespace FACM
                 NewButton(UiTextKeys.EscSettingsCloudUpload, 322, 180, 141),
                 NewButton(UiTextKeys.EscSettingsCloudRestore, 475, 180, 139)
             };
+            // Cloud upload and recovery require a registered GGman identity, not the current anonymous device.
+            // Keep these disabled until the CloudBase account owner contract is implemented and verified.
+            _actions[2].Enabled = false;
+            _actions[3].Enabled = false;
             _actions[0].Click += delegate { SaveLocal(); };
             _actions[1].Click += delegate { RestoreLocal(); };
             _actions[2].Click += async delegate { await TransferCloudAsync(true); };
@@ -229,7 +233,8 @@ namespace FACM
         private void SetBusy(bool busy)
         {
             _busy = busy;
-            foreach (var button in _actions) button.Enabled = !busy;
+            for (var index = 0; index < _actions.Length; index++)
+                _actions[index].Enabled = !busy && index < 2;
             if (busy) SetStatus(_ui.Get(UiTextKeys.EscSettingsBusy));
         }
 
