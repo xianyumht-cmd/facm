@@ -151,3 +151,8 @@ Personal stats need a stable way to deduplicate League accounts, but raw PUUID/a
 - Ranking endpoints must return only aggregate statistics for the current authenticated owner; never relax table RLS to make global ranking easier.
 - Do not create a second Gameflow/current-summoner poll loop. Capture identity from the existing Gameflow episode and retry only on existing state events when the first read is not yet available.
 - Do not add SQLite/native dependencies solely because the data is called a “database”; preserve the single-EXE contract until a real query/scale requirement justifies a storage-engine migration.
+
+
+## Legacy launcher overlay and DPI geometry (2026-10-09)
+
+The compact control center was originally an 680px legacy form visually covered by a new launcher enhancer. The enhancer used reflection into private fields/methods, making ordinary UI changes fragile; favor explicit typed integration. When changing a FlowLayoutPanel from four narrow columns to two full-width columns, include the trailing tile margin in width calculations at every theme scale, and reserve extra height for pixel rounding. Match the container's visible region and background painter to the compact launcher; otherwise the old gradient/radius can show through on Shown/Resize. Preserve the floating-ball click/drag/tray and show-without-activation semantics. Visual acceptance still requires native Windows screenshots and DPI tests; a browser mock does not establish them.
