@@ -181,3 +181,8 @@ A legacy 900x700 recommendation Form has absolute-positioned cards, preview text
 ## Narrow companion scroll cue must not perturb WinForms state or Gameflow (2026-10-09)
 
 The companion hides native `Panel` scrollbars to keep a compact overlay; its long recipe/teammate/Mayhem content is still wheel-scrollable. A visual cue must be passive and outside the scrolling content, or it can accidentally contribute to `AutoScrollMinSize`/be translated by `AutoScrollPosition`. Keep the rail on a separate docked shell while leaving `_body` as the only scroll owner; the original form header remains a direct child for the existing `LeagueRuntimeCompanionWindowState` adapter's header discovery. Avoid new timers, data polling, write actions or different collapse/restore mechanics. Test pure thumb geometry and explicit no-overflow hiding rather than claiming live-client behavior from CI alone.
+
+
+## Compact embedded recommendation footer overlap (2026-10-09)
+
+The 3.5.53 Recommendation form wrapped content into a scrollable responsive body but kept a single-row 69px action footer at every width. At widths below roughly 420px its result label's 140px minimum could overlap the Refresh button; earlier smoke only covered 1/2/3-card columns, not the footer. In the 3.5.56 cross-page regression pass, footer layout became a pure width-to-rectangles policy, placing status above both buttons below 480px while keeping the desktop single-row footer unchanged. Regression checks explicitly enforce all control bounds, disjoint visible areas and footer heights across seven widths. A generic successful UI smoke does not imply small embedded buttons are readable or non-overlapping.
