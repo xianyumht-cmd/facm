@@ -161,3 +161,8 @@ The compact control center was originally an 680px legacy form visually covered 
 ## Workbench navigation and smoke contract (2026-10-09)
 
 `LeagueHubForm` previously combined primary categories, a second-level tab strip and a conditional right dock; width heuristics and smoke tests assumed those specific layers. A UX change that removes a layer must update the smoke contract to validate the new invariant (all nine stable routes remain directly reachable and the main content has no persistent competing dock), rather than keeping dead width-clamp tests. Embedded child Form lifecycle matters: detach the `FormClosing` handler after a deliberate navigation switch and preserve the existing `ShowView(string, bool)` bridge signature for contextual routes. WinForms `FlowLayoutPanel` needs `WrapContents=false`, explicit child widths and `AutoScroll` for DPI-constrained or localized menus; rendering still requires a native Windows review.
+
+
+## Embedded Player form geometry and match-result color (2026-10-09)
+
+The old Player form used fixed 860x720 positions and a fixed footer, but the workbench embeds it with `DockStyle.Fill` at different sizes. When a legacy form is embedded, adapt to actual `ClientSize` rather than the original nominal form size or desktop resolution. Update footer controls, champion summary and virtual match ListView together; test minimum and larger content areas. Coloring an entire ListViewItem red/green obscures other important metadata, so use `UseItemStyleForSubItems=false` and style only the result cell. Keep virtual ListView mode and do not add a second query loop.
