@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -298,7 +297,8 @@ namespace FACM.League
             return new CheckBox
             {
                 Appearance = Appearance.Button,
-                Text = title + "\r\n" + hint,
+                Text = string.IsNullOrWhiteSpace(hint) || hint.Trim('\u200b').Length == 0
+                    ? title : title + "\r\n" + hint,
                 Location = location,
                 Size = new Size(268, 66),
                 FlatStyle = FlatStyle.Flat,
@@ -521,6 +521,13 @@ namespace FACM.League
             else
                 key = LeagueAutoApplyUiTextKeys.Disabled;
             _autoStatus.Text = LeagueAdvisorText.Get(_ui, key);
+            _autoStatus.ForeColor = string.Equals(key, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
+                ? FACM.Theming.FacmDesignSystem.Success
+                : string.Equals(key, LeagueAutoApplyUiTextKeys.Failed, StringComparison.Ordinal)
+                    ? FACM.Theming.FacmDesignSystem.Error
+                    : string.Equals(key, LeagueAutoApplyUiTextKeys.Partial, StringComparison.Ordinal)
+                        ? FACM.Theming.FacmDesignSystem.Warning
+                        : FACM.Theming.FacmDesignSystem.TextMuted;
         }
 
         private async Task RefreshAsync(bool force)
@@ -543,7 +550,7 @@ namespace FACM.League
             {
                 AppLog.Error("League recommendation refresh failed", exception);
                 if (!IsDisposed && !_lifetime.IsCancellationRequested)
-                    _statusValue.Text = T(LeagueRecommendationUiTextKeys.Failed);
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Failed);
             }
             finally
             {
@@ -558,7 +565,7 @@ namespace FACM.League
             if (_busy || !CanApply(_snapshot) || IsDisposed || _lifetime.IsCancellationRequested) return;
             if (!_runesChoice.Checked && !_spellsChoice.Checked && !_itemsChoice.Checked)
             {
-                _statusValue.Text = T(LeagueRecommendationUiTextKeys.NoneSelected);
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.NoneSelected);
                 return;
             }
 
@@ -566,7 +573,7 @@ namespace FACM.League
             SetButtons(false);
             try
             {
-                _statusValue.Text = T(LeagueRecommendationUiTextKeys.Preparing);
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.Preparing);
 
                 LeagueBuildApplyPlan loadoutPlan = null;
                 LeagueItemSetPlan itemPlan = null;
@@ -580,7 +587,7 @@ namespace FACM.League
                 var canRunItems = itemPlan != null && itemPlan.HasItems;
                 if (!canRunLoadout && !canRunItems)
                 {
-                    _statusValue.Text = T(LeagueRecommendationUiTextKeys.NoAvailable);
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.NoAvailable);
                     return;
                 }
 
@@ -592,7 +599,7 @@ namespace FACM.League
                         MessageBoxIcon.Question,
                         MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 {
-                    _statusValue.Text = T(LeagueRecommendationUiTextKeys.Ready);
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Ready);
                     return;
                 }
 
@@ -609,7 +616,7 @@ namespace FACM.League
             catch (OperationCanceledException)
             {
                 if (!_lifetime.IsCancellationRequested)
-                    _statusValue.Text = T(LeagueRecommendationUiTextKeys.ContextChanged);
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.ContextChanged);
             }
             catch (Exception exception)
             {
@@ -639,9 +646,9 @@ namespace FACM.League
             _itemPreview.Text = BuildItemPreview(snapshot.Recommendation);
             _skillsValue.Text = DisplayRecommendation(snapshot.Recommendation, "skills");
             _countersValue.Text = DisplayRecommendation(snapshot.Recommendation, "counters");
-            _statusValue.Text = CanApply(snapshot)
-                ? T(LeagueRecommendationUiTextKeys.Ready)
-                : T(LeagueRecommendationUiTextKeys.Waiting);
+            SetRecommendationStatus(CanApply(snapshot)
+                ? LeagueRecommendationUiTextKeys.Ready
+                : LeagueRecommendationUiTextKeys.Waiting);
         }
 
         private void ApplyWaitingState()
@@ -653,7 +660,7 @@ namespace FACM.League
             _itemPreview.Text = string.Empty;
             _skillsValue.Text = string.Empty;
             _countersValue.Text = string.Empty;
-            _statusValue.Text = T(LeagueRecommendationUiTextKeys.Waiting);
+            SetRecommendationStatus(LeagueRecommendationUiTextKeys.Waiting);
             _applyButton.Enabled = false;
         }
 
@@ -686,7 +693,7 @@ namespace FACM.League
                           (itemResult != null && string.Equals(itemResult.Status, "blocked", StringComparison.OrdinalIgnoreCase));
             if (succeeded == 0 && blocked)
             {
-                _statusValue.Text = T(LeagueRecommendationUiTextKeys.ContextChanged);
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.ContextChanged);
                 return;
             }
 
@@ -698,6 +705,9 @@ namespace FACM.League
             if (loadoutResult != null && loadoutResult.RuneSkippedNoCapacity)
                 text += "  " + T(LeagueRecommendationUiTextKeys.RuneSlotFull);
             _statusValue.Text = text;
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(
+                succeeded == selected ? LeagueRecommendationUiTextKeys.Success :
+                succeeded > 0 ? LeagueRecommendationUiTextKeys.Partial : LeagueRecommendationUiTextKeys.Failed);
         }
 
         private string BuildConfirmation(LeagueBuildApplyPlan loadoutPlan, LeagueItemSetPlan itemPlan)
@@ -794,9 +804,29 @@ namespace FACM.League
             if (snapshot == null) return string.Empty;
             var champion = string.IsNullOrWhiteSpace(snapshot.ChampionName)
                 ? "#" + snapshot.ChampionId
-                : snapshot.ChampionName + " #" + snapshot.ChampionId;
+                : snapshot.ChampionName;
             return champion + " · " + (snapshot.Mode ?? string.Empty) + " / " + (snapshot.Position ?? string.Empty) +
                    " · " + (snapshot.Source ?? string.Empty) + " " + (snapshot.Version ?? string.Empty);
+        }
+
+        internal static Color RecommendationStatusToneForSmokeTest(string key)
+        {
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Success, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Success;
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Failed, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.ContextChanged, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Error;
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Partial, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.NoAvailable, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.NoneSelected, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Warning;
+            return FACM.Theming.FacmDesignSystem.TextMuted;
+        }
+
+        private void SetRecommendationStatus(string key)
+        {
+            _statusValue.Text = T(key);
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(key);
         }
 
         private void SetButtons(bool canApply)
@@ -826,14 +856,8 @@ namespace FACM.League
             {
                 base.OnPaint(e);
                 if (Width <= 0) return;
-                using (var glow = new LinearGradientBrush(
-                    new Rectangle(0, Height - 4, Width, 4),
-                    Color.FromArgb(73, 215, 255),
-                    Color.FromArgb(142, 72, 255),
-                    LinearGradientMode.Horizontal))
-                {
-                    e.Graphics.FillRectangle(glow, 0, Height - 4, Width, 4);
-                }
+                using (var line = new SolidBrush(FACM.Theming.FacmDesignSystem.BorderSoft))
+                    e.Graphics.FillRectangle(line, 0, Height - 1, Width, 1);
             }
         }
     }
