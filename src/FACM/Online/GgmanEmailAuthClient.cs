@@ -1,0 +1,281 @@
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web.Script.Serialization;
+using FACM.Services;
+
+namespace FACM.Online
+{
+    internal sealed class GgmanEmailChallenge
+    {
+        public string Email { get; set; }
+        public string VerificationId { get; set; }
+        public bool IsRegistered { get; set; }
+        public DateTimeOffset ExpiresAtUtc { get; set; }
+    }
+
+    internal sealed class GgmanAccountIdentity
+    {
+        public string Email { get; set; }
+        public string UserId { get; set; }
+        internal string AccessToken { get; set; }
+        internal string RefreshToken { get; set; }
+    }
+
+    // Separate from the legacy anonymous CloudBase client; no anonymous data is migrated here.
+    internal static class GgmanAccountSession
+    {
+        private static readonly object Sync = new object();
+        private static GgmanAccountIdentity _current;
+
+        internal static GgmanAccountIdentity Current
+        {
+            get
+            {
+                lock (Sync)
+                {
+                    return _current == null ? null : new GgmanAccountIdentity
+                    {
+                        Email = _current.Email,
+                        UserId = _current.UserId,
+                        AccessToken = _current.AccessToken,
+                        RefreshToken = _current.RefreshToken
+                    };
+                }
+            }
+        }
+
+        internal static void Set(GgmanAccountIdentity value)
+        {
+            if (value == null || string.IsNullOrWhiteSpace(value.UserId) ||
+                string.IsNullOrWhiteSpace(value.AccessToken))
+                throw new ArgumentException("Verified CloudBase account session is required.", nameof(value));
+            lock (Sync) _current = value;
+        }
+
+        internal static void Clear()
+        {
+            lock (Sync) _current = null;
+        }
+    }
+
+    internal sealed class GgmanEmailAuthClient : IDisposable
+    {
+        private const int MaxResponseLength = 16 * 1024;
+        private readonly HttpClient _http;
+        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = MaxResponseLength };
+
+        internal GgmanEmailAuthClient()
+        {
+            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            _http = new HttpClient(new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                AllowAutoRedirect = false,
+                UseCookies = false
+            })
+            {
+                BaseAddress = new Uri("https://" + CloudBaseClient.EnvironmentId + ".api.tcloudbasegateway.com/"),
+                Timeout = Timeout.InfiniteTimeSpan
+            };
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("GGman-Windows/3.5");
+            _http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+        }
+
+        internal static bool IsValidEmail(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email) || email.Length > 254 ||
+                email.IndexOfAny(new[] { '\r', '\n', ' ', '\t' }) >= 0)
+                return false;
+            var at = email.IndexOf('@');
+            return at > 0 && at == email.LastIndexOf('@') && at < email.Length - 3 &&
+                   email.IndexOf('.', at + 2) > at + 1;
+        }
+
+        internal async Task<GgmanEmailChallenge> SendCodeAsync(string email, string deviceId, CancellationToken token)
+        {
+            email = (email ?? string.Empty).Trim();
+            if (!IsValidEmail(email)) throw new ArgumentException("请输入有效的邮箱地址。");
+            using (var req = CreatePost("auth/v1/verification", new Dictionary<string, object>
+            {
+                { "email", email }, { "target", "ANY" }
+            }, deviceId))
+            {
+                var obj = await SendAsync(req, token).ConfigureAwait(false);
+                var verificationId = ReadString(obj, "verification_id");
+                if (string.IsNullOrWhiteSpace(verificationId))
+                    throw new InvalidOperationException("邮件服务未返回有效的验证码会话。");
+                var expires = ReadSeconds(obj, "expires_in", 600);
+                return new GgmanEmailChallenge
+                {
+                    Email = email,
+                    VerificationId = verificationId,
+                    IsRegistered = ReadBoolean(obj, "is_user"),
+                    ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expires)
+                };
+            }
+        }
+
+        internal async Task<GgmanAccountIdentity> VerifyAndLoginAsync(
+            GgmanEmailChallenge challenge, string code, string deviceId, CancellationToken token)
+        {
+            if (challenge == null || !IsValidEmail(challenge.Email) ||
+                string.IsNullOrWhiteSpace(challenge.VerificationId) ||
+                DateTimeOffset.UtcNow >= challenge.ExpiresAtUtc)
+                throw new InvalidOperationException("验证码已过期，请重新获取。");
+            if (string.IsNullOrWhiteSpace(code) || code.Length != 6)
+                throw new ArgumentException("请输入邮件中的六位数字验证码。");
+            foreach (var c in code) if (c < '0' || c > '9')
+                throw new ArgumentException("验证码必须是六位数字。");
+
+            string verificationToken;
+            using (var req = CreatePost("auth/v1/verification/verify", new Dictionary<string, object>
+            {
+                { "verification_id", challenge.VerificationId },
+                { "verification_code", code }
+            }, deviceId))
+            {
+                var verified = await SendAsync(req, token).ConfigureAwait(false);
+                verificationToken = ReadString(verified, "verification_token");
+                if (string.IsNullOrWhiteSpace(verificationToken))
+                    throw new InvalidOperationException("验证码校验未完成。");
+            }
+
+            var path = challenge.IsRegistered ? "auth/v1/signin" : "auth/v1/signup";
+            var body = new Dictionary<string, object> { { "verification_token", verificationToken } };
+            if (!challenge.IsRegistered) body.Add("email", challenge.Email);
+            using (var req = CreatePost(path, body, deviceId))
+            {
+                var result = await SendAsync(req, token).ConfigureAwait(false);
+                var userId = ReadString(result, "sub");
+                var access = ReadString(result, "access_token");
+                if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(access) ||
+                    string.Equals(ReadString(result, "scope"), "anonymous", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("服务器未返回有效的注册账号身份。");
+                return new GgmanAccountIdentity
+                {
+                    Email = challenge.Email,
+                    UserId = userId,
+                    AccessToken = access,
+                    RefreshToken = ReadString(result, "refresh_token")
+                };
+            }
+        }
+
+        internal async Task LogoutAsync(GgmanAccountIdentity account, string deviceId, CancellationToken token)
+        {
+            if (account == null || string.IsNullOrWhiteSpace(account.AccessToken)) return;
+            using (var req = CreatePost("auth/v1/user/signout",
+                new Dictionary<string, object>(), deviceId))
+            {
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", account.AccessToken);
+                await SendAsync(req, token).ConfigureAwait(false);
+            }
+        }
+
+        private HttpRequestMessage CreatePost(string path, object body, string deviceId)
+        {
+            Guid parsed;
+            if (!Guid.TryParse(deviceId, out parsed))
+                throw new InvalidOperationException("本机 CloudBase 设备身份无效。");
+            var request = new HttpRequestMessage(HttpMethod.Post, path);
+            request.Headers.TryAddWithoutValidation("x-device-id", parsed.ToString("D"));
+            request.Content = new StringContent(_json.Serialize(body), Encoding.UTF8, "application/json");
+            return request;
+        }
+
+        private async Task<Dictionary<string, object>> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token).ConfigureAwait(false))
+                {
+                    if (response.Content.Headers.ContentLength > MaxResponseLength)
+                        throw new InvalidOperationException("CloudBase 响应过大。");
+                    if (!response.IsSuccessStatusCode)
+                        throw new InvalidOperationException(DescribeError(response.StatusCode));
+                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    if (body.Length > MaxResponseLength) throw new InvalidOperationException("CloudBase 响应过大。");
+                    var result = _json.DeserializeObject(body) as Dictionary<string, object>;
+                    if (result == null) throw new InvalidOperationException("CloudBase 登录响应格式不正确。");
+                    return result;
+                }
+            }
+        }
+
+        private static string DescribeError(HttpStatusCode status)
+        {
+            if (status == HttpStatusCode.TooManyRequests)
+                return "验证码请求过于频繁，请稍后重试。";
+            if (status == HttpStatusCode.Forbidden || status == HttpStatusCode.NotImplemented)
+                return "邮箱验证码登录暂不可用。请检查 CloudBase 邮箱登录开关、邮件代发及图片验证码配置。";
+            if (status == HttpStatusCode.BadRequest)
+                return "请求被 CloudBase 拒绝：可能是验证码错误、过期，或需要图片验证码。请重新获取。";
+            return "CloudBase 身份服务暂不可用（HTTP " + (int)status + "）。";
+        }
+
+        private static string ReadString(Dictionary<string, object> obj, string key)
+        {
+            object value;
+            return obj != null && obj.TryGetValue(key, out value) && value != null
+                ? Convert.ToString(value) : string.Empty;
+        }
+
+        private static bool ReadBoolean(Dictionary<string, object> obj, string key)
+        {
+            object value;
+            return obj != null && obj.TryGetValue(key, out value) &&
+                   value != null && Convert.ToString(value).Equals("True", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int ReadSeconds(Dictionary<string, object> obj, string key, int fallback)
+        {
+            int seconds;
+            return int.TryParse(ReadString(obj, key), out seconds) && seconds > 0
+                ? Math.Min(seconds, 600) : fallback;
+        }
+
+        internal static void ValidateForSmokeTest()
+        {
+            if (!IsValidEmail("player@example.com") || IsValidEmail("invalid-email") ||
+                IsValidEmail("player@") || IsValidEmail("x@y\n.com"))
+                throw new InvalidOperationException("GGman account email input validation changed.");
+            GgmanAccountSession.Clear();
+            if (GgmanAccountSession.Current != null)
+                throw new InvalidOperationException("Account session should start signed out.");
+            var account = new GgmanAccountIdentity
+            {
+                Email = "player@example.com", UserId = "registered-uid",
+                AccessToken = "test-token"
+            };
+            GgmanAccountSession.Set(account);
+            if (GgmanAccountSession.Current.UserId != account.UserId)
+                throw new InvalidOperationException("Registered account identity was not preserved.");
+            GgmanAccountSession.Clear();
+            if (GgmanAccountSession.Current != null)
+                throw new InvalidOperationException("Account logout did not clear in-process identity.");
+            using (var client = new GgmanEmailAuthClient())
+            using (var send = client.CreatePost("auth/v1/verification",
+                new Dictionary<string, object> { { "email", "player@example.com" }, { "target", "ANY" } },
+                Guid.NewGuid().ToString("D")))
+            {
+                if (send.Headers.Authorization != null || !send.Headers.Contains("x-device-id") ||
+                    send.Method != HttpMethod.Post ||
+                    send.RequestUri.ToString().IndexOf("verification", StringComparison.Ordinal) < 0)
+                    throw new InvalidOperationException("GGman email verification request contract changed.");
+            }
+        }
+
+        public void Dispose()
+        {
+            _http.Dispose();
+        }
+    }
+}
