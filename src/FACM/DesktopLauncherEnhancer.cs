@@ -287,7 +287,7 @@ namespace FACM
             var button = new Button
             {
                 Text = text,
-                Size = new Size(sx(124), sy(31)),
+                Size = new Size(sx(119), sy(31)),
                 Margin = new Padding(0, 0, sx(5), 0),
                 BackColor = FacmDesignSystem.Surface,
                 ForeColor = FacmDesignSystem.TextMuted,
