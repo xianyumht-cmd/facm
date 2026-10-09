@@ -23,7 +23,7 @@ namespace FACM.Online
         {
             UpdateInstaller.ValidateEmbeddedUpdaterForSmokeTest();
 
-            var notes = "版本更新说明第一行\\n第二行：更新稳定性与界面提示";
+            var notes = "版本更新说明第一行" + Environment.NewLine + "第二行：更新稳定性与界面提示";
             var checkedUpdate = new OnlineSnapshot
             {
                 CurrentVersion = new Version(3, 5, 57),
