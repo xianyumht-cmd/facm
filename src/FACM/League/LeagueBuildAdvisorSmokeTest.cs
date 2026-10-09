@@ -16,7 +16,31 @@ namespace FACM.League
             ValidateUnresolvedRankedPosition();
             ValidateModeAndPositionMapping();
             ValidateCancellation();
+            ValidateRecommendationPageLayout();
             Require(LeagueBuildAdvisorUiBridge.HasTrayAccessForSmokeTest(), "Build Advisor lost tray access contract.");
+        }
+
+        private static void ValidateRecommendationPageLayout()
+        {
+            LeagueRecommendationDesignEnhancer.ValidateForSmokeTest();
+            Require(LeagueRecommendationForm.ColumnsForWidthForSmokeTest(420) == 1 &&
+                    LeagueRecommendationForm.ColumnsForWidthForSmokeTest(680) == 2 &&
+                    LeagueRecommendationForm.ColumnsForWidthForSmokeTest(920) == 3,
+                "Recommendation page must adapt its card columns to embedded workbench width.");
+
+            var narrow = LeagueRecommendationForm.ContentHeightForSmokeTest(420);
+            var medium = LeagueRecommendationForm.ContentHeightForSmokeTest(680);
+            var wide = LeagueRecommendationForm.ContentHeightForSmokeTest(920);
+            Require(narrow > medium && medium > wide,
+                "Recommendation page must make overflow scrollable instead of clipping narrow content.");
+
+            Require(LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Success) ==
+                    FACM.Theming.FacmDesignSystem.Success &&
+                    LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Failed) ==
+                    FACM.Theming.FacmDesignSystem.Error &&
+                    LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Partial) ==
+                    FACM.Theming.FacmDesignSystem.Warning,
+                "Recommendation result status must distinguish verified success, partial and failed states.");
         }
 
         private static void ValidateParsingAndCaching()
