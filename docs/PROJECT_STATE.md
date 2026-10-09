@@ -12,10 +12,10 @@
 - release_notes：GGman 3.5.52：继续改进 LOL 工作台的“我的战绩”页面。战绩列表、英雄统计、底部操作按钮和七列表格会随窗口大小自适应调整，缩小工作台后不再依赖固定 860×720 布局；加载、无记录或客户端未连接时在列表中直接显示对应状态；胜负结果仅对结果一列使用红绿色强调，其他数据保持清晰易读；识别到英雄名称后不再重复显示内部英雄编号。保持原有战绩查询、缓存、滚动列表、分批加载与悬浮球使用方式，不修改任何对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Player history UX pass (3.5.52 target, unpublished at this point)
+## 2026-10-09 — Player history UX pass (3.5.52 published)
 
 - Active follow-on Issue #300, branch `feat/ggman-player-page-ux-20261009`. Scope is the existing `LeaguePlayerForm` only: resize lists/columns/buttons by actual embedded form size, show explicit empty/loading status in the match area using established localized copy, and use win/loss colors only in result cells. `LeaguePlayerSmokeTest` adds deterministic bounds/column-width regression checks. No changes to match HTTP endpoints, cache, data enrichment, Gameflow ownership, cloud storage or floating-ball primary entry.
-- Formal release target **3.5.52**, only after GGman Windows Build, FACM UI Text Contract, PR merge, signed publisher and enabled online manifest are verified. Native multi-DPI and live League screenshot acceptance remain unverified, not a reason to claim the browser prototype is production output.
+- **GGman 3.5.52 formally published:** PR #303 squash merged as `6f2ff661c300ab14040d7d37182ef8b9d82cda86`; final head `c55258a5263ccab920c43ec4aa79caa84afefa0b` passed Windows Build #37939538526 and UI Text Contract #37939538483. The canonical signed 3.5 publisher #37939819769 succeeded, with released byte-identical `GGman.exe` and `FACM.exe` (2,382,232 bytes) and SHA-256 `558F93AA78BE4796EF5F44E1D9481078C4DC5BBB468810DA16CC5AA1D9C0A43D`. Online manifest for 3.5.52 has `enabled=true` and points to compatibility asset. Actual Win10/Win11 multi-DPI and real League screenshot acceptance remain pending; never call these tests passed based on CI alone.
 
 
 ## 2026-10-09 — GGman workbench navigation redesign (3.5.51 published)
