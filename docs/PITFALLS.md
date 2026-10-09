@@ -171,3 +171,8 @@ The old Player form used fixed 860x720 positions and a fixed footer, but the wor
 ## Recommendation page hosted inside single-rail Hub (2026-10-09)
 
 A legacy 900x700 recommendation Form has absolute-positioned cards, preview textboxes and bottom buttons. After embedding inside the new compact Hub, static bottom coordinates risk clipping, and theme adaptors that identify labels by their old `Top` position stop working when the layout changes. Keep scrollable content separate from a pinned action footer; use control-identity selectors for preview captions. Theme changes must reapply semantic action/result statuses rather than turning warnings and errors into generic accent text. Keep native keyboard access on checkable choices, and preserve dialog confirmation and LCU write ownership.
+
+
+## Mayhem and ChampSelect chrome patch safety (2026-10-09)
+
+`MayhemLookupLayoutPolicy` already supports one-row and stacked toolbar geometries; do not throw it away for fixed coordinates. Add tests for lower dimensions, including query/action overlap and progress/status/preview ordering, before changing user-facing styling. `LeagueChampSelectAssistantForm` has a non-activating transient episode and only appears once the Bench state is confirmed; introducing a general-purpose dialog, changing `ShowWithoutActivation`, or rearranging fixed sizes risks interrupting League play. Prefer palette/token and accessible-control changes without new polling, LCU writes, or inferred game state. Keep end-user branding GGman in error dialogs and exported filenames even where internal FACM compatibility identifiers remain.
