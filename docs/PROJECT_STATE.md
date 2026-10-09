@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.52：继续改进 LOL 工作台的“我的战绩”页面。战绩列表、英雄统计、底部操作按钮和七列表格会随窗口大小自适应调整，缩小工作台后不再依赖固定 860×720 布局；加载、无记录或客户端未连接时在列表中直接显示对应状态；胜负结果仅对结果一列使用红绿色强调，其他数据保持清晰易读；识别到英雄名称后不再重复显示内部英雄编号。保持原有战绩查询、缓存、滚动列表、分批加载与悬浮球使用方式，不修改任何对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Recommendation UX pass (3.5.53 target, not yet published)
+
+- Tracking Issue #300; branch `feat/ggman-recommendation-ux-20261009`. Scope: League recommendation page only. Converted fixed body to scrollable responsive 1/2/3-column selection/preview layout, pinned action/status footer, accessible native button focus, consistent design-system token colors, semantic apply/auto-apply status feedback and matching theme restyle selector. Added deterministic layout and status smoke. Kept recommendation read, confirm, apply, deduplication, auto-apply ownership, client state, updater and floating-ball main entry unchanged.
+- Release target **3.5.53** after green GitHub Windows build/UI text checks, PR merge and canonical signed publishing. Do not claim native multi-DPI/League screenshot acceptance based on CI alone.
+
+
 ## 2026-10-09 — Player history UX pass (3.5.52 published)
 
 - Active follow-on Issue #300, branch `feat/ggman-player-page-ux-20261009`. Scope is the existing `LeaguePlayerForm` only: resize lists/columns/buttons by actual embedded form size, show explicit empty/loading status in the match area using established localized copy, and use win/loss colors only in result cells. `LeaguePlayerSmokeTest` adds deterministic bounds/column-width regression checks. No changes to match HTTP endpoints, cache, data enrichment, Gameflow ownership, cloud storage or floating-ball primary entry.
