@@ -358,11 +358,11 @@ namespace FACM.Online
             using (var emailRequest = new HttpRequestMessage(HttpMethod.Post, "auth/v1/verification"))
             {
                 AttachCaptchaToken(emailRequest, null);
-                Require(!emailRequest.Headers.Contains("x-captcha-token"),
-                    "Normal email send must not fabricate CAPTCHA headers.");
+                if (emailRequest.Headers.Contains("x-captcha-token"))
+                    throw new InvalidOperationException("Normal email send fabricated CAPTCHA headers.");
                 AttachCaptchaToken(emailRequest, "verified-captcha-placeholder");
-                Require(emailRequest.Headers.Contains("x-captcha-token"),
-                    "Challenged email send must include the verified CAPTCHA header.");
+                if (!emailRequest.Headers.Contains("x-captcha-token"))
+                    throw new InvalidOperationException("Challenged email send lost CAPTCHA proof.");
             }
             var fakeImage = "data:image/gif;base64," + Convert.ToBase64String(
                 Encoding.ASCII.GetBytes("GIF89a123456789012345"));
