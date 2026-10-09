@@ -34,6 +34,18 @@ namespace FACM.League
         private readonly Label _statusValue;
         private readonly Button _refreshButton;
         private readonly Button _applyButton;
+        private readonly Panel _scrollBody;
+        private readonly Panel _contentPanel;
+        private readonly Panel _actionBar;
+        private readonly Label _chooseCaption;
+        private readonly Label _autoHint;
+        private readonly Label _contextCaption;
+        private readonly Label _runeLabel;
+        private readonly Label _spellLabel;
+        private readonly Label _itemLabel;
+        private readonly Label _extraCaption;
+        private readonly Label _skillsCaption;
+        private readonly Label _countersCaption;
 
         private LeagueBuildAdvisorSnapshot _snapshot;
         private bool _busy;
@@ -56,9 +68,9 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(900, 700);
             MinimumSize = new Size(860, 650);
-            BackColor = Color.FromArgb(10, 15, 25);
-            ForeColor = Color.FromArgb(235, 242, 255);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            ForeColor = FACM.Theming.FacmDesignSystem.Text;
+            Font = new Font(FACM.Theming.FacmThemeRuntime.Current.FontName, 9F);
             DoubleBuffered = true;
 
             var header = new RecommendationHeaderPanel
@@ -87,7 +99,7 @@ namespace FACM.League
                 AutoEllipsis = true
             });
 
-            var chooseCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Choose), 112);
+            _chooseCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Choose), 112);
             _runesChoice = CreateChoice(
                 T(LeagueRecommendationUiTextKeys.Runes),
                 T(LeagueRecommendationUiTextKeys.RunesHint),
@@ -125,7 +137,7 @@ namespace FACM.League
                 ForeColor = Color.FromArgb(129, 224, 255),
                 AutoEllipsis = true
             };
-            var autoHint = new Label
+            _autoHint = new Label
             {
                 Text = T(LeagueRecommendationUiTextKeys.AutoHint),
                 Location = new Point(30, 252),
@@ -137,7 +149,7 @@ namespace FACM.League
             _autoController.StatusChanged += HandleAutoStatusChanged;
             UpdateAutoStatus(_autoController.LastStatus);
 
-            var contextCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Context), 286);
+            _contextCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Context), 286);
             _contextValue = new Label
             {
                 Location = new Point(30, 313),
@@ -149,15 +161,15 @@ namespace FACM.League
             // Keep captions outside native TextBox windows. Overlaying Labels on a multiline TextBox
             // can disappear at some DPI/scaling combinations because the native edit control owns its
             // own HWND and paint order.
-            var runeLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Runes), 28, 348);
-            var spellLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Spells), 306, 348);
-            var itemLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Items), 584, 348);
+            _runeLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Runes), 28, 348);
+            _spellLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Spells), 306, 348);
+            _itemLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Items), 584, 348);
             _runePreview = CreatePreviewBox(new Rectangle(28, 372, 268, 78));
             _spellPreview = CreatePreviewBox(new Rectangle(306, 372, 268, 78));
             _itemPreview = CreatePreviewBox(new Rectangle(584, 372, 268, 78));
 
-            var extraCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Extra), 466);
-            var skillsCaption = new Label
+            _extraCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Extra), 466);
+            _skillsCaption = new Label
             {
                 Text = T(LeagueRecommendationUiTextKeys.Skills),
                 Location = new Point(30, 495),
@@ -171,7 +183,7 @@ namespace FACM.League
                 ForeColor = Color.FromArgb(224, 232, 247),
                 AutoEllipsis = true
             };
-            var countersCaption = new Label
+            _countersCaption = new Label
             {
                 Text = T(LeagueRecommendationUiTextKeys.Counters),
                 Location = new Point(30, 523),
@@ -205,31 +217,59 @@ namespace FACM.League
             _applyButton.Enabled = false;
             _applyButton.Click += async delegate { await ApplySelectedAsync(); };
 
-            Controls.Add(_applyButton);
-            Controls.Add(_refreshButton);
-            Controls.Add(_statusValue);
-            Controls.Add(_countersValue);
-            Controls.Add(countersCaption);
-            Controls.Add(_skillsValue);
-            Controls.Add(skillsCaption);
-            Controls.Add(extraCaption);
-            Controls.Add(_itemPreview);
-            Controls.Add(_spellPreview);
-            Controls.Add(_runePreview);
-            Controls.Add(itemLabel);
-            Controls.Add(spellLabel);
-            Controls.Add(runeLabel);
-            Controls.Add(_contextValue);
-            Controls.Add(contextCaption);
-            Controls.Add(autoHint);
-            Controls.Add(_autoStatus);
-            Controls.Add(_autoToggle);
-            Controls.Add(_itemsChoice);
-            Controls.Add(_spellsChoice);
-            Controls.Add(_runesChoice);
-            Controls.Add(chooseCaption);
+            _contentPanel = new Panel
+            {
+                Location = Point.Empty,
+                BackColor = FACM.Theming.FacmDesignSystem.Canvas,
+                Size = new Size(820, 530)
+            };
+            _scrollBody = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = FACM.Theming.FacmDesignSystem.Canvas,
+                Padding = Padding.Empty
+            };
+            _actionBar = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 69,
+                BackColor = FACM.Theming.FacmDesignSystem.Surface,
+                Padding = Padding.Empty
+            };
+
+            _actionBar.Controls.Add(_applyButton);
+            _actionBar.Controls.Add(_refreshButton);
+            _actionBar.Controls.Add(_statusValue);
+            _contentPanel.Controls.Add(_countersValue);
+            _contentPanel.Controls.Add(_countersCaption);
+            _contentPanel.Controls.Add(_skillsValue);
+            _contentPanel.Controls.Add(_skillsCaption);
+            _contentPanel.Controls.Add(_extraCaption);
+            _contentPanel.Controls.Add(_itemPreview);
+            _contentPanel.Controls.Add(_spellPreview);
+            _contentPanel.Controls.Add(_runePreview);
+            _contentPanel.Controls.Add(_itemLabel);
+            _contentPanel.Controls.Add(_spellLabel);
+            _contentPanel.Controls.Add(_runeLabel);
+            _contentPanel.Controls.Add(_contextValue);
+            _contentPanel.Controls.Add(_contextCaption);
+            _contentPanel.Controls.Add(_autoHint);
+            _contentPanel.Controls.Add(_autoStatus);
+            _contentPanel.Controls.Add(_autoToggle);
+            _contentPanel.Controls.Add(_itemsChoice);
+            _contentPanel.Controls.Add(_spellsChoice);
+            _contentPanel.Controls.Add(_runesChoice);
+            _contentPanel.Controls.Add(_chooseCaption);
+            _scrollBody.Controls.Add(_contentPanel);
+            Controls.Add(_scrollBody);
+            Controls.Add(_actionBar);
             Controls.Add(header);
 
+            _scrollBody.ClientSizeChanged += delegate { LayoutRecommendation(); };
+            _actionBar.Resize += delegate { LayoutActionBar(); };
+            LayoutRecommendation();
+            LayoutActionBar();
             ApplyWaitingState();
             UpdateChoiceStyles();
             Shown += async delegate { await RefreshAsync(false); };
@@ -309,10 +349,104 @@ namespace FACM.League
                 BackColor = primary ? Color.FromArgb(58, 91, 218) : Color.FromArgb(28, 39, 58),
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
-                TabStop = false
+                TabStop = true
             };
             button.FlatAppearance.BorderColor = primary ? Color.FromArgb(94, 219, 255) : Color.FromArgb(63, 78, 105);
             return button;
+        }
+
+        internal static int ColumnsForWidthForSmokeTest(int width)
+        {
+            return width >= 790 ? 3 : width >= 520 ? 2 : 1;
+        }
+
+        internal static int ContentHeightForSmokeTest(int width)
+        {
+            var columns = ColumnsForWidthForSmokeTest(width);
+            var selectionRows = (3 + columns - 1) / columns;
+            var previewRows = selectionRows;
+            return 40 + selectionRows * 74 + 24 + 30 + 25 + 22 + 52 + 26 +
+                   previewRows * 122 + 32 + 32 + 32 + 24;
+        }
+
+        private void LayoutRecommendation()
+        {
+            if (_scrollBody == null || _scrollBody.IsDisposed || _contentPanel == null || _contentPanel.IsDisposed)
+                return;
+
+            var panelWidth = Math.Max(320, _scrollBody.ClientSize.Width - 3);
+            var inset = 24;
+            var usable = Math.Max(272, panelWidth - inset * 2);
+            var columns = ColumnsForWidthForSmokeTest(usable);
+            var gap = 12;
+            var cellWidth = (usable - (columns - 1) * gap) / columns;
+            var selectionRows = (3 + columns - 1) / columns;
+
+            _contentPanel.SuspendLayout();
+            try
+            {
+                _contentPanel.Width = panelWidth;
+                _chooseCaption.SetBounds(inset, 9, usable, 25);
+                var y = 41;
+                var choices = new[] { _runesChoice, _spellsChoice, _itemsChoice };
+                for (var i = 0; i < choices.Length; i++)
+                    choices[i].SetBounds(inset + (i % columns) * (cellWidth + gap),
+                        y + (i / columns) * 74, cellWidth, 64);
+
+                y += selectionRows * 74 + 18;
+                _autoToggle.SetBounds(inset, y, Math.Min(310, usable), 28);
+                if (usable >= 570)
+                {
+                    _autoStatus.SetBounds(inset + 300, y + 2, usable - 300, 25);
+                    y += 34;
+                }
+                else
+                {
+                    _autoStatus.SetBounds(inset, y + 29, usable, 24);
+                    y += 60;
+                }
+                _autoHint.SetBounds(inset, y, usable, 22);
+                y += 32;
+
+                _contextCaption.SetBounds(inset, y, usable, 25);
+                y += 28;
+                _contextValue.SetBounds(inset, y, usable, 28);
+                y += 42;
+
+                var titles = new[] { _runeLabel, _spellLabel, _itemLabel };
+                var previews = new[] { _runePreview, _spellPreview, _itemPreview };
+                for (var i = 0; i < previews.Length; i++)
+                {
+                    var left = inset + (i % columns) * (cellWidth + gap);
+                    var top = y + (i / columns) * 122;
+                    titles[i].SetBounds(left, top, cellWidth, 22);
+                    previews[i].SetBounds(left, top + 26, cellWidth, 87);
+                }
+
+                y += selectionRows * 122 + 12;
+                _extraCaption.SetBounds(inset, y, usable, 25);
+                y += 30;
+                _skillsCaption.SetBounds(inset, y, 95, 23);
+                _skillsValue.SetBounds(inset + 102, y, Math.Max(164, usable - 102), 23);
+                y += 32;
+                _countersCaption.SetBounds(inset, y, 95, 23);
+                _countersValue.SetBounds(inset + 102, y, Math.Max(164, usable - 102), 23);
+                _contentPanel.Height = y + 49;
+            }
+            finally
+            {
+                _contentPanel.ResumeLayout(false);
+            }
+        }
+
+        private void LayoutActionBar()
+        {
+            if (_actionBar == null || _actionBar.IsDisposed) return;
+            var width = _actionBar.ClientSize.Width;
+            var right = Math.Max(248, width - 22);
+            _applyButton.SetBounds(right - 106, 16, 106, 36);
+            _refreshButton.SetBounds(right - 220, 16, 106, 36);
+            _statusValue.SetBounds(24, 9, Math.Max(140, right - 268), 53);
         }
 
         private void ChoiceChanged(object sender, EventArgs e)
