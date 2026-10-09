@@ -12,12 +12,12 @@
 - release_notes：GGman 3.5.50：悬浮球仍然是默认主入口，点击后显示全新两列四入口快捷面板，可直达 LOL 工作台、我的战绩、海斗攻略与快捷工具；下方保留清理修复、个性化和更多设置。改进面板布局、圆角与背景一致性，显示完整版本号；移除快捷面板对旧窗口私有字段的反射依赖。保留原有托盘、悬浮球拖动及游戏状态识别逻辑，不修改对局读写行为。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Floating-ball-first UX release 3.5.50 (implementation awaiting gates)
+## 2026-10-09 — Floating-ball-first UX 3.5.50 (published)
 
 - User confirmed floating ball is the **primary unobtrusive entry**; full workbench is optional on-demand. Iterations must use formal versioned online releases and durable changelogs after standard safety validation; detached candidate packages are not the accepted publication workflow.
 - UX tracking: Issue #300; branch `feat/ggman-product-ux-spec-20261009`, PR #301. First implementation slice changes `CompactMenuForm.cs` and `DesktopLauncherEnhancer.cs`: typed launcher integration instead of private reflection, two-column/two-row League shortcuts, utility footer, consistent compact shell painter/rounding, full patch version in launcher header. Floating-ball ownership, process/tray exit semantics, game-state reading and League write routes are unchanged.
 - R0 source design/audit docs live in `docs/GGMAN-PRODUCT-DESIGN.md` and `docs/UX-AUDIT.md`. Browser interactive mock is only a design reference; Windows-native UI fidelity and real game-client acceptance are still unverified.
-- Release target: **3.5.50**; this entry does not establish release success. Required next step: green GGman Windows Build + UI Text Contract on the final PR head, safe merge, update `release/3.5-request.json` on main, and verify signed public assets/manifest from the formal publisher. Mark public only after verifying that workflow.
+- Release **v3.5.50** verified: PR #301 squash-merged as `f31f8e0b9192c2a43217baee81083dcf5b2404ce`; PR Windows Build #37935700229 and UI Text Contract passed. Official publisher #37935975938 succeeded; signed public `GGman.exe` / compatibility `FACM.exe` are byte-identical (2,381,720 bytes; SHA-256 `F13A8CC1B3B3775D6B8DEFD0D2DB2E639A27432A9C090EE624E250DCD396119E`); `online/version.json` is enabled and points to v3.5.50. Browser prototype and tests do not establish real Windows DPI/League-client screenshot fidelity, which remains follow-up work.
 
 
 ## 2026-10-09 — GGman product-wide UX redesign (R0 design review, no runtime change)
