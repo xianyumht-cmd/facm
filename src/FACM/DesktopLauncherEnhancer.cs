@@ -26,6 +26,7 @@ namespace FACM
         private const int BaseHeight = 680;
         private const int CompactBaseHeight = 286;
         private const int ContextCompactBaseHeight = 388;
+        private const int WelcomeExtraHeight = 122;
         private const int TileBaseWidth = 183;
         private const int TileBaseHeight = 66;
         private const int TileGapX = 10;
@@ -60,6 +61,7 @@ namespace FACM
             if (theme == null) return false;
             var ui = UiTextCatalog.Load();
             var settings = menu.LauncherSettings;
+            var welcome = menu.LauncherOwner != null && menu.LauncherOwner.GettingStartedVisible;
 
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
@@ -76,7 +78,7 @@ namespace FACM
                 if (!ReferenceEquals(control, header)) control.Visible = false;
             }
 
-            var compactBaseHeight = contextual ? ContextCompactBaseHeight : CompactBaseHeight;
+            var compactBaseHeight = ResolveLauncherHeightForSmokeTest(contextual, welcome);
             var compactHeight = sy(compactBaseHeight);
             menu.ClientSize = new Size(menu.ClientSize.Width, compactHeight);
             menu.BackColor = FacmDesignSystem.Canvas;
@@ -100,7 +102,63 @@ namespace FACM
                 header.BringToFront();
             }
 
-            var launcherTop = contextual ? 184 : 82;
+            var launcherTop = ResolveLauncherTopForSmokeTest(contextual, welcome);
+            if (welcome)
+            {
+                var welcomePanel = new Panel
+                {
+                    Name = "FACM.DesktopLauncher.Welcome",
+                    Location = new Point(sx(16), sy(contextual ? 184 : 78)),
+                    Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(114)),
+                    BackColor = FacmDesignSystem.Surface,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                var titleLabel = new Label
+                {
+                    Text = ui.Get(UiTextKeys.ShellGettingStartedTitle),
+                    Location = new Point(sx(12), sy(6)),
+                    Size = new Size(welcomePanel.Width - sx(24), sy(23)),
+                    BackColor = Color.Transparent,
+                    ForeColor = FacmDesignSystem.Text,
+                    Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
+                };
+                var hintLabel = new Label
+                {
+                    Text = ui.Get(UiTextKeys.ShellGettingStartedHint),
+                    Location = new Point(sx(12), sy(30)),
+                    Size = new Size(welcomePanel.Width - sx(24), sy(39)),
+                    BackColor = Color.Transparent,
+                    ForeColor = FacmDesignSystem.TextMuted
+                };
+                var start = new FacmActionButton
+                {
+                    Text = ui.Get(UiTextKeys.ShellGettingStartedOpen),
+                    Location = new Point(sx(12), sy(76)),
+                    Size = new Size(sx(134), sy(29)),
+                    Tone = FacmButtonTone.Primary,
+                    AccessibleName = ui.Get(UiTextKeys.ShellGettingStartedOpen)
+                };
+                start.Click += delegate
+                {
+                    menu.LauncherOwner.DismissGettingStarted(false);
+                    OpenLeague(menu, false);
+                };
+                var dismiss = new FacmActionButton
+                {
+                    Text = ui.Get(UiTextKeys.ShellGettingStartedDismiss),
+                    Location = new Point(sx(157), sy(76)),
+                    Size = new Size(sx(94), sy(29)),
+                    Tone = FacmButtonTone.Secondary,
+                    AccessibleName = ui.Get(UiTextKeys.ShellGettingStartedDismiss)
+                };
+                dismiss.Click += delegate { menu.LauncherOwner.DismissGettingStarted(true); };
+                welcomePanel.Controls.Add(titleLabel);
+                welcomePanel.Controls.Add(hintLabel);
+                welcomePanel.Controls.Add(start);
+                welcomePanel.Controls.Add(dismiss);
+                menu.Controls.Add(welcomePanel);
+                welcomePanel.BringToFront();
+            }
             if (contextual)
             {
                 var contextCard = new LauncherContextCard(theme, settings, LeagueShellContextState.Current)
@@ -141,7 +199,7 @@ namespace FACM
 
             var footer = new FlowLayoutPanel
             {
-                Location = new Point(sx(16), sy(contextual ? 339 : 237)),
+                Location = new Point(sx(16), sy(ResolveFooterTopForSmokeTest(contextual, welcome))),
                 Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(38)),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
@@ -159,6 +217,22 @@ namespace FACM
             menu.Controls.Add(footer);
             footer.BringToFront();
             return true;
+        }
+
+        internal static int ResolveLauncherHeightForSmokeTest(bool contextual, bool welcome)
+        {
+            return (contextual ? ContextCompactBaseHeight : CompactBaseHeight) +
+                   (welcome ? WelcomeExtraHeight : 0);
+        }
+
+        internal static int ResolveLauncherTopForSmokeTest(bool contextual, bool welcome)
+        {
+            return (contextual ? 184 : 82) + (welcome ? WelcomeExtraHeight : 0);
+        }
+
+        internal static int ResolveFooterTopForSmokeTest(bool contextual, bool welcome)
+        {
+            return (contextual ? 339 : 237) + (welcome ? WelcomeExtraHeight : 0);
         }
 
         internal static void ValidateDefinitionForSmokeTest()
