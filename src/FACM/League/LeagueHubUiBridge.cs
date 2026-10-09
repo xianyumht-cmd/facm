@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Reflection;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
@@ -9,8 +8,6 @@ namespace FACM.League
 {
     internal static class LeagueHubUiBridge
     {
-        private static readonly MethodInfo ShowViewMethod = typeof(LeagueHubForm).GetMethod(
-            "ShowView", BindingFlags.Instance | BindingFlags.NonPublic);
         private static LeagueHubModule _module;
         private static bool _dialogOpen;
         private static bool _openPending;
@@ -70,24 +67,8 @@ namespace FACM.League
                 using (var form = _module.CreateForm(ui))
                 {
                     FACM.HoverDescriptionEnhancer.ApplyLeagueHub(form, ui);
-                    if (!string.IsNullOrWhiteSpace(requestedViewId) && ShowViewMethod != null)
-                    {
-                        form.Shown += delegate
-                        {
-                            try
-                            {
-                                ShowViewMethod.Invoke(form, new object[] { requestedViewId, true });
-                            }
-                            catch (TargetInvocationException exception)
-                            {
-                                AppLog.Error("LOL Hub contextual navigation failed", exception.InnerException ?? exception);
-                            }
-                            catch (Exception exception)
-                            {
-                                AppLog.Error("LOL Hub contextual navigation failed", exception);
-                            }
-                        };
-                    }
+                    var hub = form as LeagueHubForm;
+                    if (hub != null) hub.SetInitialView(requestedViewId);
                     form.ShowDialog(owner);
                 }
             }
@@ -112,7 +93,7 @@ namespace FACM.League
 
         internal static bool ContextNavigationAvailableForSmokeTest()
         {
-            return ShowViewMethod != null;
+            return LeagueHubForm.ResolveInitialViewForSmokeTest(LeagueHubNavigation.Player) == LeagueHubNavigation.Player;
         }
     }
 }
