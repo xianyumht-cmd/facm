@@ -236,3 +236,8 @@ The player history page should keep a high-density virtual ListView rather than 
 ## 2026-10-09 — Responsive, sober recommendation controls
 
 Preserve recommendation selection, confirmation and LCU write ownership in `LeagueRecommendationForm`, while moving its pure presentation onto existing `FacmDesignSystem` tokens. At narrow embedded workbench widths, let selections and previews wrap to two or one column and scroll vertically; keep the action/status footer visible so important applied/rejected feedback is not lost off-screen. Reuse existing UI text keys, keep actual client/hero state authoritative and distinguish failed/partial/succeeded results without implying success on a rejected or uncertain write. This is a UI-focused 3.5.53 patch, not a replacement of the underlying recommendation service.
+
+
+## 2026-10-09 — Preserve native companion lifecycle while unifying Mayhem chrome
+
+The floating ball remains GGman's primary unobtrusive process entry. The Mayhem lookup uses its proven responsive policy instead of another form rewrite. Standardize feedback, accessible button naming and public branding within that page. Keep the ChampSelect quick assistant's explicit non-activating, Bench-gated compact/expanded lifecycle and game actions intact, while replacing its private hardcoded visual palette with common design tokens and semantic result colors. Treat the narrow runtime companion as a separate high-risk lifecycle surface for a later narrowly verified release; do not conflate styling checks with real LCU interaction validation.
