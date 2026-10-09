@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.53
-- GitHub Release：v3.5.53
+- 版本：GGman 3.5.54
+- GitHub Release：v3.5.54
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：b44fcee721afbc2bd678a9b37ceb172f813ccf9e
-- 发布元数据提交：6fdb2f210d9f02c30f374a076d6479e0db03ccc3
-- Release GGman.exe SHA-256：AA7605B7B62F200DF8283D50EEAE9B6CBE0E7BB94652BC557ADD1468A37C32A9
-- release_notes：GGman 3.5.53：优化 LOL 工作台的对局推荐页面。符文、召唤师技能和装备的选择卡片及推荐预览会根据可用宽度自动排成三列、两列或一列；窗口较窄时内容可滚动，而刷新、应用所选和操作结果始终显示在底部。统一按钮、文字与选择卡片的颜色和交互状态，移除原有蓝紫渐变装饰；应用成功、部分成功、失败及自动应用反馈使用清晰的状态色。保留原有的应用前确认、英雄阶段校验、数据查询及符文装备写入保护；悬浮球仍为默认主入口。
+- 发布基础 main：f2761772a0482d005b50bcc4502ebfe994255958
+- 发布元数据提交：b594ddef33af717ae3ff8049d350a758b7acd8c6
+- Release GGman.exe SHA-256：1F0A4BA8872A2EE84A683C07FE24710265B550FD780073642A0276C21E472DAF
+- release_notes：GGman 3.5.54：继续统一海斗攻略与选英雄小助手的视觉和操作细节。海斗查询支持更清晰的输入与按钮辅助信息，取消查询时显示明确的警示状态，并统一提示框与图片导出文件名为 GGman；加强窄窗口下搜索栏、进度、结果区互不遮挡的布局回归验证。选英雄候选席小助手采用 GGman 统一配色、字体和操作按钮，增加按钮辅助提示与换英雄成功/失败状态区分。保留悬浮球默认主入口、游戏内无抢焦点弹窗、候选席交互、自动攻略数据链和现有 LOL 操作保护。本版未修改海斗上游数据源。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 target, pending release)
