@@ -117,6 +117,9 @@ namespace FACM.League
 
             StyleAction(GetField<Button>(form, "_refreshButton"), false);
             StyleAction(GetField<Button>(form, "_applyButton"), true);
+
+            var recommendation = form as LeagueRecommendationForm;
+            if (recommendation != null) recommendation.RefreshVisualState();
             form.Invalidate(true);
         }
 
