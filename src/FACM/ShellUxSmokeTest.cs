@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Windows.Forms;
 using FACM.League;
 using FACM.AppHost.Modules;
 
@@ -13,6 +14,19 @@ namespace FACM
             // Keep this contract smoke pure: runtime menu objects are validated by MainForm, while CI
             // validates the fixed Shell roots, desktop-launcher composition and LOL helper information architecture.
             ShellMenuGroups.ValidateDefinitionForSmokeTest();
+            using (var root = new ContextMenuStrip())
+            {
+                root.Items.Add(ShellMenuGroups.CreateRootGroup(
+                    ShellMenuGroups.LeagueGroupName, "LOL"));
+                root.Items.Add(ShellMenuGroups.CreateRootGroup(
+                    ShellMenuGroups.MoreGroupName, "More"));
+                var originalCount = root.Items.Count;
+                Require(ShellMenuGroups.FindGroup(root, ShellMenuGroups.LeagueGroupName) == null &&
+                        root.Items.Count == originalCount,
+                    "Legacy League dropdown must stay absent without modifying the tray menu.");
+                Require(ShellMenuGroups.FindGroup(root, ShellMenuGroups.MoreGroupName) != null,
+                    "Tray More group lookup must keep working independently of League navigation.");
+            }
             DesktopLauncherEnhancer.ValidateDefinitionForSmokeTest();
             Require(SettingsModule.ShouldShowFirstUseForSmokeTest(false, false, false),
                 "A genuinely fresh install must receive first-use guidance.");
