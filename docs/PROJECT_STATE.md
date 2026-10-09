@@ -12,11 +12,12 @@
 - release_notes：GGman 3.5.54：继续统一海斗攻略与选英雄小助手的视觉和操作细节。海斗查询支持更清晰的输入与按钮辅助信息，取消查询时显示明确的警示状态，并统一提示框与图片导出文件名为 GGman；加强窄窗口下搜索栏、进度、结果区互不遮挡的布局回归验证。选英雄候选席小助手采用 GGman 统一配色、字体和操作按钮，增加按钮辅助提示与换英雄成功/失败状态区分。保留悬浮球默认主入口、游戏内无抢焦点弹窗、候选席交互、自动攻略数据链和现有 LOL 操作保护。本版未修改海斗上游数据源。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 target, pending release)
+## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 published)
 
 - Issue #300. Branch `feat/ggman-mayhem-companion-ux-20261009` updates `MayhemLookupForm.cs`, `MayhemLookupLayout.cs` and the legacy `LeagueChampSelectAssistantForm.cs`. Scope: public GGman names in Mayhem dialogs/image defaults; native accessible labels for search/buttons; clearer cancel status; extended responsive non-overlap smoke at smaller sizes; shared design tokens and accessible action chrome/status feedback on the Bench-gated ChampSelect assistant.
 - Existing floating-ball primary shell, `ShowWithoutActivation`, fixed companion episode sizes, and canonical RuntimeCompanion, Gameflow, Bench swap, Mayhem query, LCU read/write, cache and auto-guide service owners are unchanged. Native Windows multi-DPI and real-client UI verification remain outstanding.
-- Formal release target **3.5.54** only after green Windows Build + UI Text Contract, safe PR merge and canonical signed publisher with public signer/hash verification and an enabled updater manifest.
+- **GGman v3.5.54 formally published**. PR #305 squash-merged as `265eaeff81529909970ec149f6bba985c492093c`; final PR head `61ac48c864e18d60d060c0be8aa95617956ae932` passed GGman Windows Build #37944659951 and FACM UI Text Contract #37944659869. Official signed publisher #37945011327 completed successfully, publicly verified signer/bytes, and enabled `online/version.json` v3.5.54. GitHub Release includes `GGman.exe` and compatibility `FACM.exe` (2,386,840 bytes each; SHA-256 `1F0A4BA8872A2EE84A683C07FE24710265B550FD780073642A0276C21E472DAF`). Real Windows multi-DPI and League screenshot acceptance remain pending.
+- **Separate known data-source concern**: live Mayhem probe #37944660099 reported `Top-ten ranking is incomplete` from upstream live content; the prior main branch scheduled probe #37935960020 also failed. Because this is not fixed by the UX release, do not claim data-source health from publisher success. The pull-request probe has `continue-on-error`, so its overall workflow conclusion can be success even while the live probe step fails. Investigate upstream data separately.
 
 
 ## 2026-10-09 — Recommendation UX pass (3.5.53 published)
