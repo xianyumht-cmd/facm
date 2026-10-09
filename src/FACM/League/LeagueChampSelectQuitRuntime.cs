@@ -14,7 +14,7 @@ namespace FACM.League
 {
     /// <summary>
     /// Narrow writer for the League Client's team-builder Champion Select quit action.
-    /// This owner can issue exactly one POST target and cannot leave/delete the lobby itself.
+    /// This owner can write to two allowlisted Champion Select exit routes but cannot delete or create a lobby.
     /// </summary>
     internal interface ILeagueChampSelectQuitWriteApi
     {
@@ -138,8 +138,8 @@ namespace FACM.League
 
     /// <summary>
     /// Explicit one-click transaction for leaving only the current Champion Select episode.
-    /// It performs a read-only preflight, exactly one POST, then bounded read-back proving both
-    /// that ChampSelect ended and that the lobby still exists. It never calls DELETE /lol-lobby/v2/lobby.
+    /// It reads the current gameflow and original party, sends one primary quit and optionally
+    /// one guarded fallback, then verifies a settled Lobby and preserved original party.
     /// </summary>
     internal sealed class LeagueChampSelectQuitService
     {
@@ -150,6 +150,7 @@ namespace FACM.League
         private readonly ILeagueClientApi _reader;
         private readonly ILeagueChampSelectQuitWriteApi _writer;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
+        private DateTime _retryAfterUtc;
 
         public LeagueChampSelectQuitService(ILeagueClientApi reader, ILeagueChampSelectQuitWriteApi writer)
         {
@@ -162,6 +163,8 @@ namespace FACM.League
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                if (DateTime.UtcNow < _retryAfterUtc)
+                    return Result(LeagueChampSelectQuitStatus.WriteRejected, 0, null, false);
                 var phase = await ReadPhaseAsync(cancellationToken).ConfigureAwait(false);
                 var session = await _reader.TryGetBytesAsync(ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
                 if (!string.Equals(phase, "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
@@ -184,7 +187,7 @@ namespace FACM.League
                     // An uncertain transport result is never retried. The fallback requires
                     // a locally observed party identity before any further write is attempted.
                     if (response.StatusCode != 400 || before == null)
-                        return Result(LeagueChampSelectQuitStatus.WriteRejected, response.StatusCode, phase, false);
+                        return RejectWithCooldown(response.StatusCode, phase);
 
                     // Do not change gameflow after the initial rejection if the user
                     // has already left Champion Select through another action.
@@ -234,6 +237,7 @@ namespace FACM.League
                             "; http=" + response.StatusCode +
                             "; phase=" + Safe(settledPhase) +
                             "; lobbyPreserved=" + lobbyPreserved.ToString().ToLowerInvariant());
+                _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
                 return Result(LeagueChampSelectQuitStatus.VerificationFailed, response.StatusCode, settledPhase, lobbyPreserved);
             }
             finally
@@ -316,6 +320,12 @@ namespace FACM.League
             }
             catch (ArgumentException) { return "-"; }
             catch (InvalidOperationException) { return "-"; }
+        }
+
+        private LeagueChampSelectQuitResult RejectWithCooldown(int statusCode, string phase)
+        {
+            _retryAfterUtc = DateTime.UtcNow.AddSeconds(2);
+            return Result(LeagueChampSelectQuitStatus.WriteRejected, statusCode, phase, false);
         }
 
         private async Task<string> ReadPhaseAsync(CancellationToken cancellationToken)
