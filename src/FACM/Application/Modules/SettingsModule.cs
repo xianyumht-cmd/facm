@@ -39,6 +39,10 @@ namespace FACM.AppHost.Modules
         {
             RuntimePaths.Initialize();
             WasSettingsCreatedThisRun = !File.Exists(RuntimePaths.SettingsPath);
+            IsFreshInstallation = ShouldShowFirstUseForSmokeTest(
+                !WasSettingsCreatedThisRun,
+                File.Exists(RuntimePaths.SettingsRecoveryPath),
+                AppSettings.HasLegacySettingsForFirstUse());
             Settings = AppSettings.Load();
             FacmThemeRuntime.Initialize(Settings.ThemeId);
             UiText = UiTextCatalog.Load();
