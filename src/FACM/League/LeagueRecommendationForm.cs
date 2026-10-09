@@ -49,6 +49,8 @@ namespace FACM.League
         private LeagueBuildAdvisorSnapshot _snapshot;
         private bool _busy;
         private bool _syncingAutoToggle;
+        private string _statusKey;
+        private string _autoStatusKey;
 
         public LeagueRecommendationForm(
             LeagueBuildAdvisorDataService readService,
@@ -520,6 +522,7 @@ namespace FACM.League
                 key = LeagueAutoApplyUiTextKeys.Waiting;
             else
                 key = LeagueAutoApplyUiTextKeys.Disabled;
+            _autoStatusKey = key;
             _autoStatus.Text = LeagueAdvisorText.Get(_ui, key);
             _autoStatus.ForeColor = string.Equals(key, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
                 ? FACM.Theming.FacmDesignSystem.Success
@@ -622,7 +625,7 @@ namespace FACM.League
             {
                 AppLog.Error("League unified recommendation apply failed", exception);
                 if (!IsDisposed && !_lifetime.IsCancellationRequested)
-                    _statusValue.Text = T(LeagueRecommendationUiTextKeys.Failed);
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Failed);
             }
             finally
             {
@@ -704,10 +707,10 @@ namespace FACM.League
                     : T(LeagueRecommendationUiTextKeys.Failed);
             if (loadoutResult != null && loadoutResult.RuneSkippedNoCapacity)
                 text += "  " + T(LeagueRecommendationUiTextKeys.RuneSlotFull);
+            _statusKey = succeeded == selected ? LeagueRecommendationUiTextKeys.Success :
+                succeeded > 0 ? LeagueRecommendationUiTextKeys.Partial : LeagueRecommendationUiTextKeys.Failed;
             _statusValue.Text = text;
-            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(
-                succeeded == selected ? LeagueRecommendationUiTextKeys.Success :
-                succeeded > 0 ? LeagueRecommendationUiTextKeys.Partial : LeagueRecommendationUiTextKeys.Failed);
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(_statusKey);
         }
 
         private string BuildConfirmation(LeagueBuildApplyPlan loadoutPlan, LeagueItemSetPlan itemPlan)
@@ -825,8 +828,25 @@ namespace FACM.League
 
         private void SetRecommendationStatus(string key)
         {
+            _statusKey = key;
             _statusValue.Text = T(key);
             _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(key);
+        }
+
+        internal void RefreshVisualState()
+        {
+            if (_scrollBody == null || IsDisposed) return;
+            _scrollBody.BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            _contentPanel.BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            _actionBar.BackColor = FACM.Theming.FacmDesignSystem.Surface;
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(_statusKey);
+            _autoStatus.ForeColor = string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
+                ? FACM.Theming.FacmDesignSystem.Success
+                : string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Failed, StringComparison.Ordinal)
+                    ? FACM.Theming.FacmDesignSystem.Error
+                    : string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Partial, StringComparison.Ordinal)
+                        ? FACM.Theming.FacmDesignSystem.Warning
+                        : FACM.Theming.FacmDesignSystem.TextMuted;
         }
 
         private void SetButtons(bool canApply)
