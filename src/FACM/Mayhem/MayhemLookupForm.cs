@@ -68,7 +68,9 @@ namespace FACM.Mayhem
                 BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
-                TabStop = true
+                TabStop = true,
+                AccessibleName = MayhemUiCopy.EnterChampion,
+                AccessibleDescription = MayhemUiCopy.PageHint
             };
             _query.KeyDown += QueryKeyDown;
 
@@ -113,6 +115,7 @@ namespace FACM.Mayhem
             };
             _resultImage = new PictureBox
             {
+                AccessibleName = MayhemUiCopy.WindowTitle,
                 Location = new Point(8, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = FacmDesignSystem.CanvasRaised
@@ -121,6 +124,7 @@ namespace FACM.Mayhem
             _imageHost.Resize += delegate { ResizePreview(); };
             _resultImage.Image = CreateEmptyCard();
 
+            _status.AccessibleName = MayhemUiCopy.WindowTitle;
             Controls.Add(title);
             Controls.Add(hint);
             Controls.Add(_query);
@@ -156,7 +160,7 @@ namespace FACM.Mayhem
             var text = _query.Text.Trim();
             if (text.Length == 0)
             {
-                MessageBox.Show(MayhemUiCopy.EnterChampion, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, MayhemUiCopy.EnterChampion, MayhemUiCopy.WindowTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 _query.Focus();
                 return;
             }
@@ -282,7 +286,7 @@ namespace FACM.Mayhem
                 Filter = MayhemUiCopy.SaveFilter,
                 DefaultExt = "png",
                 AddExtension = true,
-                FileName = "FACM-" + MayhemUiCopy.SavePrefix + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png"
+                FileName = "GGman-" + MayhemUiCopy.SavePrefix + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png"
             })
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -296,7 +300,7 @@ namespace FACM.Mayhem
                 catch (Exception exception)
                 {
                     Services.AppLog.Error("Save Mayhem card failed", exception);
-                    MessageBox.Show(MayhemUiCopy.SaveFailed, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, MayhemUiCopy.SaveFailed, MayhemUiCopy.WindowTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -314,7 +318,7 @@ namespace FACM.Mayhem
             catch (Exception exception)
             {
                 Services.AppLog.Error("Copy Mayhem card failed", exception);
-                MessageBox.Show(MayhemUiCopy.CopyFailed, "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, MayhemUiCopy.CopyFailed, MayhemUiCopy.WindowTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -395,6 +399,7 @@ namespace FACM.Mayhem
         {
             if (_queryCancellation == null || _queryCancellation.IsCancellationRequested) return;
             _stageText = MayhemUiCopy.Canceling;
+            _status.ForeColor = FacmDesignSystem.Warning;
             _queryCancellation.Cancel();
             _cancel.Enabled = false;
             UpdateStatusText();
@@ -432,6 +437,7 @@ namespace FACM.Mayhem
             return new FacmActionButton
             {
                 Text = text,
+                AccessibleName = text,
                 Location = bounds.Location,
                 Size = bounds.Size,
                 Tone = tone,
