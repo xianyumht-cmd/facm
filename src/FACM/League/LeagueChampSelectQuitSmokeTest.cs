@@ -32,6 +32,14 @@ namespace FACM.League
             var declined = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
             AssertResult(declined, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 1);
 
+            var repeated = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
+            var repeatedService = new LeagueChampSelectQuitService(repeated, repeated);
+            repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var tooSoon = repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(tooSoon.Status == LeagueChampSelectQuitStatus.WriteRejected &&
+                    repeated.PrimaryCount == 1 && repeated.FallbackCount == 1,
+                "Repeated click submitted another rejected quit before cooldown.");
+
             var unavailable = new FakeQuitSession(400) { OriginalLobby = null };
             AssertResult(unavailable, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
 
