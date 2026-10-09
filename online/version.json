@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.54",
+  "enabled": false,
+  "version": "3.5.55",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.54/FACM.exe",
-  "sha256": "1F0A4BA8872A2EE84A683C07FE24710265B550FD780073642A0276C21E472DAF",
-  "release_notes": "GGman 3.5.54：继续统一海斗攻略与选英雄小助手的视觉和操作细节。海斗查询支持更清晰的输入与按钮辅助信息，取消查询时显示明确的警示状态，并统一提示框与图片导出文件名为 GGman；加强窄窗口下搜索栏、进度、结果区互不遮挡的布局回归验证。选英雄候选席小助手采用 GGman 统一配色、字体和操作按钮，增加按钮辅助提示与换英雄成功/失败状态区分。保留悬浮球默认主入口、游戏内无抢焦点弹窗、候选席交互、自动攻略数据链和现有 LOL 操作保护。本版未修改海斗上游数据源。",
-  "published_at": "2026-10-09T14:34:46.4743433+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.55/FACM.exe",
+  "sha256": "C1BA17DBFFC813C41425BF655079ACF510813B20F323343B3A962E1A40B8DD71",
+  "release_notes": "GGman 3.5.55：优化选人阶段的窄版实时对局悬浮助手。为隐藏原生滚动条的推荐内容增加细窄的滚动进度提示，内容足够少时自动隐藏，让强化符文、出装和队友信息的位置更容易判断；完善退出选人、置顶/取消置顶、展开/收起、导入/应用、查看更多方案、翻页等现有按钮的辅助提示与键盘可访问名称。保留悬浮球默认入口、320 像素轻量窗口、游戏内不抢焦点、置顶/折叠状态恢复、实时数据链与所有原有 LOL 操作保护；不新增查询轮询，不修改退出选人的逻辑。",
+  "published_at": "2026-10-09T14:54:41.3368449+00:00"
 }
