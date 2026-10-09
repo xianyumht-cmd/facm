@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.55",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.55/FACM.exe",
   "sha256": "C1BA17DBFFC813C41425BF655079ACF510813B20F323343B3A962E1A40B8DD71",
   "release_notes": "GGman 3.5.55：优化选人阶段的窄版实时对局悬浮助手。为隐藏原生滚动条的推荐内容增加细窄的滚动进度提示，内容足够少时自动隐藏，让强化符文、出装和队友信息的位置更容易判断；完善退出选人、置顶/取消置顶、展开/收起、导入/应用、查看更多方案、翻页等现有按钮的辅助提示与键盘可访问名称。保留悬浮球默认入口、320 像素轻量窗口、游戏内不抢焦点、置顶/折叠状态恢复、实时数据链与所有原有 LOL 操作保护；不新增查询轮询，不修改退出选人的逻辑。",
-  "published_at": "2026-10-09T14:54:41.3368449+00:00"
+  "published_at": "2026-10-09T14:54:49.8622572+00:00"
 }
