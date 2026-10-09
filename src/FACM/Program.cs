@@ -160,7 +160,7 @@ namespace FACM
                         return;
                     }
 
-                    if (settings.WasSettingsCreatedThisRun && !startCleanup)
+                    if (settings.IsFreshInstallation && !startCleanup)
                         mainForm.EnableFirstUseWelcome();
 
                     UsageTelemetryModule.Record("app_launch");
