@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -191,7 +192,12 @@ namespace FACM.Online
             try { decoded = Convert.FromBase64String(dataUri.Substring("data:image/gif;base64,".Length)); }
             catch (FormatException) { throw new InvalidOperationException("CloudBase 返回的图片验证码数据损坏。"); }
             if (decoded.Length < 16 || decoded.Length > MaxCaptchaImageBytes ||
-                (decoded[0] != 'G' || decoded[1] != 'I' || decoded[2] != 'F' || decoded[3] != '8'))
+                (decoded[0] != 'G' || decoded[1] != 'I' || decoded[2] != 'F' || decoded[3] != '8') ||
+                (decoded[4] != '7' && decoded[4] != '9') || decoded[5] != 'a' ||
+                (decoded[6] + (decoded[7] << 8)) < 1 ||
+                (decoded[8] + (decoded[9] << 8)) < 1 ||
+                (decoded[6] + (decoded[7] << 8)) > 1024 ||
+                (decoded[8] + (decoded[9] << 8)) > 512)
                 throw new InvalidOperationException("CloudBase 返回的图片验证码无效。");
             return decoded;
         }
@@ -282,8 +288,7 @@ namespace FACM.Online
                 {
                     if (response.Content.Headers.ContentLength > MaxResponseLength)
                         throw new InvalidOperationException("CloudBase 响应过大。");
-                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    if (body.Length > MaxResponseLength) throw new InvalidOperationException("CloudBase 响应过大。");
+                    var body = await ReadBoundedBodyAsync(response.Content, timeout.Token).ConfigureAwait(false);
                     if (!response.IsSuccessStatusCode)
                     {
                         var code = ReadAuthErrorCodeForSmokeTest(body);
@@ -297,6 +302,24 @@ namespace FACM.Online
                     if (result == null) throw new InvalidOperationException("CloudBase 登录响应格式不正确。");
                     return result;
                 }
+            }
+        }
+
+        private static async Task<string> ReadBoundedBodyAsync(HttpContent content, CancellationToken cancellationToken)
+        {
+            using (var stream = await content.ReadAsStreamAsync().ConfigureAwait(false))
+            using (var buffer = new MemoryStream())
+            {
+                var chunk = new byte[8192];
+                int count;
+                while ((count = await stream.ReadAsync(chunk, 0, chunk.Length, cancellationToken)
+                    .ConfigureAwait(false)) > 0)
+                {
+                    if (buffer.Length + count > MaxResponseLength)
+                        throw new InvalidOperationException("CloudBase 响应过大。");
+                    buffer.Write(chunk, 0, count);
+                }
+                return Encoding.UTF8.GetString(buffer.ToArray());
             }
         }
 
@@ -364,8 +387,12 @@ namespace FACM.Online
                 if (!emailRequest.Headers.Contains("x-captcha-token"))
                     throw new InvalidOperationException("Challenged email send lost CAPTCHA proof.");
             }
-            var fakeImage = "data:image/gif;base64," + Convert.ToBase64String(
-                Encoding.ASCII.GetBytes("GIF89a123456789012345"));
+            var fakeGif = new byte[24];
+            var header = Encoding.ASCII.GetBytes("GIF89a");
+            Buffer.BlockCopy(header, 0, fakeGif, 0, header.Length);
+            fakeGif[6] = 160;
+            fakeGif[8] = 60;
+            var fakeImage = "data:image/gif;base64," + Convert.ToBase64String(fakeGif);
             if (DecodeCaptchaImageForSmokeTest(fakeImage).Length < 16)
                 throw new InvalidOperationException("GIF captcha data decode failed.");
             try { DecodeCaptchaImageForSmokeTest("data:text/html;base64,SGVsbG8="); throw new InvalidOperationException("Unsafe CAPTCHA MIME accepted."); }
