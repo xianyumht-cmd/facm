@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.48",
+  "enabled": false,
+  "version": "3.5.49",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.48/FACM.exe",
-  "sha256": "6EBD84933F1C8DA1888A509A5A04CE29D383C43F7766AD6E8C37F9CC3D64FD1D",
-  "release_notes": "GGman 3.5.48：新增可选的匿名功能使用统计。默认关闭，可在“我的 GGman”中随时开启或关闭；仅上传按天聚合的功能使用次数和程序版本，不上传账号、PUUID、密码、IP、硬件标识或日志内容。CloudBase 不可用时不影响程序正常使用。",
-  "published_at": "2026-09-26T18:48:11.3708797+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.49/FACM.exe",
+  "sha256": "A83289E39E7D4E0B78B84BB3172093B8614D7D9083297600BFBB7C1CA0C8F6A1",
+  "release_notes": "GGman 3.5.49：修复选英雄界面“退”按钮在正式匹配中可能无效的问题。保留原退出方式；当客户端明确拒绝且能够识别原队伍时，尝试安全返回原大厅，并校验对局阶段和原队伍身份。不会关闭客户端、删除或重建大厅；游戏服务端不支持时会提示退出未确认，秒退处罚按游戏规则执行。",
+  "published_at": "2026-10-09T08:59:26.1512866+00:00"
 }
