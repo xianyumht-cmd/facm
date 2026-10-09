@@ -16,6 +16,7 @@ namespace FACM.Online
         private readonly bool _forceMode;
         private readonly Label _versionValue;
         private readonly Label _updateStatus;
+        private readonly TextBox _releaseNotes;
         private readonly FacmStatusBadge _updateBadge;
         private readonly Label _announcementTitle;
         private readonly TextBox _announcementBody;
@@ -37,7 +38,7 @@ namespace FACM.Online
             _snapshot = snapshot ?? new OnlineSnapshot();
             _forceMode = forceMode;
 
-            Text = forceMode ? "FACM 必须更新" : "FACM 检查更新";
+            Text = forceMode ? OnlineCenterUiText.RequiredWindowTitle : OnlineCenterUiText.CheckWindowTitle;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -71,7 +72,7 @@ namespace FACM.Online
                 BackColor = Color.Transparent
             };
 
-            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 172));
+            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 226));
             var versionTitle = CreateSectionTitle("版本更新", new Point(16, 13));
             _updateBadge = new FacmStatusBadge
             {
@@ -91,15 +92,29 @@ namespace FACM.Online
             _updateStatus = new Label
             {
                 Location = new Point(16, 70),
-                Size = new Size(486, 40),
+                Size = new Size(486, 31),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
+            var releaseNotesTitle = CreateSectionTitle(OnlineCenterUiText.ReleaseNotesTitle, new Point(16, 104));
+            releaseNotesTitle.Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold);
+            _releaseNotes = new TextBox
+            {
+                Location = new Point(16, 124),
+                Size = new Size(486, 44),
+                ReadOnly = true,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                AccessibleName = OnlineCenterUiText.ReleaseNotesTitle
+            };
             _autoUpdate = new FacmToggleSwitch
             {
                 Text = "启动时自动检查更新",
-                Location = new Point(16, 124),
+                Location = new Point(16, 178),
                 Size = new Size(244, 32),
                 Checked = _settings.AutoUpdateEnabled,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
@@ -109,20 +124,22 @@ namespace FACM.Online
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 124), 100, FacmButtonTone.Secondary);
+            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 178), 100, FacmButtonTone.Secondary);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(392, 124), 110, FacmButtonTone.Primary);
+            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(392, 178), 110, FacmButtonTone.Primary);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
             versionPanel.Controls.Add(_updateBadge);
             versionPanel.Controls.Add(_versionValue);
             versionPanel.Controls.Add(_updateStatus);
+            versionPanel.Controls.Add(releaseNotesTitle);
+            versionPanel.Controls.Add(_releaseNotes);
             versionPanel.Controls.Add(_autoUpdate);
             versionPanel.Controls.Add(_refreshButton);
             versionPanel.Controls.Add(_updateButton);
 
-            var announcementPanel = CreatePanel(new Point(20, 278), new Size(520, 250));
+            var announcementPanel = CreatePanel(new Point(20, 330), new Size(520, 222));
             var announcementSection = CreateSectionTitle("公告", new Point(16, 13));
             _announcementTitle = new Label
             {
@@ -135,7 +152,7 @@ namespace FACM.Online
             _announcementBody = new TextBox
             {
                 Location = new Point(16, 77),
-                Size = new Size(486, 122),
+                Size = new Size(486, 93),
                 ReadOnly = true,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -143,7 +160,7 @@ namespace FACM.Online
                 BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text
             };
-            _linkButton = CreateButton(OnlineCenterUiText.ViewDetails, new Point(16, 209), 100, FacmButtonTone.Secondary);
+            _linkButton = CreateButton(OnlineCenterUiText.ViewDetails, new Point(16, 181), 100, FacmButtonTone.Secondary);
             _linkButton.Click += OpenAnnouncementLink;
             announcementPanel.Controls.Add(announcementSection);
             announcementPanel.Controls.Add(_announcementTitle);
@@ -152,7 +169,7 @@ namespace FACM.Online
 
             _progress = new ProgressBar
             {
-                Location = new Point(20, 542),
+                Location = new Point(20, 560),
                 Size = new Size(520, 14),
                 Minimum = 0,
                 Maximum = 100,
@@ -160,7 +177,7 @@ namespace FACM.Online
             };
             _closeButton = CreateButton(
                 UiTextRuntime.Text(forceMode ? UiTextKeys.Exit : UiTextKeys.Close),
-                new Point(420, 570),
+                new Point(420, 580),
                 120,
                 forceMode ? FacmButtonTone.Danger : FacmButtonTone.Secondary);
             _closeButton.Click += delegate
@@ -191,7 +208,7 @@ namespace FACM.Online
 
         public bool HasAvailableUpdate
         {
-            get { return _snapshot != null && _snapshot.UpdateAvailable; }
+            get { return CanInstallUpdateForSmokeTest(_snapshot); }
         }
 
         public async Task BeginAutomaticUpdateAsync()
@@ -201,7 +218,7 @@ namespace FACM.Online
             var choice = MessageBox.Show(
                 this,
                 "检测到新版本，现在下载并安装吗？",
-                "FACM 更新",
+                OnlineCenterUiText.PromptTitle,
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Information,
                 MessageBoxDefaultButton.Button1);
@@ -218,12 +235,21 @@ namespace FACM.Online
                 _cancellation = new CancellationTokenSource();
                 var snapshot = await OnlineService.FetchSnapshotAsync(_cancellation.Token);
                 if (IsDisposed || Disposing || _closing) return;
-                _snapshot = snapshot;
+                _snapshot = snapshot ?? CreateFetchErrorSnapshotForSmokeTest(_snapshot);
                 ApplySnapshot();
             }
             catch (OperationCanceledException)
             {
                 // Closing the dialog cancels an in-flight refresh. No UI update is required afterwards.
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Online Center refresh failed", exception);
+                if (!IsDisposed && !Disposing && !_closing)
+                {
+                    _snapshot = CreateFetchErrorSnapshotForSmokeTest(_snapshot);
+                    ApplySnapshot();
+                }
             }
             finally
             {
@@ -233,7 +259,7 @@ namespace FACM.Online
 
         private async Task BeginUpdateAsync()
         {
-            if (_updateStarted || _snapshot == null || !_snapshot.UpdateAvailable || _snapshot.Update == null) return;
+            if (_updateStarted || !CanInstallUpdateForSmokeTest(_snapshot)) return;
 
             _updateStarted = true;
             SetBusy(true, "正在下载更新...");
@@ -246,12 +272,13 @@ namespace FACM.Online
                 var progress = new Progress<int>(value =>
                 {
                     if (IsDisposed || Disposing || _closing) return;
-                    _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value));
-                    _updateStatus.Text = "正在下载更新：" + value + "%";
+                    var percentage = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value));
+                    _progress.Value = percentage;
+                    _updateStatus.Text = string.Format(UiTextRuntime.Text(UiTextKeys.OnlineDownloadProgressFormat), percentage);
                 });
                 var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
                 if (IsDisposed || Disposing || _closing) return;
-                _updateStatus.Text = "下载完成，正在安装...";
+                _updateStatus.Text = UiTextRuntime.Text(UiTextKeys.OnlineInstallerStarting);
                 UpdateInstaller.StartReplacement(downloaded);
 
                 // From this point the replacement script is waiting for FACM to exit. Close the modal
@@ -265,7 +292,10 @@ namespace FACM.Online
             {
                 _updateStarted = false;
                 if (!IsDisposed && !Disposing && !_closing)
-                    _updateStatus.Text = "更新已取消。";
+                {
+                    _updateStatus.Text = OnlineCenterUiText.Cancelled;
+                    SetUpdateBadge(OnlineCenterUiText.Cancelled, FacmStatusTone.Neutral);
+                }
             }
             catch (Exception exception)
             {
@@ -273,8 +303,11 @@ namespace FACM.Online
                 AppLog.Error("Update installation failed", exception);
                 if (!IsDisposed && !Disposing && !_closing)
                 {
-                    MessageBox.Show(this, "更新失败，请稍后重试。", "FACM", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     ApplySnapshot();
+                    _updateStatus.Text = OnlineCenterUiText.InstallFailed;
+                    SetUpdateBadge(OnlineCenterUiText.FetchFailed, FacmStatusTone.Error);
+                    MessageBox.Show(this, OnlineCenterUiText.InstallFailed, OnlineCenterUiText.PromptTitle,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             finally
@@ -293,26 +326,31 @@ namespace FACM.Online
             var current = _snapshot.CurrentVersion == null ? "未知" : _snapshot.CurrentVersion.ToString();
             var latest = _snapshot.LatestVersion == null ? "未获取" : _snapshot.LatestVersion.ToString();
             _versionValue.Text = "当前版本：" + current + "    最新版本：" + latest;
+            _releaseNotes.Text = ResolveReleaseNotesForSmokeTest(_snapshot);
 
             if (!string.IsNullOrWhiteSpace(_snapshot.ErrorMessage))
             {
-                _updateStatus.Text = "暂时无法获取更新信息。";
+                _updateStatus.Text = OnlineCenterUiText.FetchUnavailable;
                 _updateButton.Enabled = false;
                 SetUpdateBadge(OnlineCenterUiText.FetchFailed, FacmStatusTone.Error);
             }
-            else if (_snapshot.ForceUpdateRequired)
+            else if (_snapshot.ForceUpdateRequired && CanInstallUpdateForSmokeTest(_snapshot))
             {
                 _updateStatus.Text = "需要更新后才能继续使用。";
                 _updateButton.Enabled = true;
                 SetUpdateBadge(OnlineCenterUiText.ForceRequired, FacmStatusTone.Error);
             }
-            else if (_snapshot.UpdateAvailable)
+            else if (CanInstallUpdateForSmokeTest(_snapshot))
             {
-                _updateStatus.Text = string.IsNullOrWhiteSpace(_snapshot.Update.ReleaseNotes)
-                    ? "发现新版本。"
-                    : _snapshot.Update.ReleaseNotes;
+                _updateStatus.Text = UiTextRuntime.Text(UiTextKeys.OnlineUpdateReady);
                 _updateButton.Enabled = true;
                 SetUpdateBadge(OnlineCenterUiText.UpdateAvailable, FacmStatusTone.Accent);
+            }
+            else if (_snapshot.LatestVersion == null)
+            {
+                _updateStatus.Text = OnlineCenterUiText.NotYetVerified;
+                _updateButton.Enabled = false;
+                SetUpdateBadge(OnlineCenterUiText.Checking, FacmStatusTone.Neutral);
             }
             else
             {
@@ -336,6 +374,30 @@ namespace FACM.Online
             }
         }
 
+        internal static bool CanInstallUpdateForSmokeTest(OnlineSnapshot snapshot)
+        {
+            return snapshot != null && snapshot.UpdateAvailable && snapshot.Update != null &&
+                   string.IsNullOrWhiteSpace(snapshot.ErrorMessage);
+        }
+
+        internal static string ResolveReleaseNotesForSmokeTest(OnlineSnapshot snapshot)
+        {
+            if (!CanInstallUpdateForSmokeTest(snapshot))
+                return OnlineCenterUiText.ReleaseNotesUnavailable;
+            return string.IsNullOrWhiteSpace(snapshot.Update.ReleaseNotes)
+                ? OnlineCenterUiText.ReleaseNotesMissing
+                : snapshot.Update.ReleaseNotes.Trim();
+        }
+
+        internal static OnlineSnapshot CreateFetchErrorSnapshotForSmokeTest(OnlineSnapshot previous)
+        {
+            return new OnlineSnapshot
+            {
+                CurrentVersion = previous == null ? null : previous.CurrentVersion,
+                ErrorMessage = OnlineCenterUiText.FetchUnavailable
+            };
+        }
+
         private void SetUpdateBadge(string text, FacmStatusTone tone)
         {
             _updateBadge.Text = text;
@@ -346,7 +408,7 @@ namespace FACM.Online
         {
             if (IsDisposed || Disposing) return;
             _refreshButton.Enabled = !busy;
-            _updateButton.Enabled = !busy && _snapshot != null && _snapshot.UpdateAvailable;
+            _updateButton.Enabled = !busy && CanInstallUpdateForSmokeTest(_snapshot);
             _autoUpdate.Enabled = !busy;
             _closeButton.Enabled = !busy || !_forceMode;
             if (!string.IsNullOrWhiteSpace(status))

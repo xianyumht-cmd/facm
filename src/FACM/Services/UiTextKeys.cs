@@ -38,6 +38,9 @@ namespace FACM.Services
         public const string CleanupHint = "CleanupHint";
         public const string StartCleanup = "StartCleanup";
         public const string UpdateAndAnnouncements = "UpdateAndAnnouncements";
+        public const string OnlineDownloadProgressFormat = "OnlineDownloadProgressFormat";
+        public const string OnlineInstallerStarting = "OnlineInstallerStarting";
+        public const string OnlineUpdateReady = "OnlineUpdateReady";
         public const string AutoCheckAtStartup = "AutoCheckAtStartup";
         public const string Ready = "Ready";
         public const string Administrator = "Administrator";

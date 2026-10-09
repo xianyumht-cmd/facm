@@ -23,6 +23,37 @@ namespace FACM.Online
         {
             UpdateInstaller.ValidateEmbeddedUpdaterForSmokeTest();
 
+            var notes = "版本更新说明第一行" + Environment.NewLine + "第二行：更新稳定性与界面提示";
+            var checkedUpdate = new OnlineSnapshot
+            {
+                CurrentVersion = new Version(3, 5, 57),
+                LatestVersion = new Version(3, 5, 58),
+                UpdateAvailable = true,
+                Update = new UpdateManifest { Version = "3.5.58", ReleaseNotes = notes }
+            };
+            Require(OnlineCenterForm.CanInstallUpdateForSmokeTest(checkedUpdate),
+                "Verified available update must keep the install action accessible.");
+            Require(OnlineCenterForm.ResolveReleaseNotesForSmokeTest(checkedUpdate) == notes,
+                "Update Center must preserve complete multiline release notes.");
+            checkedUpdate.Update.ReleaseNotes = string.Empty;
+            Require(OnlineCenterForm.ResolveReleaseNotesForSmokeTest(checkedUpdate) ==
+                    OnlineCenterUiText.ReleaseNotesMissing,
+                "Update Center must clearly handle missing release notes.");
+            checkedUpdate.Update.ReleaseNotes = notes;
+
+            var failedRefresh = OnlineCenterForm.CreateFetchErrorSnapshotForSmokeTest(checkedUpdate);
+            Require(failedRefresh.CurrentVersion == checkedUpdate.CurrentVersion &&
+                    !failedRefresh.UpdateAvailable && failedRefresh.Update == null &&
+                    !OnlineCenterForm.CanInstallUpdateForSmokeTest(failedRefresh) &&
+                    !string.IsNullOrWhiteSpace(failedRefresh.ErrorMessage),
+                "Failed metadata refresh must discard stale actionable update state.");
+            Require(OnlineCenterForm.ResolveReleaseNotesForSmokeTest(failedRefresh) ==
+                    OnlineCenterUiText.ReleaseNotesUnavailable,
+                "Unavailable metadata must not display stale release notes.");
+            checkedUpdate.ErrorMessage = "network unavailable";
+            Require(!OnlineCenterForm.CanInstallUpdateForSmokeTest(checkedUpdate),
+                "Update action must remain disabled whenever metadata verification has failed.");
+
             var builtIns = UpdateMirrorRouter.GetBuiltInSources();
             var mirrorCount = builtIns.Count(item =>
                 !string.Equals(item.Name, "github", StringComparison.OrdinalIgnoreCase) &&

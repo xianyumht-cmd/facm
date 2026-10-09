@@ -196,3 +196,13 @@ The 3.5.53 Recommendation form wrapped content into a scrollable responsive body
 ## My GGman fixed-width panels inside compact Hub (2026-10-09)
 
 The original `LeaguePersonalStatsForm` declared a 720px client width and positioned four 664px panels at x=28, with status at y=532. As an embedded child of the single-sidebar Hub, it can receive a narrower viewport and shorter height, causing clipped controls or a status line below the visible bottom. Blanketing the form with a wider minimum size does not help once `LeagueHubForm` removes embedded child minimum-size fences. Keep responsive panel/metric widths inside a single AutoScroll content host and test both the narrow minimum plus larger viewport widths. Do not modify account counts, anonymous identity, CloudBase permissions, ranking opt-in, telemetry state or preference persistence in a presentation-only patch.
+
+
+## Update Center status can hide real failure or truncate signed-release notes (2026-10-09)
+
+Before 3.5.58, `OnlineCenterForm` reused a roughly two-line fixed status label for arbitrarily long `release_notes` strings, hiding important changes; after failed download/installation its exception handler called `ApplySnapshot`, replacing the failure with a stale “update available” status. An initial empty metadata snapshot could also be labeled “already latest” without proof. Keep notes independently scrollable, distinguish metadata-not-checked/error/verified-available/verified-current states, and after installer errors show a persistent error badge/status even when the existing retry action is re-enabled. A failed refresh must discard stale actionable update metadata; do not change cryptographic verification to repair a UI feedback issue. Test pure availability/notes/error-snapshot contracts in the update smoke, then preserve public signer/SHA validation through the official publisher.
+
+
+## Registered UI copy is required for update progress/status changes (2026-10-09)
+
+PR #310 initially failed FACM UI Text Contract because newly modified `OnlineCenterForm` state assignments used direct Chinese literals for download progress, preparing the installer and ready-to-update feedback. The UI copy gate inspects changed Form lines, not merely whether an existing wrapper translates unrelated text. The remedy was to register `OnlineDownloadProgressFormat`, `OnlineInstallerStarting` and `OnlineUpdateReady` in both `UiTextKeys` and `UiTextCatalog`, then render through `UiTextRuntime.Text`. Keep new status strings in the repo's keyed text registry; check the **final head's** Windows Build and UI Text Contract before release, not earlier canceled or failed runs.
