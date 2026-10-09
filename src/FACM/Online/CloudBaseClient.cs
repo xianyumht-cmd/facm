@@ -53,7 +53,7 @@ namespace FACM.Online
     internal sealed class CloudBaseClient : IDisposable
     {
         internal const string EnvironmentId = "ggman-d4gioqqcz434d9e4d";
-        private const int MaximumResponseCharacters = 128 * 1024;
+        private const int MaximumResponseCharacters = 512 * 1024;
         private static readonly Uri Gateway = new Uri(
             "https://" + EnvironmentId + ".api.tcloudbasegateway.com/",
             UriKind.Absolute);
@@ -222,6 +222,43 @@ namespace FACM.Online
                 if (!DateTimeOffset.TryParse(Convert.ToString(updatedValue), out updatedAt))
                     throw new InvalidOperationException("CloudBase returned an invalid settings write timestamp.");
                 return updatedAt.ToUniversalTime();
+            }
+        }
+
+        internal async Task<EscSettingsBundle> GetEscProfileAsync(string deviceId, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_get_esc_profile"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var text = await SendAsync(request, "ESC profile read", cancellationToken).ConfigureAwait(false);
+                var payload = _json.DeserializeObject(text) as Dictionary<string, object>;
+                object value;
+                if (payload == null || !payload.TryGetValue("payload", out value) || value == null)
+                    return null;
+                return EscSettingsBackup.Deserialize(_json.Serialize(value));
+            }
+        }
+
+        internal async Task SetEscProfileAsync(string deviceId, EscSettingsBundle snapshot, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            var json = EscSettingsBackup.Serialize(snapshot);
+            var session = await EnsureSessionAsync(deviceId, cancellationToken).ConfigureAwait(false);
+            var body = _json.Serialize(new Dictionary<string, object>
+            {
+                { "p_payload", _json.DeserializeObject(json) }
+            });
+            using (var request = new HttpRequestMessage(HttpMethod.Post, "v1/rdb/rest/rpc/ggman_set_esc_profile"))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", RequireAccessToken(session.AccessToken));
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                var text = await SendAsync(request, "ESC profile write", cancellationToken).ConfigureAwait(false);
+                var result = _json.DeserializeObject(text) as Dictionary<string, object>;
+                if (result == null || !result.ContainsKey("updated_at"))
+                    throw new InvalidOperationException("CloudBase did not confirm the ESC profile upload.");
             }
         }
 
