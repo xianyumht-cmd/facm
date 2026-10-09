@@ -12,6 +12,15 @@
 - release_notes：GGman 3.5.49：修复选英雄界面“退”按钮在正式匹配中可能无效的问题。保留原退出方式；当客户端明确拒绝且能够识别原队伍时，尝试安全返回原大厅，并校验对局阶段和原队伍身份。不会关闭客户端、删除或重建大厅；游戏服务端不支持时会提示退出未确认，秒退处罚按游戏规则执行。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — GGman product-wide UX redesign (R0 design review, no runtime change)
+
+- Tracking Issue: #300. Design-review branch: `feat/ggman-product-ux-spec-20261009`. Current `main` / online release remains GGman 3.5.49; **do not represent this as a published UI update**.
+- Source-audit and proposed design contract: `docs/UX-AUDIT.md` and `docs/GGMAN-PRODUCT-DESIGN.md`. R0 scope includes floating entry/quick access, main workbench/navigation, companion, settings, My GGman, status/feedback semantics, visual tokens, privacy, accessibility and release gates.
+- An independent offline HTML interaction prototype was rendered and smoke-checked (main workbench, quick flyout and narrow companion). It uses simulated client states and does not access LCU or modify GGman; its browser tests are not Windows/League acceptance.
+- Verified high-impact source concerns: launcher enhancement relies on reflection against legacy compact window fields/methods; League Hub composes primary sidebar, top secondary navigation and contextual right dock; several product pages use fixed geometry; legacy public `FACM` copy remains on an updater error path. These are source findings, not proof of exact live visual defects.
+- **Next gate**: review actual GGman 3.5.49 Windows screenshots and obtain feedback on the candidate style/navigation, then implement a small shared-component/launcher pilot with required tests on a separate scoped branch. Do not merge/publish/rewrite working League owners based only on prototype approval.
+
+
 # FACM Project State
 
 ## 2026-10-09 — Champion Select “退” patch (released 3.5.49; live matchmaking proof pending)
