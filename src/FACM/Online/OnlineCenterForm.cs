@@ -278,7 +278,7 @@ namespace FACM.Online
                 });
                 var downloaded = await UpdateInstaller.DownloadAsync(_snapshot.Update, progress, _cancellation.Token);
                 if (IsDisposed || Disposing || _closing) return;
-                _updateStatus.Text = "下载完成，正在启动安装器...";
+                _updateStatus.Text = UiTextRuntime.Text(UiTextKeys.OnlineInstallerStarting);
                 UpdateInstaller.StartReplacement(downloaded);
 
                 // From this point the replacement script is waiting for FACM to exit. Close the modal
@@ -342,7 +342,7 @@ namespace FACM.Online
             }
             else if (CanInstallUpdateForSmokeTest(_snapshot))
             {
-                _updateStatus.Text = "发现新版本，可以下载并安装。";
+                _updateStatus.Text = UiTextRuntime.Text(UiTextKeys.OnlineUpdateReady);
                 _updateButton.Enabled = true;
                 SetUpdateBadge(OnlineCenterUiText.UpdateAvailable, FacmStatusTone.Accent);
             }
