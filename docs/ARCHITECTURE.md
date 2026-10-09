@@ -215,3 +215,8 @@ The Recommendation page's scroll body and fixed footer remain owned by `LeagueRe
 ## Hub contextual launch without a throwaway Dashboard (3.5.56)
 
 `LeagueHubForm` now resolves an optional initial route before its first `Shown` event and creates only that route's child. `LeagueHubUiBridge` passes a verified contextual route through the form's typed `SetInitialView` method immediately after construction rather than installing an additional `Shown` handler that previously opened Dashboard and instantly discarded it before showing the requested page. Invalid/empty requests still start on Dashboard. All nine route factory mappings, ownership, child close/dispose behavior and Gameflow observers remain unchanged. The existing Dashboard smoke verifies every contextual route and unknown-route fallback without launching a real League process.
+
+
+## My GGman profile page presentation (3.5.57)
+
+`LeaguePersonalStatsForm` remains the local-first owner of already-projected account counts, active-day statistics, recent account rows, cloud ranking opt-in, optional usage telemetry switch and status. The formerly 720px fixed main canvas is now hosted in a single scrollable WinForms area; four existing panels share a computed content width and the three top summary metrics allocate non-overlapping horizontal slots. Its content has enough height to preserve the status message and refresh button when the Hub's embedded viewport is shorter than the original standalone window. `LeaguePersonalStatsForm.ValidateForSmokeTest` verifies the width and metric bounds under narrow and wide host dimensions, wired into `FacmHostSmokeTest`. No new routing, API calls, identity changes, data migration, cloud ranking or privacy preference writes are introduced.
