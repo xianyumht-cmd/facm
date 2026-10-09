@@ -744,10 +744,7 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (!LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeagueChampSelectQuitWriteApiClient.QuitPath) ||
-                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("DELETE", "/lol-lobby/v2/lobby") ||
-                LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-lobby/v2/lobby"))
-                throw new InvalidOperationException("Runtime Companion Champion Select quit writer escaped its single-route fence.");
+            LeagueChampSelectQuitSmokeTest.Validate();
             if (BuildRefreshInterval < TimeSpan.FromSeconds(2))
                 throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");
             if (LeagueRuntimeCompanionModePolicy.Resolve(true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)
