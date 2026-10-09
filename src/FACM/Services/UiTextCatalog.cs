@@ -64,7 +64,7 @@ namespace FACM.Services
             Pair(UiTextKeys.EscSettingsLocalRestore, "本地恢复"),
             Pair(UiTextKeys.EscSettingsCloudUpload, "上传云端"),
             Pair(UiTextKeys.EscSettingsCloudRestore, "云端恢复"),
-            Pair(UiTextKeys.EscSettingsCloudScope, "云端备份目前关联本机匿名设备身份；换电脑不能自动找回，请另外保留本地备份文件。"),
+            Pair(UiTextKeys.EscSettingsCloudScope, "云端同步需要先登录 GGman 账号，账号系统尚未接入。当前请使用本地备份与恢复；云端按钮暂不可用。"),
             Pair(UiTextKeys.EscSettingsReady, "请选择英雄联盟目录，然后备份或恢复。"),
             Pair(UiTextKeys.EscSettingsBusy, "正在处理，请稍候..."),
             Pair(UiTextKeys.EscSettingsLocalSaved, "本地备份已保存：{0}"),
