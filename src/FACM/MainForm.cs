@@ -41,6 +41,8 @@ namespace FACM
         private bool _dragging;
         private bool _moved;
         private int _externalActivationPending;
+        private bool _gettingStartedVisible;
+        private bool _showGettingStartedOnLaunch;
         private Point _dragCursor;
         private Point _dragWindow;
 
@@ -112,6 +114,30 @@ namespace FACM
         protected override void OnPaint(PaintEventArgs e)
         {
             // Per-pixel alpha content is supplied by LayeredFloatingBall.
+        }
+
+        internal bool GettingStartedVisible { get { return _gettingStartedVisible; } }
+
+        internal void EnableFirstUseWelcome()
+        {
+            _gettingStartedVisible = true;
+            _showGettingStartedOnLaunch = true;
+        }
+
+        internal void OpenGettingStarted()
+        {
+            if (IsDisposed || _exiting) return;
+            _gettingStartedVisible = true;
+            CloseMenu();
+            EnsureMenuOpenAndActive();
+        }
+
+        internal void DismissGettingStarted(bool reopenMenu)
+        {
+            _gettingStartedVisible = false;
+            if (!reopenMenu) return;
+            CloseMenu();
+            EnsureMenuOpenAndActive();
         }
 
         public void CloseMenu()
@@ -395,6 +421,11 @@ namespace FACM
 
             if (Interlocked.CompareExchange(ref _externalActivationPending, 0, 0) != 0)
                 BeginInvoke(new Action(ShowControlCenterFromExternalActivation));
+            else if (_showGettingStartedOnLaunch && !_startCleanup)
+            {
+                _showGettingStartedOnLaunch = false;
+                BeginInvoke(new Action(EnsureMenuOpenAndActive));
+            }
 
             if (_startCleanup)
             {
