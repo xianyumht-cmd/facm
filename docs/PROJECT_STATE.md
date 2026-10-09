@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.57：优化“我的 GGman”页面的工作台内显示。账号数量、活跃天数、首次使用时间等统计卡片随窗口宽度自适应；近期使用账号、可选匿名排行和隐私/遥测开关与操作按钮统一收缩至内容宽度。窗口较矮时可以滚动查看页面底部状态，不再因原先固定 720×560 坐标而发生裁切。补充六种窗口宽度下的布局回归测试。保留原有本地账号统计、排行主动开启、遥测设置、CloudBase 身份和所有数据写入保护；悬浮球、工作台导航、LOL 查询及在线更新逻辑均未改变。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Update Center status and release notes polish (3.5.58 target, pending release)
+
+- Issue #300; branch `feat/ggman-update-center-ux-20261009`; verified enabled public 3.5.57 before work. Scoped UX fix: keep the existing 560×620 Update Center window, GGman branding and the startup auto-update setting, but give long version notes a separate native scrollable read-only field, rebalance the announcement card, and distinguish unchecked/failed/verified/update-in-progress states. Download/installation failure now retains its error state rather than being overwritten by “update available”; metadata failure also blocks stale install actions. Added pure multiline-notes/eligibility/error-snapshot checks in the existing `UpdateMirrorSmokeTest`.
+- The download target/mirror resolution, cryptographic hash/signature checks, trusted update metadata, updater replacement/restart, 3.5.40 compatibility download alias, forced update/exit behavior and persistent settings format remain unchanged. No Gameflow/LCU work in this pass. Real Windows DPI and actual download failure UI acceptance remain unverified by CI.
+- Formal release target **3.5.58** only after final-head Windows Build/UI Text Contract, safe PR merge and signed publisher's public asset/signer/SHA check with enabled online manifest.
+
+
 ## 2026-10-09 — My GGman responsive profile page (3.5.57 published)
 
 - Issue #300; branch `feat/ggman-my-profile-responsive-20261009`. Current verified public release before work was 3.5.56. User reports testing the previous release, without detailed DPI/client test evidence. Next distinct UI slice: resize `LeaguePersonalStatsForm` inside the existing single-sidebar workbench instead of replacing it or adding a new page. Four original metrics/history/ranking/preferences panels now adjust to available width in an AutoScroll content canvas, and status remains vertically reachable.
