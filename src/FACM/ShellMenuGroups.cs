@@ -70,12 +70,7 @@ namespace FACM
         {
             if (root == null || root.IsDisposed || string.IsNullOrWhiteSpace(groupName)) return null;
             if (string.Equals(groupName, LeagueGroupName, StringComparison.Ordinal))
-            {
-                // CompactMenuForm still asks MainForm to show the old League dropdown. Route that legacy
-                // call to the same direct Hub launcher and return no dropdown target.
-                LeagueHubUiBridge.RequestOpen();
                 return null;
-            }
             return root.Items.OfType<ToolStripMenuItem>()
                 .FirstOrDefault(item => string.Equals(item.Name, groupName, StringComparison.Ordinal));
         }

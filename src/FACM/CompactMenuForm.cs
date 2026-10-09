@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
+using FACM.League;
 using FACM.Services;
 using FACM.Theming;
 
@@ -462,13 +463,7 @@ namespace FACM
 
         private void OpenLeagueMenu(object sender, EventArgs e)
         {
-            _dialogOpen = true;
-            if (_ownerBall.ShowShellGroup(ShellMenuGroups.LeagueGroupName, sender as Control, EndPopupInteraction)) return;
-            _dialogOpen = false;
-            SetStatus(string.Format(
-                _ui.Get(UiTextKeys.ShellStatusFormat),
-                _ui.Get(UiTextKeys.ShellLeague),
-                _ui.Get(UiTextKeys.ShellUnavailable)));
+            LeagueHubUiBridge.RequestOpen(_ownerBall, string.Empty);
         }
 
         private void OpenPersonalizationMenu(object sender, EventArgs e)

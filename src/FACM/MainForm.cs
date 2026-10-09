@@ -90,7 +90,7 @@ namespace FACM
                 Visible = true,
                 ContextMenuStrip = BuildTrayMenu()
             };
-            _tray.DoubleClick += delegate { ToggleMenu(); };
+            _tray.DoubleClick += delegate { EnsureMenuOpenAndActive(); };
 
             _layeredBall = LayeredFloatingBall.Attach(this);
 
@@ -504,7 +504,7 @@ namespace FACM
             {
                 Name = ShellMenuGroups.OpenRootName
             };
-            open.Click += delegate { ToggleMenu(); };
+            open.Click += delegate { EnsureMenuOpenAndActive(); };
 
             var cleanup = new ToolStripMenuItem(_ui.Cleanup)
             {
@@ -551,6 +551,9 @@ namespace FACM
                 delegate { RestoreDefaultBall(); });
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.ResetDesktop", _ui.Get(UiTextKeys.PetReset), 40,
                 delegate { ResetAnimalPet(); });
+            ShellMenuGroups.AddMoreAction(menu, "FACM.More.GettingStarted",
+                _ui.Get(UiTextKeys.ShellGettingStartedMenu), 55,
+                delegate { OpenGettingStarted(); });
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.Update", _ui.CheckUpdate, 60,
                 delegate { OpenUpdateCenter(); });
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.Log", _ui.OpenLog, 70,
