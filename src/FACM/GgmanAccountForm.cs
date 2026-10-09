@@ -154,7 +154,7 @@ namespace FACM
             if (!string.Equals(_challenge.Email, _email.Text.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 _challenge = null;
-                _status.Text = _ui.Get(UiTextKeys.AccountCodeSent);
+                _status.Text = _ui.Get(UiTextKeys.AccountEmailChanged);
                 RefreshControls();
                 return;
             }
