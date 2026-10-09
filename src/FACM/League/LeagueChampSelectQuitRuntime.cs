@@ -102,7 +102,8 @@ namespace FACM.League
         internal static bool IsAllowedTargetForSmokeTest(string method, string path)
         {
             return string.Equals((method ?? string.Empty).Trim(), "POST", StringComparison.OrdinalIgnoreCase) &&
-                   string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal);
+                   (string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal) ||
+                    string.Equals((path ?? string.Empty).Trim(), RequestLobbyPath, StringComparison.Ordinal));
         }
 
         public void Dispose()
