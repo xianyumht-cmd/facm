@@ -28,6 +28,12 @@ namespace FACM.AppHost.Modules
         public UiTextCatalog UiText { get; private set; }
 
         internal bool WasSettingsCreatedThisRun { get; private set; }
+        internal bool IsFreshInstallation { get; private set; }
+
+        internal static bool ShouldShowFirstUseForSmokeTest(bool hasPrimary, bool hasRecovery, bool hasLegacy)
+        {
+            return !hasPrimary && !hasRecovery && !hasLegacy;
+        }
 
         public void Initialize()
         {
