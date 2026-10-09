@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.55：优化选人阶段的窄版实时对局悬浮助手。为隐藏原生滚动条的推荐内容增加细窄的滚动进度提示，内容足够少时自动隐藏，让强化符文、出装和队友信息的位置更容易判断；完善退出选人、置顶/取消置顶、展开/收起、导入/应用、查看更多方案、翻页等现有按钮的辅助提示与键盘可访问名称。保留悬浮球默认入口、320 像素轻量窗口、游戏内不抢焦点、置顶/折叠状态恢复、实时数据链与所有原有 LOL 操作保护；不新增查询轮询，不修改退出选人的逻辑。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — Narrow companion readable scroll affordance (3.5.55 target, pending publication)
+## 2026-10-09 — Narrow companion readable scroll affordance (3.5.55 published)
 
 - Issue #300; task branch `feat/ggman-companion-readability-20261009`. A passive 4px scroll-progress cue is docked beside the existing `LeagueRuntimeCompanionForm` recommendations body, using existing scroll/content metrics and hidden when all sections fit. Native Gameflow/LCU presentation/read/write owners, header identity, Bench gating, 320px compact width, pin/collapse window-state persistence, and nonactivating behavior remain intact.
 - Accessible labels for pin, collapse, quit-current-select, recommendation alternatives and Bench/augment page controls are synchronized with their visible behavior, with an existing localized tooltip that more content is available on scroll. Pure smoke asserts top/middle/end and no-overflow indicator bounds.
-- Formal release target **GGman 3.5.55** after PR Windows Build and UI Text Contract pass and signed lightweight publisher confirms compatible public executable bytes and online manifest. Native Windows DPI and real League visual interaction remain unverified and must not be represented as test successes.
+- **GGman 3.5.55 formally published and online-enabled**: PR #307 squash-merged as `935e12f097947b9c09c740ef746aa2dcc0b4bcb4`; final task head `b383a450d3639636f1b6559c1da9d092545515c2` passed GGman Windows Build #37947339766 and FACM UI Text Contract #37947339670. Official signed release workflow #37947598781 succeeded, including public executable signer/bytes and updater enablement. GitHub Release publishes byte-identical `GGman.exe` and backward-compatible `FACM.exe` (2,389,400 bytes each; SHA-256 `C1BA17DBFFC813C41425BF655079ACF510813B20F323343B3A962E1A40B8DD71`). `online/version.json` is enabled for 3.5.55 and points to the compatibility `FACM.exe` asset. Real Windows mixed-DPI screenshot and live League interaction acceptance remain pending.
 
 
 ## 2026-10-09 — Mayhem and ChampSelect visual convergence (3.5.54 published)
