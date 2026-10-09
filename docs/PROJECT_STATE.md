@@ -14,6 +14,14 @@
 
 # FACM Project State
 
+## 2026-10-09 — 3.5.49 failed Tencent field acceptance; quitV2 follow-up in review
+
+- Real GGman log `facm-20261009.log` after the confirmed 3.5.49 update: at 17:49:07, 17:49:09 and 17:49:12, `/lol-lobby-team-builder/champ-select/v1/session/quit` returned HTTP 400 `RPC_ERROR`. The `request-lobby` fallback returned HTTP 200 but no accepted `true` outcome; Champion Select persisted and the client transitioned into game at 17:49:46. Thus 3.5.49 was **not** a functional matchmade quit fix.
+- Review branch `fix/champselect-preserve-party-quitv2-20261009` replaces that ineffective fallback with a single guarded LCDS `teambuilder-draft/quitV2` call described in Pengu Loader/KBotExt. It retains the original primary route for practice/custom, rereads the original party/phase/session before fallback, logs response shape without private content, and demands original party ID/roster continuity after ChampSelect disappears.
+- Offline smoke tests can verify the route allowlist, encoding, deduplication, cancellation and outcome truthfulness; they **cannot** establish that Tencent currently accepts `quitV2` or preserves the original party. Do not report real-game success until a Tencent matchmade field test confirms both.
+- Pending CI and review. No version increment, online manifest or official release is authorized merely by simulated acceptance.
+
+
 ## 2026-10-09 — Champion Select “退” patch (released 3.5.49; live matchmaking proof pending)
 
 - Supplied GGman logs show successful primary quits in practice/custom sessions but repeated HTTP 400 rejections on 2026-09-24 and 2026-10-02/04/07 in matchmade ChampSelect.
