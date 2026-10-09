@@ -261,3 +261,8 @@ Workbench contextual launch is a typed initial-state configuration, not a second
 ## 2026-10-09 — Consolidate My GGman in the existing responsive workbench canvas
 
 The My GGman history, metrics and opt-in preferences are one user task, not several new windows. Keep the existing page and its local/cloud owners, but let its children fill the embedded workbench width with a vertically scrollable content panel. Allocate summary metrics in three bounded slots; reserve sufficient content height for the status line. Keep cloud ranking explicitly opt-in and avoid reading or sending any additional account information merely to improve the page presentation. Validate layout with a pure geometry policy and the existing host smoke instead of inventing a second UI framework.
+
+
+## 2026-10-09 — Update Center treats notes, availability and failure as distinct states
+
+A verified update's description is informational text, not a transient progress/error status. Keep full notes in a scrollable native read-only text box, and reserve the small status label and semantic badge for verified availability, check/download progress or an actual error. Never display an unverified initial state as “up to date”; never re-enable an install action using a previous successful manifest after a later metadata failure. Keep the existing signed updater and forced-update lifecycle unchanged. Prefer a compact layout within the present 560×620 dialog rather than creating an additional settings window or migrating UI technology.
