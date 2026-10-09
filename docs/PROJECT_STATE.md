@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.59：优化首次使用与设置入口。真正全新安装、没有旧版配置或恢复配置时，首次启动会自动展开现有悬浮球快捷面板，在四个常用入口上方显示简短的新手使用指南，可直接打开工作台或点击“知道了”恢复正常面板。已有配置、旧版迁移及恢复用户不会被当成新用户；游戏客户端状态要求隐藏悬浮入口时，也不会自动弹出引导影响操作。快捷面板底部“更多设置”简化为“设置”，其中加入“使用指南”，可随时手动重新查看。补充首次安装判断和常规/对局快捷面板布局回归测试。保留原有悬浮球、托盘、四个快捷入口和全部 LOL 查询、自动化及更新安全机制，不增加常驻窗口或网络轮询。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — Cross-entry and legacy UI consistency closeout (3.5.60 target, unpublished)
+
+- Issue #300; task branch `fix/ggman-shell-entry-consistency-20261010`. Verified enabled official 3.5.59 manifest and new main baseline before editing. Fixed two concrete shell UX inconsistencies: tray "Open control center" and tray double-click previously called the toggle method (closing an already-open panel); the legacy compact League entry triggered the Hub through a side-effect in `FindGroup` and displayed a false unavailable status. Explicit tray opens now activate the panel, while only floating-ball clicks toggle. Legacy League entry now routes directly via typed `LeagueHubUiBridge`; group lookup is pure and the old dropdown remains absent.
+- Reused the existing `使用指南` in tray More as well as the launcher Settings menu without introducing a new window. `ShellUxSmokeTest` covers the absent legacy League dropdown and stable More lookup; existing Hub routes and smoke remain intact. No new LCU/League requests, settings migrations, update protocol changes or floating ball behavior changes.
+- Formal target **GGman 3.5.60**, subject to final-head Windows Build and UI Text Contract, PR merge, official signed publisher verification of public `GGman.exe` and compatible `FACM.exe`, and `online/version.json.enabled=true`. Source/CI checks are not a substitute for actual Windows tray, theme, DPI and League in-game visual acceptance.
+
+
 ## 2026-10-09 — First-use quick launcher orientation (3.5.59 formally published)
 
 - Issue #300; task branch `feat/ggman-first-use-orientation-20261009`. Verified public enabled 3.5.58 before changes. Existing `SettingsModule.WasSettingsCreatedThisRun` was insufficient to distinguish migration/recovery. Added `IsFreshInstallation` computed from current, recovery and legacy settings existence before `AppSettings.Load`. Only a genuinely fresh install (and not a `--cleanup` startup) can get an automatic opening of the normal floating-ball quick launcher.
