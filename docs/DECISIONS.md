@@ -226,3 +226,8 @@ Decision: retain the 56px floating-ball/tray entry as the default lightweight us
 ## 2026-10-09 — Single navigation rail for the on-demand LOL workbench
 
 The GGman floating ball remains the default process entry. When the optional LOL workbench opens, it uses a single grouped left navigation rail and one content canvas. Remove the persistent top subnav and right context dock, which compete with match history and guide content. Preserve all nine existing view IDs, nested form factories, task ownership and external contextual requests; keep player profile visually separated without changing legacy internal section identifiers. This trades a slightly wider rail for direct access and more stable content width. The original on-demand workbench is not made a startup surface.
+
+
+## 2026-10-09 — Readability-first, data-dense player history
+
+The player history page should keep a high-density virtual ListView rather than wrapping every match into a heavy decorative card. Use responsive geometry inside the on-demand workbench, neutral text for match metadata, and semantic win/loss color only for the result cell. Empty and loading states must remain distinguishable and should reuse existing localization keys. Preserve data service ownership, cache, paging and cancellation. This is a presentation release, not a change to how matches are fetched or counted.

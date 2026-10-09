@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.51：优化 LOL 工作台布局。保留悬浮球为默认主入口，打开工作台后改为单一左侧导航，当前状态、我的战绩、实时对局、出装推荐、海斗攻略、快捷工具、在线状态、游戏修复与我的 GGman 均可直接切换；取消占用页面空间的顶部二级导航及右侧常驻快捷栏，战绩与攻略内容拥有更宽的展示区域。左侧导航支持窄窗口与滚动，底部显示真实客户端连接及游戏阶段。所有原有页面、外部快捷入口和对局操作链路保持兼容。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-09 — Player history UX pass (3.5.52 target, unpublished at this point)
+
+- Active follow-on Issue #300, branch `feat/ggman-player-page-ux-20261009`. Scope is the existing `LeaguePlayerForm` only: resize lists/columns/buttons by actual embedded form size, show explicit empty/loading status in the match area using established localized copy, and use win/loss colors only in result cells. `LeaguePlayerSmokeTest` adds deterministic bounds/column-width regression checks. No changes to match HTTP endpoints, cache, data enrichment, Gameflow ownership, cloud storage or floating-ball primary entry.
+- Formal release target **3.5.52**, only after GGman Windows Build, FACM UI Text Contract, PR merge, signed publisher and enabled online manifest are verified. Native multi-DPI and live League screenshot acceptance remain unverified, not a reason to claim the browser prototype is production output.
+
+
 ## 2026-10-09 — GGman workbench navigation redesign (3.5.51 published)
 
 - Issue #300; task branch `feat/ggman-hub-single-nav-20261009`. Source change replaces League Hub's category/sidebar + top subnavigation + optional right context dock with one directly clickable grouped left rail and full-width content. Existing nine view IDs, contextual `ShowView` bridge, child Form lifecycles and Gameflow state source remain intact; no new network owner, game actions or long-running UI surface.

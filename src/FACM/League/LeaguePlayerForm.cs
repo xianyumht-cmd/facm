@@ -16,6 +16,11 @@ namespace FACM.League
         private readonly Label _accountLabel;
         private readonly Label _statusLabel;
         private readonly Label _statsSection;
+        private readonly Label _recentSection;
+        private readonly Label _emptyStateLabel;
+        private readonly Label _titleLabel;
+        private readonly Label _hintLabel;
+        private readonly FacmActionButton _closeButton;
         private readonly ListView _championStatsList;
         private readonly ListView _matchesList;
         private readonly FacmActionButton _refreshButton;
@@ -41,7 +46,7 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
-            var title = new Label
+            _titleLabel = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePlayerTitle),
                 Location = new Point(28, 20),
@@ -50,7 +55,7 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
             };
-            var hint = new Label
+            _hintLabel = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeaguePlayerHint),
                 Location = new Point(30, 58),
@@ -82,7 +87,7 @@ namespace FACM.League
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 160);
             _championStatsList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 250);
 
-            var section = CreateSectionLabel(_ui.Get(UiTextKeys.LeaguePlayerRecentMatches), new Point(30, 320), 300);
+            _recentSection = CreateSectionLabel(_ui.Get(UiTextKeys.LeaguePlayerRecentMatches), new Point(30, 320), 300);
 
             _matchesList = CreateListView(new Rectangle(28, 352, 804, 302), true);
             _matchesList.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -105,24 +110,39 @@ namespace FACM.League
             _loadMoreButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _loadMoreButton.Click += async delegate { await LoadMoreAsync(); };
 
-            var close = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
-            close.Location = new Point(738, 672);
-            close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            close.Click += delegate { Close(); };
+            _closeButton = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
+            _closeButton.Location = new Point(738, 672);
+            _closeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            _closeButton.Click += delegate { Close(); };
 
-            Controls.Add(title);
-            Controls.Add(hint);
+            _emptyStateLabel = new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingProfile),
+                Size = new Size(320, 52),
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true,
+                Visible = false
+            };
+
+            Controls.Add(_titleLabel);
+            Controls.Add(_hintLabel);
             Controls.Add(_accountLabel);
             Controls.Add(_statusLabel);
             Controls.Add(_statsSection);
             Controls.Add(_championStatsList);
-            Controls.Add(section);
+            Controls.Add(_recentSection);
             Controls.Add(_matchesList);
             Controls.Add(_refreshButton);
             Controls.Add(_loadMoreButton);
-            Controls.Add(close);
+            Controls.Add(_closeButton);
+            Controls.Add(_emptyStateLabel);
 
             ApplyCached();
+            ResizePlayerPage();
+            Resize += delegate { ResizePlayerPage(); };
             Shown += async delegate { await RefreshAllAsync(true); };
             FormClosed += delegate
             {
@@ -193,6 +213,7 @@ namespace FACM.League
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingProfile);
                 _championStatsList.Items.Clear();
             }
+            UpdateEmptyState();
         }
 
         private async Task RefreshAllAsync(bool force)
@@ -202,6 +223,7 @@ namespace FACM.League
             try
             {
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingProfile);
+                UpdateEmptyState();
                 var profile = await _service.LoadProfileAsync(force, _lifetime.Token);
                 if (IsDisposed) return;
                 if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId))
@@ -213,12 +235,14 @@ namespace FACM.League
                     _championStatsList.Items.Clear();
                     _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
                     _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
+                    UpdateEmptyState();
                     return;
                 }
 
                 _profile = profile;
                 ApplyProfile(profile);
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingMatches);
+                UpdateEmptyState();
                 var page = await _service.LoadRecentMatchesAsync(profile, 0, _requestedCount, force, _lifetime.Token);
                 if (IsDisposed) return;
                 ApplyPage(page);
@@ -232,12 +256,20 @@ namespace FACM.League
             }
             catch (OperationCanceledException)
             {
-                if (!_lifetime.IsCancellationRequested) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                if (!_lifetime.IsCancellationRequested)
+                {
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                    UpdateEmptyState();
+                }
             }
             catch (Exception exception)
             {
                 AppLog.Info("League Player refresh skipped: " + exception.Message);
-                if (!IsDisposed) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                if (!IsDisposed)
+                {
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                    UpdateEmptyState();
+                }
             }
             finally
             {
@@ -253,6 +285,7 @@ namespace FACM.League
             try
             {
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingMatches);
+                UpdateEmptyState();
                 var page = await _service.LoadRecentMatchesAsync(_profile, 0, _requestedCount, false, _lifetime.Token);
                 if (IsDisposed) return;
                 ApplyPage(page);
@@ -268,7 +301,11 @@ namespace FACM.League
             catch (Exception exception)
             {
                 AppLog.Info("League Player load-more skipped: " + exception.Message);
-                if (!IsDisposed) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                if (!IsDisposed)
+                {
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerUnknown);
+                    UpdateEmptyState();
+                }
             }
             finally
             {
@@ -296,6 +333,7 @@ namespace FACM.League
                 ? _ui.Get(UiTextKeys.LeaguePlayerNoMatches)
                 : _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + "  ·  " + _rows.Count;
             _loadMoreButton.Enabled = !_loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
+            UpdateEmptyState();
         }
 
         private void ApplyChampionStats(LeaguePlayerMatchPage page)
@@ -349,9 +387,11 @@ namespace FACM.League
                 ? TimeSpan.FromSeconds(match.GameDurationSeconds).ToString(@"mm\:ss")
                 : unknown;
             var item = new ListViewItem(new[] { time, mode, champion, kda, cs, result, duration });
-            item.ForeColor = match.ParticipantResolved
-                ? (match.Win ? FacmDesignSystem.Success : FacmDesignSystem.Error)
-                : FacmDesignSystem.TextMuted;
+            item.UseItemStyleForSubItems = false;
+            foreach (ListViewItem.ListViewSubItem cell in item.SubItems)
+                cell.ForeColor = match.ParticipantResolved ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted;
+            if (match.ParticipantResolved)
+                item.SubItems[5].ForeColor = match.Win ? FacmDesignSystem.Success : FacmDesignSystem.Error;
             e.Item = item;
         }
 
@@ -378,7 +418,7 @@ namespace FACM.League
 
         private static string FormatChampion(string name, int championId)
         {
-            if (!string.IsNullOrWhiteSpace(name)) return name + " #" + championId;
+            if (!string.IsNullOrWhiteSpace(name)) return name;
             return championId > 0 ? championId.ToString() : string.Empty;
         }
 
@@ -388,6 +428,83 @@ namespace FACM.League
             if (IsDisposed) return;
             _refreshButton.Enabled = !loading;
             _loadMoreButton.Enabled = !loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
+            UpdateEmptyState();
+        }
+
+        private void UpdateEmptyState()
+        {
+            if (IsDisposed) return;
+            _emptyStateLabel.Text = _statusLabel.Text;
+            _emptyStateLabel.Visible = _rows.Count == 0;
+            if (_emptyStateLabel.Visible) _emptyStateLabel.BringToFront();
+        }
+
+        internal static Rectangle ResolveMatchesBoundsForSmokeTest(int clientWidth, int clientHeight)
+        {
+            var statsHeight = clientHeight >= 670 ? 115 : 98;
+            var top = 194 + statsHeight + 40;
+            return new Rectangle(
+                24, top,
+                Math.Max(160, clientWidth - 48),
+                Math.Max(96, clientHeight - top - 64));
+        }
+
+        internal static int[] ResolveMatchColumnWidthsForSmokeTest(int listWidth)
+        {
+            var widths = new[] { 100, 104, 122, 104, 52, 68, 70 };
+            var extra = Math.Max(0, listWidth - 10 - 620);
+            var weights = new[] { 0.11, 0.23, 0.28, 0.19, 0.04, 0.07 };
+            var distributed = 0;
+            for (var i = 0; i < weights.Length; i++)
+            {
+                var addition = (int)(extra * weights[i]);
+                widths[i] += addition;
+                distributed += addition;
+            }
+            widths[6] += extra - distributed;
+            return widths;
+        }
+
+        private void ResizePlayerPage()
+        {
+            if (_matchesList == null || _matchesList.IsDisposed) return;
+            var width = ClientSize.Width;
+            var height = ClientSize.Height;
+            var contentWidth = Math.Max(160, width - 48);
+
+            _titleLabel.Width = contentWidth;
+            _hintLabel.Width = contentWidth;
+            _accountLabel.Width = contentWidth;
+            _statusLabel.Width = contentWidth;
+            _statsSection.Width = contentWidth;
+
+            var statsHeight = height >= 670 ? 115 : 98;
+            _championStatsList.Bounds = new Rectangle(24, 194, contentWidth, statsHeight);
+            var matchesBounds = ResolveMatchesBoundsForSmokeTest(width, height);
+            _recentSection.Bounds = new Rectangle(26, matchesBounds.Top - 31, contentWidth, 25);
+            _matchesList.Bounds = matchesBounds;
+            _emptyStateLabel.Bounds = new Rectangle(
+                matchesBounds.Left + 16,
+                matchesBounds.Top + 44,
+                Math.Max(160, matchesBounds.Width - 32),
+                Math.Min(72, Math.Max(40, matchesBounds.Height - 50)));
+
+            var toolbarTop = Math.Max(matchesBounds.Bottom + 10, height - 46);
+            _closeButton.Location = new Point(Math.Max(24, width - 24 - _closeButton.Width), toolbarTop);
+            _loadMoreButton.Location = new Point(_closeButton.Left - 8 - _loadMoreButton.Width, toolbarTop);
+            _refreshButton.Location = new Point(_loadMoreButton.Left - 8 - _refreshButton.Width, toolbarTop);
+
+            var available = Math.Max(320, _championStatsList.ClientSize.Width - 10);
+            var championWidth = Math.Max(135, available * 44 / 100);
+            var resultWidth = Math.Max(85, available * 17 / 100);
+            _championStatsList.Columns[0].Width = championWidth;
+            _championStatsList.Columns[1].Width = resultWidth;
+            _championStatsList.Columns[2].Width = Math.Max(100, available - championWidth - resultWidth);
+
+            var matchWidths = ResolveMatchColumnWidthsForSmokeTest(_matchesList.ClientSize.Width);
+            for (var i = 0; i < matchWidths.Length; i++)
+                _matchesList.Columns[i].Width = matchWidths[i];
+            if (_emptyStateLabel.Visible) _emptyStateLabel.BringToFront();
         }
     }
 }
