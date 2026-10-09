@@ -78,7 +78,7 @@ namespace FACM.League
             {
                 Dock = DockStyle.Top,
                 Height = 92,
-                BackColor = Color.FromArgb(13, 20, 34)
+                BackColor = FACM.Theming.FacmDesignSystem.Surface
             };
             header.Controls.Add(new Label
             {
@@ -95,7 +95,7 @@ namespace FACM.League
                 Location = new Point(30, 54),
                 Size = new Size(820, 25),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                ForeColor = Color.FromArgb(143, 164, 200),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
             });
@@ -135,7 +135,7 @@ namespace FACM.League
             {
                 Location = new Point(334, 224),
                 Size = new Size(518, 24),
-                ForeColor = Color.FromArgb(129, 224, 255),
+                ForeColor = FACM.Theming.FacmDesignSystem.Accent,
                 AutoEllipsis = true
             };
             _autoHint = new Label
@@ -143,7 +143,7 @@ namespace FACM.League
                 Text = T(LeagueRecommendationUiTextKeys.AutoHint),
                 Location = new Point(30, 252),
                 Size = new Size(822, 22),
-                ForeColor = Color.FromArgb(112, 129, 160),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
             _autoToggle.CheckedChanged += HandleAutoToggleChanged;
@@ -155,7 +155,7 @@ namespace FACM.League
             {
                 Location = new Point(30, 313),
                 Size = new Size(822, 26),
-                ForeColor = Color.FromArgb(205, 220, 245),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 AutoEllipsis = true
             };
 
@@ -175,13 +175,13 @@ namespace FACM.League
                 Text = T(LeagueRecommendationUiTextKeys.Skills),
                 Location = new Point(30, 495),
                 Size = new Size(100, 22),
-                ForeColor = Color.FromArgb(142, 164, 200)
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted
             };
             _skillsValue = new Label
             {
                 Location = new Point(132, 495),
                 Size = new Size(720, 22),
-                ForeColor = Color.FromArgb(224, 232, 247),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 AutoEllipsis = true
             };
             _countersCaption = new Label
@@ -189,13 +189,13 @@ namespace FACM.League
                 Text = T(LeagueRecommendationUiTextKeys.Counters),
                 Location = new Point(30, 523),
                 Size = new Size(100, 22),
-                ForeColor = Color.FromArgb(142, 164, 200)
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted
             };
             _countersValue = new Label
             {
                 Location = new Point(132, 523),
                 Size = new Size(720, 22),
-                ForeColor = Color.FromArgb(224, 232, 247),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 AutoEllipsis = true
             };
 
@@ -203,7 +203,7 @@ namespace FACM.League
             {
                 Location = new Point(30, 570),
                 Size = new Size(560, 54),
-                ForeColor = Color.FromArgb(154, 185, 231),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
 
@@ -307,8 +307,8 @@ namespace FACM.League
                 FlatAppearance = { BorderSize = 1 },
                 TextAlign = ContentAlignment.MiddleLeft,
                 Padding = new Padding(14, 2, 10, 2),
-                ForeColor = Color.FromArgb(218, 229, 247),
-                BackColor = Color.FromArgb(18, 27, 43),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                BackColor = FACM.Theming.FacmDesignSystem.Surface,
                 Cursor = Cursors.Hand
             };
         }
@@ -322,8 +322,8 @@ namespace FACM.League
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(16, 24, 39),
-                ForeColor = Color.FromArgb(222, 232, 249),
+                BackColor = FACM.Theming.FacmDesignSystem.CanvasRaised,
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 ScrollBars = ScrollBars.Vertical
             };
         }
@@ -335,7 +335,7 @@ namespace FACM.League
                 Text = text,
                 Location = new Point(left, top),
                 Size = new Size(268, 20),
-                ForeColor = Color.FromArgb(112, 224, 255),
+                ForeColor = FACM.Theming.FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
             };
@@ -348,12 +348,12 @@ namespace FACM.League
                 Text = text,
                 Size = new Size(106, 36),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = primary ? Color.FromArgb(58, 91, 218) : Color.FromArgb(28, 39, 58),
+                BackColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.SurfaceRaised,
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
                 TabStop = true
             };
-            button.FlatAppearance.BorderColor = primary ? Color.FromArgb(94, 219, 255) : Color.FromArgb(63, 78, 105);
+            button.FlatAppearance.BorderColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
             return button;
         }
 
@@ -467,9 +467,9 @@ namespace FACM.League
         private static void StyleChoice(CheckBox choice)
         {
             if (choice == null) return;
-            choice.BackColor = choice.Checked ? Color.FromArgb(27, 49, 84) : Color.FromArgb(18, 27, 43);
-            choice.ForeColor = choice.Checked ? Color.White : Color.FromArgb(174, 190, 217);
-            choice.FlatAppearance.BorderColor = choice.Checked ? Color.FromArgb(83, 221, 255) : Color.FromArgb(48, 64, 88);
+            choice.BackColor = choice.Checked ? FACM.Theming.FacmDesignSystem.SurfaceRaised : FACM.Theming.FacmDesignSystem.Surface;
+            choice.ForeColor = choice.Checked ? Color.White : FACM.Theming.FacmDesignSystem.TextMuted;
+            choice.FlatAppearance.BorderColor = choice.Checked ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
         }
 
         private void HandleAutoToggleChanged(object sender, EventArgs e)
