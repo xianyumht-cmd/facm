@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.57",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.57/FACM.exe",
   "sha256": "6EF46E621146AC64AEDC8DAA8ABFDE0A6CD49224745FDB611C920B4BDCF15A3D",
   "release_notes": "GGman 3.5.57：优化“我的 GGman”页面的工作台内显示。账号数量、活跃天数、首次使用时间等统计卡片随窗口宽度自适应；近期使用账号、可选匿名排行和隐私/遥测开关与操作按钮统一收缩至内容宽度。窗口较矮时可以滚动查看页面底部状态，不再因原先固定 720×560 坐标而发生裁切。补充六种窗口宽度下的布局回归测试。保留原有本地账号统计、排行主动开启、遥测设置、CloudBase 身份和所有数据写入保护；悬浮球、工作台导航、LOL 查询及在线更新逻辑均未改变。",
-  "published_at": "2026-10-09T15:35:45.2757371+00:00"
+  "published_at": "2026-10-09T15:35:54.7176183+00:00"
 }
