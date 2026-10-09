@@ -24,6 +24,7 @@ namespace FACM.Online
         public static string ReleaseNotesUnavailable { get { return T("检查更新后显示新版本说明。"); } }
         public static string ReleaseNotesMissing { get { return T("此版本未提供更新说明。"); } }
         public static string FetchUnavailable { get { return T("暂时无法获取更新信息，请检查网络后重试。"); } }
+        public static string NotYetVerified { get { return T("尚未确认最新版本，可点击检查更新重试。"); } }
         public static string InstallFailed { get { return T("更新未完成，请检查网络或系统权限后重试。"); } }
         public static string Cancelled { get { return T("更新已取消。"); } }
 
