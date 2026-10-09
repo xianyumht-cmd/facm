@@ -10,6 +10,7 @@ namespace FACM.Performance
             {
                 RunStep("performance-budget", Validate);
                 RunStep("shell-ux", FACM.ShellUxSmokeTest.Validate);
+                RunStep("ggman-email-auth", FACM.Online.GgmanEmailAuthClient.ValidateForSmokeTest);
                 RunStep("league-dashboard", FACM.LeagueDashboardSmokeTest.Validate);
                 RunStep("league-player", FACM.League.LeaguePlayerSmokeTest.Validate);
                 RunStep("league-live", FACM.League.LeagueLiveSmokeTest.Validate);
