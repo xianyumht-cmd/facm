@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.51：优化 LOL 工作台布局。保留悬浮球为默认主入口，打开工作台后改为单一左侧导航，当前状态、我的战绩、实时对局、出装推荐、海斗攻略、快捷工具、在线状态、游戏修复与我的 GGman 均可直接切换；取消占用页面空间的顶部二级导航及右侧常驻快捷栏，战绩与攻略内容拥有更宽的展示区域。左侧导航支持窄窗口与滚动，底部显示真实客户端连接及游戏阶段。所有原有页面、外部快捷入口和对局操作链路保持兼容。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-09 — GGman workbench navigation redesign (3.5.51 target, release pending)
+## 2026-10-09 — GGman workbench navigation redesign (3.5.51 published)
 
 - Issue #300; task branch `feat/ggman-hub-single-nav-20261009`. Source change replaces League Hub's category/sidebar + top subnavigation + optional right context dock with one directly clickable grouped left rail and full-width content. Existing nine view IDs, contextual `ShowView` bridge, child Form lifecycles and Gameflow state source remain intact; no new network owner, game actions or long-running UI surface.
 - Smoke tests now require route parity and compact sidebar width, rather than assertions about removed docks/tabs. Native Windows/DPI screenshots and real-client UX validation remain outstanding; automated gates must pass before publication.
-- Intended next independent numbered online release: **GGman 3.5.51** using the existing signed lightweight publisher. This paragraph records a target only, not confirmed publication.
+- **GGman v3.5.51 formally published and verified**. PR #302 merged via squash as `276eac2b64f11d0fa71be30c694e6602bf841472`. Branch final head `894124e0b2d7e86e820980437a86aa035f6a4115` passed GGman Windows Build #37937642152 and FACM UI Text Contract #37937642173. Official publisher #37937911772 passed, verified public signer and byte-identical compatibility executables (2,378,648 bytes each; SHA-256 `C88811D80E8F07042B18C1FA56C21E6F0D480787FDCDE8952C9C9E3AC41DAC95`), and enabled the version 3.5.51 online manifest. Real Windows visual/DPI proof remains pending.
 
 
 ## 2026-10-09 — Floating-ball-first UX 3.5.50 (published)
