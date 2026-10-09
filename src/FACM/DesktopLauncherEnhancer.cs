@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
@@ -22,14 +21,14 @@ namespace FACM
     internal static class DesktopLauncherEnhancer
     {
         internal const int TileCount = 4;
-        internal const int LauncherColumns = 4;
+        internal const int LauncherColumns = 2;
         private const int BaseWidth = 420;
         private const int BaseHeight = 680;
-        private const int CompactBaseHeight = 236;
-        private const int ContextCompactBaseHeight = 322;
-        private const int TileBaseWidth = 82;
-        private const int TileBaseHeight = 84;
-        private const int TileGapX = 7;
+        private const int CompactBaseHeight = 286;
+        private const int ContextCompactBaseHeight = 388;
+        private const int TileBaseWidth = 183;
+        private const int TileBaseHeight = 66;
+        private const int TileGapX = 10;
         private const int TileGapY = 8;
         private const string LauncherName = "FACM.DesktopLauncher";
         private const string ContextName = "FACM.DesktopLauncher.Context";
@@ -40,19 +39,6 @@ namespace FACM
             ControlStyles.Selectable;
 
         private static int _contextualOpenArmed;
-
-        private static readonly FieldInfo ThemeField = typeof(CompactMenuForm).GetField(
-            "_theme", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo OwnerField = typeof(CompactMenuForm).GetField(
-            "_ownerBall", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo SettingsField = typeof(CompactMenuForm).GetField(
-            "_settings", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo CleanupField = typeof(CompactMenuForm).GetField(
-            "_cleanup", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly MethodInfo PersonalizationMethod = typeof(CompactMenuForm).GetMethod(
-            "OpenPersonalizationMenu", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly MethodInfo MoreMethod = typeof(CompactMenuForm).GetMethod(
-            "OpenMoreMenu", BindingFlags.Instance | BindingFlags.NonPublic);
 
         public static void ArmContextualOpen()
         {
@@ -70,10 +56,10 @@ namespace FACM
             if (menu.Controls.Find(LauncherName, true).Length > 0) return true;
 
             var contextual = Interlocked.Exchange(ref _contextualOpenArmed, 0) != 0;
-            var theme = ThemeField == null ? null : ThemeField.GetValue(menu) as ThemeDefinition;
+            var theme = menu.LauncherTheme;
             if (theme == null) return false;
             var ui = UiTextCatalog.Load();
-            var settings = SettingsField == null ? null : SettingsField.GetValue(menu) as AppSettings;
+            var settings = menu.LauncherSettings;
 
             var scaleX = menu.ClientSize.Width / (float)BaseWidth;
             var scaleY = menu.ClientSize.Height / (float)BaseHeight;
@@ -91,7 +77,7 @@ namespace FACM
             }
 
             var compactBaseHeight = contextual ? ContextCompactBaseHeight : CompactBaseHeight;
-            var compactHeight = Math.Max(sy(contextual ? 296 : 210), sy(compactBaseHeight));
+            var compactHeight = sy(compactBaseHeight);
             menu.ClientSize = new Size(menu.ClientSize.Width, compactHeight);
             menu.BackColor = FacmDesignSystem.Canvas;
             FacmDesignSystem.Round(menu, FacmDesignSystem.WindowRadius);
@@ -132,42 +118,59 @@ namespace FACM
             {
                 Name = LauncherName,
                 Location = new Point(sx(16), sy(launcherTop)),
-                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), Math.Max(sy(98), compactHeight - sy(launcherTop + 16))),
+                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(151)),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 AutoScroll = false,
                 Padding = Padding.Empty,
                 Margin = Padding.Empty,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
-            AddTile(launcher, theme, sx, sy, "◈", CleanupRepairUiText.LauncherTitle,
-                (Action)delegate { OpenCleanupRepair(menu); });
             AddTile(launcher, theme, sx, sy, "L", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Title),
                 (Action)delegate { OpenLeague(menu, contextual); });
-            AddTile(launcher, theme, sx, sy, "✦", ui.Get(UiTextKeys.ShellPersonalization),
-                tile => InvokeLegacy(menu, PersonalizationMethod, tile));
-            AddTile(launcher, theme, sx, sy, "⋯", ui.Get(UiTextKeys.ShellMoreSettings),
-                tile => InvokeLegacy(menu, MoreMethod, tile));
+            AddTile(launcher, theme, sx, sy, "战", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Player), // ui-text-contract: allow icon glyph
+                (Action)delegate { OpenView(menu, LeagueHubNavigation.Player); });
+            AddTile(launcher, theme, sx, sy, "海", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Mayhem), // ui-text-contract: allow icon glyph
+                (Action)delegate { OpenView(menu, LeagueHubNavigation.Mayhem); });
+            AddTile(launcher, theme, sx, sy, "工", LeagueHubText.Get(ui, LeagueHubUiTextKeys.Efficiency), // ui-text-contract: allow icon glyph
+                (Action)delegate { OpenView(menu, LeagueHubNavigation.Efficiency); });
 
             menu.Controls.Add(launcher);
             launcher.BringToFront();
+
+            var footer = new FlowLayoutPanel
+            {
+                Location = new Point(sx(16), sy(contextual ? 339 : 237)),
+                Size = new Size(Math.Max(120, menu.ClientSize.Width - sx(32)), sy(38)),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = FacmDesignSystem.Canvas,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            AddFooterAction(footer, sx, sy, CleanupRepairUiText.LauncherTitle,
+                delegate(Control anchor) { OpenCleanupRepair(menu); });
+            AddFooterAction(footer, sx, sy, ui.Get(UiTextKeys.ShellPersonalization),
+                delegate(Control anchor) { menu.ShowLauncherPersonalization(anchor); });
+            AddFooterAction(footer, sx, sy, ui.Get(UiTextKeys.ShellMoreSettings),
+                delegate(Control anchor) { menu.ShowLauncherMore(anchor); });
+            menu.Controls.Add(footer);
+            footer.BringToFront();
             return true;
         }
 
         internal static void ValidateDefinitionForSmokeTest()
         {
             if (TileCount != 4) throw new InvalidOperationException("Control-center launcher must expose exactly four primary desktop shortcuts.");
-            if (LauncherColumns != 4) throw new InvalidOperationException("Control-center launcher must prefer four left-to-right desktop shortcuts before wrapping.");
+            if (LauncherColumns != 2) throw new InvalidOperationException("Control-center launcher must display four shortcuts in two balanced rows.");
             if (ContextCompactBaseHeight <= CompactBaseHeight)
                 throw new InvalidOperationException("Contextual launcher must reserve room for the state card without shrinking the four shortcuts.");
-            if (ThemeField == null || OwnerField == null || SettingsField == null || CleanupField == null ||
-                PersonalizationMethod == null || MoreMethod == null)
-                throw new InvalidOperationException("Desktop launcher lost access to its bounded control-center actions.");
             if ((DesktopTileStyles & ControlStyles.SupportsTransparentBackColor) == 0)
                 throw new InvalidOperationException("Desktop launcher tiles must support transparent backgrounds before assigning Color.Transparent.");
-            if ((4 * TileBaseWidth) + (3 * TileGapX) > BaseWidth - 32)
-                throw new InvalidOperationException("Default control-center width can no longer hold four natural desktop shortcuts.");
+            if (LauncherColumns * (TileBaseWidth + TileGapX) > BaseWidth - 32)
+                throw new InvalidOperationException("Default control-center width cannot fit two launcher shortcuts per row.");
             if (FacmDesignSystem.WindowRadius > 12 || FacmDesignSystem.ControlRadius > 6)
                 throw new InvalidOperationException("Desktop launcher escaped the shared compact geometry contract.");
 
@@ -187,7 +190,7 @@ namespace FACM
                 if (label != null)
                 {
                     label.BackColor = Color.Transparent;
-                    if (string.Equals(label.Text, "F", StringComparison.Ordinal))
+                    if (string.Equals(label.Text, "G", StringComparison.Ordinal))
                     {
                         label.BackColor = FacmDesignSystem.Accent;
                         label.ForeColor = Color.White;
@@ -218,9 +221,9 @@ namespace FACM
             if (menu == null || menu.IsDisposed) return;
             try
             {
-                var owner = OwnerField.GetValue(menu) as MainForm;
-                var settings = SettingsField.GetValue(menu) as AppSettings;
-                var cleanup = CleanupField.GetValue(menu) as CleanupModule;
+                var owner = menu.LauncherOwner;
+                var settings = menu.LauncherSettings;
+                var cleanup = menu.LauncherCleanup;
                 if (owner == null || settings == null || cleanup == null) return;
 
                 using (var form = new CleanupRepairForm(owner, settings, cleanup))
@@ -239,7 +242,7 @@ namespace FACM
         private static void OpenLeague(CompactMenuForm menu, bool contextual)
         {
             if (menu == null || menu.IsDisposed) return;
-            var owner = OwnerField == null ? null : OwnerField.GetValue(menu) as MainForm;
+            var owner = menu.LauncherOwner;
             if (!contextual || owner == null)
             {
                 LeagueHubUiBridge.RequestOpen();
@@ -264,6 +267,39 @@ namespace FACM
             }
 
             LeagueHubUiBridge.RequestOpen();
+        }
+
+        private static void OpenView(CompactMenuForm menu, string viewId)
+        {
+            if (menu == null || menu.IsDisposed) return;
+            var owner = menu.LauncherOwner;
+            if (owner == null || owner.IsDisposed) return;
+            LeagueHubUiBridge.RequestOpen(owner, viewId);
+        }
+
+        private static void AddFooterAction(
+            FlowLayoutPanel parent,
+            Func<int, int> sx,
+            Func<int, int> sy,
+            string text,
+            Action<Control> action)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Size = new Size(sx(119), sy(31)),
+                Margin = new Padding(0, 0, sx(5), 0),
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.TextMuted,
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                TabStop = true,
+                AccessibleName = text
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
+            button.Click += delegate { if (action != null) action(button); };
+            parent.Controls.Add(button);
         }
 
         private static void AddTile(
@@ -295,20 +331,6 @@ namespace FACM
             };
             tile.Click += delegate { if (click != null) click(tile); };
             parent.Controls.Add(tile);
-        }
-
-        private static void InvokeLegacy(CompactMenuForm menu, MethodInfo method, Control anchor)
-        {
-            if (menu == null || menu.IsDisposed || method == null) return;
-            try { method.Invoke(menu, new object[] { anchor, EventArgs.Empty }); }
-            catch (TargetInvocationException exception)
-            {
-                AppLog.Error("Desktop launcher action failed", exception.InnerException ?? exception);
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Desktop launcher action failed", exception);
-            }
         }
 
         private sealed class LauncherFlowPanel : FlowLayoutPanel
@@ -455,40 +477,25 @@ namespace FACM
                     }
                 }
 
-                var iconSize = Math.Max(32, Math.Min(40, Height / 2));
-                var icon = new Rectangle((Width - iconSize) / 2, 4, iconSize, iconSize);
-                using (var iconPath = FacmDesignSystem.RoundedRectangle(icon, Math.Max(5, Math.Min(8, FacmDesignSystem.ControlRadius + 2))))
-                using (var iconBrush = new SolidBrush(FacmDesignSystem.Accent))
-                using (var iconPen = new Pen(FacmDesignSystem.Blend(FacmDesignSystem.Accent, FacmDesignSystem.BorderSoft, 0.35F), 1F))
-                {
+                var iconSize = Math.Max(32, Math.Min(38, Height - 16));
+                var icon = new Rectangle(9, (Height - iconSize) / 2, iconSize, iconSize);
+                using (var iconPath = FacmDesignSystem.RoundedRectangle(icon, FacmDesignSystem.ControlRadius))
+                using (var iconBrush = new SolidBrush(FacmDesignSystem.Blend(FacmDesignSystem.Surface, FacmDesignSystem.Accent, 0.16F)))
                     e.Graphics.FillPath(iconBrush, iconPath);
-                    e.Graphics.DrawPath(iconPen, iconPath);
-                }
 
-                using (var glyphFont = new Font(
-                    string.Equals(_glyph, "L", StringComparison.Ordinal) ? "Segoe UI" : "Segoe UI Symbol",
-                    string.Equals(_glyph, "L", StringComparison.Ordinal) ? 14F : 13.5F,
-                    FontStyle.Bold))
+                using (var glyphFont = new Font(_theme.FontName, 12F, FontStyle.Bold))
                 {
-                    TextRenderer.DrawText(
-                        e.Graphics,
-                        _glyph,
-                        glyphFont,
-                        icon,
-                        Color.White,
+                    TextRenderer.DrawText(e.Graphics, _glyph, glyphFont, icon,
+                        FacmDesignSystem.Accent,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 }
 
-                var titleBounds = new Rectangle(2, icon.Bottom + 7, Math.Max(1, Width - 4), Math.Max(1, Height - icon.Bottom - 8));
-                using (var titleFont = new Font(_theme.FontName, 8.1F, FontStyle.Bold))
+                var titleBounds = new Rectangle(icon.Right + 10, 0, Math.Max(1, Width - icon.Right - 17), Height);
+                using (var titleFont = new Font(_theme.FontName, 8.8F, FontStyle.Bold))
                 {
-                    TextRenderer.DrawText(
-                        e.Graphics,
-                        Text,
-                        titleFont,
-                        titleBounds,
+                    TextRenderer.DrawText(e.Graphics, Text, titleFont, titleBounds,
                         FacmDesignSystem.Text,
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
                 }
             }
         }

@@ -17,8 +17,8 @@ namespace FACM
 
             Require(DesktopLauncherEnhancer.TileCount == 4,
                 "Control center must expose four sparse desktop-style primary shortcuts; directory/status belongs inside cleanup and repair.");
-            Require(DesktopLauncherEnhancer.LauncherColumns == 4,
-                "Control center should place all four desktop shortcuts left-to-right when width allows, then wrap naturally.");
+            Require(DesktopLauncherEnhancer.LauncherColumns == 2,
+                "Floating-ball launcher must place its four primary routes in two compact rows.");
             Require(LeagueHubNavigation.Views.Count == 9,
                 "LOL helper must expose five match/profile views plus recommendation, shortcuts, game repair and presence.");
             Require(LeagueHubNavigation.Views[0].Id == LeagueHubNavigation.Dashboard,

@@ -175,3 +175,8 @@ Prefer one owner per mutable runtime concern:
 - one shared UI design-system direction rather than page-local theme engines.
 
 When asynchronous work can finish after context changes, use cancellation/generation/fingerprint/postcondition checks rather than adding arbitrary sleeps.
+
+
+## Floating-ball-first quick launcher (3.5.50 integration)
+
+`MainForm` remains the single shell owner: floating ball and tray are the default entry, and `CompactMenuForm` is a transient anchored flyout. `DesktopLauncherEnhancer.Apply` transforms the prepared compact window into a two-row launcher **before** `MainForm.PositionMenu` and `Show`, avoiding first-frame geometry jumps. It now consumes typed `CompactMenuForm.LauncherTheme`, `LauncherOwner`, `LauncherSettings`, `LauncherCleanup`, and explicit menu actions instead of reflecting on private fields and methods. Four main action targets route via `LeagueHubUiBridge` to existing stable view IDs; footer actions retain the cleanup/repair, personalization and more-settings paths. Source-level visual adjustments do not create any new League Gameflow polling, LCU write owner, cloud dependency, persistent full-size dashboard or runtime resource. The legacy non-launcher CompactMenuForm path remains available as a guarded fallback.

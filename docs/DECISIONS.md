@@ -216,3 +216,8 @@ This choice favors predictable portability, privacy, and recoverability over bri
 - Turning a feature off stops future collection/sync; it does not silently erase existing local history. Destructive deletion, if added later, must be an explicit user action.
 
 This keeps the user-facing retention value (history, active days, rank, future summaries) without making cross-user tracking or hidden device fingerprinting a prerequisite.
+
+
+## 2026-10-09 — Floating entry is GGman's primary shell
+
+Decision: retain the 56px floating-ball/tray entry as the default lightweight user interaction. The quick launcher is transient and the full workbench opens only on demand; do not make a full-size dashboard the default or always-visible window. Initial UX redesign ships incrementally in numbered, immutable, updater-compatible 3.5.x public versions after the normal Windows/UI text/League safety gates, instead of distributing out-of-band review EXEs as the only delivery mechanism. Rationale: player context switches should remain quick and unobtrusive, and historical changelogs/releases provide traceable updates. First scoped step v3.5.50 targets only quick-launcher presentation and typed menu ownership; existing League Gameflow/LCU writes remain unchanged.

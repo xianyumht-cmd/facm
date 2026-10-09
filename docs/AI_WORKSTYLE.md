@@ -38,3 +38,8 @@
 签名边界当前只涉及 3.5 `FACM.exe` 的 Authenticode PFX。仓库或会话拿不到 PFX/密码时，不得要求用户在聊天中粘贴秘密，也不得绕过生产签名门禁；应使用已授权的 GitHub Actions secret / 安全连接器，或者明确停在签名前并交接可审计的候选提交与哈希。
 
 截图或用户反馈与代码事实冲突时，先确认用户正在运行的 FACM 版本和 `online/version.json` 当前指向，再定位对应源码。当前唯一在线更新通道是 3.5 的 `online/version.json`；`online/facm4-version.json`、`.facm/state/active.json`、4.x detached manifest/bootstrapper 等只属于已退出的历史实现，不是当前运行依据。
+
+
+## Lightweight UI and formal release expectation (2026-10-09)
+
+For GGman desktop product changes, preserve the floating-ball-first experience and avoid replacing it with a permanently opened dashboard. The user prefers each accepted, tested iteration to be issued as a properly numbered online release with durable GitHub Release notes and updater history, rather than receiving only detached local review binaries. Release authorization never overrides required CI, signing, updater-asset verification, or source/branch safety checks. Do not publish unverified or unsigned client builds.
