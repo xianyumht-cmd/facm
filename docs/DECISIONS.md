@@ -221,3 +221,8 @@ This keeps the user-facing retention value (history, active days, rank, future s
 ## 2026-10-09 — Floating entry is GGman's primary shell
 
 Decision: retain the 56px floating-ball/tray entry as the default lightweight user interaction. The quick launcher is transient and the full workbench opens only on demand; do not make a full-size dashboard the default or always-visible window. Initial UX redesign ships incrementally in numbered, immutable, updater-compatible 3.5.x public versions after the normal Windows/UI text/League safety gates, instead of distributing out-of-band review EXEs as the only delivery mechanism. Rationale: player context switches should remain quick and unobtrusive, and historical changelogs/releases provide traceable updates. First scoped step v3.5.50 targets only quick-launcher presentation and typed menu ownership; existing League Gameflow/LCU writes remain unchanged.
+
+
+## 2026-10-09 — Single navigation rail for the on-demand LOL workbench
+
+The GGman floating ball remains the default process entry. When the optional LOL workbench opens, it uses a single grouped left navigation rail and one content canvas. Remove the persistent top subnav and right context dock, which compete with match history and guide content. Preserve all nine existing view IDs, nested form factories, task ownership and external contextual requests; keep player profile visually separated without changing legacy internal section identifiers. This trades a slightly wider rail for direct access and more stable content width. The original on-demand workbench is not made a startup surface.
