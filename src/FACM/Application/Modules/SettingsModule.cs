@@ -28,11 +28,21 @@ namespace FACM.AppHost.Modules
         public UiTextCatalog UiText { get; private set; }
 
         internal bool WasSettingsCreatedThisRun { get; private set; }
+        internal bool IsFreshInstallation { get; private set; }
+
+        internal static bool ShouldShowFirstUseForSmokeTest(bool hasPrimary, bool hasRecovery, bool hasLegacy)
+        {
+            return !hasPrimary && !hasRecovery && !hasLegacy;
+        }
 
         public void Initialize()
         {
             RuntimePaths.Initialize();
             WasSettingsCreatedThisRun = !File.Exists(RuntimePaths.SettingsPath);
+            IsFreshInstallation = ShouldShowFirstUseForSmokeTest(
+                !WasSettingsCreatedThisRun,
+                File.Exists(RuntimePaths.SettingsRecoveryPath),
+                AppSettings.HasLegacySettingsForFirstUse());
             Settings = AppSettings.Load();
             FacmThemeRuntime.Initialize(Settings.ThemeId);
             UiText = UiTextCatalog.Load();

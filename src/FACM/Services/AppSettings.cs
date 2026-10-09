@@ -50,6 +50,11 @@ namespace FACM.Services
         public bool LeaguePersonalStatsEnabled { get; set; } = true;
         public bool LeagueCloudRankingEnabled { get; set; } = false;
 
+        internal static bool HasLegacySettingsForFirstUse()
+        {
+            return File.Exists(LegacySettingsPath);
+        }
+
         public static AppSettings Load()
         {
             var result = new AppSettings();

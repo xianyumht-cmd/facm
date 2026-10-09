@@ -266,3 +266,8 @@ The My GGman history, metrics and opt-in preferences are one user task, not seve
 ## 2026-10-09 — Update Center treats notes, availability and failure as distinct states
 
 A verified update's description is informational text, not a transient progress/error status. Keep full notes in a scrollable native read-only text box, and reserve the small status label and semantic badge for verified availability, check/download progress or an actual error. Never display an unverified initial state as “up to date”; never re-enable an install action using a previous successful manifest after a later metadata failure. Keep the existing signed updater and forced-update lifecycle unchanged. Prefer a compact layout within the present 560×620 dialog rather than creating an additional settings window or migrating UI technology.
+
+
+## 2026-10-09 — Onboard through the existing floating launcher, not a new welcome app
+
+For the 3.5.59 first-use slice, use the pre-existing settings-creation signal and a small dismissible card inside the four-tile launcher. Automatically reveal the launcher only for genuinely new installs and never during suppressed gameflow or cleanup startup; return to normal menu sizing after dismissal. Existing/migrated/recovered users should receive no surprise first-run prompt. Keep the guide recoverable from the existing Settings popup instead of adding a permanent onboarding page, cloud identity flow or settings-migration flag. Preserve typed workbench routing and the original floating ball/tray lifecycle.
