@@ -67,6 +67,8 @@ namespace FACM.Services
         public const string AccountLoggedOut = "AccountLoggedOut";
         public const string AccountNoRemember = "AccountNoRemember";
         public const string AccountCaptchaRequired = "AccountCaptchaRequired";
+        public const string AccountTooManyAttempts = "AccountTooManyAttempts";
+        public const string AccountEmailChanged = "AccountEmailChanged";
         public const string AccountMenu = "AccountMenu";
 
         public const string ShellLeague = "ShellLeague";
