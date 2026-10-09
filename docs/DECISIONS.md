@@ -271,3 +271,8 @@ A verified update's description is informational text, not a transient progress/
 ## 2026-10-09 — Onboard through the existing floating launcher, not a new welcome app
 
 For the 3.5.59 first-use slice, use the pre-existing settings-creation signal and a small dismissible card inside the four-tile launcher. Automatically reveal the launcher only for genuinely new installs and never during suppressed gameflow or cleanup startup; return to normal menu sizing after dismissal. Existing/migrated/recovered users should receive no surprise first-run prompt. Keep the guide recoverable from the existing Settings popup instead of adding a permanent onboarding page, cloud identity flow or settings-migration flag. Preserve typed workbench routing and the original floating ball/tray lifecycle.
+
+
+## 2026-10-10 — Opening an existing panel must not be interpreted as a toggle
+
+Keep a deliberate behavioral distinction between the floating ball (click to toggle) and explicitly named **Open** commands in native tray menus (open or activate). A tray **Open control center** command or tray double-click must never close an already-visible launcher. The legacy compact League navigation should call the current typed Hub bridge, not rely on the side effect of a shell group lookup and then report a false “unavailable” status. Share the lightweight getting-started card between settings popups and the tray's secondary More menu, without adding a new top-level entry or duplicating settings storage. This is an entry/feedback consistency correction; no automation, overlay or League data-owner changes are required.
