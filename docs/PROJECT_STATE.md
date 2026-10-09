@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.52
-- GitHub Release：v3.5.52
+- 版本：GGman 3.5.53
+- GitHub Release：v3.5.53
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：8a60c026ae78bff9c42256bbacd2ea04cdcdfa36
-- 发布元数据提交：3984bdbeda40d12242d6de600de7542e41909f0e
-- Release GGman.exe SHA-256：558F93AA78BE4796EF5F44E1D9481078C4DC5BBB468810DA16CC5AA1D9C0A43D
-- release_notes：GGman 3.5.52：继续改进 LOL 工作台的“我的战绩”页面。战绩列表、英雄统计、底部操作按钮和七列表格会随窗口大小自适应调整，缩小工作台后不再依赖固定 860×720 布局；加载、无记录或客户端未连接时在列表中直接显示对应状态；胜负结果仅对结果一列使用红绿色强调，其他数据保持清晰易读；识别到英雄名称后不再重复显示内部英雄编号。保持原有战绩查询、缓存、滚动列表、分批加载与悬浮球使用方式，不修改任何对局读写行为。
+- 发布基础 main：b44fcee721afbc2bd678a9b37ceb172f813ccf9e
+- 发布元数据提交：6fdb2f210d9f02c30f374a076d6479e0db03ccc3
+- Release GGman.exe SHA-256：AA7605B7B62F200DF8283D50EEAE9B6CBE0E7BB94652BC557ADD1468A37C32A9
+- release_notes：GGman 3.5.53：优化 LOL 工作台的对局推荐页面。符文、召唤师技能和装备的选择卡片及推荐预览会根据可用宽度自动排成三列、两列或一列；窗口较窄时内容可滚动，而刷新、应用所选和操作结果始终显示在底部。统一按钮、文字与选择卡片的颜色和交互状态，移除原有蓝紫渐变装饰；应用成功、部分成功、失败及自动应用反馈使用清晰的状态色。保留原有的应用前确认、英雄阶段校验、数据查询及符文装备写入保护；悬浮球仍为默认主入口。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-09 — Recommendation UX pass (3.5.53 target, not yet published)

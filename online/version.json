@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.53",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.53/FACM.exe",
   "sha256": "AA7605B7B62F200DF8283D50EEAE9B6CBE0E7BB94652BC557ADD1468A37C32A9",
   "release_notes": "GGman 3.5.53：优化 LOL 工作台的对局推荐页面。符文、召唤师技能和装备的选择卡片及推荐预览会根据可用宽度自动排成三列、两列或一列；窗口较窄时内容可滚动，而刷新、应用所选和操作结果始终显示在底部。统一按钮、文字与选择卡片的颜色和交互状态，移除原有蓝紫渐变装饰；应用成功、部分成功、失败及自动应用反馈使用清晰的状态色。保留原有的应用前确认、英雄阶段校验、数据查询及符文装备写入保护；悬浮球仍为默认主入口。",
-  "published_at": "2026-10-09T14:18:44.3520611+00:00"
+  "published_at": "2026-10-09T14:18:52.5872264+00:00"
 }
