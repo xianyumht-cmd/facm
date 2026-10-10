@@ -50,6 +50,7 @@ namespace FACM.League
         internal UiTextEditorPanel(UiTextCatalog ui)
         {
             _ui = ui ?? UiTextCatalog.Load();
+            _active = new WeakReference<UiTextEditorPanel>(this);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -335,6 +336,17 @@ namespace FACM.League
             catch (Exception error)
             {
                 _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
+            }
+        }
+
+        private static WeakReference<UiTextEditorPanel> _active;
+        internal static bool HasPendingVisibleChanges
+        {
+            get
+            {
+                UiTextEditorPanel editor;
+                return _active != null && _active.TryGetTarget(out editor) &&
+                    !editor.IsDisposed && editor.HasPendingChanges;
             }
         }
 

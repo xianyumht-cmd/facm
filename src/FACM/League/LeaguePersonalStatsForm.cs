@@ -181,7 +181,8 @@ namespace FACM.League
             };
             _textEditor.ExpandedHeightChanged += delegate { LayoutPersonalStatsPage(); };
             _pageContent.Controls.Add(_textEditor);
-            _cloudCenter = new GgmanUnifiedSyncPanel(_ui, _settings, _escPanel, _textEditor);
+            _cloudCenter = new GgmanUnifiedSyncPanel(_ui, _settings);
+            _cloudCenter.ExpandedHeightChanged += delegate { LayoutPersonalStatsPage(); };
             _pageContent.Controls.Add(_cloudCenter);
 
             _scrollArea.Controls.Add(_pageContent);
@@ -294,7 +295,7 @@ namespace FACM.League
                 _summaryPanel.Width = cardWidth;
                 _historyPanel.Width = cardWidth;
                 _rankingPanel.Width = cardWidth;
-                _cloudCenter.SetBounds(28, 454, cardWidth, 152);
+                _cloudCenter.SetBounds(28, 454, cardWidth, _cloudCenter.Height);
                 _escPanel.SetBounds(28, _cloudCenter.Bottom + 14, cardWidth, 352);
                 _textEditor.SetBounds(28, _escPanel.Bottom + 14, cardWidth, _textEditor.Height);
                 _pageContent.Height = _textEditor.Bottom + 16;
@@ -341,7 +342,7 @@ namespace FACM.League
             }
             if (ResolvePageWidthForSmokeTest(420) - 160 - 30 <= 28 + 160)
                 throw new InvalidOperationException("GGman account entry overlaps the page title at narrow width.");
-            if (306 + 122 >= 454 || 454 + 152 >= 620)
+            if (306 + 122 >= 454 || 454 + 148 >= 620)
                 throw new InvalidOperationException("My GGman cloud center overlaps history or ESC area.");
         }
 
