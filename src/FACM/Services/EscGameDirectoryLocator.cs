@@ -90,23 +90,26 @@ namespace FACM.Services
 
         private static string FindValidatedConfig(string installPath)
         {
-            foreach (var directory in new[]
-            {
-                string.Equals(Path.GetFileName(installPath), "Config", StringComparison.OrdinalIgnoreCase)
-                    ? installPath : Path.Combine(installPath, "Config"),
-                Path.Combine(installPath, "Game", "Config")
-            })
-            {
-                if (!Directory.Exists(directory)) continue;
-                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) continue;
+            var gameConfig = Path.Combine(installPath, "Game", "Config");
+            if (HasEscSettings(gameConfig)) return Path.GetFullPath(gameConfig);
 
-                var hasEscFiles = ConfigNames.Any(name => File.Exists(Path.Combine(directory, name)));
-                var hasGameClient = File.Exists(Path.Combine(installPath, "LeagueClient.exe")) ||
-                    File.Exists(Path.Combine(installPath, "Game", "League of Legends.exe"));
-                if (hasEscFiles || hasGameClient)
-                    return Path.GetFullPath(directory);
-            }
-            return null;
+            var config = string.Equals(Path.GetFileName(installPath), "Config",
+                StringComparison.OrdinalIgnoreCase)
+                ? installPath : Path.Combine(installPath, "Config");
+            var parent = Directory.GetParent(config);
+            if (parent != null &&
+                string.Equals(parent.Name, "LeagueClient", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            return HasEscSettings(config) ? Path.GetFullPath(config) : null;
+        }
+
+        private static bool HasEscSettings(string directory)
+        {
+            if (!Directory.Exists(directory) ||
+                (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                return false;
+            return ConfigNames.Any(name => File.Exists(Path.Combine(directory, name)));
         }
 
         private static IEnumerable<string> EnumerateUninstallLocations()
@@ -172,6 +175,40 @@ namespace FACM.Services
                 if (!string.Equals(found, config, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(ResolveCandidate(install), config, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("ESC auto-locator failed process and installation paths.");
+                // WeGame installs keep client YAML preferences separate from actual ESC settings.
+                var wegame = Path.Combine(root, "WeGameApps", "英雄联盟");
+                var clientConfig = Path.Combine(wegame, "LeagueClient", "Config");
+                var gameConfig = Path.Combine(wegame, "Game", "Config");
+                Directory.CreateDirectory(clientConfig);
+                Directory.CreateDirectory(gameConfig);
+                File.WriteAllText(Path.Combine(clientConfig, "LCUAccountPreferences.yaml"), "settings: true");
+                File.WriteAllText(Path.Combine(clientConfig, "LeagueClientSettings.yaml"), "settings: true");
+                File.WriteAllText(Path.Combine(wegame, "LeagueClient", "LeagueClient.exe"), string.Empty);
+                File.WriteAllText(Path.Combine(wegame, "Game", "League of Legends.exe"), string.Empty);
+                File.WriteAllText(Path.Combine(gameConfig, "game.cfg"), "[General]");
+                File.WriteAllText(Path.Combine(gameConfig, "input.ini"), "[Game]");
+                File.WriteAllText(Path.Combine(gameConfig, "PersistedSettings.json"), "{}");
+                foreach (var hint in new[]
+                {
+                    wegame,
+                    Path.Combine(wegame, "LeagueClient", "LeagueClient.exe"),
+                    clientConfig,
+                    Path.Combine(wegame, "Game", "League of Legends.exe"),
+                    gameConfig
+                })
+                {
+                    var actual = ResolveCandidate(hint);
+                    if (!string.Equals(actual, gameConfig, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("WeGame ESC locator selected the client preferences folder.");
+                }
+
+                var clientOnly = Path.Combine(root, "ClientOnly");
+                Directory.CreateDirectory(Path.Combine(clientOnly, "LeagueClient", "Config"));
+                File.WriteAllText(Path.Combine(clientOnly, "LeagueClient", "LeagueClient.exe"), string.Empty);
+                File.WriteAllText(Path.Combine(clientOnly, "LeagueClient", "Config", "PerksPreferences.yaml"), "perks: true");
+                if (ResolveCandidate(Path.Combine(clientOnly, "LeagueClient", "LeagueClient.exe")) != null)
+                    throw new InvalidOperationException("LeagueClient YAML alone is not an ESC backup.");
+
                 var unrelated = Path.Combine(root, "Unrelated");
                 Directory.CreateDirectory(Path.Combine(unrelated, "Config"));
                 if (ResolveCandidate(unrelated) != null)
