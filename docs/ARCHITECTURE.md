@@ -33,6 +33,10 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 - PostgreSQL RLS remains the data-ownership boundary. Client code must not receive a service-role/API-key credential and must not supply `owner_id` itself.
 - Settings sync, account-history sync, telemetry upload, recovery-code/hardware-fingerprint matching, and local SQLite are later scopes, not implicit P1 behavior.
 
+### Registered account UI (AUTH-1 branch, not released)
+
+`LeaguePersonalStatsForm` embeds an optional account entry inside the League Hub. It creates `GgmanAccountForm` as an owned modal on the visible top-level host; the modal uses shared WinForms theme primitives, keeps signed-out email/OTP controls separate from the signed-in account management summary, and closes only after verified session establishment. The caller then refreshes the account-entry label. Registered tokens remain solely in `GgmanAccountSession` memory; closing the modal does not log out or change device-anonymous CloudBase clients, and no ESC cloud upload is enabled. Failed verification leaves the dialog open; explicit logout calls the existing CloudBase sign-out endpoint before clearing the in-process identity.
+
 ### Personal stats and anonymous ranking
 
 `LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On connected Gameflow state changes it may read `/lol-summoner/v1/current-summoner`, keeps the last captured account hash as an episode fence, and records only when the observed account changes. It derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, then discards the raw PUUID.
