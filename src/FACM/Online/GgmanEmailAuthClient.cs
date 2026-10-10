@@ -51,6 +51,7 @@ namespace FACM.Online
     {
         private static readonly object Sync = new object();
         private static GgmanAccountIdentity _current;
+        internal static event EventHandler Changed;
 
         internal static GgmanAccountIdentity Current
         {
@@ -75,11 +76,15 @@ namespace FACM.Online
                 string.IsNullOrWhiteSpace(value.AccessToken))
                 throw new ArgumentException("Verified CloudBase account session is required.", nameof(value));
             lock (Sync) _current = value;
+            var changed = Changed;
+            if (changed != null) changed(null, EventArgs.Empty);
         }
 
         internal static void Clear()
         {
             lock (Sync) _current = null;
+            var changed = Changed;
+            if (changed != null) changed(null, EventArgs.Empty);
         }
     }
 
