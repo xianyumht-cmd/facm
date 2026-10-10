@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.64：我的 GGman 个人统计调整为默认记录本机使用足迹，移除页面原有三个常驻开关。新增邮箱账号专属的游玩账号统计及排行榜，登录后可跨设备按注册账号派生标识去重；数据与隐私集中管理排行榜参与选项和单独授权的匿名功能使用统计，后者不会自动开启。提供“导入本机历史记录”，需用户确认，按来源幂等登记并保留原有本地历史，不把无法跨设备去重的旧账号哈希直接相加。新的统计表使用注册账号权限控制，旧匿名表和 ESC 云备份保持不变。生产数据库角色模拟与匿名 HTTP 拦截已验证，真实跨注册账号及跨电脑历史迁移仍待实机验证。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — UI text in-page editor + registered cloud sync (staged)
+
+- User requested moving difficult manual `ui-text.ini` editing to **LOL 工作台 → 我的 GGman** and synchronizing the customized UI wording across registered-account devices. Work stays in a single task branch `feat/ggman-ui-text-editor-account-sync-20261010`; no client release or CloudBase DDL has been executed.
+- Current UI contract is `[Text]` named keys plus advanced `[Replace]` global rules, with automatic file-change refresh in `UiTextRuntime`. The editor is a collapsed inline panel below ESC, provides search/default/current/preview/edit/reset and explicit local save plus signed-in cloud upload/restore. Local saves leave `data/ui-text-backups` recovery copies and enforce indexed placeholders so users cannot accidentally break `string.Format` labels.
+- New `cloudbase/sql/007_account_ui_text.sql` is **create-once, not deployed**. Versioned registered-only `ggman_ui_text_profiles` store uses UID RLS, explicit no-anon role checks and compare-and-swap update; existing anonymous settings, registered stats and ESC snapshots are untouched. Real CloudBase RLS, registered A/B HTTP isolation, file/UX regression and final-head CI are release gates. No 3.5.65 release while database remains unverified.
+
 ## 2026-10-10 — Registered personal stats migration (released in signed 3.5.64)
 
 - Owner explicitly requested removal of 3 permanent My GGman statistics switches, local usage recording by default at GGman launch and registered account statistics on email sign-in, and migration away from anonymous-device ranking before adding broader cloud config sync. Owner screenshot shows 24 local LOL accounts and 13 activity days; preserve local `personal-stats.json` and its recovery copy.
