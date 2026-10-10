@@ -248,7 +248,7 @@ namespace FACM.League
                 AppLog.Warning("GGman account dialog failed; type=" + error.GetType().Name +
                     "; hresult=" + error.HResult.ToString("X8") + ".");
                 MessageBox.Show(owner != null ? (IWin32Window)owner : this,
-                    string.Format(_ui.Get(UiTextKeys.AccountError), "无法打开账号窗口，请查看 GGman 运行日志。"),
+                    _ui.Get(UiTextKeys.AccountOpenFailed),
                     _ui.Get(UiTextKeys.AccountTitle), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally
