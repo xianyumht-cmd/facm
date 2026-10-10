@@ -108,9 +108,9 @@ namespace FACM.League
             SetBusy(true);
             try
             {
+                UsageTelemetryModule.SetEnabled(_usage.Checked);
                 if (GgmanAccountSession.Current != null)
                     await _module.SetRegisteredRankingVisibleAsync(_ranking.Checked, _lifetime.Token);
-                UsageTelemetryModule.SetEnabled(_usage.Checked);
                 if (!IsDisposed) _status.Text = _ui.Get(UiTextKeys.RegisteredStatsSaved);
             }
             catch (OperationCanceledException) { }
