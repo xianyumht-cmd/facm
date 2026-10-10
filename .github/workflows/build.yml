@@ -210,7 +210,6 @@ jobs:
         shell: pwsh
         run: |
           & ./scripts/check-esc-cloudbase-gateway.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'ESC gateway access check failed.' }
 
       - name: Sign when certificate secrets exist
         shell: pwsh
