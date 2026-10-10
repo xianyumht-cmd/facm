@@ -40,7 +40,7 @@ namespace FACM
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             ShowInTaskbar = false;
-            ClientSize = new Size(630, 410);
+            ClientSize = new Size(630, 352);
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
 
@@ -160,27 +160,11 @@ namespace FACM
             _directory.Width = Math.Max(120, width - 264);
             _autoDetect.Left = width - 249;
             _browse.Left = width - 123;
-            var compact = width < 620;
-            if (compact)
-            {
-                var buttonWidth = (width - 48) / 2;
-                for (var index = 0; index < _actions.Length; index++)
-                    _actions[index].SetBounds(16 + (index % 2) * (buttonWidth + 16),
-                        180 + (index / 2) * 42, buttonWidth, 35);
-                _probe.Top = 273;
-                _note.SetBounds(16, 317, width - 32, 67);
-                _status.SetBounds(16, 390, width - 32, 60);
-            }
-            else
-            {
-                var buttonWidth = (width - 64) / 4;
-                for (var index = 0; index < _actions.Length; index++)
-                    _actions[index].SetBounds(16 + index * (buttonWidth + 10),
-                        180, buttonWidth, 35);
-                _probe.Top = 231;
-                _note.SetBounds(16, 279, width - 32, 45);
-                _status.SetBounds(16, 332, width - 32, 58);
-            }
+            var buttonWidth = (width - 48) / 2;
+            _actions[0].SetBounds(16, 180, buttonWidth, 35);
+            _actions[1].SetBounds(32 + buttonWidth, 180, buttonWidth, 35);
+            _note.SetBounds(16, 232, width - 32, 48);
+            _status.SetBounds(16, 289, width - 32, 58);
         }
 
         private Label NewLabel(string text, int x, int y, int width, int height, bool heading = false)
