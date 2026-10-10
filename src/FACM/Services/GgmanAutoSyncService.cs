@@ -29,6 +29,9 @@ namespace FACM.Services
     {
         public int SchemaVersion { get; set; } = 1;
         public string LastOwner { get; set; } = string.Empty;
+        public string AppOwner { get; set; } = string.Empty;
+        public string TextOwner { get; set; } = string.Empty;
+        public string EscOwner { get; set; } = string.Empty;
         public Dictionary<string, GgmanAutoSyncAccountState> Accounts { get; set; } =
             new Dictionary<string, GgmanAutoSyncAccountState>(StringComparer.Ordinal);
     }
@@ -172,7 +175,7 @@ namespace FACM.Services
                 history = new GgmanAutoSyncAccountState();
                 _state.Accounts.Add(owner, history);
             }
-            var otherOwner = _state.LastOwner.Length > 0 && _state.LastOwner != owner;
+            var appOtherOwner = IsOtherOwner(owner, _state.AppOwner);
             _conflict = null;
             _conflictHasRemote = false;
             using (var appClient = new GgmanAppSettingsCloudClient())
@@ -186,7 +189,7 @@ namespace FACM.Services
                 var appHash = FingerprintApp(appLocal);
                 var appPristine = appHash == FingerprintApp(
                     GgmanPortableSettingsStore.Capture(new AppSettings()));
-                await SyncOneAsync("app", history, owner, otherOwner, history.App,
+                await SyncOneAsync("app", history, owner, appOtherOwner, history.App,
                     appHash, appRemote == null ? 0 : appRemote.Version,
                     appRemote == null ? null : FingerprintApp(appRemote.Profile),
                     async () => await appClient.SetAsync(account, appLocal,
@@ -198,7 +201,8 @@ namespace FACM.Services
                 var textRemote = await textClient.GetAsync(account, token);
                 var textLocal = UiTextCustomizationStore.Capture();
                 var textHash = FingerprintText(textLocal);
-                await SyncOneAsync("text", history, owner, otherOwner, history.Text,
+                await SyncOneAsync("text", history, owner,
+                    IsOtherOwner(owner, _state.TextOwner), history.Text,
                     textHash, textRemote == null ? 0 : textRemote.Version,
                     textRemote == null ? null : FingerprintText(textRemote.Profile),
                     async () => await textClient.SetAsync(account, textLocal,
@@ -223,7 +227,8 @@ namespace FACM.Services
                             FingerprintEsc(escRemote.Bundle));
                     }
                     else if (escLocal != null)
-                        await SyncOneAsync("esc", history, owner, otherOwner, history.Esc,
+                        await SyncOneAsync("esc", history, owner,
+                            IsOtherOwner(owner, _state.EscOwner), history.Esc,
                             FingerprintEsc(escLocal), escRemote == null ? 0 : escRemote.Version,
                             escRemote == null ? null : FingerprintEsc(escRemote.Bundle),
                             async () => await escClient.SetAsync(account, escLocal,
@@ -241,6 +246,7 @@ namespace FACM.Services
             if (remoteVersion > 0 && localHash != null &&
                 string.Equals(localHash, remoteHash, StringComparison.Ordinal))
                 return SyncAction.Adopt;
+            if (otherOwner) return SyncAction.Conflict;
             if (previous == null)
             {
                 if (remoteVersion == 0)
@@ -255,6 +261,12 @@ namespace FACM.Services
             if (remoteChanged) return SyncAction.Restore;
             if (localChanged) return SyncAction.Upload;
             return SyncAction.Unchanged;
+        }
+
+        private bool IsOtherOwner(string owner, string categoryOwner)
+        {
+            if (!string.IsNullOrEmpty(categoryOwner)) return categoryOwner != owner;
+            return !string.IsNullOrEmpty(_state.LastOwner) && _state.LastOwner != owner;
         }
 
         private async Task SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
@@ -304,10 +316,10 @@ namespace FACM.Services
             string kind, long version, string hash)
         {
             var cursor = new GgmanAutoSyncCursor { Version = version, Fingerprint = hash };
-            if (kind == "app") history.App = cursor;
-            else if (kind == "text") history.Text = cursor;
-            else if (kind == "esc") history.Esc = cursor;
-            _state.LastOwner = owner;
+            if (kind == "app") { history.App = cursor; _state.AppOwner = owner; }
+            else if (kind == "text") { history.Text = cursor; _state.TextOwner = owner; }
+            else if (kind == "esc") { history.Esc = cursor; _state.EscOwner = owner; }
+            if (string.IsNullOrEmpty(_state.LastOwner)) _state.LastOwner = owner;
             SaveState();
         }
 
@@ -470,7 +482,8 @@ namespace FACM.Services
                 Decide(previous, "old", 5, "old", false, false) != SyncAction.Adopt ||
                 Decide(previous, "new", 5, "old", false, false) != SyncAction.Upload ||
                 Decide(previous, "old", 6, "new", false, false) != SyncAction.Restore ||
-                Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict)
+                Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict ||
+                Decide(previous, "new", 5, "old", true, false) != SyncAction.Conflict)
                 throw new InvalidOperationException("Auto sync conflict-selection rules changed.");
         }
 
