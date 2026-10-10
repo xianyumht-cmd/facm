@@ -573,6 +573,8 @@ namespace FACM.Services
         {
             var previousDefaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
+                { UiTextKeys.LeaguePersonalStatsHint, "把长期使用记录留在本机，需要时再选择加入匿名排行。" },
+                { UiTextKeys.LeaguePersonalStatsRanking, "匿名账号数排行" },
                 { UiTextKeys.EscSettingsHint, "备份 LOL 游戏内 ESC 设置。恢复前须完全退出英雄联盟，GGman 会先保存当前配置。" },
                 { UiTextKeys.EscSettingsCloudScope, "云端备份属于已登录的 GGman 邮箱账号，不与匿名设备统计同步。上传或恢复前请关闭英雄联盟。" },
                 { UiTextKeys.EscSettingsFolder, "游戏目录（包含 Config 文件夹）" },
