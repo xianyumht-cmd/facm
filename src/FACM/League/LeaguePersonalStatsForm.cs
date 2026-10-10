@@ -41,6 +41,7 @@ namespace FACM.League
         private readonly FacmActionButton _refreshButton;
         private bool _applying;
         private bool _savingPreferences;
+        private bool _openingAccountDialog;
 
         public LeaguePersonalStatsForm(
             LeaguePersonalStatsModule module,
@@ -110,13 +111,7 @@ namespace FACM.League
                 Tone = FacmButtonTone.Secondary,
                 Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
             };
-            _accountButton.Click += delegate
-            {
-                using (var dialog = new GgmanAccountForm(_ui)) dialog.ShowDialog();
-                _accountButton.Text = GgmanAccountSession.Current == null
-                    ? _ui.Get(UiTextKeys.AccountMenu)
-                    : _ui.Get(UiTextKeys.AccountTitle);
-            };
+            _accountButton.Click += delegate { OpenAccountDialog(); };
             _pageContent.Controls.Add(_accountButton);
             _pageContent.Controls.Add(_titleLabel);
             _pageContent.Controls.Add(_hintLabel);
@@ -226,6 +221,47 @@ namespace FACM.League
 
             ApplySnapshot();
             ApplyTelemetryState();
+        }
+
+        private void OpenAccountDialog()
+        {
+            if (_openingAccountDialog || IsDisposed) return;
+            _openingAccountDialog = true;
+            _accountButton.Enabled = false;
+            AppLog.Info("GGman account entry clicked.");
+            var owner = TopLevelControl as Form;
+            if (owner == this || owner == null || owner.IsDisposed || !owner.Visible || !owner.TopLevel)
+                owner = null;
+            try
+            {
+                using (var dialog = new GgmanAccountForm(_ui))
+                {
+                    dialog.Shown += delegate { AppLog.Info("GGman account dialog shown."); };
+                    if (owner != null)
+                        dialog.ShowDialog(owner);
+                    else
+                        dialog.ShowDialog();
+                }
+            }
+            catch (Exception error)
+            {
+                AppLog.Warning("GGman account dialog failed; type=" + error.GetType().Name +
+                    "; hresult=" + error.HResult.ToString("X8") + ".");
+                MessageBox.Show(owner != null ? (IWin32Window)owner : this,
+                    string.Format(_ui.Get(UiTextKeys.AccountError), "无法打开账号窗口，请查看 GGman 运行日志。"),
+                    _ui.Get(UiTextKeys.AccountTitle), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                _openingAccountDialog = false;
+                if (!IsDisposed)
+                {
+                    _accountButton.Enabled = true;
+                    _accountButton.Text = GgmanAccountSession.Current == null
+                        ? _ui.Get(UiTextKeys.AccountMenu)
+                        : _ui.Get(UiTextKeys.AccountTitle);
+                }
+            }
         }
 
         private Label AddMetric(Control parent, string key, int left, int index)
