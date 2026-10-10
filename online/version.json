@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.64",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.64/FACM.exe",
   "sha256": "37DBB4A7DD91286EC519A93A4858C8A00F6A2857F99DEA31DA441D1CF60D9D4D",
   "release_notes": "GGman 3.5.64：我的 GGman 个人统计调整为默认记录本机使用足迹，移除页面原有三个常驻开关。新增邮箱账号专属的游玩账号统计及排行榜，登录后可跨设备按注册账号派生标识去重；数据与隐私集中管理排行榜参与选项和单独授权的匿名功能使用统计，后者不会自动开启。提供“导入本机历史记录”，需用户确认，按来源幂等登记并保留原有本地历史，不把无法跨设备去重的旧账号哈希直接相加。新的统计表使用注册账号权限控制，旧匿名表和 ESC 云备份保持不变。生产数据库角色模拟与匿名 HTTP 拦截已验证，真实跨注册账号及跨电脑历史迁移仍待实机验证。",
-  "published_at": "2026-10-10T02:54:21.7663940+00:00"
+  "published_at": "2026-10-10T02:54:31.1327608+00:00"
 }

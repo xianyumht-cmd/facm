@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.63
-- GitHub Release：v3.5.63
+- 版本：GGman 3.5.64
+- GitHub Release：v3.5.64
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：0ae4edaf24426f7071bafc8951cc9f69b3c3fa57
-- 发布元数据提交：8300f81ee60e23b31fb7338d0ce1ebd6ded6e20e
-- Release GGman.exe SHA-256：C3DC5FDD674EA17ECA913D4B7E168B4ED56AA40D4844A04AF723135361F983AF
-- release_notes：GGman 3.5.63：修复 WeGame 英雄联盟 ESC 云备份自动识别错误。优先选择真正包含 game.cfg、input.ini、PersistedSettings.json 的 Game\Config，不再把仅有 YAML 客户端偏好的 LeagueClient\Config 误判成 ESC 目录。修复由旧目录、安装根目录、游戏和客户端进程路径恢复定位及底层备份路径解析；新增 WeGame 双目录本地捕获回归测试。同步更新历史安装留下的旧版默认提示，不覆盖用户自定义的界面文案。无需重新配置腾讯 CloudBase 或覆盖旧云备份。
+- 发布基础 main：699e6a86ee92baff023a08fc6f2e8d1a6b1cdc5f
+- 发布元数据提交：6d7c1fb50016d69f3e8907b8cb4ec7178475ee74
+- Release GGman.exe SHA-256：37DBB4A7DD91286EC519A93A4858C8A00F6A2857F99DEA31DA441D1CF60D9D4D
+- release_notes：GGman 3.5.64：我的 GGman 个人统计调整为默认记录本机使用足迹，移除页面原有三个常驻开关。新增邮箱账号专属的游玩账号统计及排行榜，登录后可跨设备按注册账号派生标识去重；数据与隐私集中管理排行榜参与选项和单独授权的匿名功能使用统计，后者不会自动开启。提供“导入本机历史记录”，需用户确认，按来源幂等登记并保留原有本地历史，不把无法跨设备去重的旧账号哈希直接相加。新的统计表使用注册账号权限控制，旧匿名表和 ESC 云备份保持不变。生产数据库角色模拟与匿名 HTTP 拦截已验证，真实跨注册账号及跨电脑历史迁移仍待实机验证。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — Registered personal stats migration (staged; not released)
