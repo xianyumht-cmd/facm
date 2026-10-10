@@ -295,7 +295,7 @@ namespace FACM.League
                 _historyPanel.Width = cardWidth;
                 _rankingPanel.Width = cardWidth;
                 _cloudCenter.SetBounds(28, 454, cardWidth, 152);
-                _escPanel.SetBounds(28, _cloudCenter.Bottom + 14, cardWidth, cardWidth >= 620 ? 410 : 460);
+                _escPanel.SetBounds(28, _cloudCenter.Bottom + 14, cardWidth, 352);
                 _textEditor.SetBounds(28, _escPanel.Bottom + 14, cardWidth, _textEditor.Height);
                 _pageContent.Height = _textEditor.Bottom + 16;
                 for (var index = 0; index < _metricCaptions.Length; index++)
