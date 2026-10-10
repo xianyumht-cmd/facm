@@ -175,12 +175,12 @@ namespace FACM.Services
 
             Pair(UiTextKeys.LeaguePersonalStatsWindowTitle, "GGman · 我的档案"),
             Pair(UiTextKeys.LeaguePersonalStatsTitle, "我的 GGman"),
-            Pair(UiTextKeys.LeaguePersonalStatsHint, "把长期使用记录留在本机，需要时再选择加入匿名排行。"),
+            Pair(UiTextKeys.LeaguePersonalStatsHint, "本地自动记录使用情况；登录后参与注册账号排行榜。旧设备历史可在“数据与隐私”中导入。"),
             Pair(UiTextKeys.LeaguePersonalStatsAccounts, "玩过的账号"),
             Pair(UiTextKeys.LeaguePersonalStatsActiveDays, "活跃天数"),
             Pair(UiTextKeys.LeaguePersonalStatsMemberSince, "加入 GGman"),
             Pair(UiTextKeys.LeaguePersonalStatsActivityFormat, "连续使用 {0} 天 · 近 7 天活跃 {1} 天 · 近 30 天活跃 {2} 天 · 本月新增 {3} 个账号"),
-            Pair(UiTextKeys.LeaguePersonalStatsRanking, "匿名账号数排行"),
+            Pair(UiTextKeys.LeaguePersonalStatsRanking, "GGman 账号排行榜"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingDisabled, "未参与"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingWaiting, "等待云端统计"),
             Pair(UiTextKeys.LeaguePersonalStatsRankingFormat, "第 {0} / {1} 名"),
@@ -191,6 +191,20 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePersonalStatsTelemetryToggle, "发送匿名功能使用统计（不包含账号、PUUID、密码或 IP）"),
             Pair(UiTextKeys.LeaguePersonalStatsRefresh, "刷新排行"),
             Pair(UiTextKeys.LeaguePersonalStatsPaused, "已暂停新增记录，已有本地历史不会删除。"),
+            Pair(UiTextKeys.RegisteredStatsPrivacy, "数据与隐私"),
+            Pair(UiTextKeys.RegisteredStatsPrivacyHint, "默认保留本地使用记录；登录后参与注册账号排行。功能使用统计仍需单独授权。"),
+            Pair(UiTextKeys.RegisteredStatsRankOptIn, "参与 GGman 注册账号排行榜"),
+            Pair(UiTextKeys.RegisteredStatsUsageConsent, "允许发送匿名功能使用统计（不包含 LOL 账号信息）"),
+            Pair(UiTextKeys.RegisteredStatsImport, "导入本机历史记录"),
+            Pair(UiTextKeys.RegisteredStatsImportPrompt, "确定将这台电脑记录的 {0} 个历史账号及 {1} 个活跃日关联到当前 GGman 邮箱账号？\\r\\n\\r\\n如果这台电脑曾供别人使用，请不要导入。旧记录无法跨设备完全去重，不会直接累加进入排行。"),
+            Pair(UiTextKeys.RegisteredStatsImportSuccess, "本机历史已登记到当前账号，旧文件保留不变。"),
+            Pair(UiTextKeys.RegisteredStatsSave, "保存偏好"),
+            Pair(UiTextKeys.RegisteredStatsSaved, "隐私设置已保存。"),
+            Pair(UiTextKeys.RegisteredStatsLoginRequired, "请先登录 GGman 邮箱账号，再进行历史数据导入。"),
+            Pair(UiTextKeys.RegisteredStatsPrivacyError, "操作未完成：{0}"),
+            Pair(UiTextKeys.RegisteredStatsRankSignedOut, "登录 GGman 邮箱后参与账号排行"),
+            Pair(UiTextKeys.RegisteredStatsRankLoading, "尚未获得该账号的排行榜偏好，暂不修改排行设置；使用统计授权仍可单独管理。"),
+
 
             Pair(UiTextKeys.LeaguePlayerMenu, "玩家主页"),
             Pair(UiTextKeys.LeaguePlayerWindowTitle, "GGman · 玩家主页"),
@@ -560,6 +574,8 @@ namespace FACM.Services
         {
             var previousDefaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
+                { UiTextKeys.LeaguePersonalStatsHint, "把长期使用记录留在本机，需要时再选择加入匿名排行。" },
+                { UiTextKeys.LeaguePersonalStatsRanking, "匿名账号数排行" },
                 { UiTextKeys.EscSettingsHint, "备份 LOL 游戏内 ESC 设置。恢复前须完全退出英雄联盟，GGman 会先保存当前配置。" },
                 { UiTextKeys.EscSettingsCloudScope, "云端备份属于已登录的 GGman 邮箱账号，不与匿名设备统计同步。上传或恢复前请关闭英雄联盟。" },
                 { UiTextKeys.EscSettingsFolder, "游戏目录（包含 Config 文件夹）" },

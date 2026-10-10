@@ -6,7 +6,7 @@ Collect only aggregate feature-usage counts needed to decide which GGman areas a
 
 ## Consent
 
-Telemetry is disabled by default. The user can enable or disable it from **我的 GGman**. Consent is stored locally in `data/telemetry-consent.json` and is intentionally not part of CloudBase settings sync.
+Telemetry is disabled by default. In the upcoming registered-stats version, the user can enable or disable it via **我的 GGman → 数据与隐私** (instead of an always-visible switch). Consent is stored locally in `data/telemetry-consent.json` and is intentionally not part of CloudBase settings sync.
 
 Disabling telemetry immediately clears the in-memory upload queue. No new events are queued while disabled.
 
