@@ -32,7 +32,9 @@ namespace FACM.AppHost.Modules
         private PersonalStatsStore _store;
         private CancellationTokenSource _lifetime;
         private PersonalStatsSnapshot _localSnapshot;
-        private CloudPersonalRanking _cloudRanking;
+        private GgmanRegisteredStats _registeredStats;
+        private GgmanRegisteredStatsClient _registeredClient;
+        private string _localDeviceId;
         private string _lastCapturedAccountHash = string.Empty;
         private DateTime _lastCaptureAttemptUtc = DateTime.MinValue;
         private int _captureInProgress;
@@ -59,12 +61,9 @@ namespace FACM.AppHost.Modules
         {
             _store = PersonalStatsStore.CreateDefault();
             _lifetime = new CancellationTokenSource();
-
-            var settings = _settingsModule.Settings;
-            if (settings != null && settings.LeaguePersonalStatsEnabled)
-                _localSnapshot = _store.RecordLaunch(DateTimeOffset.Now);
-            else
-                _localSnapshot = _store.ReadSnapshot(DateTimeOffset.Now);
+            _registeredClient = new GgmanRegisteredStatsClient();
+            _localDeviceId = CloudIdentityStore.CreateDefault().LoadOrCreate().DeviceId;
+            _localSnapshot = _store.RecordLaunch(DateTimeOffset.Now);
 
             _dashboard.GameflowStateChanged += HandleGameflowStateChanged;
             Application.Idle += HandleIdle;
@@ -73,7 +72,7 @@ namespace FACM.AppHost.Modules
         private void HandleIdle(object sender, EventArgs e)
         {
             Application.Idle -= HandleIdle;
-            if (_settingsModule.Settings != null && _settingsModule.Settings.LeagueCloudRankingEnabled)
+            if (GgmanAccountSession.Current != null)
                 _ = RefreshCloudStateAsync(_lifetime.Token);
         }
 
@@ -85,8 +84,6 @@ namespace FACM.AppHost.Modules
                 return;
             }
 
-            var settings = _settingsModule.Settings;
-            if (settings == null || !settings.LeaguePersonalStatsEnabled) return;
             if (DateTime.UtcNow - _lastCaptureAttemptUtc < TimeSpan.FromSeconds(5)) return;
             if (Interlocked.CompareExchange(ref _captureInProgress, 1, 0) != 0) return;
 
@@ -98,7 +95,7 @@ namespace FACM.AppHost.Modules
         {
             try
             {
-                if (!_cloud.IsReady || string.IsNullOrWhiteSpace(_cloud.DeviceId)) return;
+                if (string.IsNullOrWhiteSpace(_localDeviceId)) return;
 
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
@@ -109,7 +106,7 @@ namespace FACM.AppHost.Modules
                     var current = ParseCurrentSummoner(bytes);
                     if (current == null || string.IsNullOrWhiteSpace(current.Puuid)) return;
 
-                    var hash = PersonalStatsStore.CreateAccountKeyHash(_cloud.DeviceId, current.Puuid);
+                    var hash = PersonalStatsStore.CreateAccountKeyHash(_localDeviceId, current.Puuid);
                     if (string.Equals(hash, _lastCapturedAccountHash, StringComparison.OrdinalIgnoreCase))
                         return;
 
@@ -123,11 +120,22 @@ namespace FACM.AppHost.Modules
                     _lastCapturedAccountHash = hash;
                     RaiseStatsChanged();
 
-                    var settings = _settingsModule.Settings;
-                    if (settings != null && settings.LeagueCloudRankingEnabled)
+                    var registered = GgmanAccountSession.Current;
+                    if (registered != null)
                     {
-                        await SynchronizeAccountAsync(hash, current.Region, cancellationToken).ConfigureAwait(false);
-                        await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
+                        try
+                        {
+                            await _registeredClient.TouchAsync(registered, cancellationToken).ConfigureAwait(false);
+                            await _registeredClient.RecordAccountAsync(registered,
+                                GgmanRegisteredStatsClient.CreateRegisteredAccountHash(registered.UserId,
+                                    current.Puuid), cancellationToken).ConfigureAwait(false);
+                            await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception error)
+                        {
+                            AppLog.Info("Registered account stats update skipped: " + error.GetType().Name);
+                        }
                     }
                 }
             }
@@ -160,12 +168,13 @@ namespace FACM.AppHost.Modules
                 NewAccountsThisMonth = local.NewAccountsThisMonth,
                 FirstSeenUtc = local.FirstSeenUtc,
                 LastSeenUtc = local.LastSeenUtc,
-                PersonalStatsEnabled = settings == null || settings.LeaguePersonalStatsEnabled,
-                CloudRankingEnabled = settings != null && settings.LeagueCloudRankingEnabled,
-                CloudRank = _cloudRanking == null ? 0 : _cloudRanking.rank,
-                CloudRankedUsers = _cloudRanking == null ? 0 : _cloudRanking.total_ranked_users,
-                CloudPercentile = _cloudRanking == null ? 0D : _cloudRanking.percentile,
-                CloudPlayedAccounts = _cloudRanking == null ? 0 : _cloudRanking.played_accounts,
+                PersonalStatsEnabled = true,
+                CloudRankingEnabled = GgmanAccountSession.Current != null &&
+                    (_registeredStats == null || _registeredStats.RankingVisible),
+                CloudRank = _registeredStats == null ? 0 : _registeredStats.Rank,
+                CloudRankedUsers = _registeredStats == null ? 0 : _registeredStats.TotalRankedUsers,
+                CloudPercentile = _registeredStats == null ? 0D : _registeredStats.Percentile,
+                CloudPlayedAccounts = _registeredStats == null ? 0 : _registeredStats.PlayedAccounts,
                 RecentAccounts = BuildRecentAccountViews(local.RecentAccounts)
             };
         }
@@ -175,108 +184,57 @@ namespace FACM.AppHost.Modules
             return new LeaguePersonalStatsForm(this, _settingsModule.Settings, ui);
         }
 
-        internal async Task ApplyPreferencesAsync(
-            bool personalStatsEnabled,
-            bool cloudRankingEnabled,
-            CancellationToken cancellationToken)
-        {
-            var settings = _settingsModule.Settings;
-            if (settings == null) return;
-
-            settings.LeaguePersonalStatsEnabled = personalStatsEnabled;
-            settings.LeagueCloudRankingEnabled = personalStatsEnabled && cloudRankingEnabled;
-            settings.Save();
-
-            if (settings.LeaguePersonalStatsEnabled)
-                _localSnapshot = _store.RecordLaunch(DateTimeOffset.Now);
-            else
-                _localSnapshot = _store.ReadSnapshot(DateTimeOffset.Now);
-
-            _cloudRanking = null;
-            RaiseStatsChanged();
-
-            if (!_cloud.IsReady) return;
-
-            try
-            {
-                await _cloud.SetRankingOptInAsync(settings.LeagueCloudRankingEnabled, cancellationToken).ConfigureAwait(false);
-                if (settings.LeagueCloudRankingEnabled)
-                {
-                    await SynchronizeAllAccountsAsync(cancellationToken).ConfigureAwait(false);
-                    await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Personal stats cloud preference sync skipped: " + exception.GetType().Name);
-            }
-        }
-
         internal async Task RefreshCloudStateAsync(CancellationToken cancellationToken)
         {
-            var settings = _settingsModule.Settings;
-            if (settings == null || !settings.LeagueCloudRankingEnabled || !_cloud.IsReady)
+            var account = GgmanAccountSession.Current;
+            if (account == null)
             {
-                _cloudRanking = null;
+                _registeredStats = null;
                 RaiseStatsChanged();
                 return;
             }
-
             try
             {
-                await _cloud.SetRankingOptInAsync(true, cancellationToken).ConfigureAwait(false);
-                _cloudRanking = await _cloud.GetPersonalRankingAsync(cancellationToken).ConfigureAwait(false);
+                await _registeredClient.TouchAsync(account, cancellationToken).ConfigureAwait(false);
+                var current = await _registeredClient.GetStatsAsync(account, cancellationToken).ConfigureAwait(false);
+                var active = GgmanAccountSession.Current;
+                if (active == null || active.UserId != account.UserId) return;
+                _registeredStats = current;
                 RaiseStatsChanged();
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
+            catch (OperationCanceledException) { throw; }
             catch (Exception exception)
             {
-                _cloudRanking = null;
-                AppLog.Info("Personal stats ranking refresh skipped: " + exception.GetType().Name);
+                _registeredStats = null;
+                AppLog.Info("Registered personal stats refresh skipped: " + exception.GetType().Name);
                 RaiseStatsChanged();
             }
         }
 
-        private async Task SynchronizeAllAccountsAsync(CancellationToken cancellationToken)
+        internal PersonalStatsLegacySummary ReadLegacySummary()
         {
-            foreach (var account in _store.ReadAccountsForSync(DateTimeOffset.Now))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await _cloud.RecordAccountAsync(account, cancellationToken).ConfigureAwait(false);
-            }
+            return _store.ReadLegacySummary(DateTimeOffset.Now);
         }
 
-        private async Task SynchronizeAccountAsync(
-            string accountKeyHash,
-            string region,
-            CancellationToken cancellationToken)
+        internal async Task ImportLegacyAsync(CancellationToken token)
         {
-            var account = new PersonalStatsAccountRecord
-            {
-                AccountKeyHash = accountKeyHash,
-                Region = region ?? string.Empty,
-                FirstSeenUtc = DateTimeOffset.UtcNow.UtcDateTime.ToString("o"),
-                LastSeenUtc = DateTimeOffset.UtcNow.UtcDateTime.ToString("o"),
-                SeenCount = 1
-            };
+            var account = GgmanAccountSession.Current;
+            if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
+            var summary = _store.ReadLegacySummary(DateTimeOffset.Now);
+            var source = GgmanRegisteredStatsClient.CreateLegacySourceKey(
+                account.UserId, _localDeviceId);
+            await _registeredClient.TouchAsync(account, token).ConfigureAwait(false);
+            await _registeredClient.ImportLegacyAsync(account, source, summary.PlayedAccounts,
+                summary.ActiveDays, token).ConfigureAwait(false);
+            await RefreshCloudStateAsync(token).ConfigureAwait(false);
+        }
 
-            var matching = _store.ReadAccountsForSync(DateTimeOffset.Now);
-            foreach (var item in matching)
-            {
-                if (string.Equals(item.AccountKeyHash, accountKeyHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    account = item;
-                    break;
-                }
-            }
-            await _cloud.RecordAccountAsync(account, cancellationToken).ConfigureAwait(false);
+        internal async Task SetRegisteredRankingVisibleAsync(bool visible, CancellationToken token)
+        {
+            var account = GgmanAccountSession.Current;
+            if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
+            await _registeredClient.SetRankingVisibleAsync(account, visible, token).ConfigureAwait(false);
+            await RefreshCloudStateAsync(token).ConfigureAwait(false);
         }
 
         private CurrentSummonerIdentity ParseCurrentSummoner(byte[] bytes)
@@ -383,7 +341,10 @@ namespace FACM.AppHost.Modules
 
             _store = null;
             _localSnapshot = null;
-            _cloudRanking = null;
+            _registeredStats = null;
+            if (_registeredClient != null) _registeredClient.Dispose();
+            _registeredClient = null;
+            _localDeviceId = null;
             _lastCapturedAccountHash = string.Empty;
         }
 
