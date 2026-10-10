@@ -40,6 +40,10 @@
 截图或用户反馈与代码事实冲突时，先确认用户正在运行的 FACM 版本和 `online/version.json` 当前指向，再定位对应源码。当前唯一在线更新通道是 3.5 的 `online/version.json`；`online/facm4-version.json`、`.facm/state/active.json`、4.x detached manifest/bootstrapper 等只属于已退出的历史实现，不是当前运行依据。
 
 
+## 正式版发布是默认交付（2026-10-10）
+
+用户明确要求今后 GGman 每次完成更新后，优先在现有正式在线更新渠道推送新版本，客户直接在程序里一键更新；不要把 GitHub Actions 的测试包或单独下载候选 EXE 作为常规交付，也不要反复让用户手动替换 EXE。仍须保持 Build/UI/签名/云端权限/真实环境安全验收；若必须的外部前置条件尚未满足，应清楚说明阻塞并保持 PR 未合并，不能为了满足正式版偏好而发布不安全版本。
+
 ## Lightweight UI and formal release expectation (2026-10-09)
 
 For GGman desktop product changes, preserve the floating-ball-first experience and avoid replacing it with a permanently opened dashboard. The user prefers each accepted, tested iteration to be issued as a properly numbered online release with durable GitHub Release notes and updater history, rather than receiving only detached local review binaries. Release authorization never overrides required CI, signing, updater-asset verification, or source/branch safety checks. Do not publish unverified or unsigned client builds.

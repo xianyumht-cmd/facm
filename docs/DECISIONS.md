@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## ESC cloud owner is registered UID, not device ID (2026-10-10)
+
+The prior experimental anonymous ESC profile upload is superseded and must never be published. ESC upload/restore is explicitly initiated by the player and uses only the CloudBase registered email account's bearer; Postgres grants and RLS permit `authenticated` only. User intent is captured with a pre-upload/restore preview; optimistic `version` protects against a second PC's silent overwrite. The local snapshot remains fully usable offline. No background ESC sync, global device-settings migration or forced login is introduced. Real CloudBase RLS, Riot game retention and recovery behavior must be verified before production promotion.
+
 ## Account confirmation closes its modal; management stays accessible (2026-10-10, AUTH-1 draft)
 
 The optional email login modal is an owned, short-lived task window, not a second persistent GGman dashboard. After an authenticated registered UID is established, close the modal with a success result and update the existing **我的 GGman** account action. Reopening the same entry shows the email/UID and logout rather than disabled sign-in inputs. A verification failure must leave the login window open with an error; successful closure does not revoke the session. This keeps session lifetime independent from window lifetime and preserves the existing lightweight floating-ball and Hub architecture. The change remains unmerged until provider and real Windows acceptance.

@@ -205,6 +205,12 @@ jobs:
           Write-Host "Built lightweight GGman.exe version $($version.FileVersion), size $($bytes.Length) bytes"
           Write-Host 'Verified embedded ToolBundle and confirmed PetHost runtime is not embedded.'
 
+      - name: Check live CloudBase ESC anonymous access
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/ggman-esc-account-sync-20261010'
+        shell: pwsh
+        run: |
+          & ./scripts/check-esc-cloudbase-gateway.ps1
+
       - name: Sign when certificate secrets exist
         shell: pwsh
         env:
