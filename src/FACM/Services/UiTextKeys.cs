@@ -50,6 +50,28 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
+        public const string EscSettingsTitle = "EscSettingsTitle";
+        public const string EscSettingsHint = "EscSettingsHint";
+        public const string EscSettingsFolder = "EscSettingsFolder";
+        public const string EscSettingsBrowse = "EscSettingsBrowse";
+        public const string EscSettingsLocalSave = "EscSettingsLocalSave";
+        public const string EscSettingsLocalRestore = "EscSettingsLocalRestore";
+        public const string EscSettingsCloudUpload = "EscSettingsCloudUpload";
+        public const string EscSettingsCloudRestore = "EscSettingsCloudRestore";
+        public const string EscSettingsCloudScope = "EscSettingsCloudScope";
+        public const string EscSettingsReady = "EscSettingsReady";
+        public const string EscSettingsBusy = "EscSettingsBusy";
+        public const string EscSettingsLocalSaved = "EscSettingsLocalSaved";
+        public const string EscSettingsRestoreConfirm = "EscSettingsRestoreConfirm";
+        public const string EscSettingsRestored = "EscSettingsRestored";
+        public const string EscSettingsUploadConfirm = "EscSettingsUploadConfirm";
+        public const string EscSettingsUploaded = "EscSettingsUploaded";
+        public const string EscSettingsCloudEmpty = "EscSettingsCloudEmpty";
+        public const string EscSettingsOperationFailed = "EscSettingsOperationFailed";
+        public const string EscSettingsCancelled = "EscSettingsCancelled";
+        public const string EscSettingsPickBackup = "EscSettingsPickBackup";
+        public const string EscSettingsCloudRestoreConfirm = "EscSettingsCloudRestoreConfirm";
+
         public const string AccountCaptchaTitle = "AccountCaptchaTitle";
         public const string AccountCaptchaHint = "AccountCaptchaHint";
         public const string AccountCaptchaRefresh = "AccountCaptchaRefresh";
