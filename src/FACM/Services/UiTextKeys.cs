@@ -185,6 +185,19 @@ namespace FACM.Services
         public const string LeaguePersonalStatsTelemetryToggle = "LeaguePersonalStatsTelemetryToggle";
         public const string LeaguePersonalStatsRefresh = "LeaguePersonalStatsRefresh";
         public const string LeaguePersonalStatsPaused = "LeaguePersonalStatsPaused";
+        public const string RegisteredStatsPrivacy = "RegisteredStatsPrivacy";
+        public const string RegisteredStatsPrivacyHint = "RegisteredStatsPrivacyHint";
+        public const string RegisteredStatsRankOptIn = "RegisteredStatsRankOptIn";
+        public const string RegisteredStatsUsageConsent = "RegisteredStatsUsageConsent";
+        public const string RegisteredStatsImport = "RegisteredStatsImport";
+        public const string RegisteredStatsImportPrompt = "RegisteredStatsImportPrompt";
+        public const string RegisteredStatsImportSuccess = "RegisteredStatsImportSuccess";
+        public const string RegisteredStatsSave = "RegisteredStatsSave";
+        public const string RegisteredStatsSaved = "RegisteredStatsSaved";
+        public const string RegisteredStatsLoginRequired = "RegisteredStatsLoginRequired";
+        public const string RegisteredStatsPrivacyError = "RegisteredStatsPrivacyError";
+        public const string RegisteredStatsRankSignedOut = "RegisteredStatsRankSignedOut";
+
 
         public const string LeaguePlayerMenu = "LeaguePlayerMenu";
         public const string LeaguePlayerWindowTitle = "LeaguePlayerWindowTitle";
