@@ -118,8 +118,8 @@ namespace FACM.League
             {
                 if (_mode.SelectedIndex != 1) _mode.SelectedIndex = 1;
                 _items.ClearSelected();
-                _source.Text = "";
-                _value.Text = "";
+                _source.Text = string.Empty;
+                _value.Text = string.Empty;
                 _source.Focus();
             };
             _upload.Click += async delegate { await UploadAsync(); };
