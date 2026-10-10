@@ -16,6 +16,7 @@ namespace FACM.Performance
                 RunStep("portable-registered-settings", FACM.Services.GgmanPortableSettingsStore.ValidateForSmokeTest);
                 RunStep("portable-settings-cloud", FACM.Online.GgmanAppSettingsCloudClient.ValidateForSmokeTest);
                 RunStep("unified-config-sync", FACM.League.GgmanUnifiedSyncPanel.ValidateForSmokeTest);
+                RunStep("auto-registered-sync", FACM.Services.GgmanAutoSyncService.ValidateForSmokeTest);
                 RunStep("registered-personal-stats", FACM.Online.GgmanRegisteredStatsClient.ValidateForSmokeTest);
                 RunStep("esc-backup", FACM.Services.EscSettingsBackup.ValidateForSmokeTest);
                 RunStep("esc-auto-locator", FACM.Services.EscGameDirectoryLocator.ValidateForSmokeTest);
