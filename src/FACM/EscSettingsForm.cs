@@ -270,7 +270,7 @@ namespace FACM
             if (expected == null || current == null ||
                 !string.Equals(current.UserId, expected.UserId, StringComparison.Ordinal) ||
                 !string.Equals(current.AccessToken, expected.AccessToken, StringComparison.Ordinal))
-                throw new InvalidOperationException("GGman 登录状态已更改，ESC 云端操作已取消。");
+                throw new InvalidOperationException(UiTextRuntime.Text(UiTextKeys.EscSettingsSessionChanged));
         }
 
         private void SetBusy(bool busy)
