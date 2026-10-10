@@ -33,7 +33,7 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 - PostgreSQL RLS remains the data-ownership boundary. Client code must not receive a service-role/API-key credential and must not supply `owner_id` itself.
 - Settings sync, account-history sync, telemetry upload, recovery-code/hardware-fingerprint matching, and local SQLite are later scopes, not implicit P1 behavior.
 
-### Automatic per-category registered configuration sync (next release)
+### Automatic per-category registered configuration sync (shipped 3.5.67)
 
 `GgmanAutoSyncModule` depends on `SettingsModule` and owns `GgmanAutoSyncService` for the whole application lifetime, not the My GGman page lifetime. A 5-second initial or post-login wakeup and periodic background polls reconcile the existing registered CloudBase RPCs for portable app settings (008), customized UI text (007) and ESC (005). Local `AutoConfigSyncEnabled` defaults on and is never included in portable cloud preferences; a single checkbox in `GgmanUnifiedSyncPanel` switches background behavior, with no usual manual cloud upload/restore buttons. The panel shows exceptional per-category conflict resolution only when a user must choose which side survives.
 
