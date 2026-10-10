@@ -32,6 +32,10 @@ This flow is **opt-in**, separate from the existing device-anonymous `ggman_sett
 - Despite SQL GRANT EXECUTE, CloudBase's PostgREST gateway may expose RPC route calls to anon; real data isolation relies on invoker/RLS and explicit role checks inside both functions.
 - Database migration cannot be run or verified by GitHub CI. The operator's screenshots indicate the objects are now installed in the selected CloudBase database, but **do not prove** direct RPC authorization, data ownership under multiple real tokens or correct Riot recovery. Audit execute grants and policies from the CloudBase SQL Editor, then test actual A/B/anon gateway requests without exposing credentials in chats/logs. No server secrets or admin credential may be shipped to clients.
 
+## Read-only real-gateway diagnostic (staged, not deployed)
+
+The ESC settings window now includes **检查云端权限**. After normal registered email sign-in, this action sends one authenticated `ggman_get_esc_profile()` request and displays only the remote revision (or absence); then sends a distinct read request without an Authorization header and requires HTTP 401/403. No token, UID, email or raw payload is displayed or logged, and this check never performs SQL writes or modifies League files. This checks authenticated read + **no-credential** denial; it is **not** a replacement for a real anonymous bearer-token check, a second-account A/B ownership check, upload revision conflict or in-game restore acceptance. A 400/404/5xx or a surprising 200 on the unauthenticated leg fails closed for diagnosis.
+
 ## External release gates
 
 1. AUTH-1 registered email login and sign-out accepted, same email on two Windows users/PCs yields the same UID; another account gets a distinct UID.
