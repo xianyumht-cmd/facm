@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
+using FACM.Online;
 using FACM.Services;
 using FACM.Theming;
 
@@ -28,6 +29,7 @@ namespace FACM.League
         private readonly Panel _scrollArea;
         private readonly Panel _pageContent;
         private readonly Label _titleLabel;
+        private readonly FacmActionButton _accountButton;
         private readonly Label _hintLabel;
         private readonly FacmGlassPanel _summaryPanel;
         private readonly FacmGlassPanel _historyPanel;
@@ -39,6 +41,7 @@ namespace FACM.League
         private readonly FacmActionButton _refreshButton;
         private bool _applying;
         private bool _savingPreferences;
+        private bool _openingAccountDialog;
 
         public LeaguePersonalStatsForm(
             LeaguePersonalStatsModule module,
@@ -99,6 +102,17 @@ namespace FACM.League
                 Font = new Font(Font.FontFamily, 8F),
                 AutoEllipsis = true
             };
+            _accountButton = new FacmActionButton
+            {
+                Text = GgmanAccountSession.Current == null
+                    ? _ui.Get(UiTextKeys.AccountMenu)
+                    : _ui.Get(UiTextKeys.AccountManage),
+                Bounds = new Rectangle(530, 15, 160, 32),
+                Tone = FacmButtonTone.Secondary,
+                Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
+            };
+            _accountButton.Click += delegate { OpenAccountDialog(); };
+            _pageContent.Controls.Add(_accountButton);
             _pageContent.Controls.Add(_titleLabel);
             _pageContent.Controls.Add(_hintLabel);
             _pageContent.Controls.Add(_activityValue);
@@ -209,6 +223,47 @@ namespace FACM.League
             ApplyTelemetryState();
         }
 
+        private void OpenAccountDialog()
+        {
+            if (_openingAccountDialog || IsDisposed) return;
+            _openingAccountDialog = true;
+            _accountButton.Enabled = false;
+            AppLog.Info("GGman account entry clicked.");
+            var owner = TopLevelControl as Form;
+            if (owner == this || owner == null || owner.IsDisposed || !owner.Visible || !owner.TopLevel)
+                owner = null;
+            try
+            {
+                using (var dialog = new GgmanAccountForm(_ui))
+                {
+                    dialog.Shown += delegate { AppLog.Info("GGman account dialog shown."); };
+                    if (owner != null)
+                        dialog.ShowDialog(owner);
+                    else
+                        dialog.ShowDialog();
+                }
+            }
+            catch (Exception error)
+            {
+                AppLog.Warning("GGman account dialog failed; type=" + error.GetType().Name +
+                    "; hresult=" + error.HResult.ToString("X8") + ".");
+                MessageBox.Show(owner != null ? (IWin32Window)owner : this,
+                    _ui.Get(UiTextKeys.AccountOpenFailed),
+                    _ui.Get(UiTextKeys.AccountTitle), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                _openingAccountDialog = false;
+                if (!IsDisposed)
+                {
+                    _accountButton.Enabled = true;
+                    _accountButton.Text = GgmanAccountSession.Current == null
+                        ? _ui.Get(UiTextKeys.AccountMenu)
+                        : _ui.Get(UiTextKeys.AccountManage);
+                }
+            }
+        }
+
         private Label AddMetric(Control parent, string key, int left, int index)
         {
             var caption = CreateCaption(_ui.Get(key), new Point(left, 7), 190);
@@ -242,7 +297,8 @@ namespace FACM.League
             try
             {
                 _pageContent.Width = pageWidth;
-                _titleLabel.Width = pageWidth - 56;
+                _accountButton.Left = pageWidth - _accountButton.Width - 30;
+                _titleLabel.Width = Math.Max(160, _accountButton.Left - _titleLabel.Left - 12);
                 _hintLabel.Width = pageWidth - 60;
                 _activityValue.Width = pageWidth - 60;
                 _summaryPanel.Width = cardWidth;
@@ -293,6 +349,8 @@ namespace FACM.League
                 if (cardWidth - 32 <= 0 || cardWidth - 100 - 16 <= 0)
                     throw new InvalidOperationException("Personal stats history or privacy controls lost their usable width.");
             }
+            if (ResolvePageWidthForSmokeTest(420) - 160 - 30 <= 28 + 160)
+                throw new InvalidOperationException("GGman account entry overlaps the page title at narrow width.");
             if (398 + 130 > 532 || 532 + 18 > 584)
                 throw new InvalidOperationException("Personal stats status or privacy controls are vertically clipped.");
         }

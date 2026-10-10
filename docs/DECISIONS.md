@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## Account confirmation closes its modal; management stays accessible (2026-10-10, AUTH-1 draft)
+
+The optional email login modal is an owned, short-lived task window, not a second persistent GGman dashboard. After an authenticated registered UID is established, close the modal with a success result and update the existing **我的 GGman** account action. Reopening the same entry shows the email/UID and logout rather than disabled sign-in inputs. A verification failure must leave the login window open with an error; successful closure does not revoke the session. This keeps session lifetime independent from window lifetime and preserves the existing lightweight floating-ball and Hub architecture. The change remains unmerged until provider and real Windows acceptance.
+
 ## D-014 — Contextual shell navigation consumes shared state only
 
 **Decision (2026-09-07):** the floating entry may adapt its home surface and LOL destination to the current Gameflow scene, but navigation is a consumer of the existing `LeagueDashboardModule` state, never a new League runtime owner.
@@ -276,3 +280,8 @@ For the 3.5.59 first-use slice, use the pre-existing settings-creation signal an
 ## 2026-10-10 — Opening an existing panel must not be interpreted as a toggle
 
 Keep a deliberate behavioral distinction between the floating ball (click to toggle) and explicitly named **Open** commands in native tray menus (open or activate). A tray **Open control center** command or tray double-click must never close an already-visible launcher. The legacy compact League navigation should call the current typed Hub bridge, not rely on the side effect of a shell group lookup and then report a false “unavailable” status. Share the lightweight getting-started card between settings popups and the tray's secondary More menu, without adding a new top-level entry or duplicating settings storage. This is an entry/feedback consistency correction; no automation, overlay or League data-owner changes are required.
+
+
+## 2026-10-10 — Register real GGman user identity before ESC cloud storage
+
+For account-enabled ESC sync, user consent and portable ownership are required before remote data upload. Implement independent email OTP account login using CloudBase's official email send/verify/sign-in/sign-up API and treat the returned registered `sub` as the only acceptable cloud sync owner. Do not repurpose the existing anonymous `x-device-id` identity or silently transfer old anonymous data. Keep login optional and first-stage credentials in memory only: this avoids introducing unreviewed local refresh-token persistence on shared PCs. A later opt-in remember-device design requires Windows DPAPI per-user encryption and verified backend revocation. Restrict this task to identity UI, official email CAPTCHA integration and auth transport; schema/RLS changes and ESC settings cloud controls remain blocked on live auth acceptance (Issue #313). Because the underlying CloudBase OTP endpoint is public, a client-only resend clock is not a business-wide email-volume ceiling. Retain provider-owned per-address/IP limits and optionally introduce an audited, privileged server gateway only if CloudBase cannot satisfy required per-project rate budgets.

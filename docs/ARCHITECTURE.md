@@ -33,6 +33,10 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 - PostgreSQL RLS remains the data-ownership boundary. Client code must not receive a service-role/API-key credential and must not supply `owner_id` itself.
 - Settings sync, account-history sync, telemetry upload, recovery-code/hardware-fingerprint matching, and local SQLite are later scopes, not implicit P1 behavior.
 
+### Registered account UI (AUTH-1 branch, not released)
+
+`LeaguePersonalStatsForm` embeds an optional account entry inside the League Hub. It creates `GgmanAccountForm` as an owned modal on the visible top-level host; the modal uses shared WinForms theme primitives, keeps signed-out email/OTP controls separate from the signed-in account management summary, and closes only after verified session establishment. The caller then refreshes the account-entry label. Registered tokens remain solely in `GgmanAccountSession` memory; closing the modal does not log out or change device-anonymous CloudBase clients, and no ESC cloud upload is enabled. Failed verification leaves the dialog open; explicit logout calls the existing CloudBase sign-out endpoint before clearing the in-process identity.
+
 ### Personal stats and anonymous ranking
 
 `LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On connected Gameflow state changes it may read `/lol-summoner/v1/current-summoner`, keeps the last captured account hash as an episode fence, and records only when the observed account changes. It derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, then discards the raw PUUID.
@@ -235,3 +239,8 @@ The Recommendation page's scroll body and fixed footer remain owned by `LeagueRe
 ## Tray and legacy launcher entry semantics (3.5.60)
 
 The compact desktop launcher remains the primary floating-ball entry; a ball click intentionally **toggles** its existing panel. By contrast, the tray's **Open control center** item and tray icon double-click now call `MainForm.EnsureMenuOpenAndActive` so an already-open panel is surfaced rather than unexpectedly dismissed. The tray's existing **More** group now exposes the same on-demand `使用指南` card as the launcher Settings popup via `MainForm.OpenGettingStarted`. The old compact League button directly invokes the typed `LeagueHubUiBridge.RequestOpen(owner, string.Empty)` path. `ShellMenuGroups.FindGroup` is now a pure menu lookup; the retired League dropdown returns null without indirectly scheduling a Hub window. Both active and legacy surfaces still target the single nine-route `LeagueHubForm`, with the existing modal lifecycle and nonactivating in-game companion unchanged.
+
+
+## Optional registered GGman account (Issue #313, unreleased)
+
+`GgmanAccountForm` is an optional modal from `LeaguePersonalStatsForm` (“我的 GGman”). It uses the dedicated `GgmanEmailAuthClient` over the same CloudBase HTTPS gateway but does not pass credential-bearing sessions to the existing anonymous `CloudBaseClient`. Email flow is explicit: send → optional CloudBase `captcha_required` with bounded image/verify native modal and one `x-captcha-token` retry → verify six-digit OTP → CloudBase sign-in or sign-up → obtain registered subject UID. `GgmanAccountSession` stores a registered identity only in process memory, distinct from `CloudIdentityStore`'s anonymous `device_id`. Logout calls CloudBase signout and always clears local session. No new runtime pollers, server secrets, auth tables, persistent token files, or changes to League Gameflow/LCU session ownership. Existing anonymous device records, local personal stats and GGman preference sync intentionally do not migrate or merge. Production deployment remains blocked pending console email provider configuration and real two-device UID validation. See `docs/GGMAN-ACCOUNT-AUTH.md`.
