@@ -95,8 +95,9 @@ namespace FACM.Online
                 {
                     if (response.StatusCode != HttpStatusCode.Unauthorized &&
                         response.StatusCode != HttpStatusCode.Forbidden)
-                        throw new InvalidOperationException("ESC unauthenticated read returned unexpected status=" +
-                            (int)response.StatusCode + "."); // ui-text-contract: allow
+                        throw new InvalidOperationException(string.Format(
+                            UiTextRuntime.Text(UiTextKeys.EscSettingsProbeUnexpectedStatus),
+                            (int)response.StatusCode));
                 }
             }
             return current == null ? 0L : current.Version;
