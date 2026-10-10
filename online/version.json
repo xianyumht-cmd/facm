@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.65",
+  "enabled": false,
+  "version": "3.5.66",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.65/FACM.exe",
-  "sha256": "637F2AD7E48EA3B814649B350B89861AD3097E6939D0C788A7B1DD67DD7A2BBB",
-  "release_notes": "GGman 3.5.65：在「LOL 工作台 → 我的 GGman」中新增默认折叠的界面文字自定义编辑器，可搜索原有 ui-text.ini [Text] 项、查看默认文字、预览修改并恢复默认，支持高级 [Replace] 替换规则。保存本地时检查动态占位符并自动备份原文件，保留未知 INI 节、注释，现有 UI 热更新机制继续生效。登录 GGman 邮箱后，可手动上传或恢复文字自定义配置；按注册 UID 隔离，云端记录版本和更新时间，并在恢复前确认、备份，上传采用版本冲突保护。已通过 SQL 007 权限和模拟账号 A/B 测试、生产网关匿名访问拒绝、Windows 构建与自动测试。真实邮箱跨设备恢复及界面效果仍需后续实机验收；现有 ESC、匿名设备和统计数据不变。",
-  "published_at": "2026-10-10T03:48:30.7611777+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.66/FACM.exe",
+  "sha256": "A0B05B2BACF3CA47E9EA5CF53054E79D7842D5EAA74A127FBD2716962CAE0B31",
+  "release_notes": "GGman 3.5.66：LOL 工作台「我的 GGman」新增统一云端配置中心，只保留「上传全部配置」「恢复云端配置」一组云端按钮。统一同步三个已支持的配置分区：注册邮箱账号下的 GGman 软件偏好、ui-text.ini 界面文字自定义、英雄联盟 Game/Config 游戏内 ESC 设置；各分区独立存储及版本保护。原 ESC 和文字编辑页移除重复云端按钮，保留本地备份、恢复和编辑。恢复前确认并创建本地备份，找不到游戏配置会跳过 ESC，不清空已有云端数据；部分成功或失败单独报告。停止旧匿名软件设置的自动回写，避免覆盖注册账号恢复的偏好；不修改账号统计和现有历史。LOL 游戏大厅 YAML 暂未纳入，待完成安全字段审查。已通过 SQL 008 RLS、A/B 模拟隔离与版本冲突、匿名 HTTP 拦截以及 Windows CI；真实邮箱 A/B、不同电脑和 UI 恢复效果仍需实机验收。",
+  "published_at": "2026-10-10T05:17:30.6579089+00:00"
 }
