@@ -79,6 +79,29 @@ namespace FACM.Online
             }
         }
 
+        internal async Task<long> CheckReadOnlyAccessAsync(GgmanAccountIdentity account,
+            CancellationToken token)
+        {
+            var current = await GetAsync(account, token).ConfigureAwait(false);
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post,
+                "v1/rdb/rest/rpc/ggman_get_esc_profile"))
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                timeout.CancelAfter(TimeSpan.FromSeconds(12));
+                using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token).ConfigureAwait(false))
+                {
+                    if (response.StatusCode != HttpStatusCode.Unauthorized &&
+                        response.StatusCode != HttpStatusCode.Forbidden)
+                        throw new InvalidOperationException("ESC unauthenticated read returned unexpected status=" +
+                            (int)response.StatusCode + "."); // ui-text-contract: allow
+                }
+            }
+            return current == null ? 0L : current.Version;
+        }
+
         internal async Task<long> SetAsync(GgmanAccountIdentity identity, EscSettingsBundle bundle,
             long expectedVersion, CancellationToken token)
         {
@@ -158,6 +181,14 @@ namespace FACM.Online
             catch (InvalidOperationException exception)
             {
                 if (exception.Message == "ESC accepted anonymous identity.") throw;
+            }
+
+            using (var anonymous = new HttpRequestMessage(HttpMethod.Post,
+                "v1/rdb/rest/rpc/ggman_get_esc_profile"))
+            {
+                anonymous.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                if (anonymous.Headers.Authorization != null || anonymous.Headers.Contains("x-device-id"))
+                    throw new InvalidOperationException("Unauthenticated ESC probe must not attach credentials.");
             }
 
             using (var get = CreateRequest("ggman_get_esc_profile", new GgmanAccountIdentity
