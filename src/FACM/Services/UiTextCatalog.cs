@@ -400,6 +400,22 @@ namespace FACM.Services
         public string EditText { get { return Get(UiTextKeys.EditText); } }
         public string Exit { get { return Get(UiTextKeys.Exit); } }
 
+        internal static IReadOnlyList<KeyValuePair<string, string>> DefaultEntries
+        {
+            get { return DefaultText; }
+        }
+
+        internal IReadOnlyDictionary<string, string> ReplacementEntries
+        {
+            get { return _replacements; }
+        }
+
+        internal string GetConfiguredValue(string key)
+        {
+            string value;
+            return _values.TryGetValue(key, out value) ? value : string.Empty;
+        }
+
         public static string ConfigPath
         {
             get { return RuntimePaths.UiTextPath; }
@@ -678,7 +694,7 @@ namespace FACM.Services
             File.WriteAllLines(path, lines, new UTF8Encoding(false));
         }
 
-        private static int FindUnescapedEquals(string value)
+        internal static int FindUnescapedEquals(string value)
         {
             for (var index = 0; index < value.Length; index++)
             {
@@ -690,7 +706,7 @@ namespace FACM.Services
             return -1;
         }
 
-        private static string Unescape(string value)
+        internal static string Unescape(string value)
         {
             if (string.IsNullOrEmpty(value)) return value ?? string.Empty;
             var builder = new StringBuilder(value.Length);
@@ -720,7 +736,7 @@ namespace FACM.Services
             return builder.ToString();
         }
 
-        private static string Escape(string value)
+        internal static string Escape(string value)
         {
             return (value ?? string.Empty)
                 .Replace("\\", "\\\\")
