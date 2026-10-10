@@ -1,6 +1,6 @@
 # GGman — ESC setting backup and registered-account cloud sync
 
-**Stage:** implementation branch only; not released. CloudBase SQL Editor operator screenshots on 2026-10-10 confirm the expected ESC table and two RPC signatures now exist in the selected database, RLS is enabled, `anon` lacks direct SELECT, and `authenticated` has SELECT. RPC EXECUTE privileges, real A/B/anonymous gateway isolation, write/version conflict behavior, and native Tencent League restore remain unverified. Depends on AUTH-1 PR #314 and live acceptance (Issue #313).
+**Status:** shipped in signed official GGman 3.5.61, one-click online update enabled (2026-10-10). The operator installed the ESC table/RPCs and validated catalog RLS and role permissions. A/B mock-role SQL isolation passed; real production HTTP probes with no credentials and with an anonymous bearer both returned 401. Actual *two registered accounts* HTTP isolation, simultaneous version conflicts, and Tencent/Riot game settings restoration remain post-release field checks, not proven by CI.
 
 ## Purpose and data boundary
 
@@ -32,19 +32,19 @@ This flow is **opt-in**, separate from the existing device-anonymous `ggman_sett
 - Despite SQL GRANT EXECUTE, CloudBase's PostgREST gateway may expose RPC route calls to anon; real data isolation relies on invoker/RLS and explicit role checks inside both functions.
 - Database migration cannot be run or verified by GitHub CI. The operator's screenshots indicate the objects are now installed in the selected CloudBase database, but **do not prove** direct RPC authorization, data ownership under multiple real tokens or correct Riot recovery. Audit execute grants and policies from the CloudBase SQL Editor, then test actual A/B/anon gateway requests without exposing credentials in chats/logs. No server secrets or admin credential may be shipped to clients.
 
-## Read-only real-gateway diagnostic (staged, not deployed)
+## Read-only real-gateway diagnostic (shipped in 3.5.61)
 
 The ESC settings window now includes **检查云端权限**. After normal registered email sign-in, this action sends one authenticated `ggman_get_esc_profile()` request and displays only the remote revision (or absence); then sends a distinct read request without an Authorization header and requires HTTP 401/403. No token, UID, email or raw payload is displayed or logged, and this check never performs SQL writes or modifies League files. This checks authenticated read + **no-credential** denial; it is **not** a replacement for a real anonymous bearer-token check, a second-account A/B ownership check, upload revision conflict or in-game restore acceptance. A 400/404/5xx or a surprising 200 on the unauthenticated leg fails closed for diagnosis.
 
-## External release gates
+## Outstanding post-release field acceptance
 
-1. AUTH-1 registered email login and sign-out accepted, same email on two Windows users/PCs yields the same UID; another account gets a distinct UID.
-2. Inspect the real PG schema. Apply revised 005 script only after confirming no conflicting pre-existing ESC table/function, or prepare an explicit migration if the old script was mistakenly applied.
+1. Owner verified real email OTP sign-in on Windows; still verify real sign-out, same registered UID across two devices, and separate accounts getting different UIDs.
+2. Operator installed the revised registered-only 005 schema and verified table/RPC grants plus RLS. Preserve these settings; do not re-run the strict new-table migration on an existing database.
 3. Validate with actual bearer tokens via official CloudBase RPC: authenticated A can upload/read A; B cannot read A; anonymous JWT and unauthenticated requests are denied, including direct RPC attempts; wrong revision yields conflict; excessive payload denied.
 4. Validate full closed-game backup/restore on Tencent/Riot League with different accounts as appropriate and real in-game ESC persistence. Check failure recovery, local backup integrity, no surprise login on anonymous startup, UI at Win10 100–200% display scale.
 5. Final-HEAD GGman Windows Build, performance smoke and FACM UI Text Contract must pass. Only then merge reviewed branches, create a new signed 3.5.x Release, verify public GGman.exe/FACM.exe signature and checksum, and finally enable `online/version.json`.
 
-No detached test artifact is a deliverable or substitute for the official update. If external gates fail, stop at an unmerged PR rather than publishing an unsafe production build.
+The official signed 3.5.61 release is live. If later acceptance detects a serious ownership/restore defect, disable affected operations through a reviewed fix and issue a new signed patch; never replace an existing Release asset in place. No detached test artifact is a substitute for the official update.
 
 References:
 - https://docs.cloudbase.net/database/postgresql/data-permission
