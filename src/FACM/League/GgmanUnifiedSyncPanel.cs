@@ -134,6 +134,12 @@ namespace FACM.League
         private async System.Threading.Tasks.Task ResolveAsync(bool keepLocal)
         {
             if (_service == null || _service.IsBusy) return;
+            if (_service.ConflictCategory == "text" &&
+                UiTextEditorPanel.HasPendingVisibleChanges)
+            {
+                _status.Text = _ui.Get(UiTextKeys.UnifiedSyncUnsaved);
+                return;
+            }
             if (!keepLocal &&
                 MessageBox.Show(this, _ui.Get(UiTextKeys.AutoSyncConflictConfirm),
                     _ui.Get(UiTextKeys.UnifiedSyncTitle),
