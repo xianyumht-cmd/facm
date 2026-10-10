@@ -81,6 +81,7 @@ namespace FACM.Services
             Pair(UiTextKeys.UiTextEditorCloudScope, "仅同步文字覆盖项及全局替换规则；不会上传账号令牌、游戏路径或软件其他设置。"),
             Pair(UiTextKeys.UiTextEditorNoLogin, "登录 GGman 邮箱账号后可上传、恢复云端文字。"),
             Pair(UiTextKeys.UiTextEditorSelectEntry, "请先选择一项文字，或在高级替换中添加规则。"),
+            Pair(UiTextKeys.UiTextEditorSaveBeforeCloud, "有尚未保存的文字修改。请先点击“保存本地”，再执行云端操作。"),
             Pair(UiTextKeys.EscSettingsTitle, "ESC 设置备份"),
             Pair(UiTextKeys.EscSettingsHint, "云端保存和恢复游戏 ESC 配置。游戏运行时也可操作，设置可能需要重新进入游戏才能生效。"),
             Pair(UiTextKeys.EscSettingsFolder, "英雄联盟配置目录（自动识别，可手动调整）"),
