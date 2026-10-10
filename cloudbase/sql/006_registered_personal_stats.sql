@@ -36,7 +36,7 @@ ALTER TABLE public.ggman_registered_legacy_imports ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ggman_registered_profiles, public.ggman_registered_account_history,
     public.ggman_registered_active_days, public.ggman_registered_legacy_imports FROM PUBLIC, anon;
 GRANT SELECT, INSERT, UPDATE ON public.ggman_registered_profiles TO authenticated;
-GRANT SELECT, INSERT ON public.ggman_registered_account_history TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.ggman_registered_account_history TO authenticated;
 GRANT SELECT, INSERT ON public.ggman_registered_active_days TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.ggman_registered_legacy_imports TO authenticated;
 
