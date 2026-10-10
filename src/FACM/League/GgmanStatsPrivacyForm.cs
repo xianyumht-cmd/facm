@@ -95,11 +95,12 @@ namespace FACM.League
         {
             var signedIn = GgmanAccountSession.Current != null;
             _ranking.Checked = signedIn && _module.GetSnapshot().CloudRankingEnabled;
-            _ranking.Enabled = signedIn && !_busy;
+            _ranking.Enabled = signedIn && _module.HasLoadedRegisteredRanking && !_busy;
             _usage.Checked = UsageTelemetryModule.IsEnabled();
             _import.Enabled = signedIn && !_busy;
             _save.Enabled = !_busy;
             if (!signedIn) _status.Text = _ui.Get(UiTextKeys.RegisteredStatsLoginRequired);
+            else if (!_module.HasLoadedRegisteredRanking) _status.Text = _ui.Get(UiTextKeys.RegisteredStatsRankLoading);
         }
 
         private async Task SaveAsync()
@@ -109,7 +110,7 @@ namespace FACM.League
             try
             {
                 UsageTelemetryModule.SetEnabled(_usage.Checked);
-                if (GgmanAccountSession.Current != null)
+                if (GgmanAccountSession.Current != null && _module.HasLoadedRegisteredRanking)
                     await _module.SetRegisteredRankingVisibleAsync(_ranking.Checked, _lifetime.Token);
                 if (!IsDisposed) _status.Text = _ui.Get(UiTextKeys.RegisteredStatsSaved);
             }
@@ -155,7 +156,7 @@ namespace FACM.League
         private void SetBusy(bool busy)
         {
             _busy = busy;
-            _ranking.Enabled = !busy && GgmanAccountSession.Current != null;
+            _ranking.Enabled = !busy && _module.HasLoadedRegisteredRanking;
             _usage.Enabled = !busy;
             _import.Enabled = !busy && GgmanAccountSession.Current != null;
             _save.Enabled = !busy;
