@@ -56,6 +56,9 @@ namespace FACM.Services
             Pair(UiTextKeys.PetSource, "来源"),
             Pair(UiTextKeys.Open, "打开"),
 
+            Pair(UiTextKeys.UnifiedSyncSettings, "GGman 软件偏好"),
+            Pair(UiTextKeys.UnifiedSyncText, "界面文字"),
+            Pair(UiTextKeys.UnifiedSyncEsc, "游戏 ESC"),
             Pair(UiTextKeys.UnifiedSyncTitle, "云端配置中心"),
             Pair(UiTextKeys.UnifiedSyncUpload, "上传全部配置"),
             Pair(UiTextKeys.UnifiedSyncRestore, "恢复云端配置"),
