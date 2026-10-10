@@ -257,8 +257,8 @@ namespace FACM.Services
                     !saved.Contains("GGman=个人工作台") ||
                     saved.Contains("GGman=Older Brand") ||
                     Directory.GetFiles(backups, "*.ini").Length != 2 ||
-                    Regex.Matches(saved, @"(?m)^\[Text\]$").Count != 1 ||
-                    Regex.Matches(saved, @"(?m)^\[Replace\]$").Count != 1)
+                    Regex.Matches(saved, @"(?m)^\[Text\]\r?$").Count != 1 ||
+                    Regex.Matches(saved, @"(?m)^\[Replace\]\r?$").Count != 1)
                     throw new InvalidOperationException("UI wording apply lost legacy lines or backup.");
             }
             finally { try { Directory.Delete(temporary, true); } catch { } }
