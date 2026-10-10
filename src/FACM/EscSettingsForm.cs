@@ -17,6 +17,7 @@ namespace FACM
         private readonly TextBox _directory;
         private readonly Label _status;
         private readonly Button[] _actions;
+        private readonly Button _probe;
         private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
         private bool _busy;
 
@@ -33,7 +34,7 @@ namespace FACM
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             ShowInTaskbar = false;
-            ClientSize = new Size(630, 355);
+            ClientSize = new Size(630, 410);
             MinimumSize = Size;
             MaximumSize = Size;
 
@@ -88,9 +89,13 @@ namespace FACM
             _actions[2].Click += async delegate { await TransferCloudAsync(true); };
             _actions[3].Click += async delegate { await TransferCloudAsync(false); };
 
-            var note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 237, 590, 43);
+            _probe = NewButton(UiTextKeys.EscSettingsProbe, 16, 231, 160);
+            _probe.Enabled = authenticated;
+            _probe.Click += async delegate { await ProbeCloudAsync(); };
+
+            var note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 279, 590, 43);
             note.ForeColor = FacmDesignSystem.TextMuted;
-            _status = NewLabel(_ui.Get(UiTextKeys.EscSettingsReady), 16, 286, 595, 55);
+            _status = NewLabel(_ui.Get(UiTextKeys.EscSettingsReady), 16, 332, 595, 58);
             _status.AutoEllipsis = true;
 
             Controls.Add(title);
@@ -99,6 +104,7 @@ namespace FACM
             Controls.Add(_directory);
             Controls.Add(browse);
             foreach (var action in _actions) Controls.Add(action);
+            Controls.Add(_probe);
             Controls.Add(note);
             Controls.Add(_status);
             Activated += delegate { if (!_busy) SetBusy(false); };
@@ -185,6 +191,34 @@ namespace FACM
             }
             var recovery = EscSettingsBackup.Restore(bundle, directory);
             SetStatus(string.Format(_ui.Get(UiTextKeys.EscSettingsRestored), recovery));
+        }
+
+        private async Task ProbeCloudAsync()
+        {
+            if (_busy || IsDisposed) return;
+            GgmanAccountIdentity account;
+            try { account = GgmanEscCloudClient.RequireRegisteredSession(); }
+            catch (Exception exception) { ShowFailure(exception); return; }
+
+            SetBusy(true);
+            try
+            {
+                using (var client = new GgmanEscCloudClient())
+                {
+                    var revision = await client.CheckReadOnlyAccessAsync(account, _cancellation.Token);
+                    if (IsDisposed || _cancellation.IsCancellationRequested) return;
+                    AssertSessionStillValid(account);
+                    SetStatus(string.Format(_ui.Get(UiTextKeys.EscSettingsProbePassed),
+                        revision == 0 ? _ui.Get(UiTextKeys.EscSettingsProbeEmpty) :
+                            revision.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (!IsDisposed) SetStatus(_ui.Get(UiTextKeys.EscSettingsCancelled));
+            }
+            catch (Exception exception) { if (!IsDisposed) ShowFailure(exception); }
+            finally { if (!IsDisposed) SetBusy(false); }
         }
 
         private async Task TransferCloudAsync(bool upload)
@@ -278,6 +312,7 @@ namespace FACM
             _busy = busy;
             for (var index = 0; index < _actions.Length; index++)
                 _actions[index].Enabled = !busy && (index < 2 || GgmanAccountSession.Current != null);
+            _probe.Enabled = !busy && GgmanAccountSession.Current != null;
             if (busy) SetStatus(_ui.Get(UiTextKeys.EscSettingsBusy));
         }
 
