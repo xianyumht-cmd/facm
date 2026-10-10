@@ -16,6 +16,7 @@
 
 - User completed native email login / account management UI checks in AUTH-1 PR #314 and requested official signed one-click releases as the normal delivery, not standalone QA artifacts. This does not remove CloudBase authorization and real-device release gates.
 - ESC staging branch `feat/ggman-esc-account-sync-20261010` is based on AUTH-1 head and ports allowlisted League Config local snapshots/rollback from the blocked anonymous-device ESC experiment. It adds registered-only bearer RPCs, optimistic version checks, upload/restore confirmations, and ESC entry under existing compact Settings and tray More. Neither CloudBase SQL nor the program has been published to clients.
+- ESC-2 PR #315 remains **draft** and temporarily targets `main` so the repository's existing pull_request-to-main Windows/UI CI workflows run. This does NOT authorize merging ESC ahead of AUTH-1 PR #314; review dependency and live CloudBase security/restore acceptance first.
 - Rewritten `cloudbase/sql/005_esc_profiles.sql` denies anon and binds RLS to `auth.uid()` with explicit `authenticated` role guards, unlike old experimental anonymous-device SQL. Requires actual CloudBase environment schema inspection, deployment by authorized operator, RPC role isolation tests, same-UID two-device test, and real Tencent/Riot persistence/rollback acceptance before merge and formal release.
 
 ## 2026-10-10 — Optional CloudBase email account (Issue #313; task branch, not released)
