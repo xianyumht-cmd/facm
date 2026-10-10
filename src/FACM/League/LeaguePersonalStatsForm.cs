@@ -23,7 +23,6 @@ namespace FACM.League
         private readonly Label _memberValue;
         private readonly Label _activityValue;
         private readonly Label _percentileValue;
-        private readonly Label _statusValue;
         private readonly Label[] _historyRows;
         private readonly Label[] _metricCaptions = new Label[3];
         private readonly Panel _scrollArea;
@@ -34,14 +33,9 @@ namespace FACM.League
         private readonly FacmGlassPanel _summaryPanel;
         private readonly FacmGlassPanel _historyPanel;
         private readonly FacmGlassPanel _rankingPanel;
-        private readonly FacmGlassPanel _preferencesPanel;
         private readonly EscSettingsForm _escPanel;
-        private readonly FacmToggleSwitch _localToggle;
-        private readonly FacmToggleSwitch _rankingToggle;
-        private readonly FacmToggleSwitch _telemetryToggle;
         private readonly FacmActionButton _refreshButton;
-        private bool _applying;
-        private bool _savingPreferences;
+        private readonly FacmActionButton _privacyButton;
         private bool _openingAccountDialog;
 
         public LeaguePersonalStatsForm(
@@ -146,46 +140,28 @@ namespace FACM.League
             }
             _pageContent.Controls.Add(_historyPanel);
 
-            _rankingPanel = CreatePanel(new Rectangle(28, 306, 664, 84));
+            _rankingPanel = CreatePanel(new Rectangle(28, 306, 664, 122));
             _rankingPanel.Controls.Add(CreateCaption(
                 _ui.Get(UiTextKeys.LeaguePersonalStatsRanking),
                 new Point(16, 10),
                 240));
             _percentileValue = CreateValue(new Point(16, 34), 630, 13F);
             _rankingPanel.Controls.Add(_percentileValue);
-            _pageContent.Controls.Add(_rankingPanel);
-
-            _preferencesPanel = CreatePanel(new Rectangle(28, 398, 664, 130));
-            _localToggle = new FacmToggleSwitch
+            _privacyButton = new FacmActionButton
             {
-                Text = _ui.Get(UiTextKeys.LeaguePersonalStatsLocalToggle),
-                Location = new Point(16, 7),
-                Size = new Size(632, 30)
-            };
-            _rankingToggle = new FacmToggleSwitch
-            {
-                Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingToggle),
-                Location = new Point(16, 37),
-                Size = new Size(632, 30)
-            };
-            _telemetryToggle = new FacmToggleSwitch
-            {
-                Text = _ui.Get(UiTextKeys.LeaguePersonalStatsTelemetryToggle),
-                Location = new Point(16, 67),
-                Size = new Size(632, 30)
+                Text = _ui.Get(UiTextKeys.RegisteredStatsPrivacy),
+                Bounds = new Rectangle(430, 84, 105, 28),
+                Tone = FacmButtonTone.Secondary
             };
             _refreshButton = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRefresh),
-                Bounds = new Rectangle(548, 98, 100, 26),
-                Tone = FacmButtonTone.Secondary,
-                Font = new Font(Font.FontFamily, 8.2F, FontStyle.Bold)
+                Bounds = new Rectangle(544, 84, 104, 28),
+                Tone = FacmButtonTone.Secondary
             };
-            _preferencesPanel.Controls.Add(_localToggle);
-            _preferencesPanel.Controls.Add(_rankingToggle);
-            _preferencesPanel.Controls.Add(_telemetryToggle);
-            _preferencesPanel.Controls.Add(_refreshButton);
-            _pageContent.Controls.Add(_preferencesPanel);
+            _rankingPanel.Controls.Add(_privacyButton);
+            _rankingPanel.Controls.Add(_refreshButton);
+            _pageContent.Controls.Add(_rankingPanel);
 
             _escPanel = new EscSettingsForm(_ui, _settings.GamePath)
             {
@@ -193,37 +169,25 @@ namespace FACM.League
                 FormBorderStyle = FormBorderStyle.None,
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(28, 565),
+                Location = new Point(28, 454),
                 BackColor = FacmDesignSystem.Canvas
             };
             _pageContent.Controls.Add(_escPanel);
 
-            _statusValue = new Label
-            {
-                Location = new Point(30, 532),
-                Size = new Size(660, 18),
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8F)
-            };
-            _pageContent.Controls.Add(_statusValue);
             _scrollArea.Controls.Add(_pageContent);
             Controls.Add(_scrollArea);
             _scrollArea.ClientSizeChanged += delegate { LayoutPersonalStatsPage(); };
             LayoutPersonalStatsPage();
 
-            _localToggle.CheckedChanged += HandlePreferenceChanged;
-            _rankingToggle.CheckedChanged += HandlePreferenceChanged;
-            _telemetryToggle.CheckedChanged += HandleTelemetryChanged;
+            _privacyButton.Click += delegate { OpenPrivacyDialog(); };
             _refreshButton.Click += async delegate { await RefreshRankingAsync(); };
 
             _module.StatsChanged += HandleStatsChanged;
             Shown += async delegate
             {
                 ApplySnapshot();
-                ApplyTelemetryState();
                 _escPanel.Show();
-                if (_settings.LeagueCloudRankingEnabled) await RefreshRankingAsync();
+                if (GgmanAccountSession.Current != null) await RefreshRankingAsync();
             };
             FormClosed += delegate
             {
@@ -233,7 +197,6 @@ namespace FACM.League
             };
 
             ApplySnapshot();
-            ApplyTelemetryState();
         }
 
         private void OpenAccountDialog()
@@ -274,6 +237,7 @@ namespace FACM.League
                         ? _ui.Get(UiTextKeys.AccountMenu)
                         : _ui.Get(UiTextKeys.AccountManage);
                     _escPanel.RefreshAccountActions();
+                    _ = RefreshRankingAsync();
                 }
             }
         }
@@ -318,8 +282,7 @@ namespace FACM.League
                 _summaryPanel.Width = cardWidth;
                 _historyPanel.Width = cardWidth;
                 _rankingPanel.Width = cardWidth;
-                _preferencesPanel.Width = cardWidth;
-                _escPanel.SetBounds(28, 565, cardWidth, cardWidth >= 620 ? 410 : 460);
+                _escPanel.SetBounds(28, 454, cardWidth, cardWidth >= 620 ? 410 : 460);
                 _pageContent.Height = _escPanel.Bottom + 16;
                 for (var index = 0; index < _metricCaptions.Length; index++)
                 {
@@ -332,11 +295,8 @@ namespace FACM.League
                 foreach (var row in _historyRows)
                     row.Width = cardWidth - 32;
                 _percentileValue.Width = cardWidth - 32;
-                _localToggle.Width = cardWidth - 32;
-                _rankingToggle.Width = cardWidth - 32;
-                _telemetryToggle.Width = cardWidth - 32;
                 _refreshButton.Left = cardWidth - _refreshButton.Width - 16;
-                _statusValue.Width = cardWidth - 4;
+                _privacyButton.Left = _refreshButton.Left - _privacyButton.Width - 10;
             }
             finally
             {
@@ -362,13 +322,13 @@ namespace FACM.League
                         throw new InvalidOperationException("Personal stats summary metrics overlap or overflow.");
                     previousRight = metric.Right;
                 }
-                if (cardWidth - 32 <= 0 || cardWidth - 100 - 16 <= 0)
-                    throw new InvalidOperationException("Personal stats history or privacy controls lost their usable width.");
+                if (cardWidth - 32 <= 0 || cardWidth < 2 * 104 + 44)
+                    throw new InvalidOperationException("Personal stats actions lost their usable width.");
             }
             if (ResolvePageWidthForSmokeTest(420) - 160 - 30 <= 28 + 160)
                 throw new InvalidOperationException("GGman account entry overlaps the page title at narrow width.");
-            if (398 + 130 > 532 || 532 + 18 >= 565)
-                throw new InvalidOperationException("Personal stats status or privacy controls are vertically clipped.");
+            if (306 + 122 >= 454)
+                throw new InvalidOperationException("Personal stats controls overlap ESC backup.");
         }
 
         private static FacmGlassPanel CreatePanel(Rectangle bounds)
@@ -421,49 +381,22 @@ namespace FACM.League
             ApplySnapshot();
         }
 
-        private async void HandlePreferenceChanged(object sender, EventArgs e)
+        private void OpenPrivacyDialog()
         {
-            if (_applying || _savingPreferences || IsDisposed) return;
-            _savingPreferences = true;
-            try
+            var owner = TopLevelControl as Form;
+            using (var dialog = new GgmanStatsPrivacyForm(_module, _ui))
             {
-                var local = _localToggle.Checked;
-                var ranking = local && _rankingToggle.Checked;
-                _rankingToggle.Enabled = local;
-                await _module.ApplyPreferencesAsync(local, ranking, _lifetime.Token);
+                if (owner != null && owner.Visible && owner.TopLevel)
+                    dialog.ShowDialog(owner);
+                else
+                    dialog.ShowDialog();
             }
-            catch (OperationCanceledException)
-            {
-            }
-            finally
-            {
-                _savingPreferences = false;
-                if (!IsDisposed) ApplySnapshot();
-            }
-        }
-
-        private void HandleTelemetryChanged(object sender, EventArgs e)
-        {
-            if (_applying || IsDisposed) return;
-            UsageTelemetryModule.SetEnabled(_telemetryToggle.Checked);
-        }
-
-        private void ApplyTelemetryState()
-        {
-            _applying = true;
-            try
-            {
-                _telemetryToggle.Checked = UsageTelemetryModule.IsEnabled();
-            }
-            finally
-            {
-                _applying = false;
-            }
+            if (!IsDisposed) ApplySnapshot();
         }
 
         private async Task RefreshRankingAsync()
         {
-            if (_savingPreferences || IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (IsDisposed || _lifetime.IsCancellationRequested) return;
             _refreshButton.Enabled = false;
             try
             {
@@ -494,7 +427,11 @@ namespace FACM.League
                 snapshot.NewAccountsThisMonth);
             RenderHistory(snapshot.RecentAccounts);
 
-            if (!snapshot.CloudRankingEnabled)
+            if (GgmanAccountSession.Current == null)
+            {
+                _percentileValue.Text = _ui.Get(UiTextKeys.RegisteredStatsRankSignedOut);
+            }
+            else if (!snapshot.CloudRankingEnabled)
             {
                 _percentileValue.Text = _ui.Get(UiTextKeys.LeaguePersonalStatsRankingDisabled);
             }
@@ -509,22 +446,7 @@ namespace FACM.League
                     snapshot.CloudPercentile);
             }
 
-            _applying = true;
-            try
-            {
-                _localToggle.Checked = snapshot.PersonalStatsEnabled;
-                _rankingToggle.Checked = snapshot.PersonalStatsEnabled && snapshot.CloudRankingEnabled;
-                _rankingToggle.Enabled = snapshot.PersonalStatsEnabled;
-                _refreshButton.Enabled = snapshot.PersonalStatsEnabled && snapshot.CloudRankingEnabled && !_savingPreferences;
-            }
-            finally
-            {
-                _applying = false;
-            }
-
-            _statusValue.Text = snapshot.PersonalStatsEnabled
-                ? string.Empty
-                : _ui.Get(UiTextKeys.LeaguePersonalStatsPaused);
+            _refreshButton.Enabled = GgmanAccountSession.Current != null;
         }
 
         private void RenderHistory(IReadOnlyList<LeaguePersonalStatsAccountView> accounts)
