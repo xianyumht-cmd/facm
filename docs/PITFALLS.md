@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Anonymous device HMACs cannot identify cross-device LOL accounts (2026-10-10)
+
+`PersonalStatsStore.CreateAccountKeyHash(deviceId,puuid)` produces a device-keyed HMAC. Identical LOL accounts on different PCs therefore have unrelated 64-hex old identifiers: changing `owner_id` or concatenating anonymous rows would inflate registered rankings. Keep the old local store backed up, keep the old database untouched, import only count/day summaries under an explicit shared-device ownership warning, and compute rank as the greater of old per-source lower-bound count and the new verified-UID-scoped distinct account count. Never automatically enable the separate feature usage telemetry or expose prior ranking values to a newly switched logged-in user.
+
 ## Updated default ESC guidance can be shadowed by persistent UI text files (2026-10-10)
 
 `UiTextCatalog.EnsureMissingKeysAndSections` appends new keys without overwriting existing values. A previous GGman version's stock guidance can therefore continue to say the game must close even after later code removes that requirement. When semantics change, migrate only known exact **old stock** values for affected keys in `ui-text.ini` to current defaults, leaving user-customized replacements untouched; do not reset the entire user configuration.
