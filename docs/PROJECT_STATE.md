@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.62
-- GitHub Release：v3.5.62
+- 版本：GGman 3.5.63
+- GitHub Release：v3.5.63
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：d929713bf3500db5f4805635f6df766d333f6cec
-- 发布元数据提交：511bfebdfbc062e03ba31965812bb21e65c97b41
-- Release GGman.exe SHA-256：C757DEE38D8F23FA5BC3C9C74DBBDF6E2842A54A64BC8F713982D1B6AC9D2852
-- release_notes：GGman 3.5.62：将 ESC 设置本地备份、云端保存、云端恢复及权限检查整合到「LOL 工作台 → 我的 GGman」，移除设置和托盘中的独立入口。新增游戏目录自动识别：运行中的 LOL 进程路径（含 WMI 备用）、已保存游戏路径、Windows 注册表，识别失败仍可手动选择。游戏运行中不再强制禁止 ESC 上传和恢复，仍保留文件校验、恢复前备份、错误回滚、账号隔离与云端版本冲突保护。运行中恢复到磁盘的设置可能不会立即生效，也可能被游戏退出时重新写回。
+- 发布基础 main：0ae4edaf24426f7071bafc8951cc9f69b3c3fa57
+- 发布元数据提交：8300f81ee60e23b31fb7338d0ce1ebd6ded6e20e
+- Release GGman.exe SHA-256：C3DC5FDD674EA17ECA913D4B7E168B4ED56AA40D4844A04AF723135361F983AF
+- release_notes：GGman 3.5.63：修复 WeGame 英雄联盟 ESC 云备份自动识别错误。优先选择真正包含 game.cfg、input.ini、PersistedSettings.json 的 Game\Config，不再把仅有 YAML 客户端偏好的 LeagueClient\Config 误判成 ESC 目录。修复由旧目录、安装根目录、游戏和客户端进程路径恢复定位及底层备份路径解析；新增 WeGame 双目录本地捕获回归测试。同步更新历史安装留下的旧版默认提示，不覆盖用户自定义的界面文案。无需重新配置腾讯 CloudBase 或覆盖旧云备份。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — WeGame ESC Config selection fix (pending v3.5.63)

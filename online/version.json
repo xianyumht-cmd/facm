@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.63",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.63/FACM.exe",
   "sha256": "C3DC5FDD674EA17ECA913D4B7E168B4ED56AA40D4844A04AF723135361F983AF",
   "release_notes": "GGman 3.5.63：修复 WeGame 英雄联盟 ESC 云备份自动识别错误。优先选择真正包含 game.cfg、input.ini、PersistedSettings.json 的 Game\\Config，不再把仅有 YAML 客户端偏好的 LeagueClient\\Config 误判成 ESC 目录。修复由旧目录、安装根目录、游戏和客户端进程路径恢复定位及底层备份路径解析；新增 WeGame 双目录本地捕获回归测试。同步更新历史安装留下的旧版默认提示，不覆盖用户自定义的界面文案。无需重新配置腾讯 CloudBase 或覆盖旧云备份。",
-  "published_at": "2026-10-10T01:52:08.3993294+00:00"
+  "published_at": "2026-10-10T01:52:16.2236214+00:00"
 }
