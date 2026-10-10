@@ -37,6 +37,8 @@ namespace FACM.AppHost.Modules
         private GgmanRegisteredStatsClient _registeredClient;
         private string _localDeviceId;
         private string _lastCapturedAccountHash = string.Empty;
+        private string _lastRegisteredAccountHash = string.Empty;
+        private string _lastRegisteredOwner = string.Empty;
         private DateTime _lastCaptureAttemptUtc = DateTime.MinValue;
         private int _captureInProgress;
 
@@ -82,6 +84,8 @@ namespace FACM.AppHost.Modules
             if (state == null || !state.Connected)
             {
                 _lastCapturedAccountHash = string.Empty;
+                _lastRegisteredAccountHash = string.Empty;
+                _lastRegisteredOwner = string.Empty;
                 return;
             }
 
@@ -108,21 +112,23 @@ namespace FACM.AppHost.Modules
                     if (current == null || string.IsNullOrWhiteSpace(current.Puuid)) return;
 
                     var hash = PersonalStatsStore.CreateAccountKeyHash(_localDeviceId, current.Puuid);
-                    if (string.Equals(hash, _lastCapturedAccountHash, StringComparison.OrdinalIgnoreCase))
-                        return;
-
-                    bool isNew;
-                    _localSnapshot = _store.RecordAccount(
-                        hash,
-                        current.DisplayName,
-                        current.Region,
-                        DateTimeOffset.Now,
-                        out isNew);
-                    _lastCapturedAccountHash = hash;
-                    RaiseStatsChanged();
-
                     var registered = GgmanAccountSession.Current;
-                    if (registered != null)
+                    var localCaptured = string.Equals(hash, _lastCapturedAccountHash, StringComparison.OrdinalIgnoreCase);
+                    var registeredCaptured = registered == null ||
+                        (registered.UserId == _lastRegisteredOwner &&
+                         string.Equals(hash, _lastRegisteredAccountHash, StringComparison.OrdinalIgnoreCase));
+                    if (localCaptured && registeredCaptured) return;
+
+                    if (!localCaptured)
+                    {
+                        bool isNew;
+                        _localSnapshot = _store.RecordAccount(
+                            hash, current.DisplayName, current.Region, DateTimeOffset.Now, out isNew);
+                        _lastCapturedAccountHash = hash;
+                        RaiseStatsChanged();
+                    }
+
+                    if (registered != null && !registeredCaptured)
                     {
                         try
                         {
@@ -130,6 +136,8 @@ namespace FACM.AppHost.Modules
                             await _registeredClient.RecordAccountAsync(registered,
                                 GgmanRegisteredStatsClient.CreateRegisteredAccountHash(registered.UserId,
                                     current.Puuid), cancellationToken).ConfigureAwait(false);
+                            _lastRegisteredOwner = registered.UserId;
+                            _lastRegisteredAccountHash = hash;
                             await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
                         }
                         catch (OperationCanceledException) { throw; }
@@ -360,6 +368,8 @@ namespace FACM.AppHost.Modules
             _registeredClient = null;
             _localDeviceId = null;
             _lastCapturedAccountHash = string.Empty;
+            _lastRegisteredAccountHash = string.Empty;
+            _lastRegisteredOwner = string.Empty;
         }
 
         private sealed class CurrentSummonerIdentity
