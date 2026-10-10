@@ -128,7 +128,7 @@ Current worktree should not contain FACM4 solution/projects, 4.x migration/boots
 
 ## CloudBase schema migrations
 
-CloudBase production schema changes are explicit and must be applied before a client release depends on them. Repository SQL lives under `cloudbase/sql/` and is written to be idempotent.
+CloudBase production schema changes are explicit and must be applied before a client release depends on them. Repository SQL lives under `cloudbase/sql/`. Migration idempotency varies: notably, `005_esc_profiles.sql` intentionally uses `CREATE TABLE` and must **not** be re-executed after initial installation. Inspect actual schema and RLS before any follow-up migration.
 
 For the personal-stats/ranking feature, apply `cloudbase/sql/002_personal_stats.sql` in the existing `ggman` CloudBase PostgreSQL SQL editor before enabling a release that exposes anonymous ranking. The migration:
 
