@@ -166,10 +166,10 @@ namespace FACM.League
         {
             if (_expanded == value) return;
             _expanded = value;
-            Height = value ? 544 : 48;
+            Height = value ? 492 : 48;
             _expandButton.Text = _ui.Get(value ? UiTextKeys.UiTextEditorCollapse : UiTextKeys.UiTextEditorExpand);
             foreach (var control in new Control[]
-            { _search,_mode,_items,_source,_default,_value,_preview,_save,_reset,_newRule,_upload,_restore,_status })
+            { _search,_mode,_items,_source,_default,_value,_preview,_save,_reset,_newRule,_status })
                 control.Visible = value;
             if (value)
             {
@@ -207,10 +207,7 @@ namespace FACM.League
             _save.SetBounds(16, 402, unit, 34);
             _reset.SetBounds(26 + unit, 402, unit, 34);
             _newRule.SetBounds(36 + unit * 2, 402, unit, 34);
-            var cloudWidth = (width - 48) / 2;
-            _upload.SetBounds(16, 443, cloudWidth, 34);
-            _restore.SetBounds(32 + cloudWidth, 443, cloudWidth, 34);
-            _status.SetBounds(16, 487, width - 32, 44);
+            _status.SetBounds(16, 444, width - 32, 40);
         }
 
         private void RefreshEntries()
@@ -339,6 +336,16 @@ namespace FACM.League
             {
                 _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
             }
+        }
+
+        internal bool HasPendingChanges
+        {
+            get { return _expanded && !IsCurrentEditSaved(); }
+        }
+
+        internal void ReloadAfterExternalRestore()
+        {
+            if (_expanded && !IsDisposed) RefreshEntries();
         }
 
         private bool IsCurrentEditSaved()
