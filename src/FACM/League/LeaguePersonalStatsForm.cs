@@ -237,7 +237,7 @@ namespace FACM.League
                         ? _ui.Get(UiTextKeys.AccountMenu)
                         : _ui.Get(UiTextKeys.AccountManage);
                     _escPanel.RefreshAccountActions();
-                    _ = RefreshRankingAsync();
+                    _ = _module.RefreshAfterSessionChangedAsync(_lifetime.Token);
                 }
             }
         }
