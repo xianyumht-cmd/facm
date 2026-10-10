@@ -65,7 +65,7 @@ namespace FACM.Services
             Pair(UiTextKeys.AutoSyncWorking, "正在后台同步配置……"),
             Pair(UiTextKeys.AutoSyncRetrying, "网络或配置暂时不可用，将自动重试。"),
             Pair(UiTextKeys.AutoSyncOff, "自动同步已关闭，本地设置不受影响。"),
-            Pair(UiTextKeys.AutoSyncConflict, "发现两端存在不同配置，已暂停冲突部分的自动覆盖。"),
+            Pair(UiTextKeys.AutoSyncConflict, "{0} 发现不同配置，已暂停该项自动覆盖。"),
             Pair(UiTextKeys.AutoSyncKeepLocal, "保留本机配置"),
             Pair(UiTextKeys.AutoSyncUseCloud, "采用云端配置"),
             Pair(UiTextKeys.AutoSyncConflictHint, "只有发生版本冲突时才需要选择；其他配置仍正常自动同步。"),
