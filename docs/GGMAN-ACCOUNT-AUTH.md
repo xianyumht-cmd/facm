@@ -1,6 +1,6 @@
 # GGman registered-account identity — CloudBase email OTP
 
-**Status: unmerged/field acceptance pending (Issue #313)**
+**Status: released in signed GGman 3.5.61 on 2026-10-10; optional login operational in owner Windows screenshot. Cross-device UID, real CAPTCHA challenge, logout revocation and mail-volume limits still need field verification (Issue #313).**
 
 ## Account product contract
 
@@ -41,7 +41,7 @@ Official support references for the runtime CAPTCHA API:
 
 ## ESC cloud dependency
 
-The experimental branch `feat/ggman-esc-config-backup-cloud-20261010` must remain **unmerged**, and its cloud buttons remain **disabled**, until account login can provide a registered UID and the new ESC table/RPC rejects anonymous subjects and validates account ownership. The trial `cloudbase/sql/005_esc_profiles.sql` migration is not applied by GitHub, and is not yet authorized for production. Never announce ESC cross-PC restore just because login's REST contract compiles.
+The original anonymous-device ESC experiment stays superseded. Registered-only ESC SQL `005_esc_profiles.sql` was installed by the operator, and the account-owned upload/manual restore UI shipped in 3.5.61. The database mock-role A/B isolation passed and real anonymous/uncredentialed RPC read requests each returned HTTP 401. Registered A/B HTTP isolation, same-account cross-device identity and actual game-settings restore still require field acceptance; do not claim them verified from source compilation.
 
 ## Official references
 
