@@ -86,7 +86,7 @@ namespace FACM.League
 
             _source = new TextBox();
             Controls.Add(_source);
-            _default = Label();
+            _default = CreateLabel();
             Controls.Add(_default);
             _value = new TextBox
             {
@@ -101,7 +101,7 @@ namespace FACM.League
             };
             Controls.Add(_value);
 
-            _preview = Label();
+            _preview = CreateLabel();
             _preview.AutoEllipsis = true;
             Controls.Add(_preview);
 
@@ -130,7 +130,7 @@ namespace FACM.League
             Controls.Add(_upload);
             Controls.Add(_restore);
 
-            _status = Label();
+            _status = CreateLabel();
             _status.Text = _ui.Get(UiTextKeys.UiTextEditorReady);
             Controls.Add(_status);
             _search.Visible = _mode.Visible = _items.Visible = _source.Visible =
@@ -143,7 +143,7 @@ namespace FACM.League
             Arrange();
         }
 
-        private Label Label()
+        private Label CreateLabel()
         {
             return new Label
             {
