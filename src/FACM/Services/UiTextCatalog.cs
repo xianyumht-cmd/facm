@@ -203,6 +203,7 @@ namespace FACM.Services
             Pair(UiTextKeys.RegisteredStatsLoginRequired, "请先登录 GGman 邮箱账号，再进行历史数据导入。"),
             Pair(UiTextKeys.RegisteredStatsPrivacyError, "操作未完成：{0}"),
             Pair(UiTextKeys.RegisteredStatsRankSignedOut, "登录 GGman 邮箱后参与账号排行"),
+            Pair(UiTextKeys.RegisteredStatsRankLoading, "尚未获得该账号的排行榜偏好，暂不修改排行设置；使用统计授权仍可单独管理。"),
 
 
             Pair(UiTextKeys.LeaguePlayerMenu, "玩家主页"),
