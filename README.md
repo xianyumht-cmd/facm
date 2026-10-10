@@ -4,9 +4,9 @@ GGman（鸡鸡侠）是面向 Windows 的轻量桌面悬浮控制中心。当前
 
 ## 当前状态
 
-- 当前在线正式版：`3.5.40`（以 `online/version.json` 与 GitHub Release 为准）。
+- 当前在线正式版：**`3.5.67`**（以 [`online/version.json`](online/version.json) 与 [GitHub Release](https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.67) 为准）。
 - 当前对外产品名：**GGman**。
-- 当前正式发布产物：单个 `GGman.exe`，CI 要求小于 10 MiB。
+- 正式主程序为单个 `GGman.exe`（小于 10 MiB）；Release 同时提供内容相同的 `FACM.exe`，用于兼容旧版一键更新。
 - 当前源码主线：3.5.x lightweight。
 - `FACM.PetHost`、`FACM.ToolBundle`、`FACM.Updater`、`FACM.sln`、`namespace FACM.*` 与 `FACM.Resources.*` 暂时作为内部兼容标识保留，不做全局重命名。
 - `FACM.PetHost` 源码继续 build/self-test，但普通 `GGman.exe` **不内嵌 self-contained PetHost bundle**。
@@ -25,6 +25,17 @@ GGman（鸡鸡侠）是面向 Windows 的轻量桌面悬浮控制中心。当前
 - 公告、镜像、在线更新、SHA-256/签名校验与原子替换回滚。
 
 League 自动化默认保持受控、去重和 best-effort；场景导航只消费现有共享 Gameflow 状态，不创建第二轮询器或第二 League session，不做游戏内注入或 Overlay。
+
+## 我的 GGman：注册账号与配置同步（3.5.67）
+
+- 登录入口：**LOL 工作台 → 我的 GGman**。邮箱账号是可选功能；软件本地能力不依赖登录。
+- 云端配置中心只保留默认勾选的 **自动同步配置**。登录邮箱后后台检查变更，无需打开页面，也无需逐项手动上传/恢复。
+- 同步范围：GGman 可携带的软件偏好、`ui-text.ini` 文字自定义和 LOL `Game/Config` 中允许备份的游戏内 ESC 设置；三类配置分别维护云端版本。
+- 仅变更时同步；首次关联本地已有自定义内容、账号切换或双方同时修改导致冲突时，会暂停冲突项并提示 **保留本机配置 / 采用云端配置**，不会静默覆盖。
+- 游戏安装路径、窗口位置、登录凭据、个人统计/隐私授权等不随此功能同步；`LeagueClient/Config` 大厅 YAML 暂未纳入。
+- 勾选框设置仅在当前设备生效；取消勾选会停止后续自动同步。登录凭据不落盘，重新启动 GGman 后需要再次登录邮箱。
+
+**验收状态：** 3.5.67 已经完成源码检查、Windows CI 和签名发布；实际双设备同步、真实账号切换及运行中的 ESC 文件恢复仍待用户环境验证，不能视为已通过实机验收。详见 [`docs/CLOUD-SETTINGS-SYNC.md`](docs/CLOUD-SETTINGS-SYNC.md)、[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)。
 
 ## 品牌与兼容边界
 
@@ -93,13 +104,14 @@ GitHub Actions 主构建：**GGman Windows Build**。
 
 发布工作流只接受尚未发布的新 3.5.x 版本号，构建并验证 lightweight `GGman.exe`，完成签名、GitHub Release、公开产物哈希/签名复验后，才启用 `online/version.json` 在线更新。
 
-当前正式版本 `3.5.40` 是首个完成 GGman 对外品牌统一的正式版本；内部 FACM 兼容标识不属于待清理残留，除非后续有独立迁移计划和完整兼容验证。
+`3.5.40` 是首个完成 GGman 对外品牌统一的正式版本；**当前在线版本以 `online/version.json` 为准（本次文档收尾时为 `3.5.67`）**。内部 FACM 兼容标识不属于待清理残留，除非后续有独立迁移计划和完整兼容验证。
 
 ## 维护文档
 
 ```text
 AGENTS.md
 docs/PROJECT_STATE.md
+docs/CLOUD-SETTINGS-SYNC.md
 docs/ARCHITECTURE.md
 docs/DECISIONS.md
 docs/PITFALLS.md
