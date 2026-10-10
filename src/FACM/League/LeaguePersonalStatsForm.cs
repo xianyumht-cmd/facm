@@ -34,6 +34,7 @@ namespace FACM.League
         private readonly FacmGlassPanel _historyPanel;
         private readonly FacmGlassPanel _rankingPanel;
         private readonly EscSettingsForm _escPanel;
+        private readonly UiTextEditorPanel _textEditor;
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _privacyButton;
         private bool _openingAccountDialog;
@@ -173,6 +174,12 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Canvas
             };
             _pageContent.Controls.Add(_escPanel);
+            _textEditor = new UiTextEditorPanel(_ui)
+            {
+                Location = new Point(28, 880)
+            };
+            _textEditor.ExpandedHeightChanged += delegate { LayoutPersonalStatsPage(); };
+            _pageContent.Controls.Add(_textEditor);
 
             _scrollArea.Controls.Add(_pageContent);
             Controls.Add(_scrollArea);
@@ -237,6 +244,7 @@ namespace FACM.League
                         ? _ui.Get(UiTextKeys.AccountMenu)
                         : _ui.Get(UiTextKeys.AccountManage);
                     _escPanel.RefreshAccountActions();
+                    _textEditor.RefreshAccountActions();
                     _ = _module.RefreshAfterSessionChangedAsync(_lifetime.Token);
                 }
             }
@@ -283,7 +291,8 @@ namespace FACM.League
                 _historyPanel.Width = cardWidth;
                 _rankingPanel.Width = cardWidth;
                 _escPanel.SetBounds(28, 454, cardWidth, cardWidth >= 620 ? 410 : 460);
-                _pageContent.Height = _escPanel.Bottom + 16;
+                _textEditor.SetBounds(28, _escPanel.Bottom + 14, cardWidth, _textEditor.Height);
+                _pageContent.Height = _textEditor.Bottom + 16;
                 for (var index = 0; index < _metricCaptions.Length; index++)
                 {
                     var bounds = ResolveMetricBoundsForSmokeTest(_scrollArea.ClientSize.Width, index);

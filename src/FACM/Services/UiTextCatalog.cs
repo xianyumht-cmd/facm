@@ -56,6 +56,32 @@ namespace FACM.Services
             Pair(UiTextKeys.PetSource, "来源"),
             Pair(UiTextKeys.Open, "打开"),
 
+            Pair(UiTextKeys.UiTextEditorTitle, "界面文字自定义"),
+            Pair(UiTextKeys.UiTextEditorExpand, "展开编辑"),
+            Pair(UiTextKeys.UiTextEditorCollapse, "收起"),
+            Pair(UiTextKeys.UiTextEditorSearch, "搜索文字、功能或配置项"),
+            Pair(UiTextKeys.UiTextEditorTextMode, "界面文字"),
+            Pair(UiTextKeys.UiTextEditorReplaceMode, "高级替换"),
+            Pair(UiTextKeys.UiTextEditorDefault, "程序默认文字"),
+            Pair(UiTextKeys.UiTextEditorValue, "修改后的文字"),
+            Pair(UiTextKeys.UiTextEditorSource, "需要替换的原文"),
+            Pair(UiTextKeys.UiTextEditorSave, "保存本地"),
+            Pair(UiTextKeys.UiTextEditorRestore, "恢复默认 / 删除规则"),
+            Pair(UiTextKeys.UiTextEditorAddRule, "新增替换"),
+            Pair(UiTextKeys.UiTextEditorCloudUpload, "上传云端"),
+            Pair(UiTextKeys.UiTextEditorCloudRestore, "云端恢复"),
+            Pair(UiTextKeys.UiTextEditorReady, "从左侧选择一项文字即可编辑；保存后界面会自动刷新。"),
+            Pair(UiTextKeys.UiTextEditorSaved, "文字已经保存到本地；修改前的 ui-text.ini 已备份。"),
+            Pair(UiTextKeys.UiTextEditorRestored, "云端文字已恢复到本机；旧配置已备份。"),
+            Pair(UiTextKeys.UiTextEditorError, "文字修改未完成：{0}"),
+            Pair(UiTextKeys.UiTextEditorCloudConfirm, "确定把本机文字配置上传至当前 GGman 邮箱账号？\\r\\n云端版本：{0}\\r\\n自定义文字：{1} 项；替换规则：{2} 项。\\r\\n将替换该账号现有的云端版本。"),
+            Pair(UiTextKeys.UiTextEditorCloudRestoreConfirm, "确定使用云端文字覆盖本机文字自定义？\\r\\n云端版本：{0}\\r\\n上传时间：{1}\\r\\n文字：{2} 项；替换规则：{3} 项。\\r\\n原本的 ui-text.ini 会先备份。"),
+            Pair(UiTextKeys.UiTextEditorUploaded, "已上传云端，当前版本：{0}。"),
+            Pair(UiTextKeys.UiTextEditorCloudMissing, "当前邮箱账号尚无文字自定义云备份。"),
+            Pair(UiTextKeys.UiTextEditorCloudScope, "仅同步文字覆盖项及全局替换规则；不会上传账号令牌、游戏路径或软件其他设置。"),
+            Pair(UiTextKeys.UiTextEditorNoLogin, "登录 GGman 邮箱账号后可上传、恢复云端文字。"),
+            Pair(UiTextKeys.UiTextEditorSelectEntry, "请先选择一项文字，或在高级替换中添加规则。"),
+            Pair(UiTextKeys.UiTextEditorSaveBeforeCloud, "有尚未保存的文字修改。请先点击“保存本地”，再执行云端操作。"),
             Pair(UiTextKeys.EscSettingsTitle, "ESC 设置备份"),
             Pair(UiTextKeys.EscSettingsHint, "云端保存和恢复游戏 ESC 配置。游戏运行时也可操作，设置可能需要重新进入游戏才能生效。"),
             Pair(UiTextKeys.EscSettingsFolder, "英雄联盟配置目录（自动识别，可手动调整）"),
@@ -400,6 +426,22 @@ namespace FACM.Services
         public string EditText { get { return Get(UiTextKeys.EditText); } }
         public string Exit { get { return Get(UiTextKeys.Exit); } }
 
+        internal static IReadOnlyList<KeyValuePair<string, string>> DefaultEntries
+        {
+            get { return DefaultText; }
+        }
+
+        internal IReadOnlyDictionary<string, string> ReplacementEntries
+        {
+            get { return _replacements; }
+        }
+
+        internal string GetConfiguredValue(string key)
+        {
+            string value;
+            return _values.TryGetValue(key, out value) ? value : string.Empty;
+        }
+
         public static string ConfigPath
         {
             get { return RuntimePaths.UiTextPath; }
@@ -678,7 +720,7 @@ namespace FACM.Services
             File.WriteAllLines(path, lines, new UTF8Encoding(false));
         }
 
-        private static int FindUnescapedEquals(string value)
+        internal static int FindUnescapedEquals(string value)
         {
             for (var index = 0; index < value.Length; index++)
             {
@@ -690,7 +732,7 @@ namespace FACM.Services
             return -1;
         }
 
-        private static string Unescape(string value)
+        internal static string Unescape(string value)
         {
             if (string.IsNullOrEmpty(value)) return value ?? string.Empty;
             var builder = new StringBuilder(value.Length);
@@ -720,7 +762,7 @@ namespace FACM.Services
             return builder.ToString();
         }
 
-        private static string Escape(string value)
+        internal static string Escape(string value)
         {
             return (value ?? string.Empty)
                 .Replace("\\", "\\\\")
