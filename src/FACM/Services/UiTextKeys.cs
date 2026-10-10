@@ -72,6 +72,10 @@ namespace FACM.Services
         public const string EscSettingsPickBackup = "EscSettingsPickBackup";
         public const string EscSettingsCloudRestoreConfirm = "EscSettingsCloudRestoreConfirm";
         public const string EscSettingsSessionChanged = "EscSettingsSessionChanged";
+        public const string EscSettingsProbe = "EscSettingsProbe";
+        public const string EscSettingsProbePassed = "EscSettingsProbePassed";
+        public const string EscSettingsProbeEmpty = "EscSettingsProbeEmpty";
+        public const string EscSettingsProbeUnexpectedStatus = "EscSettingsProbeUnexpectedStatus";
 
         public const string AccountCaptchaTitle = "AccountCaptchaTitle";
         public const string AccountCaptchaHint = "AccountCaptchaHint";
