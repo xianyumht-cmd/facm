@@ -11,6 +11,10 @@
 - The login UI does not expose hidden user identifiers/credentials in exported diagnostics. Account code displays the authenticated UID after successful login only, to help compare two profiles during acceptance. Authentication failures must not imply login success.
 - When CloudBase returns `captcha_required`, GGman fetches a bounded GIF through `POST /auth/v1/captcha/data`, displays it inside a native modal, submits the user's 4–6 character answer to `POST /auth/v1/captcha/data/verify`, and attaches the verified `captcha_token` as `x-captcha-token` to **one** retry of the original email-send request. Cancellation, invalid/expired images, a second challenge and failed verification all stop sending. There is no automatic loop or CAPTCHA bypass.
 
+## Native account-entry verification
+
+The account modal is launched from a WinForms view embedded within `LeagueHubForm`. The entry resolves the visible top-level host as the modal owner and records credential-free `GGman account entry clicked` / `GGman account dialog shown` lines. If creating the modal fails, an error message appears and logs only the failure type/HRESULT; a click without a matching shown marker requires native Windows focus/window investigation. This mitigates a reported no-visible-response symptom, but its real-PC root cause remains unconfirmed. A normal anonymous CloudBase device-sync log is not proof of registered account sign-in. A separate updater-mirror HTTP error is likewise unrelated.
+
 ## Required CloudBase console setup (not automatable from a code commit)
 
 1. Open your Tencent CloudBase project for **`ggman-d4gioqqcz434d9e4d`**, enter **身份认证 → 登录方式 → 邮箱验证码 → 配置发件邮箱**, choose official email forwarding or the project's preconfigured authorized SMTP, and save. Also confirm that user registration and email verification are enabled and that the appropriate email template sends a six-digit code.
