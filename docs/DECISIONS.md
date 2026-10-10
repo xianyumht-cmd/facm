@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## Registered accounts own cross-device personal stats; anonymous history is not blindly summed (2026-10-10)
+
+Default local history recording on GGman launch is independent from identity and survives login/logout. Registered email UID becomes owner of new cloud usage-day and LOL account observations; a per-UID HMAC of the observed PUUID is stable across machines but is not an encryption of PUUID and must not be treated as a secret. Existing per-device HMAC hashes cannot be mathematically converted to those new identifiers. Preserve local history and offer a one-time, explicit source-aware import; old counts are lower-bound maxima and must not be summed across device sources or added to new unique counts. A separate ranking visibility preference is enabled on registered sign-in by default with an accessible opt-out. Feature usage telemetry remains anonymous and separately opt-in. Do not force user registration or transfer an anonymous table's ownership via SQL reassignment. Finish schema and authorization acceptance before deploying clients.
+
 ## Only game ESC files qualify a cloud snapshot source (2026-10-10)
 
 In WeGame installations, `LeagueClient\\Config` contains YAML client/account preferences and `Game\\Config` contains actual in-game ESC settings. For auto-detection and direct backup/restore path normalization, prefer `Game\\Config` over sibling client Config and require an actual allowlisted file; a League executable alone is insufficient. Continue supporting a verified legacy root `Config` folder holding ESC files. Keep YAML client preference files out of this feature unless separately specified and reviewed. This fixes the 3.5.62 false-positive locator without modifying registered CloudBase ownership, RLS or backup schema.
