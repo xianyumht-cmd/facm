@@ -41,7 +41,7 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 
 `GgmanEscCloudClient.CheckReadOnlyAccessAsync` uses the in-process registered account session to verify real RPC read access and separately probes the same read route without any bearer. `EscSettingsForm` exposes this manual non-mutating diagnostic and shows only success/failure plus the current snapshot revision. It does not validate a second registered principal or an authenticated anonymous principal; those are later external acceptance gates. No telemetry, persistence of auth tokens, background polling or direct write/restore is performed by the diagnostic.
 
-### ESC My GGman account-page controls and path resolution (next patch)
+### ESC My GGman account-page controls and path resolution (3.5.62)
 
 The existing `EscSettingsForm` is reused as a borderless non-top-level child surface within `LeaguePersonalStatsForm` below its privacy panel. The Workbench remains the sole navigation owner; old independent Settings/tray More entries are removed. The ESC surface runs a one-shot, cancellation-aware `EscGameDirectoryLocator` on show, using League process image path with WMI fallback, the configured game path, and registry uninstall hints in that order; all candidates are validated to actual local League Config directories without full-disk scanning. `EscSettingsBackup` no longer queries League process state before snapshot/recovery, but retains real file integrity/permission checks, local fallback and best-effort rollback. Disk restore while game is open is supported but game runtime state may overwrite it later. Existing registered account boundary, database RLS and cloud request protocol remain unchanged.
 
