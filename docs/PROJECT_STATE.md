@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.66
-- GitHub Release：v3.5.66
+- 版本：GGman 3.5.67
+- GitHub Release：v3.5.67
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：680056cc493436c0582c9c8e6d95ddc5d2cb3b84
-- 发布元数据提交：0b1ae67581f2746f07f2dbe267f3c1168b95e2b3
-- Release GGman.exe SHA-256：A0B05B2BACF3CA47E9EA5CF53054E79D7842D5EAA74A127FBD2716962CAE0B31
-- release_notes：GGman 3.5.66：LOL 工作台「我的 GGman」新增统一云端配置中心，只保留「上传全部配置」「恢复云端配置」一组云端按钮。统一同步三个已支持的配置分区：注册邮箱账号下的 GGman 软件偏好、ui-text.ini 界面文字自定义、英雄联盟 Game/Config 游戏内 ESC 设置；各分区独立存储及版本保护。原 ESC 和文字编辑页移除重复云端按钮，保留本地备份、恢复和编辑。恢复前确认并创建本地备份，找不到游戏配置会跳过 ESC，不清空已有云端数据；部分成功或失败单独报告。停止旧匿名软件设置的自动回写，避免覆盖注册账号恢复的偏好；不修改账号统计和现有历史。LOL 游戏大厅 YAML 暂未纳入，待完成安全字段审查。已通过 SQL 008 RLS、A/B 模拟隔离与版本冲突、匿名 HTTP 拦截以及 Windows CI；真实邮箱 A/B、不同电脑和 UI 恢复效果仍需实机验收。
+- 发布基础 main：56172cab809f9b4cdc2720e3d92380b8703108c6
+- 发布元数据提交：9d996229e5d5a6f8d13f13f46b09569339bc6b6f
+- Release GGman.exe SHA-256：F2BB74255BAF55D126D42A91370A628ABD789BBF8C9C2B58C6BE107864246E14
+- release_notes：GGman 3.5.67：LOL 工作台「我的 GGman」的云端配置中心由手动「上传全部配置 / 恢复云端配置」改为默认勾选的「自动同步配置」，登录邮箱后在后台检查并同步 GGman 软件偏好、ui-text.ini 自定义文字、LOL 游戏内 ESC 三类配置，无需打开该页面或反复点击按钮。仅在内容确实变化时上传或恢复；使用注册 UID 分区的本地版本/内容指纹和云端 CAS 版本保护，防止重复写入、旧版本覆盖和同一电脑切换账号时发生配置串号。首次使用的非默认差异及双端同时修改会暂停冲突项并显示一次保留本机/采用云端选项，云端恢复前仍备份本地配置。关闭开关停止后续自动同步，离线失败自动退避重试。无新数据库脚本，继续使用现有 SQL 005/007/008；不包含游戏大厅 YAML，也不改变隐私统计授权。现有邮箱登录凭据不在本地保存，软件重启后仍须再次验证邮箱；真实双设备同步需更新后实机验证。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — Default-on automatic registered config synchronization (staged)
