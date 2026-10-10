@@ -122,6 +122,24 @@ namespace FACM.Services
             var updated = new List<string>(lines.Count + 40);
             var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var section = string.Empty;
+            var sawTextSection = false;
+            var sawReplaceSection = false;
+            var replaceRulesWritten = false;
+            var missingTextWritten = false;
+            Action writeRules = () =>
+            {
+                if (replaceRulesWritten) return;
+                foreach (var entry in profile.Replace.OrderBy(x => x.Key, StringComparer.Ordinal))
+                    updated.Add(UiTextCatalog.Escape(entry.Key) + "=" + UiTextCatalog.Escape(entry.Value));
+                replaceRulesWritten = true;
+            };
+            Action writeMissingText = () =>
+            {
+                if (missingTextWritten) return;
+                foreach (var entry in textValues.Where(x => !present.Contains(x.Key)))
+                    updated.Add(UiTextCatalog.Escape(entry.Key) + "=" + UiTextCatalog.Escape(entry.Value));
+                missingTextWritten = true;
+            };
             foreach (var source in lines)
             {
                 var line = source ?? string.Empty;
@@ -129,7 +147,15 @@ namespace FACM.Services
                 if (trimmed.StartsWith("[", StringComparison.Ordinal) &&
                     trimmed.EndsWith("]", StringComparison.Ordinal))
                 {
+                    if (section.Equals("Text", StringComparison.OrdinalIgnoreCase))
+                        writeMissingText();
+                    if (section.Equals("Replace", StringComparison.OrdinalIgnoreCase))
+                        writeRules();
                     section = trimmed.Substring(1, trimmed.Length - 2).Trim();
+                    if (section.Equals("Text", StringComparison.OrdinalIgnoreCase))
+                        sawTextSection = true;
+                    if (section.Equals("Replace", StringComparison.OrdinalIgnoreCase))
+                        sawReplaceSection = true;
                     updated.Add(line);
                     continue;
                 }
@@ -152,14 +178,22 @@ namespace FACM.Services
                 updated.Add(line);
             }
 
-            updated.Add("");
-            updated.Add("[Text]");
-            foreach (var entry in textValues.Where(x => !present.Contains(x.Key)))
-                updated.Add(entry.Key + "=" + UiTextCatalog.Escape(entry.Value));
-            updated.Add("");
-            updated.Add("[Replace]");
-            foreach (var entry in profile.Replace.OrderBy(x => x.Key, StringComparer.Ordinal))
-                updated.Add(UiTextCatalog.Escape(entry.Key) + "=" + UiTextCatalog.Escape(entry.Value));
+            if (section.Equals("Text", StringComparison.OrdinalIgnoreCase))
+                writeMissingText();
+            if (section.Equals("Replace", StringComparison.OrdinalIgnoreCase))
+                writeRules();
+            if (!sawTextSection)
+            {
+                updated.Add("");
+                updated.Add("[Text]");
+                writeMissingText();
+            }
+            if (!sawReplaceSection && profile.Replace.Count > 0)
+            {
+                updated.Add("");
+                updated.Add("[Replace]");
+                writeRules();
+            }
 
             var text = string.Join(Environment.NewLine, updated) + Environment.NewLine;
             if (Encoding.UTF8.GetByteCount(text) > 512 * 1024)
@@ -216,12 +250,15 @@ namespace FACM.Services
                 fixture.Replace["GGman"] = "个人工作台";
                 var backups = Path.Combine(temporary, "backups");
                 ApplyFile(fixture, path, backups);
+                ApplyFile(fixture, path, backups);
                 var saved = File.ReadAllText(path, Encoding.UTF8);
                 if (!saved.Contains("# keep this comment") ||
                     !saved.Contains("[Extra]") || !saved.Contains("UserValue=remain") ||
                     !saved.Contains("GGman=个人工作台") ||
                     saved.Contains("GGman=Older Brand") ||
-                    Directory.GetFiles(backups, "*.ini").Length != 1)
+                    Directory.GetFiles(backups, "*.ini").Length != 2 ||
+                    Regex.Matches(saved, @"(?m)^\[Text\]$").Count != 1 ||
+                    Regex.Matches(saved, @"(?m)^\[Replace\]$").Count != 1)
                     throw new InvalidOperationException("UI wording apply lost legacy lines or backup.");
             }
             finally { try { Directory.Delete(temporary, true); } catch { } }
