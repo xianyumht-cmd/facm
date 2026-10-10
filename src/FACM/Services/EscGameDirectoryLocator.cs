@@ -138,7 +138,8 @@ namespace FACM.Services
                                 item = uninstall == null ? null : uninstall.OpenSubKey(name);
                                 if (item == null) continue;
                                 var title = Convert.ToString(item.GetValue("DisplayName"));
-                                if (title.IndexOf("League of Legends", StringComparison.OrdinalIgnoreCase) < 0 &&
+                                if (string.IsNullOrWhiteSpace(title) ||
+                                    (title.IndexOf("League of Legends", StringComparison.OrdinalIgnoreCase) < 0 &&
                                     title.IndexOf("英雄联盟", StringComparison.OrdinalIgnoreCase) < 0)
                                     continue;
                                 foreach (var field in new[] { "InstallLocation", "DisplayIcon" })
