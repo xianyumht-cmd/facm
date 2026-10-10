@@ -34,13 +34,13 @@ Do not treat an artifact as a public release until the release workflow updates 
 
 ## Publish a new 3.5.x version
 
-Canonical workflow: **FACM 3.5 Lightweight Release** (`.github/workflows/publish-3.5-lightweight.yml`).
+Canonical workflow: **GGman 3.5 Lightweight Release** (`.github/workflows/publish-3.5-lightweight.yml`).
 
 Two supported entry points:
 
 ### Manual
 
-Actions → FACM 3.5 Lightweight Release → Run workflow, then supply:
+Actions → GGman 3.5 Lightweight Release → Run workflow, then supply:
 
 - new 3.5.x `version`;
 - `minimum_version`;
@@ -98,11 +98,13 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 
 ## Default-on registered background configuration sync acceptance
 
-This feature **reuses already deployed SQL 005, 007 and 008**: no migration, table creation or operator SQL is required. Verify a fresh Windows install has the auto-sync checkbox checked, without duplicate manual upload/restore buttons. Sign in and wait for the background status to move from waiting to ready; do not need to open My GGman for changes to transfer. On local-only change, confirm one new matching account-owned cloud revision, then no further revisions while unchanged. On remote-only change, confirm local backup-before-restore and no overwrite of local path/device geometry or privacy consent. Test same account across two Win10 systems, then A->B->A on one PC: never transfer the previous account's file content without the rare conflict confirmation. Test both-sides edits, one-time keep-local/use-cloud actions, cloud-missing fallback, invalid-game-path skip, unsaved text drafts, offline backoff, ESC changes while LOL is running and turning off the checkbox during an ongoing request. Logout cancels pending operations; reopen GGman and log in anew since account credentials are intentionally memory-only in this release. Require final-head Windows build/UI contract and signed official patch publication, never hand out detached test EXE.
+Signed `v3.5.67` is already published and online-enabled. These checks are **post-release native field acceptance**, not prerequisites that should be marked complete without real devices. A docs-only closeout does not trigger a new release.
 
-## Unified cloud configuration rollout (008)
+This feature **reuses already deployed SQL 005, 007 and 008**: no migration, table creation or operator SQL is required. Verify a fresh Windows install has the auto-sync checkbox checked, without duplicate manual upload/restore buttons. Sign in and wait for the background status to move from waiting to ready; do not need to open My GGman for changes to transfer. On local-only change, confirm one new matching account-owned cloud revision, then no further revisions while unchanged. On remote-only change, confirm local backup-before-restore and no overwrite of local path/device geometry or privacy consent. Test same account across two Win10 systems, then A->B->A on one PC: never transfer the previous account's file content without the rare conflict confirmation. Test both-sides edits, one-time keep-local/use-cloud actions, cloud-missing fallback, invalid-game-path skip, unsaved text drafts, offline backoff, ESC changes while LOL is running and turning off the checkbox during an ongoing request. Logout cancels pending operations; reopen GGman and log in anew since account credentials are intentionally memory-only in this release. These build/signing gates were completed for 3.5.67; any later client fix requires its own reviewed CI and separately signed patch. Do not substitute detached test EXEs.
 
-This next release requires a **new registered account software-preferences table**: `cloudbase/sql/008_registered_app_settings.sql`. It is not deployed; do not merge/publish the client against a missing RPC. First verify `to_regclass('public.ggman_registered_app_settings')`, `to_regprocedure('public.ggman_get_registered_app_settings()')` and `to_regprocedure('public.ggman_set_registered_app_settings(jsonb,bigint)')` return NULL in the intended CloudBase environment. Execute create-once SQL only after owner review; inspect RLS, anon/authenticated grants, policy owner check and SECURITY INVOKER, simulate transaction-rollback A/B and stale revision, run live no-auth/anonymous denial and registered bearer read/write isolation. Verify native Windows My GGman has precisely one visible upload and one visible restore, no duplicate cloud buttons under ESC/text, unknown game directory skips without deleting cloud ESC, pre-restore local backups and partial-result status if one RPC fails. Old anonymous settings must no longer write to local preferences automatically. Release via usual signed one-click channel after final-head CI and acceptance.
+## Registered app settings rollout (historical 3.5.66; complete)
+
+SQL `008_registered_app_settings.sql` was deployed before the signed 3.5.66 release. The operator already verified its table/RLS/grants, versioned compare-and-swap RPC behavior, simulated A/B isolation and anonymous gateway rejections; the signed 3.5.67 background-sync feature reuses the same deployed schema. **Do not rerun create-once SQL 008** or request a new migration for 3.5.67. Refer to `docs/PROJECT_STATE.md` for the release and acceptance evidence, and to the default-on checklist above for still-open native A/B and cross-device validation.
 
 ## Registered stats rollout (006 migration)
 
