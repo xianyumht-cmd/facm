@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Auto synchronization needs baselines and non-destructive first login (2026-10-10)
+
+Automatic upload-on-login can leak the last signed-in person's local settings into a newly signed-in account; automatic restore-on-login can erase pre-existing custom preferences. Content fingerprint alone is insufficient to tell which side changed. Track hashed registered UID, local content hashes and remote revision per category in device-local state. At first association, restore remote only over proven stock/default UI or software preferences; customized or ownership-switch differences need explicit one-time conflict choice. On subsequent polls, local-only change -> CAS upload, remote-only revision change -> backed-up local restore, both changed -> pause category, equal content -> adopt. Preserve user edits currently unsaved in a visible text editor. Token/logout/checkbox-off must cancel further work and offline calls must back off. Report pending conflicts clearly instead of looping or silently replacing either side.
+
 ## Two cloud upload/restore pairs lead to inconsistent multi-device configuration (2026-10-10)
 
 3.5.65 had an ESC upload/restore pair and another pair inside the text editor, while legacy anonymous software settings auto-restored on app startup. With registered settings this can overwrite newer data or require multiple confusing clicks. Centralize manual upload/restore in My GGman, retain local-only controls within feature-specific editors, and stop anonymous software preference auto-restore. The central action is a nontransactional sequence of independently versioned RPCs: preflight, single confirmation, local backup-before-write, category count and explicit partial success/errors are mandatory. Never quietly claim that all categories succeeded if one failed or the game Config path is missing.
