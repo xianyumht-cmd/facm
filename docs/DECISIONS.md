@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## Account confirmation closes its modal; management stays accessible (2026-10-10, AUTH-1 draft)
+
+The optional email login modal is an owned, short-lived task window, not a second persistent GGman dashboard. After an authenticated registered UID is established, close the modal with a success result and update the existing **我的 GGman** account action. Reopening the same entry shows the email/UID and logout rather than disabled sign-in inputs. A verification failure must leave the login window open with an error; successful closure does not revoke the session. This keeps session lifetime independent from window lifetime and preserves the existing lightweight floating-ball and Hub architecture. The change remains unmerged until provider and real Windows acceptance.
+
 ## D-014 — Contextual shell navigation consumes shared state only
 
 **Decision (2026-09-07):** the floating entry may adapt its home surface and LOL destination to the current Gameflow scene, but navigation is a consumer of the existing `LeagueDashboardModule` state, never a new League runtime owner.
