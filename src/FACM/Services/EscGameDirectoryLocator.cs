@@ -140,7 +140,7 @@ namespace FACM.Services
                                 var title = Convert.ToString(item.GetValue("DisplayName"));
                                 if (string.IsNullOrWhiteSpace(title) ||
                                     (title.IndexOf("League of Legends", StringComparison.OrdinalIgnoreCase) < 0 &&
-                                    title.IndexOf("英雄联盟", StringComparison.OrdinalIgnoreCase) < 0)
+                                    title.IndexOf("英雄联盟", StringComparison.OrdinalIgnoreCase) < 0))
                                     continue;
                                 foreach (var field in new[] { "InstallLocation", "DisplayIcon" })
                                 {
