@@ -245,7 +245,12 @@ namespace FACM.Services
         {
             if (remoteVersion > 0 && localHash != null &&
                 string.Equals(localHash, remoteHash, StringComparison.Ordinal))
+            {
+                if (!otherOwner && previous != null && previous.Version == remoteVersion &&
+                    string.Equals(previous.Fingerprint, localHash, StringComparison.Ordinal))
+                    return SyncAction.Unchanged;
                 return SyncAction.Adopt;
+            }
             if (otherOwner) return SyncAction.Conflict;
             if (previous == null)
             {
@@ -479,7 +484,8 @@ namespace FACM.Services
                 Decide(null, "local", 3, "remote", false, true) != SyncAction.Restore ||
                 Decide(null, "local", 3, "remote", false, false) != SyncAction.Conflict ||
                 Decide(null, "local", 0, null, true, false) != SyncAction.Conflict ||
-                Decide(previous, "old", 5, "old", false, false) != SyncAction.Adopt ||
+                Decide(previous, "old", 5, "old", false, false) != SyncAction.Unchanged ||
+                Decide(previous, "old", 5, "old", true, false) != SyncAction.Adopt ||
                 Decide(previous, "new", 5, "old", false, false) != SyncAction.Upload ||
                 Decide(previous, "old", 6, "new", false, false) != SyncAction.Restore ||
                 Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict ||
