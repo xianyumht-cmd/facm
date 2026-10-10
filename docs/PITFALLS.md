@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Do not sync ui-text.ini as opaque bytes or lose runtime formatting tokens (2026-10-10)
+
+UI wording is not a generic settings INI: `[Text]` uses stable keys and may contain `{0}` / `{1}` `string.Format` arguments; `[Replace]` is the legacy whole-string substitution layer. Direct cloud file overwrite can erase newer local UI keys and comments, or let a stale client unilaterally replace another device's text. Preserve current catalog defaults, comments and unknown sections while applying a validated override subset, make a local recovery copy, reject damaged indexed-placeholder sets and use server CAS revisions. Register all newly introduced editor labels in `UiTextKeys`/`UiTextCatalog` so the editor itself stays user-editable. SQL/RLS/registered bearer and explicit restore preview are required before live sync.
+
 ## Anonymous device HMACs cannot identify cross-device LOL accounts (2026-10-10)
 
 `PersonalStatsStore.CreateAccountKeyHash(deviceId,puuid)` produces a device-keyed HMAC. Identical LOL accounts on different PCs therefore have unrelated 64-hex old identifiers: changing `owner_id` or concatenating anonymous rows would inflate registered rankings. Keep the old local store backed up, keep the old database untouched, import only count/day summaries under an explicit shared-device ownership warning, and compute rank as the greater of old per-source lower-bound count and the new verified-UID-scoped distinct account count. Never automatically enable the separate feature usage telemetry or expose prior ranking values to a newly switched logged-in user.
