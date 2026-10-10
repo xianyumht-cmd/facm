@@ -197,6 +197,7 @@ namespace FACM.Services
         public const string RegisteredStatsLoginRequired = "RegisteredStatsLoginRequired";
         public const string RegisteredStatsPrivacyError = "RegisteredStatsPrivacyError";
         public const string RegisteredStatsRankSignedOut = "RegisteredStatsRankSignedOut";
+        public const string RegisteredStatsRankLoading = "RegisteredStatsRankLoading";
 
 
         public const string LeaguePlayerMenu = "LeaguePlayerMenu";
