@@ -202,6 +202,15 @@ namespace FACM.Services
                         throw new InvalidOperationException("WeGame ESC locator selected the client preferences folder.");
                 }
 
+                var captured = EscSettingsBackup.Capture(wegame);
+                if (captured.Files.Count != 3 ||
+                    captured.Files.Any(item => !ConfigNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("WeGame ESC capture missed the actual game configuration.");
+
+                var capturedFromStaleClientPath = EscSettingsBackup.Capture(clientConfig);
+                if (capturedFromStaleClientPath.Files.Count != 3)
+                    throw new InvalidOperationException("Stale launcher Config hint did not recover the game settings.");
+
                 var clientOnly = Path.Combine(root, "ClientOnly");
                 Directory.CreateDirectory(Path.Combine(clientOnly, "LeagueClient", "Config"));
                 File.WriteAllText(Path.Combine(clientOnly, "LeagueClient", "LeagueClient.exe"), string.Empty);
