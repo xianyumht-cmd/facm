@@ -377,6 +377,8 @@ namespace FACM
             for (var index = 0; index < _actions.Length; index++)
                 _actions[index].Enabled = !busy && (index < 2 || GgmanAccountSession.Current != null);
             _probe.Enabled = !busy && GgmanAccountSession.Current != null;
+            _browse.Enabled = !busy;
+            _autoDetect.Enabled = !busy && !_detecting;
             if (busy) SetStatus(_ui.Get(UiTextKeys.EscSettingsBusy));
         }
 
