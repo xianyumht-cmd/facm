@@ -41,6 +41,12 @@ namespace FACM.Services
         public IReadOnlyList<PersonalStatsAccountRecord> RecentAccounts { get; set; } = new List<PersonalStatsAccountRecord>();
     }
 
+    internal sealed class PersonalStatsLegacySummary
+    {
+        internal int PlayedAccounts { get; set; }
+        internal IReadOnlyList<string> ActiveDays { get; set; } = new string[0];
+    }
+
     internal sealed class PersonalStatsStore
     {
         private const int CurrentSchemaVersion = 2;
@@ -174,6 +180,19 @@ namespace FACM.Services
                     .Where(item => item != null && IsValidAccountHash(item.AccountKeyHash))
                     .Select(CloneAccount)
                     .ToArray();
+            }
+        }
+
+        internal PersonalStatsLegacySummary ReadLegacySummary(DateTimeOffset now)
+        {
+            lock (_sync)
+            {
+                var state = LoadOrCreate(now);
+                return new PersonalStatsLegacySummary
+                {
+                    PlayedAccounts = state.Accounts.Count,
+                    ActiveDays = state.ActiveDays.ToArray()
+                };
             }
         }
 
