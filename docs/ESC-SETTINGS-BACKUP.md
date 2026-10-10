@@ -1,6 +1,6 @@
 # GGman — ESC setting backup and registered-account cloud sync
 
-**Status:** shipped in signed official GGman 3.5.61, one-click online update enabled (2026-10-10). The operator installed the ESC table/RPCs and validated catalog RLS and role permissions. A/B mock-role SQL isolation passed; real production HTTP probes with no credentials and with an anonymous bearer both returned 401. Actual *two registered accounts* HTTP isolation, simultaneous version conflicts, and Tencent/Riot game settings restoration remain post-release field checks, not proven by CI.
+**Status:** ESC cloud feature initially shipped in 3.5.61 and WeGame folder recognition was corrected in signed official GGman 3.5.63, one-click online update enabled (2026-10-10). The operator installed the ESC table/RPCs and validated catalog RLS and role permissions. A/B mock-role SQL isolation passed; real production HTTP probes with no credentials and with an anonymous bearer both returned 401. Actual *two registered accounts* HTTP isolation, simultaneous version conflicts, and Tencent/Riot game settings restoration remain post-release field checks, not proven by CI.
 
 ## Purpose and data boundary
 
@@ -10,7 +10,7 @@ This flow is **opt-in**, separate from the existing device-anonymous `ggman_sett
 
 **Current 3.5.62 UX:** this feature is now available as an inline subsection of **LOL 工作台 → 我的 GGman** rather than a standalone Settings/tray dialog. The location detector runs when the section opens and has no background scanner. The signed 3.5.62 online update is enabled. Registered-account ownership and CloudBase database schema remain unchanged. Config files generally can be accessed with the game running, but newly restored bytes may not be reflected in memory and may be overwritten by a later client save.
 
-**WeGame folder correction (3.5.63 fix):** WeGame's `LeagueClient\\Config` YAML client/account preferences are distinct from in-game ESC files. The auto-locator prioritizes `Game\\Config` containing `game.cfg`, `input.ini`, or `PersistedSettings.json`. The presence of `LeagueClient.exe` alone is no longer sufficient. Both the locator and backup/restore path resolver handle launcher executable hints, installed root and stale `LeagueClient\\Config` hints consistently; supported cloud JSON payload and owner/RLS rules remain unchanged. On the owner's machine 3.5.62 incorrectly chose the client YAML folder and failed cloud upload; do not treat that failed attempt as a saved cloud backup.
+**WeGame folder correction (released in signed GGman 3.5.63):** WeGame's `LeagueClient\\Config` YAML client/account preferences are distinct from in-game ESC files. The auto-locator prioritizes `Game\\Config` containing `game.cfg`, `input.ini`, or `PersistedSettings.json`. The presence of `LeagueClient.exe` alone is no longer sufficient. Both the locator and backup/restore path resolver handle launcher executable hints, installed root and stale `LeagueClient\\Config` hints consistently; supported cloud JSON payload and owner/RLS rules remain unchanged. On the owner's machine 3.5.62 incorrectly chose the client YAML folder and failed cloud upload; do not treat that failed attempt as a saved cloud backup.
 
 ## Local operation
 
