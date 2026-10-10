@@ -37,7 +37,6 @@ namespace FACM.Services
             }
             foreach (var entry in catalog.ReplacementEntries)
                 profile.Replace[entry.Key] = entry.Value;
-            Validate(profile);
             return profile;
         }
 
