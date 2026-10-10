@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.60：完成悬浮球与工作台入口的一轮一致性修复。托盘菜单中的“打开控制中心”和托盘图标双击现在都会打开或激活快捷面板，不会在面板已打开时意外关闭；悬浮球单击仍按原有方式切换显示状态。修复旧版“英雄联盟”入口跳转统一工作台后却误显示“暂无可用功能”的问题，并移除旧版菜单查找中的隐式跳转。托盘“更多”中新增“使用指南”，与快捷面板的设置入口一致。补充菜单路由回归检查。保留原有九个工作台页面、悬浮球、托盘恢复、游戏内助手、LOL 查询与自动化、更新器签名和旧客户端一键更新兼容功能。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — ESC registered-account cloud sync (stage, NOT released)
+
+- User completed native email login / account management UI checks in AUTH-1 PR #314 and requested official signed one-click releases as the normal delivery, not standalone QA artifacts. This does not remove CloudBase authorization and real-device release gates.
+- ESC staging branch `feat/ggman-esc-account-sync-20261010` is based on AUTH-1 head and ports allowlisted League Config local snapshots/rollback from the blocked anonymous-device ESC experiment. It adds registered-only bearer RPCs, optimistic version checks, upload/restore confirmations, and ESC entry under existing compact Settings and tray More. Neither CloudBase SQL nor the program has been published to clients.
+- Rewritten `cloudbase/sql/005_esc_profiles.sql` denies anon and binds RLS to `auth.uid()` with explicit `authenticated` role guards, unlike old experimental anonymous-device SQL. Requires actual CloudBase environment schema inspection, deployment by authorized operator, RPC role isolation tests, same-UID two-device test, and real Tencent/Riot persistence/rollback acceptance before merge and formal release.
+
 ## 2026-10-10 — Optional CloudBase email account (Issue #313; task branch, not released)
 
 - User approved CloudBase email OTP account login as prerequisite to ESC cross-device sync. Branch `feat/ggman-email-account-auth-20261010` starts from enabled public 3.5.60 `main`. Adds separate account REST client with official send/verify/sign-in/sign-up/signout endpoints and session limited to memory; adds optional login/logout dialog from the existing “我的 GGman” page. Existing anonymous CloudBase device sync, local usage history, matchmaking, LCU and current online manifest remain untouched; login never forces sign-up on startup. Regression smoke covers registered-session separation, input/transport contracts.
