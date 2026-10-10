@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Do not block ESC backup solely because a League process is running (2026-10-10)
+
+The 3.5.61 ESC UI added an unconditional `RequireGameClosed` guard in local capture, local restore, cloud upload and restore. This is overly strict for generally readable game config files. Allow activity while League processes exist and rely on actual filesystem exceptions, allowlisted paths and hashes, safe pre-restore snapshots and guarded replacement. The game may save its own buffered settings on exit and override files restored mid-match; warn users instead of falsely claiming persistence. Auto-detect via bounded, verified process/registry/install hints; the cleanup tool's separate `GameLocator` is not an unconditional ESC dependency.
+
 ## Do not confuse 4.x history with the current product
 
 FACM 4.x is retired from the default working tree. A bug, constraint or build rule that existed only in 4.x must not be described as a 3.5 bug. If old Git history is consulted, first verify the behavior exists in current `src/FACM`.
