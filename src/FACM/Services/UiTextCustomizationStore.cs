@@ -89,9 +89,9 @@ namespace FACM.Services
                 throw new InvalidDataException("文字必须为非空内容，且不能超过 1800 字符。");
             EnsureSafeCharacters(value);
             var expected = Placeholder.Matches(original ?? string.Empty).Cast<Match>()
-                .Select(match => match.Groups[1].Value).OrderBy(part => part).ToArray();
+                .Select(match => match.Value).OrderBy(part => part).ToArray();
             var actual = Placeholder.Matches(value).Cast<Match>()
-                .Select(match => match.Groups[1].Value).OrderBy(part => part).ToArray();
+                .Select(match => match.Value).OrderBy(part => part).ToArray();
             if (!expected.SequenceEqual(actual))
                 throw new InvalidDataException("请保留原文中的 {0}、{1} 等动态占位符。");
         }
@@ -106,8 +106,13 @@ namespace FACM.Services
         internal static void Apply(UiTextProfile profile)
         {
             Validate(profile);
-            var path = UiTextCatalog.ConfigPath;
             UiTextCatalog.Load();
+            ApplyFile(profile, UiTextCatalog.ConfigPath,
+                Path.Combine(RuntimePaths.DataDirectory, "ui-text-backups"));
+        }
+
+        private static void ApplyFile(UiTextProfile profile, string path, string archive)
+        {
             var defaults = UiTextCatalog.DefaultEntries.ToDictionary(x => x.Key, x => x.Value,
                 StringComparer.OrdinalIgnoreCase);
             var textValues = new Dictionary<string, string>(defaults, StringComparer.OrdinalIgnoreCase);
@@ -161,7 +166,6 @@ namespace FACM.Services
                 throw new InvalidDataException("文字配置文件超过本地大小限制。");
 
             RuntimePaths.Initialize();
-            var archive = Path.Combine(RuntimePaths.DataDirectory, "ui-text-backups");
             Directory.CreateDirectory(archive);
             var backup = Path.Combine(archive, "ui-text-" +
                 DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".ini");
@@ -198,6 +202,31 @@ namespace FACM.Services
             if (string.IsNullOrEmpty(plain.Key))
                 throw new InvalidOperationException("No ordinary UI text fixture.");
             ValidateText(string.Empty, plain.Value);
+            var temporary = Path.Combine(Path.GetTempPath(), "ggman-text-" +
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temporary);
+            try
+            {
+                var path = Path.Combine(temporary, "ui-text.ini");
+                var custom = "# keep this comment\n[Text]\n" +
+                    entry.Key + "=" + UiTextCatalog.Escape(entry.Value) +
+                    "\n\n[Replace]\nGGman=Older Brand\n[Extra]\nUserValue=remain\n";
+                File.WriteAllText(path, custom, new UTF8Encoding(false));
+                var fixture = new UiTextProfile();
+                fixture.Text[entry.Key] = entry.Value;
+                fixture.Replace["GGman"] = "个人工作台";
+                var backups = Path.Combine(temporary, "backups");
+                ApplyFile(fixture, path, backups);
+                var saved = File.ReadAllText(path, Encoding.UTF8);
+                if (!saved.Contains("# keep this comment") ||
+                    !saved.Contains("[Extra]") || !saved.Contains("UserValue=remain") ||
+                    !saved.Contains("GGman=个人工作台") ||
+                    saved.Contains("GGman=Older Brand") ||
+                    Directory.GetFiles(backups, "*.ini").Length != 1)
+                    throw new InvalidOperationException("UI wording apply lost legacy lines or backup.");
+            }
+            finally { try { Directory.Delete(temporary, true); } catch { } }
+
             var sample = new UiTextProfile();
             sample.Text[entry.Key] = entry.Value;
             sample.Replace["GGman"] = "个人工具";
