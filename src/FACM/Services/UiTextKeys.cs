@@ -75,6 +75,7 @@ namespace FACM.Services
         public const string AccountBusy = "AccountBusy";
         public const string AccountSendWait = "AccountSendWait";
         public const string AccountError = "AccountError";
+        public const string AccountOpenFailed = "AccountOpenFailed";
         public const string AccountVerified = "AccountVerified";
         public const string AccountLoggedOut = "AccountLoggedOut";
         public const string AccountNoRemember = "AccountNoRemember";
