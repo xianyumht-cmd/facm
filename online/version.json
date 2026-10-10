@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.65",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.65/FACM.exe",
   "sha256": "637F2AD7E48EA3B814649B350B89861AD3097E6939D0C788A7B1DD67DD7A2BBB",
   "release_notes": "GGman 3.5.65：在「LOL 工作台 → 我的 GGman」中新增默认折叠的界面文字自定义编辑器，可搜索原有 ui-text.ini [Text] 项、查看默认文字、预览修改并恢复默认，支持高级 [Replace] 替换规则。保存本地时检查动态占位符并自动备份原文件，保留未知 INI 节、注释，现有 UI 热更新机制继续生效。登录 GGman 邮箱后，可手动上传或恢复文字自定义配置；按注册 UID 隔离，云端记录版本和更新时间，并在恢复前确认、备份，上传采用版本冲突保护。已通过 SQL 007 权限和模拟账号 A/B 测试、生产网关匿名访问拒绝、Windows 构建与自动测试。真实邮箱跨设备恢复及界面效果仍需后续实机验收；现有 ESC、匿名设备和统计数据不变。",
-  "published_at": "2026-10-10T03:48:23.1828693+00:00"
+  "published_at": "2026-10-10T03:48:30.7611777+00:00"
 }

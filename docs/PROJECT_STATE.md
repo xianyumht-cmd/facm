@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.64
-- GitHub Release：v3.5.64
+- 版本：GGman 3.5.65
+- GitHub Release：v3.5.65
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：699e6a86ee92baff023a08fc6f2e8d1a6b1cdc5f
-- 发布元数据提交：6d7c1fb50016d69f3e8907b8cb4ec7178475ee74
-- Release GGman.exe SHA-256：37DBB4A7DD91286EC519A93A4858C8A00F6A2857F99DEA31DA441D1CF60D9D4D
-- release_notes：GGman 3.5.64：我的 GGman 个人统计调整为默认记录本机使用足迹，移除页面原有三个常驻开关。新增邮箱账号专属的游玩账号统计及排行榜，登录后可跨设备按注册账号派生标识去重；数据与隐私集中管理排行榜参与选项和单独授权的匿名功能使用统计，后者不会自动开启。提供“导入本机历史记录”，需用户确认，按来源幂等登记并保留原有本地历史，不把无法跨设备去重的旧账号哈希直接相加。新的统计表使用注册账号权限控制，旧匿名表和 ESC 云备份保持不变。生产数据库角色模拟与匿名 HTTP 拦截已验证，真实跨注册账号及跨电脑历史迁移仍待实机验证。
+- 发布基础 main：1c5f3cfa300fc34cda9fbab6a52d3481ef7d997a
+- 发布元数据提交：d379955b22ea50705bc84cffc07f717fe676415b
+- Release GGman.exe SHA-256：637F2AD7E48EA3B814649B350B89861AD3097E6939D0C788A7B1DD67DD7A2BBB
+- release_notes：GGman 3.5.65：在「LOL 工作台 → 我的 GGman」中新增默认折叠的界面文字自定义编辑器，可搜索原有 ui-text.ini [Text] 项、查看默认文字、预览修改并恢复默认，支持高级 [Replace] 替换规则。保存本地时检查动态占位符并自动备份原文件，保留未知 INI 节、注释，现有 UI 热更新机制继续生效。登录 GGman 邮箱后，可手动上传或恢复文字自定义配置；按注册 UID 隔离，云端记录版本和更新时间，并在恢复前确认、备份，上传采用版本冲突保护。已通过 SQL 007 权限和模拟账号 A/B 测试、生产网关匿名访问拒绝、Windows 构建与自动测试。真实邮箱跨设备恢复及界面效果仍需后续实机验收；现有 ESC、匿名设备和统计数据不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — UI text in-page editor + registered cloud sync (staged)
