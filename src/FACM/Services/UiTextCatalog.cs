@@ -81,6 +81,7 @@ namespace FACM.Services
             Pair(UiTextKeys.AccountBusy, "正在向 CloudBase 验证，请稍候..."),
             Pair(UiTextKeys.AccountSendWait, "发送过于频繁，请 {0} 秒后重试。"),
             Pair(UiTextKeys.AccountError, "账号操作失败：{0}"),
+            Pair(UiTextKeys.AccountOpenFailed, "无法打开账号登录窗口，请查看 GGman 运行日志。"),
             Pair(UiTextKeys.AccountVerified, "登录成功。当前账号 UID：{0}"),
             Pair(UiTextKeys.AccountLoggedOut, "已退出此设备的 GGman 账号。"),
             Pair(UiTextKeys.AccountNoRemember, "当前版本不保存登录凭据，关闭 GGman 后需要重新验证。"),
