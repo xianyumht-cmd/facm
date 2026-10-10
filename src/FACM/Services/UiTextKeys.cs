@@ -83,6 +83,8 @@ namespace FACM.Services
         public const string AccountTooManyAttempts = "AccountTooManyAttempts";
         public const string AccountEmailChanged = "AccountEmailChanged";
         public const string AccountMenu = "AccountMenu";
+        public const string AccountManage = "AccountManage";
+        public const string AccountUid = "AccountUid";
 
         public const string ShellLeague = "ShellLeague";
         public const string ShellMore = "ShellMore";
