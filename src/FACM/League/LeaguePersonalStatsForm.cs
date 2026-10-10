@@ -35,6 +35,7 @@ namespace FACM.League
         private readonly FacmGlassPanel _historyPanel;
         private readonly FacmGlassPanel _rankingPanel;
         private readonly FacmGlassPanel _preferencesPanel;
+        private readonly EscSettingsForm _escPanel;
         private readonly FacmToggleSwitch _localToggle;
         private readonly FacmToggleSwitch _rankingToggle;
         private readonly FacmToggleSwitch _telemetryToggle;
@@ -186,6 +187,17 @@ namespace FACM.League
             _preferencesPanel.Controls.Add(_refreshButton);
             _pageContent.Controls.Add(_preferencesPanel);
 
+            _escPanel = new EscSettingsForm(_ui, _settings.GamePath)
+            {
+                TopLevel = false,
+                FormBorderStyle = FormBorderStyle.None,
+                ShowInTaskbar = false,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(28, 565),
+                BackColor = FacmDesignSystem.Canvas
+            };
+            _pageContent.Controls.Add(_escPanel);
+
             _statusValue = new Label
             {
                 Location = new Point(30, 532),
@@ -210,6 +222,7 @@ namespace FACM.League
             {
                 ApplySnapshot();
                 ApplyTelemetryState();
+                _escPanel.Show();
                 if (_settings.LeagueCloudRankingEnabled) await RefreshRankingAsync();
             };
             FormClosed += delegate
@@ -305,6 +318,8 @@ namespace FACM.League
                 _historyPanel.Width = cardWidth;
                 _rankingPanel.Width = cardWidth;
                 _preferencesPanel.Width = cardWidth;
+                _escPanel.SetBounds(28, 565, cardWidth, cardWidth >= 620 ? 410 : 460);
+                _pageContent.Height = _escPanel.Bottom + 16;
                 for (var index = 0; index < _metricCaptions.Length; index++)
                 {
                     var bounds = ResolveMetricBoundsForSmokeTest(_scrollArea.ClientSize.Width, index);
@@ -351,7 +366,7 @@ namespace FACM.League
             }
             if (ResolvePageWidthForSmokeTest(420) - 160 - 30 <= 28 + 160)
                 throw new InvalidOperationException("GGman account entry overlaps the page title at narrow width.");
-            if (398 + 130 > 532 || 532 + 18 > 584)
+            if (398 + 130 > 532 || 532 + 18 >= 565)
                 throw new InvalidOperationException("Personal stats status or privacy controls are vertically clipped.");
         }
 
