@@ -8,7 +8,7 @@ ESC means the League of Legends settings accessed through the in-game Escape men
 
 This flow is **opt-in**, separate from the existing device-anonymous `ggman_settings_sync`, user history, usage telemetry and rankings.
 
-**Next-version UX relocation:** this feature is being moved from the standalone Settings/tray ESC dialog into an inline subsection of **我的 GGman**. The location detector runs when the section opens and has no background scanner. The 3.5.61 online release has the old layout until the next signed 3.5.62 update is enabled. Config files generally can be accessed with the game running, but newly restored bytes may not be reflected in memory and may be overwritten by a later client save.
+**Current 3.5.62 UX:** this feature is now available as an inline subsection of **LOL 工作台 → 我的 GGman** rather than a standalone Settings/tray dialog. The location detector runs when the section opens and has no background scanner. The signed 3.5.62 online update is enabled. Registered-account ownership and CloudBase database schema remain unchanged. Config files generally can be accessed with the game running, but newly restored bytes may not be reflected in memory and may be overwritten by a later client save.
 
 ## Local operation
 
