@@ -86,7 +86,7 @@ namespace FACM.Services
 
         internal static void ValidateText(string value, string original)
         {
-            if (string.IsNullOrEmpty(value) || value.Length > MaximumTextLength)
+            if (value == null || value.Length > MaximumTextLength)
                 throw new InvalidDataException("文字必须为非空内容，且不能超过 1800 字符。");
             EnsureSafeCharacters(value);
             var expected = Placeholder.Matches(original ?? string.Empty).Cast<Match>()
@@ -194,6 +194,11 @@ namespace FACM.Services
                 throw new InvalidOperationException("Placeholder validation accepted a missing variable.");
             }
             catch (InvalidDataException) { }
+            var plain = defaults.FirstOrDefault(x => !x.Value.Contains("{0}") &&
+                !x.Value.Contains("{1}"));
+            if (string.IsNullOrEmpty(plain.Key))
+                throw new InvalidOperationException("No ordinary UI text fixture.");
+            ValidateText(string.Empty, plain.Value);
             var sample = new UiTextProfile();
             sample.Text[entry.Key] = entry.Value;
             sample.Replace["GGman"] = "个人工具";
