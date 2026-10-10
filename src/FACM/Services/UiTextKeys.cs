@@ -50,6 +50,9 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
+        public const string UnifiedSyncSettings = "UnifiedSyncSettings";
+        public const string UnifiedSyncText = "UnifiedSyncText";
+        public const string UnifiedSyncEsc = "UnifiedSyncEsc";
         public const string UnifiedSyncTitle = "UnifiedSyncTitle";
         public const string UnifiedSyncUpload = "UnifiedSyncUpload";
         public const string UnifiedSyncRestore = "UnifiedSyncRestore";
