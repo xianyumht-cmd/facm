@@ -119,7 +119,7 @@ namespace FACM
             Activated += delegate { if (!_busy) SetBusy(false); };
             ClientSizeChanged += delegate { LayoutEscPanel(); };
             Shown += async delegate { await DetectDirectoryAsync(); };
-            FormClosed += delegate { _cancellation.Cancel(); _cancellation.Dispose(); };
+            Disposed += delegate { _cancellation.Cancel(); _cancellation.Dispose(); };
             LayoutEscPanel();
         }
 
