@@ -105,7 +105,15 @@ namespace FACM.League
             _useCloud.Enabled = visibleConflict && !_service.IsBusy;
             if (_service != null)
             {
-                _status.Text = _ui.Get(_service.StatusKey);
+                var status = _ui.Get(_service.StatusKey);
+                if (visibleConflict)
+                {
+                    var key = _service.ConflictCategory == "app" ? UiTextKeys.UnifiedSyncSettings :
+                        _service.ConflictCategory == "text" ? UiTextKeys.UnifiedSyncText :
+                        UiTextKeys.UnifiedSyncEsc;
+                    status = string.Format(status, _ui.Get(key));
+                }
+                _status.Text = status;
                 _useCloud.Enabled = _useCloud.Enabled && _service.ConflictHasRemote;
             }
             else
