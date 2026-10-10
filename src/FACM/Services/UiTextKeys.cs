@@ -76,6 +76,10 @@ namespace FACM.Services
         public const string EscSettingsProbePassed = "EscSettingsProbePassed";
         public const string EscSettingsProbeEmpty = "EscSettingsProbeEmpty";
         public const string EscSettingsProbeUnexpectedStatus = "EscSettingsProbeUnexpectedStatus";
+        public const string EscSettingsDetect = "EscSettingsDetect";
+        public const string EscSettingsDetecting = "EscSettingsDetecting";
+        public const string EscSettingsDetected = "EscSettingsDetected";
+        public const string EscSettingsNotFound = "EscSettingsNotFound";
 
         public const string AccountCaptchaTitle = "AccountCaptchaTitle";
         public const string AccountCaptchaHint = "AccountCaptchaHint";
