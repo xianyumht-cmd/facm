@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## Only game ESC files qualify a cloud snapshot source (2026-10-10)
+
+In WeGame installations, `LeagueClient\\Config` contains YAML client/account preferences and `Game\\Config` contains actual in-game ESC settings. For auto-detection and direct backup/restore path normalization, prefer `Game\\Config` over sibling client Config and require an actual allowlisted file; a League executable alone is insufficient. Continue supporting a verified legacy root `Config` folder holding ESC files. Keep YAML client preference files out of this feature unless separately specified and reviewed. This fixes the 3.5.62 false-positive locator without modifying registered CloudBase ownership, RLS or backup schema.
+
 ## ESC cloud actions belong to My GGman and may run with LOL open (2026-10-10)
 
 ESC settings are owned by the player's registered GGman account. Place controls inline beneath personal stats in **LOL 工作台 → 我的 GGman**, not under generic app settings or tray More, and keep the existing workbench navigation intact. Reuse the current manual upload/restore and confirmed recovery implementation rather than adding another independent window. Prioritize a running League process path, then already configured game path and League uninstall registry paths; resolve each only if a real `Config` directory is validated, with manual folder selection available. Do not prohibit reads or writes simply because League is running: file permissions/locks and integrity checks are authoritative. A successful on-disk restore cannot promise immediate in-game application or persistence after a client exit, so show that caveat and do not silently reapply or poll in the background.

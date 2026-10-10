@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.62：将 ESC 设置本地备份、云端保存、云端恢复及权限检查整合到「LOL 工作台 → 我的 GGman」，移除设置和托盘中的独立入口。新增游戏目录自动识别：运行中的 LOL 进程路径（含 WMI 备用）、已保存游戏路径、Windows 注册表，识别失败仍可手动选择。游戏运行中不再强制禁止 ESC 上传和恢复，仍保留文件校验、恢复前备份、错误回滚、账号隔离与云端版本冲突保护。运行中恢复到磁盘的设置可能不会立即生效，也可能被游戏退出时重新写回。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — WeGame ESC Config selection fix (pending v3.5.63)
+
+- Owner's production 3.5.62 screenshots confirm path selection erroneously landed on `E:\\WeGameApps\\英雄联盟\\LeagueClient\\Config` (YAML client preferences only) and clicking cloud upload reported no ESC files. The real ESC files (`game.cfg`, `input.ini`, `PersistedSettings.json`) exist under the sibling `Game\\Config` (JSON 54 KiB, within current limits). Root cause confirmed in `EscGameDirectoryLocator.FindValidatedConfig`: the prior `hasEscFiles || hasGameClient` condition accepted a path merely because a client executable was found, and tested the launcher client Config before the real game Config.
+- New fix accepts only folders containing at least one allowlisted ESC file; prioritizes `Game\\Config`, expressly ignores `LeagueClient\\Config` as an ESC source, and shares this correction with lower-level capture/restore path normalization. Tests reproduce WeGame's `LeagueClient\\Config` YAML and `Game\\Config` ESC sibling structure and resolve correctly from launcher exe, game exe, install root and stale client-config hint. Preserves previous legacy root Config behavior for actual ESC files. No CloudBase SQL or authentication changes.
+- Owner screenshot also showed stale 3.5.61 advice (`恢复前须完全退出英雄联盟`) under the 3.5.62 interface: local `ui-text.ini` retains existing values from older templates. Added narrowly scoped migration of four exact prior stock ESC guidance strings to current defaults while preserving any personalized copy; this is not evidence of a still-present game-running process block.
+- Commit/CI/official signed v3.5.63 state to be recorded after verification. Do not claim user upload has succeeded until actual Windows test. 
+
 ## 2026-10-10 — ESC account-page relocation and live-game handling (3.5.62 released)
 
 - User requests **ESC cloud backup/restore under LOL 工作台 → 我的 GGman**, not the settings/tray menus. Added an embedded inline ESC section beneath existing stats and privacy cards; preserved responsive scrolling, auto-enable cloud controls on sign-in change and retained registered-owner RPC, optimistic revisions and manual confirmations.

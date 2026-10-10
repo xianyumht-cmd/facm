@@ -39,6 +39,9 @@ namespace FACM.Services
         {
             if (string.IsNullOrWhiteSpace(selectedPath)) throw new InvalidOperationException("请先选择英雄联盟安装目录。");
             var full = Path.GetFullPath(selectedPath.Trim().Trim('"'));
+            var recognized = EscGameDirectoryLocator.ResolveCandidate(full);
+            if (!string.IsNullOrWhiteSpace(recognized)) return recognized;
+
             var config = string.Equals(Path.GetFileName(full.TrimEnd(Path.DirectorySeparatorChar)), "Config", StringComparison.OrdinalIgnoreCase)
                 ? full
                 : Path.Combine(full, "Config");

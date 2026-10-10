@@ -548,11 +548,52 @@ namespace FACM.Services
                 }
 
                 EnsureMissingKeysAndSections(RuntimePaths.UiTextPath);
+                MigrateLegacyEscGuidance(RuntimePaths.UiTextPath);
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to create UI text configuration", exception);
             }
+        }
+
+        private static void MigrateLegacyEscGuidance(string path)
+        {
+            var previousDefaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { UiTextKeys.EscSettingsHint, "备份 LOL 游戏内 ESC 设置。恢复前须完全退出英雄联盟，GGman 会先保存当前配置。" },
+                { UiTextKeys.EscSettingsCloudScope, "云端备份属于已登录的 GGman 邮箱账号，不与匿名设备统计同步。上传或恢复前请关闭英雄联盟。" },
+                { UiTextKeys.EscSettingsFolder, "游戏目录（包含 Config 文件夹）" },
+                { UiTextKeys.EscSettingsReady, "请选择英雄联盟目录，然后备份或恢复。" }
+            };
+
+            var lines = File.ReadAllLines(path, Encoding.UTF8);
+            var section = string.Empty;
+            var changed = false;
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var trimmed = (lines[index] ?? string.Empty).Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal) &&
+                    trimmed.EndsWith("]", StringComparison.Ordinal))
+                {
+                    section = trimmed.Substring(1, trimmed.Length - 2).Trim();
+                    continue;
+                }
+                if (!section.Equals("Text", StringComparison.OrdinalIgnoreCase)) continue;
+                var equal = FindUnescapedEquals(lines[index] ?? string.Empty);
+                if (equal <= 0) continue;
+                var key = Unescape(lines[index].Substring(0, equal).Trim());
+                string previous;
+                string current;
+                if (!previousDefaults.TryGetValue(key, out previous) ||
+                    !DefaultValues.TryGetValue(key, out current) ||
+                    !string.Equals(Unescape(lines[index].Substring(equal + 1).Trim()),
+                        previous, StringComparison.Ordinal))
+                    continue;
+
+                lines[index] = lines[index].Substring(0, equal + 1) + Escape(current);
+                changed = true;
+            }
+            if (changed) File.WriteAllLines(path, lines, new UTF8Encoding(false));
         }
 
         private static string[] BuildTemplate()
