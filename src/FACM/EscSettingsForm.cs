@@ -91,6 +91,8 @@ namespace FACM
             var authenticated = GgmanAccountSession.Current != null;
             _actions[2].Enabled = authenticated;
             _actions[3].Enabled = authenticated;
+            _actions[2].Visible = false;
+            _actions[3].Visible = false;
             _actions[0].Click += delegate { SaveLocal(); };
             _actions[1].Click += delegate { RestoreLocal(); };
             _actions[2].Click += async delegate { await TransferCloudAsync(true); };
@@ -98,6 +100,7 @@ namespace FACM
 
             _probe = NewButton(UiTextKeys.EscSettingsProbe, 16, 231, 160);
             _probe.Enabled = authenticated;
+            _probe.Visible = false;
             _probe.Click += async delegate { await ProbeCloudAsync(); };
 
             _note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 279, 590, 43);
@@ -206,6 +209,11 @@ namespace FACM
                     key == UiTextKeys.EscSettingsLocalSave)
                         ? FacmButtonTone.Primary : FacmButtonTone.Secondary
             };
+        }
+
+        internal string CurrentConfigDirectory
+        {
+            get { return _directory.Text; }
         }
 
         private string RequireDirectory()
