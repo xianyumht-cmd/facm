@@ -273,6 +273,7 @@ namespace FACM.League
                     _accountButton.Text = GgmanAccountSession.Current == null
                         ? _ui.Get(UiTextKeys.AccountMenu)
                         : _ui.Get(UiTextKeys.AccountManage);
+                    _escPanel.RefreshAccountActions();
                 }
             }
         }
