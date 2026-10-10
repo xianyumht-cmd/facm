@@ -341,9 +341,23 @@ namespace FACM.League
             }
         }
 
+        private bool IsCurrentEditSaved()
+        {
+            var selected = _items.SelectedItem as Entry;
+            if (selected != null)
+                return string.Equals(_value.Text, selected.Current, StringComparison.Ordinal);
+            return string.IsNullOrWhiteSpace(_source.Text) &&
+                string.IsNullOrEmpty(_value.Text);
+        }
+
         private async Task UploadAsync()
         {
             if (_busy || IsDisposed) return;
+            if (!IsCurrentEditSaved())
+            {
+                _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaveBeforeCloud);
+                return;
+            }
             var account = GgmanAccountSession.Current;
             if (account == null) { _status.Text = _ui.Get(UiTextKeys.UiTextEditorNoLogin); return; }
             SetBusy(true);
@@ -375,6 +389,11 @@ namespace FACM.League
         private async Task RestoreAsync()
         {
             if (_busy || IsDisposed) return;
+            if (!IsCurrentEditSaved())
+            {
+                _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaveBeforeCloud);
+                return;
+            }
             var account = GgmanAccountSession.Current;
             if (account == null) { _status.Text = _ui.Get(UiTextKeys.UiTextEditorNoLogin); return; }
             SetBusy(true);
