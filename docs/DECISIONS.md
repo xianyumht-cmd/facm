@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## GGman cloud actions are owned by one in-page config center (2026-10-10)
+
+There must be one pair of **上传全部配置 / 恢复云端配置** controls in **我的 GGman**. Feature sections keep local edit/backup/restore controls but no duplicate cloud upload/restore. The central handler uses each feature's existing registered-owner cloud data contract and versioned CAS where available; the new portable preferences use a dedicated registered-only profile and explicit field whitelist, not the old anonymous auto-settings sync. A central click is an orchestration of independent versions, **not atomic across DB tables and local files**: show coverage, confirm destructive restore, keep backups and report partial failure. A missing game installation must never erase an existing cloud ESC backup. Lobby YAML is excluded pending a safe account/server-aware allowlist; new validated categories automatically join this one UI flow later.
+
 ## UI wording is a scoped registered-account customization, not the entire settings.ini (2026-10-10)
 
 Retain `ui-text.ini` as the local source of truth and runtime hot-reload contract. Expose `[Text]` keys and advanced `[Replace]` rules through a collapsed editor directly in My GGman. Sync only user-defined differences from catalog defaults plus explicit global replacement rules, owned by the logged-in email UID, independently from anonymous device preferences, game ESC and statistics. Local editing works without login; cloud upload and restore require login and explicit consent. Preserve placeholders and local backup before edits/restores, compare cloud version before replacement, and do not silently upload on every keystroke or overwrite the user's customized file during an update.
