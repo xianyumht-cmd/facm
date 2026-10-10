@@ -11,6 +11,7 @@ namespace FACM.Performance
                 RunStep("performance-budget", Validate);
                 RunStep("shell-ux", FACM.ShellUxSmokeTest.Validate);
                 RunStep("ggman-email-auth", FACM.Online.GgmanEmailAuthClient.ValidateForSmokeTest);
+                RunStep("registered-personal-stats", FACM.Online.GgmanRegisteredStatsClient.ValidateForSmokeTest);
                 RunStep("esc-backup", FACM.Services.EscSettingsBackup.ValidateForSmokeTest);
                 RunStep("esc-auto-locator", FACM.Services.EscGameDirectoryLocator.ValidateForSmokeTest);
                 RunStep("esc-registered-rpc", FACM.Online.GgmanEscCloudClient.ValidateForSmokeTest);
