@@ -71,6 +71,7 @@ namespace FACM.Services
             Pair(UiTextKeys.AutoSyncConflictHint, "只有发生版本冲突时才需要选择；其他配置仍正常自动同步。"),
             Pair(UiTextKeys.AutoSyncDescription, "默认开启：登录后后台检测并同步软件偏好、界面文字和游戏 ESC。关闭后不自动上传或恢复。"),
             Pair(UiTextKeys.AutoSyncNoRemote, "云端没有该配置，请选择保留本机配置。"),
+            Pair(UiTextKeys.AutoSyncConflictConfirm, "这项本机配置与云端不同，确定采用云端版本吗？当前本地文件会先备份。"),
             Pair(UiTextKeys.UnifiedSyncTitle, "云端配置中心"),
             Pair(UiTextKeys.UnifiedSyncUpload, "上传全部配置"),
             Pair(UiTextKeys.UnifiedSyncRestore, "恢复云端配置"),
