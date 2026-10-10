@@ -41,17 +41,20 @@ namespace FACM.Services
         private readonly string _statePath;
         private GgmanAutoSyncState _state;
         private CancellationTokenSource _sessionCancellation = new CancellationTokenSource();
+        private readonly List<CancellationTokenSource> _retired = new List<CancellationTokenSource>();
         private bool _busy;
         private bool _disposed;
         private DateTime _notBeforeUtc;
         private int _errors;
         private string _conflict;
+        private bool _conflictHasRemote;
         private string _status = UiTextKeys.AutoSyncWaiting;
         internal static GgmanAutoSyncService Current { get; private set; }
         internal event EventHandler StateChanged;
 
         internal string StatusKey { get { return _status; } }
         internal string ConflictCategory { get { return _conflict; } }
+        internal bool ConflictHasRemote { get { return _conflictHasRemote; } }
         internal bool IsBusy { get { return _busy; } }
 
         internal GgmanAutoSyncService(AppSettings settings)
@@ -76,6 +79,7 @@ namespace FACM.Services
             _settings.Save();
             CancelCurrent();
             _conflict = null;
+            _conflictHasRemote = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
             _timer.Interval = 5000;
@@ -86,6 +90,7 @@ namespace FACM.Services
         {
             CancelCurrent();
             _conflict = null;
+            _conflictHasRemote = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
@@ -97,8 +102,14 @@ namespace FACM.Services
             var old = _sessionCancellation;
             _sessionCancellation = new CancellationTokenSource();
             old.Cancel();
-            // A run owns the previous token until its awaited operation finishes.
-            old.Dispose();
+            _retired.Add(old);
+            if (!_busy) DisposeRetired();
+        }
+
+        private void DisposeRetired()
+        {
+            foreach (var source in _retired) source.Dispose();
+            _retired.Clear();
         }
 
         private void UpdateStatus()
@@ -138,6 +149,7 @@ namespace FACM.Services
             finally
             {
                 _busy = false;
+                DisposeRetired();
                 UpdateStatus();
             }
         }
@@ -162,6 +174,7 @@ namespace FACM.Services
             }
             var otherOwner = _state.LastOwner.Length > 0 && _state.LastOwner != owner;
             _conflict = null;
+            _conflictHasRemote = false;
             using (var appClient = new GgmanAppSettingsCloudClient())
             using (var textClient = new GgmanUiTextCloudClient())
             using (var escClient = new GgmanEscCloudClient())
@@ -234,15 +247,32 @@ namespace FACM.Services
                 !first && localChanged && remoteChanged ||
                 !first && remoteVersion == 0 && previous.Version > 0))
             {
-                if (_conflict == null) _conflict = kind;
+                if (_conflict == null)
+                {
+                    _conflict = kind;
+                    _conflictHasRemote = remoteVersion > 0;
+                }
                 return;
             }
 
             if (choice == 0 && !first && !localChanged && !remoteChanged) return;
+            if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges)
+            {
+                if (_conflict == null)
+                {
+                    _conflict = kind;
+                    _conflictHasRemote = remoteVersion > 0;
+                }
+                return;
+            }
             var doRestore = choice == 2 || (choice == 0 && !first && remoteChanged);
             if (doRestore && remoteVersion == 0)
             {
-                if (_conflict == null) _conflict = kind;
+                if (_conflict == null)
+                {
+                    _conflict = kind;
+                    _conflictHasRemote = remoteVersion > 0;
+                }
                 return;
             }
 
@@ -333,6 +363,7 @@ namespace FACM.Services
                     }
                 }
                 _conflict = null;
+                _conflictHasRemote = false;
                 _errors = 0;
                 _notBeforeUtc = DateTime.MinValue;
                 _timer.Interval = 1500;
@@ -346,6 +377,7 @@ namespace FACM.Services
             finally
             {
                 _busy = false;
+                DisposeRetired();
                 UpdateStatus();
             }
         }
@@ -431,6 +463,7 @@ namespace FACM.Services
             CancelCurrent();
             _timer.Dispose();
             _sessionCancellation.Dispose();
+            DisposeRetired();
             Current = null;
         }
     }
