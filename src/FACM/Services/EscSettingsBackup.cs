@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -152,7 +151,6 @@ namespace FACM.Services
         internal static string Restore(EscSettingsBundle bundle, string selectedPath)
         {
             Validate(bundle);
-            RequireGameClosed();
             var directory = FindConfigDirectory(selectedPath);
             EscSettingsBundle before = null;
             var previous = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
@@ -175,7 +173,6 @@ namespace FACM.Services
             {
                 foreach (var file in bundle.Files)
                 {
-                    RequireGameClosed();
                     var path = Path.Combine(directory, file.Name);
                     if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
                         throw new InvalidOperationException("目标配置包含链接，已拒绝覆盖。");
@@ -208,22 +205,6 @@ namespace FACM.Services
                 throw;
             }
             return before == null ? string.Empty : "已在 data\\esc-backups 中保留恢复前备份。";
-        }
-
-        internal static void RequireGameClosed()
-        {
-            foreach (var name in new[] { "League of Legends", "LeagueClient", "LeagueClientUx" })
-            {
-                Process[] matches;
-                try { matches = Process.GetProcessesByName(name); }
-                catch { throw new InvalidOperationException("无法确认游戏是否关闭，请退出游戏和客户端后重试。"); }
-                try
-                {
-                    if (matches.Length > 0)
-                        throw new InvalidOperationException("请先完全退出英雄联盟游戏和客户端，防止设置被覆盖。");
-                }
-                finally { foreach (var process in matches) process.Dispose(); }
-            }
         }
 
         private static string Hash(byte[] bytes)

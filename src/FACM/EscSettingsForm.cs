@@ -18,12 +18,18 @@ namespace FACM
         private readonly Label _status;
         private readonly Button[] _actions;
         private readonly Button _probe;
+        private readonly Button _browse;
+        private readonly Button _autoDetect;
+        private readonly Label _note;
+        private readonly string _configuredGameRoot;
+        private bool _detecting;
         private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
         private bool _busy;
 
         internal EscSettingsForm(UiTextCatalog ui, string suggestedGameRoot)
         {
             _ui = ui ?? UiTextCatalog.Load();
+            _configuredGameRoot = suggestedGameRoot;
             Text = _ui.AppName + " · " + _ui.Get(UiTextKeys.EscSettingsTitle);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -35,8 +41,8 @@ namespace FACM
             ForeColor = FacmDesignSystem.Text;
             ShowInTaskbar = false;
             ClientSize = new Size(630, 410);
-            MinimumSize = Size;
-            MaximumSize = Size;
+            MinimumSize = Size.Empty;
+            MaximumSize = Size.Empty;
 
             var title = NewLabel(_ui.Get(UiTextKeys.EscSettingsTitle), 16, 15, 590, 30, true);
             var hint = NewLabel(_ui.Get(UiTextKeys.EscSettingsHint), 16, 49, 596, 41);
@@ -44,18 +50,16 @@ namespace FACM
             _directory = new TextBox
             {
                 Location = new Point(16, 130),
-                Size = new Size(482, 26),
+                Size = new Size(357, 26),
                 ReadOnly = true,
                 TabStop = true
             };
-            if (!string.IsNullOrWhiteSpace(suggestedGameRoot))
-            {
-                try { _directory.Text = EscSettingsBackup.FindConfigDirectory(suggestedGameRoot); }
-                catch { }
-            }
+            _directory.Text = EscGameDirectoryLocator.ResolveCandidate(suggestedGameRoot) ?? string.Empty;
 
-            var browse = NewButton(UiTextKeys.EscSettingsBrowse, 510, 127, 102);
-            browse.Click += delegate
+            _autoDetect = NewButton(UiTextKeys.EscSettingsDetect, 381, 127, 112);
+            _autoDetect.Click += async delegate { await DetectDirectoryAsync(); };
+            _browse = NewButton(UiTextKeys.EscSettingsBrowse, 507, 127, 107);
+            _browse.Click += delegate
             {
                 using (var picker = new FolderBrowserDialog
                 {
@@ -67,8 +71,11 @@ namespace FACM
                     if (picker.ShowDialog(this) != DialogResult.OK) return;
                     try
                     {
-                        _directory.Text = EscSettingsBackup.FindConfigDirectory(picker.SelectedPath);
-                        SetStatus(_ui.Get(UiTextKeys.EscSettingsReady));
+                        var selected = EscGameDirectoryLocator.ResolveCandidate(picker.SelectedPath);
+                        if (selected == null)
+                            throw new InvalidOperationException(_ui.Get(UiTextKeys.EscSettingsNotFound));
+                        _directory.Text = selected;
+                        SetStatus(_ui.Get(UiTextKeys.EscSettingsDetected));
                     }
                     catch (Exception exception) { ShowFailure(exception); }
                 }
@@ -93,8 +100,8 @@ namespace FACM
             _probe.Enabled = authenticated;
             _probe.Click += async delegate { await ProbeCloudAsync(); };
 
-            var note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 279, 590, 43);
-            note.ForeColor = FacmDesignSystem.TextMuted;
+            _note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 279, 590, 43);
+            _note.ForeColor = FacmDesignSystem.TextMuted;
             _status = NewLabel(_ui.Get(UiTextKeys.EscSettingsReady), 16, 332, 595, 58);
             _status.AutoEllipsis = true;
 
@@ -102,13 +109,75 @@ namespace FACM
             Controls.Add(hint);
             Controls.Add(folderLabel);
             Controls.Add(_directory);
-            Controls.Add(browse);
+            Controls.Add(_autoDetect);
+            Controls.Add(_browse);
             foreach (var action in _actions) Controls.Add(action);
             Controls.Add(_probe);
-            Controls.Add(note);
+            Controls.Add(_note);
             Controls.Add(_status);
             Activated += delegate { if (!_busy) SetBusy(false); };
-            FormClosed += delegate { _cancellation.Cancel(); _cancellation.Dispose(); };
+            ClientSizeChanged += delegate { LayoutEscPanel(); };
+            Shown += async delegate { await DetectDirectoryAsync(); };
+            Disposed += delegate { _cancellation.Cancel(); _cancellation.Dispose(); };
+            LayoutEscPanel();
+        }
+
+        private async Task DetectDirectoryAsync()
+        {
+            if (_busy || _detecting || IsDisposed) return;
+            _detecting = true;
+            _autoDetect.Enabled = false;
+            SetStatus(_ui.Get(UiTextKeys.EscSettingsDetecting));
+            try
+            {
+                var found = await Task.Run(() =>
+                    EscGameDirectoryLocator.Find(_configuredGameRoot, _cancellation.Token), _cancellation.Token);
+                if (IsDisposed || _cancellation.IsCancellationRequested) return;
+                if (!string.IsNullOrWhiteSpace(found))
+                {
+                    _directory.Text = found;
+                    SetStatus(_ui.Get(UiTextKeys.EscSettingsDetected));
+                }
+                else
+                    SetStatus(_ui.Get(UiTextKeys.EscSettingsNotFound));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { if (!IsDisposed) ShowFailure(exception); }
+            finally
+            {
+                _detecting = false;
+                if (!IsDisposed) _autoDetect.Enabled = true;
+            }
+        }
+
+        private void LayoutEscPanel()
+        {
+            if (_directory == null || _actions == null || _probe == null) return;
+            var width = Math.Max(390, ClientSize.Width);
+            _directory.Width = Math.Max(120, width - 264);
+            _autoDetect.Left = width - 249;
+            _browse.Left = width - 123;
+            var compact = width < 620;
+            if (compact)
+            {
+                var buttonWidth = (width - 48) / 2;
+                for (var index = 0; index < _actions.Length; index++)
+                    _actions[index].SetBounds(16 + (index % 2) * (buttonWidth + 16),
+                        180 + (index / 2) * 42, buttonWidth, 35);
+                _probe.Top = 273;
+                _note.SetBounds(16, 317, width - 32, 67);
+                _status.SetBounds(16, 390, width - 32, 60);
+            }
+            else
+            {
+                var buttonWidth = (width - 64) / 4;
+                for (var index = 0; index < _actions.Length; index++)
+                    _actions[index].SetBounds(16 + index * (buttonWidth + 10),
+                        180, buttonWidth, 35);
+                _probe.Top = 231;
+                _note.SetBounds(16, 279, width - 32, 45);
+                _status.SetBounds(16, 332, width - 32, 58);
+            }
         }
 
         private Label NewLabel(string text, int x, int y, int width, int height, bool heading = false)
@@ -148,7 +217,6 @@ namespace FACM
         {
             try
             {
-                EscSettingsBackup.RequireGameClosed();
                 var snapshot = EscSettingsBackup.Capture(RequireDirectory());
                 var path = EscSettingsBackup.SaveLocal(snapshot, "manual");
                 SetStatus(string.Format(_ui.Get(UiTextKeys.EscSettingsLocalSaved), path));
@@ -160,7 +228,6 @@ namespace FACM
         {
             try
             {
-                EscSettingsBackup.RequireGameClosed();
                 var directory = RequireDirectory();
                 using (var picker = new OpenFileDialog
                 {
@@ -230,7 +297,6 @@ namespace FACM
             try
             {
                 account = GgmanEscCloudClient.RequireRegisteredSession();
-                EscSettingsBackup.RequireGameClosed();
                 directory = RequireDirectory();
                 if (upload)
                 {
@@ -259,7 +325,6 @@ namespace FACM
                             SetStatus(_ui.Get(UiTextKeys.EscSettingsCancelled));
                             return;
                         }
-                        EscSettingsBackup.RequireGameClosed();
                         AssertSessionStillValid(account);
                         var revision = await client.SetAsync(account, local,
                             existing == null ? 0L : existing.Version, _cancellation.Token);
@@ -272,7 +337,6 @@ namespace FACM
                     }
                     else
                     {
-                        EscSettingsBackup.RequireGameClosed();
                         AssertSessionStillValid(account);
                         var names = string.Join("、", existing.Bundle.Files.Select(file => file.Name));
                         var prompt = string.Format(_ui.Get(UiTextKeys.EscSettingsCloudRestoreConfirm),
@@ -283,7 +347,6 @@ namespace FACM
                             SetStatus(_ui.Get(UiTextKeys.EscSettingsCancelled));
                             return;
                         }
-                        EscSettingsBackup.RequireGameClosed();
                         AssertSessionStillValid(account);
                         var recovery = EscSettingsBackup.Restore(existing.Bundle, directory);
                         SetStatus(string.Format(_ui.Get(UiTextKeys.EscSettingsRestored), recovery));
@@ -307,12 +370,19 @@ namespace FACM
                 throw new InvalidOperationException(UiTextRuntime.Text(UiTextKeys.EscSettingsSessionChanged));
         }
 
+        internal void RefreshAccountActions()
+        {
+            if (!IsDisposed && !_busy) SetBusy(false);
+        }
+
         private void SetBusy(bool busy)
         {
             _busy = busy;
             for (var index = 0; index < _actions.Length; index++)
                 _actions[index].Enabled = !busy && (index < 2 || GgmanAccountSession.Current != null);
             _probe.Enabled = !busy && GgmanAccountSession.Current != null;
+            _browse.Enabled = !busy;
+            _autoDetect.Enabled = !busy && !_detecting;
             if (busy) SetStatus(_ui.Get(UiTextKeys.EscSettingsBusy));
         }
 

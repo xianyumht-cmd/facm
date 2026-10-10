@@ -96,6 +96,10 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 - Mirror pool: `online/mirrors.json`.
 - GitHub Release remains the canonical artifact source; mirrors are transport accelerators, not a release trust source.
 
+## ESC in-page relocation and live-game acceptance
+
+For patches to the ESC workflow, verify the sole user entry is LOL 工作台 → 我的 GGman, and that standalone Settings/tray ESC items are gone. Verify detection by an open League process (both MainModule and WMI fallback when needed), persisted GGman game directory and Windows uninstall registry; an unrelated `Config` must not be accepted. Never require a game/process shutdown solely for backup/restore. Check actual read permissions and file lock responses, local pre-restore backups, successful in-use unlocked file replacement, rollback on failure, and whether an active Riot/Tencent League client rewrites settings on exit. Runtime and in-game persistence cannot be certified by Windows CI alone. Publish only a signed, publicly verified 3.5.x Release through the normal one-click update channel.
+
 ## League regression checklist
 
 For automation changes verify at least:

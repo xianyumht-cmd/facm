@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.61：新增邮箱验证码账号注册、登录、退出与账号管理；新增英雄联盟 ESC 设置的本地备份、恢复及已登录账号的云端上传、跨电脑手动恢复，提供只读云端权限检查、文件完整性校验、上传版本冲突保护、恢复确认与恢复前本地备份。未登录仍可使用原有 GGman 功能。云端恢复为手动操作，腾讯服实际游戏设置持久化尚未完成跨电脑实测，恢复前请核对文件与游戏账号。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-10 — ESC account-page relocation and live-game handling (pending next signed patch)
+
+- User requests **ESC cloud backup/restore under LOL 工作台 → 我的 GGman**, not the settings/tray menus. Added an embedded inline ESC section beneath existing stats and privacy cards; preserved responsive scrolling, auto-enable cloud controls on sign-in change and retained registered-owner RPC, optimistic revisions and manual confirmations.
+- Path detection is no longer a required manual folder selection: `EscGameDirectoryLocator` inspects League processes with main-module/WMI paths first, current configured game path second, and matching uninstall registry entries (HKCU/HKLM, both registry views) third. All hints must resolve to an existing League Config folder with allowlisted ESC files or an installed League client marker. No unrestricted disk crawl, arbitrary `Config` acceptance, admin credentials or background polling; manual folder selection and re-detect remain fallbacks.
+- **Active-game handling:** remove all blanket League-process-not-running gates from snapshot, upload and restore. Preserve actual file locks/permissions, SHA-256/size validation, pre-restore local snapshot, atomic file replacement and best-effort rollback. Inform users that runtime in-memory settings may not reload until game restart and the client may write its values on exit, meaning a disk write during a match is not guaranteed persistent. Native Tencent League acceptance is still outstanding; do not claim in-game persistence is proven.
+- This branch is NOT yet merged/published; official v3.5.61 remains online. After smoke/CI review, use signed v3.5.62 official in-app updater as the deliverable; no CI test-artifact handoff.
+
 ## 2026-10-10 — Registered GGman account and ESC cloud backup (3.5.61 released)
 
 - **Production release complete:** AUTH-1 PR #314 merged as `e9df6076c2525320b727648547e67f96cceb5227`; ESC-2 PR #315 merged as `69cb538ecb64eb4fb6e18926df37205fae4952c7`. Signed official GGman 3.5.61 publisher [#38012546613](https://github.com/xianyumht-cmd/facm/actions/runs/38012546613) succeeded, verified both public `GGman.exe` and backward-compatible `FACM.exe` (2,469,272 bytes; identical SHA-256 `677CAF64E2E03337118541C6B3F13F7289010B0F4BBAC41717C804F3C86BC479`), and enabled `online/version.json` for 3.5.61 (minimum 3.0.0, no forced update). This is one full-feature official release rather than detached test artifacts.

@@ -494,8 +494,6 @@ namespace FACM
                         autoCheck.Checked ? _ui.Get(UiTextKeys.ShellEnabled) : _ui.Get(UiTextKeys.ShellDisabled)));
                 };
                 menu.Items.Add(new ToolStripSeparator());
-                AddPopupItem(menu, _ui.Get(UiTextKeys.EscSettingsTitle),
-                    delegate { _ownerBall.BeginInvoke(new Action(_ownerBall.OpenEscSettings)); });
                 AddPopupItem(menu, _ui.CheckUpdate, delegate { _ownerBall.OpenUpdateCenter(); });
                 AddPopupItem(menu, _ui.OpenLog, delegate { OpenLog(this, EventArgs.Empty); });
                 AddPopupItem(menu, _ui.Get(UiTextKeys.ShellGettingStartedMenu),
