@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Two cloud upload/restore pairs lead to inconsistent multi-device configuration (2026-10-10)
+
+3.5.65 had an ESC upload/restore pair and another pair inside the text editor, while legacy anonymous software settings auto-restored on app startup. With registered settings this can overwrite newer data or require multiple confusing clicks. Centralize manual upload/restore in My GGman, retain local-only controls within feature-specific editors, and stop anonymous software preference auto-restore. The central action is a nontransactional sequence of independently versioned RPCs: preflight, single confirmation, local backup-before-write, category count and explicit partial success/errors are mandatory. Never quietly claim that all categories succeeded if one failed or the game Config path is missing.
+
 ## Do not sync ui-text.ini as opaque bytes or lose runtime formatting tokens (2026-10-10)
 
 UI wording is not a generic settings INI: `[Text]` uses stable keys and may contain `{0}` / `{1}` `string.Format` arguments; `[Replace]` is the legacy whole-string substitution layer. Direct cloud file overwrite can erase newer local UI keys and comments, or let a stale client unilaterally replace another device's text. Preserve current catalog defaults, comments and unknown sections while applying a validated override subset, make a local recovery copy, reject damaged indexed-placeholder sets and use server CAS revisions. Register all newly introduced editor labels in `UiTextKeys`/`UiTextCatalog` so the editor itself stays user-editable. SQL/RLS/registered bearer and explicit restore preview are required before live sync.
