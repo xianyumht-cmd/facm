@@ -137,17 +137,8 @@ namespace FACM.AppHost.Modules
                 return;
             }
 
-            try
-            {
-                await SynchronizeSettingsAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Cloud settings sync skipped: " + exception.GetType().Name);
-            }
+            // Device registration and opt-in usage telemetry stay available, but
+            // anonymous software preferences no longer override registered-account restores.
         }
 
         internal async Task SynchronizeSettingsAsync(CancellationToken cancellationToken)

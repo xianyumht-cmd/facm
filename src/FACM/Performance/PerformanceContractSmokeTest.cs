@@ -13,6 +13,9 @@ namespace FACM.Performance
                 RunStep("ggman-email-auth", FACM.Online.GgmanEmailAuthClient.ValidateForSmokeTest);
                 RunStep("ui-text-customization", FACM.Services.UiTextCustomizationStore.ValidateForSmokeTest);
                 RunStep("ui-text-cloud", FACM.Online.GgmanUiTextCloudClient.ValidateForSmokeTest);
+                RunStep("portable-registered-settings", FACM.Services.GgmanPortableSettingsStore.ValidateForSmokeTest);
+                RunStep("portable-settings-cloud", FACM.Online.GgmanAppSettingsCloudClient.ValidateForSmokeTest);
+                RunStep("unified-config-sync", FACM.League.GgmanUnifiedSyncPanel.ValidateForSmokeTest);
                 RunStep("registered-personal-stats", FACM.Online.GgmanRegisteredStatsClient.ValidateForSmokeTest);
                 RunStep("esc-backup", FACM.Services.EscSettingsBackup.ValidateForSmokeTest);
                 RunStep("esc-auto-locator", FACM.Services.EscGameDirectoryLocator.ValidateForSmokeTest);

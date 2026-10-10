@@ -205,6 +205,12 @@ jobs:
           Write-Host "Built lightweight GGman.exe version $($version.FileVersion), size $($bytes.Length) bytes"
           Write-Host 'Verified embedded ToolBundle and confirmed PetHost runtime is not embedded.'
 
+      - name: Check registered software settings live gateway denial
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/ggman-unified-account-config-sync-20261010'
+        shell: pwsh
+        run: |
+          & ./scripts/check-registered-app-settings-gateway.ps1
+
       - name: Verify live registered UI text anonymous-denial
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/ggman-ui-text-editor-account-sync-20261010'
         shell: pwsh

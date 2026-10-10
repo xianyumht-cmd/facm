@@ -50,6 +50,26 @@ namespace FACM.Services
         public const string PetSource = "PetSource";
         public const string Open = "Open";
 
+        public const string UnifiedSyncSettings = "UnifiedSyncSettings";
+        public const string UnifiedSyncText = "UnifiedSyncText";
+        public const string UnifiedSyncEsc = "UnifiedSyncEsc";
+        public const string UnifiedSyncTitle = "UnifiedSyncTitle";
+        public const string UnifiedSyncUpload = "UnifiedSyncUpload";
+        public const string UnifiedSyncRestore = "UnifiedSyncRestore";
+        public const string UnifiedSyncHint = "UnifiedSyncHint";
+        public const string UnifiedSyncSignedOut = "UnifiedSyncSignedOut";
+        public const string UnifiedSyncReady = "UnifiedSyncReady";
+        public const string UnifiedSyncWorking = "UnifiedSyncWorking";
+        public const string UnifiedSyncUnsaved = "UnifiedSyncUnsaved";
+        public const string UnifiedSyncConfirmUpload = "UnifiedSyncConfirmUpload";
+        public const string UnifiedSyncConfirmRestore = "UnifiedSyncConfirmRestore";
+        public const string UnifiedSyncUploadResult = "UnifiedSyncUploadResult";
+        public const string UnifiedSyncRestoreResult = "UnifiedSyncRestoreResult";
+        public const string UnifiedSyncError = "UnifiedSyncError";
+        public const string UnifiedSyncNoCloud = "UnifiedSyncNoCloud";
+        public const string UnifiedSyncNoGame = "UnifiedSyncNoGame";
+        public const string UnifiedSyncCancelled = "UnifiedSyncCancelled";
+        public const string UnifiedSyncSessionChanged = "UnifiedSyncSessionChanged";
         public const string UiTextEditorTitle = "UiTextEditorTitle";
         public const string UiTextEditorExpand = "UiTextEditorExpand";
         public const string UiTextEditorCollapse = "UiTextEditorCollapse";
