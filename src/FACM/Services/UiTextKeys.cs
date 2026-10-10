@@ -65,6 +65,7 @@ namespace FACM.Services
         public const string AutoSyncConflictHint = "AutoSyncConflictHint";
         public const string AutoSyncDescription = "AutoSyncDescription";
         public const string AutoSyncNoRemote = "AutoSyncNoRemote";
+        public const string AutoSyncConflictConfirm = "AutoSyncConflictConfirm";
         public const string UnifiedSyncTitle = "UnifiedSyncTitle";
         public const string UnifiedSyncUpload = "UnifiedSyncUpload";
         public const string UnifiedSyncRestore = "UnifiedSyncRestore";
