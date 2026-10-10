@@ -12,12 +12,12 @@
 - release_notes：GGman 3.5.62：将 ESC 设置本地备份、云端保存、云端恢复及权限检查整合到「LOL 工作台 → 我的 GGman」，移除设置和托盘中的独立入口。新增游戏目录自动识别：运行中的 LOL 进程路径（含 WMI 备用）、已保存游戏路径、Windows 注册表，识别失败仍可手动选择。游戏运行中不再强制禁止 ESC 上传和恢复，仍保留文件校验、恢复前备份、错误回滚、账号隔离与云端版本冲突保护。运行中恢复到磁盘的设置可能不会立即生效，也可能被游戏退出时重新写回。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-10 — ESC account-page relocation and live-game handling (pending next signed patch)
+## 2026-10-10 — ESC account-page relocation and live-game handling (3.5.62 released)
 
 - User requests **ESC cloud backup/restore under LOL 工作台 → 我的 GGman**, not the settings/tray menus. Added an embedded inline ESC section beneath existing stats and privacy cards; preserved responsive scrolling, auto-enable cloud controls on sign-in change and retained registered-owner RPC, optimistic revisions and manual confirmations.
 - Path detection is no longer a required manual folder selection: `EscGameDirectoryLocator` inspects League processes with main-module/WMI paths first, current configured game path second, and matching uninstall registry entries (HKCU/HKLM, both registry views) third. All hints must resolve to an existing League Config folder with allowlisted ESC files or an installed League client marker. No unrestricted disk crawl, arbitrary `Config` acceptance, admin credentials or background polling; manual folder selection and re-detect remain fallbacks.
 - **Active-game handling:** remove all blanket League-process-not-running gates from snapshot, upload and restore. Preserve actual file locks/permissions, SHA-256/size validation, pre-restore local snapshot, atomic file replacement and best-effort rollback. Inform users that runtime in-memory settings may not reload until game restart and the client may write its values on exit, meaning a disk write during a match is not guaranteed persistent. Native Tencent League acceptance is still outstanding; do not claim in-game persistence is proven.
-- This branch is NOT yet merged/published; official v3.5.61 remains online. After smoke/CI review, use signed v3.5.62 official in-app updater as the deliverable; no CI test-artifact handoff.
+- **Released:** PR #316 head `12888e62d09103e71ca8f9ac2a3ebc6c073bf2e6` passed Windows Build #38013618766 and UI Text Contract #38013618767, merged as `a2a8f41b710e8f107f4419d9ec2afa6cd7aeaa38`. Formal signed 3.5.62 publisher #38013772954 completed SUCCESS. Public GGman.exe / compatibility FACM.exe both 2,476,440 bytes, SHA-256 `C757DEE38D8F23FA5BC3C9C74DBBDF6E2842A54A64BC8F713982D1B6AC9D2852`; online manifest enabled 3.5.62 with minimum 3.0.0 and no forced update. Real Tencent client path-detection visual and active-game write persistence remain field acceptance, not proven by CI.
 
 ## 2026-10-10 — Registered GGman account and ESC cloud backup (3.5.61 released)
 
