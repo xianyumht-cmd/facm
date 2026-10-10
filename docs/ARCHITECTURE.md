@@ -37,6 +37,10 @@ The module layer is an ownership/lifecycle boundary, not a separate 4.x applicat
 
 `LeaguePersonalStatsForm` embeds an optional account entry inside the League Hub. It creates `GgmanAccountForm` as an owned modal on the visible top-level host; the modal uses shared WinForms theme primitives, keeps signed-out email/OTP controls separate from the signed-in account management summary, and closes only after verified session establishment. The caller then refreshes the account-entry label. Registered tokens remain solely in `GgmanAccountSession` memory; closing the modal does not log out or change device-anonymous CloudBase clients, and no ESC cloud upload is enabled. Failed verification leaves the dialog open; explicit logout calls the existing CloudBase sign-out endpoint before clearing the in-process identity.
 
+### ESC configuration snapshots (staged; separate from anonymous settings sync)
+
+`EscSettingsBackup` owns allowlisted League `Config` snapshot validation and local recovery. `EscSettingsForm` exposes manual local backup/restore plus a signed-in-only cloud path from existing Settings and tray More, not a new recurring task. Registered `GgmanEscCloudClient` obtains the in-memory account bearer from `GgmanAccountSession`; it never reuses the anonymous `CloudBaseClient` session. CloudBase invoker RPCs use authenticated role, `auth.uid()` RLS and compare-and-swap `version` updates; direct REST callers cannot select an owner ID. The proposed migration is not installed and cloud availability is unverified. See `docs/ESC-SETTINGS-BACKUP.md`.
+
 ### Personal stats and anonymous ranking
 
 `LeaguePersonalStatsModule` is an event-driven consumer of the existing League Gameflow owner. It does not create a second phase poller. On connected Gameflow state changes it may read `/lol-summoner/v1/current-summoner`, keeps the last captured account hash as an episode fence, and records only when the observed account changes. It derives a device-scoped HMAC-SHA256 account key from the local random `device_id` and PUUID, then discards the raw PUUID.
