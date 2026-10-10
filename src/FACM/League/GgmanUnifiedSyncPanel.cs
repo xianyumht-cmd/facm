@@ -127,7 +127,7 @@ namespace FACM.League
         {
             if (_service == null || _service.IsBusy) return;
             if (!keepLocal &&
-                MessageBox.Show(this, _ui.Get(UiTextKeys.UnifiedSyncConfirmRestore),
+                MessageBox.Show(this, _ui.Get(UiTextKeys.AutoSyncConflictConfirm),
                     _ui.Get(UiTextKeys.UnifiedSyncTitle),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2) != DialogResult.Yes)
