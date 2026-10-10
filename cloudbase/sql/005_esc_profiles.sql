@@ -3,7 +3,7 @@
 -- This migration replaces the UNUSED anonymous-device draft 005, not an installed schema.
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS public.ggman_esc_profiles (
+CREATE TABLE public.ggman_esc_profiles (
     owner_id TEXT PRIMARY KEY DEFAULT auth.uid(),
     version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
     payload JSONB NOT NULL,
@@ -27,6 +27,10 @@ DROP POLICY IF EXISTS ggman_esc_profiles_update_own ON public.ggman_esc_profiles
 CREATE POLICY ggman_esc_profiles_update_own ON public.ggman_esc_profiles
     FOR UPDATE TO authenticated USING (owner_id = auth.uid())
     WITH CHECK (owner_id = auth.uid());
+
+-- If an old one-argument anonymous prototype was deployed, stop and migrate it separately.
+-- This strict new-table script intentionally fails on any existing ESC table.
+DROP FUNCTION IF EXISTS public.ggman_set_esc_profile(JSONB);
 
 CREATE OR REPLACE FUNCTION public.ggman_get_esc_profile()
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY INVOKER AS $$
