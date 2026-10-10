@@ -77,6 +77,7 @@ namespace FACM.Services
             Pair(UiTextKeys.EscSettingsCancelled, "操作已取消，设置没有被恢复。"),
             Pair(UiTextKeys.EscSettingsPickBackup, "选择 ESC 备份文件"),
             Pair(UiTextKeys.EscSettingsCloudRestoreConfirm, "确定从云端恢复并覆盖当前 ESC 设置？\\r\\n\\r\\n云端版本：{0}\\r\\n上传时间：{1}\\r\\n包含文件：{2}\\r\\n将先备份当前设置；游戏和客户端必须关闭。"),
+            Pair(UiTextKeys.EscSettingsSessionChanged, "GGman 登录状态已更改，ESC 云端操作已取消。"),
 
             Pair(UiTextKeys.AccountCaptchaTitle, "图片验证码"),
             Pair(UiTextKeys.AccountCaptchaHint, "腾讯云要求验证是否为真人，完成图片校验后才会继续发送邮件验证码。"),
