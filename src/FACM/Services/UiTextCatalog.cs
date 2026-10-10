@@ -89,6 +89,8 @@ namespace FACM.Services
             Pair(UiTextKeys.AccountTooManyAttempts, "验证码尝试次数过多，请稍后重新获取。"),
             Pair(UiTextKeys.AccountEmailChanged, "邮箱已更改，请重新获取验证码。"),
             Pair(UiTextKeys.AccountMenu, "GGman 账号登录"),
+            Pair(UiTextKeys.AccountManage, "账号管理 · 已登录"),
+            Pair(UiTextKeys.AccountUid, "账号 UID：{0}"),
 
             Pair(UiTextKeys.ShellLeague, "英雄联盟"),
             Pair(UiTextKeys.ShellMore, "更多"),
