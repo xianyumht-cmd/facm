@@ -33,6 +33,7 @@ namespace FACM.AppHost.Modules
         private CancellationTokenSource _lifetime;
         private PersonalStatsSnapshot _localSnapshot;
         private GgmanRegisteredStats _registeredStats;
+        private string _registeredStatsOwner;
         private GgmanRegisteredStatsClient _registeredClient;
         private string _localDeviceId;
         private string _lastCapturedAccountHash = string.Empty;
@@ -158,6 +159,9 @@ namespace FACM.AppHost.Modules
                 ? new PersonalStatsSnapshot()
                 : _store.ReadSnapshot(DateTimeOffset.Now));
             var settings = _settingsModule.Settings;
+            var currentAccount = GgmanAccountSession.Current;
+            var registered = currentAccount != null && currentAccount.UserId == _registeredStatsOwner
+                ? _registeredStats : null;
             return new LeaguePersonalStatsViewSnapshot
             {
                 PlayedAccounts = local.PlayedAccounts,
@@ -169,12 +173,12 @@ namespace FACM.AppHost.Modules
                 FirstSeenUtc = local.FirstSeenUtc,
                 LastSeenUtc = local.LastSeenUtc,
                 PersonalStatsEnabled = true,
-                CloudRankingEnabled = GgmanAccountSession.Current != null &&
-                    (_registeredStats == null || _registeredStats.RankingVisible),
-                CloudRank = _registeredStats == null ? 0 : _registeredStats.Rank,
-                CloudRankedUsers = _registeredStats == null ? 0 : _registeredStats.TotalRankedUsers,
-                CloudPercentile = _registeredStats == null ? 0D : _registeredStats.Percentile,
-                CloudPlayedAccounts = _registeredStats == null ? 0 : _registeredStats.PlayedAccounts,
+                CloudRankingEnabled = currentAccount != null &&
+                    (registered == null || registered.RankingVisible),
+                CloudRank = registered == null ? 0 : registered.Rank,
+                CloudRankedUsers = registered == null ? 0 : registered.TotalRankedUsers,
+                CloudPercentile = registered == null ? 0D : registered.Percentile,
+                CloudPlayedAccounts = registered == null ? 0 : registered.PlayedAccounts,
                 RecentAccounts = BuildRecentAccountViews(local.RecentAccounts)
             };
         }
@@ -189,9 +193,16 @@ namespace FACM.AppHost.Modules
             var account = GgmanAccountSession.Current;
             if (account == null)
             {
+                _registeredStatsOwner = null;
                 _registeredStats = null;
                 RaiseStatsChanged();
                 return;
+            }
+            if (_registeredStatsOwner != account.UserId)
+            {
+                _registeredStatsOwner = null;
+                _registeredStats = null;
+                RaiseStatsChanged();
             }
             try
             {
@@ -199,12 +210,14 @@ namespace FACM.AppHost.Modules
                 var current = await _registeredClient.GetStatsAsync(account, cancellationToken).ConfigureAwait(false);
                 var active = GgmanAccountSession.Current;
                 if (active == null || active.UserId != account.UserId) return;
+                _registeredStatsOwner = account.UserId;
                 _registeredStats = current;
                 RaiseStatsChanged();
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception exception)
             {
+                _registeredStatsOwner = null;
                 _registeredStats = null;
                 AppLog.Info("Registered personal stats refresh skipped: " + exception.GetType().Name);
                 RaiseStatsChanged();
@@ -342,6 +355,7 @@ namespace FACM.AppHost.Modules
             _store = null;
             _localSnapshot = null;
             _registeredStats = null;
+            _registeredStatsOwner = null;
             if (_registeredClient != null) _registeredClient.Dispose();
             _registeredClient = null;
             _localDeviceId = null;
