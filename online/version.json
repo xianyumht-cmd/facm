@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.62",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.62/FACM.exe",
   "sha256": "C757DEE38D8F23FA5BC3C9C74DBBDF6E2842A54A64BC8F713982D1B6AC9D2852",
   "release_notes": "GGman 3.5.62：将 ESC 设置本地备份、云端保存、云端恢复及权限检查整合到「LOL 工作台 → 我的 GGman」，移除设置和托盘中的独立入口。新增游戏目录自动识别：运行中的 LOL 进程路径（含 WMI 备用）、已保存游戏路径、Windows 注册表，识别失败仍可手动选择。游戏运行中不再强制禁止 ESC 上传和恢复，仍保留文件校验、恢复前备份、错误回滚、账号隔离与云端版本冲突保护。运行中恢复到磁盘的设置可能不会立即生效，也可能被游戏退出时重新写回。",
-  "published_at": "2026-10-10T01:36:58.5751246+00:00"
+  "published_at": "2026-10-10T01:37:07.3513984+00:00"
 }

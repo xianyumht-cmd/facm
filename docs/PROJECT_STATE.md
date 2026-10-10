@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.61
-- GitHub Release：v3.5.61
+- 版本：GGman 3.5.62
+- GitHub Release：v3.5.62
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：b57c796c56a023198e9abf1f19c3c4c5c6c6581f
-- 发布元数据提交：b473c0da9fe8141997d7a7b3a66f045d2aa66c91
-- Release GGman.exe SHA-256：677CAF64E2E03337118541C6B3F13F7289010B0F4BBAC41717C804F3C86BC479
-- release_notes：GGman 3.5.61：新增邮箱验证码账号注册、登录、退出与账号管理；新增英雄联盟 ESC 设置的本地备份、恢复及已登录账号的云端上传、跨电脑手动恢复，提供只读云端权限检查、文件完整性校验、上传版本冲突保护、恢复确认与恢复前本地备份。未登录仍可使用原有 GGman 功能。云端恢复为手动操作，腾讯服实际游戏设置持久化尚未完成跨电脑实测，恢复前请核对文件与游戏账号。
+- 发布基础 main：d929713bf3500db5f4805635f6df766d333f6cec
+- 发布元数据提交：511bfebdfbc062e03ba31965812bb21e65c97b41
+- Release GGman.exe SHA-256：C757DEE38D8F23FA5BC3C9C74DBBDF6E2842A54A64BC8F713982D1B6AC9D2852
+- release_notes：GGman 3.5.62：将 ESC 设置本地备份、云端保存、云端恢复及权限检查整合到「LOL 工作台 → 我的 GGman」，移除设置和托盘中的独立入口。新增游戏目录自动识别：运行中的 LOL 进程路径（含 WMI 备用）、已保存游戏路径、Windows 注册表，识别失败仍可手动选择。游戏运行中不再强制禁止 ESC 上传和恢复，仍保留文件校验、恢复前备份、错误回滚、账号隔离与云端版本冲突保护。运行中恢复到磁盘的设置可能不会立即生效，也可能被游戏退出时重新写回。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — ESC account-page relocation and live-game handling (pending next signed patch)
