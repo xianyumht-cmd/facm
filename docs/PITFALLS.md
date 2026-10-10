@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Updated default ESC guidance can be shadowed by persistent UI text files (2026-10-10)
+
+`UiTextCatalog.EnsureMissingKeysAndSections` appends new keys without overwriting existing values. A previous GGman version's stock guidance can therefore continue to say the game must close even after later code removes that requirement. When semantics change, migrate only known exact **old stock** values for affected keys in `ui-text.ini` to current defaults, leaving user-customized replacements untouched; do not reset the entire user configuration.
+
 ## WeGame has separate LeagueClient and Game Config directories (2026-10-10)
 
 The 3.5.62 ESC locator returned `LeagueClient\\Config` when a launcher executable existed even if the folder only contained YAML preferences; `EscSettingsBackup.Capture` then found zero allowlisted ESC files and reported no configuration. The actual WeGame ESC disk files shown on the owner's PC were `Game\\Config\\game.cfg`, `Game\\Config\\input.ini`, and `Game\\Config\\PersistedSettings.json`. Do not equate the existence of a League client executable or a directory named `Config` with a valid ESC backup target. Prefer sibling `Game\\Config` and validate actual allowlisted files before accepting any candidate, including cached installer paths or stale client-folder hints. Test a full WeGame double-Config fixture and launcher/game process roots; do not automatically add unrelated account/client YAML data to ESC backups.
