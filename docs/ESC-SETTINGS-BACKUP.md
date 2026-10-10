@@ -1,6 +1,6 @@
 # GGman — ESC setting backup and registered-account cloud sync
 
-**Stage:** implementation branch only; not deployed or released. Depends on AUTH-1 PR #314 and CloudBase production migration acceptance (Issue #313).
+**Stage:** implementation branch only; not released. CloudBase SQL Editor operator screenshots on 2026-10-10 confirm the expected ESC table and two RPC signatures now exist in the selected database, RLS is enabled, `anon` lacks direct SELECT, and `authenticated` has SELECT. RPC EXECUTE privileges, real A/B/anonymous gateway isolation, write/version conflict behavior, and native Tencent League restore remain unverified. Depends on AUTH-1 PR #314 and live acceptance (Issue #313).
 
 ## Purpose and data boundary
 
@@ -30,7 +30,7 @@ This flow is **opt-in**, separate from the existing device-anonymous `ggman_sett
 - All table policies use `TO authenticated` and `owner_id = auth.uid()`; no `anon` table permissions.
 - Two `SECURITY INVOKER` RPCs, `ggman_get_esc_profile()` and `ggman_set_esc_profile(p_payload jsonb, p_expected_version bigint)`. Both additionally reject nonregistered roles. The write function accepts only expected current version; conflict raises `ESC_VERSION_CONFLICT`.
 - Despite SQL GRANT EXECUTE, CloudBase's PostgREST gateway may expose RPC route calls to anon; real data isolation relies on invoker/RLS and explicit role checks inside both functions.
-- Database migration is NOT run or verified by GitHub CI. It needs an authorized CloudBase console operator; verify exact environment and inspect existing object schema/policies before executing. No server secrets or admin credential should be shipped to clients.
+- Database migration cannot be run or verified by GitHub CI. The operator's screenshots indicate the objects are now installed in the selected CloudBase database, but **do not prove** direct RPC authorization, data ownership under multiple real tokens or correct Riot recovery. Audit execute grants and policies from the CloudBase SQL Editor, then test actual A/B/anon gateway requests without exposing credentials in chats/logs. No server secrets or admin credential may be shipped to clients.
 
 ## External release gates
 
