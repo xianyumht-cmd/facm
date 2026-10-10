@@ -371,6 +371,11 @@ namespace FACM
                 throw new InvalidOperationException(UiTextRuntime.Text(UiTextKeys.EscSettingsSessionChanged));
         }
 
+        internal void RefreshAccountActions()
+        {
+            if (!IsDisposed && !_busy) SetBusy(false);
+        }
+
         private void SetBusy(bool busy)
         {
             _busy = busy;
