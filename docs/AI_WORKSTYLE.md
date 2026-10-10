@@ -37,7 +37,7 @@
 
 签名边界当前涉及 3.5 `GGman.exe` 与兼容 `FACM.exe` 的 Authenticode 签名；两个发布文件必须保持字节一致。仓库或会话拿不到 PFX/密码时，不得要求用户在聊天中粘贴秘密，也不得绕过生产签名门禁；应使用已授权的 GitHub Actions secret / 安全连接器，或者明确停在签名前并交接可审计的候选提交与哈希。
 
-截图或用户反馈与代码事实冲突时，先确认用户正在运行的 FACM 版本和 `online/version.json` 当前指向，再定位对应源码。当前唯一在线更新通道是 3.5 的 `online/version.json`；`online/facm4-version.json`、`.facm/state/active.json`、4.x detached manifest/bootstrapper 等只属于已退出的历史实现，不是当前运行依据。
+截图或用户反馈与代码事实冲突时，先确认用户正在运行的 GGman 版本和 `online/version.json` 当前指向，再定位对应源码。当前唯一在线更新通道是 3.5 的 `online/version.json`；`online/facm4-version.json`、`.facm/state/active.json`、4.x detached manifest/bootstrapper 等只属于已退出的历史实现，不是当前运行依据。
 
 
 ## 正式版发布是默认交付（2026-10-10）
