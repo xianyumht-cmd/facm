@@ -232,6 +232,14 @@ namespace FACM.AppHost.Modules
             }
         }
 
+        internal async Task RefreshAfterSessionChangedAsync(CancellationToken cancellationToken)
+        {
+            await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
+            if (GgmanAccountSession.Current == null) return;
+            if (Interlocked.CompareExchange(ref _captureInProgress, 1, 0) != 0) return;
+            await CaptureCurrentAccountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         internal PersonalStatsLegacySummary ReadLegacySummary()
         {
             return _store.ReadLegacySummary(DateTimeOffset.Now);
