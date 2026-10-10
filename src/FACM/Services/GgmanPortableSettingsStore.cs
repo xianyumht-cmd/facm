@@ -97,6 +97,11 @@ namespace FACM.Services
             settings.Save();
             if (!File.Exists(path) || new FileInfo(path).Length == 0)
                 throw new IOException("GGman 软件设置未能成功写入，请从本地备份恢复。");
+            var expected = CloudSettingsSnapshot.CreateHash(CloudSettingsSnapshot.Capture(settings));
+            var actual = CloudSettingsSnapshot.CreateHash(
+                CloudSettingsSnapshot.Capture(AppSettings.Load()));
+            if (!string.Equals(expected, actual, StringComparison.Ordinal))
+                throw new IOException("软件设置落盘验证失败；恢复前的配置已备份。");
             return backup;
         }
 
