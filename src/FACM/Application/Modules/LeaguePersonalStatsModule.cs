@@ -240,6 +240,16 @@ namespace FACM.AppHost.Modules
             await CaptureCurrentAccountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        internal bool HasLoadedRegisteredRanking
+        {
+            get
+            {
+                var session = GgmanAccountSession.Current;
+                return session != null && _registeredStats != null &&
+                    string.Equals(_registeredStatsOwner, session.UserId, StringComparison.Ordinal);
+            }
+        }
+
         internal PersonalStatsLegacySummary ReadLegacySummary()
         {
             return _store.ReadLegacySummary(DateTimeOffset.Now);
