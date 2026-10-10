@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.60
-- GitHub Release：v3.5.60
+- 版本：GGman 3.5.61
+- GitHub Release：v3.5.61
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：cddcbe2476a0797b61418d286f0e7a4eb0c40971
-- 发布元数据提交：b30a72def7f61670d543e67a7f71cda298419e2b
-- Release GGman.exe SHA-256：659C8F26762DF509FE45381C53929FDE72DE1E0E545BD51B9AA2F71599B57165
-- release_notes：GGman 3.5.60：完成悬浮球与工作台入口的一轮一致性修复。托盘菜单中的“打开控制中心”和托盘图标双击现在都会打开或激活快捷面板，不会在面板已打开时意外关闭；悬浮球单击仍按原有方式切换显示状态。修复旧版“英雄联盟”入口跳转统一工作台后却误显示“暂无可用功能”的问题，并移除旧版菜单查找中的隐式跳转。托盘“更多”中新增“使用指南”，与快捷面板的设置入口一致。补充菜单路由回归检查。保留原有九个工作台页面、悬浮球、托盘恢复、游戏内助手、LOL 查询与自动化、更新器签名和旧客户端一键更新兼容功能。
+- 发布基础 main：b57c796c56a023198e9abf1f19c3c4c5c6c6581f
+- 发布元数据提交：b473c0da9fe8141997d7a7b3a66f045d2aa66c91
+- Release GGman.exe SHA-256：677CAF64E2E03337118541C6B3F13F7289010B0F4BBAC41717C804F3C86BC479
+- release_notes：GGman 3.5.61：新增邮箱验证码账号注册、登录、退出与账号管理；新增英雄联盟 ESC 设置的本地备份、恢复及已登录账号的云端上传、跨电脑手动恢复，提供只读云端权限检查、文件完整性校验、上传版本冲突保护、恢复确认与恢复前本地备份。未登录仍可使用原有 GGman 功能。云端恢复为手动操作，腾讯服实际游戏设置持久化尚未完成跨电脑实测，恢复前请核对文件与游戏账号。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-10 — ESC registered-account cloud sync (stage, NOT released)

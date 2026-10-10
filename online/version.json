@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.61",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.61/FACM.exe",
   "sha256": "677CAF64E2E03337118541C6B3F13F7289010B0F4BBAC41717C804F3C86BC479",
   "release_notes": "GGman 3.5.61：新增邮箱验证码账号注册、登录、退出与账号管理；新增英雄联盟 ESC 设置的本地备份、恢复及已登录账号的云端上传、跨电脑手动恢复，提供只读云端权限检查、文件完整性校验、上传版本冲突保护、恢复确认与恢复前本地备份。未登录仍可使用原有 GGman 功能。云端恢复为手动操作，腾讯服实际游戏设置持久化尚未完成跨电脑实测，恢复前请核对文件与游戏账号。",
-  "published_at": "2026-10-10T01:17:41.9411805+00:00"
+  "published_at": "2026-10-10T01:17:50.9225211+00:00"
 }
