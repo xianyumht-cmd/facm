@@ -106,7 +106,7 @@ namespace FACM.League
             {
                 Text = GgmanAccountSession.Current == null
                     ? _ui.Get(UiTextKeys.AccountMenu)
-                    : _ui.Get(UiTextKeys.AccountTitle),
+                    : _ui.Get(UiTextKeys.AccountManage),
                 Bounds = new Rectangle(530, 15, 160, 32),
                 Tone = FacmButtonTone.Secondary,
                 Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
@@ -259,7 +259,7 @@ namespace FACM.League
                     _accountButton.Enabled = true;
                     _accountButton.Text = GgmanAccountSession.Current == null
                         ? _ui.Get(UiTextKeys.AccountMenu)
-                        : _ui.Get(UiTextKeys.AccountTitle);
+                        : _ui.Get(UiTextKeys.AccountManage);
                 }
             }
         }
