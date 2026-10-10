@@ -54,11 +54,7 @@ namespace FACM
                 ReadOnly = true,
                 TabStop = true
             };
-            if (!string.IsNullOrWhiteSpace(suggestedGameRoot))
-            {
-                try { _directory.Text = EscSettingsBackup.FindConfigDirectory(suggestedGameRoot); }
-                catch { }
-            }
+            _directory.Text = EscGameDirectoryLocator.ResolveCandidate(suggestedGameRoot) ?? string.Empty;
 
             _autoDetect = NewButton(UiTextKeys.EscSettingsDetect, 381, 127, 112);
             _autoDetect.Click += async delegate { await DetectDirectoryAsync(); };
@@ -75,8 +71,11 @@ namespace FACM
                     if (picker.ShowDialog(this) != DialogResult.OK) return;
                     try
                     {
-                        _directory.Text = EscSettingsBackup.FindConfigDirectory(picker.SelectedPath);
-                        SetStatus(_ui.Get(UiTextKeys.EscSettingsReady));
+                        var selected = EscGameDirectoryLocator.ResolveCandidate(picker.SelectedPath);
+                        if (selected == null)
+                            throw new InvalidOperationException(_ui.Get(UiTextKeys.EscSettingsNotFound));
+                        _directory.Text = selected;
+                        SetStatus(_ui.Get(UiTextKeys.EscSettingsDetected));
                     }
                     catch (Exception exception) { ShowFailure(exception); }
                 }
