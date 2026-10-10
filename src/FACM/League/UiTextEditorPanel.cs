@@ -69,7 +69,7 @@ namespace FACM.League
             });
             Controls.Add(_expandButton);
 
-            _search = new TextBox { PlaceholderTextFallback = null };
+            _search = new TextBox();
             _search.TextChanged += delegate { Filter(); };
             Controls.Add(_search);
 
