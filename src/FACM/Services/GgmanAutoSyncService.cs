@@ -184,13 +184,15 @@ namespace FACM.Services
                 RequireSession(account, token);
                 var appLocal = GgmanPortableSettingsStore.Capture(_settings);
                 var appHash = FingerprintApp(appLocal);
+                var appPristine = appHash == FingerprintApp(
+                    GgmanPortableSettingsStore.Capture(new AppSettings()));
                 await SyncOneAsync("app", history, owner, otherOwner, history.App,
                     appHash, appRemote == null ? 0 : appRemote.Version,
                     appRemote == null ? null : FingerprintApp(appRemote.Profile),
                     async () => await appClient.SetAsync(account, appLocal,
                         appRemote == null ? 0 : appRemote.Version, token),
                     () => GgmanPortableSettingsStore.Restore(appRemote.Profile, _settings),
-                    token);
+                    token, 0, appPristine);
                 RequireSession(account, token);
 
                 var textRemote = await textClient.GetAsync(account, token);
@@ -201,7 +203,8 @@ namespace FACM.Services
                     textRemote == null ? null : FingerprintText(textRemote.Profile),
                     async () => await textClient.SetAsync(account, textLocal,
                         textRemote == null ? 0 : textRemote.Version, token),
-                    () => UiTextCustomizationStore.Apply(textRemote.Profile), token);
+                    () => UiTextCustomizationStore.Apply(textRemote.Profile), token, 0,
+                    textLocal.Text.Count == 0 && textLocal.Replace.Count == 0);
                 RequireSession(account, token);
 
                 var dir = await Task.Run(() => EscGameDirectoryLocator.Find(_settings.GamePath, token));
@@ -211,62 +214,69 @@ namespace FACM.Services
                     EscSettingsBundle escLocal = null;
                     try { escLocal = EscSettingsBackup.Capture(dir); }
                     catch (FileNotFoundException) { }
-                    if (escLocal != null)
+                    var escRemote = await escClient.GetAsync(account, token);
+                    RequireSession(account, token);
+                    if (escLocal == null && escRemote != null)
                     {
-                        var escRemote = await escClient.GetAsync(account, token);
-                        RequireSession(account, token);
+                        EscSettingsBackup.Restore(escRemote.Bundle, dir);
+                        PersistCursor(history, owner, "esc", escRemote.Version,
+                            FingerprintEsc(escRemote.Bundle));
+                    }
+                    else if (escLocal != null)
                         await SyncOneAsync("esc", history, owner, otherOwner, history.Esc,
                             FingerprintEsc(escLocal), escRemote == null ? 0 : escRemote.Version,
                             escRemote == null ? null : FingerprintEsc(escRemote.Bundle),
                             async () => await escClient.SetAsync(account, escLocal,
                                 escRemote == null ? 0 : escRemote.Version, token),
                             () => EscSettingsBackup.Restore(escRemote.Bundle, dir), token);
-                    }
                 }
             }
+        }
+
+        private enum SyncAction { Unchanged, Adopt, Upload, Restore, Conflict }
+
+        private static SyncAction Decide(GgmanAutoSyncCursor previous, string localHash,
+            long remoteVersion, string remoteHash, bool otherOwner, bool pristine)
+        {
+            if (remoteVersion > 0 && localHash != null &&
+                string.Equals(localHash, remoteHash, StringComparison.Ordinal))
+                return SyncAction.Adopt;
+            if (previous == null)
+            {
+                if (remoteVersion == 0)
+                    return otherOwner ? SyncAction.Conflict : SyncAction.Upload;
+                return !otherOwner && pristine ? SyncAction.Restore : SyncAction.Conflict;
+            }
+            var localChanged = localHash != previous.Fingerprint;
+            var remoteChanged = remoteVersion != previous.Version;
+            if (remoteVersion == 0 && previous.Version > 0 ||
+                localChanged && remoteChanged)
+                return SyncAction.Conflict;
+            if (remoteChanged) return SyncAction.Restore;
+            if (localChanged) return SyncAction.Upload;
+            return SyncAction.Unchanged;
         }
 
         private async Task SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
             string owner, bool otherOwner, GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, Func<Task<long>> upload,
-            Action restore, CancellationToken token, int choice = 0)
+            Action restore, CancellationToken token, int choice = 0, bool pristine = false)
         {
-            if (remoteVersion > 0 && string.Equals(localHash, remoteHash, StringComparison.Ordinal))
+            var decision = choice == 1 ? SyncAction.Upload :
+                choice == 2 ? SyncAction.Restore :
+                Decide(previous, localHash, remoteVersion, remoteHash, otherOwner, pristine);
+            if (decision == SyncAction.Adopt)
             {
                 PersistCursor(history, owner, kind, remoteVersion, remoteHash);
                 return;
             }
-
-            var first = previous == null;
-            var localChanged = !first &&
-                !string.Equals(localHash, previous.Fingerprint, StringComparison.Ordinal);
-            var remoteChanged = !first && remoteVersion != previous.Version;
-
-            if (choice == 0 && (otherOwner && first ||
-                first && remoteVersion > 0 ||
-                !first && localChanged && remoteChanged ||
-                !first && remoteVersion == 0 && previous.Version > 0))
-            {
-                if (_conflict == null)
-                {
-                    _conflict = kind;
-                    _conflictHasRemote = remoteVersion > 0;
-                }
-                return;
-            }
-
-            if (choice == 0 && !first && !localChanged && !remoteChanged) return;
-            if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges)
-            {
-                if (_conflict == null)
-                {
-                    _conflict = kind;
-                    _conflictHasRemote = remoteVersion > 0;
-                }
-                return;
-            }
-            var doRestore = choice == 2 || (choice == 0 && !first && remoteChanged);
-            if (doRestore && remoteVersion == 0)
+            if (decision == SyncAction.Unchanged) return;
+            if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges &&
+                decision == SyncAction.Restore)
+                decision = SyncAction.Conflict;
+            if (decision == SyncAction.Restore && remoteVersion == 0)
+                decision = SyncAction.Conflict;
+            if (decision == SyncAction.Conflict)
             {
                 if (_conflict == null)
                 {
@@ -277,7 +287,7 @@ namespace FACM.Services
             }
 
             token.ThrowIfCancellationRequested();
-            if (doRestore)
+            if (decision == SyncAction.Restore)
             {
                 restore();
                 PersistCursor(history, owner, kind, remoteVersion, remoteHash);
@@ -452,6 +462,16 @@ namespace FACM.Services
                 throw new InvalidOperationException("Auto sync owner/fingerprint smoke failed.");
             if (demo.App != null || demo.Text != null || demo.Esc != null)
                 throw new InvalidOperationException("Auto sync metadata must start unlinked.");
+            var previous = new GgmanAutoSyncCursor { Version = 5, Fingerprint = "old" };
+            if (Decide(null, "local", 0, null, false, false) != SyncAction.Upload ||
+                Decide(null, "local", 3, "remote", false, true) != SyncAction.Restore ||
+                Decide(null, "local", 3, "remote", false, false) != SyncAction.Conflict ||
+                Decide(null, "local", 0, null, true, false) != SyncAction.Conflict ||
+                Decide(previous, "old", 5, "old", false, false) != SyncAction.Adopt ||
+                Decide(previous, "new", 5, "old", false, false) != SyncAction.Upload ||
+                Decide(previous, "old", 6, "new", false, false) != SyncAction.Restore ||
+                Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict)
+                throw new InvalidOperationException("Auto sync conflict-selection rules changed.");
         }
 
         public void Dispose()
