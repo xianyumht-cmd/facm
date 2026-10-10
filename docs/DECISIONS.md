@@ -99,6 +99,10 @@ A future internal-identifier migration is a separate engineering project, not un
 
 This lets the 3.5 lightweight product look coherent without paying the architecture, startup or packaging cost of WPF/WinUI migration.
 
+## ESC cloud actions belong to My GGman and may run with LOL open (2026-10-10)
+
+ESC settings are owned by the player's registered GGman account. Place controls inline beneath personal stats in **LOL 工作台 → 我的 GGman**, not under generic app settings or tray More, and keep the existing workbench navigation intact. Reuse the current manual upload/restore and confirmed recovery implementation rather than adding another independent window. Prioritize a running League process path, then already configured game path and League uninstall registry paths; resolve each only if a real `Config` directory is validated, with manual folder selection available. Do not prohibit reads or writes simply because League is running: file permissions/locks and integrity checks are authoritative. A successful on-disk restore cannot promise immediate in-game application or persistence after a client exit, so show that caveat and do not silently reapply or poll in the background.
+
 ## ESC cloud owner is registered UID, not device ID (2026-10-10)
 
 The prior experimental anonymous ESC profile upload is superseded and must never be published. ESC upload/restore is explicitly initiated by the player and uses only the CloudBase registered email account's bearer; Postgres grants and RLS permit `authenticated` only. User intent is captured with a pre-upload/restore preview; optimistic `version` protects against a second PC's silent overwrite. The local snapshot remains fully usable offline. No background ESC sync, global device-settings migration or forced login is introduced. CloudBase catalog/RLS checks, mock A/B SQL isolation, and live anonymous/no-credential denial checks supported promotion to official 3.5.61 at the owner's request. Real registered A/B HTTP ownership and Riot game retention/recovery remain explicitly unverified and need post-release monitoring and acceptance.
