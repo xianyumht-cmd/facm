@@ -62,6 +62,7 @@ namespace FACM.Online
                     snapshot.CurrentVersion,
                     cancellationToken);
                 var announcementTask = TryDownloadAnnouncementAsync(cancellationToken);
+                snapshot.AnnouncementPending = announcementTask;
 
                 var updateResult = await updateTask.ConfigureAwait(false);
                 if (updateResult.Value == null)
@@ -95,6 +96,7 @@ namespace FACM.Online
                 if (announcementTask.IsCompleted)
                 {
                     snapshot.Announcement = await announcementTask.ConfigureAwait(false);
+                    snapshot.AnnouncementPending = null;
                 }
 
                 Version latest;

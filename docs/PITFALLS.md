@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Parallel announcement requests must not lose late responses (2026-10-11)
+
+The signed update metadata and official announcement JSON are fetched concurrently to keep version checks responsive. Testing `announcementTask.IsCompleted` exactly once at the moment the update manifest finishes silently drops valid announcements that complete milliseconds later. Carry the pending announcement task in the snapshot: the active update window applies it asynchronously only if its snapshot is still current, while the background startup notification awaits it without blocking the main UI or forcing an update prompt. Keep announcements restricted to the canonical HTTPS origin, and do not let an obsolete refresh overwrite newer UI state.
+
 ## Sync checkpoint writes must not become visible before durable save (2026-10-11)
 
 Registered auto-sync can complete a remote CAS upload or local restore and then fail to save `account-auto-sync-state.json` (locked disk, permission error, temporary storage failure). If the cursor/owner fields were changed in memory before saving, the next cycle might treat the upload as already committed and skip persisting the checkpoint. Roll back the entire in-memory cursor and owner update if the atomic state-file write fails; the next cycle will observe the authoritative remote revision and re-adopt safely. Manual conflict resolution must only clear the conflict after its selected upload/restore actually completes; a blocked text restore or absent remote state is still unresolved.

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
 namespace FACM.Online
 {
@@ -101,6 +102,7 @@ namespace FACM.Online
     {
         public UpdateManifest Update { get; set; }
         public AnnouncementManifest Announcement { get; set; }
+        internal Task<AnnouncementManifest> AnnouncementPending { get; set; }
         public Version CurrentVersion { get; set; }
         public Version LatestVersion { get; set; }
         public bool UpdateAvailable { get; set; }

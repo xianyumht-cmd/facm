@@ -203,6 +203,7 @@ namespace FACM.Online
             Controls.Add(_closeButton);
 
             FormClosing += HandleFormClosing;
+            Shown += async delegate { await CompletePendingAnnouncementAsync(_snapshot); };
             ApplySnapshot();
         }
 
@@ -237,6 +238,7 @@ namespace FACM.Online
                 if (IsDisposed || Disposing || _closing) return;
                 _snapshot = snapshot ?? CreateFetchErrorSnapshotForSmokeTest(_snapshot);
                 ApplySnapshot();
+                _ = CompletePendingAnnouncementAsync(_snapshot);
             }
             catch (OperationCanceledException)
             {
@@ -255,6 +257,34 @@ namespace FACM.Online
             {
                 if (!IsDisposed && !Disposing && !_closing) SetBusy(false, null);
             }
+        }
+
+        private async Task CompletePendingAnnouncementAsync(OnlineSnapshot expected)
+        {
+            var pending = expected == null ? null : expected.AnnouncementPending;
+            if (pending == null) return;
+
+            try
+            {
+                var announcement = await pending;
+                if (IsDisposed || Disposing || _closing) return;
+                if (ApplyPendingAnnouncementForSmokeTest(_snapshot, expected, announcement))
+                    ApplySnapshot();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                AppLog.Info("Announcement completion skipped: " + error.GetType().Name);
+            }
+        }
+
+        internal static bool ApplyPendingAnnouncementForSmokeTest(
+            OnlineSnapshot active, OnlineSnapshot expected, AnnouncementManifest announcement)
+        {
+            if (active == null || !ReferenceEquals(active, expected)) return false;
+            active.Announcement = announcement;
+            active.AnnouncementPending = null;
+            return announcement != null;
         }
 
         private async Task BeginUpdateAsync()
