@@ -209,6 +209,11 @@ namespace FACM.Online
                 AccessToken = "old-access", RefreshToken = "old-refresh"
             });
             var first = Current;
+            var completed = ExecuteWithRefreshAsync(first,
+                (identity, cancellation) => Task.FromResult(identity.AccessToken),
+                CancellationToken.None).GetAwaiter().GetResult();
+            if (completed != "old-access")
+                throw new InvalidOperationException("Registered request used a different login session.");
             if (!ApplyRenewed(first, new GgmanAccountIdentity
                 { UserId = first.UserId, AccessToken = "new-access", RefreshToken = "new-refresh" }) ||
                 Current.AccessToken != "new-access" || Current.RefreshToken != "new-refresh" ||
@@ -228,6 +233,14 @@ namespace FACM.Online
             ClearIfCurrent(first);
             if (Current == null || Current.AccessToken != "other-login")
                 throw new InvalidOperationException("Stale logout cleared a newer login.");
+            try
+            {
+                ExecuteWithRefreshAsync(first, (identity, cancellation) =>
+                    Task.FromResult(identity.AccessToken), CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                throw new InvalidOperationException("Stale account request was not rejected.");
+            }
+            catch (OperationCanceledException) { }
             var current = Current;
             try
             {
