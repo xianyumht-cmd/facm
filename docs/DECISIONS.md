@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Announcement delivery is asynchronous to the update result
+
+Keep update metadata on the fast transport path and canonical announcement JSON on official HTTPS, with the existing bounded announcement request timeout. Carry a pending task on each `OnlineSnapshot` rather than discarding noncompleted announcement results or delaying an available updater for unrelated news. The visible update window applies a result only to the same snapshot, and startup notifications may await pending announcements in the background. Preserve the no-unrequested-popup behavior when no update is available, and preserve the existing `查看详情` button for future HTTPS announcement links.
+
 ## 2026-10-11 — Auto-sync cursor commit and conflict acknowledgement
 
 Treat per-category auto-sync cursor + owner + last-owner as one in-memory/disk commit. If saving the state file throws, restore all previous in-memory fields, retain the exception and retry reconciliation against actual remote state on the next poll. Preserve existing cloud CAS and local backup behavior. Explicit conflict acknowledgement occurs only after the selected operation completes; never hide the conflict because a manual restore was blocked or had no cloud record. Keep the admin-capable updater unchanged.
