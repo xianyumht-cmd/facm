@@ -55,26 +55,26 @@ namespace FACM.Online
         {
             var payload = await SendRegisteredAsync("ggman_get_esc_profile", identity,
                 new Dictionary<string, object>(), token).ConfigureAwait(false);
-                if (payload.Count == 0) return null;
-                object data;
-                object revision;
-                object updated;
-                if (!payload.TryGetValue("payload", out data) || data == null ||
-                    !payload.TryGetValue("version", out revision) ||
-                    !payload.TryGetValue("updated_at", out updated))
-                    throw new InvalidDataException("云端 ESC 备份格式不正确。");
-                long version;
-                if (!long.TryParse(Convert.ToString(revision), out version) || version <= 0)
-                    throw new InvalidDataException("云端 ESC 备份版本无效。");
-                DateTimeOffset changed;
-                if (!DateTimeOffset.TryParse(Convert.ToString(updated), out changed))
-                    throw new InvalidDataException("云端 ESC 备份时间无效。");
-                return new GgmanEscRemoteProfile
-                {
-                    Version = version,
-                    UpdatedAtUtc = changed,
-                    Bundle = EscSettingsBackup.Deserialize(_json.Serialize(data))
-                };
+            if (payload.Count == 0) return null;
+            object data;
+            object revision;
+            object updated;
+            if (!payload.TryGetValue("payload", out data) || data == null ||
+                !payload.TryGetValue("version", out revision) ||
+                !payload.TryGetValue("updated_at", out updated))
+                throw new InvalidDataException("云端 ESC 备份格式不正确。");
+            long version;
+            if (!long.TryParse(Convert.ToString(revision), out version) || version <= 0)
+                throw new InvalidDataException("云端 ESC 备份版本无效。");
+            DateTimeOffset changed;
+            if (!DateTimeOffset.TryParse(Convert.ToString(updated), out changed))
+                throw new InvalidDataException("云端 ESC 备份时间无效。");
+            return new GgmanEscRemoteProfile
+            {
+                Version = version,
+                UpdatedAtUtc = changed,
+                Bundle = EscSettingsBackup.Deserialize(_json.Serialize(data))
+            };
         }
 
         internal async Task<long> CheckReadOnlyAccessAsync(GgmanAccountIdentity account,
@@ -112,12 +112,12 @@ namespace FACM.Online
             };
             var response = await SendRegisteredAsync("ggman_set_esc_profile", identity,
                 body, token).ConfigureAwait(false);
-                object revision;
-                long version;
-                if (!response.TryGetValue("version", out revision) ||
-                    !long.TryParse(Convert.ToString(revision), out version) || version != expectedVersion + 1)
-                    throw new InvalidOperationException("云端没有确认新的 ESC 备份版本。");
-                return version;
+            object revision;
+            long version;
+            if (!response.TryGetValue("version", out revision) ||
+                !long.TryParse(Convert.ToString(revision), out version) || version != expectedVersion + 1)
+                throw new InvalidOperationException("云端没有确认新的 ESC 备份版本。");
+            return version;
         }
 
         private static HttpRequestMessage CreateRequest(string rpc, GgmanAccountIdentity identity, object body)
