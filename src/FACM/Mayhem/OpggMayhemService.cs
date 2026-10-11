@@ -204,6 +204,35 @@ namespace FACM.Mayhem
             }
         }
 
+        internal static async Task<IList<MayhemRankingSnapshot>> ProbeRankingSourcesAsync(CancellationToken token)
+        {
+            var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(3.5), token);
+            var aramggTask = GetSafeAsync(AramggRankingUrl, TimeSpan.FromSeconds(3.5), token);
+            var mayhemTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.5), token);
+            await Task.WhenAll(hexdataTask, aramggTask, mayhemTask).ConfigureAwait(false);
+
+            var hexdataHtml = await hexdataTask.ConfigureAwait(false);
+            var hexdata = new MayhemChampionResult();
+            ApplyHexdata(ParseHexdataRows(hexdataHtml), "yasuo", "yasuo", hexdata);
+            var mayhemHtml = await mayhemTask.ConfigureAwait(false);
+            return new[]
+            {
+                new MayhemRankingSnapshot
+                {
+                    Source = "Hexdata",
+                    Patch = MayhemRankingSourceService.ReadPatch(hexdataHtml),
+                    TopTen = hexdata.TopTen
+                },
+                MayhemRankingSourceService.ParseAramgg(await aramggTask.ConfigureAwait(false)),
+                new MayhemRankingSnapshot
+                {
+                    Source = "ARAMMayhem",
+                    Patch = MayhemRankingSourceService.ReadPatch(mayhemHtml),
+                    TopTen = ParseTopTen(mayhemHtml)
+                }
+            };
+        }
+
         private static bool ApplyHexdata(IList<HexdataChampionRow> rows, string slug, string query, MayhemChampionResult result)
         {
             if (rows == null || rows.Count == 0) return false;
