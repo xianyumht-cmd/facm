@@ -12,20 +12,20 @@
 - release_notes：GGman 3.5.70：修复自动同步在本地状态文件保存失败时可能误判同步完成的问题；冲突处理只有在实际上传或恢复成功后才解除提示。改进检查更新与公告的并行请求：版本结果仍可快速显示，公告稍后返回时也会更新当前窗口，不会被旧请求覆盖。保持管理员权限运行、现有云端数据格式及游戏相关功能不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Mayhem ranked-source completeness and patch selection candidate
+## 2026-10-11 — Mayhem ranked-source reliability (merged; 3.5.71 release requested)
 
-- Task branch: `fix/mayhem-ranked-sources-20261011`, based on main `133d741305b119a70a9e0f07f29a7594f13aaea8` (signed v3.5.70 remains production).
-- Existing sources are Hexdata CN-derived champion statistics, ARAMMayhem.com secondary homepage/champion details, OP.GG build/augment pages, and official Tencent patch/balance notes. They already run concurrently; prior `Top-ten ranking is incomplete` probe is genuine source/parsing fragility rather than an absent multi-source design.
-- Candidate adds ARAMGG's public Tencent-statistics-derived current-patch champion table as an additional ranking transport, updates ARAMMayhem homepage parser for tier/movement markers, and rejects partial, duplicate or malformed top-ten snapshots. Choose one entire ten-row list by latest patch and fixed provider priority; never interleave providers' rank/percentages. Handle equivalent 16.x/26.x patch labels and explicitly report Tencent-patch mismatch. Incomplete and Tencent-patch-mismatched responses are not cached for 10 minutes. OP.GG remains the build/augment enrichment source, not an invented official CN ranking API.
-- Blitz.gg appears to expose ARAM Mayhem per-champion pages but the last verified public examples were Patch 16.4; not connected as a current-source fallback without evidence of fresh data and stable allowed transport. ARAMGG/ARAMMayhem may republish the same Tencent data, so extra sites increase transport resilience but do not create independent statistical samples.
-- Run Mayhem Source Probe, Windows Build and UI Text Contract before merge. Live source probe may still fail due upstream blocks, page layout or third-party terms; no signed release until a source-backed acceptance is verified.
+- PR #334 merged as `e322ace109f99c7fb297fbbc0e513d6c5c631096`. GGman Windows Build #38102195982, FACM UI Text Contract #38102196033, and live Mayhem Source Probe #38102195973 all completed SUCCESS. The actual `Run live Mayhem source probe` step passed, not just a `continue-on-error` workflow summary. An earlier live probe #38102048643 also passed.
+- The source owner still uses Hexdata's CN-derived hero rankings, ARAMMayhem homepage/champion details, OPGG builds/augments and official Tencent patch/balance notes. ARAMGG adds a public current-patch Tencent-derived ranking transport. Choose only a whole ten-row, sequential, unique, plausible list and prefer newest patch (16.20/26.20 aliases); never merge rows across publishers. ARAMMayhem homepage parser now accepts tier and movement badges. Incomplete/official-patch-mismatched data will not be cached for ten minutes. The UI note identifies source/patch and mismatch.
+- Blitz.gg's last publicly verified Mayhem pages were Patch 16.4, so it is not accepted as a current-patch fallback. These public publishers may share Tencent's underlying statistics, so the change improves transport continuity rather than creating independent match samples.
+- Signed v3.5.71 requested in `release/3.5-request.json`, non-forced, minimum 3.0.0. Verified live production remains signed v3.5.70 until official publisher and public hashes plus online manifest activation succeed.
+- No new Tencent ranking endpoint, token, database migration, admin privilege or LOL client write action. Long-run provider reachability and Blitz current-patch acceptance remain follow-ups.
 
 ## 2026-10-11 — Auto-sync checkpoint and late announcement fixes (signed 3.5.70 released)
 
 - PR #330 merged as `a579f18b0b3248af03383ce14392b4b29fba2c44`, Windows Build #38100744085 and UI Text Contract #38100744107 SUCCESS. Auto-sync checkpoint owner/cursor changes now roll back in memory on atomic state-file save failure; a later poll re-adopts authoritative cloud CAS revision. Manual conflict prompts clear only after successful action; deterministic smoke injects save failures for app/text/ESC and previous owner.
 - PR #331 merged as `9c4097a692d9c32263cff51ed0eb9e27b9f8dcdc`, Windows Build #38101008393 and UI Text Contract #38101008462 SUCCESS. Update snapshots retain in-flight official HTTPS announcement requests and apply late results to the same active window only; the version check remains responsive and stale notice updates are ignored.
 - PR #332 merged as `0558b49fe5ed58e4b6fb4f6b007c33876c51d467`; signed publisher #38101299679 completed SUCCESS, publicly released `v3.5.70` with matching `GGman.exe` and compatibility `FACM.exe` (2,596,760 bytes each), SHA-256 `C0EE537BC40A2007BC42BC7CAF7F552006A432089FC1E20281324B97A3EE4844`. Online manifest is enabled, non-forced, minimum 3.0.0.
-- No database migration, new token storage, update elevation change or LOL match automation changes. Real disk-error, multi-PC cloud contention and delayed announcement gateway behavior still need native acceptance. Scheduled Mayhem source probe is a separate follow-up.
+- No database migration, new token storage, update elevation change or LOL match automation changes. Real disk-error, multi-PC cloud contention and delayed announcement gateway behavior still need native acceptance. Mayhem live-source repair followed in merged PR #334 and is pending signed v3.5.71 publication.
 
 ## 2026-10-11 — Registered account renewal (signed 3.5.69 released)
 
