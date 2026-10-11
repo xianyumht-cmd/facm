@@ -173,7 +173,7 @@ namespace FACM.Mayhem
 
                     result.SourceNote = BuildSourceNote(
                         ranking, !string.IsNullOrWhiteSpace(rankingHtml),
-                        !string.IsNullOrWhiteSpace(opggHtml), official != null);
+                        !string.IsNullOrWhiteSpace(opggHtml), official);
 
                     lock (Sync)
                     {
@@ -324,20 +324,20 @@ namespace FACM.Mayhem
 
         private static bool PatchesMatch(string first, string second)
         {
-            Version a;
-            Version b;
             return MayhemRankingSourceService.SamePatch(first, second);
         }
 
         private static string BuildSourceNote(MayhemRankingSnapshot selected,
-            bool detailAvailable, bool opgg, bool official)
+            bool detailAvailable, bool opgg, TencentMayhemPatchSnapshot official)
         {
             var parts = new List<string>();
             parts.Add(selected == null ? "排行：完整榜单暂不可用" :
-                "排行：" + selected.Source + " · " + selected.Patch);
+                "排行：" + selected.Source + " · " + selected.Patch +
+                (official != null && !MayhemRankingSourceService.SamePatch(selected.Patch, official.Patch)
+                    ? "（与国服版本不一致）" : string.Empty));
             parts.Add(opgg ? "攻略：OP.GG 已补充" : "攻略：OP.GG 未连接也可查询");
             parts.Add(detailAvailable ? "平衡：ARAMMayhem 详情已连接" : "平衡：完整状态未连接");
-            parts.Add(official ? "国服版本：腾讯官网已校验" : "国服版本：本次未校验");
+            parts.Add(official != null ? "国服版本：腾讯官网已校验" : "国服版本：本次未校验");
             return string.Join("；", parts);
         }
 
@@ -460,7 +460,7 @@ namespace FACM.Mayhem
 
             foreach (Match match in Regex.Matches(
                 section,
-                "(?<!\\d)(?<r>10|[1-9])\\s+(?<n>[A-Za-z][A-Za-z0-9' .-]{1,30}?)\\s+(?<w>\\d{1,2}\\.\\d{1,2})%",
+                "(?<!\\d)(?<r>10|[1-9])\\s+(?<n>[A-Za-z][A-Za-z0-9' .-]{1,30}?)\\s+(?:(?<t>S\\+|S|A|B|C)\\s*(?:[▲▼]\\s*\\d+)?\\s*)?(?<w>\\d{1,2}\\.\\d{1,2})%",
                 RegexOptions.IgnoreCase))
             {
                 int rank;
@@ -474,7 +474,7 @@ namespace FACM.Mayhem
                     Name = name,
                     Slug = ChampionAliases.Slugify(name),
                     WinRate = win,
-                    Tier = rank <= 7 ? "S+" : "S"
+                    Tier = First(match.Groups["t"].Value, rank <= 7 ? "S+" : "S")
                 });
             }
             return output.OrderBy(item => item.Rank).Take(10).ToList();
