@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Rank source redundancy requires complete, patch-consistent snapshots
+
+Mayhem top-ten must come from one validated source per request; never assemble rank/percentage values from different sites or infer missing rows. Prefer the freshest 16.x/26.x equivalent patch over a stale regional page, with stable provider tie-breaks (Hexdata, ARAMGG, ARAMMayhem). Tencent official patch notes establish a separate patch/balance authority, not a champion win-rate API. Reuse existing OP.GG champion build and augment enrichment without claiming its region/sample are the same as CN rankings. Multiple sites republishing Tencent statistics improve HTTP and HTML transport redundancy, not underlying sample independence. New sources require verified current-mode content, permission-compatible access, bounded reads, source-labelled patches, deterministic fixtures and live probe acceptance before release. Do not use stale Blitz.gg pages as current Mayhem rankings.
+
 ## 2026-10-11 — Announcement delivery is asynchronous to the update result
 
 Keep update metadata on the fast transport path and canonical announcement JSON on official HTTPS, with the existing bounded announcement request timeout. Carry a pending task on each `OnlineSnapshot` rather than discarding noncompleted announcement results or delaying an available updater for unrelated news. The visible update window applies a result only to the same snapshot, and startup notifications may await pending announcements in the background. Preserve the no-unrequested-popup behavior when no update is available, and preserve the existing `查看详情` button for future HTTPS announcement links.

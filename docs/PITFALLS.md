@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## A successful HTML response is not a healthy Mayhem top-ten ranking (2026-10-11)
+
+The ranking probe's `Top-ten ranking is incomplete` can occur even when a request succeeds: hero-list HTML formats change, homepage cards include tier and movement badges between name and percentage, and a stale provider can return ten plausible old rows. Parse complete provider snapshots, validate exactly ten unique sequential ranks with plausible rates, compare source patch labels (the same 2026 patch may appear as 16.20/26.20), then choose one whole snapshot rather than merging partial lists or always preferring the domestic hostname. Keep the homepage reader bounded and cancellable. Do not label publisher copies of Tencent statistics as three independent statistical data sets.
+
 ## Parallel announcement requests must not lose late responses (2026-10-11)
 
 The signed update metadata and official announcement JSON are fetched concurrently to keep version checks responsive. Testing `announcementTask.IsCompleted` exactly once at the moment the update manifest finishes silently drops valid announcements that complete milliseconds later. Carry the pending announcement task in the snapshot: the active update window applies it asynchronously only if its snapshot is still current, while the background startup notification awaits it without blocking the main UI or forcing an update prompt. Keep announcements restricted to the canonical HTTPS origin, and do not let an obsolete refresh overwrite newer UI state.

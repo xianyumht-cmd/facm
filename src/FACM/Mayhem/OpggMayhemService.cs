@@ -14,6 +14,7 @@ namespace FACM.Mayhem
     internal static class OpggMayhemService
     {
         private const string HexdataHeroesUrl = "https://hexdata.com.cn/heroes";
+        private const string AramggRankingUrl = "https://aramgg.com/en";
         private const string OpggBaseUrl = "https://op.gg/zh-cn/lol/modes/aram-mayhem";
         private const string RankingBaseUrl = "https://arammayhem.com";
         private static readonly object Sync = new object();
@@ -91,35 +92,64 @@ namespace FACM.Mayhem
                     Report(progress, "正在并行读取排行、平衡与攻略补充...");
                     var rankingTask = GetSafeAsync(result.RankingSourceUrl, TimeSpan.FromSeconds(3.8), requestToken);
                     var rankingTopTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.4), requestToken);
+                    var aramggTask = GetSafeAsync(AramggRankingUrl, TimeSpan.FromSeconds(3.4), requestToken);
                     var opggTask = GetSafeAsync(result.SourceUrl, TimeSpan.FromSeconds(2.2), requestToken);
 
                     if (hexdataHtml == null) hexdataHtml = await hexdataTask.ConfigureAwait(false);
-                    await Task.WhenAll(rankingTask, rankingTopTask, opggTask).ConfigureAwait(false);
+                    await Task.WhenAll(rankingTask, rankingTopTask, aramggTask, opggTask).ConfigureAwait(false);
                     var rankingHtml = rankingTask.Result;
                     var rankingTopHtml = rankingTopTask.Result;
+                    var aramggHtml = aramggTask.Result;
                     var opggHtml = opggTask.Result;
 
                     Report(progress, "正在合并国内排行、当前平衡和攻略字段...");
                     var hexRows = ParseHexdataRows(hexdataHtml);
-                    var hexTargetFound = ApplyHexdata(hexRows, slug, query, result);
-
+                    var hexChampion = new MayhemChampionResult();
+                    var hexTargetFound = ApplyHexdata(hexRows, slug, query, hexChampion);
                     ParseRankingChampion(rankingHtml, result);
-                    if (result.TopTen.Count < 10)
+
+                    var ranking = MayhemRankingSourceService.Select(
+                        new MayhemRankingSnapshot
+                        {
+                            Source = "Hexdata", Patch = MayhemRankingSourceService.ReadPatch(hexdataHtml),
+                            TopTen = hexChampion.TopTen
+                        },
+                        MayhemRankingSourceService.ParseAramgg(aramggHtml),
+                        new MayhemRankingSnapshot
+                        {
+                            Source = "ARAMMayhem",
+                            Patch = MayhemRankingSourceService.ReadPatch(rankingTopHtml),
+                            TopTen = ParseTopTen(rankingTopHtml)
+                        });
+                    if (ranking != null)
                     {
-                        var fallbackTop = ParseTopTen(rankingTopHtml);
-                        if (fallbackTop.Count > result.TopTen.Count) result.TopTen = fallbackTop;
+                        result.TopTen = ranking.TopTen;
+                        if (!MayhemRankingSourceService.SamePatch(result.RankingPatch, ranking.Patch))
+                        {
+                            result.Rank = null;
+                            result.WinRate = null;
+                            result.Tier = null;
+                        }
+                        if (ranking.Source == "Hexdata" && hexTargetFound)
+                        {
+                            result.ChampionName = hexChampion.ChampionName;
+                            result.Rank = hexChampion.Rank;
+                            result.WinRate = hexChampion.WinRate;
+                            result.Tier = hexChampion.Tier;
+                        }
+                        var current = ranking.TopTen.FirstOrDefault(item =>
+                            string.Equals(ChampionAliases.Normalize(item.Slug), ChampionAliases.Normalize(slug),
+                                StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ChampionAliases.Normalize(item.Name), ChampionAliases.Normalize(query),
+                                StringComparison.OrdinalIgnoreCase));
+                        if (current != null)
+                        {
+                            result.Rank = current.Rank;
+                            result.WinRate = current.WinRate;
+                            result.Tier = current.Tier;
+                        }
                     }
                     ParseOpggChampion(opggHtml, result);
-
-                    var current = result.TopTen.FirstOrDefault(item =>
-                        string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(ChampionAliases.Normalize(item.Name), ChampionAliases.Normalize(result.ChampionName), StringComparison.OrdinalIgnoreCase));
-                    if (current != null)
-                    {
-                        if (!result.Rank.HasValue) result.Rank = current.Rank;
-                        if (!result.WinRate.HasValue) result.WinRate = current.WinRate;
-                        if (string.IsNullOrWhiteSpace(result.Tier)) result.Tier = current.Tier;
-                    }
 
                     if (string.IsNullOrWhiteSpace(result.ChampionName)) result.ChampionName = Title(slug);
 
@@ -128,7 +158,8 @@ namespace FACM.Mayhem
                     catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
                     ApplyOfficialPatch(result, official, !string.IsNullOrWhiteSpace(rankingHtml), query);
 
-                    var anyPrimary = hexTargetFound || !string.IsNullOrWhiteSpace(rankingHtml) || !string.IsNullOrWhiteSpace(opggHtml);
+                    var anyPrimary = ranking != null || result.Rank.HasValue ||
+                        result.CoreItems.Count > 0 || !string.IsNullOrWhiteSpace(result.BalanceSummary);
                     if (!anyPrimary && string.IsNullOrWhiteSpace(result.BalanceSummary))
                     {
                         result.ErrorMessage = token.IsCancellationRequested
@@ -141,15 +172,19 @@ namespace FACM.Mayhem
                         result.Tier = InferTier(result.Rank.Value);
 
                     result.SourceNote = BuildSourceNote(
-                        hexTargetFound,
-                        !string.IsNullOrWhiteSpace(rankingHtml),
-                        !string.IsNullOrWhiteSpace(opggHtml),
-                        official != null);
+                        ranking, !string.IsNullOrWhiteSpace(rankingHtml),
+                        !string.IsNullOrWhiteSpace(opggHtml), official);
 
-                    lock (Sync)
+                    var cacheable = ranking != null &&
+                        (official == null || MayhemRankingSourceService.SamePatch(ranking.Patch, official.Patch));
+                    if (cacheable)
                     {
-                        Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
+                        lock (Sync)
+                            Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
                     }
+                    AppLog.Info("Mayhem ranking selection: " +
+                        (ranking == null ? "incomplete" : ranking.Source + " " + ranking.Patch) +
+                        "; cache=" + (cacheable ? "yes" : "no"));
                     Report(progress, "查询完成");
                     return result;
                 }
@@ -295,18 +330,20 @@ namespace FACM.Mayhem
 
         private static bool PatchesMatch(string first, string second)
         {
-            Version a;
-            Version b;
-            return Version.TryParse(first, out a) && Version.TryParse(second, out b) && a.Equals(b);
+            return MayhemRankingSourceService.SamePatch(first, second);
         }
 
-        private static string BuildSourceNote(bool hexdata, bool ranking, bool opgg, bool official)
+        private static string BuildSourceNote(MayhemRankingSnapshot selected,
+            bool detailAvailable, bool opgg, TencentMayhemPatchSnapshot official)
         {
             var parts = new List<string>();
-            parts.Add(hexdata ? "排行：Hexdata 国内优先" : (ranking ? "排行：ARAMMayhem 备用" : "排行：部分降级"));
+            parts.Add(selected == null ? "排行：完整榜单暂不可用" :
+                "排行：" + selected.Source + " · " + selected.Patch +
+                (official != null && !MayhemRankingSourceService.SamePatch(selected.Patch, official.Patch)
+                    ? "（与国服版本不一致）" : string.Empty));
             parts.Add(opgg ? "攻略：OP.GG 已补充" : "攻略：OP.GG 未连接也可查询");
-            parts.Add(ranking ? "平衡：ARAMMayhem 完整状态" : "平衡：完整状态未连接");
-            parts.Add(official ? "国服版本：腾讯官网已校验" : "国服版本：本次未校验");
+            parts.Add(detailAvailable ? "平衡：ARAMMayhem 详情已连接" : "平衡：完整状态未连接");
+            parts.Add(official != null ? "国服版本：腾讯官网已校验" : "国服版本：本次未校验");
             return string.Join("；", parts);
         }
 
@@ -418,6 +455,11 @@ namespace FACM.Mayhem
             if (result.Augments.Count == 0) result.Augments = ParseRankingAugments(text, 8);
         }
 
+        internal static IList<MayhemTopChampion> ParseTopTenForSmokeTest(string html)
+        {
+            return ParseTopTen(html);
+        }
+
         private static List<MayhemTopChampion> ParseTopTen(string html)
         {
             var output = new List<MayhemTopChampion>();
@@ -429,7 +471,7 @@ namespace FACM.Mayhem
 
             foreach (Match match in Regex.Matches(
                 section,
-                "(?<!\\d)(?<r>10|[1-9])\\s+(?<n>[A-Za-z][A-Za-z0-9' .-]{1,30}?)\\s+(?<w>\\d{1,2}\\.\\d{1,2})%",
+                "(?<!\\d)(?<r>10|[1-9])\\s+(?<n>[A-Za-z][A-Za-z0-9' .-]{1,30}?)\\s+(?:(?<t>S\\+|S|A|B|C)\\s*(?:[▲▼]\\s*\\d+)?\\s*)?(?<w>\\d{1,2}\\.\\d{1,2})%",
                 RegexOptions.IgnoreCase))
             {
                 int rank;
@@ -443,7 +485,7 @@ namespace FACM.Mayhem
                     Name = name,
                     Slug = ChampionAliases.Slugify(name),
                     WinRate = win,
-                    Tier = rank <= 7 ? "S+" : "S"
+                    Tier = First(match.Groups["t"].Value, rank <= 7 ? "S+" : "S")
                 });
             }
             return output.OrderBy(item => item.Rank).Take(10).ToList();
