@@ -1,24 +1,13 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-## 2026-10-11 — HTTP response guard repair (candidate, not released)
+## 2026-10-11 — Bounded network response reads (merged; 3.5.68 release requested)
 
-- User decision: preserve GGman's current administrator-capable run/update behavior; prioritize harmful reliability defects instead of changing elevation.
-- Candidate branch: `fix/ggman-network-response-guards-20261011`, based on main `1714601754f76416f29ef60e19154051057ac8b4`.
-- Narrow changes: anonymous CloudBase responses now use the existing bounded/cancellable HTTP body reader (128 KiB); LCU responses now stream after headers instead of buffering before enforcing the existing 20 MiB image budget; smoke covers CloudBase in-range and oversized bodies.
-- Status: candidate source change only until Windows Build, UI Text Contract and relevant smoke complete; production remains signed v3.5.67. Registered account token refresh, announcement visibility race and Mayhem remote data probe require separate, scoped handling and acceptance.
-
-- 版本：GGman 3.5.67
-- GitHub Release：v3.5.67
-- 在线更新：已启用
-- minimum_version：3.0.0
-- force_update：false
-- 发布基础 main：56172cab809f9b4cdc2720e3d92380b8703108c6
-- 发布元数据提交：9d996229e5d5a6f8d13f13f46b09569339bc6b6f
-- Release GGman.exe SHA-256：F2BB74255BAF55D126D42A91370A628ABD789BBF8C9C2B58C6BE107864246E14
-- release_notes：GGman 3.5.67：LOL 工作台「我的 GGman」的云端配置中心由手动「上传全部配置 / 恢复云端配置」改为默认勾选的「自动同步配置」，登录邮箱后在后台检查并同步 GGman 软件偏好、ui-text.ini 自定义文字、LOL 游戏内 ESC 三类配置，无需打开该页面或反复点击按钮。仅在内容确实变化时上传或恢复；使用注册 UID 分区的本地版本/内容指纹和云端 CAS 版本保护，防止重复写入、旧版本覆盖和同一电脑切换账号时发生配置串号。首次使用的非默认差异及双端同时修改会暂停冲突项并显示一次保留本机/采用云端选项，云端恢复前仍备份本地配置。关闭开关停止后续自动同步，离线失败自动退避重试。无新数据库脚本，继续使用现有 SQL 005/007/008；不包含游戏大厅 YAML，也不改变隐私统计授权。现有邮箱登录凭据不在本地保存，软件重启后仍须再次验证邮箱；真实双设备同步需更新后实机验证。
-<!-- FACM_RELEASE_STATE_END -->
-
+- Product constraint: preserve GGman's existing administrator-capable run/update behavior. No privilege change was made.
+- PR #324 merged as `96ad7feb38badbc46166ad910949020512ae8346`. Windows Build #38099123292 and UI Text Contract #38099123368 passed.
+- CloudBase anonymous responses use bounded, cancellation-aware HTTP body reads (128 KiB). LCU fetches request headers first and cap streaming replies at the established 20 MiB image budget. CloudBase smoke checks within-limit and oversized responses.
+- Publication request is `release/3.5-request.json` for non-forced signed v3.5.68, retaining `minimum_version=3.0.0`. Until signed release verification and online manifest activation succeed, v3.5.67 remains the currently verified production version.
+- Registered login token refresh, the announcement race, and live Mayhem ranking probe remain independent future tasks; none are claimed fixed by this patch.
 ## 2026-10-10 — Default-on automatic registered config synchronization (signed 3.5.67 released)
 
 - **Owner request and delivered UX:** only a default-checked **自动同步配置** checkbox under **LOL 工作台 → 我的 GGman**, with no ordinary cloud upload/restore buttons. A long-lived `GgmanAutoSyncModule` starts after SettingsModule and runs regardless of whether My GGman is open. Unchecking cancels pending work best-effort and persists `AutoConfigSyncEnabled=False` in local `settings.ini`. The switch is device-local and is excluded from registered account portable preferences.
