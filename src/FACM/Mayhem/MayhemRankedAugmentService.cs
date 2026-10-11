@@ -17,6 +17,7 @@ namespace FACM.Mayhem
     internal static class MayhemRankedAugmentService
     {
         private const string KiwiIconBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/ux/kiwi/augments/icons/";
+        internal const int MinimumUsableRows = 3;
         private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
 
         private sealed class LegacyAugment
@@ -47,12 +48,17 @@ namespace FACM.Mayhem
                         token,
                         true).ConfigureAwait(false);
                     var html = response == null ? null : response.ReadUtf8();
-                    var rows = ParseOpggRows(html).Take(12).ToList();
+                    var richRows = ParseOpggRows(html).Take(12).ToList();
+                    var rows = richRows;
                     var renderedFallback = false;
-                    if (rows.Count == 0)
+                    if (rows.Count < MinimumUsableRows)
                     {
-                        rows = ParseRenderedAugmentRows(html).Take(12).ToList();
-                        renderedFallback = rows.Count > 0;
+                        var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
+                        if (rendered.Count > rows.Count)
+                        {
+                            rows = rendered;
+                            renderedFallback = true;
+                        }
                     }
                     if (rows.Count > 0)
                     {
@@ -60,13 +66,16 @@ namespace FACM.Mayhem
                         result.AugmentSourceUrl = url;
                         result.AugmentSourceRoute = response.Route;
                         result.AugmentSourceStale = response.IsStale;
-                        await buildTask.ConfigureAwait(false);
                         AppLog.Info(
                             "Mayhem augments loaded: count=" + rows.Count +
                             "; mode=" + (renderedFallback ? "rendered-html" : "rich-json") +
                             "; route=" + response.Route +
                             "; stale=" + response.IsStale);
-                        return;
+                        if (rows.Count >= MinimumUsableRows)
+                        {
+                            await buildTask.ConfigureAwait(false);
+                            return;
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -86,20 +95,49 @@ namespace FACM.Mayhem
         internal static int ApplyFromHtmlForSmokeTest(MayhemChampionResult result, string html)
         {
             var rich = ParseOpggRows(html).Take(12).ToList();
-            if (rich.Count > 0)
+            var preferred = rich;
+            if (rich.Count < MinimumUsableRows)
             {
-                ApplyRich(result, rich);
-                return rich.Count;
+                var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
+                if (rendered.Count > rich.Count) preferred = rendered;
             }
-            var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
-            if (rendered.Count > 0)
+            if (preferred.Count > 0)
             {
-                ApplyRich(result, rendered);
-                return rendered.Count;
+                ApplyRich(result, preferred);
+                return preferred.Count;
             }
             var legacy = ParseLegacyPicks(html).Take(5).ToList();
             ApplyLegacy(result, legacy);
             return legacy.Count;
+        }
+
+        internal static void ValidatePartialAugmentFallbackForSmokeTest()
+        {
+            var partial = new MayhemChampionResult
+            {
+                AugmentRows = new List<MayhemAugmentRow>
+                {
+                    new MayhemAugmentRow { Rank = 1, Name = "Existing", Rarity = "gold", WinRate = 52.5 }
+                }
+            };
+            var insufficient = new List<LegacyAugment>
+            {
+                new LegacyAugment { Name = "Fallback", Slug = "fallback", WinRate = 53 }
+            };
+            ApplyLegacyIfRicher(partial, insufficient);
+            if (partial.AugmentRows.Count != 1 || partial.AugmentRows[0].Name != "Existing")
+                throw new InvalidOperationException("A weaker augment fallback displaced existing data.");
+            insufficient.Add(new LegacyAugment { Name = "Fallback 2", Slug = "fallback-2", WinRate = 51 });
+            ApplyLegacyIfRicher(partial, insufficient);
+            if (partial.AugmentRows.Count != 2 || partial.AugmentRows[0].Name != "Fallback")
+                throw new InvalidOperationException("A richer augment fallback was not accepted.");
+        }
+
+        private static bool ApplyLegacyIfRicher(MayhemChampionResult result, IList<LegacyAugment> picks)
+        {
+            if (result == null || picks == null || picks.Count <= result.AugmentRows.Count) return false;
+            ApplyLegacy(result, picks);
+            return true;
         }
 
         internal static IList<MayhemAugmentRow> ParseOpggRowsForSmokeTest(string html)
@@ -118,8 +156,7 @@ namespace FACM.Mayhem
                     token,
                     true).ConfigureAwait(false);
                 var picks = ParseLegacyPicks(response == null ? null : response.ReadUtf8()).Take(5).ToList();
-                if (picks.Count == 0) return;
-                ApplyLegacy(result, picks);
+                if (!ApplyLegacyIfRicher(result, picks)) return;
                 result.AugmentSourceUrl = result.RankingSourceUrl;
                 result.AugmentSourceRoute = response.Route;
                 result.AugmentSourceStale = response.IsStale;
