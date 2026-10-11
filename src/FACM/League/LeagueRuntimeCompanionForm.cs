@@ -1593,7 +1593,7 @@ namespace FACM.League
             var measured = TextRenderer.MeasureText(
                 _aramBalanceText.Text,
                 _aramBalanceText.Font,
-                new Size(SectionWidth, int.MaxValue),
+                new Size(SectionWidth, 2048),
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
             _aramBalanceText.Height = ResolveBalanceTextHeight(measured.Height);
             _aramBalanceSection.Height = _aramBalanceText.Bottom + 10;
