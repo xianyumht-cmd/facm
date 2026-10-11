@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.68：提高网络异常时的稳定性。CloudBase 云端响应采用有大小上限、支持取消的流式读取；LOL 客户端本地接口也先读取响应头，再按大小上限接收数据，减少异常响应造成的内存峰值和等待。管理员权限运行、现有更新方式、云同步数据格式和 LOL 功能保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — Registered account renewal candidate (not published)
+
+- Task branch: `fix/registered-account-session-renewal-20261011`, based on main `93a8e5722d6852ffb08d603be91f289333a953fe`. Retain signed 3.5.68 as the active online release until full CI, PR merge and canonical signing/publishing gates succeed.
+- Planned behavior in this candidate: serialized in-memory refresh after registered RPC HTTP 401; one retry, no duplicate ambiguous writes, no on-disk account credentials. Login-session generation fences out logout/relogin and A→B→A; token rotation does not trigger an account-changed event that would cancel background sync.
+- Registered app preferences, text, ESC and personal-stats RPCs share the same renewal owner. Native two-device/login-expiry acceptance remains required before claiming actual live OTP renewal is proven. GGman administrator-capable updater behavior is preserved.
+- Separate docs-only PR #326 remains open and is not a prerequisite for this credential fix.
+
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
