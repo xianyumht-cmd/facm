@@ -25,7 +25,29 @@ namespace FACM.Mayhem
                 var noLeagueClient = new NoLeagueClientApi();
                 using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
                 {
+                    var sourcesTask = OpggMayhemService.ProbeRankingSourcesAsync(cancellation.Token);
                     var result = OpggMayhemService.QueryAsync("yasuo", cancellation.Token).GetAwaiter().GetResult();
+                    var sources = sourcesTask.GetAwaiter().GetResult();
+                    var complete = 0;
+                    var current = 0;
+                    foreach (var source in sources)
+                    {
+                        var valid = MayhemRankingSourceService.IsComplete(source);
+                        var samePatch = valid && MayhemRankingSourceService.SamePatch(source.Patch, result == null ? null : result.Patch);
+                        if (valid) complete++;
+                        if (samePatch) current++;
+                        Console.WriteLine("Mayhem ranking source: name=" + source.Source +
+                            "; patch=" + (source.Patch ?? "unknown") +
+                            "; rows=" + (source.TopTen == null ? 0 : source.TopTen.Count) +
+                            "; complete=" + valid +
+                            "; official_patch_match=" + samePatch);
+                    }
+                    var selected = MayhemRankingSourceService.Select(sources.ToArray());
+                    Console.WriteLine("Mayhem ranking redundancy: complete=" + complete +
+                        "/" + sources.Count + "; current_patch=" + current +
+                        "; selected=" + (selected == null ? "none" : selected.Source));
+                    if (complete < 2 || current < 2)
+                        Console.WriteLine("Mayhem ranking redundancy degraded; check individual sources above.");
                     if (result == null) throw new InvalidOperationException("Mayhem query returned null.");
                     if (!string.IsNullOrWhiteSpace(result.ErrorMessage)) throw new InvalidOperationException(result.ErrorMessage);
                     if (string.IsNullOrWhiteSpace(result.ChampionName)) throw new InvalidOperationException("Champion name is missing.");
