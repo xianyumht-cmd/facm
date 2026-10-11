@@ -12,11 +12,11 @@
 - release_notes：GGman 3.5.70：修复自动同步在本地状态文件保存失败时可能误判同步完成的问题；冲突处理只有在实际上传或恢复成功后才解除提示。改进检查更新与公告的并行请求：版本结果仍可快速显示，公告稍后返回时也会更新当前窗口，不会被旧请求覆盖。保持管理员权限运行、现有云端数据格式及游戏相关功能不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Auto-sync checkpoint and late announcement fixes (merged; 3.5.70 requested)
+## 2026-10-11 — Auto-sync checkpoint and late announcement fixes (signed 3.5.70 released)
 
 - PR #330 merged as `a579f18b0b3248af03383ce14392b4b29fba2c44`, Windows Build #38100744085 and UI Text Contract #38100744107 SUCCESS. Auto-sync checkpoint owner/cursor changes now roll back in memory on atomic state-file save failure; a later poll re-adopts authoritative cloud CAS revision. Manual conflict prompts clear only after successful action; deterministic smoke injects save failures for app/text/ESC and previous owner.
 - PR #331 merged as `9c4097a692d9c32263cff51ed0eb9e27b9f8dcdc`, Windows Build #38101008393 and UI Text Contract #38101008462 SUCCESS. Update snapshots retain in-flight official HTTPS announcement requests and apply late results to the same active window only; the version check remains responsive and stale notice updates are ignored.
-- Signed `v3.5.70` release requested in `release/3.5-request.json` (non-forced, minimum `3.0.0`). Until signed publication and online-manifest activation succeed, `v3.5.69` remains the verified production version.
+- PR #332 merged as `0558b49fe5ed58e4b6fb4f6b007c33876c51d467`; signed publisher #38101299679 completed SUCCESS, publicly released `v3.5.70` with matching `GGman.exe` and compatibility `FACM.exe` (2,596,760 bytes each), SHA-256 `C0EE537BC40A2007BC42BC7CAF7F552006A432089FC1E20281324B97A3EE4844`. Online manifest is enabled, non-forced, minimum 3.0.0.
 - No database migration, new token storage, update elevation change or LOL match automation changes. Real disk-error, multi-PC cloud contention and delayed announcement gateway behavior still need native acceptance. Scheduled Mayhem source probe is a separate follow-up.
 
 ## 2026-10-11 — Registered account renewal (signed 3.5.69 released)
@@ -33,7 +33,7 @@
 - PR #324 merged as `96ad7feb38badbc46166ad910949020512ae8346`; Windows Build #38099123292 and UI Text Contract #38099123368 passed.
 - CloudBase anonymous responses use bounded, cancellation-aware HTTP body reads (128 KiB); LCU fetches request headers first and caps streaming replies at the established 20 MiB image budget. CloudBase smoke covers in-limit and oversized bodies.
 - PR #325 merged as `3933130fb05fca5160489fa1b3d16a3b163ecbb1`; signed release workflow #38099393281 succeeded. Public v3.5.68 `GGman.exe` and compatibility `FACM.exe` have identical SHA-256 `C759B8637561886B8FF841D3AF207C2F772CD4D0A619AE2CE4A3174E66A87A62` (2,566,040 bytes each); online manifest enabled, non-forced, minimum 3.0.0.
-- Registered login token refresh followed in signed v3.5.69; announcement and live Mayhem ranking probes remain future work.
+- Registered login token refresh followed in signed v3.5.69; announcement completion followed in signed v3.5.70. The live Mayhem ranking probe remains a future investigation.
 
 ## 2026-10-10 — Default-on automatic registered config synchronization (signed 3.5.67 released)
 
