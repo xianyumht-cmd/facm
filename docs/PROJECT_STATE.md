@@ -12,6 +12,16 @@
 - release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — ChampSelect companion current-patch fallback (signed 3.5.73 released)
+
+- **Field diagnosis:** owner-provided GGman 3.5.72 diagnostics showed repeated OP.GG Mayhem/build and base ARAM HTTP 403, Hexdata HTTP 503, successful ARAMGG 26.20 selected top ten, and reachable ARAMMayhem champion detail. Source-level 3.5.72 augment recovery accepted too few rows and did not provide a separate build fallback.
+- **Fix:** PR #342 source `4ccdb6225c80f28f4d9d1909557f1b3d92dc7b57`, merged as `1151a339ce48ee972fb885108cef784961dec2ab`. Reuse the existing ARAMMayhem detail transport after the parallel OP.GG build task; extract up to 12 named augment rows with rarity, appearance/win rates, core item trio, starters, boots and skill priority. Track the selected complete ranking patch separately from per-champion detail patch and reject unverified/mismatched fallbacks; extract current rank/tier from the champion overview rather than history. Add deterministic current/stale patch fallback smoke tests.
+- **Verified gates:** GGman Windows Build #38138244690, FACM UI Text Contract #38138244687 and actual live Mayhem Source Probe #38138244746 all succeeded. Release request PR #343 passed Windows Build #38138407536 and UI Text Contract #38138407480, then merged as `c12971ab21a166e920ad7ec35a47c8e414ff509d`.
+- **Signed publisher:** GGman 3.5 Lightweight Release #38138508017 completed successfully; public `GGman.exe` and compatibility `FACM.exe` are byte-identical (2,617,240 bytes). SHA-256 `8FC0FAFB02B24F033C5C48E1C8246063AC378767D3A0828F83FF25D1FA88D704`. Online manifest `3.5.73` is enabled, minimum `3.0.0`, non-forced. No updater, administrator privilege, LCU write/quit, or cloud database change.
+- **Acceptance boundary:** CI and GitHub-hosted live source tests cannot prove the owner's China-network OP.GG 403 scenario in an actual ChampSelect. Test several current non-top-ten champions and rapid rerolls with OP.GG blocked; inspect `Mayhem companion fallback:` and `Mayhem companion fallback skipped:` logs, ensure builds/augments render, and verify stale details are not passed off as current. Do not label this native acceptance complete before direct feedback.
+
+
+
 ## 2026-10-11 — Runtime Companion Mayhem regression fix (signed 3.5.72 released)
 
 - PR #339 merged into main as `8ffab99e2fcd38ad17d823806629804dee1b6b6d`; the GGman Windows Build #38128127495, FACM UI Text Contract #38128127492 and Mayhem Source Probe #38128127508 passed, including the actual live probe step.
