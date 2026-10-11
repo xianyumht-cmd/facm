@@ -12,18 +12,12 @@
 - release_notes：GGman 3.5.69：修复邮箱账号登录运行一段时间后可能导致自动同步、ESC 云配置、文字自定义云配置、软件设置和注册统计无法继续访问的问题。注册账号令牌失效时安全地自动续期并只重试一次；增加登录会话隔离，防止退出或切换账号时旧异步请求影响新账号。登录凭据仍只保存在程序内存中，关闭程序后不会自动登录。管理员权限及更新机制保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Online announcement completion candidate
+## 2026-10-11 — Auto-sync checkpoint and late announcement fixes (merged; 3.5.70 requested)
 
-- Task branch `fix/online-announcement-late-result-20261011` based on merged checkpoint PR #330 (main `a579f18b0b3248af03383ce14392b4b29fba2c44`).
-- Online snapshot now retains an in-flight official HTTPS announcement task; a version-check result can show immediately while the active Update Center accepts the late notice only for the same snapshot. Startup notification awaits pending notices without blocking a required/automatic update prompt. No source/mirror/trust change, and the `查看详情` button remains intact.
-- `update-mirror-test` gains deterministic stale-versus-current snapshot announcement cases. Await CI gates before merge; signed production remains 3.5.69 until the canonical release workflow verifies and activates a new version.
-
-## 2026-10-11 — Auto-sync checkpoint and conflict acknowledgement candidate
-
-- Task branch `fix/auto-sync-state-commit-20261011` based on main `2047a42ce57962ec0731fb144ffb21b37d466862`, current production 3.5.69.
-- Recoverable failure fix: roll back in-memory cursor/ownership when saving the atomic auto-sync metadata file fails, and re-adopt authoritative cloud revision on a later poll; protect successful metadata already in memory. Manual conflict resolution clears its prompt only after the requested upload or restore has really completed.
-- Smoke tests inject checkpoint save failure for app/text/ESC metadata and verify rollback, including a previously committed owner. Existing remote CAS, local backup, no persisted auth token, current WinForms surface and administrator behavior stay unchanged.
-- Verify Windows Build and UI Text Contract before merge; live disk failure, cloud contention and two-device sync field acceptance remain unverified until native tests.
+- PR #330 merged as `a579f18b0b3248af03383ce14392b4b29fba2c44`, Windows Build #38100744085 and UI Text Contract #38100744107 SUCCESS. Auto-sync checkpoint owner/cursor changes now roll back in memory on atomic state-file save failure; a later poll re-adopts authoritative cloud CAS revision. Manual conflict prompts clear only after successful action; deterministic smoke injects save failures for app/text/ESC and previous owner.
+- PR #331 merged as `9c4097a692d9c32263cff51ed0eb9e27b9f8dcdc`, Windows Build #38101008393 and UI Text Contract #38101008462 SUCCESS. Update snapshots retain in-flight official HTTPS announcement requests and apply late results to the same active window only; the version check remains responsive and stale notice updates are ignored.
+- Signed `v3.5.70` release requested in `release/3.5-request.json` (non-forced, minimum `3.0.0`). Until signed publication and online-manifest activation succeed, `v3.5.69` remains the verified production version.
+- No database migration, new token storage, update elevation change or LOL match automation changes. Real disk-error, multi-PC cloud contention and delayed announcement gateway behavior still need native acceptance. Scheduled Mayhem source probe is a separate follow-up.
 
 ## 2026-10-11 — Registered account renewal (signed 3.5.69 released)
 
