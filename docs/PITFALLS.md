@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## A green Mayhem live probe can conceal loss of redundancy (2026-10-11)
+
+The end-to-end Mayhem source test passes as soon as its final champion result is complete. It cannot tell whether the Hexdata, ARAMGG and ARAMMayhem fallback routes are individually parseable: the only healthy route might be carrying every successful check. Scheduled CI must therefore log bounded per-provider public fetches, each source patch, unique sequential top-ten validity, current-patch agreement and total healthy-source count separately. Emit an explicit GitHub Actions warning when redundancy falls below two complete/current transports, while preserving the existing strict end-to-end failure check. Source health output must not print fetched HTML, URLs with private tokens or unrelated secrets.
+
 ## A successful HTML response is not a healthy Mayhem top-ten ranking (2026-10-11)
 
 The ranking probe's `Top-ten ranking is incomplete` can occur even when a request succeeds: hero-list HTML formats change, homepage cards include tier and movement badges between name and percentage, and a stale provider can return ten plausible old rows. Parse complete provider snapshots, validate exactly ten unique sequential ranks with plausible rates, compare source patch labels (the same 2026 patch may appear as 16.20/26.20), then choose one whole snapshot rather than merging partial lists or always preferring the domestic hostname. Keep the homepage reader bounded and cancellable. Do not label publisher copies of Tencent statistics as three independent statistical data sets.
