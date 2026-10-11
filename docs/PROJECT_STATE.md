@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — Mayhem provider-level scheduled probe visibility (candidate)
+
+- Branch `fix/mayhem-provider-probe-visibility-20261011` based on main `822b6e1a9c44fe6a2eb099f3842153f8cf7de012`; production remains signed `v3.5.71`. No EXE release requested for this scheduled-CI-only diagnostics enhancement.
+- Audit of actual GitHub runs: PR head live probes `38102048643` and `38102195973`, plus main push probe `38102301785`, succeeded with the actual live step passing; there is not yet a post-3.5.71 scheduled probe. Earlier scheduled Mayhem checks including `37935960020` and `38000380496` failed. Previous live checks only established an overall end-to-end result, not each ranking provider's health.
+- The scheduled `--mayhem-source-test` now independently reads Hexdata, ARAMGG and ARAMMayhem homepages using the same bounded readers; it prints each provider's patch, row count, full 10-row validity and agreement with the official patch. Prints complete/current-patch provider counts, and emits a CI warning (not a failure) if fewer than two viable transports remain. GitHub Actions job summary retains these source-level results; the existing end-to-end probe still fails on broken player-facing functionality.
+- Await Windows Build, UI Text Contract and actual live Mayhem Source Probe CI before merge. Only change the source probe and its report; do not touch the published release manifest, user UI or updater. Future scheduled checks will establish the reliability trend.
+
 ## 2026-10-11 — Mayhem ranked-source reliability (signed 3.5.71 released)
 
 - PR #334 merged as `e322ace109f99c7fb297fbbc0e513d6c5c631096`. GGman Windows Build #38102195982, FACM UI Text Contract #38102196033, and live Mayhem Source Probe #38102195973 all completed SUCCESS. The actual `Run live Mayhem source probe` step passed, not just a `continue-on-error` workflow summary. An earlier live probe #38102048643 also passed.
