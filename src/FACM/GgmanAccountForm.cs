@@ -278,7 +278,7 @@ namespace FACM
             finally
             {
                 // Always drop local credentials, even when CloudBase logout could not be confirmed.
-                GgmanAccountSession.Clear();
+                GgmanAccountSession.ClearIfCurrent(account);
                 _challenge = null;
                 _code.Text = string.Empty;
                 _email.Text = string.Empty;
