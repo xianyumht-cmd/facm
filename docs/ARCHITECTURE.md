@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Registered session renewal
+
+`GgmanAccountSession` owns the process-memory registered login generation, access token and refresh token. Registered app settings, UI text, ESC profile and personal ranking RPC clients route their calls through `ExecuteWithRefreshAsync`: verify the original login generation, attempt the RPC, and only on HTTP 401 use a serialized `auth/v1/token` refresh before retrying exactly once. The refresh response must keep the exact original registered UID; a logout or new login makes stale continuations fail without updating current credentials. Cloud data revision compare-and-swap remains the authority for writes. Anonymous `CloudBaseClient` identity stays isolated.
+
 ## Product boundary
 
 The maintained product is FACM 3.5.x lightweight: **WinForms + .NET Framework 4.8 + one FACM.exe**. The repository intentionally avoids restoring the retired 4.x WinUI/Core/Infrastructure/Platform/bootstrapper architecture.

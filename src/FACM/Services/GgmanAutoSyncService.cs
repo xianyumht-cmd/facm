@@ -162,7 +162,7 @@ namespace FACM.Services
             token.ThrowIfCancellationRequested();
             var current = GgmanAccountSession.Current;
             if (current == null || current.UserId != account.UserId ||
-                current.AccessToken != account.AccessToken)
+                current.SessionKey != account.SessionKey)
                 throw new OperationCanceledException("Account session changed.");
         }
 

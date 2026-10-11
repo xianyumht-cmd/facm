@@ -83,7 +83,14 @@ namespace FACM.Online
             return updatedVersion;
         }
 
-        private async Task<Dictionary<string, object>> SendAsync(string operation,
+        private Task<Dictionary<string, object>> SendAsync(string operation,
+            GgmanAccountIdentity account, object body, CancellationToken token)
+        {
+            return GgmanAccountSession.ExecuteWithRefreshAsync(account,
+                (current, cancellation) => SendOnceAsync(operation, current, body, cancellation), token);
+        }
+
+        private async Task<Dictionary<string, object>> SendOnceAsync(string operation,
             GgmanAccountIdentity account, object body, CancellationToken token)
         {
             if (account == null || string.IsNullOrWhiteSpace(account.UserId) ||
@@ -100,6 +107,8 @@ namespace FACM.Online
                 using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
                     timeout.Token).ConfigureAwait(false))
                 {
+                    if (response.StatusCode == HttpStatusCode.Unauthorized)
+                        throw new GgmanAccountUnauthorizedException();
                     if (!response.IsSuccessStatusCode)
                         throw new InvalidOperationException("云端软件设置同步未完成（HTTP " +
                             (int)response.StatusCode + "）。请检查账号登录或云端版本。");

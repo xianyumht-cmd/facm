@@ -53,30 +53,28 @@ namespace FACM.Online
 
         internal async Task<GgmanEscRemoteProfile> GetAsync(GgmanAccountIdentity identity, CancellationToken token)
         {
-            using (var request = CreateRequest("ggman_get_esc_profile", identity, new Dictionary<string, object>()))
+            var payload = await SendRegisteredAsync("ggman_get_esc_profile", identity,
+                new Dictionary<string, object>(), token).ConfigureAwait(false);
+            if (payload.Count == 0) return null;
+            object data;
+            object revision;
+            object updated;
+            if (!payload.TryGetValue("payload", out data) || data == null ||
+                !payload.TryGetValue("version", out revision) ||
+                !payload.TryGetValue("updated_at", out updated))
+                throw new InvalidDataException("云端 ESC 备份格式不正确。");
+            long version;
+            if (!long.TryParse(Convert.ToString(revision), out version) || version <= 0)
+                throw new InvalidDataException("云端 ESC 备份版本无效。");
+            DateTimeOffset changed;
+            if (!DateTimeOffset.TryParse(Convert.ToString(updated), out changed))
+                throw new InvalidDataException("云端 ESC 备份时间无效。");
+            return new GgmanEscRemoteProfile
             {
-                var payload = await SendAsync(request, token).ConfigureAwait(false);
-                if (payload.Count == 0) return null;
-                object data;
-                object revision;
-                object updated;
-                if (!payload.TryGetValue("payload", out data) || data == null ||
-                    !payload.TryGetValue("version", out revision) ||
-                    !payload.TryGetValue("updated_at", out updated))
-                    throw new InvalidDataException("云端 ESC 备份格式不正确。");
-                long version;
-                if (!long.TryParse(Convert.ToString(revision), out version) || version <= 0)
-                    throw new InvalidDataException("云端 ESC 备份版本无效。");
-                DateTimeOffset changed;
-                if (!DateTimeOffset.TryParse(Convert.ToString(updated), out changed))
-                    throw new InvalidDataException("云端 ESC 备份时间无效。");
-                return new GgmanEscRemoteProfile
-                {
-                    Version = version,
-                    UpdatedAtUtc = changed,
-                    Bundle = EscSettingsBackup.Deserialize(_json.Serialize(data))
-                };
-            }
+                Version = version,
+                UpdatedAtUtc = changed,
+                Bundle = EscSettingsBackup.Deserialize(_json.Serialize(data))
+            };
         }
 
         internal async Task<long> CheckReadOnlyAccessAsync(GgmanAccountIdentity account,
@@ -112,16 +110,14 @@ namespace FACM.Online
                 { "p_payload", _json.DeserializeObject(EscSettingsBackup.Serialize(bundle)) },
                 { "p_expected_version", expectedVersion }
             };
-            using (var request = CreateRequest("ggman_set_esc_profile", identity, body))
-            {
-                var response = await SendAsync(request, token).ConfigureAwait(false);
-                object revision;
-                long version;
-                if (!response.TryGetValue("version", out revision) ||
-                    !long.TryParse(Convert.ToString(revision), out version) || version != expectedVersion + 1)
-                    throw new InvalidOperationException("云端没有确认新的 ESC 备份版本。");
-                return version;
-            }
+            var response = await SendRegisteredAsync("ggman_set_esc_profile", identity,
+                body, token).ConfigureAwait(false);
+            object revision;
+            long version;
+            if (!response.TryGetValue("version", out revision) ||
+                !long.TryParse(Convert.ToString(revision), out version) || version != expectedVersion + 1)
+                throw new InvalidOperationException("云端没有确认新的 ESC 备份版本。");
+            return version;
         }
 
         private static HttpRequestMessage CreateRequest(string rpc, GgmanAccountIdentity identity, object body)
@@ -137,6 +133,16 @@ namespace FACM.Online
             return request;
         }
 
+        private Task<Dictionary<string, object>> SendRegisteredAsync(string rpc,
+            GgmanAccountIdentity account, object body, CancellationToken token)
+        {
+            return GgmanAccountSession.ExecuteWithRefreshAsync(account, async (current, cancellation) =>
+            {
+                using (var request = CreateRequest(rpc, current, body))
+                    return await SendAsync(request, cancellation).ConfigureAwait(false);
+            }, token);
+        }
+
         private async Task<Dictionary<string, object>> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -147,6 +153,8 @@ namespace FACM.Online
                 {
                     if (response.Content.Headers.ContentLength > MaximumResponseBytes)
                         throw new InvalidDataException("云端响应超过大小限制。");
+                    if (response.StatusCode == HttpStatusCode.Unauthorized)
+                        throw new GgmanAccountUnauthorizedException();
                     if (!response.IsSuccessStatusCode)
                         throw new InvalidOperationException("ESC 云同步未完成，云端请求状态码：" +
                             (int)response.StatusCode + "。请检查账号登录、备份版本及数据库配置。");
