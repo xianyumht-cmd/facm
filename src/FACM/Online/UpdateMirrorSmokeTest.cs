@@ -54,6 +54,29 @@ namespace FACM.Online
             Require(!OnlineCenterForm.CanInstallUpdateForSmokeTest(checkedUpdate),
                 "Update action must remain disabled whenever metadata verification has failed.");
 
+            var notice = new AnnouncementManifest
+            {
+                Enabled = true, Id = "current-notice", Title = "更新公告",
+                LinkUrl = "https://example.com/notice"
+            };
+            var staleSnapshot = new OnlineSnapshot
+            {
+                AnnouncementPending = System.Threading.Tasks.Task.FromResult(notice)
+            };
+            var activeSnapshot = new OnlineSnapshot
+            {
+                AnnouncementPending = System.Threading.Tasks.Task.FromResult(notice)
+            };
+            Require(!OnlineCenterForm.ApplyPendingAnnouncementForSmokeTest(
+                    activeSnapshot, staleSnapshot, notice) &&
+                    activeSnapshot.Announcement == null && staleSnapshot.AnnouncementPending != null,
+                "Stale announcement result overwrote a later update request.");
+            Require(OnlineCenterForm.ApplyPendingAnnouncementForSmokeTest(
+                    activeSnapshot, activeSnapshot, notice) &&
+                    ReferenceEquals(activeSnapshot.Announcement, notice) &&
+                    activeSnapshot.AnnouncementPending == null,
+                "Late announcement was not applied to the active update window.");
+
             var builtIns = UpdateMirrorRouter.GetBuiltInSources();
             var mirrorCount = builtIns.Count(item =>
                 !string.Equals(item.Name, "github", StringComparison.OrdinalIgnoreCase) &&
