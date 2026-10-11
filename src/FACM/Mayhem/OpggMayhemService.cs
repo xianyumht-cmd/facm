@@ -121,34 +121,7 @@ namespace FACM.Mayhem
                             Patch = MayhemRankingSourceService.ReadPatch(rankingTopHtml),
                             TopTen = ParseTopTen(rankingTopHtml)
                         });
-                    if (ranking != null)
-                    {
-                        result.TopTen = ranking.TopTen;
-                        if (!MayhemRankingSourceService.SamePatch(result.RankingPatch, ranking.Patch))
-                        {
-                            result.Rank = null;
-                            result.WinRate = null;
-                            result.Tier = null;
-                        }
-                        if (ranking.Source == "Hexdata" && hexTargetFound)
-                        {
-                            result.ChampionName = hexChampion.ChampionName;
-                            result.Rank = hexChampion.Rank;
-                            result.WinRate = hexChampion.WinRate;
-                            result.Tier = hexChampion.Tier;
-                        }
-                        var current = ranking.TopTen.FirstOrDefault(item =>
-                            string.Equals(ChampionAliases.Normalize(item.Slug), ChampionAliases.Normalize(slug),
-                                StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(ChampionAliases.Normalize(item.Name), ChampionAliases.Normalize(query),
-                                StringComparison.OrdinalIgnoreCase));
-                        if (current != null)
-                        {
-                            result.Rank = current.Rank;
-                            result.WinRate = current.WinRate;
-                            result.Tier = current.Tier;
-                        }
-                    }
+                    ApplyChampionRanking(result, ranking, hexChampion, hexTargetFound, slug, query);
                     ParseOpggChampion(opggHtml, result);
 
                     if (string.IsNullOrWhiteSpace(result.ChampionName)) result.ChampionName = Title(slug);
@@ -174,6 +147,9 @@ namespace FACM.Mayhem
                     result.SourceNote = BuildSourceNote(
                         ranking, !string.IsNullOrWhiteSpace(rankingHtml),
                         !string.IsNullOrWhiteSpace(opggHtml), official);
+                    if (ranking != null && string.IsNullOrWhiteSpace(result.RankingPatch) &&
+                        result.Rank.HasValue)
+                        result.SourceNote += "；英雄个人排名：来源版本未核验";
 
                     var cacheable = ranking != null &&
                         (official == null || MayhemRankingSourceService.SamePatch(ranking.Patch, official.Patch));
@@ -202,6 +178,92 @@ namespace FACM.Mayhem
                     return result;
                 }
             }
+        }
+
+        private static void ApplyChampionRanking(MayhemChampionResult result,
+            MayhemRankingSnapshot selected, MayhemChampionResult hexChampion,
+            bool hexTargetFound, string slug, string query)
+        {
+            if (result == null || selected == null) return;
+            result.TopTen = selected.TopTen;
+
+            var detailPatchKnown = !string.IsNullOrWhiteSpace(result.RankingPatch);
+            var detailMatches = detailPatchKnown &&
+                MayhemRankingSourceService.SamePatch(result.RankingPatch, selected.Patch);
+            if (detailPatchKnown && !detailMatches)
+            {
+                result.Rank = null;
+                result.WinRate = null;
+                result.Tier = null;
+                result.PickRate = null;
+            }
+
+            if (selected.Source == "Hexdata" && hexTargetFound && hexChampion != null)
+            {
+                result.ChampionName = hexChampion.ChampionName;
+                result.Rank = hexChampion.Rank;
+                result.WinRate = hexChampion.WinRate;
+                result.Tier = hexChampion.Tier;
+            }
+
+            var current = selected.TopTen.FirstOrDefault(item =>
+                string.Equals(ChampionAliases.Normalize(item.Slug), ChampionAliases.Normalize(slug),
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(ChampionAliases.Normalize(item.Name), ChampionAliases.Normalize(query),
+                    StringComparison.OrdinalIgnoreCase));
+            if (current != null)
+            {
+                result.Rank = current.Rank;
+                result.WinRate = current.WinRate;
+                result.Tier = current.Tier;
+            }
+        }
+
+        internal static void ValidateChampionRankingForSmokeTest()
+        {
+            var selected = new MayhemRankingSnapshot
+            {
+                Source = "ARAMGG", Patch = "26.20",
+                TopTen = Enumerable.Range(1, 10).Select(rank => new MayhemTopChampion
+                {
+                    Rank = rank, Name = "Champion" + rank, Slug = "champion" + rank,
+                    WinRate = 50 + rank, Tier = "S"
+                }).ToList()
+            };
+            var outsideTopTen = new MayhemChampionResult
+            {
+                ChampionSlug = "vladimir", RankingPatch = "16.20",
+                Rank = 74, WinRate = 48.5, Tier = "B", PickRate = 6.4
+            };
+            ApplyChampionRanking(outsideTopTen, selected, null, false, "vladimir", "vladimir");
+            if (outsideTopTen.Rank != 74 || outsideTopTen.WinRate != 48.5 ||
+                outsideTopTen.Tier != "B" || outsideTopTen.PickRate != 6.4)
+                throw new InvalidOperationException("Non-top-ten current hero statistics were dropped.");
+
+            var unverified = new MayhemChampionResult
+            {
+                RankingPatch = null, Rank = 99, WinRate = 42.5, Tier = "C"
+            };
+            ApplyChampionRanking(unverified, selected, null, false, "kalista", "kalista");
+            if (unverified.Rank != 99 || unverified.WinRate != 42.5)
+                throw new InvalidOperationException("Unverified hero statistics were silently discarded.");
+
+            var stale = new MayhemChampionResult
+            {
+                RankingPatch = "16.19", Rank = 74, WinRate = 48.5, Tier = "B", PickRate = 6.4
+            };
+            ApplyChampionRanking(stale, selected, null, false, "vladimir", "vladimir");
+            if (stale.Rank.HasValue || stale.WinRate.HasValue ||
+                stale.PickRate.HasValue || !string.IsNullOrWhiteSpace(stale.Tier))
+                throw new InvalidOperationException("Known stale hero statistics were accepted.");
+
+            var topTen = new MayhemChampionResult
+            {
+                RankingPatch = "16.19", Rank = 83, WinRate = 40, Tier = "C"
+            };
+            ApplyChampionRanking(topTen, selected, null, false, "champion3", "champion3");
+            if (topTen.Rank != 3 || topTen.WinRate != 53 || topTen.Tier != "S")
+                throw new InvalidOperationException("Current top-ten hero statistics were not restored.");
         }
 
         internal static async Task<IList<MayhemRankingSnapshot>> ProbeRankingSourcesAsync(CancellationToken token)
