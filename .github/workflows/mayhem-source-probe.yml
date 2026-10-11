@@ -32,7 +32,7 @@ env:
 
 jobs:
   probe:
-    name: Probe OP.GG + ARAMMayhem + Riot assets
+    name: Probe ranked sources + OP.GG + Riot assets
     runs-on: windows-latest
     timeout-minutes: 12
     continue-on-error: ${{ github.event_name == 'pull_request' }}
@@ -70,7 +70,20 @@ jobs:
 
           if (Test-Path $stdout) {
             Write-Host '--- Mayhem probe stdout ---'
-            Get-Content $stdout -Raw | Write-Host
+            $stdoutText = Get-Content $stdout -Raw
+            $stdoutText | Write-Host
+            $sourceHealth = @($stdoutText -split "\r?\n" | Where-Object {
+              $_ -match '^Mayhem ranking (source|redundancy):'
+            })
+            if ($sourceHealth.Count -gt 0) {
+              Add-Content $env:GITHUB_STEP_SUMMARY '### Mayhem ranked source health'
+              foreach ($line in $sourceHealth) {
+                Add-Content $env:GITHUB_STEP_SUMMARY ('- ' + $line)
+              }
+            }
+            if ($stdoutText.Contains('Mayhem ranking redundancy degraded')) {
+              Write-Warning 'Mayhem ranked source redundancy degraded. See source health in the job summary.'
+            }
           }
           if (Test-Path $stderr) {
             Write-Host '--- Mayhem probe stderr ---'
