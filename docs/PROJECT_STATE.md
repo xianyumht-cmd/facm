@@ -12,16 +12,14 @@
 - release_notes：GGman 3.5.68：提高网络异常时的稳定性。CloudBase 云端响应采用有大小上限、支持取消的流式读取；LOL 客户端本地接口也先读取响应头，再按大小上限接收数据，减少异常响应造成的内存峰值和等待。管理员权限运行、现有更新方式、云同步数据格式和 LOL 功能保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-<!-- FACM_RELEASE_STATE_BEGIN -->
-## 当前正式版（发布工作流维护）
-
-## 2026-10-11 — Bounded network response reads (merged; 3.5.68 release requested)
+## 2026-10-11 — Bounded network response reads (signed 3.5.68 released)
 
 - Product constraint: preserve GGman's existing administrator-capable run/update behavior. No privilege change was made.
-- PR #324 merged as `96ad7feb38badbc46166ad910949020512ae8346`. Windows Build #38099123292 and UI Text Contract #38099123368 passed.
-- CloudBase anonymous responses use bounded, cancellation-aware HTTP body reads (128 KiB). LCU fetches request headers first and cap streaming replies at the established 20 MiB image budget. CloudBase smoke checks within-limit and oversized responses.
-- Publication request is `release/3.5-request.json` for non-forced signed v3.5.68, retaining `minimum_version=3.0.0`. Until signed release verification and online manifest activation succeed, v3.5.67 remains the currently verified production version.
+- PR #324 merged as `96ad7feb38badbc46166ad910949020512ae8346`; Windows Build #38099123292 and UI Text Contract #38099123368 passed.
+- CloudBase anonymous responses now use bounded, cancellation-aware HTTP body reads (128 KiB); LCU fetches request headers first and caps streaming replies at the established 20 MiB image budget. CloudBase smoke covers in-limit and oversized bodies.
+- PR #325 merged as `3933130fb05fca5160489fa1b3d16a3b163ecbb1`; signed release workflow #38099393281 succeeded. Public v3.5.68 `GGman.exe` and compatibility `FACM.exe` have identical SHA-256 `C759B8637561886B8FF841D3AF207C2F772CD4D0A619AE2CE4A3174E66A87A62` (2,566,040 bytes each); online manifest enabled, non-forced, minimum 3.0.0.
 - Registered login token refresh, the announcement race, and live Mayhem ranking probe remain independent future tasks; none are claimed fixed by this patch.
+
 ## 2026-10-10 — Default-on automatic registered config synchronization (signed 3.5.67 released)
 
 - **Owner request and delivered UX:** only a default-checked **自动同步配置** checkbox under **LOL 工作台 → 我的 GGman**, with no ordinary cloud upload/restore buttons. A long-lived `GgmanAutoSyncModule` starts after SettingsModule and runs regardless of whether My GGman is open. Unchecking cancels pending work best-effort and persists `AutoConfigSyncEnabled=False` in local `settings.ini`. The switch is device-local and is excluded from registered account portable preferences.
