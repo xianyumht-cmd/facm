@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.69
-- GitHub Release：v3.5.69
+- 版本：GGman 3.5.70
+- GitHub Release：v3.5.70
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：83a7866cd43c6675a7cb79b419661bc09ffe7cec
-- 发布元数据提交：fde34b7b2f00110be414f10783b37a2db2f108ea
-- Release GGman.exe SHA-256：02D916ED27ADB6D65751CBE2D14028884510CB5DF02E5BA839594D3713357739
-- release_notes：GGman 3.5.69：修复邮箱账号登录运行一段时间后可能导致自动同步、ESC 云配置、文字自定义云配置、软件设置和注册统计无法继续访问的问题。注册账号令牌失效时安全地自动续期并只重试一次；增加登录会话隔离，防止退出或切换账号时旧异步请求影响新账号。登录凭据仍只保存在程序内存中，关闭程序后不会自动登录。管理员权限及更新机制保持不变。
+- 发布基础 main：0558b49fe5ed58e4b6fb4f6b007c33876c51d467
+- 发布元数据提交：3da9cbd9de827d177752d7d4d691f226f4b1ff3d
+- Release GGman.exe SHA-256：C0EE537BC40A2007BC42BC7CAF7F552006A432089FC1E20281324B97A3EE4844
+- release_notes：GGman 3.5.70：修复自动同步在本地状态文件保存失败时可能误判同步完成的问题；冲突处理只有在实际上传或恢复成功后才解除提示。改进检查更新与公告的并行请求：版本结果仍可快速显示，公告稍后返回时也会更新当前窗口，不会被旧请求覆盖。保持管理员权限运行、现有云端数据格式及游戏相关功能不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-11 — Auto-sync checkpoint and late announcement fixes (merged; 3.5.70 requested)

@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.70",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.70/FACM.exe",
   "sha256": "C0EE537BC40A2007BC42BC7CAF7F552006A432089FC1E20281324B97A3EE4844",
   "release_notes": "GGman 3.5.70：修复自动同步在本地状态文件保存失败时可能误判同步完成的问题；冲突处理只有在实际上传或恢复成功后才解除提示。改进检查更新与公告的并行请求：版本结果仍可快速显示，公告稍后返回时也会更新当前窗口，不会被旧请求覆盖。保持管理员权限运行、现有云端数据格式及游戏相关功能不变。",
-  "published_at": "2026-10-11T01:17:56.0757464+00:00"
+  "published_at": "2026-10-11T01:18:04.7031057+00:00"
 }
