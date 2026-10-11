@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## HTTP response limits must be applied while streaming (2026-10-11)
+
+Checking `Content-Length` and checking the decoded string after `ReadAsStringAsync()` are insufficient: a chunked response has no trustworthy upfront length and has already been buffered before the final check; the body read may also fail to honor the caller's timeout. For CloudBase and LCU transport, use a bounded stream reader with cancellation, enforce the byte budget while receiving, and retain tests for at-limit and over-limit bodies. Keep the local LCU session's existing 2-second timeout and failure/invalidation behavior. Do not loosen release trust or update elevation when fixing network transport.
+
 ## Auto synchronization needs baselines and non-destructive first login (2026-10-10)
 
 Automatic upload-on-login can leak the last signed-in person's local settings into a newly signed-in account; automatic restore-on-login can erase pre-existing custom preferences. Content fingerprint alone is insufficient to tell which side changed. Track hashed registered UID, local content hashes and remote revision per category in device-local state. At first association, restore remote only over proven stock/default UI or software preferences; customized or ownership-switch differences need explicit one-time conflict choice. On subsequent polls, local-only change -> CAS upload, remote-only revision change -> backed-up local restore, both changed -> pause category, equal content -> adopt. Preserve user edits currently unsaved in a visible text editor. Token/logout/checkbox-off must cancel further work and offline calls must back off. Report pending conflicts clearly instead of looping or silently replacing either side.
