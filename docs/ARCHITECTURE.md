@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Mayhem champion ranking source selection
+
+`OpggMayhemService` concurrently reads Hexdata's CN-derived hero list, ARAMMayhem's hero/homepage, ARAMGG's public champion list, OP.GG's hero build and the existing Tencent official patch-note reader. `MayhemRankingSourceService` checks per-site patch labels and whole-list integrity, then selects the newest complete ten-entry snapshot. The source note identifies the ranking provider and patch (and warns when it differs from verified Tencent patch). Champion-specific build and augment enrichment retain their original independent service owners; the ranking selection does not reinterpret or average region-specific win rates. The live source probe is distinct from source-independent deterministic parser/selection fixtures.
+
 ## Registered session renewal
 
 `GgmanAccountSession` owns the process-memory registered login generation, access token and refresh token. Registered app settings, UI text, ESC profile and personal ranking RPC clients route their calls through `ExecuteWithRefreshAsync`: verify the original login generation, attempt the RPC, and only on HTTP 401 use a serialized `auth/v1/token` refresh before retrying exactly once. The refresh response must keep the exact original registered UID; a logout or new login makes stale continuations fail without updating current credentials. Cloud data revision compare-and-swap remains the authority for writes. Anonymous `CloudBaseClient` identity stays isolated.
