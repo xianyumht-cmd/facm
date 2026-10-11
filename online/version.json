@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.68",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.68/FACM.exe",
   "sha256": "C759B8637561886B8FF841D3AF207C2F772CD4D0A619AE2CE4A3174E66A87A62",
   "release_notes": "GGman 3.5.68：提高网络异常时的稳定性。CloudBase 云端响应采用有大小上限、支持取消的流式读取；LOL 客户端本地接口也先读取响应头，再按大小上限接收数据，减少异常响应造成的内存峰值和等待。管理员权限运行、现有更新方式、云同步数据格式和 LOL 功能保持不变。",
-  "published_at": "2026-10-11T00:44:37.6718728+00:00"
+  "published_at": "2026-10-11T00:44:45.6892808+00:00"
 }

@@ -1,6 +1,20 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
+- 版本：GGman 3.5.68
+- GitHub Release：v3.5.68
+- 在线更新：已启用
+- minimum_version：3.0.0
+- force_update：false
+- 发布基础 main：3933130fb05fca5160489fa1b3d16a3b163ecbb1
+- 发布元数据提交：2626adddbccd9274a13c8ba1dde4297c289f3694
+- Release GGman.exe SHA-256：C759B8637561886B8FF841D3AF207C2F772CD4D0A619AE2CE4A3174E66A87A62
+- release_notes：GGman 3.5.68：提高网络异常时的稳定性。CloudBase 云端响应采用有大小上限、支持取消的流式读取；LOL 客户端本地接口也先读取响应头，再按大小上限接收数据，减少异常响应造成的内存峰值和等待。管理员权限运行、现有更新方式、云同步数据格式和 LOL 功能保持不变。
+<!-- FACM_RELEASE_STATE_END -->
+
+<!-- FACM_RELEASE_STATE_BEGIN -->
+## 当前正式版（发布工作流维护）
+
 ## 2026-10-11 — Bounded network response reads (merged; 3.5.68 release requested)
 
 - Product constraint: preserve GGman's existing administrator-capable run/update behavior. No privilege change was made.
