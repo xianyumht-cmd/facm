@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Sync checkpoint writes must not become visible before durable save (2026-10-11)
+
+Registered auto-sync can complete a remote CAS upload or local restore and then fail to save `account-auto-sync-state.json` (locked disk, permission error, temporary storage failure). If the cursor/owner fields were changed in memory before saving, the next cycle might treat the upload as already committed and skip persisting the checkpoint. Roll back the entire in-memory cursor and owner update if the atomic state-file write fails; the next cycle will observe the authoritative remote revision and re-adopt safely. Manual conflict resolution must only clear the conflict after its selected upload/restore actually completes; a blocked text restore or absent remote state is still unresolved.
+
 ## Registered token rotation must not reset account ownership (2026-10-11)
 
 CloudBase email login returns an access token and refresh token. A client that only keeps the original access token eventually receives HTTP 401 and strands the default-on background sync until another OTP login. Registered RPCs may retry **once after HTTP 401 only**, using the official refresh-token endpoint and a single process-wide renewal gate. Refresh must check the exact login-session generation and registered UID before applying rotated credentials, and preserve the new token for later RPCs. Do not broadcast a logout/login account-change event for a token rotation: doing so cancels the sync in flight. Conversely, logout and A→B→A must invalidate any old task, even when the UID happens to match. Keep refresh tokens in process memory only, and never log token values.

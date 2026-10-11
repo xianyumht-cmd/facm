@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Auto-sync cursor commit and conflict acknowledgement
+
+Treat per-category auto-sync cursor + owner + last-owner as one in-memory/disk commit. If saving the state file throws, restore all previous in-memory fields, retain the exception and retry reconciliation against actual remote state on the next poll. Preserve existing cloud CAS and local backup behavior. Explicit conflict acknowledgement occurs only after the selected operation completes; never hide the conflict because a manual restore was blocked or had no cloud record. Keep the admin-capable updater unchanged.
+
 ## 2026-10-11 — Registered authentication renews in memory after unauthorized responses
 
 Continue optional email OTP login with no persisted access or refresh token. For registered cloud operations, handle exact HTTP 401 with single-flight CloudBase `auth/v1/token` refresh and one authorized retry. Do not automatically retry writes for ambiguous transport errors or CAS revision conflicts. A new login creates a unique session generation; token rotation preserves it without announcing an account switch. Logout clears only the generation that initiated it. UI text and automatic sync fences compare generation and UID rather than mutable access-token bytes. This is independent from administrator-capable updater behavior.
