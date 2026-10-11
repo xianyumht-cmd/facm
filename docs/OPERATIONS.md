@@ -54,7 +54,7 @@ Edit `release/3.5-request.json` on `main` using the exact current schema:
 
 ```json
 {
-  "version": "3.5.72",
+  "version": "3.5.73",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
@@ -98,7 +98,7 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 
 ## Default-on registered background configuration sync acceptance
 
-Default-on auto-sync originally shipped signed in `v3.5.67`; follow-up fixes to registered token renewal and local sync-state recovery shipped in `v3.5.69` and `v3.5.70`. The current signed online release is `v3.5.71` as of 2026-10-11. These checks are **post-release native field acceptance**, not prerequisites that should be marked complete without real devices. A docs-only closeout does not trigger a new release.
+Default-on auto-sync originally shipped signed in `v3.5.67`; follow-up fixes to registered token renewal and local sync-state recovery shipped in `v3.5.69` and `v3.5.70`. The current signed online release is `v3.5.72` as of 2026-10-11. These checks are **post-release native field acceptance**, not prerequisites that should be marked complete without real devices. A docs-only closeout does not trigger a new release.
 
 This feature **reuses already deployed SQL 005, 007 and 008**: no migration, table creation or operator SQL is required. Verify a fresh Windows install has the auto-sync checkbox checked, without duplicate manual upload/restore buttons. Sign in and wait for the background status to move from waiting to ready; do not need to open My GGman for changes to transfer. On local-only change, confirm one new matching account-owned cloud revision, then no further revisions while unchanged. On remote-only change, confirm local backup-before-restore and no overwrite of local path/device geometry or privacy consent. Test same account across two Win10 systems, then A->B->A on one PC: never transfer the previous account's file content without the rare conflict confirmation. Test both-sides edits, one-time keep-local/use-cloud actions, cloud-missing fallback, invalid-game-path skip, unsaved text drafts, offline backoff, ESC changes while LOL is running and turning off the checkbox during an ongoing request. Logout cancels pending operations; reopen GGman and log in anew since account credentials are intentionally memory-only in this release. These build/signing gates were completed for 3.5.67; any later client fix requires its own reviewed CI and separately signed patch. Do not substitute detached test EXEs.
 
