@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.73",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.73/FACM.exe",
   "sha256": "8FC0FAFB02B24F033C5C48E1C8246063AC378767D3A0828F83FF25D1FA88D704",
   "release_notes": "GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。",
-  "published_at": "2026-10-11T12:15:31.5578619+00:00"
+  "published_at": "2026-10-11T12:15:39.7051582+00:00"
 }

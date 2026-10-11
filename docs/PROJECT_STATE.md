@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.72
-- GitHub Release：v3.5.72
+- 版本：GGman 3.5.73
+- GitHub Release：v3.5.73
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：807b0c4144c229adc5a06d7114ee5617d42fb691
-- 发布元数据提交：8bae9caaf478e160743480d193e4aadedf44eac5
-- Release GGman.exe SHA-256：2DB961D54E7D59D9E2DBF216C918CE0445D8630A1464839703B432562874B0C7
-- release_notes：GGman 3.5.72：修复选英雄实时伴随窗口海斗攻略数据显示不完整的问题。保留非前十英雄有来源的个人胜率、排名和评级，已知过期版本的数据仍不显示；当海克斯强化仅有一两条时继续尝试备用数据源，并提示数据不足；大乱斗基础平衡说明使用自适应高度，减少长文字裁切。保留海斗多数据源、原有管理员权限和自动更新机制。
+- 发布基础 main：c12971ab21a166e920ad7ec35a47c8e414ff509d
+- 发布元数据提交：413e0cf3ef9f3df4293b13e5c0abd9a4808ae11d
+- Release GGman.exe SHA-256：8FC0FAFB02B24F033C5C48E1C8246063AC378767D3A0828F83FF25D1FA88D704
+- release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-11 — Runtime Companion Mayhem regression fix (signed 3.5.72 released)
