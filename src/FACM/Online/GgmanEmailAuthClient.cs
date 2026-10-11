@@ -118,6 +118,19 @@ namespace FACM.Online
             if (changed != null) changed(null, EventArgs.Empty);
         }
 
+        internal static void ClearIfCurrent(GgmanAccountIdentity expected)
+        {
+            lock (Sync)
+            {
+                if (_current == null || expected == null ||
+                    _current.SessionKey != expected.SessionKey)
+                    return;
+                _current = null;
+            }
+            var changed = Changed;
+            if (changed != null) changed(null, EventArgs.Empty);
+        }
+
         private static bool ApplyRenewed(GgmanAccountIdentity expected, GgmanAccountIdentity updated)
         {
             if (updated == null || string.IsNullOrWhiteSpace(updated.AccessToken) ||
@@ -212,6 +225,9 @@ namespace FACM.Online
                 { UserId = first.UserId, AccessToken = "replayed-access" }))
                 throw new InvalidOperationException("Logged-out session was able to restore stale credentials.");
 
+            ClearIfCurrent(first);
+            if (Current == null || Current.AccessToken != "other-login")
+                throw new InvalidOperationException("Stale logout cleared a newer login.");
             var current = Current;
             try
             {
@@ -423,10 +439,11 @@ namespace FACM.Online
         internal async Task LogoutAsync(GgmanAccountIdentity account, string deviceId, CancellationToken token)
         {
             if (account == null || string.IsNullOrWhiteSpace(account.AccessToken)) return;
+            var current = GgmanAccountSession.RequireCurrent(account);
             using (var req = CreatePost("auth/v1/user/signout",
                 new Dictionary<string, object>(), deviceId))
             {
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", account.AccessToken);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", current.AccessToken);
                 await SendAsync(req, token).ConfigureAwait(false);
             }
         }
