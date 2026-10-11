@@ -452,7 +452,7 @@ namespace FACM.League
         {
             var current = GgmanAccountSession.Current;
             if (current == null || current.UserId != expected.UserId ||
-                current.AccessToken != expected.AccessToken)
+                current.SessionKey != expected.SessionKey)
                 throw new InvalidOperationException("GGman 登录状态已更改，文字同步已取消。");
         }
 
