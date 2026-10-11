@@ -17,6 +17,7 @@ namespace FACM.Mayhem
             {
                 LeaguePublicDataTransport.ValidateForSmokeTest();
                 MayhemRankingSourceService.ValidateForSmokeTest();
+                ValidateRankingHomeFixture();
                 ValidateRichAugmentFixture();
                 ValidateBuildDetailsFixture();
                 ValidateLocalizedProjectionFixture();
@@ -130,6 +131,21 @@ namespace FACM.Mayhem
                 Console.Error.WriteLine(exception);
                 return 5;
             }
+        }
+
+        private static void ValidateRankingHomeFixture()
+        {
+            var html = "<section><h2>TOP 10 Top Ranked Champions Patch 26.20</h2>";
+            for (var index = 1; index <= 10; index++)
+            {
+                html += "<a href='/build/champion" + index + "/'>" + index +
+                    " Champion " + index + " S+ ▲1 " + (52 + index) + ".25%</a>";
+            }
+            html += "</section><h2>Highest Win Rate Augments</h2>";
+            var top = OpggMayhemService.ParseTopTenForSmokeTest(html);
+            if (top.Count != 10 || top[0].Rank != 1 || top[9].Rank != 10 ||
+                top[9].Tier != "S+" || !top[0].WinRate.HasValue)
+                throw new InvalidOperationException("Tier-bearing homepage top ten was not parsed.");
         }
 
         private static void ValidateRichAugmentFixture()
