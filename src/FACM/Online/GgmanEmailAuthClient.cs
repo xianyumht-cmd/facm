@@ -44,29 +44,56 @@ namespace FACM.Online
         public string UserId { get; set; }
         internal string AccessToken { get; set; }
         internal string RefreshToken { get; set; }
+        internal Guid SessionKey { get; set; }
+    }
+
+    internal sealed class GgmanAccountUnauthorizedException : InvalidOperationException
+    {
+        internal GgmanAccountUnauthorizedException() : base("GGman 账号登录已过期。") { }
     }
 
     // Separate from the legacy anonymous CloudBase client; no anonymous data is migrated here.
     internal static class GgmanAccountSession
     {
         private static readonly object Sync = new object();
+        private static readonly SemaphoreSlim RefreshGate = new SemaphoreSlim(1, 1);
         private static GgmanAccountIdentity _current;
         internal static event EventHandler Changed;
 
+        private static GgmanAccountIdentity Copy(GgmanAccountIdentity identity)
+        {
+            return identity == null ? null : new GgmanAccountIdentity
+            {
+                Email = identity.Email,
+                UserId = identity.UserId,
+                AccessToken = identity.AccessToken,
+                RefreshToken = identity.RefreshToken,
+                SessionKey = identity.SessionKey
+            };
+        }
+
         internal static GgmanAccountIdentity Current
         {
-            get
+            get { lock (Sync) return Copy(_current); }
+        }
+
+        internal static bool IsCurrent(GgmanAccountIdentity expected)
+        {
+            lock (Sync)
+                return expected != null && expected.SessionKey != Guid.Empty &&
+                       _current != null && _current.SessionKey == expected.SessionKey &&
+                       string.Equals(_current.UserId, expected.UserId, StringComparison.Ordinal);
+        }
+
+        internal static GgmanAccountIdentity RequireCurrent(GgmanAccountIdentity expected)
+        {
+            lock (Sync)
             {
-                lock (Sync)
-                {
-                    return _current == null ? null : new GgmanAccountIdentity
-                    {
-                        Email = _current.Email,
-                        UserId = _current.UserId,
-                        AccessToken = _current.AccessToken,
-                        RefreshToken = _current.RefreshToken
-                    };
-                }
+                if (expected == null || expected.SessionKey == Guid.Empty ||
+                    _current == null || _current.SessionKey != expected.SessionKey ||
+                    !string.Equals(_current.UserId, expected.UserId, StringComparison.Ordinal))
+                    throw new OperationCanceledException("GGman 账号已切换，当前操作已取消。");
+                return Copy(_current);
             }
         }
 
@@ -75,7 +102,11 @@ namespace FACM.Online
             if (value == null || string.IsNullOrWhiteSpace(value.UserId) ||
                 string.IsNullOrWhiteSpace(value.AccessToken))
                 throw new ArgumentException("Verified CloudBase account session is required.", nameof(value));
-            lock (Sync) _current = value;
+            lock (Sync)
+            {
+                _current = Copy(value);
+                _current.SessionKey = Guid.NewGuid();
+            }
             var changed = Changed;
             if (changed != null) changed(null, EventArgs.Empty);
         }
@@ -85,6 +116,114 @@ namespace FACM.Online
             lock (Sync) _current = null;
             var changed = Changed;
             if (changed != null) changed(null, EventArgs.Empty);
+        }
+
+        private static bool ApplyRenewed(GgmanAccountIdentity expected, GgmanAccountIdentity updated)
+        {
+            if (updated == null || string.IsNullOrWhiteSpace(updated.AccessToken) ||
+                !string.Equals(updated.UserId, expected.UserId, StringComparison.Ordinal))
+                throw new InvalidOperationException("续期身份与已登录 GGman 账号不一致。");
+            lock (Sync)
+            {
+                if (_current == null || expected.SessionKey != _current.SessionKey ||
+                    _current.UserId != expected.UserId || _current.AccessToken != expected.AccessToken)
+                    return false;
+                _current.AccessToken = updated.AccessToken;
+                _current.RefreshToken = string.IsNullOrWhiteSpace(updated.RefreshToken)
+                    ? expected.RefreshToken : updated.RefreshToken;
+                return true;
+            }
+        }
+
+        private static async Task<GgmanAccountIdentity> RenewAsync(
+            GgmanAccountIdentity previous, CancellationToken cancellationToken)
+        {
+            await RefreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var current = RequireCurrent(previous);
+                if (current.AccessToken != previous.AccessToken) return current;
+                if (string.IsNullOrWhiteSpace(current.RefreshToken))
+                    throw new InvalidOperationException("GGman 登录已过期，请重新验证邮箱。");
+
+                cancellationToken.ThrowIfCancellationRequested();
+                var deviceId = CloudIdentityStore.CreateDefault().LoadOrCreate().DeviceId;
+                GgmanAccountIdentity updated;
+                using (var client = new GgmanEmailAuthClient())
+                    updated = await client.RefreshAccountAsync(current, deviceId, cancellationToken)
+                        .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!ApplyRenewed(current, updated))
+                    throw new OperationCanceledException("GGman 账号在续期期间已切换。");
+                return RequireCurrent(previous);
+            }
+            finally
+            {
+                RefreshGate.Release();
+            }
+        }
+
+        internal static async Task<T> ExecuteWithRefreshAsync<T>(
+            GgmanAccountIdentity expected,
+            Func<GgmanAccountIdentity, CancellationToken, Task<T>> request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = RequireCurrent(expected);
+            try
+            {
+                var result = await request(current, cancellationToken).ConfigureAwait(false);
+                RequireCurrent(expected);
+                return result;
+            }
+            catch (GgmanAccountUnauthorizedException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var renewed = await RenewAsync(current, cancellationToken).ConfigureAwait(false);
+                var result = await request(renewed, cancellationToken).ConfigureAwait(false);
+                RequireCurrent(expected);
+                return result;
+            }
+        }
+
+        internal static void ValidateRenewalForSmokeTest()
+        {
+            Clear();
+            Set(new GgmanAccountIdentity
+            {
+                Email = "first@example.com", UserId = "same-user",
+                AccessToken = "old-access", RefreshToken = "old-refresh"
+            });
+            var first = Current;
+            if (!ApplyRenewed(first, new GgmanAccountIdentity
+                { UserId = first.UserId, AccessToken = "new-access", RefreshToken = "new-refresh" }) ||
+                Current.AccessToken != "new-access" || Current.RefreshToken != "new-refresh" ||
+                !IsCurrent(first))
+                throw new InvalidOperationException("Registered account refresh rotation failed.");
+
+            if (ApplyRenewed(first, new GgmanAccountIdentity
+                { UserId = first.UserId, AccessToken = "stale-access" }))
+                throw new InvalidOperationException("Stale access token overwrote rotated credentials.");
+
+            Clear();
+            Set(new GgmanAccountIdentity { UserId = "same-user", AccessToken = "other-login" });
+            if (IsCurrent(first) || ApplyRenewed(first, new GgmanAccountIdentity
+                { UserId = first.UserId, AccessToken = "replayed-access" }))
+                throw new InvalidOperationException("Logged-out session was able to restore stale credentials.");
+
+            var current = Current;
+            try
+            {
+                ApplyRenewed(current, new GgmanAccountIdentity
+                    { UserId = "different-user", AccessToken = "cross-account" });
+                throw new InvalidOperationException("Cross-account token rotation was accepted.");
+            }
+            catch (InvalidOperationException error)
+            {
+                if (error.Message == "Cross-account token rotation was accepted.") throw;
+            }
+            Clear();
         }
     }
 
@@ -248,6 +387,34 @@ namespace FACM.Online
                     Email = challenge.Email,
                     UserId = userId,
                     AccessToken = access,
+                    RefreshToken = ReadString(result, "refresh_token")
+                };
+            }
+        }
+
+        internal async Task<GgmanAccountIdentity> RefreshAccountAsync(
+            GgmanAccountIdentity previous, string deviceId, CancellationToken token)
+        {
+            if (previous == null || string.IsNullOrWhiteSpace(previous.RefreshToken))
+                throw new InvalidOperationException("GGman 登录已过期，请重新验证邮箱。");
+            using (var request = CreatePost("auth/v1/token", new Dictionary<string, object>
+            {
+                { "grant_type", "refresh_token" },
+                { "refresh_token", previous.RefreshToken }
+            }, deviceId))
+            {
+                var result = await SendAsync(request, token).ConfigureAwait(false);
+                var userId = ReadString(result, "sub");
+                var accessToken = ReadString(result, "access_token");
+                if (!string.Equals(userId, previous.UserId, StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(accessToken) ||
+                    string.Equals(ReadString(result, "scope"), "anonymous", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("GGman 续期响应的注册账号身份无效。");
+                return new GgmanAccountIdentity
+                {
+                    Email = previous.Email,
+                    UserId = userId,
+                    AccessToken = accessToken,
                     RefreshToken = ReadString(result, "refresh_token")
                 };
             }
@@ -421,6 +588,7 @@ namespace FACM.Online
             GgmanAccountSession.Clear();
             if (GgmanAccountSession.Current != null)
                 throw new InvalidOperationException("Account logout did not clear in-process identity.");
+            GgmanAccountSession.ValidateRenewalForSmokeTest();
             using (var client = new GgmanEmailAuthClient())
             using (var send = client.CreatePost("auth/v1/verification",
                 new Dictionary<string, object> { { "email", "player@example.com" }, { "target", "ANY" } },
