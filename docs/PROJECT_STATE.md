@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.71
-- GitHub Release：v3.5.71
+- 版本：GGman 3.5.72
+- GitHub Release：v3.5.72
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：80714971056dac58b7b12fcc59cf1406823ea282
-- 发布元数据提交：478b9c84b2e7193d4d8d1cdeb38e1c876cf38c54
-- Release GGman.exe SHA-256：2631634F0AB07F0B9977A067F40578D7DFB19AA3572715108814EFB01A07992A
-- release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
+- 发布基础 main：807b0c4144c229adc5a06d7114ee5617d42fb691
+- 发布元数据提交：8bae9caaf478e160743480d193e4aadedf44eac5
+- Release GGman.exe SHA-256：2DB961D54E7D59D9E2DBF216C918CE0445D8630A1464839703B432562874B0C7
+- release_notes：GGman 3.5.72：修复选英雄实时伴随窗口海斗攻略数据显示不完整的问题。保留非前十英雄有来源的个人胜率、排名和评级，已知过期版本的数据仍不显示；当海克斯强化仅有一两条时继续尝试备用数据源，并提示数据不足；大乱斗基础平衡说明使用自适应高度，减少长文字裁切。保留海斗多数据源、原有管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-11 — Runtime Companion Mayhem regression fix (merged; 3.5.72 release requested)
