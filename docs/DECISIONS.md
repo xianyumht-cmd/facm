@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Monitor Mayhem provider redundancy separately from user-visible success
+
+Retain `FACM Mayhem Source Probe` on its existing six-hour GitHub Actions schedule. Besides the end-to-end champion build/card smoke, probe the three public champion-ranking transports independently with existing bounded HTTP requests. Report provider, patch, row count, ten-row completeness and agreement with the official patch in the job summary and short-lived logs. Warn on fewer than two complete/current transports instead of treating one upstream outage as a failed product query; preserve the strict failure gate for a broken final hero card. Do not add periodic client polling or require a new GGman release merely to improve scheduled CI observability.
+
 ## 2026-10-11 — Rank source redundancy requires complete, patch-consistent snapshots
 
 Mayhem top-ten must come from one validated source per request; never assemble rank/percentage values from different sites or infer missing rows. Prefer the freshest 16.x/26.x equivalent patch over a stale regional page, with stable provider tie-breaks (Hexdata, ARAMGG, ARAMMayhem). Tencent official patch notes establish a separate patch/balance authority, not a champion win-rate API. Reuse existing OP.GG champion build and augment enrichment without claiming its region/sample are the same as CN rankings. Multiple sites republishing Tencent statistics improve HTTP and HTML transport redundancy, not underlying sample independence. New sources require verified current-mode content, permission-compatible access, bounded reads, source-labelled patches, deterministic fixtures and live probe acceptance before release. Do not use stale Blitz.gg pages as current Mayhem rankings.

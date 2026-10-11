@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — Mayhem per-source scheduled probe diagnostics (PR #337)
+
+- PR #337, branch `fix/mayhem-provider-probe-visibility-20261011`, based on main `822b6e1a9c44fe6a2eb099f3842153f8cf7de012`. This enhances the existing six-hour Windows Action, not GGman's public runtime; signed production remains `v3.5.71` without an EXE release request.
+- Historical scheduled probes including `37892168662`, `37935960020` and `38000380496` failed at the actual live step with `Top-ten ranking is incomplete`. The 3.5.71 PR/push live probes `38102048643`, `38102195973` and `38102301785` passed, but no post-release six-hour scheduled sample had yet occurred at this audit.
+- Independent provider checks share the existing bounded readers: each records source, patch, row count, complete ten-row validity and independent Tencent official-patch agreement. A missing official patch is reported `unknown`, never treated as a successful verification. Fewer than two complete (or, when official patch is known, fewer than two matching) sources produce a warning without falsely failing an otherwise working GGman query. GitHub Actions shows these in the job summary and retains short-lived diagnostic logs.
+- Actual live PR test run `38103325934` passed its `Run live Mayhem source probe` step. It recorded Hexdata `0/10` and unknown patch, ARAMGG `10/10` at `26.20`, ARAMMayhem `10/10` at `26.20`, selected ARAMGG. Tencent's official patch check was unavailable and deliberately reported unknown; a pair of complete matching site patch labels is **not** proof of official patch agreement. A previous run `38103219627` also showed two complete providers but used fallback result patch, so official-match conclusions from it are superseded.
+- Keep the existing strict end-to-end smoke failure gate, and require Windows Build/UI Text Contract before merging PR #337. Future scheduled runs, not a few PR green checks, are required to establish a reliable long-term trend. No updater, cloud, LCU or user feature behavior is changed.
+
 ## 2026-10-11 — Mayhem ranked-source reliability (signed 3.5.71 released)
 
 - PR #334 merged as `e322ace109f99c7fb297fbbc0e513d6c5c631096`. GGman Windows Build #38102195982, FACM UI Text Contract #38102196033, and live Mayhem Source Probe #38102195973 all completed SUCCESS. The actual `Run live Mayhem source probe` step passed, not just a `continue-on-error` workflow summary. An earlier live probe #38102048643 also passed.
