@@ -763,6 +763,16 @@ namespace FACM
                 var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
                 if (IsDisposed || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage)) return;
 
+                if (!snapshot.UpdateAvailable && !snapshot.ForceUpdateRequired &&
+                    snapshot.AnnouncementPending != null)
+                {
+                    snapshot.Announcement = await snapshot.AnnouncementPending;
+                    snapshot.AnnouncementPending = null;
+                    if (IsDisposed || _exiting) return;
+                    if (snapshot.Announcement != null)
+                        snapshot.Announcement.Popup = false;
+                }
+
                 var announcement = snapshot.Announcement;
                 var newPopupAnnouncement = announcement != null &&
                                            announcement.Enabled &&
