@@ -1,6 +1,6 @@
 # GGman 3.5 在线版本与公告管理
 
-GGman 当前正式产品线是 **3.5.x lightweight**（.NET Framework 4.8 / WinForms）。截至 2026-10-11，在线正式版是 **3.5.71**；以后始终以 `main` 的 `online/version.json`、已签名 GitHub Release 和实际公开文件哈希为准。4.x bootstrap、CAB、迁移清单和 migration updater mode 不属于当前发布链。
+GGman 当前正式产品线是 **3.5.x lightweight**（.NET Framework 4.8 / WinForms）。截至 2026-10-11，在线正式版是 **3.5.72**；以后始终以 `main` 的 `online/version.json`、已签名 GitHub Release 和实际公开文件哈希为准。4.x bootstrap、CAB、迁移清单和 migration updater mode 不属于当前发布链。
 
 ## 在线资源
 
@@ -30,7 +30,7 @@ Actions → GGman 3.5 Lightweight Release
 
 ```json
 {
-  "version": "3.5.72",
+  "version": "3.5.73",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
@@ -38,7 +38,7 @@ Actions → GGman 3.5 Lightweight Release
 }
 ```
 
-上面仅为请求结构示例，**不代表已批准发布 3.5.72**；真正发布时应填写下一个未使用的版本号。不要复用现有 GitHub Release tag，也不要为文档修改编辑 `release/3.5-request.json`。
+上面仅为请求结构示例，**不代表已批准发布 3.5.73**；真正发布时应填写下一个未使用的版本号。不要复用现有 GitHub Release tag，也不要为文档修改编辑 `release/3.5-request.json`。
 
 ### 发布事务顺序
 
