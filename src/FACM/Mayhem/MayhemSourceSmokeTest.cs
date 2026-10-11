@@ -17,6 +17,8 @@ namespace FACM.Mayhem
             {
                 LeaguePublicDataTransport.ValidateForSmokeTest();
                 MayhemRankingSourceService.ValidateForSmokeTest();
+                OpggMayhemService.ValidateChampionRankingForSmokeTest();
+                MayhemRankedAugmentService.ValidatePartialAugmentFallbackForSmokeTest();
                 ValidateRankingHomeFixture();
                 ValidateRichAugmentFixture();
                 ValidateBuildDetailsFixture();
