@@ -175,10 +175,16 @@ namespace FACM.Mayhem
                         ranking, !string.IsNullOrWhiteSpace(rankingHtml),
                         !string.IsNullOrWhiteSpace(opggHtml), official);
 
-                    lock (Sync)
+                    var cacheable = ranking != null &&
+                        (official == null || MayhemRankingSourceService.SamePatch(ranking.Patch, official.Patch));
+                    if (cacheable)
                     {
-                        Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
+                        lock (Sync)
+                            Cache[query] = new CacheEntry { Time = DateTime.UtcNow, Value = result };
                     }
+                    AppLog.Info("Mayhem ranking selection: " +
+                        (ranking == null ? "incomplete" : ranking.Source + " " + ranking.Patch) +
+                        "; cache=" + (cacheable ? "yes" : "no"));
                     Report(progress, "查询完成");
                     return result;
                 }
