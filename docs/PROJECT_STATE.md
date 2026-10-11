@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.69：修复邮箱账号登录运行一段时间后可能导致自动同步、ESC 云配置、文字自定义云配置、软件设置和注册统计无法继续访问的问题。注册账号令牌失效时安全地自动续期并只重试一次；增加登录会话隔离，防止退出或切换账号时旧异步请求影响新账号。登录凭据仍只保存在程序内存中，关闭程序后不会自动登录。管理员权限及更新机制保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — Online announcement completion candidate
+
+- Task branch `fix/online-announcement-late-result-20261011` based on merged checkpoint PR #330 (main `a579f18b0b3248af03383ce14392b4b29fba2c44`).
+- Online snapshot now retains an in-flight official HTTPS announcement task; a version-check result can show immediately while the active Update Center accepts the late notice only for the same snapshot. Startup notification awaits pending notices without blocking a required/automatic update prompt. No source/mirror/trust change, and the `查看详情` button remains intact.
+- `update-mirror-test` gains deterministic stale-versus-current snapshot announcement cases. Await CI gates before merge; signed production remains 3.5.69 until the canonical release workflow verifies and activates a new version.
+
 ## 2026-10-11 — Auto-sync checkpoint and conflict acknowledgement candidate
 
 - Task branch `fix/auto-sync-state-commit-20261011` based on main `2047a42ce57962ec0731fb144ffb21b37d466862`, current production 3.5.69.
