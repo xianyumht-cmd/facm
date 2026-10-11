@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Registered token rotation must not reset account ownership (2026-10-11)
+
+CloudBase email login returns an access token and refresh token. A client that only keeps the original access token eventually receives HTTP 401 and strands the default-on background sync until another OTP login. Registered RPCs may retry **once after HTTP 401 only**, using the official refresh-token endpoint and a single process-wide renewal gate. Refresh must check the exact login-session generation and registered UID before applying rotated credentials, and preserve the new token for later RPCs. Do not broadcast a logout/login account-change event for a token rotation: doing so cancels the sync in flight. Conversely, logout and A→B→A must invalidate any old task, even when the UID happens to match. Keep refresh tokens in process memory only, and never log token values.
+
 ## HTTP response limits must be applied while streaming (2026-10-11)
 
 Checking `Content-Length` and checking the decoded string after `ReadAsStringAsync()` are insufficient: a chunked response has no trustworthy upfront length and has already been buffered before the final check; the body read may also fail to honor the caller's timeout. For CloudBase and LCU transport, use a bounded stream reader with cancellation, enforce the byte budget while receiving, and retain tests for at-limit and over-limit bodies. Keep the local LCU session's existing 2-second timeout and failure/invalidation behavior. Do not loosen release trust or update elevation when fixing network transport.
