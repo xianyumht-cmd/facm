@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using FACM.Mayhem;
 using FACM.Services;
 
 namespace FACM.Online
@@ -323,16 +324,11 @@ namespace FACM.Online
                 timeout.CancelAfter(TimeSpan.FromSeconds(8));
                 using (var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false))
                 {
-                    var length = response.Content.Headers.ContentLength;
-                    if (length.HasValue && length.Value > MaximumResponseCharacters)
-                        throw new InvalidOperationException("CloudBase response exceeded the allowed size.");
                     if (!response.IsSuccessStatusCode)
                         throw new HttpRequestException(BuildFailureMessage(operation, response.StatusCode));
 
-                    var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    if (text != null && text.Length > MaximumResponseCharacters)
-                        throw new InvalidOperationException("CloudBase response exceeded the allowed size.");
-                    return text ?? string.Empty;
+                    return await CancelableHttpContentReader.ReadStringAsync(
+                        response.Content, timeout.Token, MaximumResponseCharacters).ConfigureAwait(false);
                 }
             }
         }
@@ -482,6 +478,29 @@ namespace FACM.Online
 
                 Require(IsTelemetryEventName("league_dashboard_open"), "CloudBase telemetry event validation rejected a valid name.");
                 Require(!IsTelemetryEventName("League Dashboard Open"), "CloudBase telemetry event validation accepted an invalid name.");
+            }
+
+            using (var withinLimit = new StringContent(
+                new string('x', MaximumResponseCharacters), Encoding.UTF8, "text/plain"))
+            {
+                var text = CancelableHttpContentReader.ReadStringAsync(
+                    withinLimit, CancellationToken.None, MaximumResponseCharacters)
+                    .GetAwaiter().GetResult();
+                Require(text.Length == MaximumResponseCharacters,
+                    "CloudBase rejected an in-limit response body.");
+            }
+            using (var overLimit = new StringContent(
+                new string('x', MaximumResponseCharacters + 1), Encoding.UTF8, "text/plain"))
+            {
+                var rejected = false;
+                try
+                {
+                    CancelableHttpContentReader.ReadStringAsync(
+                        overLimit, CancellationToken.None, MaximumResponseCharacters)
+                        .GetAwaiter().GetResult();
+                }
+                catch (System.IO.InvalidDataException) { rejected = true; }
+                Require(rejected, "CloudBase accepted an oversized response body.");
             }
 
             var diagnostic = BuildFailureMessage("device readback", HttpStatusCode.Forbidden);

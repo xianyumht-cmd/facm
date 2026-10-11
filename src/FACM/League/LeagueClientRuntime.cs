@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Mayhem;
 using FACM.Services;
 
 namespace FACM.League
@@ -467,12 +468,15 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var response = await lease.Client.GetAsync(NormalizePath(path), cancellationToken).ConfigureAwait(false))
+                    using (var response = await lease.Client.GetAsync(
+                        NormalizePath(path), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
                     {
                         if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
                             _sessions.Invalidate(session);
                         if (!response.IsSuccessStatusCode) return null;
-                        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                        return await CancelableHttpContentReader.ReadBytesAsync(
+                            response.Content, cancellationToken,
+                            CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException)
