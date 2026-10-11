@@ -12,20 +12,20 @@
 - release_notes：GGman 3.5.72：修复选英雄实时伴随窗口海斗攻略数据显示不完整的问题。保留非前十英雄有来源的个人胜率、排名和评级，已知过期版本的数据仍不显示；当海克斯强化仅有一两条时继续尝试备用数据源，并提示数据不足；大乱斗基础平衡说明使用自适应高度，减少长文字裁切。保留海斗多数据源、原有管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Runtime Companion Mayhem regression fix (merged; 3.5.72 release requested)
+## 2026-10-11 — Runtime Companion Mayhem regression fix (signed 3.5.72 released)
 
 - PR #339 merged into main as `8ffab99e2fcd38ad17d823806629804dee1b6b6d`; the GGman Windows Build #38128127495, FACM UI Text Contract #38128127492 and Mayhem Source Probe #38128127508 passed, including the actual live probe step.
 - Patch: preserve unversioned or same-patch per-hero stats outside the top ten while refusing explicitly stale patch data, and label unverifiable per-hero patch evidence; attempt richer backup augments if primary parsing yields fewer than three entries; show sparse-result feedback; avoid clipping long base-ARAM balance notes in the compact, scrollable ChampSelect companion.
-- v3.5.72 signed, non-forced release request has been submitted in `release/3.5-request.json` (minimum `3.0.0`). **Until signed production publishing, publicly verified EXE hashes and active online manifest succeed, 3.5.71 remains the official online version.**
+- Release PR #340 merged as `807b0c4144c229adc5a06d7114ee5617d42fb691`; publisher #38129253593 succeeded and enabled online signed `v3.5.72` (non-forced, minimum `3.0.0`). Public `GGman.exe` and compatibility `FACM.exe` match byte-for-byte (2,609,560 bytes each) with SHA-256 `2DB961D54E7D59D9E2DBF216C918CE0445D8630A1464839703B432562874B0C7`.
 - The fixes are CI-tested but not yet validated in a live user's champion-select with Vladimir and Kalista. Preserve admin-capable updater and existing multi-source ranking; do not conflate these issues with upstream Hexdata health or the independent matchmade “退” behavior.
 
-## 2026-10-11 — 海斗榜多来源监测收尾（已合并，客户端继续 3.5.71）
+## 2026-10-11 — 海斗榜多来源监测收尾（已合并，3.5.71 起生效）
 
 - **已合并：** PR #337（`3c8f0e955ad4b390416d99f45595620a793a7ee5`）将 Hexdata、ARAMGG、ARAMMayhem 各来源的完整前十、补丁与官方版本核对结果写入既有六小时定时工作流。最终提交 Windows Build #38103436962、UI Text Contract #38103436971、Mayhem Source Probe #38103437015 均通过；合并后 `main` 的探针 #38103524059 和实际 `Run live Mayhem source probe` 步骤再次成功。
 - **实测来源（2026-10-11）：** Hexdata 补丁未知，0/10；ARAMGG 26.20，10/10；ARAMMayhem 26.20，10/10；选择 ARAMGG。腾讯官网补丁本次未取到，`official_patch=unknown`；**不能断言两份榜单已通过腾讯官网版本核验**。多个公开站点可能转发同一底层统计数据。
 - **失效边界：** 历史定时探针 #37892168662、#37935960020、#38000380496 真实报 `Top-ten ranking is incomplete`，属 3.5.71 修复前记录。当前两条公开排行传输链可用，但 Hexdata 的 0/10 原因未定；少于两条完整来源产生降级警告，最终英雄数据不完整仍使探针失败。
 - **后续验收：** 等待至少 2–3 次新的六小时定时运行，确认来源健康度和官网补丁状态的趋势。未见 3.5.71 发布后足够的 `schedule` 样本，不把 PR/main push 的多次通过当成长期可靠性证明。Blitz 当前榜单尚未核实，不作为备用源。
-- **发布状态：** 正式版仍为已签名 `v3.5.71`（见上方由发布工作流维护的版本区块）。此次仅维护 GitHub Actions 和文档，不修改客户端、云端数据、管理员权限或在线发布清单。操作说明见 `docs/OPERATIONS.md` 的海斗来源监测章节。
+- **历史发布状态：** 该监测改动在已签名的 `v3.5.71` 生效；当前正式版为 `v3.5.72`（见上方由发布工作流维护的版本区块）。当时的监测任务仅改动 GitHub Actions 和文档，未修改客户端、云端数据、管理员权限或在线发布清单。操作说明见 `docs/OPERATIONS.md` 的海斗来源监测章节。
 
 ## 2026-10-11 — Mayhem ranked-source reliability (signed 3.5.71 released)
 
