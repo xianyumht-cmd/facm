@@ -274,7 +274,7 @@ namespace FACM.Services
             return !string.IsNullOrEmpty(_state.LastOwner) && _state.LastOwner != owner;
         }
 
-        private async Task SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
+        private async Task<bool> SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
             string owner, bool otherOwner, GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, Func<Task<long>> upload,
             Action restore, CancellationToken token, int choice = 0, bool pristine = false)
@@ -285,9 +285,9 @@ namespace FACM.Services
             if (decision == SyncAction.Adopt)
             {
                 PersistCursor(history, owner, kind, remoteVersion, remoteHash);
-                return;
+                return true;
             }
-            if (decision == SyncAction.Unchanged) return;
+            if (decision == SyncAction.Unchanged) return true;
             if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges &&
                 decision == SyncAction.Restore)
                 decision = SyncAction.Conflict;
@@ -300,7 +300,7 @@ namespace FACM.Services
                     _conflict = kind;
                     _conflictHasRemote = remoteVersion > 0;
                 }
-                return;
+                return false;
             }
 
             token.ThrowIfCancellationRequested();
@@ -315,17 +315,47 @@ namespace FACM.Services
                 token.ThrowIfCancellationRequested();
                 PersistCursor(history, owner, kind, version, localHash);
             }
+            return true;
         }
 
         private void PersistCursor(GgmanAutoSyncAccountState history, string owner,
             string kind, long version, string hash)
         {
+            PersistCursorState(_state, history, owner, kind, version, hash, SaveState);
+        }
+
+        private static void PersistCursorState(GgmanAutoSyncState state,
+            GgmanAutoSyncAccountState history, string owner, string kind,
+            long version, string hash, Action save)
+        {
+            if (state == null || history == null || save == null)
+                throw new ArgumentNullException("Auto sync checkpoint requires valid state and storage.");
+            if (kind != "app" && kind != "text" && kind != "esc")
+                throw new ArgumentException("Unknown auto sync category.", nameof(kind));
+
+            var oldCursor = kind == "app" ? history.App :
+                kind == "text" ? history.Text : history.Esc;
+            var oldOwner = kind == "app" ? state.AppOwner :
+                kind == "text" ? state.TextOwner : state.EscOwner;
+            var oldLastOwner = state.LastOwner;
             var cursor = new GgmanAutoSyncCursor { Version = version, Fingerprint = hash };
-            if (kind == "app") { history.App = cursor; _state.AppOwner = owner; }
-            else if (kind == "text") { history.Text = cursor; _state.TextOwner = owner; }
-            else if (kind == "esc") { history.Esc = cursor; _state.EscOwner = owner; }
-            if (string.IsNullOrEmpty(_state.LastOwner)) _state.LastOwner = owner;
-            SaveState();
+
+            try
+            {
+                if (kind == "app") { history.App = cursor; state.AppOwner = owner; }
+                else if (kind == "text") { history.Text = cursor; state.TextOwner = owner; }
+                else { history.Esc = cursor; state.EscOwner = owner; }
+                if (string.IsNullOrEmpty(state.LastOwner)) state.LastOwner = owner;
+                save();
+            }
+            catch
+            {
+                if (kind == "app") { history.App = oldCursor; state.AppOwner = oldOwner; }
+                else if (kind == "text") { history.Text = oldCursor; state.TextOwner = oldOwner; }
+                else { history.Esc = oldCursor; state.EscOwner = oldOwner; }
+                state.LastOwner = oldLastOwner;
+                throw;
+            }
         }
 
         internal async Task ResolveConflictAsync(bool keepLocal)
@@ -339,6 +369,7 @@ namespace FACM.Services
             var token = _sessionCancellation.Token;
             try
             {
+                var resolved = false;
                 var owner = Hash(account.UserId);
                 GgmanAutoSyncAccountState history;
                 if (!_state.Accounts.TryGetValue(owner, out history)) return;
@@ -352,7 +383,7 @@ namespace FACM.Services
                         var remote = await appClient.GetAsync(account, token);
                         var local = GgmanPortableSettingsStore.Capture(_settings);
                         RequireSession(account, token);
-                        await SyncOneAsync(kind, history, owner, false, history.App,
+                        resolved = await SyncOneAsync(kind, history, owner, false, history.App,
                             FingerprintApp(local), remote == null ? 0 : remote.Version,
                             remote == null ? null : FingerprintApp(remote.Profile),
                             async () => await appClient.SetAsync(account, local,
@@ -365,7 +396,7 @@ namespace FACM.Services
                         var remote = await textClient.GetAsync(account, token);
                         var local = UiTextCustomizationStore.Capture();
                         RequireSession(account, token);
-                        await SyncOneAsync(kind, history, owner, false, history.Text,
+                        resolved = await SyncOneAsync(kind, history, owner, false, history.Text,
                             FingerprintText(local), remote == null ? 0 : remote.Version,
                             remote == null ? null : FingerprintText(remote.Profile),
                             async () => await textClient.SetAsync(account, local,
@@ -380,7 +411,7 @@ namespace FACM.Services
                         var local = EscSettingsBackup.Capture(dir);
                         var remote = await escClient.GetAsync(account, token);
                         RequireSession(account, token);
-                        await SyncOneAsync(kind, history, owner, false, history.Esc,
+                        resolved = await SyncOneAsync(kind, history, owner, false, history.Esc,
                             FingerprintEsc(local), remote == null ? 0 : remote.Version,
                             remote == null ? null : FingerprintEsc(remote.Bundle),
                             async () => await escClient.SetAsync(account, local,
@@ -389,11 +420,14 @@ namespace FACM.Services
                             token, keepLocal ? 1 : 2);
                     }
                 }
-                _conflict = null;
-                _conflictHasRemote = false;
-                _errors = 0;
-                _notBeforeUtc = DateTime.MinValue;
-                _timer.Interval = 1500;
+                if (resolved)
+                {
+                    _conflict = null;
+                    _conflictHasRemote = false;
+                    _errors = 0;
+                    _notBeforeUtc = DateTime.MinValue;
+                    _timer.Interval = 1500;
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception error)
@@ -491,6 +525,46 @@ namespace FACM.Services
                 Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict ||
                 Decide(previous, "new", 5, "old", true, false) != SyncAction.Conflict)
                 throw new InvalidOperationException("Auto sync conflict-selection rules changed.");
+
+            var state = new GgmanAutoSyncState();
+            state.Accounts.Add(key, demo);
+            var failed = false;
+            try
+            {
+                PersistCursorState(state, demo, key, "app", 1, "first",
+                    () => { throw new IOException("checkpoint unavailable"); });
+            }
+            catch (IOException) { failed = true; }
+            if (!failed || demo.App != null || state.AppOwner != string.Empty ||
+                state.LastOwner != string.Empty)
+                throw new InvalidOperationException("Failed checkpoint changed in-memory ownership.");
+
+            PersistCursorState(state, demo, key, "app", 1, "first", () => { });
+            var committed = demo.App;
+            failed = false;
+            try
+            {
+                PersistCursorState(state, demo, "another-owner", "app", 2, "second",
+                    () => { throw new IOException("checkpoint unavailable"); });
+            }
+            catch (IOException) { failed = true; }
+            if (!failed || !ReferenceEquals(demo.App, committed) ||
+                state.AppOwner != key || state.LastOwner != key)
+                throw new InvalidOperationException("Failed checkpoint replaced a committed cursor.");
+
+            foreach (var category in new[] { "text", "esc" })
+            {
+                failed = false;
+                try
+                {
+                    PersistCursorState(state, demo, "another-owner", category, 1, "test",
+                        () => { throw new IOException("checkpoint unavailable"); });
+                }
+                catch (IOException) { failed = true; }
+                if (!failed || demo.Text != null || demo.Esc != null ||
+                    state.TextOwner != string.Empty || state.EscOwner != string.Empty)
+                    throw new InvalidOperationException("Failed checkpoint changed category ownership.");
+            }
         }
 
         public void Dispose()
