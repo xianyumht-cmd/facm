@@ -1,6 +1,13 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
+## 2026-10-11 — HTTP response guard repair (candidate, not released)
+
+- User decision: preserve GGman's current administrator-capable run/update behavior; prioritize harmful reliability defects instead of changing elevation.
+- Candidate branch: `fix/ggman-network-response-guards-20261011`, based on main `1714601754f76416f29ef60e19154051057ac8b4`.
+- Narrow changes: anonymous CloudBase responses now use the existing bounded/cancellable HTTP body reader (128 KiB); LCU responses now stream after headers instead of buffering before enforcing the existing 20 MiB image budget; smoke covers CloudBase in-range and oversized bodies.
+- Status: candidate source change only until Windows Build, UI Text Contract and relevant smoke complete; production remains signed v3.5.67. Registered account token refresh, announcement visibility race and Mayhem remote data probe require separate, scoped handling and acceptance.
+
 - 版本：GGman 3.5.67
 - GitHub Release：v3.5.67
 - 在线更新：已启用
