@@ -72,6 +72,7 @@ namespace FACM.Mayhem
         public string ChampionSlug { get; set; }
         public string Patch { get; set; }
         public string RankingPatch { get; set; }
+        public string SelectedRankingPatch { get; set; }
         public int? Rank { get; set; }
         public string Tier { get; set; }
         public double? WinRate { get; set; }

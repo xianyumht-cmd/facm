@@ -186,6 +186,7 @@ namespace FACM.Mayhem
         {
             if (result == null || selected == null) return;
             result.TopTen = selected.TopTen;
+            result.SelectedRankingPatch = selected.Patch;
 
             var detailPatchKnown = !string.IsNullOrWhiteSpace(result.RankingPatch);
             var detailMatches = detailPatchKnown &&
@@ -518,6 +519,14 @@ namespace FACM.Mayhem
         {
             if (string.IsNullOrWhiteSpace(html)) return;
             var text = CleanText(NormalizeEscapedHtml(html));
+            var augmentsStart = text.IndexOf("Best Augments for", StringComparison.OrdinalIgnoreCase);
+            var overview = text.Substring(0, Math.Min(1100, augmentsStart >= 0 ? augmentsStart : text.Length));
+            var overviewRank = Match(overview, @"\b(?:S\+|S|A|B|C|D|F)\s*#(?<v>\d{1,3})\s*Rank", false);
+            int currentRank;
+            if (int.TryParse(overviewRank, out currentRank) && currentRank > 0)
+                result.Rank = currentRank;
+            var overviewTier = Match(overview, @"\b(?<v>S\+|S|A|B|C|D|F)\s*#\d{1,3}\s*Rank", false);
+            if (!string.IsNullOrWhiteSpace(overviewTier)) result.Tier = overviewTier;
 
             result.RankingPatch = First(
                 Match(text, "Patch\\s*:\\s*(?<v>\\d{1,2}\\.\\d{1,2})", false),

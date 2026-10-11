@@ -22,6 +22,7 @@ namespace FACM.Mayhem
                 ValidateRankingHomeFixture();
                 ValidateRichAugmentFixture();
                 ValidateBuildDetailsFixture();
+                ValidatePublicCompanionFallbackFixture();
                 ValidateLocalizedProjectionFixture();
 
                 var noLeagueClient = new NoLeagueClientApi();
@@ -251,6 +252,55 @@ namespace FACM.Mayhem
                 if (image.Width != MayhemCardRenderer.CardWidth || image.Height < 650 || image.Height > 1750)
                     throw new InvalidOperationException("Decision-card build fixture rendered invalid dimensions.");
             }
+        }
+
+        private static void ValidatePublicCompanionFallbackFixture()
+        {
+            const string html =
+                "<h1>Vladimir ARAM Mayhem Build</h1><p>Patch: 26.20</p>" +
+                "<h2>Best Augments for Vladimir</h2><h3>Prismatic Augments</h3>" +
+                "<a href='/augments/eureka/'>Eureka S · #1 Overall S · #4 Appearance rate: 12.71% Win rate: 58.25%</a>" +
+                "<a href='/augments/goliath/'>Goliath S · #2 Overall S · #10 Appearance rate: 6.56% Win rate: 57.46%</a>" +
+                "<h3>Gold Augments</h3>" +
+                "<a href='/augments/recursion/'>Recursion S · #1 Overall S · #2 Appearance rate: 14.81% Win rate: 61.19%</a>" +
+                "<a href='/augments/tank-engine/'>Tank Engine S · #2 Overall S · #3 Appearance rate: 14.07% Win rate: 60.08%</a>" +
+                "<h3>Silver Augments</h3>" +
+                "<a href='/augments/adapt/'>ADAPt S · #1 Overall S · #7 Appearance rate: 11.67% Win rate: 55.85%</a>" +
+                "<a href='/augments/escape-plan/'>Escape Plan S · #2 Overall S · #20 Appearance rate: 4.67% Win rate: 57.75%</a>" +
+                "<h2>Augment Combos</h2><h2>Skill Priority</h2>Q>E>W" +
+                "<h2>Starting Items</h2><a href='/items/amplifying-tome/'>Amplifying Tome</a>" +
+                "<a href='/items/guardians-orb/'>Guardian's Orb</a>" +
+                "<h2>Boots</h2><a href='/items/sorcerers-shoes/'>Sorcerer's Shoes</a>" +
+                "<h2>Core Builds</h2>" +
+                "<a href='/items/heartsteel/'>Heartsteel</a>›" +
+                "<a href='/items/riftmaker/'>Riftmaker</a>›" +
+                "<a href='/items/spirit-visage/'>Spirit Visage</a>" +
+                "<span>Pick Rate 5.95% Win Rate 45.52%</span><h2>Other completed items</h2>";
+            var result = new MayhemChampionResult
+            {
+                ChampionSlug = "vladimir", SelectedRankingPatch = "26.20"
+            };
+            var rows = MayhemRankedAugmentService.ParseAramMayhemForSmokeTest(result, html);
+            if (rows.Count < 5 || rows[0].Name != "Eureka" || rows[0].RarityKind != "prism" ||
+                Math.Abs((rows[0].WinRate ?? 0) - 58.25) > 0.01 ||
+                Math.Abs((rows[0].PickRate ?? 0) - 12.71) > 0.01 ||
+                result.AugmentRoutes.Count < 2)
+                throw new InvalidOperationException("Current-patch public augment fallback is incomplete.");
+            var fields = MayhemBuildDetailsService.ApplyAramMayhemFallback(result, html);
+            if (fields < 3 || result.CoreBuilds.Count != 1 ||
+                result.CoreBuilds[0].Items.Count != 3 ||
+                result.StarterItems.Count != 2 || result.BootItems.Count != 1 ||
+                result.SkillOrder != "Q > E > W")
+                throw new InvalidOperationException("Current-patch public build fallback is incomplete.");
+
+            var stale = new MayhemChampionResult { SelectedRankingPatch = "26.21" };
+            if (MayhemRankedAugmentService.ParseAramMayhemForSmokeTest(stale, html).Count != 0 ||
+                MayhemBuildDetailsService.ApplyAramMayhemFallback(stale, html) != 0)
+                throw new InvalidOperationException("Old-patch companion data was accepted as current.");
+            var richer = new MayhemChampionResult { SelectedRankingPatch = "26.20" };
+            MayhemRankedAugmentService.ParseAramMayhemForSmokeTest(richer, html);
+            if (richer.AugmentRows.Count < 5)
+                throw new InvalidOperationException("OP.GG blocked fallback did not fill ranked augments.");
         }
 
         private static void ValidateLocalizedProjectionFixture()
