@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Preserve elevated update behavior; bound cloud and local transport reads
+
+The product intentionally preserves its existing administrator-capable update/restart behavior; this is not part of the current stability repair scope. Any future privilege-boundary change requires a separate product decision and a real Windows acceptance test. CloudBase anonymous responses and LCU responses must be streamed with hard byte ceilings and cooperative cancellation, reusing the established bounded content reader rather than allowing a late size check after full buffering. Preserve existing endpoint semantics and fail safely on malformed or oversized replies.
+
 This file records current product decisions. Historical implementation detail belongs in Git history and the 3.5.19 backport audit.
 
 ## D-001 — 3.5.x is the only maintained product line
