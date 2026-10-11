@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.69：修复邮箱账号登录运行一段时间后可能导致自动同步、ESC 云配置、文字自定义云配置、软件设置和注册统计无法继续访问的问题。注册账号令牌失效时安全地自动续期并只重试一次；增加登录会话隔离，防止退出或切换账号时旧异步请求影响新账号。登录凭据仍只保存在程序内存中，关闭程序后不会自动登录。管理员权限及更新机制保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-11 — Auto-sync checkpoint and conflict acknowledgement candidate
+
+- Task branch `fix/auto-sync-state-commit-20261011` based on main `2047a42ce57962ec0731fb144ffb21b37d466862`, current production 3.5.69.
+- Recoverable failure fix: roll back in-memory cursor/ownership when saving the atomic auto-sync metadata file fails, and re-adopt authoritative cloud revision on a later poll; protect successful metadata already in memory. Manual conflict resolution clears its prompt only after the requested upload or restore has really completed.
+- Smoke tests inject checkpoint save failure for app/text/ESC metadata and verify rollback, including a previously committed owner. Existing remote CAS, local backup, no persisted auth token, current WinForms surface and administrator behavior stay unchanged.
+- Verify Windows Build and UI Text Contract before merge; live disk failure, cloud contention and two-device sync field acceptance remain unverified until native tests.
+
 ## 2026-10-11 — Registered account renewal (signed 3.5.69 released)
 
 - PR #327 merged as `bc6e5e744fe7b2388007b3d009fc72c7d12c312e` after Windows Build #38100075723 and UI Text Contract #38100075825 passed. `ggman-email-auth` smoke verifies token rotation and rejects stale same-UID relogin requests.
