@@ -1,5 +1,13 @@
 # FACM Pitfalls
 
+## A complete top-ten ranking does not validate every champion's statistics (2026-10-11)
+
+The 3.5.71 Mayhem source-switch selected one validated current-patch top ten and then discarded hero-specific rank/win-rate/tier whenever `SamePatch(detailPatch, selectedPatch)` was false. Missing detail patches also returned false: the logic cleared valid-looking stats for every hero outside the top ten, which could not be restored from those ten rows. Preserve per-hero details when patch labels are equal or the detail patch is unknown; label unknown as unverified, not as official. Reject known-mismatched personal statistics, and overwrite only with an actual matching row from the selected current list. Cover out-of-top-ten heroes, patch aliases, known old patches, and chosen-top-ten cases with deterministic fixtures.
+
+OP.GG's structured/rendered augment page can expose only one or two valid rows and previously short-circuited fallback because its count was greater than zero. Treat fewer than three as sparse; try the existing bounded ARAMMayhem fallback and replace only when it has more valid rows. Clearly label still-sparse UI, and do not claim it contains the full ranked set. This is separate from the base ARAM balance source, which can genuinely be unavailable.
+
+WinForms compact layout requires the long base-ARAM status to use full row width and measured bounded height inside the existing scrollable body; a fixed 46px label and 72px caption silently hid content despite a correct data response.
+
 ## A green Mayhem live probe can conceal loss of redundancy (2026-10-11)
 
 The end-to-end Mayhem source test passes as soon as its final champion result is complete. It cannot tell whether the Hexdata, ARAMGG and ARAMMayhem fallback routes are individually parseable: the only healthy route might be carrying every successful check. Scheduled CI must therefore log bounded per-provider public fetches, each source patch, unique sequential top-ten validity, current-patch agreement and total healthy-source count separately. Emit an explicit GitHub Actions warning when redundancy falls below two complete/current transports, while preserving the existing strict end-to-end failure check. Source health output must not print fetched HTML, URLs with private tokens or unrelated secrets.
