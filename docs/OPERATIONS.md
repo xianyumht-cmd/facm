@@ -1,10 +1,10 @@
-# FACM Operations
+# GGman Operations (3.5.x)
 
 ## Normal development flow
 
 1. Work from current `main` or a focused branch.
 2. Keep changes inside the 3.5.x lightweight architecture unless a concrete requirement proves otherwise.
-3. Run/observe **FACM Windows Build** and **FACM UI Text Contract**.
+3. Run/observe **GGman Windows Build** and **FACM UI Text Contract**.
 4. For League/Mayhem/UI changes, use the relevant smoke tests and a real Windows/League check when behavior cannot be proven in CI.
 5. Merge only after the branch is green.
 
@@ -24,11 +24,11 @@ The script must keep the lightweight contract:
 - build `FACM.sln` with CI smoke tests;
 - verify ToolBundle is embedded;
 - verify `FACM.Resources.PetHost.zip` is absent;
-- verify FACM.exe <10 MiB.
+- verify lightweight `GGman.exe` <10 MiB; the published `FACM.exe` is a byte-identical legacy-update compatibility asset.
 
 ## GitHub build artifact
 
-Use **Actions → FACM Windows Build → Run workflow** when a fresh candidate is needed. A successful run uploads `FACM-Windows-x64-<run-number>` containing the lightweight executable/package metadata.
+Use **Actions → GGman Windows Build → Run workflow** when a fresh candidate is needed. A successful run uploads the build artifact from that run (including the lightweight executable/package metadata); the artifact is not a signed public release.
 
 Do not treat an artifact as a public release until the release workflow updates the GitHub Release and `online/version.json`.
 
@@ -54,15 +54,15 @@ Edit `release/3.5-request.json` on `main` using the exact current schema:
 
 ```json
 {
-  "version": "3.5.21",
+  "version": "3.5.72",
   "minimum_version": "3.0.0",
   "force_update": false,
   "prerelease": false,
-  "release_notes": "FACM 3.5.21 lightweight update."
+  "release_notes": "Describe the verified GGman 3.5.x changes here."
 }
 ```
 
-A push touching that file triggers the same publisher. The workflow rejects an already-existing release tag; never reuse an old version number to publish new bytes.
+This JSON is a **format example, not an authorized release request**. Choose the next unused 3.5.x version when actually publishing. A push touching that file triggers the same publisher. The workflow rejects an already-existing release tag; never reuse an old version number to publish new bytes.
 
 The publisher freezes `main`, builds and signs the candidate, first writes an `enabled=false` manifest, publishes the GitHub Release, downloads the public asset again to verify size/SHA-256/signer, then enables the online manifest. The current manifest schema is migration-free.
 
@@ -98,7 +98,7 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 
 ## Default-on registered background configuration sync acceptance
 
-Signed `v3.5.67` is already published and online-enabled. These checks are **post-release native field acceptance**, not prerequisites that should be marked complete without real devices. A docs-only closeout does not trigger a new release.
+Default-on auto-sync originally shipped signed in `v3.5.67`; follow-up fixes to registered token renewal and local sync-state recovery shipped in `v3.5.69` and `v3.5.70`. The current signed online release is `v3.5.71` as of 2026-10-11. These checks are **post-release native field acceptance**, not prerequisites that should be marked complete without real devices. A docs-only closeout does not trigger a new release.
 
 This feature **reuses already deployed SQL 005, 007 and 008**: no migration, table creation or operator SQL is required. Verify a fresh Windows install has the auto-sync checkbox checked, without duplicate manual upload/restore buttons. Sign in and wait for the background status to move from waiting to ready; do not need to open My GGman for changes to transfer. On local-only change, confirm one new matching account-owned cloud revision, then no further revisions while unchanged. On remote-only change, confirm local backup-before-restore and no overwrite of local path/device geometry or privacy consent. Test same account across two Win10 systems, then A->B->A on one PC: never transfer the previous account's file content without the rare conflict confirmation. Test both-sides edits, one-time keep-local/use-cloud actions, cloud-missing fallback, invalid-game-path skip, unsaved text drafts, offline backoff, ESC changes while LOL is running and turning off the checkbox during an ongoing request. Logout cancels pending operations; reopen GGman and log in anew since account credentials are intentionally memory-only in this release. These build/signing gates were completed for 3.5.67; any later client fix requires its own reviewed CI and separately signed patch. Do not substitute detached test EXEs.
 
@@ -127,6 +127,20 @@ For automation changes verify at least:
 For desktop visibility changes verify InGame hide and post-game ownership restore for default ball, sprite/VPet and user-manually-hidden states.
 
 For Mayhem changes verify percentage units, full content and load speed; do not casually change the service/cache/network path.
+
+## 海斗榜来源健康监测
+
+正式工作流：**FACM Mayhem Source Probe**（[mayhem-source-probe.yml](../.github/workflows/mayhem-source-probe.yml)），按 UTC cron `17 */6 * * *` 运行；涉及 Mayhem 源码的 push/PR 也会触发。GitHub Actions 的定时运行存在平台排队偏差，不应据此假设准点执行。
+
+1. 在仓库 Actions → **FACM Mayhem Source Probe** 打开最新的 `schedule` 运行，查看 **Run live Mayhem source probe** 步骤，而非只看工作流总状态。PR 上探针 job 有 `continue-on-error`，步骤失败不等于工作流总状态一定失败。
+2. 查看运行摘要中的 **Mayhem ranked source health** 或展开步骤日志。每个来源分别报告 `name`、`patch`、`rows`、`complete` 和 `official_patch_match`。还会报告 `complete=N/3`、`official_patch`、`current_patch`、`selected`。
+3. `complete=true` 代表解析出连续、无重复、数值有效的完整前十名；`official_patch_match=unknown` 代表本轮未取得腾讯官网补丁，**不能认定官方版本已校验**。同补丁的多个第三方网站可能使用相同的腾讯统计基础，并非独立比赛样本。
+4. 至少两个来源完整且（官网版本可读时）与官网一致，为当前冗余目标；少于两个发出 **degraded** 警告，但最终攻略仍能正常展示时不直接判定整个客户端故障。最终英雄攻略、榜单、图标、强化等完整性不满足 smoke 合约时，**Run live Mayhem source probe** 步骤失败。
+5. 出现降级或失败时，先区分网络不可达、HTML 结构变化、榜单不足 10 条和补丁过期。对比至少连续 2–3 次定时结果，必要时取近 14 天的 `mayhem-source-probe-<run-number>` 日志 artifact；不能只拿一个 PR 的绿色勾号证明长期可用。
+
+2026-10-11 的 [`main` 实时探针 #38103524059](https://github.com/xianyumht-cmd/facm/actions/runs/38103524059) 已成功：Hexdata `0/10`、补丁未知；ARAMGG `10/10`、26.20；ARAMMayhem `10/10`、26.20；腾讯官方补丁 `unknown`；自动选择 ARAMGG。此前 10 月 9 日定时探针多次以 `Top-ten ranking is incomplete` 失败。此处记录的是观测，不意味着 Hexdata 故障原因已定位或未来六小时运行一定成功。
+
+**排查原则：** 来源检查是既有 Windows CI 的一部分，不在 GGman 客户端新增轮询、账号凭据或新版本发布。修复数据源需在任务分支改动并重新通过 Windows Build、UI Text Contract 和实际 live probe；定时探针数据波动本身不自动触发在线客户端更新。
 
 ## Rollback / incident response
 
