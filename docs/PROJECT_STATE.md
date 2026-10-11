@@ -12,12 +12,13 @@
 - release_notes：GGman 3.5.68：提高网络异常时的稳定性。CloudBase 云端响应采用有大小上限、支持取消的流式读取；LOL 客户端本地接口也先读取响应头，再按大小上限接收数据，减少异常响应造成的内存峰值和等待。管理员权限运行、现有更新方式、云同步数据格式和 LOL 功能保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Registered account renewal candidate (not published)
+## 2026-10-11 — Registered account renewal (merged; 3.5.69 release requested)
 
-- Task branch: `fix/registered-account-session-renewal-20261011`, based on main `93a8e5722d6852ffb08d603be91f289333a953fe`. Retain signed 3.5.68 as the active online release until full CI, PR merge and canonical signing/publishing gates succeed.
-- Planned behavior in this candidate: serialized in-memory refresh after registered RPC HTTP 401; one retry, no duplicate ambiguous writes, no on-disk account credentials. Login-session generation fences out logout/relogin and A→B→A; token rotation does not trigger an account-changed event that would cancel background sync.
-- Registered app preferences, text, ESC and personal-stats RPCs share the same renewal owner. Native two-device/login-expiry acceptance remains required before claiming actual live OTP renewal is proven. GGman administrator-capable updater behavior is preserved.
-- Separate docs-only PR #326 remains open and is not a prerequisite for this credential fix.
+- PR #327 merged as `bc6e5e744fe7b2388007b3d009fc72c7d12c312e` after Windows Build #38100075723 and UI Text Contract #38100075825 succeeded. Built-in `ggman-email-auth` deterministic smoke tests cover token rotation and stale same-UID relogin rejection.
+- Registered app settings, UI text, ESC and personal-stats RPCs retry **once after HTTP 401**, through a process-wide serialized `auth/v1/token` refresh. Fresh access/refresh tokens stay in memory, not files; login generation fences protect logout and A→B→A transitions. Cloud CAS revisions, updater elevation and database schemas are unchanged.
+- Release request v3.5.69 in `release/3.5-request.json`, non-forced with minimum 3.0.0. Until the signed release workflow verifies public assets and enables `online/version.json`, signed v3.5.68 remains production.
+- Native field acceptance for real CloudBase refresh-token expiry, two registered accounts and two PCs is still outstanding; CI cannot confirm real provider token rotation. Announcement race and Mayhem live ranking probe remain separate issues.
+- Docs-only PR #326 is superseded by the publisher-state marker reconciliation included in PR #327, but it remains open pending administrative closeout.
 
 ## 2026-10-11 — Bounded network response reads (signed 3.5.68 released)
 
