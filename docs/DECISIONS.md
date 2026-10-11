@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Registered authentication renews in memory after unauthorized responses
+
+Continue optional email OTP login with no persisted access or refresh token. For registered cloud operations, handle exact HTTP 401 with single-flight CloudBase `auth/v1/token` refresh and one authorized retry. Do not automatically retry writes for ambiguous transport errors or CAS revision conflicts. A new login creates a unique session generation; token rotation preserves it without announcing an account switch. Logout clears only the generation that initiated it. UI text and automatic sync fences compare generation and UID rather than mutable access-token bytes. This is independent from administrator-capable updater behavior.
+
 ## 2026-10-11 — Preserve elevated update behavior; bound cloud and local transport reads
 
 The product intentionally preserves its existing administrator-capable update/restart behavior; this is not part of the current stability repair scope. Any future privilege-boundary change requires a separate product decision and a real Windows acceptance test. CloudBase anonymous responses and LCU responses must be streamed with hard byte ceilings and cooperative cancellation, reusing the established bounded content reader rather than allowing a late size check after full buffering. Preserve existing endpoint semantics and fail safely on malformed or oversized replies.
