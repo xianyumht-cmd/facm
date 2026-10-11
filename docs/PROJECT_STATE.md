@@ -12,13 +12,13 @@
 - release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Mayhem per-source scheduled probe diagnostics (PR #337)
+## 2026-10-11 — 海斗榜多来源监测收尾（已合并，客户端继续 3.5.71）
 
-- PR #337, branch `fix/mayhem-provider-probe-visibility-20261011`, based on main `822b6e1a9c44fe6a2eb099f3842153f8cf7de012`. This enhances the existing six-hour Windows Action, not GGman's public runtime; signed production remains `v3.5.71` without an EXE release request.
-- Historical scheduled probes including `37892168662`, `37935960020` and `38000380496` failed at the actual live step with `Top-ten ranking is incomplete`. The 3.5.71 PR/push live probes `38102048643`, `38102195973` and `38102301785` passed, but no post-release six-hour scheduled sample had yet occurred at this audit.
-- Independent provider checks share the existing bounded readers: each records source, patch, row count, complete ten-row validity and independent Tencent official-patch agreement. A missing official patch is reported `unknown`, never treated as a successful verification. Fewer than two complete (or, when official patch is known, fewer than two matching) sources produce a warning without falsely failing an otherwise working GGman query. GitHub Actions shows these in the job summary and retains short-lived diagnostic logs.
-- Actual live PR test run `38103325934` passed its `Run live Mayhem source probe` step. It recorded Hexdata `0/10` and unknown patch, ARAMGG `10/10` at `26.20`, ARAMMayhem `10/10` at `26.20`, selected ARAMGG. Tencent's official patch check was unavailable and deliberately reported unknown; a pair of complete matching site patch labels is **not** proof of official patch agreement. A previous run `38103219627` also showed two complete providers but used fallback result patch, so official-match conclusions from it are superseded.
-- Keep the existing strict end-to-end smoke failure gate, and require Windows Build/UI Text Contract before merging PR #337. Future scheduled runs, not a few PR green checks, are required to establish a reliable long-term trend. No updater, cloud, LCU or user feature behavior is changed.
+- **已合并：** PR #337（`3c8f0e955ad4b390416d99f45595620a793a7ee5`）将 Hexdata、ARAMGG、ARAMMayhem 各来源的完整前十、补丁与官方版本核对结果写入既有六小时定时工作流。最终提交 Windows Build #38103436962、UI Text Contract #38103436971、Mayhem Source Probe #38103437015 均通过；合并后 `main` 的探针 #38103524059 和实际 `Run live Mayhem source probe` 步骤再次成功。
+- **实测来源（2026-10-11）：** Hexdata 补丁未知，0/10；ARAMGG 26.20，10/10；ARAMMayhem 26.20，10/10；选择 ARAMGG。腾讯官网补丁本次未取到，`official_patch=unknown`；**不能断言两份榜单已通过腾讯官网版本核验**。多个公开站点可能转发同一底层统计数据。
+- **失效边界：** 历史定时探针 #37892168662、#37935960020、#38000380496 真实报 `Top-ten ranking is incomplete`，属 3.5.71 修复前记录。当前两条公开排行传输链可用，但 Hexdata 的 0/10 原因未定；少于两条完整来源产生降级警告，最终英雄数据不完整仍使探针失败。
+- **后续验收：** 等待至少 2–3 次新的六小时定时运行，确认来源健康度和官网补丁状态的趋势。未见 3.5.71 发布后足够的 `schedule` 样本，不把 PR/main push 的多次通过当成长期可靠性证明。Blitz 当前榜单尚未核实，不作为备用源。
+- **发布状态：** 正式版仍为已签名 `v3.5.71`（见上方由发布工作流维护的版本区块）。此次仅维护 GitHub Actions 和文档，不修改客户端、云端数据、管理员权限或在线发布清单。操作说明见 `docs/OPERATIONS.md` 的海斗来源监测章节。
 
 ## 2026-10-11 — Mayhem ranked-source reliability (signed 3.5.71 released)
 
