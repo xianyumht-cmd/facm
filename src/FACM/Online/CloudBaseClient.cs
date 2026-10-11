@@ -480,6 +480,29 @@ namespace FACM.Online
                 Require(!IsTelemetryEventName("League Dashboard Open"), "CloudBase telemetry event validation accepted an invalid name.");
             }
 
+            using (var withinLimit = new StringContent(
+                new string('x', MaximumResponseCharacters), Encoding.UTF8, "text/plain"))
+            {
+                var text = CancelableHttpContentReader.ReadStringAsync(
+                    withinLimit, CancellationToken.None, MaximumResponseCharacters)
+                    .GetAwaiter().GetResult();
+                Require(text.Length == MaximumResponseCharacters,
+                    "CloudBase rejected an in-limit response body.");
+            }
+            using (var overLimit = new StringContent(
+                new string('x', MaximumResponseCharacters + 1), Encoding.UTF8, "text/plain"))
+            {
+                var rejected = false;
+                try
+                {
+                    CancelableHttpContentReader.ReadStringAsync(
+                        overLimit, CancellationToken.None, MaximumResponseCharacters)
+                        .GetAwaiter().GetResult();
+                }
+                catch (System.IO.InvalidDataException) { rejected = true; }
+                Require(rejected, "CloudBase accepted an oversized response body.");
+            }
+
             var diagnostic = BuildFailureMessage("device readback", HttpStatusCode.Forbidden);
             Require(diagnostic.IndexOf(access, StringComparison.Ordinal) < 0 && diagnostic.IndexOf(refresh1, StringComparison.Ordinal) < 0, "CloudBase diagnostic text leaked a token.");
         }
