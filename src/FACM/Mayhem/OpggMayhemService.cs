@@ -449,6 +449,11 @@ namespace FACM.Mayhem
             if (result.Augments.Count == 0) result.Augments = ParseRankingAugments(text, 8);
         }
 
+        internal static IList<MayhemTopChampion> ParseTopTenForSmokeTest(string html)
+        {
+            return ParseTopTen(html);
+        }
+
         private static List<MayhemTopChampion> ParseTopTen(string html)
         {
             var output = new List<MayhemTopChampion>();
