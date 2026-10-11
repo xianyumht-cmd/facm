@@ -12,13 +12,12 @@
 - release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Runtime Companion Mayhem data and compact-layout regression candidate
+## 2026-10-11 — Runtime Companion Mayhem regression fix (merged; 3.5.72 release requested)
 
-- Bug report: GGman 3.5.71 ChampSelect Runtime Companion shows missing hero stats, sparse 1/1 augment rankings and visually clipped long base-ARAM status in a 320px window; three screenshots include Vladimir and Kalista. The companion source files are `LeagueRuntimeCompanionForm`, `LeagueRuntimeCompanionController`, and `MayhemAutomaticGuideService`.
-- Root cause in 3.5.71: ranked-source selection discarded per-hero `Rank/WinRate/Tier` whenever the per-champion detail page did not advertise a patch, even when the user’s hero was outside the independently selected top-ten. Known conflicting patches must still be rejected; a missing detail patch remains unverified and must be labelled. The OP.GG enrich path previously accepted a single parsed augment as complete and skipped the ARAMMayhem fallback. Compact WinForms base ARAM panel was fixed at 58px, its caption only 72px wide, and its long text at 46px height/206px width.
-- Task branch `fix/companion-guide-data-ui-20261011`, based on main `8988b82f18c25d3dc1415beb06730de744b13f27`. Candidate: preserve per-hero stats on matching or missing patch, reject known stale stats, independently overwrite with selected full-list stats if hero is in its top ten; attempt richer augment fallback when fewer than 3 rows parsed; show a localized sparse-data warning; allocate bounded adaptive WinForms height and full width for ARAM balance title/body.
-- Targeted deterministic smoke: Vladimir/Kalista non-top-ten, known mismatched and top-ten replacement rank semantics; one-row versus richer augment fallback; companion label and height bounds. Pending Windows build, UI text contract and actual Mayhem live source probe; do **not** declare field acceptance from CI alone. Keep the signed 3.5.71 online until the separately reviewed 3.5.x publisher completes, with non-forced update and unchanged admin-capable updater behavior.
-- Other independent issues remain: 3.5.71 Hexdata upstream source 0/10, Tencent public patch query occasionally unknown, and separate official matchmade champion-select `退` field acceptance. This fix does not conflate them or alter their APIs.
+- PR #339 merged into main as `8ffab99e2fcd38ad17d823806629804dee1b6b6d`; the GGman Windows Build #38128127495, FACM UI Text Contract #38128127492 and Mayhem Source Probe #38128127508 passed, including the actual live probe step.
+- Patch: preserve unversioned or same-patch per-hero stats outside the top ten while refusing explicitly stale patch data, and label unverifiable per-hero patch evidence; attempt richer backup augments if primary parsing yields fewer than three entries; show sparse-result feedback; avoid clipping long base-ARAM balance notes in the compact, scrollable ChampSelect companion.
+- v3.5.72 signed, non-forced release request has been submitted in `release/3.5-request.json` (minimum `3.0.0`). **Until signed production publishing, publicly verified EXE hashes and active online manifest succeed, 3.5.71 remains the official online version.**
+- The fixes are CI-tested but not yet validated in a live user's champion-select with Vladimir and Kalista. Preserve admin-capable updater and existing multi-source ranking; do not conflate these issues with upstream Hexdata health or the independent matchmade “退” behavior.
 
 ## 2026-10-11 — 海斗榜多来源监测收尾（已合并，客户端继续 3.5.71）
 
