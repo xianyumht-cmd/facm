@@ -138,7 +138,7 @@ namespace FACM.Mayhem
             if (Select(incomplete, parsed) != parsed)
                 throw new InvalidOperationException("Incomplete newer ranking passed source selection.");
             rows[9] = rows[0];
-            if (Select(older, parsed) != parsed)
+            if (IsComplete(older))
                 throw new InvalidOperationException("Duplicate champion ranking was accepted.");
         }
 
