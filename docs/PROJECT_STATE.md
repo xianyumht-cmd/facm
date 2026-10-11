@@ -12,13 +12,13 @@
 - release_notes：GGman 3.5.69：修复邮箱账号登录运行一段时间后可能导致自动同步、ESC 云配置、文字自定义云配置、软件设置和注册统计无法继续访问的问题。注册账号令牌失效时安全地自动续期并只重试一次；增加登录会话隔离，防止退出或切换账号时旧异步请求影响新账号。登录凭据仍只保存在程序内存中，关闭程序后不会自动登录。管理员权限及更新机制保持不变。
 <!-- FACM_RELEASE_STATE_END -->
 
-## 2026-10-11 — Registered account renewal (merged; 3.5.69 release requested)
+## 2026-10-11 — Registered account renewal (signed 3.5.69 released)
 
-- PR #327 merged as `bc6e5e744fe7b2388007b3d009fc72c7d12c312e` after Windows Build #38100075723 and UI Text Contract #38100075825 succeeded. Built-in `ggman-email-auth` deterministic smoke tests cover token rotation and stale same-UID relogin rejection.
-- Registered app settings, UI text, ESC and personal-stats RPCs retry **once after HTTP 401**, through a process-wide serialized `auth/v1/token` refresh. Fresh access/refresh tokens stay in memory, not files; login generation fences protect logout and A→B→A transitions. Cloud CAS revisions, updater elevation and database schemas are unchanged.
-- Release request v3.5.69 in `release/3.5-request.json`, non-forced with minimum 3.0.0. Until the signed release workflow verifies public assets and enables `online/version.json`, signed v3.5.68 remains production.
-- Native field acceptance for real CloudBase refresh-token expiry, two registered accounts and two PCs is still outstanding; CI cannot confirm real provider token rotation. Announcement race and Mayhem live ranking probe remain separate issues.
-- Docs-only PR #326 is superseded by the publisher-state marker reconciliation included in PR #327, but it remains open pending administrative closeout.
+- PR #327 merged as `bc6e5e744fe7b2388007b3d009fc72c7d12c312e` after Windows Build #38100075723 and UI Text Contract #38100075825 passed. `ggman-email-auth` smoke verifies token rotation and rejects stale same-UID relogin requests.
+- App settings, UI text, ESC and registered stats RPCs retry once after HTTP 401 via a process-wide serialized registered `auth/v1/token` refresh. Tokens remain in memory, and login generation prevents logout/relogin and A→B→A races. Cloud CAS, updater elevation and SQL schemas are unchanged.
+- PR #328 merged as `83a7866cd43c6675a7cb79b419661bc09ffe7cec`; signed release workflow #38100314860 succeeded. The two public 3.5.69 EXEs are byte-identical (2,575,256 bytes) with SHA-256 `02D916ED27ADB6D65751CBE2D14028884510CB5DF02E5BA839594D3713357739`. `online/version.json` is enabled at v3.5.69, non-forced, minimum 3.0.0.
+- Real CloudBase access-token expiry, refresh-token rotation, same account on two PCs, and live logout/relogin still require native user acceptance; CI cannot prove provider behavior. Announcement and live Mayhem ranking issues remain separate.
+- Superseded docs-only PR #326 was closed with an explanation after its release-state marker repair was verified in merged PR #327. No branch history was rewritten or deleted.
 
 ## 2026-10-11 — Bounded network response reads (signed 3.5.68 released)
 
@@ -26,7 +26,7 @@
 - PR #324 merged as `96ad7feb38badbc46166ad910949020512ae8346`; Windows Build #38099123292 and UI Text Contract #38099123368 passed.
 - CloudBase anonymous responses use bounded, cancellation-aware HTTP body reads (128 KiB); LCU fetches request headers first and caps streaming replies at the established 20 MiB image budget. CloudBase smoke covers in-limit and oversized bodies.
 - PR #325 merged as `3933130fb05fca5160489fa1b3d16a3b163ecbb1`; signed release workflow #38099393281 succeeded. Public v3.5.68 `GGman.exe` and compatibility `FACM.exe` have identical SHA-256 `C759B8637561886B8FF841D3AF207C2F772CD4D0A619AE2CE4A3174E66A87A62` (2,566,040 bytes each); online manifest enabled, non-forced, minimum 3.0.0.
-- Registered login token refresh is addressed in the separate candidate; announcement and live Mayhem ranking probe remain future work.
+- Registered login token refresh followed in signed v3.5.69; announcement and live Mayhem ranking probes remain future work.
 
 ## 2026-10-10 — Default-on automatic registered config synchronization (signed 3.5.67 released)
 
