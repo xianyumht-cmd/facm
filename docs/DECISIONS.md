@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-11 — Preserve hero-specific evidence separately from Mayhem top-ten source selection
+
+GGman's ChampSelect Runtime Companion remains compact and is not a separate Mayhem ranking app. Its hero-specific ranking fields and the validated top-ten list are different evidence sets: a full top ten may supply one hero row when present, but must not erase other hero-specific fields only because the detail site did not include a parseable patch. Reject explicitly known stale personal stats, and describe unversioned personal fields as unverified. Continue to reject incomplete multi-provider stitched top-ten lists. Sparse augment data (<3 rows) triggers a bounded alternative attempt and visible warning, without manufacturing rows. Long base ARAM notes may expand vertically within the existing scrollable body; retain 320px companion width, 360–420px outer window height and current interaction model. Preserve updater elevation and release with a new non-forced signed 3.5.x version only after CI.
+
 ## 2026-10-11 — Monitor Mayhem provider redundancy separately from user-visible success
 
 Retain `FACM Mayhem Source Probe` on its existing six-hour GitHub Actions schedule. Besides the end-to-end champion build/card smoke, probe the three public champion-ranking transports independently with existing bounded HTTP requests. Report provider, patch, row count, ten-row completeness and agreement with the official patch in the job summary and short-lived logs. Warn on fewer than two complete/current transports instead of treating one upstream outage as a failed product query; preserve the strict failure gate for a broken final hero card. Do not add periodic client polling or require a new GGman release merely to improve scheduled CI observability.

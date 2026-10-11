@@ -93,7 +93,9 @@ namespace FACM.League
         private readonly RecommendationSection _enemyTeam;
         private readonly Panel _aramBalanceSection;
         private readonly Label _aramBalanceText;
+        private readonly Panel _aramBalanceRule;
         private readonly Panel _mayhemSection;
+        private readonly Label _augmentTitle;
         private readonly FlowLayoutPanel _augmentRows;
         private readonly Button _augmentPrevButton;
         private readonly Button _augmentNextButton;
@@ -412,7 +414,7 @@ namespace FACM.League
             _aramBalanceSection = new Panel
             {
                 Width = SectionWidth,
-                Height = 58,
+                Height = 82,
                 Margin = Padding.Empty,
                 BackColor = FacmDesignSystem.Canvas,
                 Visible = false
@@ -420,9 +422,9 @@ namespace FACM.League
             var aramBalanceTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.AramBaseBalance),
-                Location = new Point(0, 8),
-                Size = new Size(SectionCaptionWidth, 18),
-                AutoEllipsis = true,
+                Location = new Point(0, 4),
+                Size = new Size(SectionWidth, 18),
+                AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
@@ -430,22 +432,22 @@ namespace FACM.League
             _aramBalanceText = new Label
             {
                 Text = string.Empty,
-                Location = new Point(SectionContentX, 4),
-                Size = new Size(SectionContentWidth, 46),
-                AutoEllipsis = true,
+                Location = new Point(0, 26),
+                Size = new Size(SectionWidth, 46),
+                AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 8.2F)
             };
-            var aramBalanceRule = new Panel
+            _aramBalanceRule = new Panel
             {
-                Location = new Point(0, 57),
+                Location = new Point(0, 81),
                 Size = new Size(SectionWidth, 1),
                 BackColor = FacmDesignSystem.BorderSoft
             };
             _aramBalanceSection.Controls.Add(aramBalanceTitle);
             _aramBalanceSection.Controls.Add(_aramBalanceText);
-            _aramBalanceSection.Controls.Add(aramBalanceRule);
+            _aramBalanceSection.Controls.Add(_aramBalanceRule);
             _sections.Controls.Add(_aramBalanceSection);
 
             _mayhemSection = new Panel
@@ -453,7 +455,7 @@ namespace FACM.League
                 Width = SectionWidth, Height = 226, Margin = Padding.Empty,
                 BackColor = FacmDesignSystem.Canvas, Visible = false
             };
-            var augmentTitle = new Label
+            _augmentTitle = new Label
             {
                 Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments),
                 Location = new Point(0, 7), Size = new Size(176, 20), AutoEllipsis = true,
@@ -490,7 +492,7 @@ namespace FACM.League
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = false,
                 Margin = Padding.Empty, Padding = Padding.Empty, BackColor = FacmDesignSystem.Canvas
             };
-            _mayhemSection.Controls.Add(augmentTitle);
+            _mayhemSection.Controls.Add(_augmentTitle);
             _mayhemSection.Controls.Add(_augmentPrevButton);
             _mayhemSection.Controls.Add(_augmentPageLabel);
             _mayhemSection.Controls.Add(_augmentNextButton);
@@ -1402,6 +1404,7 @@ namespace FACM.League
             DisposeAugmentRows();
             if (_augmentSource == null || _augmentSource.Count == 0)
             {
+                _augmentTitle.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments);
                 _augmentPageLabel.Text = string.Empty;
                 _augmentPrevButton.Enabled = _augmentNextButton.Enabled = false;
                 UpdateAugmentFilterControls();
@@ -1409,6 +1412,9 @@ namespace FACM.League
                 return;
             }
             UpdateAugmentFilterControls();
+            _augmentTitle.Text = HasLimitedAugments(_augmentSource.Count)
+                ? CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugmentsLimited)
+                : CompanionText(LeagueRuntimeCompanionUiTextKeys.MayhemAugments);
             var source = FilteredAugments();
             var pages = Math.Max(1, (int)Math.Ceiling(source.Count / (double)AugmentPageSize));
             _augmentPage = Math.Max(0, Math.Min(_augmentPage, pages - 1));
@@ -1420,6 +1426,11 @@ namespace FACM.League
                 _augmentRows.Controls.Add(CreateAugmentRow(row, generation));
             _mayhemSection.Visible = _augmentRows.Controls.Count > 0;
             HideNativeBodyScrollBars();
+        }
+
+        private static bool HasLimitedAugments(int count)
+        {
+            return count > 0 && count < MayhemRankedAugmentService.MinimumUsableRows;
         }
 
         private Panel CreateAugmentRow(MayhemAugmentRow row, int generation)
@@ -1579,6 +1590,14 @@ namespace FACM.League
             }
 
             _aramBalanceText.Text = result.BaseBalanceSummary.Trim();
+            var measured = TextRenderer.MeasureText(
+                _aramBalanceText.Text,
+                _aramBalanceText.Font,
+                new Size(SectionWidth, 2048),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            _aramBalanceText.Height = ResolveBalanceTextHeight(measured.Height);
+            _aramBalanceSection.Height = _aramBalanceText.Bottom + 10;
+            _aramBalanceRule.Top = _aramBalanceSection.Height - 1;
             _toolTip.SetToolTip(_aramBalanceText, _aramBalanceText.Text);
             var status = (result.BaseBalanceStatus ?? string.Empty).Trim();
             _aramBalanceText.ForeColor =
@@ -1587,6 +1606,11 @@ namespace FACM.League
                     ? FacmDesignSystem.Warning
                     : FacmDesignSystem.Text;
             _aramBalanceSection.Visible = true;
+        }
+
+        private static int ResolveBalanceTextHeight(int measuredHeight)
+        {
+            return Math.Min(240, Math.Max(46, measuredHeight + 6));
         }
 
         private static bool ShouldShowAramBaseBalance(MayhemChampionResult result)
@@ -2854,6 +2878,13 @@ namespace FACM.League
             if (BuildMayhemStats(mayhem).IndexOf(MayhemUiCopy.RankPrefix, StringComparison.Ordinal) < 0 ||
                 BuildMayhemStats(mayhem).IndexOf(MayhemUiCopy.Win, StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("Runtime Companion Mayhem headline statistics are incomplete.");
+            if (HasLimitedAugments(0) || !HasLimitedAugments(1) ||
+                !HasLimitedAugments(2) || HasLimitedAugments(5))
+                throw new InvalidOperationException("Runtime Companion augment completeness label regressed.");
+            if (ResolveBalanceTextHeight(90) < 90 ||
+                ResolveBalanceTextHeight(500) > 240 ||
+                ResolveBalanceTextHeight(15) < 46)
+                throw new InvalidOperationException("Runtime Companion ARAM balance text height is not bounded.");
             if (ShouldShowAramBaseBalance(mayhem))
                 throw new InvalidOperationException("Runtime Companion rendered an empty ARAM balance section.");
             mayhem.BaseBalanceSummary = "基础 ARAM（完整）：造成伤害 +5%"; // ui-text-contract: allow

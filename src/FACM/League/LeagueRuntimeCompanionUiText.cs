@@ -16,6 +16,7 @@ namespace FACM.League
         public const string SourceCache = "LeagueRuntimeCompanionSourceCache";
         public const string AramBaseBalance = "LeagueRuntimeCompanionAramBaseBalance";
         public const string MayhemAugments = "LeagueRuntimeCompanionMayhemAugments";
+        public const string MayhemAugmentsLimited = "LeagueRuntimeCompanionMayhemAugmentsLimited";
         public const string Pin = "LeagueRuntimeCompanionPin";
         public const string Unpin = "LeagueRuntimeCompanionUnpin";
         public const string Collapse = "LeagueRuntimeCompanionCollapse";
@@ -75,6 +76,7 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.SourceCache, "缓存" },
             { LeagueRuntimeCompanionUiTextKeys.AramBaseBalance, "大乱斗基础平衡" },
             { LeagueRuntimeCompanionUiTextKeys.MayhemAugments, "海克斯强化" },
+            { LeagueRuntimeCompanionUiTextKeys.MayhemAugmentsLimited, "海克斯强化 · 数据不足" },
             { LeagueRuntimeCompanionUiTextKeys.Pin, "保持置顶" },
             { LeagueRuntimeCompanionUiTextKeys.Unpin, "取消置顶" },
             { LeagueRuntimeCompanionUiTextKeys.Collapse, "收起" },
