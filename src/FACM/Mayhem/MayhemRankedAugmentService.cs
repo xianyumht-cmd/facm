@@ -25,6 +25,8 @@ namespace FACM.Mayhem
             public string Name { get; set; }
             public string Slug { get; set; }
             public double? WinRate { get; set; }
+            public double? PickRate { get; set; }
+            public string Rarity { get; set; }
             public string IconUrl { get; set; }
         }
 
@@ -32,9 +34,6 @@ namespace FACM.Mayhem
         {
             if (result == null) return;
 
-            // The optional OP.GG build page is independent from the augment page. Start it here so
-            // item/skill details are fetched in parallel with the slower augment request instead of
-            // extending the visible render path by another network round-trip.
             var buildTask = MayhemBuildDetailsService.EnrichAsync(result, token);
             var slug = (result.ChampionSlug ?? string.Empty).Trim().ToLowerInvariant();
             if (!string.IsNullOrWhiteSpace(slug))
@@ -43,10 +42,7 @@ namespace FACM.Mayhem
                 try
                 {
                     var response = await LeaguePublicDataTransport.GetAsync(
-                        url,
-                        TimeSpan.FromSeconds(5.5),
-                        token,
-                        true).ConfigureAwait(false);
+                        url, TimeSpan.FromSeconds(5.5), token, true).ConfigureAwait(false);
                     var html = response == null ? null : response.ReadUtf8();
                     var richRows = ParseOpggRows(html).Take(12).ToList();
                     var rows = richRows;
@@ -66,16 +62,9 @@ namespace FACM.Mayhem
                         result.AugmentSourceUrl = url;
                         result.AugmentSourceRoute = response.Route;
                         result.AugmentSourceStale = response.IsStale;
-                        AppLog.Info(
-                            "Mayhem augments loaded: count=" + rows.Count +
+                        AppLog.Info("Mayhem augments loaded: count=" + rows.Count +
                             "; mode=" + (renderedFallback ? "rendered-html" : "rich-json") +
-                            "; route=" + response.Route +
-                            "; stale=" + response.IsStale);
-                        if (rows.Count >= MinimumUsableRows)
-                        {
-                            await buildTask.ConfigureAwait(false);
-                            return;
-                        }
+                            "; route=" + response.Route + "; stale=" + response.IsStale);
                     }
                 }
                 catch (OperationCanceledException)
@@ -88,8 +77,11 @@ namespace FACM.Mayhem
                 }
             }
 
-            await ApplyLegacyFallbackAsync(result, token).ConfigureAwait(false);
+            // Wait for the parallel OP.GG build attempt before changing shared result fields.
             await buildTask.ConfigureAwait(false);
+            if (result.AugmentRows.Count >= 5 && MayhemBuildDetailsService.HasUsableCoreBuild(result))
+                return;
+            await ApplyLegacyFallbackAsync(result, token).ConfigureAwait(false);
         }
 
         internal static int ApplyFromHtmlForSmokeTest(MayhemChampionResult result, string html)
@@ -145,21 +137,59 @@ namespace FACM.Mayhem
             return ParseOpggRows(html).ToList();
         }
 
+        internal static bool IsCompatibleFallbackPatch(MayhemChampionResult result, string html)
+        {
+            return result != null &&
+                MayhemRankingSourceService.SamePatch(
+                    MayhemRankingSourceService.ReadPatch(html), result.SelectedRankingPatch);
+        }
+
+        internal static IList<MayhemAugmentRow> ParseAramMayhemForSmokeTest(
+            MayhemChampionResult result, string html)
+        {
+            if (!IsCompatibleFallbackPatch(result, html))
+                return new List<MayhemAugmentRow>();
+            ApplyLegacyIfRicher(result, ParseLegacyPicks(html).Take(12).ToList());
+            return result.AugmentRows;
+        }
+
         private static async Task ApplyLegacyFallbackAsync(MayhemChampionResult result, CancellationToken token)
         {
             if (string.IsNullOrWhiteSpace(result.RankingSourceUrl)) return;
             try
             {
                 var response = await LeaguePublicDataTransport.GetAsync(
-                    result.RankingSourceUrl,
-                    TimeSpan.FromSeconds(3),
-                    token,
-                    true).ConfigureAwait(false);
-                var picks = ParseLegacyPicks(response == null ? null : response.ReadUtf8()).Take(5).ToList();
-                if (!ApplyLegacyIfRicher(result, picks)) return;
-                result.AugmentSourceUrl = result.RankingSourceUrl;
-                result.AugmentSourceRoute = response.Route;
-                result.AugmentSourceStale = response.IsStale;
+                    result.RankingSourceUrl, TimeSpan.FromSeconds(3),
+                    token, true).ConfigureAwait(false);
+                var html = response == null ? null : response.ReadUtf8();
+                if (!IsCompatibleFallbackPatch(result, html))
+                {
+                    AppLog.Info("Mayhem companion fallback skipped: patch mismatch or unknown; selected=" +
+                        (result.SelectedRankingPatch ?? "unknown") +
+                        "; detail=" + (MayhemRankingSourceService.ReadPatch(html) ?? "unknown"));
+                    return;
+                }
+                var picks = ParseLegacyPicks(html).Take(12).ToList();
+                var augmentsApplied = ApplyLegacyIfRicher(result, picks);
+                if (augmentsApplied)
+                {
+                    result.AugmentSourceUrl = result.RankingSourceUrl;
+                    result.AugmentSourceRoute = response.Route;
+                    result.AugmentSourceStale = response.IsStale;
+                }
+
+                var buildApplied = MayhemBuildDetailsService.ApplyAramMayhemFallback(result, html);
+                if (buildApplied > 0)
+                {
+                    result.BuildSourceRoute = response.Route;
+                    result.BuildSourceStale = response.IsStale;
+                    result.BuildSourceStatus = "fallback-aram-mayhem";
+                }
+                AppLog.Info("Mayhem companion fallback: source=ARAMMayhem; patch=" +
+                    result.SelectedRankingPatch + "; augments=" + result.AugmentRows.Count +
+                    "; builds=" + result.CoreBuilds.Count +
+                    "; build_fields=" + buildApplied + "; route=" + response.Route +
+                    "; stale=" + response.IsStale);
             }
             catch (OperationCanceledException)
             {
@@ -167,7 +197,7 @@ namespace FACM.Mayhem
             }
             catch (Exception exception)
             {
-                AppLog.Info("Legacy augment fallback skipped: " + exception.GetType().Name);
+                AppLog.Info("Mayhem companion fallback skipped: " + exception.GetType().Name);
             }
         }
 
@@ -369,19 +399,23 @@ namespace FACM.Mayhem
             result.Augments.Clear();
             result.AugmentIconUrls.Clear();
             result.AugmentRows.Clear();
-            for (var i = 0; i < picks.Count && i < 5; i++)
+            for (var i = 0; i < picks.Count && i < 12; i++)
             {
                 var pick = picks[i];
-                result.Augments.Add(pick.Name);
-                result.AugmentIconUrls.Add(pick.IconUrl);
+                if (i < 5)
+                {
+                    result.Augments.Add(pick.Name);
+                    result.AugmentIconUrls.Add(pick.IconUrl);
+                }
                 result.AugmentRows.Add(new MayhemAugmentRow
                 {
                     Rank = i + 1,
                     Name = pick.Name,
                     Slug = pick.Slug,
                     WinRate = pick.WinRate,
+                    PickRate = pick.PickRate,
                     IconUrl = pick.IconUrl,
-                    Rarity = MayhemUiCopy.Unknown
+                    Rarity = pick.Rarity ?? MayhemUiCopy.Unknown
                 });
             }
             result.AugmentRoutes = BuildRoutes(result.AugmentRows);
@@ -394,37 +428,49 @@ namespace FACM.Mayhem
             var start = normalized.IndexOf("Best Augments for", StringComparison.OrdinalIgnoreCase);
             if (start < 0) return Enumerable.Empty<LegacyAugment>();
             var end = normalized.IndexOf("Augment Combos", start, StringComparison.OrdinalIgnoreCase);
-            if (end < 0 || end <= start) end = Math.Min(normalized.Length, start + 18000);
-            var section = normalized.Substring(start, Math.Min(end - start, 18000));
+            if (end < 0 || end <= start) end = Math.Min(normalized.Length, start + 24000);
+            var section = normalized.Substring(start, Math.Min(end - start, 24000));
             var picks = new List<LegacyAugment>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Match match in Regex.Matches(
-                section,
-                "<a\\b[^>]*href\\s*=\\s*[\"'](?<href>[^\"']*/augments/(?<slug>[^/\"']+)/?)[\"'][^>]*>(?<body>.*?)</a>",
+            foreach (Match match in Regex.Matches(section,
+                @"<a\b[^>]*href\s*=\s*[""'](?<href>[^""']*/augments/(?<slug>[^/""']+)/?)[""'][^>]*>(?<body>.*?)</a>",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline))
             {
                 var slug = WebUtility.HtmlDecode(match.Groups["slug"].Value).Trim();
                 var body = match.Groups["body"].Value;
-                var name = MatchAttribute(body, "alt");
                 var text = CleanText(body);
+                var label = Regex.Match(text,
+                    @"^(?<n>.+?)\s+(?:S\+|S|A|B|C)\s*(?:[·•]\s*)?#\d+",
+                    RegexOptions.IgnoreCase);
+                var name = label.Success ? label.Groups["n"].Value.Trim() : MatchAttribute(body, "alt");
                 if (string.IsNullOrWhiteSpace(name))
-                {
-                    var nameMatch = Regex.Match(text, "^(?<n>.+?)(?<w>\\d{1,2}(?:\\.\\d+)?)%", RegexOptions.Singleline);
-                    if (nameMatch.Success) name = nameMatch.Groups["n"].Value.Trim();
-                }
-                name = WebUtility.HtmlDecode(name ?? string.Empty).Trim();
+                    name = Regex.Replace(slug.Replace('-', ' '), @"\s+", " ").Trim();
+                name = WebUtility.HtmlDecode(name).Trim();
                 if (name.Length < 2 || !seen.Add(name)) continue;
-                var rateMatch = Regex.Match(text, "(?<w>\\d{1,2}(?:\\.\\d+)?)%");
-                double rate;
-                double? winRate = rateMatch.Success && double.TryParse(rateMatch.Groups["w"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out rate)
-                    ? rate
-                    : (double?)null;
+
+                var rateMatch = Regex.Match(text,
+                    @"Win\s*rate\s*:\s*(?<w>\d{1,2}(?:\.\d+)?)%", RegexOptions.IgnoreCase);
+                var pickMatch = Regex.Match(text,
+                    @"Appearance\s*rate\s*:\s*(?<w>\d{1,2}(?:\.\d+)?)%", RegexOptions.IgnoreCase);
+                double rate, pick;
+                var prefix = section.Substring(0, match.Index);
+                var prism = prefix.LastIndexOf("Prismatic Augments", StringComparison.OrdinalIgnoreCase);
+                var gold = prefix.LastIndexOf("Gold Augments", StringComparison.OrdinalIgnoreCase);
+                var silver = prefix.LastIndexOf("Silver Augments", StringComparison.OrdinalIgnoreCase);
+                var rarity = prism >= gold && prism >= silver ? "prismatic"
+                    : gold >= silver ? "gold" : "silver";
                 picks.Add(new LegacyAugment
                 {
                     Name = name,
                     Slug = slug,
-                    WinRate = winRate,
-                    IconUrl = string.IsNullOrWhiteSpace(slug) ? null : KiwiIconBase + NormalizeName(slug) + "_small.png"
+                    Rarity = rarity,
+                    WinRate = rateMatch.Success &&
+                        double.TryParse(rateMatch.Groups["w"].Value, NumberStyles.Float,
+                            CultureInfo.InvariantCulture, out rate) ? rate : (double?)null,
+                    PickRate = pickMatch.Success &&
+                        double.TryParse(pickMatch.Groups["w"].Value, NumberStyles.Float,
+                            CultureInfo.InvariantCulture, out pick) ? pick : (double?)null,
+                    IconUrl = KiwiIconBase + NormalizeName(slug) + "_small.png"
                 });
             }
             return picks;

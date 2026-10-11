@@ -56,6 +56,98 @@ namespace FACM.Mayhem
             EnsureFallbackSkillPriority(result);
         }
 
+        internal static bool HasUsableCoreBuild(MayhemChampionResult result)
+        {
+            return result != null && (result.CoreBuilds.Count > 0 || result.CoreItems.Count >= 3);
+        }
+
+        // Use the existing champion-detail transport as a text-first fallback when OP.GG is blocked.
+        // Do not mix an older champion detail with the selected current-patch ranking.
+        internal static int ApplyAramMayhemFallback(MayhemChampionResult result, string html)
+        {
+            if (result == null || string.IsNullOrWhiteSpace(html) ||
+                !MayhemRankedAugmentService.IsCompatibleFallbackPatch(result, html)) return 0;
+
+            var normalized = NormalizeEscapedHtml(html);
+            var filled = 0;
+            if (!HasUsableCoreBuild(result))
+            {
+                var core = ExtractLinkedItems(ExtractPublicSection(normalized, "Core Builds",
+                    "Other completed items", 16000), 3);
+                if (core.Count >= 3)
+                {
+                    result.CoreBuilds.Add(new MayhemBuildPath { Rank = 1, Items = core });
+                    result.CoreItems = core.Select(item => item.Name).ToList();
+                    result.CoreItemIconUrls = core.Select(item => item.IconUrl).ToList();
+                    filled++;
+                }
+            }
+            if (result.StarterItems.Count == 0)
+            {
+                var starting = ExtractLinkedItems(ExtractPublicSection(normalized, "Starting Items",
+                    "Boots", 10000), 3);
+                if (starting.Count > 0) { result.StarterItems = starting; filled++; }
+            }
+            if (result.BootItems.Count == 0)
+            {
+                var boots = ExtractLinkedItems(ExtractPublicSection(normalized, "Boots",
+                    "Core Builds", 7000), 1);
+                if (boots.Count > 0) { result.BootItems = boots; filled++; }
+            }
+            if (string.IsNullOrWhiteSpace(result.SkillOrder))
+            {
+                var priority = ExtractPublicSection(normalized, "Skill Priority",
+                    "Starting Items", 4500);
+                var text = Regex.Replace(Regex.Replace(priority, "<[^>]+>", " "), @"\s+", " ");
+                var sequence = Regex.Match(text,
+                    @"\b(?<a>[QWE])\s*>\s*(?<b>[QWE])\s*>\s*(?<c>[QWE])\b",
+                    RegexOptions.IgnoreCase);
+                if (sequence.Success)
+                {
+                    result.SkillOrder = sequence.Groups["a"].Value.ToUpperInvariant() + " > " +
+                        sequence.Groups["b"].Value.ToUpperInvariant() + " > " +
+                        sequence.Groups["c"].Value.ToUpperInvariant();
+                    filled++;
+                }
+            }
+            EnsureFallbackSkillPriority(result);
+            return filled;
+        }
+
+        private static string ExtractPublicSection(string html, string startMarker,
+            string endMarker, int limit)
+        {
+            var start = html.IndexOf(startMarker, StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return string.Empty;
+            var end = html.IndexOf(endMarker, start + startMarker.Length,
+                StringComparison.OrdinalIgnoreCase);
+            if (end < start) end = Math.Min(html.Length, start + limit);
+            return html.Substring(start, Math.Min(end - start, limit));
+        }
+
+        private static List<MayhemBuildItem> ExtractLinkedItems(string html, int limit)
+        {
+            var output = new List<MayhemBuildItem>();
+            foreach (Match match in Regex.Matches(html ?? string.Empty,
+                @"<a\b[^>]*href\s*=\s*[""'][^""']*/items/[^""']+[""'][^>]*>(?<body>.*?)</a>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline))
+            {
+                var body = match.Groups["body"].Value;
+                var name = CleanValue(Regex.Replace(body, "<[^>]+>", " "));
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    var icon = Regex.Match(body, @"\balt\s*=\s*[""'](?<n>[^""']+)[""']",
+                        RegexOptions.IgnoreCase);
+                    if (icon.Success) name = CleanValue(icon.Groups["n"].Value);
+                }
+                if (string.IsNullOrWhiteSpace(name) || output.Any(item =>
+                    string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase))) continue;
+                output.Add(new MayhemBuildItem { Name = name });
+                if (output.Count >= limit) break;
+            }
+            return output;
+        }
+
         internal static void ApplyHtmlForSmokeTest(MayhemChampionResult result, string html)
         {
             if (result == null) return;
