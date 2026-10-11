@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.70
-- GitHub Release：v3.5.70
+- 版本：GGman 3.5.71
+- GitHub Release：v3.5.71
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：0558b49fe5ed58e4b6fb4f6b007c33876c51d467
-- 发布元数据提交：3da9cbd9de827d177752d7d4d691f226f4b1ff3d
-- Release GGman.exe SHA-256：C0EE537BC40A2007BC42BC7CAF7F552006A432089FC1E20281324B97A3EE4844
-- release_notes：GGman 3.5.70：修复自动同步在本地状态文件保存失败时可能误判同步完成的问题；冲突处理只有在实际上传或恢复成功后才解除提示。改进检查更新与公告的并行请求：版本结果仍可快速显示，公告稍后返回时也会更新当前窗口，不会被旧请求覆盖。保持管理员权限运行、现有云端数据格式及游戏相关功能不变。
+- 发布基础 main：80714971056dac58b7b12fcc59cf1406823ea282
+- 发布元数据提交：478b9c84b2e7193d4d8d1cdeb38e1c876cf38c54
+- Release GGman.exe SHA-256：2631634F0AB07F0B9977A067F40578D7DFB19AA3572715108814EFB01A07992A
+- release_notes：GGman 3.5.71：升级海克斯大乱斗排行榜容错机制。在已有国内 Hexdata、ARAMMayhem 和 OPGG 攻略来源基础上，增加 ARAMGG 当前版本榜单作为备用；只采用完整、同一来源的前十名，优先较新版本并校验重复及异常数据，明确标示榜单来源与版本差异。修复部分网页带分级和升降标记时的前十名解析，不长时间缓存不完整或版本不符的结果。保留管理员权限运行、原有更新及 LOL 功能。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-11 — Mayhem ranked-source reliability (merged; 3.5.71 release requested)
