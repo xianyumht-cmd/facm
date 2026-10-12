@@ -303,9 +303,7 @@ namespace FACM.Services
                     GameProfile local = null;
                     try { local = GameProfileStore.Capture(directory); }
                     catch (FileNotFoundException) { }
-                    if (local == null ||
-                        !string.Equals(GameProfileStore.Fingerprint(local),
-                            GameProfileStore.Fingerprint(saved.Profile), StringComparison.Ordinal))
+                    if (!GameProfileStore.MatchesPublished(local, saved.Profile))
                     {
                         RequireSession(account, token);
                         GameProfileStore.Restore(saved.Profile, directory);

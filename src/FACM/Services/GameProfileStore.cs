@@ -217,6 +217,27 @@ namespace FACM.Services
             return "unknown";
         }
 
+        internal static bool MatchesPublished(GameProfile local, GameProfile published)
+        {
+            if (local == null) return false;
+            Validate(local);
+            Validate(published);
+            var localFiles = local.Esc.Files.ToDictionary(
+                item => item.Name, item => item.Sha256, StringComparer.OrdinalIgnoreCase);
+            if (published.Esc.Files.Any(file => !localFiles.ContainsKey(file.Name) ||
+                !string.Equals(localFiles[file.Name], file.Sha256, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            var localLobby = local.Lobby.ToDictionary(
+                item => item.File + "|" + item.Section + "|" + item.Key,
+                item => item.Value, StringComparer.Ordinal);
+            return published.Lobby.All(item =>
+            {
+                bool value;
+                return localLobby.TryGetValue(item.File + "|" + item.Section + "|" + item.Key,
+                    out value) && value == item.Value;
+            });
+        }
+
         internal static bool AreLeagueProcessesAbsent()
         {
             foreach (var name in new[] { "League of Legends", "LeagueClient", "LeagueClientUx", "LeagueClientUxRender" })
@@ -243,17 +264,21 @@ namespace FACM.Services
             if (!AreLeagueProcessesAbsent())
                 throw new InvalidOperationException("请完全退出英雄联盟及大厅客户端后恢复游戏配置。");
             var client = FindLobbyConfig(escDirectory);
-            var staged = new List<Tuple<string, string, string>>();
+            var staged = new List<Tuple<string, string, string, bool>>();
             foreach (var group in profile.Lobby.GroupBy(x => x.File, StringComparer.OrdinalIgnoreCase))
             {
                 var path = Path.Combine(client, group.Key);
                 if (!File.Exists(path) || (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 ||
                     new FileInfo(path).Length > MaximumYamlBytes)
                     throw new InvalidDataException("目标大厅 YAML 文件缺失或不安全：" + group.Key);
+                var previousBytes = File.ReadAllBytes(path);
+                var hasBom = previousBytes.Length >= 3 && previousBytes[0] == 0xef &&
+                    previousBytes[1] == 0xbb && previousBytes[2] == 0xbf;
                 var oldText = File.ReadAllText(path, Encoding.UTF8);
                 var patched = oldText;
                 foreach (var item in group)
                 {
+                    var newline = patched.Contains("\r\n") ? "\r\n" : "\n";
                     var lines = patched.Replace("\r\n", "\n").Split('\n');
                     var section = string.Empty;
                     var inData = false;
@@ -277,15 +302,15 @@ namespace FACM.Services
                     }
                     if (count != 1)
                         throw new InvalidDataException("目标客户端缺少或重复偏好：" + item.Key);
-                    patched = string.Join("\n", lines);
+                    patched = string.Join(newline, lines);
                 }
                 if (!string.Equals(oldText, patched, StringComparison.Ordinal))
-                    staged.Add(Tuple.Create(path, oldText, patched));
+                    staged.Add(Tuple.Create(path, oldText, patched, hasBom));
             }
-            if (staged.Count == 0 && Fingerprint(Capture(escDirectory)) == Fingerprint(profile))
+            if (staged.Count == 0 && MatchesPublished(Capture(escDirectory), profile))
                 return;
             Directory.CreateDirectory(Path.Combine(RuntimePaths.DataDirectory, "lobby-backups"));
-            var changed = new List<Tuple<string, string, string>>();
+            var changed = new List<Tuple<string, string, string, bool>>();
             try
             {
                 if (!AreLeagueProcessesAbsent())
@@ -295,26 +320,25 @@ namespace FACM.Services
                     var backup = Path.Combine(RuntimePaths.DataDirectory, "lobby-backups",
                         Path.GetFileName(file.Item1) + "-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss") +
                         "-" + Guid.NewGuid().ToString("N") + ".yaml");
-                    File.WriteAllText(backup, file.Item2, new UTF8Encoding(false));
+                    File.Copy(file.Item1, backup, false);
                     var tmp = file.Item1 + ".ggman-" + Guid.NewGuid().ToString("N") + ".tmp";
                     try
                     {
-                        File.WriteAllText(tmp, file.Item3, new UTF8Encoding(false));
+                        File.WriteAllText(tmp, file.Item3, new UTF8Encoding(file.Item4));
                         File.Replace(tmp, file.Item1, null);
                         changed.Add(file);
                     }
                     finally { if (File.Exists(tmp)) File.Delete(tmp); }
                 }
                 EscSettingsBackup.Restore(profile.Esc, escDirectory);
-                if (!string.Equals(Fingerprint(Capture(escDirectory)), Fingerprint(profile),
-                    StringComparison.Ordinal))
+                if (!MatchesPublished(Capture(escDirectory), profile))
                     throw new IOException("游戏配置写回校验失败。");
             }
             catch
             {
                 foreach (var file in changed)
                 {
-                    try { File.WriteAllText(file.Item1, file.Item2, new UTF8Encoding(false)); }
+                    try { File.WriteAllText(file.Item1, file.Item2, new UTF8Encoding(file.Item4)); }
                     catch { }
                 }
                 throw;
@@ -345,7 +369,7 @@ namespace FACM.Services
                 File.WriteAllText(identity, "install:\n    lcu-settings:\n        accountId: 200\n");
                 var second = ReadLocalAccountMarker(config);
                 if (first == "unknown" || second == "unknown" ||
-                    first == second || first.Contains("100") || second.Contains("200"))
+                    first == second || first == "100" || second == "200")
                     throw new InvalidOperationException("Riot account transition marker failed.");
             }
             finally { Directory.Delete(root, true); }
