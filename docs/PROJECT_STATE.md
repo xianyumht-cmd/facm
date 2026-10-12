@@ -14,9 +14,10 @@
 
 ## 2026-10-12 — Game preset synchronization redesign (draft PR #345; NOT RELEASED)
 
-- Working branch `feat/game-config-profile-sync-20261012` contains an initial policy change only: periodic ESC auto-upload/restore disabled; app settings first-time cloud preference recovery; local settings-save debounce and bounded normal-exit sync attempt.
-- Required for completion: explicit **上传大厅与 ESC 设置**, independently versioned account-owned manual game presets, validated safe lobby YAML fields, LOL gameflow/LCU-account-aware reapplication, migration/compatibility and real two-device acceptance. Old automatic ESC snapshots must not silently become published presets.
-- The production SQL 005/007/008 and online 3.5.x release/update state have not been changed. Draft [PR #345](https://github.com/xianyumht-cmd/facm/pull/345) is not ready for merge or release.
+- Working branch `feat/game-config-profile-sync-20261012` now implements: no background ESC upload; cloud-first GGman software preferences with save debounce and bounded exit attempt; independent local game-auto-restore checkbox; manual combined publish UI; allowlisted mainland-China lobby YAML booleans; a versioned registered game-profile CloudBase client and **undeployed** SQL 009 schema; client/game-process-closed-only restore with backup and validation.
+- Owner supplied the four actual `LeagueClient/Config` YAML samples. Exact confirmed preference is `LCUAccountPreferences.yaml -> lol-notifications -> data -> blockNonFriendGameInvites: true`. Nine supported Boolean fields are enumerated in `GameProfileStore.Allowed`. No owner account numbers, device IDs or full YAML files are committed.
+- Pending before promotion: CI results for latest head; explicit authorized production SQL migration and real registered A/B tests; Riot account switching while the client stays running, settings writeback and cross-device persistence; real ESC snapshots and dual-PC native smoke. This draft is NOT suitable for production update yet.
+- SQL 005/007/008, release v3.5.73, and online manifest remain unchanged. Draft [PR #345](https://github.com/xianyumht-cmd/facm/pull/345).
 
 
 

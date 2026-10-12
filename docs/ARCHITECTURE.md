@@ -1,5 +1,10 @@
 # FACM Architecture
 
+## Registered manual game profiles (draft PR #345, not deployed)
+
+`GgmanAutoSyncService` retains the registered account session and 90-second polling owner. Software preferences and `ui-text.ini` use automatic CAS syncing; game presets use a separate **manually published** registered-profile contract and never auto-upload from local ESC/YAML changes. `GameProfileStore` owns the exact YAML boolean allowlist, native game-folder mapping, snapshot validation, local backups and fail-closed process-absence checks. `GgmanGameProfileCloudClient` uses the existing registered token-refresh path with SQL 009 RPC CAS and account RLS. The `GgmanUnifiedSyncPanel` has an intentional combined upload action and a separate game-auto-restore checkbox. Restore while League is running is deferred; there is no claim of live LCU account-switch apply. Historical SQL 005 ESC snapshots remain untouched. Deployment/real-user acceptance is pending.
+
+
 ## Runtime Companion guide evidence and layout
 
 `LeagueRuntimeCompanionController` publishes selected hero guide snapshots to `LeagueRuntimeCompanionForm`. `MayhemAutomaticGuideService` resolves the hero and enriches `OpggMayhemService` with champion art, item builds, ARAM balance and augments. A selected complete current-patch top-ten snapshot is separate from the per-hero detail source; known old hero data is discarded but patchless hero data remains explicitly unverified. The selected top-ten supplies current stats only for heroes actually listed. `MayhemRankedAugmentService` tries OP.GG structured/rendered rows, then an existing bounded ARAMMayhem alternative when fewer than three entries are parsed; a richer list replaces the partial list, never an equal or smaller one. The WinForms companion keeps its fixed compact outer size and scrollable content, but sizes the base-ARAM title and status as a full-width block with measured bounded vertical height and denotes sparse augments, rather than clipping long content.

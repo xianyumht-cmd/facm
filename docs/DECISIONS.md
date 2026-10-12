@@ -2,6 +2,11 @@
 
 ## 2026-10-12 — Software settings are automatic; League presets are intentionally published (draft)
 
+### Field boundary verified from 2026-10-12 mainland-China client YAML samples
+
+The local sample has `lol-notifications.data.blockNonFriendGameInvites=true` in `LCUAccountPreferences.yaml`, and stable boolean client/display/audio leaves in `LCULocalPreferences.yaml`. The first version deliberately excludes `LeagueClientSettings.yaml` (account and install identity) and `PerksPreferences.yaml` (per-account rune pages). `GameProfileStore` exposes exactly nine allowlisted boolean leaves; source YAML is never serialized to CloudBase. Only combined explicitly published game profiles can change remote data. File-based restore defers until all relevant League processes are closed to avoid conflicting with Riot in-memory writes. Runtime persistence after a new Riot account signs in requires native validation; do not claim in-client hot application.
+
+
 Portable GGman application settings (and custom UI text) follow registered-account automatic sync, using cloud data first on a new-device/account association, then uploading future local edits. A bounded normal-exit check supplements but does not replace save-triggered syncing. Leave local paths, geometry, privacy/consent and identities device-local.
 
 League ESC and lobby settings are a manually published personal game preset attached to the GGman registered UID, not the Riot account or cafe machine. An unverified historical ESC row may have been uploaded automatically and must never be silently reinterpreted as a deliberately chosen preset. Only explicit publication with validated field allowlists, CAS, backup and full acknowledgement changes authoritative game state; auto-apply must observe Riot processes and gameflow before restoring. Draft PR #345 is partial and must not ship without safe YAML mapping and live acceptance.

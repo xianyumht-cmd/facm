@@ -2,7 +2,11 @@
 
 ## Redesign in progress (draft PR #345, not released)
 
-The target product contract separates automatic GGman preferences from League in-game/lobby presets that only upload after the user deliberately selects **上传大厅与 ESC 设置**, then restore automatically at a safe game/client boundary on subsequent registered login and Riot-account switches. The task branch currently disables the *old* periodic ESC auto-upload and auto-restore while migrating. Historical ESC cloud rows are not trusted as deliberately published presets. Safe YAML field mapping and the manual game-profile CloudBase contract are still incomplete. **This section does not describe signed production behavior.**
+The task branch implements independent auto-synchronization of portable GGman preferences and **explicitly published** League game profiles. Manual **上传大厅与 ESC 设置** captures allowlisted `Game/Config` files plus nine scalar Boolean preferences from `LeagueClient/Config/LCUAccountPreferences.yaml` and `LCULocalPreferences.yaml`; it excludes `LeagueClientSettings.yaml`, full rune pages, account IDs, devices and installation identifiers. This whitelist was derived from four owner-supplied mainland-China client YAML samples; their full contents and identifiers are not in the repository.
+
+`GameProfileStore` validates the snapshot and preserves other YAML keys on restore. `GgmanGameProfileCloudClient` uses registered-session token refresh and CAS against **new, not-yet-deployed** `cloudbase/sql/009_manual_game_profiles.sql`. No legacy `ggman_esc_profiles` row can seed the new manual-profile table. Automatic restore uses the existing background timer and only writes when the League client **and** game processes are absent; active-client/login-time YAML writeback and in-game persistence have not yet been proved on Windows.
+
+Software and game auto-restore have separate local checkboxes. The software settings uploader wakes after successful local saves and attempts a bounded flush on normal tray exit. Production SQL 005/007/008, signed binaries and online manifest remain unchanged. **PR #345 is a draft; new game profile upload/get RPCs will not work until SQL 009 receives separate authorized deployment and role/security verification. This is not yet a tested production feature.**
 
 
 ## Current behavior (3.5.67)
