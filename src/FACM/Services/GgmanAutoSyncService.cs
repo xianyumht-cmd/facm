@@ -135,6 +135,7 @@ namespace FACM.Services
             _notBeforeUtc = DateTime.MinValue;
             _settingsChangeNotBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
+            _nextGameProfileCheckUtc = DateTime.MinValue;
             UpdateStatus();
         }
 
@@ -249,13 +250,87 @@ namespace FACM.Services
                     textLocal.Text.Count == 0 && textLocal.Replace.Count == 0);
                 RequireSession(account, token);
 
-                // Game profiles are published explicitly, never from periodic local changes.
+                await TryRestorePublishedGameAsync(account, token);
             }
         }
 
         internal static bool IsBackgroundUploadAllowed(string kind)
         {
             return kind == "app" || kind == "text";
+        }
+
+        private DateTime _nextGameProfileCheckUtc = DateTime.MinValue;
+
+        private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account, CancellationToken token)
+        {
+            if (DateTime.UtcNow < _nextGameProfileCheckUtc || !GameProfileStore.AreLeagueProcessesAbsent())
+                return;
+            try
+            {
+                using (var cloud = new GgmanGameProfileCloudClient())
+                {
+                    var saved = await cloud.GetAsync(account, token);
+                    RequireSession(account, token);
+                    if (saved == null) return;
+                    var directory = await Task.Run(
+                        () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
+                    RequireSession(account, token);
+                    if (string.IsNullOrWhiteSpace(directory)) return;
+                    if (!GameProfileStore.AreLeagueProcessesAbsent()) return;
+                    GameProfile local = null;
+                    try { local = GameProfileStore.Capture(directory); }
+                    catch (FileNotFoundException) { }
+                    if (local != null &&
+                        string.Equals(GameProfileStore.Fingerprint(local),
+                            GameProfileStore.Fingerprint(saved.Profile), StringComparison.Ordinal))
+                        return;
+                    RequireSession(account, token);
+                    GameProfileStore.Restore(saved.Profile, directory);
+                    AppLog.Info("Registered game profile restored; revision=" + saved.Version);
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error)
+            {
+                _nextGameProfileCheckUtc = DateTime.UtcNow.AddMinutes(10);
+                AppLog.Info("Game profile restore deferred: " + error.GetType().Name);
+            }
+        }
+
+        internal async Task<long> PublishGameProfileAsync()
+        {
+            if (_disposed || _busy)
+                throw new InvalidOperationException("云同步正在执行，请稍后再试。");
+            var account = GgmanEscCloudClient.RequireRegisteredSession();
+            if (!GameProfileStore.AreLeagueProcessesAbsent())
+                throw new InvalidOperationException("请先完全退出英雄联盟和大厅客户端，避免上传尚未写入磁盘的设置。");
+            var token = _sessionCancellation.Token;
+            _busy = true;
+            UpdateStatus();
+            try
+            {
+                var directory = await Task.Run(
+                    () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
+                if (string.IsNullOrWhiteSpace(directory))
+                    throw new DirectoryNotFoundException("请先在 GGman 中设置英雄联盟安装目录。");
+                var profile = await Task.Run(() => GameProfileStore.Capture(directory), token);
+                RequireSession(account, token);
+                using (var cloud = new GgmanGameProfileCloudClient())
+                {
+                    var existing = await cloud.GetAsync(account, token);
+                    RequireSession(account, token);
+                    var version = await cloud.SetAsync(account, profile,
+                        existing == null ? 0 : existing.Version, token);
+                    RequireSession(account, token);
+                    _nextGameProfileCheckUtc = DateTime.MinValue;
+                    return version;
+                }
+            }
+            finally
+            {
+                _busy = false;
+                UpdateStatus();
+            }
         }
 
         private enum SyncAction { Unchanged, Adopt, Upload, Restore, Conflict }
@@ -531,6 +606,7 @@ namespace FACM.Services
 
         internal static void ValidateForSmokeTest()
         {
+            GameProfileStore.ValidateForSmokeTest();
             var demo = new GgmanAutoSyncAccountState();
             var key = Hash("test-uid");
             if (key.Length != 64 || key.Contains("test-uid") ||
