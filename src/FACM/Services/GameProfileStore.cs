@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -167,6 +168,55 @@ namespace FACM.Services
             return esc + "|" + lobby;
         }
 
+        // Identity is read only to detect a different Riot account on this machine.
+        // Never serialize or log account IDs; unknown state safely means one restore
+        // opportunity per GGman session instead of continuously overwriting local edits.
+        internal static string ReadLocalAccountMarker(string escDirectory)
+        {
+            try
+            {
+                var path = Path.Combine(FindLobbyConfig(escDirectory), "LeagueClientSettings.yaml");
+                if (!File.Exists(path) ||
+                    (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 ||
+                    new FileInfo(path).Length > 64 * 1024)
+                    return "unknown";
+                var section = string.Empty;
+                var inInstall = false;
+                var id = string.Empty;
+                foreach (var line in File.ReadAllLines(path, Encoding.UTF8))
+                {
+                    if (line.IndexOf('\t') >= 0) return "unknown";
+                    var indent = line.Length - line.TrimStart(' ').Length;
+                    var trimmed = line.Trim();
+                    if (indent == 0)
+                    {
+                        inInstall = trimmed == "install:";
+                        section = string.Empty;
+                    }
+                    else if (inInstall && indent == 4)
+                        section = trimmed == "lcu-settings:" ? "lcu" : string.Empty;
+                    else if (inInstall && section == "lcu" && indent == 8 &&
+                        trimmed.StartsWith("accountId:", StringComparison.Ordinal))
+                    {
+                        var value = trimmed.Substring("accountId:".Length).Trim();
+                        if (value.Length == 0 || value.Length > 20 ||
+                            !value.All(char.IsDigit) || value.All(c => c == '0'))
+                            return "unknown";
+                        id = value;
+                        break;
+                    }
+                }
+                if (id.Length == 0) return "unknown";
+                using (var sha = SHA256.Create())
+                    return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(id)))
+                        .Replace("-", string.Empty);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (ArgumentException) { }
+            return "unknown";
+        }
+
         internal static bool AreLeagueProcessesAbsent()
         {
             foreach (var name in new[] { "League of Legends", "LeagueClient", "LeagueClientUx", "LeagueClientUxRender" })
@@ -283,6 +333,20 @@ namespace FACM.Services
                 var allowed = ReadAllowed(path, "LCUAccountPreferences.yaml");
                 if (allowed.Count != 1 || !allowed[0].Value || allowed[0].Key != "blockNonFriendGameInvites")
                     throw new InvalidOperationException("Lobby field allowlist failed.");
+                var install = Path.Combine(root, "Game");
+                var config = Path.Combine(install, "Config");
+                var lobbyConfig = Path.Combine(root, "LeagueClient", "Config");
+                Directory.CreateDirectory(config);
+                Directory.CreateDirectory(lobbyConfig);
+                File.WriteAllText(Path.Combine(config, "game.cfg"), "[General]");
+                var identity = Path.Combine(lobbyConfig, "LeagueClientSettings.yaml");
+                File.WriteAllText(identity, "install:\n    lcu-settings:\n        accountId: 100\n    rso-auth:\n        install-identifier: arbitrary\n");
+                var first = ReadLocalAccountMarker(config);
+                File.WriteAllText(identity, "install:\n    lcu-settings:\n        accountId: 200\n");
+                var second = ReadLocalAccountMarker(config);
+                if (first == "unknown" || second == "unknown" ||
+                    first == second || first.Contains("100") || second.Contains("200"))
+                    throw new InvalidOperationException("Riot account transition marker failed.");
             }
             finally { Directory.Delete(root, true); }
         }

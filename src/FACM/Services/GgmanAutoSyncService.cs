@@ -100,6 +100,7 @@ namespace FACM.Services
             _settings.GameAutoRestoreEnabled = enabled;
             _settings.Save();
             _nextGameProfileCheckUtc = DateTime.MinValue;
+            _lastAppliedGameKey = null;
             _timer.Interval = 1500;
             UpdateStatus();
         }
@@ -146,6 +147,7 @@ namespace FACM.Services
             _settingsChangeNotBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
             _nextGameProfileCheckUtc = DateTime.MinValue;
+            _lastAppliedGameKey = null;
             UpdateStatus();
         }
 
@@ -273,6 +275,7 @@ namespace FACM.Services
         }
 
         private DateTime _nextGameProfileCheckUtc = DateTime.MinValue;
+        private string _lastAppliedGameKey;
 
         private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account, CancellationToken token)
         {
@@ -290,16 +293,26 @@ namespace FACM.Services
                     RequireSession(account, token);
                     if (string.IsNullOrWhiteSpace(directory)) return;
                     if (!GameProfileStore.AreLeagueProcessesAbsent()) return;
+                    // Restore once per registered session, install, cloud version and observed
+                    // League account. Never revert intentional local edits on each timer tick.
+                    var appliedKey = Hash(account.UserId + "|" +
+                        Path.GetFullPath(directory).ToUpperInvariant() + "|" +
+                        GameProfileStore.ReadLocalAccountMarker(directory)) + ":" + saved.Version;
+                    if (string.Equals(_lastAppliedGameKey, appliedKey, StringComparison.Ordinal))
+                        return;
                     GameProfile local = null;
                     try { local = GameProfileStore.Capture(directory); }
                     catch (FileNotFoundException) { }
-                    if (local != null &&
-                        string.Equals(GameProfileStore.Fingerprint(local),
+                    if (local == null ||
+                        !string.Equals(GameProfileStore.Fingerprint(local),
                             GameProfileStore.Fingerprint(saved.Profile), StringComparison.Ordinal))
-                        return;
+                    {
+                        RequireSession(account, token);
+                        GameProfileStore.Restore(saved.Profile, directory);
+                        AppLog.Info("Registered game profile restored; revision=" + saved.Version);
+                    }
                     RequireSession(account, token);
-                    GameProfileStore.Restore(saved.Profile, directory);
-                    AppLog.Info("Registered game profile restored; revision=" + saved.Version);
+                    _lastAppliedGameKey = appliedKey;
                 }
             }
             catch (OperationCanceledException) { throw; }
