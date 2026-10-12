@@ -180,7 +180,6 @@ namespace FACM.Services
             _conflictHasRemote = false;
             using (var appClient = new GgmanAppSettingsCloudClient())
             using (var textClient = new GgmanUiTextCloudClient())
-            using (var escClient = new GgmanEscCloudClient())
             {
                 RequireSession(account, token);
                 var appRemote = await appClient.GetAsync(account, token);
@@ -211,31 +210,13 @@ namespace FACM.Services
                     textLocal.Text.Count == 0 && textLocal.Replace.Count == 0);
                 RequireSession(account, token);
 
-                var dir = await Task.Run(() => EscGameDirectoryLocator.Find(_settings.GamePath, token));
-                RequireSession(account, token);
-                if (!string.IsNullOrEmpty(dir))
-                {
-                    EscSettingsBundle escLocal = null;
-                    try { escLocal = EscSettingsBackup.Capture(dir); }
-                    catch (FileNotFoundException) { }
-                    var escRemote = await escClient.GetAsync(account, token);
-                    RequireSession(account, token);
-                    if (escLocal == null && escRemote != null)
-                    {
-                        EscSettingsBackup.Restore(escRemote.Bundle, dir);
-                        PersistCursor(history, owner, "esc", escRemote.Version,
-                            FingerprintEsc(escRemote.Bundle));
-                    }
-                    else if (escLocal != null)
-                        await SyncOneAsync("esc", history, owner,
-                            IsOtherOwner(owner, _state.EscOwner), history.Esc,
-                            FingerprintEsc(escLocal), escRemote == null ? 0 : escRemote.Version,
-                            escRemote == null ? null : FingerprintEsc(escRemote.Bundle),
-                            async () => await escClient.SetAsync(account, escLocal,
-                                escRemote == null ? 0 : escRemote.Version, token),
-                            () => EscSettingsBackup.Restore(escRemote.Bundle, dir), token);
-                }
+                // Game profiles are published explicitly, never from periodic local changes.
             }
+        }
+
+        internal static bool IsBackgroundUploadAllowed(string kind)
+        {
+            return kind == "app" || kind == "text";
         }
 
         private enum SyncAction { Unchanged, Adopt, Upload, Restore, Conflict }
@@ -288,6 +269,8 @@ namespace FACM.Services
                 return true;
             }
             if (decision == SyncAction.Unchanged) return true;
+            if (kind == "esc" && decision == SyncAction.Upload)
+                throw new InvalidOperationException("Game configuration requires explicit upload.");
             if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges &&
                 decision == SyncAction.Restore)
                 decision = SyncAction.Conflict;
@@ -375,7 +358,6 @@ namespace FACM.Services
                 if (!_state.Accounts.TryGetValue(owner, out history)) return;
                 using (var appClient = new GgmanAppSettingsCloudClient())
                 using (var textClient = new GgmanUiTextCloudClient())
-                using (var escClient = new GgmanEscCloudClient())
                 {
                     RequireSession(account, token);
                     if (kind == "app")
@@ -404,21 +386,7 @@ namespace FACM.Services
                             () => UiTextCustomizationStore.Apply(remote.Profile),
                             token, keepLocal ? 1 : 2);
                     }
-                    else if (kind == "esc")
-                    {
-                        var dir = await Task.Run(() => EscGameDirectoryLocator.Find(_settings.GamePath, token));
-                        if (string.IsNullOrWhiteSpace(dir)) return;
-                        var local = EscSettingsBackup.Capture(dir);
-                        var remote = await escClient.GetAsync(account, token);
-                        RequireSession(account, token);
-                        resolved = await SyncOneAsync(kind, history, owner, false, history.Esc,
-                            FingerprintEsc(local), remote == null ? 0 : remote.Version,
-                            remote == null ? null : FingerprintEsc(remote.Bundle),
-                            async () => await escClient.SetAsync(account, local,
-                                remote == null ? 0 : remote.Version, token),
-                            () => EscSettingsBackup.Restore(remote.Bundle, dir),
-                            token, keepLocal ? 1 : 2);
-                    }
+
                 }
                 if (resolved)
                 {
@@ -525,6 +493,10 @@ namespace FACM.Services
                 Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict ||
                 Decide(previous, "new", 5, "old", true, false) != SyncAction.Conflict)
                 throw new InvalidOperationException("Auto sync conflict-selection rules changed.");
+
+            if (IsBackgroundUploadAllowed("esc") || !IsBackgroundUploadAllowed("app") ||
+                !IsBackgroundUploadAllowed("text"))
+                throw new InvalidOperationException("Game profiles must never auto-upload.");
 
             var state = new GgmanAutoSyncState();
             state.Accounts.Add(key, demo);
