@@ -1,0 +1,918 @@
+using System;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.Performance;
+using FACM.Services;
+
+namespace FACM.League
+{
+    internal sealed class LeagueRecommendationForm : Form
+    {
+        private readonly LeagueBuildAdvisorDataService _readService;
+        private readonly LeagueBuildApplyService _applyService;
+        private readonly LeagueItemSetService _itemSetService;
+        private readonly LeagueAutoApplyController _autoController;
+        private readonly UiTextCatalog _ui;
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+
+        private readonly CheckBox _runesChoice;
+        private readonly CheckBox _spellsChoice;
+        private readonly CheckBox _itemsChoice;
+        private readonly CheckBox _autoToggle;
+        private readonly Label _autoStatus;
+        private readonly Label _contextValue;
+        private readonly TextBox _runePreview;
+        private readonly TextBox _spellPreview;
+        private readonly TextBox _itemPreview;
+        private readonly Label _skillsValue;
+        private readonly Label _countersValue;
+        private readonly Label _statusValue;
+        private readonly Button _refreshButton;
+        private readonly Button _applyButton;
+        private readonly Panel _scrollBody;
+        private readonly Panel _contentPanel;
+        private readonly Panel _actionBar;
+        private readonly Label _chooseCaption;
+        private readonly Label _autoHint;
+        private readonly Label _contextCaption;
+        private readonly Label _runeLabel;
+        private readonly Label _spellLabel;
+        private readonly Label _itemLabel;
+        private readonly Label _extraCaption;
+        private readonly Label _skillsCaption;
+        private readonly Label _countersCaption;
+
+        private LeagueBuildAdvisorSnapshot _snapshot;
+        private bool _busy;
+        private bool _syncingAutoToggle;
+        private string _statusKey;
+        private string _autoStatusKey;
+
+        public LeagueRecommendationForm(
+            LeagueBuildAdvisorDataService readService,
+            LeagueBuildApplyService applyService,
+            LeagueItemSetService itemSetService,
+            LeagueAutoApplyController autoController,
+            UiTextCatalog ui)
+        {
+            _readService = readService ?? throw new ArgumentNullException(nameof(readService));
+            _applyService = applyService ?? throw new ArgumentNullException(nameof(applyService));
+            _itemSetService = itemSetService ?? throw new ArgumentNullException(nameof(itemSetService));
+            _autoController = autoController ?? throw new ArgumentNullException(nameof(autoController));
+            _ui = ui ?? throw new ArgumentNullException(nameof(ui));
+
+            Text = T(LeagueRecommendationUiTextKeys.WindowTitle);
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(900, 700);
+            MinimumSize = new Size(860, 650);
+            BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            ForeColor = FACM.Theming.FacmDesignSystem.Text;
+            Font = new Font(FACM.Theming.FacmThemeRuntime.Current.FontName, 9F);
+            DoubleBuffered = true;
+
+            var header = new RecommendationHeaderPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 92,
+                BackColor = FACM.Theming.FacmDesignSystem.Surface
+            };
+            header.Controls.Add(new Label
+            {
+                Text = T(LeagueRecommendationUiTextKeys.Title),
+                Location = new Point(28, 18),
+                Size = new Size(520, 32),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 18F, FontStyle.Bold)
+            });
+            header.Controls.Add(new Label
+            {
+                Text = T(LeagueRecommendationUiTextKeys.Hint),
+                Location = new Point(30, 54),
+                Size = new Size(820, 25),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                AutoEllipsis = true
+            });
+
+            _chooseCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Choose), 112);
+            _runesChoice = CreateChoice(
+                T(LeagueRecommendationUiTextKeys.Runes),
+                T(LeagueRecommendationUiTextKeys.RunesHint),
+                new Point(28, 142));
+            _spellsChoice = CreateChoice(
+                T(LeagueRecommendationUiTextKeys.Spells),
+                T(LeagueRecommendationUiTextKeys.SpellsHint),
+                new Point(306, 142));
+            _itemsChoice = CreateChoice(
+                T(LeagueRecommendationUiTextKeys.Items),
+                T(LeagueRecommendationUiTextKeys.ItemsHint),
+                new Point(584, 142));
+
+            _runesChoice.Checked = true;
+            _spellsChoice.Checked = true;
+            _itemsChoice.Checked = true;
+            _runesChoice.CheckedChanged += ChoiceChanged;
+            _spellsChoice.CheckedChanged += ChoiceChanged;
+            _itemsChoice.CheckedChanged += ChoiceChanged;
+
+            _autoToggle = new CheckBox
+            {
+                Text = LeagueAdvisorText.Get(_ui, LeagueAutoApplyUiTextKeys.Toggle),
+                Location = new Point(30, 224),
+                Size = new Size(300, 28),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                Checked = _autoController.Enabled
+            };
+            _autoStatus = new Label
+            {
+                Location = new Point(334, 224),
+                Size = new Size(518, 24),
+                ForeColor = FACM.Theming.FacmDesignSystem.Accent,
+                AutoEllipsis = true
+            };
+            _autoHint = new Label
+            {
+                Text = T(LeagueRecommendationUiTextKeys.AutoHint),
+                Location = new Point(30, 252),
+                Size = new Size(822, 22),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
+                AutoEllipsis = true
+            };
+            _autoToggle.CheckedChanged += HandleAutoToggleChanged;
+            _autoController.StatusChanged += HandleAutoStatusChanged;
+            UpdateAutoStatus(_autoController.LastStatus);
+
+            _contextCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Context), 286);
+            _contextValue = new Label
+            {
+                Location = new Point(30, 313),
+                Size = new Size(822, 26),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                AutoEllipsis = true
+            };
+
+            // Keep captions outside native TextBox windows. Overlaying Labels on a multiline TextBox
+            // can disappear at some DPI/scaling combinations because the native edit control owns its
+            // own HWND and paint order.
+            _runeLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Runes), 28, 348);
+            _spellLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Spells), 306, 348);
+            _itemLabel = CreatePreviewTitle(T(LeagueRecommendationUiTextKeys.Items), 584, 348);
+            _runePreview = CreatePreviewBox(new Rectangle(28, 372, 268, 78));
+            _spellPreview = CreatePreviewBox(new Rectangle(306, 372, 268, 78));
+            _itemPreview = CreatePreviewBox(new Rectangle(584, 372, 268, 78));
+
+            _extraCaption = CreateCaption(T(LeagueRecommendationUiTextKeys.Extra), 466);
+            _skillsCaption = new Label
+            {
+                Text = T(LeagueRecommendationUiTextKeys.Skills),
+                Location = new Point(30, 495),
+                Size = new Size(100, 22),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted
+            };
+            _skillsValue = new Label
+            {
+                Location = new Point(132, 495),
+                Size = new Size(720, 22),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                AutoEllipsis = true
+            };
+            _countersCaption = new Label
+            {
+                Text = T(LeagueRecommendationUiTextKeys.Counters),
+                Location = new Point(30, 523),
+                Size = new Size(100, 22),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted
+            };
+            _countersValue = new Label
+            {
+                Location = new Point(132, 523),
+                Size = new Size(720, 22),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                AutoEllipsis = true
+            };
+
+            _statusValue = new Label
+            {
+                Location = new Point(30, 570),
+                Size = new Size(560, 54),
+                ForeColor = FACM.Theming.FacmDesignSystem.TextMuted,
+                AutoEllipsis = true
+            };
+
+            _refreshButton = CreateButton(T(LeagueRecommendationUiTextKeys.Refresh), false);
+            _refreshButton.Location = new Point(630, 590);
+            _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            _refreshButton.Click += async delegate { await RefreshAsync(true); };
+
+            _applyButton = CreateButton(T(LeagueRecommendationUiTextKeys.ApplySelected), true);
+            _applyButton.Location = new Point(742, 590);
+            _applyButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            _applyButton.Enabled = false;
+            _applyButton.Click += async delegate { await ApplySelectedAsync(); };
+
+            _contentPanel = new Panel
+            {
+                Location = Point.Empty,
+                BackColor = FACM.Theming.FacmDesignSystem.Canvas,
+                Size = new Size(820, 530)
+            };
+            _scrollBody = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = FACM.Theming.FacmDesignSystem.Canvas,
+                Padding = Padding.Empty
+            };
+            _actionBar = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 69,
+                BackColor = FACM.Theming.FacmDesignSystem.Surface,
+                Padding = Padding.Empty
+            };
+
+            _actionBar.Controls.Add(_applyButton);
+            _actionBar.Controls.Add(_refreshButton);
+            _actionBar.Controls.Add(_statusValue);
+            _contentPanel.Controls.Add(_countersValue);
+            _contentPanel.Controls.Add(_countersCaption);
+            _contentPanel.Controls.Add(_skillsValue);
+            _contentPanel.Controls.Add(_skillsCaption);
+            _contentPanel.Controls.Add(_extraCaption);
+            _contentPanel.Controls.Add(_itemPreview);
+            _contentPanel.Controls.Add(_spellPreview);
+            _contentPanel.Controls.Add(_runePreview);
+            _contentPanel.Controls.Add(_itemLabel);
+            _contentPanel.Controls.Add(_spellLabel);
+            _contentPanel.Controls.Add(_runeLabel);
+            _contentPanel.Controls.Add(_contextValue);
+            _contentPanel.Controls.Add(_contextCaption);
+            _contentPanel.Controls.Add(_autoHint);
+            _contentPanel.Controls.Add(_autoStatus);
+            _contentPanel.Controls.Add(_autoToggle);
+            _contentPanel.Controls.Add(_itemsChoice);
+            _contentPanel.Controls.Add(_spellsChoice);
+            _contentPanel.Controls.Add(_runesChoice);
+            _contentPanel.Controls.Add(_chooseCaption);
+            _scrollBody.Controls.Add(_contentPanel);
+            Controls.Add(_scrollBody);
+            Controls.Add(_actionBar);
+            Controls.Add(header);
+
+            _scrollBody.ClientSizeChanged += delegate { LayoutRecommendation(); };
+            _actionBar.Resize += delegate { LayoutActionBar(); };
+            LayoutRecommendation();
+            LayoutActionBar();
+            ApplyWaitingState();
+            UpdateChoiceStyles();
+            Shown += async delegate { await RefreshAsync(false); };
+            FormClosed += delegate
+            {
+                _autoController.StatusChanged -= HandleAutoStatusChanged;
+                if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
+                _lifetime.Dispose();
+            };
+        }
+
+        private Label CreateCaption(string text, int top)
+        {
+            return new Label
+            {
+                Text = text,
+                Location = new Point(30, top),
+                Size = new Size(822, 25),
+                ForeColor = Color.White,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
+            };
+        }
+
+        private CheckBox CreateChoice(string title, string hint, Point location)
+        {
+            return new CheckBox
+            {
+                Appearance = Appearance.Button,
+                Text = string.IsNullOrWhiteSpace(hint) || hint.Trim('\u200b').Length == 0
+                    ? title : title + "\r\n" + hint,
+                Location = location,
+                Size = new Size(268, 66),
+                FlatStyle = FlatStyle.Flat,
+                FlatAppearance = { BorderSize = 1 },
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(14, 2, 10, 2),
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                BackColor = FACM.Theming.FacmDesignSystem.Surface,
+                Cursor = Cursors.Hand
+            };
+        }
+
+        private TextBox CreatePreviewBox(Rectangle bounds)
+        {
+            return new TextBox
+            {
+                Location = bounds.Location,
+                Size = bounds.Size,
+                Multiline = true,
+                ReadOnly = true,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = FACM.Theming.FacmDesignSystem.CanvasRaised,
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
+                ScrollBars = ScrollBars.Vertical
+            };
+        }
+
+        private Label CreatePreviewTitle(string text, int left, int top)
+        {
+            return new Label
+            {
+                Text = text,
+                Location = new Point(left, top),
+                Size = new Size(268, 20),
+                ForeColor = FACM.Theming.FacmDesignSystem.Accent,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
+            };
+        }
+
+        private Button CreateButton(string text, bool primary)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Size = new Size(106, 36),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.SurfaceRaised,
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand,
+                TabStop = true
+            };
+            button.FlatAppearance.BorderColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
+            return button;
+        }
+
+        internal static int ColumnsForWidthForSmokeTest(int width)
+        {
+            return width >= 790 ? 3 : width >= 520 ? 2 : 1;
+        }
+
+        internal static int ContentHeightForSmokeTest(int width)
+        {
+            var columns = ColumnsForWidthForSmokeTest(width);
+            var selectionRows = (3 + columns - 1) / columns;
+            var previewRows = selectionRows;
+            return 40 + selectionRows * 74 + 24 + 30 + 25 + 22 + 52 + 26 +
+                   previewRows * 122 + 32 + 32 + 32 + 24;
+        }
+
+        private void LayoutRecommendation()
+        {
+            if (_scrollBody == null || _scrollBody.IsDisposed || _contentPanel == null || _contentPanel.IsDisposed)
+                return;
+
+            var panelWidth = Math.Max(320, _scrollBody.ClientSize.Width - 3);
+            var inset = 24;
+            var usable = Math.Max(272, panelWidth - inset * 2);
+            var columns = ColumnsForWidthForSmokeTest(usable);
+            var gap = 12;
+            var cellWidth = (usable - (columns - 1) * gap) / columns;
+            var selectionRows = (3 + columns - 1) / columns;
+
+            _contentPanel.SuspendLayout();
+            try
+            {
+                _contentPanel.Width = panelWidth;
+                _chooseCaption.SetBounds(inset, 9, usable, 25);
+                var y = 41;
+                var choices = new[] { _runesChoice, _spellsChoice, _itemsChoice };
+                for (var i = 0; i < choices.Length; i++)
+                    choices[i].SetBounds(inset + (i % columns) * (cellWidth + gap),
+                        y + (i / columns) * 74, cellWidth, 64);
+
+                y += selectionRows * 74 + 18;
+                _autoToggle.SetBounds(inset, y, Math.Min(310, usable), 28);
+                if (usable >= 570)
+                {
+                    _autoStatus.SetBounds(inset + 300, y + 2, usable - 300, 25);
+                    y += 34;
+                }
+                else
+                {
+                    _autoStatus.SetBounds(inset, y + 29, usable, 24);
+                    y += 60;
+                }
+                _autoHint.SetBounds(inset, y, usable, 22);
+                y += 32;
+
+                _contextCaption.SetBounds(inset, y, usable, 25);
+                y += 28;
+                _contextValue.SetBounds(inset, y, usable, 28);
+                y += 42;
+
+                var titles = new[] { _runeLabel, _spellLabel, _itemLabel };
+                var previews = new[] { _runePreview, _spellPreview, _itemPreview };
+                for (var i = 0; i < previews.Length; i++)
+                {
+                    var left = inset + (i % columns) * (cellWidth + gap);
+                    var top = y + (i / columns) * 122;
+                    titles[i].SetBounds(left, top, cellWidth, 22);
+                    previews[i].SetBounds(left, top + 26, cellWidth, 87);
+                }
+
+                y += selectionRows * 122 + 12;
+                _extraCaption.SetBounds(inset, y, usable, 25);
+                y += 30;
+                _skillsCaption.SetBounds(inset, y, 95, 23);
+                _skillsValue.SetBounds(inset + 102, y, Math.Max(164, usable - 102), 23);
+                y += 32;
+                _countersCaption.SetBounds(inset, y, 95, 23);
+                _countersValue.SetBounds(inset + 102, y, Math.Max(164, usable - 102), 23);
+                _contentPanel.Height = y + 49;
+            }
+            finally
+            {
+                _contentPanel.ResumeLayout(false);
+            }
+        }
+
+        internal sealed class ActionBarLayout
+        {
+            public Rectangle Status { get; set; }
+            public Rectangle Refresh { get; set; }
+            public Rectangle Apply { get; set; }
+            public int Height { get; set; }
+        }
+
+        internal static ActionBarLayout ResolveActionBarLayoutForSmokeTest(int clientWidth)
+        {
+            var width = Math.Max(248, clientWidth);
+            if (width < 480)
+            {
+                var right = width - 16;
+                return new ActionBarLayout
+                {
+                    Height = 94,
+                    Status = new Rectangle(16, 5, width - 32, 32),
+                    Refresh = new Rectangle(right - 220, 48, 106, 36),
+                    Apply = new Rectangle(right - 106, 48, 106, 36)
+                };
+            }
+
+            var actionRight = width - 22;
+            var refreshLeft = actionRight - 220;
+            return new ActionBarLayout
+            {
+                Height = 69,
+                Status = new Rectangle(24, 9, refreshLeft - 38, 53),
+                Refresh = new Rectangle(refreshLeft, 16, 106, 36),
+                Apply = new Rectangle(actionRight - 106, 16, 106, 36)
+            };
+        }
+
+        private void LayoutActionBar()
+        {
+            if (_actionBar == null || _actionBar.IsDisposed) return;
+            var layout = ResolveActionBarLayoutForSmokeTest(_actionBar.ClientSize.Width);
+            if (_actionBar.Height != layout.Height) _actionBar.Height = layout.Height;
+            _statusValue.Bounds = layout.Status;
+            _refreshButton.Bounds = layout.Refresh;
+            _applyButton.Bounds = layout.Apply;
+        }
+
+        private void ChoiceChanged(object sender, EventArgs e)
+        {
+            UpdateChoiceStyles();
+            if (!_busy) SetButtons(CanApply(_snapshot));
+        }
+
+        private void UpdateChoiceStyles()
+        {
+            StyleChoice(_runesChoice);
+            StyleChoice(_spellsChoice);
+            StyleChoice(_itemsChoice);
+        }
+
+        private static void StyleChoice(CheckBox choice)
+        {
+            if (choice == null) return;
+            choice.BackColor = choice.Checked ? FACM.Theming.FacmDesignSystem.SurfaceRaised : FACM.Theming.FacmDesignSystem.Surface;
+            choice.ForeColor = choice.Checked ? Color.White : FACM.Theming.FacmDesignSystem.TextMuted;
+            choice.FlatAppearance.BorderColor = choice.Checked ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
+        }
+
+        private void HandleAutoToggleChanged(object sender, EventArgs e)
+        {
+            if (_syncingAutoToggle || IsDisposed) return;
+            try
+            {
+                _autoController.SetEnabled(_autoToggle.Checked);
+                UpdateAutoStatus(_autoController.LastStatus);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League recommendation auto-apply toggle failed", exception);
+                _syncingAutoToggle = true;
+                try { _autoToggle.Checked = _autoController.Enabled; }
+                finally { _syncingAutoToggle = false; }
+                UpdateAutoStatus("failed");
+            }
+        }
+
+        private void HandleAutoStatusChanged(object sender, LeagueAutoApplyStatusChangedEventArgs e)
+        {
+            if (IsDisposed || Disposing) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => HandleAutoStatusChanged(sender, e))); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            _syncingAutoToggle = true;
+            try { _autoToggle.Checked = _autoController.Enabled; }
+            finally { _syncingAutoToggle = false; }
+            UpdateAutoStatus(e == null ? _autoController.LastStatus : e.Status);
+        }
+
+        private void UpdateAutoStatus(string status)
+        {
+            string key;
+            if (string.Equals(status, "applying", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Applying;
+            else if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Succeeded;
+            else if (string.Equals(status, "partial", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Partial;
+            else if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Failed;
+            else if (_autoController.Enabled)
+                key = LeagueAutoApplyUiTextKeys.Waiting;
+            else
+                key = LeagueAutoApplyUiTextKeys.Disabled;
+            _autoStatusKey = key;
+            _autoStatus.Text = LeagueAdvisorText.Get(_ui, key);
+            _autoStatus.ForeColor = string.Equals(key, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
+                ? FACM.Theming.FacmDesignSystem.Success
+                : string.Equals(key, LeagueAutoApplyUiTextKeys.Failed, StringComparison.Ordinal)
+                    ? FACM.Theming.FacmDesignSystem.Error
+                    : string.Equals(key, LeagueAutoApplyUiTextKeys.Partial, StringComparison.Ordinal)
+                        ? FACM.Theming.FacmDesignSystem.Warning
+                        : FACM.Theming.FacmDesignSystem.TextMuted;
+        }
+
+        private async Task RefreshAsync(bool force)
+        {
+            if (_busy || IsDisposed || _lifetime.IsCancellationRequested) return;
+            _busy = true;
+            SetButtons(false);
+            try
+            {
+                var snapshot = await _readService.RefreshAsync(force, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                _snapshot = snapshot;
+                ApplySnapshot(snapshot);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!_lifetime.IsCancellationRequested) ApplyWaitingState();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League recommendation refresh failed", exception);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Failed);
+            }
+            finally
+            {
+                _busy = false;
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    SetButtons(CanApply(_snapshot));
+            }
+        }
+
+        private async Task ApplySelectedAsync()
+        {
+            if (_busy || !CanApply(_snapshot) || IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (!_runesChoice.Checked && !_spellsChoice.Checked && !_itemsChoice.Checked)
+            {
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.NoneSelected);
+                return;
+            }
+
+            _busy = true;
+            SetButtons(false);
+            try
+            {
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.Preparing);
+
+                LeagueBuildApplyPlan loadoutPlan = null;
+                LeagueItemSetPlan itemPlan = null;
+                if (_runesChoice.Checked || _spellsChoice.Checked)
+                    loadoutPlan = await _applyService.PrepareAsync(_snapshot, _lifetime.Token);
+                if (_itemsChoice.Checked)
+                    itemPlan = await _itemSetService.PrepareAsync(_snapshot, _lifetime.Token);
+
+                var scopedPlan = CreateScopedPlan(loadoutPlan, _runesChoice.Checked, _spellsChoice.Checked);
+                var canRunLoadout = scopedPlan != null && (scopedPlan.HasRunes || scopedPlan.HasSpells);
+                var canRunItems = itemPlan != null && itemPlan.HasItems;
+                if (!canRunLoadout && !canRunItems)
+                {
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.NoAvailable);
+                    return;
+                }
+
+                if (MessageBox.Show(
+                        this,
+                        BuildConfirmation(loadoutPlan, itemPlan),
+                        T(LeagueRecommendationUiTextKeys.ConfirmTitle),
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                {
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Ready);
+                    return;
+                }
+
+                LeagueBuildApplyResult loadoutResult = null;
+                LeagueItemSetWriteResult itemResult = null;
+                if (canRunLoadout)
+                    loadoutResult = await _applyService.ApplyAsync(scopedPlan, _lifetime.Token);
+                if (canRunItems)
+                    itemResult = await _itemSetService.ApplyAsync(itemPlan, _lifetime.Token);
+
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                ApplyCombinedResult(loadoutPlan, loadoutResult, itemPlan, itemResult);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!_lifetime.IsCancellationRequested)
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.ContextChanged);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League unified recommendation apply failed", exception);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    SetRecommendationStatus(LeagueRecommendationUiTextKeys.Failed);
+            }
+            finally
+            {
+                _busy = false;
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    SetButtons(CanApply(_snapshot));
+            }
+        }
+
+        private void ApplySnapshot(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                ApplyWaitingState();
+                return;
+            }
+
+            _contextValue.Text = BuildContext(snapshot);
+            _runePreview.Text = DisplayRecommendation(snapshot.Recommendation, "runes");
+            _spellPreview.Text = DisplayRecommendation(snapshot.Recommendation, "summoner-spells");
+            _itemPreview.Text = BuildItemPreview(snapshot.Recommendation);
+            _skillsValue.Text = DisplayRecommendation(snapshot.Recommendation, "skills");
+            _countersValue.Text = DisplayRecommendation(snapshot.Recommendation, "counters");
+            SetRecommendationStatus(CanApply(snapshot)
+                ? LeagueRecommendationUiTextKeys.Ready
+                : LeagueRecommendationUiTextKeys.Waiting);
+        }
+
+        private void ApplyWaitingState()
+        {
+            _snapshot = null;
+            _contextValue.Text = string.Empty;
+            _runePreview.Text = string.Empty;
+            _spellPreview.Text = string.Empty;
+            _itemPreview.Text = string.Empty;
+            _skillsValue.Text = string.Empty;
+            _countersValue.Text = string.Empty;
+            SetRecommendationStatus(LeagueRecommendationUiTextKeys.Waiting);
+            _applyButton.Enabled = false;
+        }
+
+        private void ApplyCombinedResult(
+            LeagueBuildApplyPlan loadoutPlan,
+            LeagueBuildApplyResult loadoutResult,
+            LeagueItemSetPlan itemPlan,
+            LeagueItemSetWriteResult itemResult)
+        {
+            var selected = 0;
+            var succeeded = 0;
+
+            if (_runesChoice.Checked)
+            {
+                selected++;
+                if (loadoutPlan != null && loadoutPlan.HasRunes && loadoutResult != null && loadoutResult.RunesApplied) succeeded++;
+            }
+            if (_spellsChoice.Checked)
+            {
+                selected++;
+                if (loadoutPlan != null && loadoutPlan.HasSpells && loadoutResult != null && loadoutResult.SpellsApplied) succeeded++;
+            }
+            if (_itemsChoice.Checked)
+            {
+                selected++;
+                if (itemPlan != null && itemPlan.HasItems && itemResult != null && itemResult.Succeeded) succeeded++;
+            }
+
+            var blocked = (loadoutResult != null && string.Equals(loadoutResult.Status, "blocked", StringComparison.OrdinalIgnoreCase)) ||
+                          (itemResult != null && string.Equals(itemResult.Status, "blocked", StringComparison.OrdinalIgnoreCase));
+            if (succeeded == 0 && blocked)
+            {
+                SetRecommendationStatus(LeagueRecommendationUiTextKeys.ContextChanged);
+                return;
+            }
+
+            var text = succeeded == selected
+                ? T(LeagueRecommendationUiTextKeys.Success)
+                : succeeded > 0
+                    ? T(LeagueRecommendationUiTextKeys.Partial)
+                    : T(LeagueRecommendationUiTextKeys.Failed);
+            if (loadoutResult != null && loadoutResult.RuneSkippedNoCapacity)
+                text += "  " + T(LeagueRecommendationUiTextKeys.RuneSlotFull);
+            _statusKey = succeeded == selected ? LeagueRecommendationUiTextKeys.Success :
+                succeeded > 0 ? LeagueRecommendationUiTextKeys.Partial : LeagueRecommendationUiTextKeys.Failed;
+            _statusValue.Text = text;
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(_statusKey);
+        }
+
+        private string BuildConfirmation(LeagueBuildApplyPlan loadoutPlan, LeagueItemSetPlan itemPlan)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(T(LeagueRecommendationUiTextKeys.ConfirmIntro));
+            builder.AppendLine();
+            AppendConfirmLine(builder, T(LeagueRecommendationUiTextKeys.Runes), _runesChoice.Checked,
+                loadoutPlan != null && loadoutPlan.HasRunes ? loadoutPlan.RunePreview : null);
+            AppendConfirmLine(builder, T(LeagueRecommendationUiTextKeys.Spells), _spellsChoice.Checked,
+                loadoutPlan != null && loadoutPlan.HasSpells ? loadoutPlan.SpellPreview : null);
+            AppendConfirmLine(builder, T(LeagueRecommendationUiTextKeys.Items), _itemsChoice.Checked,
+                itemPlan != null && itemPlan.HasItems ? itemPlan.Title : null);
+            builder.AppendLine();
+            builder.Append(BuildContext(_snapshot));
+            return builder.ToString();
+        }
+
+        private void AppendConfirmLine(StringBuilder builder, string label, bool selected, string preview)
+        {
+            builder.Append(label).Append(": ");
+            if (!selected)
+            {
+                builder.AppendLine(T(LeagueRecommendationUiTextKeys.NotSelected));
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(preview))
+            {
+                builder.AppendLine(T(LeagueRecommendationUiTextKeys.Unavailable));
+                return;
+            }
+            builder.Append(T(LeagueRecommendationUiTextKeys.Selected)).Append(" · ").AppendLine(preview);
+        }
+
+        private static LeagueBuildApplyPlan CreateScopedPlan(LeagueBuildApplyPlan source, bool includeRunes, bool includeSpells)
+        {
+            if (source == null) return null;
+            var plan = new LeagueBuildApplyPlan
+            {
+                ChampionId = source.ChampionId,
+                ChampionName = source.ChampionName,
+                QueueId = source.QueueId,
+                Mode = source.Mode,
+                Position = source.Position,
+                Version = source.Version,
+                RunePreview = source.RunePreview,
+                SpellPreview = source.SpellPreview
+            };
+
+            if (includeSpells)
+            {
+                plan.Spell1Id = source.Spell1Id;
+                plan.Spell2Id = source.Spell2Id;
+            }
+            if (includeRunes)
+            {
+                plan.PrimaryStyleId = source.PrimaryStyleId;
+                plan.SecondaryStyleId = source.SecondaryStyleId;
+                plan.PrimaryRuneIds.AddRange(source.PrimaryRuneIds);
+                plan.SecondaryRuneIds.AddRange(source.SecondaryRuneIds);
+                plan.StatModIds.AddRange(source.StatModIds);
+            }
+            return plan;
+        }
+
+        private string BuildItemPreview(LeagueBuildRecommendation recommendation)
+        {
+            var starter = FindRecommendation(recommendation, "starter-items");
+            var core = FindRecommendation(recommendation, "core-items");
+            if (string.IsNullOrWhiteSpace(starter) && string.IsNullOrWhiteSpace(core))
+                return T(LeagueRecommendationUiTextKeys.Unavailable);
+            return string.Format(
+                T(LeagueRecommendationUiTextKeys.ItemSummaryFormat),
+                string.IsNullOrWhiteSpace(starter) ? "--" : starter,
+                string.IsNullOrWhiteSpace(core) ? "--" : core);
+        }
+
+        private string DisplayRecommendation(LeagueBuildRecommendation recommendation, string category)
+        {
+            var value = FindRecommendation(recommendation, category);
+            return string.IsNullOrWhiteSpace(value) ? T(LeagueRecommendationUiTextKeys.Unavailable) : value;
+        }
+
+        private static string FindRecommendation(LeagueBuildRecommendation recommendation, string category)
+        {
+            if (recommendation == null) return string.Empty;
+            var row = recommendation.Rows.FirstOrDefault(item =>
+                string.Equals(item.Category, category, StringComparison.OrdinalIgnoreCase));
+            return row == null ? string.Empty : row.Recommendation ?? string.Empty;
+        }
+
+        private static string BuildContext(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return string.Empty;
+            var champion = string.IsNullOrWhiteSpace(snapshot.ChampionName)
+                ? "#" + snapshot.ChampionId
+                : snapshot.ChampionName;
+            return champion + " · " + (snapshot.Mode ?? string.Empty) + " / " + (snapshot.Position ?? string.Empty) +
+                   " · " + (snapshot.Source ?? string.Empty) + " " + (snapshot.Version ?? string.Empty);
+        }
+
+        internal static Color RecommendationStatusToneForSmokeTest(string key)
+        {
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Success, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Success;
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Failed, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.ContextChanged, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Error;
+            if (string.Equals(key, LeagueRecommendationUiTextKeys.Partial, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.NoAvailable, StringComparison.Ordinal) ||
+                string.Equals(key, LeagueRecommendationUiTextKeys.NoneSelected, StringComparison.Ordinal))
+                return FACM.Theming.FacmDesignSystem.Warning;
+            return FACM.Theming.FacmDesignSystem.TextMuted;
+        }
+
+        private void SetRecommendationStatus(string key)
+        {
+            _statusKey = key;
+            _statusValue.Text = T(key);
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(key);
+        }
+
+        internal void RefreshVisualState()
+        {
+            if (_scrollBody == null || IsDisposed) return;
+            _scrollBody.BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            _contentPanel.BackColor = FACM.Theming.FacmDesignSystem.Canvas;
+            _actionBar.BackColor = FACM.Theming.FacmDesignSystem.Surface;
+            _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(_statusKey);
+            _autoStatus.ForeColor = string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
+                ? FACM.Theming.FacmDesignSystem.Success
+                : string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Failed, StringComparison.Ordinal)
+                    ? FACM.Theming.FacmDesignSystem.Error
+                    : string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Partial, StringComparison.Ordinal)
+                        ? FACM.Theming.FacmDesignSystem.Warning
+                        : FACM.Theming.FacmDesignSystem.TextMuted;
+        }
+
+        private void SetButtons(bool canApply)
+        {
+            _refreshButton.Enabled = !_busy;
+            _applyButton.Enabled = !_busy && canApply && (_runesChoice.Checked || _spellsChoice.Checked || _itemsChoice.Checked);
+        }
+
+        private static bool CanApply(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            return snapshot != null &&
+                   snapshot.Connected &&
+                   snapshot.Activity == LeagueActivityLevel.ChampSelect &&
+                   snapshot.ChampionId > 0 &&
+                   snapshot.Recommendation != null &&
+                   string.Equals(snapshot.Status, "ready", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string T(string key)
+        {
+            return LeagueRecommendationText.Get(_ui, key);
+        }
+
+        private sealed class RecommendationHeaderPanel : Panel
+        {
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (Width <= 0) return;
+                using (var line = new SolidBrush(FACM.Theming.FacmDesignSystem.BorderSoft))
+                    e.Graphics.FillRectangle(line, 0, Height - 1, Width, 1);
+            }
+        }
+    }
+}

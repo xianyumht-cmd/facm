@@ -1,0 +1,181 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using FACM.Mayhem;
+
+namespace FACM.Theming
+{
+    internal static class FacmControlPrimitivesSmokeTest
+    {
+        public static void Validate()
+        {
+            using (var button = new FacmActionButton())
+            using (var toggle = new FacmToggleSwitch())
+            using (var badge = new FacmStatusBadge())
+            using (var nav = new FacmNavButton())
+            using (var tab = new FacmPillButton())
+            {
+                if (!(button is Button) || !button.TabStop)
+                    throw new InvalidOperationException("FACM shared action button must retain native Button keyboard/focus semantics.");
+                button.Tone = FacmButtonTone.Primary;
+                if (button.Tone != FacmButtonTone.Primary)
+                    throw new InvalidOperationException("FACM shared action button lost its semantic tone state.");
+
+                if (!(toggle is CheckBox))
+                    throw new InvalidOperationException("FACM shared toggle must retain native CheckBox semantics.");
+                var changed = 0;
+                toggle.CheckedChanged += delegate { changed++; };
+                toggle.Checked = true;
+                if (!toggle.Checked || changed != 1)
+                    throw new InvalidOperationException("FACM shared toggle no longer raises CheckedChanged exactly once for a normal state change.");
+
+                badge.Tone = FacmStatusTone.Success;
+                if (badge.Tone != FacmStatusTone.Success)
+                    throw new InvalidOperationException("FACM shared status badge lost its semantic tone state.");
+
+                if (!(nav is Button) || !nav.TabStop)
+                    throw new InvalidOperationException("FACM shared navigation button must remain keyboard reachable.");
+                if (!(tab is Button) || !tab.TabStop)
+                    throw new InvalidOperationException("FACM shared tab button must remain keyboard reachable.");
+            }
+
+            if (FacmDesignSystem.ControlRadius < 0 || FacmDesignSystem.CardRadius < 0 || FacmDesignSystem.WindowRadius < 0)
+                throw new InvalidOperationException("FACM shared design radii must remain non-negative.");
+            if (FacmDesignSystem.ControlRadius > 6 || FacmDesignSystem.CardRadius > 8 || FacmDesignSystem.WindowRadius > 12)
+                throw new InvalidOperationException("FACM product radii drifted back into oversized template-style rounding.");
+
+            ValidateChromeButtonIsolation();
+            ValidateToggleResizeRepaint();
+            ValidateWindowChromeLayout();
+            MayhemLookupLayoutPolicy.ValidateForSmokeTest();
+        }
+
+        private static void ValidateChromeButtonIsolation()
+        {
+            using (var button = new FacmChromeButton
+            {
+                Size = new Size(32, 28),
+                BackColor = Color.Red
+            })
+            {
+                FacmDesignSystem.Round(button, 6);
+                if (button.Region == null)
+                    throw new InvalidOperationException("FACM chrome isolation smoke failed to create its pre-theme rounded state.");
+
+                FacmDesignSystem.ApplyRecursive(button);
+                if (!FacmDesignSystem.IsWindowChromeButton(button))
+                    throw new InvalidOperationException("FACM shared theme no longer recognizes window chrome controls.");
+                if (button.Region != null)
+                    throw new InvalidOperationException("FACM window chrome button was rounded by generic business-button styling.");
+                if (button.FlatAppearance.BorderSize != 0)
+                    throw new InvalidOperationException("FACM window chrome button gained a generic business-button border.");
+                if (button.BackColor != Color.Transparent)
+                    throw new InvalidOperationException("FACM window chrome button gained a persistent generic business-button fill.");
+            }
+        }
+
+        private static void ValidateToggleResizeRepaint()
+        {
+            var background = Color.FromArgb(17, 25, 47);
+            using (var host = new Panel { BackColor = background, Size = new Size(600, 40) })
+            using (var toggle = new FacmToggleSwitch
+            {
+                Checked = true,
+                Text = string.Empty,
+                Location = Point.Empty,
+                Size = new Size(240, 32)
+            })
+            using (var bitmap = new Bitmap(600, 40))
+            {
+                host.Controls.Add(toggle);
+                var unused = toggle.Handle;
+
+                using (var graphics = Graphics.FromImage(bitmap)) graphics.Clear(background);
+                toggle.DrawToBitmap(bitmap, new Rectangle(0, 0, toggle.Width, toggle.Height));
+
+                // Probe the center of the original checked track. The first render must actually
+                // paint it, then a wider layout pass must erase that old coordinate completely.
+                var oldTrackCenter = new Point(217, 16);
+                if (bitmap.GetPixel(oldTrackCenter.X, oldTrackCenter.Y).ToArgb() == background.ToArgb())
+                    throw new InvalidOperationException("FACM toggle repaint smoke did not capture the original switch track.");
+
+                toggle.Width = 520;
+                toggle.DrawToBitmap(bitmap, new Rectangle(0, 0, toggle.Width, toggle.Height));
+                if (bitmap.GetPixel(oldTrackCenter.X, oldTrackCenter.Y).ToArgb() != background.ToArgb())
+                    throw new InvalidOperationException("FACM toggle left stale pixels at its previous track position after resize.");
+            }
+        }
+
+        private static void ValidateWindowChromeLayout()
+        {
+            using (var form = new Form
+            {
+                ClientSize = new Size(800, 500),
+                Padding = new Padding(8),
+                FormBorderStyle = FormBorderStyle.Sizable,
+                ControlBox = true,
+                MinimizeBox = true,
+                MaximizeBox = true,
+                ShowInTaskbar = true
+            })
+            using (var page = new Panel { Dock = DockStyle.Fill })
+            {
+                form.Controls.Add(page);
+
+                // Force a handle so Prepare attaches without showing a real window in CI.
+                var unused = form.Handle;
+                FacmWindowChrome.Prepare(form, new FacmWindowChromeOptions
+                {
+                    CloseOnDeactivate = false,
+                    CloseOnEscape = false
+                });
+                form.PerformLayout();
+
+                RequireChromeSeparated(form, "initial");
+                RequireIntegratedChromeVisual(form, "initial");
+                if (page.Parent == form)
+                    throw new InvalidOperationException("FACM window chrome did not move page content into its reserved content host.");
+
+                form.ClientSize = new Size(980, 660);
+                form.PerformLayout();
+                RequireChromeSeparated(form, "resized");
+                RequireIntegratedChromeVisual(form, "resized");
+            }
+        }
+
+        private static void RequireChromeSeparated(Form form, string stage)
+        {
+            Rectangle title;
+            Rectangle content;
+            if (!FacmWindowChrome.TryGetLayoutForSmokeTest(form, out title, out content))
+                throw new InvalidOperationException("FACM window chrome layout snapshot was unavailable during " + stage + " smoke validation.");
+            if (title.Height < 34)
+                throw new InvalidOperationException("FACM window chrome interaction band collapsed during " + stage + " smoke validation.");
+            if (content.Top < title.Bottom)
+                throw new InvalidOperationException("FACM window chrome content overlaps the interaction band during " + stage + " smoke validation.");
+            if (content.Top != title.Bottom)
+                throw new InvalidOperationException("FACM window chrome left an unexpected layout gap below the interaction band during " + stage + " smoke validation.");
+            if (title.Left != content.Left || title.Width != content.Width)
+                throw new InvalidOperationException("FACM window chrome interaction/content horizontal bounds diverged during " + stage + " smoke validation.");
+        }
+
+        private static void RequireIntegratedChromeVisual(Form form, string stage)
+        {
+            Color topBackground;
+            Color contentBackground;
+            int topHeight;
+            if (!FacmWindowChrome.TryGetVisualForSmokeTest(form, out topBackground, out contentBackground, out topHeight))
+                throw new InvalidOperationException("FACM integrated chrome visual snapshot was unavailable during " + stage + " smoke validation.");
+            if (topBackground.ToArgb() != contentBackground.ToArgb())
+                throw new InvalidOperationException("FACM interaction band visually split from the page canvas during " + stage + " smoke validation.");
+            if (topHeight < 34 || topHeight > 38)
+                throw new InvalidOperationException("FACM integrated interaction band drifted outside the compact 34-38px contract during " + stage + " smoke validation.");
+        }
+
+        // Deliberately named like FacmWindowChrome's private nested button so the shared styling
+        // exclusion can be regression-tested without widening the production chrome API.
+        private sealed class FacmChromeButton : Button
+        {
+        }
+    }
+}

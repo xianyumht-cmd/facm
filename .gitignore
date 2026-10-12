@@ -1,0 +1,11 @@
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+*.pfx
+*.cer
+*.snk
+artifacts/
+local-signing/

@@ -1,0 +1,326 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using FACM.Performance;
+
+namespace FACM.League
+{
+    internal static class LeagueBuildAdvisorSmokeTest
+    {
+        public static void Validate()
+        {
+            ValidateParsingAndCaching();
+            ValidateUnresolvedRankedPosition();
+            ValidateModeAndPositionMapping();
+            ValidateCancellation();
+            ValidateRecommendationPageLayout();
+            Require(LeagueBuildAdvisorUiBridge.HasTrayAccessForSmokeTest(), "Build Advisor lost tray access contract.");
+        }
+
+        private static void ValidateRecommendationPageLayout()
+        {
+            LeagueRecommendationDesignEnhancer.ValidateForSmokeTest();
+            Require(LeagueRecommendationForm.ColumnsForWidthForSmokeTest(420) == 1 &&
+                    LeagueRecommendationForm.ColumnsForWidthForSmokeTest(680) == 2 &&
+                    LeagueRecommendationForm.ColumnsForWidthForSmokeTest(920) == 3,
+                "Recommendation page must adapt its card columns to embedded workbench width.");
+
+            var narrow = LeagueRecommendationForm.ContentHeightForSmokeTest(420);
+            var medium = LeagueRecommendationForm.ContentHeightForSmokeTest(680);
+            var wide = LeagueRecommendationForm.ContentHeightForSmokeTest(920);
+            Require(narrow > medium && medium > wide,
+                "Recommendation page must make overflow scrollable instead of clipping narrow content.");
+
+            foreach (var width in new[] { 280, 320, 400, 479, 480, 680, 920 })
+            {
+                var actionBar = LeagueRecommendationForm.ResolveActionBarLayoutForSmokeTest(width);
+                Require(actionBar.Status.Left >= 0 && actionBar.Status.Right <= width &&
+                        actionBar.Refresh.Left >= 0 && actionBar.Refresh.Right <= width &&
+                        actionBar.Apply.Left >= 0 && actionBar.Apply.Right <= width,
+                    "Recommendation toolbar content escaped the embedded client width.");
+                Require(actionBar.Status.Top >= 0 && actionBar.Status.Bottom <= actionBar.Height &&
+                        actionBar.Refresh.Top >= 0 && actionBar.Refresh.Bottom <= actionBar.Height &&
+                        actionBar.Apply.Top >= 0 && actionBar.Apply.Bottom <= actionBar.Height,
+                    "Recommendation footer controls escaped their action bar height.");
+                Require(!actionBar.Status.IntersectsWith(actionBar.Refresh) &&
+                        !actionBar.Status.IntersectsWith(actionBar.Apply) &&
+                        !actionBar.Refresh.IntersectsWith(actionBar.Apply),
+                    "Recommendation footer status and action buttons overlap at " + width + "px.");
+                Require(actionBar.Height == (width < 480 ? 94 : 69),
+                    "Recommendation action bar breakpoint no longer keeps status readable.");
+            }
+
+            Require(LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Success) ==
+                    FACM.Theming.FacmDesignSystem.Success &&
+                    LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Failed) ==
+                    FACM.Theming.FacmDesignSystem.Error &&
+                    LeagueRecommendationForm.RecommendationStatusToneForSmokeTest(LeagueRecommendationUiTextKeys.Partial) ==
+                    FACM.Theming.FacmDesignSystem.Warning,
+                "Recommendation result status must distinguish verified success, partial and failed states.");
+        }
+
+        private static void ValidateParsingAndCaching()
+        {
+            var lcu = new FakeLeagueApi();
+            var opgg = new FakeOpggApi();
+            var budgets = new PerformanceBudgetProvider();
+            using (var service = new LeagueBuildAdvisorDataService(lcu, budgets, opgg))
+            {
+                var first = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(first != null && first.Recommendation != null, "Build Advisor did not parse the first OP.GG recommendation.");
+                Require(first.ChampionId == 53, "Build Advisor did not resolve the selected local champion.");
+                Require(first.ChampionName == "蒸汽机器人", "Build Advisor did not resolve local champion metadata.");
+                Require(first.Mode == "ranked" && first.Position == "jungle", "Build Advisor mapped ranked position incorrectly.");
+                Require(first.Source == "OP.GG Global", "Build Advisor must label Tencent fallback data as OP.GG Global.");
+                Require(first.Version == "16.16", "Build Advisor did not parse OP.GG version metadata.");
+
+                var runeRows = first.Recommendation.Rows.Where(row => row.Category == "runes").ToList();
+                var spellRows = first.Recommendation.Rows.Where(row => row.Category == "summoner-spells").ToList();
+                var starterRows = first.Recommendation.Rows.Where(row => row.Category == "starter-items").ToList();
+                var coreRows = first.Recommendation.Rows.Where(row => row.Category == "core-items").ToList();
+                var skillRows = first.Recommendation.Rows.Where(row => row.Category == "skills").ToList();
+                var counterRows = first.Recommendation.Rows.Where(row => row.Category == "counters").ToList();
+
+                Require(runeRows.Count == 2 && runeRows[0].Recommendation.Contains("电刑") && runeRows[1].Recommendation.Contains("奥术彗星"),
+                    "Build Advisor did not preserve ordered rune alternatives.");
+                Require(runeRows[0].IconReferences.Count == 3 && runeRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve grouped rune icon references for Runtime Companion.");
+                Require(spellRows.Count == 2 && spellRows[0].Recommendation.Contains("闪现") && spellRows[0].Recommendation.Contains("惩戒"),
+                    "Build Advisor did not preserve ordered summoner-spell alternatives.");
+                Require(spellRows[0].Evidence.Contains("win 54.2%") && spellRows[0].Evidence.Contains("1,200 games"),
+                    "Build Advisor did not project available win/sample evidence.");
+                Require(spellRows[0].IconReferences.Count == 2 && spellRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve summoner-spell icon references for Runtime Companion.");
+                Require(starterRows[0].IconReferences.Count > 0 && coreRows[0].IconReferences.Count > 0,
+                    "Build Advisor did not preserve item icon references for Runtime Companion.");
+                Require(spellRows[1].Evidence.IndexOf("win 0.0%", StringComparison.OrdinalIgnoreCase) < 0,
+                    "Missing OP.GG win evidence was incorrectly rendered as a zero-percent win rate.");
+                Require(starterRows.Count == 2 && starterRows[0].Recommendation.Contains("多兰之戒") && starterRows[1].Recommendation.Contains("多兰之刃"),
+                    "Build Advisor did not preserve ordered starter-item alternatives.");
+                Require(coreRows.Count == 3 && coreRows[0].Recommendation.Contains("卢登") && coreRows[2].Recommendation.Contains("振奋盔甲"),
+                    "Build Advisor alternative cap/order contract drifted.");
+                Require(skillRows.Count == 2 && skillRows[0].Recommendation == "Q > E > W",
+                    "Build Advisor did not preserve ordered skill alternatives.");
+                Require(counterRows.Count == 1 && counterRows[0].Recommendation.StartsWith("虚空之女 · 盲僧", StringComparison.Ordinal),
+                    "Build Advisor lost source-ordered counter-matchup data used by Runtime Companion.");
+                Require(counterRows[0].IconReferences.Count == 2 &&
+                        counterRows[0].IconReferences.All(value => value != null && value.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase)),
+                    "Build Advisor did not preserve counter champion icon references for Runtime Companion.");
+                Require(counterRows[0].CounterStats.Count == 2 &&
+                        counterRows[0].CounterStats[0].ChampionId == 145 && counterRows[0].CounterStats[0].Games == 210 &&
+                        counterRows[0].CounterStats[0].HasWins && counterRows[0].CounterStats[0].Wins == 126 &&
+                        counterRows[0].CounterStats[1].ChampionId == 64 && counterRows[0].CounterStats[1].Games == 321 &&
+                        counterRows[0].CounterStats[1].HasWins && counterRows[0].CounterStats[1].Wins == 144,
+                    "Build Advisor did not preserve per-counter OP.GG sample evidence.");
+
+                var sourceCounterOrder = counterRows[0].Recommendation;
+                var projected = new LeagueRuntimeCompanionSnapshot
+                {
+                    SessionAvailable = true,
+                    LocalChampionId = 53,
+                    Build = first,
+                    Players = new List<LeagueLivePlayerRow>
+                    {
+                        new LeagueLivePlayerRow { Side = "ally", IsLocalPlayer = true, ChampionId = 53, Position = "JUNGLE" },
+                        new LeagueLivePlayerRow { Side = "enemy", ChampionId = 145, Position = "TOP" },
+                        new LeagueLivePlayerRow { Side = "enemy", ChampionId = 64, Position = "JUNGLE" }
+                    }.AsReadOnly()
+                }.Clone();
+                var projectedCounter = projected.Build.Recommendation.Rows.First(row => row.Category == "counters");
+                Require(projectedCounter.Recommendation.StartsWith("盲僧 · 虚空之女", StringComparison.Ordinal),
+                    "Runtime Companion did not prioritize a revealed exact-position counter ahead of other revealed enemies.");
+                Require(projectedCounter.CounterStats.Count == 2 && projectedCounter.CounterStats[0].ChampionId == 64,
+                    "Runtime Companion counter evidence lost alignment while reordering the visible row.");
+                Require(projectedCounter.Evidence.Contains("win 44.9%") && projectedCounter.Evidence.Contains("321 games"),
+                    "Runtime Companion did not surface the focused OP.GG matchup sample evidence.");
+                Require(counterRows[0].Recommendation == sourceCounterOrder && counterRows[0].CounterStats[0].ChampionId == 145,
+                    "Runtime Companion mutated the Build Advisor owner's source counter ordering.");
+
+                var hiddenIntentProjection = new LeagueRuntimeCompanionSnapshot
+                {
+                    SessionAvailable = true,
+                    LocalChampionId = 53,
+                    Build = first,
+                    Players = new List<LeagueLivePlayerRow>
+                    {
+                        new LeagueLivePlayerRow { Side = "ally", IsLocalPlayer = true, ChampionId = 53, Position = "JUNGLE" },
+                        new LeagueLivePlayerRow { Side = "enemy", ChampionId = 0, ChampionPickIntent = 64, Position = "JUNGLE" }
+                    }.AsReadOnly()
+                }.Clone();
+                var hiddenCounter = hiddenIntentProjection.Build.Recommendation.Rows.First(row => row.Category == "counters");
+                Require(hiddenCounter.Recommendation == sourceCounterOrder,
+                    "Runtime Companion inferred an enemy counter from hidden pick intent instead of failing closed.");
+
+                Require(first.Recommendation.WinRate.HasValue && first.Recommendation.PickRate.HasValue && first.Recommendation.BanRate.HasValue,
+                    "Build Advisor lost champion summary rates used by Runtime Companion.");
+                Require(opgg.Paths.Count == 2, "First Build Advisor refresh must request one version and one build payload.");
+                Require(opgg.Paths.Last() == "/api/global/champions/ranked/53/jungle?tier=all&version=16.16",
+                    "Build Advisor did not bind the OP.GG build request to tier/version.");
+
+                var second = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(second.Recommendation != null && second.FromCache, "Repeated Build Advisor refresh did not use the 10-minute cache.");
+                Require(second.Recommendation.Rows.Count == first.Recommendation.Rows.Count,
+                    "Build Advisor cache clone lost alternative recommendation rows.");
+                var cachedCounter = second.Recommendation.Rows.First(row => row.Category == "counters");
+                Require(cachedCounter.CounterStats.Count == 2 && cachedCounter.CounterStats[0].ChampionId == 145,
+                    "Build Advisor cache clone lost per-counter source evidence.");
+                Require(opgg.Paths.Count == 2, "Repeated identical Build Advisor refresh caused OP.GG fan-out.");
+
+                lcu.ChampionId = 145;
+                var changed = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(changed.ChampionId == 145 && changed.Recommendation != null, "Champion change did not refresh the recommendation.");
+                Require(opgg.Paths.Count == 3, "Champion change must reuse version cache and request only the new build.");
+
+                var beforeGame = opgg.Paths.Count;
+                lcu.Phase = "InProgress";
+                var inGame = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(opgg.Paths.Count == beforeGame, "In-game Build Advisor sent a new OP.GG request.");
+                Require(inGame.Activity == LeagueActivityLevel.InGame, "Build Advisor lost Gameflow activity mapping.");
+
+                Require(!lcu.Paths.Any(path => path.IndexOf("match-history", StringComparison.OrdinalIgnoreCase) >= 0),
+                    "Build Advisor must not fan out to match history or scouting endpoints.");
+                Require(lcu.Paths.All(path => path.StartsWith("/", StringComparison.Ordinal)),
+                    "Build Advisor LCU fixture saw an invalid request path.");
+            }
+        }
+
+        private static void ValidateUnresolvedRankedPosition()
+        {
+            var lcu = new FakeLeagueApi { AssignedPosition = null, ChampionId = 157 };
+            var opgg = new FakeOpggApi();
+            var budgets = new PerformanceBudgetProvider();
+            using (var service = new LeagueBuildAdvisorDataService(lcu, budgets, opgg))
+            {
+                var first = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(first.Recommendation != null, "Unknown Tencent ranked position did not recover to a usable OP.GG build.");
+                Require(first.Position == "mid", "Build Advisor did not infer the champion's primary OP.GG ranked position.");
+                Require(opgg.Paths.Count == 3, "Unknown ranked position must use version + one champion list + one build request.");
+                Require(opgg.Paths[1] == "/api/global/champions/ranked?tier=all&version=16.16",
+                    "Build Advisor did not use the version-bound OP.GG champion list for lane inference.");
+                Require(opgg.Paths[2] == "/api/global/champions/ranked/157/mid?tier=all&version=16.16",
+                    "Build Advisor still sent an unresolved ranked position to OP.GG.");
+
+                var count = opgg.Paths.Count;
+                var repeated = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(repeated.Recommendation != null && repeated.FromCache,
+                    "Inferred ranked position did not participate in the build cache.");
+                Require(opgg.Paths.Count == count,
+                    "Repeated unresolved Tencent position caused extra OP.GG lane/build requests.");
+
+                lcu.Phase = "InProgress";
+                var beforeGame = opgg.Paths.Count;
+                var inGame = service.RefreshAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(inGame.Recommendation != null && inGame.FromCache,
+                    "In-game cache-only lookup lost a build learned from an inferred ranked position.");
+                Require(opgg.Paths.Count == beforeGame,
+                    "In-game unresolved position triggered a forbidden OP.GG request.");
+            }
+        }
+
+        private static void ValidateModeAndPositionMapping()
+        {
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(450, null) == "aram", "ARAM queue mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(2400, "KIWI") == null, "Global ARAM Mayhem must not reuse ordinary ARAM builds.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(3270, "ARAM") == null, "Tencent ARAM Mayhem must not reuse ordinary ARAM builds.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggMode(420, null) == "ranked", "Ranked queue mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("UTILITY", "ranked") == "support", "Support position mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("BOTTOM", "ranked") == "adc", "ADC position mapping changed.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggPosition(null, "ranked") == "all", "Unknown ranked position must remain an internal unresolved sentinel.");
+            Require(LeagueBuildAdvisorDataService.ResolveOpggPosition("TOP", "aram") == "none", "Non-ranked mode must not invent a lane position.");
+            Require(LeagueBuildAdvisorDataService.BuildPath(53, "ranked", "jungle", "16.16") ==
+                    "/api/global/champions/ranked/53/jungle?tier=all&version=16.16",
+                "OP.GG build path contract changed.");
+        }
+
+        private static void ValidateCancellation()
+        {
+            var lcu = new FakeLeagueApi();
+            var opgg = new FakeOpggApi();
+            var budgets = new PerformanceBudgetProvider();
+            using (var service = new LeagueBuildAdvisorDataService(lcu, budgets, opgg))
+            using (var cancellation = new CancellationTokenSource())
+            {
+                cancellation.Cancel();
+                try
+                {
+                    service.RefreshAsync(false, cancellation.Token).GetAwaiter().GetResult();
+                    throw new InvalidOperationException("Build Advisor ignored cancellation.");
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected: form close must stop the request chain immediately.
+                }
+            }
+        }
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private sealed class FakeLeagueApi : ILeagueClientApi
+        {
+            public string Phase { get; set; } = "ChampSelect";
+            public int ChampionId { get; set; } = 53;
+            public string AssignedPosition { get; set; } = "JUNGLE";
+            public List<string> Paths { get; } = new List<string>();
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Paths.Add(path);
+                if (path == LeagueDashboardPhaseService.PhasePath)
+                    return Bytes("\"" + Phase + "\"");
+                if (path == LeagueLiveDataService.ChampSelectSessionPath)
+                {
+                    var position = AssignedPosition == null ? string.Empty : "\"assignedPosition\":\"" + AssignedPosition + "\",";
+                    return Bytes("{\"gameId\":123,\"queueId\":420,\"localPlayerCellId\":1,\"myTeam\":[{\"cellId\":1,\"puuid\":\"local-puuid\"," + position + "\"championId\":" + ChampionId + ",\"championPickIntent\":" + ChampionId + "}],\"theirTeam\":[],\"actions\":[]}");
+                }
+                if (path == LeagueLiveDataService.GameflowSessionPath)
+                    return Bytes("{\"phase\":\"InProgress\",\"map\":{\"id\":11,\"gameMode\":\"CLASSIC\"},\"gameData\":{\"gameId\":123,\"queue\":{\"id\":420,\"gameMode\":\"CLASSIC\"},\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":" + ChampionId + "}],\"teamTwo\":[]}}");
+                if (path == LeagueBuildAdvisorDataService.ChampionSummaryPath)
+                    return Bytes("[{\"id\":53,\"name\":\"蒸汽机器人\",\"iconPath\":\"ASSETS/Characters/Blitzcrank/HUD/Blitzcrank_Square.png\"},{\"id\":145,\"name\":\"虚空之女\",\"iconPath\":\"ASSETS/Characters/Kaisa/HUD/Kaisa_Square.png\"},{\"id\":157,\"name\":\"疾风剑豪\"},{\"id\":64,\"name\":\"盲僧\",\"iconPath\":\"ASSETS/Characters/LeeSin/HUD/LeeSin_Square.png\"}]");
+                if (path == LeagueBuildAdvisorDataService.ItemsPath)
+                    return Bytes("[{\"id\":1056,\"name\":\"多兰之戒\",\"iconPath\":\"ASSETS/Items/Icons2D/1056.png\"},{\"id\":1055,\"name\":\"多兰之刃\",\"iconPath\":\"ASSETS/Items/Icons2D/1055.png\"},{\"id\":3020,\"name\":\"法师之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3020.png\"},{\"id\":3117,\"name\":\"疾行之靴\",\"iconPath\":\"ASSETS/Items/Icons2D/3117.png\"},{\"id\":6655,\"name\":\"卢登伴侣\",\"iconPath\":\"ASSETS/Items/Icons2D/6655.png\"},{\"id\":3071,\"name\":\"黑色切割者\",\"iconPath\":\"ASSETS/Items/Icons2D/3071.png\"},{\"id\":3065,\"name\":\"振奋盔甲\",\"iconPath\":\"ASSETS/Items/Icons2D/3065.png\"},{\"id\":3089,\"name\":\"灭世者的死亡之帽\",\"iconPath\":\"ASSETS/Items/Icons2D/3089.png\"}]");
+                if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
+                    return Bytes("[{\"id\":4,\"name\":\"闪现\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerFlash.png\"},{\"id\":11,\"name\":\"惩戒\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerSmite.png\"},{\"id\":12,\"name\":\"传送\",\"iconPath\":\"ASSETS/Spells/Icons2D/SummonerTeleport.png\"}]");
+                if (path == LeagueBuildAdvisorDataService.PerksPath)
+                    return Bytes("[{\"id\":8112,\"name\":\"电刑\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/Electrocute/Electrocute.png\"},{\"id\":8143,\"name\":\"突然冲击\",\"iconPath\":\"ASSETS/Perks/Styles/Domination/SuddenImpact/SuddenImpact.png\"},{\"id\":8347,\"name\":\"饼干配送\",\"iconPath\":\"ASSETS/Perks/Styles/Inspiration/BiscuitDelivery/BiscuitDelivery.png\"},{\"id\":8214,\"name\":\"奥术彗星\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ArcaneComet/ArcaneComet.png\"},{\"id\":8226,\"name\":\"法力流系带\",\"iconPath\":\"ASSETS/Perks/Styles/Sorcery/ManaflowBand/ManaflowBand.png\"}]");
+                return Task.FromResult<byte[]>(null);
+            }
+
+            private static Task<byte[]> Bytes(string text)
+            {
+                return Task.FromResult(Encoding.UTF8.GetBytes(text));
+            }
+        }
+
+        private sealed class FakeOpggApi : IOpggBuildApi
+        {
+            public List<string> Paths { get; } = new List<string>();
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Paths.Add(path);
+                if (path.EndsWith("/versions", StringComparison.Ordinal))
+                    return Bytes("{\"data\":[\"16.16\",\"16.15\"]}");
+
+                if (path.StartsWith("/api/global/champions/ranked?tier=", StringComparison.Ordinal))
+                {
+                    return Bytes("{\"data\":[{\"id\":157,\"positions\":[{\"name\":\"TOP\",\"stats\":{\"play\":100,\"role_rate\":0.21}},{\"name\":\"MID\",\"stats\":{\"play\":900,\"role_rate\":0.79}}]}]}");
+                }
+
+                return Bytes("{\"data\":{\"summary\":{\"average_stats\":{\"win_rate\":0.512,\"pick_rate\":0.073,\"ban_rate\":0.021,\"tier_data\":{\"tier\":2,\"rank\":17}}},\"summoner_spells\":[{\"ids\":[4,11],\"play\":1200,\"win\":650,\"pick_rate\":0.66},{\"ids\":[4,12],\"play\":300,\"pick_rate\":0.18}],\"runes\":[{\"primary_rune_ids\":[8112,8143],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":900,\"win\":500,\"pick_rate\":0.55},{\"primary_rune_ids\":[8214,8226],\"secondary_rune_ids\":[8347],\"stat_mod_ids\":[],\"play\":220,\"pick_rate\":0.13}],\"starter_items\":[{\"ids\":[1056],\"play\":800,\"win_rate\":0.51,\"pick_rate\":0.48},{\"ids\":[1055],\"play\":260,\"pick_rate\":0.16}],\"boots\":[{\"ids\":[3020],\"play\":700,\"pick_rate\":0.42},{\"ids\":[3117],\"play\":190,\"pick_rate\":0.11}],\"core_items\":[{\"ids\":[6655],\"play\":600,\"pick_rate\":0.36},{\"ids\":[3071],\"play\":310,\"pick_rate\":0.19},{\"ids\":[3065],\"play\":180,\"pick_rate\":0.11},{\"ids\":[3089],\"play\":100,\"pick_rate\":0.06}],\"skill_masteries\":[{\"ids\":[\"Q\",\"E\",\"W\"],\"play\":1000,\"pick_rate\":0.61},{\"ids\":[\"Q\",\"W\",\"E\"],\"play\":280,\"pick_rate\":0.17}],\"counters\":[{\"champion_id\":145,\"play\":210,\"win\":126},{\"champion_id\":64,\"play\":321,\"win\":144}]},\"meta\":{\"version\":\"16.16\"}}");
+            }
+
+            private static Task<byte[]> Bytes(string text)
+            {
+                return Task.FromResult(Encoding.UTF8.GetBytes(text));
+            }
+        }
+    }
+}
