@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-12 — GGman 3.5.74 release request prepared (same PR #345)
+
+- User explicitly requested direct official one-click update rather than an isolated test build. Release request `release/3.5-request.json` has version `3.5.74`, non-forced and non-prerelease, preserving minimum `3.0.0`. Production publisher must merge the PR first, then build/sign/verify a new immutable Release and enable the online manifest; no release is assumed until those steps succeed.
+- Pre-release safety fixes: apply a published game preset once per registered GGman session, install, remote revision and locally observed `lcu-settings.accountId` transition, with only a local in-memory hashed marker. When a game client is still running, defer restore until **both** game and launcher processes have closed. Read only allowlisted YAML leaves; preserve CRLF and BOM, take byte-exact backups, and compare the actual published subset instead of all optional local fields.
+- The user performed CloudBase SQL 009 and reported 11/11 role/grant/RLS PASS; simulated A/B CAS ran with ROLLBACK. Live anonymous read/write probes got four HTTP 401 responses. Windows Build/UI text contract on the final release-request head must still be green before merge. Registered HTTP and live League client switching were not independently accepted; they remain post-release field verification requirements, and release notes do not promise active-client hot apply.
+
 ## 2026-10-12 — Game preset synchronization redesign (draft PR #345; NOT RELEASED)
 
 - Working branch `feat/game-config-profile-sync-20261012` now implements: no background ESC upload; cloud-first GGman software preferences with save debounce and bounded exit attempt; independent local game-auto-restore checkbox; manual combined publish UI; allowlisted mainland-China lobby YAML booleans; a versioned registered game-profile CloudBase client and **operator-deployed** SQL 009 schema; client/game-process-closed-only restore with backup and validation.
