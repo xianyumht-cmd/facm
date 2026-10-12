@@ -229,6 +229,12 @@ jobs:
         run: |
           & ./scripts/check-esc-cloudbase-gateway.ps1
 
+      - name: Verify game profile RPCs reject unauthenticated callers
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/game-config-profile-sync-20261012'
+        shell: pwsh
+        run: |
+          & ./scripts/check-game-profile-gateway.ps1
+
       - name: Sign when certificate secrets exist
         shell: pwsh
         env:
