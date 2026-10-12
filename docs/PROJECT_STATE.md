@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-12 — Game preset synchronization redesign (draft PR #345; NOT RELEASED)
+
+- Working branch `feat/game-config-profile-sync-20261012` contains an initial policy change only: periodic ESC auto-upload/restore disabled; app settings first-time cloud preference recovery; local settings-save debounce and bounded normal-exit sync attempt.
+- Required for completion: explicit **上传大厅与 ESC 设置**, independently versioned account-owned manual game presets, validated safe lobby YAML fields, LOL gameflow/LCU-account-aware reapplication, migration/compatibility and real two-device acceptance. Old automatic ESC snapshots must not silently become published presets.
+- The production SQL 005/007/008 and online 3.5.x release/update state have not been changed. Draft [PR #345](https://github.com/xianyumht-cmd/facm/pull/345) is not ready for merge or release.
+
+
+
 ## 2026-10-11 — ChampSelect companion current-patch fallback (signed 3.5.73 released)
 
 - **Field diagnosis:** owner-provided GGman 3.5.72 diagnostics showed repeated OP.GG Mayhem/build and base ARAM HTTP 403, Hexdata HTTP 503, successful ARAMGG 26.20 selected top ten, and reachable ARAMMayhem champion detail. Source-level 3.5.72 augment recovery accepted too few rows and did not provide a separate build fallback.

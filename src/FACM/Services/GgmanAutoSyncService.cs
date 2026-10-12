@@ -114,6 +114,18 @@ namespace FACM.Services
             finally { _restoringApp = false; }
         }
 
+        internal async Task FlushBeforeExitAsync()
+        {
+            if (_disposed || !_settings.AutoConfigSyncEnabled ||
+                GgmanAccountSession.Current == null) return;
+            for (var attempt = 0; attempt < 10 && _busy; attempt++)
+                await Task.Delay(100);
+            if (_busy || _disposed) return;
+            _notBeforeUtc = DateTime.MinValue;
+            _settingsChangeNotBeforeUtc = DateTime.MinValue;
+            await TickAsync();
+        }
+
         private void OnAccountChanged(object sender, EventArgs args)
         {
             CancelCurrent();
@@ -314,7 +326,7 @@ namespace FACM.Services
                 return true;
             }
             if (decision == SyncAction.Unchanged) return true;
-            if (kind == "esc" && decision == SyncAction.Upload)
+            if (decision == SyncAction.Upload && !IsBackgroundUploadAllowed(kind))
                 throw new InvalidOperationException("Game configuration requires explicit upload.");
             if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges &&
                 decision == SyncAction.Restore)

@@ -152,13 +152,23 @@ namespace FACM
             if (!menu.IsDisposed) menu.Close();
         }
 
-        public void ExitApplication()
+        public async void ExitApplication()
         {
             if (_exiting) return;
             _exiting = true;
             CloseMenu();
+            try
+            {
+                var sync = GgmanAutoSyncService.Current;
+                if (sync != null)
+                    await Task.WhenAny(sync.FlushBeforeExitAsync(), Task.Delay(2000));
+            }
+            catch (Exception error)
+            {
+                AppLog.Info("Exit sync deferred: " + error.GetType().Name);
+            }
             try { _pets.Stop(); } catch { }
-            Close();
+            if (!IsDisposed) Close();
         }
 
         public void RequestExternalActivation()

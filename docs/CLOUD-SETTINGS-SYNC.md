@@ -1,5 +1,10 @@
 # GGman Configuration Synchronization
 
+## Redesign in progress (draft PR #345, not released)
+
+The target product contract separates automatic GGman preferences from League in-game/lobby presets that only upload after the user deliberately selects **上传大厅与 ESC 设置**, then restore automatically at a safe game/client boundary on subsequent registered login and Riot-account switches. The task branch currently disables the *old* periodic ESC auto-upload and auto-restore while migrating. Historical ESC cloud rows are not trusted as deliberately published presets. Safe YAML field mapping and the manual game-profile CloudBase contract are still incomplete. **This section does not describe signed production behavior.**
+
+
 ## Current behavior (3.5.67)
 
 **Registered GGman email accounts**, not the anonymous device identity, own current cloud configuration synchronization. The UI in **LOL 工作台 → 我的 GGman** shows one device-local **自动同步配置** checkbox, enabled by default. Once the email session is verified, `GgmanAutoSyncModule` runs `GgmanAutoSyncService` in the background independently of that page. Ordinary manual cloud upload/restore buttons were removed in 3.5.67.

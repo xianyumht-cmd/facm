@@ -1,5 +1,12 @@
 # GGman / FACM Decisions
 
+## 2026-10-12 — Software settings are automatic; League presets are intentionally published (draft)
+
+Portable GGman application settings (and custom UI text) follow registered-account automatic sync, using cloud data first on a new-device/account association, then uploading future local edits. A bounded normal-exit check supplements but does not replace save-triggered syncing. Leave local paths, geometry, privacy/consent and identities device-local.
+
+League ESC and lobby settings are a manually published personal game preset attached to the GGman registered UID, not the Riot account or cafe machine. An unverified historical ESC row may have been uploaded automatically and must never be silently reinterpreted as a deliberately chosen preset. Only explicit publication with validated field allowlists, CAS, backup and full acknowledgement changes authoritative game state; auto-apply must observe Riot processes and gameflow before restoring. Draft PR #345 is partial and must not ship without safe YAML mapping and live acceptance.
+
+
 ## 2026-10-11 — Preserve hero-specific evidence separately from Mayhem top-ten source selection
 
 GGman's ChampSelect Runtime Companion remains compact and is not a separate Mayhem ranking app. Its hero-specific ranking fields and the validated top-ten list are different evidence sets: a full top ten may supply one hero row when present, but must not erase other hero-specific fields only because the detail site did not include a parseable patch. Reject explicitly known stale personal stats, and describe unversioned personal fields as unverified. Continue to reject incomplete multi-provider stitched top-ten lists. Sparse augment data (<3 rows) triggers a bounded alternative attempt and visible warning, without manufacturing rows. Long base ARAM notes may expand vertically within the existing scrollable body; retain 320px companion width, 360–420px outer window height and current interaction model. Preserve updater elevation and release with a new non-forced signed 3.5.x version only after CI.
