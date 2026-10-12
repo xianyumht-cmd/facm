@@ -39,6 +39,9 @@ namespace FACM.Services
     internal sealed class GgmanAutoSyncService : IDisposable
     {
         private readonly AppSettings _settings;
+        private readonly SynchronizationContext _uiContext;
+        private bool _restoringApp;
+        private DateTime _settingsChangeNotBeforeUtc;
         private readonly System.Windows.Forms.Timer _timer;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 128 * 1024 };
         private readonly string _statePath;
@@ -64,6 +67,7 @@ namespace FACM.Services
         {
             if (Current != null) throw new InvalidOperationException("Auto sync already started.");
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _uiContext = SynchronizationContext.Current;
             RuntimePaths.Initialize();
             _statePath = Path.Combine(RuntimePaths.DataDirectory, "account-auto-sync-state.json");
             _state = LoadState();
@@ -71,6 +75,7 @@ namespace FACM.Services
             _timer = new System.Windows.Forms.Timer { Interval = 5000 };
             _timer.Tick += async delegate { await TickAsync(); };
             GgmanAccountSession.Changed += OnAccountChanged;
+            AppSettings.Saved += OnSettingsSaved;
             _timer.Start();
             UpdateStatus();
         }
@@ -89,6 +94,49 @@ namespace FACM.Services
             UpdateStatus();
         }
 
+        internal void SetGameAutoRestoreEnabled(bool enabled)
+        {
+            if (_disposed || _settings.GameAutoRestoreEnabled == enabled) return;
+            _settings.GameAutoRestoreEnabled = enabled;
+            _settings.Save();
+            _nextGameProfileCheckUtc = DateTime.MinValue;
+            _lastAppliedGameKey = null;
+            _timer.Interval = 1500;
+            UpdateStatus();
+        }
+
+        private void OnSettingsSaved(AppSettings settings)
+        {
+            if (_disposed || _restoringApp || !ReferenceEquals(_settings, settings) ||
+                _uiContext == null) return;
+            _uiContext.Post(delegate(object ignored)
+            {
+                if (_disposed || !_settings.AutoConfigSyncEnabled ||
+                    GgmanAccountSession.Current == null) return;
+                _settingsChangeNotBeforeUtc = DateTime.UtcNow.AddSeconds(3);
+                _timer.Interval = 3000;
+            }, null);
+        }
+
+        private void RestoreApp(GgmanPortableSettingsProfile profile)
+        {
+            _restoringApp = true;
+            try { GgmanPortableSettingsStore.Restore(profile, _settings); }
+            finally { _restoringApp = false; }
+        }
+
+        internal async Task FlushBeforeExitAsync()
+        {
+            if (_disposed || !_settings.AutoConfigSyncEnabled ||
+                GgmanAccountSession.Current == null) return;
+            for (var attempt = 0; attempt < 10 && _busy; attempt++)
+                await Task.Delay(100);
+            if (_busy || _disposed) return;
+            _notBeforeUtc = DateTime.MinValue;
+            _settingsChangeNotBeforeUtc = DateTime.MinValue;
+            await TickAsync();
+        }
+
         private void OnAccountChanged(object sender, EventArgs args)
         {
             CancelCurrent();
@@ -96,7 +144,10 @@ namespace FACM.Services
             _conflictHasRemote = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
+            _settingsChangeNotBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
+            _nextGameProfileCheckUtc = DateTime.MinValue;
+            _lastAppliedGameKey = null;
             UpdateStatus();
         }
 
@@ -128,8 +179,10 @@ namespace FACM.Services
 
         private async Task TickAsync()
         {
-            if (_disposed || _busy || !_settings.AutoConfigSyncEnabled ||
-                GgmanAccountSession.Current == null || DateTime.UtcNow < _notBeforeUtc)
+            if (_disposed || _busy ||
+                (!_settings.AutoConfigSyncEnabled && !_settings.GameAutoRestoreEnabled) ||
+                GgmanAccountSession.Current == null || DateTime.UtcNow < _notBeforeUtc ||
+                DateTime.UtcNow < _settingsChangeNotBeforeUtc)
                 return;
             _timer.Interval = 90000;
             var account = GgmanAccountSession.Current;
@@ -178,9 +231,9 @@ namespace FACM.Services
             var appOtherOwner = IsOtherOwner(owner, _state.AppOwner);
             _conflict = null;
             _conflictHasRemote = false;
+            if (_settings.AutoConfigSyncEnabled)
             using (var appClient = new GgmanAppSettingsCloudClient())
             using (var textClient = new GgmanUiTextCloudClient())
-            using (var escClient = new GgmanEscCloudClient())
             {
                 RequireSession(account, token);
                 var appRemote = await appClient.GetAsync(account, token);
@@ -194,8 +247,8 @@ namespace FACM.Services
                     appRemote == null ? null : FingerprintApp(appRemote.Profile),
                     async () => await appClient.SetAsync(account, appLocal,
                         appRemote == null ? 0 : appRemote.Version, token),
-                    () => GgmanPortableSettingsStore.Restore(appRemote.Profile, _settings),
-                    token, 0, appPristine);
+                    () => RestoreApp(appRemote.Profile),
+                    token, 0, appPristine, true);
                 RequireSession(account, token);
 
                 var textRemote = await textClient.GetAsync(account, token);
@@ -211,34 +264,116 @@ namespace FACM.Services
                     textLocal.Text.Count == 0 && textLocal.Replace.Count == 0);
                 RequireSession(account, token);
 
-                var dir = await Task.Run(() => EscGameDirectoryLocator.Find(_settings.GamePath, token));
-                RequireSession(account, token);
-                if (!string.IsNullOrEmpty(dir))
+            }
+            if (_settings.GameAutoRestoreEnabled)
+                await TryRestorePublishedGameAsync(account, token);
+        }
+
+        internal static bool IsBackgroundUploadAllowed(string kind)
+        {
+            return kind == "app" || kind == "text";
+        }
+
+        private DateTime _nextGameProfileCheckUtc = DateTime.MinValue;
+        private string _lastAppliedGameKey;
+
+        private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account, CancellationToken token)
+        {
+            if (DateTime.UtcNow < _nextGameProfileCheckUtc || !GameProfileStore.AreLeagueProcessesAbsent())
+                return;
+            try
+            {
+                using (var cloud = new GgmanGameProfileCloudClient())
                 {
-                    EscSettingsBundle escLocal = null;
-                    try { escLocal = EscSettingsBackup.Capture(dir); }
-                    catch (FileNotFoundException) { }
-                    var escRemote = await escClient.GetAsync(account, token);
+                    var saved = await cloud.GetAsync(account, token);
                     RequireSession(account, token);
-                    if (escLocal == null && escRemote != null)
+                    if (saved == null) return;
+                    var directory = await Task.Run(
+                        () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
+                    RequireSession(account, token);
+                    if (string.IsNullOrWhiteSpace(directory)) return;
+                    if (!GameProfileStore.AreLeagueProcessesAbsent()) return;
+                    // Restore once per registered session, install, cloud version and observed
+                    // League account. Never revert intentional local edits on each timer tick.
+                    var appliedKey = Hash(account.UserId + "|" +
+                        Path.GetFullPath(directory).ToUpperInvariant() + "|" +
+                        GameProfileStore.ReadLocalAccountMarker(directory)) + ":" + saved.Version;
+                    if (string.Equals(_lastAppliedGameKey, appliedKey, StringComparison.Ordinal))
+                        return;
+                    GameProfile local = null;
+                    try { local = GameProfileStore.Capture(directory); }
+                    catch (FileNotFoundException) { }
+                    if (!GameProfileStore.MatchesPublished(local, saved.Profile))
                     {
-                        EscSettingsBackup.Restore(escRemote.Bundle, dir);
-                        PersistCursor(history, owner, "esc", escRemote.Version,
-                            FingerprintEsc(escRemote.Bundle));
+                        RequireSession(account, token);
+                        GameProfileStore.Restore(saved.Profile, directory);
+                        AppLog.Info("Registered game profile restored; revision=" + saved.Version);
                     }
-                    else if (escLocal != null)
-                        await SyncOneAsync("esc", history, owner,
-                            IsOtherOwner(owner, _state.EscOwner), history.Esc,
-                            FingerprintEsc(escLocal), escRemote == null ? 0 : escRemote.Version,
-                            escRemote == null ? null : FingerprintEsc(escRemote.Bundle),
-                            async () => await escClient.SetAsync(account, escLocal,
-                                escRemote == null ? 0 : escRemote.Version, token),
-                            () => EscSettingsBackup.Restore(escRemote.Bundle, dir), token);
+                    RequireSession(account, token);
+                    _lastAppliedGameKey = appliedKey;
                 }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error)
+            {
+                _nextGameProfileCheckUtc = DateTime.UtcNow.AddMinutes(10);
+                AppLog.Info("Game profile restore deferred: " + error.GetType().Name);
+            }
+        }
+
+        internal async Task<long> PublishGameProfileAsync()
+        {
+            if (_disposed || _busy)
+                throw new InvalidOperationException("云同步正在执行，请稍后再试。");
+            var account = GgmanEscCloudClient.RequireRegisteredSession();
+            if (!GameProfileStore.AreLeagueProcessesAbsent())
+                throw new InvalidOperationException("请先完全退出英雄联盟和大厅客户端，避免上传尚未写入磁盘的设置。");
+            var token = _sessionCancellation.Token;
+            _busy = true;
+            UpdateStatus();
+            try
+            {
+                var directory = await Task.Run(
+                    () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
+                if (string.IsNullOrWhiteSpace(directory))
+                    throw new DirectoryNotFoundException("请先在 GGman 中设置英雄联盟安装目录。");
+                var profile = await Task.Run(() => GameProfileStore.Capture(directory), token);
+                RequireSession(account, token);
+                using (var cloud = new GgmanGameProfileCloudClient())
+                {
+                    var existing = await cloud.GetAsync(account, token);
+                    RequireSession(account, token);
+                    var version = await cloud.SetAsync(account, profile,
+                        existing == null ? 0 : existing.Version, token);
+                    RequireSession(account, token);
+                    _nextGameProfileCheckUtc = DateTime.MinValue;
+                    return version;
+                }
+            }
+            finally
+            {
+                _busy = false;
+                UpdateStatus();
             }
         }
 
         private enum SyncAction { Unchanged, Adopt, Upload, Restore, Conflict }
+
+        private static SyncAction DecideApp(GgmanAutoSyncCursor previous, string localHash,
+            long remoteVersion, string remoteHash, bool otherOwner)
+        {
+            if (remoteVersion == 0)
+                return otherOwner || previous != null ? SyncAction.Conflict : SyncAction.Upload;
+            if (string.Equals(localHash, remoteHash, StringComparison.Ordinal))
+                return previous != null && !otherOwner && previous.Version == remoteVersion &&
+                    string.Equals(previous.Fingerprint, localHash, StringComparison.Ordinal)
+                    ? SyncAction.Unchanged : SyncAction.Adopt;
+            if (otherOwner || previous == null || remoteVersion != previous.Version ||
+                !string.Equals(remoteHash, previous.Fingerprint, StringComparison.Ordinal))
+                return SyncAction.Restore;
+            return !string.Equals(localHash, previous.Fingerprint, StringComparison.Ordinal)
+                ? SyncAction.Upload : SyncAction.Unchanged;
+        }
 
         private static SyncAction Decide(GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, bool otherOwner, bool pristine)
@@ -277,10 +412,12 @@ namespace FACM.Services
         private async Task<bool> SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
             string owner, bool otherOwner, GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, Func<Task<long>> upload,
-            Action restore, CancellationToken token, int choice = 0, bool pristine = false)
+            Action restore, CancellationToken token, int choice = 0, bool pristine = false,
+            bool cloudFirst = false)
         {
             var decision = choice == 1 ? SyncAction.Upload :
                 choice == 2 ? SyncAction.Restore :
+                cloudFirst ? DecideApp(previous, localHash, remoteVersion, remoteHash, otherOwner) :
                 Decide(previous, localHash, remoteVersion, remoteHash, otherOwner, pristine);
             if (decision == SyncAction.Adopt)
             {
@@ -288,6 +425,8 @@ namespace FACM.Services
                 return true;
             }
             if (decision == SyncAction.Unchanged) return true;
+            if (decision == SyncAction.Upload && !IsBackgroundUploadAllowed(kind))
+                throw new InvalidOperationException("Game configuration requires explicit upload.");
             if (kind == "text" && FACM.League.UiTextEditorPanel.HasPendingVisibleChanges &&
                 decision == SyncAction.Restore)
                 decision = SyncAction.Conflict;
@@ -375,7 +514,6 @@ namespace FACM.Services
                 if (!_state.Accounts.TryGetValue(owner, out history)) return;
                 using (var appClient = new GgmanAppSettingsCloudClient())
                 using (var textClient = new GgmanUiTextCloudClient())
-                using (var escClient = new GgmanEscCloudClient())
                 {
                     RequireSession(account, token);
                     if (kind == "app")
@@ -388,7 +526,7 @@ namespace FACM.Services
                             remote == null ? null : FingerprintApp(remote.Profile),
                             async () => await appClient.SetAsync(account, local,
                                 remote == null ? 0 : remote.Version, token),
-                            () => GgmanPortableSettingsStore.Restore(remote.Profile, _settings),
+                            () => RestoreApp(remote.Profile),
                             token, keepLocal ? 1 : 2);
                     }
                     else if (kind == "text")
@@ -404,21 +542,7 @@ namespace FACM.Services
                             () => UiTextCustomizationStore.Apply(remote.Profile),
                             token, keepLocal ? 1 : 2);
                     }
-                    else if (kind == "esc")
-                    {
-                        var dir = await Task.Run(() => EscGameDirectoryLocator.Find(_settings.GamePath, token));
-                        if (string.IsNullOrWhiteSpace(dir)) return;
-                        var local = EscSettingsBackup.Capture(dir);
-                        var remote = await escClient.GetAsync(account, token);
-                        RequireSession(account, token);
-                        resolved = await SyncOneAsync(kind, history, owner, false, history.Esc,
-                            FingerprintEsc(local), remote == null ? 0 : remote.Version,
-                            remote == null ? null : FingerprintEsc(remote.Bundle),
-                            async () => await escClient.SetAsync(account, local,
-                                remote == null ? 0 : remote.Version, token),
-                            () => EscSettingsBackup.Restore(remote.Bundle, dir),
-                            token, keepLocal ? 1 : 2);
-                    }
+
                 }
                 if (resolved)
                 {
@@ -506,6 +630,7 @@ namespace FACM.Services
 
         internal static void ValidateForSmokeTest()
         {
+            GameProfileStore.ValidateForSmokeTest();
             var demo = new GgmanAutoSyncAccountState();
             var key = Hash("test-uid");
             if (key.Length != 64 || key.Contains("test-uid") ||
@@ -525,6 +650,18 @@ namespace FACM.Services
                 Decide(previous, "new", 6, "newer", false, false) != SyncAction.Conflict ||
                 Decide(previous, "new", 5, "old", true, false) != SyncAction.Conflict)
                 throw new InvalidOperationException("Auto sync conflict-selection rules changed.");
+
+            if (IsBackgroundUploadAllowed("esc") || !IsBackgroundUploadAllowed("app") ||
+                !IsBackgroundUploadAllowed("text"))
+                throw new InvalidOperationException("Game profiles must never auto-upload.");
+
+            if (DecideApp(null, "local", 7, "remote", false) != SyncAction.Restore ||
+                DecideApp(previous, "local", 6, "new-remote", false) != SyncAction.Restore ||
+                DecideApp(previous, "new-local", 5, "old", false) != SyncAction.Upload ||
+                DecideApp(previous, "local", 5, "remote", true) != SyncAction.Restore ||
+                DecideApp(null, "local", 0, null, true) != SyncAction.Conflict ||
+                DecideApp(null, "local", 0, null, false) != SyncAction.Upload)
+                throw new InvalidOperationException("Cloud-first app sync rules changed.");
 
             var state = new GgmanAutoSyncState();
             state.Accounts.Add(key, demo);
@@ -573,6 +710,7 @@ namespace FACM.Services
             _disposed = true;
             _timer.Stop();
             GgmanAccountSession.Changed -= OnAccountChanged;
+            AppSettings.Saved -= OnSettingsSaved;
             CancelCurrent();
             _timer.Dispose();
             _sessionCancellation.Dispose();

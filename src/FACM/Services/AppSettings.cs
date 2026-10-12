@@ -14,6 +14,7 @@ namespace FACM.Services
         private const int MoveFileReplaceExisting = 0x1;
         private const int MoveFileWriteThrough = 0x8;
         private static readonly object SettingsWriteSync = new object();
+        internal static event Action<AppSettings> Saved;
         private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
         private static readonly string LegacySettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -50,6 +51,7 @@ namespace FACM.Services
         public bool LeaguePersonalStatsEnabled { get; set; } = true;
         public bool LeagueCloudRankingEnabled { get; set; } = false;
         public bool AutoConfigSyncEnabled { get; set; } = true;
+        public bool GameAutoRestoreEnabled { get; set; } = true;
 
         internal static bool HasLegacySettingsForFirstUse()
         {
@@ -88,6 +90,7 @@ namespace FACM.Services
 
         public void Save()
         {
+            var committed = false;
             try
             {
                 lock (SettingsWriteSync)
@@ -95,11 +98,20 @@ namespace FACM.Services
                     RuntimePaths.Initialize();
                     WriteLinesAtomically(RuntimePaths.SettingsPath, BuildLines());
                     AppSettingsRecovery.SaveLastKnownGood(RuntimePaths.SettingsRecoveryPath, this);
+                    committed = true;
                 }
             }
             catch (Exception exception)
             {
                 AppLog.Error("Failed to save settings", exception);
+            }
+            if (!committed) return;
+            var saved = Saved;
+            if (saved == null) return;
+            try { saved(this); }
+            catch (Exception error)
+            {
+                AppLog.Info("Settings saved, notification deferred: " + error.GetType().Name);
             }
         }
 
@@ -144,7 +156,8 @@ namespace FACM.Services
                 "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed,
                 "LeaguePersonalStatsEnabled=" + LeaguePersonalStatsEnabled,
                 "LeagueCloudRankingEnabled=" + LeagueCloudRankingEnabled,
-                "AutoConfigSyncEnabled=" + AutoConfigSyncEnabled
+                "AutoConfigSyncEnabled=" + AutoConfigSyncEnabled,
+                "GameAutoRestoreEnabled=" + GameAutoRestoreEnabled
             };
         }
 
@@ -372,6 +385,7 @@ namespace FACM.Services
             else if (key.Equals("LeaguePersonalStatsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeaguePersonalStatsEnabled = flag;
             else if (key.Equals("LeagueCloudRankingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueCloudRankingEnabled = flag;
             else if (key.Equals("AutoConfigSyncEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoConfigSyncEnabled = flag;
+            else if (key.Equals("GameAutoRestoreEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.GameAutoRestoreEnabled = flag;
         }
 
         private static void Normalize(AppSettings result)

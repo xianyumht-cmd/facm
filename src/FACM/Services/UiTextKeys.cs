@@ -53,6 +53,14 @@ namespace FACM.Services
         public const string UnifiedSyncSettings = "UnifiedSyncSettings";
         public const string UnifiedSyncText = "UnifiedSyncText";
         public const string UnifiedSyncEsc = "UnifiedSyncEsc";
+        public const string GameSyncTitle = "GameSyncTitle";
+        public const string GameSyncAutoRestore = "GameSyncAutoRestore";
+        public const string GameSyncPublish = "GameSyncPublish";
+        public const string GameSyncDetail = "GameSyncDetail";
+        public const string GameSyncConfirm = "GameSyncConfirm";
+        public const string GameSyncUploading = "GameSyncUploading";
+        public const string GameSyncUploaded = "GameSyncUploaded";
+        public const string GameSyncFailed = "GameSyncFailed";
         public const string AutoSyncEnabled = "AutoSyncEnabled";
         public const string AutoSyncWaiting = "AutoSyncWaiting";
         public const string AutoSyncReady = "AutoSyncReady";

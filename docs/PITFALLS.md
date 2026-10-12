@@ -1,5 +1,14 @@
 # FACM Pitfalls
 
+## Applying published LOL settings on each timer tick overwrites intentional local edits (2026-10-12)
+
+A restored game snapshot must not be treated like a software-preference drift correction. The initial candidate re-applied cloud ESC/YAML whenever the launcher was closed and the current files differed, potentially reverting edits made during the prior game every 90 seconds. Record a per-process in-memory application marker including the registered GGman account, local install, cloud revision and a hashed `LeagueClientSettings.yaml` accountId; reapply only on first login, confirmed account transition or a cloud revision change when all relevant League processes are absent. When account identity cannot safely be read, return `unknown` and do not repetitively overwrite a user's local edits. Also preserve the exact YAML newline/BOM format and copy byte-exact backups; compare only fields actually contained in the published preset so different-client optional fields do not cause endless verification failures.
+
+## Do not treat auto-uploaded ESC records as deliberate game presets (2026-10-12)
+
+The 3.5.67 background worker could CAS-upload game settings from a shared cafe PC or a different Riot account without user intent. Historical ESC rows therefore cannot automatically be promoted to user-published cloud presets. The game-preset workflow must isolate writes behind explicit user action and require a safely allowlisted lobby YAML schema, backed-up restored files and a verified League process/LCU state. Never copy full `LeagueClientSettings.yaml` wholesale: examples contain account IDs, install identifiers and environment-specific values.
+
+
 ## A complete top-ten ranking does not validate every champion's statistics (2026-10-11)
 
 The 3.5.71 Mayhem source-switch selected one validated current-patch top ten and then discarded hero-specific rank/win-rate/tier whenever `SamePatch(detailPatch, selectedPatch)` was false. Missing detail patches also returned false: the logic cleared valid-looking stats for every hero outside the top ten, which could not be restored from those ten rows. Preserve per-hero details when patch labels are equal or the detail patch is unknown; label unknown as unverified, not as official. Reject known-mismatched personal statistics, and overwrite only with an actual matching row from the selected current list. Cover out-of-top-ten heroes, patch aliases, known old patches, and chosen-top-ten cases with deterministic fixtures.

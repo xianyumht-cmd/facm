@@ -12,6 +12,23 @@
 - release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-12 — GGman 3.5.74 release request prepared (same PR #345)
+
+- User explicitly requested direct official one-click update rather than an isolated test build. Release request `release/3.5-request.json` has version `3.5.74`, non-forced and non-prerelease, preserving minimum `3.0.0`. Production publisher must merge the PR first, then build/sign/verify a new immutable Release and enable the online manifest; no release is assumed until those steps succeed.
+- Pre-release safety fixes: apply a published game preset once per registered GGman session, install, remote revision and locally observed `lcu-settings.accountId` transition, with only a local in-memory hashed marker. When a game client is still running, defer restore until **both** game and launcher processes have closed. Read only allowlisted YAML leaves; preserve CRLF and BOM, take byte-exact backups, and compare the actual published subset instead of all optional local fields.
+- The user performed CloudBase SQL 009 and reported 11/11 role/grant/RLS PASS; simulated A/B CAS ran with ROLLBACK. Live anonymous read/write probes got four HTTP 401 responses. Windows Build/UI text contract on the final release-request head must still be green before merge. Registered HTTP and live League client switching were not independently accepted; they remain post-release field verification requirements, and release notes do not promise active-client hot apply.
+
+## 2026-10-12 — Game preset synchronization redesign (draft PR #345; NOT RELEASED)
+
+- Working branch `feat/game-config-profile-sync-20261012` now implements: no background ESC upload; cloud-first GGman software preferences with save debounce and bounded exit attempt; independent local game-auto-restore checkbox; manual combined publish UI; allowlisted mainland-China lobby YAML booleans; a versioned registered game-profile CloudBase client and **operator-deployed** SQL 009 schema; client/game-process-closed-only restore with backup and validation.
+- Owner supplied the four actual `LeagueClient/Config` YAML samples. Exact confirmed preference is `LCUAccountPreferences.yaml -> lol-notifications -> data -> blockNonFriendGameInvites: true`. Nine supported Boolean fields are enumerated in `GameProfileStore.Allowed`. No owner account numbers, device IDs or full YAML files are committed.
+- **CloudBase deployment verified by operator (2026-10-12):** create-once SQL 009 returned successful commit; subsequent read-only role/catalog checks 11/11 PASS (RLS enabled, owner policy, anonymous grants denied, both functions SECURITY INVOKER). An owner-run simulated authenticated A/B identity and CAS transaction completed without an exception and ended with ROLLBACK (the console did not display its NOTICE, so this is not genuine token-based registered A/B acceptance).
+- **Live anonymous gateway acceptance:** GitHub Windows Build [#38211027414](https://github.com/xianyumht-cmd/facm/actions/runs/38211027414) checked both game-profile RPCs with no authorization and a freshly issued anonymous CloudBase bearer; all four POST requests returned HTTP 401. The same build and UI contract [#38211027403](https://github.com/xianyumht-cmd/facm/actions/runs/38211027403) passed on commit `413818bee76743b007674bccc95c739f430624a1`. No real registered user token or data was used by the automated probe.
+- **Pending before promotion:** real registered email upload/get through the isolated Windows candidate, owner multi-device/LOL-account changes, in-client writeback behavior, gameflow timing and real ESC restore. The CloudBase DB is deployed; the client PR remains draft and must not be merged or released until native acceptance. Do not run SQL 009 again.
+- SQL 005/007/008, release v3.5.73, and online manifest remain unchanged. Draft [PR #345](https://github.com/xianyumht-cmd/facm/pull/345).
+
+
+
 ## 2026-10-11 — ChampSelect companion current-patch fallback (signed 3.5.73 released)
 
 - **Field diagnosis:** owner-provided GGman 3.5.72 diagnostics showed repeated OP.GG Mayhem/build and base ARAM HTTP 403, Hexdata HTTP 503, successful ARAMGG 26.20 selected top ten, and reachable ARAMMayhem champion detail. Source-level 3.5.72 augment recovery accepted too few rows and did not provide a separate build fallback.
