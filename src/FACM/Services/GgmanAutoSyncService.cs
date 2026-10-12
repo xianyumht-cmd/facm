@@ -39,6 +39,9 @@ namespace FACM.Services
     internal sealed class GgmanAutoSyncService : IDisposable
     {
         private readonly AppSettings _settings;
+        private readonly SynchronizationContext _uiContext;
+        private bool _restoringApp;
+        private DateTime _settingsChangeNotBeforeUtc;
         private readonly System.Windows.Forms.Timer _timer;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 128 * 1024 };
         private readonly string _statePath;
@@ -64,6 +67,7 @@ namespace FACM.Services
         {
             if (Current != null) throw new InvalidOperationException("Auto sync already started.");
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _uiContext = SynchronizationContext.Current;
             RuntimePaths.Initialize();
             _statePath = Path.Combine(RuntimePaths.DataDirectory, "account-auto-sync-state.json");
             _state = LoadState();
@@ -71,6 +75,7 @@ namespace FACM.Services
             _timer = new System.Windows.Forms.Timer { Interval = 5000 };
             _timer.Tick += async delegate { await TickAsync(); };
             GgmanAccountSession.Changed += OnAccountChanged;
+            AppSettings.Saved += OnSettingsSaved;
             _timer.Start();
             UpdateStatus();
         }
@@ -89,6 +94,26 @@ namespace FACM.Services
             UpdateStatus();
         }
 
+        private void OnSettingsSaved(AppSettings settings)
+        {
+            if (_disposed || _restoringApp || !ReferenceEquals(_settings, settings) ||
+                _uiContext == null) return;
+            _uiContext.Post(delegate(object ignored)
+            {
+                if (_disposed || !_settings.AutoConfigSyncEnabled ||
+                    GgmanAccountSession.Current == null) return;
+                _settingsChangeNotBeforeUtc = DateTime.UtcNow.AddSeconds(3);
+                _timer.Interval = 3000;
+            }, null);
+        }
+
+        private void RestoreApp(GgmanPortableSettingsProfile profile)
+        {
+            _restoringApp = true;
+            try { GgmanPortableSettingsStore.Restore(profile, _settings); }
+            finally { _restoringApp = false; }
+        }
+
         private void OnAccountChanged(object sender, EventArgs args)
         {
             CancelCurrent();
@@ -96,6 +121,7 @@ namespace FACM.Services
             _conflictHasRemote = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
+            _settingsChangeNotBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
             UpdateStatus();
         }
@@ -129,7 +155,8 @@ namespace FACM.Services
         private async Task TickAsync()
         {
             if (_disposed || _busy || !_settings.AutoConfigSyncEnabled ||
-                GgmanAccountSession.Current == null || DateTime.UtcNow < _notBeforeUtc)
+                GgmanAccountSession.Current == null || DateTime.UtcNow < _notBeforeUtc ||
+                DateTime.UtcNow < _settingsChangeNotBeforeUtc)
                 return;
             _timer.Interval = 90000;
             var account = GgmanAccountSession.Current;
@@ -193,8 +220,8 @@ namespace FACM.Services
                     appRemote == null ? null : FingerprintApp(appRemote.Profile),
                     async () => await appClient.SetAsync(account, appLocal,
                         appRemote == null ? 0 : appRemote.Version, token),
-                    () => GgmanPortableSettingsStore.Restore(appRemote.Profile, _settings),
-                    token, 0, appPristine);
+                    () => RestoreApp(appRemote.Profile),
+                    token, 0, appPristine, true);
                 RequireSession(account, token);
 
                 var textRemote = await textClient.GetAsync(account, token);
@@ -220,6 +247,22 @@ namespace FACM.Services
         }
 
         private enum SyncAction { Unchanged, Adopt, Upload, Restore, Conflict }
+
+        private static SyncAction DecideApp(GgmanAutoSyncCursor previous, string localHash,
+            long remoteVersion, string remoteHash, bool otherOwner)
+        {
+            if (remoteVersion == 0)
+                return otherOwner || previous != null ? SyncAction.Conflict : SyncAction.Upload;
+            if (string.Equals(localHash, remoteHash, StringComparison.Ordinal))
+                return previous != null && !otherOwner && previous.Version == remoteVersion &&
+                    string.Equals(previous.Fingerprint, localHash, StringComparison.Ordinal)
+                    ? SyncAction.Unchanged : SyncAction.Adopt;
+            if (otherOwner || previous == null || remoteVersion != previous.Version ||
+                !string.Equals(remoteHash, previous.Fingerprint, StringComparison.Ordinal))
+                return SyncAction.Restore;
+            return !string.Equals(localHash, previous.Fingerprint, StringComparison.Ordinal)
+                ? SyncAction.Upload : SyncAction.Unchanged;
+        }
 
         private static SyncAction Decide(GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, bool otherOwner, bool pristine)
@@ -258,10 +301,12 @@ namespace FACM.Services
         private async Task<bool> SyncOneAsync(string kind, GgmanAutoSyncAccountState history,
             string owner, bool otherOwner, GgmanAutoSyncCursor previous, string localHash,
             long remoteVersion, string remoteHash, Func<Task<long>> upload,
-            Action restore, CancellationToken token, int choice = 0, bool pristine = false)
+            Action restore, CancellationToken token, int choice = 0, bool pristine = false,
+            bool cloudFirst = false)
         {
             var decision = choice == 1 ? SyncAction.Upload :
                 choice == 2 ? SyncAction.Restore :
+                cloudFirst ? DecideApp(previous, localHash, remoteVersion, remoteHash, otherOwner) :
                 Decide(previous, localHash, remoteVersion, remoteHash, otherOwner, pristine);
             if (decision == SyncAction.Adopt)
             {
@@ -370,7 +415,7 @@ namespace FACM.Services
                             remote == null ? null : FingerprintApp(remote.Profile),
                             async () => await appClient.SetAsync(account, local,
                                 remote == null ? 0 : remote.Version, token),
-                            () => GgmanPortableSettingsStore.Restore(remote.Profile, _settings),
+                            () => RestoreApp(remote.Profile),
                             token, keepLocal ? 1 : 2);
                     }
                     else if (kind == "text")
@@ -498,6 +543,14 @@ namespace FACM.Services
                 !IsBackgroundUploadAllowed("text"))
                 throw new InvalidOperationException("Game profiles must never auto-upload.");
 
+            if (DecideApp(null, "local", 7, "remote", false) != SyncAction.Restore ||
+                DecideApp(previous, "local", 6, "new-remote", false) != SyncAction.Restore ||
+                DecideApp(previous, "new-local", 5, "old", false) != SyncAction.Upload ||
+                DecideApp(previous, "local", 5, "remote", true) != SyncAction.Restore ||
+                DecideApp(null, "local", 0, null, true) != SyncAction.Conflict ||
+                DecideApp(null, "local", 0, null, false) != SyncAction.Upload)
+                throw new InvalidOperationException("Cloud-first app sync rules changed.");
+
             var state = new GgmanAutoSyncState();
             state.Accounts.Add(key, demo);
             var failed = false;
@@ -545,6 +598,7 @@ namespace FACM.Services
             _disposed = true;
             _timer.Stop();
             GgmanAccountSession.Changed -= OnAccountChanged;
+            AppSettings.Saved -= OnSettingsSaved;
             CancelCurrent();
             _timer.Dispose();
             _sessionCancellation.Dispose();
