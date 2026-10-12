@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.73
-- GitHub Release：v3.5.73
+- 版本：GGman 3.5.74
+- GitHub Release：v3.5.74
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c12971ab21a166e920ad7ec35a47c8e414ff509d
-- 发布元数据提交：413e0cf3ef9f3df4293b13e5c0abd9a4808ae11d
-- Release GGman.exe SHA-256：8FC0FAFB02B24F033C5C48E1C8246063AC378767D3A0828F83FF25D1FA88D704
-- release_notes：GGman 3.5.73：修复选英雄伴随窗口在 OP.GG 返回 403 时强化、装备、技能资料缺失的问题。使用 ARAMMayhem 当前版本英雄详情补足最多 12 条强化及胜率/选取率、核心三件套、初始装备、鞋子和技能优先级；严格拒绝与当前榜单补丁不一致的详情数据，并优先读取英雄当前排名与评级，避免误取历史记录。保留已有多源排行榜、管理员权限和自动更新机制。
+- 发布基础 main：1deb635e3a1dcc3067d9e4340b0d88a2a4635503
+- 发布元数据提交：c563832d9e8aa21936e2a42e155126508c4e4561
+- Release GGman.exe SHA-256：8D3741331ABBF53FB5976ED4E848211C7EA7FED3E5B2974CC44BF81738DE81F5
+- release_notes：GGman 3.5.74：重构注册账号云同步。GGman 程序偏好和界面文字继续自动同步；新增「上传大厅与 ESC 设置」，只有主动点击才更新云端游戏配置。游戏配置保存经白名单验证的大厅偏好（包括只接受好友邀请）及 ESC 文件；登录后在英雄联盟和大厅客户端完全退出的安全时机自动恢复，按客户端账号与云端版本控制重复应用，避免持续覆盖临时改动。保留原始文件备份、账号隔离及版本冲突保护，不上传 LOL 账号标识、符文页或安装标识。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-12 — GGman 3.5.74 release request prepared (same PR #345)
