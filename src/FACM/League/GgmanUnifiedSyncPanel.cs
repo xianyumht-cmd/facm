@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Online;
 using FACM.Theming;
 
 namespace FACM.League
@@ -78,14 +79,14 @@ namespace FACM.League
             };
             _gameHint = new Label
             {
-                Text = "英雄联盟游戏设置 · 仅手动上传、登录后自动恢复",
+                Text = _ui.Get(UiTextKeys.GameSyncTitle),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
             };
             _autoRestoreGame = new CheckBox
             {
-                Text = "登录后自动恢复云端游戏设置",
+                Text = _ui.Get(UiTextKeys.GameSyncAutoRestore),
                 Checked = _settings.GameAutoRestoreEnabled,
                 AutoSize = false,
                 ForeColor = FacmDesignSystem.Text,
@@ -99,12 +100,12 @@ namespace FACM.League
             };
             _publishGame = new FacmActionButton
             {
-                Text = "上传大厅与 ESC 设置",
+                Text = _ui.Get(UiTextKeys.GameSyncPublish),
                 Tone = FacmButtonTone.Primary
             };
             _gameStatus = new Label
             {
-                Text = "仅保存指定大厅偏好与 ESC 文件，不上传账号或安装标识。",
+                Text = _ui.Get(UiTextKeys.GameSyncDetail),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
@@ -198,25 +199,23 @@ namespace FACM.League
         private async System.Threading.Tasks.Task PublishGameAsync()
         {
             if (_service == null || _publishingGame || _service.IsBusy) return;
-            if (MessageBox.Show(this,
-                    "将当前电脑的游戏内 ESC 设置和指定大厅偏好保存到你的 GGman 云端账号？" +
-                    "这会替换你上次主动上传的游戏配置。请先退出英雄联盟及大厅。",
-                    "上传大厅与 ESC 设置", MessageBoxButtons.YesNo,
+            if (MessageBox.Show(this, _ui.Get(UiTextKeys.GameSyncConfirm),
+                    _ui.Get(UiTextKeys.GameSyncPublish), MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 return;
             _publishingGame = true;
-            _gameStatus.Text = "正在校验并上传游戏配置…";
+            _gameStatus.Text = _ui.Get(UiTextKeys.GameSyncUploading);
             RefreshAccountActions();
             try
             {
                 var version = await _service.PublishGameProfileAsync();
                 if (!IsDisposed)
-                    _gameStatus.Text = "游戏配置已保存到云端，版本 " + version + "。";
+                    _gameStatus.Text = string.Format(_ui.Get(UiTextKeys.GameSyncUploaded), version);
             }
             catch (Exception error)
             {
                 if (!IsDisposed)
-                    _gameStatus.Text = "上传未完成：" + error.Message;
+                    _gameStatus.Text = string.Format(_ui.Get(UiTextKeys.GameSyncFailed), error.Message);
             }
             finally
             {
