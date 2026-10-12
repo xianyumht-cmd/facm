@@ -51,6 +51,7 @@ namespace FACM.Services
         public bool LeaguePersonalStatsEnabled { get; set; } = true;
         public bool LeagueCloudRankingEnabled { get; set; } = false;
         public bool AutoConfigSyncEnabled { get; set; } = true;
+        public bool GameAutoRestoreEnabled { get; set; } = true;
 
         internal static bool HasLegacySettingsForFirstUse()
         {
@@ -155,7 +156,8 @@ namespace FACM.Services
                 "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed,
                 "LeaguePersonalStatsEnabled=" + LeaguePersonalStatsEnabled,
                 "LeagueCloudRankingEnabled=" + LeagueCloudRankingEnabled,
-                "AutoConfigSyncEnabled=" + AutoConfigSyncEnabled
+                "AutoConfigSyncEnabled=" + AutoConfigSyncEnabled,
+                "GameAutoRestoreEnabled=" + GameAutoRestoreEnabled
             };
         }
 
@@ -383,6 +385,7 @@ namespace FACM.Services
             else if (key.Equals("LeaguePersonalStatsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeaguePersonalStatsEnabled = flag;
             else if (key.Equals("LeagueCloudRankingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueCloudRankingEnabled = flag;
             else if (key.Equals("AutoConfigSyncEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoConfigSyncEnabled = flag;
+            else if (key.Equals("GameAutoRestoreEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.GameAutoRestoreEnabled = flag;
         }
 
         private static void Normalize(AppSettings result)

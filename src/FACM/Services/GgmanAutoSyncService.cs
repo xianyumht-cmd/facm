@@ -94,6 +94,16 @@ namespace FACM.Services
             UpdateStatus();
         }
 
+        internal void SetGameAutoRestoreEnabled(bool enabled)
+        {
+            if (_disposed || _settings.GameAutoRestoreEnabled == enabled) return;
+            _settings.GameAutoRestoreEnabled = enabled;
+            _settings.Save();
+            _nextGameProfileCheckUtc = DateTime.MinValue;
+            _timer.Interval = 1500;
+            UpdateStatus();
+        }
+
         private void OnSettingsSaved(AppSettings settings)
         {
             if (_disposed || _restoringApp || !ReferenceEquals(_settings, settings) ||
@@ -167,7 +177,8 @@ namespace FACM.Services
 
         private async Task TickAsync()
         {
-            if (_disposed || _busy || !_settings.AutoConfigSyncEnabled ||
+            if (_disposed || _busy ||
+                (!_settings.AutoConfigSyncEnabled && !_settings.GameAutoRestoreEnabled) ||
                 GgmanAccountSession.Current == null || DateTime.UtcNow < _notBeforeUtc ||
                 DateTime.UtcNow < _settingsChangeNotBeforeUtc)
                 return;
@@ -218,6 +229,7 @@ namespace FACM.Services
             var appOtherOwner = IsOtherOwner(owner, _state.AppOwner);
             _conflict = null;
             _conflictHasRemote = false;
+            if (_settings.AutoConfigSyncEnabled)
             using (var appClient = new GgmanAppSettingsCloudClient())
             using (var textClient = new GgmanUiTextCloudClient())
             {
@@ -250,8 +262,9 @@ namespace FACM.Services
                     textLocal.Text.Count == 0 && textLocal.Replace.Count == 0);
                 RequireSession(account, token);
 
-                await TryRestorePublishedGameAsync(account, token);
             }
+            if (_settings.GameAutoRestoreEnabled)
+                await TryRestorePublishedGameAsync(account, token);
         }
 
         internal static bool IsBackgroundUploadAllowed(string kind)

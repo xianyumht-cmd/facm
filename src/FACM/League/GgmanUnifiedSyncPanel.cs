@@ -19,6 +19,7 @@ namespace FACM.League
         private readonly FacmActionButton _useCloud;
         private readonly FacmActionButton _publishGame;
         private readonly Label _gameHint;
+        private readonly CheckBox _autoRestoreGame;
         private readonly Label _gameStatus;
         private bool _publishingGame;
 
@@ -82,6 +83,20 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
             };
+            _autoRestoreGame = new CheckBox
+            {
+                Text = "登录后自动恢复云端游戏设置",
+                Checked = _settings.GameAutoRestoreEnabled,
+                AutoSize = false,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Enabled = _service != null
+            };
+            _autoRestoreGame.CheckedChanged += delegate
+            {
+                if (_service != null)
+                    _service.SetGameAutoRestoreEnabled(_autoRestoreGame.Checked);
+            };
             _publishGame = new FacmActionButton
             {
                 Text = "上传大厅与 ESC 设置",
@@ -109,6 +124,7 @@ namespace FACM.League
             Controls.Add(_keepLocal);
             Controls.Add(_useCloud);
             Controls.Add(_gameHint);
+            Controls.Add(_autoRestoreGame);
             Controls.Add(_publishGame);
             Controls.Add(_gameStatus);
             if (_service != null) _service.StateChanged += OnStateChanged;
@@ -125,7 +141,7 @@ namespace FACM.League
             if (IsDisposed) return;
             var visibleConflict = _service != null && _settings.AutoConfigSyncEnabled &&
                 !string.IsNullOrEmpty(_service.ConflictCategory);
-            var nextHeight = visibleConflict ? 297 : 260;
+            var nextHeight = visibleConflict ? 328 : 291;
             _publishGame.Enabled = !_publishingGame && _service != null &&
                 !_service.IsBusy && GgmanAccountSession.Current != null;
             _keepLocal.Visible = visibleConflict;
@@ -221,8 +237,9 @@ namespace FACM.League
             _useCloud.SetBounds(32 + buttonWidth, 146, buttonWidth, 30);
             var gameTop = _useCloud.Visible ? 192 : 155;
             _gameHint.SetBounds(16, gameTop, width - 32, 28);
-            _publishGame.SetBounds(16, gameTop + 31, width - 32, 34);
-            _gameStatus.SetBounds(16, gameTop + 69, width - 32, 38);
+            _autoRestoreGame.SetBounds(16, gameTop + 26, width - 32, 29);
+            _publishGame.SetBounds(16, gameTop + 57, width - 32, 34);
+            _gameStatus.SetBounds(16, gameTop + 97, width - 32, 38);
         }
 
         internal static void ValidateForSmokeTest()
