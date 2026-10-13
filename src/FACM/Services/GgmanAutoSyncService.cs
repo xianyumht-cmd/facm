@@ -67,7 +67,7 @@ namespace FACM.Services
         {
             if (Current != null) throw new InvalidOperationException("Auto sync already started.");
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _uiContext = SynchronizationContext.Current;
+            _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
             RuntimePaths.Initialize();
             _statePath = Path.Combine(RuntimePaths.DataDirectory, "account-auto-sync-state.json");
             _state = LoadState();
@@ -306,16 +306,20 @@ namespace FACM.Services
                 if (_disposed) return;
                 var prior = _lastGameflowPhase;
                 _lastGameflowPhase = phase;
-                if (prior == phase || !_settings.GameAutoRestoreEnabled ||
-                    GgmanAccountSession.Current == null) return;
-                if (string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(phase, "EndOfGame", StringComparison.OrdinalIgnoreCase))
-                {
-                    _nextGameProfileCheckUtc = DateTime.MinValue;
-                    _timer.Interval = 1500;
-                }
+                if (!_settings.GameAutoRestoreEnabled ||
+                    GgmanAccountSession.Current == null ||
+                    !IsSafeLobbyTransition(prior, phase)) return;
+                _nextGameProfileCheckUtc = DateTime.MinValue;
+                _timer.Interval = 1500;
             }, null);
+        }
+
+        private static bool IsSafeLobbyTransition(string prior, string phase)
+        {
+            if (string.Equals(prior, phase, StringComparison.OrdinalIgnoreCase)) return false;
+            return string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(phase, "EndOfGame", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account,
@@ -718,6 +722,10 @@ namespace FACM.Services
         internal static void ValidateForSmokeTest()
         {
             GameProfileStore.ValidateForSmokeTest();
+            if (!IsSafeLobbyTransition("InProgress", "Lobby") ||
+                IsSafeLobbyTransition("Lobby", "Lobby") ||
+                IsSafeLobbyTransition("InProgress", "InProgress"))
+                throw new InvalidOperationException("Live lobby phase trigger changed.");
             var demo = new GgmanAutoSyncAccountState();
             var key = Hash("test-uid");
             if (key.Length != 64 || key.Contains("test-uid") ||
