@@ -100,7 +100,8 @@ namespace FACM.Services
             _settings.GameAutoRestoreEnabled = enabled;
             _settings.Save();
             _nextGameProfileCheckUtc = DateTime.MinValue;
-            _lastAppliedGameKey = null;
+            _lastAppliedEscKey = null;
+            _lastAppliedLobbyKey = null;
             _timer.Interval = 1500;
             UpdateStatus();
         }
@@ -147,7 +148,8 @@ namespace FACM.Services
             _settingsChangeNotBeforeUtc = DateTime.MinValue;
             if (!_disposed) _timer.Interval = 1500;
             _nextGameProfileCheckUtc = DateTime.MinValue;
-            _lastAppliedGameKey = null;
+            _lastAppliedEscKey = null;
+            _lastAppliedLobbyKey = null;
             UpdateStatus();
         }
 
@@ -275,12 +277,55 @@ namespace FACM.Services
         }
 
         private DateTime _nextGameProfileCheckUtc = DateTime.MinValue;
-        private string _lastAppliedGameKey;
+        private string _lastAppliedEscKey;
+        private string _lastAppliedLobbyKey;
+        private string _observedRiotAccountHash;
+        private string _lastGameflowPhase;
 
-        private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account, CancellationToken token)
+        internal void NotifyRiotAccount(string accountHash)
         {
-            if (DateTime.UtcNow < _nextGameProfileCheckUtc || !GameProfileStore.AreLeagueProcessesAbsent())
+            if (string.IsNullOrWhiteSpace(accountHash) || accountHash.Length != 64 ||
+                _uiContext == null || _disposed) return;
+            _uiContext.Post(ignored =>
+            {
+                if (_disposed || !_settings.GameAutoRestoreEnabled ||
+                    GgmanAccountSession.Current == null ||
+                    string.Equals(_observedRiotAccountHash, accountHash, StringComparison.Ordinal))
+                    return;
+                _observedRiotAccountHash = accountHash;
+                _nextGameProfileCheckUtc = DateTime.UtcNow.AddSeconds(2);
+                _timer.Interval = 2500;
+            }, null);
+        }
+
+        internal void NotifyGameflowPhase(string phase)
+        {
+            if (_uiContext == null || _disposed) return;
+            _uiContext.Post(ignored =>
+            {
+                if (_disposed) return;
+                var prior = _lastGameflowPhase;
+                _lastGameflowPhase = phase;
+                if (prior == phase || !_settings.GameAutoRestoreEnabled ||
+                    GgmanAccountSession.Current == null) return;
+                if (string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(phase, "None", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(phase, "EndOfGame", StringComparison.OrdinalIgnoreCase))
+                {
+                    _nextGameProfileCheckUtc = DateTime.MinValue;
+                    _timer.Interval = 1500;
+                }
+            }, null);
+        }
+
+        private async Task TryRestorePublishedGameAsync(GgmanAccountIdentity account,
+            CancellationToken token)
+        {
+            if (DateTime.UtcNow < _nextGameProfileCheckUtc) return;
+            if (GameProfileStore.IsLeagueClientRunning() &&
+                string.IsNullOrWhiteSpace(_observedRiotAccountHash))
                 return;
+
             try
             {
                 using (var cloud = new GgmanGameProfileCloudClient())
@@ -292,31 +337,73 @@ namespace FACM.Services
                         () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
                     RequireSession(account, token);
                     if (string.IsNullOrWhiteSpace(directory)) return;
-                    if (!GameProfileStore.AreLeagueProcessesAbsent()) return;
-                    // Restore once per registered session, install, cloud version and observed
-                    // League account. Never revert intentional local edits on each timer tick.
-                    var appliedKey = Hash(account.UserId + "|" +
-                        Path.GetFullPath(directory).ToUpperInvariant() + "|" +
-                        GameProfileStore.ReadLocalAccountMarker(directory)) + ":" + saved.Version;
-                    if (string.Equals(_lastAppliedGameKey, appliedKey, StringComparison.Ordinal))
+                    var riot = _observedRiotAccountHash ??
+                        GameProfileStore.ReadLocalAccountMarker(directory);
+                    var key = Hash(account.SessionKey + "|" + account.UserId + "|" +
+                        Path.GetFullPath(directory).ToUpperInvariant() + "|" + riot) +
+                        ":" + saved.Version;
+
+                    if (!GameProfileStore.IsGameProcessAbsent())
                         return;
-                    GameProfile local = null;
-                    try { local = GameProfileStore.Capture(directory); }
-                    catch (FileNotFoundException) { }
-                    if (!GameProfileStore.MatchesPublished(local, saved.Profile))
+
+                    if (!string.Equals(_lastAppliedEscKey, key, StringComparison.Ordinal))
                     {
-                        RequireSession(account, token);
-                        GameProfileStore.Restore(saved.Profile, directory);
-                        AppLog.Info("Registered game profile restored; revision=" + saved.Version);
+                        try
+                        {
+                            RequireSession(account, token);
+                            await Task.Run(() =>
+                            {
+                                EscSettingsBundle local = null;
+                                try { local = EscSettingsBackup.Capture(directory); }
+                                catch (FileNotFoundException) { }
+                                if (!GameProfileStore.MatchesEsc(local, saved.Profile.Esc))
+                                    GameProfileStore.RestoreEsc(saved.Profile, directory);
+                            }, token);
+                            RequireSession(account, token);
+                            _lastAppliedEscKey = key;
+                            AppLog.Info("Registered game ESC restored; revision=" + saved.Version);
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception error)
+                        {
+                            AppLog.Info("Game ESC restore pending: " + error.GetType().Name);
+                        }
                     }
-                    RequireSession(account, token);
-                    _lastAppliedGameKey = appliedKey;
+
+                    if (!string.Equals(_lastAppliedLobbyKey, key, StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            RequireSession(account, token);
+                            await Task.Run(() =>
+                            {
+                                if (!GameProfileStore.MatchesLobby(saved.Profile, directory))
+                                    GameProfileStore.RestoreLobby(saved.Profile, directory);
+                            }, token);
+                            RequireSession(account, token);
+                            _lastAppliedLobbyKey = key;
+                            AppLog.Info("Registered lobby preference file restored; revision=" +
+                                saved.Version);
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception error)
+                        {
+                            AppLog.Info("Lobby YAML restore pending: " + error.GetType().Name);
+                        }
+                    }
+
+                    if (_lastAppliedEscKey != key || _lastAppliedLobbyKey != key)
+                    {
+                        _nextGameProfileCheckUtc = DateTime.UtcNow.AddSeconds(15);
+                        _timer.Interval = 15000;
+                    }
                 }
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception error)
             {
-                _nextGameProfileCheckUtc = DateTime.UtcNow.AddMinutes(10);
+                _nextGameProfileCheckUtc = DateTime.UtcNow.AddSeconds(30);
+                _timer.Interval = 30000;
                 AppLog.Info("Game profile restore deferred: " + error.GetType().Name);
             }
         }
