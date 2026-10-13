@@ -464,7 +464,17 @@ namespace FACM.Services
                 });
                 if (MatchesLobby(published, config))
                     throw new InvalidOperationException("Lobby mismatch was not detected.");
-                RestoreLobby(published, config);
+                try { RestoreLobby(published, config); }
+                catch (IOException error)
+                {
+                    var observed = ReadAllowed(pref, "LCUAccountPreferences.yaml");
+                    throw new InvalidOperationException("Lobby fixture verification failed; present=" +
+                        File.Exists(pref) + "; trueLeaf=" +
+                        File.ReadAllText(pref).Contains("blockNonFriendGameInvites: true") +
+                        "; parsed=" + string.Join(",", observed.Select(x =>
+                            x.Section + "." + x.Key + "=" + x.Value)) +
+                        "; configDir=" + FindLobbyConfig(config), error);
+                }
                 if (!MatchesLobby(published, config) ||
                     !File.ReadAllText(pref).Contains("keepThis: 42"))
                     throw new InvalidOperationException("Lobby allowlisted restore changed unrelated fields.");
