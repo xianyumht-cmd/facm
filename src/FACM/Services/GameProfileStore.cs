@@ -377,7 +377,7 @@ namespace FACM.Services
                         else if (indent == 8 && inData && section == item.Section && key == item.Key)
                         {
                             matches++;
-                            lines[index] = raw.Substring(0, colon + 1) + " " +
+                            lines[index] = raw.Substring(0, indent + colon + 1) + " " +
                                 (item.Value ? "true" : "false");
                         }
                     }
@@ -410,18 +410,7 @@ namespace FACM.Services
                     finally { if (File.Exists(temporary)) File.Delete(temporary); }
                 }
                 if (!MatchesLobby(profile, escDirectory))
-                {
-                    var observed = new List<string>();
-                    foreach (var group in profile.Lobby.GroupBy(item => item.File,
-                        StringComparer.OrdinalIgnoreCase))
-                    {
-                        var path = Path.Combine(directory, group.Key);
-                        observed.AddRange(ReadAllowed(path, group.Key).Select(item =>
-                            item.Section + "." + item.Key + "=" + item.Value));
-                    }
-                    throw new IOException("LOBBY_VERIFY_MISMATCH: " +
-                        string.Join(",", observed));
-                }
+                    throw new IOException("大厅偏好文件写回校验失败。");
             }
             catch
             {
@@ -475,18 +464,9 @@ namespace FACM.Services
                 });
                 if (MatchesLobby(published, config))
                     throw new InvalidOperationException("Lobby mismatch was not detected.");
-                try { RestoreLobby(published, config); }
-                catch (IOException error)
-                {
-                    var observed = ReadAllowed(pref, "LCUAccountPreferences.yaml");
-                    throw new InvalidOperationException("Lobby fixture verification failed; present=" +
-                        File.Exists(pref) + "; trueLeaf=" +
-                        File.ReadAllText(pref).Contains("blockNonFriendGameInvites: true") +
-                        "; parsed=" + string.Join(",", observed.Select(x =>
-                            x.Section + "." + x.Key + "=" + x.Value)) +
-                        "; configDir=" + FindLobbyConfig(config), error);
-                }
+                RestoreLobby(published, config);
                 if (!MatchesLobby(published, config) ||
+                    !File.ReadAllText(pref).Contains("blockNonFriendGameInvites: true") ||
                     !File.ReadAllText(pref).Contains("keepThis: 42"))
                     throw new InvalidOperationException("Lobby allowlisted restore changed unrelated fields.");
                 File.WriteAllText(Path.Combine(config, "game.cfg"), "[General]\nChanged=true\n");
