@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Requiring the League launcher to exit makes cross-account cloud restore unusable (2026-10-14)
+
+The first 3.5.74 manual-game-profile auto-restorer checked `AreLeagueProcessesAbsent()` both before fetching the snapshot and before applying files. That rejected ordinary open-lobby, account-switched sessions and contradicted the defining product use case. Split lifecycle gates: game.exe running -> defer ESC replacement; launcher.exe/LCU lobby open -> ESC replacement allowed when game.exe absent; YAML update -> separate best-effort path, never abort already successful ESC. Reuse `LeagueDashboardModule` for current PUUID and phase transitions, not its `GameProcessDetected` flag (that flag can be false under active LCU even during a match). Native client memory/server settings may overwrite YAML again, so verify file writes separately from effective lobby UI changes.
+
 ## Applying published LOL settings on each timer tick overwrites intentional local edits (2026-10-12)
 
 A restored game snapshot must not be treated like a software-preference drift correction. The initial candidate re-applied cloud ESC/YAML whenever the launcher was closed and the current files differed, potentially reverting edits made during the prior game every 90 seconds. Record a per-process in-memory application marker including the registered GGman account, local install, cloud revision and a hashed `LeagueClientSettings.yaml` accountId; reapply only on first login, confirmed account transition or a cloud revision change when all relevant League processes are absent. When account identity cannot safely be read, return `unknown` and do not repetitively overwrite a user's local edits. Also preserve the exact YAML newline/BOM format and copy byte-exact backups; compare only fields actually contained in the published preset so different-client optional fields do not cause endless verification failures.

@@ -96,6 +96,12 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 - Mirror pool: `online/mirrors.json`.
 - GitHub Release remains the canonical artifact source; mirrors are transport accelerators, not a release trust source.
 
+## 3.5.75 live-lobby configuration restore acceptance
+
+Home and shared internet-cafe users must **not** close the League launcher after switching LOL accounts. Once the signed-in GGman account has deliberately published one cloud game profile, keep GGman running, open LeagueClient, sign into LOL account A and inspect the in-game ESC settings (e.g. borderless/window mode and keybindings) when a match starts. Switch to account B without closing the launcher and confirm the same cloud ESC settings were applied after the new LCU summoner identity became available. Check that a temporary local keybind modification is not continuously overwritten in the same session; only a true account transition/cloud revision change should trigger reapplication. When `League of Legends.exe` is running, no ESC file mutation is permitted.
+
+Launcher's allowlisted YAML is attempted independently in an open lobby. If a file is locked or Riot rewrites settings from memory/server, the outcome is logged and retried as a separate pending operation; it does not invalidate successfully restored ESC. Check `logs/` for `Registered game ESC restored`, `Registered lobby preference file restored`, or `Lobby YAML restore pending` without exposing Riot account IDs. Existing local backups remain in `data/esc-backups` and `data/lobby-backups`. No additional CloudBase migration; **never rerun SQL 009**. Real native writeback and effective UI behavior are a post-publish field acceptance requirement, not something Windows CI alone proves.
+
 ## 3.5.74 registered game-profile rollout and verification
 
 The user deployed `cloudbase/sql/009_manual_game_profiles.sql` on 2026-10-12. **Never rerun this create-once migration.** CloudBase schema checks 11/11 passed; the simulated role-switched A/B CAS transaction completed and was rolled back; live public gateway anonymous/no-credential read and write probes returned four HTTP 401 denials (Windows CI #38211027414).

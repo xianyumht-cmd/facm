@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-14 — Restore game configuration in the live lobby
+
+Users expect a cloud-published game profile to follow the registered GGman identity when switching LOL accounts on an open client, at home or in an internet cafe. A launcher-running gate is unacceptable: use the **game process** as the ESC write exclusion, not the lobby process. Detect account changes using the shared dashboard Gameflow and read-only current-summoner LCU API; never store or upload the Riot identifier itself. Treat ESC restoration and allowlisted launcher YAML restoration as separate outcomes: YAML is best-effort when the client is active, and a lock or in-memory writeback must not prevent ESC restoration. Do not auto-upload altered local ESC or YAML. Never write during an actual game process; back up/verify each changed config. A successful YAML *file write* is not proof that a running client has reloaded the setting; confirm on a real account switch.
+
 ## 2026-10-12 — Software settings are automatic; League presets are intentionally published (draft)
 
 ### Field boundary verified from 2026-10-12 mainland-China client YAML samples

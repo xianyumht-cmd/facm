@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.74：重构注册账号云同步。GGman 程序偏好和界面文字继续自动同步；新增「上传大厅与 ESC 设置」，只有主动点击才更新云端游戏配置。游戏配置保存经白名单验证的大厅偏好（包括只接受好友邀请）及 ESC 文件；登录后在英雄联盟和大厅客户端完全退出的安全时机自动恢复，按客户端账号与云端版本控制重复应用，避免持续覆盖临时改动。保留原始文件备份、账号隔离及版本冲突保护，不上传 LOL 账号标识、符文页或安装标识。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-14 — Live lobby game-profile restoration (PR #346; release 3.5.75 candidate)
+
+- Owner clarified the essential use case: home and internet-cafe users switch LOL accounts with the launcher open and must receive the previously manually published cloud ESC preferences **upon entering the new lobby**, not after shutting down the client. The 3.5.74 all-process-absent gate contradicted that requirement.
+- On `fix/live-lobby-profile-restore-20261014`, `GgmanAutoSyncModule` subscribes to the existing dashboard Gameflow feed, periodically identifies the signed-in LOL account from read-only `/lol-summoner/v1/current-summoner` (PUUID used only as an in-memory SHA256), and wakes `GgmanAutoSyncService` after an account or safe lobby-phase transition. No separate Gameflow polling loop or Riot credentials.
+- Restoring `Game/Config` ESC bytes now requires the actual `League of Legends` game process to be absent, **not** that the LeagueClient/LeagueClientUx lobby be closed. After ESC succeeds it is recorded separately. The YAML allowlist write runs independently, with byte-exact backup, field-level checks and bounded retry on file lock/writeback; YAML failure must not revert ESC or block its success. Match running and cloud-account changes remain protected.
+- No SQL change. SQL 009 remains the operator-deployed table, cloud game profiles remain explicitly published only, and registered GGman program preferences retain automatic sync. Candidate release request 3.5.75 is non-forced, non-prerelease; official updater activation must follow clean CI and the existing signed publisher. Actual Riot-client in-memory YAML reload and cross-LOL-account behavior still require owner field confirmation.
+
 ## 2026-10-12 — GGman 3.5.74 release request prepared (same PR #345)
 
 - User explicitly requested direct official one-click update rather than an isolated test build. Release request `release/3.5-request.json` has version `3.5.74`, non-forced and non-prerelease, preserving minimum `3.0.0`. Production publisher must merge the PR first, then build/sign/verify a new immutable Release and enable the online manifest; no release is assumed until those steps succeed.
