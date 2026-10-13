@@ -102,6 +102,8 @@ Home and shared internet-cafe users must **not** close the League launcher after
 
 Launcher's allowlisted YAML is attempted independently in an open lobby. If a file is locked or Riot rewrites settings from memory/server, the outcome is logged and retried as a separate pending operation; it does not invalidate successfully restored ESC. Check `logs/` for `Registered game ESC restored`, `Registered lobby preference file restored`, or `Lobby YAML restore pending` without exposing Riot account IDs. Existing local backups remain in `data/esc-backups` and `data/lobby-backups`. No additional CloudBase migration; **never rerun SQL 009**. Real native writeback and effective UI behavior are a post-publish field acceptance requirement, not something Windows CI alone proves.
 
+- Verify the Windows fixture also preserves indentation when rewriting `        blockNonFriendGameInvites: false` to `        blockNonFriendGameInvites: true`, then rereads that exact key and checks the unrelated `keepThis: 42` field is untouched. The 3.5.74 bug subtracted leading indentation from the colon offset and produced a truncated YAML key; a successful file write without a successful parse/readback is not acceptance.
+
 ## 3.5.74 registered game-profile rollout and verification
 
 The user deployed `cloudbase/sql/009_manual_game_profiles.sql` on 2026-10-12. **Never rerun this create-once migration.** CloudBase schema checks 11/11 passed; the simulated role-switched A/B CAS transaction completed and was rolled back; live public gateway anonymous/no-credential read and write probes returned four HTTP 401 denials (Windows CI #38211027414).

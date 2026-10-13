@@ -19,6 +19,8 @@
 - Restoring `Game/Config` ESC bytes now requires the actual `League of Legends` game process to be absent, **not** that the LeagueClient/LeagueClientUx lobby be closed. After ESC succeeds it is recorded separately. The YAML allowlist write runs independently, with byte-exact backup, field-level checks and bounded retry on file lock/writeback; YAML failure must not revert ESC or block its success. Match running and cloud-account changes remain protected.
 - No SQL change. SQL 009 remains the operator-deployed table, cloud game profiles remain explicitly published only, and registered GGman program preferences retain automatic sync. Candidate release request 3.5.75 is non-forced, non-prerelease; official updater activation must follow clean CI and the existing signed publisher. Actual Riot-client in-memory YAML reload and cross-LOL-account behavior still require owner field confirmation.
 
+- The final Windows fixture exposed an unrelated 3.5.74 YAML bug: the writer used the colon offset from a trimmed line against the untrimmed source, truncating indented keys. Corrected the offset to include leading whitespace, restored the post-write assertion and added an explicit `blockNonFriendGameInvites: true` readback check. Release cannot proceed until the corrected branch CI passes.
+
 ## 2026-10-12 — GGman 3.5.74 release request prepared (same PR #345)
 
 - User explicitly requested direct official one-click update rather than an isolated test build. Release request `release/3.5-request.json` has version `3.5.74`, non-forced and non-prerelease, preserving minimum `3.0.0`. Production publisher must merge the PR first, then build/sign/verify a new immutable Release and enable the online manifest; no release is assumed until those steps succeed.
