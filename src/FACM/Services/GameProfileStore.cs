@@ -449,11 +449,29 @@ namespace FACM.Services
                 if (first == "unknown" || second == "unknown" ||
                     first == second || first == "100" || second == "200")
                     throw new InvalidOperationException("Riot account transition marker failed.");
-                var empty = new EscSettingsBundle { Files = new List<EscSettingsFile>() };
-                // The only file-write gate for ESC is the actual game process,
-                // not the League client that owns the lobby.
-                if (!IsGameProcessAbsent())
-                    throw new InvalidOperationException("ESC lobby-safe gate changed.");
+                var pref = Path.Combine(lobbyConfig, "LCUAccountPreferences.yaml");
+                File.WriteAllText(pref, "lol-notifications:\n    data:\n" +
+                    "        blockNonFriendGameInvites: false\n" +
+                    "other-settings:\n    data:\n        keepThis: 42\n");
+                var before = EscSettingsBackup.Capture(config);
+                var published = new GameProfile { Esc = before };
+                published.Lobby.Add(new GameLobbySetting
+                {
+                    File = "LCUAccountPreferences.yaml",
+                    Section = "lol-notifications",
+                    Key = "blockNonFriendGameInvites",
+                    Value = true
+                });
+                if (MatchesLobby(published, config))
+                    throw new InvalidOperationException("Lobby mismatch was not detected.");
+                RestoreLobby(published, config);
+                if (!MatchesLobby(published, config) ||
+                    !File.ReadAllText(pref).Contains("keepThis: 42"))
+                    throw new InvalidOperationException("Lobby allowlisted restore changed unrelated fields.");
+                File.WriteAllText(Path.Combine(config, "game.cfg"), "[General]\nChanged=true\n");
+                RestoreEsc(published, config);
+                if (!MatchesEsc(EscSettingsBackup.Capture(config), published.Esc))
+                    throw new InvalidOperationException("ESC restore after lobby operation failed.");
             }
             finally { Directory.Delete(root, true); }
         }
