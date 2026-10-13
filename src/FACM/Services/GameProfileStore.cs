@@ -258,34 +258,115 @@ namespace FACM.Services
             return true;
         }
 
-        internal static void Restore(GameProfile profile, string escDirectory)
+        internal static bool IsGameProcessAbsent()
+        {
+            System.Diagnostics.Process[] processes = null;
+            try
+            {
+                processes = System.Diagnostics.Process.GetProcessesByName("League of Legends");
+                return processes.Length == 0;
+            }
+            catch { return false; }
+            finally
+            {
+                if (processes != null)
+                    foreach (var process in processes) process.Dispose();
+            }
+        }
+
+        internal static bool IsLeagueClientRunning()
+        {
+            foreach (var name in new[] { "LeagueClient", "LeagueClientUx", "LeagueClientUxRender" })
+            {
+                System.Diagnostics.Process[] processes = null;
+                try
+                {
+                    processes = System.Diagnostics.Process.GetProcessesByName(name);
+                    if (processes.Length > 0) return true;
+                }
+                catch { return true; }
+                finally
+                {
+                    if (processes != null)
+                        foreach (var process in processes) process.Dispose();
+                }
+            }
+            return false;
+        }
+
+        internal static bool MatchesEsc(EscSettingsBundle local, EscSettingsBundle remote)
+        {
+            if (local == null) return false;
+            EscSettingsBackup.Validate(local);
+            EscSettingsBackup.Validate(remote);
+            var existing = local.Files.ToDictionary(file => file.Name, file => file.Sha256,
+                StringComparer.OrdinalIgnoreCase);
+            return remote.Files.All(file =>
+            {
+                string hash;
+                return existing.TryGetValue(file.Name, out hash) &&
+                    string.Equals(hash, file.Sha256, StringComparison.OrdinalIgnoreCase);
+            });
+        }
+
+        internal static bool MatchesLobby(GameProfile profile, string escDirectory)
         {
             Validate(profile);
-            if (!AreLeagueProcessesAbsent())
-                throw new InvalidOperationException("请完全退出英雄联盟及大厅客户端后恢复游戏配置。");
-            var client = FindLobbyConfig(escDirectory);
-            var staged = new List<Tuple<string, string, string, bool>>();
-            foreach (var group in profile.Lobby.GroupBy(x => x.File, StringComparer.OrdinalIgnoreCase))
+            var directory = FindLobbyConfig(escDirectory);
+            var actual = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var name in profile.Lobby.Select(item => item.File)
+                .Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                var path = Path.Combine(client, group.Key);
+                var path = Path.Combine(directory, name);
+                if (!File.Exists(path)) return false;
+                foreach (var setting in ReadAllowed(path, name))
+                    actual.Add(setting.File + "|" + setting.Section + "|" + setting.Key, setting.Value);
+            }
+            return profile.Lobby.All(item =>
+            {
+                bool value;
+                return actual.TryGetValue(item.File + "|" + item.Section + "|" + item.Key,
+                    out value) && value == item.Value;
+            });
+        }
+
+        internal static void RestoreEsc(GameProfile profile, string escDirectory)
+        {
+            Validate(profile);
+            if (!IsGameProcessAbsent())
+                throw new InvalidOperationException("正在进行游戏，已推迟 ESC 设置恢复。");
+            EscSettingsBackup.Restore(profile.Esc, escDirectory);
+            if (!MatchesEsc(EscSettingsBackup.Capture(escDirectory), profile.Esc))
+                throw new IOException("ESC 配置恢复后校验失败。");
+        }
+
+        internal static void RestoreLobby(GameProfile profile, string escDirectory)
+        {
+            Validate(profile);
+            var directory = FindLobbyConfig(escDirectory);
+            var staged = new List<Tuple<string, string, string, bool>>();
+            foreach (var group in profile.Lobby.GroupBy(item => item.File,
+                StringComparer.OrdinalIgnoreCase))
+            {
+                var path = Path.Combine(directory, group.Key);
                 if (!File.Exists(path) || (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 ||
                     new FileInfo(path).Length > MaximumYamlBytes)
                     throw new InvalidDataException("目标大厅 YAML 文件缺失或不安全：" + group.Key);
                 var previousBytes = File.ReadAllBytes(path);
                 var hasBom = previousBytes.Length >= 3 && previousBytes[0] == 0xef &&
                     previousBytes[1] == 0xbb && previousBytes[2] == 0xbf;
-                var oldText = File.ReadAllText(path, Encoding.UTF8);
-                var patched = oldText;
+                var original = File.ReadAllText(path, Encoding.UTF8);
+                var patched = original;
                 foreach (var item in group)
                 {
                     var newline = patched.Contains("\r\n") ? "\r\n" : "\n";
                     var lines = patched.Replace("\r\n", "\n").Split('\n');
                     var section = string.Empty;
                     var inData = false;
-                    var count = 0;
-                    for (var i = 0; i < lines.Length; i++)
+                    var matches = 0;
+                    for (var index = 0; index < lines.Length; index++)
                     {
-                        var raw = lines[i];
+                        var raw = lines[index];
                         var indent = raw.Length - raw.TrimStart(' ').Length;
                         var line = raw.Trim();
                         var colon = line.IndexOf(':');
@@ -295,44 +376,41 @@ namespace FACM.Services
                         else if (indent == 4) inData = key == "data";
                         else if (indent == 8 && inData && section == item.Section && key == item.Key)
                         {
-                            count++;
-                            lines[i] = raw.Substring(0, colon + 1) + " " +
+                            matches++;
+                            lines[index] = raw.Substring(0, colon + 1) + " " +
                                 (item.Value ? "true" : "false");
                         }
                     }
-                    if (count != 1)
-                        throw new InvalidDataException("目标客户端缺少或重复偏好：" + item.Key);
+                    if (matches != 1)
+                        throw new InvalidDataException("目标大厅缺少或重复偏好：" + item.Key);
                     patched = string.Join(newline, lines);
                 }
-                if (!string.Equals(oldText, patched, StringComparison.Ordinal))
-                    staged.Add(Tuple.Create(path, oldText, patched, hasBom));
+                if (!string.Equals(original, patched, StringComparison.Ordinal))
+                    staged.Add(Tuple.Create(path, original, patched, hasBom));
             }
-            if (staged.Count == 0 && MatchesPublished(Capture(escDirectory), profile))
-                return;
-            Directory.CreateDirectory(Path.Combine(RuntimePaths.DataDirectory, "lobby-backups"));
+            if (staged.Count == 0) return;
+            var backupDir = Path.Combine(RuntimePaths.DataDirectory, "lobby-backups");
+            Directory.CreateDirectory(backupDir);
             var changed = new List<Tuple<string, string, string, bool>>();
             try
             {
-                if (!AreLeagueProcessesAbsent())
-                    throw new InvalidOperationException("游戏客户端已启动，已推迟配置恢复。");
                 foreach (var file in staged)
                 {
-                    var backup = Path.Combine(RuntimePaths.DataDirectory, "lobby-backups",
-                        Path.GetFileName(file.Item1) + "-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss") +
-                        "-" + Guid.NewGuid().ToString("N") + ".yaml");
+                    var backup = Path.Combine(backupDir, Path.GetFileName(file.Item1) + "-" +
+                        DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" +
+                        Guid.NewGuid().ToString("N") + ".yaml");
                     File.Copy(file.Item1, backup, false);
-                    var tmp = file.Item1 + ".ggman-" + Guid.NewGuid().ToString("N") + ".tmp";
+                    var temporary = file.Item1 + ".ggman-" + Guid.NewGuid().ToString("N") + ".tmp";
                     try
                     {
-                        File.WriteAllText(tmp, file.Item3, new UTF8Encoding(file.Item4));
-                        File.Replace(tmp, file.Item1, null);
+                        File.WriteAllText(temporary, file.Item3, new UTF8Encoding(file.Item4));
+                        File.Replace(temporary, file.Item1, null);
                         changed.Add(file);
                     }
-                    finally { if (File.Exists(tmp)) File.Delete(tmp); }
+                    finally { if (File.Exists(temporary)) File.Delete(temporary); }
                 }
-                EscSettingsBackup.Restore(profile.Esc, escDirectory);
-                if (!MatchesPublished(Capture(escDirectory), profile))
-                    throw new IOException("游戏配置写回校验失败。");
+                if (!MatchesLobby(profile, escDirectory))
+                    throw new IOException("大厅偏好文件写回校验失败。");
             }
             catch
             {
@@ -371,6 +449,11 @@ namespace FACM.Services
                 if (first == "unknown" || second == "unknown" ||
                     first == second || first == "100" || second == "200")
                     throw new InvalidOperationException("Riot account transition marker failed.");
+                var empty = new EscSettingsBundle { Files = new List<EscSettingsFile>() };
+                // The only file-write gate for ESC is the actual game process,
+                // not the League client that owns the lobby.
+                if (!IsGameProcessAbsent())
+                    throw new InvalidOperationException("ESC lobby-safe gate changed.");
             }
             finally { Directory.Delete(root, true); }
         }
