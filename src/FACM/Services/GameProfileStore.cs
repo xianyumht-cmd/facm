@@ -410,7 +410,18 @@ namespace FACM.Services
                     finally { if (File.Exists(temporary)) File.Delete(temporary); }
                 }
                 if (!MatchesLobby(profile, escDirectory))
-                    throw new IOException("大厅偏好文件写回校验失败。");
+                {
+                    var observed = new List<string>();
+                    foreach (var group in profile.Lobby.GroupBy(item => item.File,
+                        StringComparer.OrdinalIgnoreCase))
+                    {
+                        var path = Path.Combine(directory, group.Key);
+                        observed.AddRange(ReadAllowed(path, group.Key).Select(item =>
+                            item.Section + "." + item.Key + "=" + item.Value));
+                    }
+                    throw new IOException("LOBBY_VERIFY_MISMATCH: " +
+                        string.Join(",", observed));
+                }
             }
             catch
             {
