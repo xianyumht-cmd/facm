@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-14 — Allow deliberate game-profile publication while the League lobby is open
+
+A user normally finishes setting keybindings/video during training, returns to an already-open League launcher, and presses `上传大厅与 ESC 设置`. Requiring all League launcher processes to close contradicts this normal workflow. Manual capture requires only the actual game process to be absent, with a second check after reading files; the launcher can remain open. Do not relax account registration, explicit manual publishing, ESC checksum, YAML field allowlist, remote CAS, or file-read error semantics. The prompt should mention returning from a live match to the lobby rather than quitting the client.
+
 ## 2026-10-14 — Restore game configuration in the live lobby
 
 Users expect a cloud-published game profile to follow the registered GGman identity when switching LOL accounts on an open client, at home or in an internet cafe. A launcher-running gate is unacceptable: use the **game process** as the ESC write exclusion, not the lobby process. Detect account changes using the shared dashboard Gameflow and read-only current-summoner LCU API; never store or upload the Riot identifier itself. Treat ESC restoration and allowlisted launcher YAML restoration as separate outcomes: YAML is best-effort when the client is active, and a lock or in-memory writeback must not prevent ESC restoration. Do not auto-upload altered local ESC or YAML. Never write during an actual game process; back up/verify each changed config. A successful YAML *file write* is not proof that a running client has reloaded the setting; confirm on a real account switch.

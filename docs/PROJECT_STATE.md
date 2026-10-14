@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.75：修复云端游戏设置需要完全退出英雄联盟大厅才能恢复的问题。登录 GGman、打开大厅或切换 LOL 账号后，复用现有 LCU 状态与当前召唤师检测，及时触发个人游戏配置恢复；未进入实际对局时即允许恢复 Game/Config 的 ESC 键位、画面等设置，大厅不必退出。大厅 YAML 偏好独立尝试恢复，客户端占用时延后重试，不影响 ESC 成功；保留备份、版本隔离及游戏配置仅手动上传的规则。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-14 — Manual game-profile publication from a running League lobby (PR pending, 3.5.76 candidate)
+
+- Operator reported that 3.5.75 still rejects deliberate `上传大厅与 ESC 设置` with `请先完全退出英雄联盟和大厅客户端`, even when the user finishes a training match and is back at an open League lobby. This was the obsolete upload-side `AreLeagueProcessesAbsent()` guard; 3.5.75 fixed only the auto-restore side. The confirmation prompt also told users to exit the launcher.
+- In `fix/live-lobby-manual-profile-publish-20261014`, the upload entry gate checks only that the actual League game process is absent. A capture wrapper checks game-process absence before and after reading ESC and allowlisted YAML; it refuses potentially partial/in-progress game writes. `LeagueClient` / `LeagueClientUx` presence is no longer an upload blocker. The dialog explicitly says to leave training/match and return to the open lobby.
+- Added an isolated fixture for the manual-upload capture of both real `Game/Config` ESC and two allowlisted launcher YAML files. Keep registered CloudBase CAS, authenticated owner RLS, explicit manual-only publication, size validation, and native read failures fail-closed. No SQL changes.
+- Request signed GGman 3.5.76 non-forced from the existing publisher only after Windows CI, UI text and relevant source gates are green; a game-running upload or locked YAML remains a justified rejection. Native Riot-client behavior and writeback are owner acceptance, not CI guarantees.
+
 ## 2026-10-14 — Live lobby game-profile restoration (PR #346; release 3.5.75 candidate)
 
 - Owner clarified the essential use case: home and internet-cafe users switch LOL accounts with the launcher open and must receive the previously manually published cloud ESC preferences **upon entering the new lobby**, not after shutting down the client. The 3.5.74 all-process-absent gate contradicted that requirement.
