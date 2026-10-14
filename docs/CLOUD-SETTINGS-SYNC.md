@@ -1,5 +1,9 @@
 # GGman Configuration Synchronization
 
+## 3.5.75 open-lobby restore correction
+
+The 3.5.74 version blocked all cloud-game restoration until every League client/game process exited; this was unusable for the home/cafe account-switch workflow. 3.5.75 uses the existing Gameflow monitor and read-only signed-in LCU current-summoner identity to wake the restore after account changes. With the real game process absent, ESC `Game/Config` can be safely restored even while LeagueClientUx is open. Lobby YAML leaves are separately attempted/verified and retried on failure without blocking ESC. Original file backups, registered account ownership and deliberate/manual upload remain unchanged; effective launcher UI memory writeback has not been native-verified.
+
 ## Registered game profiles (3.5.74 release candidate PR #345)
 
 The task branch implements independent auto-synchronization of portable GGman preferences and **explicitly published** League game profiles. Manual **上传大厅与 ESC 设置** captures allowlisted `Game/Config` files plus nine scalar Boolean preferences from `LeagueClient/Config/LCUAccountPreferences.yaml` and `LCULocalPreferences.yaml`; it excludes `LeagueClientSettings.yaml`, full rune pages, account IDs, devices and installation identifiers. This whitelist was derived from four owner-supplied mainland-China client YAML samples; their full contents and identifiers are not in the repository.

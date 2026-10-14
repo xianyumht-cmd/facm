@@ -203,7 +203,7 @@ namespace FACM
             var host = new FacmHost();
             host.Register(new CompactMenuEnhancerModule());
             host.Register(settings);
-            host.Register(new GgmanAutoSyncModule(settings));
+            host.Register(new GgmanAutoSyncModule(settings, leagueClient, leagueDashboard));
             host.Register(cloudSync);
             host.Register(usageTelemetry);
             host.Register(tools);
