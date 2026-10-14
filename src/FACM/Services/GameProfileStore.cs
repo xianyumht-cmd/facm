@@ -77,6 +77,16 @@ namespace FACM.Services
             return result;
         }
 
+        internal static GameProfile CaptureForUpload(string escDirectory)
+        {
+            if (!IsGameProcessAbsent())
+                throw new InvalidOperationException("请先退出训练或正式对局，再上传游戏配置。大厅可以保持开启。");
+            var profile = Capture(escDirectory);
+            if (!IsGameProcessAbsent())
+                throw new InvalidOperationException("读取配置期间游戏重新启动，已取消上传，请返回大厅后重试。");
+            return profile;
+        }
+
         private static List<GameLobbySetting> ReadAllowed(string path, string file)
         {
             if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 ||
@@ -473,6 +483,14 @@ namespace FACM.Services
                 RestoreEsc(published, config);
                 if (!MatchesEsc(EscSettingsBackup.Capture(config), published.Esc))
                     throw new InvalidOperationException("ESC restore after lobby operation failed.");
+                File.WriteAllText(Path.Combine(lobbyConfig, "LCULocalPreferences.yaml"),
+                    "lol-user-experience:\n    data:\n        motionEffectsDisabled: false\n");
+                var upload = CaptureForUpload(config);
+                if (!MatchesEsc(upload.Esc, published.Esc) ||
+                    !upload.Lobby.Any(item => item.File == "LCUAccountPreferences.yaml" &&
+                        item.Section == "lol-notifications" &&
+                        item.Key == "blockNonFriendGameInvites" && item.Value))
+                    throw new InvalidOperationException("Open-lobby manual publish capture failed.");
             }
             finally { Directory.Delete(root, true); }
         }

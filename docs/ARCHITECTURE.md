@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Manual publication when the League launcher remains running (3.5.76)
+
+`GgmanUnifiedSyncPanel.PublishGameAsync` shows a deliberate overwrite confirmation and invokes `GgmanAutoSyncService.PublishGameProfileAsync`. That service refuses capture only if `GameProfileStore.IsGameProcessAbsent()` is false, not when `LeagueClient` / `LeagueClientUx` exists. `GameProfileStore.CaptureForUpload` repeats the actual game-process guard before and after reading ESC and the allowlisted lobby YAML leaves, preventing a fresh game startup from yielding an unchecked partial snapshot. The existing registered CloudBase `GetAsync` + compare-and-swap `SetAsync` and error handling remain unchanged. A running/locked YAML file may still yield an explicit read error; do not silently upload incomplete game profiles.
+
 ## Live lobby account-specific game-profile application (3.5.75)
 
 `GgmanAutoSyncModule` reuses `LeagueDashboardModule.GameflowStateChanged` and `LeagueClientModule.TryGetBytesAsync` to observe the current signed-in LOL summoner once every few seconds while Gameflow is connected. The PUUID is hashed in memory, never logged or included in the cloud profile. A changed hash or transition to Lobby/None/EndOfGame schedules the already-running `GgmanAutoSyncService` timer promptly, without a second Gameflow poller. The service keys in-memory completion separately for ESC and lobby YAML by GGman session, local installation, current LOL account fingerprint and cloud revision. `GameProfileStore.RestoreEsc` refuses only an **active game process**, while `RestoreLobby` applies the allowlisted YAML leaves independently with backups and local verification; locked/unavailable YAML is retried and cannot block ESC. Registered CloudBase schema and manual-upload CAS remain unchanged. Native LCU writeback effectiveness must be confirmed separately.

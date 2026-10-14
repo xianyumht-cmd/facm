@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## An all-League-process guard in manual upload survived the live-lobby restore fix (2026-10-14)
+
+3.5.75 changed automatic game-profile restoration to allow the open League lobby, but `GgmanAutoSyncService.PublishGameProfileAsync()` still called `AreLeagueProcessesAbsent()` and the confirmation UI demanded a full client exit. This prevented the expected finish-training -> open lobby -> manual publish workflow. Never reuse a broad launcher+game process guard for both save and restore. Manual publishing may capture and upload when the actual League match/game process has ended, even if LeagueClientUx is still active. Check both before and after local capture; the server must still be updated only following explicit user confirmation, successful whitelist validation, and CAS. Running match remains prohibited because on-disk files may lag unsaved changes.
+
 ## YAML indentation-relative colon offsets can truncate a preference key (2026-10-14)
 
 The live-lobby regression smoke found a separate defect in the 3.5.74 allowlisted YAML writer: the colon index was measured on `raw.Trim()` (without indentation), then used in `raw.Substring(0, colon + 1)` (with indentation). This truncated `blockNonFriendGameInvites` and produced malformed YAML, making post-write verification fail. The correct raw span ends at `indent + colon + 1`. Keep a Windows fixture that edits an 8-space-indented scalar, verifies the exact key survives and the Boolean changes, preserves unrelated fields, and ensures ESC can be restored independently. Do not suppress the post-write verification error just to make CI pass.

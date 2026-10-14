@@ -417,8 +417,8 @@ namespace FACM.Services
             if (_disposed || _busy)
                 throw new InvalidOperationException("云同步正在执行，请稍后再试。");
             var account = GgmanEscCloudClient.RequireRegisteredSession();
-            if (!GameProfileStore.AreLeagueProcessesAbsent())
-                throw new InvalidOperationException("请先完全退出英雄联盟和大厅客户端，避免上传尚未写入磁盘的设置。");
+            if (!GameProfileStore.IsGameProcessAbsent())
+                throw new InvalidOperationException("请先退出训练或正式对局，回到大厅后即可上传设置。大厅无需关闭。");
             var token = _sessionCancellation.Token;
             _busy = true;
             UpdateStatus();
@@ -428,7 +428,7 @@ namespace FACM.Services
                     () => EscGameDirectoryLocator.Find(_settings.GamePath, token), token);
                 if (string.IsNullOrWhiteSpace(directory))
                     throw new DirectoryNotFoundException("请先在 GGman 中设置英雄联盟安装目录。");
-                var profile = await Task.Run(() => GameProfileStore.Capture(directory), token);
+                var profile = await Task.Run(() => GameProfileStore.CaptureForUpload(directory), token);
                 RequireSession(account, token);
                 using (var cloud = new GgmanGameProfileCloudClient())
                 {

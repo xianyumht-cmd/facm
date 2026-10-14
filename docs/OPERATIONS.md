@@ -96,6 +96,10 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 - Mirror pool: `online/mirrors.json`.
 - GitHub Release remains the canonical artifact source; mirrors are transport accelerators, not a release trust source.
 
+## 3.5.76 open-lobby manual-upload acceptance
+
+In the signed client, keep the League launcher open, finish a training match, and wait for `League of Legends.exe` (the game process) to stop. While `LeagueClient` / `LeagueClientUx` remains running, click `上传大厅与 ESC 设置`. The confirmation must describe finishing a training/match and returning to lobby, not ask to close the launcher; capture and upload should succeed if both allowed YAML files are present and stable. Reopen the dialog if needed and verify returned remote version. Launch a training game again and verify an attempted manual upload is blocked while the real game process is running. If live Riot locks YAML or has not flushed preferences to disk, report that explicit file error and retry from the open lobby after saving; do not silently upload half a profile or ask users to close the launcher by default. Existing automatic restore after switching LOL accounts remains unchanged.
+
 ## 3.5.75 live-lobby configuration restore acceptance
 
 Home and shared internet-cafe users must **not** close the League launcher after switching LOL accounts. Once the signed-in GGman account has deliberately published one cloud game profile, keep GGman running, open LeagueClient, sign into LOL account A and inspect the in-game ESC settings (e.g. borderless/window mode and keybindings) when a match starts. Switch to account B without closing the launcher and confirm the same cloud ESC settings were applied after the new LCU summoner identity became available. Check that a temporary local keybind modification is not continuously overwritten in the same session; only a true account transition/cloud revision change should trigger reapplication. When `League of Legends.exe` is running, no ESC file mutation is permitted.

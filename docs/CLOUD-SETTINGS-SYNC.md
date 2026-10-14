@@ -1,5 +1,9 @@
 # GGman Configuration Synchronization
 
+## 3.5.76 manual publish from an open League lobby
+
+After a training or ordinary match ends and the actual `League of Legends` game process exits, the registered GGman user may press `上传大厅与 ESC 设置` while the League launcher stays running. The old 3.5.75 manual-publish path still had the all-process-closed check despite the prior automatic-restore correction. The 3.5.76 candidate removes that launcher restriction, guards the in-progress game process before and after reading `Game/Config` and allowlisted YAML, and updates the confirmation copy. Signed release, CloudBase database, owner permissions and manual-only remote publication remain separate.
+
 ## 3.5.75 open-lobby restore correction
 
 The 3.5.74 version blocked all cloud-game restoration until every League client/game process exited; this was unusable for the home/cafe account-switch workflow. 3.5.75 uses the existing Gameflow monitor and read-only signed-in LCU current-summoner identity to wake the restore after account changes. With the real game process absent, ESC `Game/Config` can be safely restored even while LeagueClientUx is open. Lobby YAML leaves are separately attempted/verified and retried on failure without blocking ESC. Original file backups, registered account ownership and deliberate/manual upload remain unchanged; effective launcher UI memory writeback has not been native-verified.
