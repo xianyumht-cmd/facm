@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.75
-- GitHub Release：v3.5.75
+- 版本：GGman 3.5.76
+- GitHub Release：v3.5.76
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：01cd48847d2fbfc5d0a830863e6f1b48b66018da
-- 发布元数据提交：71efee9effb27d0922536371d0e4f61da213b8ab
-- Release GGman.exe SHA-256：9055B89797C967697FCA5923749A150FCE053CF8266F47C3DBF8AD6C178F462B
-- release_notes：GGman 3.5.75：修复云端游戏设置需要完全退出英雄联盟大厅才能恢复的问题。登录 GGman、打开大厅或切换 LOL 账号后，复用现有 LCU 状态与当前召唤师检测，及时触发个人游戏配置恢复；未进入实际对局时即允许恢复 Game/Config 的 ESC 键位、画面等设置，大厅不必退出。大厅 YAML 偏好独立尝试恢复，客户端占用时延后重试，不影响 ESC 成功；保留备份、版本隔离及游戏配置仅手动上传的规则。
+- 发布基础 main：384acaaed1c1a8d55abb078f89f37aa933d32e87
+- 发布元数据提交：7ae96002865c5a4faed25696eaa478004e02609a
+- Release GGman.exe SHA-256：51F11E00A41A83BE121A2C543A45F683AB96A0B14FA7464E7E33DCC0C8E18234
+- release_notes：GGman 3.5.76：修复手动上传大厅与 ESC 设置时错误要求关闭英雄联盟大厅的问题。训练模式或正式对局结束、实际游戏进程退出后，即可保持大厅开启并主动上传云端；读取配置前后复核游戏进程，避免上传正在写入的设置。更新上传确认提示和回归测试。云端账号隔离、配置白名单、游戏设置仅手动上传及登录后自动恢复规则不变。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-14 — Manual game-profile publication from a running League lobby (PR pending, 3.5.76 candidate)

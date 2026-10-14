@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.76",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.76/FACM.exe",
   "sha256": "51F11E00A41A83BE121A2C543A45F683AB96A0B14FA7464E7E33DCC0C8E18234",
   "release_notes": "GGman 3.5.76：修复手动上传大厅与 ESC 设置时错误要求关闭英雄联盟大厅的问题。训练模式或正式对局结束、实际游戏进程退出后，即可保持大厅开启并主动上传云端；读取配置前后复核游戏进程，避免上传正在写入的设置。更新上传确认提示和回归测试。云端账号隔离、配置白名单、游戏设置仅手动上传及登录后自动恢复规则不变。",
-  "published_at": "2026-10-14T04:42:10.3243614+00:00"
+  "published_at": "2026-10-14T04:42:18.4481190+00:00"
 }
