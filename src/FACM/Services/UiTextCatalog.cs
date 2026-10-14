@@ -63,7 +63,7 @@ namespace FACM.Services
             Pair(UiTextKeys.GameSyncAutoRestore, "登录后自动恢复云端游戏设置"),
             Pair(UiTextKeys.GameSyncPublish, "上传大厅与 ESC 设置"),
             Pair(UiTextKeys.GameSyncDetail, "仅同步指定大厅偏好与 ESC 设置，不上传账号或安装标识。"),
-            Pair(UiTextKeys.GameSyncConfirm, "将当前 ESC 设置和已确认的大厅偏好上传到 GGman 云端？这会覆盖此前主动上传的游戏配置。请先完全退出英雄联盟和大厅。"),
+            Pair(UiTextKeys.GameSyncConfirm, "将当前已保存的 ESC 设置和大厅偏好上传到 GGman 云端？这会覆盖此前主动上传的游戏配置。请先结束训练或正式对局，回到大厅即可上传，无需关闭大厅。"),
             Pair(UiTextKeys.GameSyncUploading, "正在校验并上传游戏配置……"),
             Pair(UiTextKeys.GameSyncUploaded, "游戏配置已保存到云端，版本 {0}。"),
             Pair(UiTextKeys.GameSyncFailed, "上传未完成：{0}"),
