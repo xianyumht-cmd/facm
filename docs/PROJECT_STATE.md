@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.76
-- GitHub Release：v3.5.76
+- 版本：GGman 3.5.77
+- GitHub Release：v3.5.77
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：384acaaed1c1a8d55abb078f89f37aa933d32e87
-- 发布元数据提交：7ae96002865c5a4faed25696eaa478004e02609a
-- Release GGman.exe SHA-256：51F11E00A41A83BE121A2C543A45F683AB96A0B14FA7464E7E33DCC0C8E18234
-- release_notes：GGman 3.5.76：修复手动上传大厅与 ESC 设置时错误要求关闭英雄联盟大厅的问题。训练模式或正式对局结束、实际游戏进程退出后，即可保持大厅开启并主动上传云端；读取配置前后复核游戏进程，避免上传正在写入的设置。更新上传确认提示和回归测试。云端账号隔离、配置白名单、游戏设置仅手动上传及登录后自动恢复规则不变。
+- 发布基础 main：a659d75765c058452bc510fb8d40e0a89d1e9576
+- 发布元数据提交：01c41e2eaeb9f9b14182b0f587878668158ae379
+- Release GGman.exe SHA-256：D6F88CE3C78CCE401420E9C78B5357351890362F007BF230FD928AD3A8875D84
+- release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-15 — Cloud-first software/text sync policy and honest missing-backup state (3.5.77 candidate)
