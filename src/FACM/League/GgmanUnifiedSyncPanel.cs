@@ -67,7 +67,7 @@ namespace FACM.League
             };
             _keepLocal = new FacmActionButton
             {
-                Text = _ui.Get(UiTextKeys.AutoSyncKeepLocal),
+                Text = _ui.Get(UiTextKeys.AutoSyncNoRemoteAction),
                 Tone = FacmButtonTone.Secondary,
                 Visible = false
             };
@@ -146,9 +146,9 @@ namespace FACM.League
             _publishGame.Enabled = !_publishingGame && _service != null &&
                 !_service.IsBusy && GgmanAccountSession.Current != null;
             _keepLocal.Visible = visibleConflict;
-            _useCloud.Visible = visibleConflict;
+            _useCloud.Visible = false;
             _keepLocal.Enabled = visibleConflict && !_service.IsBusy;
-            _useCloud.Enabled = visibleConflict && !_service.IsBusy;
+            _useCloud.Enabled = false;
             if (_service != null)
             {
                 var status = _ui.Get(_service.StatusKey);
@@ -160,7 +160,7 @@ namespace FACM.League
                     status = string.Format(status, _ui.Get(key));
                 }
                 _status.Text = status;
-                _useCloud.Enabled = _useCloud.Enabled && _service.ConflictHasRemote;
+                _useCloud.Enabled = false;
             }
             else
                 _status.Text = _ui.Get(UiTextKeys.AutoSyncWaiting);
@@ -179,20 +179,14 @@ namespace FACM.League
 
         private async System.Threading.Tasks.Task ResolveAsync(bool keepLocal)
         {
-            if (_service == null || _service.IsBusy) return;
+            if (!keepLocal || _service == null || _service.IsBusy) return;
             if (_service.ConflictCategory == "text" &&
                 UiTextEditorPanel.HasPendingVisibleChanges)
             {
                 _status.Text = _ui.Get(UiTextKeys.UnifiedSyncUnsaved);
                 return;
             }
-            if (!keepLocal &&
-                MessageBox.Show(this, _ui.Get(UiTextKeys.AutoSyncConflictConfirm),
-                    _ui.Get(UiTextKeys.UnifiedSyncTitle),
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                    MessageBoxDefaultButton.Button2) != DialogResult.Yes)
-                return;
-            await _service.ResolveConflictAsync(keepLocal);
+            await _service.ResolveConflictAsync(true);
             RefreshAccountActions();
         }
 
@@ -232,7 +226,7 @@ namespace FACM.League
             _hint.SetBounds(16, 76, width - 32, 36);
             _status.SetBounds(16, 112, width - 32, 30);
             var buttonWidth = (width - 48) / 2;
-            _keepLocal.SetBounds(16, 146, buttonWidth, 30);
+            _keepLocal.SetBounds(16, 146, width - 32, 30);
             _useCloud.SetBounds(32 + buttonWidth, 146, buttonWidth, 30);
             var gameTop = _useCloud.Visible ? 192 : 155;
             _gameHint.SetBounds(16, gameTop, width - 32, 28);

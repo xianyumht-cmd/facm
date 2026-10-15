@@ -311,6 +311,7 @@ namespace FACM.League
                         _draft.Text[entry.Key] = _value.Text;
                 }
                 UiTextCustomizationStore.Apply(_draft);
+                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 RefreshEntries();
             }
@@ -330,6 +331,7 @@ namespace FACM.League
                 if (entry.IsRule) _draft.Replace.Remove(entry.Key);
                 else _draft.Text.Remove(entry.Key);
                 UiTextCustomizationStore.Apply(_draft);
+                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 RefreshEntries();
             }
