@@ -116,10 +116,12 @@ namespace FACM.Services
         {
             if (_disposed || _restoringApp || !ReferenceEquals(_settings, settings) ||
                 _uiContext == null) return;
+            var expected = GgmanAccountSession.Current;
+            if (expected == null) return;
             _uiContext.Post(delegate(object ignored)
             {
                 if (_disposed || !_settings.AutoConfigSyncEnabled ||
-                    GgmanAccountSession.Current == null) return;
+                    !GgmanAccountSession.IsCurrent(expected)) return;
                 _savedAppFingerprint = FingerprintApp(GgmanPortableSettingsStore.Capture(_settings));
                 _settingsChangeNotBeforeUtc = DateTime.UtcNow.AddSeconds(3);
                 _timer.Interval = 3000;

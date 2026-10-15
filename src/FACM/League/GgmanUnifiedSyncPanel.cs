@@ -16,8 +16,7 @@ namespace FACM.League
         private readonly CheckBox _enabled;
         private readonly Label _hint;
         private readonly Label _status;
-        private readonly FacmActionButton _keepLocal;
-        private readonly FacmActionButton _useCloud;
+        private readonly FacmActionButton _createBackup;
         private readonly FacmActionButton _publishGame;
         private readonly Label _gameHint;
         private readonly CheckBox _autoRestoreGame;
@@ -65,15 +64,9 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
             };
-            _keepLocal = new FacmActionButton
+            _createBackup = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.AutoSyncNoRemoteAction),
-                Tone = FacmButtonTone.Secondary,
-                Visible = false
-            };
-            _useCloud = new FacmActionButton
-            {
-                Text = _ui.Get(UiTextKeys.AutoSyncUseCloud),
                 Tone = FacmButtonTone.Secondary,
                 Visible = false
             };
@@ -116,14 +109,12 @@ namespace FACM.League
                 if (_service != null) _service.SetEnabled(_enabled.Checked);
                 RefreshAccountActions();
             };
-            _keepLocal.Click += async delegate { await ResolveAsync(true); };
-            _useCloud.Click += async delegate { await ResolveAsync(false); };
+            _createBackup.Click += async delegate { await CreateCloudBackupAsync(); };
             Controls.Add(_title);
             Controls.Add(_enabled);
             Controls.Add(_hint);
             Controls.Add(_status);
-            Controls.Add(_keepLocal);
-            Controls.Add(_useCloud);
+            Controls.Add(_createBackup);
             Controls.Add(_gameHint);
             Controls.Add(_autoRestoreGame);
             Controls.Add(_publishGame);
@@ -145,10 +136,8 @@ namespace FACM.League
             var nextHeight = visibleConflict ? 328 : 291;
             _publishGame.Enabled = !_publishingGame && _service != null &&
                 !_service.IsBusy && GgmanAccountSession.Current != null;
-            _keepLocal.Visible = visibleConflict;
-            _useCloud.Visible = false;
-            _keepLocal.Enabled = visibleConflict && !_service.IsBusy;
-            _useCloud.Enabled = false;
+            _createBackup.Visible = visibleConflict;
+            _createBackup.Enabled = visibleConflict && !_service.IsBusy;
             if (_service != null)
             {
                 var status = _ui.Get(_service.StatusKey);
@@ -160,7 +149,6 @@ namespace FACM.League
                     status = string.Format(status, _ui.Get(key));
                 }
                 _status.Text = status;
-                _useCloud.Enabled = false;
             }
             else
                 _status.Text = _ui.Get(UiTextKeys.AutoSyncWaiting);
@@ -177,9 +165,9 @@ namespace FACM.League
             if (!IsDisposed) RefreshAccountActions();
         }
 
-        private async System.Threading.Tasks.Task ResolveAsync(bool keepLocal)
+        private async System.Threading.Tasks.Task CreateCloudBackupAsync()
         {
-            if (!keepLocal || _service == null || _service.IsBusy) return;
+            if (_service == null || _service.IsBusy) return;
             if (_service.ConflictCategory == "text" &&
                 UiTextEditorPanel.HasPendingVisibleChanges)
             {
@@ -225,10 +213,8 @@ namespace FACM.League
             _enabled.SetBounds(16, 41, width - 32, 30);
             _hint.SetBounds(16, 76, width - 32, 36);
             _status.SetBounds(16, 112, width - 32, 30);
-            var buttonWidth = (width - 48) / 2;
-            _keepLocal.SetBounds(16, 146, width - 32, 30);
-            _useCloud.SetBounds(32 + buttonWidth, 146, buttonWidth, 30);
-            var gameTop = _useCloud.Visible ? 192 : 155;
+            _createBackup.SetBounds(16, 146, width - 32, 30);
+            var gameTop = _createBackup.Visible ? 192 : 155;
             _gameHint.SetBounds(16, gameTop, width - 32, 28);
             _autoRestoreGame.SetBounds(16, gameTop + 26, width - 32, 29);
             _publishGame.SetBounds(16, gameTop + 57, width - 32, 34);
@@ -237,7 +223,9 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
-            if (UiTextKeys.AutoSyncEnabled == UiTextKeys.AutoSyncConflict ||
+            if (UiTextKeys.AutoSyncNoRemote == UiTextKeys.AutoSyncConflict ||
+                UiTextKeys.AutoSyncNoRemoteAction == UiTextKeys.AutoSyncKeepLocal ||
+                UiTextKeys.AutoSyncEnabled == UiTextKeys.AutoSyncConflict ||
                 UiTextKeys.AutoSyncReady == UiTextKeys.AutoSyncOff)
                 throw new InvalidOperationException("Automatic config sync UI keys are not unique.");
         }
