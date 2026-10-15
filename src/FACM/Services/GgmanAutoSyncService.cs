@@ -57,6 +57,8 @@ namespace FACM.Services
         private bool _pendingUnsavedText;
         private string _savedAppFingerprint;
         private string _savedTextFingerprint;
+        private bool _appCloudReady;
+        private bool _textCloudReady;
         private string _status = UiTextKeys.AutoSyncWaiting;
         internal static GgmanAutoSyncService Current { get; private set; }
         internal event EventHandler StateChanged;
@@ -94,6 +96,8 @@ namespace FACM.Services
             _pendingUnsavedText = false;
             _savedAppFingerprint = null;
             _savedTextFingerprint = null;
+            _appCloudReady = false;
+            _textCloudReady = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
             _timer.Interval = 5000;
@@ -164,6 +168,8 @@ namespace FACM.Services
             _pendingUnsavedText = false;
             _savedAppFingerprint = null;
             _savedTextFingerprint = null;
+            _appCloudReady = false;
+            _textCloudReady = false;
             _errors = 0;
             _notBeforeUtc = DateTime.MinValue;
             _settingsChangeNotBeforeUtc = DateTime.MinValue;
@@ -271,7 +277,7 @@ namespace FACM.Services
                     async () => await appClient.SetAsync(account, appLocal,
                         appRemote == null ? 0 : appRemote.Version, token),
                     () => RestoreApp(appRemote.Profile),
-                    token, false, string.Equals(_savedAppFingerprint, appHash,
+                    token, false, _appCloudReady && string.Equals(_savedAppFingerprint, appHash,
                         StringComparison.Ordinal));
                 RequireSession(account, token);
 
@@ -284,7 +290,7 @@ namespace FACM.Services
                     textRemote == null ? null : FingerprintText(textRemote.Profile),
                     async () => await textClient.SetAsync(account, textLocal,
                         textRemote == null ? 0 : textRemote.Version, token),
-                    () => UiTextCustomizationStore.Apply(textRemote.Profile), token, false,
+                    () => UiTextCustomizationStore.Apply(textRemote.Profile), token, false, _textCloudReady &&
                     string.Equals(_savedTextFingerprint, textHash, StringComparison.Ordinal));
                 RequireSession(account, token);
 
@@ -508,11 +514,13 @@ namespace FACM.Services
             if (decision == SyncAction.Adopt)
             {
                 PersistCursor(history, owner, kind, remoteVersion, remoteHash);
+                MarkCloudReady(kind);
                 ClearSavedFingerprint(kind, localHash);
                 return true;
             }
             if (decision == SyncAction.Unchanged)
             {
+                MarkCloudReady(kind);
                 ClearSavedFingerprint(kind, localHash);
                 return true;
             }
@@ -546,8 +554,15 @@ namespace FACM.Services
                 token.ThrowIfCancellationRequested();
                 PersistCursor(history, owner, kind, version, localHash);
             }
+            MarkCloudReady(kind);
             ClearSavedFingerprint(kind, localHash);
             return true;
+        }
+
+        private void MarkCloudReady(string kind)
+        {
+            if (kind == "app") _appCloudReady = true;
+            else if (kind == "text") _textCloudReady = true;
         }
 
         private void ClearSavedFingerprint(string kind, string localHash)
@@ -747,6 +762,8 @@ namespace FACM.Services
             if (demo.App != null || demo.Text != null || demo.Esc != null)
                 throw new InvalidOperationException("Auto sync metadata must start unlinked.");
             var previous = new GgmanAutoSyncCursor { Version = 5, Fingerprint = "old" };
+            // Stored historical cursors do not authorize upload before the first
+            // authenticated read in a newly logged-in process session.
             if (DecideCloudFirst(null, "local", 0, null, false, false) != SyncAction.Conflict ||
                 DecideCloudFirst(previous, "local", 0, null, false, true) != SyncAction.Conflict ||
                 DecideCloudFirst(null, "local", 3, "remote", false, true) != SyncAction.Restore ||
