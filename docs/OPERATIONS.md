@@ -96,6 +96,12 @@ The current updater accepts approved HTTPS release URLs, validates SHA-256 and p
 - Mirror pool: `online/mirrors.json`.
 - GitHub Release remains the canonical artifact source; mirrors are transport accelerators, not a release trust source.
 
+## 3.5.77 cloud-first account and multi-machine acceptance
+
+The registered server must have a non-empty software-preferences and UI-text record. On machine A, intentionally save portable software preferences and visible UI text, wait for automatic upload, then log in with the same GGman email on machine B (or switch GGman accounts on the same machine). Machine B must adopt remote values **without** `保留本机配置 / 采用云端配置` conflict prompts. An unrelated local edit imported before login must not silently overwrite the server. When a user deliberately Saves a portable setting after the remote has been checkpointed, verify its CAS upload (or that a newer server revision prevails when concurrently updated). Repeat with an active unsaved UI-text editor draft: the local draft should not be silently overwritten; save or discard it and let the cloud restore continue.
+
+For a new registered account with **no** server app/text profile, verify the UI reports `云端尚未创建备份`, offers `创建云端备份` once per category and does **not** silently publish locally inherited cafe settings. Click to create the initial remote revision, restart GGman and verify remote-first behavior. For the LOL game profile, verify only the dedicated `上传大厅与 ESC 设置` button updates its cloud payload, while changing Riot account restores the saved profile safely. No SQL migration is required; do not rerun SQL 009.
+
 ## 3.5.76 open-lobby manual-upload acceptance
 
 In the signed client, keep the League launcher open, finish a training match, and wait for `League of Legends.exe` (the game process) to stop. While `LeagueClient` / `LeagueClientUx` remains running, click `上传大厅与 ESC 设置`. The confirmation must describe finishing a training/match and returning to lobby, not ask to close the launcher; capture and upload should succeed if both allowed YAML files are present and stable. Reopen the dialog if needed and verify returned remote version. Launch a training game again and verify an attempted manual upload is blocked while the real game process is running. If live Riot locks YAML or has not flushed preferences to disk, report that explicit file error and retry from the open lobby after saving; do not silently upload half a profile or ask users to close the launcher by default. Existing automatic restore after switching LOL accounts remains unchanged.

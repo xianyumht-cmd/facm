@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-15 — Authoritative cloud profile on new machine or account, explicit bootstrap when absent
+
+For portable GGman software preferences and UI text, the user's desired behavior is cloud-first when an authenticated profile exists: new device, different local state, or switched GGman account should **automatically restore the registered owner's saved profile**; a conflict choice is not the normal flow. Maintain automatic upstream sync only for a deliberate local Save occurring in that same registered session after the server's revision/hash was successfully checkpointed; never infer intent from arbitrary local file differences on a cafe PC. Server revision drift takes precedence and wins, with local backup before restore. An unsaved, visible UI editor draft must not be overwritten while the user is editing. If the remote row is missing, report that exact condition and require an explicit `创建云端备份` action to seed it; do not silently re-upload a stale local record from a different PC/account. Cloud game ESC/YAML settings remain a separate manually published source of truth and are never auto-uploaded.
+
 ## 2026-10-14 — Allow deliberate game-profile publication while the League lobby is open
 
 A user normally finishes setting keybindings/video during training, returns to an already-open League launcher, and presses `上传大厅与 ESC 设置`. Requiring all League launcher processes to close contradicts this normal workflow. Manual capture requires only the actual game process to be absent, with a second check after reading files; the launcher can remain open. Do not relax account registration, explicit manual publishing, ESC checksum, YAML field allowlist, remote CAS, or file-read error semantics. The prompt should mention returning from a live match to the lobby rather than quitting the client.

@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.76：修复手动上传大厅与 ESC 设置时错误要求关闭英雄联盟大厅的问题。训练模式或正式对局结束、实际游戏进程退出后，即可保持大厅开启并主动上传云端；读取配置前后复核游戏进程，避免上传正在写入的设置。更新上传确认提示和回归测试。云端账号隔离、配置白名单、游戏设置仅手动上传及登录后自动恢复规则不变。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-15 — Cloud-first software/text sync policy and honest missing-backup state (3.5.77 candidate)
+
+- User observed GGman cloud configuration center warning `GGman 软件偏好 发现不同配置，已暂停该项自动覆盖` while expecting remote-authoritative restore on a new machine or after switching GGman/LOL accounts. The old `Decide` algorithm treated uninitialized or other-owner local state as conflict, and distinguished software vs text policy incorrectly. Cloud-absent state was also lumped into generic `Conflict`, making a nonexistent server snapshot look like a true two-sided disagreement.
+- 3.5.77 uses one cloud-first selection rule for **registered portable software preferences and UI text**. If server has a profile: unchanged -> no-op/adopt, differing on fresh link/new account/new remote revision -> restore the registered user's server profile, backed up by existing stores. Upload occurs automatically only when **this logged-in session explicitly saved a local change**, after a successful checkpoint for the same registered account, while server revision + hash still match that checkpoint. CAS errors do not silently win over concurrent server edits. Loss of remote record blocks automatic overwrite.
+- When server has no profile: never silently upload local/cafe state; show a `云端尚未创建备份` message and one `创建云端备份` action per missing software/text category. Clicking explicitly seeds only a currently still-absent server record; if one appeared meanwhile, it is restored instead. When a UI text editor has a genuinely unsaved visible draft, remote restore defers until the draft is saved/discarded; no misleading conflict choice.
+- LOL ESC and allowlisted lobby YAML retain manual-only publishing and event-driven safe auto-restore. No CloudBase schema, JWT/RLS, updater compatibility or user data migration changes.
+- CI release gate: Windows Build/performance smoke, UI Text Contract; current-revision cloud-first decision matrix tested deterministically. Real same-UID two-device app and UI text restoration are still native field acceptance rather than CI claims. Signed 3.5.77 is non-forced and must not publish until passing gates.
+
 ## 2026-10-14 — Manual game-profile publication from a running League lobby (PR pending, 3.5.76 candidate)
 
 - Operator reported that 3.5.75 still rejects deliberate `上传大厅与 ESC 设置` with `请先完全退出英雄联盟和大厅客户端`, even when the user finishes a training match and is back at an open League lobby. This was the obsolete upload-side `AreLeagueProcessesAbsent()` guard; 3.5.75 fixed only the auto-restore side. The confirmation prompt also told users to exit the launcher.

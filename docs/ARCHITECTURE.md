@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Cloud-first selection for registered software and UI text (3.5.77)
+
+`GgmanAutoSyncService.DecideCloudFirst` is the single selection function for `ggman_registered_app_settings` and `ggman_ui_text_profiles`. A non-empty registered remote row takes priority when local differs, including first login, restored versions and different prior owners. The automatic upload exception requires a deliberate `AppSettings.Saved` or `UiTextEditorPanel` local-save notification **and** a matched prior remote version+fingerprint checkpoint belonging to the same GGman UID. CloudBase RPC CAS remains the authoritative rejection of concurrent changes. Missing server rows are never background uploaded: the existing config center surfaces a `创建云端备份` action for the missing app/text category, which rereads the remote row before attempting initial CAS. An unsaved visible UI text edit defers that category's restore without blocking other game sync. `GgmanUnifiedSyncPanel` no longer presents ordinary differences as two equivalent conflicting versions; local app path, geometry, identity, token, and privacy settings remain unsynced.
+
 ## Manual publication when the League launcher remains running (3.5.76)
 
 `GgmanUnifiedSyncPanel.PublishGameAsync` shows a deliberate overwrite confirmation and invokes `GgmanAutoSyncService.PublishGameProfileAsync`. That service refuses capture only if `GameProfileStore.IsGameProcessAbsent()` is false, not when `LeagueClient` / `LeagueClientUx` exists. `GameProfileStore.CaptureForUpload` repeats the actual game-process guard before and after reading ESC and the allowlisted lobby YAML leaves, preventing a fresh game startup from yielding an unchecked partial snapshot. The existing registered CloudBase `GetAsync` + compare-and-swap `SetAsync` and error handling remain unchanged. A running/locked YAML file may still yield an explicit read error; do not silently upload incomplete game profiles.
