@@ -1,5 +1,9 @@
 # GGman Configuration Synchronization
 
+## 3.5.77 software and UI-text source-of-truth correction
+
+GGman 3.5.76 had inconsistent remote selection rules: software was cloud-first but UI text could stop on `发现不同配置` when a nonpristine local snapshot or new GGman account was present. Both categories now automatically restore an authenticated remote row whenever it disagrees with local state, except for explicit post-checkpoint local Saves from the current account, which may CAS-upload as before. When remote is absent, the UI reports `云端尚未创建备份` and presents an explicit bootstrap action, instead of falsely calling it a conflict. Unsaved editor drafts defer restoration until saved/discarded. The change does not auto-upload manual LOL ESC/YAML profiles, and no CloudBase RLS schema change is involved.
+
 ## 3.5.76 manual publish from an open League lobby
 
 After a training or ordinary match ends and the actual `League of Legends` game process exits, the registered GGman user may press `上传大厅与 ESC 设置` while the League launcher stays running. The old 3.5.75 manual-publish path still had the all-process-closed check despite the prior automatic-restore correction. The 3.5.76 candidate removes that launcher restriction, guards the in-progress game process before and after reading `Game/Config` and allowlisted YAML, and updates the confirmation copy. Signed release, CloudBase database, owner permissions and manual-only remote publication remain separate.

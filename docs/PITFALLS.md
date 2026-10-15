@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Missing remote profiles and local drift are not account synchronization conflicts (2026-10-15)
+
+Prior `Decide` rules flagged non-pristine first use and local+remote changes as `SyncAction.Conflict`; the UI then displayed `发现不同配置，已暂停该项自动覆盖`. With the user's cloud-authoritative contract, a remote row that exists must win against unlinked/cross-owner/stale local data and be restored, not block on a manual preference choice. The two categories had different selection rules, so UI text was especially prone to the false conflict. Conversely, `remoteVersion==0` means **no server snapshot**, not that two versions conflict: never auto-upload stale local settings; label it `云端尚未创建备份`, require intentional bootstrap, and check the server again before writing. Preserve genuine unsaved editor drafts and CAS concurrency. Distinguish explicit locally saved edits in the current registered session from unintentional drift; only the former may automatically update an existing remote snapshot whose revision/hash matches the local checkpoint.
+
 ## An all-League-process guard in manual upload survived the live-lobby restore fix (2026-10-14)
 
 3.5.75 changed automatic game-profile restoration to allow the open League lobby, but `GgmanAutoSyncService.PublishGameProfileAsync()` still called `AreLeagueProcessesAbsent()` and the confirmation UI demanded a full client exit. This prevented the expected finish-training -> open lobby -> manual publish workflow. Never reuse a broad launcher+game process guard for both save and restore. Manual publishing may capture and upload when the actual League match/game process has ended, even if LeagueClientUx is still active. Check both before and after local capture; the server must still be updated only following explicit user confirmation, successful whitelist validation, and CAS. Running match remains prohibited because on-disk files may lag unsaved changes.
