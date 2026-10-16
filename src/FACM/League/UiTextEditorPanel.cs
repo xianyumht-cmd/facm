@@ -44,6 +44,9 @@ namespace FACM.League
         private bool _expanded;
         private bool _busy;
         private bool _loading;
+        private Entry _renderedEntry;
+        private string _appliedSearch = string.Empty;
+        private int _appliedMode;
 
         internal event EventHandler ExpandedHeightChanged;
 
@@ -117,6 +120,7 @@ namespace FACM.League
             _reset.Click += delegate { ResetSelected(); };
             _newRule.Click += delegate
             {
+                if (!TryResolvePendingEdit()) return;
                 if (_mode.SelectedIndex != 1) _mode.SelectedIndex = 1;
                 _items.ClearSelected();
                 _source.Text = string.Empty;
@@ -166,6 +170,7 @@ namespace FACM.League
         private void SetExpanded(bool value)
         {
             if (_expanded == value) return;
+            if (!value && !TryResolvePendingEdit()) return;
             _expanded = value;
             Height = value ? 492 : 48;
             _expandButton.Text = _ui.Get(value ? UiTextKeys.UiTextEditorCollapse : UiTextKeys.UiTextEditorExpand);
@@ -220,7 +225,20 @@ namespace FACM.League
 
         private void Filter()
         {
-            if (_items == null || _mode == null || _draft == null) return;
+            if (_loading || _items == null || _mode == null || _draft == null) return;
+            if (!TryResolvePendingEdit())
+            {
+                _loading = true;
+                try
+                {
+                    _search.Text = _appliedSearch;
+                    _mode.SelectedIndex = _appliedMode;
+                }
+                finally { _loading = false; }
+                return;
+            }
+            _appliedSearch = _search.Text;
+            _appliedMode = _mode.SelectedIndex;
             var mode = _mode.SelectedIndex == 1;
             var query = _search.Text.Trim();
             var entries = new List<Entry>();
@@ -270,10 +288,19 @@ namespace FACM.League
         private void RenderSelection()
         {
             if (_loading || _draft == null) return;
+            var next = _items.SelectedItem as Entry;
+            if (!ReferenceEquals(next, _renderedEntry) && !TryResolvePendingEdit())
+            {
+                _loading = true;
+                try { _items.SelectedItem = _renderedEntry; }
+                finally { _loading = false; }
+                return;
+            }
             _loading = true;
             try
             {
-                var entry = _items.SelectedItem as Entry;
+                var entry = next;
+                _renderedEntry = entry;
                 var advanced = _mode.SelectedIndex == 1;
                 _source.Visible = _expanded && advanced;
                 _newRule.Visible = _expanded && advanced;
@@ -287,12 +314,12 @@ namespace FACM.League
             finally { _loading = false; }
         }
 
-        private void SaveLocal()
+        private bool SaveLocal(bool refresh = true)
         {
-            if (_busy) return;
+            if (_busy) return false;
             try
             {
-                var entry = _items.SelectedItem as Entry;
+                var entry = _renderedEntry;
                 if (_mode.SelectedIndex == 1)
                 {
                     var source = _source.Text.Trim();
@@ -311,26 +338,70 @@ namespace FACM.League
                         _draft.Text[entry.Key] = _value.Text;
                 }
                 UiTextCustomizationStore.Apply(_draft);
+                if (entry != null)
+                    entry.Current = _value.Text;
+                else
+                    ClearNewRuleFields();
                 GgmanAutoSyncService.Current?.NotifyUiTextSaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
-                RefreshEntries();
+                if (refresh) RefreshEntries();
+                return true;
             }
             catch (Exception error)
             {
                 _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
+                return false;
             }
+        }
+
+        private void ClearNewRuleFields()
+        {
+            _loading = true;
+            try
+            {
+                _source.Text = string.Empty;
+                _value.Text = string.Empty;
+                _preview.Text = string.Empty;
+            }
+            finally { _loading = false; }
+        }
+
+        internal bool TryResolvePendingEdit()
+        {
+            if (IsDisposed) return true;
+            if (_busy) return false;
+            if (!HasPendingChanges) return true;
+
+            var decision = MessageBox.Show(this, _ui.Get(UiTextKeys.UiTextEditorLeavePrompt),
+                _ui.Get(UiTextKeys.UiTextEditorTitle), MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button3);
+            if (decision == DialogResult.Yes) return SaveLocal(false);
+            if (decision != DialogResult.No) return false;
+
+            _loading = true;
+            try
+            {
+                _source.Text = _renderedEntry != null && _renderedEntry.IsRule
+                    ? _renderedEntry.Key : string.Empty;
+                _value.Text = _renderedEntry == null ? string.Empty : _renderedEntry.Current;
+                _preview.Text = _value.Text;
+            }
+            finally { _loading = false; }
+            return true;
         }
 
         private void ResetSelected()
         {
-            if (_busy) return;
-            var entry = _items.SelectedItem as Entry;
+            if (_busy || !TryResolvePendingEdit()) return;
+            var entry = _renderedEntry;
             if (entry == null) return;
             try
             {
                 if (entry.IsRule) _draft.Replace.Remove(entry.Key);
                 else _draft.Text.Remove(entry.Key);
                 UiTextCustomizationStore.Apply(_draft);
+                _renderedEntry = null;
+                ClearNewRuleFields();
                 GgmanAutoSyncService.Current?.NotifyUiTextSaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 RefreshEntries();
@@ -364,7 +435,7 @@ namespace FACM.League
 
         private bool IsCurrentEditSaved()
         {
-            var selected = _items.SelectedItem as Entry;
+            var selected = _renderedEntry;
             if (selected != null)
                 return string.Equals(_value.Text, selected.Current, StringComparison.Ordinal);
             return string.IsNullOrWhiteSpace(_source.Text) &&
