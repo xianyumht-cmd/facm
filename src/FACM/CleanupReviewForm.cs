@@ -59,9 +59,12 @@ namespace FACM
                 Font = new Font("Microsoft YaHei UI", 8.5F),
                 BackColor = Color.Transparent
             };
-            var close = new Label
+            var close = new Button
             {
                 Text = "×",
+                FlatStyle = FlatStyle.Flat,
+                TabStop = true,
+                AccessibleName = UiTextRuntime.Text(UiTextKeys.Close),
                 Size = new Size(42, 42),
                 Location = new Point(666, 9),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -70,6 +73,7 @@ namespace FACM
                 Cursor = Cursors.Hand,
                 BackColor = Color.Transparent
             };
+            close.FlatAppearance.BorderSize = 0;
             close.Click += delegate { Close(); };
             close.MouseEnter += delegate { close.ForeColor = TextPrimary; };
             close.MouseLeave += delegate { close.ForeColor = TextMuted; };
@@ -212,6 +216,7 @@ namespace FACM
             Controls.Add(hint);
             Controls.Add(cancel);
             Controls.Add(execute);
+            CancelButton = cancel;
 
             Shown += delegate { ApplyRoundedRegion(); };
             Resize += delegate { ApplyRoundedRegion(); };
@@ -239,7 +244,7 @@ namespace FACM
                 ForeColor = foreColor,
                 Cursor = Cursors.Hand,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-                TabStop = false
+                TabStop = true
             };
             button.FlatAppearance.BorderSize = 0;
             button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.08F);
