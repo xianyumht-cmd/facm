@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-16 — UI/UX audit P1 correction candidate (PR #350; NOT MERGED OR RELEASED)
+
+- Source baseline is signed 3.5.77, `main` commit `14806c2ef593c6cdd8dec357d8ecce04913109ab`; independent source audit is draft PR #349.
+- Branch `fix/ggman-ux-p1-20261016` / draft PR #350 addresses F01–F04 only: persistent League Hub no longer closes solely on external focus loss; visible unsaved UI text asks Save / Discard / Cancel before selection/filter/mode, collapse, navigation or Hub close; action text resolves readable foreground on its actual painted fill and recommendation title uses a theme token; cleanup preview exposes its actions through the native Tab order, with CancelButton set.
+- The existing League/CloudBase/update owners, cloud-first policy, user data, launcher dismissal, and release manifest are unchanged. A new stable `UiTextEditorLeavePrompt` text key is registered.
+- Added deterministic shared-action contrast smoke; Windows Build and UI Text Contract plus native WinForms acceptance must pass before considering merge or a separate signed release. No CI success or live-client acceptance is asserted by this entry. See `docs/OPERATIONS.md`.
+
+
 ## 2026-10-15 — Cloud-first software/text sync policy and honest missing-backup state (3.5.77 candidate)
 
 - User observed GGman cloud configuration center warning `GGman 软件偏好 发现不同配置，已暂停该项自动覆盖` while expecting remote-authoritative restore on a new machine or after switching GGman/LOL accounts. The old `Decide` algorithm treated uninitialized or other-owner local state as conflict, and distinguished software vs text policy incorrectly. Cloud-absent state was also lumped into generic `Conflict`, making a nonexistent server snapshot look like a true two-sided disagreement.
