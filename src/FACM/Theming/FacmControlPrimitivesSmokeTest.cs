@@ -64,11 +64,26 @@ namespace FACM.Theming
                 Color.Black
             };
             foreach (var surface in surfaces)
+                RequireReadableActionText(surface, Color.White);
+
+            foreach (var theme in ThemeCatalog.All)
             {
-                var foreground = FacmDesignSystem.ReadableTextOn(surface, Color.White);
-                if (FacmDesignSystem.ContrastRatio(surface, foreground) < 4.5D)
-                    throw new InvalidOperationException("Shared action text contrast is below the readability contract.");
+                RequireReadableActionText(theme.Accent, Color.White);
+                RequireReadableActionText(theme.SurfaceSecondary, theme.TextPrimary);
+                RequireReadableActionText(
+                    FacmDesignSystem.Blend(theme.Accent, Color.White, theme.IsLight ? 0.05F : 0.10F),
+                    Color.White);
+                RequireReadableActionText(
+                    FacmDesignSystem.Blend(theme.Accent, Color.Black, theme.IsLight ? 0.06F : 0.14F),
+                    Color.White);
             }
+        }
+
+        private static void RequireReadableActionText(Color background, Color preferred)
+        {
+            var foreground = FacmDesignSystem.ReadableTextOn(background, preferred);
+            if (FacmDesignSystem.ContrastRatio(background, foreground) < 4.5D)
+                throw new InvalidOperationException("Shared action text contrast is below the readability contract.");
         }
 
         private static void ValidateChromeButtonIsolation()
