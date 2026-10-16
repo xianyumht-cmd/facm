@@ -410,7 +410,7 @@ namespace FACM.League
                 if (!ReferenceEquals(editor._items.SelectedItem, original) || editor._value.Text != draft)
                     throw new InvalidOperationException("Canceling an edit transition discarded the current draft.");
 
-                editor._search.Text = "pending-filter";
+                editor._search.Text = draft;
                 if (editor._search.Text != string.Empty || editor._value.Text != draft)
                     throw new InvalidOperationException("Canceling a search failed to preserve the visible edit.");
 
