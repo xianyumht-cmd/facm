@@ -1,5 +1,12 @@
 # FACM Architecture
 
+## League workbench lifetime and UI-text draft ownership (P1 correction candidate, 2026-10-16)
+
+`LeagueSoftGlassSkin.Apply` supplies a persistent chrome policy specifically for `LeagueHubForm`; quick launcher and other transient surfaces keep their separate existing ownership. `LeagueHubForm` asks the embedded `LeaguePersonalStatsForm` to resolve editor draft state **before** replacing or disposing its child view and during FormClosing. `LeaguePersonalStatsForm` delegates to its `UiTextEditorPanel`; the editor itself guards content transitions (selection, filter/mode, new rule and collapse) and only calls `UiTextCustomizationStore.Apply` / `NotifyUiTextSaved` for an explicit Save choice. Draft loss protection is distinct from `GgmanAutoSyncService`'s remote-restore deferral.
+
+Shared `FacmActionButton` derives text contrast from the effective painted enabled fill; `FacmDesignSystem` owns the contrast calculation. Normal native focus/cancel semantics are retained for the cleanup preview. This is a candidate change, not a claim of verified Windows runtime acceptance.
+
+
 ## Cloud-first selection for registered software and UI text (3.5.77)
 
 `GgmanAutoSyncService.DecideCloudFirst` is the single selection function for `ggman_registered_app_settings` and `ggman_ui_text_profiles`. A non-empty registered remote row takes priority when local differs, including first login, restored versions and different prior owners. The automatic upload exception requires a deliberate `AppSettings.Saved` or `UiTextEditorPanel` local-save notification **and** a matched prior remote version+fingerprint checkpoint belonging to the same GGman UID. CloudBase RPC CAS remains the authoritative rejection of concurrent changes. Missing server rows are never background uploaded: the existing config center surfaces a `创建云端备份` action for the missing app/text category, which rereads the remote row before attempting initial CAS. An unsaved visible UI text edit defers that category's restore without blocking other game sync. `GgmanUnifiedSyncPanel` no longer presents ordinary differences as two equivalent conflicting versions; local app path, geometry, identity, token, and privacy settings remain unsynced.
