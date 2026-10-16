@@ -346,7 +346,6 @@ namespace FACM.League
                 string.Equals(view.Id, viewId, StringComparison.Ordinal));
             if (definition == null) return;
 
-            _currentSectionKey = definition.SectionKey;
             if (string.Equals(_currentViewId, viewId, StringComparison.Ordinal) &&
                 _currentChild != null && !_currentChild.IsDisposed)
             {
@@ -356,7 +355,10 @@ namespace FACM.League
 
             Func<UiTextCatalog, Form> factory;
             if (!_factories.TryGetValue(viewId, out factory)) return;
+            var profile = _currentChild as LeaguePersonalStatsForm;
+            if (profile != null && !profile.TryLeaveEditor()) return;
 
+            _currentSectionKey = definition.SectionKey;
             CloseCurrentChild();
 
             Form child = null;
@@ -406,6 +408,12 @@ namespace FACM.League
 
         private void HandleHubClosing(object sender, FormClosingEventArgs e)
         {
+            var profile = _currentChild as LeaguePersonalStatsForm;
+            if (profile != null && !profile.TryLeaveEditor())
+            {
+                e.Cancel = true;
+                return;
+            }
             _closing = true;
             CloseCurrentChild();
         }
