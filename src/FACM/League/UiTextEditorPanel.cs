@@ -45,6 +45,7 @@ namespace FACM.League
         private bool _busy;
         private bool _loading;
         private Entry _renderedEntry;
+        private int _renderedMode;
         private string _appliedSearch = string.Empty;
         private int _appliedMode;
         private Func<DialogResult> _confirmLeaveForSmokeTest;
@@ -302,6 +303,7 @@ namespace FACM.League
             {
                 var entry = next;
                 _renderedEntry = entry;
+                _renderedMode = _mode.SelectedIndex;
                 var advanced = _mode.SelectedIndex == 1;
                 _source.Visible = _expanded && advanced;
                 _newRule.Visible = _expanded && advanced;
@@ -321,7 +323,7 @@ namespace FACM.League
             try
             {
                 var entry = _renderedEntry;
-                if (_mode.SelectedIndex == 1)
+                if (_renderedMode == 1)
                 {
                     var source = _source.Text.Trim();
                     if (source.Length == 0) throw new InvalidOperationException(
