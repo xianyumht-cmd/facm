@@ -416,6 +416,10 @@ namespace FACM.League
                 if (editor._search.Text != string.Empty || editor._value.Text != draft)
                     throw new InvalidOperationException("Canceling a search failed to preserve the visible edit.");
 
+                editor._mode.SelectedIndex = 1;
+                if (editor._mode.SelectedIndex != 0 || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling a mode switch lost the current edit.");
+
                 editor.SetExpanded(false);
                 if (!editor._expanded || editor._value.Text != draft)
                     throw new InvalidOperationException("Canceling collapse lost the current draft.");
