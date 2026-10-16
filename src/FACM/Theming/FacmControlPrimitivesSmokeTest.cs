@@ -44,10 +44,31 @@ namespace FACM.Theming
             if (FacmDesignSystem.ControlRadius > 6 || FacmDesignSystem.CardRadius > 8 || FacmDesignSystem.WindowRadius > 12)
                 throw new InvalidOperationException("FACM product radii drifted back into oversized template-style rounding.");
 
+            ValidateReadableActionText();
             ValidateChromeButtonIsolation();
             ValidateToggleResizeRepaint();
             ValidateWindowChromeLayout();
             MayhemLookupLayoutPolicy.ValidateForSmokeTest();
+        }
+
+        private static void ValidateReadableActionText()
+        {
+            var surfaces = new[]
+            {
+                Color.White,
+                Color.FromArgb(239, 236, 224),
+                Color.FromArgb(204, 150, 54),
+                Color.FromArgb(78, 126, 255),
+                Color.FromArgb(32, 184, 255),
+                Color.FromArgb(61, 105, 255),
+                Color.Black
+            };
+            foreach (var surface in surfaces)
+            {
+                var foreground = FacmDesignSystem.ReadableTextOn(surface, Color.White);
+                if (FacmDesignSystem.ContrastRatio(surface, foreground) < 4.5D)
+                    throw new InvalidOperationException("Shared action text contrast is below the readability contract.");
+            }
         }
 
         private static void ValidateChromeButtonIsolation()
