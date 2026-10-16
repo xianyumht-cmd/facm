@@ -105,7 +105,8 @@ namespace FACM.Theming
             }
 
             var textColor = Enabled
-                ? (_tone == FacmButtonTone.Secondary && FacmThemeRuntime.Current.IsLight ? FacmDesignSystem.Text : Color.White)
+                ? FacmDesignSystem.ReadableTextOn(fill,
+                    _tone == FacmButtonTone.Secondary ? FacmDesignSystem.Text : Color.White)
                 : FacmDesignSystem.Disabled;
             TextRenderer.DrawText(
                 e.Graphics,
