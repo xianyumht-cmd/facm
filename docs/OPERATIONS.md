@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## UI P1 candidate acceptance (PR #350, 2026-10-16)
+
+Before merge or release, require successful **GGman Windows Build** and **FACM UI Text Contract** on the final branch head. Native Windows review must cover: (1) Hub survives Alt+Tab/external click, still closes by deliberate close/Escape, and temporary launcher still dismisses normally; (2) an unsaved text edit prompts Save / Discard / Cancel on item selection, search/filter, mode change, new rule, collapse, workbench navigation and close, with Cancel preserving the visible draft and current route, Save persisting locally and Discard not issuing cloud publication; (3) a failed local Save does not permit destructive navigation, and cloud restore waits for genuinely pending visible drafts; (4) readable enabled/hover/pressed text for all ten themes, especially cloud-light recommendation title and bright accent buttons; (5) keyboard-only cleanup preview Tab/Shift+Tab, Enter/Space, Escape and cancellation, without accidental execution.
+
+Check 100/125/150/200% DPI for clipping and focus order, and verify no changes to League/CloudBase/updater behavior or cold-start overhead. A green compiler/smoke run alone does not prove native focus and draft interaction behavior. Preserve official v3.5.77 in `online/version.json` until a separately verified signed release exists.
+
+
 ## Normal development flow
 
 1. Work from current `main` or a focused branch.
