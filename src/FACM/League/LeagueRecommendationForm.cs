@@ -85,7 +85,7 @@ namespace FACM.League
                 Text = T(LeagueRecommendationUiTextKeys.Title),
                 Location = new Point(28, 18),
                 Size = new Size(520, 32),
-                ForeColor = Color.White,
+                ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 18F, FontStyle.Bold)
             });
