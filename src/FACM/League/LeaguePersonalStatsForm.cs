@@ -210,6 +210,11 @@ namespace FACM.League
             ApplySnapshot();
         }
 
+        internal bool TryLeaveEditor()
+        {
+            return _textEditor == null || _textEditor.TryResolvePendingEdit();
+        }
+
         private void OpenAccountDialog()
         {
             if (_openingAccountDialog || IsDisposed) return;
