@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-16 — Persistent workbench and intentional text-edit transitions
+
+The main League workbench is a persistent task surface, not a transient flyout. Moving focus to League, a browser, or another application must not dismiss it; the floating launcher retains its independent transient lifecycle. The Hub remains explicitly closable, including Escape, but an active unsaved UI text draft must resolve via Save / Discard / Cancel before the Hub can close or navigate. The same guard applies to editor selection, filter/mode, and collapse. Save is the only path that notifies registered automatic UI-text sync; a discarded local edit is not published. UI controls retain the current stable TextKey contract.
+
+
 ## 2026-10-15 — Authoritative cloud profile on new machine or account, explicit bootstrap when absent
 
 For portable GGman software preferences and UI text, the user's desired behavior is cloud-first when an authenticated profile exists: new device, different local state, or switched GGman account should **automatically restore the registered owner's saved profile**; a conflict choice is not the normal flow. Maintain automatic upstream sync only for a deliberate local Save occurring in that same registered session after the server's revision/hash was successfully checkpointed; never infer intent from arbitrary local file differences on a cafe PC. Server revision drift takes precedence and wins, with local backup before restore. An unsaved, visible UI editor draft must not be overwritten while the user is editing. If the remote row is missing, report that exact condition and require an explicit `创建云端备份` action to seed it; do not silently re-upload a stale local record from a different PC/account. Cloud game ESC/YAML settings remain a separate manually published source of truth and are never auto-uploaded.
