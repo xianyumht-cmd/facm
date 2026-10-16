@@ -19,7 +19,9 @@ namespace FACM.League
             // Prepare is deferred until Load. Hub-embedded pages have TopLevel=false by then and
             // are intentionally skipped, while the Hub itself and standalone quick surfaces get
             // the shared FACM title bar and outside-click behavior.
-            FacmWindowChrome.Prepare(form);
+            FacmWindowChrome.Prepare(form, form is LeagueHubForm
+                ? new FacmWindowChromeOptions { CloseOnDeactivate = false }
+                : null);
 
             // The Hub is now purpose-built at compact density. Legacy business forms still use
             // the conservative density pass so their existing layouts gain space without a rewrite.
