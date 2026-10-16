@@ -50,6 +50,7 @@ namespace FACM
             }
 
             LeagueHubNavigation.ValidateForSmokeTest();
+            UiTextEditorPanel.ValidateDraftNavigationForSmokeTest();
 
             Require(DesktopLauncherEnhancer.TileCount == 4,
                 "Control center must expose four sparse desktop-style primary shortcuts; directory/status belongs inside cleanup and repair.");
