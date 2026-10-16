@@ -47,6 +47,7 @@ namespace FACM.League
         private Entry _renderedEntry;
         private string _appliedSearch = string.Empty;
         private int _appliedMode;
+        private Func<DialogResult> _confirmLeaveForSmokeTest;
 
         internal event EventHandler ExpandedHeightChanged;
 
@@ -372,9 +373,10 @@ namespace FACM.League
             if (_busy) return false;
             if (!HasPendingChanges) return true;
 
-            var decision = MessageBox.Show(this, _ui.Get(UiTextKeys.UiTextEditorLeavePrompt),
-                _ui.Get(UiTextKeys.UiTextEditorTitle), MessageBoxButtons.YesNoCancel,
-                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button3);
+            var decision = _confirmLeaveForSmokeTest != null ? _confirmLeaveForSmokeTest() :
+                MessageBox.Show(this, _ui.Get(UiTextKeys.UiTextEditorLeavePrompt),
+                    _ui.Get(UiTextKeys.UiTextEditorTitle), MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Warning, MessageBoxDefaultButton.Button3);
             if (decision == DialogResult.Yes) return SaveLocal(false);
             if (decision != DialogResult.No) return false;
 
@@ -388,6 +390,39 @@ namespace FACM.League
             }
             finally { _loading = false; }
             return true;
+        }
+
+        internal static void ValidateDraftNavigationForSmokeTest()
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                editor.SetExpanded(true);
+                if (editor._items.Items.Count < 2)
+                    throw new InvalidOperationException("UI text editor needs at least two text entries for navigation smoke.");
+
+                editor._items.SelectedIndex = 0;
+                var original = editor._items.SelectedItem;
+                var draft = editor._value.Text + " draft";
+                editor._value.Text = draft;
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.Cancel; };
+
+                editor._items.SelectedIndex = 1;
+                if (!ReferenceEquals(editor._items.SelectedItem, original) || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling an edit transition discarded the current draft.");
+
+                editor._search.Text = "pending-filter";
+                if (editor._search.Text != string.Empty || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling a search failed to preserve the visible edit.");
+
+                editor.SetExpanded(false);
+                if (!editor._expanded || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling collapse lost the current draft.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                editor._items.SelectedIndex = 1;
+                if (editor._items.SelectedIndex != 1 || editor.HasPendingChanges)
+                    throw new InvalidOperationException("Discard did not allow the requested editor selection.");
+            }
         }
 
         private void ResetSelected()
