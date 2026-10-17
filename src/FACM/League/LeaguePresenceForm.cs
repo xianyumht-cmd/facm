@@ -444,7 +444,8 @@ namespace FACM.League
                     var divisionWidth = Math.Max(unit(60), totalFields / 7);
                     var queueWidth = Math.Max(unit(100), (totalFields - divisionWidth - fieldGap * 2) * 52 / 100);
                     var tierWidth = totalFields - divisionWidth - queueWidth - fieldGap * 2;
-                    var x1 = unit(16), x2 = x1 + queueWidth + fieldGap;
+                    var x1 = unit(16);
+                    var x2 = x1 + queueWidth + fieldGap;
                     var x3 = x2 + tierWidth + fieldGap;
                     var labels = new[] { _rankQueue, _rankTier, _rankDivision };
                     var fieldWidths = new[] { queueWidth, tierWidth, divisionWidth };
