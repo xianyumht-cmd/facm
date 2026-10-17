@@ -69,7 +69,7 @@ namespace FACM.League
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(470, 660);
+            ClientSize = new Size(520, 660);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -78,7 +78,7 @@ namespace FACM.League
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Title),
                 Location = new Point(24, 20),
-                Size = new Size(300, 30),
+                Size = new Size(465, 32),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.Text,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
@@ -87,90 +87,92 @@ namespace FACM.League
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Hint),
                 Location = new Point(24, 55),
-                Size = new Size(422, 52),
+                Size = new Size(472, 52),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.3F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
-            Controls.Add(CreateCaption(T(LeagueProfileCustomizationUiTextKeys.Champion), new Rectangle(24, 116, 180, 20)));
-            _champions = CreateCombo(new Rectangle(24, 140, 316, 30));
+            var championTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.Champion), new Rectangle(24, 116, 180, 22));
+            Controls.Add(championTitle);
+            _champions = CreateCombo(new Rectangle(24, 140, 354, 32));
             _champions.SelectedIndexChanged += async delegate
             {
                 if (!_suppressChampionChange) await LoadSelectedChampionSkinsAsync();
             };
-            _refresh = CreateButton(T(LeagueProfileCustomizationUiTextKeys.Refresh), new Rectangle(348, 138, 98, 32));
+            _refresh = CreateButton(T(LeagueProfileCustomizationUiTextKeys.Refresh), new Rectangle(387, 138, 109, 34));
             _refresh.Click += async delegate { await LoadChampionsAsync(); };
 
-            Controls.Add(CreateCaption(T(LeagueProfileCustomizationUiTextKeys.Skin), new Rectangle(24, 184, 180, 20)));
-            _skins = CreateCombo(new Rectangle(24, 208, 316, 30));
+            var skinTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.Skin), new Rectangle(24, 184, 180, 22));
+            Controls.Add(skinTitle);
+            _skins = CreateCombo(new Rectangle(24, 208, 354, 32));
             _skins.SelectedIndexChanged += delegate { UpdateButtons(); };
-            _apply = CreateButton(T(LeagueProfileCustomizationUiTextKeys.Apply), new Rectangle(348, 206, 98, 32));
+            _apply = CreateButton(T(LeagueProfileCustomizationUiTextKeys.Apply), new Rectangle(387, 206, 109, 34));
             _apply.Click += async delegate { await ApplySelectedSkinAsync(); };
 
-            var regaliaTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.RegaliaTitle), new Rectangle(24, 260, 180, 20));
+            var regaliaTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.RegaliaTitle), new Rectangle(24, 260, 280, 22));
             var regaliaHint = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.RegaliaHint),
                 Location = new Point(24, 282),
-                Size = new Size(316, 62),
+                Size = new Size(352, 62),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _removePrestigeCrest = CreateButton(
                 T(LeagueProfileCustomizationUiTextKeys.RemovePrestigeCrest),
-                new Rectangle(348, 292, 98, 38));
+                new Rectangle(387, 292, 109, 38));
             _removePrestigeCrest.Click += async delegate { await RemovePrestigeCrestAsync(); };
 
-            var tokensTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.TokensTitle), new Rectangle(24, 352, 180, 20));
+            var tokensTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.TokensTitle), new Rectangle(24, 352, 280, 22));
             var tokensHint = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.TokensHint),
                 Location = new Point(24, 374),
-                Size = new Size(316, 58),
+                Size = new Size(352, 58),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _clearChallengeTokens = CreateButton(
                 T(LeagueProfileCustomizationUiTextKeys.TokensAction),
-                new Rectangle(348, 384, 98, 38));
+                new Rectangle(387, 384, 109, 38));
             _clearChallengeTokens.Click += async delegate { await ClearChallengeTokensAsync(); };
 
-            var emotesTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.EmotesTitle), new Rectangle(24, 442, 180, 20));
+            var emotesTitle = CreateCaption(T(LeagueProfileCustomizationUiTextKeys.EmotesTitle), new Rectangle(24, 442, 280, 22));
             var emotesHint = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.EmotesHint),
                 Location = new Point(24, 464),
-                Size = new Size(316, 58),
+                Size = new Size(352, 58),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _clearEmotes = CreateButton(
                 T(LeagueProfileCustomizationUiTextKeys.EmotesAction),
-                new Rectangle(348, 474, 98, 38));
+                new Rectangle(387, 474, 109, 38));
             _clearEmotes.Click += async delegate { await ClearEmotesAsync(); };
 
             _status = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Loading),
                 Location = new Point(24, 544),
-                Size = new Size(422, 24),
+                Size = new Size(472, 28),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.Accent,
                 AutoEllipsis = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.5F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
             var footer = new Label
             {
                 Text = T(LeagueProfileCustomizationUiTextKeys.Footer),
                 Location = new Point(24, 580),
-                Size = new Size(422, 58),
+                Size = new Size(472, 58),
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
             Controls.Add(title);
@@ -191,6 +193,15 @@ namespace FACM.League
             Controls.Add(_status);
             Controls.Add(footer);
 
+            AddTaskSurface(new Rectangle(16, 110, 488, 137),
+                championTitle, _champions, _refresh, skinTitle, _skins, _apply);
+            AddTaskSurface(new Rectangle(16, 252, 488, 95),
+                regaliaTitle, regaliaHint, _removePrestigeCrest);
+            AddTaskSurface(new Rectangle(16, 348, 488, 86),
+                tokensTitle, tokensHint, _clearChallengeTokens);
+            AddTaskSurface(new Rectangle(16, 438, 488, 86),
+                emotesTitle, emotesHint, _clearEmotes);
+
             FacmDesignSystem.ApplyLeagueSurface(this);
             Shown += async delegate { await LoadChampionsAsync(); };
             FormClosed += delegate
@@ -202,6 +213,24 @@ namespace FACM.League
             UpdateButtons();
         }
 
+        private void AddTaskSurface(Rectangle bounds, params Control[] children)
+        {
+            var surface = new FacmGlassPanel
+            {
+                Bounds = bounds,
+                BackColor = FacmDesignSystem.Surface,
+                Radius = FacmDesignSystem.CardRadius,
+                DrawBorder = true,
+                TabStop = false
+            };
+            Controls.Add(surface);
+            foreach (var control in children)
+            {
+                control.Location = new Point(control.Left - bounds.Left, control.Top - bounds.Top);
+                surface.Controls.Add(control);
+            }
+        }
+
         private Label CreateCaption(string text, Rectangle bounds)
         {
             return new Label
@@ -211,7 +240,7 @@ namespace FACM.League
                 Size = bounds.Size,
                 BackColor = Color.Transparent,
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
         }
 
@@ -233,24 +262,15 @@ namespace FACM.League
 
         private Button CreateButton(string text, Rectangle bounds)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
-                Location = bounds.Location,
-                Size = bounds.Size,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = FacmDesignSystem.Surface,
-                ForeColor = FacmDesignSystem.Text,
+                Bounds = bounds,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
                 TabStop = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.BorderColor = FacmDesignSystem.BorderSoft;
-            button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
-            button.FlatAppearance.MouseDownBackColor = FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.08F);
-            FacmDesignSystem.Round(button, FacmDesignSystem.ControlRadius);
-            return button;
         }
 
         private async Task LoadChampionsAsync()
