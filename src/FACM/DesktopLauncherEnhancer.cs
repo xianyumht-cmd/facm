@@ -358,20 +358,17 @@ namespace FACM
             string text,
             Action<Control> action)
         {
-            var button = new Button
+            var button = new FacmActionButton
             {
                 Text = text,
                 Size = new Size(sx(119), sy(31)),
                 Margin = new Padding(0, 0, sx(5), 0),
-                BackColor = FacmDesignSystem.Surface,
-                ForeColor = FacmDesignSystem.TextMuted,
-                FlatStyle = FlatStyle.Flat,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F),
                 TabStop = true,
                 AccessibleName = text
             };
-            button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
             button.Click += delegate { if (action != null) action(button); };
             parent.Controls.Add(button);
         }
@@ -455,9 +452,9 @@ namespace FACM
 
                 var left = 12;
                 var width = Math.Max(1, Width - 24);
-                using (var titleFont = new Font(_theme.FontName, 9.2F, FontStyle.Bold))
-                using (var detailFont = new Font(_theme.FontName, 7.8F, FontStyle.Bold))
-                using (var hintFont = new Font(_theme.FontName, 7.5F, FontStyle.Regular))
+                using (var titleFont = new Font(_theme.FontName, 9.5F, FontStyle.Bold))
+                using (var detailFont = new Font(_theme.FontName, 9F, FontStyle.Bold))
+                using (var hintFont = new Font(_theme.FontName, 8.5F, FontStyle.Regular))
                 {
                     TextRenderer.DrawText(e.Graphics, _leagueStatus, titleFont,
                         new Rectangle(left, 9, width, 20), FacmDesignSystem.Text,
@@ -534,22 +531,19 @@ namespace FACM
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
                 var full = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
-                if (_hovered || _pressed || Focused)
+                var tileFill = _pressed
+                    ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.10F)
+                    : (_hovered || Focused ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface);
+                using (var path = FacmDesignSystem.RoundedRectangle(full, FacmDesignSystem.CardRadius))
+                using (var brush = new SolidBrush(tileFill))
+                using (var pen = new Pen(Focused ? FacmDesignSystem.Accent : FacmDesignSystem.BorderSoft, 1F))
                 {
-                    var hoverFill = _pressed
-                        ? FacmDesignSystem.Blend(FacmDesignSystem.SurfaceHover, FacmDesignSystem.Accent, 0.10F)
-                        : FacmDesignSystem.SurfaceHover;
-                    using (var hoverPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(5, FacmDesignSystem.ControlRadius + 2)))
-                    using (var hoverBrush = new SolidBrush(hoverFill))
-                        e.Graphics.FillPath(hoverBrush, hoverPath);
-
-                    if (Focused && ShowFocusCues)
-                    {
-                        using (var focusPath = FacmDesignSystem.RoundedRectangle(full, Math.Max(5, FacmDesignSystem.ControlRadius + 2)))
-                        using (var focusPen = new Pen(FacmDesignSystem.Accent, 1F))
-                            e.Graphics.DrawPath(focusPen, focusPath);
-                    }
+                    e.Graphics.FillPath(brush, path);
+                    e.Graphics.DrawPath(pen, path);
                 }
+                if (Focused && ShowFocusCues)
+                    ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(full, -3, -3),
+                        FacmDesignSystem.Text, tileFill);
 
                 var iconSize = Math.Max(32, Math.Min(38, Height - 16));
                 var icon = new Rectangle(9, (Height - iconSize) / 2, iconSize, iconSize);
@@ -565,7 +559,7 @@ namespace FACM
                 }
 
                 var titleBounds = new Rectangle(icon.Right + 10, 0, Math.Max(1, Width - icon.Right - 17), Height);
-                using (var titleFont = new Font(_theme.FontName, 8.8F, FontStyle.Bold))
+                using (var titleFont = new Font(_theme.FontName, 9.5F, FontStyle.Bold))
                 {
                     TextRenderer.DrawText(e.Graphics, Text, titleFont, titleBounds,
                         FacmDesignSystem.Text,
