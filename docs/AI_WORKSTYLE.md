@@ -1,5 +1,10 @@
 # FACM AI 协作方式
 
+## ReaLTaiizor task authority (2026-10-17)
+
+The owner authorizes one new task branch and Draft PR for ReaLTaiizor research, implementation and tests. PR #351 is historical/merged and must not be resurrected. Complete the compatibility spike and return measured go/no-go before broad migration. A verified distribution/size or native-control blocker is a legitimate pause; do not request repeated per-page design signoffs. Merge, official release, updater changes and production CloudBase writes require fresh explicit authorization for this task. Technical documentation/handoffs remain English; owner explanations remain Chinese.
+
+
 ## Full visual modernization workflow (2026-10-17)
 
 For GGman full-product UI updates, the owner prefers one consolidated release after all reachable app-owned interfaces have been updated, without per-page approval interruptions. Continue internal batches on existing PR #351 and run CI per batch; collect one consolidated Windows screenshot/functional/DPI acceptance package. The requested single Astra independent professional *visual* assessment comes after the release and must be correctly described as post-release audit with rollback risk. Technical implementation/handoffs in English; user-facing progress in Chinese. This does not remove any normal pre-release code, security, functional or updater safety gate.

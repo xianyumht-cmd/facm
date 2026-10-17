@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — ReaLTaiizor isolated spike; broad migration blocked
+
+Task baseline: main `13a9ce6fefd5e8d0a9917355459ce4b0e08ef571`, signed production v3.5.78. Dedicated branch: `feat/realtaiizor-compatibility-20261017`; no matching active migration PR existed at discovery. Production source, solution, publisher, updater and CloudBase remain unchanged.
+
+Implemented an isolated net48 Poison-family preview and Windows compatibility workflow. Official 3.8.2.1 net48 DLL measured 10,933,248 bytes, exceeding the existing 10 MiB executable gate before adding product code; ordinary NuGet also introduces an unsupported DLL sidecar. **Broad migration NO-GO pending approved packaging mitigation.** No final GGman size increase has been measured or approved. CI is pending; native Win10 rendering, offline launch, all-theme/DPI/input/performance and actual page before/after remain INCONCLUSIVE. See DECISIONS and OPERATIONS for measured package identity and bounded next steps.
+
+
+
 ## 2026-10-17 — Owner-authorized GGman 3.5.78 published; visual acceptance pending
 
 The owner explicitly requested an official build **before** submitting Windows screenshots. PR #351 is **merged** into main via `0f92d1dd8eb2b64f03e3851f66a589d8e3e006b2`, with audited code head `250c877a3f9b5c8d7290c54fa71e2cb5ac9aab80`. Publication workflow [#39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) completed **SUCCESS**, including signed 3.5.78 build, public `GGman.exe`/`FACM.exe` hash and signer verification, and final enabled online manifest. Release: https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.78 ; `force_update=false`; `minimum_version=3.0.0`. Hash is recorded in the release-state block above. **Signed release delivered; UI design work is not professionally accepted.**

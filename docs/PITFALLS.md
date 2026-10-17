@@ -1,5 +1,10 @@
 # FACM Pitfalls
 
+## A compatible NuGet target does not imply compatible single-EXE deployment (2026-10-17)
+
+ReaLTaiizor 3.8.2.1 includes net48 but its selected DLL is 10,933,248 bytes and ordinary PackageReference requires that DLL at runtime. The existing GGman publisher ships one main EXE. Do not confuse the 45,396,090-byte multi-target nupkg with final product size, omit sidecars from a test package, raise the 10 MiB gate silently, or inject an unreviewed AssemblyResolve loader. Gate broad migration on an approved distribution strategy and actual clean offline execution. GitHub's latest Release is older than the NuGet package; inspect the nuspec repository commit when reviewing APIs.
+
+
 ## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
 
 Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.

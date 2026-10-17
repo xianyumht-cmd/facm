@@ -1,5 +1,14 @@
 # FACM Architecture
 
+## ReaLTaiizor isolated compatibility harness (2026-10-17)
+
+`tools/ui-compatibility/GGman.UiCompatibility.csproj` is a separate net48 WinForms executable, excluded from FACM.sln and the production project. It pins ReaLTaiizor 3.8.2.1 and its lock-file hash. The fixture uses only PoisonButton, PoisonTextBox and PoisonPanel, plus native layout/labels. All repair-looking actions update a local status label only: no GGman project reference, network call, authentication, configuration read/write, game action or cleanup operation.
+
+`scripts/test-realtaiizor-compatibility.ps1` verifies the official package hash/signature, restores locked dependencies, builds the fixture, inventories output files/hashes and runs five bounded native control-smoke processes. The dedicated read-only-permission workflow uploads an explicitly unsigned compatibility artifact. It does not call the publisher or modify the updater. The existing Windows Build remains the production regression gate.
+
+PoisonPanel owns its scrollbars and hides native bars through its WndProc. This is not proof that all nested layouts, keyboard scrolling or DPI behavior work; no additional custom scrolling owner is authorized. The fixture exercises scroll extent and theme/text stability but does not claim actual IME typing or native visual acceptance.
+
+
 ## B5 extended visual owner boundaries (Draft PR #351)
 
 `CleanupRepairForm` remains a `CleanupModule`/MainForm-owned task surface and adjusts existing help/status typography only. `GgmanCaptchaForm` keeps token/challenge state and disposable image lifetime while replacing visual button/field geometry. `GgmanStatsPrivacyForm` reparents only existing opt-in controls to a shared noninteractive `FacmGlassPanel`; privacy defaults and save/import authorization remain external. `LeagueProfileCustomizationForm` reparents already constructed native input/action controls into four local semantic surfaces; each control retains the original click/event subscription and cancellation generation. `LeagueItemSetForm`/`LeagueBuildApplyForm` reuse `FacmDesignSystem` and `FacmActionButton`; the latter's auto-toggle/status callbacks are critical and were explicitly restored after an intermediate CI failure. Both pet pickers retain asset download/activation and animated preview ownership and use theme-derived text/surfaces instead of a separate dark palette. `LeaguePersonalStatsForm` only changes nonfunctional type hierarchy. No new transport, persistent state or background service.

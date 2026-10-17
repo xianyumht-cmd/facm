@@ -1,5 +1,14 @@
 # GGman Precision Workbench Design System
 
+## ReaLTaiizor compatibility gate (2026-10-17)
+
+The current task supersedes historical instructions to continue PR #351: that PR is merged and v3.5.78 is published. A new dedicated compatibility branch investigates the owner-selected ReaLTaiizor library. No broad migration, merge, release or updater change is authorized until the spike gates pass and any packaging-budget change is explicitly approved.
+
+Poison is the **provisional spike family**, chosen because its Button derives from native Button, its TextBox supports a custom Chinese font, and its Panel includes library-owned scrollbars. It is not a professionally accepted visual direction. `tools/ui-compatibility` exercises these controls without referencing GGman services. Its repair-themed fixture is a design/compatibility sample, not the real migrated Game Repair page or a before/after product screenshot. Native Win10 light/dark, IME, focus, wheel/thumb/PageUp/PageDown, DPI and ten-theme evidence is outstanding. No custom scrollbar framework or production adapter has been added.
+
+The spike does not replace the existing design-system ownership. A later approved adapter must map ThemeCatalog/FacmThemeRuntime roles into one control family and preserve all route, draft, cloud and game invariants. Upstream Poison custom colors do not cover every hover/pressed state; a simple property mapping must not be claimed to support all ten palettes.
+
+
 Status: **Product-wide visual modernization in progress; B1 remains partial; full native evidence pending (2026-10-17)**. This document records the proposed product-specific visual contract, not a claim that all existing views comply or have passed native acceptance.
 
 Design authority: GGman UI/UX Modernization Blueprint (17 October 2026), authored from source review and the published guidance of [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), [Impeccable](https://github.com/pbakaus/impeccable), and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md). These sources inform principles, not WinForms binaries or runtime dependencies. Root AGENTS.md and actual source/runtime behavior take precedence.
