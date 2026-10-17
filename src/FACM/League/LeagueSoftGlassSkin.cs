@@ -25,7 +25,7 @@ namespace FACM.League
 
             // The Hub is now purpose-built at compact density. Legacy business forms still use
             // the conservative density pass so their existing layouts gain space without a rewrite.
-            if (!(form is LeagueHubForm) && !(form is LeagueDashboardForm))
+            if (!(form is LeagueHubForm) && !(form is LeagueDashboardForm) && !(form is LeagueGameRepairForm))
                 LeagueCompactDensity.Apply(form);
 
             var efficiency = form as LeagueEfficiencyForm;
