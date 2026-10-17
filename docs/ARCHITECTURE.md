@@ -1,5 +1,12 @@
 # FACM Architecture
 
+## UI text editor transaction and cloud restore consistency (PR #350 candidate, 2026-10-17)
+
+`UiTextCustomizationStore.PrepareSingleEdit` is a pure candidate constructor: it compares the target key between the editor's captured baseline and the current persisted profile, rejects same-key divergence, clones current state and validates a single text/rule edit or reset. `UiTextEditorPanel` writes that independent candidate first, then updates its saved baseline and emits `NotifyUiTextSaved`; a validation or filesystem failure leaves its baseline untouched, so Discard has no hidden stale edits to publish. Normal UI editing still persists through the existing atomic, backed-up `Apply` path.
+
+`GgmanAutoSyncService.RestoreText` performs the existing profile apply and then asks `UiTextEditorPanel.NotifyExternalRestore` to reload an expanded editor with no visible pending edits. Any attempted Save/Reset independently reads the latest profile, so unrelated changes survive if the editor was not refreshed. Same-key external changes veto local persistence instead of silently overwriting the remote-authoritative choice. This does not change CloudBase schema, CAS or registered authentication.
+
+
 ## League workbench lifetime and UI-text draft ownership (P1 correction candidate, 2026-10-16)
 
 `LeagueSoftGlassSkin.Apply` supplies a persistent chrome policy specifically for `LeagueHubForm`; quick launcher and other transient surfaces keep their separate existing ownership. `LeagueHubForm` asks the embedded `LeaguePersonalStatsForm` to resolve editor draft state **before** replacing or disposing its child view and during FormClosing. `LeaguePersonalStatsForm` delegates to its `UiTextEditorPanel`; the editor itself guards content transitions (selection, filter/mode, new rule and collapse) and only calls `UiTextCustomizationStore.Apply` / `NotifyUiTextSaved` for an explicit Save choice. Draft loss protection is distinct from `GgmanAutoSyncService`'s remote-restore deferral.
