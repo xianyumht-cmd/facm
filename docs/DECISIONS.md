@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
+
+The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.
+
+
 ## 2026-10-17 — B5 migrate remaining common native task surfaces with business continuity
 
 Complete common utility, registered-settings and pet-choice interfaces by reusing existing native semantic colors/buttons rather than adding a separate rendering engine. Group profile actions and consent choices according to user tasks, raise 7–8pt copy to legible roles, and preserve all service lifecycles. The BuildApply intermediate missing-callback regression underlines that source boundaries must be audited explicitly, not only matched to compilation output. Sensitive live League writes, account challenges, desktop pet activation and destructive cleanup are outside aesthetic test execution. The narrowly sized game companion remains a distinct UX/performance risk requiring real native observation.

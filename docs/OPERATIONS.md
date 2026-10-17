@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## 3.5.78 published release follow-up (2026-10-17)
+
+PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.
+
+Request an independent Astra design critique only once representative native evidence exists, with professional English handoff, and report source-specific, screenshot-grounded defects. A published build does not certify visual quality. For regressions use a reviewed patch and new official signed release; if a critical defect is confirmed, follow the existing audited rollback procedure and inform affected users. Do not modify the v3.5.78 release bytes.
+
+
 ## B5 continuation / B6 safety and visual QA handoff (2026-10-17)
 
 The current candidate adds CleanupRepair, Captcha, Registered Stats Privacy, Profile Customization, PetPicker, AnimalPetPicker, LeagueItemSet, LeagueBuildApply and Personal Stats. Final B6 native acceptance must capture the same-screen previous/current candidate pairs at a pinned SHA for all, plus the actual topmost companion/ChampSelect assistant and any remaining reachable dialogs. All ten ThemeCatalog IDs, 100/125/150/200% DPI as feasible, focus/Tab/Escape, selection/disabled/hover, narrow windows, long Chinese descriptions, any credential-safe image states, and visual independence of dangerous actions are required. Do not perform destructive deletion, real game write, new-login/password challenge or pet resource download only to obtain a screenshot. Use authorization-safe fixtures or genuine operator observation.

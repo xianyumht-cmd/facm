@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — Owner-authorized GGman 3.5.78 published; visual acceptance pending
+
+The owner explicitly requested an official build **before** submitting Windows screenshots. PR #351 is **merged** into main via `0f92d1dd8eb2b64f03e3851f66a589d8e3e006b2`, with audited code head `250c877a3f9b5c8d7290c54fa71e2cb5ac9aab80`. Publication workflow [#39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) completed **SUCCESS**, including signed 3.5.78 build, public `GGman.exe`/`FACM.exe` hash and signer verification, and final enabled online manifest. Release: https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.78 ; `force_update=false`; `minimum_version=3.0.0`. Hash is recorded in the release-state block above. **Signed release delivered; UI design work is not professionally accepted.**
+
+All earlier same-day state entries saying "Draft PR #351", "do not merge", "not released", or "production 3.5.77" are **historical snapshots superseded by this publication**, not current instructions. The owner will provide post-update native Win10 screenshots for professional review. Remaining evidence gaps: before/after rendered surfaces, all themes, multiple DPI, keyboard/IME/focus, complex live ChampSelect/companion HUD, runtime performance and authorized functional scenarios. Do not mark these PASS from CI, and do not claim an Astra visual sign-off until real screenshot review occurs. Regressions require a new controlled hotfix or explicit rollback; do not edit online metadata or reuse the published release asset.
+
+
 ## 2026-10-17 — B5 continued with UI coverage expansion, B6 pending
 
 Draft PR #351 on `feat/ggman-precision-workbench-b1-20261017` now includes cleanup-main, email captcha, registered statistics privacy, profile customization, both pet selection dialogs, item set, build apply and personal stats presentation migrations. Commits: `ec5e3045f2708451b22535686f63f7b984da2015`, `439de9d0e9c9be5c36c83d633f40301aefa5c970`, `2542e05d0440c55f9ebd8ba9e8b80c4ba4014fd9`, `09b95e4812c7349053688ec479569adc99957f34`, `85ba71dd2f47da2944e54a845abd921b59a67bec`, corrective `a3ae722de1226e7f67fdcf672a45cdb87e9f492d` and `8aea138f250fb3d90259f7a7ba4a9170308e7a4a`.
