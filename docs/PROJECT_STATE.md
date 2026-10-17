@@ -12,6 +12,15 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — PR #350 Astra review corrections (candidate, not released)
+
+Independent review of PR #350 head `847670cde226d5f7888446a16c3d5c619decf900` identified two P1 blockers despite previously green CI: a failed local UI-text save mutates the in-memory full profile, so subsequent Discard/Save can leak rejected content; a registered cloud restore can leave the expanded editor retaining an obsolete full-profile snapshot, so later saving one field can overwrite unrelated newer cloud-restored values. Review verdict: request changes; do not merge.
+
+Same task branch now uses `UiTextCustomizationStore.PrepareSingleEdit` to clone the latest persisted profile, verify that the edited key has not diverged from its previous baseline, validate the candidate and only install it in the editor after persistent write succeeds. Reset uses the same transaction path. Unrelated updated keys are preserved; conflicting updates to the **same** key veto save and preserve the visible draft. Registered text restores now invoke `UiTextEditorPanel.NotifyExternalRestore`, while save also rereads current storage as a safeguard if a callback is missed. Added in-memory WinForms editor regression scenarios for write failure -> Discard -> saving another item, invalid replace rules, cloud restore -> save, missed restore notification, same-key conflict and stale reset. A stable editable error TextKey is provided.
+
+**Validation caveat:** GitHub Actions runs around 2026-10-17 at `e314e9617eb2` failed before any Windows runner was assigned (runner_name empty, no job steps or logs). This is not a code-test result. Re-run required Windows Build and UI Text Contract on the final head after runner provisioning resumes; live Windows/CloudBase acceptance remains outstanding. Official 3.5.77 remains unchanged.
+
+
 ## 2026-10-16 — UI/UX audit P1 correction candidate (PR #350; NOT MERGED OR RELEASED)
 
 - Source baseline is signed 3.5.77, `main` commit `14806c2ef593c6cdd8dec357d8ecce04913109ab`; independent source audit is draft PR #349.
