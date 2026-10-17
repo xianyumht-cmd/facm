@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Theming;
 
 namespace FACM.Pets
 {
@@ -34,34 +35,34 @@ namespace FACM.Pets
             MinimizeBox = false;
             ShowInTaskbar = false;
             ClientSize = new Size(820, 650);
-            BackColor = Color.FromArgb(12, 17, 28);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var title = new Label
             {
                 Text = "3D 桌面宠物",
                 Location = new Point(24, 18),
                 AutoSize = true,
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = "选择喜欢的桌宠。首次使用会自动下载所需资源，完成后即可直接使用。",
                 Location = new Point(26, 54),
                 Size = new Size(760, 24),
-                ForeColor = Color.FromArgb(155, 169, 196)
+                ForeColor = FacmDesignSystem.TextMuted
             };
 
             _list = new ListBox
             {
                 Location = new Point(22, 88),
                 Size = new Size(300, 450),
-                BackColor = Color.FromArgb(8, 12, 21),
-                ForeColor = Color.White,
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Microsoft YaHei UI", 10F),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F),
                 IntegralHeight = false,
                 ItemHeight = 36,
                 DisplayMember = "Name"
@@ -72,14 +73,14 @@ namespace FACM.Pets
             {
                 Location = new Point(342, 88),
                 Size = new Size(452, 350),
-                BackColor = Color.FromArgb(8, 12, 21),
+                BackColor = FacmDesignSystem.Surface,
                 BorderStyle = BorderStyle.FixedSingle
             };
             _preview = new PictureBox
             {
                 Location = new Point(10, 10),
                 Size = new Size(430, 328),
-                BackColor = Color.FromArgb(8, 12, 21),
+                BackColor = FacmDesignSystem.Surface,
                 SizeMode = PictureBoxSizeMode.Zoom
             };
             previewPanel.Controls.Add(_preview);
@@ -88,8 +89,8 @@ namespace FACM.Pets
             {
                 Location = new Point(344, 452),
                 Size = new Size(448, 84),
-                ForeColor = Color.FromArgb(205, 215, 236),
-                Font = new Font("Microsoft YaHei UI", 9F)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F)
             };
 
             _progress = new ProgressBar
@@ -105,20 +106,17 @@ namespace FACM.Pets
                 Text = "请选择一个桌宠。应用后可在桌面使用，点击桌宠打开 FACM 控制面板。",
                 Location = new Point(22, 572),
                 Size = new Size(772, 28),
-                ForeColor = Color.FromArgb(115, 207, 174)
+                ForeColor = FacmDesignSystem.Success
             };
 
-            var engine = new Button
+            var engine = new FacmActionButton
             {
                 Text = "桌宠管理",
                 Location = new Point(342, 604),
                 Size = new Size(108, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(31, 41, 61),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand
             };
-            engine.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
             engine.Click += delegate
             {
                 try
@@ -133,49 +131,40 @@ namespace FACM.Pets
                 }
             };
 
-            var close = new Button
+            var close = new FacmActionButton
             {
                 Text = "关闭",
                 Location = new Point(458, 604),
                 Size = new Size(96, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(31, 41, 61),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
                 DialogResult = DialogResult.Cancel
             };
-            close.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
 
-            _cancelOperation = new Button
+            _cancelOperation = new FacmActionButton
             {
                 Text = "取消下载",
                 Location = new Point(562, 604),
                 Size = new Size(106, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(66, 52, 63),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
                 Enabled = false
             };
-            _cancelOperation.FlatAppearance.BorderColor = Color.FromArgb(120, 79, 88);
             _cancelOperation.Click += delegate
             {
                 if (_operationCancellation != null && !_operationCancellation.IsCancellationRequested)
                     _operationCancellation.Cancel();
             };
 
-            _apply = new Button
+            _apply = new FacmActionButton
             {
                 Text = "下载并应用",
                 Location = new Point(676, 604),
                 Size = new Size(118, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(70, 113, 255),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Primary,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
-            _apply.FlatAppearance.BorderColor = Color.FromArgb(112, 151, 255);
             _apply.Click += async delegate { await ApplySelectionAsync(); };
 
             Controls.Add(title);
@@ -267,7 +256,7 @@ namespace FACM.Pets
             catch (Exception)
             {
                 _status.Text = "预览加载失败，仍可继续应用。";
-                _status.ForeColor = Color.FromArgb(230, 177, 103);
+                _status.ForeColor = FacmDesignSystem.Warning;
             }
         }
 
@@ -285,7 +274,7 @@ namespace FACM.Pets
             var progress = new Progress<PetSetupProgress>(value =>
             {
                 _status.Text = string.IsNullOrWhiteSpace(value.Message) ? FriendlyProgress(value.Percent) : value.Message;
-                _status.ForeColor = Color.FromArgb(112, 165, 255);
+                _status.ForeColor = FacmDesignSystem.Accent;
                 _progress.Value = Math.Max(_progress.Minimum, Math.Min(_progress.Maximum, value.Percent));
             });
 
@@ -307,7 +296,7 @@ namespace FACM.Pets
                         {
                             Services.AppLog.Info("NVIDIA native-present compatibility was not applied; desktop pet startup will still be attempted.");
                             _status.Text = "NVIDIA 透明显示兼容设置未能自动完成，正在继续尝试...";
-                            _status.ForeColor = Color.FromArgb(230, 177, 103);
+                            _status.ForeColor = FacmDesignSystem.Warning;
                         }
                     }
 
@@ -316,7 +305,7 @@ namespace FACM.Pets
                     {
                         Services.AppLog.Info("Pet activation failed: " + result.ErrorMessage);
                         _status.Text = "桌宠应用失败，默认悬浮球已保留。";
-                        _status.ForeColor = Color.FromArgb(255, 145, 121);
+                        _status.ForeColor = FacmDesignSystem.Error;
                         return;
                     }
 
@@ -324,7 +313,7 @@ namespace FACM.Pets
                     ActivatedPersonaId = result.PersonaId;
                     _progress.Value = 100;
                     _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 FACM 控制面板。";
-                    _status.ForeColor = Color.FromArgb(99, 219, 158);
+                    _status.ForeColor = FacmDesignSystem.Success;
                     DialogResult = DialogResult.OK;
                     Close();
                 }
