@@ -402,6 +402,7 @@ namespace FACM.League
 
         internal static void ValidateDraftNavigationForSmokeTest()
         {
+            ValidatePersistenceForSmokeTest();
             using (var editor = new UiTextEditorPanel(null))
             {
                 editor.SetExpanded(true);
@@ -434,6 +435,92 @@ namespace FACM.League
                 editor._items.SelectedIndex = 1;
                 if (editor._items.SelectedIndex != 1 || editor.HasPendingChanges)
                     throw new InvalidOperationException("Discard did not allow the requested editor selection.");
+            }
+        }
+
+        private static void ValidatePersistenceForSmokeTest()
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                var rejectWrite = true;
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    if (rejectWrite) throw new System.IO.IOException("Simulated write failure.");
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._items.SelectedIndex = 0;
+                var first = editor._items.SelectedItem as Entry;
+                var changed = editor._value.Text + " edited";
+                editor._value.Text = changed;
+                if (editor.SaveLocal() || !editor.HasPendingChanges ||
+                    editor._draft.Text.Count != 0 || saved.Text.Count != 0 || notifications != 0)
+                    throw new InvalidOperationException("Failed save altered the saved editor baseline.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                editor._items.SelectedIndex = 1;
+                var second = editor._items.SelectedItem as Entry;
+                if (second == null || ReferenceEquals(second, first))
+                    throw new InvalidOperationException("Discard did not switch editor selection.");
+                rejectWrite = false;
+                editor._value.Text = editor._value.Text + " revised";
+                if (!editor.SaveLocal() || saved.Text.ContainsKey(first.Key) ||
+                    !saved.Text.ContainsKey(second.Key) || notifications != 1)
+                    throw new InvalidOperationException("Later save included previously failed and discarded changes.");
+
+                editor._mode.SelectedIndex = 1;
+                editor._source.Text = new string('X', 201);
+                editor._value.Text = changed;
+                if (editor.SaveLocal() || saved.Replace.Count != 0 || notifications != 1)
+                    throw new InvalidOperationException("Invalid replacement rule polluted saved configuration.");
+                editor._mode.SelectedIndex = 0;
+                editor._items.SelectedIndex = 1;
+                editor._value.Text = editor._value.Text + " valid";
+                if (!editor.SaveLocal() || saved.Replace.Count != 0 || notifications != 2)
+                    throw new InvalidOperationException("Invalid discarded rule blocked a subsequent valid save.");
+
+                var remoteKey = string.Equals(second.Key, UiTextKeys.AppName, StringComparison.Ordinal)
+                    ? UiTextKeys.Close : UiTextKeys.AppName;
+                saved.Text[remoteKey] = "Remote preference";
+                editor.ReloadAfterExternalRestore();
+                if (editor._draft.Text[remoteKey] != "Remote preference")
+                    throw new InvalidOperationException("External restore left editor baseline stale.");
+                editor._value.Text = editor._value.Text + " after remote";
+                if (!editor.SaveLocal() || saved.Text[remoteKey] != "Remote preference" ||
+                    notifications != 3)
+                    throw new InvalidOperationException("Editing after restore reverted unrelated remote configuration.");
+
+                var anotherRemote = string.Equals(second.Key, UiTextKeys.Close, StringComparison.Ordinal)
+                    ? UiTextKeys.AppName : UiTextKeys.Close;
+                saved.Text[anotherRemote] = "Another remote preference";
+                editor._value.Text = editor._value.Text + " rebased";
+                if (!editor.SaveLocal() || saved.Text[anotherRemote] != "Another remote preference")
+                    throw new InvalidOperationException("Unannounced remote edit was not preserved by save rebase.");
+
+                var notifyBeforeConflict = notifications;
+                saved.Text[second.Key] = "Competing remote value";
+                editor._value.Text = editor._value.Text + " conflicting";
+                if (editor.SaveLocal() || saved.Text[second.Key] != "Competing remote value" ||
+                    !editor.HasPendingChanges || notifications != notifyBeforeConflict)
+                    throw new InvalidOperationException("Concurrent same-key change was overwritten or announced.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                if (!editor.TryResolvePendingEdit())
+                    throw new InvalidOperationException("Discard after conflict was not possible.");
+                editor.ResetSelected();
+                if (saved.Text[second.Key] != "Competing remote value" || notifications != notifyBeforeConflict)
+                    throw new InvalidOperationException("Stale reset overwrote newer remote content.");
+
+                editor.ReloadAfterExternalRestore();
+                editor.ResetSelected();
+                if (saved.Text.ContainsKey(second.Key) ||
+                    saved.Text[anotherRemote] != "Another remote preference" ||
+                    notifications != notifyBeforeConflict + 1)
+                    throw new InvalidOperationException("Reset after reloading did not preserve remote siblings.");
             }
         }
 
