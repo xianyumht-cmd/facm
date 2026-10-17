@@ -131,7 +131,7 @@ namespace FACM.Services
             if (hadPrevious != hasCurrent ||
                 (hadPrevious && !string.Equals(previousValue, currentValue, StringComparison.Ordinal)))
                 throw new InvalidOperationException(
-                    "该项文字已被其他操作更新，请先保存或放弃当前修改并重新打开后再编辑。");
+                    UiTextRuntime.Text(UiTextKeys.UiTextEditorExternalConflict));
 
             var candidate = Copy(latest);
             var target = rule ? candidate.Replace : candidate.Text;
