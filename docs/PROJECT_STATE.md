@@ -1,15 +1,15 @@
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.77
-- GitHub Release：v3.5.77
+- 版本：GGman 3.5.78
+- GitHub Release：v3.5.78
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：a659d75765c058452bc510fb8d40e0a89d1e9576
-- 发布元数据提交：01c41e2eaeb9f9b14182b0f587878668158ae379
-- Release GGman.exe SHA-256：D6F88CE3C78CCE401420E9C78B5357351890362F007BF230FD928AD3A8875D84
-- release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
+- 发布基础 main：c19b11881dcbb397c806b0dad2c518f10c0eaa07
+- 发布元数据提交：e03a6aa58d64e90ccfbe48c8809b11fd574cca60
+- Release GGman.exe SHA-256：5EC945C760D75422023AECB0060C023DC8D88933A29B42796AB505162EA72F97
+- release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-10-17 — B5 continued with UI coverage expansion, B6 pending
