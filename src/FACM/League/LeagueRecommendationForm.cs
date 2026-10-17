@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -87,7 +88,7 @@ namespace FACM.League
                 Size = new Size(520, 32),
                 ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 18F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 15F, FontStyle.Bold)
             });
             header.Controls.Add(new Label
             {
@@ -126,7 +127,7 @@ namespace FACM.League
                 Text = LeagueAdvisorText.Get(_ui, LeagueAutoApplyUiTextKeys.Toggle),
                 Location = new Point(30, 224),
                 Size = new Size(300, 28),
-                ForeColor = Color.White,
+                ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 Checked = _autoController.Enabled
@@ -289,7 +290,7 @@ namespace FACM.League
                 Text = text,
                 Location = new Point(30, top),
                 Size = new Size(822, 25),
-                ForeColor = Color.White,
+                ForeColor = FacmDesignSystem.Text,
                 Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
             };
         }
@@ -309,6 +310,7 @@ namespace FACM.League
                 Padding = new Padding(14, 2, 10, 2),
                 ForeColor = FACM.Theming.FacmDesignSystem.Text,
                 BackColor = FACM.Theming.FacmDesignSystem.Surface,
+                Font = new Font(Font.FontFamily, 9.5F),
                 Cursor = Cursors.Hand
             };
         }
@@ -337,24 +339,21 @@ namespace FACM.League
                 Size = new Size(268, 20),
                 ForeColor = FACM.Theming.FacmDesignSystem.Accent,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold)
             };
         }
 
         private Button CreateButton(string text, bool primary)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
+                AccessibleName = text,
                 Size = new Size(106, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.SurfaceRaised,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
+                Tone = primary ? FacmButtonTone.Primary : FacmButtonTone.Secondary,
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold),
                 TabStop = true
             };
-            button.FlatAppearance.BorderColor = primary ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
-            return button;
         }
 
         internal static int ColumnsForWidthForSmokeTest(int width)
@@ -502,7 +501,7 @@ namespace FACM.League
         {
             if (choice == null) return;
             choice.BackColor = choice.Checked ? FACM.Theming.FacmDesignSystem.SurfaceRaised : FACM.Theming.FacmDesignSystem.Surface;
-            choice.ForeColor = choice.Checked ? Color.White : FACM.Theming.FacmDesignSystem.TextMuted;
+            choice.ForeColor = FacmDesignSystem.ReadableTextOn(choice.BackColor, FacmDesignSystem.Text);
             choice.FlatAppearance.BorderColor = choice.Checked ? FACM.Theming.FacmDesignSystem.Accent : FACM.Theming.FacmDesignSystem.BorderSoft;
         }
 
@@ -874,6 +873,8 @@ namespace FACM.League
             _contentPanel.BackColor = FACM.Theming.FacmDesignSystem.Canvas;
             _actionBar.BackColor = FACM.Theming.FacmDesignSystem.Surface;
             _statusValue.ForeColor = RecommendationStatusToneForSmokeTest(_statusKey);
+            _autoToggle.ForeColor = FacmDesignSystem.Text;
+            UpdateChoiceStyles();
             _autoStatus.ForeColor = string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Succeeded, StringComparison.Ordinal)
                 ? FACM.Theming.FacmDesignSystem.Success
                 : string.Equals(_autoStatusKey, LeagueAutoApplyUiTextKeys.Failed, StringComparison.Ordinal)
