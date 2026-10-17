@@ -17,6 +17,7 @@ namespace FACM
         private readonly TextBox _directory;
         private readonly Label _status;
         private readonly Button[] _actions;
+        private readonly FacmGlassPanel _actionsSurface;
         private readonly Button _probe;
         private readonly Button _browse;
         private readonly Button _autoDetect;
@@ -40,11 +41,11 @@ namespace FACM
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             ShowInTaskbar = false;
-            ClientSize = new Size(630, 352);
+            ClientSize = new Size(630, 380);
             MinimumSize = Size.Empty;
             MaximumSize = Size.Empty;
 
-            var title = NewLabel(_ui.Get(UiTextKeys.EscSettingsTitle), 16, 15, 590, 30, true);
+            var title = NewLabel(_ui.Get(UiTextKeys.EscSettingsTitle), 16, 15, 590, 34, true);
             var hint = NewLabel(_ui.Get(UiTextKeys.EscSettingsHint), 16, 49, 596, 41);
             var folderLabel = NewLabel(_ui.Get(UiTextKeys.EscSettingsFolder), 16, 102, 580, 22);
             _directory = new TextBox
@@ -98,14 +99,22 @@ namespace FACM
             _actions[2].Click += async delegate { await TransferCloudAsync(true); };
             _actions[3].Click += async delegate { await TransferCloudAsync(false); };
 
+            _actionsSurface = new FacmGlassPanel
+            {
+                BackColor = FacmDesignSystem.Surface,
+                DrawBorder = true,
+                Radius = FacmDesignSystem.CardRadius,
+                TabStop = false
+            };
+
             _probe = NewButton(UiTextKeys.EscSettingsProbe, 16, 231, 160);
             _probe.Enabled = authenticated;
             _probe.Visible = false;
             _probe.Click += async delegate { await ProbeCloudAsync(); };
 
-            _note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 279, 590, 43);
+            _note = NewLabel(_ui.Get(UiTextKeys.EscSettingsCloudScope), 16, 250, 590, 52);
             _note.ForeColor = FacmDesignSystem.TextMuted;
-            _status = NewLabel(_ui.Get(UiTextKeys.EscSettingsReady), 16, 332, 595, 58);
+            _status = NewLabel(_ui.Get(UiTextKeys.EscSettingsReady), 16, 312, 595, 55);
             _status.AutoEllipsis = true;
 
             Controls.Add(title);
@@ -114,7 +123,10 @@ namespace FACM
             Controls.Add(_directory);
             Controls.Add(_autoDetect);
             Controls.Add(_browse);
+            Controls.Add(_actionsSurface);
             foreach (var action in _actions) Controls.Add(action);
+            _actionsSurface.Controls.Add(_actions[0]);
+            _actionsSurface.Controls.Add(_actions[1]);
             Controls.Add(_probe);
             Controls.Add(_note);
             Controls.Add(_status);
@@ -160,11 +172,13 @@ namespace FACM
             _directory.Width = Math.Max(120, width - 264);
             _autoDetect.Left = width - 249;
             _browse.Left = width - 123;
-            var buttonWidth = (width - 48) / 2;
-            _actions[0].SetBounds(16, 180, buttonWidth, 35);
-            _actions[1].SetBounds(32 + buttonWidth, 180, buttonWidth, 35);
-            _note.SetBounds(16, 232, width - 32, 48);
-            _status.SetBounds(16, 289, width - 32, 58);
+            _actionsSurface.SetBounds(16, 174, width - 32, 66);
+            var inner = _actionsSurface.Width - 32;
+            var buttonWidth = Math.Max(120, (inner - 12) / 2);
+            _actions[0].SetBounds(16, 16, buttonWidth, 35);
+            _actions[1].SetBounds(28 + buttonWidth, 16, buttonWidth, 35);
+            _note.SetBounds(16, 250, width - 32, 52);
+            _status.SetBounds(16, 312, width - 32, 55);
         }
 
         private Label NewLabel(string text, int x, int y, int width, int height, bool heading = false)
@@ -174,9 +188,9 @@ namespace FACM
                 Text = text,
                 Location = new Point(x, y),
                 Size = new Size(width, height),
-                Font = new Font(Font.FontFamily, heading ? 14F : 9F,
+                Font = new Font(Font.FontFamily, heading ? 15F : 9.5F,
                     heading ? FontStyle.Bold : FontStyle.Regular),
-                AutoEllipsis = true,
+                AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent
             };
@@ -189,6 +203,8 @@ namespace FACM
                 Text = _ui.Get(key),
                 Location = new Point(x, y),
                 Size = new Size(width, 35),
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold),
+                AccessibleName = _ui.Get(key),
                 Tone = (key == UiTextKeys.EscSettingsCloudUpload ||
                     key == UiTextKeys.EscSettingsLocalSave)
                         ? FacmButtonTone.Primary : FacmButtonTone.Secondary
