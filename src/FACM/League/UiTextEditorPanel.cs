@@ -638,7 +638,7 @@ namespace FACM.League
                 if ((editor._renderedEntry == null ? null : editor._renderedEntry.Key) != "Foo")
                     throw new InvalidOperationException("Rule selection setup selected the wrong case.");
 
-                editor._value.Text = "upper draft";
+                editor._value.Text = "upper draft"; // ui-text-contract: allow
                 editor._confirmLeaveForSmokeTest = delegate { return decision; };
                 editor._items.SelectedIndex = 1;
 
@@ -661,7 +661,7 @@ namespace FACM.League
                     saved.Replace["foo"] != "lower" || notifications != expectedNotifications)
                     throw new InvalidOperationException("Navigation selected the wrong case-sensitive rule.");
 
-                editor._value.Text = "lower revised";
+                editor._value.Text = "lower revised"; // ui-text-contract: allow
                 if (!editor.SaveLocal() || saved.Replace["Foo"] != expectedUpper ||
                     saved.Replace["foo"] != "lower revised" ||
                     notifications != expectedNotifications + 1)
