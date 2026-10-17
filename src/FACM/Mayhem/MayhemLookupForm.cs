@@ -22,6 +22,7 @@ namespace FACM.Mayhem
         private readonly ProgressBar _progress;
         private readonly Label _status;
         private readonly Panel _imageHost;
+        private readonly Panel _toolbarSurface;
         private readonly PictureBox _resultImage;
         private readonly System.Windows.Forms.Timer _elapsedTimer;
         private CancellationTokenSource _queryCancellation;
@@ -47,7 +48,7 @@ namespace FACM.Mayhem
                 Text = MayhemUiCopy.WindowTitle,
                 Location = new Point(24, 16),
                 AutoSize = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 18F, FontStyle.Bold),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold),
                 ForeColor = FacmDesignSystem.Text
             };
             var hint = new Label
@@ -57,7 +58,8 @@ namespace FACM.Mayhem
                 Size = new Size(980, 24),
                 ForeColor = FacmDesignSystem.TextMuted,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                AutoEllipsis = true
+                AutoEllipsis = false,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F)
             };
 
             _query = new TextBox
@@ -110,21 +112,28 @@ namespace FACM.Mayhem
                 Location = new Point(24, 184),
                 Size = new Size(1080, 612),
                 AutoScroll = true,
-                BackColor = FacmDesignSystem.CanvasRaised,
-                BorderStyle = BorderStyle.FixedSingle
+                BackColor = FacmDesignSystem.Surface,
+                BorderStyle = BorderStyle.None
+            };
+            _toolbarSurface = new Panel
+            {
+                BackColor = FacmDesignSystem.Surface,
+                TabStop = false
             };
             _resultImage = new PictureBox
             {
                 AccessibleName = MayhemUiCopy.WindowTitle,
-                Location = new Point(8, 12),
+                Location = new Point(12, 12),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = FacmDesignSystem.CanvasRaised
+                BackColor = FacmDesignSystem.Surface
             };
             _imageHost.Controls.Add(_resultImage);
             _imageHost.Resize += delegate { ResizePreview(); };
             _resultImage.Image = CreateEmptyCard();
 
             _status.AccessibleName = MayhemUiCopy.WindowTitle;
+            Controls.Add(_toolbarSurface);
+            _toolbarSurface.SendToBack();
             Controls.Add(title);
             Controls.Add(hint);
             Controls.Add(_query);
@@ -135,6 +144,7 @@ namespace FACM.Mayhem
             Controls.Add(_progress);
             Controls.Add(_status);
             Controls.Add(_imageHost);
+            _toolbarSurface.SendToBack();
 
             Resize += delegate { ApplyResponsiveLayout(); };
             ApplyResponsiveLayout();
@@ -142,6 +152,8 @@ namespace FACM.Mayhem
             _elapsedTimer = new System.Windows.Forms.Timer { Interval = 250 };
             _elapsedTimer.Tick += UpdateElapsed;
             AcceptButton = _search;
+            FacmThemeRuntime.ThemeChanged += RefreshLookupPalette;
+            Disposed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshLookupPalette; };
             FormClosing += delegate { CancelCurrentQuery(); };
             FormClosed += delegate
             {
@@ -152,6 +164,25 @@ namespace FACM.Mayhem
                 _resultImage.Image = null;
                 if (image != null) image.Dispose();
             };
+        }
+
+        private void RefreshLookupPalette(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                    BeginInvoke(new Action(() => RefreshLookupPalette(sender, e)));
+                return;
+            }
+
+            BackColor = FacmDesignSystem.Canvas;
+            _toolbarSurface.BackColor = FacmDesignSystem.Surface;
+            _imageHost.BackColor = FacmDesignSystem.Surface;
+            _resultImage.BackColor = FacmDesignSystem.Surface;
+            _query.BackColor = FacmDesignSystem.CanvasRaised;
+            _query.ForeColor = FacmDesignSystem.Text;
+            if (!_busy) _status.ForeColor = FacmDesignSystem.TextMuted;
         }
 
         private async Task SearchAsync()
@@ -261,6 +292,7 @@ namespace FACM.Mayhem
             _progress.Bounds = layout.Progress;
             _status.Bounds = layout.Status;
             _imageHost.Bounds = layout.ImageHost;
+            _toolbarSurface.Bounds = MayhemLookupLayoutPolicy.ResolveToolbarSurface(layout, ClientSize.Width);
             ResizePreview();
         }
 
@@ -273,9 +305,20 @@ namespace FACM.Mayhem
                 ? image.Height / (double)image.Width
                 : MayhemCardRenderer.CardHeight / (double)MayhemCardRenderer.CardWidth;
             var height = Math.Max(120, (int)Math.Round(availableWidth * ratio));
-            _resultImage.Location = new Point(8, 12);
-            _resultImage.Size = new Size(availableWidth, height);
-            _imageHost.AutoScrollMinSize = new Size(0, height + 24);
+            var scrollY = Math.Max(0, _imageHost.VerticalScroll.Value);
+            _imageHost.SuspendLayout();
+            try
+            {
+                _imageHost.AutoScrollPosition = Point.Empty;
+                _resultImage.Location = new Point(12, 12);
+                _resultImage.Size = new Size(availableWidth, height);
+                _imageHost.AutoScrollMinSize = new Size(0, height + 24);
+            }
+            finally
+            {
+                _imageHost.ResumeLayout(false);
+                _imageHost.AutoScrollPosition = new Point(0, scrollY);
+            }
         }
 
         private void SaveImage(object sender, EventArgs e)
