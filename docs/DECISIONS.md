@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — B5 migrate remaining common native task surfaces with business continuity
+
+Complete common utility, registered-settings and pet-choice interfaces by reusing existing native semantic colors/buttons rather than adding a separate rendering engine. Group profile actions and consent choices according to user tasks, raise 7–8pt copy to legible roles, and preserve all service lifecycles. The BuildApply intermediate missing-callback regression underlines that source boundaries must be audited explicitly, not only matched to compilation output. Sensitive live League writes, account challenges, desktop pet activation and destructive cleanup are outside aesthetic test execution. The narrowly sized game companion remains a distinct UX/performance risk requiring real native observation.
+
 ## 2026-10-17 — Native secondary dialogs share themes without rewriting cleanup/worker safety
 
 Cleanup preview and maintenance progress dialogs historically used fixed dark-only colors even when the rest of GGman honored user themes. Migrate presentation to FacmDesignSystem, standardize native semantic buttons and maintain the existing visual distinction for destructive cleaning. Preserve SafeCleanupService path validation, blocked operations, explicit confirmation, background worker ownership and cancellation. Native behavioral and screenshot evidence is required before release; this source change alone is not approval to run cleanup or alter published binaries.

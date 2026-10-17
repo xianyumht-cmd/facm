@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B5 continued with UI coverage expansion, B6 pending
+
+Draft PR #351 on `feat/ggman-precision-workbench-b1-20261017` now includes cleanup-main, email captcha, registered statistics privacy, profile customization, both pet selection dialogs, item set, build apply and personal stats presentation migrations. Commits: `ec5e3045f2708451b22535686f63f7b984da2015`, `439de9d0e9c9be5c36c83d633f40301aefa5c970`, `2542e05d0440c55f9ebd8ba9e8b80c4ba4014fd9`, `09b95e4812c7349053688ec479569adc99957f34`, `85ba71dd2f47da2944e54a845abd921b59a67bec`, corrective `a3ae722de1226e7f67fdcf672a45cdb87e9f492d` and `8aea138f250fb3d90259f7a7ba4a9170308e7a4a`.
+
+An intermediate Windows Build #39018862920 failed because the replacement of `LeagueBuildApplyForm.CreateButton` inadvertently removed three auto-apply event/status methods. All missing methods were restored from the prior known-good code in `a3ae722de1226e7f67fdcf672a45cdb87e9f492d`; Windows Build #39019063500 PASSED on that corrected head, with UI Text Contract #39019063416 passing. Do not report the failed intermediate attempt as successful. Final-head acceptance for the subsequent personal-stats/docs edits must still be checked.
+
+B5 remains **source migration in progress**, not native visually complete. In particular `LeagueRuntimeCompanionForm` and `LeagueChampSelectAssistantForm` own small real-time game HUDs whose layout/visual performance requires separate native evidence; unvisited legacy dialogs may remain. B6 whole-product screenshot, DPI/focus/keyboard, startup/memory and rollback tests are not available. Main, signed Release and online updater remain at v3.5.77. No merge/deployment.
+
 ## 2026-10-17 — B5 first source migration (Draft PR #351)
 
 B5 source commit `49c024f115aecc1eb96c3d1ad369ba55d8ea07d8` migrates `CleanupReviewForm`, `BackgroundOperationDialog` and `GameLocatorSearchDialog` away from private dark-only colors to shared semantic themes. Cleanup confirmation stays explicit; cancel/keyboard support is preserved; the destructive confirm button now uses the Danger tone. Background operation worker/cancel lifecycle, cleanup path validation and actual filesystem/cloud operations are not modified. Status as recorded: UI Text Contract and Mayhem Source Probe passed for this code head; Windows Build was still executing and must be verified separately. Native WinForms rendered screenshots and safety/keyboard/DPI acceptance are not available.

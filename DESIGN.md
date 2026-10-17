@@ -51,6 +51,21 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 
 ## B2 source implementation record (native visual validation pending)
 
+## B5 continuation and B6 acceptance boundary (2026-10-17)
+
+Completed source-only continuation on PR #351:
+- `CleanupRepairForm` surfaces directory/help, repair and maintenance state using legible 9–9.5pt copy, with the same owner callbacks and SafeCleanupService operations.
+- `GgmanCaptchaForm` uses wider image/input/status regions and shared primary/secondary native buttons. Captcha fetching, verification and token ownership are unchanged.
+- `GgmanStatsPrivacyForm` groups the two opt-ins in one native card while keeping actual consent state, ranking visibility writes and import/save permissions unchanged.
+- `LeagueProfileCustomizationForm` has four distinct task surfaces for champions/skins, regalia, challenge tokens and emotes, with wider fields, legible hints, common action buttons, and unchanged service/lifetime/selection guards.
+- `PetPickerForm` and `AnimalPetPickerForm` adopt semantic text, surface, list selection and action tones; image, download, PetHost, animation and selection/activation owners remain intact.
+- `LeagueItemSetForm` and `LeagueBuildApplyForm` replace dark-only presentation with standard semantic colors and native actions, preserving their existing read/write confirmation semantics.
+- `LeaguePersonalStatsForm` aligns summary/history typography with the 9pt minimum while retaining its current scroll, CloudBase editor and account layout.
+
+**Build regression recorded:** `LeagueBuildApplyForm`'s first button-factory replacement accidentally omitted three existing auto-apply callbacks; Windows Build #39018862920 failed with four CS0103 errors. Follow-up commit `a3ae722de1226e7f67fdcf672a45cdb87e9f492d` restored the exact original handlers and Windows Build #39019063500 passed. Never infer service correctness from the intermediate failed state.
+
+**Still incomplete/unknown:** Native visual before/after evidence for any new surface, all ten themes, keyboard/IME and 100/125/150/200% DPI checks, startup/idle memory, real installer/CloudBase/game tests, companion HUD and legacy assistant visual assessment, remaining accessible dialogs and the whole-product image-led acceptance ledger. Source/CI cannot replace native experience validation. Do not declare full visual completion, merge, publish or assert Astra approval.
+
 ## B5 source migration — cleanup review and maintenance progress dialogs
 
 Three active GGman-owned secondary surfaces remain native and use the existing design tokens:

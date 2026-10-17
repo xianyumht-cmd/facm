@@ -1,5 +1,13 @@
 # GGman Operations (3.5.x)
 
+## B5 continuation / B6 safety and visual QA handoff (2026-10-17)
+
+The current candidate adds CleanupRepair, Captcha, Registered Stats Privacy, Profile Customization, PetPicker, AnimalPetPicker, LeagueItemSet, LeagueBuildApply and Personal Stats. Final B6 native acceptance must capture the same-screen previous/current candidate pairs at a pinned SHA for all, plus the actual topmost companion/ChampSelect assistant and any remaining reachable dialogs. All ten ThemeCatalog IDs, 100/125/150/200% DPI as feasible, focus/Tab/Escape, selection/disabled/hover, narrow windows, long Chinese descriptions, any credential-safe image states, and visual independence of dangerous actions are required. Do not perform destructive deletion, real game write, new-login/password challenge or pet resource download only to obtain a screenshot. Use authorization-safe fixtures or genuine operator observation.
+
+Build issue #39018862920 on `LeagueBuildApplyForm` CS0103 was caused by removing three auto-apply callbacks during presentation refactoring; all were restored in `a3ae722de1226e7f67fdcf672a45cdb87e9f492d`, which passed Windows Build #39019063500. Explicitly exercise enabling/disabling auto-apply, UI state updates, disposal unsubscribe and safe confirmation in the later native regression. A passing build does **not** prove live League service behavior.
+
+**Do not publish from source CI alone.** The owner's accepted sequence remains one consolidated release, then a single independent Astra professional visual review. Pre-release functional/desktop safety, installer/rollback readiness and actual screenshot QA remain prerequisites; record missing cases as INCONCLUSIVE, not green.
+
 ## B5 native cleanup and operation dialog visual/safety matrix (pending)
 
 At the consolidated final SHA, capture CleanupReviewForm with blocked and permitted test entries, varied Chinese paths/bytes, footer cancellation focus, and all relevant theme/light/high-contrast states; do not execute destructive cleanup to collect screenshots. Verify success/warning/error status and readable grid text at 100/125/150/200% DPI. Exercise Escape/Tab/Shift+Tab/Enter, explicit Cancel and non-accidental Execute selection. For BackgroundOperationDialog and GameLocatorSearchDialog verify window ownership, no premature close during work, keyboard cancellation for the cancellable task and progress copy visibility. Unit and CI checks cannot establish actual WinForms text clipping or delete safety; all native conditions remain INCONCLUSIVE until tested by an authorized operator.
