@@ -44,10 +44,46 @@ namespace FACM.Theming
             if (FacmDesignSystem.ControlRadius > 6 || FacmDesignSystem.CardRadius > 8 || FacmDesignSystem.WindowRadius > 12)
                 throw new InvalidOperationException("FACM product radii drifted back into oversized template-style rounding.");
 
+            ValidateReadableActionText();
             ValidateChromeButtonIsolation();
             ValidateToggleResizeRepaint();
             ValidateWindowChromeLayout();
             MayhemLookupLayoutPolicy.ValidateForSmokeTest();
+        }
+
+        private static void ValidateReadableActionText()
+        {
+            var surfaces = new[]
+            {
+                Color.White,
+                Color.FromArgb(239, 236, 224),
+                Color.FromArgb(204, 150, 54),
+                Color.FromArgb(78, 126, 255),
+                Color.FromArgb(32, 184, 255),
+                Color.FromArgb(61, 105, 255),
+                Color.Black
+            };
+            foreach (var surface in surfaces)
+                RequireReadableActionText(surface, Color.White);
+
+            foreach (var theme in ThemeCatalog.All)
+            {
+                RequireReadableActionText(theme.Accent, Color.White);
+                RequireReadableActionText(theme.SurfaceSecondary, theme.TextPrimary);
+                RequireReadableActionText(
+                    FacmDesignSystem.Blend(theme.Accent, Color.White, theme.IsLight ? 0.05F : 0.10F),
+                    Color.White);
+                RequireReadableActionText(
+                    FacmDesignSystem.Blend(theme.Accent, Color.Black, theme.IsLight ? 0.06F : 0.14F),
+                    Color.White);
+            }
+        }
+
+        private static void RequireReadableActionText(Color background, Color preferred)
+        {
+            var foreground = FacmDesignSystem.ReadableTextOn(background, preferred);
+            if (FacmDesignSystem.ContrastRatio(background, foreground) < 4.5D)
+                throw new InvalidOperationException("Shared action text contrast is below the readability contract.");
         }
 
         private static void ValidateChromeButtonIsolation()

@@ -118,6 +118,8 @@ namespace FACM.Services
         public const string UiTextEditorNoLogin = "UiTextEditorNoLogin";
         public const string UiTextEditorSelectEntry = "UiTextEditorSelectEntry";
         public const string UiTextEditorSaveBeforeCloud = "UiTextEditorSaveBeforeCloud";
+        public const string UiTextEditorLeavePrompt = "UiTextEditorLeavePrompt";
+        public const string UiTextEditorExternalConflict = "UiTextEditorExternalConflict";
         public const string EscSettingsTitle = "EscSettingsTitle";
         public const string EscSettingsHint = "EscSettingsHint";
         public const string EscSettingsFolder = "EscSettingsFolder";

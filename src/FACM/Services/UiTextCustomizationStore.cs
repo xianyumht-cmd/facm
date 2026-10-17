@@ -103,6 +103,44 @@ namespace FACM.Services
                 throw new InvalidDataException("文字中包含不支持的控制字符。");
         }
 
+        internal static UiTextProfile Copy(UiTextProfile source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            return new UiTextProfile
+            {
+                SchemaVersion = source.SchemaVersion,
+                Text = new Dictionary<string, string>(source.Text, StringComparer.OrdinalIgnoreCase),
+                Replace = new Dictionary<string, string>(source.Replace, StringComparer.Ordinal)
+            };
+        }
+
+        // Rebase a single edit onto current storage without mutating the editor's saved baseline.
+        internal static UiTextProfile PrepareSingleEdit(UiTextProfile baseline, UiTextProfile latest,
+            string key, bool rule, string value, bool remove)
+        {
+            if (baseline == null || latest == null) throw new ArgumentNullException(
+                baseline == null ? nameof(baseline) : nameof(latest));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new InvalidDataException("文字配置键不能为空。");
+
+            var before = rule ? baseline.Replace : baseline.Text;
+            var now = rule ? latest.Replace : latest.Text;
+            string previousValue, currentValue;
+            var hadPrevious = before.TryGetValue(key, out previousValue);
+            var hasCurrent = now.TryGetValue(key, out currentValue);
+            if (hadPrevious != hasCurrent ||
+                (hadPrevious && !string.Equals(previousValue, currentValue, StringComparison.Ordinal)))
+                throw new InvalidOperationException(
+                    UiTextRuntime.Text(UiTextKeys.UiTextEditorExternalConflict));
+
+            var candidate = Copy(latest);
+            var target = rule ? candidate.Replace : candidate.Text;
+            if (remove) target.Remove(key);
+            else target[key] = value;
+            Validate(candidate);
+            return candidate;
+        }
+
         internal static void Apply(UiTextProfile profile)
         {
             Validate(profile);
@@ -217,8 +255,40 @@ namespace FACM.Services
             }
         }
 
+        private static void ValidateSingleEditForSmokeTest()
+        {
+            var baseline = new UiTextProfile();
+            try
+            {
+                PrepareSingleEdit(baseline, baseline, new string('X', 201), true, "invalid", false);
+                throw new InvalidOperationException("Oversized replacement key was accepted.");
+            }
+            catch (InvalidDataException) { }
+            if (baseline.Replace.Count != 0)
+                throw new InvalidOperationException("Failed edit contaminated the saved draft baseline.");
+
+            var latest = new UiTextProfile();
+            latest.Text[UiTextKeys.AppName] = "Cloud preference";
+            var merged = PrepareSingleEdit(baseline, latest, UiTextKeys.Close, false, "关闭面板", false);
+            if (merged.Text[UiTextKeys.AppName] != "Cloud preference" ||
+                merged.Text[UiTextKeys.Close] != "关闭面板" ||
+                baseline.Text.Count != 0 || latest.Text.Count != 1)
+                throw new InvalidOperationException("Rebased edit lost unrelated persisted text.");
+
+            var conflictRejected = false;
+            try { PrepareSingleEdit(baseline, latest, UiTextKeys.AppName, false, "Local preference", false); }
+            catch (InvalidOperationException) { conflictRejected = true; }
+            if (!conflictRejected)
+                throw new InvalidOperationException("Conflicting remote edit was silently overwritten.");
+
+            var reset = PrepareSingleEdit(merged, merged, UiTextKeys.Close, false, null, true);
+            if (reset.Text.ContainsKey(UiTextKeys.Close) || reset.Text[UiTextKeys.AppName] != "Cloud preference")
+                throw new InvalidOperationException("Reset did not preserve unrelated persisted text.");
+        }
+
         internal static void ValidateForSmokeTest()
         {
+            ValidateSingleEditForSmokeTest();
             var defaults = UiTextCatalog.DefaultEntries;
             if (defaults.Count < 100) throw new InvalidOperationException("UI text catalog unexpectedly small.");
             var entry = defaults.FirstOrDefault(x => x.Value.Contains("{0}"));

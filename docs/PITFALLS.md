@@ -1,5 +1,31 @@
 # FACM Pitfalls
 
+## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
+
+Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.
+
+## Updating the baseline without rebinding list entries can defeat conflict checks (2026-10-17)
+
+In PR #350, a Save/Discard/Cancel Yes choice during item selection calls `SaveLocal(false)`. It correctly rebases `_draft` to fresh disk content but previously retained the old destination `Entry.Current` object. Saving that stale displayed value on the next item could pass same-key conflict detection and roll back newer cloud-restored values, then notify automatic sync. After saving the candidate, synchronize visible list entries and rebind the destination entry by key before rendering it; do not recursively refresh inside Save. On conflict followed by Discard, reread persisted state, update the current selection and allow immediate re-edit; Cancel must still preserve the unsaved draft. Cover ordinary text and replacement rules with Save-on-navigation and Discard-then-edit smoke checks.
+
+## Editor full-profile mutation before durable write leaks rejected changes (2026-10-17)
+
+In PR #350 review, `UiTextEditorPanel.SaveLocal` and `ResetSelected` were changing `_draft.Text` or `_draft.Replace` before `UiTextCustomizationStore.Apply` validated and atomically replaced the disk file. Failed validation or I/O left the in-memory baseline dirty, so the new Discard action only cleared visible fields while hidden rejected edits remained in the next full write and possibly registered automatic upload. Treat the editor baseline as immutable: clone the **latest** persisted profile, apply and validate only the intended key, persist, then advance the baseline and notify cloud sync only on success. A discarded failed edit must not influence any later save.
+
+## Cloud restore must invalidate cached editor profiles (2026-10-17)
+
+The cloud-first service deferred restore only for visible unsaved drafts, but otherwise applied a new `ui-text.ini` without notifying an already-open editor. That editor could save its stale full-profile snapshot and revert newer cloud values. Notify the active editor after a successful registered restore; never unconditionally reload over a currently dirty visible editor. Independently, each Save/Reset must rebase the **single intended key** onto a fresh disk capture, rejecting changes when that key has itself changed since the editor's baseline, preserving unrelated remote changes. This protects the saved data even if a UI notification is delayed or missed.
+
+
+## Outside-click dismissal cannot be inferred from a window's ControlBox (2026-10-16)
+
+The shared borderless chrome historically used `CloseOnDeactivate ?? ControlBox`, so a full workbench with long-lived editing also inherited transient flyout dismissal. Distinguish persistent task windows from flyouts at the owning form's chrome policy, not by globally changing the default and potentially breaking intentional popup dismissal. Protect the editor's unsaved state at **each internal content replacement** and at its owning workbench navigation/close boundary: cloud-restore deferral alone does not protect local selection, filtering, collapsing, or disposing a page. A canceled transition must preserve both the draft and the previous view; an explicit Save alone may notify cloud auto-sync.
+
+## A shared accent color is not automatically readable (2026-10-16)
+
+The button painter previously used white foreground even when a preset's accent was bright enough to make normal text unreadable; a recommendation title also hard-coded white on the light preset's white surface. Resolve the text color from the actual painted fill and validate contrast for representative theme surfaces and states. Avoid treating token adoption alone as proof of readable output.
+
+
 ## Missing remote profiles and local drift are not account synchronization conflicts (2026-10-15)
 
 Prior `Decide` rules flagged non-pristine first use and local+remote changes as `SyncAction.Conflict`; the UI then displayed `发现不同配置，已暂停该项自动覆盖`. With the user's cloud-authoritative contract, a remote row that exists must win against unlinked/cross-owner/stale local data and be restored, not block on a manual preference choice. The two categories had different selection rules, so UI text was especially prone to the false conflict. Conversely, `remoteVersion==0` means **no server snapshot**, not that two versions conflict: never auto-upload stale local settings; label it `云端尚未创建备份`, require intentional bootstrap, and check the server again before writing. Preserve genuine unsaved editor drafts and CAS concurrency. Distinguish explicit locally saved edits in the current registered session from unintentional drift; only the former may automatically update an existing remote snapshot whose revision/hash matches the local checkpoint.

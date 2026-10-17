@@ -1,5 +1,27 @@
 # FACM Architecture
 
+## Replacement-rule selection identity (PR #350, 2026-10-17)
+
+The editor uses case-insensitive search but mode-specific selection identity: plain text keys are `OrdinalIgnoreCase`, replacement rule keys are `Ordinal` to match their persisted dictionary. This distinction applies to list rebuilds after Save/Discard navigation so `Foo` and `foo` cannot be interchanged.
+
+## Editor list rebinding after save and conflict discard (PR #350, 2026-10-17)
+
+`UiTextEditorPanel` keeps its rendered list entries consistent with `_draft` after a successful single-key Save, including the nonrefreshing `SaveLocal(false)` branch used by Save/Discard/Cancel navigation. When a pending selection change is resolved, `Filter` rebinds the requested key against the resulting profile before rendering the destination entry; it must not render a `next` object captured before the save. Discard rereads persisted state without writing or notifying cloud sync, refreshes visible values and rebuilds selection on navigation. A failed reread blocks leaving and preserves the visible draft. This addresses delayed/missed restore notifications without broadening the cloud write policy.
+
+## UI text editor transaction and cloud restore consistency (PR #350 candidate, 2026-10-17)
+
+`UiTextCustomizationStore.PrepareSingleEdit` is a pure candidate constructor: it compares the target key between the editor's captured baseline and the current persisted profile, rejects same-key divergence, clones current state and validates a single text/rule edit or reset. `UiTextEditorPanel` writes that independent candidate first, then updates its saved baseline and emits `NotifyUiTextSaved`; a validation or filesystem failure leaves its baseline untouched, so Discard has no hidden stale edits to publish. Normal UI editing still persists through the existing atomic, backed-up `Apply` path.
+
+`GgmanAutoSyncService.RestoreText` performs the existing profile apply and then asks `UiTextEditorPanel.NotifyExternalRestore` to reload an expanded editor with no visible pending edits. Any attempted Save/Reset independently reads the latest profile, so unrelated changes survive if the editor was not refreshed. Same-key external changes veto local persistence instead of silently overwriting the remote-authoritative choice. This does not change CloudBase schema, CAS or registered authentication.
+
+
+## League workbench lifetime and UI-text draft ownership (P1 correction candidate, 2026-10-16)
+
+`LeagueSoftGlassSkin.Apply` supplies a persistent chrome policy specifically for `LeagueHubForm`; quick launcher and other transient surfaces keep their separate existing ownership. `LeagueHubForm` asks the embedded `LeaguePersonalStatsForm` to resolve editor draft state **before** replacing or disposing its child view and during FormClosing. `LeaguePersonalStatsForm` delegates to its `UiTextEditorPanel`; the editor itself guards content transitions (selection, filter/mode, new rule and collapse) and only calls `UiTextCustomizationStore.Apply` / `NotifyUiTextSaved` for an explicit Save choice. Draft loss protection is distinct from `GgmanAutoSyncService`'s remote-restore deferral.
+
+Shared `FacmActionButton` derives text contrast from the effective painted enabled fill; `FacmDesignSystem` owns the contrast calculation. Normal native focus/cancel semantics are retained for the cleanup preview. This is a candidate change, not a claim of verified Windows runtime acceptance.
+
+
 ## Cloud-first selection for registered software and UI text (3.5.77)
 
 `GgmanAutoSyncService.DecideCloudFirst` is the single selection function for `ggman_registered_app_settings` and `ggman_ui_text_profiles`. A non-empty registered remote row takes priority when local differs, including first login, restored versions and different prior owners. The automatic upload exception requires a deliberate `AppSettings.Saved` or `UiTextEditorPanel` local-save notification **and** a matched prior remote version+fingerprint checkpoint belonging to the same GGman UID. CloudBase RPC CAS remains the authoritative rejection of concurrent changes. Missing server rows are never background uploaded: the existing config center surfaces a `创建云端备份` action for the missing app/text category, which rereads the remote row before attempting initial CAS. An unsaved visible UI text edit defers that category's restore without blocking other game sync. `GgmanUnifiedSyncPanel` no longer presents ordinary differences as two equivalent conflicting versions; local app path, geometry, identity, token, and privacy settings remain unsynced.

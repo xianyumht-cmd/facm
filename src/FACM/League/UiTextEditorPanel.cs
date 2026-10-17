@@ -44,6 +44,14 @@ namespace FACM.League
         private bool _expanded;
         private bool _busy;
         private bool _loading;
+        private Entry _renderedEntry;
+        private int _renderedMode;
+        private string _appliedSearch = string.Empty;
+        private int _appliedMode;
+        private Func<DialogResult> _confirmLeaveForSmokeTest;
+        private Func<UiTextProfile> _readProfile = UiTextCustomizationStore.Capture;
+        private Action<UiTextProfile> _writeProfile = UiTextCustomizationStore.Apply;
+        private Action _notifySaved = delegate { GgmanAutoSyncService.Current?.NotifyUiTextSaved(); };
 
         internal event EventHandler ExpandedHeightChanged;
 
@@ -117,6 +125,7 @@ namespace FACM.League
             _reset.Click += delegate { ResetSelected(); };
             _newRule.Click += delegate
             {
+                if (!TryResolvePendingEdit()) return;
                 if (_mode.SelectedIndex != 1) _mode.SelectedIndex = 1;
                 _items.ClearSelected();
                 _source.Text = string.Empty;
@@ -166,6 +175,7 @@ namespace FACM.League
         private void SetExpanded(bool value)
         {
             if (_expanded == value) return;
+            if (!value && !TryResolvePendingEdit()) return;
             _expanded = value;
             Height = value ? 492 : 48;
             _expandButton.Text = _ui.Get(value ? UiTextKeys.UiTextEditorCollapse : UiTextKeys.UiTextEditorExpand);
@@ -214,13 +224,26 @@ namespace FACM.League
         private void RefreshEntries()
         {
             if (_busy) return;
-            _draft = UiTextCustomizationStore.Capture();
+            _draft = _readProfile();
             Filter();
         }
 
         private void Filter()
         {
-            if (_items == null || _mode == null || _draft == null) return;
+            if (_loading || _items == null || _mode == null || _draft == null) return;
+            if (!TryResolvePendingEdit())
+            {
+                _loading = true;
+                try
+                {
+                    _search.Text = _appliedSearch;
+                    _mode.SelectedIndex = _appliedMode;
+                }
+                finally { _loading = false; }
+                return;
+            }
+            _appliedSearch = _search.Text;
+            _appliedMode = _mode.SelectedIndex;
             var mode = _mode.SelectedIndex == 1;
             var query = _search.Text.Trim();
             var entries = new List<Entry>();
@@ -257,7 +280,7 @@ namespace FACM.League
                 _items.EndUpdate();
                 for (var i = 0; i < _items.Items.Count; i++)
                     if (string.Equals(((_items.Items[i] as Entry)?.Key), previous,
-                        StringComparison.OrdinalIgnoreCase))
+                        mode ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
                     {
                         _items.SelectedIndex = i;
                         break;
@@ -270,10 +293,29 @@ namespace FACM.League
         private void RenderSelection()
         {
             if (_loading || _draft == null) return;
+            var next = _items.SelectedItem as Entry;
+            if (!ReferenceEquals(next, _renderedEntry))
+            {
+                var pending = HasPendingChanges;
+                if (!TryResolvePendingEdit())
+                {
+                    _loading = true;
+                    try { _items.SelectedItem = _renderedEntry; }
+                    finally { _loading = false; }
+                    return;
+                }
+                if (pending)
+                {
+                    Filter();
+                    return;
+                }
+            }
             _loading = true;
             try
             {
-                var entry = _items.SelectedItem as Entry;
+                var entry = next;
+                _renderedEntry = entry;
+                _renderedMode = _mode.SelectedIndex;
                 var advanced = _mode.SelectedIndex == 1;
                 _source.Visible = _expanded && advanced;
                 _newRule.Visible = _expanded && advanced;
@@ -287,51 +329,427 @@ namespace FACM.League
             finally { _loading = false; }
         }
 
-        private void SaveLocal()
+        private bool SaveLocal(bool refresh = true)
         {
-            if (_busy) return;
+            if (_busy) return false;
             try
             {
-                var entry = _items.SelectedItem as Entry;
-                if (_mode.SelectedIndex == 1)
+                var entry = _renderedEntry;
+                UiTextProfile candidate;
+                var latest = _readProfile();
+                if (_renderedMode == 1)
                 {
                     var source = _source.Text.Trim();
                     if (source.Length == 0) throw new InvalidOperationException(
                         _ui.Get(UiTextKeys.UiTextEditorSelectEntry));
-                    _draft.Replace[source] = _value.Text;
+                    candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                        _draft, latest, source, true, _value.Text, false);
                 }
                 else
                 {
                     if (entry == null) throw new InvalidOperationException(
                         _ui.Get(UiTextKeys.UiTextEditorSelectEntry));
                     UiTextCustomizationStore.ValidateText(_value.Text, entry.Original);
-                    if (string.Equals(_value.Text, entry.Original, StringComparison.Ordinal))
-                        _draft.Text.Remove(entry.Key);
-                    else
-                        _draft.Text[entry.Key] = _value.Text;
+                    candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                        _draft, latest, entry.Key, false, _value.Text,
+                        string.Equals(_value.Text, entry.Original, StringComparison.Ordinal));
                 }
-                UiTextCustomizationStore.Apply(_draft);
-                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
+                _writeProfile(candidate);
+                _draft = candidate;
+                if (entry != null)
+                    entry.Current = _value.Text;
+                else
+                    ClearNewRuleFields();
+                SyncVisibleEntriesFromDraft();
+                _notifySaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
-                RefreshEntries();
+                if (refresh) RefreshEntries();
+                return true;
             }
             catch (Exception error)
             {
                 _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
+                return false;
+            }
+        }
+
+        private void SyncVisibleEntriesFromDraft()
+        {
+            foreach (Entry entry in _items.Items)
+            {
+                string current;
+                if (entry.IsRule)
+                    entry.Current = _draft.Replace.TryGetValue(entry.Key, out current)
+                        ? current : string.Empty;
+                else
+                    entry.Current = _draft.Text.TryGetValue(entry.Key, out current)
+                        ? current : entry.Original;
+            }
+            _items.Invalidate();
+        }
+
+        private void ClearNewRuleFields()
+        {
+            _loading = true;
+            try
+            {
+                _source.Text = string.Empty;
+                _value.Text = string.Empty;
+                _preview.Text = string.Empty;
+            }
+            finally { _loading = false; }
+        }
+
+        internal bool TryResolvePendingEdit()
+        {
+            if (IsDisposed) return true;
+            if (_busy) return false;
+            if (!HasPendingChanges) return true;
+
+            var decision = _confirmLeaveForSmokeTest != null ? _confirmLeaveForSmokeTest() :
+                MessageBox.Show(this, _ui.Get(UiTextKeys.UiTextEditorLeavePrompt),
+                    _ui.Get(UiTextKeys.UiTextEditorTitle), MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Warning, MessageBoxDefaultButton.Button3);
+            if (decision == DialogResult.Yes) return SaveLocal(false);
+            if (decision != DialogResult.No) return false;
+
+            UiTextProfile latest;
+            try { latest = _readProfile(); }
+            catch (Exception error)
+            {
+                _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
+                return false;
+            }
+            _draft = latest;
+            SyncVisibleEntriesFromDraft();
+            _loading = true;
+            try
+            {
+                _source.Text = _renderedEntry != null && _renderedEntry.IsRule
+                    ? _renderedEntry.Key : string.Empty;
+                _value.Text = _renderedEntry == null ? string.Empty : _renderedEntry.Current;
+                _preview.Text = _value.Text;
+            }
+            finally { _loading = false; }
+            return true;
+        }
+
+        internal static void ValidateDraftNavigationForSmokeTest()
+        {
+            ValidatePersistenceForSmokeTest();
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                editor.SetExpanded(true);
+                if (editor._items.Items.Count < 2)
+                    throw new InvalidOperationException("UI text editor needs at least two text entries for navigation smoke.");
+
+                editor._items.SelectedIndex = 0;
+                var original = editor._items.SelectedItem;
+                var draft = editor._value.Text + " draft";
+                editor._value.Text = draft;
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.Cancel; };
+
+                editor._items.SelectedIndex = 1;
+                if (!ReferenceEquals(editor._items.SelectedItem, original) || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling an edit transition discarded the current draft.");
+
+                editor._search.Text = draft;
+                if (editor._search.Text != string.Empty || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling a search failed to preserve the visible edit.");
+
+                editor._mode.SelectedIndex = 1;
+                if (editor._mode.SelectedIndex != 0 || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling a mode switch lost the current edit.");
+
+                editor.SetExpanded(false);
+                if (!editor._expanded || editor._value.Text != draft)
+                    throw new InvalidOperationException("Canceling collapse lost the current draft.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                editor._items.SelectedIndex = 1;
+                if (editor._items.SelectedIndex != 1 || editor.HasPendingChanges)
+                    throw new InvalidOperationException("Discard did not allow the requested editor selection.");
+            }
+        }
+
+        private static void ValidatePersistenceForSmokeTest()
+        {
+            ValidateNavigationRebaseForSmokeTest(false);
+            ValidateNavigationRebaseForSmokeTest(true);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.Yes);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.No);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.Cancel);
+            ValidateConflictDiscardRecoveryForSmokeTest(false);
+            ValidateConflictDiscardRecoveryForSmokeTest(true);
+            ValidateResetWriteFailureForSmokeTest();
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                var rejectWrite = true;
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    if (rejectWrite) throw new System.IO.IOException("Simulated write failure.");
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._items.SelectedIndex = 0;
+                var first = editor._items.SelectedItem as Entry;
+                var changed = editor._value.Text + " edited";
+                editor._value.Text = changed;
+                if (editor.SaveLocal() || !editor.HasPendingChanges ||
+                    editor._draft.Text.Count != 0 || saved.Text.Count != 0 || notifications != 0)
+                    throw new InvalidOperationException("Failed save altered the saved editor baseline.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                editor._items.SelectedIndex = 1;
+                var second = editor._items.SelectedItem as Entry;
+                if (second == null || ReferenceEquals(second, first))
+                    throw new InvalidOperationException("Discard did not switch editor selection.");
+                rejectWrite = false;
+                editor._value.Text = editor._value.Text + " revised";
+                if (!editor.SaveLocal() || saved.Text.ContainsKey(first.Key) ||
+                    !saved.Text.ContainsKey(second.Key) || notifications != 1)
+                    throw new InvalidOperationException("Later save included previously failed and discarded changes.");
+
+                editor._mode.SelectedIndex = 1;
+                editor._source.Text = new string('X', 201);
+                editor._value.Text = changed;
+                if (editor.SaveLocal() || saved.Replace.Count != 0 || notifications != 1)
+                    throw new InvalidOperationException("Invalid replacement rule polluted saved configuration.");
+                editor._mode.SelectedIndex = 0;
+                editor._items.SelectedIndex = 1;
+                editor._value.Text = editor._value.Text + " valid";
+                if (!editor.SaveLocal() || saved.Replace.Count != 0 || notifications != 2)
+                    throw new InvalidOperationException("Invalid discarded rule blocked a subsequent valid save.");
+
+                var remoteKey = string.Equals(second.Key, UiTextKeys.AppName, StringComparison.Ordinal)
+                    ? UiTextKeys.Close : UiTextKeys.AppName;
+                saved.Text[remoteKey] = "Remote preference";
+                editor.ReloadAfterExternalRestore();
+                if (editor._draft.Text[remoteKey] != "Remote preference")
+                    throw new InvalidOperationException("External restore left editor baseline stale.");
+                editor._value.Text = editor._value.Text + " after remote";
+                if (!editor.SaveLocal() || saved.Text[remoteKey] != "Remote preference" ||
+                    notifications != 3)
+                    throw new InvalidOperationException("Editing after restore reverted unrelated remote configuration.");
+
+                var anotherRemote = string.Equals(second.Key, UiTextKeys.Close, StringComparison.Ordinal)
+                    ? UiTextKeys.AppName : UiTextKeys.Close;
+                saved.Text[anotherRemote] = "Another remote preference";
+                editor._value.Text = editor._value.Text + " rebased";
+                if (!editor.SaveLocal() || saved.Text[anotherRemote] != "Another remote preference")
+                    throw new InvalidOperationException("Unannounced remote edit was not preserved by save rebase.");
+
+                var notifyBeforeConflict = notifications;
+                var competingValue = second.Original + " remote";
+                saved.Text[second.Key] = competingValue;
+                editor._value.Text = editor._value.Text + " conflicting";
+                if (editor.SaveLocal() || saved.Text[second.Key] != competingValue ||
+                    !editor.HasPendingChanges || notifications != notifyBeforeConflict)
+                    throw new InvalidOperationException("Concurrent same-key change was overwritten or announced.");
+
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                if (!editor.TryResolvePendingEdit() || editor._value.Text != competingValue ||
+                    editor.HasPendingChanges)
+                    throw new InvalidOperationException("Discard did not reload the current competing value.");
+                editor._value.Text += " accepted";
+                if (!editor.SaveLocal() || saved.Text[second.Key] != competingValue + " accepted" ||
+                    notifications != notifyBeforeConflict + 1)
+                    throw new InvalidOperationException("Editing after conflict discard required an external refresh.");
+
+                editor.ResetSelected();
+                if (saved.Text.ContainsKey(second.Key) ||
+                    saved.Text[anotherRemote] != "Another remote preference" ||
+                    notifications != notifyBeforeConflict + 2)
+                    throw new InvalidOperationException("Reset after discard did not preserve remote siblings.");
+            }
+        }
+
+
+        private static void ValidateNavigationRebaseForSmokeTest(bool advanced)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                if (advanced)
+                {
+                    saved.Replace["rule-a"] = "first";
+                    saved.Replace["rule-b"] = "second";
+                }
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                if (advanced) editor._mode.SelectedIndex = 1;
+                if (editor._items.Items.Count < 2)
+                    throw new InvalidOperationException("Navigation rebase requires two visible entries.");
+                editor._items.SelectedIndex = 0;
+                var first = editor._items.SelectedItem as Entry;
+                var second = editor._items.Items[1] as Entry;
+                var remoteValue = second.Current + " remote";
+                if (advanced) saved.Replace[second.Key] = remoteValue;
+                else saved.Text[second.Key] = remoteValue;
+
+                editor._value.Text += " local";
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.Yes; };
+                editor._items.SelectedIndex = 1;
+                if (editor._renderedEntry == null ||
+                    editor._renderedEntry.Key != second.Key ||
+                    editor._value.Text != remoteValue ||
+                    editor._renderedEntry.Current != remoteValue ||
+                    notifications != 1)
+                    throw new InvalidOperationException("Save-on-navigation displayed a stale target entry.");
+
+                if (!editor.SaveLocal() || notifications != 2 ||
+                    (advanced ? saved.Replace[second.Key] : saved.Text[second.Key]) != remoteValue)
+                    throw new InvalidOperationException("Save-on-navigation reverted the newer sibling entry.");
+                if ((advanced ? saved.Replace[first.Key] : saved.Text[first.Key]) !=
+                    first.Current)
+                    throw new InvalidOperationException("Save-on-navigation dropped the edited first entry.");
+            }
+        }
+
+        private static void ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult decision)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                saved.Replace["Foo"] = "upper";
+                saved.Replace["foo"] = "lower";
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._mode.SelectedIndex = 1;
+                if (editor._items.Items.Count != 2)
+                    throw new InvalidOperationException("Case-sensitive rule navigation requires two entries.");
+                editor._items.SelectedIndex = 0;
+                if ((editor._renderedEntry == null ? null : editor._renderedEntry.Key) != "Foo")
+                    throw new InvalidOperationException("Rule selection setup selected the wrong case.");
+
+                editor._value.Text = "upper draft"; // ui-text-contract: allow
+                editor._confirmLeaveForSmokeTest = delegate { return decision; };
+                editor._items.SelectedIndex = 1;
+
+                if (decision == DialogResult.Cancel)
+                {
+                    if ((editor._items.SelectedItem as Entry)?.Key != "Foo" ||
+                        editor._renderedEntry?.Key != "Foo" ||
+                        editor._value.Text != "upper draft" || !editor.HasPendingChanges ||
+                        saved.Replace["Foo"] != "upper" || saved.Replace["foo"] != "lower" ||
+                        notifications != 0)
+                        throw new InvalidOperationException("Cancel switched case-sensitive rule or saved its draft.");
+                    return;
+                }
+
+                var expectedUpper = decision == DialogResult.Yes ? "upper draft" : "upper";
+                var expectedNotifications = decision == DialogResult.Yes ? 1 : 0;
+                if ((editor._items.SelectedItem as Entry)?.Key != "foo" ||
+                    editor._renderedEntry?.Key != "foo" || editor._source.Text != "foo" ||
+                    editor._value.Text != "lower" || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace["foo"] != "lower" || notifications != expectedNotifications)
+                    throw new InvalidOperationException("Navigation selected the wrong case-sensitive rule.");
+
+                editor._value.Text = "lower revised"; // ui-text-contract: allow
+                if (!editor.SaveLocal() || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace["foo"] != "lower revised" ||
+                    notifications != expectedNotifications + 1)
+                    throw new InvalidOperationException("Saving a case-sensitive rule changed its sibling.");
+
+                editor.ResetSelected();
+                if (!saved.Replace.ContainsKey("Foo") || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace.ContainsKey("foo") || notifications != expectedNotifications + 2)
+                    throw new InvalidOperationException("Reset targeted the wrong case-sensitive rule.");
+            }
+        }
+
+        private static void ValidateConflictDiscardRecoveryForSmokeTest(bool advanced)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                if (advanced) saved.Replace["rule-a"] = "first";
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                if (advanced) editor._mode.SelectedIndex = 1;
+                editor._items.SelectedIndex = 0;
+                var entry = editor._items.SelectedItem as Entry;
+                var remoteValue = entry.Current + " remote";
+                if (advanced) saved.Replace[entry.Key] = remoteValue;
+                else saved.Text[entry.Key] = remoteValue;
+
+                editor._value.Text += " local";
+                if (editor.SaveLocal() || notifications != 0)
+                    throw new InvalidOperationException("Same-key remote edit did not reject the local save.");
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                if (!editor.TryResolvePendingEdit() || editor._value.Text != remoteValue ||
+                    editor.HasPendingChanges)
+                    throw new InvalidOperationException("Conflict Discard did not reload the current value.");
+                editor._value.Text += " continued";
+                if (!editor.SaveLocal() || notifications != 1 ||
+                    (advanced ? saved.Replace[entry.Key] : saved.Text[entry.Key]) !=
+                    remoteValue + " continued")
+                    throw new InvalidOperationException("Editing after conflict Discard did not recover.");
+            }
+        }
+
+        private static void ValidateResetWriteFailureForSmokeTest()
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    throw new System.IO.IOException("Simulated reset write failure.");
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._items.SelectedIndex = 0;
+                var entry = editor._items.SelectedItem as Entry;
+                saved.Text[entry.Key] = entry.Original + " stored";
+                editor.ReloadAfterExternalRestore();
+                editor.ResetSelected();
+                if (editor._draft.Text[entry.Key] != entry.Original + " stored" ||
+                    saved.Text[entry.Key] != entry.Original + " stored" ||
+                    notifications != 0)
+                    throw new InvalidOperationException("Failed reset changed persisted/editor baseline.");
             }
         }
 
         private void ResetSelected()
         {
-            if (_busy) return;
-            var entry = _items.SelectedItem as Entry;
+            if (_busy || !TryResolvePendingEdit()) return;
+            var entry = _renderedEntry;
             if (entry == null) return;
             try
             {
-                if (entry.IsRule) _draft.Replace.Remove(entry.Key);
-                else _draft.Text.Remove(entry.Key);
-                UiTextCustomizationStore.Apply(_draft);
-                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
+                var latest = _readProfile();
+                var candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                    _draft, latest, entry.Key, entry.IsRule, null, true);
+                _writeProfile(candidate);
+                _draft = candidate;
+                _renderedEntry = null;
+                ClearNewRuleFields();
+                _notifySaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 RefreshEntries();
             }
@@ -359,12 +777,26 @@ namespace FACM.League
 
         internal void ReloadAfterExternalRestore()
         {
-            if (_expanded && !IsDisposed) RefreshEntries();
+            if (_expanded && !IsDisposed && !HasPendingChanges) RefreshEntries();
+        }
+
+        internal static void NotifyExternalRestore()
+        {
+            UiTextEditorPanel editor;
+            if (_active == null || !_active.TryGetTarget(out editor) || editor.IsDisposed)
+                return;
+            if (editor.InvokeRequired)
+            {
+                if (editor.IsHandleCreated)
+                    editor.BeginInvoke((MethodInvoker)delegate { editor.ReloadAfterExternalRestore(); });
+                return;
+            }
+            editor.ReloadAfterExternalRestore();
         }
 
         private bool IsCurrentEditSaved()
         {
-            var selected = _items.SelectedItem as Entry;
+            var selected = _renderedEntry;
             if (selected != null)
                 return string.Equals(_value.Text, selected.Current, StringComparison.Ordinal);
             return string.IsNullOrWhiteSpace(_source.Text) &&

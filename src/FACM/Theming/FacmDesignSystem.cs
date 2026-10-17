@@ -43,6 +43,33 @@ namespace FACM.Theming
         public static int CardRadius { get { return Math.Max(0, Math.Min(Theme.Radius, 8)); } }
         public static int ControlRadius { get { return Math.Max(0, Math.Min(Theme.ButtonRadius, 6)); } }
 
+        public static Color ReadableTextOn(Color background, Color preferred)
+        {
+            if (ContrastRatio(background, preferred) >= 4.5D) return preferred;
+            return ContrastRatio(background, Color.Black) >= ContrastRatio(background, Color.White)
+                ? Color.Black : Color.White;
+        }
+
+        internal static double ContrastRatio(Color background, Color foreground)
+        {
+            var first = Luminance(background);
+            var second = Luminance(foreground);
+            return (Math.Max(first, second) + 0.05D) / (Math.Min(first, second) + 0.05D);
+        }
+
+        private static double Luminance(Color color)
+        {
+            return 0.2126D * Linearize(color.R) + 0.7152D * Linearize(color.G) +
+                   0.0722D * Linearize(color.B);
+        }
+
+        private static double Linearize(byte channel)
+        {
+            var component = channel / 255D;
+            return component <= 0.04045D ? component / 12.92D :
+                Math.Pow((component + 0.055D) / 1.055D, 2.4D);
+        }
+
         public static Color Blend(Color source, Color target, float amount)
         {
             amount = Math.Max(0F, Math.Min(1F, amount));

@@ -141,6 +141,12 @@ namespace FACM.Services
             _timer.Interval = 2500;
         }
 
+        private static void RestoreText(UiTextProfile profile)
+        {
+            UiTextCustomizationStore.Apply(profile);
+            FACM.League.UiTextEditorPanel.NotifyExternalRestore();
+        }
+
         private void RestoreApp(GgmanPortableSettingsProfile profile)
         {
             _restoringApp = true;
@@ -290,7 +296,7 @@ namespace FACM.Services
                     textRemote == null ? null : FingerprintText(textRemote.Profile),
                     async () => await textClient.SetAsync(account, textLocal,
                         textRemote == null ? 0 : textRemote.Version, token),
-                    () => UiTextCustomizationStore.Apply(textRemote.Profile), token, false, _textCloudReady &&
+                    () => RestoreText(textRemote.Profile), token, false, _textCloudReady &&
                     string.Equals(_savedTextFingerprint, textHash, StringComparison.Ordinal));
                 RequireSession(account, token);
 
@@ -658,7 +664,7 @@ namespace FACM.Services
                             remote == null ? null : FingerprintText(remote.Profile),
                             async () => await textClient.SetAsync(account, local,
                                 remote == null ? 0 : remote.Version, token),
-                            () => UiTextCustomizationStore.Apply(remote.Profile),
+                            () => RestoreText(remote.Profile),
                             token, true);
                     }
 

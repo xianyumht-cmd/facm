@@ -1,5 +1,27 @@
 # GGman Operations (3.5.x)
 
+## Third Astra review — replacement-rule selection identity (2026-10-17)
+
+Run the `shell-ux` performance smoke containing `ValidateCaseSensitiveRuleSelectionForSmokeTest` for Yes, No and Cancel. This creates two valid case-distinct rules (`Foo` and `foo`) with in-memory persistence, resolves an unsaved selection change, checks the exact destination key and visible value, then verifies Save and Reset never modify the sibling key. Replacement selection uses ordinal comparison; text entry key selection still ignores case, and search filtering remains case-insensitive. Both final-head Windows Build and UI Text Contract must pass; actual WinForms/DPI and authenticated CloudBase restore checks remain manual premerge gates.
+
+## Second Astra source review — candidate validation (2026-10-17)
+
+For PR #350, repeat `shell-ux` and `ui-text-customization` smoke after correcting stale list entries when Yes resolves Save/Discard/Cancel navigation. The `ValidateNavigationRebaseForSmokeTest` fixtures cover ordinary text and replacement rules with a newer target value, missed restore notification, Yes -> `SaveLocal(false)`, destination selection and a subsequent Save without remote rollback. The `ValidateConflictDiscardRecoveryForSmokeTest` fixtures verify same-key conflict -> Discard -> immediate successful re-edit in both modes. A reset-write failure fixture verifies no baseline advance or sync notification. Always require both required CI workflows on the final PR head and another independent review; do not infer native/registered CloudBase behavior from in-memory smoke.
+
+## Astra data consistency blockers — candidate validation (2026-10-17)
+
+For PR #350 review corrections, run `UiTextEditorPanel.ValidateDraftNavigationForSmokeTest` through the `shell-ux` performance smoke and `UiTextCustomizationStore.ValidateForSmokeTest` through the UI-text-customization smoke. Assertions use injectable **in-memory** persistence and save notification callbacks: simulated disk failure -> discard -> save another entry does not publish rejected text; invalid 201-character replacement source cannot poison later saves; cloud profile B restored over baseline A is retained when another key is saved; an unannounced unrelated external change is rebased; same-key external changes reject save/reset without notification; after refresh, reset preserves unrelated cloud values.
+
+CI recovery on 2026-10-17: first runs for these corrections failed before runner allocation (not compiler failures). Retry attempt 2 on code head `9321b2fd7580d2a93c2a6919c8f7097b752ff532` passed [GGman Windows Build #38989938130](https://github.com/xianyumht-cmd/facm/actions/runs/38989938130) and [FACM UI Text Contract #38989938158](https://github.com/xianyumht-cmd/facm/actions/runs/38989938158). Windows job logs confirm `shell-ux`, `ui-text-customization`, `ui-text-cloud`, and automatic-sync smoke checks passed. These are deterministic/in-memory checks, not an actual authenticated CloudBase account-switch test; five live gateway checks were skipped. Before merging require successful checks for the final documentation-inclusive PR head, a fresh independent code review, WinForms DPI, close/navigation, keyboard and real authenticated cloud-restore manual acceptance with sanitized logs. Do not use this CI package as a released update.
+
+
+## UI P1 candidate acceptance (PR #350, 2026-10-16)
+
+Before merge or release, require successful **GGman Windows Build** and **FACM UI Text Contract** on the final branch head. Native Windows review must cover: (1) Hub survives Alt+Tab/external click, still closes by deliberate close/Escape, and temporary launcher still dismisses normally; (2) an unsaved text edit prompts Save / Discard / Cancel on item selection, search/filter, mode change, new rule, collapse, workbench navigation and close, with Cancel preserving the visible draft and current route, Save persisting locally and Discard not issuing cloud publication; (3) a failed local Save does not permit destructive navigation, and cloud restore waits for genuinely pending visible drafts; (4) readable enabled/hover/pressed text for all ten themes, especially cloud-light recommendation title and bright accent buttons; (5) keyboard-only cleanup preview Tab/Shift+Tab, Enter/Space, Escape and cancellation, without accidental execution.
+
+Check 100/125/150/200% DPI for clipping and focus order, and verify no changes to League/CloudBase/updater behavior or cold-start overhead. A green compiler/smoke run alone does not prove native focus and draft interaction behavior. Preserve official v3.5.77 in `online/version.json` until a separately verified signed release exists.
+
+
 ## Normal development flow
 
 1. Work from current `main` or a focused branch.
