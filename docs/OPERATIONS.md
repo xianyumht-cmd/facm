@@ -1,5 +1,9 @@
 # GGman Operations (3.5.x)
 
+## Second Astra source review — candidate validation (2026-10-17)
+
+For PR #350, repeat `shell-ux` and `ui-text-customization` smoke after correcting stale list entries when Yes resolves Save/Discard/Cancel navigation. The `ValidateNavigationRebaseForSmokeTest` fixtures cover ordinary text and replacement rules with a newer target value, missed restore notification, Yes -> `SaveLocal(false)`, destination selection and a subsequent Save without remote rollback. The `ValidateConflictDiscardRecoveryForSmokeTest` fixtures verify same-key conflict -> Discard -> immediate successful re-edit in both modes. A reset-write failure fixture verifies no baseline advance or sync notification. Always require both required CI workflows on the final PR head and another independent review; do not infer native/registered CloudBase behavior from in-memory smoke.
+
 ## Astra data consistency blockers — candidate validation (2026-10-17)
 
 For PR #350 review corrections, run `UiTextEditorPanel.ValidateDraftNavigationForSmokeTest` through the `shell-ux` performance smoke and `UiTextCustomizationStore.ValidateForSmokeTest` through the UI-text-customization smoke. Assertions use injectable **in-memory** persistence and save notification callbacks: simulated disk failure -> discard -> save another entry does not publish rejected text; invalid 201-character replacement source cannot poison later saves; cloud profile B restored over baseline A is retained when another key is saved; an unannounced unrelated external change is rebased; same-key external changes reject save/reset without notification; after refresh, reset preserves unrelated cloud values.

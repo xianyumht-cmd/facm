@@ -294,12 +294,21 @@ namespace FACM.League
         {
             if (_loading || _draft == null) return;
             var next = _items.SelectedItem as Entry;
-            if (!ReferenceEquals(next, _renderedEntry) && !TryResolvePendingEdit())
+            if (!ReferenceEquals(next, _renderedEntry))
             {
-                _loading = true;
-                try { _items.SelectedItem = _renderedEntry; }
-                finally { _loading = false; }
-                return;
+                var pending = HasPendingChanges;
+                if (!TryResolvePendingEdit())
+                {
+                    _loading = true;
+                    try { _items.SelectedItem = _renderedEntry; }
+                    finally { _loading = false; }
+                    return;
+                }
+                if (pending)
+                {
+                    Filter();
+                    return;
+                }
             }
             _loading = true;
             try
@@ -351,6 +360,7 @@ namespace FACM.League
                     entry.Current = _value.Text;
                 else
                     ClearNewRuleFields();
+                SyncVisibleEntriesFromDraft();
                 _notifySaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 if (refresh) RefreshEntries();
@@ -361,6 +371,21 @@ namespace FACM.League
                 _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
                 return false;
             }
+        }
+
+        private void SyncVisibleEntriesFromDraft()
+        {
+            foreach (Entry entry in _items.Items)
+            {
+                string current;
+                if (entry.IsRule)
+                    entry.Current = _draft.Replace.TryGetValue(entry.Key, out current)
+                        ? current : string.Empty;
+                else
+                    entry.Current = _draft.Text.TryGetValue(entry.Key, out current)
+                        ? current : entry.Original;
+            }
+            _items.Invalidate();
         }
 
         private void ClearNewRuleFields()
@@ -388,6 +413,15 @@ namespace FACM.League
             if (decision == DialogResult.Yes) return SaveLocal(false);
             if (decision != DialogResult.No) return false;
 
+            UiTextProfile latest;
+            try { latest = _readProfile(); }
+            catch (Exception error)
+            {
+                _status.Text = string.Format(_ui.Get(UiTextKeys.UiTextEditorError), error.Message);
+                return false;
+            }
+            _draft = latest;
+            SyncVisibleEntriesFromDraft();
             _loading = true;
             try
             {
@@ -440,6 +474,11 @@ namespace FACM.League
 
         private static void ValidatePersistenceForSmokeTest()
         {
+            ValidateNavigationRebaseForSmokeTest(false);
+            ValidateNavigationRebaseForSmokeTest(true);
+            ValidateConflictDiscardRecoveryForSmokeTest(false);
+            ValidateConflictDiscardRecoveryForSmokeTest(true);
+            ValidateResetWriteFailureForSmokeTest();
             using (var editor = new UiTextEditorPanel(null))
             {
                 var saved = new UiTextProfile();
@@ -502,25 +541,136 @@ namespace FACM.League
                     throw new InvalidOperationException("Unannounced remote edit was not preserved by save rebase.");
 
                 var notifyBeforeConflict = notifications;
-                saved.Text[second.Key] = "Competing remote value";
+                var competingValue = second.Original + " remote";
+                saved.Text[second.Key] = competingValue;
                 editor._value.Text = editor._value.Text + " conflicting";
-                if (editor.SaveLocal() || saved.Text[second.Key] != "Competing remote value" ||
+                if (editor.SaveLocal() || saved.Text[second.Key] != competingValue ||
                     !editor.HasPendingChanges || notifications != notifyBeforeConflict)
                     throw new InvalidOperationException("Concurrent same-key change was overwritten or announced.");
 
                 editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
-                if (!editor.TryResolvePendingEdit())
-                    throw new InvalidOperationException("Discard after conflict was not possible.");
-                editor.ResetSelected();
-                if (saved.Text[second.Key] != "Competing remote value" || notifications != notifyBeforeConflict)
-                    throw new InvalidOperationException("Stale reset overwrote newer remote content.");
+                if (!editor.TryResolvePendingEdit() || editor._value.Text != competingValue ||
+                    editor.HasPendingChanges)
+                    throw new InvalidOperationException("Discard did not reload the current competing value.");
+                editor._value.Text += " accepted";
+                if (!editor.SaveLocal() || saved.Text[second.Key] != competingValue + " accepted" ||
+                    notifications != notifyBeforeConflict + 1)
+                    throw new InvalidOperationException("Editing after conflict discard required an external refresh.");
 
-                editor.ReloadAfterExternalRestore();
                 editor.ResetSelected();
                 if (saved.Text.ContainsKey(second.Key) ||
                     saved.Text[anotherRemote] != "Another remote preference" ||
-                    notifications != notifyBeforeConflict + 1)
-                    throw new InvalidOperationException("Reset after reloading did not preserve remote siblings.");
+                    notifications != notifyBeforeConflict + 2)
+                    throw new InvalidOperationException("Reset after discard did not preserve remote siblings.");
+            }
+        }
+
+
+        private static void ValidateNavigationRebaseForSmokeTest(bool advanced)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                if (advanced)
+                {
+                    saved.Replace["rule-a"] = "first";
+                    saved.Replace["rule-b"] = "second";
+                }
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                if (advanced) editor._mode.SelectedIndex = 1;
+                if (editor._items.Items.Count < 2)
+                    throw new InvalidOperationException("Navigation rebase requires two visible entries.");
+                editor._items.SelectedIndex = 0;
+                var first = editor._items.SelectedItem as Entry;
+                var second = editor._items.Items[1] as Entry;
+                var remoteValue = second.Current + " remote";
+                if (advanced) saved.Replace[second.Key] = remoteValue;
+                else saved.Text[second.Key] = remoteValue;
+
+                editor._value.Text += " local";
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.Yes; };
+                editor._items.SelectedIndex = 1;
+                if (editor._renderedEntry == null ||
+                    editor._renderedEntry.Key != second.Key ||
+                    editor._value.Text != remoteValue ||
+                    editor._renderedEntry.Current != remoteValue ||
+                    notifications != 1)
+                    throw new InvalidOperationException("Save-on-navigation displayed a stale target entry.");
+
+                if (!editor.SaveLocal() || notifications != 2 ||
+                    (advanced ? saved.Replace[second.Key] : saved.Text[second.Key]) != remoteValue)
+                    throw new InvalidOperationException("Save-on-navigation reverted the newer sibling entry.");
+                if ((advanced ? saved.Replace[first.Key] : saved.Text[first.Key]) !=
+                    first.Current)
+                    throw new InvalidOperationException("Save-on-navigation dropped the edited first entry.");
+            }
+        }
+
+        private static void ValidateConflictDiscardRecoveryForSmokeTest(bool advanced)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                if (advanced) saved.Replace["rule-a"] = "first";
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                if (advanced) editor._mode.SelectedIndex = 1;
+                editor._items.SelectedIndex = 0;
+                var entry = editor._items.SelectedItem as Entry;
+                var remoteValue = entry.Current + " remote";
+                if (advanced) saved.Replace[entry.Key] = remoteValue;
+                else saved.Text[entry.Key] = remoteValue;
+
+                editor._value.Text += " local";
+                if (editor.SaveLocal() || notifications != 0)
+                    throw new InvalidOperationException("Same-key remote edit did not reject the local save.");
+                editor._confirmLeaveForSmokeTest = delegate { return DialogResult.No; };
+                if (!editor.TryResolvePendingEdit() || editor._value.Text != remoteValue ||
+                    editor.HasPendingChanges)
+                    throw new InvalidOperationException("Conflict Discard did not reload the current value.");
+                editor._value.Text += " continued";
+                if (!editor.SaveLocal() || notifications != 1 ||
+                    (advanced ? saved.Replace[entry.Key] : saved.Text[entry.Key]) !=
+                    remoteValue + " continued")
+                    throw new InvalidOperationException("Editing after conflict Discard did not recover.");
+            }
+        }
+
+        private static void ValidateResetWriteFailureForSmokeTest()
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    throw new System.IO.IOException("Simulated reset write failure.");
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._items.SelectedIndex = 0;
+                var entry = editor._items.SelectedItem as Entry;
+                saved.Text[entry.Key] = entry.Original + " stored";
+                editor.ReloadAfterExternalRestore();
+                editor.ResetSelected();
+                if (editor._draft.Text[entry.Key] != entry.Original + " stored" ||
+                    saved.Text[entry.Key] != entry.Original + " stored" ||
+                    notifications != 0)
+                    throw new InvalidOperationException("Failed reset changed persisted/editor baseline.");
             }
         }
 

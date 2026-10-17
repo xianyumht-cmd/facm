@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — PR #350 second Astra review corrections (candidate, not released)
+
+Astra's second read-only review of `0c9adcb28b58e433160ce9ea5f5c5cf11cad4f11` again requested changes. Confirmed P1: choosing Yes to save an edit during list selection uses `SaveLocal(false)`, advancing the whole profile baseline without updating the destination list `Entry.Current`; an unseen newer value on the destination could then be saved back as stale data and auto-uploaded. P2: after same-key conflict, Discard left stale visible state and forced manual reopen. Both must be corrected before merge.
+
+The same PR task branch now rebinds the destination key after navigation save/discard, synchronizes visible entries to the current persisted baseline, and rereads persisted content on Discard (read failure blocks navigation without discarding the draft). Regression checks simulate missing cloud refresh and Yes -> `SaveLocal(false)` -> navigating to a newer sibling -> saving that sibling, for regular text and replacement rules, plus same-key conflict -> Discard -> immediate re-edit and a reset-write failure. These are simulated persistence checks, not native WinForms or live authenticated CloudBase acceptance. Latest commit requires fresh Windows CI and independent review. PR remains Draft; official v3.5.77 and production updater are unchanged.
+
 ## 2026-10-17 — PR #350 Astra review corrections (candidate, not released)
 
 Independent review of PR #350 head `847670cde226d5f7888446a16c3d5c619decf900` identified two P1 blockers despite previously green CI: a failed local UI-text save mutates the in-memory full profile, so subsequent Discard/Save can leak rejected content; a registered cloud restore can leave the expanded editor retaining an obsolete full-profile snapshot, so later saving one field can overwrite unrelated newer cloud-restored values. Review verdict: request changes; do not merge.

@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Updating the baseline without rebinding list entries can defeat conflict checks (2026-10-17)
+
+In PR #350, a Save/Discard/Cancel Yes choice during item selection calls `SaveLocal(false)`. It correctly rebases `_draft` to fresh disk content but previously retained the old destination `Entry.Current` object. Saving that stale displayed value on the next item could pass same-key conflict detection and roll back newer cloud-restored values, then notify automatic sync. After saving the candidate, synchronize visible list entries and rebind the destination entry by key before rendering it; do not recursively refresh inside Save. On conflict followed by Discard, reread persisted state, update the current selection and allow immediate re-edit; Cancel must still preserve the unsaved draft. Cover ordinary text and replacement rules with Save-on-navigation and Discard-then-edit smoke checks.
+
 ## Editor full-profile mutation before durable write leaks rejected changes (2026-10-17)
 
 In PR #350 review, `UiTextEditorPanel.SaveLocal` and `ResetSelected` were changing `_draft.Text` or `_draft.Replace` before `UiTextCustomizationStore.Apply` validated and atomically replaced the disk file. Failed validation or I/O left the in-memory baseline dirty, so the new Discard action only cleared visible fields while hidden rejected edits remained in the next full write and possibly registered automatic upload. Treat the editor baseline as immutable: clone the **latest** persisted profile, apply and validate only the intended key, persist, then advance the baseline and notify cloud sync only on success. A discarded failed edit must not influence any later save.

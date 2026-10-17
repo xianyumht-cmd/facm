@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Editor list rebinding after save and conflict discard (PR #350, 2026-10-17)
+
+`UiTextEditorPanel` keeps its rendered list entries consistent with `_draft` after a successful single-key Save, including the nonrefreshing `SaveLocal(false)` branch used by Save/Discard/Cancel navigation. When a pending selection change is resolved, `Filter` rebinds the requested key against the resulting profile before rendering the destination entry; it must not render a `next` object captured before the save. Discard rereads persisted state without writing or notifying cloud sync, refreshes visible values and rebuilds selection on navigation. A failed reread blocks leaving and preserves the visible draft. This addresses delayed/missed restore notifications without broadening the cloud write policy.
+
 ## UI text editor transaction and cloud restore consistency (PR #350 candidate, 2026-10-17)
 
 `UiTextCustomizationStore.PrepareSingleEdit` is a pure candidate constructor: it compares the target key between the editor's captured baseline and the current persisted profile, rejects same-key divergence, clones current state and validates a single text/rule edit or reset. `UiTextEditorPanel` writes that independent candidate first, then updates its saved baseline and emits `NotifyUiTextSaved`; a validation or filesystem failure leaves its baseline untouched, so Discard has no hidden stale edits to publish. Normal UI editing still persists through the existing atomic, backed-up `Apply` path.
