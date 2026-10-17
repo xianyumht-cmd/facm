@@ -39,6 +39,16 @@ These are reference values, **not** an instruction to replace users' existing te
 - Provide a visible focus state, measured Chinese text, keyboard-operable native controls and robust empty/error states. Respect IME, Tab, Shift+Tab, Enter, Escape, selection and scroll ownership.
 - No pilot animation, new timer, polling service, remote dependency or graphical asset.
 
+## Native repair-page visual language (B1 follow-up)
+
+An actual operator screenshot of the previous game-repair page showed oversized solid-blue grouping, small 7.8pt action descriptions and actions clustered on the left with unused right-hand space. The Repair route is the first visibly differentiated content prototype within the **same** B1 task branch. This does not extend the pilot to the updater, launcher, Mayhem or other routes.
+
+- Two task groups with quiet, bounded shared surfaces; group headings have an accent indicator and are distinct from individual actions.
+- Each action occupies a full-width **description left / native action right** row; below a constrained width, its action moves underneath rather than clipping text. No 7.xpt copy and no fake KPI cards.
+- The currently present five business actions and service owners are unchanged. A one-click exit-game action receives a Danger tone without changing its execution behavior. The automatic-window-repair button retains its on/off caption and normal click semantics.
+- One compact status surface displays the actual result and semantic success/warning/error text, with no fabricated progress or status. No new runtime dependency, animation or polling.
+- Evaluate actual native snapshots at the same client size against the user's initial Repair-page image before extending to any other screen. Screenshot aesthetics and task readability are independently assessed; CI is a necessary but insufficient gate.
+
 ## Batch B1 scope and evidence
 
 Only the existing workbench shell, grouped navigation rail and Dashboard are pilot surfaces. The current code reflows its existing status/details and Refresh/Close, while preserving actual asynchronous owners and refresh cadence. All other forms and themes stay under previous ownership.

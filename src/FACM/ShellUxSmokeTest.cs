@@ -50,6 +50,7 @@ namespace FACM
             }
 
             LeagueHubNavigation.ValidateForSmokeTest();
+            LeagueGameRepairLayout.ValidateForSmokeTest();
             UiTextEditorPanel.ValidateDraftNavigationForSmokeTest();
 
             Require(DesktopLauncherEnhancer.TileCount == 4,

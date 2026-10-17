@@ -1,5 +1,13 @@
 # GGman Operations (3.5.x)
 
+## B1 game-repair before/after native acceptance (2026-10-17)
+
+For PR #351's next candidate, prioritize **Game Repair** as the operator-visible differentiated sample. From a Windows 10 19045 system, capture the selected repair route from both the unchanged main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and the final candidate in the same theme, client dimensions, resolution and display scaling. Also capture a deliberately narrow/scrolling case, focus indication and a harmless result status; do not trigger destructive `一键结束游戏` or client restart merely to obtain imagery.
+
+A separate independent reviewer should verify that all five original operations remain accessible by keyboard, hint copy is fully visible with no microtext, actions form a predictable right-aligned column when wide and stack when narrow, result text remains truthfully classified, and a theme switch does not erase state or alter service behavior. Include selected/current route, 100/125/150/200% when practical, light theme and all ten preset palettes. Compare captured pixel dimensions rather than scaling pictures to match. User task feedback is welcome but not a professional visual signoff.
+
+Use the existing Windows build and UI Text Contract gates and report exact HEAD and skipped online checks. Before claiming B1 COMPLETE, require an independent critique of actual rendered screenshots and a native keyboard/DPI and performance comparison. Treat missing cases as INCONCLUSIVE, not PASS.
+
 ## Precision Workbench B1 native design acceptance (2026-10-17)
 
 This is a **Draft-only pilot**; source compilation does not establish screenshot quality. Collect B0 images from the main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and candidate images from the final B1 commit. Use the same Windows 10 machine, fixture data, window client dimensions, DPI, color theme and account-safe content. Never publish login credentials, token-bearing UI, QQ/LOL identifiers or production configuration in screenshots.

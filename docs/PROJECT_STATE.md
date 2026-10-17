@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B1 native screenshot feedback and game-repair visual prototype (Draft)
+
+The product owner provided eight Windows screenshots of the candidate and rated its visual change as practically imperceptible. The captured non-Dashboard pages were outside the earlier B1 scope; this is not evidence that the Dashboard itself regressed or improved. PR #351 remains **Draft**, and earlier Windows CI success is not professional visual acceptance.
+
+In response, the **same task branch** now explicitly extends the pilot to the active `LeagueGameRepairForm`. It replaces left-clustered fixed action rectangles with two clearly headed full-width task sections, explanatory copy at readable size, right-aligned native actions, compact genuine-result status and stacked narrow-width fallback. All five existing repair handlers and the existing auto-repair state toggle are retained. The redesign is presentation-only; `LeagueSoftGlassSkin` excludes the migrated repair view from legacy density mutation while keeping unmigrated views unchanged. A narrow layout smoke contract is invoked by the `shell-ux` suite.
+
+Native after-screenshots, theme/DPI/keyboard observations and independent visual acceptance are **not yet available**. The earlier user screenshots serve as informal baseline context, not controlled paired captures. No merge or release; production updater remains v3.5.77.
+
 ## 2026-10-17 — Precision Workbench B0/B1 candidate (NOT MERGED / NOT RELEASED)
 
 Astra's read-only design architecture blueprint recommends the native **Precision Workbench** system and a first scoped batch limited to the persistent League Hub, grouped navigation and the default Dashboard. PR #350 was merged to main as `1194a4cf8451b1886c03cdf733e067fd38037f66` after independent delta review and owner acceptance. The signed/public production release and updater still reference **v3.5.77**; subsequent historical PR350 Draft statements below are superseded.

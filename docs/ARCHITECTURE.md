@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## B1 game-repair native presentation prototype (2026-10-17, Draft)
+
+The existing `LeagueGameRepairForm` retains its exact `LeagueGameRepairService` and `LeagueEfficiencyModule` action handlers. Presentation is now locally owned by one scrollable layout with two task sections. Rows lay out native ActionButtons opposite readable title+hint content or stack when width is constrained; update messages flow into a single semantic result surface. `LeagueGameRepairLayout.ValidateForSmokeTest` checks layout breakpoints in `shell-ux`. `LeagueSoftGlassSkin` excludes this migrated page from legacy compact-density mutation without altering other pages. There is no new game or network owner, polling loop or background service. Native visual, keyboard, DPI and performance comparisons are outstanding.
+
 ## Precision Workbench B1 presentation ownership (2026-10-17, Draft only)
 
 The persistent `LeagueHubForm` retains nine route IDs, a grouped navigation rail, existing child factories and guarded child disposal. Its navigation text and row rhythm now follow the first pilot typography scale. `LeagueDashboardForm` owns its local measured layout and one vertical scroller, reusing the existing data fields, `LeagueDashboardPhaseService`, `LeagueDashboardDetailsService`, timer and cancellation owner. Overview fields reflow from two columns to stacked status; metadata remains the same four rows with labels stacked on narrow canvases; Refresh and Close are the same native actions. No fake metric tiles or network refresh from layout handlers.
