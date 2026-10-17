@@ -188,6 +188,59 @@ namespace FACM.League
             };
         }
 
+        private void HandleAutoToggleChanged(object sender, EventArgs e)
+        {
+            if (_syncingAutoToggle || IsDisposed) return;
+            try
+            {
+                _autoController.SetEnabled(_autoToggle.Checked);
+                UpdateAutoStatus(_autoController.LastStatus);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League auto apply toggle failed", exception);
+                _syncingAutoToggle = true;
+                try { _autoToggle.Checked = _autoController.Enabled; }
+                finally { _syncingAutoToggle = false; }
+                UpdateAutoStatus("failed");
+            }
+        }
+
+        private void HandleAutoStatusChanged(object sender, LeagueAutoApplyStatusChangedEventArgs e)
+        {
+            if (IsDisposed || Disposing) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => HandleAutoStatusChanged(sender, e))); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            _syncingAutoToggle = true;
+            try { _autoToggle.Checked = _autoController.Enabled; }
+            finally { _syncingAutoToggle = false; }
+            UpdateAutoStatus(e == null ? _autoController.LastStatus : e.Status);
+        }
+
+        private void UpdateAutoStatus(string status)
+        {
+            string key;
+            if (string.Equals(status, "applying", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Applying;
+            else if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Succeeded;
+            else if (string.Equals(status, "partial", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Partial;
+            else if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
+                key = LeagueAutoApplyUiTextKeys.Failed;
+            else if (_autoController.Enabled)
+                key = LeagueAutoApplyUiTextKeys.Waiting;
+            else
+                key = LeagueAutoApplyUiTextKeys.Disabled;
+            _autoStatusValue.Text = T(key);
+        }
+
         private async Task RefreshAsync(bool force)
         {
             if (_busy || IsDisposed || _lifetime.IsCancellationRequested) return;
