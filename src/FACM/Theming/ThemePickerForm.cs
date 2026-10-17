@@ -87,7 +87,6 @@ namespace FACM.Theming
                 Size = new Size(78, 38),
                 Tone = FacmButtonTone.Secondary,
                 DialogResult = DialogResult.Cancel,
-                AccessibleName = "取消",
                 TabStop = true
             };
 
@@ -97,7 +96,6 @@ namespace FACM.Theming
                 Location = new Point(566, 523),
                 Size = new Size(92, 38),
                 Tone = FacmButtonTone.Primary,
-                AccessibleName = "应用主题",
                 TabStop = true
             };
             _applyButton.Click += delegate { ApplySelection(); };
