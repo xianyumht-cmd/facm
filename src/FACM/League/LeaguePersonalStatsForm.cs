@@ -80,7 +80,7 @@ namespace FACM.League
                 Size = new Size(440, 30),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 17F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 15F, FontStyle.Bold)
             };
             _hintLabel = new Label
             {
@@ -96,7 +96,7 @@ namespace FACM.League
                 Size = new Size(630, 18),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8F),
+                Font = new Font(Font.FontFamily, 9F),
                 AutoEllipsis = true
             };
             _accountButton = new FacmActionButton
@@ -106,7 +106,7 @@ namespace FACM.League
                     : _ui.Get(UiTextKeys.AccountManage),
                 Bounds = new Rectangle(530, 15, 160, 32),
                 Tone = FacmButtonTone.Secondary,
-                Font = new Font(Font.FontFamily, 8.5F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold)
             };
             _accountButton.Click += delegate { OpenAccountDialog(); };
             _pageContent.Controls.Add(_accountButton);
@@ -133,7 +133,7 @@ namespace FACM.League
                     Size = new Size(632, 21),
                     ForeColor = FacmDesignSystem.Text,
                     BackColor = Color.Transparent,
-                    Font = new Font(Font.FontFamily, 8.5F),
+                    Font = new Font(Font.FontFamily, 9F),
                     AutoEllipsis = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -371,7 +371,7 @@ namespace FACM.League
                 Size = new Size(width, 20),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.2F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
         }
 
