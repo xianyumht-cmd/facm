@@ -131,9 +131,9 @@ namespace FACM.League
                 await RefreshAsync(true);
                 if (!IsDisposed) _timer.Start();
             };
+            Disposed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshPilotTheme; };
             FormClosed += delegate
             {
-                FacmThemeRuntime.ThemeChanged -= RefreshPilotTheme;
                 _timer.Stop();
                 _timer.Dispose();
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
@@ -171,7 +171,7 @@ namespace FACM.League
             {
                 Location = location,
                 Size = new Size(width, 36),
-                AutoEllipsis = true,
+                AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 13F, FontStyle.Bold),
@@ -186,7 +186,7 @@ namespace FACM.League
             {
                 Location = new Point(170, top - 1),
                 Size = new Size(400, 24),
-                AutoEllipsis = true,
+                AutoEllipsis = false,
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F),
@@ -251,28 +251,34 @@ namespace FACM.League
                 var inset = Unit(16);
                 var inner = width - inset * 2;
                 var twoColumns = inner >= Unit(600);
-                var overviewHeight = twoColumns ? Unit(104) : Unit(176);
-                _overviewPanel.SetBounds(pad, y, width, overviewHeight);
                 var connLabel = (Label)_overviewPanel.Controls[0];
                 var divider = (Panel)_overviewPanel.Controls[2];
                 var phaseLabel = (Label)_overviewPanel.Controls[3];
+                var col = twoColumns ? Math.Max(Unit(80), (inner - Unit(32)) / 2) : inner;
+                var connectionHeight = LabelHeight(_connectionValue, col, Unit(42));
+                var phaseHeight = LabelHeight(_phaseValue, col, Unit(42));
+                var overviewHeight = twoColumns
+                    ? Math.Max(Unit(104), Unit(38) + Math.Max(connectionHeight, phaseHeight) + Unit(16))
+                    : Math.Max(Unit(176), Unit(33) + connectionHeight + Unit(34) + phaseHeight + Unit(16));
+                _overviewPanel.SetBounds(pad, y, width, overviewHeight);
                 if (twoColumns)
                 {
-                    var column = (inner - Unit(32)) / 2;
+                    var column = col;
                     connLabel.SetBounds(inset, Unit(12), column, Unit(22));
-                    _connectionValue.SetBounds(inset, Unit(38), column, Unit(48));
+                    _connectionValue.SetBounds(inset, Unit(38), column, connectionHeight);
                     divider.Visible = true;
                     divider.SetBounds(inset + column + Unit(15), Unit(16), Unit(1), overviewHeight - Unit(32));
                     phaseLabel.SetBounds(inset + column + Unit(32), Unit(12), column, Unit(22));
-                    _phaseValue.SetBounds(inset + column + Unit(32), Unit(38), column, Unit(48));
+                    _phaseValue.SetBounds(inset + column + Unit(32), Unit(38), column, phaseHeight);
                 }
                 else
                 {
                     divider.Visible = false;
                     connLabel.SetBounds(inset, Unit(10), inner, Unit(22));
-                    _connectionValue.SetBounds(inset, Unit(33), inner, Unit(42));
-                    phaseLabel.SetBounds(inset, Unit(90), inner, Unit(22));
-                    _phaseValue.SetBounds(inset, Unit(112), inner, Unit(44));
+                    _connectionValue.SetBounds(inset, Unit(33), inner, connectionHeight);
+                    var secondTop = Unit(33) + connectionHeight + Unit(16);
+                    phaseLabel.SetBounds(inset, secondTop, inner, Unit(22));
+                    _phaseValue.SetBounds(inset, secondTop + Unit(22), inner, phaseHeight);
                 }
                 y += overviewHeight + Unit(16);
                 var detailsY = y;
@@ -314,11 +320,23 @@ namespace FACM.League
                 _detailsPanel.SetBounds(pad, detailsY, width, rowTop + Unit(8));
                 y = detailsY + _detailsPanel.Height + Unit(16);
 
-                var buttonWidth = Unit(96);
                 var buttonHeight = Unit(32);
-                _closeButton.SetBounds(pad + width - buttonWidth, y, buttonWidth, buttonHeight);
-                _refreshButton.SetBounds(pad + width - buttonWidth * 2 - Unit(8),
-                    y, buttonWidth, buttonHeight);
+                var closeWidth = Math.Max(Unit(96),
+                    TextRenderer.MeasureText(_closeButton.Text, _closeButton.Font).Width + Unit(24));
+                var refreshWidth = Math.Max(Unit(96),
+                    TextRenderer.MeasureText(_refreshButton.Text, _refreshButton.Font).Width + Unit(24));
+                if (closeWidth + refreshWidth + Unit(8) <= width)
+                {
+                    _closeButton.SetBounds(pad + width - closeWidth, y, closeWidth, buttonHeight);
+                    _refreshButton.SetBounds(pad + width - closeWidth - refreshWidth - Unit(8),
+                        y, refreshWidth, buttonHeight);
+                }
+                else
+                {
+                    _refreshButton.SetBounds(pad, y, Math.Min(width, refreshWidth), buttonHeight);
+                    y += buttonHeight + Unit(8);
+                    _closeButton.SetBounds(pad, y, Math.Min(width, closeWidth), buttonHeight);
+                }
                 _scrollRoot.AutoScrollMinSize = new Size(0, y + buttonHeight + pad);
             }
             finally { _arranging = false; }
@@ -339,8 +357,31 @@ namespace FACM.League
             _detailsPanel.BackColor = FacmDesignSystem.Surface;
             _titleLabel.ForeColor = FacmDesignSystem.Text;
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
-            _titleLabel.Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold);
-            _hintLabel.Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            var fontName = FacmThemeRuntime.Current.FontName;
+            FacmThemeRuntime.ReplaceFont(_titleLabel, fontName, 15F, FontStyle.Bold);
+            FacmThemeRuntime.ReplaceFont(_hintLabel, fontName, 9F, FontStyle.Regular);
+            FacmThemeRuntime.ReplaceFont(_connectionValue, fontName, 13F, FontStyle.Bold);
+            FacmThemeRuntime.ReplaceFont(_phaseValue, fontName, 13F, FontStyle.Bold);
+            foreach (Control control in _overviewPanel.Controls)
+            {
+                var caption = control as Label;
+                if (caption == null || caption == _connectionValue || caption == _phaseValue) continue;
+                caption.ForeColor = FacmDesignSystem.TextMuted;
+                FacmThemeRuntime.ReplaceFont(caption, fontName, 9F, FontStyle.Bold);
+            }
+            for (var i = 0; i < 4; i++)
+            {
+                var caption = (Label)_detailsPanel.Controls[i * 3];
+                caption.ForeColor = FacmDesignSystem.TextMuted;
+                FacmThemeRuntime.ReplaceFont(caption, fontName, 9F, FontStyle.Bold);
+            }
+            foreach (var value in new[] { _accountValue, _platformValue, _performanceValue, _updatedValue })
+            {
+                value.ForeColor = FacmDesignSystem.Text;
+                FacmThemeRuntime.ReplaceFont(value, fontName, 9.5F, FontStyle.Regular);
+            }
+            FacmThemeRuntime.ReplaceFont(_refreshButton, fontName, 9.5F, FontStyle.Bold);
+            FacmThemeRuntime.ReplaceFont(_closeButton, fontName, 9.5F, FontStyle.Bold);
             _connectionValue.ForeColor = _snapshot != null && _snapshot.Connected
                 ? FacmDesignSystem.Success : FacmDesignSystem.Warning;
             LayoutDashboard();

@@ -203,7 +203,7 @@ namespace FACM.League
             };
             FormClosing += HandleHubClosing;
             FacmThemeRuntime.ThemeChanged += RefreshPilotNavigation;
-            FormClosed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshPilotNavigation; };
+            Disposed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshPilotNavigation; };
         }
 
         internal static string ResolveInitialViewForSmokeTest(string viewId)
@@ -333,18 +333,22 @@ namespace FACM.League
                 return;
             }
             foreach (var button in _viewButtons.Values)
-                button.Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold);
+                FacmThemeRuntime.ReplaceFont(button, FacmThemeRuntime.Current.FontName,
+                    9.5F, FontStyle.Bold);
             foreach (Control control in _navigation.Controls)
             {
                 var heading = control as Label;
                 if (heading != null)
                 {
-                    heading.Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
+                    FacmThemeRuntime.ReplaceFont(heading, FacmThemeRuntime.Current.FontName,
+                        9F, FontStyle.Bold);
                     heading.ForeColor = FacmDesignSystem.TextMuted;
                 }
             }
-            _connectionLabel.Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
-            _phaseLabel.Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            FacmThemeRuntime.ReplaceFont(_connectionLabel, FacmThemeRuntime.Current.FontName,
+                9F, FontStyle.Bold);
+            FacmThemeRuntime.ReplaceFont(_phaseLabel, FacmThemeRuntime.Current.FontName,
+                9F, FontStyle.Regular);
         }
 
         private void UpdateResponsiveChrome()

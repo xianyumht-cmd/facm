@@ -147,7 +147,7 @@ namespace FACM.Theming
             foreach (Control child in control.Controls) ApplyControl(child, previous, next);
         }
 
-        private static void ReplaceFont(Control control, string fontName, float size, FontStyle style)
+        internal static void ReplaceFont(Control control, string fontName, float size, FontStyle style)
         {
             if (control == null || control.IsDisposed || string.IsNullOrWhiteSpace(fontName)) return;
             if (control.Font != null &&
