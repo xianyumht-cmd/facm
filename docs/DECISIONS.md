@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — Complete app-owned visual refresh in one release
+
+Owner rejected per-page visual approvals and requested all actively reachable GGman-owned surfaces be redesigned before a single updater release. Keep internally staged edits and CI on PR #351, preserving data flows and existing WinForms ownership. System-owned context menus and file dialogs remain native for keyboard/accessibility compatibility. The owner requests one independent Astra professional visual assessment **after** the consolidated release; recognize the residual post-release risk and prepare rollback/hotfix. Product-wide QA still needs concrete native screenshots, accessibility/DPI and performance checks.
+
 ## 2026-10-17 — Scope B1 visual prototype around the observed Repair route
 
 The initial Dashboard/navigation implementation compiled but owner-submitted Windows images showed no materially noticeable overall visual change, as expected given most captured pages were not touched. The owner authorized another implementation iteration. Keep PR #351 as the existing task PR and use the already-observed game-repair route as the first strongly differentiated native visual sample. Prioritize task-aligned right-side action placement, readable explanations and responsive grouping rather than cosmetic one-pixel changes. Do not interpret source smoke tests or the user's informal screenshot comparison as independent visual acceptance. Do not expand this iteration into launcher, updater, Mayhem or cloud settings, and do not change repair service behavior or production updater.

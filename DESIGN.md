@@ -1,6 +1,6 @@
 # GGman Precision Workbench Design System
 
-Status: **B1 pilot candidate; native evidence pending (2026-10-17)**. This document records the proposed product-specific visual contract, not a claim that all existing views comply or have passed native acceptance.
+Status: **Product-wide visual modernization in progress; B1 remains partial; full native evidence pending (2026-10-17)**. This document records the proposed product-specific visual contract, not a claim that all existing views comply or have passed native acceptance.
 
 Design authority: GGman UI/UX Modernization Blueprint (17 October 2026), authored from source review and the published guidance of [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), [Impeccable](https://github.com/pbakaus/impeccable), and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md). These sources inform principles, not WinForms binaries or runtime dependencies. Root AGENTS.md and actual source/runtime behavior take precedence.
 
@@ -48,6 +48,27 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 - The currently present five business actions and service owners are unchanged. A one-click exit-game action receives a Danger tone without changing its execution behavior. The automatic-window-repair button retains its on/off caption and normal click semantics.
 - One compact status surface displays the actual result and semantic success/warning/error text, with no fabricated progress or status. No new runtime dependency, animation or polling.
 - Evaluate actual native snapshots at the same client size against the user's initial Repair-page image before extending to any other screen. Screenshot aesthetics and task readability are independently assessed; CI is a necessary but insufficient gate.
+
+## Product-wide rollout scope and completion ledger
+
+The owner rejected the first pilot as visually indistinguishable and requests modernization of all **currently reachable GGman-owned surfaces** before one official release. Progress in batches internally on the same PR #351 branch; no per-page owner approvals. An unchanged-looking reachable surface is not completed merely because shared tokens or CI changed.
+
+| Batch | Owned surfaces | Proof of completion |
+|---|---|---|
+| B1 | Hub rail, Dashboard, native Game Repair | Clear hierarchy and meaningful compared screenshots |
+| B2 | Quick Tools / automation, online Presence | No tiny copy or left-clustered controls, keyboard reachable |
+| B3 | Mayhem imagery, player/matches, Live, guide/recommendation, champion-select companion | Legible information, no unintended nested/horizontal scroll |
+| B4 | Floating entry/launcher, updates/announcements, account/profile, themes/settings/ESC/cloud feedback | Coherent application chrome, forms and status states |
+| B5 | Cleanup, repair review, other active auxiliary dialogs and global 10-theme audit | All currently reachable GGman-owned surfaces complete |
+| B6 | One pinned final build, native visual/keyboard/DPI/performance acceptance, update/rollback preparation | Complete ledger with image evidence and passing functional gates |
+
+**OS-owned exception:** system tray context menus, Windows file dialogs and system-owned UAC prompts retain their native appearance/accessibility unless there is a separately verified usability defect. Document intentional exclusions rather than silently skipping screens.
+
+For every included surface maintain its activation path, source owner, baseline/candidate screenshots under identical theme/window/DPI/fixture, contrast, focus/keyboard, resize/DPI, function parity, performance concern and exact reviewed SHA. Missing native image evidence is **INCONCLUSIVE**. Never perform destructive repair/League/cloud operations just to capture a visual.
+
+### Requested final handoff order
+
+The owner requested all visual batches finished, one consolidated formal update after mandatory CI/native functional release checks, then a **single independent Astra visual audit at the end**. That reviewer is not a substitute for pre-release QA; post-release findings can affect users. Record residual risk, prepare a fast hotfix/rollback path, and do not falsely assert that the final independent design review occurred before publication. A pre-release independent design review remains the safer recommendation if the owner changes the order.
 
 ## Batch B1 scope and evidence
 

@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — PR #351 expanded to full-product visual modernization
+
+Owner explicitly requests complete modernization of every active GGman-owned surface, rather than per-page feedback and releases. Continue using `feat/ggman-precision-workbench-b1-20261017` / Draft PR #351. B1 Hub, Dashboard, Repair candidate is only partial; B2 Quick Tools/Presence, B3 Mayhem/player/live/companion, B4 launcher/updater/account/settings, B5 cleanup/secondary UI and B6 consolidated native QA remain pending. Complete source inventory and acceptance ledger are in root DESIGN.md. Native OS menus/file dialogs are intentional platform-owned exceptions.
+
+Owner sequencing: finalize all visuals and pre-release functional/CI/native checks, publish a **single** update, then request **one** independent Astra visual assessment. This post-release review cannot prevent defects from reaching users; prepare hotfix/rollback. Do not misrepresent an incomplete UI migration or green CI as whole-product visual acceptance. Official release/manifest remains v3.5.77; no merge/update now.
+
 ## 2026-10-17 — B1 native screenshot feedback and game-repair visual prototype (Draft)
 
 The product owner provided eight Windows screenshots of the candidate and rated its visual change as practically imperceptible. The captured non-Dashboard pages were outside the earlier B1 scope; this is not evidence that the Dashboard itself regressed or improved. PR #351 remains **Draft**, and earlier Windows CI success is not professional visual acceptance.

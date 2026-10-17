@@ -1,5 +1,9 @@
 # FACM AI 协作方式
 
+## Full visual modernization workflow (2026-10-17)
+
+For GGman full-product UI updates, the owner prefers one consolidated release after all reachable app-owned interfaces have been updated, without per-page approval interruptions. Continue internal batches on existing PR #351 and run CI per batch; collect one consolidated Windows screenshot/functional/DPI acceptance package. The requested single Astra independent professional *visual* assessment comes after the release and must be correctly described as post-release audit with rollback risk. Technical implementation/handoffs in English; user-facing progress in Chinese. This does not remove any normal pre-release code, security, functional or updater safety gate.
+
 ## 长重构任务的验收节奏
 
 对于 FACM 这类后端/架构重构任务：

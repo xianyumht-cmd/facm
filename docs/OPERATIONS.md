@@ -1,5 +1,13 @@
 # GGman Operations (3.5.x)
 
+## Consolidated cross-product visual upgrade verification (2026-10-17)
+
+Under PR #351, internally implement B1–B5 without requiring the operator to review every incremental form. Use DESIGN.md's active-surface ledger. Once B6 is ready, collect one pinned final candidate and screen capture set for Hub, automation, Presence, Mayhem, companion, launcher, updater, account, themes, cleanup and auxiliary dialogs at controlled themes, states, 100/125/150/200% scale where feasible. Preserve native system menus and dialogs.
+
+Pre-release checks: all required final-head CI green, no new P0/P1 regression, native Win10 function/IME/Tab/focus/scroll/DPI/screenshot and measured EXE/startup/memory/latency comparison, package verification and tested rollback path. Do not use production credentials or deliberately execute destructive actions for screenshots.
+
+Owner-selected order puts independent professional Astra screenshot-based visual audit after the one consolidated release. This is a **post-release** audit, not a pre-release guarantee; disclose risk and retain hotfix/revert readiness. Do not publish while any required pre-release engineering or operator safety gate is red or missing.
+
 ## B1 game-repair before/after native acceptance (2026-10-17)
 
 For PR #351's next candidate, prioritize **Game Repair** as the operator-visible differentiated sample. From a Windows 10 19045 system, capture the selected repair route from both the unchanged main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and the final candidate in the same theme, client dimensions, resolution and display scaling. Also capture a deliberately narrow/scrolling case, focus indication and a harmless result status; do not trigger destructive `一键结束游戏` or client restart merely to obtain imagery.
