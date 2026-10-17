@@ -37,7 +37,7 @@ namespace FACM
             Text = _ui.AppName + " · " + _ui.Get(UiTextKeys.AccountTitle);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            ClientSize = new Size(520, 344);
+            ClientSize = new Size(520, 372);
             AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
             BackColor = FacmDesignSystem.Canvas;
@@ -46,39 +46,39 @@ namespace FACM
             MinimizeBox = false;
             ShowInTaskbar = false;
 
-            AddLabel(this, _ui.Get(UiTextKeys.AccountTitle), new Rectangle(24, 18, 472, 32), 16F, true);
-            AddLabel(this, _ui.Get(UiTextKeys.AccountHint), new Rectangle(24, 56, 472, 40), 9F, muted: true);
+            AddLabel(this, _ui.Get(UiTextKeys.AccountTitle), new Rectangle(24, 18, 472, 34), 15F, true);
+            AddLabel(this, _ui.Get(UiTextKeys.AccountHint), new Rectangle(24, 55, 472, 42), 9.5F, muted: true);
 
             _loginPanel = CreateCard();
-            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountEmail), new Rectangle(18, 12, 270, 20), 9F, muted: true);
-            _email = AddField(_loginPanel, new Rectangle(18, 38, 295, 29), 254);
-            _send = AddButton(_loginPanel, UiTextKeys.AccountSendCode, new Rectangle(325, 36, 136, 34),
+            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountEmail), new Rectangle(18, 18, 270, 22), 9.5F, muted: true);
+            _email = AddField(_loginPanel, new Rectangle(18, 43, 295, 31), 254);
+            _send = AddButton(_loginPanel, UiTextKeys.AccountSendCode, new Rectangle(325, 42, 136, 34),
                 FacmButtonTone.Secondary);
             _send.Click += async delegate { await SendAsync(); };
 
-            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountCode), new Rectangle(18, 83, 270, 20), 9F, muted: true);
-            _code = AddField(_loginPanel, new Rectangle(18, 109, 165, 29), 6);
-            _verify = AddButton(_loginPanel, UiTextKeys.AccountVerify, new Rectangle(325, 107, 136, 34),
+            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountCode), new Rectangle(18, 105, 270, 22), 9.5F, muted: true);
+            _code = AddField(_loginPanel, new Rectangle(18, 132, 165, 31), 6);
+            _verify = AddButton(_loginPanel, UiTextKeys.AccountVerify, new Rectangle(325, 131, 136, 34),
                 FacmButtonTone.Primary);
             _verify.Click += async delegate { await VerifyAsync(); };
             Controls.Add(_loginPanel);
 
             _sessionPanel = CreateCard();
-            _sessionEmail = AddLabel(_sessionPanel, string.Empty, new Rectangle(18, 19, 444, 28), 10F, true);
+            _sessionEmail = AddLabel(_sessionPanel, string.Empty, new Rectangle(18, 28, 444, 31), 11F, true);
             _sessionEmail.AutoEllipsis = true;
-            _sessionUid = AddLabel(_sessionPanel, string.Empty, new Rectangle(18, 56, 444, 22), 9F, muted: true);
+            _sessionUid = AddLabel(_sessionPanel, string.Empty, new Rectangle(18, 70, 444, 26), 9.5F, muted: true);
             _sessionUid.AutoEllipsis = true;
-            _logout = AddButton(_sessionPanel, UiTextKeys.AccountLogout, new Rectangle(18, 107, 136, 34),
+            _logout = AddButton(_sessionPanel, UiTextKeys.AccountLogout, new Rectangle(18, 132, 136, 34),
                 FacmButtonTone.Secondary);
             _logout.Click += async delegate { await LogoutAsync(); };
             Controls.Add(_sessionPanel);
 
             _status = AddLabel(this, _ui.Get(UiTextKeys.AccountSignedOut),
-                new Rectangle(24, 277, 472, 31), 9F, muted: true);
+                new Rectangle(24, 301, 472, 34), 9.5F, muted: true);
             _status.AutoEllipsis = true;
             var privacy = AddLabel(this, _ui.Get(UiTextKeys.AccountNoRemember),
-                new Rectangle(24, 315, 472, 24), 8F, muted: true);
-            privacy.AutoEllipsis = true;
+                new Rectangle(24, 339, 472, 30), 9F, muted: true);
+            privacy.AutoEllipsis = false;
 
             Shown += delegate { RefreshControls(); };
             FormClosing += delegate { if (!_lifetime.IsCancellationRequested) _lifetime.Cancel(); };
@@ -90,7 +90,7 @@ namespace FACM
         {
             return new FacmGlassPanel
             {
-                Bounds = new Rectangle(20, 102, 480, 164),
+                Bounds = new Rectangle(20, 106, 480, 184),
                 Radius = FacmDesignSystem.CardRadius,
                 DrawBorder = true,
                 BackColor = FacmDesignSystem.Surface
@@ -134,7 +134,8 @@ namespace FACM
                 Text = _ui.Get(key),
                 Bounds = bounds,
                 Tone = tone,
-                Font = new Font(Font.FontFamily, 9F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold),
+                AccessibleName = _ui.Get(key)
             };
             parent.Controls.Add(button);
             return button;
