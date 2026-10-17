@@ -29,6 +29,7 @@ namespace FACM.Mayhem
         private DateTime _queryStartedAt;
         private string _stageText = MayhemUiCopy.Ready;
         private bool _busy;
+        private FacmStatusTone _statusTone = FacmStatusTone.Success;
 
         public MayhemLookupForm(ILeagueClientApi leagueClient)
         {
@@ -133,7 +134,6 @@ namespace FACM.Mayhem
 
             _status.AccessibleName = MayhemUiCopy.WindowTitle;
             Controls.Add(_toolbarSurface);
-            _toolbarSurface.SendToBack();
             Controls.Add(title);
             Controls.Add(hint);
             Controls.Add(_query);
@@ -166,6 +166,25 @@ namespace FACM.Mayhem
             };
         }
 
+        private void SetStatusTone(FacmStatusTone tone)
+        {
+            _statusTone = tone;
+            ApplyStatusTone();
+        }
+
+        private void ApplyStatusTone()
+        {
+            if (_status == null || _status.IsDisposed) return;
+            switch (_statusTone)
+            {
+                case FacmStatusTone.Success: _status.ForeColor = FacmDesignSystem.Success; break;
+                case FacmStatusTone.Error: _status.ForeColor = FacmDesignSystem.Error; break;
+                case FacmStatusTone.Warning: _status.ForeColor = FacmDesignSystem.Warning; break;
+                case FacmStatusTone.Accent: _status.ForeColor = FacmDesignSystem.Accent; break;
+                default: _status.ForeColor = FacmDesignSystem.TextMuted; break;
+            }
+        }
+
         private void RefreshLookupPalette(object sender, EventArgs e)
         {
             if (IsDisposed) return;
@@ -182,7 +201,7 @@ namespace FACM.Mayhem
             _resultImage.BackColor = FacmDesignSystem.Surface;
             _query.BackColor = FacmDesignSystem.CanvasRaised;
             _query.ForeColor = FacmDesignSystem.Text;
-            if (!_busy) _status.ForeColor = FacmDesignSystem.TextMuted;
+            ApplyStatusTone();
         }
 
         private async Task SearchAsync()
@@ -215,7 +234,7 @@ namespace FACM.Mayhem
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
                     _stageText = CleanErrorText(result.ErrorMessage);
-                    _status.ForeColor = FacmDesignSystem.Error;
+                    SetStatusTone(FacmStatusTone.Error);
                     UpdateStatusText(false);
                     return;
                 }
@@ -242,7 +261,7 @@ namespace FACM.Mayhem
                 _saveImage.Enabled = true;
                 _copyImage.Enabled = true;
                 _stageText = MayhemUiCopy.Completed + " · " + DescribeAugmentSource(result);
-                _status.ForeColor = FacmDesignSystem.Success;
+                SetStatusTone(FacmStatusTone.Success);
                 UpdateStatusText(false);
             }
             catch (OperationCanceledException)
@@ -251,7 +270,7 @@ namespace FACM.Mayhem
                 {
                     var elapsed = DateTime.UtcNow - _queryStartedAt;
                     _stageText = elapsed.TotalSeconds >= 12.5 ? MayhemUiCopy.Timeout : MayhemUiCopy.QueryCanceled;
-                    _status.ForeColor = elapsed.TotalSeconds >= 12.5 ? FacmDesignSystem.Error : FacmDesignSystem.TextMuted;
+                    SetStatusTone(elapsed.TotalSeconds >= 12.5 ? FacmStatusTone.Error : FacmStatusTone.Neutral);
                     UpdateStatusText(false);
                 }
             }
@@ -261,7 +280,7 @@ namespace FACM.Mayhem
                 if (!IsDisposed)
                 {
                     _stageText = MayhemUiCopy.Failed;
-                    _status.ForeColor = FacmDesignSystem.Error;
+                    SetStatusTone(FacmStatusTone.Error);
                     UpdateStatusText(false);
                 }
             }
@@ -337,7 +356,7 @@ namespace FACM.Mayhem
                 {
                     _resultImage.Image.Save(dialog.FileName, ImageFormat.Png);
                     _stageText = MayhemUiCopy.Saved;
-                    _status.ForeColor = FacmDesignSystem.Success;
+                    SetStatusTone(FacmStatusTone.Success);
                     UpdateStatusText(false);
                 }
                 catch (Exception exception)
@@ -355,7 +374,7 @@ namespace FACM.Mayhem
             {
                 using (var clone = new Bitmap(_resultImage.Image)) Clipboard.SetImage(clone);
                 _stageText = MayhemUiCopy.Copied;
-                _status.ForeColor = FacmDesignSystem.Success;
+                SetStatusTone(FacmStatusTone.Success);
                 UpdateStatusText(false);
             }
             catch (Exception exception)
@@ -427,7 +446,7 @@ namespace FACM.Mayhem
             if (!busy) _progress.Value = 0;
             if (busy)
             {
-                _status.ForeColor = FacmDesignSystem.Accent;
+                SetStatusTone(FacmStatusTone.Accent);
                 _elapsedTimer.Start();
             }
             else
@@ -442,7 +461,7 @@ namespace FACM.Mayhem
         {
             if (_queryCancellation == null || _queryCancellation.IsCancellationRequested) return;
             _stageText = MayhemUiCopy.Canceling;
-            _status.ForeColor = FacmDesignSystem.Warning;
+            SetStatusTone(FacmStatusTone.Warning);
             _queryCancellation.Cancel();
             _cancel.Enabled = false;
             UpdateStatusText();

@@ -89,7 +89,7 @@ namespace FACM.Mayhem
         {
             if (layout == null) throw new ArgumentNullException(nameof(layout));
             var top = layout.Query.Top - 12;
-            var bottom = layout.Status.Bottom + 12;
+            var bottom = layout.Status.Bottom + 6;
             return new Rectangle(16, top, Math.Max(0, clientWidth - 32), Math.Max(0, bottom - top));
         }
 
