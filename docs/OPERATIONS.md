@@ -1,5 +1,17 @@
 # GGman Operations (3.5.x)
 
+## Precision Workbench B1 native design acceptance (2026-10-17)
+
+This is a **Draft-only pilot**; source compilation does not establish screenshot quality. Collect B0 images from the main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and candidate images from the final B1 commit. Use the same Windows 10 machine, fixture data, window client dimensions, DPI, color theme and account-safe content. Never publish login credentials, token-bearing UI, QQ/LOL identifiers or production configuration in screenshots.
+
+**Required matrix:** Hub and default Dashboard, 1120×640 and 900×580 logical client size where work area permits, 100/125/150/200% DPI, default dark and cloud-light at each scale, all ten themes at 100% and their selected/focused states at 150%, and one restrained vivid theme at full depth. At 200%, explicitly test 1920×1080 constrained desktop fit; don't pretend a 900 logical-unit width physically fits into ~683 units. Record disconnected, populated, pending, empty/error/stale, long Chinese labels, hovered/pressed/disabled and owned dialog states. Repeat Alt+Tab, close/Escape, Tab/Shift+Tab, touch-free navigation and all nine routes. Profile editor dirty Save/Discard/Cancel and Foo/foo isolation remain regression gates.
+
+**Artifacts:** Name each exact captured PNG `SHA_surface_theme_dpi_clientW-clientH_scenario_state_before-or-after.png`; write a matching scenario table with OS/.NET, resolution, effective scaling, fixture ID, timestamp, observable result and screenshot references. Never resize screenshots to fabricate equal comparison. Independent reviewer should annotate actual failures and score all observed professional design dimensions 0–4; every dimension must reach at least 3 before a visual PASS.
+
+**Performance:** Compare same-builder base and B1 binaries. Target <=2% EXE growth, <=max(10%,50ms) startup median/p95 regression, <=max(10%,5MiB) idle memory regression, <=max(10%,30ms) navigation/theme p95 regression, no new >100ms UI stall, and no sustained idle CPU growth >0.5pp. Collect raw samples, state when cold-cache procedure is unavailable, and classify noisy/incomplete evidence as INCONCLUSIVE. Retain existing strict <10MiB hard contract and League-specific budget limits.
+
+**Machine availability:** No native Windows desktop or screenshot inspection is available to the GitHub connector. CI Windows runners are build runners, not interactive native design acceptance. The product owner/authorized operator only captures and supplies observed evidence; they are not responsible for a professional aesthetic verdict. Don't claim PASS, merge, release or updater activation until native visual and keyboard/DPI evidence and an independent review are complete.
+
 ## Third Astra review — replacement-rule selection identity (2026-10-17)
 
 Run the `shell-ux` performance smoke containing `ValidateCaseSensitiveRuleSelectionForSmokeTest` for Yes, No and Cancel. This creates two valid case-distinct rules (`Foo` and `foo`) with in-memory persistence, resolves an unsaved selection change, checks the exact destination key and visible value, then verifies Save and Reset never modify the sibling key. Replacement selection uses ordinal comparison; text entry key selection still ignores case, and search filtering remains case-insensitive. Both final-head Windows Build and UI Text Contract must pass; actual WinForms/DPI and authenticated CloudBase restore checks remain manual premerge gates.

@@ -1,5 +1,7 @@
 # GGman Product Experience Specification (design baseline, not approved for release)
 
+Precision Workbench pilot contract (2026-10-17): see root `DESIGN.md`. Its proposed visual scale and verification matrix govern new B1 styling decisions; historical size/typography suggestions below remain background until native acceptance. No application release is implied.
+
 Status: **R1 implementation in progress — 2026-10-09**. Applies to the maintained **GGman 3.5.x lightweight / .NET Framework 4.8 / WinForms / single GGman.exe** product. This document defines product and interaction intent; source code and current real-client behavior remain authoritative until a review candidate is approved. The user explicitly approved shipping numbered formal releases after standard CI verification, starting with v3.5.50. A design change alone does not bypass release validation.
 
 ## Product thesis

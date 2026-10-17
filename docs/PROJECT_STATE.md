@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — Precision Workbench B0/B1 candidate (NOT MERGED / NOT RELEASED)
+
+Astra's read-only design architecture blueprint recommends the native **Precision Workbench** system and a first scoped batch limited to the persistent League Hub, grouped navigation and the default Dashboard. PR #350 was merged to main as `1194a4cf8451b1886c03cdf733e067fd38037f66` after independent delta review and owner acceptance. The signed/public production release and updater still reference **v3.5.77**; subsequent historical PR350 Draft statements below are superseded.
+
+The new branch `feat/ggman-precision-workbench-b1-20261017` begins a lightweight visual pilot: navigation typography/row rhythm, responsive Dashboard status/details/footer layout with vertical scrolling, and exemption of the new Dashboard from legacy density mutation. Services, nine route IDs, 5-second/default Gameflow polling ownership, draft guards, CloudBase and update paths remain untouched. New `DESIGN.md` defines the source-specific visual contract.
+
+**B0 evidence boundary:** Source inventories, existing tests and previously published EXE size exist. Actual before/after Windows screenshots, cold/warm timings, idle memory, focus/DPI tests and complete keyboard journeys have NOT been captured by this environment. CI and an independent visual review are still required. The candidate must remain Draft; do not merge or publish until native evidence and performance comparisons are collected.
+
 ## 2026-10-17 — PR #350 third review P2 correction (candidate, not released)
 
 Third independent read-only Astra review of head `103a61b4dfb1ffff5ecb83b45e995f05065b3770` found no remaining source-level P0/P1 blocker, but identified a concrete P2: `UiTextEditorPanel.Filter` restored selections with `OrdinalIgnoreCase` even in case-sensitive replacement-rule mode, so rules `Foo` and `foo` could be confused following Save/Discard navigation. The same draft PR now restores selection with `Ordinal` in replacement mode and leaves ordinary text selection case-insensitive. In-memory editor smoke verifies Yes/No/Cancel, exact key/value, and subsequent Save/Reset effects on the intended case-distinct rule. Final-head CI and native Windows/registered CloudBase acceptance remain required. Do not merge or release based only on this candidate; production remains v3.5.77.

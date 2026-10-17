@@ -1,5 +1,11 @@
 # FACM Architecture
 
+## Precision Workbench B1 presentation ownership (2026-10-17, Draft only)
+
+The persistent `LeagueHubForm` retains nine route IDs, a grouped navigation rail, existing child factories and guarded child disposal. Its navigation text and row rhythm now follow the first pilot typography scale. `LeagueDashboardForm` owns its local measured layout and one vertical scroller, reusing the existing data fields, `LeagueDashboardPhaseService`, `LeagueDashboardDetailsService`, timer and cancellation owner. Overview fields reflow from two columns to stacked status; metadata remains the same four rows with labels stacked on narrow canvases; Refresh and Close are the same native actions. No fake metric tiles or network refresh from layout handlers.
+
+`LeagueSoftGlassSkin` excludes the Dashboard from legacy density mutation while retaining legacy page behavior. `FacmThemeRuntime` remains the global theme owner, and the two pilot forms subscribe only for scoped font/geometry refresh and unsubscribe on FormClosed. This is not a new theme engine or release feature. Native DPI/idempotence acceptance is not yet established. See DESIGN.md and the B1 operations matrix.
+
 ## Replacement-rule selection identity (PR #350, 2026-10-17)
 
 The editor uses case-insensitive search but mode-specific selection identity: plain text keys are `OrdinalIgnoreCase`, replacement rule keys are `Ordinal` to match their persisted dictionary. This distinction applies to list rebuilds after Save/Discard navigation so `Foo` and `foo` cannot be interchanged.

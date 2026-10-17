@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — Adopt Precision Workbench for incremental native UI modernization
+
+Independent planning compared Precision Workbench, Task Console, and Match Context Desk against readability, everyday workflows, WinForms compatibility, accessibility, performance and maintainability. Precision Workbench best reuses the existing single rail, semantic controls and native desktop interaction. Begin with Hub/navigation/Dashboard only; validate actual rendered evidence before other pages. Retain all ThemeCatalog IDs, source ownership, IME/keyboard semantics and low-overhead single-executable design. Use the [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) guidelines as applicable design intelligence, [Impeccable](https://github.com/pbakaus/impeccable) as critique method and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md) as a documentation reference. Do not copy browser-only rules blindly. Designer-quality review requires actual native screenshot evidence and an independent assessor rather than product-owner aesthetic certification. No publication is authorized by this decision.
+
 ## 2026-10-16 — Persistent workbench and intentional text-edit transitions
 
 The main League workbench is a persistent task surface, not a transient flyout. Moving focus to League, a browser, or another application must not dismiss it; the floating launcher retains its independent transient lifecycle. The Hub remains explicitly closable, including Escape, but an active unsaved UI text draft must resolve via Save / Discard / Cancel before the Hub can close or navigate. The same guard applies to editor selection, filter/mode, and collapse. Save is the only path that notifies registered automatic UI-text sync; a discarded local edit is not published. UI controls retain the current stable TextKey contract.

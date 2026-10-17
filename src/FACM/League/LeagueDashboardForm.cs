@@ -281,8 +281,8 @@ namespace FACM.League
                 var values = new[] { _accountValue, _platformValue, _performanceValue, _updatedValue };
                 for (var i = 0; i < values.Length; i++)
                 {
-                    var label = (Label)_detailsPanel.Controls[i * 3 - (i == 3 ? 0 : 0)];
-                    // Three entries precede each row except the last, which has no separator.
+                    var label = (Label)_detailsPanel.Controls[i * 3];
+                    // Each detail row inserts a caption and value; the first three add a separator.
                     var value = values[i];
                     var rowHeight = Unit(36);
                     if (narrow)
