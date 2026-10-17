@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Theming;
 
 namespace FACM.Services
 {
@@ -31,17 +32,17 @@ namespace FACM.Services
             ShowInTaskbar = false;
             TopMost = true;
             ClientSize = new Size(390, 150);
-            BackColor = Color.FromArgb(20, 26, 38);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var title = new Label
             {
                 Text = "正在识别游戏目录",
                 Location = new Point(20, 18),
                 Size = new Size(350, 28),
-                Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold),
-                ForeColor = Color.White
+                Font = new Font(FacmThemeRuntime.Current.FontName, 12F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text
             };
 
             _status = new Label
@@ -50,20 +51,19 @@ namespace FACM.Services
                 Location = new Point(20, 52),
                 Size = new Size(350, 40),
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(174, 188, 212)
+                ForeColor = FacmDesignSystem.TextMuted
             };
 
-            _cancel = new Button
+            _cancel = new FacmActionButton
             {
                 Text = "取消识别",
                 Location = new Point(266, 104),
-                Size = new Size(104, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(43, 54, 73),
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Size = new Size(104, 32),
+                Tone = FacmButtonTone.Secondary,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
+                TabStop = true
             };
-            _cancel.FlatAppearance.BorderColor = Color.FromArgb(76, 93, 124);
+            CancelButton = _cancel;
             _cancel.Click += delegate
             {
                 if (_completed || _cancellation.IsCancellationRequested) return;

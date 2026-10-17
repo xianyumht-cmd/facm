@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using FACM.Theming;
 
 namespace FACM.Services
 {
@@ -25,17 +26,17 @@ namespace FACM.Services
             ShowInTaskbar = false;
             TopMost = true;
             ClientSize = new Size(390, 132);
-            BackColor = Color.FromArgb(20, 26, 38);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var title = new Label
             {
                 Text = Text,
                 Location = new Point(20, 18),
                 Size = new Size(350, 28),
-                Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold),
-                ForeColor = Color.White
+                Font = new Font(FacmThemeRuntime.Current.FontName, 12F, FontStyle.Bold),
+                ForeColor = FacmDesignSystem.Text
             };
             var status = new Label
             {
@@ -43,7 +44,7 @@ namespace FACM.Services
                 Location = new Point(20, 50),
                 Size = new Size(350, 26),
                 AutoEllipsis = true,
-                ForeColor = Color.FromArgb(174, 188, 212)
+                ForeColor = FacmDesignSystem.TextMuted
             };
             var progress = new ProgressBar
             {
