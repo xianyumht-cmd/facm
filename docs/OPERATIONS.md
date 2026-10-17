@@ -1,5 +1,14 @@
 # GGman Operations (3.5.x)
 
+## ReaLTaiizor compatibility spike — non-production procedure (2026-10-17)
+
+Run `scripts/test-realtaiizor-compatibility.ps1` on a Windows build machine with .NET 8 SDK and the .NET Framework 4.8 targeting pack. The dedicated workflow performs this automatically. It produces `GGman-UI-Compatibility.zip`, distribution hashes, five smoke reports and a decision record. This is an **unsigned isolated preview**, not GGman.exe, not a signed release, and not an updater payload. Extract it into a separate empty folder and use Open-Preview.cmd; do not place it into the installed GGman directory. It never performs game/repair/cloud actions.
+
+Consolidated operator evidence request, only after build success: on Win10 record OS/.NET, machine, DPI, display dimensions and candidate SHA; test the isolated preview at 100/125/150/200%, light/dark, narrow/wide size; Chinese IME/selection, Tab/Shift+Tab/Space/Enter, wheel/thumb/PageUp/PageDown, resize while scrolled, no horizontal bar, theme switch retaining input, repeated open/close. Capture unscaled PNGs. Test offline on a machine without a developer NuGet cache. Do not supply credentials. The preview is not yet an actual migrated page, so product before/after pairing and ten-theme parity remain missing. Existing 3.5.78 screenshots cannot be paired with this fixture as if it were production.
+
+Reports of construction-plus-smoke time/private bytes are runner observations, **not** cold/warm startup, idle memory, gameplay cost or a v3.5.78 comparison. A CI PASS only covers its executed checks. Broad migration is NO-GO under current packaging; native visual acceptance is INCONCLUSIVE. Do not merge or publish. A packaging mitigation requires explicit owner approval, followed by production-style package measurement and clean offline testing.
+
+
 ## 3.5.78 published release follow-up (2026-10-17)
 
 PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.

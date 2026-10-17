@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "dependencies": {
+    ".NETFramework,Version=v4.8": {
+      "ReaLTaiizor": {
+        "type": "Direct",
+        "requested": "[3.8.2.1, 3.8.2.1]",
+        "resolved": "3.8.2.1",
+        "contentHash": "RNrX7/YruPJfVIfWD0x9EIPmvPH5Mawf7lZbbFuQHhqp3Lo8oO+FNXvVT9JgDu+U/dgeM09ZOdo6SZQrQ16pdQ=="
+      }
+    },
+    ".NETFramework,Version=v4.8/win-x86": {}
+  }
+}

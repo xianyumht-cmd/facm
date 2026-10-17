@@ -1,0 +1,32 @@
+name: ReaLTaiizor Compatibility Spike
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/ui-compatibility/**'
+      - 'scripts/test-realtaiizor-compatibility.ps1'
+      - '.github/workflows/realtaiizor-compatibility.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify package, compile net48 preview and run safe control smoke
+        shell: pwsh
+        run: ./scripts/test-realtaiizor-compatibility.ps1
+      - name: Upload isolated preview and measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GGman-UI-Compatibility
+          path: |
+            artifacts/ui-compatibility/*.json
+            artifacts/ui-compatibility/GGman-UI-Compatibility.zip
+          if-no-files-found: warn
