@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## Astra data consistency blockers — candidate validation (2026-10-17)
+
+For PR #350 review corrections, run `UiTextEditorPanel.ValidateDraftNavigationForSmokeTest` through the `shell-ux` performance smoke and `UiTextCustomizationStore.ValidateForSmokeTest` through the UI-text-customization smoke. Assertions use injectable **in-memory** persistence and save notification callbacks: simulated disk failure -> discard -> save another entry does not publish rejected text; invalid 201-character replacement source cannot poison later saves; cloud profile B restored over baseline A is retained when another key is saved; an unannounced unrelated external change is rebased; same-key external changes reject save/reset without notification; after refresh, reset preserves unrelated cloud values.
+
+Do not merge based on old CI success: the first runs for these corrections on 2026-10-17 failed **before** runner allocation and contain no build/test steps, not a compiler failure or pass. Require two successful runs on the **final** PR head, plus WinForms DPI, close/navigation, keyboard and a real authenticated cloud-restore manual acceptance with sanitized logs. Native CloudBase gateway tests skipped in CI are not proof of live integration.
+
+
 ## UI P1 candidate acceptance (PR #350, 2026-10-16)
 
 Before merge or release, require successful **GGman Windows Build** and **FACM UI Text Contract** on the final branch head. Native Windows review must cover: (1) Hub survives Alt+Tab/external click, still closes by deliberate close/Escape, and temporary launcher still dismisses normally; (2) an unsaved text edit prompts Save / Discard / Cancel on item selection, search/filter, mode change, new rule, collapse, workbench navigation and close, with Cancel preserving the visible draft and current route, Save persisting locally and Discard not issuing cloud publication; (3) a failed local Save does not permit destructive navigation, and cloud restore waits for genuinely pending visible drafts; (4) readable enabled/hover/pressed text for all ten themes, especially cloud-light recommendation title and bright accent buttons; (5) keyboard-only cleanup preview Tab/Shift+Tab, Enter/Space, Escape and cancellation, without accidental execution.
