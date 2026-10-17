@@ -49,6 +49,9 @@ namespace FACM.League
         private string _appliedSearch = string.Empty;
         private int _appliedMode;
         private Func<DialogResult> _confirmLeaveForSmokeTest;
+        private Func<UiTextProfile> _readProfile = UiTextCustomizationStore.Capture;
+        private Action<UiTextProfile> _writeProfile = UiTextCustomizationStore.Apply;
+        private Action _notifySaved = delegate { GgmanAutoSyncService.Current?.NotifyUiTextSaved(); };
 
         internal event EventHandler ExpandedHeightChanged;
 
@@ -221,7 +224,7 @@ namespace FACM.League
         private void RefreshEntries()
         {
             if (_busy) return;
-            _draft = UiTextCustomizationStore.Capture();
+            _draft = _readProfile();
             Filter();
         }
 
@@ -323,29 +326,32 @@ namespace FACM.League
             try
             {
                 var entry = _renderedEntry;
+                UiTextProfile candidate;
+                var latest = _readProfile();
                 if (_renderedMode == 1)
                 {
                     var source = _source.Text.Trim();
                     if (source.Length == 0) throw new InvalidOperationException(
                         _ui.Get(UiTextKeys.UiTextEditorSelectEntry));
-                    _draft.Replace[source] = _value.Text;
+                    candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                        _draft, latest, source, true, _value.Text, false);
                 }
                 else
                 {
                     if (entry == null) throw new InvalidOperationException(
                         _ui.Get(UiTextKeys.UiTextEditorSelectEntry));
                     UiTextCustomizationStore.ValidateText(_value.Text, entry.Original);
-                    if (string.Equals(_value.Text, entry.Original, StringComparison.Ordinal))
-                        _draft.Text.Remove(entry.Key);
-                    else
-                        _draft.Text[entry.Key] = _value.Text;
+                    candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                        _draft, latest, entry.Key, false, _value.Text,
+                        string.Equals(_value.Text, entry.Original, StringComparison.Ordinal));
                 }
-                UiTextCustomizationStore.Apply(_draft);
+                _writeProfile(candidate);
+                _draft = candidate;
                 if (entry != null)
                     entry.Current = _value.Text;
                 else
                     ClearNewRuleFields();
-                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
+                _notifySaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 if (refresh) RefreshEntries();
                 return true;
@@ -438,12 +444,14 @@ namespace FACM.League
             if (entry == null) return;
             try
             {
-                if (entry.IsRule) _draft.Replace.Remove(entry.Key);
-                else _draft.Text.Remove(entry.Key);
-                UiTextCustomizationStore.Apply(_draft);
+                var latest = _readProfile();
+                var candidate = UiTextCustomizationStore.PrepareSingleEdit(
+                    _draft, latest, entry.Key, entry.IsRule, null, true);
+                _writeProfile(candidate);
+                _draft = candidate;
                 _renderedEntry = null;
                 ClearNewRuleFields();
-                GgmanAutoSyncService.Current?.NotifyUiTextSaved();
+                _notifySaved();
                 _status.Text = _ui.Get(UiTextKeys.UiTextEditorSaved);
                 RefreshEntries();
             }
@@ -471,7 +479,21 @@ namespace FACM.League
 
         internal void ReloadAfterExternalRestore()
         {
-            if (_expanded && !IsDisposed) RefreshEntries();
+            if (_expanded && !IsDisposed && !HasPendingChanges) RefreshEntries();
+        }
+
+        internal static void NotifyExternalRestore()
+        {
+            UiTextEditorPanel editor;
+            if (_active == null || !_active.TryGetTarget(out editor) || editor.IsDisposed)
+                return;
+            if (editor.InvokeRequired)
+            {
+                if (editor.IsHandleCreated)
+                    editor.BeginInvoke((MethodInvoker)delegate { editor.ReloadAfterExternalRestore(); });
+                return;
+            }
+            editor.ReloadAfterExternalRestore();
         }
 
         private bool IsCurrentEditSaved()
