@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -32,24 +33,24 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(940, 650);
             MinimumSize = new Size(820, 570);
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
                 Text = LeagueAdvisorText.Get(_ui, UiTextKeys.LeagueAdvisorTitle),
                 Location = new Point(28, 20),
                 Size = new Size(560, 36),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = LeagueAdvisorText.Get(_ui, UiTextKeys.LeagueAdvisorHint),
                 Location = new Point(30, 60),
                 Size = new Size(870, 24),
-                ForeColor = Color.FromArgb(146, 161, 188),
+                ForeColor = FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
 
@@ -63,8 +64,8 @@ namespace FACM.League
                 Location = new Point(28, 220),
                 Size = new Size(884, 366),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(22, 29, 44),
-                ForeColor = Color.FromArgb(238, 243, 252),
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
                 FullRowSelect = true,
                 GridLines = false,
@@ -76,12 +77,12 @@ namespace FACM.League
             _rows.Columns.Add(LeagueAdvisorText.Get(_ui, UiTextKeys.LeagueAdvisorRecommendation), 540);
             _rows.Columns.Add(LeagueAdvisorText.Get(_ui, UiTextKeys.LeagueAdvisorEvidence), 170);
 
-            _refreshButton = CreateButton(_ui.Get(UiTextKeys.LeagueLiveRefresh), Color.FromArgb(55, 104, 214));
+            _refreshButton = CreateButton(_ui.Get(UiTextKeys.LeagueLiveRefresh), FacmButtonTone.Primary);
             _refreshButton.Location = new Point(720, 604);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshOnceAsync(true); };
 
-            var close = CreateButton(_ui.Get(UiTextKeys.Close), Color.FromArgb(35, 43, 60));
+            var close = CreateButton(_ui.Get(UiTextKeys.Close), FacmButtonTone.Secondary);
             close.Location = new Point(820, 604);
             close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             close.Click += delegate { Close(); };
@@ -111,25 +112,22 @@ namespace FACM.League
             {
                 Location = location,
                 Size = size,
-                ForeColor = bold ? Color.White : Color.FromArgb(176, 191, 216),
-                Font = new Font("Microsoft YaHei UI", bold ? 10F : 9F, bold ? FontStyle.Bold : FontStyle.Regular),
+                ForeColor = bold ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, bold ? 10F : 9F, bold ? FontStyle.Bold : FontStyle.Regular),
                 AutoEllipsis = true
             };
         }
 
-        private Button CreateButton(string text, Color background)
+        private Button CreateButton(string text, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
-                Size = new Size(92, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Size = new Size(100, 34),
+                Tone = tone,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
+                TabStop = true
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            return button;
         }
 
         private async Task RunLoopAsync()

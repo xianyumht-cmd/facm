@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -47,24 +48,24 @@ namespace FACM.League
             ClientSize = new Size(900, 670);
             MinimumSize = new Size(790, 600);
             MaximizeBox = true;
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             var title = new Label
             {
                 Text = _ui.Get(UiTextKeys.LeagueLiveTitle),
                 Location = new Point(28, 20),
                 Size = new Size(420, 36),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.LiveHint),
                 Location = new Point(30, 60),
                 Size = new Size(820, 24),
-                ForeColor = Color.FromArgb(146, 161, 188)
+                ForeColor = FacmDesignSystem.TextMuted
             };
 
             _phaseLabel = CreateInfoLabel(new Point(30, 96), new Size(820, 24), true);
@@ -78,15 +79,15 @@ namespace FACM.League
                 Location = new Point(28, 238),
                 Size = new Size(844, 100),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(18, 27, 43)
+                BackColor = FacmDesignSystem.Surface
             };
             var benchTitle = new Label
             {
                 Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Title),
                 Location = new Point(12, 8),
                 Size = new Size(190, 22),
-                ForeColor = Color.FromArgb(115, 224, 255),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Accent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
             _benchStateLabel = new Label
             {
@@ -94,7 +95,7 @@ namespace FACM.League
                 Location = new Point(202, 8),
                 Size = new Size(626, 22),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                ForeColor = Color.FromArgb(146, 161, 188),
+                ForeColor = FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
             _benchFlow = new FlowLayoutPanel
@@ -102,7 +103,7 @@ namespace FACM.League
                 Location = new Point(9, 34),
                 Size = new Size(826, 58),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(13, 20, 33),
+                BackColor = FacmDesignSystem.CanvasRaised,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoScroll = true,
@@ -117,8 +118,8 @@ namespace FACM.League
                 Location = new Point(28, 350),
                 Size = new Size(844, 258),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.FromArgb(22, 29, 44),
-                ForeColor = Color.FromArgb(238, 243, 252),
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
                 FullRowSelect = true,
                 GridLines = false,
@@ -133,12 +134,12 @@ namespace FACM.League
             _playersList.Columns.Add(_ui.Get(UiTextKeys.LeagueLiveIntent), 110);
             _playersList.Columns.Add(_ui.Get(UiTextKeys.LeagueLiveSpells), 120);
 
-            _refreshButton = CreateButton(UiTextKeys.LeagueLiveRefresh, Color.FromArgb(55, 104, 214));
+            _refreshButton = CreateButton(UiTextKeys.LeagueLiveRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(680, 626);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshOnceAsync(); };
 
-            var close = CreateButton(UiTextKeys.Close, Color.FromArgb(35, 43, 60));
+            var close = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
             close.Location = new Point(780, 626);
             close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             close.Click += delegate { Close(); };
@@ -176,25 +177,22 @@ namespace FACM.League
             {
                 Location = location,
                 Size = size,
-                ForeColor = bold ? Color.White : Color.FromArgb(176, 191, 216),
-                Font = new Font("Microsoft YaHei UI", bold ? 10F : 9F, bold ? FontStyle.Bold : FontStyle.Regular),
+                ForeColor = bold ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, bold ? 10F : 9F, bold ? FontStyle.Bold : FontStyle.Regular),
                 AutoEllipsis = true
             };
         }
 
-        private Button CreateButton(string key, Color background)
+        private Button CreateButton(string key, FacmButtonTone tone)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = _ui.Get(key),
-                Size = new Size(92, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Size = new Size(100, 34),
+                Tone = tone,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
+                TabStop = true
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            return button;
         }
 
         private async Task RunLoopAsync()
@@ -406,17 +404,17 @@ namespace FACM.League
                     Size = new Size(58, 50),
                     Margin = new Padding(2, 1, 4, 1),
                     FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.FromArgb(24, 35, 54),
-                    ForeColor = Color.FromArgb(225, 236, 250),
+                    BackColor = FacmDesignSystem.SurfaceRaised,
+                    ForeColor = FacmDesignSystem.Text,
                     Cursor = Cursors.Hand,
-                    Font = new Font("Microsoft YaHei UI", 7F, FontStyle.Regular),
+                    Font = new Font(FacmThemeRuntime.Current.FontName, 7F, FontStyle.Regular),
                     TextAlign = ContentAlignment.BottomCenter,
                     ImageAlign = ContentAlignment.TopCenter,
                     Enabled = !_benchSwapping,
                     TabStop = false
                 };
-                button.FlatAppearance.BorderColor = Color.FromArgb(54, 171, 207);
-                button.FlatAppearance.MouseOverBackColor = Color.FromArgb(31, 54, 77);
+                button.FlatAppearance.BorderColor = FacmDesignSystem.Border;
+                button.FlatAppearance.MouseOverBackColor = FacmDesignSystem.SurfaceHover;
                 button.Click += async delegate { await SwapBenchChampionAsync(capturedId); };
                 _benchToolTip.SetToolTip(
                     button,
@@ -547,7 +545,7 @@ namespace FACM.League
                         ? row.Spell1Id + " / " + row.Spell2Id
                         : _ui.Get(UiTextKeys.LeagueLiveUnknown);
                     var item = new ListViewItem(new[] { side, player, position, champion, intent, spells });
-                    if (row.IsLocalPlayer) item.ForeColor = Color.FromArgb(104, 218, 169);
+                    if (row.IsLocalPlayer) item.ForeColor = FacmDesignSystem.Success;
                     _playersList.Items.Add(item);
                 }
             }
