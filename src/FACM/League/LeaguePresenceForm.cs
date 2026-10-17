@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -82,15 +83,14 @@ namespace FACM.League
             _emoteLoadoutService = emoteLoadoutService;
             _ui = ui ?? UiTextCatalog.Load();
 
-            AutoScaleMode = AutoScaleMode.Dpi;
-            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.None;
             Text = T(LeaguePresenceUiTextKeys.WindowTitle);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(430, 760);
+            ClientSize = new Size(860, 690);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -174,7 +174,7 @@ namespace FACM.League
                 Size = new Size(294, 22),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F),
                 AutoEllipsis = true
             };
             _signature = new TextBox
@@ -206,7 +206,7 @@ namespace FACM.League
                 Size = new Size(382, 36),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
             Controls.Add(CreateFieldCaption(T(LeaguePresenceUiTextKeys.RankedQueue), new Rectangle(24, 466, 146, 18)));
@@ -238,7 +238,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _profileButton = CreateFlatButton(TP(LeagueProfileCustomizationUiTextKeys.Entry), new Rectangle(330, 531, 76, 32));
             _profileButton.Enabled = _profileService != null && _regaliaService != null;
@@ -261,7 +261,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
             _bannerButton = CreateFlatButton(TP(LeagueProfileCustomizationUiTextKeys.BannerAction), new Rectangle(330, 570, 76, 32));
             _bannerButton.Enabled = _challengePreferencesService != null;
@@ -284,7 +284,7 @@ namespace FACM.League
                 Size = new Size(382, 78),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.8F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
             Controls.Add(title);
@@ -311,6 +311,195 @@ namespace FACM.League
             Controls.Add(_statusValue);
             Controls.Add(footer);
 
+            var presencePanel = CreateGroupSurface();
+            presencePanel.Controls.Add(currentCaption);
+            presencePanel.Controls.Add(_currentValue);
+            foreach (var choice in _choiceButtons) presencePanel.Controls.Add(choice);
+
+            var signaturePanel = CreateGroupSurface();
+            signaturePanel.Controls.Add(signatureCaption);
+            signaturePanel.Controls.Add(signatureHint);
+            signaturePanel.Controls.Add(_signature);
+            signaturePanel.Controls.Add(_signatureSave);
+
+            var rankPanel = CreateGroupSurface();
+            rankPanel.Controls.Add(rankCaption);
+            rankPanel.Controls.Add(rankHint);
+            foreach (var control in new Control[]
+            {
+                _rankQueue, _rankTier, _rankDivision, _rankSave
+            }) rankPanel.Controls.Add(control);
+            var rankLabels = new List<Label>();
+            foreach (Control control in Controls)
+            {
+                var label = control as Label;
+                if (label != null && label != title && label != hint && label != _statusValue &&
+                    label != footer && label != profileCaption && label != profileHint &&
+                    label != bannerCaption && label != bannerHint)
+                    rankLabels.Add(label);
+            }
+            foreach (var label in rankLabels) rankPanel.Controls.Add(label);
+
+            var profilePanel = CreateGroupSurface();
+            foreach (var control in new Control[]
+            {
+                profileCaption, profileHint, _profileButton,
+                bannerCaption, bannerHint, _bannerButton
+            }) profilePanel.Controls.Add(control);
+
+            var viewport = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas,
+                TabStop = false
+            };
+            var original = new List<Control>();
+            foreach (Control control in Controls) original.Add(control);
+            foreach (var control in original)
+            {
+                Controls.Remove(control);
+                viewport.Controls.Add(control);
+            }
+            foreach (var card in new[] { presencePanel, signaturePanel, rankPanel, profilePanel })
+                viewport.Controls.Add(card);
+            Controls.Add(viewport);
+
+            var arranging = false;
+            Action arrange = delegate
+            {
+                if (arranging || viewport.IsDisposed || IsDisposed || viewport.ClientSize.Width < 40) return;
+                arranging = true;
+                var currentScroll = Math.Max(0, viewport.VerticalScroll.Value);
+                viewport.SuspendLayout();
+                try
+                {
+                    viewport.AutoScrollPosition = Point.Empty;
+                    Func<int, int> unit = number => Math.Max(1,
+                        (int)Math.Round(number * Math.Max(96F, DeviceDpi) / 96F));
+                    Func<Label, int, int> textHeight = (label, width) =>
+                        Math.Max(unit(22), TextRenderer.MeasureText(label.Text ?? string.Empty, label.Font,
+                            new Size(Math.Max(1, width), 16384),
+                            TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height + unit(2));
+                    var padding = viewport.ClientSize.Width < unit(760) ? unit(16) : unit(24);
+                    var width = Math.Min(unit(900), Math.Max(unit(280),
+                        viewport.ClientSize.Width - padding * 2 - SystemInformation.VerticalScrollBarWidth));
+                    var inner = width - unit(32);
+                    var y = padding;
+
+                    var refreshWidth = Math.Max(unit(94),
+                        TextRenderer.MeasureText(_refreshButton.Text, _refreshButton.Font).Width + unit(28));
+                    var titleWidth = Math.Max(unit(100), width - refreshWidth - unit(12));
+                    title.SetBounds(padding, y, titleWidth, unit(36));
+                    _refreshButton.SetBounds(padding + width - refreshWidth, y,
+                        refreshWidth, unit(34));
+                    y += unit(44);
+                    var hintHeight = textHeight(hint, width);
+                    hint.SetBounds(padding, y, width, hintHeight);
+                    y += hintHeight + unit(20);
+
+                    var columns = inner >= unit(580) ? 3 : 2;
+                    var gap = unit(8);
+                    var choiceWidth = Math.Max(unit(90), (inner - (columns - 1) * gap) / columns);
+                    var choiceHeight = unit(42);
+                    currentCaption.SetBounds(unit(16), unit(14), unit(90), unit(25));
+                    _currentValue.SetBounds(unit(100), unit(12),
+                        Math.Max(unit(110), inner - unit(112)), unit(28));
+                    for (var i = 0; i < _choiceButtons.Length; i++)
+                    {
+                        var row = i / columns;
+                        var column = i % columns;
+                        _choiceButtons[i].SetBounds(unit(16) + column * (choiceWidth + gap),
+                            unit(48) + row * (choiceHeight + gap), choiceWidth, choiceHeight);
+                    }
+                    var presenceHeight = unit(48) + ((_choiceButtons.Length + columns - 1) / columns) *
+                        (choiceHeight + gap) + unit(9);
+                    presencePanel.SetBounds(padding, y, width, presenceHeight);
+                    y += presenceHeight + unit(16);
+
+                    signatureCaption.SetBounds(unit(16), unit(12), inner, unit(25));
+                    var signatureHintHeight = textHeight(signatureHint, inner);
+                    signatureHint.SetBounds(unit(16), unit(36), inner, signatureHintHeight);
+                    var fieldY = unit(36) + signatureHintHeight + unit(9);
+                    var signSaveWidth = Math.Max(unit(94),
+                        TextRenderer.MeasureText(_signatureSave.Text, _signatureSave.Font).Width + unit(26));
+                    _signature.SetBounds(unit(16), fieldY,
+                        Math.Max(unit(96), inner - signSaveWidth - unit(10)), unit(33));
+                    _signatureSave.SetBounds(unit(16) + inner - signSaveWidth,
+                        fieldY, signSaveWidth, unit(34));
+                    var signatureHeight = fieldY + unit(33) + unit(16);
+                    signaturePanel.SetBounds(padding, y, width, signatureHeight);
+                    y += signatureHeight + unit(16);
+
+                    rankCaption.SetBounds(unit(16), unit(12), inner, unit(25));
+                    var rankHintHeight = textHeight(rankHint, inner);
+                    rankHint.SetBounds(unit(16), unit(36), inner, rankHintHeight);
+                    var rankLabelTop = unit(36) + rankHintHeight + unit(12);
+                    var rankFieldsTop = rankLabelTop + unit(23);
+                    var compact = inner < unit(500);
+                    var fieldGap = unit(9);
+                    var saveWidth = Math.Max(unit(90),
+                        TextRenderer.MeasureText(_rankSave.Text, _rankSave.Font).Width + unit(24));
+                    var totalFields = compact ? inner : inner - saveWidth - fieldGap;
+                    var divisionWidth = Math.Max(unit(60), totalFields / 7);
+                    var queueWidth = Math.Max(unit(100), (totalFields - divisionWidth - fieldGap * 2) * 52 / 100);
+                    var tierWidth = totalFields - divisionWidth - queueWidth - fieldGap * 2;
+                    var x1 = unit(16), x2 = x1 + queueWidth + fieldGap;
+                    var x3 = x2 + tierWidth + fieldGap;
+                    var labels = new[] { _rankQueue, _rankTier, _rankDivision };
+                    var fieldWidths = new[] { queueWidth, tierWidth, divisionWidth };
+                    var fieldX = new[] { x1, x2, x3 };
+                    for (var i = 0; i < labels.Length; i++)
+                        labels[i].SetBounds(fieldX[i], rankFieldsTop, fieldWidths[i], unit(31));
+                    for (var i = 0; i < rankLabels.Count && i < 3; i++)
+                        rankLabels[i].SetBounds(fieldX[i], rankLabelTop, fieldWidths[i], unit(20));
+                    var rankActionTop = compact ? rankFieldsTop + unit(41) : rankFieldsTop;
+                    _rankSave.SetBounds(compact ? unit(16) : unit(16) + inner - saveWidth,
+                        rankActionTop, saveWidth, unit(33));
+                    var rankHeight = rankActionTop + unit(33) + unit(16);
+                    rankPanel.SetBounds(padding, y, width, rankHeight);
+                    y += rankHeight + unit(16);
+
+                    var profileButtonWidth = Math.Max(unit(110),
+                        TextRenderer.MeasureText(_profileButton.Text, _profileButton.Font).Width + unit(24));
+                    var bannerButtonWidth = Math.Max(unit(110),
+                        TextRenderer.MeasureText(_bannerButton.Text, _bannerButton.Font).Width + unit(24));
+                    var descWidth = Math.Max(unit(140),
+                        inner - Math.Max(profileButtonWidth, bannerButtonWidth) - unit(18));
+                    var profileHintHeight = textHeight(profileHint, descWidth);
+                    profileCaption.SetBounds(unit(16), unit(10), descWidth, unit(24));
+                    profileHint.SetBounds(unit(16), unit(34), descWidth, profileHintHeight);
+                    var profileRowHeight = Math.Max(unit(84), unit(34) + profileHintHeight + unit(12));
+                    _profileButton.SetBounds(unit(16) + inner - profileButtonWidth,
+                        unit(22), profileButtonWidth, unit(34));
+                    bannerCaption.SetBounds(unit(16), profileRowHeight + unit(6), descWidth, unit(24));
+                    var bannerHintHeight = textHeight(bannerHint, descWidth);
+                    bannerHint.SetBounds(unit(16), profileRowHeight + unit(30), descWidth, bannerHintHeight);
+                    _bannerButton.SetBounds(unit(16) + inner - bannerButtonWidth,
+                        profileRowHeight + unit(17), bannerButtonWidth, unit(34));
+                    var profileHeight = profileRowHeight + Math.Max(unit(84),
+                        unit(30) + bannerHintHeight + unit(12));
+                    profilePanel.SetBounds(padding, y, width, profileHeight);
+                    y += profileHeight + unit(16);
+
+                    var statusHeight = textHeight(_statusValue, width);
+                    _statusValue.SetBounds(padding, y, width, statusHeight);
+                    y += statusHeight + unit(12);
+                    var footerHeight = textHeight(footer, width);
+                    footer.SetBounds(padding, y, width, footerHeight);
+                    viewport.AutoScrollMinSize = new Size(0, y + footerHeight + padding);
+                }
+                finally
+                {
+                    viewport.ResumeLayout(false);
+                    viewport.AutoScrollPosition = new Point(0, currentScroll);
+                    arranging = false;
+                }
+            };
+            viewport.Resize += delegate { arrange(); };
+            Resize += delegate { arrange(); };
+            arrange();
+
             FacmDesignSystem.ApplyLeagueSurface(this);
             Shown += async delegate { await RefreshPresenceAsync(); };
             FormClosed += delegate { _lifetime.Cancel(); _lifetime.Dispose(); };
@@ -332,6 +521,17 @@ namespace FACM.League
             }
         }
 
+        private static FacmGlassPanel CreateGroupSurface()
+        {
+            return new FacmGlassPanel
+            {
+                DrawBorder = true,
+                Radius = FacmDesignSystem.CardRadius,
+                BackColor = FacmDesignSystem.Surface,
+                TabStop = false
+            };
+        }
+
         private Button CreateFlatButton(string text, Rectangle bounds)
         {
             var button = new Button
@@ -344,7 +544,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text,
                 Cursor = Cursors.Hand,
                 TabStop = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
             button.FlatAppearance.BorderSize = 1;
             button.FlatAppearance.BorderColor = FacmDesignSystem.BorderSoft;
@@ -372,7 +572,7 @@ namespace FACM.League
                 Size = bounds.Size,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 7.6F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
         }
 
@@ -386,7 +586,7 @@ namespace FACM.League
                 FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Surface,
                 ForeColor = FacmDesignSystem.Text,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F),
                 IntegralHeight = false,
                 DropDownHeight = 220
             };
