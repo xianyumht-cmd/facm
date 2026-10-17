@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — B4 visual consistency without changing account or update ownership
+
+Keep the floating launcher, updater, email account, theme picker and ESC settings on native WinForms with existing business/service ownership. Prefer consistently visible, restrained semantic surfaces and native accessible ActionButtons; do not replace the update installer, registered cloud sync or League local configuration handlers for a visual goal. Theme IDs and status wording remain unchanged. Group only the current user-visible ESC local actions, leaving intentionally hidden legacy cloud controls hidden. Record and resolve copy-contract violations as code-quality failures. Screenshot quality, input and DPI remain separate runtime gates.
+
 ## 2026-10-17 — Reuse existing theme infrastructure for B3 League surfaces
 
 Mayhem preview and active match/advisor/recommendation pages remain native WinForms; prevent screenshot-sized fixed scrollbars by using bounded viewport geometry, and eliminate independent private dark palettes in favor of `FacmDesignSystem` semantic roles and `FacmActionButton`. Preserve colorful champion/team metrics only when they encode actual game information; do not replace the game's bitmap data renderer or League polling. Keep all service contracts and configuration semantics, and defer independent screenshot critique to the consolidated gate. Source changes passing CI alone are not visual approval.

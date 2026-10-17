@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B4 source progress: launcher, updates, theme, account and ESC
+
+Draft PR #351 continues on branch `feat/ggman-precision-workbench-b1-20261017`; main and official v3.5.77 remain unchanged. B4 source changes: `79c566ef8653b2f37d6d8c5bcdba0e5a0dcd4d39` standardizes launcher tiles/footer, ThemePicker and widens OnlineCenter; `4fff958255ef06bd5e73866694cc7aa7f17595cf` improves GgmanAccount form layout; `fe9129a5612a3ddc2510fb190849e8f54487be51` groups visible ESC local actions; `2843bb150b257ad82ff95a055cacaee146473985` fixes new UI text-contract violations by removing redundant hardcoded accessibility labels from ThemePicker.
+
+Intermediate Windows build #39014102313 passed on ESC code head but UI Text Contract #39014102191 failed on the duplicate a11y names; the latter was corrected, not bypassed. Required final-head CI and full native Windows visual/keyboard/DPI/account/update acceptance are pending. B4 still has reachable secondary account/theme settings and companion surfaces to audit, followed by B5 cleanup and B6 consolidated acceptance. Do not merge or publish partial UI changes.
+
 ## 2026-10-17 — B3 Mayhem and League presentation source progress (PR #351)
 
 B3 code changes in the same Draft branch: `8f4d1fbe5d7410f796c51b7b39b24b680f9d7248` introduced Mayhem toolbar/preview layout; `3509466bbb2d53bd0a47a19dc3e2b4e29755fd91` retained status tones on theme changes; `8c1d6cf5e49200e0e673c79d9b80cd657500c1fa` migrated Live and Advisor shared colors/actions to the canonical theme; `7e133ccb11bfad25c2f63899e9937cf70420a711` improved Player account summary and list hierarchy; `779a3d724852b831de5b7f3d147278a961f6ebad` updated recommendation choice contrast/buttons.

@@ -51,6 +51,16 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 
 ## B2 source implementation record (native visual validation pending)
 
+## B4 native launcher, theme, account, update and ESC presentation (in progress)
+
+- Floating launcher: existing four route IDs, context/welcome flow, menu owner and launcher dimensions are unchanged; each shortcut now paints a distinct semantic surface/border even at rest, with accessible keyboard focus. Footer actions use `FacmActionButton`. Context details use readable 8.5–9.5pt fonts.
+- Theme picker: native Cancel/Apply buttons use shared tone/focus/Tab semantics, theme swatches retain their true per-theme preview, and card text/description uses contrast-aware paint with correctly disposed fonts. No theme ID, theme selection or persistence semantics changed.
+- Online update/announcement dialog: reading width expanded from 560 to 640 logical units, version and announcement cards use wider text regions with clearer headings. Existing mandatory-update exit behavior, download installation, announcement links and preference handlers remain untouched.
+- Email account: slightly expanded two-state authentication card and text field spacing, larger session identity/description, and readable privacy copy. No authentication endpoint/session or credential logic changed.
+- ESC/lobby settings: the two **visible** local actions now sit inside a semantic surface with consistent typography and room for the full warning/status copy. Existing cloud buttons and probe remain **hidden** as before. The local and CloudBase action handlers, permissions, paths and persistence are untouched.
+
+No new runtime dependency, polling timer, event-driven network call, or new app-owned route is introduced. Native rendering, DPI, accessibility, visual differentiation and actual update/login/game workflow acceptance remain **INCONCLUSIVE** pending consolidated Windows evidence. Additional settings/profile and secondary surfaces have not been declared complete. Do not merge or publish PR #351.
+
 ## B3 source implementation record — Mayhem, Live, player and recommendation (native visual acceptance pending)
 
 - `MayhemLookupForm` groups its search controls and status into one semantic toolbar surface while presenting the preview in a separate full-width scrollable reading surface. `MayhemLookupLayoutPolicy` reserves horizontal padding plus the vertical scrollbar for the preview; geometry smoke checks multiple widths. Image query, rendering, copy, save, cancellation and owner lifetime remain unchanged. Status tones retain their semantic role during theme changes.
