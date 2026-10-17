@@ -49,6 +49,12 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 - One compact status surface displays the actual result and semantic success/warning/error text, with no fabricated progress or status. No new runtime dependency, animation or polling.
 - Evaluate actual native snapshots at the same client size against the user's initial Repair-page image before extending to any other screen. Screenshot aesthetics and task readability are independently assessed; CI is a necessary but insufficient gate.
 
+## B2 source implementation record (native visual validation pending)
+
+On the existing task branch, `LeaguePresenceForm` now reparents its existing settings into full-width scrollable task surfaces with status choices, signature, ranked identity and appearance controls. Width-dependent three/two-column state controls and structured field groups replace its 430px-wide, left-clustered fixed presentation. Native service calls, status options, account semantics and personal customization entry points are unchanged. `LeagueEfficiencyForm` now exposes the existing contextual hints inline in settings rows instead of relying entirely on hover text, with increased typographic rhythm and unchanged toggle/numeric/keyboard handlers. `LeagueSoftGlassSkin` no longer compresses these intentionally laid-out migrated pages.
+
+Build compilation/contract gates passed for the Presence-only commit `635fd52cd8716510791e149e8efb369e447c5613` and combined B2 code commit `916d007f82030dc561d4e843a8760c41cbcfb5f4`; neither automated pass demonstrates actual layout geometry, light/dark palette quality, IME, keyboard/focus, scroll behavior or authentic cloud/session operation. Record these B2 surfaces as **implemented in source, native visual acceptance INCONCLUSIVE**, not completed.
+
 ## Product-wide rollout scope and completion ledger
 
 The owner rejected the first pilot as visually indistinguishable and requests modernization of all **currently reachable GGman-owned surfaces** before one official release. Progress in batches internally on the same PR #351 branch; no per-page owner approvals. An unchanged-looking reachable surface is not completed merely because shared tokens or CI changed.

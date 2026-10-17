@@ -12,6 +12,14 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B2 source progress: Presence and Quick Tools
+
+On the same PR #351 branch, code heads `635fd52cd8716510791e149e8efb369e447c5613` and `916d007f82030dc561d4e843a8760c41cbcfb5f4` migrate `LeaguePresenceForm` and `LeagueEfficiencyForm` away from visibly narrow/hover-dependent presentation. Presence now uses scrollable full-width group surfaces with status choices, account signature, ranked displays and appearance actions; Quick Tools displays help descriptions inside hotkey, toggle and parameter rows instead of hover-only messages. Existing service handlers and persistence semantics are retained. The shared density pass skips these migrated surfaces.
+
+The initial Presence code commit failed Windows Release compilation due to an invalid multi-declarator `var` expression; corrected in `635fd52cd8716510791e149e8efb369e447c5613`, with both required workflows then passing. Latest B2 source commit `916d007f82030dc561d4e843a8760c41cbcfb5f4` also passed Windows Build [#39007644220](https://github.com/xianyumht-cmd/facm/actions/runs/39007644220) and UI Text Contract [#39007644251](https://github.com/xianyumht-cmd/facm/actions/runs/39007644251). No native rendering/screenshot, input/DPI or network/cloud correctness assertion follows from these CI results.
+
+Remaining: native B2 screen evidence and B3–B6 product-wide source modernization/verification. The official release and online updater remain v3.5.77; no merge or publish.
+
 ## 2026-10-17 — PR #351 expanded to full-product visual modernization
 
 Owner explicitly requests complete modernization of every active GGman-owned surface, rather than per-page feedback and releases. Continue using `feat/ggman-precision-workbench-b1-20261017` / Draft PR #351. B1 Hub, Dashboard, Repair candidate is only partial; B2 Quick Tools/Presence, B3 Mayhem/player/live/companion, B4 launcher/updater/account/settings, B5 cleanup/secondary UI and B6 consolidated native QA remain pending. Complete source inventory and acceptance ledger are in root DESIGN.md. Native OS menus/file dialogs are intentional platform-owned exceptions.

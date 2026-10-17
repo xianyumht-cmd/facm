@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## B2 Presence and automation visual surface migration (2026-10-17, Draft)
+
+The active `LeaguePresenceForm` retains its original services, option values and click handlers, but now arranges existing native controls within full-width, scrollable, semantically grouped status, signature, ranked and profile tasks. The resize handler controls row geometry, preserving its edit/action ownership. `LeagueEfficiencyForm` keeps its 18-row settings and handlers while promoting existing contextual help from hover-only to visible descriptions within hotkey, automation and parameter rows. The shared `LeagueSoftGlassSkin` legacy compact-density pass excludes both migrated surfaces; its explicit efficiency scrolling calculation remains active. Existing CloudBase/game/update ownership is unchanged. Keyboard, theme/DPI and visual evidence remain outstanding.
+
 ## B1 game-repair native presentation prototype (2026-10-17, Draft)
 
 The existing `LeagueGameRepairForm` retains its exact `LeagueGameRepairService` and `LeagueEfficiencyModule` action handlers. Presentation is now locally owned by one scrollable layout with two task sections. Rows lay out native ActionButtons opposite readable title+hint content or stack when width is constrained; update messages flow into a single semantic result surface. `LeagueGameRepairLayout.ValidateForSmokeTest` checks layout breakpoints in `shell-ux`. `LeagueSoftGlassSkin` excludes this migrated page from legacy compact-density mutation without altering other pages. There is no new game or network owner, polling loop or background service. Native visual, keyboard, DPI and performance comparisons are outstanding.

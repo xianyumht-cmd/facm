@@ -1,5 +1,9 @@
 # GGman Operations (3.5.x)
 
+## B2 source regression and pending native checks (2026-10-17)
+
+Windows Build #39007644220 and UI Text Contract #39007644251 passed on code SHA `916d007f82030dc561d4e843a8760c41cbcfb5f4`. In the eventual **consolidated** Windows acceptance (no per-page operator interruptions), capture Quick Tools and Presence under the same theme/scale; verify that all existing controls are reachable by Tab/Shift+Tab, Chinese hints are legible, scroll does not jump unexpectedly, 3/2-column Presence choices remain visually separated, and save/toggle/update handlers remain unchanged. Compare 100/125/150/200% and ten themes as practical. Functional authentication remains separately tested with authorized accounts only; deterministic UI smoke does not prove live status writes.
+
 ## Consolidated cross-product visual upgrade verification (2026-10-17)
 
 Under PR #351, internally implement B1–B5 without requiring the operator to review every incremental form. Use DESIGN.md's active-surface ledger. Once B6 is ready, collect one pinned final candidate and screen capture set for Hub, automation, Presence, Mayhem, companion, launcher, updater, account, themes, cleanup and auxiliary dialogs at controlled themes, states, 100/125/150/200% scale where feasible. Preserve native system menus and dialogs.
