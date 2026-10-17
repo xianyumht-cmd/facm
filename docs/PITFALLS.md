@@ -1,5 +1,14 @@
 # FACM Pitfalls
 
+## Editor full-profile mutation before durable write leaks rejected changes (2026-10-17)
+
+In PR #350 review, `UiTextEditorPanel.SaveLocal` and `ResetSelected` were changing `_draft.Text` or `_draft.Replace` before `UiTextCustomizationStore.Apply` validated and atomically replaced the disk file. Failed validation or I/O left the in-memory baseline dirty, so the new Discard action only cleared visible fields while hidden rejected edits remained in the next full write and possibly registered automatic upload. Treat the editor baseline as immutable: clone the **latest** persisted profile, apply and validate only the intended key, persist, then advance the baseline and notify cloud sync only on success. A discarded failed edit must not influence any later save.
+
+## Cloud restore must invalidate cached editor profiles (2026-10-17)
+
+The cloud-first service deferred restore only for visible unsaved drafts, but otherwise applied a new `ui-text.ini` without notifying an already-open editor. That editor could save its stale full-profile snapshot and revert newer cloud values. Notify the active editor after a successful registered restore; never unconditionally reload over a currently dirty visible editor. Independently, each Save/Reset must rebase the **single intended key** onto a fresh disk capture, rejecting changes when that key has itself changed since the editor's baseline, preserving unrelated remote changes. This protects the saved data even if a UI notification is delayed or missed.
+
+
 ## Outside-click dismissal cannot be inferred from a window's ControlBox (2026-10-16)
 
 The shared borderless chrome historically used `CloseOnDeactivate ?? ControlBox`, so a full workbench with long-lived editing also inherited transient flyout dismissal. Distinguish persistent task windows from flyouts at the owning form's chrome policy, not by globally changing the default and potentially breaking intentional popup dismissal. Protect the editor's unsaved state at **each internal content replacement** and at its owning workbench navigation/close boundary: cloud-restore deferral alone does not protect local selection, filtering, collapsing, or disposing a page. A canceled transition must preserve both the draft and the previous view; an explicit Save alone may notify cloud auto-sync.
