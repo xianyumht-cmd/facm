@@ -45,7 +45,7 @@ namespace FACM.Online
             MinimizeBox = false;
             ShowInTaskbar = false;
             TopMost = forceMode;
-            ClientSize = new Size(560, 620);
+            ClientSize = new Size(640, 652);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
@@ -56,8 +56,8 @@ namespace FACM.Online
             {
                 Text = forceMode ? "检测到必须安装的新版本" : "检查更新与公告",
                 Location = new Point(24, 18),
-                Size = new Size(510, 34),
-                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold),
+                Size = new Size(590, 34),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent
             };
@@ -67,16 +67,16 @@ namespace FACM.Online
                     ? "当前版本已不再支持，请更新后继续使用。"
                     : "查看版本更新和最新公告。",
                 Location = new Point(26, 55),
-                Size = new Size(508, 24),
+                Size = new Size(588, 30),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
 
-            var versionPanel = CreatePanel(new Point(20, 92), new Size(520, 226));
+            var versionPanel = CreatePanel(new Point(20, 96), new Size(600, 236));
             var versionTitle = CreateSectionTitle("版本更新", new Point(16, 13));
             _updateBadge = new FacmStatusBadge
             {
-                Location = new Point(398, 11),
+                Location = new Point(478, 11),
                 Size = new Size(104, 27),
                 Text = UiTextRuntime.Text(UiTextKeys.CheckUpdate),
                 Tone = FacmStatusTone.Neutral
@@ -84,7 +84,7 @@ namespace FACM.Online
             _versionValue = new Label
             {
                 Location = new Point(16, 43),
-                Size = new Size(486, 25),
+                Size = new Size(566, 25),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
@@ -92,17 +92,17 @@ namespace FACM.Online
             _updateStatus = new Label
             {
                 Location = new Point(16, 70),
-                Size = new Size(486, 31),
+                Size = new Size(566, 31),
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
             var releaseNotesTitle = CreateSectionTitle(OnlineCenterUiText.ReleaseNotesTitle, new Point(16, 104));
-            releaseNotesTitle.Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold);
+            releaseNotesTitle.Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold);
             _releaseNotes = new TextBox
             {
                 Location = new Point(16, 124),
-                Size = new Size(486, 44),
+                Size = new Size(566, 54),
                 ReadOnly = true,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -114,7 +114,7 @@ namespace FACM.Online
             _autoUpdate = new FacmToggleSwitch
             {
                 Text = "启动时自动检查更新",
-                Location = new Point(16, 178),
+                Location = new Point(16, 188),
                 Size = new Size(244, 32),
                 Checked = _settings.AutoUpdateEnabled,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
@@ -124,9 +124,9 @@ namespace FACM.Online
                 _settings.AutoUpdateEnabled = _autoUpdate.Checked;
                 _settings.Save();
             };
-            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(282, 178), 100, FacmButtonTone.Secondary);
+            _refreshButton = CreateButton(UiTextRuntime.Text(UiTextKeys.CheckUpdate), new Point(362, 188), 100, FacmButtonTone.Secondary);
             _refreshButton.Click += async delegate { await RefreshAsync(); };
-            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(392, 178), 110, FacmButtonTone.Primary);
+            _updateButton = CreateButton(OnlineCenterUiText.UpdateNow, new Point(472, 188), 110, FacmButtonTone.Primary);
             _updateButton.Click += async delegate { await BeginUpdateAsync(); };
 
             versionPanel.Controls.Add(versionTitle);
@@ -139,12 +139,12 @@ namespace FACM.Online
             versionPanel.Controls.Add(_refreshButton);
             versionPanel.Controls.Add(_updateButton);
 
-            var announcementPanel = CreatePanel(new Point(20, 330), new Size(520, 222));
+            var announcementPanel = CreatePanel(new Point(20, 344), new Size(600, 222));
             var announcementSection = CreateSectionTitle("公告", new Point(16, 13));
             _announcementTitle = new Label
             {
                 Location = new Point(16, 43),
-                Size = new Size(486, 28),
+                Size = new Size(566, 28),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 10.5F, FontStyle.Bold)
@@ -152,7 +152,7 @@ namespace FACM.Online
             _announcementBody = new TextBox
             {
                 Location = new Point(16, 77),
-                Size = new Size(486, 93),
+                Size = new Size(566, 93),
                 ReadOnly = true,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -169,15 +169,15 @@ namespace FACM.Online
 
             _progress = new ProgressBar
             {
-                Location = new Point(20, 560),
-                Size = new Size(520, 14),
+                Location = new Point(20, 574),
+                Size = new Size(600, 14),
                 Minimum = 0,
                 Maximum = 100,
                 Visible = false
             };
             _closeButton = CreateButton(
                 UiTextRuntime.Text(forceMode ? UiTextKeys.Exit : UiTextKeys.Close),
-                new Point(420, 580),
+                new Point(500, 594),
                 120,
                 forceMode ? FacmButtonTone.Danger : FacmButtonTone.Secondary);
             _closeButton.Click += delegate

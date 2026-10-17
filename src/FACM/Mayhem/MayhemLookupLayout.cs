@@ -85,12 +85,20 @@ namespace FACM.Mayhem
             return result;
         }
 
+        public static Rectangle ResolveToolbarSurface(MayhemLookupLayout layout, int clientWidth)
+        {
+            if (layout == null) throw new ArgumentNullException(nameof(layout));
+            var top = layout.Query.Top - 12;
+            var bottom = layout.Status.Bottom + 6;
+            return new Rectangle(16, top, Math.Max(0, clientWidth - 32), Math.Max(0, bottom - top));
+        }
+
         public static int ResolvePreviewWidth(int viewportWidth)
         {
             // Reserve the vertical scrollbar before it becomes visible. Without this reservation,
             // AutoScroll can shrink the viewport after the image is sized and create a horizontal
             // scrollbar on the next layout pass.
-            return Math.Max(1, viewportWidth - 16 - SystemInformation.VerticalScrollBarWidth - 4);
+            return Math.Max(1, viewportWidth - 24 - SystemInformation.VerticalScrollBarWidth - 2);
         }
 
         public static void ValidateForSmokeTest()
@@ -101,14 +109,21 @@ namespace FACM.Mayhem
             ValidateLayout(520, 480);
             ValidateLayout(360, 360);
 
-            var previewWidth = ResolvePreviewWidth(640);
-            if (previewWidth <= 0 || previewWidth >= 640)
-                throw new InvalidOperationException("Mayhem preview width policy no longer reserves a scrollbar-safe viewport.");
+            foreach (var viewport in new[] { 320, 520, 640, 1000 })
+            {
+                var previewWidth = ResolvePreviewWidth(viewport);
+                if (previewWidth <= 0 || previewWidth + 24 + SystemInformation.VerticalScrollBarWidth > viewport)
+                    throw new InvalidOperationException("Mayhem preview must not require horizontal scrolling.");
+            }
         }
 
         private static void ValidateLayout(int width, int height)
         {
             var layout = Resolve(width, height);
+            var toolbarSurface = ResolveToolbarSurface(layout, width);
+            if (toolbarSurface.Left < 0 || toolbarSurface.Right > width ||
+                toolbarSurface.Top > layout.Query.Top || toolbarSurface.Bottom <= layout.Status.Bottom)
+                throw new InvalidOperationException("Mayhem toolbar surface must enclose all inputs and status.");
             var controls = new[] { layout.Query, layout.Search, layout.Cancel, layout.Save, layout.Copy };
             foreach (var bounds in controls)
             {

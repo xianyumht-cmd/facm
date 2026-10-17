@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Performance;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM.League
 {
@@ -43,24 +44,24 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(760, 520);
             MinimumSize = new Size(700, 480);
-            BackColor = Color.FromArgb(14, 19, 30);
-            ForeColor = Color.FromArgb(238, 243, 252);
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var title = new Label
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Title),
                 Location = new Point(28, 20),
                 Size = new Size(620, 36),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = T(LeagueBuildApplyUiTextKeys.Hint),
                 Location = new Point(30, 60),
                 Size = new Size(700, 34),
-                ForeColor = Color.FromArgb(146, 161, 188)
+                ForeColor = FacmDesignSystem.TextMuted
             };
 
             _autoToggle = new CheckBox
@@ -68,7 +69,7 @@ namespace FACM.League
                 Text = T(LeagueAutoApplyUiTextKeys.Toggle),
                 Location = new Point(30, 96),
                 Size = new Size(292, 28),
-                ForeColor = Color.White,
+                ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 Checked = _autoController.Enabled
@@ -77,7 +78,7 @@ namespace FACM.League
             {
                 Location = new Point(326, 96),
                 Size = new Size(404, 38),
-                ForeColor = Color.FromArgb(146, 161, 188),
+                ForeColor = FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
             UpdateAutoStatus(_autoController.LastStatus);
@@ -97,16 +98,16 @@ namespace FACM.League
             {
                 Location = new Point(30, 430),
                 Size = new Size(480, 44),
-                ForeColor = Color.FromArgb(176, 191, 216),
+                ForeColor = FacmDesignSystem.TextMuted,
                 AutoEllipsis = true
             };
 
-            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), Color.FromArgb(35, 43, 60), 110);
+            _refreshButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Refresh), FacmButtonTone.Secondary, 110);
             _refreshButton.Location = new Point(516, 452);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _refreshButton.Click += async delegate { await RefreshAsync(true); };
 
-            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), Color.FromArgb(55, 104, 214), 110);
+            _applyButton = CreateButton(T(LeagueBuildApplyUiTextKeys.Apply), FacmButtonTone.Primary, 110);
             _applyButton.Location = new Point(632, 452);
             _applyButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _applyButton.Enabled = false;
@@ -143,8 +144,8 @@ namespace FACM.League
                 Text = text,
                 Location = new Point(30, top),
                 Size = new Size(700, 25),
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
             };
         }
 
@@ -154,7 +155,7 @@ namespace FACM.League
             {
                 Location = new Point(30, top),
                 Size = new Size(700, height),
-                ForeColor = Color.FromArgb(206, 218, 239),
+                ForeColor = FacmDesignSystem.Text,
                 AutoEllipsis = true
             };
         }
@@ -168,25 +169,23 @@ namespace FACM.League
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(22, 29, 44),
-                ForeColor = Color.FromArgb(238, 243, 252),
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 ScrollBars = ScrollBars.Vertical
             };
         }
 
-        private Button CreateButton(string text, Color background, int width)
+        private Button CreateButton(string text, FacmButtonTone tone, int width)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
-                Size = new Size(width, 32),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = background,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Size = new Size(width, 34),
+                Tone = tone,
+                Cursor = Cursors.Hand,
+                TabStop = true,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(68, 79, 101);
-            return button;
         }
 
         private void HandleAutoToggleChanged(object sender, EventArgs e)

@@ -14,6 +14,8 @@ namespace FACM.League
         private readonly LeaguePlayerDataService _service;
         private readonly UiTextCatalog _ui;
         private readonly Label _accountLabel;
+        private readonly Panel _accountSurface;
+        private readonly Panel _accountAccent;
         private readonly Label _statusLabel;
         private readonly Label _statsSection;
         private readonly Label _recentSection;
@@ -53,7 +55,7 @@ namespace FACM.League
                 Size = new Size(300, 34),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             _hintLabel = new Label
             {
@@ -63,6 +65,17 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
+            _accountSurface = new Panel
+            {
+                BackColor = FacmDesignSystem.Surface,
+                TabStop = false
+            };
+            _accountAccent = new Panel
+            {
+                BackColor = FacmDesignSystem.Accent,
+                TabStop = false
+            };
+            _accountSurface.Controls.Add(_accountAccent);
             _accountLabel = new Label
             {
                 Location = new Point(30, 94),
@@ -127,6 +140,7 @@ namespace FACM.League
                 Visible = false
             };
 
+            Controls.Add(_accountSurface);
             Controls.Add(_titleLabel);
             Controls.Add(_hintLabel);
             Controls.Add(_accountLabel);
@@ -140,6 +154,9 @@ namespace FACM.League
             Controls.Add(_closeButton);
             Controls.Add(_emptyStateLabel);
 
+            _accountSurface.SendToBack();
+            FacmThemeRuntime.ThemeChanged += RefreshPlayerPalette;
+            Disposed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshPlayerPalette; };
             ApplyCached();
             ResizePlayerPage();
             Resize += delegate { ResizePlayerPage(); };
@@ -151,6 +168,29 @@ namespace FACM.League
             };
         }
 
+        private void RefreshPlayerPalette(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                    BeginInvoke(new Action(() => RefreshPlayerPalette(sender, e)));
+                return;
+            }
+            BackColor = FacmDesignSystem.Canvas;
+            _accountSurface.BackColor = FacmDesignSystem.Surface;
+            _accountAccent.BackColor = FacmDesignSystem.Accent;
+            _championStatsList.BackColor = FacmDesignSystem.Surface;
+            _championStatsList.ForeColor = FacmDesignSystem.Text;
+            _matchesList.BackColor = FacmDesignSystem.Surface;
+            _matchesList.ForeColor = FacmDesignSystem.Text;
+            _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
+            _accountLabel.ForeColor = FacmDesignSystem.Text;
+            _statusLabel.ForeColor = FacmDesignSystem.TextMuted;
+            _emptyStateLabel.BackColor = FacmDesignSystem.SurfaceRaised;
+            _emptyStateLabel.ForeColor = FacmDesignSystem.TextMuted;
+        }
+
         private static Label CreateSectionLabel(string text, Point location, int width)
         {
             return new Label
@@ -160,7 +200,7 @@ namespace FACM.League
                 Size = new Size(width, 25),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 11F, FontStyle.Bold)
             };
         }
 
@@ -169,7 +209,7 @@ namespace FACM.League
             return new ListView
             {
                 Bounds = bounds,
-                BackColor = FacmDesignSystem.CanvasRaised,
+                BackColor = FacmDesignSystem.Surface,
                 ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.None,
                 FullRowSelect = true,
@@ -189,7 +229,7 @@ namespace FACM.League
                 Text = _ui.Get(key),
                 Size = new Size(92, 30),
                 Tone = tone,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
         }
 
@@ -472,10 +512,12 @@ namespace FACM.League
             var height = ClientSize.Height;
             var contentWidth = Math.Max(160, width - 48);
 
+            _accountSurface.Bounds = new Rectangle(24, 88, contentWidth, 72);
+            _accountAccent.Bounds = new Rectangle(0, 0, 3, 72);
             _titleLabel.Width = contentWidth;
             _hintLabel.Width = contentWidth;
-            _accountLabel.Width = contentWidth;
-            _statusLabel.Width = contentWidth;
+            _accountLabel.Width = Math.Max(160, contentWidth - 12);
+            _statusLabel.Width = Math.Max(160, contentWidth - 12);
             _statsSection.Width = contentWidth;
 
             var statsHeight = height >= 670 ? 115 : 98;

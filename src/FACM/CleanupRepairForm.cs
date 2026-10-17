@@ -42,7 +42,7 @@ namespace FACM
             MinimumSize = new Size(760, 560);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
-            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var root = new TableLayoutPanel
             {
@@ -65,9 +65,9 @@ namespace FACM
             directoryTitle.Size = new Size(220, 26);
             _directoryDetail = CreateLabel(string.Empty, 9F, FontStyle.Bold, FacmDesignSystem.Text);
             _directoryDetail.Location = new Point(18, 45);
-            _directoryDetail.Size = new Size(540, 24);
+            _directoryDetail.Size = new Size(540, 26);
             _directoryDetail.AutoEllipsis = true;
-            _directoryInstruction = CreateLabel(string.Empty, 8.2F, FontStyle.Regular, FacmDesignSystem.TextMuted);
+            _directoryInstruction = CreateLabel(string.Empty, 9F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             _directoryInstruction.Location = new Point(18, 68);
             _directoryInstruction.Size = new Size(540, 48);
             _directoryInstruction.AutoEllipsis = false;
@@ -127,7 +127,7 @@ namespace FACM
             var statusTitle = CreateLabel(CleanupRepairUiText.CurrentStatus, 10.2F, FontStyle.Bold, FacmDesignSystem.Text);
             statusTitle.Location = new Point(18, 14);
             statusTitle.Size = new Size(180, 24);
-            _statusLines = CreateLabel(string.Empty, 8.7F, FontStyle.Regular, FacmDesignSystem.TextMuted);
+            _statusLines = CreateLabel(string.Empty, 9.5F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             _statusLines.Location = new Point(18, 43);
             _statusLines.Size = new Size(670, 60);
             _nextStep = CreateLabel(string.Empty, 9F, FontStyle.Bold, FacmDesignSystem.Accent);
@@ -143,10 +143,10 @@ namespace FACM
             var flowTitle = CreateLabel(CleanupRepairUiText.FlowTitle, 9.5F, FontStyle.Bold, FacmDesignSystem.Text);
             flowTitle.Location = new Point(18, 12);
             flowTitle.Size = new Size(150, 22);
-            var flow = CreateLabel(CleanupRepairUiText.Flow, 8.5F, FontStyle.Regular, FacmDesignSystem.TextMuted);
+            var flow = CreateLabel(CleanupRepairUiText.Flow, 9F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             flow.Location = new Point(18, 39);
             flow.Size = new Size(670, 36);
-            flow.AutoEllipsis = true;
+            flow.AutoEllipsis = false;
             flowCard.Controls.Add(flowTitle);
             flowCard.Controls.Add(flow);
             root.Controls.Add(flowCard, 0, 3);
@@ -162,10 +162,10 @@ namespace FACM
             var titleLabel = CreateLabel(title, 11F, FontStyle.Bold, FacmDesignSystem.Text);
             titleLabel.Location = new Point(16, 12);
             titleLabel.Size = new Size(210, 26);
-            var hintLabel = CreateLabel(hint, 8F, FontStyle.Regular, FacmDesignSystem.TextMuted);
+            var hintLabel = CreateLabel(hint, 9F, FontStyle.Regular, FacmDesignSystem.TextMuted);
             hintLabel.Location = new Point(16, 42);
-            hintLabel.Size = new Size(250, 38);
-            state = CreateLabel(CleanupRepairUiText.DriverNotRun, 8.4F, FontStyle.Bold, FacmDesignSystem.TextMuted);
+            hintLabel.Size = new Size(290, 38);
+            state = CreateLabel(CleanupRepairUiText.DriverNotRun, 9F, FontStyle.Bold, FacmDesignSystem.TextMuted);
             state.Location = new Point(16, 86);
             state.Size = new Size(130, 22);
             var button = CreateButton(title, FacmButtonTone.Secondary);
@@ -204,7 +204,7 @@ namespace FACM
                 Tone = tone,
                 Cursor = Cursors.Hand,
                 TabStop = true,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
         }
 

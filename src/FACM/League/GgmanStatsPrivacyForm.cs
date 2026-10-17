@@ -27,7 +27,7 @@ namespace FACM.League
             _module = module ?? throw new ArgumentNullException(nameof(module));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             Text = _ui.Get(UiTextKeys.RegisteredStatsPrivacy);
-            ClientSize = new Size(550, 289);
+            ClientSize = new Size(550, 306);
             MinimumSize = Size;
             MaximumSize = Size;
             StartPosition = FormStartPosition.CenterParent;
@@ -47,38 +47,47 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent
             };
+            var optionsCard = new FacmGlassPanel
+            {
+                Bounds = new Rectangle(16, 78, 518, 99),
+                BackColor = FacmDesignSystem.Surface,
+                DrawBorder = true,
+                Radius = FacmDesignSystem.CardRadius,
+                TabStop = false
+            };
             _ranking = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.RegisteredStatsRankOptIn),
-                Bounds = new Rectangle(20, 83, 510, 30)
+                Bounds = new Rectangle(14, 8, 486, 34)
             };
             _usage = new FacmToggleSwitch
             {
                 Text = _ui.Get(UiTextKeys.RegisteredStatsUsageConsent),
-                Bounds = new Rectangle(20, 127, 510, 30)
+                Bounds = new Rectangle(14, 52, 486, 34)
             };
             _import = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.RegisteredStatsImport),
-                Bounds = new Rectangle(20, 186, 226, 36),
+                Bounds = new Rectangle(20, 197, 226, 36),
                 Tone = FacmButtonTone.Secondary
             };
             _save = new FacmActionButton
             {
                 Text = _ui.Get(UiTextKeys.RegisteredStatsSave),
-                Bounds = new Rectangle(309, 186, 221, 36),
+                Bounds = new Rectangle(309, 197, 221, 36),
                 Tone = FacmButtonTone.Primary
             };
             _status = new Label
             {
-                Bounds = new Rectangle(20, 242, 510, 28),
+                Bounds = new Rectangle(20, 255, 510, 34),
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
                 AutoEllipsis = true
             };
             Controls.Add(hint);
-            Controls.Add(_ranking);
-            Controls.Add(_usage);
+            Controls.Add(optionsCard);
+            optionsCard.Controls.Add(_ranking);
+            optionsCard.Controls.Add(_usage);
             Controls.Add(_import);
             Controls.Add(_save);
             Controls.Add(_status);

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 using Timer = System.Windows.Forms.Timer;
 
 namespace FACM.Pets
@@ -32,9 +33,9 @@ namespace FACM.Pets
         public AnimalPetPickerForm(string currentPetId)
         {
             _currentPetId = currentPetId ?? string.Empty;
-            _listNameFont = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
-            _listMetaFont = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular);
-            _listCurrentFont = new Font("Microsoft YaHei UI", 8F, FontStyle.Bold);
+            _listNameFont = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold);
+            _listMetaFont = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Regular);
+            _listCurrentFont = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
 
             Text = T(UiTextKeys.PetPickerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
@@ -43,45 +44,45 @@ namespace FACM.Pets
             MinimizeBox = false;
             ShowInTaskbar = false;
             ClientSize = new Size(820, 590);
-            BackColor = Color.FromArgb(12, 17, 28);
-            ForeColor = Color.White;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
 
             var title = new Label
             {
                 Text = T(UiTextKeys.PetPickerTitle),
                 Location = new Point(26, 20),
                 AutoSize = true,
-                ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei UI", 18F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
                 Text = T(UiTextKeys.PetPickerHint),
                 Location = new Point(28, 60),
                 Size = new Size(660, 26),
-                ForeColor = Color.FromArgb(160, 174, 198)
+                ForeColor = FacmDesignSystem.TextMuted
             };
             _currentStatus = new Label
             {
                 Location = new Point(610, 22),
                 Size = new Size(178, 28),
                 TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = Color.FromArgb(151, 173, 215),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
 
             _list = new ListBox
             {
                 Location = new Point(26, 100),
                 Size = new Size(284, 410),
-                BackColor = Color.FromArgb(8, 12, 21),
-                ForeColor = Color.White,
+                BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
                 BorderStyle = BorderStyle.FixedSingle,
                 IntegralHeight = false,
                 ItemHeight = 62,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                Font = new Font("Microsoft YaHei UI", 10F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F)
             };
             foreach (var pet in AnimalPetCatalog.Visible) _list.Items.Add(pet);
             _list.DrawItem += DrawPetItem;
@@ -90,14 +91,14 @@ namespace FACM.Pets
             {
                 Location = new Point(330, 100),
                 Size = new Size(458, 292),
-                BackColor = Color.FromArgb(8, 12, 21),
+                BackColor = FacmDesignSystem.Surface,
                 BorderStyle = BorderStyle.FixedSingle
             };
             _preview = new PictureBox
             {
                 Location = new Point(72, 18),
                 Size = new Size(314, 252),
-                BackColor = Color.FromArgb(8, 12, 21),
+                BackColor = FacmDesignSystem.Surface,
                 SizeMode = PictureBoxSizeMode.Zoom
             };
             previewPanel.Controls.Add(_preview);
@@ -106,7 +107,7 @@ namespace FACM.Pets
             {
                 Location = new Point(332, 407),
                 Size = new Size(300, 30),
-                ForeColor = Color.White,
+                ForeColor = FacmDesignSystem.Text,
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold)
             };
             _runtimeBadge = new Label
@@ -114,56 +115,50 @@ namespace FACM.Pets
                 Location = new Point(640, 408),
                 Size = new Size(146, 26),
                 TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.FromArgb(204, 218, 244),
-                BackColor = Color.FromArgb(28, 39, 61),
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = FacmDesignSystem.SurfaceRaised,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold)
             };
             _behavior = new Label
             {
                 Location = new Point(332, 444),
                 Size = new Size(454, 24),
-                ForeColor = Color.FromArgb(118, 169, 255),
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                ForeColor = FacmDesignSystem.Accent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
             _description = new Label
             {
                 Location = new Point(332, 474),
                 Size = new Size(454, 42),
-                ForeColor = Color.FromArgb(189, 201, 220)
+                ForeColor = FacmDesignSystem.Text
             };
             _interaction = new Label
             {
                 Location = new Point(332, 518),
                 Size = new Size(454, 28),
-                ForeColor = Color.FromArgb(132, 151, 184),
-                Font = new Font("Microsoft YaHei UI", 8.3F)
+                ForeColor = FacmDesignSystem.TextMuted,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
-            var close = new Button
+            var close = new FacmActionButton
             {
                 Text = T(UiTextKeys.Close),
                 Location = new Point(574, 550),
                 Size = new Size(100, 34),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(31, 41, 61),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
                 DialogResult = DialogResult.Cancel
             };
-            close.FlatAppearance.BorderColor = Color.FromArgb(65, 82, 115);
 
-            _apply = new Button
+            _apply = new FacmActionButton
             {
                 Text = T(UiTextKeys.ApplyPet),
                 Location = new Point(686, 550),
                 Size = new Size(102, 34),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(70, 113, 255),
-                ForeColor = Color.White,
+                Tone = FacmButtonTone.Primary,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold)
             };
-            _apply.FlatAppearance.BorderColor = Color.FromArgb(112, 151, 255);
             _apply.Click += delegate
             {
                 var selected = _list.SelectedItem as AnimalPetDefinition;
@@ -259,11 +254,11 @@ namespace FACM.Pets
             if (pet == null) return;
 
             var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            var background = selected ? Color.FromArgb(24, 39, 67) : Color.FromArgb(8, 12, 21);
+            var background = selected ? FacmDesignSystem.SurfaceHover : FacmDesignSystem.Surface;
             using (var brush = new SolidBrush(background)) e.Graphics.FillRectangle(brush, e.Bounds);
             if (selected)
             {
-                using (var accent = new SolidBrush(Color.FromArgb(88, 136, 255)))
+                using (var accent = new SolidBrush(FacmDesignSystem.Accent))
                     e.Graphics.FillRectangle(accent, new Rectangle(e.Bounds.Left, e.Bounds.Top, 3, e.Bounds.Height));
             }
 
@@ -278,27 +273,27 @@ namespace FACM.Pets
                 GetPetName(pet),
                 _listNameFont,
                 nameRect,
-                selected ? Color.White : Color.FromArgb(224, 232, 247),
+                FacmDesignSystem.Text,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             TextRenderer.DrawText(
                 e.Graphics,
                 GetPetSummary(pet),
                 _listMetaFont,
                 metaRect,
-                selected ? Color.FromArgb(159, 190, 245) : Color.FromArgb(124, 143, 174),
+                selected ? FacmDesignSystem.TextMuted : FacmDesignSystem.TextMuted,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
             if (current)
             {
                 var badge = new Rectangle(e.Bounds.Right - 52, e.Bounds.Top + 9, 38, 20);
-                using (var badgeBrush = new SolidBrush(Color.FromArgb(39, 75, 68)))
+                using (var badgeBrush = new SolidBrush(FacmDesignSystem.SurfaceRaised))
                     e.Graphics.FillRectangle(badgeBrush, badge);
                 TextRenderer.DrawText(
                     e.Graphics,
                     T(UiTextKeys.PetCurrentBadge),
                     _listCurrentFont,
                     badge,
-                    Color.FromArgb(154, 224, 199),
+                    FacmDesignSystem.Success,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
 
@@ -312,8 +307,8 @@ namespace FACM.Pets
             _name.Text = GetPetName(pet);
             _runtimeBadge.Text = GetRuntimeBadge(pet);
             _runtimeBadge.BackColor = pet.Runtime == AnimalPetRuntime.VPetCore
-                ? Color.FromArgb(55, 43, 76)
-                : Color.FromArgb(27, 55, 68);
+                ? FacmDesignSystem.SurfaceRaised
+                : FacmDesignSystem.SurfaceRaised;
             _behavior.Text = GetBehaviorLine(pet);
             _description.Text = GetUserDescription(pet);
             _interaction.Text = pet.Runtime == AnimalPetRuntime.VPetCore
@@ -322,8 +317,6 @@ namespace FACM.Pets
             var current = IsCurrentPet(pet);
             _apply.Text = current ? T(UiTextKeys.PetCurrentUse) : T(UiTextKeys.ApplyPet);
             _apply.Enabled = !current;
-            _apply.BackColor = current ? Color.FromArgb(42, 53, 70) : Color.FromArgb(70, 113, 255);
-            _apply.ForeColor = current ? Color.FromArgb(139, 153, 178) : Color.White;
             _list.Invalidate();
 
             _animationSeconds = 0;
@@ -423,11 +416,11 @@ namespace FACM.Pets
         {
             var canvas = new Bitmap(_preview.Width, _preview.Height);
             using (var graphics = Graphics.FromImage(canvas))
-            using (var titleFont = new Font("Microsoft YaHei UI", 21F, FontStyle.Bold))
-            using (var bodyFont = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular))
-            using (var titleBrush = new SolidBrush(Color.FromArgb(232, 240, 255)))
-            using (var bodyBrush = new SolidBrush(Color.FromArgb(162, 184, 219)))
-            using (var linePen = new Pen(Color.FromArgb(82, 118, 224), 2F))
+            using (var titleFont = new Font(FacmThemeRuntime.Current.FontName, 20F, FontStyle.Bold))
+            using (var bodyFont = new Font(FacmThemeRuntime.Current.FontName, 10.5F, FontStyle.Regular))
+            using (var titleBrush = new SolidBrush(FacmDesignSystem.Text))
+            using (var bodyBrush = new SolidBrush(FacmDesignSystem.TextMuted))
+            using (var linePen = new Pen(FacmDesignSystem.Accent, 2F))
             {
                 graphics.Clear(_preview.BackColor);
                 graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;

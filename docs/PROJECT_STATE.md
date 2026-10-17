@@ -12,6 +12,65 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B5 continued with UI coverage expansion, B6 pending
+
+Draft PR #351 on `feat/ggman-precision-workbench-b1-20261017` now includes cleanup-main, email captcha, registered statistics privacy, profile customization, both pet selection dialogs, item set, build apply and personal stats presentation migrations. Commits: `ec5e3045f2708451b22535686f63f7b984da2015`, `439de9d0e9c9be5c36c83d633f40301aefa5c970`, `2542e05d0440c55f9ebd8ba9e8b80c4ba4014fd9`, `09b95e4812c7349053688ec479569adc99957f34`, `85ba71dd2f47da2944e54a845abd921b59a67bec`, corrective `a3ae722de1226e7f67fdcf672a45cdb87e9f492d` and `8aea138f250fb3d90259f7a7ba4a9170308e7a4a`.
+
+An intermediate Windows Build #39018862920 failed because the replacement of `LeagueBuildApplyForm.CreateButton` inadvertently removed three auto-apply event/status methods. All missing methods were restored from the prior known-good code in `a3ae722de1226e7f67fdcf672a45cdb87e9f492d`; Windows Build #39019063500 PASSED on that corrected head, with UI Text Contract #39019063416 passing. Do not report the failed intermediate attempt as successful. Final-head acceptance for the subsequent personal-stats/docs edits must still be checked.
+
+B5 remains **source migration in progress**, not native visually complete. In particular `LeagueRuntimeCompanionForm` and `LeagueChampSelectAssistantForm` own small real-time game HUDs whose layout/visual performance requires separate native evidence; unvisited legacy dialogs may remain. B6 whole-product screenshot, DPI/focus/keyboard, startup/memory and rollback tests are not available. Main, signed Release and online updater remain at v3.5.77. No merge/deployment.
+
+## 2026-10-17 — B5 first source migration (Draft PR #351)
+
+B5 source commit `49c024f115aecc1eb96c3d1ad369ba55d8ea07d8` migrates `CleanupReviewForm`, `BackgroundOperationDialog` and `GameLocatorSearchDialog` away from private dark-only colors to shared semantic themes. Cleanup confirmation stays explicit; cancel/keyboard support is preserved; the destructive confirm button now uses the Danger tone. Background operation worker/cancel lifecycle, cleanup path validation and actual filesystem/cloud operations are not modified. Status as recorded: UI Text Contract and Mayhem Source Probe passed for this code head; Windows Build was still executing and must be verified separately. Native WinForms rendered screenshots and safety/keyboard/DPI acceptance are not available.
+
+B5 does not yet cover all reachable minor forms; B6 cross-product visual, security, DPI and performance gates remain. No merge, official release or updater changes. Production v3.5.77 is unchanged.
+
+## 2026-10-17 — B4 source progress: launcher, updates, theme, account and ESC
+
+Draft PR #351 continues on branch `feat/ggman-precision-workbench-b1-20261017`; main and official v3.5.77 remain unchanged. B4 source changes: `79c566ef8653b2f37d6d8c5bcdba0e5a0dcd4d39` standardizes launcher tiles/footer, ThemePicker and widens OnlineCenter; `4fff958255ef06bd5e73866694cc7aa7f17595cf` improves GgmanAccount form layout; `fe9129a5612a3ddc2510fb190849e8f54487be51` groups visible ESC local actions; `2843bb150b257ad82ff95a055cacaee146473985` fixes new UI text-contract violations by removing redundant hardcoded accessibility labels from ThemePicker.
+
+Intermediate Windows build #39014102313 passed on ESC code head but UI Text Contract #39014102191 failed on the duplicate a11y names; the latter was corrected, not bypassed. Required final-head CI and full native Windows visual/keyboard/DPI/account/update acceptance are pending. B4 still has reachable secondary account/theme settings and companion surfaces to audit, followed by B5 cleanup and B6 consolidated acceptance. Do not merge or publish partial UI changes.
+
+## 2026-10-17 — B3 Mayhem and League presentation source progress (PR #351)
+
+B3 code changes in the same Draft branch: `8f4d1fbe5d7410f796c51b7b39b24b680f9d7248` introduced Mayhem toolbar/preview layout; `3509466bbb2d53bd0a47a19dc3e2b4e29755fd91` retained status tones on theme changes; `8c1d6cf5e49200e0e673c79d9b80cd657500c1fa` migrated Live and Advisor shared colors/actions to the canonical theme; `7e133ccb11bfad25c2f63899e9937cf70420a711` improved Player account summary and list hierarchy; `779a3d724852b831de5b7f3d147278a961f6ebad` updated recommendation choice contrast/buttons.
+
+On these code heads, earlier Windows Builds/Mayhem probes/UI Text Contract checks were green through `7e133ccb11bfad25c2f63899e9937cf70420a711`. Final B3 code head `779a3d724852b831de5b7f3d147278a961f6ebad` has UI Text Contract and Mayhem Source Probe success; Windows Build was in progress at the time this entry was recorded. Verify the final workflow conclusion before calling this code head build-accepted. Native visual, keyboard, mixed DPI and actual League interactions remain untested.
+
+B3 still includes additional owned companion/recommendation presentation and global normalization; B4/B5 entry, update, account/settings and cleanup remain. No merge, public executable or updater modification. Production remains v3.5.77.
+
+
+## 2026-10-17 — B2 source progress: Presence and Quick Tools
+
+On the same PR #351 branch, code heads `635fd52cd8716510791e149e8efb369e447c5613` and `916d007f82030dc561d4e843a8760c41cbcfb5f4` migrate `LeaguePresenceForm` and `LeagueEfficiencyForm` away from visibly narrow/hover-dependent presentation. Presence now uses scrollable full-width group surfaces with status choices, account signature, ranked displays and appearance actions; Quick Tools displays help descriptions inside hotkey, toggle and parameter rows instead of hover-only messages. Existing service handlers and persistence semantics are retained. The shared density pass skips these migrated surfaces.
+
+The initial Presence code commit failed Windows Release compilation due to an invalid multi-declarator `var` expression; corrected in `635fd52cd8716510791e149e8efb369e447c5613`, with both required workflows then passing. Latest B2 source commit `916d007f82030dc561d4e843a8760c41cbcfb5f4` also passed Windows Build [#39007644220](https://github.com/xianyumht-cmd/facm/actions/runs/39007644220) and UI Text Contract [#39007644251](https://github.com/xianyumht-cmd/facm/actions/runs/39007644251). No native rendering/screenshot, input/DPI or network/cloud correctness assertion follows from these CI results.
+
+Remaining: native B2 screen evidence and B3–B6 product-wide source modernization/verification. The official release and online updater remain v3.5.77; no merge or publish.
+
+## 2026-10-17 — PR #351 expanded to full-product visual modernization
+
+Owner explicitly requests complete modernization of every active GGman-owned surface, rather than per-page feedback and releases. Continue using `feat/ggman-precision-workbench-b1-20261017` / Draft PR #351. B1 Hub, Dashboard, Repair candidate is only partial; B2 Quick Tools/Presence, B3 Mayhem/player/live/companion, B4 launcher/updater/account/settings, B5 cleanup/secondary UI and B6 consolidated native QA remain pending. Complete source inventory and acceptance ledger are in root DESIGN.md. Native OS menus/file dialogs are intentional platform-owned exceptions.
+
+Owner sequencing: finalize all visuals and pre-release functional/CI/native checks, publish a **single** update, then request **one** independent Astra visual assessment. This post-release review cannot prevent defects from reaching users; prepare hotfix/rollback. Do not misrepresent an incomplete UI migration or green CI as whole-product visual acceptance. Official release/manifest remains v3.5.77; no merge/update now.
+
+## 2026-10-17 — B1 native screenshot feedback and game-repair visual prototype (Draft)
+
+The product owner provided eight Windows screenshots of the candidate and rated its visual change as practically imperceptible. The captured non-Dashboard pages were outside the earlier B1 scope; this is not evidence that the Dashboard itself regressed or improved. PR #351 remains **Draft**, and earlier Windows CI success is not professional visual acceptance.
+
+In response, the **same task branch** now explicitly extends the pilot to the active `LeagueGameRepairForm`. It replaces left-clustered fixed action rectangles with two clearly headed full-width task sections, explanatory copy at readable size, right-aligned native actions, compact genuine-result status and stacked narrow-width fallback. All five existing repair handlers and the existing auto-repair state toggle are retained. The redesign is presentation-only; `LeagueSoftGlassSkin` excludes the migrated repair view from legacy density mutation while keeping unmigrated views unchanged. A narrow layout smoke contract is invoked by the `shell-ux` suite.
+
+Native after-screenshots, theme/DPI/keyboard observations and independent visual acceptance are **not yet available**. The earlier user screenshots serve as informal baseline context, not controlled paired captures. No merge or release; production updater remains v3.5.77.
+
+## 2026-10-17 — Precision Workbench B0/B1 candidate (NOT MERGED / NOT RELEASED)
+
+Astra's read-only design architecture blueprint recommends the native **Precision Workbench** system and a first scoped batch limited to the persistent League Hub, grouped navigation and the default Dashboard. PR #350 was merged to main as `1194a4cf8451b1886c03cdf733e067fd38037f66` after independent delta review and owner acceptance. The signed/public production release and updater still reference **v3.5.77**; subsequent historical PR350 Draft statements below are superseded.
+
+The new branch `feat/ggman-precision-workbench-b1-20261017` begins a lightweight visual pilot: navigation typography/row rhythm, responsive Dashboard status/details/footer layout with vertical scrolling, and exemption of the new Dashboard from legacy density mutation. Services, nine route IDs, 5-second/default Gameflow polling ownership, draft guards, CloudBase and update paths remain untouched. New `DESIGN.md` defines the source-specific visual contract.
+
+**B0 evidence boundary:** Source inventories, existing tests and previously published EXE size exist. Actual before/after Windows screenshots, cold/warm timings, idle memory, focus/DPI tests and complete keyboard journeys have NOT been captured by this environment. CI and an independent visual review are still required. The candidate must remain Draft; do not merge or publish until native evidence and performance comparisons are collected.
+
 ## 2026-10-17 — PR #350 third review P2 correction (candidate, not released)
 
 Third independent read-only Astra review of head `103a61b4dfb1ffff5ecb83b45e995f05065b3770` found no remaining source-level P0/P1 blocker, but identified a concrete P2: `UiTextEditorPanel.Filter` restored selections with `OrdinalIgnoreCase` even in case-sensitive replacement-rule mode, so rules `Foo` and `foo` could be confused following Save/Discard navigation. The same draft PR now restores selection with `Ordinal` in replacement mode and leaves ordinary text selection case-insensitive. In-memory editor smoke verifies Yes/No/Cancel, exact key/value, and subsequent Save/Reset effects on the intended case-distinct rule. Final-head CI and native Windows/registered CloudBase acceptance remain required. Do not merge or release based only on this candidate; production remains v3.5.77.

@@ -77,7 +77,7 @@ namespace FACM.League
             MinimumSize = new Size(900, 580);
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
-            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
             DoubleBuffered = true;
             Padding = new Padding(8);
 
@@ -130,7 +130,7 @@ namespace FACM.League
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8F, FontStyle.Bold)
+                Font = new Font(Font.FontFamily, 9F, FontStyle.Bold)
             };
             _phaseLabel = new Label
             {
@@ -142,7 +142,7 @@ namespace FACM.League
                 AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted,
                 BackColor = Color.Transparent,
-                Font = new Font(Font.FontFamily, 8F)
+                Font = new Font(Font.FontFamily, 9F)
             };
             footer.Controls.Add(_connectionLabel);
             footer.Controls.Add(_phaseLabel);
@@ -202,6 +202,8 @@ namespace FACM.League
                 ShowView(_initialViewId, true);
             };
             FormClosing += HandleHubClosing;
+            FacmThemeRuntime.ThemeChanged += RefreshPilotNavigation;
+            Disposed += delegate { FacmThemeRuntime.ThemeChanged -= RefreshPilotNavigation; };
         }
 
         internal static string ResolveInitialViewForSmokeTest(string viewId)
@@ -293,7 +295,7 @@ namespace FACM.League
                     TextAlign = ContentAlignment.MiddleLeft,
                     ForeColor = FacmDesignSystem.TextMuted,
                     BackColor = Color.Transparent,
-                    Font = new Font(Font.FontFamily, 8F, FontStyle.Bold),
+                    Font = new Font(Font.FontFamily, 9F, FontStyle.Bold),
                     TabStop = false
                 });
             }
@@ -310,8 +312,9 @@ namespace FACM.League
                 {
                     Text = title,
                     Width = 144,
-                    Height = 35,
-                    Margin = new Padding(0, 0, 0, 3),
+                    Height = 36,
+                    Margin = new Padding(0, 0, 0, 4),
+                    Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
                     AccessibleName = title,
                     TabStop = true
                 };
@@ -319,6 +322,33 @@ namespace FACM.League
                 _navigation.Controls.Add(button);
                 _viewButtons[routeId] = button;
             }
+        }
+
+        private void RefreshPilotNavigation(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated) BeginInvoke(new Action(() => RefreshPilotNavigation(sender, e)));
+                return;
+            }
+            foreach (var button in _viewButtons.Values)
+                FacmThemeRuntime.ReplaceFont(button, FacmThemeRuntime.Current.FontName,
+                    9.5F, FontStyle.Bold);
+            foreach (Control control in _navigation.Controls)
+            {
+                var heading = control as Label;
+                if (heading != null)
+                {
+                    FacmThemeRuntime.ReplaceFont(heading, FacmThemeRuntime.Current.FontName,
+                        9F, FontStyle.Bold);
+                    heading.ForeColor = FacmDesignSystem.TextMuted;
+                }
+            }
+            FacmThemeRuntime.ReplaceFont(_connectionLabel, FacmThemeRuntime.Current.FontName,
+                9F, FontStyle.Bold);
+            FacmThemeRuntime.ReplaceFont(_phaseLabel, FacmThemeRuntime.Current.FontName,
+                9F, FontStyle.Regular);
         }
 
         private void UpdateResponsiveChrome()

@@ -50,23 +50,23 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -204,6 +204,46 @@ namespace FACM.League
             };
         }
 
+        private Control CreateSettingDescription(string title, string hint)
+        {
+            var copy = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                BackColor = Color.Transparent
+            };
+            copy.RowStyles.Add(new RowStyle(SizeType.Absolute, 27F));
+            copy.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            var heading = new Label
+            {
+                Text = title,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            var description = new Label
+            {
+                Text = hint ?? string.Empty,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 9F),
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true
+            };
+            copy.Controls.Add(heading, 0, 0);
+            copy.Controls.Add(description, 0, 1);
+            WireHelp(copy, hint);
+            WireHelp(heading, hint);
+            WireHelp(description, hint);
+            return copy;
+        }
+
         private TextBox AddHotkeyRow(TableLayoutPanel parent, int row, string title, string hint, string value)
         {
             var panel = new TableLayoutPanel
@@ -220,15 +260,7 @@ namespace FACM.League
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
 
-            var titleLabel = new Label
-            {
-                Text = title,
-                Dock = DockStyle.Fill,
-                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleLeft
-            };
+            var titleLabel = CreateSettingDescription(title, hint);
             panel.Controls.Add(titleLabel, 0, 0);
 
             var box = new TextBox
@@ -273,11 +305,13 @@ namespace FACM.League
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 1,
+                RowCount = 2,
                 Margin = new Padding(0, 4, 0, 4),
                 BackColor = FacmDesignSystem.Surface,
                 Padding = new Padding(12, 7, 12, 7)
             };
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
+            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             var check = new FacmToggleSwitch
             {
                 Text = title,
@@ -286,6 +320,18 @@ namespace FACM.League
                 Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
             };
             panel.Controls.Add(check, 0, 0);
+            var description = new Label
+            {
+                Text = hint ?? string.Empty,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font(Font.FontFamily, 9F),
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true
+            };
+            panel.Controls.Add(description, 0, 1);
+            WireHelp(description, hint);
             WireHelp(panel, hint);
             WireHelp(check, hint);
             parent.Controls.Add(panel, 0, row);
@@ -315,15 +361,7 @@ namespace FACM.League
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
-            var titleLabel = new Label
-            {
-                Text = title,
-                Dock = DockStyle.Fill,
-                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleLeft
-            };
+            var titleLabel = CreateSettingDescription(title, hint);
             var input = new NumericUpDown
             {
                 Minimum = minimum,
@@ -376,15 +414,7 @@ namespace FACM.League
             };
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
-            var titleLabel = new Label
-            {
-                Text = title,
-                Dock = DockStyle.Fill,
-                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-                ForeColor = FacmDesignSystem.Text,
-                BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleLeft
-            };
+            var titleLabel = CreateSettingDescription(title, hint);
             var input = new ComboBox
             {
                 Dock = DockStyle.Fill,
@@ -427,7 +457,7 @@ namespace FACM.League
                 Height = 30,
                 Dock = DockStyle.Fill,
                 Tone = tone,
-                Font = new Font(Font.FontFamily, 8.8F, FontStyle.Bold),
+                Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold),
                 Margin = new Padding(4, 2, 4, 2)
             };
         }

@@ -1,5 +1,36 @@
 # FACM Architecture
 
+## B5 extended visual owner boundaries (Draft PR #351)
+
+`CleanupRepairForm` remains a `CleanupModule`/MainForm-owned task surface and adjusts existing help/status typography only. `GgmanCaptchaForm` keeps token/challenge state and disposable image lifetime while replacing visual button/field geometry. `GgmanStatsPrivacyForm` reparents only existing opt-in controls to a shared noninteractive `FacmGlassPanel`; privacy defaults and save/import authorization remain external. `LeagueProfileCustomizationForm` reparents already constructed native input/action controls into four local semantic surfaces; each control retains the original click/event subscription and cancellation generation. `LeagueItemSetForm`/`LeagueBuildApplyForm` reuse `FacmDesignSystem` and `FacmActionButton`; the latter's auto-toggle/status callbacks are critical and were explicitly restored after an intermediate CI failure. Both pet pickers retain asset download/activation and animated preview ownership and use theme-derived text/surfaces instead of a separate dark palette. `LeaguePersonalStatsForm` only changes nonfunctional type hierarchy. No new transport, persistent state or background service.
+
+## B5 cleanup review and minor operation dialogs (Draft PR #351)
+
+CleanupReviewForm retains its SafeCleanupService-supplied immutable plan, blocked/deletable row generation, explicit Confirmed/Cancel behavior and native keyboard access. Visual colors now reference `FacmDesignSystem` semantic roles instead of process-wide hardcoded dark static fields; the destructive confirm is visually distinguished through `FacmActionButton`. BackgroundOperationDialog retains its worker continuation and no-close-before-complete invariant while inheriting canonical text/surface tokens. GameLocatorSearchDialog retains its CancellationTokenSource and progress ownership but uses the canonical text and native semantic cancel button. Theme changes do not alter cleaning authorization or task execution semantics.
+
+## B4 reusable presentation surfaces (2026-10-17, Draft PR #351)
+
+`DesktopLauncherEnhancer` preserves four route bindings, onboarding and context state while styling its tiles with always-visible semantic surfaces and using standard ActionButtons for footer operations. `ThemePickerForm` keeps the same preview ThemeDefinitions and Accept/Cancel contract, but uses native reusable ActionButtons, paint-time font disposal and focus/contrast feedback. `OnlineCenterForm` changes only fixed dialog geometry/reading hierarchy; mandatory update guards, installer and announcement link ownership are unchanged. `GgmanAccountForm` retains the passwordless email challenge/auth state machine and session isolation; login/session cards are now more readable. `EscSettingsForm` wraps only the two visible local settings actions in a separate native GlassPanel; hidden cloud/probe controls remain hidden, service actions untouched. These are presentation changes; native pixel/DPI/keyboard proof has not been collected.
+
+## B3 native strategy, match and recommendation surfaces (Draft PR #351)
+
+`MayhemLookupForm` keeps its asynchronous OP.GG/Riot enrichment, bitmap rendering, copy/save and cancellation unchanged. The search/status controls are visually grouped behind a semantic surface; the scrollable preview sizes its PictureBox to the reading viewport minus stable vertical-scrollbar reservation and preserves scroll position on resize. `MayhemLookupLayoutPolicy` owns geometry, toolbar enclosure and preview-width smoke assertions. Semantic status roles survive theme switches. `LeagueLiveForm` and `LeagueBuildAdvisorForm` retain active League polling, player rows and recommendation ownership but draw canonical semantic surface/text roles and use reusable ActionButtons. `LeaguePlayerForm` adds a styled account summary overlay without changing virtual match rendering or service cache. `LeagueRecommendationForm` retains selection/auto-apply and data reading flows while correcting theme contrast and action typography. All changes remain presentation-owned; full native accessibility/DPI and screenshot comparisons have not been performed.
+
+
+## B2 Presence and automation visual surface migration (2026-10-17, Draft)
+
+The active `LeaguePresenceForm` retains its original services, option values and click handlers, but now arranges existing native controls within full-width, scrollable, semantically grouped status, signature, ranked and profile tasks. The resize handler controls row geometry, preserving its edit/action ownership. `LeagueEfficiencyForm` keeps its 18-row settings and handlers while promoting existing contextual help from hover-only to visible descriptions within hotkey, automation and parameter rows. The shared `LeagueSoftGlassSkin` legacy compact-density pass excludes both migrated surfaces; its explicit efficiency scrolling calculation remains active. Existing CloudBase/game/update ownership is unchanged. Keyboard, theme/DPI and visual evidence remain outstanding.
+
+## B1 game-repair native presentation prototype (2026-10-17, Draft)
+
+The existing `LeagueGameRepairForm` retains its exact `LeagueGameRepairService` and `LeagueEfficiencyModule` action handlers. Presentation is now locally owned by one scrollable layout with two task sections. Rows lay out native ActionButtons opposite readable title+hint content or stack when width is constrained; update messages flow into a single semantic result surface. `LeagueGameRepairLayout.ValidateForSmokeTest` checks layout breakpoints in `shell-ux`. `LeagueSoftGlassSkin` excludes this migrated page from legacy compact-density mutation without altering other pages. There is no new game or network owner, polling loop or background service. Native visual, keyboard, DPI and performance comparisons are outstanding.
+
+## Precision Workbench B1 presentation ownership (2026-10-17, Draft only)
+
+The persistent `LeagueHubForm` retains nine route IDs, a grouped navigation rail, existing child factories and guarded child disposal. Its navigation text and row rhythm now follow the first pilot typography scale. `LeagueDashboardForm` owns its local measured layout and one vertical scroller, reusing the existing data fields, `LeagueDashboardPhaseService`, `LeagueDashboardDetailsService`, timer and cancellation owner. Overview fields reflow from two columns to stacked status; metadata remains the same four rows with labels stacked on narrow canvases; Refresh and Close are the same native actions. No fake metric tiles or network refresh from layout handlers.
+
+`LeagueSoftGlassSkin` excludes the Dashboard from legacy density mutation while retaining legacy page behavior. `FacmThemeRuntime` remains the global theme owner, and the two pilot forms subscribe only for scoped font/geometry refresh and unsubscribe on FormClosed. This is not a new theme engine or release feature. Native DPI/idempotence acceptance is not yet established. See DESIGN.md and the B1 operations matrix.
+
 ## Replacement-rule selection identity (PR #350, 2026-10-17)
 
 The editor uses case-insensitive search but mode-specific selection identity: plain text keys are `OrdinalIgnoreCase`, replacement rule keys are `Ordinal` to match their persisted dictionary. This distinction applies to list rebuilds after Save/Discard navigation so `Foo` and `foo` cannot be interchanged.

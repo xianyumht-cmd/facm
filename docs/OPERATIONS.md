@@ -1,5 +1,60 @@
 # GGman Operations (3.5.x)
 
+## B5 continuation / B6 safety and visual QA handoff (2026-10-17)
+
+The current candidate adds CleanupRepair, Captcha, Registered Stats Privacy, Profile Customization, PetPicker, AnimalPetPicker, LeagueItemSet, LeagueBuildApply and Personal Stats. Final B6 native acceptance must capture the same-screen previous/current candidate pairs at a pinned SHA for all, plus the actual topmost companion/ChampSelect assistant and any remaining reachable dialogs. All ten ThemeCatalog IDs, 100/125/150/200% DPI as feasible, focus/Tab/Escape, selection/disabled/hover, narrow windows, long Chinese descriptions, any credential-safe image states, and visual independence of dangerous actions are required. Do not perform destructive deletion, real game write, new-login/password challenge or pet resource download only to obtain a screenshot. Use authorization-safe fixtures or genuine operator observation.
+
+Build issue #39018862920 on `LeagueBuildApplyForm` CS0103 was caused by removing three auto-apply callbacks during presentation refactoring; all were restored in `a3ae722de1226e7f67fdcf672a45cdb87e9f492d`, which passed Windows Build #39019063500. Explicitly exercise enabling/disabling auto-apply, UI state updates, disposal unsubscribe and safe confirmation in the later native regression. A passing build does **not** prove live League service behavior.
+
+**Do not publish from source CI alone.** The owner's accepted sequence remains one consolidated release, then a single independent Astra professional visual review. Pre-release functional/desktop safety, installer/rollback readiness and actual screenshot QA remain prerequisites; record missing cases as INCONCLUSIVE, not green.
+
+## B5 native cleanup and operation dialog visual/safety matrix (pending)
+
+At the consolidated final SHA, capture CleanupReviewForm with blocked and permitted test entries, varied Chinese paths/bytes, footer cancellation focus, and all relevant theme/light/high-contrast states; do not execute destructive cleanup to collect screenshots. Verify success/warning/error status and readable grid text at 100/125/150/200% DPI. Exercise Escape/Tab/Shift+Tab/Enter, explicit Cancel and non-accidental Execute selection. For BackgroundOperationDialog and GameLocatorSearchDialog verify window ownership, no premature close during work, keyboard cancellation for the cancellable task and progress copy visibility. Unit and CI checks cannot establish actual WinForms text clipping or delete safety; all native conditions remain INCONCLUSIVE until tested by an authorized operator.
+
+## B4 source-only verification and eventual consolidated native acceptance (2026-10-17)
+
+At final candidate SHA, capture floating launcher (generic/context/onboarding), theme picker with selected/swatches in dark/light, updater idle/available/required/announcement/progress states, registered account login/session, and ESC directory plus local Save/Restore. Verify Tab/Shift+Tab/Enter/Escape behavior, narration/accessibility, all theme IDs, 100/125/150/200% display scaling, long Chinese text and meaningful contrast. Confirm no change to updater authorization, user credentials, provider session, cloud guards or game local config handlers. Do not perform account login, release installation, destructive restoration or forced game exit solely to obtain screenshots. Update actions must use authorized test data and a rollback candidate. Review launcher compact height and theme-pick button focus on real Win10; CI and source tests do not prove visual success.
+
+If automated UI Text Contract reports new user-visible or a11y literals, use existing UiTextRuntime/UiTextKeys, native button Text or register genuine copy. Do not suppress by weakening the guard. ThemePicker redundant a11y label violations in intermediate commits were resolved this way. Final-head Windows Build, UI Text Contract and Mayhem probe must all be green before claiming the source batch build-accepted.
+
+## B3 Mayhem, League data and recommendation visual acceptance (pending, 2026-10-17)
+
+The owner requested one consolidated operator acceptance after whole-product modernization, not per-page interruptions. At final candidate SHA capture Mayhem (initial/pending/completed/error), Live game and bench, My Matches (loading, player, list), Advisor (waiting/data/error), Recommendation (choices selected/unselected, action-enabled/disabled). Compare exact same theme/client/DPI and content against baseline. Verify image preview shows no unintended **horizontal** scrollbar, vertical scrolling preserves intended position, save/copy output is unchanged, and full 100/125/150/200% scaled WinForms workspace remains keyboard-navigable. Validate light palettes and selected choice contrast; no genuine game destruction or production cloud changes for visual evidence. The latest CI green result is necessary but cannot prove actual WinForms layout; all native outcomes are INCONCLUSIVE until operator evidence exists.
+
+
+## B2 source regression and pending native checks (2026-10-17)
+
+Windows Build #39007644220 and UI Text Contract #39007644251 passed on code SHA `916d007f82030dc561d4e843a8760c41cbcfb5f4`. In the eventual **consolidated** Windows acceptance (no per-page operator interruptions), capture Quick Tools and Presence under the same theme/scale; verify that all existing controls are reachable by Tab/Shift+Tab, Chinese hints are legible, scroll does not jump unexpectedly, 3/2-column Presence choices remain visually separated, and save/toggle/update handlers remain unchanged. Compare 100/125/150/200% and ten themes as practical. Functional authentication remains separately tested with authorized accounts only; deterministic UI smoke does not prove live status writes.
+
+## Consolidated cross-product visual upgrade verification (2026-10-17)
+
+Under PR #351, internally implement B1–B5 without requiring the operator to review every incremental form. Use DESIGN.md's active-surface ledger. Once B6 is ready, collect one pinned final candidate and screen capture set for Hub, automation, Presence, Mayhem, companion, launcher, updater, account, themes, cleanup and auxiliary dialogs at controlled themes, states, 100/125/150/200% scale where feasible. Preserve native system menus and dialogs.
+
+Pre-release checks: all required final-head CI green, no new P0/P1 regression, native Win10 function/IME/Tab/focus/scroll/DPI/screenshot and measured EXE/startup/memory/latency comparison, package verification and tested rollback path. Do not use production credentials or deliberately execute destructive actions for screenshots.
+
+Owner-selected order puts independent professional Astra screenshot-based visual audit after the one consolidated release. This is a **post-release** audit, not a pre-release guarantee; disclose risk and retain hotfix/revert readiness. Do not publish while any required pre-release engineering or operator safety gate is red or missing.
+
+## B1 game-repair before/after native acceptance (2026-10-17)
+
+For PR #351's next candidate, prioritize **Game Repair** as the operator-visible differentiated sample. From a Windows 10 19045 system, capture the selected repair route from both the unchanged main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and the final candidate in the same theme, client dimensions, resolution and display scaling. Also capture a deliberately narrow/scrolling case, focus indication and a harmless result status; do not trigger destructive `一键结束游戏` or client restart merely to obtain imagery.
+
+A separate independent reviewer should verify that all five original operations remain accessible by keyboard, hint copy is fully visible with no microtext, actions form a predictable right-aligned column when wide and stack when narrow, result text remains truthfully classified, and a theme switch does not erase state or alter service behavior. Include selected/current route, 100/125/150/200% when practical, light theme and all ten preset palettes. Compare captured pixel dimensions rather than scaling pictures to match. User task feedback is welcome but not a professional visual signoff.
+
+Use the existing Windows build and UI Text Contract gates and report exact HEAD and skipped online checks. Before claiming B1 COMPLETE, require an independent critique of actual rendered screenshots and a native keyboard/DPI and performance comparison. Treat missing cases as INCONCLUSIVE, not PASS.
+
+## Precision Workbench B1 native design acceptance (2026-10-17)
+
+This is a **Draft-only pilot**; source compilation does not establish screenshot quality. Collect B0 images from the main baseline `1194a4cf8451b1886c03cdf733e067fd38037f66` and candidate images from the final B1 commit. Use the same Windows 10 machine, fixture data, window client dimensions, DPI, color theme and account-safe content. Never publish login credentials, token-bearing UI, QQ/LOL identifiers or production configuration in screenshots.
+
+**Required matrix:** Hub and default Dashboard, 1120×640 and 900×580 logical client size where work area permits, 100/125/150/200% DPI, default dark and cloud-light at each scale, all ten themes at 100% and their selected/focused states at 150%, and one restrained vivid theme at full depth. At 200%, explicitly test 1920×1080 constrained desktop fit; don't pretend a 900 logical-unit width physically fits into ~683 units. Record disconnected, populated, pending, empty/error/stale, long Chinese labels, hovered/pressed/disabled and owned dialog states. Repeat Alt+Tab, close/Escape, Tab/Shift+Tab, touch-free navigation and all nine routes. Profile editor dirty Save/Discard/Cancel and Foo/foo isolation remain regression gates.
+
+**Artifacts:** Name each exact captured PNG `SHA_surface_theme_dpi_clientW-clientH_scenario_state_before-or-after.png`; write a matching scenario table with OS/.NET, resolution, effective scaling, fixture ID, timestamp, observable result and screenshot references. Never resize screenshots to fabricate equal comparison. Independent reviewer should annotate actual failures and score all observed professional design dimensions 0–4; every dimension must reach at least 3 before a visual PASS.
+
+**Performance:** Compare same-builder base and B1 binaries. Target <=2% EXE growth, <=max(10%,50ms) startup median/p95 regression, <=max(10%,5MiB) idle memory regression, <=max(10%,30ms) navigation/theme p95 regression, no new >100ms UI stall, and no sustained idle CPU growth >0.5pp. Collect raw samples, state when cold-cache procedure is unavailable, and classify noisy/incomplete evidence as INCONCLUSIVE. Retain existing strict <10MiB hard contract and League-specific budget limits.
+
+**Machine availability:** No native Windows desktop or screenshot inspection is available to the GitHub connector. CI Windows runners are build runners, not interactive native design acceptance. The product owner/authorized operator only captures and supplies observed evidence; they are not responsible for a professional aesthetic verdict. Don't claim PASS, merge, release or updater activation until native visual and keyboard/DPI evidence and an independent review are complete.
+
 ## Third Astra review — replacement-rule selection identity (2026-10-17)
 
 Run the `shell-ux` performance smoke containing `ValidateCaseSensitiveRuleSelectionForSmokeTest` for Yes, No and Cancel. This creates two valid case-distinct rules (`Foo` and `foo`) with in-memory persistence, resolves an unsaved selection change, checks the exact destination key and visible value, then verifies Save and Reset never modify the sibling key. Replacement selection uses ordinal comparison; text entry key selection still ignores case, and search filtering remains case-insensitive. Both final-head Windows Build and UI Text Contract must pass; actual WinForms/DPI and authenticated CloudBase restore checks remain manual premerge gates.

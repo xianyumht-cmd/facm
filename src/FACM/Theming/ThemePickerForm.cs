@@ -34,7 +34,7 @@ namespace FACM.Theming
                 Location = new Point(24, 18),
                 AutoSize = true,
                 ForeColor = FacmDesignSystem.Text,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 17F, FontStyle.Bold)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 15F, FontStyle.Bold)
             };
             var hint = new Label
             {
@@ -53,7 +53,7 @@ namespace FACM.Theming
                 WrapContents = true,
                 FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(3),
-                BackColor = FacmDesignSystem.CanvasRaised
+                BackColor = FacmDesignSystem.Surface
             };
 
             foreach (var theme in ThemeCatalog.All)
@@ -77,35 +77,27 @@ namespace FACM.Theming
                 Location = new Point(24, 520),
                 Size = new Size(420, 44),
                 ForeColor = FacmDesignSystem.TextMuted,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8.6F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F)
             };
 
-            var cancel = new Button
+            var cancel = new FacmActionButton
             {
                 Text = "取消",
                 Location = new Point(480, 523),
                 Size = new Size(78, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = FacmDesignSystem.SurfaceRaised,
-                ForeColor = FacmDesignSystem.Text,
-                Cursor = Cursors.Hand,
+                Tone = FacmButtonTone.Secondary,
                 DialogResult = DialogResult.Cancel,
-                TabStop = false
+                TabStop = true
             };
-            cancel.FlatAppearance.BorderColor = FacmDesignSystem.Border;
 
-            _applyButton = new Button
+            _applyButton = new FacmActionButton
             {
                 Text = "应用主题",
                 Location = new Point(566, 523),
                 Size = new Size(92, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = current.Accent,
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand,
-                TabStop = false
+                Tone = FacmButtonTone.Primary,
+                TabStop = true
             };
-            _applyButton.FlatAppearance.BorderColor = current.AccentSecondary;
             _applyButton.Click += delegate { ApplySelection(); };
 
             Controls.Add(title);
@@ -138,8 +130,7 @@ namespace FACM.Theming
                 item.Invalidate();
             }
             _selectedLabel.Text = BuildSelectedText(clicked.Theme);
-            _applyButton.BackColor = clicked.Theme.Accent;
-            _applyButton.FlatAppearance.BorderColor = clicked.Theme.AccentSecondary;
+            _applyButton.Invalidate();
         }
 
         private void ApplySelection()
@@ -164,6 +155,8 @@ namespace FACM.Theming
                 Size = new Size(300, 76);
                 Margin = new Padding(5);
                 Cursor = Cursors.Hand;
+                AccessibleName = theme.Name;
+                AccessibleDescription = theme.Description;
                 DoubleBuffered = true;
                 TabStop = true;
                 SetStyle(ControlStyles.Selectable, true);
@@ -210,21 +203,21 @@ namespace FACM.Theming
                     e.Graphics.FillPath(swatchBrush, swatchPath);
                 }
 
-                var primary = Theme.IsLight ? Theme.TextPrimary : Color.White;
-                TextRenderer.DrawText(
-                    e.Graphics,
-                    Theme.Name,
-                    new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
-                    new Rectangle(76, 14, 204, 25),
-                    primary,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-                TextRenderer.DrawText(
-                    e.Graphics,
-                    Theme.Description,
-                    new Font("Microsoft YaHei UI", 8F),
-                    new Rectangle(76, 39, 204, 24),
-                    Theme.TextMuted,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                using (var nameFont = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold))
+                using (var descriptionFont = new Font(FacmThemeRuntime.Current.FontName, 9F))
+                {
+                    TextRenderer.DrawText(e.Graphics, Theme.Name, nameFont,
+                        new Rectangle(76, 13, 204, 27),
+                        FacmDesignSystem.ReadableTextOn(Theme.Surface, Theme.TextPrimary),
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                    TextRenderer.DrawText(e.Graphics, Theme.Description, descriptionFont,
+                        new Rectangle(76, 40, 204, 24),
+                        FacmDesignSystem.ReadableTextOn(Theme.SurfaceSecondary, Theme.TextMuted),
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                }
+                if (Focused && ShowFocusCues)
+                    ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -4, -4),
+                        FacmDesignSystem.Text, Theme.Surface);
             }
 
             private static GraphicsPath CreatePath(Rectangle bounds, int radius, bool angular)

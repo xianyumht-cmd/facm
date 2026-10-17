@@ -41,33 +41,33 @@ namespace FACM
             ShowInTaskbar = false;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(398, 278);
+            ClientSize = new Size(432, 304);
 
-            var hint = AddLabel(_ui.Get(UiTextKeys.AccountCaptchaHint), 18, 12, 360, 38);
+            var hint = AddLabel(_ui.Get(UiTextKeys.AccountCaptchaHint), 22, 18, 388, 40);
             _image = new PictureBox
             {
-                Location = new Point(18, 54),
-                Size = new Size(226, 84),
+                Location = new Point(22, 64),
+                Size = new Size(252, 98),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 SizeMode = PictureBoxSizeMode.Zoom
             };
             Controls.Add(_image);
 
-            _refresh = AddButton(UiTextKeys.AccountCaptchaRefresh, 263, 78, 114);
+            _refresh = AddButton(UiTextKeys.AccountCaptchaRefresh, 286, 92, 122);
             _refresh.Click += async delegate { await LoadCaptchaAsync(); };
-            AddLabel(_ui.Get(UiTextKeys.AccountCaptchaCode), 18, 151, 130, 24);
+            AddLabel(_ui.Get(UiTextKeys.AccountCaptchaCode), 22, 178, 112, 28);
             _answer = new TextBox
             {
-                Location = new Point(138, 149),
-                Size = new Size(106, 26),
+                Location = new Point(140, 177),
+                Size = new Size(133, 30),
                 MaxLength = 6
             };
             Controls.Add(_answer);
-            _verify = AddButton(UiTextKeys.AccountCaptchaVerify, 263, 147, 114);
+            _verify = AddButton(UiTextKeys.AccountCaptchaVerify, 286, 176, 122);
             _verify.Click += async delegate { await VerifyCaptchaAsync(); };
-            _status = AddLabel(_ui.Get(UiTextKeys.AccountCaptchaLoading), 18, 196, 362, 53);
-            _status.AutoEllipsis = true;
+            _status = AddLabel(_ui.Get(UiTextKeys.AccountCaptchaLoading), 22, 221, 388, 65);
+            _status.AutoEllipsis = false;
             hint.ForeColor = FacmDesignSystem.TextMuted;
 
             Shown += async delegate { await LoadCaptchaAsync(); };
@@ -101,12 +101,15 @@ namespace FACM
 
         private Button AddButton(string key, int x, int y, int width)
         {
-            var button = new Button
+            var button = new FacmActionButton
             {
                 Text = _ui.Get(key),
                 Location = new Point(x, y),
-                Size = new Size(width, 32),
-                UseVisualStyleBackColor = true
+                Size = new Size(width, 34),
+                Tone = key == UiTextKeys.AccountCaptchaVerify
+                    ? FacmButtonTone.Primary : FacmButtonTone.Secondary,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
+                TabStop = true
             };
             Controls.Add(button);
             return button;

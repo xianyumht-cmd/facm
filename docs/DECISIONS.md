@@ -1,5 +1,34 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — B5 migrate remaining common native task surfaces with business continuity
+
+Complete common utility, registered-settings and pet-choice interfaces by reusing existing native semantic colors/buttons rather than adding a separate rendering engine. Group profile actions and consent choices according to user tasks, raise 7–8pt copy to legible roles, and preserve all service lifecycles. The BuildApply intermediate missing-callback regression underlines that source boundaries must be audited explicitly, not only matched to compilation output. Sensitive live League writes, account challenges, desktop pet activation and destructive cleanup are outside aesthetic test execution. The narrowly sized game companion remains a distinct UX/performance risk requiring real native observation.
+
+## 2026-10-17 — Native secondary dialogs share themes without rewriting cleanup/worker safety
+
+Cleanup preview and maintenance progress dialogs historically used fixed dark-only colors even when the rest of GGman honored user themes. Migrate presentation to FacmDesignSystem, standardize native semantic buttons and maintain the existing visual distinction for destructive cleaning. Preserve SafeCleanupService path validation, blocked operations, explicit confirmation, background worker ownership and cancellation. Native behavioral and screenshot evidence is required before release; this source change alone is not approval to run cleanup or alter published binaries.
+
+## 2026-10-17 — B4 visual consistency without changing account or update ownership
+
+Keep the floating launcher, updater, email account, theme picker and ESC settings on native WinForms with existing business/service ownership. Prefer consistently visible, restrained semantic surfaces and native accessible ActionButtons; do not replace the update installer, registered cloud sync or League local configuration handlers for a visual goal. Theme IDs and status wording remain unchanged. Group only the current user-visible ESC local actions, leaving intentionally hidden legacy cloud controls hidden. Record and resolve copy-contract violations as code-quality failures. Screenshot quality, input and DPI remain separate runtime gates.
+
+## 2026-10-17 — Reuse existing theme infrastructure for B3 League surfaces
+
+Mayhem preview and active match/advisor/recommendation pages remain native WinForms; prevent screenshot-sized fixed scrollbars by using bounded viewport geometry, and eliminate independent private dark palettes in favor of `FacmDesignSystem` semantic roles and `FacmActionButton`. Preserve colorful champion/team metrics only when they encode actual game information; do not replace the game's bitmap data renderer or League polling. Keep all service contracts and configuration semantics, and defer independent screenshot critique to the consolidated gate. Source changes passing CI alone are not visual approval.
+
+
+## 2026-10-17 — Complete app-owned visual refresh in one release
+
+Owner rejected per-page visual approvals and requested all actively reachable GGman-owned surfaces be redesigned before a single updater release. Keep internally staged edits and CI on PR #351, preserving data flows and existing WinForms ownership. System-owned context menus and file dialogs remain native for keyboard/accessibility compatibility. The owner requests one independent Astra professional visual assessment **after** the consolidated release; recognize the residual post-release risk and prepare rollback/hotfix. Product-wide QA still needs concrete native screenshots, accessibility/DPI and performance checks.
+
+## 2026-10-17 — Scope B1 visual prototype around the observed Repair route
+
+The initial Dashboard/navigation implementation compiled but owner-submitted Windows images showed no materially noticeable overall visual change, as expected given most captured pages were not touched. The owner authorized another implementation iteration. Keep PR #351 as the existing task PR and use the already-observed game-repair route as the first strongly differentiated native visual sample. Prioritize task-aligned right-side action placement, readable explanations and responsive grouping rather than cosmetic one-pixel changes. Do not interpret source smoke tests or the user's informal screenshot comparison as independent visual acceptance. Do not expand this iteration into launcher, updater, Mayhem or cloud settings, and do not change repair service behavior or production updater.
+
+## 2026-10-17 — Adopt Precision Workbench for incremental native UI modernization
+
+Independent planning compared Precision Workbench, Task Console, and Match Context Desk against readability, everyday workflows, WinForms compatibility, accessibility, performance and maintainability. Precision Workbench best reuses the existing single rail, semantic controls and native desktop interaction. Begin with Hub/navigation/Dashboard only; validate actual rendered evidence before other pages. Retain all ThemeCatalog IDs, source ownership, IME/keyboard semantics and low-overhead single-executable design. Use the [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) guidelines as applicable design intelligence, [Impeccable](https://github.com/pbakaus/impeccable) as critique method and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md) as a documentation reference. Do not copy browser-only rules blindly. Designer-quality review requires actual native screenshot evidence and an independent assessor rather than product-owner aesthetic certification. No publication is authorized by this decision.
+
 ## 2026-10-16 — Persistent workbench and intentional text-edit transitions
 
 The main League workbench is a persistent task surface, not a transient flyout. Moving focus to League, a browser, or another application must not dismiss it; the floating launcher retains its independent transient lifecycle. The Hub remains explicitly closable, including Escape, but an active unsaved UI text draft must resolve via Save / Discard / Cancel before the Hub can close or navigate. The same guard applies to editor selection, filter/mode, and collapse. Save is the only path that notifies registered automatic UI-text sync; a discarded local edit is not published. UI controls retain the current stable TextKey contract.

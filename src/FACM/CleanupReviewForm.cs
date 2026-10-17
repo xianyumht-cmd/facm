@@ -3,18 +3,19 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM
 {
     internal sealed class CleanupReviewForm : Form
     {
-        private static readonly Color Surface = Color.FromArgb(15, 20, 31);
-        private static readonly Color PanelColor = Color.FromArgb(24, 31, 46);
-        private static readonly Color Border = Color.FromArgb(49, 62, 85);
-        private static readonly Color TextPrimary = Color.FromArgb(242, 246, 255);
-        private static readonly Color TextMuted = Color.FromArgb(153, 166, 190);
-        private static readonly Color Accent = Color.FromArgb(84, 133, 255);
-        private static readonly Color Danger = Color.FromArgb(255, 111, 122);
+        private static Color Surface { get { return FacmDesignSystem.Canvas; } }
+        private static Color PanelColor { get { return FacmDesignSystem.Surface; } }
+        private static Color Border { get { return FacmDesignSystem.BorderSoft; } }
+        private static Color TextPrimary { get { return FacmDesignSystem.Text; } }
+        private static Color TextMuted { get { return FacmDesignSystem.TextMuted; } }
+        private static Color Accent { get { return FacmDesignSystem.Accent; } }
+        private static Color Danger { get { return FacmDesignSystem.Error; } }
 
         private Point _dragStart;
         private bool _dragging;
@@ -33,7 +34,7 @@ namespace FACM
             MinimumSize = MaximumSize = Size;
             BackColor = Surface;
             ForeColor = TextPrimary;
-            Font = new Font("Microsoft YaHei UI", 9F);
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F);
             DoubleBuffered = true;
 
             var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Surface };
@@ -56,7 +57,7 @@ namespace FACM
                 AutoSize = true,
                 Location = new Point(25, 46),
                 ForeColor = TextMuted,
-                Font = new Font("Microsoft YaHei UI", 8.5F),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F),
                 BackColor = Color.Transparent
             };
             var close = new Button
@@ -127,8 +128,8 @@ namespace FACM
                 Location = new Point(470, 22),
                 Size = new Size(185, 34),
                 TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = plan.BlockedCount == 0 ? Color.FromArgb(100, 225, 170) : Danger,
-                BackColor = Color.FromArgb(31, 40, 58),
+                ForeColor = plan.BlockedCount == 0 ? FacmDesignSystem.Success : Danger,
+                BackColor = FacmDesignSystem.SurfaceRaised,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold)
             };
             summary.Controls.Add(countValue);
@@ -143,7 +144,7 @@ namespace FACM
                 Size = new Size(680, 285),
                 BackgroundColor = PanelColor,
                 BorderStyle = BorderStyle.None,
-                GridColor = Color.FromArgb(43, 54, 75),
+                GridColor = FacmDesignSystem.BorderSoft,
                 EnableHeadersVisualStyles = false,
                 RowHeadersVisible = false,
                 ColumnHeadersHeight = 38,
@@ -157,15 +158,15 @@ namespace FACM
                 ScrollBars = ScrollBars.Vertical
             };
             grid.RowTemplate.Height = 34;
-            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(27, 35, 51);
+            grid.ColumnHeadersDefaultCellStyle.BackColor = FacmDesignSystem.CanvasRaised;
             grid.ColumnHeadersDefaultCellStyle.ForeColor = TextMuted;
-            grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(27, 35, 51);
-            grid.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold);
+            grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = FacmDesignSystem.CanvasRaised;
+            grid.ColumnHeadersDefaultCellStyle.Font = new Font(FacmThemeRuntime.Current.FontName, 9F, FontStyle.Bold);
             grid.DefaultCellStyle.BackColor = PanelColor;
             grid.DefaultCellStyle.ForeColor = TextPrimary;
-            grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(42, 55, 80);
+            grid.DefaultCellStyle.SelectionBackColor = FacmDesignSystem.SurfaceHover;
             grid.DefaultCellStyle.SelectionForeColor = TextPrimary;
-            grid.DefaultCellStyle.Font = new Font("Microsoft YaHei UI", 8.2F);
+            grid.DefaultCellStyle.Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
 
             grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "类别", Width = 105 });
             grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "状态", Width = 96 });
@@ -186,7 +187,7 @@ namespace FACM
                 }
                 else
                 {
-                    grid.Rows[rowIndex].Cells[1].Style.ForeColor = Color.FromArgb(100, 225, 170);
+                    grid.Rows[rowIndex].Cells[1].Style.ForeColor = FacmDesignSystem.Success;
                 }
             }
 
@@ -196,7 +197,7 @@ namespace FACM
                 AutoSize = true,
                 Location = new Point(24, 472),
                 ForeColor = TextMuted,
-                Font = new Font("Microsoft YaHei UI", 8.5F)
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9F)
             };
 
             var cancel = CreateButton("取消", new Point(492, 468), new Size(92, 42), Color.FromArgb(39, 49, 69), TextPrimary);
@@ -234,22 +235,16 @@ namespace FACM
 
         private static Button CreateButton(string text, Point location, Size size, Color backColor, Color foreColor)
         {
-            var button = new Button
+            return new FacmActionButton
             {
                 Text = text,
                 Location = location,
                 Size = size,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = backColor,
-                ForeColor = foreColor,
+                Tone = backColor == Accent ? FacmButtonTone.Danger : FacmButtonTone.Secondary,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
+                Font = new Font(FacmThemeRuntime.Current.FontName, 9.5F, FontStyle.Bold),
                 TabStop = true
             };
-            button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.08F);
-            button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.08F);
-            return button;
         }
 
         private void ApplyRoundedRegion()
@@ -262,7 +257,9 @@ namespace FACM
                 path.AddArc(Width - radius, Height - radius, radius, radius, 0, 90);
                 path.AddArc(0, Height - radius, radius, radius, 90, 90);
                 path.CloseFigure();
+                var previous = Region;
                 Region = new Region(path);
+                if (previous != null) previous.Dispose();
             }
         }
 
