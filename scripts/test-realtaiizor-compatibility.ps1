@@ -25,11 +25,13 @@ $files = @(Get-ChildItem $distribution -File | ForEach-Object {
     [pscustomobject]@{ name=$_.Name; bytes=$_.Length; sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash }
 })
 $files | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'distribution.json') -Encoding utf8
+Write-Host ($files | ConvertTo-Json -Compress)
 $exe = Join-Path $distribution 'GGman.UiCompatibility.exe'
 for ($trial = 1; $trial -le 5; $trial++) {
     $report = Join-Path $OutputDirectory "smoke-$trial.json"
     $process = Start-Process $exe -ArgumentList @('--smoke', "`"$report`"") -PassThru
     if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Compatibility smoke timeout.' }
+    if (Test-Path $report) { Write-Host (Get-Content $report -Raw) }
     if ($process.ExitCode -ne 0) { throw "Compatibility smoke failed: $report" }
     if (-not (Test-Path $report)) { throw 'Smoke report missing.' }
 }
