@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — Native secondary dialogs share themes without rewriting cleanup/worker safety
+
+Cleanup preview and maintenance progress dialogs historically used fixed dark-only colors even when the rest of GGman honored user themes. Migrate presentation to FacmDesignSystem, standardize native semantic buttons and maintain the existing visual distinction for destructive cleaning. Preserve SafeCleanupService path validation, blocked operations, explicit confirmation, background worker ownership and cancellation. Native behavioral and screenshot evidence is required before release; this source change alone is not approval to run cleanup or alter published binaries.
+
 ## 2026-10-17 — B4 visual consistency without changing account or update ownership
 
 Keep the floating launcher, updater, email account, theme picker and ESC settings on native WinForms with existing business/service ownership. Prefer consistently visible, restrained semantic surfaces and native accessible ActionButtons; do not replace the update installer, registered cloud sync or League local configuration handlers for a visual goal. Theme IDs and status wording remain unchanged. Group only the current user-visible ESC local actions, leaving intentionally hidden legacy cloud controls hidden. Record and resolve copy-contract violations as code-quality failures. Screenshot quality, input and DPI remain separate runtime gates.

@@ -51,6 +51,15 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 
 ## B2 source implementation record (native visual validation pending)
 
+## B5 source migration — cleanup review and maintenance progress dialogs
+
+Three active GGman-owned secondary surfaces remain native and use the existing design tokens:
+- `CleanupReviewForm`: replaces a separate hardcoded dark palette with semantic Canvas/Surface/Text/Warning/Error roles across the preview summary and grid. Existing path validation, blocked entries, native Cancel semantics and explicit destructive Execute confirmation are preserved; the Execute action uses the visually distinct Danger button tone. The custom rounded region now disposes any replaced Region correctly.
+- `BackgroundOperationDialog`: consistent canvas, title and status text with the rest of the application; no change to background task execution, no premature close.
+- `GameLocatorSearchDialog`: consistent theme and accessible native cancel button; task cancellation token, progress and result propagation remain unchanged.
+
+**Current B5 is not exhaustive.** `CleanupRepairForm`, profile customization, secondary diagnostics and other reachable GGman-owned surfaces still require a final native visual consistency and input sweep. B5 source success does not constitute full product acceptance; operator screenshots, Win10 keyboard/DPI, actual cleanup safety controls and screenshot-based independent review remain pending.
+
 ## B4 native launcher, theme, account, update and ESC presentation (in progress)
 
 - Floating launcher: existing four route IDs, context/welcome flow, menu owner and launcher dimensions are unchanged; each shortcut now paints a distinct semantic surface/border even at rest, with accessible keyboard focus. Footer actions use `FacmActionButton`. Context details use readable 8.5–9.5pt fonts.

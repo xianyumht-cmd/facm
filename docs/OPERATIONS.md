@@ -1,5 +1,9 @@
 # GGman Operations (3.5.x)
 
+## B5 native cleanup and operation dialog visual/safety matrix (pending)
+
+At the consolidated final SHA, capture CleanupReviewForm with blocked and permitted test entries, varied Chinese paths/bytes, footer cancellation focus, and all relevant theme/light/high-contrast states; do not execute destructive cleanup to collect screenshots. Verify success/warning/error status and readable grid text at 100/125/150/200% DPI. Exercise Escape/Tab/Shift+Tab/Enter, explicit Cancel and non-accidental Execute selection. For BackgroundOperationDialog and GameLocatorSearchDialog verify window ownership, no premature close during work, keyboard cancellation for the cancellable task and progress copy visibility. Unit and CI checks cannot establish actual WinForms text clipping or delete safety; all native conditions remain INCONCLUSIVE until tested by an authorized operator.
+
 ## B4 source-only verification and eventual consolidated native acceptance (2026-10-17)
 
 At final candidate SHA, capture floating launcher (generic/context/onboarding), theme picker with selected/swatches in dark/light, updater idle/available/required/announcement/progress states, registered account login/session, and ESC directory plus local Save/Restore. Verify Tab/Shift+Tab/Enter/Escape behavior, narration/accessibility, all theme IDs, 100/125/150/200% display scaling, long Chinese text and meaningful contrast. Confirm no change to updater authorization, user credentials, provider session, cloud guards or game local config handlers. Do not perform account login, release installation, destructive restoration or forced game exit solely to obtain screenshots. Update actions must use authorized test data and a rollback candidate. Review launcher compact height and theme-pick button focus on real Win10; CI and source tests do not prove visual success.

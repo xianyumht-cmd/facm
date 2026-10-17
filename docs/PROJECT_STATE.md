@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B5 first source migration (Draft PR #351)
+
+B5 source commit `49c024f115aecc1eb96c3d1ad369ba55d8ea07d8` migrates `CleanupReviewForm`, `BackgroundOperationDialog` and `GameLocatorSearchDialog` away from private dark-only colors to shared semantic themes. Cleanup confirmation stays explicit; cancel/keyboard support is preserved; the destructive confirm button now uses the Danger tone. Background operation worker/cancel lifecycle, cleanup path validation and actual filesystem/cloud operations are not modified. Status as recorded: UI Text Contract and Mayhem Source Probe passed for this code head; Windows Build was still executing and must be verified separately. Native WinForms rendered screenshots and safety/keyboard/DPI acceptance are not available.
+
+B5 does not yet cover all reachable minor forms; B6 cross-product visual, security, DPI and performance gates remain. No merge, official release or updater changes. Production v3.5.77 is unchanged.
+
 ## 2026-10-17 — B4 source progress: launcher, updates, theme, account and ESC
 
 Draft PR #351 continues on branch `feat/ggman-precision-workbench-b1-20261017`; main and official v3.5.77 remain unchanged. B4 source changes: `79c566ef8653b2f37d6d8c5bcdba0e5a0dcd4d39` standardizes launcher tiles/footer, ThemePicker and widens OnlineCenter; `4fff958255ef06bd5e73866694cc7aa7f17595cf` improves GgmanAccount form layout; `fe9129a5612a3ddc2510fb190849e8f54487be51` groups visible ESC local actions; `2843bb150b257ad82ff95a055cacaee146473985` fixes new UI text-contract violations by removing redundant hardcoded accessibility labels from ThemePicker.

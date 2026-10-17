@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## B5 cleanup review and minor operation dialogs (Draft PR #351)
+
+CleanupReviewForm retains its SafeCleanupService-supplied immutable plan, blocked/deletable row generation, explicit Confirmed/Cancel behavior and native keyboard access. Visual colors now reference `FacmDesignSystem` semantic roles instead of process-wide hardcoded dark static fields; the destructive confirm is visually distinguished through `FacmActionButton`. BackgroundOperationDialog retains its worker continuation and no-close-before-complete invariant while inheriting canonical text/surface tokens. GameLocatorSearchDialog retains its CancellationTokenSource and progress ownership but uses the canonical text and native semantic cancel button. Theme changes do not alter cleaning authorization or task execution semantics.
+
 ## B4 reusable presentation surfaces (2026-10-17, Draft PR #351)
 
 `DesktopLauncherEnhancer` preserves four route bindings, onboarding and context state while styling its tiles with always-visible semantic surfaces and using standard ActionButtons for footer operations. `ThemePickerForm` keeps the same preview ThemeDefinitions and Accept/Cancel contract, but uses native reusable ActionButtons, paint-time font disposal and focus/contrast feedback. `OnlineCenterForm` changes only fixed dialog geometry/reading hierarchy; mandatory update guards, installer and announcement link ownership are unchanged. `GgmanAccountForm` retains the passwordless email challenge/auth state machine and session isolation; login/session cards are now more readable. `EscSettingsForm` wraps only the two visible local settings actions in a separate native GlassPanel; hidden cloud/probe controls remain hidden, service actions untouched. These are presentation changes; native pixel/DPI/keyboard proof has not been collected.
