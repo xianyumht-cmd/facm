@@ -51,6 +51,16 @@ An actual operator screenshot of the previous game-repair page showed oversized 
 
 ## B2 source implementation record (native visual validation pending)
 
+## B3 source implementation record — Mayhem, Live, player and recommendation (native visual acceptance pending)
+
+- `MayhemLookupForm` groups its search controls and status into one semantic toolbar surface while presenting the preview in a separate full-width scrollable reading surface. `MayhemLookupLayoutPolicy` reserves horizontal padding plus the vertical scrollbar for the preview; geometry smoke checks multiple widths. Image query, rendering, copy, save, cancellation and owner lifetime remain unchanged. Status tones retain their semantic role during theme changes.
+- `LeagueLiveForm` and `LeagueBuildAdvisorForm` no longer hardcode a private dark background, pale cyan text and manually filled generic action buttons. They use `FacmDesignSystem` roles and `FacmActionButton` while retaining original polling/service ownership, player identity and data-specific highlighting.
+- `LeaguePlayerForm` adds an account summary surface/accent and standardizes typography and list backgrounds without changing cached profile, virtual rows or data fetch.
+- `LeagueRecommendationForm` replaces the white-on-light selection text risk with paint-background-aware readable text, uses semantic action buttons and improves Chinese choice/preview text sizes; exact auto-apply logic and user selections are unchanged.
+
+**Evidence boundary:** All above are source-level changes on PR #351. Existing screenshots do not show this code. No native WinForms images, focus/DPI, interaction, live League client data, or performance acceptance is asserted for these surfaces. The unmodified companion and additional active pages remain in scope under B3/B4/B5. Do not claim product-wide completion.
+
+
 On the existing task branch, `LeaguePresenceForm` now reparents its existing settings into full-width scrollable task surfaces with status choices, signature, ranked identity and appearance controls. Width-dependent three/two-column state controls and structured field groups replace its 430px-wide, left-clustered fixed presentation. Native service calls, status options, account semantics and personal customization entry points are unchanged. `LeagueEfficiencyForm` now exposes the existing contextual hints inline in settings rows instead of relying entirely on hover text, with increased typographic rhythm and unchanged toggle/numeric/keyboard handlers. `LeagueSoftGlassSkin` no longer compresses these intentionally laid-out migrated pages.
 
 Build compilation/contract gates passed for the Presence-only commit `635fd52cd8716510791e149e8efb369e447c5613` and combined B2 code commit `916d007f82030dc561d4e843a8760c41cbcfb5f4`; neither automated pass demonstrates actual layout geometry, light/dark palette quality, IME, keyboard/focus, scroll behavior or authentic cloud/session operation. Record these B2 surfaces as **implemented in source, native visual acceptance INCONCLUSIVE**, not completed.

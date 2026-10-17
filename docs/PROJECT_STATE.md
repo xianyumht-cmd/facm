@@ -12,6 +12,15 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — B3 Mayhem and League presentation source progress (PR #351)
+
+B3 code changes in the same Draft branch: `8f4d1fbe5d7410f796c51b7b39b24b680f9d7248` introduced Mayhem toolbar/preview layout; `3509466bbb2d53bd0a47a19dc3e2b4e29755fd91` retained status tones on theme changes; `8c1d6cf5e49200e0e673c79d9b80cd657500c1fa` migrated Live and Advisor shared colors/actions to the canonical theme; `7e133ccb11bfad25c2f63899e9937cf70420a711` improved Player account summary and list hierarchy; `779a3d724852b831de5b7f3d147278a961f6ebad` updated recommendation choice contrast/buttons.
+
+On these code heads, earlier Windows Builds/Mayhem probes/UI Text Contract checks were green through `7e133ccb11bfad25c2f63899e9937cf70420a711`. Final B3 code head `779a3d724852b831de5b7f3d147278a961f6ebad` has UI Text Contract and Mayhem Source Probe success; Windows Build was in progress at the time this entry was recorded. Verify the final workflow conclusion before calling this code head build-accepted. Native visual, keyboard, mixed DPI and actual League interactions remain untested.
+
+B3 still includes additional owned companion/recommendation presentation and global normalization; B4/B5 entry, update, account/settings and cleanup remain. No merge, public executable or updater modification. Production remains v3.5.77.
+
+
 ## 2026-10-17 — B2 source progress: Presence and Quick Tools
 
 On the same PR #351 branch, code heads `635fd52cd8716510791e149e8efb369e447c5613` and `916d007f82030dc561d4e843a8760c41cbcfb5f4` migrate `LeaguePresenceForm` and `LeagueEfficiencyForm` away from visibly narrow/hover-dependent presentation. Presence now uses scrollable full-width group surfaces with status choices, account signature, ranked displays and appearance actions; Quick Tools displays help descriptions inside hotkey, toggle and parameter rows instead of hover-only messages. Existing service handlers and persistence semantics are retained. The shared density pass skips these migrated surfaces.

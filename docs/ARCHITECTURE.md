@@ -1,5 +1,10 @@
 # FACM Architecture
 
+## B3 native strategy, match and recommendation surfaces (Draft PR #351)
+
+`MayhemLookupForm` keeps its asynchronous OP.GG/Riot enrichment, bitmap rendering, copy/save and cancellation unchanged. The search/status controls are visually grouped behind a semantic surface; the scrollable preview sizes its PictureBox to the reading viewport minus stable vertical-scrollbar reservation and preserves scroll position on resize. `MayhemLookupLayoutPolicy` owns geometry, toolbar enclosure and preview-width smoke assertions. Semantic status roles survive theme switches. `LeagueLiveForm` and `LeagueBuildAdvisorForm` retain active League polling, player rows and recommendation ownership but draw canonical semantic surface/text roles and use reusable ActionButtons. `LeaguePlayerForm` adds a styled account summary overlay without changing virtual match rendering or service cache. `LeagueRecommendationForm` retains selection/auto-apply and data reading flows while correcting theme contrast and action typography. All changes remain presentation-owned; full native accessibility/DPI and screenshot comparisons have not been performed.
+
+
 ## B2 Presence and automation visual surface migration (2026-10-17, Draft)
 
 The active `LeaguePresenceForm` retains its original services, option values and click handlers, but now arranges existing native controls within full-width, scrollable, semantically grouped status, signature, ranked and profile tasks. The resize handler controls row geometry, preserving its edit/action ownership. `LeagueEfficiencyForm` keeps its 18-row settings and handlers while promoting existing contextual help from hover-only to visible descriptions within hotkey, automation and parameter rows. The shared `LeagueSoftGlassSkin` legacy compact-density pass excludes both migrated surfaces; its explicit efficiency scrolling calculation remains active. Existing CloudBase/game/update ownership is unchanged. Keyboard, theme/DPI and visual evidence remain outstanding.

@@ -1,5 +1,10 @@
 # GGman Operations (3.5.x)
 
+## B3 Mayhem, League data and recommendation visual acceptance (pending, 2026-10-17)
+
+The owner requested one consolidated operator acceptance after whole-product modernization, not per-page interruptions. At final candidate SHA capture Mayhem (initial/pending/completed/error), Live game and bench, My Matches (loading, player, list), Advisor (waiting/data/error), Recommendation (choices selected/unselected, action-enabled/disabled). Compare exact same theme/client/DPI and content against baseline. Verify image preview shows no unintended **horizontal** scrollbar, vertical scrolling preserves intended position, save/copy output is unchanged, and full 100/125/150/200% scaled WinForms workspace remains keyboard-navigable. Validate light palettes and selected choice contrast; no genuine game destruction or production cloud changes for visual evidence. The latest CI green result is necessary but cannot prove actual WinForms layout; all native outcomes are INCONCLUSIVE until operator evidence exists.
+
+
 ## B2 source regression and pending native checks (2026-10-17)
 
 Windows Build #39007644220 and UI Text Contract #39007644251 passed on code SHA `916d007f82030dc561d4e843a8760c41cbcfb5f4`. In the eventual **consolidated** Windows acceptance (no per-page operator interruptions), capture Quick Tools and Presence under the same theme/scale; verify that all existing controls are reachable by Tab/Shift+Tab, Chinese hints are legible, scroll does not jump unexpectedly, 3/2-column Presence choices remain visually separated, and save/toggle/update handlers remain unchanged. Compare 100/125/150/200% and ten themes as practical. Functional authentication remains separately tested with authorized accounts only; deterministic UI smoke does not prove live status writes.

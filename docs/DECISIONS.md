@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-17 — Reuse existing theme infrastructure for B3 League surfaces
+
+Mayhem preview and active match/advisor/recommendation pages remain native WinForms; prevent screenshot-sized fixed scrollbars by using bounded viewport geometry, and eliminate independent private dark palettes in favor of `FacmDesignSystem` semantic roles and `FacmActionButton`. Preserve colorful champion/team metrics only when they encode actual game information; do not replace the game's bitmap data renderer or League polling. Keep all service contracts and configuration semantics, and defer independent screenshot critique to the consolidated gate. Source changes passing CI alone are not visual approval.
+
+
 ## 2026-10-17 — Complete app-owned visual refresh in one release
 
 Owner rejected per-page visual approvals and requested all actively reachable GGman-owned surfaces be redesigned before a single updater release. Keep internally staged edits and CI on PR #351, preserving data flows and existing WinForms ownership. System-owned context menus and file dialogs remain native for keyboard/accessibility compatibility. The owner requests one independent Astra professional visual assessment **after** the consolidated release; recognize the residual post-release risk and prepare rollback/hotfix. Product-wide QA still needs concrete native screenshots, accessibility/DPI and performance checks.
