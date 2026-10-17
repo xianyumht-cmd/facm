@@ -280,7 +280,7 @@ namespace FACM.League
                 _items.EndUpdate();
                 for (var i = 0; i < _items.Items.Count; i++)
                     if (string.Equals(((_items.Items[i] as Entry)?.Key), previous,
-                        StringComparison.OrdinalIgnoreCase))
+                        mode ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
                     {
                         _items.SelectedIndex = i;
                         break;
@@ -476,6 +476,9 @@ namespace FACM.League
         {
             ValidateNavigationRebaseForSmokeTest(false);
             ValidateNavigationRebaseForSmokeTest(true);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.Yes);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.No);
+            ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult.Cancel);
             ValidateConflictDiscardRecoveryForSmokeTest(false);
             ValidateConflictDiscardRecoveryForSmokeTest(true);
             ValidateResetWriteFailureForSmokeTest();
@@ -610,6 +613,64 @@ namespace FACM.League
                 if ((advanced ? saved.Replace[first.Key] : saved.Text[first.Key]) !=
                     first.Current)
                     throw new InvalidOperationException("Save-on-navigation dropped the edited first entry.");
+            }
+        }
+
+        private static void ValidateCaseSensitiveRuleSelectionForSmokeTest(DialogResult decision)
+        {
+            using (var editor = new UiTextEditorPanel(null))
+            {
+                var saved = new UiTextProfile();
+                saved.Replace["Foo"] = "upper";
+                saved.Replace["foo"] = "lower";
+                var notifications = 0;
+                editor._readProfile = delegate { return UiTextCustomizationStore.Copy(saved); };
+                editor._writeProfile = delegate(UiTextProfile candidate)
+                {
+                    saved = UiTextCustomizationStore.Copy(candidate);
+                };
+                editor._notifySaved = delegate { notifications++; };
+                editor.SetExpanded(true);
+                editor._mode.SelectedIndex = 1;
+                if (editor._items.Items.Count != 2)
+                    throw new InvalidOperationException("Case-sensitive rule navigation requires two entries.");
+                editor._items.SelectedIndex = 0;
+                if ((editor._renderedEntry == null ? null : editor._renderedEntry.Key) != "Foo")
+                    throw new InvalidOperationException("Rule selection setup selected the wrong case.");
+
+                editor._value.Text = "upper draft";
+                editor._confirmLeaveForSmokeTest = delegate { return decision; };
+                editor._items.SelectedIndex = 1;
+
+                if (decision == DialogResult.Cancel)
+                {
+                    if ((editor._items.SelectedItem as Entry)?.Key != "Foo" ||
+                        editor._renderedEntry?.Key != "Foo" ||
+                        editor._value.Text != "upper draft" || !editor.HasPendingChanges ||
+                        saved.Replace["Foo"] != "upper" || saved.Replace["foo"] != "lower" ||
+                        notifications != 0)
+                        throw new InvalidOperationException("Cancel switched case-sensitive rule or saved its draft.");
+                    return;
+                }
+
+                var expectedUpper = decision == DialogResult.Yes ? "upper draft" : "upper";
+                var expectedNotifications = decision == DialogResult.Yes ? 1 : 0;
+                if ((editor._items.SelectedItem as Entry)?.Key != "foo" ||
+                    editor._renderedEntry?.Key != "foo" || editor._source.Text != "foo" ||
+                    editor._value.Text != "lower" || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace["foo"] != "lower" || notifications != expectedNotifications)
+                    throw new InvalidOperationException("Navigation selected the wrong case-sensitive rule.");
+
+                editor._value.Text = "lower revised";
+                if (!editor.SaveLocal() || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace["foo"] != "lower revised" ||
+                    notifications != expectedNotifications + 1)
+                    throw new InvalidOperationException("Saving a case-sensitive rule changed its sibling.");
+
+                editor.ResetSelected();
+                if (!saved.Replace.ContainsKey("Foo") || saved.Replace["Foo"] != expectedUpper ||
+                    saved.Replace.ContainsKey("foo") || notifications != expectedNotifications + 2)
+                    throw new InvalidOperationException("Reset targeted the wrong case-sensitive rule.");
             }
         }
 

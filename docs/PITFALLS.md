@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
+
+Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.
+
 ## Updating the baseline without rebinding list entries can defeat conflict checks (2026-10-17)
 
 In PR #350, a Save/Discard/Cancel Yes choice during item selection calls `SaveLocal(false)`. It correctly rebases `_draft` to fresh disk content but previously retained the old destination `Entry.Current` object. Saving that stale displayed value on the next item could pass same-key conflict detection and roll back newer cloud-restored values, then notify automatic sync. After saving the candidate, synchronize visible list entries and rebind the destination entry by key before rendering it; do not recursively refresh inside Save. On conflict followed by Discard, reread persisted state, update the current selection and allow immediate re-edit; Cancel must still preserve the unsaved draft. Cover ordinary text and replacement rules with Save-on-navigation and Discard-then-edit smoke checks.

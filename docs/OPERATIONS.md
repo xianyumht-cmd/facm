@@ -1,5 +1,9 @@
 # GGman Operations (3.5.x)
 
+## Third Astra review — replacement-rule selection identity (2026-10-17)
+
+Run the `shell-ux` performance smoke containing `ValidateCaseSensitiveRuleSelectionForSmokeTest` for Yes, No and Cancel. This creates two valid case-distinct rules (`Foo` and `foo`) with in-memory persistence, resolves an unsaved selection change, checks the exact destination key and visible value, then verifies Save and Reset never modify the sibling key. Replacement selection uses ordinal comparison; text entry key selection still ignores case, and search filtering remains case-insensitive. Both final-head Windows Build and UI Text Contract must pass; actual WinForms/DPI and authenticated CloudBase restore checks remain manual premerge gates.
+
 ## Second Astra source review — candidate validation (2026-10-17)
 
 For PR #350, repeat `shell-ux` and `ui-text-customization` smoke after correcting stale list entries when Yes resolves Save/Discard/Cancel navigation. The `ValidateNavigationRebaseForSmokeTest` fixtures cover ordinary text and replacement rules with a newer target value, missed restore notification, Yes -> `SaveLocal(false)`, destination selection and a subsequent Save without remote rollback. The `ValidateConflictDiscardRecoveryForSmokeTest` fixtures verify same-key conflict -> Discard -> immediate successful re-edit in both modes. A reset-write failure fixture verifies no baseline advance or sync notification. Always require both required CI workflows on the final PR head and another independent review; do not infer native/registered CloudBase behavior from in-memory smoke.

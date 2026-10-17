@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Replacement-rule selection identity (PR #350, 2026-10-17)
+
+The editor uses case-insensitive search but mode-specific selection identity: plain text keys are `OrdinalIgnoreCase`, replacement rule keys are `Ordinal` to match their persisted dictionary. This distinction applies to list rebuilds after Save/Discard navigation so `Foo` and `foo` cannot be interchanged.
+
 ## Editor list rebinding after save and conflict discard (PR #350, 2026-10-17)
 
 `UiTextEditorPanel` keeps its rendered list entries consistent with `_draft` after a successful single-key Save, including the nonrefreshing `SaveLocal(false)` branch used by Save/Discard/Cancel navigation. When a pending selection change is resolved, `Filter` rebinds the requested key against the resulting profile before rendering the destination entry; it must not render a `next` object captured before the save. Discard rereads persisted state without writing or notifying cloud sync, refreshes visible values and rebuilds selection on navigation. A failed reread blocks leaving and preserves the visible draft. This addresses delayed/missed restore notifications without broadening the cloud write policy.

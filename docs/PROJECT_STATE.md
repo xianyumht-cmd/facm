@@ -12,6 +12,10 @@
 - release_notes：GGman 3.5.77：修复云端配置中心误把换机配置差异、账号归属变化或云端未创建备份判为冲突。已存在云端的软件偏好与界面文字备份时自动以云端为准恢复本机；当前账号完成首次同步后，用户主动保存的本机软件偏好和文字改动仍可自动上传，保留云端版本并发校验。云端无备份时不擅自上传或覆盖，显示明确原因，并提供创建云端备份入口；界面文字有未保存草稿时暂缓恢复。LOL 大厅与 ESC 继续手动上传、自动恢复。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-17 — PR #350 third review P2 correction (candidate, not released)
+
+Third independent read-only Astra review of head `103a61b4dfb1ffff5ecb83b45e995f05065b3770` found no remaining source-level P0/P1 blocker, but identified a concrete P2: `UiTextEditorPanel.Filter` restored selections with `OrdinalIgnoreCase` even in case-sensitive replacement-rule mode, so rules `Foo` and `foo` could be confused following Save/Discard navigation. The same draft PR now restores selection with `Ordinal` in replacement mode and leaves ordinary text selection case-insensitive. In-memory editor smoke verifies Yes/No/Cancel, exact key/value, and subsequent Save/Reset effects on the intended case-distinct rule. Final-head CI and native Windows/registered CloudBase acceptance remain required. Do not merge or release based only on this candidate; production remains v3.5.77.
+
 ## 2026-10-17 — PR #350 second Astra review corrections (candidate, not released)
 
 Astra's second read-only review of `0c9adcb28b58e433160ce9ea5f5c5cf11cad4f11` again requested changes. Confirmed P1: choosing Yes to save an edit during list selection uses `SaveLocal(false)`, advancing the whole profile baseline without updating the destination list `Entry.Current`; an unseen newer value on the destination could then be saved back as stale data and auto-uploaded. P2: after same-key conflict, Discard left stale visible state and forced manual reopen. Both must be corrected before merge.
