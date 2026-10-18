@@ -1,5 +1,10 @@
 # FACM Pitfalls
 
+## Candidate flags must be expanded and verified in executed binaries (2026-10-18)
+
+An MSBuild condition written as `'UseReaLTaiizorRepair' == 'true'` compares literal strings and never activates the candidate. Use `'$(UseReaLTaiizorRepair)' == 'true'`. An unchanged executable size exposed the mistake after the shared renderer passed but product tests still exercised the original form. Candidate CI now asserts the actual form's `_view` field type, constructs the shared view, and requires its stdout marker after merging. Do not report runs before this correction as product-candidate validation. Compile feature flags require executable identity checks, not command-line inspection alone.
+
+
 ## A compatible NuGet target does not imply compatible single-EXE deployment (2026-10-17)
 
 ReaLTaiizor 3.8.2.1 includes net48 but its selected DLL is 10,933,248 bytes and ordinary PackageReference requires that DLL at runtime. The existing GGman publisher ships one main EXE. Do not confuse the 45,396,090-byte multi-target nupkg with final product size, omit sidecars from a test package, raise the 10 MiB gate silently, or inject an unreviewed AssemblyResolve loader. Gate broad migration on an approved distribution strategy and actual clean offline execution. GitHub's latest Release is older than the NuGet package; inspect the nuspec repository commit when reviewing APIs.

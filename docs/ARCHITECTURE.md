@@ -1,12 +1,14 @@
 # FACM Architecture
 
-## ReaLTaiizor isolated compatibility harness (2026-10-17)
+## ReaLTaiizor Game Repair candidate and safe renderer (2026-10-18)
 
-`tools/ui-compatibility/GGman.UiCompatibility.csproj` is a separate net48 WinForms executable, excluded from FACM.sln and the production project. It pins ReaLTaiizor 3.8.2.1 and its lock-file hash. The fixture uses only PoisonButton, PoisonTextBox and PoisonPanel, plus native layout/labels. All repair-looking actions update a local status label only: no GGman project reference, network call, authentication, configuration read/write, game action or cleanup operation.
+`UseReaLTaiizorRepair=true` adds the pinned ReaLTaiizor dependency and compiles `LeagueGameRepairCandidateForm` in place of the original form. Both variants retain the `LeagueGameRepairForm` identity used by the Hub. Ordinary builds compile the original variant and do not reference the library. This is a reversible candidate boundary, not a second live renderer. The replacement owns only presentation and invokes the original five service methods. It unsubscribes theme/view events during disposal and avoids updating disposed controls after asynchronous actions.
 
-`scripts/test-realtaiizor-compatibility.ps1` verifies the official package hash/signature, restores locked dependencies, builds the fixture, inventories output files/hashes and runs five bounded native control-smoke processes. The dedicated read-only-permission workflow uploads an explicitly unsigned compatibility artifact. It does not call the publisher or modify the updater. The existing Windows Build remains the production regression gate.
+`GameRepairView` owns the page layout, PoisonButton actions and PoisonPanel scrolling. `ThemeCatalog`/`FacmThemeRuntime` remain product palette owners; the form maps their tokens into the view. FacmDesignSystem's generic recursive skin skips the view to avoid restyling library controls. A page-local CustomPaint hook restores the primary accent fill behind the library's native foreground/focus; it is not a new general button renderer or scrollbar implementation. Ten-theme/high-contrast and interactive focus behavior still need acceptance.
 
-PoisonPanel owns its scrollbars and hides native bars through its WndProc. This is not proof that all nested layouts, keyboard scrolling or DPI behavior work; no additional custom scrolling owner is authorized. The fixture exercises scroll extent and theme/text stability but does not claim actual IME typing or native visual acceptance.
+The safe net48 renderer links this exact view and `LeagueGameRepairUiText`; it does not reference product services and never executes game/config/cloud operations. Its original generic control sampler is withdrawn. Windows CI produces dark/light/wide/narrow DrawToBitmap images for internal visual inspection. These are offscreen native control renderings, not Win10 desktop captures. Candidate performance contracts assert that the product form has the shared view and print a marker that packaging verification requires. This prevents a green old-form build from masquerading as candidate evidence.
+
+Build-time ILRepack remains isolated from the publisher. Ordinary release packaging, the production 10 MiB limit and updater contracts are unchanged. Do not distribute the ordinary build as a migrated product or the unsigned merged candidate as an official release.
 
 
 ## B5 extended visual owner boundaries (Draft PR #351)

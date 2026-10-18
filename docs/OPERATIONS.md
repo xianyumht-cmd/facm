@@ -1,8 +1,15 @@
 # GGman Operations (3.5.x)
 
+## Game Repair candidate evidence (2026-10-18)
+
+Build the actual product candidate with `/p:UseReaLTaiizorRepair=true`; the default release intentionally retains the original form. The compatibility workflow separately builds the shared safe renderer, captures `rendered/dark-wide.png`, `light-wide.png`, and `dark-narrow.png`, and builds/merges the candidate. Candidate contract stdout must include `GGman repair candidate: ReaLTaiizor`; absence fails packaging verification. The preview's F6 switches light/dark; its action buttons only update offline status. Review rendered images internally before handing over a visual candidate. Do not ask the owner to approve the rejected generic sampler again.
+
+DrawToBitmap images are native Windows offscreen renderings; they do not establish Win10 desktop font/DPI behavior, interactive mouse/keyboard scrolling, all ten theme states or independent visual approval. Preserve the consolidated native acceptance gate. The existing 16 MiB proposal is not an approved release budget.
+
+
 ## Single-EXE experiment (2026-10-18)
 
-After the compatibility script, run `scripts/test-realtaiizor-packaging.ps1` in the same clean output directory. It verifies the pinned build tool, merges the isolated preview, runs five EXE-only trials, then adds the license and launcher and creates `GGman-UI-SingleExe-Experiment.zip`. This is unsigned experimental software; extract separately from the product. Do not copy the tool, original DLL or config into the EXE-only test directory. Re-run from a fresh output directory. Compare baseline and merged JSON reports from the same CI run; construction-plus-check timings are not production startup benchmarks. With `-ProductExe`, it also measures an unchanged Release product merge, hashes all existing managed embedded resources, and runs performance-contract-test. That unsigned product-shaped binary is not uploaded for installation. Use the inner `GGman-UI-SingleExe-Experiment.zip` for the isolated native checks above. Owner approval covers test size only. Never change build-release.ps1's limit or updater metadata based on these results alone.
+After the compatibility script, run `scripts/test-realtaiizor-packaging.ps1` in the same clean output directory. It verifies the pinned build tool, merges the isolated preview, runs five EXE-only trials, then adds the license and launcher and creates `GGman-UI-SingleExe-Experiment.zip`. This is unsigned experimental software; extract separately from the product. Do not copy the tool, original DLL or config into the EXE-only test directory. Re-run from a fresh output directory. Compare baseline and merged JSON reports from the same CI run; construction-plus-check timings are not production startup benchmarks. With `-ProductExe`, it also measures the supplied Release product merge (the current workflow supplies the flagged Game Repair candidate), hashes all existing managed embedded resources, and runs performance-contract-test. That unsigned product-shaped binary is not uploaded for installation. Use the inner `GGman-UI-SingleExe-Experiment.zip` for the isolated native checks above. Owner approval covers test size only. Never change build-release.ps1's limit or updater metadata based on these results alone.
 
 
 ## ReaLTaiizor compatibility spike — non-production procedure (2026-10-17)
