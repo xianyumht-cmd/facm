@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$OutputDirectory = (Join-Path $PSScriptRoot '..\artifacts\ui-compatibility'))
+param(
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\artifacts\ui-compatibility'),
+    [string]$ProductExe
+)
 $ErrorActionPreference = 'Stop'
 $OutputDirectory = (Resolve-Path $OutputDirectory).Path
 $inputDirectory = Join-Path $OutputDirectory 'preview'
@@ -48,3 +51,45 @@ $measurement = [pscustomobject]@{
 }
 $measurement | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'merged-distribution.json') -Encoding utf8
 Write-Host ($measurement | ConvertTo-Json -Compress)
+
+if ($ProductExe) {
+    $ProductExe = (Resolve-Path $ProductExe).Path
+    $productDirectory = Join-Path $OutputDirectory 'product-merge'
+    New-Item -ItemType Directory -Path $productDirectory | Out-Null
+    $productMerged = Join-Path $productDirectory 'GGman.exe'
+    & $tool '/target:winexe' '/targetplatform:v4' '/ndebug' '/skipconfig' "/lib:$framework" "/out:$productMerged" $ProductExe (Join-Path $inputDirectory 'ReaLTaiizor.dll')
+    if ($LASTEXITCODE -ne 0) { throw 'Product packaging experiment failed.' }
+    if (@(Get-ChildItem $productDirectory -File).Count -ne 1) { throw 'Unexpected product runtime sidecar.' }
+    $original = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($ProductExe))
+    $combined = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($productMerged))
+    foreach ($name in $original.GetManifestResourceNames()) {
+        $left = $original.GetManifestResourceStream($name)
+        $right = $combined.GetManifestResourceStream($name)
+        if (-not $right) { throw "Embedded product resource missing: $name" }
+        $hash = [Security.Cryptography.SHA256]::Create()
+        try {
+            if ([Convert]::ToBase64String($hash.ComputeHash($left)) -ne [Convert]::ToBase64String($hash.ComputeHash($right))) {
+                throw "Embedded product resource changed: $name"
+            }
+        } finally { $left.Dispose(); $right.Dispose(); $hash.Dispose() }
+    }
+    $stdout = Join-Path $OutputDirectory 'product-smoke.stdout.txt'
+    $stderr = Join-Path $OutputDirectory 'product-smoke.stderr.txt'
+    $process = Start-Process $productMerged -WorkingDirectory $productDirectory -ArgumentList '--performance-contract-test' -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'Merged product contract timeout.' }
+    Get-Content $stdout | Write-Host
+    Get-Content $stderr | Write-Host
+    if ($process.ExitCode -ne 0) { throw 'Merged product contract failed.' }
+    $productMeasurement = [pscustomobject]@{
+        baselineUnsignedExeBytes = (Get-Item $ProductExe).Length
+        mergedUnsignedExeBytes = (Get-Item $productMerged).Length
+        mergedSha256 = (Get-FileHash $productMerged -Algorithm SHA256).Hash
+        productEmbeddedResourcesPreserved = $true
+        performanceContracts = 'PASS'
+        productControlsMigrated = $false
+        signingAndUpdaterAcceptance = 'NOT RUN'
+    }
+    $productMeasurement | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'product-merge.json') -Encoding utf8
+    Write-Host ($productMeasurement | ConvertTo-Json -Compress)
+    # Do not distribute an unsigned product-shaped executable as an installable candidate.
+}

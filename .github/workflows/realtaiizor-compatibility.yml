@@ -22,9 +22,15 @@ jobs:
       - name: Verify package, compile net48 preview and run safe control smoke
         shell: pwsh
         run: ./scripts/test-realtaiizor-compatibility.ps1
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build unchanged product for packaging measurement
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Product baseline build failed.' }
       - name: Test owner-authorized single-EXE packaging experiment
         shell: pwsh
-        run: ./scripts/test-realtaiizor-packaging.ps1
+        run: ./scripts/test-realtaiizor-packaging.ps1 -ProductExe 'src/FACM/bin/Release/net48/GGman.exe'
       - name: Upload isolated preview and measurement evidence
         if: always()
         uses: actions/upload-artifact@v4
