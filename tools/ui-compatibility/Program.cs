@@ -22,12 +22,17 @@ namespace GGman.UiCompatibility
             {
                 using (var form = new CompatibilityForm())
                 {
-                    if (args.Length == 2 && args[0] == "--smoke")
+                    if (args.Length == 2 && (args[0] == "--smoke" || args[0] == "--smoke-merged"))
                     {
                         form.Show();
                         Application.DoEvents();
                         form.ValidateControls();
                         var assembly = typeof(PoisonButton).Assembly;
+                        var merged = args[0] == "--smoke-merged";
+                        if (merged && assembly != typeof(Program).Assembly)
+                            throw new InvalidOperationException("Controls were not merged into the executable.");
+                        if (merged && assembly.GetReferencedAssemblies().Any(a => a.Name == "ReaLTaiizor"))
+                            throw new InvalidOperationException("Merged executable retains an external library reference.");
                         var process = Process.GetCurrentProcess();
                         process.Refresh();
                         File.WriteAllText(args[1], new JavaScriptSerializer().Serialize(new
@@ -37,6 +42,8 @@ namespace GGman.UiCompatibility
                             os = Environment.OSVersion.VersionString,
                             clr = Environment.Version.ToString(),
                             assembly = assembly.FullName,
+                            mergedExecutable = merged,
+                            resources = assembly.GetManifestResourceNames(),
                             references = assembly.GetReferencedAssemblies().Select(a => a.FullName).ToArray(),
                             dpi = form.DeviceDpi,
                             constructionAndSmokeMilliseconds = watch.Elapsed.TotalMilliseconds,
@@ -59,7 +66,7 @@ namespace GGman.UiCompatibility
             }
             catch (Exception error)
             {
-                if (args.Length == 2 && args[0] == "--smoke")
+                if (args.Length == 2 && (args[0] == "--smoke" || args[0] == "--smoke-merged"))
                     File.WriteAllText(args[1], error.ToString());
                 else
                     MessageBox.Show(error.Message, "GGman UI compatibility", MessageBoxButtons.OK, MessageBoxIcon.Error);

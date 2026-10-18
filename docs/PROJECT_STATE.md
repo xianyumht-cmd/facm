@@ -12,6 +12,11 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-18 — Single-EXE experiment authorized (PR #352)
+
+The owner approved a bounded single-EXE packaging experiment and permits experimental output above 10 MiB. This supersedes the prior pause for experiment authorization only; production budget, release and updater changes remain unapproved. Same branch/PR, unchanged product source. ILRepack 2.0.48 merges the isolated fixture and ReaLTaiizor at build time; five EXE-only process trials check control construction, themes, scroll and merged assembly identity. CI results pending. Actual product packaging, signing, ten-theme/DPI and clean offline Win10 remain unverified. No runtime loader, downloader or extraction is introduced.
+
+
 ## 2026-10-17 — ReaLTaiizor isolated spike; broad migration blocked
 
 Task baseline: main `13a9ce6fefd5e8d0a9917355459ce4b0e08ef571`, signed production v3.5.78. Dedicated branch: `feat/realtaiizor-compatibility-20261017`; no matching active migration PR existed at discovery. Production source, solution, publisher, updater and CloudBase remain unchanged.

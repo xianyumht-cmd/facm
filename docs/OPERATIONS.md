@@ -1,5 +1,10 @@
 # GGman Operations (3.5.x)
 
+## Single-EXE experiment (2026-10-18)
+
+After the compatibility script, run `scripts/test-realtaiizor-packaging.ps1` in the same clean output directory. It verifies the pinned build tool, merges only the isolated preview, runs five EXE-only trials, then adds the license and launcher and creates `GGman-UI-SingleExe-Experiment.zip`. This is unsigned experimental software; extract separately from the product. Do not copy the tool, original DLL or config into the EXE-only test directory. Re-run from a fresh output directory. Compare baseline and merged JSON reports from the same CI run; construction-plus-check timings are not production startup benchmarks. Owner approval covers test size only. Never change build-release.ps1's limit or updater metadata based on these results alone.
+
+
 ## ReaLTaiizor compatibility spike — non-production procedure (2026-10-17)
 
 Run `scripts/test-realtaiizor-compatibility.ps1` on a Windows build machine with .NET 8 SDK and the .NET Framework 4.8 targeting pack. The dedicated workflow performs this automatically. It produces `GGman-UI-Compatibility.zip`, distribution hashes, five smoke reports and a decision record. This is an **unsigned isolated preview**, not GGman.exe, not a signed release, and not an updater payload. Extract it into a separate empty folder and use Open-Preview.cmd; do not place it into the installed GGman directory. It never performs game/repair/cloud actions.

@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/ui-compatibility/**'
       - 'scripts/test-realtaiizor-compatibility.ps1'
+      - 'scripts/test-realtaiizor-packaging.ps1'
       - '.github/workflows/realtaiizor-compatibility.yml'
   workflow_dispatch:
 permissions:
@@ -21,6 +22,9 @@ jobs:
       - name: Verify package, compile net48 preview and run safe control smoke
         shell: pwsh
         run: ./scripts/test-realtaiizor-compatibility.ps1
+      - name: Test owner-authorized single-EXE packaging experiment
+        shell: pwsh
+        run: ./scripts/test-realtaiizor-packaging.ps1
       - name: Upload isolated preview and measurement evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -28,5 +32,5 @@ jobs:
           name: GGman-UI-Compatibility
           path: |
             artifacts/ui-compatibility/*.json
-            artifacts/ui-compatibility/GGman-UI-Compatibility.zip
+            artifacts/ui-compatibility/*.zip
           if-no-files-found: warn

@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-18 — Evaluate build-time merging before changing product distribution
+
+Owner authorization permits experimental binaries above 10 MiB, not an increased production budget. Pin build-only ILRepack 2.0.48 (Apache-2.0), official NuGet SHA256 `799017b829a6ed69fac0d4fc0a874a4a6a9951f46d73a3cce20ba016796b949f`; verify the repository signature before execution. It is not distributed with the preview. Merge the fixture and library without internalizing public types or adding a runtime loader. Keep ReaLTaiizor's MIT notice in the preview ZIP. The isolated EXE-only test deliberately omits app.config; per-monitor DPI equivalence must be checked separately before any product integration. This experiment does not establish production signing, updater compatibility or native visual acceptance.
+
+
 ## 2026-10-17 — ReaLTaiizor dependency decision: broad migration NO-GO pending packaging
 
 Investigated official NuGet **ReaLTaiizor 3.8.2.1**, published 2026-07-20. The GitHub latest Release is older (3.7.9.5), so it is not the selected package. Package nuspec pins upstream source `0fafe4ee6d6e0356924339cf9fce7240e7c425f4`; current develop is `2b725011053fb9ed85e944fe25539c86603739df` and must not be treated as identical package source. Current upstream project version is 3.8.2.2, not selected.
