@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'tools/ui-compatibility/**'
+      - 'src/FACM/League/**'
+      - 'src/FACM/FACM.csproj'
+      - 'src/FACM/Theming/FacmDesignSystem.cs'
       - 'scripts/test-realtaiizor-compatibility.ps1'
       - 'scripts/test-realtaiizor-packaging.ps1'
       - '.github/workflows/realtaiizor-compatibility.yml'
@@ -23,10 +26,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-realtaiizor-compatibility.ps1
       - uses: microsoft/setup-msbuild@v2
-      - name: Build unchanged product for packaging measurement
+      - name: Build actual repair candidate for packaging measurement
         shell: pwsh
         run: |
-          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:UseReaLTaiizorRepair=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Product baseline build failed.' }
       - name: Test owner-authorized single-EXE packaging experiment
         shell: pwsh
@@ -38,5 +41,6 @@ jobs:
           name: GGman-UI-Compatibility
           path: |
             artifacts/ui-compatibility/*.json
+            artifacts/ui-compatibility/rendered/*.png
             artifacts/ui-compatibility/*.zip
           if-no-files-found: warn

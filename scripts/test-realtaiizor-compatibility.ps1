@@ -53,3 +53,11 @@ $library = Get-Item (Join-Path $distribution 'ReaLTaiizor.dll')
 } | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'decision.json') -Encoding utf8
 Compress-Archive -Path "$distribution\*" -DestinationPath (Join-Path $OutputDirectory 'GGman-UI-Compatibility.zip') -Force
 Write-Host "Compatibility evidence: $OutputDirectory"
+
+$rendered = Join-Path $OutputDirectory 'rendered'
+$process = Start-Process $exe -ArgumentList @('--capture', "`"$rendered`"") -PassThru
+if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Repair rendering timeout.' }
+if ($process.ExitCode -ne 0) { throw 'Repair rendering failed.' }
+Get-ChildItem $rendered -Filter '*.png' | ForEach-Object {
+    Write-Host ('REPAIR_RENDER:' + $_.Name + ':' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName)))
+}

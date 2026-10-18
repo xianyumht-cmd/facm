@@ -1,5 +1,11 @@
 # GGman Precision Workbench Design System
 
+## Game Repair candidate direction (2026-10-18)
+
+The prior isolated control sampler was rejected as visually unacceptable; it is not a design baseline or deliverable. The actual candidate uses one shared `GameRepairView` in the product form and safe renderer. Establish a leading window-repair action beside automatic repair, then a distinct maintenance group with three actions and an always-visible result footer. Give titles, descriptions and actions different typography/spacing roles; make the destructive action explicit. At narrow widths stack tasks without shrinking fonts or hiding descriptions. Use library-owned scrolling, no custom-painted scrollbars. Preserve service operations, keyboard reachability and live status wording. Build with `UseReaLTaiizorRepair=true`; the ordinary build retains the original page until native acceptance.
+
+Do not call DrawToBitmap evidence a Win10 desktop screenshot. Inspect dark/light and narrow native renderings first, then collect the consolidated native keyboard/IME/DPI/scroll evidence. No aesthetics grade is inferred from the component vendor or CI result.
+
 ## ReaLTaiizor compatibility gate (2026-10-17)
 
 The current task supersedes historical instructions to continue PR #351: that PR is merged and v3.5.78 is published. A new dedicated compatibility branch investigates the owner-selected ReaLTaiizor library. No broad migration, merge, release or updater change is authorized until the spike gates pass and any packaging-budget change is explicitly approved.

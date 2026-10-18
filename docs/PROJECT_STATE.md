@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-18 — Real Game Repair candidate after rejected technical sample
+
+The owner rejected the technical fixture's visual quality and authorized implementation of the actual Game Repair page. The prior sample is withdrawn as a visual candidate. Same PR #352: `UseReaLTaiizorRepair=true` builds an actual service-connected replacement form using `GameRepairView`; default product builds retain the original form until acceptance. The safe preview links that exact shared view and existing UI text, with actions disconnected from services. Five business operations and their existing service methods remain intact. A deliberate lead repair/automation split, three maintenance actions, fixed result footer, responsive stacking and Poison-owned scroll host replace the old row presentation. No new custom painting or scroll owner is introduced.
+
+Windows CI will render the shared view in dark/light/wide/narrow states with WinForms DrawToBitmap. These are native Windows control renderings, not Win10 desktop screenshots or paired baseline proof. Inspect the actual images before claiming any visual quality. CI/native acceptance pending; ten-theme/font/high-contrast/DPI, hover/focus and offline deployment remain unverified. The 16 MiB budget is still only a proposal; no merge/release or production limit change is authorized. Prior packaging figures describe the earlier fixture and must not be presented as measurements of this candidate.
+
+
 ## 2026-10-18 — Single-EXE experiment authorized (PR #352)
 
 The owner approved a bounded single-EXE packaging experiment and permits experimental output above 10 MiB. This supersedes the prior pause for experiment authorization only; production budget, release and updater changes remain unapproved. Same branch/PR, unchanged product source. ILRepack 2.0.48 merges the isolated fixture and ReaLTaiizor at build time; five EXE-only process trials check control construction, themes, scroll and merged assembly identity. Code head `e965272b19b2a6f016508b3767eb8dc05d975b9c` passed compatibility [#39099272495](https://github.com/xianyumht-cmd/facm/actions/runs/39099272495), Windows Build [#39099272489](https://github.com/xianyumht-cmd/facm/actions/runs/39099272489), and UI Text Contract [#39099272492](https://github.com/xianyumht-cmd/facm/actions/runs/39099272492). Product merge feasibility passed; signing, ten-theme/DPI and clean offline Win10 remain unverified. No runtime loader, downloader or extraction is introduced.

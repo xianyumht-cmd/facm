@@ -35,6 +35,7 @@ namespace FACM.League
         }
     }
 
+#if !REALTAIIZOR_REPAIR
     internal sealed class LeagueGameRepairForm : Form
     {
         private sealed class RepairRow
@@ -423,4 +424,5 @@ namespace FACM.League
         }
 
     }
+#endif
 }

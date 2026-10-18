@@ -11,6 +11,8 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/FACM/League/ReaLTaiizor/GameRepairView.cs" Link="GameRepairView.cs" />
+    <Compile Include="../../src/FACM/League/LeagueGameRepairUiText.cs" Link="LeagueGameRepairUiText.cs" />
     <PackageReference Include="ReaLTaiizor" Version="[3.8.2.1]" />
     <Reference Include="System.Web.Extensions" />
     <None Update="ReaLTaiizor.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
