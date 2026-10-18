@@ -87,6 +87,10 @@ namespace FACM.League
                     UseCustomBackColor = true, UseCustomForeColor = true, DisplayFocus = true, UseSelectable = true,
                     TabStop = true, TabIndex = 0 }
             };
+            // Poison replaces a custom fill on focus; keep the leading action's accent behind its native focus/text.
+            if (index == 0) card.Action.CustomPaint += (sender, e) => {
+                if (card.Action.Enabled) e.Graphics.Clear(card.Action.BackColor);
+            };
             card.Action.Click += delegate { ActionRequested?.Invoke(index); };
             card.Surface.Controls.AddRange(new Control[] { card.Marker, card.Heading, card.Hint, card.Action });
             content.Controls.Add(card.Surface);

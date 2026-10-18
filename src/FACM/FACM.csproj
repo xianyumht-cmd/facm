@@ -23,13 +23,13 @@
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'UseReaLTaiizorRepair' == 'true'">
+  <PropertyGroup Condition="'$(UseReaLTaiizorRepair)' == 'true'">
     <DefineConstants>$(DefineConstants);REALTAIIZOR_REPAIR</DefineConstants>
   </PropertyGroup>
-  <ItemGroup Condition="'UseReaLTaiizorRepair' == 'true'">
+  <ItemGroup Condition="'$(UseReaLTaiizorRepair)' == 'true'">
     <PackageReference Include="ReaLTaiizor" Version="[3.8.2.1]" />
   </ItemGroup>
-  <ItemGroup Condition="'UseReaLTaiizorRepair' != 'true'">
+  <ItemGroup Condition="'$(UseReaLTaiizorRepair)' != 'true'">
     <Compile Remove="League\ReaLTaiizor\GameRepairView.cs" />
   </ItemGroup>
 

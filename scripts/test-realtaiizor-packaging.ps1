@@ -80,13 +80,14 @@ if ($ProductExe) {
     Get-Content $stdout | Write-Host
     Get-Content $stderr | Write-Host
     if ($process.ExitCode -ne 0) { throw 'Merged product contract failed.' }
+    if (-not (Select-String -Path $stdout -SimpleMatch 'GGman repair candidate: ReaLTaiizor' -Quiet)) { throw 'Candidate view was not exercised by product contracts.' }
     $productMeasurement = [pscustomobject]@{
         baselineUnsignedExeBytes = (Get-Item $ProductExe).Length
         mergedUnsignedExeBytes = (Get-Item $productMerged).Length
         mergedSha256 = (Get-FileHash $productMerged -Algorithm SHA256).Hash
         productEmbeddedResourcesPreserved = $true
         performanceContracts = 'PASS'
-        productControlsMigrated = $false
+        productControlsMigrated = $true
         signingAndUpdaterAcceptance = 'NOT RUN'
     }
     $productMeasurement | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'product-merge.json') -Encoding utf8
