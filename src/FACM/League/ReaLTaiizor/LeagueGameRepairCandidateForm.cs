@@ -72,7 +72,8 @@ namespace FACM.League
             _view.ApplyPalette(light, FacmDesignSystem.Canvas, FacmDesignSystem.Surface,
                 FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Surface, FacmDesignSystem.Text),
                 FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Surface, FacmDesignSystem.TextMuted),
-                FacmDesignSystem.Accent, FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Surface, FacmDesignSystem.Error));
+                FacmDesignSystem.Accent, FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Surface, FacmDesignSystem.Error),
+                FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Accent, FacmDesignSystem.Text));
             _view.SetStatus(_statusText, ResolveStatusColor());
         }
 

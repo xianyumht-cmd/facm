@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using ReaLTaiizor.Controls;
+using PoisonButton = ReaLTaiizor.Controls.PoisonButton;
+using PoisonPanel = ReaLTaiizor.Controls.PoisonPanel;
 using ReaLTaiizor.Enum.Poison;
 
 namespace FACM.League
@@ -92,8 +93,13 @@ namespace FACM.League
             return card;
         }
 
-        internal void ApplyPalette(bool light, Color canvas, Color surface, Color text, Color muted, Color accent, Color danger)
+        internal void ApplyPalette(bool light, Color canvas, Color surface, Color text, Color muted, Color accent, Color danger, Color? primaryText = null)
         {
+            if (SystemInformation.HighContrast) {
+                canvas = SystemColors.Window; surface = SystemColors.Window; text = SystemColors.WindowText;
+                muted = SystemColors.WindowText; accent = SystemColors.Highlight; danger = SystemColors.WindowText;
+                primaryText = SystemColors.HighlightText;
+            }
             canvasColor = canvas; surfaceColor = surface; textColor = text; mutedColor = muted; accentColor = accent; dangerColor = danger;
             var theme = light ? ThemeStyle.Light : ThemeStyle.Dark;
             BackColor = viewport.BackColor = content.BackColor = canvasColor;
@@ -110,7 +116,7 @@ namespace FACM.League
                 card.Hint.ForeColor = mutedColor;
                 card.Action.Theme = theme;
                 card.Action.BackColor = i == 0 ? accentColor : surfaceColor;
-                card.Action.ForeColor = i == 0 ? (light ? Color.White : Color.FromArgb(12, 23, 38)) : (i == 4 ? dangerColor : textColor);
+                card.Action.ForeColor = i == 0 ? (primaryText ?? (light ? Color.White : Color.FromArgb(12, 23, 38))) : (i == 4 ? dangerColor : textColor);
             }
             statusBar.BackColor = surfaceColor;
             status.ForeColor = textColor;
