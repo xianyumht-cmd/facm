@@ -1,5 +1,16 @@
 # GGman Precision Workbench Design System
 
+## Owner-selected next direction — Classic iOS + Liquid Glass (2026-10-20)
+
+The owner rejected the previous traditional Windows appearance as the future product direction. The desired visual identity is a restrained blend of classic iOS clarity, rounded control-center tiles, and layered translucent Liquid Glass cues. This section supersedes earlier **visual-direction prohibitions** against glass surfaces and animation; it does not supersede safety, accessibility, resource ownership or runtime guarantees below.
+
+Implementation trial: branch `feat/ggman-ios-glass-shell-20261020`. The first candidate is a real WPF/XAML quick-control popup with routes into existing League Hub pages, theme, updates and logs. It is compile-time opt-in (`UseIosGlassPreview=true`) and runtime opt-in (`GGMAN_IOS_GLASS_PREVIEW=1`). No change to the default GGman executable, real service owners, cloud schema, updater or official release is authorized. The existing Precision Workbench remains the production baseline during the experiment. ReaLTaiizor PR #352 remains a separate, unmerged candidate, not a dependency of this design.
+
+**Material limitations:** the initial preview approximates glass with WPF translucency/highlight/shadow; it is **not** Apple's system-wide refractive material or proof of live desktop blur on Windows 10. WPF layered transparency may impose CPU/GPU and focus costs. The popup is not yet the redesigned full Hub or champion-select companion. Live Win10 screenshots, DPI/IME/focus, keyboard navigation, interaction, high-contrast, reduced-motion, startup/memory/FPS and unsigned-preview trust are unverified until inspected on a native machine. Candidate packaging must stay below 10 MiB and use the existing service/session and release contracts.
+
+Acceptance sequence: candidate Windows build and existing host/League/UI-text tests; clean isolated preview with actual routes; physical Win10 19045 display screenshots and interaction tests; only then authorize expansion into the full workbench. Never publish or merge solely on source compilation.
+
+
 Status: **Product-wide visual modernization in progress; B1 remains partial; full native evidence pending (2026-10-17)**. This document records the proposed product-specific visual contract, not a claim that all existing views comply or have passed native acceptance.
 
 Design authority: GGman UI/UX Modernization Blueprint (17 October 2026), authored from source review and the published guidance of [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), [Impeccable](https://github.com/pbakaus/impeccable), and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md). These sources inform principles, not WinForms binaries or runtime dependencies. Root AGENTS.md and actual source/runtime behavior take precedence.
