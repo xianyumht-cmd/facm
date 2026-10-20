@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
@@ -52,10 +53,11 @@ namespace GGman.UiCompatibility
                         Application.DoEvents();
                         form.View.ValidateLayout();
                     }
+                    VerifyKeyboardNavigation(form);
                     var process = Process.GetCurrentProcess();
                     process.Refresh();
                     File.WriteAllText(args[1], new JavaScriptSerializer().Serialize(new {
-                        status = "PASS: shared repair view construction, themes and responsive layout",
+                        status = "PASS: shared repair view construction, themes, responsive layout and programmatic keyboard navigation",
                         visualAcceptance = "INCONCLUSIVE: native Win10 and independent visual review required",
                         os = Environment.OSVersion.VersionString, clr = Environment.Version.ToString(),
                         assembly = assembly.FullName, mergedExecutable = merged,
@@ -73,6 +75,41 @@ namespace GGman.UiCompatibility
                 return 1;
             }
         }
+        private static void VerifyKeyboardNavigation(RepairPreview form)
+        {
+            form.ClientSize = new Size(500, 420);
+            Application.DoEvents();
+            var view = form.View;
+            var viewport = (ScrollableControl)view.Controls[0];
+            var clicks = 0;
+            view.ActionRequested += index => clicks++;
+            view.Actions[0].Focus();
+            for (var i = 1; i < view.Actions.Length; i++) {
+                if (!form.SelectNextControl(view.Actions[i - 1], true, true, true, false))
+                    throw new InvalidOperationException("Repair keyboard traversal stopped early.");
+                Application.DoEvents();
+                if (!view.Actions[i].Focused)
+                    throw new InvalidOperationException("Repair keyboard order changed.");
+                var visible = viewport.RectangleToScreen(viewport.ClientRectangle);
+                var action = view.Actions[i].RectangleToScreen(view.Actions[i].ClientRectangle);
+                if (!visible.Contains(action))
+                    throw new InvalidOperationException("Focused repair action is outside the viewport.");
+            }
+            for (var i = view.Actions.Length - 2; i >= 0; i--) {
+                form.SelectNextControl(view.Actions[i + 1], false, true, true, false);
+                if (!view.Actions[i].Focused) throw new InvalidOperationException("Reverse repair keyboard order changed.");
+            }
+            var dispatch = typeof(GameRepairView).GetMethod("ProcessCmdKey", BindingFlags.Instance | BindingFlags.NonPublic);
+            viewport.AutoScrollPosition = Point.Empty;
+            var down = new object[] { new Message(), Keys.PageDown };
+            if (!(bool)dispatch.Invoke(view, down) || viewport.AutoScrollPosition.Y >= 0)
+                throw new InvalidOperationException("PageDown did not scroll repair content.");
+            var up = new object[] { new Message(), Keys.PageUp };
+            if (!(bool)dispatch.Invoke(view, up) || viewport.AutoScrollPosition.Y != 0)
+                throw new InvalidOperationException("PageUp did not restore repair scroll position.");
+            if (clicks != 0) throw new InvalidOperationException("Keyboard navigation invoked a repair action.");
+        }
+
     }
 
     internal sealed class RepairPreview : Form

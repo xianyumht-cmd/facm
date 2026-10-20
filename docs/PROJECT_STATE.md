@@ -12,6 +12,10 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-20 — Candidate keyboard and status-color verification
+
+Same Draft PR #352. Added page-local PageUp/PageDown handling through the existing scroll host and executable checks for forward/reverse focus order, offscreen action visibility, paging movement and navigation without invoking services. Status updates preserve system high-contrast text; the product wrapper clamps status tones to readable contrast on the actual surface. Windows CI verification is pending for these changes. Programmatic key dispatch/focus traversal is not physical keyboard or Win10 desktop acceptance. Broad migration remains gated by the consolidated native acceptance requirements below.
+
 ## 2026-10-18 — Actual Game Repair candidate; native acceptance incomplete
 
 The rejected generic control sampler is withdrawn. PR #352 now implements the actual Game Repair form behind `/p:UseReaLTaiizorRepair=true`, retaining the original five service operation bodies. Default product builds retain the original form. The safe preview links the exact `GameRepairView` source with no product service calls. The page separates repair/automation from maintenance, stacks cards at narrow widths, and keeps status visible. PoisonPanel owns scrolling; a page-local CustomPaint hook preserves the primary accent fill under focus.

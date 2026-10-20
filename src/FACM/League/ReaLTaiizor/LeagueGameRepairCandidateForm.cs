@@ -79,12 +79,14 @@ namespace FACM.League
 
         private Color ResolveStatusColor()
         {
+            Color preferred;
             switch (_statusTone) {
-                case FacmStatusTone.Success: return FacmDesignSystem.Success;
-                case FacmStatusTone.Warning: return FacmDesignSystem.Warning;
-                case FacmStatusTone.Error: return FacmDesignSystem.Error;
-                default: return FacmDesignSystem.TextMuted;
+                case FacmStatusTone.Success: preferred = FacmDesignSystem.Success; break;
+                case FacmStatusTone.Warning: preferred = FacmDesignSystem.Warning; break;
+                case FacmStatusTone.Error: preferred = FacmDesignSystem.Error; break;
+                default: preferred = FacmDesignSystem.TextMuted; break;
             }
+            return FacmDesignSystem.ReadableTextOn(FacmDesignSystem.Surface, preferred);
         }
 
         protected override void Dispose(bool disposing)

@@ -131,8 +131,21 @@ namespace FACM.League
         internal void SetStatus(string message, Color color)
         {
             status.Text = message ?? string.Empty;
-            status.ForeColor = color;
+            status.ForeColor = SystemInformation.HighContrast ? SystemColors.WindowText : color;
             Arrange(this, EventArgs.Empty);
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.PageDown || keyData == Keys.PageUp) {
+                var direction = keyData == Keys.PageDown ? 1 : -1;
+                var distance = Math.Max(U(40), viewport.ClientSize.Height - U(40));
+                var maximum = Math.Max(0, content.Height - viewport.ClientSize.Height);
+                var target = Math.Max(0, Math.Min(maximum, -viewport.AutoScrollPosition.Y + direction * distance));
+                viewport.AutoScrollPosition = new Point(0, target);
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private int U(int value) { return (int)Math.Round(value * Math.Max(96, DeviceDpi) / 96.0); }
