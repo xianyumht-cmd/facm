@@ -1,0 +1,50 @@
+name: GGman iOS Glass Candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FACM/Presentation/IosGlass/**'
+      - 'src/FACM/MainForm.cs'
+      - 'src/FACM/FACM.csproj'
+      - '.github/workflows/ios-glass-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compile isolated WPF preview with existing contract tests
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseIosGlassPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed.' }
+          $exe = 'src/FACM/bin/Release/net48/GGman.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'Candidate executable missing.' }
+          $bytes = (Get-Item $exe).Length
+          Write-Host "Candidate GGman.exe size: $bytes bytes"
+          if ($bytes -ge 10MB) { throw 'Candidate exceeds the existing single-EXE budget.' }
+      - name: Prepare isolated unsigned preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts/ios-glass -Force | Out-Null
+          Copy-Item 'src/FACM/bin/Release/net48/GGman.exe' 'artifacts/ios-glass/GGman-Glass-Preview.exe'
+          $hash = (Get-FileHash 'artifacts/ios-glass/GGman-Glass-Preview.exe' -Algorithm SHA256).Hash
+          "Preview SHA256: $hash" | Out-File 'artifacts/ios-glass/README.txt' -Encoding utf8
+          "Experimental unsigned build only. Do not overwrite production GGman.exe." | Add-Content 'artifacts/ios-glass/README.txt'
+          "Run from a separate writable directory with GGMAN_IOS_GLASS_PREVIEW=1 in the process environment." | Add-Content 'artifacts/ios-glass/README.txt'
+          "No automatic updates or CloudBase/game changes are authorized by this preview." | Add-Content 'artifacts/ios-glass/README.txt'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-iOS-Glass-Preview
+          path: artifacts/ios-glass/
+          if-no-files-found: error
