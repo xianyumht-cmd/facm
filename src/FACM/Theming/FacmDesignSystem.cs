@@ -134,6 +134,9 @@ namespace FACM.Theming
         public static void ApplyRecursive(Control root)
         {
             if (root == null || root.IsDisposed) return;
+#if REALTAIIZOR_REPAIR
+            if (root is FACM.League.GameRepairView) return;
+#endif
             Soften(root);
             root.ControlAdded -= HandleControlAdded;
             root.ControlAdded += HandleControlAdded;

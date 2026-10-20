@@ -1,0 +1,46 @@
+name: ReaLTaiizor Compatibility Spike
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/ui-compatibility/**'
+      - 'src/FACM/League/**'
+      - 'src/FACM/FACM.csproj'
+      - 'src/FACM/Theming/FacmDesignSystem.cs'
+      - 'scripts/test-realtaiizor-compatibility.ps1'
+      - 'scripts/test-realtaiizor-packaging.ps1'
+      - '.github/workflows/realtaiizor-compatibility.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify package, compile net48 preview and run safe control smoke
+        shell: pwsh
+        run: ./scripts/test-realtaiizor-compatibility.ps1
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build actual repair candidate for packaging measurement
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /p:UseReaLTaiizorRepair=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Product baseline build failed.' }
+      - name: Test owner-authorized single-EXE packaging experiment
+        shell: pwsh
+        run: ./scripts/test-realtaiizor-packaging.ps1 -ProductExe 'src/FACM/bin/Release/net48/GGman.exe'
+      - name: Upload isolated preview and measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GGman-UI-Compatibility
+          path: |
+            artifacts/ui-compatibility/*.json
+            artifacts/ui-compatibility/rendered/*.png
+            artifacts/ui-compatibility/*.zip
+          if-no-files-found: warn

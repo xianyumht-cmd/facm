@@ -1,5 +1,23 @@
 # GGman / FACM Decisions
 
+## 2026-10-18 — Evaluate build-time merging before changing product distribution
+
+Owner authorization permits experimental binaries above 10 MiB, not an increased production budget. Pin build-only ILRepack 2.0.48 (Apache-2.0), official NuGet SHA256 `799017b829a6ed69fac0d4fc0a874a4a6a9951f46d73a3cce20ba016796b949f`; verify the repository signature before execution. It is not distributed with the preview. Merge the fixture and library without internalizing public types or adding a runtime loader. Keep ReaLTaiizor's MIT notice in the preview ZIP. The isolated EXE-only test deliberately omits app.config; per-monitor DPI equivalence must be checked separately before any product integration. This experiment does not establish production signing, updater compatibility or native visual acceptance. Windows run #39099272495 subsequently proved EXE-only fixture execution and a 13,467,648-byte product merge with preserved managed embedded resources and passing contract tests. Build-time merging is feasible for continued evaluation; the old sidecar blocker is superseded, while the production budget and native acceptance gates remain open.
+
+
+## 2026-10-17 — ReaLTaiizor dependency decision: broad migration NO-GO pending packaging
+
+Investigated official NuGet **ReaLTaiizor 3.8.2.1**, published 2026-07-20. The GitHub latest Release is older (3.7.9.5), so it is not the selected package. Package nuspec pins upstream source `0fafe4ee6d6e0356924339cf9fce7240e7c425f4`; current develop is `2b725011053fb9ed85e944fe25539c86603739df` and must not be treated as identical package source. Current upstream project version is 3.8.2.2, not selected.
+
+Official downloaded nupkg: **45,396,090 bytes**, SHA-256 `b38263144a60d4eeb078c4d10355fd138e4709110ac41b70dcdfb225a563f12a`. Selected `lib/net48/ReaLTaiizor.dll`: **10,933,248 bytes**, SHA-256 `6c81fe2db65ef256429ac3ad1c037c04ae6d8e1c48e21794458b3d873981689b`. Package has an empty net48 dependency group; framework references include Microsoft.CSharp, Microsoft.VisualBasic and System.Design. Actual assembly references are reported by the Windows smoke, not inferred solely from NuGet metadata. Root/package MIT license is retained alongside the preview. Embedded font/asset provenance still requires review before redistribution in the product.
+
+The DLL alone exceeds 10 MiB (10,485,760 bytes). **This is not a measured final GGman executable size.** The published 3.5.78 GGman.exe is 2,683,800 bytes, SHA-256 `5ec945c760d75422023aecb0060c023dc8d88933a29b42796ab505162ea72f97`. Ordinary PackageReference creates a DLL sidecar; current build-release.ps1 packages the EXE and the publisher/updater preserves a single-main-executable contract. There is no existing ReaLTaiizor resolver. Adding the dependency directly is therefore not distribution-compatible.
+
+Decision: implement an isolated net48 preview and reproducible evidence workflow, leave production source/project/publisher untouched, and stop broad migration. Proposed minimal next investigation, **requiring owner approval before changing the distribution budget**, is a documented build-time single-EXE embedding/merging approach, with measured size and clean offline signed-updater tests. Do not introduce a reflection loader, DLL extraction or silent download as a shortcut. Selective vendoring is not the default: it would restore custom maintenance and require separate upstream/license review. No alternative framework is substituted.
+
+The current environment is Linux without native Windows/.NET build tools. Windows CI can validate compilation/control construction and report its OS; it cannot certify interactive Win10, clean offline deployment, meaningful visual improvement, or cold/warm production performance. These remain INCONCLUSIVE. Existing limits are not increased by this decision.
+
+
 ## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
 
 The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.

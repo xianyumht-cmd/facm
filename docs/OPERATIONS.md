@@ -1,5 +1,27 @@
 # GGman Operations (3.5.x)
 
+## Game Repair candidate evidence (2026-10-18)
+
+Build the actual product candidate with `/p:UseReaLTaiizorRepair=true`; the default release intentionally retains the original form. The compatibility workflow separately builds the shared safe renderer, captures `rendered/dark-wide.png`, `light-wide.png`, and `dark-narrow.png`, and builds/merges the candidate. Candidate contract stdout must include `GGman repair candidate: ReaLTaiizor`; absence fails packaging verification. The preview's F6 switches light/dark; its action buttons only update offline status. Review rendered images internally before handing over a visual candidate. Do not ask the owner to approve the rejected generic sampler again.
+
+DrawToBitmap images are native Windows offscreen renderings; they do not establish Win10 desktop font/DPI behavior, interactive mouse/keyboard scrolling, all ten theme states or independent visual approval. Preserve the consolidated native acceptance gate. The existing 16 MiB proposal is not an approved release budget.
+
+
+## Single-EXE experiment (2026-10-18)
+
+After the compatibility script, run `scripts/test-realtaiizor-packaging.ps1` in the same clean output directory. It verifies the pinned build tool, merges the isolated preview, runs five EXE-only trials, then adds the license and launcher and creates `GGman-UI-SingleExe-Experiment.zip`. This is unsigned experimental software; extract separately from the product. Do not copy the tool, original DLL or config into the EXE-only test directory. Re-run from a fresh output directory. Compare baseline and merged JSON reports from the same CI run; construction-plus-check timings are not production startup benchmarks. With `-ProductExe`, it also measures the supplied Release product merge (the current workflow supplies the flagged Game Repair candidate), hashes all existing managed embedded resources, and runs performance-contract-test. That unsigned product-shaped binary is not uploaded for installation. Use the inner `GGman-UI-SingleExe-Experiment.zip` for the isolated native checks above. Owner approval covers test size only. Never change build-release.ps1's limit or updater metadata based on these results alone.
+
+
+## ReaLTaiizor compatibility spike — non-production procedure (2026-10-17)
+
+Run `scripts/test-realtaiizor-compatibility.ps1` on a Windows build machine with .NET 8 SDK and the .NET Framework 4.8 targeting pack. The dedicated workflow performs this automatically. It produces `GGman-UI-Compatibility.zip`, distribution hashes, five smoke reports and a decision record. This is an **unsigned isolated preview**, not GGman.exe, not a signed release, and not an updater payload. Extract it into a separate empty folder and use Open-Preview.cmd; do not place it into the installed GGman directory. It never performs game/repair/cloud actions.
+
+Consolidated operator evidence request, only after build success: extract the latest safe shared-view preview separately, launch Open-Preview.cmd, and record Win10 version, display scaling, client dimensions and candidate SHA. Capture unscaled wide/narrow PNGs in dark and light (F6). Test Tab/Shift+Tab in both directions, Space/Enter on the harmless preview buttons, wheel/thumb/PageUp/PageDown, resizing while scrolled, repeated open/close and offline launch without a developer NuGet cache. Include 100/125/150/200% scales where available. No credentials, actual repair or game operation is required. The current preview has no text input, so IME/selection are not applicable to this page and must remain pending for later input surfaces. The preview now uses the actual candidate view; matching product baseline captures and ten-theme parity are still missing. Provide observable evidence; professional visual review remains the implementer's responsibility.
+
+Reports of construction-plus-smoke time/private bytes are runner observations, **not** cold/warm startup, idle memory, gameplay cost or a v3.5.78 comparison. Programmatic focus traversal and key dispatch establish bounded executable contracts, not physical keyboard acceptance. Experimental build-time single-EXE merging is authorized and measured; production budget, native acceptance and broad migration remain gated. Do not merge or publish.
+
+
+
 ## 3.5.78 published release follow-up (2026-10-17)
 
 PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.

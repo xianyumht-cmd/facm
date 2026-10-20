@@ -23,6 +23,17 @@ namespace FACM.League
 
         internal static void ValidateForSmokeTest()
         {
+#if REALTAIIZOR_REPAIR
+            var field = typeof(LeagueGameRepairForm).GetField("_view", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (field == null || field.FieldType != typeof(GameRepairView))
+                throw new InvalidOperationException("Repair candidate is not connected to the product form.");
+            using (var view = new GameRepairView()) {
+                view.Size = new Size(980, 760);
+                view.CreateControl();
+                view.ValidateLayout();
+            }
+            Console.WriteLine("GGman repair candidate: ReaLTaiizor");
+#endif
             if (StackAction(520) || !StackAction(519) || !StackAction(320))
                 throw new InvalidOperationException("Game repair action layout breakpoint drifted.");
             foreach (var width in new[] { 320, 519, 520, 700, 880 })
@@ -35,6 +46,7 @@ namespace FACM.League
         }
     }
 
+#if !REALTAIIZOR_REPAIR
     internal sealed class LeagueGameRepairForm : Form
     {
         private sealed class RepairRow
@@ -423,4 +435,5 @@ namespace FACM.League
         }
 
     }
+#endif
 }
