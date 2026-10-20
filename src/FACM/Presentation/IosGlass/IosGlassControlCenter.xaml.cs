@@ -24,8 +24,8 @@ namespace FACM.Presentation.IosGlass
             if (theme == null) throw new ArgumentNullException(nameof(theme));
             var light = theme.IsLight;
             Resources["GlassBackgroundBrush"] = Brush(236, theme.Background);
-            Resources["GlassTileBrush"] = Brush(light ? 232 : 78, theme.Surface);
-            Resources["GlassHoverBrush"] = Brush(light ? 252 : 122, theme.SurfaceSecondary);
+            Resources["GlassTileBrush"] = Brush((byte)(light ? 232 : 78), theme.Surface);
+            Resources["GlassHoverBrush"] = Brush((byte)(light ? 252 : 122), theme.SurfaceSecondary);
             Resources["GlassTextBrush"] = Brush(255, theme.TextPrimary);
             Resources["GlassSecondaryTextBrush"] = Brush(255, theme.TextMuted);
             Resources["GlassAccentBrush"] = Brush(255, theme.Accent);
