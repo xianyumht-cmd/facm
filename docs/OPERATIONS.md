@@ -1,5 +1,18 @@
 # GGman Operations (3.5.x)
 
+## Candidate-only iOS Glass UI build (2026-10-20)
+
+The opt-in WPF prototype is isolated from the normal 3.5.78 WinForms distribution. Candidate MSBuild command on Windows with .NET Framework 4.8 targeting pack:
+
+```powershell
+msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseIosGlassPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
+```
+
+It uses the existing host/League services via `MainForm`, and is activated only when the process environment variable `GGMAN_IOS_GLASS_PREVIEW=1` is set. Without that runtime switch even a preview-enabled build displays the original CompactMenuForm. Default production builds do not compile the WPF preview source and have no WPF opt-in. The `GGman iOS Glass Candidate` Windows workflow builds and uploads an **unsigned**, isolated candidate artifact; do not overwrite the installed official executable, publish it through the normal updater or use it with destructive real game/cloud actions simply for visual QA.
+
+Acceptance is separate from compilation: on an isolated Win10 19045 machine, verify outside click/Escape, tray/external activation, new control-center navigation, fallback when disabled, clean shutdown, account safety, all themes, Chinese text, Tab/focus, per-monitor scaling at 100/125/150/200%, and stable FPS/CPU/GPU/memory in League activity phases. Visual snapshots and hash/size evidence must be pinned to the reviewed commit. If UI preview fails, disable the environment switch or use official v3.5.78; do not change production updater manifests.
+
+
 ## 3.5.78 published release follow-up (2026-10-17)
 
 PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.
