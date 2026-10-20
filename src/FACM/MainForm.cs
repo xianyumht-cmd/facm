@@ -11,6 +11,10 @@ using FACM.Online;
 using FACM.Pets;
 using FACM.Services;
 using FACM.Theming;
+#if IOS_GLASS_PREVIEW
+using FACM.Presentation.IosGlass;
+using System.Windows.Interop;
+#endif
 
 namespace FACM
 {
@@ -29,6 +33,9 @@ namespace FACM
         private readonly LayeredFloatingBall _layeredBall;
         private readonly DesktopEntryGameflowPolicy _gameflowVisibility = new DesktopEntryGameflowPolicy();
         private CompactMenuForm _menu;
+#if IOS_GLASS_PREVIEW
+        private IosGlassControlCenter _glassMenu;
+#endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -146,6 +153,11 @@ namespace FACM
 
         public void CloseMenu()
         {
+#if IOS_GLASS_PREVIEW
+            var glass = _glassMenu;
+            _glassMenu = null;
+            if (glass != null && glass.IsVisible) glass.Close();
+#endif
             if (_menu == null) return;
             var menu = _menu;
             _menu = null;
@@ -880,6 +892,13 @@ namespace FACM
         {
             if (IsDisposed || _exiting) return;
 
+#if IOS_GLASS_PREVIEW
+            if (string.Equals(Environment.GetEnvironmentVariable("GGMAN_IOS_GLASS_PREVIEW"), "1", StringComparison.Ordinal)
+                && !_gettingStartedVisible)
+            {
+                if (TryShowGlassMenu()) return;
+            }
+#endif
             if (_menu != null && !_menu.IsDisposed)
             {
                 if (!_menu.Visible) _menu.Show();
@@ -903,6 +922,13 @@ namespace FACM
 
         private void ToggleMenu()
         {
+#if IOS_GLASS_PREVIEW
+            if (_glassMenu != null && _glassMenu.IsVisible)
+            {
+                CloseMenu();
+                return;
+            }
+#endif
             if (_menu != null)
             {
                 CloseMenu();
@@ -911,6 +937,93 @@ namespace FACM
 
             EnsureMenuOpenAndActive();
         }
+
+#if IOS_GLASS_PREVIEW
+        private bool TryShowGlassMenu()
+        {
+            if (_glassMenu != null && _glassMenu.IsVisible)
+            {
+                _glassMenu.Activate();
+                return true;
+            }
+
+            try
+            {
+                var glass = new IosGlassControlCenter(
+                    ThemeCatalog.Get(_settings.ThemeId), _ui, HandleGlassMenuAction);
+                _glassMenu = glass;
+                glass.Closed += delegate
+                {
+                    if (ReferenceEquals(_glassMenu, glass)) _glassMenu = null;
+                };
+                new WindowInteropHelper(glass) { Owner = Handle };
+                glass.Opacity = 0;
+                glass.Show();
+                PositionGlassMenu(glass);
+                glass.Opacity = 1;
+                glass.Activate();
+                return true;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Glass preview launcher failed", exception);
+                CloseMenu();
+                return false;
+            }
+        }
+
+        private void HandleGlassMenuAction(string action)
+        {
+            if (IsDisposed || _exiting) return;
+            switch (action)
+            {
+                case "dashboard":
+                    LeagueHubUiBridge.RequestOpen(this, LeagueHubNavigation.Dashboard);
+                    break;
+                case "matches":
+                    LeagueHubUiBridge.RequestOpen(this, LeagueHubNavigation.Player);
+                    break;
+                case "guides":
+                    LeagueHubUiBridge.RequestOpen(this, LeagueHubNavigation.Mayhem);
+                    break;
+                case "tools":
+                    LeagueHubUiBridge.RequestOpen(this, LeagueHubNavigation.Repair);
+                    break;
+                case "theme":
+                    OpenPanelThemeSelector();
+                    break;
+                case "updates":
+                    OpenUpdateCenter();
+                    break;
+                case "logs":
+                    OpenLogFile();
+                    break;
+            }
+        }
+
+        private void PositionGlassMenu(IosGlassControlCenter menu)
+        {
+            var source = System.Windows.PresentationSource.FromVisual(menu);
+            if (source == null || source.CompositionTarget == null) return;
+
+            var scale = source.CompositionTarget.TransformToDevice;
+            var width = (int)Math.Ceiling(menu.ActualWidth * scale.M11);
+            var height = (int)Math.Ceiling(menu.ActualHeight * scale.M22);
+            var anchor = Visible && !_animalPetActive
+                ? new Point(Left + Width / 2, Top + Height / 2)
+                : Cursor.Position;
+            var working = Screen.FromPoint(anchor).WorkingArea;
+            var left = anchor.X > working.Left + working.Width / 2
+                ? anchor.X - width - 28
+                : anchor.X + 28;
+            var top = anchor.Y - height / 2;
+            left = Math.Max(working.Left + 8, Math.Min(left, working.Right - width - 8));
+            top = Math.Max(working.Top + 8, Math.Min(top, working.Bottom - height - 8));
+            var dip = source.CompositionTarget.TransformFromDevice.Transform(new System.Windows.Point(left, top));
+            menu.Left = dip.X;
+            menu.Top = dip.Y;
+        }
+#endif
 
         private void PositionMenu(Form menu)
         {
