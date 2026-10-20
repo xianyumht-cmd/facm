@@ -511,6 +511,10 @@ namespace FACM
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
+#if IOS_GLASS_PREVIEW
+            if (_glassMenu != null && _glassMenu.IsVisible) _glassMenu.Close();
+            _glassMenu = null;
+#endif
             _appIcon.Dispose();
         }
 
