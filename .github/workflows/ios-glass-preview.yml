@@ -38,11 +38,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path artifacts/ios-glass -Force | Out-Null
           Copy-Item 'src/FACM/bin/Release/net48/GGman.exe' 'artifacts/ios-glass/GGman-Glass-Preview.exe'
+          Copy-Item 'scripts/ios-glass-preview.cmd' 'artifacts/ios-glass/Start-Glass-Preview.cmd'
           $hash = (Get-FileHash 'artifacts/ios-glass/GGman-Glass-Preview.exe' -Algorithm SHA256).Hash
           "Preview SHA256: $hash" | Out-File 'artifacts/ios-glass/README.txt' -Encoding utf8
           "Experimental unsigned build only. Do not overwrite production GGman.exe." | Add-Content 'artifacts/ios-glass/README.txt'
-          "Run from a separate writable directory with GGMAN_IOS_GLASS_PREVIEW=1 in the process environment." | Add-Content 'artifacts/ios-glass/README.txt'
-          "No automatic updates or CloudBase/game changes are authorized by this preview." | Add-Content 'artifacts/ios-glass/README.txt'
+          "Run Start-Glass-Preview.cmd in a separate writable directory after closing any running GGman instance." | Add-Content 'artifacts/ios-glass/README.txt'
+          "The existing feature pages remain live. During visual review, avoid updater installation, file repair and actual game/cloud writes." | Add-Content 'artifacts/ios-glass/README.txt'
       - uses: actions/upload-artifact@v4
         with:
           name: GGman-iOS-Glass-Preview
