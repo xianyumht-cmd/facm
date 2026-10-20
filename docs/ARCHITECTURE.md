@@ -1,5 +1,12 @@
 # FACM Architecture
 
+## Candidate iOS Glass presentation adapter (2026-10-20; opt-in only)
+
+`MainForm` continues to own the layered floating entry, tray, single-process lifetime, and compact popup positioning. When compiled with `UseIosGlassPreview=true` and started with `GGMAN_IOS_GLASS_PREVIEW=1`, it can show `Presentation/IosGlass/IosGlassControlCenter.xaml` instead of `CompactMenuForm`. The WPF window is a secondary HWND owned by the existing WinForms MainForm; its click handlers close the popup and call the original `LeagueHubUiBridge.RequestOpen(owner, viewId)`, theme, updater, or log public entry points. It creates no League session, polling timer, duplicate theme runtime, cloud client, injected overlay, or persistent settings. Without either preview gate the original CompactMenuForm path remains the default.
+
+The new WPF renderer uses existing `ThemeCatalog` values for primary colors and approximates translucent glass locally. Full Windows 10 live backdrop blur, high-DPI multi-monitor behavior, keyboard focus, accessibility, performance and XAML string localization are intentionally **unverified**. Do not extend the experimental shell to full Hub/companion or change the release asset size contract before independent native review.
+
+
 ## B5 extended visual owner boundaries (Draft PR #351)
 
 `CleanupRepairForm` remains a `CleanupModule`/MainForm-owned task surface and adjusts existing help/status typography only. `GgmanCaptchaForm` keeps token/challenge state and disposable image lifetime while replacing visual button/field geometry. `GgmanStatsPrivacyForm` reparents only existing opt-in controls to a shared noninteractive `FacmGlassPanel`; privacy defaults and save/import authorization remain external. `LeagueProfileCustomizationForm` reparents already constructed native input/action controls into four local semantic surfaces; each control retains the original click/event subscription and cancellation generation. `LeagueItemSetForm`/`LeagueBuildApplyForm` reuse `FacmDesignSystem` and `FacmActionButton`; the latter's auto-toggle/status callbacks are critical and were explicitly restored after an intermediate CI failure. Both pet pickers retain asset download/activation and animated preview ownership and use theme-derived text/surfaces instead of a separate dark palette. `LeaguePersonalStatsForm` only changes nonfunctional type hierarchy. No new transport, persistent state or background service.
