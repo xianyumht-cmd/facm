@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF Condition="'$(UseIosGlassPreview)' == 'true'">true</UseWPF>
+    <DefineConstants Condition="'$(UseIosGlassPreview)' == 'true'">$(DefineConstants);IOS_GLASS_PREVIEW</DefineConstants>
     <RootNamespace>FACM</RootNamespace>
     <AssemblyName>GGman</AssemblyName>
     <Platforms>AnyCPU</Platforms>
@@ -22,6 +24,10 @@
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == '' and '$(RequirePetHostBundle)' == 'true'">true</IncludePetHostBundle>
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseIosGlassPreview)' != 'true'">
+    <Compile Remove="Presentation\IosGlass\**\*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System" />
