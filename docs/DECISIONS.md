@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-20 — Trial classic iOS / Liquid Glass with opt-in WPF, preserve WinForms core
+
+The owner selects classic iOS control-center interaction and restrained Liquid Glass cues as GGman's future design direction after rejecting traditional Windows-like replacements. A WPF/XAML presentation trial is preferable to immediately migrating every page to a third-party WinForms control library because it permits a genuinely different compositional and animation model while retaining existing net48 modules. This is a **reversible trial**, not a final decision to migrate all forms: only an independently reviewed, instrumented native Win10 candidate can justify that larger commitment. The compiled WPF dependencies are limited to the preview build by `UseIosGlassPreview=true`; the popup is further runtime-gated by `GGMAN_IOS_GLASS_PREVIEW=1`. Existing ThemeCatalog and LeagueHubUiBridge remain owners of colors and routes; no CloudBase/game/updater ownership changes. WPF layered-window performance and DPI/IME behavior are explicit release blockers until measured. PR #352 is independent and must not be accidentally merged as a migration prerequisite.
+
+
 ## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
 
 The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.
