@@ -14,6 +14,7 @@ using FACM.Theming;
 #if IOS_GLASS_PREVIEW
 using FACM.Presentation.IosGlass;
 using System.Windows.Interop;
+using System.Windows.Forms.Integration;
 #endif
 
 namespace FACM
@@ -961,6 +962,7 @@ namespace FACM
                     if (ReferenceEquals(_glassMenu, glass)) _glassMenu = null;
                 };
                 new WindowInteropHelper(glass) { Owner = Handle };
+                ElementHost.EnableModelessKeyboardInterop(glass);
                 glass.Opacity = 0;
                 glass.Show();
                 PositionGlassMenu(glass);
