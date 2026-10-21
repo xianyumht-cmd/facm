@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -13,6 +14,14 @@ namespace FACM.Presentation.Glass
     internal sealed class GlassPreviewForm : Form
     {
         private const string EmbeddedHtml = "FACM.Presentation.Glass.GGman-Glass-Prototype.html";
+        private const int WmNcLButtonDown = 0x00A1;
+        private const int HtCaption = 2;
+
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
         private readonly WebView2 _browser;
         private bool _initializing;
 
@@ -23,7 +32,7 @@ namespace FACM.Presentation.Glass
             ClientSize = new System.Drawing.Size(1140, 740);
             MinimumSize = new System.Drawing.Size(800, 540);
             ShowInTaskbar = true;
-            FormBorderStyle = FormBorderStyle.Sizable;
+            FormBorderStyle = FormBorderStyle.None;
             BackColor = System.Drawing.Color.FromArgb(8, 18, 36);
             _browser = new WebView2 { Dock = DockStyle.Fill };
             Controls.Add(_browser);
@@ -94,7 +103,12 @@ namespace FACM.Presentation.Glass
                         }
                         document.addEventListener('click', function (event) {
                             var button = event.target.closest('[data-action=""hide""]');
-                            if (button || event.target.id === 'stage') closeHost();
+                            if (button || event.target.id === 'stage' || event.target.closest('#hideWindow')) closeHost();
+                        }, true);
+                        document.addEventListener('mousedown', function (event) {
+                            if (event.button === 0 && event.target.closest('.desktop-top')
+                                && window.chrome && window.chrome.webview)
+                                window.chrome.webview.postMessage('drag');
                         }, true);
                         document.addEventListener('keydown', function (event) {
                             if (event.key !== 'Escape') return;
@@ -124,11 +138,17 @@ namespace FACM.Presentation.Glass
             try { message = e.TryGetWebMessageAsString(); }
             catch { return; }
 
-            if (message != "close" || IsDisposed) return;
-            if (InvokeRequired)
-                BeginInvoke(new Action(Close));
-            else
+            if (IsDisposed) return;
+            if (message == "drag")
+            {
+                if (WindowState != FormWindowState.Normal) return;
+                ReleaseCapture();
+                SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
+            }
+            else if (message == "close")
+            {
                 Close();
+            }
         }
 
         private static string ReadEmbeddedHtml()
