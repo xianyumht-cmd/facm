@@ -27,7 +27,7 @@ namespace FACM.Presentation.Glass
 
         internal GlassPreviewForm()
         {
-            Text = UiTextCatalog.Load().AppName;
+            Text = "GGman"; // ui-text-contract: allow
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new System.Drawing.Size(1140, 740);
             MinimumSize = new System.Drawing.Size(800, 540);
