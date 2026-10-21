@@ -58,19 +58,51 @@ jobs:
               throw "Candidate runtime asset missing: $file"
             }
           }
-          $loader = @(Get-ChildItem $output -Filter WebView2Loader.dll -Recurse -File)
-          if ($loader.Count -lt 1) { throw 'WebView2 native loader missing.' }
+          # net48 AnyCPU with Prefer32Bit=false runs as x64 on supported Win10 x64.
+          # The SDK may place an x86 loader in the root output. Select by PE machine,
+          # not file name or size; the wrong architecture fails with HRESULT 0x8007000B.
+          function Get-PeMachine([string] $path) {
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+              $reader = [System.IO.BinaryReader]::new($stream)
+              if ($stream.Length -lt 64) { throw "Invalid PE file: $path" }
+              $stream.Position = 0x3C
+              $offset = $reader.ReadInt32()
+              if ($offset -lt 0 -or ($offset + 6) -gt $stream.Length) {
+                throw "Invalid PE header offset: $path"
+              }
+              $stream.Position = $offset
+              if ($reader.ReadUInt32() -ne 0x00004550) { throw "Missing PE signature: $path" }
+              return $reader.ReadUInt16()
+            } finally {
+              $stream.Dispose()
+            }
+          }
+          $nuget = Join-Path $env:USERPROFILE '.nuget/packages/microsoft.web.webview2/1.0.4258.31'
+          if (-not (Test-Path $nuget)) { throw "WebView2 NuGet package missing: $nuget" }
+          $loaders = @(Get-ChildItem $nuget -Filter WebView2Loader.dll -Recurse -File)
+          $x64 = @($loaders | Where-Object { (Get-PeMachine $_.FullName) -eq 0x8664 })
+          if ($x64.Count -ne 1) { throw "Expected exactly one x64 WebView2Loader; found $($x64.Count)" }
           $exeSize = (Get-Item (Join-Path $output 'GGman.exe')).Length
           Write-Host "Candidate EXE bytes (not including runtime dependencies): $exeSize"
           New-Item -ItemType Directory -Path artifacts/Glass-Preview -Force | Out-Null
           Copy-Item -Path (Join-Path $output '*') -Destination artifacts/Glass-Preview -Recurse -Force
+          $rootLoader = 'artifacts/Glass-Preview/WebView2Loader.dll'
+          Copy-Item -LiteralPath $x64[0].FullName -Destination $rootLoader -Force
+          if ((Get-PeMachine $rootLoader) -ne 0x8664) {
+            throw 'Packaged root WebView2Loader is not x64.'
+          }
+          Write-Host "Packaged native loader: x64; $((Get-Item $rootLoader).Length) bytes"
+          # Remove copied x86 runtime assets: the pilot is intentionally x64-only.
+          $x86Runtime = 'artifacts/Glass-Preview/runtimes/win-x86'
+          if (Test-Path $x86Runtime) { Remove-Item $x86Runtime -Force -Recurse }
           Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
           $instructions = @'
           Experimental preview, unsigned. Not a normal GGman release.
           The visual preview runs separately from the official GGman instance.
           Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
           to start the standalone frameless Glass renderer. No tray or cloud services start.
-          WebView2 Evergreen Runtime must already be installed. No automatic installation.
+          This candidate is x64 only; its root WebView2Loader.dll is verified as PE AMD64.\n          WebView2 Evergreen Runtime must already be installed. No automatic installation.
           The glass screen contains only demonstration data and does not operate CloudBase,
           live League matches, accounts, files, automatic updates or real game settings.
           For rollback, close this preview window. The official GGman need not exit.
