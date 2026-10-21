@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-21 — Glass visual direction accepted; native product integration not started
+
+The owner approved the standalone interactive Glass prototype direction (six presentation sections, dark/light, floating center). `docs/GGMAN-GLASS-DESIGN.md` pins the accepted local HTML by its SHA-256 and preserves requirements and integration gates. The rejected experimental WPF [PR #353](https://github.com/xianyumht-cmd/facm/pull/353) was **closed without merge**. Design-record branch `design/ggman-glass-accepted-20261021` changes documentation only, does not update the compiled application or releases. The interactive HTML source itself is not yet included in git.
+
+Native renderer selection, design-matching implementation, process-tree memory/cold startup, DPI/input, nine business routes and CloudBase/game safety validation remain pending. WebView2 is a fidelity-focused candidate requiring measured latency/memory and fallback, **not** a committed release choice. Do not claim that the owner approved any Windows candidate or authorize online update based on this visual approval.
+
+
 ## 2026-10-17 — Owner-authorized GGman 3.5.78 published; visual acceptance pending
 
 The owner explicitly requested an official build **before** submitting Windows screenshots. PR #351 is **merged** into main via `0f92d1dd8eb2b64f03e3851f66a589d8e3e006b2`, with audited code head `250c877a3f9b5c8d7290c54fa71e2cb5ac9aab80`. Publication workflow [#39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) completed **SUCCESS**, including signed 3.5.78 build, public `GGman.exe`/`FACM.exe` hash and signer verification, and final enabled online manifest. Release: https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.78 ; `force_update=false`; `minimum_version=3.0.0`. Hash is recorded in the release-state block above. **Signed release delivered; UI design work is not professionally accepted.**
