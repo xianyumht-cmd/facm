@@ -1,5 +1,12 @@
 # GGman / FACM Decisions
 
+## 2026-10-21 — Accept the interactive Glass prototype as the visual baseline
+
+The owner accepted the direction represented by the interactive `GGman-Glass-Prototype.html` design preview, **not** the earlier WPF four-tile concept. The immutable accepted artifact's SHA-256 and detailed surface/interaction contract are recorded in `docs/GGMAN-GLASS-DESIGN.md`. Approved appearance: classic iOS clarity with layered Liquid Glass cues, coherent SVG iconography, genuinely distinct hierarchy, floating quick center, persistent desktop workbench, dark/light variants and considerate animation. The accepted six prototype sections are navigation presentation only; all nine existing League business routes and cloud/game/update owners must survive implementation. This approval is about appearance and interaction direction; it does not authorize release, merge, live game/cloud operations or choosing a renderer without native measurement.
+
+A local WebView2 presentation layer is the leading **technical evaluation candidate** for fidelity, with strict opt-in, on-demand process creation, whole-process-tree performance measurement, absent-runtime fallback, and limited allowlisted native command bridge. The current .NET Framework 4.8 host remains authoritative. See the accepted design contract for gates and source retention.
+
+
 ## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
 
 The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.
