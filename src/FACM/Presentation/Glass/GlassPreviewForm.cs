@@ -121,11 +121,17 @@ namespace FACM.Presentation.Glass
             }
             catch (Exception exception)
             {
-                AppLog.Error("Glass preview initialization failed", exception);
+                AppLog.Error(
+                    "Glass preview initialization failed; Is64BitProcess=" + Environment.Is64BitProcess,
+                    exception);
                 if (IsDisposed) return;
+                var error = exception.GetType().Name + " (0x" + exception.HResult.ToString("X8") + ")";
+                var guidance = exception is BadImageFormatException
+                    ? "检测到组件架构不匹配，请使用修复后的 x64 预览包。" // ui-text-contract: allow
+                    : "请查看程序目录 logs 文件夹内的 Glass preview initialization failed 日志。"; // ui-text-contract: allow
                 MessageBox.Show(
-                    "Glass 预览启动失败。请检查 WebView2 Runtime；原有 GGman 功能不会受到影响。", // ui-text-contract: allow
-                    "GGman Glass Preview",
+                    "Glass 预览启动失败。\n" + error + "\n" + guidance, // ui-text-contract: allow
+                    "GGman Glass Preview", // ui-text-contract: allow
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
                 Close();
