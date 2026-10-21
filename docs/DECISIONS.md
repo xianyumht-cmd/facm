@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-21 — Preserve accepted HTML while evaluating WebView2 as an opt-in renderer
+
+The owner approved the existing `GGman-Glass-Prototype.html` visual and interaction direction, not a substitute redesign. Draft PR #355 embeds that exact HTML, preserving original CSS and JS. On-demand Microsoft WebView2 is chosen **for a measured candidate**, not as an irrevocable product-wide framework decision. Keep net48 WinForms host, all League/LCU and CloudBase owners, signed update chain, original tray/floating entry and default single-EXE release untouched. Compile-time and runtime gates isolate any additional DLL footprint and browser process usage. The prototype's mock data must remain identified as a demo, with only allowlisted close/drag callbacks; actual business integration and resource acceptance follow after native visual and performance evidence. Reject broad host-object bridges and rendering changes that betray the approved reference.
+
+
 ## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
 
 The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.
