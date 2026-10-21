@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants Condition="'$(UseGlassWorkbenchPreview)' == 'true'">$(DefineConstants);GLASS_WORKBENCH_PREVIEW</DefineConstants>
     <RootNamespace>FACM</RootNamespace>
     <AssemblyName>GGman</AssemblyName>
     <Platforms>AnyCPU</Platforms>
@@ -22,6 +23,18 @@
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == '' and '$(RequirePetHostBundle)' == 'true'">true</IncludePetHostBundle>
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' != 'true'">
+    <Compile Remove="Presentation\Glass\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' == 'true'">
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <EmbeddedResource Include="Presentation\Glass\GGman-Glass-Prototype.html"
+                      LogicalName="FACM.Presentation.Glass.GGman-Glass-Prototype.html"
+                      Type="Non-Resx"
+                      WithCulture="false" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System" />
