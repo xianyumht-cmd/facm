@@ -1,5 +1,10 @@
 # FACM Pitfalls
 
+## A working UI build is not proof of the owner-approved visual direction (2026-10-21)
+
+[Rejected PR #353](https://github.com/xianyumht-cmd/facm/pull/353) compiled an opt-in WPF pilot and preserved existing routes, but it replaced a much richer iOS / Liquid Glass composition with a conventional four-tile control launcher, generic Unicode glyphs and instantaneous opacity changes. This failed the product requirement despite passing Windows CI. Root cause: selecting a renderer and service wiring before producing an owner-approved high-fidelity interactive design reference, then treating compile success as UI success. The owner subsequently approved an independent, navigable HTML Glass prototype. For future implementation, pin and preserve its exact source hash, compare rendered screenshots and interactions against it, and measure memory/latency on native Win10 before replacing or extending any production surface. Do not mistake a source build, static screenshot or aesthetic label for actual matching visuals.
+
+
 ## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
 
 Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.
