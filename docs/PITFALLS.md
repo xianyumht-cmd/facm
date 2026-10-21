@@ -1,5 +1,10 @@
 # FACM Pitfalls
 
+## Never replace an approved UI composition with compiled but visually inferior controls (2026-10-21)
+
+Owner rejected the opt-in WPF pilot [PR #353](https://github.com/xianyumht-cmd/facm/pull/353): conventional four tiles, Unicode glyph placeholders and instantaneous opacity appeared unlike the approved classic iOS + Liquid Glass direction despite CI success. Preserve the accepted 49,991-byte HTML reference byte-for-byte as source, and compare actual native Win10 screenshots against that source before calling an integration visually approved. Desktop packaging and host bridge success prove neither visual fidelity nor runtime memory/latency acceptability. A new optional WebView2 pilot (PR #355) isolates this question and retains old WinForms functionality and runtime fallback.
+
+
 ## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
 
 Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.
