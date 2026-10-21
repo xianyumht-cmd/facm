@@ -24,12 +24,23 @@ namespace FACM
         {
 #if GLASS_WORKBENCH_PREVIEW
             // The visual acceptance candidate must not start game, cloud, updater or account modules.
-            if (HasArgument(args, "--glass-preview")
-                && string.Equals(Environment.GetEnvironmentVariable("GGMAN_GLASS_PREVIEW"), "1", StringComparison.Ordinal))
+            if (HasArgument(args, "--glass-preview"))
             {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new GlassPreviewForm());
+                if (string.Equals(Environment.GetEnvironmentVariable("GGMAN_GLASS_PREVIEW"), "1", StringComparison.Ordinal))
+                {
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    Application.Run(new GlassPreviewForm());
+                }
+                return;
+            }
+            if (args == null || args.Length == 0)
+            {
+                MessageBox.Show(
+                    "请使用 Start-Glass-Preview.cmd 启动设计预览。", // ui-text-contract: allow
+                    "GGman",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
                 return;
             }
 #endif
