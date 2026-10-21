@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## Glass WebView2 isolated Windows review candidate (2026-10-21)
+
+Build on a Windows CI machine with .NET Framework 4.8 targeting pack, WebView2 NuGet restore and `msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal`. The dedicated [GGman Glass WebView2 Candidate workflow](https://github.com/xianyumht-cmd/facm/actions/workflows/glass-workbench-preview.yml) packages `GGman.exe` plus managed/native WebView2 loader dependencies and `Start-Glass-Preview.cmd` in an unsigned GitHub Actions artifact. This is a **multi-file experimental package**, not a production signed single-EXE. The official distribution is not altered.
+
+To test, exit the existing GGman from its tray (single-instance mutex), extract the complete artifact to a separate folder, double-click `Start-Glass-Preview.cmd`, then select `GGman Glass Preview` from the native tray right-click menu. The WebView2 Evergreen Runtime must already be installed. It is not installed silently and the original GGman can be used if runtime creation fails. This preview contains fake state: do not judge live game/CloudBase correctness from its visuals. Use real Win10 19045 screenshots and video to compare the accepted HTML reference; capture 100/125/150/200% DPI, dark/light, Esc, dismiss, browser process release, and whole-process memory/CPU/GPU both before and after opening and closing. ACI build gates cannot approve visual fidelity or runtime performance. Do not merge or publish based on build alone.
+
+
 ## 3.5.78 published release follow-up (2026-10-17)
 
 PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.
