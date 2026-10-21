@@ -1,7 +1,7 @@
 # GGman Glass — Owner-Approved Visual Direction
 
 Status: **visual direction accepted 2026-10-21; desktop implementation not yet accepted.**
-Source reference: `GGman-Glass-Prototype.html` (49,991 UTF-8 bytes, SHA-256 `57407b7eb56181ec83f96c646ffd144db6eb9075f377288304f489218bfe9460`), supplied as a standalone interactive artifact in the owner review. This document records that artifact's UX contract; the actual HTML source is **not** yet committed to this repository. Do not represent this document as an implemented desktop build.
+Source reference: [`docs/design/GGman-Glass-Prototype.html`](design/GGman-Glass-Prototype.html) (49,991 UTF-8 bytes, source SHA-256 `57407b7eb56181ec83f96c646ffd144db6eb9075f377288304f489218bfe9460`), preserved from the exact owner-reviewed interactive artifact. The HTML is a **demo**, not a production desktop implementation. Do not represent this document as an implemented desktop build.
 
 ## Approved design identity
 
@@ -41,4 +41,4 @@ The rejected WPF four-tile experiment in [PR #353](https://github.com/xianyumht-
 
 ## Design source retention
 
-The original HTML is held as a provided review artifact and identified by the content hash above. It should be committed into the integration PR **byte-for-byte** before integrating it, with demo-only state clearly isolated from production bindings. Do not re-create the approved visual from a loose prose interpretation.
+The original HTML is committed at `docs/design/GGman-Glass-Prototype.html` and identified by its byte count and source checksum above. The integration pilot must use this committed artifact as its starting baseline, with demo-only state clearly isolated from production bindings. Do not re-create the approved visual from a loose prose interpretation.
