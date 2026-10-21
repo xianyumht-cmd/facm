@@ -11,6 +11,9 @@ using FACM.Online;
 using FACM.Pets;
 using FACM.Services;
 using FACM.Theming;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM
 {
@@ -29,6 +32,9 @@ namespace FACM
         private readonly LayeredFloatingBall _layeredBall;
         private readonly DesktopEntryGameflowPolicy _gameflowVisibility = new DesktopEntryGameflowPolicy();
         private CompactMenuForm _menu;
+#if GLASS_WORKBENCH_PREVIEW
+        private GlassPreviewForm _glassPreview;
+#endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -499,6 +505,11 @@ namespace FACM
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
+#if GLASS_WORKBENCH_PREVIEW
+            if (_glassPreview != null && !_glassPreview.IsDisposed)
+                _glassPreview.Close();
+            _glassPreview = null;
+#endif
             _appIcon.Dispose();
         }
 
@@ -541,6 +552,14 @@ namespace FACM
             exit.Click += delegate { ExitApplication(); };
 
             menu.Items.Add(open);
+#if GLASS_WORKBENCH_PREVIEW
+            if (GlassPreviewEnabled())
+            {
+                var preview = new ToolStripMenuItem("GGman Glass Preview"); // ui-text-contract: allow
+                preview.Click += delegate { OpenGlassPreview(); };
+                menu.Items.Add(preview);
+            }
+#endif
             menu.Items.Add(cleanup);
             menu.Items.Add(league);
             menu.Items.Add(more);
@@ -571,6 +590,47 @@ namespace FACM
 
             return menu;
         }
+
+#if GLASS_WORKBENCH_PREVIEW
+        private static bool GlassPreviewEnabled()
+        {
+            return string.Equals(
+                Environment.GetEnvironmentVariable("GGMAN_GLASS_PREVIEW"),
+                "1",
+                StringComparison.Ordinal);
+        }
+
+        private void OpenGlassPreview()
+        {
+            if (!GlassPreviewEnabled() || IsDisposed || _exiting) return;
+            if (_glassPreview != null && !_glassPreview.IsDisposed)
+            {
+                _glassPreview.BringToFront();
+                _glassPreview.Activate();
+                return;
+            }
+
+            try
+            {
+                var preview = new GlassPreviewForm();
+                _glassPreview = preview;
+                preview.FormClosed += delegate
+                {
+                    if (ReferenceEquals(_glassPreview, preview))
+                        _glassPreview = null;
+                };
+                preview.Show();
+                preview.Activate();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Glass preview launch failed", exception);
+                if (_glassPreview != null && !_glassPreview.IsDisposed)
+                    _glassPreview.Dispose();
+                _glassPreview = null;
+            }
+        }
+#endif
 
         private void ActivateAnimalPet()
         {
