@@ -25,6 +25,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Verify approved design source
+        shell: pwsh
+        run: |
+          $html = 'src/FACM/Presentation/Glass/GGman-Glass-Prototype.html'
+          if ((Get-Item $html).Length -ne 49991) {
+            throw 'Approved Glass source byte length differs from visual baseline.'
+          }
+          $actual = (Get-FileHash $html -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '57407b7eb56181ec83f96c646ffd144db6eb9075f377288304f489218bfe9460'
+          if ($actual -ne $expected) {
+            throw 'Approved Glass source SHA256 differs from visual baseline.'
+          }
       - name: Build optional Glass workbench
         shell: pwsh
         run: |
