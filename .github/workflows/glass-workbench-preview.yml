@@ -80,15 +80,19 @@ jobs:
           }
           $nuget = Join-Path $env:USERPROFILE '.nuget/packages/microsoft.web.webview2/1.0.4258.31'
           if (-not (Test-Path $nuget)) { throw "WebView2 NuGet package missing: $nuget" }
-          $loaders = @(Get-ChildItem $nuget -Filter WebView2Loader.dll -Recurse -File)
-          $x64 = @($loaders | Where-Object { (Get-PeMachine $_.FullName) -eq 0x8664 })
-          if ($x64.Count -ne 1) { throw "Expected exactly one x64 WebView2Loader; found $($x64.Count)" }
+          $loaderPath = Join-Path $nuget 'runtimes/win-x64/native/WebView2Loader.dll'
+          if (-not (Test-Path -LiteralPath $loaderPath -PathType Leaf)) {
+            throw "Pinned WebView2 NuGet win-x64 loader path not found: $loaderPath"
+          }
+          if ((Get-PeMachine $loaderPath) -ne 0x8664) {
+            throw 'Pinned WebView2 runtime loader is not AMD64.'
+          }
           $exeSize = (Get-Item (Join-Path $output 'GGman.exe')).Length
           Write-Host "Candidate EXE bytes (not including runtime dependencies): $exeSize"
           New-Item -ItemType Directory -Path artifacts/Glass-Preview -Force | Out-Null
           Copy-Item -Path (Join-Path $output '*') -Destination artifacts/Glass-Preview -Recurse -Force
           $rootLoader = 'artifacts/Glass-Preview/WebView2Loader.dll'
-          Copy-Item -LiteralPath $x64[0].FullName -Destination $rootLoader -Force
+          Copy-Item -LiteralPath $loaderPath -Destination $rootLoader -Force
           if ((Get-PeMachine $rootLoader) -ne 0x8664) {
             throw 'Packaged root WebView2Loader is not x64.'
           }
