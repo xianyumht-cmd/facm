@@ -9,6 +9,9 @@ using FACM.Online;
 using FACM.Performance;
 using FACM.Pets;
 using FACM.Services;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM
 {
@@ -19,6 +22,18 @@ namespace FACM
         [STAThread]
         private static void Main(string[] args)
         {
+#if GLASS_WORKBENCH_PREVIEW
+            // The visual acceptance candidate must not start game, cloud, updater or account modules.
+            if (HasArgument(args, "--glass-preview")
+                && string.Equals(Environment.GetEnvironmentVariable("GGMAN_GLASS_PREVIEW"), "1", StringComparison.Ordinal))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new GlassPreviewForm());
+                return;
+            }
+#endif
+
             var startCleanup = HasArgument(args, "--cleanup");
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
             var animalPetTest = HasArgument(args, "--animal-pet-test");
