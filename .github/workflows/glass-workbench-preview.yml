@@ -1,0 +1,75 @@
+name: GGman Glass WebView2 Candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FACM/Presentation/Glass/**'
+      - 'src/FACM/FACM.csproj'
+      - 'src/FACM/MainForm.cs'
+      - 'scripts/Start-Glass-Preview.cmd'
+      - '.github/workflows/glass-workbench-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Build isolated WebView2 candidate
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build optional Glass workbench
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
+
+      - name: Verify candidate package contents
+        shell: pwsh
+        run: |
+          $output = 'src/FACM/bin/Release/net48'
+          $required = @(
+            'GGman.exe',
+            'Microsoft.Web.WebView2.Core.dll',
+            'Microsoft.Web.WebView2.WinForms.dll'
+          )
+          foreach ($name in $required) {
+            $file = Join-Path $output $name
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Candidate runtime asset missing: $file"
+            }
+          }
+          $loader = @(Get-ChildItem $output -Filter WebView2Loader.dll -Recurse -File)
+          if ($loader.Count -lt 1) { throw 'WebView2 native loader missing.' }
+          $exeSize = (Get-Item (Join-Path $output 'GGman.exe')).Length
+          Write-Host "Candidate EXE bytes (not including runtime dependencies): $exeSize"
+          New-Item -ItemType Directory -Path artifacts/Glass-Preview -Force | Out-Null
+          Copy-Item -Path (Join-Path $output '*') -Destination artifacts/Glass-Preview -Recurse -Force
+          Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
+          $instructions = @'
+          Experimental preview, unsigned. Not a normal GGman release.
+          Exit an already running official GGman instance first (same single-instance mutex).
+          Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
+          then right-click the native GGman tray icon and select "GGman Glass Preview".
+          WebView2 Evergreen Runtime must already be installed. No automatic installation.
+          The glass screen contains only demonstration data and does not operate CloudBase,
+          live League matches, accounts, files, automatic updates or real game settings.
+          For rollback, close this preview and launch the official GGman executable.
+          '@
+          $instructions | Set-Content artifacts/Glass-Preview/README.txt -Encoding UTF8
+          (Get-FileHash (Join-Path $output 'GGman.exe') -Algorithm SHA256).Hash |
+            Set-Content artifacts/Glass-Preview/SHA256.txt -Encoding ascii
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-Glass-WebView2-Unsigned
+          path: artifacts/Glass-Preview/
+          if-no-files-found: error
+          retention-days: 7
