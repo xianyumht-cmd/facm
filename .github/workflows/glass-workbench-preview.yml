@@ -6,7 +6,7 @@ on:
     paths:
       - 'src/FACM/Presentation/Glass/**'
       - 'src/FACM/FACM.csproj'
-      - 'src/FACM/MainForm.cs'
+      - 'src/FACM/Program.cs'
       - 'scripts/Start-Glass-Preview.cmd'
       - '.github/workflows/glass-workbench-preview.yml'
   workflow_dispatch:
@@ -67,13 +67,13 @@ jobs:
           Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
           $instructions = @'
           Experimental preview, unsigned. Not a normal GGman release.
-          Exit an already running official GGman instance first (same single-instance mutex).
+          The visual preview runs separately from the official GGman instance.
           Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
-          then right-click the native GGman tray icon and select "GGman Glass Preview".
+          to start the standalone frameless Glass renderer. No tray or cloud services start.
           WebView2 Evergreen Runtime must already be installed. No automatic installation.
           The glass screen contains only demonstration data and does not operate CloudBase,
           live League matches, accounts, files, automatic updates or real game settings.
-          For rollback, close this preview and launch the official GGman executable.
+          For rollback, close this preview window. The official GGman need not exit.
           '@
           $instructions | Set-Content artifacts/Glass-Preview/README.txt -Encoding UTF8
           (Get-FileHash (Join-Path $output 'GGman.exe') -Algorithm SHA256).Hash |
