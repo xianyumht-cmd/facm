@@ -36,7 +36,9 @@ test("Cloudflare Access JWT signature, issuer, audience and expiry must all veri
     // Signature and claims verify: only then does the test-only mock DB throw (masked as 503).
     assert.equal((await request(validToken)).status, 503);
     assert.equal(fetches, 1);
-    assert.equal((await request(validToken.slice(0, -1) + (validToken.endsWith("A") ? "B" : "A"))).status, 401);
+    const segments = validToken.split(".");
+    const tampered = segments[0] + "." + encode({ ...valid, sub: "owner-lab-002" }) + "." + segments[2];
+    assert.equal((await request(tampered)).status, 401);
     assert.equal((await request(await signedToken({ ...valid, aud: "wrong-aud" }))).status, 401);
     assert.equal((await request(await signedToken({ ...valid, iss: "https://other.cloudflareaccess.com" }))).status, 401);
     assert.equal((await request(await signedToken({ ...valid, exp: 100 }))).status, 401);
