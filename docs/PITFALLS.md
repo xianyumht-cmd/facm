@@ -1,5 +1,12 @@
 # FACM Pitfalls
 
+## Cloud resource exhaustion can look like permanent email OTP throttling (2026-10-22)
+
+Owner's CloudBase free-plan console screenshot showed **3,000/3,000 resource points used / exceeded**, while the production GGman registered-email send path kept returning HTTP 429 over more than a day on a residential network. The source maps an unknown 429 to `验证码请求过于频繁` without distinguishing resource quota, shared IP/rate windows and CloudBase project-level service denial. Resource exhaustion is a strong causal hypothesis but no upstream CloudBase request trace was available, so do not assert definitive 429 root cause. Do not tell the user to repeatedly request OTPs or pay for service when they explicitly declined renewal. Cloud-hosted identity must fail gracefully while offline GGman features remain available.
+
+Do not replace CloudBase with a provider-only auth shortcut that locks out more users: Cloudflare Access Free limits seats; use it only for isolated lab access, not final public GGman login. A `pg_dump` of SQL rows does not recover managed CloudBase email identities. Require verified source backup, an isolated restore rehearsal and explicit UID migration/account recovery mapping before importing any real user data or cutting over.
+
+
 ## Case-sensitive replacement keys must stay distinct when restoring editor selection (2026-10-17)
 
 Replacement keys are stored in an `Ordinal` dictionary; `Foo` and `foo` can coexist. `UiTextEditorPanel.Filter` must restore the requested selection with `Ordinal` in replacement mode (while keeping `OrdinalIgnoreCase` for ordinary text keys), including after Save/Discard/Cancel navigation. An insensitive match silently selects the first sibling during a list rebuild and may direct a later Save/Reset at the wrong rule. Keep search matching case-insensitive for convenience, but not identity matching. Regression tests cover both distinct keys, each leave choice, and subsequent Save and Reset targeting.
