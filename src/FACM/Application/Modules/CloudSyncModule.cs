@@ -84,6 +84,9 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled) return;
+#endif
             try
             {
                 _store = CloudIdentityStore.CreateDefault();
