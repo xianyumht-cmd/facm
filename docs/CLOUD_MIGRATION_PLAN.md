@@ -19,6 +19,13 @@
 5. Only after all checks, decide if moving the GGman official backend away from CloudBase is justified. No merge/deploy/release on source test alone.
 
 ## Current verification status
+## Current-client quota risk (source-verified, not live metering)
+
+The shipped `GgmanAutoSyncService.TickAsync` uses a `90000` ms follow-up interval, and its registered software-preference and UI-text categories independently invoke cloud `GetAsync` during polling. A directly translated Workers API at two HTTP requests per cycle could generate approximately **960 × 2 = 1,920 calls per always-on user per day**, or **96,000 calls/day for 50 constantly logged-in users**. This approaches the Workers Free 100,000-request/day limit **before** user authentication, game profiles, manual writes, errors and overhead. This is a full-day hypothetical upper-load scenario, **not usage measured from current CloudBase or Workers**.
+
+Run the local non-network estimator: `node experiments/cloud-d1-lab/scripts/forecast-usage.mjs 50 24 90 2`. The final GGman backend would need independently reviewed batching, event-driven sync or adaptive polling, signed conditional ETags/version cache and predictable retry backoff. Do not bypass required cloud-first login restore or intentional game-preset publication to reduce calls. Native client sync is *not* modified in this lab.
+
+
 
 - CloudBase table/RPC structure: source-verified.
 - Lab API and backup utility: drafted on dedicated task branch, awaiting CI.
