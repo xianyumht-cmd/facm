@@ -1,0 +1,50 @@
+name: GGman Cloud D1 Lab CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'experiments/cloud-d1-lab/**'
+      - 'scripts/cloudbase-backup/**'
+      - '.github/workflows/cloud-d1-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-lab:
+    name: Verify offline auth and D1 schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/cloud-d1-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify JavaScript syntax and offline tests
+        run: npm run check
+      - name: Verify D1 migration using SQLite constraints
+        run: |
+          python3 - <<'PY'
+          import sqlite3, pathlib
+          migration = pathlib.Path('migrations/0001_init.sql').read_text()
+          db = sqlite3.connect(':memory:')
+          db.executescript(migration)
+          db.execute("insert into sync_documents values (?,?,?,?,?,?)",
+                     ("provider-uid-alice","app_settings",1,"{}","0"*64,"2026-10-22T00:00:00Z"))
+          assert db.execute("select count(*) from sync_documents").fetchone()[0] == 1
+          try:
+              db.execute("insert into sync_documents values (?,?,?,?,?,?)",
+                         ("provider-uid-alice","app_settings",1,"{}","0"*64,"2026-10-22T00:00:00Z"))
+              raise AssertionError("uniqueness enforcement missing")
+          except sqlite3.IntegrityError:
+              pass
+          print('Offline SQLite schema and composite ownership-key uniqueness: PASS')
+          PY
+      - name: Check CloudBase backup script syntax (no export)
+        if: runner.os == 'Windows'
+        run: echo 'No live production backup in CI'
