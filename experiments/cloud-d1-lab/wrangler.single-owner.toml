@@ -1,0 +1,15 @@
+name = "ggman-d1-primary"
+main = "src/index.mjs"
+compatibility_date = "2026-10-22"
+workers_dev = true
+preview_urls = false
+
+[vars]
+ENVIRONMENT = "single_owner"
+AUTH_MODE = "single-owner-key"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ggman-d1-primary"
+database_id = "REPLACE_WITH_YOUR_NEW_D1_DATABASE_ID"
+migrations_dir = "migrations"
