@@ -12,6 +12,27 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-22 — Owner changed plan to fresh single-user Workers/D1
+
+The owner explicitly waived all CloudBase migration/backup for a new one-user D1, accepting that old online history and previous CloudBase account identity will not automatically carry over. **Supersedes the earlier same-day “backup first required” design**, not the requirement to preserve existing local game/config files. PR #356 now has a single-owner API route `/api/v1` with a 256-bit operator recovery key, digest-only Worker secret, a protected owner-key D1 table and a candidate native build mode. The owner runs `experiments/cloud-d1-lab/Setup-Single-Owner.cmd` locally to authorize a new Cloudflare database and deploy; no Cloudflare account connection is available to this chat, so no remote service is created here. A standalone candidate starts with `Start-D1-Candidate.cmd` using a public endpoint file and accepts a manually entered key in the GGman login form; normal builds still talk to original CloudBase.
+
+The candidate routes registered software prefs, UI text, ESC and explicit lobby/game profiles to D1. It avoids old CloudBase anonymous sync and telemetry in D1 mode. Ranked/personal historic cloud stats are not yet migrated and are locally unavailable in the candidate, rather than sending wrong credentials to CloudBase. New server profiles must be seeded by explicit user upload; later sessions use cloud as source of truth. No production main merge, signed release or auto updater change authorized until live setup/native acceptance. Details: `docs/CLOUD_MIGRATION_PLAN.md`.
+
+
+## 2026-10-22 — CloudBase backup-first / Workers+D1 laboratory (Draft PR #356)
+
+### Quota threat identified while mapping the current client
+
+`GgmanAutoSyncService.TickAsync` sets `_timer.Interval=90000` and performs at least two independent cloud reads when application settings and UI text sync are enabled. Transplanting this unchanged to two Worker calls per loop creates a theoretical 96,000 requests/day for 50 logged-in users running 24 hours (50 × 960 × 2), near the Workers Free 100,000/day cap even before other activity. Added an offline forecasting script to the lab and deferred all production endpoint rewiring until batching/adaptive cadence/event-driven triggers and real usage are validated. **Scenario projection ≠ measured account usage**.
+
+
+Following exhaustion of the CloudBase Free resource-point allowance (operator console reported 3000/3000, email OTP returning HTTP 429 for more than one day), the owner declined renewal and authorized **backup first**, then independent Workers+D1 testing. Current branch `feat/cloud-migration-workers-d1-lab-20261022` and [Draft PR #356](https://github.com/xianyumht-cmd/facm/pull/356) add `scripts/cloudbase-backup/Backup-CloudBase.cmd` (PostgreSQL dump with checksum/inventory, prompts for owner-authorized connection) and `experiments/cloud-d1-lab/` (standalone verified Cloudflare Access JWT and revisioned D1 documents). `docs/CLOUD_MIGRATION_PLAN.md` is the detailed scope/gates.
+
+**Do not claim backup or a live D1 service exists.** Available connectors lack CloudBase/PostgreSQL admin and Cloudflare account permissions. Therefore production backup/restore, CloudBase identity export, Cloudflare database/application creation/deployment, real A/B identities, cross-device sync and actual quota measurement remain **BLOCKED**. Existing GGman 3.5.78 production code, CloudBase data and online update remain unchanged. The experiment uses fake/test identities only and a Cloudflare Access <50-user free-seat limitation prevents treating this identity as final public login. No merge or live cutover authorized.
+
+[Lab CI #39720348629](https://github.com/xianyumht-cmd/facm/actions/runs/39720348629) passed nine offline JS auth/isolation/CAS cases plus SQLite D1 schema check at code SHA `35bdf871bb296b47dc93245cb7ae3ab2256b18f3`. Follow-up documentation changes are not yet covered by this SHA. Source-only unit tests are not real Workers runtime/authenticated service or actual Cloudflare usage evidence.
+
+
 ## 2026-10-17 — Owner-authorized GGman 3.5.78 published; visual acceptance pending
 
 The owner explicitly requested an official build **before** submitting Windows screenshots. PR #351 is **merged** into main via `0f92d1dd8eb2b64f03e3851f66a589d8e3e006b2`, with audited code head `250c877a3f9b5c8d7290c54fa71e2cb5ac9aab80`. Publication workflow [#39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) completed **SUCCESS**, including signed 3.5.78 build, public `GGman.exe`/`FACM.exe` hash and signer verification, and final enabled online manifest. Release: https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.78 ; `force_update=false`; `minimum_version=3.0.0`. Hash is recorded in the release-state block above. **Signed release delivered; UI design work is not professionally accepted.**

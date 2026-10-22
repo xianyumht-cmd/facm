@@ -47,21 +47,40 @@ namespace FACM
             ShowInTaskbar = false;
 
             AddLabel(this, _ui.Get(UiTextKeys.AccountTitle), new Rectangle(24, 18, 472, 34), 15F, true);
-            AddLabel(this, _ui.Get(UiTextKeys.AccountHint), new Rectangle(24, 55, 472, 42), 9.5F, muted: true);
+            var hint = AddLabel(this, _ui.Get(UiTextKeys.AccountHint), new Rectangle(24, 55, 472, 42), 9.5F, muted: true);
 
             _loginPanel = CreateCard();
-            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountEmail), new Rectangle(18, 18, 270, 22), 9.5F, muted: true);
+            var emailLabel = AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountEmail), new Rectangle(18, 18, 270, 22), 9.5F, muted: true);
             _email = AddField(_loginPanel, new Rectangle(18, 43, 295, 31), 254);
             _send = AddButton(_loginPanel, UiTextKeys.AccountSendCode, new Rectangle(325, 42, 136, 34),
                 FacmButtonTone.Secondary);
-            _send.Click += async delegate { await SendAsync(); };
+            _send.Click += async delegate {
+#if D1_SINGLE_OWNER
+                if (GgmanD1Backend.IsEnabled) { await D1SignInAsync(); return; }
+#endif
+                await SendAsync();
+            };
 
-            AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountCode), new Rectangle(18, 105, 270, 22), 9.5F, muted: true);
+            var codeLabel = AddLabel(_loginPanel, _ui.Get(UiTextKeys.AccountCode), new Rectangle(18, 105, 270, 22), 9.5F, muted: true);
             _code = AddField(_loginPanel, new Rectangle(18, 132, 165, 31), 6);
             _verify = AddButton(_loginPanel, UiTextKeys.AccountVerify, new Rectangle(325, 131, 136, 34),
                 FacmButtonTone.Primary);
             _verify.Click += async delegate { await VerifyAsync(); };
             Controls.Add(_loginPanel);
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled)
+            {
+                hint.Text = "新云端使用个人恢复密钥，不再向 CloudBase 发送验证码。"; // ui-text-contract: allow
+                emailLabel.Text = "个人恢复密钥"; // ui-text-contract: allow
+                _email.UseSystemPasswordChar = true;
+                _email.MaxLength = 43;
+                _send.Text = "连接新云端"; // ui-text-contract: allow
+                _send.AccessibleName = _send.Text;
+                codeLabel.Visible = false;
+                _code.Visible = false;
+                _verify.Visible = false;
+            }
+#endif
 
             _sessionPanel = CreateCard();
             _sessionEmail = AddLabel(_sessionPanel, string.Empty, new Rectangle(18, 28, 444, 31), 11F, true);
@@ -148,6 +167,11 @@ namespace FACM
             _code.Enabled = !_busy && signedIn == null && _challenge != null;
             _send.Enabled = !_busy && signedIn == null;
             _verify.Enabled = !_busy && signedIn == null && _challenge != null;
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled)
+                _send.Enabled = !_busy && signedIn == null;
+#endif
+
             _logout.Enabled = !_busy && signedIn != null;
             _loginPanel.Visible = signedIn == null;
             _sessionPanel.Visible = signedIn != null;
@@ -158,6 +182,26 @@ namespace FACM
                 _sessionUid.Text = string.Format(_ui.Get(UiTextKeys.AccountUid), signedIn.UserId);
             }
         }
+
+#if D1_SINGLE_OWNER
+        private async Task D1SignInAsync()
+        {
+            if (_busy || GgmanAccountSession.Current != null) return;
+            SetBusy(true);
+            try
+            {
+                var identity = await GgmanD1Backend.SignInAsync(_email.Text.Trim(), _lifetime.Token);
+                if (IsDisposed) return;
+                GgmanAccountSession.Set(identity);
+                _email.Text = string.Empty;
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error) { if (!IsDisposed) SetError(error); }
+            finally { if (!IsDisposed) SetBusy(false); }
+        }
+#endif
 
         private async Task SendAsync()
         {
@@ -271,7 +315,10 @@ namespace FACM
             SetBusy(true);
             try
             {
-                await _client.LogoutAsync(account, _deviceId, _lifetime.Token);
+#if D1_SINGLE_OWNER
+                if (!GgmanD1Backend.IsEnabled)
+#endif
+                    await _client.LogoutAsync(account, _deviceId, _lifetime.Token);
                 if (!IsDisposed) _status.Text = _ui.Get(UiTextKeys.AccountLoggedOut);
             }
             catch (OperationCanceledException) { }

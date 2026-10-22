@@ -639,6 +639,9 @@ namespace FACM.Services
                 if (!_state.Accounts.TryGetValue(owner, out history)) return;
                 using (var appClient = new GgmanAppSettingsCloudClient())
                 using (var textClient = new GgmanUiTextCloudClient())
+#if D1_SINGLE_OWNER
+                using (GgmanD1Backend.BeginExplicitBootstrap())
+#endif
                 {
                     RequireSession(account, token);
                     if (kind == "app")

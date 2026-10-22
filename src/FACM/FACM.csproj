@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants Condition="'$(UseD1SingleOwnerCandidate)' == 'true'">$(DefineConstants);D1_SINGLE_OWNER</DefineConstants>
     <RootNamespace>FACM</RootNamespace>
     <AssemblyName>GGman</AssemblyName>
     <Platforms>AnyCPU</Platforms>
@@ -22,6 +23,10 @@
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == '' and '$(RequirePetHostBundle)' == 'true'">true</IncludePetHostBundle>
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseD1SingleOwnerCandidate)' != 'true'">
+    <Compile Remove="Online\GgmanD1Backend.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System" />

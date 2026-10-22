@@ -1,0 +1,57 @@
+name: GGman D1 Single Owner Candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FACM/Online/GgmanD1Backend.cs'
+      - 'src/FACM/Online/GgmanAppSettingsCloudClient.cs'
+      - 'src/FACM/Online/GgmanUiTextCloudClient.cs'
+      - 'src/FACM/Online/GgmanGameProfileCloudClient.cs'
+      - 'src/FACM/Online/GgmanEscCloudClient.cs'
+      - 'src/FACM/GgmanAccountForm.cs'
+      - 'src/FACM/Services/GgmanAutoSyncService.cs'
+      - 'src/FACM/Application/Modules/CloudSyncModule.cs'
+      - 'src/FACM/Application/Modules/UsageTelemetryModule.cs'
+      - 'src/FACM/FACM.csproj'
+      - 'scripts/d1-single-owner/**'
+      - '.github/workflows/cloud-d1-client-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build opt-in single-owner candidate
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseD1SingleOwnerCandidate=true /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed.' }
+      - name: Make unsigned isolated candidate package
+        shell: pwsh
+        run: |
+          $out = 'artifacts/GGman-D1-Candidate'
+          New-Item -Path $out -ItemType Directory -Force | Out-Null
+          Copy-Item src/FACM/bin/Release/net48/GGman.exe $out
+          Copy-Item scripts/d1-single-owner/Start-D1-Candidate.cmd $out
+          Copy-Item scripts/d1-single-owner/D1-Endpoint.txt $out
+          @'
+          Experimental candidate only. No production CloudBase data or sessions are imported.
+          Fill D1-Endpoint.txt with the deployed HTTPS Workers endpoint.
+          EXIT the normal GGman instance first (same single-instance mutex).
+          Use Start-D1-Candidate.cmd. In account login, enter your private 43-character recovery key.
+          The candidate does NOT store your key on disk. Treat it like a password.
+          Do not overwrite or replace the signed production GGman executable.
+          '@ | Set-Content (Join-Path $out 'README.txt') -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-D1-Single-Owner-Unsigned
+          path: artifacts/GGman-D1-Candidate/
+          retention-days: 7
+          if-no-files-found: error

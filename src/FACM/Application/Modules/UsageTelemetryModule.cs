@@ -56,6 +56,9 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _enabled = _consentStore.Load();
+#if D1_SINGLE_OWNER
+            if (FACM.Online.GgmanD1Backend.IsEnabled) _enabled = false;
+#endif
             Current = this;
             _cancellation = new CancellationTokenSource();
             _flushTimer = new System.Windows.Forms.Timer { Interval = 30000 };
