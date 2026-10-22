@@ -45,6 +45,26 @@ jobs:
               pass
           print('Offline SQLite schema and composite ownership-key uniqueness: PASS')
           PY
-      - name: Check CloudBase backup script syntax (no export)
-        if: runner.os == 'Windows'
-        run: echo 'No live production backup in CI'
+  backup-script-static:
+    name: Windows PowerShell 5.1 backup script syntax
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse backup utility without contacting CloudBase
+        shell: powershell
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/cloudbase-backup/Backup-CloudBase.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            $path, [ref]$tokens, [ref]$parseErrors)
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.Message }
+            throw 'CloudBase backup script failed Windows PowerShell 5.1 syntax validation.'
+          }
+          $launch = Get-Content 'scripts/cloudbase-backup/Backup-CloudBase.cmd' -Raw
+          if ($launch -notmatch '-File "%~dp0Backup-CloudBase.ps1"') {
+            throw 'Backup launcher must derive its own path, not pass a quoted directory.'
+          }
+          Write-Host 'Windows PowerShell 5.1 syntax: PASS; no database connection attempted.'
