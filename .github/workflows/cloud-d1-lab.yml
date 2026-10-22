@@ -92,3 +92,35 @@ jobs:
           path: artifacts/CloudBase-Backup/
           retention-days: 7
           if-no-files-found: error
+      - name: Verify one-user deployment bootstrap syntax without deploying
+        shell: powershell
+        run: |
+          $source = 'experiments/cloud-d1-lab/Setup-Single-Owner.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path $source), [ref]$tokens, [ref]$parseErrors)
+          if ($parseErrors.Count -gt 0) { throw ('Deployment setup script syntax failed: ' + $parseErrors[0].Message) }
+          $cmd = Get-Content 'experiments/cloud-d1-lab/Setup-Single-Owner.cmd' -Raw
+          if ($cmd -notmatch '-File "%~dp0Setup-Single-Owner.ps1"') { throw 'Setup command path contract changed.' }
+          Write-Host 'Single-owner bootstrap syntax: PASS; no Cloudflare deployment executed.'
+      - name: Package clean-slate Cloudflare setup for owner
+        shell: powershell
+        run: |
+          $source = 'experiments/cloud-d1-lab'
+          $target = 'artifacts/GGman-D1-Setup'
+          New-Item -ItemType Directory -Path (Join-Path $target 'src') -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $target 'migrations') -Force | Out-Null
+          Copy-Item "$source/Setup-Single-Owner.cmd" $target
+          Copy-Item "$source/Setup-Single-Owner.ps1" $target
+          Copy-Item "$source/wrangler.single-owner.toml" $target
+          Copy-Item "$source/src/index.mjs" (Join-Path $target 'src')
+          Copy-Item "$source/migrations/0001_init.sql" (Join-Path $target 'migrations')
+          Copy-Item "$source/README.md" $target
+          Write-Host 'New-cloud setup package prepared without secrets or production data.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-D1-Single-Owner-Setup
+          path: artifacts/GGman-D1-Setup/
+          retention-days: 7
+          if-no-files-found: error
