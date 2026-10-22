@@ -136,6 +136,10 @@ namespace FACM.Online
         private Task<Dictionary<string, object>> SendRegisteredAsync(string rpc,
             GgmanAccountIdentity account, object body, CancellationToken token)
         {
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled)
+                return GgmanD1Backend.InvokeAsync(rpc, account, body, token);
+#endif
             return GgmanAccountSession.ExecuteWithRefreshAsync(account, async (current, cancellation) =>
             {
                 using (var request = CreateRequest(rpc, current, body))
