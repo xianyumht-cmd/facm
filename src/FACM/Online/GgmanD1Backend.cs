@@ -16,6 +16,21 @@ namespace FACM.Online
     {
         internal const string OwnerId = "single-owner-primary";
         private const int MaxResponseBytes = 640 * 1024;
+        private static readonly AsyncLocal<bool> ExplicitBootstrap = new AsyncLocal<bool>();
+
+        internal static IDisposable BeginExplicitBootstrap()
+        {
+            var before = ExplicitBootstrap.Value;
+            ExplicitBootstrap.Value = true;
+            return new BootstrapScope(before);
+        }
+
+        private sealed class BootstrapScope : IDisposable
+        {
+            private readonly bool _before;
+            internal BootstrapScope(bool before) { _before = before; }
+            public void Dispose() { ExplicitBootstrap.Value = _before; }
+        }
         private static readonly JavaScriptSerializer Json =
             new JavaScriptSerializer { MaxJsonLength = MaxResponseBytes };
 
@@ -87,19 +102,19 @@ namespace FACM.Online
                 var map = body as Dictionary<string, object>;
                 if (map == null || !map.ContainsKey("p_payload") || !map.ContainsKey("p_expected_version"))
                     throw new InvalidDataException("写入内容缺少版本信息。");
-                data = new Dictionary<string, object>
-                {
-                    { "payload", map["p_payload"] },
-                    { "expectedVersion", map["p_expected_version"] },
-                    // A fresh D1 account is deliberately bootstrapped only through explicit UI action,
-                    // not by opportunistic local auto-sync. Existing uploader actions pass 0 for new rows.
-                    { "explicitBootstrap", false }
-                };
                 long revision;
                 if (!long.TryParse(Convert.ToString(map["p_expected_version"]), out revision) || revision < 0)
                     throw new InvalidDataException("新云端版本号无效。");
-                if (revision == 0)
-                    throw new InvalidOperationException("新云端没有配置。请先明确创建首次云端备份，禁止自动上传本地配置。");
+                bool manualGameUpload = category == "esc_profile" || category == "game_profile";
+                bool bootstrap = revision == 0 && (manualGameUpload || ExplicitBootstrap.Value);
+                if (revision == 0 && !bootstrap)
+                    throw new InvalidOperationException("新云端没有配置。请在界面中确认首次上传。");
+                data = new Dictionary<string, object>
+                {
+                    { "payload", map["p_payload"] },
+                    { "expectedVersion", revision },
+                    { "explicitBootstrap", bootstrap }
+                };
             }
 
             var response = await RequestAsync(write ? HttpMethod.Put : HttpMethod.Get,
