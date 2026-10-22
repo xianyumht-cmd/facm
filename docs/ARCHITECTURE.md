@@ -1,5 +1,12 @@
 # FACM Architecture
 
+## 2026-10-22 — Disconnected Cloudflare Workers/D1 migration laboratory
+
+The canonical WinForms/CloudBase service remains the ONLY online backend used by shipped GGman. Draft PR #356 introduces `experiments/cloud-d1-lab/` as a separate service application, NOT a new production dependency. The lab uses signed Cloudflare Access JWT (issuer + audience + RS256/JWKS) to resolve owner identity, then executes D1 prepared SQL keyed by `(owner_id, kind)`. Its supported documents are registered-style application preferences, UI text, ESC and explicit game profile, with payload size/schema constraints, CAS versioning and mandatory manual bootstrap on an empty cloud profile. CloudBase registered statistics, history, anonymous device rows and authentication identity are intentionally outside this pilot. In-app cloud-first downloads, unsaved-editor conflict guards, server token migration and live game configuration application remain existing owner responsibilities: the lab does not call GGman clients or CloudBase.
+
+The test service is deploy-blocked by a placeholder database ID, no workers.dev endpoint and no live account connection. Access is for a small private trial only; final player authentication, re-identification and recovery require separate architectural approval. See `docs/CLOUD_MIGRATION_PLAN.md`.
+
+
 ## B5 extended visual owner boundaries (Draft PR #351)
 
 `CleanupRepairForm` remains a `CleanupModule`/MainForm-owned task surface and adjusts existing help/status typography only. `GgmanCaptchaForm` keeps token/challenge state and disposable image lifetime while replacing visual button/field geometry. `GgmanStatsPrivacyForm` reparents only existing opt-in controls to a shared noninteractive `FacmGlassPanel`; privacy defaults and save/import authorization remain external. `LeagueProfileCustomizationForm` reparents already constructed native input/action controls into four local semantic surfaces; each control retains the original click/event subscription and cancellation generation. `LeagueItemSetForm`/`LeagueBuildApplyForm` reuse `FacmDesignSystem` and `FacmActionButton`; the latter's auto-toggle/status callbacks are critical and were explicitly restored after an intermediate CI failure. Both pet pickers retain asset download/activation and animated preview ownership and use theme-derived text/surfaces instead of a separate dark palette. `LeaguePersonalStatsForm` only changes nonfunctional type hierarchy. No new transport, persistent state or background service.
