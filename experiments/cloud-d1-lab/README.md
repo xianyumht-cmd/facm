@@ -33,6 +33,11 @@ wrangler.toml keeps workers_dev=false and a placeholder database UUID. No route 
 Cloudflare documentation: https://developers.cloudflare.com/d1/wrangler-commands/ and https://developers.cloudflare.com/d1/best-practices/local-development/.
 
 ## Real usage and acceptance
+## Existing GGman polling pressure
+
+The existing C# auto-sync has a 90-second cycle with independent software-setting and UI-text reads. If mapped to two HTTP requests per poll, 50 always-on registered clients could generate around 96,000 Worker requests/day before additional features. This is a scenario estimate, not actual usage. The offline estimator `node scripts/forecast-usage.mjs 50 24 90 2` adjusts users/hours/cadence. Do not ship a client endpoint swap with unchanged 90-second traffic until separate batching/caching/event-driven sync is validated.
+
+
 
 Design estimates: one indexed D1 read for each GET, one conditional write for each PUT (plus platform overhead). These are NOT actual usage measurements. Once the owner operates a private test environment, inspect Cloudflare Worker requests, D1 rows read/written, stored bytes and runtime errors daily in the account dashboard, and allow at least 20% headroom against current Free-tier limits. A daily D1 quota exhausts into query errors, it does not silently upgrade to paid.
 
