@@ -12,6 +12,13 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-22 — Owner changed plan to fresh single-user Workers/D1
+
+The owner explicitly waived all CloudBase migration/backup for a new one-user D1, accepting that old online history and previous CloudBase account identity will not automatically carry over. **Supersedes the earlier same-day “backup first required” design**, not the requirement to preserve existing local game/config files. PR #356 now has a single-owner API route `/api/v1` with a 256-bit operator recovery key, digest-only Worker secret, a protected owner-key D1 table and a candidate native build mode. The owner runs `experiments/cloud-d1-lab/Setup-Single-Owner.cmd` locally to authorize a new Cloudflare database and deploy; no Cloudflare account connection is available to this chat, so no remote service is created here. A standalone candidate starts with `Start-D1-Candidate.cmd` using a public endpoint file and accepts a manually entered key in the GGman login form; normal builds still talk to original CloudBase.
+
+The candidate routes registered software prefs, UI text, ESC and explicit lobby/game profiles to D1. It avoids old CloudBase anonymous sync and telemetry in D1 mode. Ranked/personal historic cloud stats are not yet migrated and are locally unavailable in the candidate, rather than sending wrong credentials to CloudBase. New server profiles must be seeded by explicit user upload; later sessions use cloud as source of truth. No production main merge, signed release or auto updater change authorized until live setup/native acceptance. Details: `docs/CLOUD_MIGRATION_PLAN.md`.
+
+
 ## 2026-10-22 — CloudBase backup-first / Workers+D1 laboratory (Draft PR #356)
 
 ### Quota threat identified while mapping the current client
