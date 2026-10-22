@@ -53,6 +53,24 @@ async function jwtOwner(request, env) {
   if (!await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, signed)) return null;
   return payload.sub;
 }
+async function singleOwnerAuthenticate(request, env) {
+  const configured = String(env.OWNER_KEY_SHA256 || "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(configured)) throw new Error("OWNER_KEY_NOT_CONFIGURED");
+  const header = request.headers.get("authorization") || "";
+  // 32 cryptographically random bytes encoded base64url (43 characters).
+  if (!/^Bearer [A-Za-z0-9_-]{43}$/.test(header)) return null;
+  const supplied = header.slice(7);
+  const digest = await sha(supplied);
+  let difference = 0;
+  for (let index = 0; index < 64; index++)
+    difference |= configured.charCodeAt(index) ^ digest.charCodeAt(index);
+  return difference === 0 ? "single-owner-primary" : null;
+}
+async function authenticateByMode(request, env) {
+  if (env.ENVIRONMENT === "single_owner" && env.AUTH_MODE === "single-owner-key")
+    return singleOwnerAuthenticate(request, env);
+  return jwtOwner(request, env);
+}
 const forbidden = /^(access.?token|refresh.?token|password|client.?secret|api.?key|accountid|puuid|summonerid|verification.?code)$/i;
 function containsSecrets(obj, depth = 0) {
   if (depth > 24) return true;
@@ -104,28 +122,42 @@ async function boundedJson(request, maxBytes) {
 const sha = async value => [...new Uint8Array(await crypto.subtle.digest("SHA-256",
   new TextEncoder().encode(value)))].map(v => v.toString(16).padStart(2, "0")).join("");
 function checkEnv(env) {
-  if (!env?.DB || env.ENVIRONMENT !== "lab") throw new Error("LAB_NOT_CONFIGURED");
+  if (!env?.DB || (env.ENVIRONMENT !== "lab" &&
+      !(env.ENVIRONMENT === "single_owner" &&
+        env.AUTH_MODE === "single-owner-key" &&
+        /^[0-9a-f]{64}$/i.test(String(env.OWNER_KEY_SHA256 || "")))))
+    throw new Error("BACKEND_NOT_CONFIGURED");
 }
-export function createHandler(authenticate = jwtOwner) {
+export function createHandler(authenticate = authenticateByMode) {
   return {
     async fetch(request, env) {
       try {
         checkEnv(env);
         const url = new URL(request.url);
+        const labRoute = url.pathname.startsWith("/api/lab/");
+        const singleRoute = url.pathname.startsWith("/api/v1/");
+        if (labRoute && env.ENVIRONMENT !== "lab" ||
+            singleRoute && env.ENVIRONMENT !== "single_owner")
+          return response(404, { error: "NOT_FOUND" });
         if (url.pathname === "/api/lab/health" && request.method === "GET")
           return response(200, { ok: true, lab: true, storage: "d1", auth: "cloudflare-access" });
-        if (!/^\/api\/lab\/documents\/[a-z_]+$/.test(url.pathname))
+        const identityRoute = url.pathname === "/api/v1/whoami";
+        const documentRoute = /^\/api\/(?:lab|v1)\/documents\/[a-z_]+$/.test(url.pathname);
+        if (!identityRoute && !documentRoute)
           return response(404, { error: "NOT_FOUND" });
-        const kind = url.pathname.split("/").pop();
-        if (!Object.hasOwn(kinds, kind)) return response(404, { error: "NOT_FOUND" });
-        if (request.method !== "GET" && request.method !== "PUT")
-          return response(405, { error: "METHOD_NOT_ALLOWED" }, { allow: "GET, PUT" });
+        if (identityRoute && request.method !== "GET" ||
+            documentRoute && request.method !== "GET" && request.method !== "PUT")
+          return response(405, { error: "METHOD_NOT_ALLOWED" });
+        const kind = documentRoute ? url.pathname.split("/").pop() : null;
+        if (kind && !Object.hasOwn(kinds, kind)) return response(404, { error: "NOT_FOUND" });
         let owner;
         try { owner = await authenticate(request, env); }
         catch { return response(503, { error: "AUTH_UNAVAILABLE" }); }
         if (!owner) return response(401, { error: "UNAUTHORIZED" });
         if (typeof owner !== "string" || owner.length < 6 || owner.length > 256)
           return response(401, { error: "UNAUTHORIZED" });
+        if (identityRoute)
+          return response(200, { authenticated: true, subject: owner, backend: "d1" });
         if (request.method === "GET") {
           const row = await env.DB.prepare(
             "SELECT version, payload_json, content_hash, updated_at FROM sync_documents WHERE owner_id = ? AND kind = ?"
