@@ -1,5 +1,10 @@
 # FACM Pitfalls
 
+## Switching only a database URL cannot replace CloudBase email identity (2026-10-22)
+
+The CloudBase OTP account `sub`, token renewals and registered-only tables are upstream identity/authentication functions, not fields in a generic SQL store. When the owner chose fresh-start D1 with no backup, the actual required change was **new single-owner login plus server-authorized D1 reads/writes**, not just host/path substitution. Never pass a new provider recovery key into legacy CloudBase RPCs, device usage telemetry or ranking calls. Keep single-user mode behind a candidate flag; stale local data must not silently seed the new cloud, and server key loss/replacement without a recovery copy can lock the user out. Owner accepted giving up old cloud data, but this does NOT authorize deleting either the old server or local Riot/ESC config.
+
+
 ## Cloud resource exhaustion can look like permanent email OTP throttling (2026-10-22)
 
 Owner's CloudBase free-plan console screenshot showed **3,000/3,000 resource points used / exceeded**, while the production GGman registered-email send path kept returning HTTP 429 over more than a day on a residential network. The source maps an unknown 429 to `验证码请求过于频繁` without distinguishing resource quota, shared IP/rate windows and CloudBase project-level service denial. Resource exhaustion is a strong causal hypothesis but no upstream CloudBase request trace was available, so do not assert definitive 429 root cause. Do not tell the user to repeatedly request OTPs or pay for service when they explicitly declined renewal. Cloud-hosted identity must fail gracefully while offline GGman features remain available.
