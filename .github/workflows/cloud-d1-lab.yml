@@ -68,3 +68,27 @@ jobs:
             throw 'Backup launcher must derive its own path, not pass a quoted directory.'
           }
           Write-Host 'Windows PowerShell 5.1 syntax: PASS; no database connection attempted.'
+      - name: Package offline backup utility only
+        shell: powershell
+        run: |
+          $out = 'artifacts/CloudBase-Backup'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Copy-Item 'scripts/cloudbase-backup/Backup-CloudBase.cmd' $out
+          Copy-Item 'scripts/cloudbase-backup/Backup-CloudBase.ps1' $out
+          @'
+          GGman CloudBase PostgreSQL backup utility
+          This is a local operator-run EXPORT tool; NO database dump is included.
+          Requires PostgreSQL pg_dump.exe and pg_restore.exe in PATH.
+          The current CloudBase plan may restrict direct database connections.
+          Only run on a trusted Windows PC with owner-authorized database access.
+          The tool prompts for host, database, port, username and password. No password is saved.
+          It writes a private PostgreSQL dump and SHA-256 manifest to your Documents folder.
+          A dump is NOT a validated restore or an identity-provider backup.
+          Do not share real .dump files, tokens or database passwords in GitHub, QQ or ChatGPT.
+          '@ | Set-Content -Path (Join-Path $out 'README.txt') -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-CloudBase-Offline-Backup-Tool
+          path: artifacts/CloudBase-Backup/
+          retention-days: 7
+          if-no-files-found: error
