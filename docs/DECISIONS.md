@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-22 — Supersede backup-first: new single-owner D1 identity and empty database
+
+The owner explicitly chose not to export existing CloudBase data, because only one user currently relies on the registered cloud functions. The next backend is a **new empty Cloudflare D1**. Keep old CloudBase intact but do not wait for backup, restore, UID migration or source export. Any previous server-only configurations/history do not appear in the new cloud automatically; the native client can explicitly publish available local settings/ESC/YAML. New authentication uses a separately generated 256-bit recovery key and a Worker-side SHA-256 secret; neither code nor source includes the key. The key must be preserved privately to recover the account on other PCs. This single-owner design is intentionally not scalable to many users. The previous Access-JWT lab remains code-only and is not used for public owner login. No signed production switch until a working owner Cloudflare account setup and real Windows acceptance.
+
+
 ## 2026-10-22 — Backup before migration; Workers/D1 only as disconnected trial
 
 The owner will not renew exhausted CloudBase resources. Preserve all original CloudBase rows, registered user identities, account-history semantics and intentional ESC/YAML publication until a verifiable offsite backup **and restore drill** exist. A database dump alone cannot export the CloudBase managed email identity provider, so document UID mapping and user re-enrollment/recovery separately before any import. Proceed with a synthetic-data D1 prototype in Draft PR #356, using owner-verified signed Cloudflare Access JWT for a private lab; no client-side owner selection, never migrate production sessions/secrets, enforce versions with CAS and explicit no-remote bootstrap. Cloudflare Access Free's 50-user limit means it is **not** selected as public GGman authentication. No production account code or endpoint switch; evaluate real usage and cloud-first behavior only after separate safe deployment by an authorized owner.
