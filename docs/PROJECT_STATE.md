@@ -14,6 +14,11 @@
 
 ## 2026-10-22 — CloudBase backup-first / Workers+D1 laboratory (Draft PR #356)
 
+### Quota threat identified while mapping the current client
+
+`GgmanAutoSyncService.TickAsync` sets `_timer.Interval=90000` and performs at least two independent cloud reads when application settings and UI text sync are enabled. Transplanting this unchanged to two Worker calls per loop creates a theoretical 96,000 requests/day for 50 logged-in users running 24 hours (50 × 960 × 2), near the Workers Free 100,000/day cap even before other activity. Added an offline forecasting script to the lab and deferred all production endpoint rewiring until batching/adaptive cadence/event-driven triggers and real usage are validated. **Scenario projection ≠ measured account usage**.
+
+
 Following exhaustion of the CloudBase Free resource-point allowance (operator console reported 3000/3000, email OTP returning HTTP 429 for more than one day), the owner declined renewal and authorized **backup first**, then independent Workers+D1 testing. Current branch `feat/cloud-migration-workers-d1-lab-20261022` and [Draft PR #356](https://github.com/xianyumht-cmd/facm/pull/356) add `scripts/cloudbase-backup/Backup-CloudBase.cmd` (PostgreSQL dump with checksum/inventory, prompts for owner-authorized connection) and `experiments/cloud-d1-lab/` (standalone verified Cloudflare Access JWT and revisioned D1 documents). `docs/CLOUD_MIGRATION_PLAN.md` is the detailed scope/gates.
 
 **Do not claim backup or a live D1 service exists.** Available connectors lack CloudBase/PostgreSQL admin and Cloudflare account permissions. Therefore production backup/restore, CloudBase identity export, Cloudflare database/application creation/deployment, real A/B identities, cross-device sync and actual quota measurement remain **BLOCKED**. Existing GGman 3.5.78 production code, CloudBase data and online update remain unchanged. The experiment uses fake/test identities only and a Cloudflare Access <50-user free-seat limitation prevents treating this identity as final public login. No merge or live cutover authorized.
