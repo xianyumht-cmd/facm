@@ -1,0 +1,9 @@
+{
+  "name": "ggman-cloud-d1-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/index.mjs && npm test"
+  }
+}
