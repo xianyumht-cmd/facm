@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-22 — Backup before migration; Workers/D1 only as disconnected trial
+
+The owner will not renew exhausted CloudBase resources. Preserve all original CloudBase rows, registered user identities, account-history semantics and intentional ESC/YAML publication until a verifiable offsite backup **and restore drill** exist. A database dump alone cannot export the CloudBase managed email identity provider, so document UID mapping and user re-enrollment/recovery separately before any import. Proceed with a synthetic-data D1 prototype in Draft PR #356, using owner-verified signed Cloudflare Access JWT for a private lab; no client-side owner selection, never migrate production sessions/secrets, enforce versions with CAS and explicit no-remote bootstrap. Cloudflare Access Free's 50-user limit means it is **not** selected as public GGman authentication. No production account code or endpoint switch; evaluate real usage and cloud-first behavior only after separate safe deployment by an authorized owner.
+
+
 ## 2026-10-17 — Publish signed UI refresh before operator screenshot collection
 
 The product owner explicitly authorized merging PR #351 and releasing GGman 3.5.78 first, so they could use the installed formal update to collect native screenshots. This supersedes the earlier per-task pre-publication screenshot requirement but does **not** represent professional design approval. Existing required source CI, production signing, download integrity, version and update-manifest gates were retained, and the published update is non-mandatory. Unverified UI states require post-release evidence, independent Astra critique, and controlled hotfix/rollback handling if any critical regression appears.
