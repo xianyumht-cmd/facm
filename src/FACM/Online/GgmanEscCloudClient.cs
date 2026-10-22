@@ -81,6 +81,10 @@ namespace FACM.Online
             CancellationToken token)
         {
             var current = await GetAsync(account, token).ConfigureAwait(false);
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled)
+                return current == null ? 0L : current.Version;
+#endif
 
             using (var request = new HttpRequestMessage(HttpMethod.Post,
                 "v1/rdb/rest/rpc/ggman_get_esc_profile"))
