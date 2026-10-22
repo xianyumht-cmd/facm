@@ -129,6 +129,10 @@ namespace FACM.Online
         private Task<Dictionary<string, object>> SendAsync(string endpoint, object body,
             GgmanAccountIdentity account, CancellationToken token)
         {
+#if D1_SINGLE_OWNER
+            if (GgmanD1Backend.IsEnabled)
+                throw new NotSupportedException("新云端暂不提供历史战绩排名统计；不会访问旧 CloudBase。");
+#endif
             return GgmanAccountSession.ExecuteWithRefreshAsync(account,
                 (current, cancellation) => SendOnceAsync(endpoint, body, current, cancellation), token);
         }
