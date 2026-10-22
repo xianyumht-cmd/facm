@@ -1,5 +1,12 @@
 # FACM Architecture
 
+## Single-owner D1 clean-slate candidate (2026-10-22)
+
+Optional MSBuild `UseD1SingleOwnerCandidate=true` compiles `Online/GgmanD1Backend.cs`, and environment `GGMAN_D1_ENDPOINT` activates it on Windows. The identity UI then uses a 43-character 256-bit owner key instead of CloudBase email OTP, runs `GET /api/v1/whoami`, and creates a process-memory-only `GgmanAccountIdentity` for `single-owner-primary`. Existing registered cloud clients map their get/set RPCs to D1 GET/PUT of app settings, UI text, ESC and game/lobby profiles, retaining versioned deserializers and native restore guards. `GgmanAutoSyncService` explicitly authorizes first upload only in user-driven conflict resolution. CloudBase anonymous sync and telemetry modules do not initialize their network clients in D1 candidate mode. Registered profile statistics have no D1 counterpart and must not leak the new key to CloudBase.
+
+Worker mode `ENVIRONMENT=single_owner, AUTH_MODE=single-owner-key` validates the SHA-256 of the caller's 43-character base64url key using a Worker secret; owner_id is fixed server-side. Every D1 query is prepared/parameterized with (owner_id, kind). A fresh empty server row cannot be implicitly populated. The service is currently NOT deployed; no Cloudflare management connector is available. Token rotation and multi-user registration are future separate work. The original compiled default releases retain their CloudBase flow.
+
+
 ## 2026-10-22 — Disconnected Cloudflare Workers/D1 migration laboratory
 
 The canonical WinForms/CloudBase service remains the ONLY online backend used by shipped GGman. Draft PR #356 introduces `experiments/cloud-d1-lab/` as a separate service application, NOT a new production dependency. The lab uses signed Cloudflare Access JWT (issuer + audience + RS256/JWKS) to resolve owner identity, then executes D1 prepared SQL keyed by `(owner_id, kind)`. Its supported documents are registered-style application preferences, UI text, ESC and explicit game profile, with payload size/schema constraints, CAS versioning and mandatory manual bootstrap on an empty cloud profile. CloudBase registered statistics, history, anonymous device rows and authentication identity are intentionally outside this pilot. In-app cloud-first downloads, unsaved-editor conflict guards, server token migration and live game configuration application remain existing owner responsibilities: the lab does not call GGman clients or CloudBase.
