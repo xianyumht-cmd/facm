@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## GGman fresh-start Workers/D1 single-user candidate (2026-10-22)
+
+Owner declined CloudBase backup/import; the optional backup tooling remains for recovery but is **not a migration prerequisite**. D1 will start EMPTY; old CloudBase cloud data remains untouched and does not auto-follow to the new provider. Use `experiments/cloud-d1-lab/Setup-Single-Owner.cmd` (requires installed Node/npx and the owner's own browser-authorized Cloudflare login) to create a distinct D1, apply schema, generate a 32-byte random recovery key on the local PC, deploy a fail-closed Worker and install only its SHA-256 as a Cloudflare secret. The one-click tool writes the secret to a private Documents folder for the owner to preserve and writes a public `D1-Endpoint.txt`. **The repo and release artifacts contain neither key nor password.** No deployment has occurred in this environment.
+
+The unsigned D1 candidate CI uses `/p:UseD1SingleOwnerCandidate=true` and packages a separate GGman.exe + `Start-D1-Candidate.cmd`. Copy `D1-Endpoint.txt` beside the candidate and exit the signed official GGman before launching (same single-instance mutex). Log in through the native account screen by entering your own 43-character key. Verify controlled first-time upload, second-user-profile read, ESC/game manual publication, version conflicts, older unsaved local edits, and disabled historic registered ranking. User must review Cloudflare account's actual Workers/D1 quota metrics and errors before any official signed release. No remote provider action or production rollout is performed by GitHub source CI. See `docs/CLOUD_MIGRATION_PLAN.md`.
+
+
 ## CloudBase backup-first / Workers+D1 lab operations (2026-10-22)
 
 Use `scripts/cloudbase-backup/Backup-CloudBase.cmd` only with authorized direct CloudBase PostgreSQL credentials and locally installed `pg_dump.exe`/`pg_restore.exe`. It prompts for connection details and password (not stored in repo or arguments), writes a private custom-format dump under Documents/GGman-CloudBase-Backups, generates a SHA-256 manifest, and inventories included GGman tables using `pg_restore --list`. **No live backup has been run** because provider admin access is unavailable. It does not export CloudBase's managed account directory; record this gap and perform a separate isolated PostgreSQL restore rehearsal before treating data as protected. If resource-plan quota blocks direct export, use the authorized CloudBase console backup facilities. Never upload the archive to the repo, chat, public file host or issue.
