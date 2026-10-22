@@ -1,5 +1,12 @@
 # GGman Operations (3.5.x)
 
+## CloudBase backup-first / Workers+D1 lab operations (2026-10-22)
+
+Use `scripts/cloudbase-backup/Backup-CloudBase.cmd` only with authorized direct CloudBase PostgreSQL credentials and locally installed `pg_dump.exe`/`pg_restore.exe`. It prompts for connection details and password (not stored in repo or arguments), writes a private custom-format dump under Documents/GGman-CloudBase-Backups, generates a SHA-256 manifest, and inventories included GGman tables using `pg_restore --list`. **No live backup has been run** because provider admin access is unavailable. It does not export CloudBase's managed account directory; record this gap and perform a separate isolated PostgreSQL restore rehearsal before treating data as protected. If resource-plan quota blocks direct export, use the authorized CloudBase console backup facilities. Never upload the archive to the repo, chat, public file host or issue.
+
+The isolated `experiments/cloud-d1-lab/` project accepts no production secrets and has disabled workers.dev/real D1 deployment defaults. Test locally with Node 22 `npm test`; Github CI checks JWT tampering, owner A/B isolation, explicit bootstrap, stale version conflict, payload bounds and SQL table uniqueness using synthetic data. Only an authorized operator may configure real Access audience/test DB, restrict a test domain, then decide on a private non-production deployment. Do not call source CI a verified production backup, live Cloudflare user isolation or measured D1 billing/limits. The acceptance checklist lives in `docs/CLOUD_MIGRATION_PLAN.md`.
+
+
 ## 3.5.78 published release follow-up (2026-10-17)
 
 PR #351 was explicitly authorized for production publication before native visual evidence. The signed GitHub Release v3.5.78 and updater were published by [workflow #39019998489](https://github.com/xianyumht-cmd/facm/actions/runs/39019998489) with the `FACM.exe` compatibility asset, `GGman.exe`, public byte/hash/signature verification and `force_update=false`. Owner acceptance remains pending. For post-release follow-up ask the owner for actual screenshots after updating: Dashboard and navigation; Repair, Presence and Quick Tools; Mayhem and recommendation; account/ESC/cloud; updater/theme; cleanup/profile/pet interfaces; topmost companion/ChampSelect if safely obtainable during normal play. Record theme, DPI scaling, client size, exact version, cropping, truncation, focus and interaction symptoms. Compare against prior baseline where available.
