@@ -1,0 +1,16 @@
+name = "ggman-cloud-lab"
+main = "src/index.mjs"
+compatibility_date = "2026-10-22"
+workers_dev = false
+preview_urls = false
+
+[vars]
+ENVIRONMENT = "lab"
+# ACCESS_ISSUER and ACCESS_AUD MUST be configured privately for a protected Access application.
+# Do not configure any production CloudBase keys, tokens or database URLs here.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ggman-cloud-lab"
+database_id = "REPLACE_WITH_TEST_ONLY_DATABASE_ID"
+migrations_dir = "migrations"
