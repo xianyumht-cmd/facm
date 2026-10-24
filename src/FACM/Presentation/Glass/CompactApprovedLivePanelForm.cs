@@ -460,21 +460,21 @@ namespace FACM.Presentation.Glass
                 for (int i = 0; i < 10; i++)
                 {
                     sample.TopTen.Add(new FACM.Mayhem.MayhemTopChampion {
-                        Rank = i + 1, Name = i == 0 ? "亚索" : "Hero" + i,
+                        Rank = i + 1, Name = i == 0 ? "亚索" : "Hero" + i, // ui-text-contract: allow - deterministic non-user-facing rank fixture
                         Slug = i == 0 ? "yasuo" : "hero" + i,
                         WinRate = 50.1, Tier = i == 0 ? "T0" : "A"
                     });
                 }
-                view.UpdateGameMode("普通大乱斗", false);
+                view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "not applicable");
-                if (view.TierFor("亚索") != "—")
+                if (view.TierFor("亚索") != "—") // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Mayhem tier leaked to standard ARAM.");
-                view.UpdateGameMode("海克斯大乱斗", true);
+                view.UpdateGameMode("海克斯大乱斗", true); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "fixture");
-                if (view.TierFor("亚索") != "T0")
+                if (view.TierFor("亚索") != "T0") // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Compatible Mayhem rank was not projected.");
-                view.UpdateGameMode("召唤师峡谷", false);
-                if (view.TierFor("亚索") != "—" || view._liveRanking != null)
+                view.UpdateGameMode("召唤师峡谷", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
+                if (view.TierFor("亚索") != "—" || view._liveRanking != null) // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Rank data survived a mode switch.");
             }
         }
