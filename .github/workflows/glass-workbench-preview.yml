@@ -108,8 +108,8 @@ jobs:
         shell: pwsh
         run: |
           $exe = 'src/FACM/bin/Release/net48/GGman.exe'
-          & $exe --compact-preview-smoke
-          if ($LASTEXITCODE -ne 0) {
+          $completed = Start-Process -FilePath (Resolve-Path $exe).Path -ArgumentList '--compact-preview-smoke' -Wait -PassThru -NoNewWindow
+          if ($completed.ExitCode -ne 0) {
             if (Test-Path 'artifacts/Native-Compact-Checks/ERROR.txt') {
               Get-Content 'artifacts/Native-Compact-Checks/ERROR.txt'
             }
