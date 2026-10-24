@@ -104,6 +104,18 @@ jobs:
           msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
 
+      - name: Render native compact preview scenes
+        shell: pwsh
+        run: |
+          $exe = 'src/FACM/bin/Release/net48/GGman.exe'
+          & $exe --compact-preview-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Native compact preview render smoke failed' }
+          foreach ($scene in @('home', 'mayhem', 'workbench', 'records', 'tools', 'repair', 'settings')) {
+            $path = "artifacts/Native-Compact-Checks/native-$scene.png"
+            if (-not (Test-Path $path)) { throw "Missing native UI screenshot $path" }
+            if ((Get-Item $path).Length -lt 2048) { throw "Suspiciously small native UI screenshot $path" }
+          }
+
       - name: Verify candidate package contents
         shell: pwsh
         run: |
@@ -171,9 +183,9 @@ jobs:
           The visual preview runs separately from the official GGman instance.
           Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
           to start the standalone frameless Glass renderer. No tray or cloud services start.
-          Double-click Start-Compact-Preview.cmd to open the local HTML in an Edge app
-          window without depending on embedded WebView2 initialization. For secondary
-          pages, enlarge the Edge app window manually if the content area is too small.
+          Double-click Start-Compact-Preview.cmd to start the original layered orb with a native
+          fixed-size interactive mock panel. This route does not need embedded WebView2. For secondary
+          pages, use the built-in Back action. The window cannot be manually resized.
           Start-Compact-WebView2.cmd is kept for native-host diagnostics only, because
           a real Win10 operator observed its first attempt rendering a blank white window.
           The pages are mock layouts with no business actions.
@@ -198,5 +210,13 @@ jobs:
         with:
           name: GGman-Compact-Visual-Checks
           path: artifacts/Visual-Checks/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Native-Compact-Visual-Checks
+          path: artifacts/Native-Compact-Checks/
           if-no-files-found: warn
           retention-days: 7

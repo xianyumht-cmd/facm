@@ -23,6 +23,14 @@ namespace FACM
         private static void Main(string[] args)
         {
 #if GLASS_WORKBENCH_PREVIEW
+            if (HasArgument(args, "--compact-preview-smoke"))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Environment.ExitCode = NativeCompactPreviewPanelForm.RunSmokeTest(
+                    System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Native-Compact-Checks"));
+                return;
+            }
             // The visual acceptance candidate must not start game, cloud, updater or account modules.
             if (HasArgument(args, "--glass-preview"))
             {
@@ -30,14 +38,17 @@ namespace FACM
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    Application.Run(new GlassPreviewForm(HasArgument(args, "--compact")));
+                    if (HasArgument(args, "--compact"))
+                        Application.Run(new NativeCompactPreviewBallForm());
+                    else
+                        Application.Run(new GlassPreviewForm());
                 }
                 return;
             }
             if (args == null || args.Length == 0)
             {
                 MessageBox.Show(
-                    "请使用 Start-Glass-Preview.cmd 启动设计预览。", // ui-text-contract: allow
+                    "请使用 Start-Compact-Preview.cmd 启动界面预览。", // ui-text-contract: allow
                     "GGman",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);

@@ -1,9 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Start-Compact-Browser.ps1"
-if errorlevel 1 (
-  echo.
-  echo Unable to start the compact preview. See the error above.
+if not exist "%~dp0GGman.exe" (
+  echo GGman.exe not found. Extract the entire preview ZIP first.
   pause
+  exit /b 1
 )
+set "GGMAN_GLASS_PREVIEW=1"
+start "" "%~dp0GGman.exe" --glass-preview --compact
