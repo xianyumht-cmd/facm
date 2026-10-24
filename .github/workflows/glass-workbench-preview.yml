@@ -1,0 +1,271 @@
+name: GGman Glass WebView2 Candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FACM/Presentation/Glass/**'
+      - 'src/FACM/FACM.csproj'
+      - 'src/FACM/Program.cs'
+      - 'scripts/Start-Glass-Preview.cmd'
+      - 'scripts/Start-Compact-Preview.cmd'
+      - 'scripts/Start-Compact-Browser.ps1'
+      - 'scripts/Start-Compact-WebView2.cmd'
+      - '.github/workflows/glass-workbench-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Build isolated WebView2 candidate
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify approved design source
+        shell: pwsh
+        run: |
+          $html = 'src/FACM/Presentation/Glass/GGman-Glass-Prototype.html'
+          if ((Get-Item $html).Length -ne 49991) {
+            throw 'Approved Glass source byte length differs from visual baseline.'
+          }
+          $actual = (Get-FileHash $html -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '57407b7eb56181ec83f96c646ffd144db6eb9075f377288304f489218bfe9460'
+          if ($actual -ne $expected) {
+            throw 'Approved Glass source SHA256 differs from visual baseline.'
+          }
+          $compact = 'src/FACM/Presentation/Glass/GGman-Compact-Preview.html'
+          $content = Get-Content $compact -Raw -Encoding utf8
+          foreach ($required in @('LOL 工作台', '战绩', '海克斯攻略', '快捷工具', '当前模式 TOP 10', '快速选英雄', '非真实排名')) {
+            if (-not $content.Contains($required)) { throw "Compact preview missing UI label: $required" }
+          }
+          if ($content -match 'https?://') { throw 'Compact UI preview must not load remote resources.' }
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'scripts/Start-Compact-Browser.ps1').Path,
+            [ref] $tokens, [ref] $parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { throw "Browser launcher PowerShell syntax error: $parseErrors" }
+      - name: Check browser fallback renders visible offline HTML
+        shell: pwsh
+        run: |
+          $edgeCandidates = @(
+            "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+            "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+          )
+          $edge = $edgeCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge is unavailable on the Windows visual check runner.' }
+          $asset = (Resolve-Path 'src/FACM/Presentation/Glass/GGman-Compact-Preview.html').Path
+          $uri = ([System.Uri]::new($asset)).AbsoluteUri
+          New-Item -ItemType Directory -Path artifacts/Visual-Checks -Force | Out-Null
+          foreach ($scene in @('home', 'mayhem')) {
+            $screenshot = (Join-Path (Resolve-Path 'artifacts/Visual-Checks').Path "$scene.png")
+            $pageUrl = if ($scene -eq 'home') { $uri } else { "$uri`?page=mayhem" }
+            $windowSize = if ($scene -eq 'home') { '410,335' } else { '548,478' }
+            $profile = Join-Path $env:RUNNER_TEMP "ggman-compact-edge-$scene"
+            & $edge --headless=new --disable-gpu --no-first-run --no-default-browser-check --hide-scrollbars `
+              "--user-data-dir=$profile" "--screenshot=$screenshot" "--window-size=$windowSize" $pageUrl
+            $lastSize = -1
+            $stableScreenshot = $false
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+              $currentSize = if (Test-Path -LiteralPath $screenshot -PathType Leaf) {
+                (Get-Item -LiteralPath $screenshot).Length
+              } else { 0 }
+              if ($currentSize -gt 1024 -and $currentSize -eq $lastSize) {
+                $stableScreenshot = $true
+                break
+              }
+              $lastSize = $currentSize
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $stableScreenshot) {
+              throw "Browser preview did not render screenshot: $scene"
+            }
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Bitmap]::FromFile($screenshot)
+            try {
+              $sample = $image.GetPixel(20, 70)
+              if ($sample.R -ge 230 -and $sample.G -ge 230 -and $sample.B -ge 230) {
+                throw "Browser preview rendered white at a background checkpoint: $scene"
+              }
+            } finally {
+              $image.Dispose()
+            }
+          }
+      - name: Build optional Glass workbench
+        shell: pwsh
+        run: |
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
+
+      - name: Guard approved compact UI geometry
+        shell: pwsh
+        run: |
+          $actual = (git hash-object 'src/FACM/Presentation/Glass/NativeCompactPreview.cs').Trim()
+          if ($actual -ne 'da9c232c4736f94c28f92c0aa8d900db039fedbd') {
+            throw 'Approved floating-orb compact visual reference changed without review.'
+          }
+          $live = Get-Content 'src/FACM/Presentation/Glass/CompactApprovedLivePanelForm.cs' -Raw
+          foreach ($contract in @(
+            'HomeWidth = 380',
+            'HomeHeight = 285',
+            'DetailWidth = 548',
+            'DetailHeight = 478',
+            'Color.FromArgb(20, 27, 36)',
+            'Color.FromArgb(31, 42, 54)',
+            'new RectangleF(13, 147, w - 26, 163)',
+            'new RectangleF(13, 320, w - 26, 111)'
+          )) {
+            if (-not $live.Contains($contract)) { throw "Frozen compact geometry drift: $contract" }
+          }
+
+      - name: Validate compact live pilot mappings and render frozen UI
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $completed = Start-Process -FilePath $exe -ArgumentList '--compact-live-pilot-smoke' -Wait -PassThru -NoNewWindow
+          if ($completed.ExitCode -ne 0) { throw "Compact live pilot smoke failed: $($completed.ExitCode)" }
+          foreach ($page in @('home', 'mayhem', 'workbench', 'records', 'tools', 'repair', 'settings')) {
+            $image = "artifacts/Live-Compact-Checks/native-$page.png"
+            if (-not (Test-Path -LiteralPath $image)) { throw "Missing live pilot render: $image" }
+          }
+
+      - name: Render native compact preview scenes
+        shell: pwsh
+        run: |
+          $exe = 'src/FACM/bin/Release/net48/GGman.exe'
+          $completed = Start-Process -FilePath (Resolve-Path $exe).Path -ArgumentList '--compact-preview-smoke' -Wait -PassThru -NoNewWindow
+          if ($completed.ExitCode -ne 0) {
+            if (Test-Path 'artifacts/Native-Compact-Checks/ERROR.txt') {
+              Get-Content 'artifacts/Native-Compact-Checks/ERROR.txt'
+            }
+            throw 'Native compact preview render smoke failed'
+          }
+          foreach ($scene in @('home', 'mayhem', 'workbench', 'records', 'tools', 'repair', 'settings')) {
+            $path = "artifacts/Native-Compact-Checks/native-$scene.png"
+            if (-not (Test-Path $path)) { throw "Missing native UI screenshot $path" }
+            if ((Get-Item $path).Length -lt 2048) { throw "Suspiciously small native UI screenshot $path" }
+          }
+
+      - name: Verify candidate package contents
+        shell: pwsh
+        run: |
+          $output = 'src/FACM/bin/Release/net48'
+          $required = @(
+            'GGman.exe',
+            'Microsoft.Web.WebView2.Core.dll',
+            'Microsoft.Web.WebView2.WinForms.dll'
+          )
+          foreach ($name in $required) {
+            $file = Join-Path $output $name
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Candidate runtime asset missing: $file"
+            }
+          }
+          # net48 AnyCPU with Prefer32Bit=false runs as x64 on supported Win10 x64.
+          # The SDK may place an x86 loader in the root output. Select by PE machine,
+          # not file name or size; the wrong architecture fails with HRESULT 0x8007000B.
+          function Get-PeMachine([string] $path) {
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+              $reader = [System.IO.BinaryReader]::new($stream)
+              if ($stream.Length -lt 64) { throw "Invalid PE file: $path" }
+              $stream.Position = 0x3C
+              $offset = $reader.ReadInt32()
+              if ($offset -lt 0 -or ($offset + 6) -gt $stream.Length) {
+                throw "Invalid PE header offset: $path"
+              }
+              $stream.Position = $offset
+              if ($reader.ReadUInt32() -ne 0x00004550) { throw "Missing PE signature: $path" }
+              return $reader.ReadUInt16()
+            } finally {
+              $stream.Dispose()
+            }
+          }
+          $nuget = Join-Path $env:USERPROFILE '.nuget/packages/microsoft.web.webview2/1.0.4258.31'
+          if (-not (Test-Path $nuget)) { throw "WebView2 NuGet package missing: $nuget" }
+          $loaderPath = Join-Path $nuget 'runtimes/win-x64/native/WebView2Loader.dll'
+          if (-not (Test-Path -LiteralPath $loaderPath -PathType Leaf)) {
+            throw "Pinned WebView2 NuGet win-x64 loader path not found: $loaderPath"
+          }
+          if ((Get-PeMachine $loaderPath) -ne 0x8664) {
+            throw 'Pinned WebView2 runtime loader is not AMD64.'
+          }
+          $exeSize = (Get-Item (Join-Path $output 'GGman.exe')).Length
+          Write-Host "Candidate EXE bytes (not including runtime dependencies): $exeSize"
+          New-Item -ItemType Directory -Path artifacts/Glass-Preview -Force | Out-Null
+          Copy-Item -Path (Join-Path $output '*') -Destination artifacts/Glass-Preview -Recurse -Force
+          $rootLoader = 'artifacts/Glass-Preview/WebView2Loader.dll'
+          Copy-Item -LiteralPath $loaderPath -Destination $rootLoader -Force
+          if ((Get-PeMachine $rootLoader) -ne 0x8664) {
+            throw 'Packaged root WebView2Loader is not x64.'
+          }
+          Write-Host "Packaged native loader: x64; $((Get-Item $rootLoader).Length) bytes"
+          # Remove copied x86 runtime assets: the pilot is intentionally x64-only.
+          $x86Runtime = 'artifacts/Glass-Preview/runtimes/win-x86'
+          if (Test-Path $x86Runtime) { Remove-Item $x86Runtime -Force -Recurse }
+          Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
+          Copy-Item scripts/Start-Compact-Preview.cmd artifacts/Glass-Preview/Start-Compact-Preview.cmd
+          Copy-Item scripts/Start-Compact-Live-Pilot.cmd artifacts/Glass-Preview/Start-Compact-Live-Pilot.cmd
+          Copy-Item scripts/Start-Compact-Browser.ps1 artifacts/Glass-Preview/Start-Compact-Browser.ps1
+          Copy-Item scripts/Start-Compact-WebView2.cmd artifacts/Glass-Preview/Start-Compact-WebView2.cmd
+          Copy-Item src/FACM/Presentation/Glass/GGman-Compact-Preview.html artifacts/Glass-Preview/GGman-Compact-Preview.html
+          $instructions = @'
+          Experimental preview, unsigned. Not a normal GGman release.
+          The visual preview runs separately from the official GGman instance.
+          Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
+          to start the standalone frameless Glass renderer. No tray or cloud services start.
+          Double-click Start-Compact-Preview.cmd to start the original layered orb with a native
+          fixed-size interactive mock panel. This route does not need embedded WebView2. For secondary
+          pages, use the built-in Back action. The window cannot be manually resized.
+          Start-Compact-WebView2.cmd is kept for native-host diagnostics only, because
+          a real Win10 operator observed its first attempt rendering a blank white window.
+          The standalone compact preview is still offline; Start-Compact-Live-Pilot.cmd
+          is an opt-in separate test mode using the normal GGman services after
+          the official instance has been closed. Its data writes and cloud sync
+          are normal GGman operations; never treat it as an isolated mock.
+          This candidate is x64 only; its root WebView2Loader.dll is verified as PE AMD64.
+          WebView2 Evergreen Runtime must already be installed. No automatic installation.
+          The glass screen contains only demonstration data and does not operate CloudBase,
+          live League matches, accounts, files, automatic updates or real game settings.
+          For rollback, close this preview window. The official GGman need not exit.
+          '@
+          $instructions | Set-Content artifacts/Glass-Preview/README.txt -Encoding UTF8
+          (Get-FileHash (Join-Path $output 'GGman.exe') -Algorithm SHA256).Hash |
+            Set-Content artifacts/Glass-Preview/SHA256.txt -Encoding ascii
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GGman-Glass-WebView2-Unsigned
+          path: artifacts/Glass-Preview/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Compact-Visual-Checks
+          path: artifacts/Visual-Checks/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Native-Compact-Visual-Checks
+          path: artifacts/Native-Compact-Checks/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Live-Compact-Visual-Checks
+          path: artifacts/Live-Compact-Checks/
+          if-no-files-found: warn
+          retention-days: 7

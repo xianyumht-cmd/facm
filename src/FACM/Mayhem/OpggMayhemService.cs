@@ -267,6 +267,119 @@ namespace FACM.Mayhem
                 throw new InvalidOperationException("Current top-ten hero statistics were not restored.");
         }
 
+        private static MayhemRankingSnapshot _compactRanking;
+        private static DateTime _compactRankingFetchedUtc;
+        private static bool _compactDiskChecked;
+        private static readonly SemaphoreSlim CompactRankingGate = new SemaphoreSlim(1, 1);
+
+        // Small file, loaded once per process. This is a public-data cache, never an
+        // account or session cache, and never advertised as the latest CN version.
+        internal static MayhemRankingSnapshot GetCachedCompactRanking(out bool stale)
+        {
+            stale = true;
+            lock (Sync)
+            {
+                if (!_compactDiskChecked)
+                {
+                    _compactDiskChecked = true;
+                    var disk = MayhemCompactRankingCache.TryLoad();
+                    if (disk != null)
+                    {
+                        _compactRanking = disk.Ranking;
+                        _compactRankingFetchedUtc = disk.SavedUtc;
+                    }
+                }
+                if (!MayhemRankingSourceService.IsComplete(_compactRanking))
+                    return null;
+                var age = DateTime.UtcNow - _compactRankingFetchedUtc;
+                if (age < TimeSpan.FromMinutes(-5) ||
+                    age > MayhemCompactRankingCache.MaximumAge) return null;
+                stale = age < TimeSpan.Zero || age > MayhemCompactRankingCache.FreshFor;
+                return _compactRanking;
+            }
+        }
+
+        // Lightweight read-only rank path. Never blocks the UI on OP.GG build/augment pages.
+        // One cached full ranking serves every visible champion and tier label.
+        internal static async Task<MayhemRankingSnapshot> QueryCompactRankingAsync(CancellationToken token)
+        {
+            bool stale;
+            var existing = GetCachedCompactRanking(out stale);
+            if (existing != null && !stale) return existing;
+
+            await CompactRankingGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                existing = GetCachedCompactRanking(out stale);
+                if (existing != null && !stale) return existing;
+
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(3.2));
+                    var ct = timeout.Token;
+                    var hexTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(1.9), ct);
+                    var aramTask = GetSafeAsync(AramggRankingUrl, TimeSpan.FromSeconds(2.6), ct);
+                    var mayhemTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.0), ct);
+                    var candidates = new List<MayhemRankingSnapshot>();
+
+                    // Return promptly when a full, patch-labeled source is available. No per-avatar HTTP.
+                    var tasks = new List<Task<string>> { hexTask, aramTask, mayhemTask };
+                    while (tasks.Count > 0)
+                    {
+                        Task<string> done;
+                        try { done = await Task.WhenAny(tasks).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { break; }
+                        tasks.Remove(done);
+                        string html = null;
+                        try { html = await done.ConfigureAwait(false); }
+                        catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
+                        catch (Exception) { }
+                        MayhemRankingSnapshot candidate;
+                        if (ReferenceEquals(done, hexTask))
+                        {
+                            var detail = new MayhemChampionResult();
+                            ApplyHexdata(ParseHexdataRows(html), "yasuo", "yasuo", detail);
+                            candidate = new MayhemRankingSnapshot
+                            {
+                                Source = "Hexdata",
+                                Patch = MayhemRankingSourceService.ReadPatch(html),
+                                TopTen = detail.TopTen
+                            };
+                        }
+                        else if (ReferenceEquals(done, aramTask))
+                            candidate = MayhemRankingSourceService.ParseAramgg(html);
+                        else
+                            candidate = new MayhemRankingSnapshot
+                            {
+                                Source = "ARAMMayhem",
+                                Patch = MayhemRankingSourceService.ReadPatch(html),
+                                TopTen = ParseTopTen(html)
+                            };
+                        if (MayhemRankingSourceService.IsComplete(candidate))
+                        {
+                            candidates.Add(candidate);
+                            var selected = MayhemRankingSourceService.Select(candidates.ToArray());
+                            var now = DateTime.UtcNow;
+                            lock (Sync)
+                            {
+                                _compactRanking = selected;
+                                _compactRankingFetchedUtc = now;
+                                _compactDiskChecked = true;
+                            }
+                            // Best-effort atomic save; never hold back the primary UI result on disk failure.
+                            MayhemCompactRankingCache.TrySave(selected, null, now);
+                            // Release outstanding CDN requests as soon as one valid ranking is available.
+                            timeout.Cancel();
+                            return selected;
+                        }
+                        if (ct.IsCancellationRequested) break;
+                    }
+                }
+                return null;
+            }
+            finally { CompactRankingGate.Release(); }
+        }
+
         internal static async Task<IList<MayhemRankingSnapshot>> ProbeRankingSourcesAsync(CancellationToken token)
         {
             var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(3.5), token);

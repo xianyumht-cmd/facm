@@ -1,5 +1,8 @@
 # GGman Precision Workbench Design System
 
+> **2026-10-21 direction update:** The owner approved a standalone HTML-based classic iOS + Liquid Glass design as the next-generation visual reference. The former Precision Workbench geometry and anti-glass restrictions below describe the **existing production baseline**, not requirements for the new UI. New design integration must preserve the approved HTML/CSS composition and all nine League route capabilities, and pass independent native rendering/performance tests. Draft PR #355 is an experimental renderer candidate only.
+
+
 Status: **Product-wide visual modernization in progress; B1 remains partial; full native evidence pending (2026-10-17)**. This document records the proposed product-specific visual contract, not a claim that all existing views comply or have passed native acceptance.
 
 Design authority: GGman UI/UX Modernization Blueprint (17 October 2026), authored from source review and the published guidance of [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill), [Impeccable](https://github.com/pbakaus/impeccable), and [Awesome DESIGN.md](https://github.com/VoltAgent/awesome-design-md). These sources inform principles, not WinForms binaries or runtime dependencies. Root AGENTS.md and actual source/runtime behavior take precedence.
