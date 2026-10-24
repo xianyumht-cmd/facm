@@ -29,6 +29,7 @@ body{font-size:12px;line-height:1.35}button{font:inherit;color:inherit;cursor:po
 .section-heading{font-size:14px;font-weight:700;padding:2px 0 3px}.stack{display:flex;flex-direction:column;gap:8px}.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stat{min-height:70px;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:10px}.stat small{color:var(--muted)}.stat b{display:block;font-size:16px;margin-top:6px}.list-row{display:flex;align-items:center;justify-content:space-between;gap:8px;height:43px;padding:0 11px;border-bottom:1px solid var(--line)}.list-row:last-child{border:0}.muted{color:var(--muted)}.placeholder{color:#a8bfd5;font-size:11px}
 .preview-tag{margin-left:auto;background:#2d4051;color:#b6cddd;border:1px solid #43586a;border-radius:5px;padding:3px 6px;font-size:10px;white-space:nowrap}
 @media(max-width:420px){.brand{font-size:12px}.connected{padding:3px 5px}.tile{gap:6px;padding:0 7px}.footer button{padding:5px 2px}}
+.browser-preview .close{display:none}
 </style>
 </head>
 <body>
@@ -83,9 +84,11 @@ body{font-size:12px;line-height:1.35}button{font:inherit;color:inherit;cursor:po
   'use strict';
   var home=document.getElementById('home');
   var detail=document.getElementById('detail');
+  var nativeHost=!!(window.chrome&&window.chrome.webview);
+  if(!nativeHost){document.documentElement.classList.add('browser-preview');}
   var pages=[].slice.call(document.querySelectorAll('.page'));
   var pageTitles={mayhem:'海克斯攻略',workbench:'LOL 工作台',records:'战绩',tools:'快捷工具',repair:'清理修复',settings:'个性化'};
-  function post(message){try{if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(message);}catch(_){}}
+  function post(message){try{if(nativeHost)window.chrome.webview.postMessage(message);}catch(_){}}
   function openPage(id){
     if(!Object.prototype.hasOwnProperty.call(pageTitles,id))return;
     home.classList.add('hidden');detail.classList.remove('hidden');
@@ -102,6 +105,10 @@ body{font-size:12px;line-height:1.35}button{font:inherit;color:inherit;cursor:po
     var page=target.getAttribute('data-open');if(page)openPage(page);
   });
   document.addEventListener('keydown',function(event){if(event.key==='Backspace'&&detail&&!detail.classList.contains('hidden')){event.preventDefault();goHome();}});
+  if(!nativeHost){
+    var samplePage=new URLSearchParams(window.location.search).get('page');
+    if(Object.prototype.hasOwnProperty.call(pageTitles,samplePage))openPage(samplePage);
+  }
 })();
 </script>
 </body>
