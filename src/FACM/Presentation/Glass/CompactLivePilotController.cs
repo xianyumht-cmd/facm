@@ -201,6 +201,7 @@ namespace FACM.Presentation.Glass
 
         private async Task FindCurrentChampionAsync(int modeGeneration, CancellationToken token)
         {
+            var heroAtStart = _championGeneration;
             try
             {
                 using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -218,7 +219,8 @@ namespace FACM.Presentation.Glass
                         id, _league, bounded.Token).ConfigureAwait(false);
                     OnUi(delegate
                     {
-                        if (!IsCurrent(modeGeneration) || !_mayhem || string.IsNullOrWhiteSpace(name)) return;
+                        if (!IsCurrent(modeGeneration) || !_mayhem ||
+                            heroAtStart != _championGeneration || string.IsNullOrWhiteSpace(name)) return;
                         _panel.UpdateSelectedChampionName(name);
                     });
                 }
@@ -230,13 +232,15 @@ namespace FACM.Presentation.Glass
         internal static int ResolveSelectedChampionId(IDictionary<string, object> session)
         {
             if (session == null) return 0;
+            if (!session.ContainsKey("localPlayerCellId")) return 0;
             var ownCell = AsInt(Member(session, "localPlayerCellId"));
             var team = Member(session, "myTeam") as object[];
             if (team == null) return 0;
             foreach (var entry in team)
             {
                 var participant = entry as IDictionary<string, object>;
-                if (participant == null || AsInt(Member(participant, "cellId")) != ownCell) continue;
+                if (participant == null || !participant.ContainsKey("cellId") ||
+                    AsInt(Member(participant, "cellId")) != ownCell) continue;
                 var id = AsInt(Member(participant, "championId"));
                 return id > 0 ? id : 0;
             }
