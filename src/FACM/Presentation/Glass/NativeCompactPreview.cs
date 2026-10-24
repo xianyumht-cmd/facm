@@ -24,7 +24,7 @@ namespace FACM.Presentation.Glass
 
         internal NativeCompactPreviewBallForm()
         {
-            Text = "GGman · 界面预览";
+            Text = "GGman · 界面预览"; // ui-text-contract: allow - preview-only shell
             StartPosition = FormStartPosition.Manual;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -44,7 +44,7 @@ namespace FACM.Presentation.Glass
             _menu.Items.Add("退出预览", null, delegate { Close(); });
             _tray = new NotifyIcon
             {
-                Icon = _icon, Text = "GGman · 纯界面预览",
+                Icon = _icon, Text = "GGman · 纯界面预览", // ui-text-contract: allow - preview-only tray
                 ContextMenuStrip = _menu, Visible = true
             };
             _tray.DoubleClick += delegate { ShowPanel(); };
@@ -163,7 +163,7 @@ namespace FACM.Presentation.Glass
 
         internal NativeCompactPreviewPanelForm()
         {
-            Text = "GGman · 纯界面预览";
+            Text = "GGman · 纯界面预览"; // ui-text-contract: allow - preview-only shell
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
