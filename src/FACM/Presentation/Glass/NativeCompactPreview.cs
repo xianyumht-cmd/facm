@@ -536,6 +536,9 @@ namespace FACM.Presentation.Glass
             }
             catch (Exception exception)
             {
+                try { System.IO.File.WriteAllText(
+                    System.IO.Path.Combine(outputFolder, "ERROR.txt"), exception.ToString()); }
+                catch { }
                 Console.Error.WriteLine(exception);
                 return 4;
             }

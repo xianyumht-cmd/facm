@@ -109,7 +109,12 @@ jobs:
         run: |
           $exe = 'src/FACM/bin/Release/net48/GGman.exe'
           & $exe --compact-preview-smoke
-          if ($LASTEXITCODE -ne 0) { throw 'Native compact preview render smoke failed' }
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path 'artifacts/Native-Compact-Checks/ERROR.txt') {
+              Get-Content 'artifacts/Native-Compact-Checks/ERROR.txt'
+            }
+            throw 'Native compact preview render smoke failed'
+          }
           foreach ($scene in @('home', 'mayhem', 'workbench', 'records', 'tools', 'repair', 'settings')) {
             $path = "artifacts/Native-Compact-Checks/native-$scene.png"
             if (-not (Test-Path $path)) { throw "Missing native UI screenshot $path" }
