@@ -14,6 +14,7 @@ namespace FACM.Presentation.Glass
     internal sealed class GlassPreviewForm : Form
     {
         private const string EmbeddedHtml = "FACM.Presentation.Glass.GGman-Glass-Prototype.html";
+        private const string CompactEmbeddedHtml = "FACM.Presentation.Glass.GGman-Compact-Preview.html";
         private const int WmNcLButtonDown = 0x00A1;
         private const int HtCaption = 2;
 
@@ -23,21 +24,28 @@ namespace FACM.Presentation.Glass
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
         private readonly WebView2 _browser;
+        private readonly bool _compact;
+        private bool _compactDetail;
         private bool _initializing;
 
-        internal GlassPreviewForm()
+        internal GlassPreviewForm(bool compact = false)
         {
+            _compact = compact;
             Text = "GGman"; // ui-text-contract: allow
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new System.Drawing.Size(1140, 740);
-            MinimumSize = new System.Drawing.Size(800, 540);
+            ClientSize = compact ? new System.Drawing.Size(380, 285) : new System.Drawing.Size(1140, 740);
+            MinimumSize = compact ? new System.Drawing.Size(320, 240) : new System.Drawing.Size(800, 540);
             ShowInTaskbar = true;
             FormBorderStyle = FormBorderStyle.None;
             BackColor = System.Drawing.Color.FromArgb(8, 18, 36);
             _browser = new WebView2 { Dock = DockStyle.Fill };
             Controls.Add(_browser);
 
-            Shown += async delegate { await InitializeBrowserAsync(); };
+            Shown += async delegate
+            {
+                if (_compact) ResizeCompactPreview();
+                await InitializeBrowserAsync();
+            };
             FormClosed += delegate
             {
                 try
@@ -117,7 +125,7 @@ namespace FACM.Presentation.Glass
                         });
                     })();");
 
-                core.NavigateToString(ReadEmbeddedHtml());
+                core.NavigateToString(ReadEmbeddedHtml(_compact));
             }
             catch (Exception exception)
             {
@@ -155,11 +163,33 @@ namespace FACM.Presentation.Glass
             {
                 Close();
             }
+            else if (_compact && (message == "compact-detail" || message == "compact-home"))
+            {
+                _compactDetail = message == "compact-detail";
+                ResizeCompactPreview();
+            }
         }
 
-        private static string ReadEmbeddedHtml()
+        private void ResizeCompactPreview()
         {
-            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(EmbeddedHtml))
+            var preferredSize = _compactDetail
+                ? new System.Drawing.Size(548, 478)
+                : new System.Drawing.Size(380, 285);
+            var bounds = Screen.FromControl(this).WorkingArea;
+            // Keep the preview reachable on small/high-DPI work areas; detail content can scroll.
+            var size = new System.Drawing.Size(
+                Math.Min(preferredSize.Width, Math.Max(MinimumSize.Width, bounds.Width)),
+                Math.Min(preferredSize.Height, Math.Max(MinimumSize.Height, bounds.Height)));
+            var oldLocation = Location;
+            ClientSize = size;
+            Location = new System.Drawing.Point(
+                Math.Max(bounds.Left, Math.Min(oldLocation.X, bounds.Right - Width)),
+                Math.Max(bounds.Top, Math.Min(oldLocation.Y, bounds.Bottom - Height)));
+        }
+
+        private static string ReadEmbeddedHtml(bool compact)
+        {
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(compact ? CompactEmbeddedHtml : EmbeddedHtml))
             {
                 if (stream == null) throw new InvalidOperationException("Glass preview asset missing.");
                 using (var reader = new StreamReader(stream, new UTF8Encoding(false), true))

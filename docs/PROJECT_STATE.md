@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-24 — Compact launcher and secondary screens, offline visual candidate
+
+The owner requested a **nonfunctional Windows preview first**, with the existing desktop floating ball unchanged. The new opt-in `--compact` variant extends the standalone WebView2 preview on **Draft PR #355**, not production `main`. `Start-Compact-Preview.cmd` opens a 380×285 frameless launcher and expands to 548×478 for the Mayhem ranking, League workbench, match-history, quick-tools, repair and settings layout samples. The launcher has a two-by-two entry grid; the Mayhem sample has a mode header, selected champion/tier, ten explicitly fake rank rows and per-champion tier badges above four quick-choice avatars. Everything is deliberately offline mock text and illustrative placeholder portraits; no live champion, network, LCU, CloudBase, file change or ranking feature is claimed.
+
+The accepted 49,991-byte Glass source remains hash-pinned and is **not replaced**. The compact candidate uses a second embedded resource, isolated behind `GGMAN_GLASS_PREVIEW=1` and `--glass-preview --compact`, with only close, drag and resizing messages to WinForms. CI verifies the original resource and packages both entry scripts; a Windows x64 native screenshot / DPI / clipping acceptance is required before design approval. Do not merge, publish, or redirect the official updater on the basis of this preview.
+
 ## 2026-10-21 — Opt-in Glass desktop pilot (Draft PR #355)
 
 ### 2026-10-21 real-PC WebView2 initialization regression

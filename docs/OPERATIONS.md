@@ -1,5 +1,13 @@
 # GGman Operations (3.5.x)
 
+## Compact standalone visual acceptance (2026-10-24; Draft PR #355)
+
+Use the newest green `GGman-Glass-WebView2-Unsigned` artifact from [Glass candidate CI](https://github.com/xianyumht-cmd/facm/actions/workflows/glass-workbench-preview.yml); extract **all** files to a new folder on Windows 10 x64. Double-click `Start-Compact-Preview.cmd`. This is intentionally a separate test window, **not** an update to the floating ball or the released program. Closing it is a complete rollback. No game/login/cloud interface is initialized and no real ranking data are queried. Do not substitute the compact script into the official installation.
+
+Review the nominal 380×285 launcher first: header/status, mode strip, all four shortcut labels and bottom actions must be readable without overlap or unexplained horizontal scrolling. Click each shortcut and bottom item: the window expands to nominal 548×478 (clamped to the available Windows work area on small/high-DPI screens, with vertical scrolling in detail); use Back to return to the initial size. In the Mayhem page check the selected champion badge, all 10 visible placeholder rank slots in two columns, four champion tier tags **above** their portraits, and the small mock-data disclaimer. Other pages must have no clipped header, button, long Chinese label, or overlapping content. Tab navigation, keyboard focus, move/close, mixed DPI, and re-entry should not freeze the window; all demo action buttons intentionally do nothing.
+
+Capture Win10 screenshots at 100%, 125%, 150%, and 200% display scaling on the operator's actual screen, showing the main panel plus Mayhem and at least one longest secondary page. Report resolution, display scaling and any cut-off location. The frame was designed around logical CSS sizes; successful CI compilation is **not** evidence of physical WebView2 rendering or DPI correctness. If WebView2 initialization fails with 0x8007000B, follow the loader guidance below; do not reinstall or reboot before examining the new artifact and exact error. Do not merge, release or update the manifest before owner visual approval.
+
 ## Glass WebView2 isolated Windows review candidate (2026-10-21)
 
 ### WebView2 0x8007000B startup failure (2026-10-21)

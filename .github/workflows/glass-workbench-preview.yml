@@ -8,6 +8,7 @@ on:
       - 'src/FACM/FACM.csproj'
       - 'src/FACM/Program.cs'
       - 'scripts/Start-Glass-Preview.cmd'
+      - 'scripts/Start-Compact-Preview.cmd'
       - '.github/workflows/glass-workbench-preview.yml'
   workflow_dispatch:
 
@@ -37,6 +38,12 @@ jobs:
           if ($actual -ne $expected) {
             throw 'Approved Glass source SHA256 differs from visual baseline.'
           }
+          $compact = 'src/FACM/Presentation/Glass/GGman-Compact-Preview.html'
+          $content = Get-Content $compact -Raw -Encoding utf8
+          foreach ($required in @('LOL 工作台', '战绩', '海克斯攻略', '快捷工具', '当前模式 TOP 10', '快速选英雄', '非真实排名')) {
+            if (-not $content.Contains($required)) { throw "Compact preview missing UI label: $required" }
+          }
+          if ($content -match 'https?://') { throw 'Compact UI preview must not load remote resources.' }
       - name: Build optional Glass workbench
         shell: pwsh
         run: |
@@ -101,12 +108,16 @@ jobs:
           $x86Runtime = 'artifacts/Glass-Preview/runtimes/win-x86'
           if (Test-Path $x86Runtime) { Remove-Item $x86Runtime -Force -Recurse }
           Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
+          Copy-Item scripts/Start-Compact-Preview.cmd artifacts/Glass-Preview/Start-Compact-Preview.cmd
           $instructions = @'
           Experimental preview, unsigned. Not a normal GGman release.
           The visual preview runs separately from the official GGman instance.
           Extract all files to a separate folder. Double-click Start-Glass-Preview.cmd,
           to start the standalone frameless Glass renderer. No tray or cloud services start.
-          This candidate is x64 only; its root WebView2Loader.dll is verified as PE AMD64.\n          WebView2 Evergreen Runtime must already be installed. No automatic installation.
+          Double-click Start-Compact-Preview.cmd to inspect the new compact launcher and
+          small Mayhem/other route layouts. These are mock pages with no business actions.
+          This candidate is x64 only; its root WebView2Loader.dll is verified as PE AMD64.
+          WebView2 Evergreen Runtime must already be installed. No automatic installation.
           The glass screen contains only demonstration data and does not operate CloudBase,
           live League matches, accounts, files, automatic updates or real game settings.
           For rollback, close this preview window. The official GGman need not exit.

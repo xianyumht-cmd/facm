@@ -30,7 +30,7 @@ namespace FACM
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    Application.Run(new GlassPreviewForm());
+                    Application.Run(new GlassPreviewForm(HasArgument(args, "--compact")));
                 }
                 return;
             }
