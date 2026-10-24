@@ -23,6 +23,16 @@ namespace FACM
         private static void Main(string[] args)
         {
 #if GLASS_WORKBENCH_PREVIEW
+            if (HasArgument(args, "--compact-live-pilot-smoke"))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                try { CompactLivePilotController.ValidateForSmokeTest(); }
+                catch { Environment.ExitCode = 4; return; }
+                Environment.ExitCode = CompactApprovedLivePanelForm.RunSmokeTest(
+                    System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Live-Compact-Checks"));
+                return;
+            }
             if (HasArgument(args, "--compact-preview-smoke"))
             {
                 Application.EnableVisualStyles();

@@ -22,6 +22,8 @@ namespace FACM.Presentation.Glass
         private readonly Action<Form> _placePanel;
         private readonly CompactApprovedLivePanelForm _panel;
         private CancellationTokenSource _work;
+        private CancellationTokenSource _championWork;
+        private int _championGeneration;
         private bool _mayhem;
         private bool _disposed;
         private int _generation;
@@ -75,6 +77,7 @@ namespace FACM.Presentation.Glass
             var previous = _work;
             _work = null;
             ++_generation;
+            CancelChampion();
             if (previous == null) return;
             try { previous.Cancel(); }
             finally { previous.Dispose(); }
@@ -108,8 +111,11 @@ namespace FACM.Presentation.Glass
                 _mode = info.Name;
                 _mayhem = info.Mayhem;
                 _panel.UpdateGameMode(info.Name, info.Mayhem);
-                if (info.Mayhem && _panel.CurrentPage == "mayhem")
-                    LoadRanking(generation, token);
+                if (info.Mayhem)
+                {
+                    _ = FindCurrentChampionAsync(generation, token);
+                    if (_panel.CurrentPage == "mayhem") LoadRanking(generation, token);
+                }
             });
         }
 
@@ -155,15 +161,29 @@ namespace FACM.Presentation.Glass
             });
         }
 
+        private void CancelChampion()
+        {
+            var previous = _championWork;
+            _championWork = null;
+            ++_championGeneration;
+            if (previous == null) return;
+            try { previous.Cancel(); }
+            finally { previous.Dispose(); }
+        }
+
         private void QueryChampion(string champion)
         {
             if (!_mayhem || _disposed || string.IsNullOrWhiteSpace(champion)) return;
-            int generation;
-            var token = NewRequest(out generation);
-            _ = QueryChampionAsync(champion, generation, token);
+            CancelChampion();
+            _championWork = new CancellationTokenSource();
+            var generation = ++_championGeneration;
+            var modeGeneration = _generation;
+            _panel.UpdateSelectedChampionName(champion);
+            _ = QueryChampionAsync(champion, modeGeneration, generation, _championWork.Token);
         }
 
-        private async Task QueryChampionAsync(string champion, int generation, CancellationToken token)
+        private async Task QueryChampionAsync(string champion, int modeGeneration, int heroGeneration,
+            CancellationToken token)
         {
             MayhemChampionResult detail = null;
             try { detail = await OpggMayhemService.QueryAsync(champion, token).ConfigureAwait(false); }
@@ -174,9 +194,53 @@ namespace FACM.Presentation.Glass
             }
             OnUi(delegate
             {
-                if (!IsCurrent(generation) || !_mayhem) return;
+                if (!IsCurrent(modeGeneration) || !_mayhem || heroGeneration != _championGeneration) return;
                 _panel.UpdateChampion(detail != null && string.IsNullOrWhiteSpace(detail.ErrorMessage) ? detail : null);
             });
+        }
+
+        private async Task FindCurrentChampionAsync(int modeGeneration, CancellationToken token)
+        {
+            try
+            {
+                using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    bounded.CancelAfter(TimeSpan.FromSeconds(1.6));
+                    var bytes = await _league.TryGetBytesAsync("/lol-champ-select/v1/session",
+                        bounded.Token).ConfigureAwait(false);
+                    if (bytes == null || bytes.Length == 0) return;
+                    var root = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes))
+                        as IDictionary<string, object>;
+                    if (root == null) return;
+                    var id = ResolveSelectedChampionId(root);
+                    if (id <= 0) return;
+                    var name = await RiotGameDataService.ResolveChampionNameAsync(
+                        id, _league, bounded.Token).ConfigureAwait(false);
+                    OnUi(delegate
+                    {
+                        if (!IsCurrent(modeGeneration) || !_mayhem || string.IsNullOrWhiteSpace(name)) return;
+                        _panel.UpdateSelectedChampionName(name);
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { }
+        }
+
+        internal static int ResolveSelectedChampionId(IDictionary<string, object> session)
+        {
+            if (session == null) return 0;
+            var ownCell = AsInt(Member(session, "localPlayerCellId"));
+            var team = Member(session, "myTeam") as object[];
+            if (team == null) return 0;
+            foreach (var entry in team)
+            {
+                var participant = entry as IDictionary<string, object>;
+                if (participant == null || AsInt(Member(participant, "cellId")) != ownCell) continue;
+                var id = AsInt(Member(participant, "championId"));
+                return id > 0 ? id : 0;
+            }
+            return 0;
         }
 
         private void OpenExistingFunction(string key)
@@ -286,6 +350,35 @@ namespace FACM.Presentation.Glass
         {
             int parsed;
             return value != null && int.TryParse(Convert.ToString(value), out parsed) ? parsed : 0;
+        }
+
+        internal static void ValidateForSmokeTest()
+        {
+            var mayhem = new Dictionary<string, object> {
+                { "gameData", new Dictionary<string, object> {
+                    { "queue", new Dictionary<string, object> { { "id", 2400 } } }
+                } }
+            };
+            var aram = new Dictionary<string, object> {
+                { "gameConfig", new Dictionary<string, object> { { "queueId", 450 } } }
+            };
+            var unknown = new Dictionary<string, object> {
+                { "gameConfig", new Dictionary<string, object> { { "queueId", 0 } } }
+            };
+            if (!ProjectMode(mayhem).Mayhem ||
+                ProjectMode(aram).Mayhem ||
+                ProjectMode(aram).Name != "普通大乱斗" ||
+                ProjectMode(unknown).Name != "模式未识别")
+                throw new InvalidOperationException("Compact mode mapping returned incorrect game-mode rankings.");
+            var self = new Dictionary<string, object> {
+                { "localPlayerCellId", 3 },
+                { "myTeam", new object[] {
+                    new Dictionary<string, object> { { "cellId", 2 }, { "championId", 67 } },
+                    new Dictionary<string, object> { { "cellId", 3 }, { "championId", 157 } }
+                } }
+            };
+            if (ResolveSelectedChampionId(self) != 157)
+                throw new InvalidOperationException("Compact selected champion picked another player's slot.");
         }
 
         public void Dispose()

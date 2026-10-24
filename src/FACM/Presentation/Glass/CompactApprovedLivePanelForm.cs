@@ -30,7 +30,8 @@ namespace FACM.Presentation.Glass
         private float _scale = 1f;
         private Rectangle _workingArea;
         private bool _changingSize;
-        private string _currentModeLabel = "模式未识别"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+        private string _currentModeLabel = "模式未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
+        private string _selectedChampionName = "尚未识别"; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private bool _modeIsMayhem;
         private FACM.Mayhem.MayhemRankingSnapshot _liveRanking;
         private FACM.Mayhem.MayhemChampionResult _liveChampion;
@@ -47,6 +48,7 @@ namespace FACM.Presentation.Glass
             _modeIsMayhem = isMayhem;
             _liveRanking = null;
             _liveChampion = null;
+            _selectedChampionName = "尚未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
             _rankingStatus = isMayhem ? "读取中" : "当前模式暂无排行"; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Invalidate();
         }
@@ -57,6 +59,14 @@ namespace FACM.Presentation.Glass
             _liveRanking = _modeIsMayhem && FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking)
                 ? ranking : null;
             _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status; // ui-text-contract: allow - owner-approved fixed mock UI copy
+            Invalidate();
+        }
+
+        internal void UpdateSelectedChampionName(string name)
+        {
+            if (IsDisposed) return;
+            _selectedChampionName = string.IsNullOrWhiteSpace(name) ? "尚未识别" : name; // ui-text-contract: allow - frozen owner-approved compact copy
+            _liveChampion = null;
             Invalidate();
         }
 
@@ -281,9 +291,9 @@ namespace FACM.Presentation.Glass
         private void DrawMayhem(Graphics g, float w, float h)
         {
             Fill(g, new RectangleF(13, 79, w - 26, 59), _panel, 9f, _line);
-            DrawPortrait(g, new RectangleF(22, 86, 45, 45), _quickNames[_hero], _hero);
-            Write(g, _quickNames[_hero], new RectangleF(78, 89, 75, 22), 16, _text, true);
-            Tier(g, new RectangleF(147, 89, 38, 21), TierFor(_quickNames[_hero]));
+            DrawPortrait(g, new RectangleF(22, 86, 45, 45), _selectedChampionName, _hero);
+            Write(g, _selectedChampionName, new RectangleF(78, 89, 75, 22), 16, _text, true);
+            Tier(g, new RectangleF(147, 89, 38, 21), TierFor(_selectedChampionName));
             Write(g, "英雄强度 · " + (_liveChampion != null && // ui-text-contract: allow - owner-approved fixed mock UI copy
                 _liveChampion.Rank.HasValue ? "排名 #" + _liveChampion.Rank.Value : "待核验"), // ui-text-contract: allow - owner-approved fixed mock UI copy
                 new RectangleF(78, 114, 155, 15), 10.2f, _muted, false);

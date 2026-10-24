@@ -104,6 +104,17 @@ jobs:
           msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
 
+      - name: Validate compact live pilot mappings and render frozen UI
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $completed = Start-Process -FilePath $exe -ArgumentList '--compact-live-pilot-smoke' -Wait -PassThru -NoNewWindow
+          if ($completed.ExitCode -ne 0) { throw "Compact live pilot smoke failed: $($completed.ExitCode)" }
+          foreach ($page in @('home', 'mayhem', 'workbench', 'records', 'tools', 'repair', 'settings')) {
+            $image = "artifacts/Live-Compact-Checks/native-$page.png"
+            if (-not (Test-Path -LiteralPath $image)) { throw "Missing live pilot render: $image" }
+          }
+
       - name: Render native compact preview scenes
         shell: pwsh
         run: |
@@ -227,5 +238,13 @@ jobs:
         with:
           name: GGman-Native-Compact-Visual-Checks
           path: artifacts/Native-Compact-Checks/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Live-Compact-Visual-Checks
+          path: artifacts/Live-Compact-Checks/
           if-no-files-found: warn
           retention-days: 7
