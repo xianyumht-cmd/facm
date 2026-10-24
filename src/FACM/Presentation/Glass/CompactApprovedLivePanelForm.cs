@@ -477,7 +477,7 @@ namespace FACM.Presentation.Glass
                     });
                 }
                 view.UpdateQuickChampions(new[] { "亚索", "薇恩" }); // ui-text-contract: allow - deterministic non-user-facing rank fixture
-                if (view._quickNames[0] != "亚索" || view._quickNames[1] != "薇恩" ||
+                if (view._quickNames[0] != "亚索" || view._quickNames[1] != "薇恩" || // ui-text-contract: allow - deterministic non-user-facing quick bench fixture
                     view._quickNames[2] != "—" || view._quickNames[3] != "—")
                     throw new InvalidOperationException("Quick bench placeholders contain fake champions.");
                 view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
