@@ -214,8 +214,8 @@ namespace FACM.Presentation.Glass
         {
             if (_disposed || _owner.IsDisposed || !_owner.IsHandleCreated) return;
             try { _owner.BeginInvoke(new Action(delegate { if (!_disposed) action(); })); }
-            catch (InvalidOperationException) { }
             catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
 
         internal sealed class ModeInfo

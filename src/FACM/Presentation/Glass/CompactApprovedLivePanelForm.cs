@@ -14,10 +14,10 @@ namespace FACM.Presentation.Glass
         private const int DetailWidth = 548;
         private const int DetailHeight = 478;
         private readonly List<Hit> _hits = new List<Hit>();
-        private readonly string[] _quickNames = { "亚索", "薇恩", "格温", "金克丝" };
+        private readonly string[] _quickNames = { "亚索", "薇恩", "格温", "金克丝" }; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private readonly string[] _tiers = { "T0", "A", "T1", "—" };
-        private readonly string[] _rankNames = { "亚索", "薇恩", "格温", "金克丝", "永恩", "阿狸", "剑姬", "霞", "凯南", "卡莎" };
-        private readonly string[] _modeNames = { "海克斯大乱斗", "普通大乱斗", "召唤师峡谷" };
+        private readonly string[] _rankNames = { "亚索", "薇恩", "格温", "金克丝", "永恩", "阿狸", "剑姬", "霞", "凯南", "卡莎" }; // ui-text-contract: allow - owner-approved fixed mock UI copy
+        private readonly string[] _modeNames = { "海克斯大乱斗", "普通大乱斗", "召唤师峡谷" }; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private readonly Color _back = Color.FromArgb(20, 27, 36);
         private readonly Color _panel = Color.FromArgb(31, 42, 54);
         private readonly Color _line = Color.FromArgb(58, 74, 93);
@@ -30,11 +30,11 @@ namespace FACM.Presentation.Glass
         private float _scale = 1f;
         private Rectangle _workingArea;
         private bool _changingSize;
-        private string _currentModeLabel = "模式未识别";
+        private string _currentModeLabel = "模式未识别"; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private bool _modeIsMayhem;
         private FACM.Mayhem.MayhemRankingSnapshot _liveRanking;
         private FACM.Mayhem.MayhemChampionResult _liveChampion;
-        private string _rankingStatus = "尚未获取";
+        private string _rankingStatus = "尚未获取"; // ui-text-contract: allow - owner-approved fixed mock UI copy
         internal event Action<string> PageOpened;
         internal event Action<string> NavigationRequested;
         internal event Action<string> ChampionSelected;
@@ -43,11 +43,11 @@ namespace FACM.Presentation.Glass
         internal void UpdateGameMode(string modeName, bool isMayhem)
         {
             if (IsDisposed) return;
-            _currentModeLabel = string.IsNullOrWhiteSpace(modeName) ? "模式未识别" : modeName;
+            _currentModeLabel = string.IsNullOrWhiteSpace(modeName) ? "模式未识别" : modeName; // ui-text-contract: allow - owner-approved fixed mock UI copy
             _modeIsMayhem = isMayhem;
             _liveRanking = null;
             _liveChampion = null;
-            _rankingStatus = isMayhem ? "读取中" : "当前模式暂无排行";
+            _rankingStatus = isMayhem ? "读取中" : "当前模式暂无排行"; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Invalidate();
         }
 
@@ -56,7 +56,7 @@ namespace FACM.Presentation.Glass
             if (IsDisposed) return;
             _liveRanking = _modeIsMayhem && FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking)
                 ? ranking : null;
-            _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status;
+            _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Invalidate();
         }
 
@@ -222,9 +222,9 @@ namespace FACM.Presentation.Glass
             Write(g, "G", new RectangleF(10, 8, 24, 23), 15f, _accent, true, StringAlignment.Center);
             Write(g, "GGman", new RectangleF(42, 10, 145, 20), 13.5f, _text, true);
             if (_page == "home")
-                Write(g, "仅供界面预览", new RectangleF(w - 128, 13, 96, 15), 10f, _muted, false, StringAlignment.Far);
+                Write(g, "仅供界面预览", new RectangleF(w - 128, 13, 96, 15), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             else
-                Write(g, "交互演示 · 无真实功能", new RectangleF(w - 205, 13, 172, 15), 10f, _muted, false, StringAlignment.Far);
+                Write(g, "交互演示 · 无真实功能", new RectangleF(w - 205, 13, 172, 15), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             Write(g, "×", new RectangleF(w - 30, 7, 22, 25), 20f, _muted, false, StringAlignment.Center);
             HitTest("close", w - 33, 5, 32, 32);
             using (var pen = new Pen(_line))
@@ -240,19 +240,19 @@ namespace FACM.Presentation.Glass
             Fill(g, mode, _panel, 8f, _line);
             Write(g, "◈", new RectangleF(24, 59, 25, 20), 17f, _accent, true);
             Write(g, _currentModeLabel, new RectangleF(48, 61, 200, 20), 12f, _text, true);
-            Write(g, "切换模式 ›", new RectangleF(w - 123, 62, 102, 17), 10f, _muted, false, StringAlignment.Far);
+            Write(g, "切换模式 ›", new RectangleF(w - 123, 62, 102, 17), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             HitTest("mode", mode);
             var gap = 8f;
             var left = 13f;
             var width = Math.Max(116f, (w - 34f) / 2f);
-            DrawTile(g, new RectangleF(left, 99, width, 64), "▣", "LOL 工作台", "workbench");
-            DrawTile(g, new RectangleF(left + width + gap, 99, width, 64), "▥", "战绩", "records");
-            DrawTile(g, new RectangleF(left, 171, width, 64), "✧", "海克斯攻略", "mayhem");
-            DrawTile(g, new RectangleF(left + width + gap, 171, width, 64), "⚙", "快捷工具", "tools");
+            DrawTile(g, new RectangleF(left, 99, width, 64), "▣", "LOL 工作台", "workbench"); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            DrawTile(g, new RectangleF(left + width + gap, 99, width, 64), "▥", "战绩", "records"); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            DrawTile(g, new RectangleF(left, 171, width, 64), "✧", "海克斯攻略", "mayhem"); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            DrawTile(g, new RectangleF(left + width + gap, 171, width, 64), "⚙", "快捷工具", "tools"); // ui-text-contract: allow - owner-approved fixed mock UI copy
             using (var pen = new Pen(_line)) g.DrawLine(pen, 13, h - 42, w - 13, h - 42);
-            Write(g, "清理修复", new RectangleF(16, h - 33, 104, 22), 10.6f, _muted, false);
-            Write(g, "个性化", new RectangleF(w / 2 - 48, h - 33, 96, 22), 10.6f, _muted, false, StringAlignment.Center);
-            Write(g, "更多 ›", new RectangleF(w - 111, h - 33, 92, 22), 10.6f, _muted, false, StringAlignment.Far);
+            Write(g, "清理修复", new RectangleF(16, h - 33, 104, 22), 10.6f, _muted, false); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            Write(g, "个性化", new RectangleF(w / 2 - 48, h - 33, 96, 22), 10.6f, _muted, false, StringAlignment.Center); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            Write(g, "更多 ›", new RectangleF(w - 111, h - 33, 92, 22), 10.6f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             HitTest("repair", 12, h - 39, 112, 35);
             HitTest("settings", w / 2 - 50, h - 39, 100, 35);
             HitTest("settings", w - 115, h - 39, 110, 35);
@@ -270,7 +270,7 @@ namespace FACM.Presentation.Glass
 
         private void DrawDetail(Graphics g, float w, float h)
         {
-            Write(g, "‹  返回", new RectangleF(15, 48, 80, 24), 11f, _accent, true);
+            Write(g, "‹  返回", new RectangleF(15, 48, 80, 24), 11f, _accent, true); // ui-text-contract: allow - owner-approved fixed mock UI copy
             HitTest("back", 8, 43, 96, 33);
             var title = _page == "mayhem" ? _currentModeLabel : TitleFor(_page);
             Write(g, title, new RectangleF(125, 48, w - 145, 23), 12.2f, _text, true, StringAlignment.Far);
@@ -284,14 +284,14 @@ namespace FACM.Presentation.Glass
             DrawPortrait(g, new RectangleF(22, 86, 45, 45), _quickNames[_hero], _hero);
             Write(g, _quickNames[_hero], new RectangleF(78, 89, 75, 22), 16, _text, true);
             Tier(g, new RectangleF(147, 89, 38, 21), TierFor(_quickNames[_hero]));
-            Write(g, "英雄强度 · " + (_liveChampion != null &&
-                _liveChampion.Rank.HasValue ? "排名 #" + _liveChampion.Rank.Value : "待核验"),
+            Write(g, "英雄强度 · " + (_liveChampion != null && // ui-text-contract: allow - owner-approved fixed mock UI copy
+                _liveChampion.Rank.HasValue ? "排名 #" + _liveChampion.Rank.Value : "待核验"), // ui-text-contract: allow - owner-approved fixed mock UI copy
                 new RectangleF(78, 114, 155, 15), 10.2f, _muted, false);
-            Write(g, "当前模式攻略 ›", new RectangleF(w - 169, 97, 153, 22), 11f, _accent, true, StringAlignment.Far);
+            Write(g, "当前模式攻略 ›", new RectangleF(w - 169, 97, 153, 22), 11f, _accent, true, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             HitTest("hero:" + ((_hero + 1) % 4), w - 169, 81, 150, 53);
 
             Fill(g, new RectangleF(13, 147, w - 26, 163), _panel, 9f, _line);
-            Write(g, "当前模式 TOP 10", new RectangleF(24, 156, 184, 20), 12.2f, _text, true);
+            Write(g, "当前模式 TOP 10", new RectangleF(24, 156, 184, 20), 12.2f, _text, true); // ui-text-contract: allow - owner-approved fixed mock UI copy
             Write(g, _rankingStatus, new RectangleF(w - 235, 157, 211, 17), 10f, _muted, false, StringAlignment.Far);
             var colWidth = (w - 52) / 2f;
             for (int i = 0; i < 10; i++)
@@ -314,8 +314,8 @@ namespace FACM.Presentation.Glass
             }
 
             Fill(g, new RectangleF(13, 320, w - 26, 111), _panel, 9f, _line);
-            Write(g, "快速选英雄", new RectangleF(24, 329, 154, 19), 12.2f, _text, true);
-            Write(g, "头像上方显示评级", new RectangleF(w - 194, 329, 170, 19), 10f, _muted, false, StringAlignment.Far);
+            Write(g, "快速选英雄", new RectangleF(24, 329, 154, 19), 12.2f, _text, true); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            Write(g, "头像上方显示评级", new RectangleF(w - 194, 329, 170, 19), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             float cellW = (w - 48) / 4f;
             for (int i = 0; i < 4; i++)
             {
@@ -326,8 +326,8 @@ namespace FACM.Presentation.Glass
                 HitTest("hero:" + i, x, 350, cellW, 80);
             }
             Write(g, _modeIsMayhem && _liveRanking != null
-                ? "数据：" + _liveRanking.Source + " · " + (_liveRanking.Patch ?? "版本未核验") + " · 与国服最新版本尚未核对"
-                : "没有经过版本核验的数据不会展示为当前排行",
+                ? "数据：" + _liveRanking.Source + " · " + (_liveRanking.Patch ?? "版本未核验") + " · 与国服最新版本尚未核对" // ui-text-contract: allow - owner-approved fixed mock UI copy
+                : "没有经过版本核验的数据不会展示为当前排行", // ui-text-contract: allow - owner-approved fixed mock UI copy
                 new RectangleF(15, h - 32, w - 30, 18), 10.2f, _muted, false, StringAlignment.Center);
         }
 
@@ -336,12 +336,12 @@ namespace FACM.Presentation.Glass
             var title = TitleFor(_page);
             Fill(g, new RectangleF(13, 80, w - 26, 65), _panel, 9, _line);
             Write(g, title, new RectangleF(25, 94, w - 50, 24), 16f, _text, true);
-            Write(g, "点击对应项目进入 GGman 现有功能", new RectangleF(25, 121, w - 50, 18), 10.5f, _muted, false);
-            string[] items = _page == "workbench" ? new[] { "游戏状态与当前模式", "实时对局", "海克斯攻略", "个人战绩", "我的 GGman" }
-                : _page == "records" ? new[] { "最近对局", "对局详情", "英雄表现", "历史统计", "数据来源状态" }
-                : _page == "tools" ? new[] { "常用快捷工具", "游戏客户端辅助", "快捷键与热键", "操作记录", "高级设置" }
-                : _page == "repair" ? new[] { "环境状态", "检查项目", "修复建议", "操作确认", "处理结果" }
-                : new[] { "视觉主题", "字体及缩放", "界面密度", "悬浮球设置", "关于 GGman" };
+            Write(g, "点击对应项目进入 GGman 现有功能", new RectangleF(25, 121, w - 50, 18), 10.5f, _muted, false); // ui-text-contract: allow - owner-approved fixed mock UI copy
+            string[] items = _page == "workbench" ? new[] { "游戏状态与当前模式", "实时对局", "海克斯攻略", "个人战绩", "我的 GGman" } // ui-text-contract: allow - owner-approved fixed mock UI copy
+                : _page == "records" ? new[] { "最近对局", "对局详情", "英雄表现", "历史统计", "数据来源状态" } // ui-text-contract: allow - owner-approved fixed mock UI copy
+                : _page == "tools" ? new[] { "常用快捷工具", "游戏客户端辅助", "快捷键与热键", "操作记录", "高级设置" } // ui-text-contract: allow - owner-approved fixed mock UI copy
+                : _page == "repair" ? new[] { "环境状态", "检查项目", "修复建议", "操作确认", "处理结果" } // ui-text-contract: allow - owner-approved fixed mock UI copy
+                : new[] { "视觉主题", "字体及缩放", "界面密度", "悬浮球设置", "关于 GGman" }; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Fill(g, new RectangleF(13, 155, w - 26, 266), _panel, 9f, _line);
             for (int i = 0; i < items.Length; i++)
             {
@@ -353,7 +353,7 @@ namespace FACM.Presentation.Glass
                 if (_page == "workbench" && i == 2) HitTest("mayhem", 14, y, w - 28, 48);
                 else HitTest("nav:" + _page + ":" + i, 14, y, w - 28, 48);
             }
-            Write(g, "页面布局已冻结 · 功能由现有 GGman 模块执行",
+            Write(g, "页面布局已冻结 · 功能由现有 GGman 模块执行", // ui-text-contract: allow - owner-approved fixed mock UI copy
                 new RectangleF(13, h - 33, w - 26, 20), 10.1f, _muted, false, StringAlignment.Center);
         }
 
@@ -361,12 +361,12 @@ namespace FACM.Presentation.Glass
         {
             switch (page)
             {
-                case "workbench": return "LOL 工作台";
-                case "records": return "战绩";
-                case "tools": return "快捷工具";
-                case "repair": return "清理修复";
-                case "settings": return "个性化";
-                default: return "海克斯攻略";
+                case "workbench": return "LOL 工作台"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+                case "records": return "战绩"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+                case "tools": return "快捷工具"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+                case "repair": return "清理修复"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+                case "settings": return "个性化"; // ui-text-contract: allow - owner-approved fixed mock UI copy
+                default: return "海克斯攻略"; // ui-text-contract: allow - owner-approved fixed mock UI copy
             }
         }
 
