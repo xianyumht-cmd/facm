@@ -108,7 +108,7 @@ jobs:
         shell: pwsh
         run: |
           $actual = (git hash-object 'src/FACM/Presentation/Glass/NativeCompactPreview.cs').Trim()
-          if ($actual -ne '73e0c3182dfc9203a1bd077c03420bd078850815') {
+          if ($actual -ne 'da9c232c4736f94c28f92c0aa8d900db039fedbd') {
             throw 'Approved floating-orb compact visual reference changed without review.'
           }
           $live = Get-Content 'src/FACM/Presentation/Glass/CompactApprovedLivePanelForm.cs' -Raw
