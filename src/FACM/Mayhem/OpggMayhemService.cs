@@ -267,6 +267,93 @@ namespace FACM.Mayhem
                 throw new InvalidOperationException("Current top-ten hero statistics were not restored.");
         }
 
+        private static MayhemRankingSnapshot _compactRanking;
+        private static DateTime _compactRankingFetchedUtc;
+        private static readonly SemaphoreSlim CompactRankingGate = new SemaphoreSlim(1, 1);
+
+        // Lightweight read-only rank path. Never blocks the UI on OP.GG build/augment pages.
+        // One cached full ranking serves every visible champion and tier label.
+        internal static async Task<MayhemRankingSnapshot> QueryCompactRankingAsync(CancellationToken token)
+        {
+            lock (Sync)
+            {
+                if (MayhemRankingSourceService.IsComplete(_compactRanking) &&
+                    DateTime.UtcNow - _compactRankingFetchedUtc < TimeSpan.FromMinutes(10))
+                    return _compactRanking;
+            }
+
+            await CompactRankingGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                lock (Sync)
+                {
+                    if (MayhemRankingSourceService.IsComplete(_compactRanking) &&
+                        DateTime.UtcNow - _compactRankingFetchedUtc < TimeSpan.FromMinutes(10))
+                        return _compactRanking;
+                }
+
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(3.2));
+                    var ct = timeout.Token;
+                    var hexTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(1.9), ct);
+                    var aramTask = GetSafeAsync(AramggRankingUrl, TimeSpan.FromSeconds(2.6), ct);
+                    var mayhemTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.0), ct);
+                    var candidates = new List<MayhemRankingSnapshot>();
+
+                    // Return promptly when a full, patch-labeled source is available. No per-avatar HTTP.
+                    var tasks = new List<Task<string>> { hexTask, aramTask, mayhemTask };
+                    while (tasks.Count > 0)
+                    {
+                        Task<string> done;
+                        try { done = await Task.WhenAny(tasks).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { break; }
+                        tasks.Remove(done);
+                        string html = null;
+                        try { html = await done.ConfigureAwait(false); }
+                        catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
+                        catch (Exception) { }
+                        MayhemRankingSnapshot candidate;
+                        if (ReferenceEquals(done, hexTask))
+                        {
+                            var detail = new MayhemChampionResult();
+                            ApplyHexdata(ParseHexdataRows(html), "yasuo", "yasuo", detail);
+                            candidate = new MayhemRankingSnapshot
+                            {
+                                Source = "Hexdata",
+                                Patch = MayhemRankingSourceService.ReadPatch(html),
+                                TopTen = detail.TopTen
+                            };
+                        }
+                        else if (ReferenceEquals(done, aramTask))
+                            candidate = MayhemRankingSourceService.ParseAramgg(html);
+                        else
+                            candidate = new MayhemRankingSnapshot
+                            {
+                                Source = "ARAMMayhem",
+                                Patch = MayhemRankingSourceService.ReadPatch(html),
+                                TopTen = ParseTopTen(html)
+                            };
+                        if (MayhemRankingSourceService.IsComplete(candidate))
+                        {
+                            candidates.Add(candidate);
+                            var selected = MayhemRankingSourceService.Select(candidates.ToArray());
+                            lock (Sync)
+                            {
+                                _compactRanking = selected;
+                                _compactRankingFetchedUtc = DateTime.UtcNow;
+                            }
+                            // Do not wait for blocked international CDN when a usable source already exists.
+                            return selected;
+                        }
+                        if (ct.IsCancellationRequested) break;
+                    }
+                }
+                return null;
+            }
+            finally { CompactRankingGate.Release(); }
+        }
+
         internal static async Task<IList<MayhemRankingSnapshot>> ProbeRankingSourcesAsync(CancellationToken token)
         {
             var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(3.5), token);

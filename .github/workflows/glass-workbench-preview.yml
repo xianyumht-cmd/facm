@@ -180,6 +180,7 @@ jobs:
           if (Test-Path $x86Runtime) { Remove-Item $x86Runtime -Force -Recurse }
           Copy-Item scripts/Start-Glass-Preview.cmd artifacts/Glass-Preview/Start-Glass-Preview.cmd
           Copy-Item scripts/Start-Compact-Preview.cmd artifacts/Glass-Preview/Start-Compact-Preview.cmd
+          Copy-Item scripts/Start-Compact-Live-Pilot.cmd artifacts/Glass-Preview/Start-Compact-Live-Pilot.cmd
           Copy-Item scripts/Start-Compact-Browser.ps1 artifacts/Glass-Preview/Start-Compact-Browser.ps1
           Copy-Item scripts/Start-Compact-WebView2.cmd artifacts/Glass-Preview/Start-Compact-WebView2.cmd
           Copy-Item src/FACM/Presentation/Glass/GGman-Compact-Preview.html artifacts/Glass-Preview/GGman-Compact-Preview.html
@@ -193,7 +194,10 @@ jobs:
           pages, use the built-in Back action. The window cannot be manually resized.
           Start-Compact-WebView2.cmd is kept for native-host diagnostics only, because
           a real Win10 operator observed its first attempt rendering a blank white window.
-          The pages are mock layouts with no business actions.
+          The standalone compact preview is still offline; Start-Compact-Live-Pilot.cmd
+          is an opt-in separate test mode using the normal GGman services after
+          the official instance has been closed. Its data writes and cloud sync
+          are normal GGman operations; never treat it as an isolated mock.
           This candidate is x64 only; its root WebView2Loader.dll is verified as PE AMD64.
           WebView2 Evergreen Runtime must already be installed. No automatic installation.
           The glass screen contains only demonstration data and does not operate CloudBase,

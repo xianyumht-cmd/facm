@@ -190,6 +190,14 @@ namespace FACM
                     }
 
                     var mainForm = shell.MainForm;
+#if GLASS_WORKBENCH_PREVIEW
+                    if (HasArgument(args, "--compact-live-pilot") &&
+                        string.Equals(Environment.GetEnvironmentVariable("GGMAN_COMPACT_LIVE_PILOT"),
+                            "1", StringComparison.Ordinal) && mainForm != null)
+                    {
+                        mainForm.EnableCompactLivePilot(leagueClient);
+                    }
+#endif
                     if (mainForm == null)
                     {
                         AppLog.Error("FACM shell module initialized without a MainForm", null);
