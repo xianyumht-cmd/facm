@@ -27,6 +27,7 @@ namespace FACM.Presentation.Glass
         private bool _mayhem;
         private bool _disposed;
         private int _generation;
+        private int _rankRequestGeneration = -1;
         private string _mode = "模式未识别";
 
         internal CompactLivePilotController(MainForm owner, ILeagueClientApi league, Action<Form> placePanel)
@@ -69,6 +70,7 @@ namespace FACM.Presentation.Glass
             StopPending();
             _work = new CancellationTokenSource();
             id = ++_generation;
+            _rankRequestGeneration = -1;
             return _work.Token;
         }
 
@@ -114,7 +116,8 @@ namespace FACM.Presentation.Glass
                 if (info.Mayhem)
                 {
                     _ = FindCurrentChampionAsync(generation, token);
-                    if (_panel.CurrentPage == "mayhem") LoadRanking(generation, token);
+                    // Prefetch rankings immediately after mode recognition, before a user opens the tab.
+                    LoadRanking(generation, token);
                 }
             });
         }
@@ -127,18 +130,18 @@ namespace FACM.Presentation.Glass
                 // An explicit hero page request refreshes the already-known queue only when unknown.
                 if (!_mayhem && (_mode == "模式未识别" || _mode == "识别模式中"))
                     RefreshMode();
-                else if (_mayhem)
+                else if (_mayhem && _rankRequestGeneration != _generation)
                 {
-                    int generation;
-                    var token = NewRequest(out generation);
-                    LoadRanking(generation, token);
+                    var token = _work == null ? CancellationToken.None : _work.Token;
+                    LoadRanking(_generation, token);
                 }
             }
         }
 
         private void LoadRanking(int generation, CancellationToken token)
         {
-            if (!_mayhem) return;
+            if (!_mayhem || _rankRequestGeneration == generation) return;
+            _rankRequestGeneration = generation;
             bool stale;
             var cached = OpggMayhemService.GetCachedCompactRanking(out stale);
             _panel.UpdateRanking(cached, cached == null ? "国内优先 · 正在获取" :

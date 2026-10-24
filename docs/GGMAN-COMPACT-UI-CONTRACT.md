@@ -31,3 +31,11 @@
 ## Not yet completed
 
 Full real data sources for non-Mayhem mode tiers, continuously updated in-match TOP10 display, actual bench champion avatars/swap actions, complete compact in-panel feature implementations, performance measurements on non-VPN residential networks, and authoritative verification of 26.xx patch freshness. These are separate stages and must not be represented as shipped in the initial live candidate.
+
+## 2026-10-24 next-phase performance and bench integration (draft)
+
+- Add persistent compact Mayhem TOP10 public-data cache at the current user's local app-data path, separate from user/account settings. Cache schema and source/mode/patch/ten-unique-ranked-rows are validated on read, with atomic replacement on write. First 20 minutes are fresh local data, 20 minutes to 24 hours are explicitly labelled *historical cache / not verified*, beyond 24 hours is rejected. The banner never asserts the CN latest patch.
+- Start one lightweight mode-specific ranking prefetch immediately after Mayhem mode identification; the Mayhem page consumes the in-flight result rather than starting four per-avatar requests or unnecessarily cancelling it.
+- Replace four hard-coded preview hero names in the live panel with actual LCU `benchChampions` IDs, resolved through one local LCU champion summary request. Unknown / absent bench heroes become an em dash; no false T0 badges. The offline preview fixture remains untouched.
+- CI smoke covers serialized cache round-trip / corruption / expiry, duplicate bench IDs, valid local champion mapping and ranking-mode isolation. None of these checks is a measurement of unproxied mainland network latency.
+- Still pending: genuine Win10 / LOL lobby test, source patch vs national patch confirmation, full-rank all-champion tier coverage, live match overlay, deep-page conversion to compact native surface, test with VPN disabled.
