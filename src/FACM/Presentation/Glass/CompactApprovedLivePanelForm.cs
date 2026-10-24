@@ -49,6 +49,7 @@ namespace FACM.Presentation.Glass
             _liveRanking = null;
             _liveChampion = null;
             _selectedChampionName = "尚未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
+            UpdateQuickChampions(null);
             _rankingStatus = isMayhem ? "读取中" : "当前模式暂无排行"; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Invalidate();
         }
@@ -59,6 +60,15 @@ namespace FACM.Presentation.Glass
             _liveRanking = _modeIsMayhem && FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking)
                 ? ranking : null;
             _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status; // ui-text-contract: allow - owner-approved fixed mock UI copy
+            Invalidate();
+        }
+
+        internal void UpdateQuickChampions(IReadOnlyList<string> names)
+        {
+            if (IsDisposed) return;
+            for (int i = 0; i < _quickNames.Length; i++)
+                _quickNames[i] = names != null && i < names.Count &&
+                    !string.IsNullOrWhiteSpace(names[i]) ? names[i] : "—";
             Invalidate();
         }
 
@@ -148,7 +158,8 @@ namespace FACM.Presentation.Glass
                 if (int.TryParse(page.Substring(5), out index) && index >= 0 && index < _quickNames.Length)
                     _hero = index;
                 Invalidate();
-                if (ChampionSelected != null) ChampionSelected(_quickNames[_hero]);
+                if (ChampionSelected != null && _quickNames[_hero] != "—")
+                    ChampionSelected(_quickNames[_hero]);
                 return;
             }
             if (page != "mayhem" && page != "workbench" && page != "records" &&
@@ -465,6 +476,10 @@ namespace FACM.Presentation.Glass
                         WinRate = 50.1, Tier = i == 0 ? "T0" : "A"
                     });
                 }
+                view.UpdateQuickChampions(new[] { "亚索", "薇恩" }); // ui-text-contract: allow - deterministic non-user-facing rank fixture
+                if (view._quickNames[0] != "亚索" || view._quickNames[1] != "薇恩" ||
+                    view._quickNames[2] != "—" || view._quickNames[3] != "—")
+                    throw new InvalidOperationException("Quick bench placeholders contain fake champions.");
                 view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "not applicable");
                 if (view.TierFor("亚索") != "—") // ui-text-contract: allow - deterministic non-user-facing rank fixture

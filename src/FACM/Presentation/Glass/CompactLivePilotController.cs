@@ -139,11 +139,15 @@ namespace FACM.Presentation.Glass
         private void LoadRanking(int generation, CancellationToken token)
         {
             if (!_mayhem) return;
-            _panel.UpdateRanking(null, "国内优先 · 正在获取");
-            _ = LoadRankingAsync(generation, token);
+            bool stale;
+            var cached = OpggMayhemService.GetCachedCompactRanking(out stale);
+            _panel.UpdateRanking(cached, cached == null ? "国内优先 · 正在获取" :
+                (stale ? "历史缓存 · 未核验" : "本地缓存 · 未核验"));
+            _ = LoadRankingAsync(generation, token, cached, stale);
         }
 
-        private async Task LoadRankingAsync(int generation, CancellationToken token)
+        private async Task LoadRankingAsync(int generation, CancellationToken token,
+            MayhemRankingSnapshot cached, bool wasStale)
         {
             MayhemRankingSnapshot ranking = null;
             try { ranking = await OpggMayhemService.QueryCompactRankingAsync(token).ConfigureAwait(false); }
@@ -155,9 +159,12 @@ namespace FACM.Presentation.Glass
             OnUi(delegate
             {
                 if (!IsCurrent(generation) || !_mayhem) return;
-                var status = ranking == null ? "暂无完整可验证榜单" :
-                    (ranking.Source + " · " + ranking.Patch);
-                _panel.UpdateRanking(ranking, status);
+                if (ranking != null)
+                    _panel.UpdateRanking(ranking, ranking.Source + " · " + ranking.Patch + " · 未核验");
+                else if (cached != null)
+                    _panel.UpdateRanking(cached, wasStale ? "历史缓存 · 网络不可用" : "本地缓存 · 网络不可用");
+                else
+                    _panel.UpdateRanking(null, "暂无完整可验证榜单");
             });
         }
 
@@ -206,27 +213,87 @@ namespace FACM.Presentation.Glass
             {
                 using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    bounded.CancelAfter(TimeSpan.FromSeconds(1.6));
+                    bounded.CancelAfter(TimeSpan.FromSeconds(2.8));
                     var bytes = await _league.TryGetBytesAsync("/lol-champ-select/v1/session",
                         bounded.Token).ConfigureAwait(false);
                     if (bytes == null || bytes.Length == 0) return;
                     var root = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes))
                         as IDictionary<string, object>;
                     if (root == null) return;
-                    var id = ResolveSelectedChampionId(root);
-                    if (id <= 0) return;
-                    var name = await RiotGameDataService.ResolveChampionNameAsync(
-                        id, _league, bounded.Token).ConfigureAwait(false);
+                    var selectedId = ResolveSelectedChampionId(root);
+                    var benchIds = ResolveBenchChampionIds(root);
+                    if (selectedId <= 0 && benchIds.Count == 0) return;
+
+                    // One local LCU metadata read resolves all visible bench names without
+                    // N overseas champion-icon or champion-name requests.
+                    var summary = await _league.TryGetBytesAsync(
+                        "/lol-game-data/assets/v1/champion-summary.json",
+                        bounded.Token).ConfigureAwait(false);
+                    var namesById = ParseChampionSummary(summary);
+                    var quickNames = new List<string>();
+                    foreach (var id in benchIds)
+                    {
+                        string name;
+                        quickNames.Add(namesById.TryGetValue(id, out name) ? name : null);
+                    }
+                    string selectedName;
+                    namesById.TryGetValue(selectedId, out selectedName);
                     OnUi(delegate
                     {
                         if (!IsCurrent(modeGeneration) || !_mayhem ||
-                            heroAtStart != _championGeneration || string.IsNullOrWhiteSpace(name)) return;
-                        _panel.UpdateSelectedChampionName(name);
+                            heroAtStart != _championGeneration) return;
+                        _panel.UpdateQuickChampions(quickNames);
+                        if (!string.IsNullOrWhiteSpace(selectedName))
+                            _panel.UpdateSelectedChampionName(selectedName);
                     });
                 }
             }
             catch (OperationCanceledException) { }
-            catch (Exception) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Compact local hero labels unavailable: " + exception.GetType().Name);
+            }
+        }
+
+        internal static List<int> ResolveBenchChampionIds(IDictionary<string, object> session)
+        {
+            var result = new List<int>();
+            if (session == null) return result;
+            var items = Member(session, "benchChampions") as object[];
+            if (items == null) return result;
+            foreach (var item in items)
+            {
+                var row = item as IDictionary<string, object>;
+                var id = AsInt(Member(row, "championId"));
+                if (id <= 0 || result.Contains(id)) continue;
+                result.Add(id);
+                if (result.Count == 4) break;
+            }
+            return result;
+        }
+
+        internal static Dictionary<int, string> ParseChampionSummary(byte[] bytes)
+        {
+            var result = new Dictionary<int, string>();
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 3 * 1024 * 1024)
+                return result;
+            try
+            {
+                var data = new JavaScriptSerializer { MaxJsonLength = 3 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (data == null) return result;
+                foreach (var item in data)
+                {
+                    var row = item as IDictionary<string, object>;
+                    if (row == null) continue;
+                    var id = AsInt(Member(row, "id"));
+                    var name = Convert.ToString(Member(row, "name"));
+                    if (id > 0 && !string.IsNullOrWhiteSpace(name))
+                        result[id] = name.Trim();
+                }
+            }
+            catch (Exception) { return new Dictionary<int, string>(); }
+            return result;
         }
 
         internal static int ResolveSelectedChampionId(IDictionary<string, object> session)
@@ -358,6 +425,7 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            MayhemCompactRankingCache.ValidateForSmokeTest();
             var mayhem = new Dictionary<string, object> {
                 { "gameData", new Dictionary<string, object> {
                     { "queue", new Dictionary<string, object> { { "id", 2400 } } }
@@ -383,6 +451,22 @@ namespace FACM.Presentation.Glass
             };
             if (ResolveSelectedChampionId(self) != 157)
                 throw new InvalidOperationException("Compact selected champion picked another player's slot.");
+            var bench = new Dictionary<string, object> {
+                { "benchChampions", new object[] {
+                    new Dictionary<string, object> { { "championId", 157 } },
+                    new Dictionary<string, object> { { "championId", 67 } },
+                    new Dictionary<string, object> { { "championId", 157 } },
+                    new Dictionary<string, object> { { "championId", 0 } }
+                } }
+            };
+            var benchIds = ResolveBenchChampionIds(bench);
+            if (benchIds.Count != 2 || benchIds[0] != 157 || benchIds[1] != 67)
+                throw new InvalidOperationException("Quick hero bench includes duplicates or invalid slots.");
+            var summary = Encoding.UTF8.GetBytes(
+                "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":67,\"name\":\"Vayne\"}]");
+            var names = ParseChampionSummary(summary);
+            if (names.Count != 2 || names[157] != "Yasuo" || names[67] != "Vayne")
+                throw new InvalidOperationException("One-shot local hero summary lookup failed.");
         }
 
         public void Dispose()

@@ -269,28 +269,49 @@ namespace FACM.Mayhem
 
         private static MayhemRankingSnapshot _compactRanking;
         private static DateTime _compactRankingFetchedUtc;
+        private static bool _compactDiskChecked;
         private static readonly SemaphoreSlim CompactRankingGate = new SemaphoreSlim(1, 1);
+
+        // Small file, loaded once per process. This is a public-data cache, never an
+        // account or session cache, and never advertised as the latest CN version.
+        internal static MayhemRankingSnapshot GetCachedCompactRanking(out bool stale)
+        {
+            stale = true;
+            lock (Sync)
+            {
+                if (!_compactDiskChecked)
+                {
+                    _compactDiskChecked = true;
+                    var disk = MayhemCompactRankingCache.TryLoad();
+                    if (disk != null)
+                    {
+                        _compactRanking = disk.Ranking;
+                        _compactRankingFetchedUtc = disk.SavedUtc;
+                    }
+                }
+                if (!MayhemRankingSourceService.IsComplete(_compactRanking))
+                    return null;
+                var age = DateTime.UtcNow - _compactRankingFetchedUtc;
+                if (age < TimeSpan.FromMinutes(-5) ||
+                    age > MayhemCompactRankingCache.MaximumAge) return null;
+                stale = age < TimeSpan.Zero || age > MayhemCompactRankingCache.FreshFor;
+                return _compactRanking;
+            }
+        }
 
         // Lightweight read-only rank path. Never blocks the UI on OP.GG build/augment pages.
         // One cached full ranking serves every visible champion and tier label.
         internal static async Task<MayhemRankingSnapshot> QueryCompactRankingAsync(CancellationToken token)
         {
-            lock (Sync)
-            {
-                if (MayhemRankingSourceService.IsComplete(_compactRanking) &&
-                    DateTime.UtcNow - _compactRankingFetchedUtc < TimeSpan.FromMinutes(10))
-                    return _compactRanking;
-            }
+            bool stale;
+            var existing = GetCachedCompactRanking(out stale);
+            if (existing != null && !stale) return existing;
 
             await CompactRankingGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                lock (Sync)
-                {
-                    if (MayhemRankingSourceService.IsComplete(_compactRanking) &&
-                        DateTime.UtcNow - _compactRankingFetchedUtc < TimeSpan.FromMinutes(10))
-                        return _compactRanking;
-                }
+                existing = GetCachedCompactRanking(out stale);
+                if (existing != null && !stale) return existing;
 
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
@@ -338,12 +359,17 @@ namespace FACM.Mayhem
                         {
                             candidates.Add(candidate);
                             var selected = MayhemRankingSourceService.Select(candidates.ToArray());
+                            var now = DateTime.UtcNow;
                             lock (Sync)
                             {
                                 _compactRanking = selected;
-                                _compactRankingFetchedUtc = DateTime.UtcNow;
+                                _compactRankingFetchedUtc = now;
+                                _compactDiskChecked = true;
                             }
-                            // Do not wait for blocked international CDN when a usable source already exists.
+                            // Best-effort atomic save; never hold back the primary UI result on disk failure.
+                            MayhemCompactRankingCache.TrySave(selected, null, now);
+                            // Release outstanding CDN requests as soon as one valid ranking is available.
+                            timeout.Cancel();
                             return selected;
                         }
                         if (ct.IsCancellationRequested) break;
