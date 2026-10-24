@@ -104,6 +104,27 @@ jobs:
           msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
 
+      - name: Guard approved compact UI geometry
+        shell: pwsh
+        run: |
+          $actual = (git hash-object 'src/FACM/Presentation/Glass/NativeCompactPreview.cs').Trim()
+          if ($actual -ne '73e0c3182dfc9203a1bd077c03420bd078850815') {
+            throw 'Approved floating-orb compact visual reference changed without review.'
+          }
+          $live = Get-Content 'src/FACM/Presentation/Glass/CompactApprovedLivePanelForm.cs' -Raw
+          foreach ($contract in @(
+            'HomeWidth = 380',
+            'HomeHeight = 285',
+            'DetailWidth = 548',
+            'DetailHeight = 478',
+            'Color.FromArgb(20, 27, 36)',
+            'Color.FromArgb(31, 42, 54)',
+            'new RectangleF(13, 147, w - 26, 163)',
+            'new RectangleF(13, 320, w - 26, 111)'
+          )) {
+            if (-not $live.Contains($contract)) { throw "Frozen compact geometry drift: $contract" }
+          }
+
       - name: Validate compact live pilot mappings and render frozen UI
         shell: pwsh
         run: |

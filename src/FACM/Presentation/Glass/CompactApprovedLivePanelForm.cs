@@ -232,7 +232,7 @@ namespace FACM.Presentation.Glass
             Write(g, "G", new RectangleF(10, 8, 24, 23), 15f, _accent, true, StringAlignment.Center);
             Write(g, "GGman", new RectangleF(42, 10, 145, 20), 13.5f, _text, true);
             if (_page == "home")
-                Write(g, "仅供界面预览", new RectangleF(w - 128, 13, 96, 15), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
+                Write(g, "功能测试版", new RectangleF(w - 128, 13, 96, 15), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - verified pilot status // ui-text-contract: allow - owner-approved fixed mock UI copy
             else
                 Write(g, "交互演示 · 无真实功能", new RectangleF(w - 205, 13, 172, 15), 10f, _muted, false, StringAlignment.Far); // ui-text-contract: allow - owner-approved fixed mock UI copy
             Write(g, "×", new RectangleF(w - 30, 7, 22, 25), 20f, _muted, false, StringAlignment.Center);
@@ -448,6 +448,36 @@ namespace FACM.Presentation.Glass
             HitTest(action, new RectangleF(x, y, w, h));
         }
         private struct Hit { internal string Action; internal RectangleF Bounds; }
+
+        internal static void ValidateModeRankingIsolationForSmokeTest()
+        {
+            using (var view = new CompactApprovedLivePanelForm())
+            {
+                var sample = new FACM.Mayhem.MayhemRankingSnapshot {
+                    Source = "fixture", Patch = "26.21",
+                    TopTen = new List<FACM.Mayhem.MayhemTopChampion>()
+                };
+                for (int i = 0; i < 10; i++)
+                {
+                    sample.TopTen.Add(new FACM.Mayhem.MayhemTopChampion {
+                        Rank = i + 1, Name = i == 0 ? "亚索" : "Hero" + i,
+                        Slug = i == 0 ? "yasuo" : "hero" + i,
+                        WinRate = 50.1, Tier = i == 0 ? "T0" : "A"
+                    });
+                }
+                view.UpdateGameMode("普通大乱斗", false);
+                view.UpdateRanking(sample, "not applicable");
+                if (view.TierFor("亚索") != "—")
+                    throw new InvalidOperationException("Mayhem tier leaked to standard ARAM.");
+                view.UpdateGameMode("海克斯大乱斗", true);
+                view.UpdateRanking(sample, "fixture");
+                if (view.TierFor("亚索") != "T0")
+                    throw new InvalidOperationException("Compatible Mayhem rank was not projected.");
+                view.UpdateGameMode("召唤师峡谷", false);
+                if (view.TierFor("亚索") != "—" || view._liveRanking != null)
+                    throw new InvalidOperationException("Rank data survived a mode switch.");
+            }
+        }
 
         // Offscreen GDI screenshots prove the preview can paint, unlike a successful C# build alone.
         // They are not a substitute for operator DPI/focus acceptance.

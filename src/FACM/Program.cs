@@ -27,7 +27,11 @@ namespace FACM
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                try { CompactLivePilotController.ValidateForSmokeTest(); }
+                try
+                {
+                    CompactLivePilotController.ValidateForSmokeTest();
+                    CompactApprovedLivePanelForm.ValidateModeRankingIsolationForSmokeTest();
+                }
                 catch { Environment.ExitCode = 4; return; }
                 Environment.ExitCode = CompactApprovedLivePanelForm.RunSmokeTest(
                     System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Live-Compact-Checks"));
