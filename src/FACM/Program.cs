@@ -9,6 +9,9 @@ using FACM.Online;
 using FACM.Performance;
 using FACM.Pets;
 using FACM.Services;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM
 {
@@ -19,6 +22,62 @@ namespace FACM
         [STAThread]
         private static void Main(string[] args)
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (HasArgument(args, "--compact-public-source-probe"))
+            {
+                Environment.ExitCode = CompactLiveSourceProbe.Run(
+                    System.IO.Path.Combine(Environment.CurrentDirectory,
+                        "artifacts", "Compact-Public-Source-Probe"));
+                return;
+            }
+            if (HasArgument(args, "--compact-live-pilot-smoke"))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                try
+                {
+                    CompactLivePilotController.ValidateForSmokeTest();
+                    CompactApprovedLivePanelForm.ValidateModeRankingIsolationForSmokeTest();
+                    DiagnosticsExportService.ValidateForSmokeTest();
+                }
+                catch { Environment.ExitCode = 4; return; }
+                Environment.ExitCode = CompactApprovedLivePanelForm.RunSmokeTest(
+                    System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Live-Compact-Checks"));
+                return;
+            }
+            if (HasArgument(args, "--compact-preview-smoke"))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Environment.ExitCode = NativeCompactPreviewPanelForm.RunSmokeTest(
+                    System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Native-Compact-Checks"));
+                return;
+            }
+            // The visual acceptance candidate must not start game, cloud, updater or account modules.
+            if (HasArgument(args, "--glass-preview"))
+            {
+                if (string.Equals(Environment.GetEnvironmentVariable("GGMAN_GLASS_PREVIEW"), "1", StringComparison.Ordinal))
+                {
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    if (HasArgument(args, "--compact"))
+                        Application.Run(new NativeCompactPreviewBallForm());
+                    else
+                        Application.Run(new GlassPreviewForm());
+                }
+                return;
+            }
+            if (args == null || args.Length == 0)
+            {
+                MessageBox.Show(
+                    "请使用 Start-Compact-Preview.cmd 启动界面预览。", // ui-text-contract: allow
+                    "GGman",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+#endif
+
             var startCleanup = HasArgument(args, "--cleanup");
             var petCatalogTest = HasArgument(args, "--pet-catalog-test");
             var animalPetTest = HasArgument(args, "--animal-pet-test");
@@ -153,6 +212,14 @@ namespace FACM
                     }
 
                     var mainForm = shell.MainForm;
+#if GLASS_WORKBENCH_PREVIEW
+                    if (HasArgument(args, "--compact-live-pilot") &&
+                        string.Equals(Environment.GetEnvironmentVariable("GGMAN_COMPACT_LIVE_PILOT"),
+                            "1", StringComparison.Ordinal) && mainForm != null)
+                    {
+                        mainForm.EnableCompactLivePilot(leagueClient);
+                    }
+#endif
                     if (mainForm == null)
                     {
                         AppLog.Error("FACM shell module initialized without a MainForm", null);

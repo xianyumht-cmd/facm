@@ -153,7 +153,10 @@ namespace FACM.Services
             {
                 var current = "facm-" + date.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".log";
                 yield return current;
+                var compact = "compact-" + date.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".log";
+                yield return compact;
                 yield return Path.GetFileName(AppLog.RotatedPath(current));
+                yield return Path.GetFileName(AppLog.RotatedPath(compact));
             }
         }
 
@@ -242,8 +245,11 @@ namespace FACM.Services
                     "previous log \\\\server\\private\\share\r\n",
                     new UTF8Encoding(false));
 
+                File.WriteAllText(Path.Combine(logs, "compact-20260903.log"),
+                    "trace=a12345678912 component=aram step=query outcome=failed_Timeout ms=3000\r\n",
+                    new UTF8Encoding(false));
                 var receipt = Export(logs, output, now, "3.5.19-smoke");
-                if (!File.Exists(receipt.BundlePath) || receipt.LogFilesIncluded != 3 || receipt.LogFilesSkipped != 0)
+                if (!File.Exists(receipt.BundlePath) || receipt.LogFilesIncluded != 4 || receipt.LogFilesSkipped != 0)
                     throw new InvalidOperationException("Diagnostics export smoke receipt is invalid.");
                 if (receipt.BundleBytes <= 0 || receipt.BundleBytes > MaxBundleBytes)
                     throw new InvalidOperationException("Diagnostics export smoke bundle size is invalid.");
@@ -251,13 +257,14 @@ namespace FACM.Services
                 using (var stream = File.OpenRead(receipt.BundlePath))
                 using (var archive = new ZipArchive(stream, ZipArchiveMode.Read, false))
                 {
-                    if (archive.Entries.Count != 4)
+                    if (archive.Entries.Count != 5)
                         throw new InvalidOperationException("Diagnostics export contains unexpected entries.");
 
                     var expectedEntries = new HashSet<string>(StringComparer.Ordinal)
                     {
                         "summary.txt",
                         "logs/facm-20260903.log",
+                        "logs/compact-20260903.log",
                         "logs/facm-20260903.1.log",
                         "logs/facm-20260902.log"
                     };

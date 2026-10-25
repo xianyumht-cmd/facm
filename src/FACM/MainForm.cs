@@ -11,6 +11,10 @@ using FACM.Online;
 using FACM.Pets;
 using FACM.Services;
 using FACM.Theming;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+using FACM.League;
+#endif
 
 namespace FACM
 {
@@ -29,6 +33,9 @@ namespace FACM
         private readonly LayeredFloatingBall _layeredBall;
         private readonly DesktopEntryGameflowPolicy _gameflowVisibility = new DesktopEntryGameflowPolicy();
         private CompactMenuForm _menu;
+#if GLASS_WORKBENCH_PREVIEW
+        private CompactLivePilotController _compactPilot;
+#endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
@@ -146,11 +153,28 @@ namespace FACM
 
         public void CloseMenu()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (_compactPilot != null) _compactPilot.Hide();
+#endif
             if (_menu == null) return;
             var menu = _menu;
             _menu = null;
             if (!menu.IsDisposed) menu.Close();
         }
+
+#if GLASS_WORKBENCH_PREVIEW
+        internal void EnableCompactLivePilot(ILeagueClientApi league)
+        {
+            if (_compactPilot != null) return;
+            _compactPilot = new CompactLivePilotController(this, league, PositionMenu);
+            FormClosed += delegate
+            {
+                var pilot = _compactPilot;
+                _compactPilot = null;
+                if (pilot != null) pilot.Dispose();
+            };
+        }
+#endif
 
         public async void ExitApplication()
         {
@@ -209,6 +233,9 @@ namespace FACM
                 return;
             }
 
+#if GLASS_WORKBENCH_PREVIEW
+            if (_compactPilot != null) _compactPilot.ObserveGameflowState(state);
+#endif
             var action = _gameflowVisibility.Observe(state, IsDesktopEntryVisible());
             if (action == DesktopEntryGameflowAction.Hide)
             {
@@ -880,6 +907,14 @@ namespace FACM
         {
             if (IsDisposed || _exiting) return;
 
+#if GLASS_WORKBENCH_PREVIEW
+            if (_compactPilot != null)
+            {
+                _compactPilot.Show();
+                return;
+            }
+#endif
+
             if (_menu != null && !_menu.IsDisposed)
             {
                 if (!_menu.Visible) _menu.Show();
@@ -903,6 +938,14 @@ namespace FACM
 
         private void ToggleMenu()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (_compactPilot != null)
+            {
+                if (_compactPilot.Visible) _compactPilot.Hide();
+                else _compactPilot.Show();
+                return;
+            }
+#endif
             if (_menu != null)
             {
                 CloseMenu();

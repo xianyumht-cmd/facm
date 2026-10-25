@@ -37,6 +37,7 @@ namespace FACM.League
         private static readonly string[] AllowedHostSuffixes =
         {
             "op.gg",
+            "opgg.gg",
             "communitydragon.org",
             "arammayhem.com",
             "hexdata.com.cn"
@@ -130,6 +131,7 @@ namespace FACM.League
         internal static void ValidateForSmokeTest()
         {
             Require(IsApproved(new Uri("https://op.gg/zh-cn/lol/modes/aram-mayhem/ashe/augments")), "OP.GG page must be allowed.");
+            Require(IsApproved(new Uri("https://opgg.gg/en/champions-tier/aram")), "Ordinary ARAM source must be allowed.");
             Require(IsApproved(new Uri("https://lol-api-champion.op.gg/api/champions/ranked/1")), "OP.GG API must be allowed.");
             Require(IsApproved(new Uri("https://raw.communitydragon.org/latest/game/assets/test.png")), "CommunityDragon must be allowed.");
             Require(!IsApproved(new Uri("http://op.gg/")), "HTTP must be rejected.");
