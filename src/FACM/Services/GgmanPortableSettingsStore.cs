@@ -99,6 +99,8 @@ namespace FACM.Services
             settings.LeagueSkipInvitationsWhenAway = s.LeagueSkipInvitationsWhenAway;
             settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(s.LeagueInvitationStrategies);
             settings.LeagueAutoSkipLeaderEnabled = s.LeagueAutoSkipLeaderEnabled;
+            settings.LeagueAutoAramTeamSideEnabled = s.LeagueAutoAramTeamSideEnabled;
+            settings.LeagueAutoAramTeamSideVisibleToTeam = s.LeagueAutoAramTeamSideVisibleToTeam;
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = s.LeagueAutoAcceptDelayMs;

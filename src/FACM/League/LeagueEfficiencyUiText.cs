@@ -62,6 +62,11 @@ namespace FACM.League
         public const string SkipInvitationsWhenAwayHint = "LeagueEfficiencySkipInvitationsWhenAwayHint";
         public const string AutoSkipLeader = "LeagueEfficiencyAutoSkipLeader";
         public const string AutoSkipLeaderHint = "LeagueEfficiencyAutoSkipLeaderHint";
+        public const string AramTeamSideSection = "LeagueEfficiencyAramSideSection";
+        public const string AramTeamSide = "LeagueEfficiencyAramSide";
+        public const string AramTeamSideHint = "LeagueEfficiencyAramSideHint";
+        public const string AramTeamSideVisible = "LeagueEfficiencyAramSideVisible";
+        public const string AramTeamSideVisibleHint = "LeagueEfficiencyAramSideVisibleHint";
         public const string LobbyInvitationSaved = "LeagueEfficiencyLobbyInvitationSaved";
         public const string FriendInviteOpen = "LeagueEfficiencyFriendInviteOpen";
         public const string FriendInviteTitle = "LeagueEfficiencyFriendInviteTitle";
@@ -206,6 +211,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAwayHint, "聊天状态为离开时不自动接受或拒绝。状态无法核实时，也不会擅自处理。" },
             { LeagueEfficiencyUiTextKeys.AutoSkipLeader, "自动让出房主" },
             { LeagueEfficiencyUiTextKeys.AutoSkipLeaderHint, "组队大厅中自己为房主且有其他真人成员时，优先把房主交给已准备成员；默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.AramTeamSideSection, "大乱斗选人提醒" },
+            { LeagueEfficiencyUiTextKeys.AramTeamSide, "自动提示蓝方 / 红方" },
+            { LeagueEfficiencyUiTextKeys.AramTeamSideHint, "仅限大乱斗、海克斯大乱斗选人阶段，在聊天窗口提示自己的阵营；默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.AramTeamSideVisible, "让队友也看见阵营提示" },
+            { LeagueEfficiencyUiTextKeys.AramTeamSideVisibleHint, "开启后会向选人聊天室发普通消息，队友可见；关闭时使用仅本地提示。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
             { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
             { LeagueEfficiencyUiTextKeys.FriendInviteTitle, "GGman · 好友邀请排队" },

@@ -30,7 +30,13 @@ namespace FACM.League
         Task<LeagueClientWriteResponse> TrySendNoticeAsync(string conversationId, string message, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, IDisposable
+    internal interface ILeagueChampSelectSideWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendSideAsync(
+            string conversationId, string message, bool visibleToTeam, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -75,6 +81,37 @@ namespace FACM.League
             if (!IsSafeConversationId(conversationId)) throw new ArgumentException("Invalid room conversation.", nameof(conversationId));
             return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
                 BuildRoomNoticeJson(conversationId, message), cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendSideAsync(
+            string conversationId, string message, bool visibleToTeam, CancellationToken cancellationToken)
+        {
+            if (!IsSafeChampionSelectConversationId(conversationId))
+                throw new ArgumentException("Invalid champion-select conversation.", nameof(conversationId));
+            return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
+                BuildSideMessageJson(conversationId, message, visibleToTeam), cancellationToken);
+        }
+
+        internal static bool IsSafeChampionSelectConversationId(string id)
+        {
+            return IsSafeConversationId(id) && id.IndexOf("lol-champ-select", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        internal static string BuildSideMessageJson(string id, string message, bool visibleToTeam)
+        {
+            if (!IsSafeChampionSelectConversationId(id)) throw new ArgumentException("Invalid champion-select conversation.", nameof(id));
+            if (string.IsNullOrWhiteSpace(message) || message.Length > 128 || message.Any(char.IsControl))
+                throw new ArgumentException("Invalid side message.", nameof(message));
+            return new JavaScriptSerializer().Serialize(new
+            {
+                body = message,
+                fromPid = "",
+                fromSummonerId = 0,
+                id,
+                isHistorical = false,
+                timestamp = "",
+                type = visibleToTeam ? "chat" : "celebration"
+            });
         }
 
         internal static string BuildRoomNoticeJson(string conversationId, string message)

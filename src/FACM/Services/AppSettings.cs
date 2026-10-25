@@ -49,6 +49,8 @@ namespace FACM.Services
         public string LeagueInvitationStrategies { get; set; } = "{}";
         public bool LeagueAutoSkipLeaderEnabled { get; set; } = false;
         public bool LeagueAutoReconnectEnabled { get; set; } = false;
+        public bool LeagueAutoAramTeamSideEnabled { get; set; } = false;
+        public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; } = false;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
@@ -169,6 +171,8 @@ namespace FACM.Services
                 "LeagueInvitationStrategies=" + LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies),
                 "LeagueAutoSkipLeaderEnabled=" + LeagueAutoSkipLeaderEnabled,
                 "LeagueAutoReconnectEnabled=" + LeagueAutoReconnectEnabled,
+                "LeagueAutoAramTeamSideEnabled=" + LeagueAutoAramTeamSideEnabled,
+                "LeagueAutoAramTeamSideVisibleToTeam=" + LeagueAutoAramTeamSideVisibleToTeam,
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
@@ -411,6 +415,8 @@ namespace FACM.Services
             else if (key.Equals("LeagueInvitationStrategies", StringComparison.OrdinalIgnoreCase) && value.Length <= 800) result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(value);
             else if (key.Equals("LeagueAutoSkipLeaderEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoSkipLeaderEnabled = flag;
             else if (key.Equals("LeagueAutoReconnectEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReconnectEnabled = flag;
+            else if (key.Equals("LeagueAutoAramTeamSideEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideEnabled = flag;
+            else if (key.Equals("LeagueAutoAramTeamSideVisibleToTeam", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideVisibleToTeam = flag;
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));

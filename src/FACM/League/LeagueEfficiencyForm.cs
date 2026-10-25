@@ -23,6 +23,8 @@ namespace FACM.League
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
+        private readonly CheckBox _autoAramTeamSide;
+        private readonly CheckBox _aramTeamSideVisibleToTeam;
         private readonly CheckBox _autoHandleInvitations;
         private readonly CheckBox _skipInvitationsWhenAway;
         private readonly CheckBox _autoSkipLeader;
@@ -65,7 +67,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 33,
+                RowCount = 34,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -97,7 +99,11 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             for (var row = 0; row < 5; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowCount = root.RowStyles.Count;
 
             root.Controls.Add(new Label
             {
@@ -314,6 +320,15 @@ namespace FACM.League
                 using (var dialog = new LeagueFriendInvitationForm(_module, _ui)) dialog.ShowDialog(this);
             };
             root.Controls.Add(scheduleFriends, 0, 31);
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.AramTeamSideSection)), 0, 32);
+            _autoAramTeamSide = AddAutomationRow(root, 33, T(LeagueEfficiencyUiTextKeys.AramTeamSide),
+                T(LeagueEfficiencyUiTextKeys.AramTeamSideHint), _module.AutoAramTeamSideEnabled);
+            _aramTeamSideVisibleToTeam = AddAutomationRow(root, 34, T(LeagueEfficiencyUiTextKeys.AramTeamSideVisible),
+                T(LeagueEfficiencyUiTextKeys.AramTeamSideVisibleHint), _module.AutoAramTeamSideVisibleToTeam);
+            _autoAramTeamSide.CheckedChanged += AramSideSettingChanged;
+            _aramTeamSideVisibleToTeam.CheckedChanged += AramSideSettingChanged;
+            UpdateAramTeamSideControlStates();
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -662,6 +677,21 @@ namespace FACM.League
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
 
+        private void AramSideSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            UpdateAramTeamSideControlStates();
+            _module.UpdateAramTeamSideSettings(_autoAramTeamSide.Checked, _aramTeamSideVisibleToTeam.Checked);
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void UpdateAramTeamSideControlStates()
+        {
+            if (_aramTeamSideVisibleToTeam != null)
+                _aramTeamSideVisibleToTeam.Enabled = _autoAramTeamSide != null && _autoAramTeamSide.Checked;
+        }
+
         private void RefreshInvitationAction()
         {
             var gameType = _invitationGameType == null ? null : _invitationGameType.SelectedItem as string;
@@ -684,7 +714,11 @@ namespace FACM.League
             {
                 // Cloud-first restores can happen while this page is open. Rebind from the
                 // actual settings object on the UI thread instead of retaining stale strategies.
-                BeginInvoke(new Action(RefreshInvitationSettingsFromModule));
+                BeginInvoke(new Action(delegate
+                {
+                    RefreshInvitationSettingsFromModule();
+                    RefreshAramTeamSideSettingsFromModule();
+                }));
             }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
@@ -707,6 +741,21 @@ namespace FACM.League
                 _skipInvitationsWhenAway.Checked = _module.SkipInvitationsWhenAway;
                 _autoSkipLeader.Checked = _module.AutoSkipLeaderEnabled;
                 RefreshInvitationAction();
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshAramTeamSideSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            if (_autoAramTeamSide.Checked == _module.AutoAramTeamSideEnabled &&
+                _aramTeamSideVisibleToTeam.Checked == _module.AutoAramTeamSideVisibleToTeam) return;
+            _loading = true;
+            try
+            {
+                _autoAramTeamSide.Checked = _module.AutoAramTeamSideEnabled;
+                _aramTeamSideVisibleToTeam.Checked = _module.AutoAramTeamSideVisibleToTeam;
+                UpdateAramTeamSideControlStates();
             }
             finally { _loading = false; }
         }

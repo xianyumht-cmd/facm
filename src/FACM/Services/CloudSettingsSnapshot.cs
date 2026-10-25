@@ -29,6 +29,8 @@ namespace FACM.Services
         public bool LeagueSkipInvitationsWhenAway { get; set; } = false;
         public string LeagueInvitationStrategies { get; set; } = "{}";
         public bool LeagueAutoSkipLeaderEnabled { get; set; }
+        public bool LeagueAutoAramTeamSideEnabled { get; set; }
+        public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -64,6 +66,8 @@ namespace FACM.Services
                 LeagueSkipInvitationsWhenAway = settings.LeagueSkipInvitationsWhenAway,
                 LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(settings.LeagueInvitationStrategies),
                 LeagueAutoSkipLeaderEnabled = settings.LeagueAutoSkipLeaderEnabled,
+                LeagueAutoAramTeamSideEnabled = settings.LeagueAutoAramTeamSideEnabled,
+                LeagueAutoAramTeamSideVisibleToTeam = settings.LeagueAutoAramTeamSideVisibleToTeam,
                 LeagueAutoMatchmakingMinPartySize = settings.LeagueAutoMatchmakingMinPartySize,
                 LeagueAutoMatchmakingStartDelayMs = settings.LeagueAutoMatchmakingStartDelayMs,
                 LeagueAutoAcceptDelayMs = settings.LeagueAutoAcceptDelayMs,
@@ -102,6 +106,8 @@ namespace FACM.Services
             settings.LeagueSkipInvitationsWhenAway = LeagueSkipInvitationsWhenAway;
             settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies);
             settings.LeagueAutoSkipLeaderEnabled = LeagueAutoSkipLeaderEnabled;
+            settings.LeagueAutoAramTeamSideEnabled = LeagueAutoAramTeamSideEnabled;
+            settings.LeagueAutoAramTeamSideVisibleToTeam = LeagueAutoAramTeamSideVisibleToTeam;
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = LeagueAutoAcceptDelayMs;

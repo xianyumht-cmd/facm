@@ -42,6 +42,7 @@ namespace FACM.AppHost.Modules
         private LeagueAutoPickBanController _autoSelect;
         private LeagueLobbyInvitationController _lobbyInvitations;
         private LeagueFriendInvitationController _friendInvitations;
+        private LeagueAramTeamSideController _aramSide;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -103,6 +104,8 @@ namespace FACM.AppHost.Modules
             ConfigureLobbyInvitations();
             _friendInvitations = new LeagueFriendInvitationController(_leagueClient,
                 (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient);
+            _aramSide = new LeagueAramTeamSideController(_leagueClient, (ILeagueChampSelectSideWriteApi)_leagueClient);
+            ConfigureAramTeamSide();
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -116,6 +119,7 @@ namespace FACM.AppHost.Modules
                 _autoSelect.Observe(current);
                 _lobbyInvitations.Observe(current);
                 _friendInvitations.Observe(current);
+                _aramSide.Observe(current);
             }
         }
 
@@ -133,6 +137,8 @@ namespace FACM.AppHost.Modules
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
         public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
+        public bool AutoAramTeamSideEnabled { get { return _settingsModule.Settings.LeagueAutoAramTeamSideEnabled; } }
+        public bool AutoAramTeamSideVisibleToTeam { get { return _settingsModule.Settings.LeagueAutoAramTeamSideVisibleToTeam; } }
         public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
@@ -208,6 +214,21 @@ namespace FACM.AppHost.Modules
             _reconnect.Observe(_dashboard.CurrentGameflowState);
         }
 
+        public void UpdateAramTeamSideSettings(bool enabled, bool visibleToTeam)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoAramTeamSideEnabled = enabled;
+            _settingsModule.Settings.LeagueAutoAramTeamSideVisibleToTeam = visibleToTeam;
+            _settingsModule.Settings.Save();
+            ConfigureAramTeamSide();
+            _aramSide?.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        private void ConfigureAramTeamSide()
+        {
+            _aramSide?.Configure(AutoAramTeamSideEnabled, AutoAramTeamSideVisibleToTeam);
+        }
+
         public void UpdateInvitationSettings(bool handleInvitations, bool skipWhenAway, string policiesJson, bool autoSkipLeader)
         {
             ThrowIfDisposed();
@@ -236,6 +257,8 @@ namespace FACM.AppHost.Modules
             // requiring the user to close/reopen the game client or Quick Tools.
             ConfigureLobbyInvitations();
             _lobbyInvitations.Observe(_dashboard.CurrentGameflowState);
+            ConfigureAramTeamSide();
+            _aramSide?.Observe(_dashboard.CurrentGameflowState);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -379,6 +402,7 @@ namespace FACM.AppHost.Modules
             if (_autoSelect != null) _autoSelect.Observe(state);
             if (_lobbyInvitations != null) _lobbyInvitations.Observe(state);
             if (_friendInvitations != null) _friendInvitations.Observe(state);
+            if (_aramSide != null) _aramSide.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -415,6 +439,11 @@ namespace FACM.AppHost.Modules
             _disposed = true;
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_aramSide != null)
+            {
+                _aramSide.Dispose();
+                _aramSide = null;
+            }
             if (_friendInvitations != null)
             {
                 _friendInvitations.Dispose();
