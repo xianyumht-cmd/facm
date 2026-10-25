@@ -2,7 +2,7 @@
 
 ## Production code must not depend on optional Glass preview files (2026-10-25)
 
-The first mode/role auto-select CI on `6ab1410d` failed `CS0234` because the new native League controller referenced `FACM.Presentation.Glass.CompactRiftRoleService`. The regular net48 GGman build deliberately removes `Presentation\Glass\**\*.cs` from compilation unless `UseGlassWorkbenchPreview=true`; the preview-only Glass build had not yet completed. Extract or maintain common domain logic under always-compiled `FACM.League` ownership. In this case, parse the local player's `myTeam`/`assignedPosition` directly in the native League preference service, with no visual dependency or extra Gameflow monitor. Confirm both ordinary and optional Glass Windows CI; a single preview-success path would not establish the normal lightweight executable.
+The first mode/role auto-select CI on `6ab1410d` failed `CS0234` because the new native League controller referenced `FACM.Presentation.Glass.CompactRiftRoleService`. The regular net48 GGman build deliberately removes `Presentation\Glass\**\*.cs` from compilation unless `UseGlassWorkbenchPreview=true`; only the optional Glass workflow passed on that first source. Extract or maintain common domain logic under always-compiled `FACM.League` ownership. In this case, parse the local player's `myTeam`/`assignedPosition` directly in the native League preference service, with no visual dependency or extra Gameflow monitor. Both ordinary and optional Glass Windows CI passed on corrected source `54e9ade`; a single preview-success path would not establish the normal lightweight executable.
 
 ## Avoid capturing WinForms context in synchronously invoked async smoke suites (2026-10-25)
 
