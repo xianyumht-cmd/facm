@@ -23,6 +23,12 @@ namespace FACM.League
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
+        private readonly CheckBox _autoHandleInvitations;
+        private readonly CheckBox _skipInvitationsWhenAway;
+        private readonly CheckBox _autoSkipLeader;
+        private readonly ComboBox _invitationGameType;
+        private readonly ComboBox _invitationAction;
+        private readonly Dictionary<string, string> _invitationPolicies;
         private readonly CheckBox _autoPick;
         private readonly CheckBox _autoBan;
         private readonly CheckBox _autoSelectPause;
@@ -37,6 +43,7 @@ namespace FACM.League
         private readonly Label _help;
         private readonly Label _status;
         private readonly Label _honorStatus;
+        private readonly Label _invitationStatus;
         private bool _loading = true;
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
@@ -58,7 +65,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 26,
+                RowCount = 32,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -87,6 +94,8 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            for (var row = 0; row < 5; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -246,6 +255,56 @@ namespace FACM.League
             {
                 if (!_loading) _module.UpdateAutoSelectTemporaryPause(_autoSelectPause.Checked);
             };
+
+            _invitationPolicies = LeagueInvitationPolicies.Parse(_module.InvitationStrategiesJson);
+            var invitationHeader = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = FacmDesignSystem.Canvas,
+                Margin = Padding.Empty
+            };
+            invitationHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            invitationHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            invitationHeader.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.LobbyInvitationSection)), 0, 0);
+            _invitationStatus = new Label
+            {
+                Text = string.Empty,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleRight,
+                AutoEllipsis = true
+            };
+            invitationHeader.Controls.Add(_invitationStatus, 1, 0);
+            root.Controls.Add(invitationHeader, 0, 25);
+            _autoHandleInvitations = AddAutomationRow(root, 26,
+                T(LeagueEfficiencyUiTextKeys.HandleInvitations),
+                T(LeagueEfficiencyUiTextKeys.HandleInvitationsHint), _module.AutoHandleInvitationsEnabled);
+            _invitationGameType = AddChoiceRow(root, 27,
+                T(LeagueEfficiencyUiTextKeys.InvitationGameType),
+                T(LeagueEfficiencyUiTextKeys.InvitationGameTypeHint), LeagueInvitationPolicies.GameTypes, 0);
+            _invitationAction = AddChoiceRow(root, 28,
+                T(LeagueEfficiencyUiTextKeys.InvitationAction),
+                T(LeagueEfficiencyUiTextKeys.InvitationActionHint), new[]
+                {
+                    T(LeagueEfficiencyUiTextKeys.InvitationIgnore),
+                    T(LeagueEfficiencyUiTextKeys.InvitationAccept),
+                    T(LeagueEfficiencyUiTextKeys.InvitationDecline)
+                }, 0);
+            _skipInvitationsWhenAway = AddAutomationRow(root, 29,
+                T(LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAway),
+                T(LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAwayHint), _module.SkipInvitationsWhenAway);
+            _autoSkipLeader = AddAutomationRow(root, 30,
+                T(LeagueEfficiencyUiTextKeys.AutoSkipLeader),
+                T(LeagueEfficiencyUiTextKeys.AutoSkipLeaderHint), _module.AutoSkipLeaderEnabled);
+            _autoHandleInvitations.CheckedChanged += InvitationSettingChanged;
+            _skipInvitationsWhenAway.CheckedChanged += InvitationSettingChanged;
+            _autoSkipLeader.CheckedChanged += InvitationSettingChanged;
+            _invitationGameType.SelectedIndexChanged += delegate { RefreshInvitationAction(); };
+            _invitationAction.SelectedIndexChanged += InvitationSettingChanged;
+            RefreshInvitationAction();
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;
@@ -591,6 +650,58 @@ namespace FACM.League
             _module.UpdateReconnectSetting(_autoReconnect.Checked);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void RefreshInvitationAction()
+        {
+            var gameType = _invitationGameType == null ? null : _invitationGameType.SelectedItem as string;
+            var action = LeagueInvitationPolicies.Resolve(_invitationPolicies, gameType);
+            var previouslyLoading = _loading;
+            _loading = true;
+            try
+            {
+                _invitationAction.SelectedIndex = action == LeagueInvitationPolicies.Accept ? 1 :
+                    action == LeagueInvitationPolicies.Decline ? 2 : 0;
+            }
+            finally { _loading = previouslyLoading; }
+            UpdateInvitationControlStates();
+        }
+
+        private void UpdateInvitationControlStates()
+        {
+            var enabled = _autoHandleInvitations != null && _autoHandleInvitations.Checked;
+            if (_invitationGameType != null) _invitationGameType.Enabled = enabled;
+            if (_invitationAction != null) _invitationAction.Enabled = enabled;
+            if (_skipInvitationsWhenAway != null) _skipInvitationsWhenAway.Enabled = enabled;
+        }
+
+        private void InvitationSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            if (ReferenceEquals(sender, _invitationAction))
+            {
+                var gameType = _invitationGameType.SelectedItem as string;
+                if (string.IsNullOrEmpty(gameType)) return;
+                _invitationPolicies[gameType] = _invitationAction.SelectedIndex == 1 ? LeagueInvitationPolicies.Accept :
+                    _invitationAction.SelectedIndex == 2 ? LeagueInvitationPolicies.Decline : LeagueInvitationPolicies.Ignore;
+            }
+            UpdateInvitationControlStates();
+            try
+            {
+                _module.UpdateInvitationSettings(_autoHandleInvitations.Checked, _skipInvitationsWhenAway.Checked,
+                    LeagueInvitationPolicies.Serialize(_invitationPolicies), _autoSkipLeader.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.LobbyInvitationSaved);
+                _invitationStatus.ForeColor = FacmDesignSystem.Success;
+                _invitationStatus.Text = T(LeagueEfficiencyUiTextKeys.LobbyInvitationSaved);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = string.Format(T(LeagueEfficiencyUiTextKeys.SaveFailed), exception.GetType().Name);
+                _invitationStatus.ForeColor = FacmDesignSystem.Warning;
+                _invitationStatus.Text = _status.Text;
+            }
         }
 
         private sealed class ChampionChoice

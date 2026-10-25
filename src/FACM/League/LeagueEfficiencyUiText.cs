@@ -48,6 +48,21 @@ namespace FACM.League
         public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
         public const string AutoReconnect = "LeagueEfficiencyAutoReconnect";
         public const string AutoReconnectHint = "LeagueEfficiencyAutoReconnectHint";
+        public const string LobbyInvitationSection = "LeagueEfficiencyLobbyInvitationSection";
+        public const string HandleInvitations = "LeagueEfficiencyHandleInvitations";
+        public const string HandleInvitationsHint = "LeagueEfficiencyHandleInvitationsHint";
+        public const string InvitationGameType = "LeagueEfficiencyInvitationGameType";
+        public const string InvitationGameTypeHint = "LeagueEfficiencyInvitationGameTypeHint";
+        public const string InvitationAction = "LeagueEfficiencyInvitationAction";
+        public const string InvitationActionHint = "LeagueEfficiencyInvitationActionHint";
+        public const string InvitationIgnore = "LeagueEfficiencyInvitationIgnore";
+        public const string InvitationAccept = "LeagueEfficiencyInvitationAccept";
+        public const string InvitationDecline = "LeagueEfficiencyInvitationDecline";
+        public const string SkipInvitationsWhenAway = "LeagueEfficiencySkipInvitationsWhenAway";
+        public const string SkipInvitationsWhenAwayHint = "LeagueEfficiencySkipInvitationsWhenAwayHint";
+        public const string AutoSkipLeader = "LeagueEfficiencyAutoSkipLeader";
+        public const string AutoSkipLeaderHint = "LeagueEfficiencyAutoSkipLeaderHint";
+        public const string LobbyInvitationSaved = "LeagueEfficiencyLobbyInvitationSaved";
         public const string AutoSelectSection = "LeagueEfficiencyAutoSelectSection";
         public const string AutoPick = "LeagueEfficiencyAutoPick";
         public const string AutoPickHint = "LeagueEfficiencyAutoPickHint";
@@ -160,6 +175,21 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "匹配成功后自动接受一次；已经接受或你主动拒绝时不会反复操作。" },
             { LeagueEfficiencyUiTextKeys.AutoReconnect, "断线后自动重连" },
             { LeagueEfficiencyUiTextKeys.AutoReconnectHint, "游戏客户端进入重连状态后等待 10 秒，再确认状态并尝试重连一次；离开该状态或关闭开关就取消。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.LobbyInvitationSection, "组队与邀请" },
+            { LeagueEfficiencyUiTextKeys.HandleInvitations, "自动处理收到的组队邀请" },
+            { LeagueEfficiencyUiTextKeys.HandleInvitationsHint, "按下方模式策略接受或拒绝邀请。所有模式默认忽略；关闭时不处理邀请。" },
+            { LeagueEfficiencyUiTextKeys.InvitationGameType, "组队邀请模式" },
+            { LeagueEfficiencyUiTextKeys.InvitationGameTypeHint, "选择一种邀请模式后，设置右侧的动作。<DEFAULT> 是未单独设置模式时的默认策略。" },
+            { LeagueEfficiencyUiTextKeys.InvitationAction, "当前模式邀请策略" },
+            { LeagueEfficiencyUiTextKeys.InvitationActionHint, "忽略：不操作；接受：自动入队；拒绝：自动拒绝。保存后立即对新邀请生效。" },
+            { LeagueEfficiencyUiTextKeys.InvitationIgnore, "忽略" },
+            { LeagueEfficiencyUiTextKeys.InvitationAccept, "接受" },
+            { LeagueEfficiencyUiTextKeys.InvitationDecline, "拒绝" },
+            { LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAway, "离开状态不处理邀请" },
+            { LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAwayHint, "聊天状态为离开时不自动接受或拒绝。状态无法核实时，也不会擅自处理。" },
+            { LeagueEfficiencyUiTextKeys.AutoSkipLeader, "自动让出房主" },
+            { LeagueEfficiencyUiTextKeys.AutoSkipLeaderHint, "组队大厅中自己为房主且有其他真人成员时，优先把房主交给已准备成员；默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
             { LeagueEfficiencyUiTextKeys.AutoSelectSection, "自动选禁英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPick, "自动锁定英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPickHint, "轮到自己选人时，先确认目标英雄可选，且你没有手动选其他英雄，再尝试锁定一次。默认关闭。" },

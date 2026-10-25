@@ -25,6 +25,10 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; }
         public bool LeagueAutoMatchmakingEnabled { get; set; }
         public bool LeagueAutoAcceptEnabled { get; set; }
+        public bool LeagueAutoHandleInvitationsEnabled { get; set; }
+        public bool LeagueSkipInvitationsWhenAway { get; set; } = true;
+        public string LeagueInvitationStrategies { get; set; } = "{}";
+        public bool LeagueAutoSkipLeaderEnabled { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -56,6 +60,10 @@ namespace FACM.Services
                 LeagueAutoReturnLobbyEnabled = settings.LeagueAutoReturnLobbyEnabled,
                 LeagueAutoMatchmakingEnabled = settings.LeagueAutoMatchmakingEnabled,
                 LeagueAutoAcceptEnabled = settings.LeagueAutoAcceptEnabled,
+                LeagueAutoHandleInvitationsEnabled = settings.LeagueAutoHandleInvitationsEnabled,
+                LeagueSkipInvitationsWhenAway = settings.LeagueSkipInvitationsWhenAway,
+                LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(settings.LeagueInvitationStrategies),
+                LeagueAutoSkipLeaderEnabled = settings.LeagueAutoSkipLeaderEnabled,
                 LeagueAutoMatchmakingMinPartySize = settings.LeagueAutoMatchmakingMinPartySize,
                 LeagueAutoMatchmakingStartDelayMs = settings.LeagueAutoMatchmakingStartDelayMs,
                 LeagueAutoAcceptDelayMs = settings.LeagueAutoAcceptDelayMs,
@@ -90,6 +98,10 @@ namespace FACM.Services
             settings.LeagueAutoReturnLobbyEnabled = LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoAcceptEnabled = LeagueAutoAcceptEnabled;
+            settings.LeagueAutoHandleInvitationsEnabled = LeagueAutoHandleInvitationsEnabled;
+            settings.LeagueSkipInvitationsWhenAway = SkipInvitationsWhenAway;
+            settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies);
+            settings.LeagueAutoSkipLeaderEnabled = LeagueAutoSkipLeaderEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = LeagueAutoAcceptDelayMs;

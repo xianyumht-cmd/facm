@@ -50,6 +50,8 @@ namespace FACM.Services
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
+                !string.Equals(s.LeagueInvitationStrategies ?? "{}",
+                    FACM.League.LeagueInvitationPolicies.NormalizeJson(s.LeagueInvitationStrategies), StringComparison.Ordinal) ||
                 s.LeagueAutoMatchmakingMinPartySize < 1 ||
                 s.LeagueAutoMatchmakingMinPartySize > 5 ||
                 s.LeagueAutoMatchmakingStartDelayMs < 0 ||
@@ -93,6 +95,10 @@ namespace FACM.Services
             settings.LeagueAutoReturnLobbyEnabled = s.LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = s.LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoAcceptEnabled = s.LeagueAutoAcceptEnabled;
+            settings.LeagueAutoHandleInvitationsEnabled = s.LeagueAutoHandleInvitationsEnabled;
+            settings.LeagueSkipInvitationsWhenAway = s.LeagueSkipInvitationsWhenAway;
+            settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(s.LeagueInvitationStrategies);
+            settings.LeagueAutoSkipLeaderEnabled = s.LeagueAutoSkipLeaderEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = s.LeagueAutoAcceptDelayMs;

@@ -44,6 +44,10 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public bool LeagueAutoHandleInvitationsEnabled { get; set; } = false;
+        public bool LeagueSkipInvitationsWhenAway { get; set; } = true;
+        public string LeagueInvitationStrategies { get; set; } = "{}";
+        public bool LeagueAutoSkipLeaderEnabled { get; set; } = false;
         public bool LeagueAutoReconnectEnabled { get; set; } = false;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
@@ -160,6 +164,10 @@ namespace FACM.Services
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueAutoHandleInvitationsEnabled=" + LeagueAutoHandleInvitationsEnabled,
+                "LeagueSkipInvitationsWhenAway=" + LeagueSkipInvitationsWhenAway,
+                "LeagueInvitationStrategies=" + LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies),
+                "LeagueAutoSkipLeaderEnabled=" + LeagueAutoSkipLeaderEnabled,
                 "LeagueAutoReconnectEnabled=" + LeagueAutoReconnectEnabled,
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
@@ -398,6 +406,10 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueAutoHandleInvitationsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHandleInvitationsEnabled = flag;
+            else if (key.Equals("LeagueSkipInvitationsWhenAway", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueSkipInvitationsWhenAway = flag;
+            else if (key.Equals("LeagueInvitationStrategies", StringComparison.OrdinalIgnoreCase) && value.Length <= 800) result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(value);
+            else if (key.Equals("LeagueAutoSkipLeaderEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoSkipLeaderEnabled = flag;
             else if (key.Equals("LeagueAutoReconnectEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReconnectEnabled = flag;
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
@@ -427,6 +439,7 @@ namespace FACM.Services
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
             result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(result.LeagueAutoHonorStrategy);
+            result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(result.LeagueInvitationStrategies);
             if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
                 result.LeagueChampionSpellPresets = string.Empty;
             if ((result.LeagueChampionRunePresets ?? string.Empty).Length > 7500)

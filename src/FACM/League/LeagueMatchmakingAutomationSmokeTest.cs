@@ -30,6 +30,7 @@ namespace FACM.League
             ValidateFailedReadyCheckRetries();
             ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
+            LeagueLobbyInvitationSmokeTest.Validate();
         }
 
         private static void ValidateSettings()

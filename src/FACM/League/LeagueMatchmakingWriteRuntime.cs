@@ -20,6 +20,8 @@ namespace FACM.League
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
+        internal const string InvitationsPrefix = "/lol-lobby/v2/received-invitations/";
+        internal const string PromotePrefix = "/lol-lobby/v2/lobby/members/";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -99,7 +101,34 @@ namespace FACM.League
                        string.Equals(verb, "DELETE", StringComparison.Ordinal);
             if (string.Equals(path, AcceptPath, StringComparison.Ordinal))
                 return string.Equals(verb, "POST", StringComparison.Ordinal);
+            if (string.Equals(verb, "POST", StringComparison.Ordinal) && path.StartsWith(InvitationsPrefix, StringComparison.Ordinal))
+            {
+                var segment = path.Substring(InvitationsPrefix.Length);
+                var slash = segment.LastIndexOf('/');
+                if (slash <= 0) return false;
+                var action = segment.Substring(slash + 1);
+                return (action == "accept" || action == "decline") && IsSafeInvitationId(segment.Substring(0, slash));
+            }
+            if (string.Equals(verb, "POST", StringComparison.Ordinal) &&
+                path.StartsWith(PromotePrefix, StringComparison.Ordinal) &&
+                path.EndsWith("/promote", StringComparison.Ordinal))
+            {
+                var segment = path.Substring(PromotePrefix.Length, path.Length - PromotePrefix.Length - "/promote".Length);
+                long summonerId;
+                return long.TryParse(segment, out summonerId) && summonerId > 0 &&
+                    string.Equals(summonerId.ToString(System.Globalization.CultureInfo.InvariantCulture), segment, StringComparison.Ordinal);
+            }
             return false;
+        }
+
+        internal static bool IsSafeInvitationId(string invitationId)
+        {
+            if (string.IsNullOrEmpty(invitationId) || invitationId.Length > 90) return false;
+            foreach (var character in invitationId)
+                if (!(character >= '0' && character <= '9') &&
+                    !(character >= 'A' && character <= 'Z') &&
+                    !(character >= 'a' && character <= 'z') && character != '-') return false;
+            return true;
         }
 
         private static string NormalizePath(string path)

@@ -39,6 +39,7 @@ namespace FACM.AppHost.Modules
         private LeagueMatchmakingStopController _matchmakingStop;
         private LeagueGameflowReconnectController _reconnect;
         private LeagueAutoPickBanController _autoSelect;
+        private LeagueLobbyInvitationController _lobbyInvitations;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -95,6 +96,8 @@ namespace FACM.AppHost.Modules
                 (ILeagueChampSelectActionWriteApi)_leagueClient, (ILeagueBenchSwapWriteApi)_leagueClient,
                 (ILeagueChampionTradeWriteApi)_leagueClient);
             ConfigureAutoSelect();
+            _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient, matchmakingWriter);
+            ConfigureLobbyInvitations();
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -105,6 +108,7 @@ namespace FACM.AppHost.Modules
                 _matchmakingStop.Observe(current);
                 _reconnect.Observe(current);
                 _autoSelect.Observe(current);
+                _lobbyInvitations.Observe(current);
             }
         }
 
@@ -122,6 +126,10 @@ namespace FACM.AppHost.Modules
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
         public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
+        public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
+        public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
+        public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
+        public string InvitationStrategiesJson { get { return _settingsModule.Settings.LeagueInvitationStrategies; } }
         public bool AutoPickEnabled { get { return _settingsModule.Settings.LeagueAutoPickEnabled; } }
         public bool AutoSelectTemporarilyDisabled { get { return _autoSelectTemporarilyDisabled; } }
         public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
@@ -169,6 +177,27 @@ namespace FACM.AppHost.Modules
             if (_reconnect == null) return;
             _reconnect.Configure(enabled);
             _reconnect.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        public void UpdateInvitationSettings(bool handleInvitations, bool skipWhenAway, string policiesJson, bool autoSkipLeader)
+        {
+            ThrowIfDisposed();
+            var canonical = LeagueInvitationPolicies.NormalizeJson(policiesJson);
+            if (!string.Equals(canonical, policiesJson, StringComparison.Ordinal))
+                throw new ArgumentException("Invalid lobby invitation policies.", nameof(policiesJson));
+            _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled = handleInvitations;
+            _settingsModule.Settings.LeagueSkipInvitationsWhenAway = skipWhenAway;
+            _settingsModule.Settings.LeagueInvitationStrategies = canonical;
+            _settingsModule.Settings.LeagueAutoSkipLeaderEnabled = autoSkipLeader;
+            _settingsModule.Settings.Save();
+            ConfigureLobbyInvitations();
+            _lobbyInvitations?.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        private void ConfigureLobbyInvitations()
+        {
+            _lobbyInvitations?.Configure(AutoHandleInvitationsEnabled, SkipInvitationsWhenAway,
+                InvitationStrategiesJson, AutoSkipLeaderEnabled);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -310,6 +339,7 @@ namespace FACM.AppHost.Modules
             if (_matchmakingStop != null) _matchmakingStop.Observe(state);
             if (_reconnect != null) _reconnect.Observe(state);
             if (_autoSelect != null) _autoSelect.Observe(state);
+            if (_lobbyInvitations != null) _lobbyInvitations.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -345,6 +375,11 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_lobbyInvitations != null)
+            {
+                _lobbyInvitations.Dispose();
+                _lobbyInvitations = null;
+            }
             if (_autoSelect != null)
             {
                 _autoSelect.Dispose();
