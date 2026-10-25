@@ -31,6 +31,7 @@ namespace FACM
                 {
                     CompactLivePilotController.ValidateForSmokeTest();
                     CompactApprovedLivePanelForm.ValidateModeRankingIsolationForSmokeTest();
+                    DiagnosticsExportService.ValidateForSmokeTest();
                 }
                 catch { Environment.ExitCode = 4; return; }
                 Environment.ExitCode = CompactApprovedLivePanelForm.RunSmokeTest(

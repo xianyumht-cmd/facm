@@ -47,7 +47,7 @@ namespace FACM.Presentation.Glass
             if (IsDisposed) return;
             _currentModeLabel = string.IsNullOrWhiteSpace(modeName) ? "模式未识别" : modeName; // ui-text-contract: allow - owner-approved fixed mock UI copy
             _modeIsMayhem = isMayhem;
-            _modeHasRanking = isMayhem || string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal);
+            _modeHasRanking = isMayhem || string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal); // ui-text-contract: allow - approved mode-isolation contract fixture
             _liveRanking = null;
             _liveChampion = null;
             _selectedChampionName = "尚未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
@@ -62,7 +62,7 @@ namespace FACM.Presentation.Glass
             var validMode = ranking != null &&
                 ((_modeIsMayhem && (string.IsNullOrWhiteSpace(ranking.ModeKey) ||
                     ranking.ModeKey == "mayhem")) ||
-                 (!_modeIsMayhem && _currentModeLabel == "普通大乱斗" &&
+                 (!_modeIsMayhem && _currentModeLabel == "普通大乱斗" && // ui-text-contract: allow - approved mode-isolation contract fixture
                     ranking.ModeKey == "aram"));
             _liveRanking = _modeHasRanking && validMode &&
                 FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking) ? ranking : null;
@@ -504,13 +504,14 @@ namespace FACM.Presentation.Glass
                 if (view._liveRanking != null)
                     throw new InvalidOperationException("Mayhem ranking leaked into standard ARAM.");
                 view.UpdateRanking(aram, "mode-matched source");
-                if (view.TierFor("亚索") != "T0")
+                if (view.TierFor("亚索") != "T0") // ui-text-contract: allow - approved mode-isolation contract fixture
                     throw new InvalidOperationException("Ordinary ARAM source was not projected.");
                 view.UpdateGameMode("海克斯大乱斗", true); // ui-text-contract: allow - mode-specific fixture
                 view.UpdateRanking(aram, "incorrect standard ARAM source");
                 if (view._liveRanking != null)
                     throw new InvalidOperationException("Standard ARAM ranking leaked into Mayhem.");
                 view.UpdateGameMode("召唤师峡谷", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
+                view.UpdateRanking(aram, "reject inappropriate ARAM data");
                 if (view.TierFor("亚索") != "—" || view._liveRanking != null) // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Rank data survived a mode switch.");
             }
