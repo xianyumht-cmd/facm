@@ -99,7 +99,7 @@ namespace FACM.Services
             settings.LeagueAutoMatchmakingEnabled = LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoAcceptEnabled = LeagueAutoAcceptEnabled;
             settings.LeagueAutoHandleInvitationsEnabled = LeagueAutoHandleInvitationsEnabled;
-            settings.LeagueSkipInvitationsWhenAway = SkipInvitationsWhenAway;
+            settings.LeagueSkipInvitationsWhenAway = LeagueSkipInvitationsWhenAway;
             settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies);
             settings.LeagueAutoSkipLeaderEnabled = LeagueAutoSkipLeaderEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;

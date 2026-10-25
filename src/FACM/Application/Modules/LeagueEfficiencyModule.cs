@@ -98,6 +98,7 @@ namespace FACM.AppHost.Modules
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient, matchmakingWriter);
             ConfigureLobbyInvitations();
+            AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -198,6 +199,15 @@ namespace FACM.AppHost.Modules
         {
             _lobbyInvitations?.Configure(AutoHandleInvitationsEnabled, SkipInvitationsWhenAway,
                 InvitationStrategiesJson, AutoSkipLeaderEnabled);
+        }
+
+        private void HandleAppSettingsSaved(AppSettings settings)
+        {
+            if (_disposed || _lobbyInvitations == null || !ReferenceEquals(settings, _settingsModule.Settings)) return;
+            // Cloud restore updates the same Settings object. Pick up restored preferences without
+            // requiring the user to close/reopen the game client or Quick Tools.
+            ConfigureLobbyInvitations();
+            _lobbyInvitations.Observe(_dashboard.CurrentGameflowState);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -374,6 +384,7 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_lobbyInvitations != null)
             {

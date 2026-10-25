@@ -299,7 +299,7 @@ namespace FACM.League
 
         internal List<LeagueReceivedInvitation> ParseInvitations(byte[] bytes)
         {
-            if (bytes == null) return null;
+            if (bytes == null || bytes.Length > 256 * 1024) return null;
             object parsed;
             try { parsed = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)); }
             catch { return null; }
@@ -375,7 +375,7 @@ namespace FACM.League
 
         private Dictionary<string, object> ParseObject(byte[] bytes)
         {
-            if (bytes == null || bytes.Length == 0) return null;
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 256 * 1024) return null;
             try { return _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
             catch { return null; }
         }
