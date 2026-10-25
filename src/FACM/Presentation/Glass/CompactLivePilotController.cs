@@ -33,6 +33,7 @@ namespace FACM.Presentation.Glass
         private string _observedPhase;
         private DateTime _lastChampionRefreshUtc;
         private int _localChampionId;
+        private int _championRefreshInFlight;
         private bool _manualChampionOverride;
         private string _lastBenchNamesSignature;
         private Dictionary<int, string> _nameCache = new Dictionary<int, string>();
@@ -217,7 +218,7 @@ namespace FACM.Presentation.Glass
             {
                 if (!IsCurrent(generation) || !_mayhem) return;
                 _panel.UpdateRanking(expanded,
-                    expanded.Source + " · " + expanded.Patch + " · 名次已补齐");
+                    expanded.Source + " · " + expanded.Patch + " · 扩展榜单未核验");
             });
         }
 
@@ -261,6 +262,8 @@ namespace FACM.Presentation.Glass
 
         private async Task FindCurrentChampionAsync(int modeGeneration, CancellationToken token)
         {
+            if (Interlocked.CompareExchange(ref _championRefreshInFlight, 1, 0) != 0)
+                return;
             var heroAtStart = _championGeneration;
             try
             {
@@ -356,6 +359,7 @@ namespace FACM.Presentation.Glass
             {
                 AppLog.Info("Compact local hero labels unavailable: " + exception.GetType().Name);
             }
+            finally { Interlocked.Exchange(ref _championRefreshInFlight, 0); }
         }
 
         internal static List<int> ResolveBenchChampionIds(IDictionary<string, object> session)
