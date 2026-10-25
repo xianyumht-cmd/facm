@@ -21,6 +21,7 @@ namespace FACM.Services
         public string LeagueExitGameHotkey { get; set; }
         public string LeagueCloseLobbyHotkey { get; set; }
         public bool LeagueAutoHonorTeammateEnabled { get; set; }
+        public string LeagueAutoHonorStrategy { get; set; }
         public bool LeagueAutoReturnLobbyEnabled { get; set; }
         public bool LeagueAutoMatchmakingEnabled { get; set; }
         public bool LeagueAutoAcceptEnabled { get; set; }
@@ -51,6 +52,7 @@ namespace FACM.Services
                 LeagueExitGameHotkey = settings.LeagueExitGameHotkey ?? string.Empty,
                 LeagueCloseLobbyHotkey = settings.LeagueCloseLobbyHotkey ?? string.Empty,
                 LeagueAutoHonorTeammateEnabled = settings.LeagueAutoHonorTeammateEnabled,
+                LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(settings.LeagueAutoHonorStrategy),
                 LeagueAutoReturnLobbyEnabled = settings.LeagueAutoReturnLobbyEnabled,
                 LeagueAutoMatchmakingEnabled = settings.LeagueAutoMatchmakingEnabled,
                 LeagueAutoAcceptEnabled = settings.LeagueAutoAcceptEnabled,
@@ -84,6 +86,7 @@ namespace FACM.Services
             settings.LeagueExitGameHotkey = LeagueExitGameHotkey ?? string.Empty;
             settings.LeagueCloseLobbyHotkey = LeagueCloseLobbyHotkey ?? string.Empty;
             settings.LeagueAutoHonorTeammateEnabled = LeagueAutoHonorTeammateEnabled;
+            settings.LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(LeagueAutoHonorStrategy);
             settings.LeagueAutoReturnLobbyEnabled = LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoAcceptEnabled = LeagueAutoAcceptEnabled;

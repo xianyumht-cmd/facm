@@ -18,6 +18,7 @@ namespace FACM.League
         private readonly TextBox _exitGame;
         private readonly TextBox _closeLobby;
         private readonly CheckBox _autoHonor;
+        private readonly ComboBox _honorStrategy;
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
@@ -146,8 +147,35 @@ namespace FACM.League
             };
             root.Controls.Add(CreatePostGameHeader(), 0, 6);
             _autoHonor = AddAutomationRow(root, 7, T(LeagueEfficiencyUiTextKeys.AutoHonor), T(LeagueEfficiencyUiTextKeys.AutoHonorHint), _module.AutoHonorEnabled);
+            var honorRow = (TableLayoutPanel)_autoHonor.Parent;
+            honorRow.ColumnCount = 2;
+            honorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            honorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 208));
+            foreach (Control child in honorRow.Controls)
+                if (honorRow.GetRow(child) == 1) honorRow.SetColumnSpan(child, 2);
+            _honorStrategy = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.HonorStrategyTitle),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(4, 3, 4, 3)
+            };
+            _honorStrategy.Items.AddRange(new object[]
+            {
+                T(LeagueEfficiencyUiTextKeys.HonorPreferParty),
+                T(LeagueEfficiencyUiTextKeys.HonorOnlyParty),
+                T(LeagueEfficiencyUiTextKeys.HonorAnyAlly),
+                T(LeagueEfficiencyUiTextKeys.HonorOptOut),
+                T(LeagueEfficiencyUiTextKeys.HonorIncludingOpponent)
+            });
+            _honorStrategy.SelectedIndex = Math.Max(0, Array.IndexOf(LeagueHonorStrategy.Choices, _module.AutoHonorStrategy));
+            honorRow.Controls.Add(_honorStrategy, 1, 0);
             _autoReturn = AddAutomationRow(root, 8, T(LeagueEfficiencyUiTextKeys.AutoReturn), T(LeagueEfficiencyUiTextKeys.AutoReturnHint), _module.AutoReturnLobbyEnabled);
             _autoHonor.CheckedChanged += PostGameSettingChanged;
+            _honorStrategy.SelectedIndexChanged += PostGameSettingChanged;
             _autoReturn.CheckedChanged += PostGameSettingChanged;
 
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.NextGameSection)), 0, 9);
@@ -535,7 +563,8 @@ namespace FACM.League
         private void PostGameSettingChanged(object sender, EventArgs e)
         {
             if (_loading) return;
-            _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked);
+            _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked,
+                LeagueHonorStrategy.Choices[Math.Max(0, _honorStrategy.SelectedIndex)]);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.PostGameSaved);
         }

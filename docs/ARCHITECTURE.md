@@ -381,6 +381,10 @@ The compact desktop launcher remains the primary floating-ball entry; a ball cli
 
 `LeagueChampionSpellPresets` and `LeagueChampionRunePresets` own independent bounded, mode-keyed catalogs; each can supply a ranked-default fallback. `LeagueBuildApplyForm` captures live LCU spell slots and all nine rune perk IDs through the existing `LeagueBuildApplyService`, without writes during capture. `LeagueAutoApplyController` merges the saved halves into a single plan, one stabilized one-shot decision and one already-existing ChampSelect-only two-second observation lifecycle. This implementation does not create a new background worker, change the 56px floating orb or alter the approved compact/secondary window geometry. For runes the existing apply service creates or reuses only application-owned pages; it rejects unsafe capacity. Local recovery, portable/cloud preferences and deterministic smoke assertions cover persistence. Tencent gameplay acceptance and real CPU/RAM measurement are intentionally deferred to the owner's final consolidated test.
 
+## Akari 1.5.1 honor policies (Draft #357)
+
+The existing `LeaguePostGameAutomationController` remains the only postgame owner. Its opt-in auto-honor action now selects one eligible player according to `LeagueHonorStrategy` (party preference, party-only, any ally, no vote or ally/opponent), using one conditional read of Akari's end-of-game lobby-party endpoint when the choice depends on party membership. All writes still flow through `ILeaguePostGameWriteApi`, with the pre-existing V2/legacy fallback and settled readback. The native League Efficiency form uses an inline combo box in the existing honor row; local, cloud and portable settings store the same bounded strategy. Unknown settings normalize to party-preferred and automatic honor remains disabled by default. More than one vote per episode and live regional acceptance remain open.
+
 
 ## Optional registered GGman account (Issue #313, released in 3.5.61)
 

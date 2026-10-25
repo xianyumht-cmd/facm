@@ -37,6 +37,7 @@ namespace FACM.Services
             "LeagueExitGameHotkey",
             "LeagueCloseLobbyHotkey",
             "LeagueAutoHonorTeammateEnabled",
+            "LeagueAutoHonorStrategy",
             "LeagueAutoReturnLobbyEnabled",
             "LeagueAutoMatchmakingEnabled",
             "LeagueAutoAcceptEnabled",

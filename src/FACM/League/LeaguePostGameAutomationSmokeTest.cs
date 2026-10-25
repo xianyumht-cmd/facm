@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Services;
 
 namespace FACM.League
 {
@@ -13,6 +14,7 @@ namespace FACM.League
         {
             ValidateTransportFence();
             ValidateBallotCompatibility();
+            ValidateHonorStrategySelection();
             ValidateV2VerifiedByTeamChoices();
             ValidateV2VerifiedByNumericTeamChoices();
             ValidateResponseLostButAppliedDoesNotRetry();
@@ -69,6 +71,52 @@ namespace FACM.League
             }
             Require(LeaguePostGameAutomationController.BallotPath == "/lol-honor-v2/v1/ballot",
                 "Honor V2 ballot path must not rely on a trailing-slash redirect.");
+        }
+
+        private static void ValidateHonorStrategySelection()
+        {
+            Require(LeagueHonorStrategy.Normalize("unknown") == LeagueHonorStrategy.PreferLobbyMember &&
+                    LeagueHonorStrategy.Choices.Length == 5,
+                "Honor strategy must reject unknown persisted policy values.");
+            var settings = AppSettings.ParseLines(new[] { "LeagueAutoHonorStrategy=only-lobby-member" });
+            Require(settings.LeagueAutoHonorStrategy == LeagueHonorStrategy.OnlyLobbyMember &&
+                    settings.BuildLines().Any(line => line == "LeagueAutoHonorStrategy=only-lobby-member"),
+                "Honor strategy setting was not restored.");
+            var restored = AppSettings.ParseLines(Array.Empty<string>());
+            CloudSettingsSnapshot.Capture(settings).ApplyTo(restored);
+            Require(restored.LeagueAutoHonorStrategy == LeagueHonorStrategy.OnlyLobbyMember,
+                "Cloud settings must retain the chosen honor strategy.");
+
+            AssertHonorSelection(LeagueHonorStrategy.PreferLobbyMember, "ally-b", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.OnlyLobbyMember, "ally-b", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.AllMember, "ally-a", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.AllIncludingOpponent, "enemy", true, 99);
+            AssertHonorSelection(LeagueHonorStrategy.OptOut, null, true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.OnlyLobbyMember, null, false, 0);
+        }
+
+        private static void AssertHonorSelection(string strategy, string expectedPuuid, bool partyReadable, int selectedIndex)
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath,
+                "{\"gameId\":123,\"numVotes\":1,\"eligibleAllies\":[{" +
+                "\"puuid\":\"self\",\"summonerId\":100},{\"puuid\":\"ally-a\",\"summonerId\":101}," +
+                "{\"puuid\":\"ally-b\",\"summonerId\":102}]," +
+                "\"eligibleOpponents\":[{\"puuid\":\"enemy\",\"summonerId\":777}]} ");
+            if (partyReadable)
+                read.Set(LeaguePostGameAutomationController.EndOfGamePartyPath,
+                    "{\"eogPlayers\":[\"ally-b\"],\"leftPlayers\":[],\"readyPlayers\":[]}");
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(),
+                count => Math.Min(count - 1, selectedIndex)))
+            {
+                controller.Configure(true, false, strategy);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            var votes = write.Calls.Where(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path).ToList();
+            Require(expectedPuuid == null ? votes.Count == 0 :
+                    votes.Count == 1 && votes[0].Json.Contains("\"puuid\":\"" + expectedPuuid + "\""),
+                "Honor strategy selected the wrong target or wrote when opt-out/party-only is unavailable: " + strategy);
         }
 
         private static void ValidateV2VerifiedByTeamChoices()

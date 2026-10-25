@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using FACM.Pets;
+using FACM.League;
 using FACM.Theming;
 
 namespace FACM.Services
@@ -39,6 +40,7 @@ namespace FACM.Services
         public string LeagueExitGameHotkey { get; set; } = string.Empty;
         public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
         public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
+        public string LeagueAutoHonorStrategy { get; set; } = LeagueHonorStrategy.PreferLobbyMember;
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
@@ -154,6 +156,7 @@ namespace FACM.Services
                 "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
                 "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
+                "LeagueAutoHonorStrategy=" + LeagueHonorStrategy.Normalize(LeagueAutoHonorStrategy),
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
@@ -391,6 +394,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
             else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
             else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
+            else if (key.Equals("LeagueAutoHonorStrategy", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(value);
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
@@ -422,6 +426,7 @@ namespace FACM.Services
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
+            result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(result.LeagueAutoHonorStrategy);
             if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
                 result.LeagueChampionSpellPresets = string.Empty;
             if ((result.LeagueChampionRunePresets ?? string.Empty).Length > 7500)

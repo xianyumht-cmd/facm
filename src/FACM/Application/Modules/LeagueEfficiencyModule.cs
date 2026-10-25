@@ -82,7 +82,7 @@ namespace FACM.AppHost.Modules
 
             _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
             _postGame.HonorAttemptCompleted += HandleHonorAttemptCompleted;
-            _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled);
+            _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled, AutoHonorStrategy);
 
             var matchmakingWriter = (ILeagueMatchmakingWriteApi)_leagueClient;
             _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, matchmakingWriter);
@@ -117,6 +117,7 @@ namespace FACM.AppHost.Modules
         public string ExitGameHotkey { get { return _settingsModule.Settings.LeagueExitGameHotkey ?? string.Empty; } }
         public string CloseLobbyHotkey { get { return _settingsModule.Settings.LeagueCloseLobbyHotkey ?? string.Empty; } }
         public bool AutoHonorEnabled { get { return _settingsModule.Settings.LeagueAutoHonorTeammateEnabled; } }
+        public string AutoHonorStrategy { get { return LeagueHonorStrategy.Normalize(_settingsModule.Settings.LeagueAutoHonorStrategy); } }
         public bool AutoReturnLobbyEnabled { get { return _settingsModule.Settings.LeagueAutoReturnLobbyEnabled; } }
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
@@ -145,15 +146,16 @@ namespace FACM.AppHost.Modules
             return TryApplyBindings(exitGame, closeLobby, true, out error);
         }
 
-        public void UpdatePostGameSettings(bool autoHonor, bool autoReturn)
+        public void UpdatePostGameSettings(bool autoHonor, bool autoReturn, string honorStrategy)
         {
             ThrowIfDisposed();
             _settingsModule.Settings.LeagueAutoHonorTeammateEnabled = autoHonor;
+            _settingsModule.Settings.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(honorStrategy);
             _settingsModule.Settings.LeagueAutoReturnLobbyEnabled = autoReturn;
             _settingsModule.Settings.Save();
             if (_postGame != null)
             {
-                _postGame.Configure(autoHonor, autoReturn);
+                _postGame.Configure(autoHonor, autoReturn, AutoHonorStrategy);
                 var current = _dashboard.CurrentGameflowState;
                 if (current != null) _postGame.Observe(current);
             }

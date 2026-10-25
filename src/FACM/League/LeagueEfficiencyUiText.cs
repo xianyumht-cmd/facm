@@ -27,6 +27,12 @@ namespace FACM.League
         public const string PostGameSection = "LeagueEfficiencyPostGameSection";
         public const string AutoHonor = "LeagueEfficiencyAutoHonor";
         public const string AutoHonorHint = "LeagueEfficiencyAutoHonorHint";
+        public const string HonorStrategyTitle = "LeagueEfficiencyHonorStrategyTitle";
+        public const string HonorPreferParty = "LeagueEfficiencyHonorPreferParty";
+        public const string HonorOnlyParty = "LeagueEfficiencyHonorOnlyParty";
+        public const string HonorAnyAlly = "LeagueEfficiencyHonorAnyAlly";
+        public const string HonorOptOut = "LeagueEfficiencyHonorOptOut";
+        public const string HonorIncludingOpponent = "LeagueEfficiencyHonorIncludingOpponent";
         public const string HonorLastNone = "LeagueEfficiencyHonorLastNone";
         public const string HonorLastSuccess = "LeagueEfficiencyHonorLastSuccess";
         public const string HonorLastSkipped = "LeagueEfficiencyHonorLastSkipped";
@@ -131,8 +137,14 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.Saved, "快捷键已保存并立即生效。" },
             { LeagueEfficiencyUiTextKeys.SaveFailed, "快捷键没有修改：{0}" },
             { LeagueEfficiencyUiTextKeys.PostGameSection, "赛后处理" },
-            { LeagueEfficiencyUiTextKeys.AutoHonor, "随机点赞队友" },
-            { LeagueEfficiencyUiTextKeys.AutoHonorHint, "结算后会等待可点赞名单，优先走新版点赞接口；提交后再读回确认，只有明确没生效时才安全重试一次。" },
+            { LeagueEfficiencyUiTextKeys.AutoHonor, "赛后自动点赞" },
+            { LeagueEfficiencyUiTextKeys.AutoHonorHint, "按右侧策略选择点赞对象，读取新版结算名单并验证写入；无法确认时不会盲目重复点赞。" },
+            { LeagueEfficiencyUiTextKeys.HonorStrategyTitle, "点赞对象策略" },
+            { LeagueEfficiencyUiTextKeys.HonorPreferParty, "优先组队成员" },
+            { LeagueEfficiencyUiTextKeys.HonorOnlyParty, "仅组队成员" },
+            { LeagueEfficiencyUiTextKeys.HonorAnyAlly, "随机队友" },
+            { LeagueEfficiencyUiTextKeys.HonorOptOut, "跳过点赞" },
+            { LeagueEfficiencyUiTextKeys.HonorIncludingOpponent, "队友与对手" },
             { LeagueEfficiencyUiTextKeys.HonorLastNone, "上局点赞：暂无记录" },
             { LeagueEfficiencyUiTextKeys.HonorLastSuccess, "上局点赞：成功 · {0}" },
             { LeagueEfficiencyUiTextKeys.HonorLastSkipped, "上局点赞：未执行 · {0}" },

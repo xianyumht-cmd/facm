@@ -89,6 +89,7 @@ namespace FACM.Services
             settings.LeagueExitGameHotkey = s.LeagueExitGameHotkey;
             settings.LeagueCloseLobbyHotkey = s.LeagueCloseLobbyHotkey;
             settings.LeagueAutoHonorTeammateEnabled = s.LeagueAutoHonorTeammateEnabled;
+            settings.LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(s.LeagueAutoHonorStrategy);
             settings.LeagueAutoReturnLobbyEnabled = s.LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = s.LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoAcceptEnabled = s.LeagueAutoAcceptEnabled;
