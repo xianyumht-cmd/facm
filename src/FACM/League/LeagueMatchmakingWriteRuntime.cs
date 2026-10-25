@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Globalization;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,12 +18,18 @@ namespace FACM.League
             CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, IDisposable
+    internal interface ILeagueLobbyInviteWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
         internal const string InvitationsPrefix = "/lol-lobby/v2/received-invitations/";
         internal const string PromotePrefix = "/lol-lobby/v2/lobby/members/";
+        internal const string OutgoingInvitationsPath = "/lol-lobby/v2/lobby/invitations";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -42,6 +50,27 @@ namespace FACM.League
             if (!IsAllowedTarget(verb, normalizedPath))
                 throw new ArgumentException("LCU write target is not allowed by the Gate 7 transport.", nameof(path));
 
+            return await SendAllowedAsync(verb, normalizedPath, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken)
+        {
+            if (!IsAllowedOutgoingInviteForSmokeTest(summonerId))
+                throw new ArgumentOutOfRangeException(nameof(summonerId));
+            var body = BuildOutgoingInvitationJson(summonerId);
+            return SendAllowedAsync("POST", OutgoingInvitationsPath, body, cancellationToken);
+        }
+
+        internal static string BuildOutgoingInvitationJson(long summonerId)
+        {
+            if (!IsAllowedOutgoingInviteForSmokeTest(summonerId))
+                throw new ArgumentOutOfRangeException(nameof(summonerId));
+            return "[{\"toSummonerId\":" + summonerId.ToString(CultureInfo.InvariantCulture) + "}]";
+        }
+
+        private async Task<LeagueClientWriteResponse> SendAllowedAsync(
+            string verb, string normalizedPath, string json, CancellationToken cancellationToken)
+        {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
             if (session == null) return null;
@@ -55,18 +84,22 @@ namespace FACM.League
                 try
                 {
                     using (var request = new HttpRequestMessage(new HttpMethod(verb), normalizedPath))
-                    using (var response = await lease.Client.SendAsync(
-                        request,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        cancellationToken).ConfigureAwait(false))
                     {
-                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                            _sessions.Invalidate(session);
-                        return new LeagueClientWriteResponse
+                        if (json != null)
+                            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        using (var response = await lease.Client.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            cancellationToken).ConfigureAwait(false))
                         {
-                            StatusCode = (int)response.StatusCode,
-                            Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
-                        };
+                            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                                _sessions.Invalidate(session);
+                            return new LeagueClientWriteResponse
+                            {
+                                StatusCode = (int)response.StatusCode,
+                                Body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false)
+                            };
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -92,6 +125,11 @@ namespace FACM.League
         internal static bool IsAllowedTargetForSmokeTest(string method, string path)
         {
             return IsAllowedTarget((method ?? string.Empty).Trim().ToUpperInvariant(), NormalizePath(path));
+        }
+
+        internal static bool IsAllowedOutgoingInviteForSmokeTest(long summonerId)
+        {
+            return summonerId > 0;
         }
 
         private static bool IsAllowedTarget(string verb, string path)

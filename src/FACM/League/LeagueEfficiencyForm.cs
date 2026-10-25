@@ -65,7 +65,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 32,
+                RowCount = 33,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -96,6 +96,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             for (var row = 0; row < 5; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -305,6 +306,14 @@ namespace FACM.League
             _invitationGameType.SelectedIndexChanged += delegate { RefreshInvitationAction(); };
             _invitationAction.SelectedIndexChanged += InvitationSettingChanged;
             RefreshInvitationAction();
+
+            var scheduleFriends = CreateButton(T(LeagueEfficiencyUiTextKeys.FriendInviteOpen), 240, FacmButtonTone.Secondary);
+            scheduleFriends.Margin = new Padding(0, 8, 0, 8);
+            scheduleFriends.Click += delegate
+            {
+                using (var dialog = new LeagueFriendInvitationForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            root.Controls.Add(scheduleFriends, 0, 31);
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;

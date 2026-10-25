@@ -21,6 +21,7 @@ namespace FACM.League
             ValidateCancelledPreflight();
             ValidateLeaderPromotion();
             ValidateDisabledByDefault();
+            LeagueFriendInvitationSmokeTest.Validate();
         }
 
         private static void ValidateSettingsAndCloud()

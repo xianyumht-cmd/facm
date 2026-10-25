@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
@@ -40,6 +41,7 @@ namespace FACM.AppHost.Modules
         private LeagueGameflowReconnectController _reconnect;
         private LeagueAutoPickBanController _autoSelect;
         private LeagueLobbyInvitationController _lobbyInvitations;
+        private LeagueFriendInvitationController _friendInvitations;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -98,6 +100,7 @@ namespace FACM.AppHost.Modules
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient, matchmakingWriter);
             ConfigureLobbyInvitations();
+            _friendInvitations = new LeagueFriendInvitationController(_leagueClient, (ILeagueLobbyInviteWriteApi)_leagueClient);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -110,6 +113,7 @@ namespace FACM.AppHost.Modules
                 _reconnect.Observe(current);
                 _autoSelect.Observe(current);
                 _lobbyInvitations.Observe(current);
+                _friendInvitations.Observe(current);
             }
         }
 
@@ -131,6 +135,21 @@ namespace FACM.AppHost.Modules
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
         public string InvitationStrategiesJson { get { return _settingsModule.Settings.LeagueInvitationStrategies; } }
+        public int ScheduledFriendInvitationCount { get { return _friendInvitations == null ? 0 : _friendInvitations.PendingCount; } }
+
+        public Task<LeagueFriendInvitationCatalog> LoadInvitationFriendsAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            return _friendInvitations.LoadCatalogAsync(cancellationToken);
+        }
+
+        public bool SetScheduledFriendInvitation(string lobbyKey, string puuid, bool selected)
+        {
+            ThrowIfDisposed();
+            if (!_friendInvitations.SetScheduled(lobbyKey, puuid, selected)) return false;
+            _friendInvitations.Observe(_dashboard.CurrentGameflowState);
+            return true;
+        }
         public bool AutoPickEnabled { get { return _settingsModule.Settings.LeagueAutoPickEnabled; } }
         public bool AutoSelectTemporarilyDisabled { get { return _autoSelectTemporarilyDisabled; } }
         public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
@@ -350,6 +369,7 @@ namespace FACM.AppHost.Modules
             if (_reconnect != null) _reconnect.Observe(state);
             if (_autoSelect != null) _autoSelect.Observe(state);
             if (_lobbyInvitations != null) _lobbyInvitations.Observe(state);
+            if (_friendInvitations != null) _friendInvitations.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -386,6 +406,11 @@ namespace FACM.AppHost.Modules
             _disposed = true;
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_friendInvitations != null)
+            {
+                _friendInvitations.Dispose();
+                _friendInvitations = null;
+            }
             if (_lobbyInvitations != null)
             {
                 _lobbyInvitations.Dispose();

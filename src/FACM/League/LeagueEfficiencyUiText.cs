@@ -63,6 +63,18 @@ namespace FACM.League
         public const string AutoSkipLeader = "LeagueEfficiencyAutoSkipLeader";
         public const string AutoSkipLeaderHint = "LeagueEfficiencyAutoSkipLeaderHint";
         public const string LobbyInvitationSaved = "LeagueEfficiencyLobbyInvitationSaved";
+        public const string FriendInviteOpen = "LeagueEfficiencyFriendInviteOpen";
+        public const string FriendInviteTitle = "LeagueEfficiencyFriendInviteTitle";
+        public const string FriendInviteHint = "LeagueEfficiencyFriendInviteHint";
+        public const string FriendInviteSearch = "LeagueEfficiencyFriendInviteSearch";
+        public const string FriendInviteRefresh = "LeagueEfficiencyFriendInviteRefresh";
+        public const string FriendInviteName = "LeagueEfficiencyFriendInviteName";
+        public const string FriendInviteAvailability = "LeagueEfficiencyFriendInviteAvailability";
+        public const string FriendInviteLoading = "LeagueEfficiencyFriendInviteLoading";
+        public const string FriendInviteUnavailable = "LeagueEfficiencyFriendInviteUnavailable";
+        public const string FriendInviteCount = "LeagueEfficiencyFriendInviteCount";
+        public const string FriendInviteRejected = "LeagueEfficiencyFriendInviteRejected";
+        public const string FriendInviteClose = "LeagueEfficiencyFriendInviteClose";
         public const string AutoSelectSection = "LeagueEfficiencyAutoSelectSection";
         public const string AutoPick = "LeagueEfficiencyAutoPick";
         public const string AutoPickHint = "LeagueEfficiencyAutoPickHint";
@@ -190,6 +202,18 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoSkipLeader, "自动让出房主" },
             { LeagueEfficiencyUiTextKeys.AutoSkipLeaderHint, "组队大厅中自己为房主且有其他真人成员时，优先把房主交给已准备成员；默认关闭。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteTitle, "GGman · 好友邀请排队" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteHint, "在组队大厅勾选好友，等其状态变为在线时尝试邀请一次；离开大厅即清空。" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteSearch, "搜索游戏昵称" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteRefresh, "刷新好友" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteName, "游戏好友" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteAvailability, "当前状态" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteLoading, "正在读取当前大厅与好友…" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteUnavailable, "无法读取好友或当前不在组队大厅。" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteCount, "等待邀请：{0} 人（最多 5 人）" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteRejected, "操作未生效：大厅已变更、好友已尝试邀请或排队已满。请刷新。" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteClose, "关闭" },
             { LeagueEfficiencyUiTextKeys.AutoSelectSection, "自动选禁英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPick, "自动锁定英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPickHint, "轮到自己选人时，先确认目标英雄可选，且你没有手动选其他英雄，再尝试锁定一次。默认关闭。" },

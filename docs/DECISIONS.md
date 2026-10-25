@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-26 — Scope scheduled friend invites to one active lobby, without personal cloud data
+
+Mirror the pinned Akari v1.5.1 behavior with a native on-demand searchable friend selector and single-use queue bound to current `partyId` plus self summoner ID. Keep only at most five friend PUUIDs in process and clear on lobby exit/change; do not add settings, identity retention or cloud tables. Use the existing Gameflow owner, run conditional three-second checks only with outstanding selections, re-read online status and permission before a single POST, and suppress retries after an attempted send. Extend the existing matchmaking LCU transport through a separate typed outgoing-invite method instead of granting JSON-capable writes to every caller. A League lobby may persist through Matchmaking/ReadyCheck; source parity must follow actual lobby ownership rather than assuming only `Lobby` is valid. This does not authorize a production update before consolidated human acceptance.
+
 ## 2026-10-25 — Store Akari auto-select profiles as bounded native preferences
 
 Keep the existing one-hero automatic pick/ban settings as compatible fallback while adding mode/role-specific ordered lists, immediate/show-only/show-then-lock strategies and bounded delays. Serialize only validated small settings arrays into the existing `AppSettings` file; editing uses an on-demand native secondary form, with no new background service, database or Electron renderer. Mode classification reuses `LeagueQueueModePolicy`, and Rift position reuse is restricted to the local player's assigned role. When settings change, cancel the previous episode and use fresh phase/action preflight. This is a partial step toward all pinned Akari v1.5.1 behavior; do not infer live Tencent correctness from test fixtures. In accordance with owner preference, continue internal feature slices and CI without requiring repeated interim gameplay acceptance.

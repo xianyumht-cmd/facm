@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Akari outgoing lobby invitation uses an object array, not raw summoner IDs (2026-10-26)
+
+Pinned `lobby.postInvitation(summonerIds)` in v1.5.1 maps each summoner ID to `{toSummonerId:id}` before POSTing to `/lol-lobby/v2/lobby/invitations`. The controller's apparent call `postInvitation([id])` does **not** mean the on-wire body is `[id]`. Trace the typed HTTP wrapper before implementing an LCU writer and keep this route separate from existing bodyless incoming-invitation accept/decline calls. An invite queue also must not automatically clear merely because the Gameflow phase becomes `Matchmaking` or `ReadyCheck` while a lobby is still active. Use a lobby identity fence and final re-read; never rely solely on cached friend availability.
+
 ## Production code must not depend on optional Glass preview files (2026-10-25)
 
 The first mode/role auto-select CI on `6ab1410d` failed `CS0234` because the new native League controller referenced `FACM.Presentation.Glass.CompactRiftRoleService`. The regular net48 GGman build deliberately removes `Presentation\Glass\**\*.cs` from compilation unless `UseGlassWorkbenchPreview=true`; only the optional Glass workflow passed on that first source. Extract or maintain common domain logic under always-compiled `FACM.League` ownership. In this case, parse the local player's `myTeam`/`assignedPosition` directly in the native League preference service, with no visual dependency or extra Gameflow monitor. Both ordinary and optional Glass Windows CI passed on corrected source `54e9ade`; a single preview-success path would not establish the normal lightweight executable.
