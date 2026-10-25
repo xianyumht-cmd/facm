@@ -27,9 +27,9 @@ namespace FACM.Presentation.Glass
         private static string UrlFor(string role)
         {
             var canonical = CompactRiftRoleService.Normalize(role);
-            return canonical == null ? null :
-                "https://op.gg/lol/champions?position=" +
-                (canonical == "support" ? "support" : canonical);
+            // The role-specific op.gg host returned HTTP 403 in the Windows probe.
+            // The public ranked table at opgg.gg returns all roles with an explicit Lane column.
+            return canonical == null ? null : "https://opgg.gg/en/champions-tier/ranked";
         }
 
         internal static async Task<MayhemRankingSnapshot> QueryAsync(string role,
@@ -123,12 +123,9 @@ namespace FACM.Presentation.Glass
             var h1 = Regex.Match(html, @"<h1\b[^>]*>(?<t>.*?)</h1>",
                 RegexOptions.Singleline | RegexOptions.IgnoreCase);
             var identity = Clean(title.Groups["t"].Value + " " + h1.Groups["t"].Value);
-            var expected = role == "middle" ? new[] { "Middle", "Mid" } :
-                role == "bottom" ? new[] { "Bottom", "ADC" } :
-                role == "support" ? new[] { "Support", "Utility" } :
-                role == "jungle" ? new[] { "Jungle" } : new[] { "Top" };
-            if (!expected.Any(word => Regex.IsMatch(identity, @"\b" + word + @"\b",
-                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) ||
+            // The ranked source has one mixed-lane table. Role is validated from
+            // each row's Lane cell, not guessed from the champion or page title.
+            if (!Regex.IsMatch(identity, @"\bRanked\b", RegexOptions.IgnoreCase) ||
                 Regex.IsMatch(identity, @"\b(ARAM|Mayhem)\b", RegexOptions.IgnoreCase))
                 return ranking;
             ranking.Patch = MayhemRankingSourceService.ReadPatch(identity);
@@ -150,27 +147,30 @@ namespace FACM.Presentation.Glass
                     var cells = Regex.Matches(match.Groups["r"].Value,
                         @"<td\b[^>]*>(?<v>.*?)</td>",
                         RegexOptions.Singleline | RegexOptions.IgnoreCase);
-                    if (cells.Count < 3) continue;
-                    int index;
+                    // Real site markup: hero name in <th>; rank, lane, tier and
+                    // win rate in <td> cells. Global rank is not the role rank.
+                    if (cells.Count < 7) continue;
+                    var championCell = Regex.Match(match.Groups["r"].Value,
+                        @"<th\b[^>]*>(?<v>.*?)</th>",
+                        RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    if (!championCell.Success) continue;
+                    var lane = CompactRiftRoleService.Normalize(Clean(cells[1].Groups["v"].Value));
+                    if (lane != role) continue;
+                    int globalRank;
                     if (!int.TryParse(Clean(cells[0].Groups["v"].Value),
-                        NumberStyles.Integer, CultureInfo.InvariantCulture, out index) ||
-                        index != records.Count + 1 || index > 200) continue;
-                    var hero = Clean(cells[1].Groups["v"].Value);
+                        NumberStyles.Integer, CultureInfo.InvariantCulture, out globalRank) ||
+                        globalRank <= 0 || globalRank > 2000) continue;
+                    var hero = Clean(championCell.Groups["v"].Value);
                     if (string.IsNullOrWhiteSpace(hero)) continue;
-                    var winRate = Regex.Match(Clean(match.Groups["r"].Value),
+                    var rateMatch = Regex.Match(Clean(cells[3].Groups["v"].Value),
                         @"(?<v>\d{1,2}(?:\.\d{1,2})?)\s*%");
                     double rate;
-                    if (!winRate.Success || !double.TryParse(winRate.Groups["v"].Value,
-                        NumberStyles.Float, CultureInfo.InvariantCulture, out rate))
-                        continue;
-                    // Unless a tier is explicit and valid, show truthful #rank instead.
-                    string tier = null;
-                    foreach (Match cell in cells.Cast<Match>().Skip(2))
-                    {
-                        var t = Clean(cell.Groups["v"].Value);
-                        if (Regex.IsMatch(t, @"^(?:S\+|S|A|B|C|D|T[0-3])$",
-                            RegexOptions.IgnoreCase)) { tier = t; break; }
-                    }
+                    if (!rateMatch.Success || !double.TryParse(rateMatch.Groups["v"].Value,
+                        NumberStyles.Float, CultureInfo.InvariantCulture, out rate)) continue;
+                    var candidateTier = Clean(cells[2].Groups["v"].Value);
+                    string tier = Regex.IsMatch(candidateTier, @"^(?:S\+|S|A|B|C|D|T[0-3])$",
+                        RegexOptions.IgnoreCase) ? candidateTier : null;
+                    var index = records.Count + 1;
                     records.Add(new MayhemTopChampion
                     {
                         Rank = index, Name = hero, Slug = ChampionAliases.Slugify(hero),
@@ -204,28 +204,33 @@ namespace FACM.Presentation.Glass
             var roles = new[] { "top", "jungle", "middle", "bottom", "support" };
             foreach (var role in roles)
             {
-                if (UrlFor(role) == null || UrlFor(role).IndexOf("position=" + role,
-                    StringComparison.Ordinal) < 0)
-                    throw new InvalidOperationException("Role-specific URL was not qualified.");
-                var title = role == "middle" ? "Mid" : role == "bottom" ? "Bottom" :
-                    role == "support" ? "Support" : role == "jungle" ? "Jungle" : "Top";
-                var fixture = "<title>Champion Tier List for " + title +
-                    ", Emerald +, Patch 16.21</title><table>" +
-                    "<th>Rank</th><th>Champion</th><th>Win rate</th>";
-                for (int i = 1; i <= 13; i++)
-                    fixture += "<tr><td>" + i + "</td><td>Hero" + i +
-                        "</td><td>51.20%</td><td>A</td></tr>";
-                fixture += "</table>";
+                if (UrlFor(role) != "https://opgg.gg/en/champions-tier/ranked")
+                    throw new InvalidOperationException("Ranked mixed-lane source was not qualified.");
+                var other = role == "top" ? "jungle" : "top";
+                var fixture = "<title>League of Legends champion tier list for Ranked mode – Patch 26.21</title>" +
+                    "<table><thead><tr><th># Position</th><th>Lane</th><th>Champion</th>" +
+                    "<th>Tier</th><th>Win rate</th></tr></thead><tbody>";
+                for (int i = 1; i <= 18; i++)
+                {
+                    var lane = i == 4 ? other : role;
+                    var laneText = lane == "middle" ? "Mid" : lane == "bottom" ? "Bottom" :
+                        lane == "support" ? "Support" : lane == "jungle" ? "Jungle" : "Top";
+                    fixture += "<tr><td>" + i + "</td><td>" + laneText +
+                        "</td><th scope='row'>Hero" + i +
+                        "</th><td>S+</td><td>51.20%</td><td>7.25%</td>" +
+                        "<td>1.4%</td><td>5000</td><td>-</td></tr>";
+                }
+                fixture += "</tbody></table>";
                 var result = Parse(fixture, role);
                 if (!MayhemRankingSourceService.IsExpandedValid(result) ||
                     result.ModeKey != "rift:" + role ||
-                    MayhemRankingSourceService.FindRank(result, "Hero13").Rank != 13)
-                    throw new InvalidOperationException("Role-specific Rift ranking fixture rejected.");
-                var other = role == "top" ? "jungle" : "top";
+                    MayhemRankingSourceService.FindRank(result, "Hero18").Rank != 17 ||
+                    MayhemRankingSourceService.FindRank(result, "Hero4") != null)
+                    throw new InvalidOperationException("Role-filtered Rift ranking fixture rejected.");
                 if (MayhemRankingSourceService.IsComplete(Parse(fixture, other)))
-                    throw new InvalidOperationException("Cross-lane Rift ranking was accepted.");
+                    throw new InvalidOperationException("One row of another lane became a full ranking.");
                 if (MayhemRankingSourceService.IsComplete(Parse(
-                    fixture.Replace("Tier List for", "Tier List ARAM for"), role)))
+                    fixture.Replace("Ranked mode", "ARAM Mayhem mode"), role)))
                     throw new InvalidOperationException("ARAM page accepted in the Rift source.");
             }
             if (UrlFor("fill") != null ||

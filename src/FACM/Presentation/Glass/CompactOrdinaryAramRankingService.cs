@@ -114,23 +114,22 @@ namespace FACM.Presentation.Glass
                 {
                     var cells = Regex.Matches(match.Groups["row"].Value,
                         @"<td\b[^>]*>(?<v>.*?)</td>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                    if (cells.Count < 4) continue;
+                    // Real OP.GG markup uses <th> for champion and <td> for
+                    // rank/tier/winrate/pickrate/games. Never treat tier as a name.
+                    if (cells.Count < 5) continue;
+                    var championCell = Regex.Match(match.Groups["row"].Value,
+                        @"<th\b[^>]*>(?<v>.*?)</th>",
+                        RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                    if (!championCell.Success) continue;
                     var rankText = Clean(cells[0].Groups["v"].Value);
                     int rank;
                     if (!int.TryParse(rankText, NumberStyles.Integer, CultureInfo.InvariantCulture, out rank) ||
                         rank != rows.Count + 1 || rank > 200) continue;
-                    var name = Clean(cells[1].Groups["v"].Value);
+                    var name = Clean(championCell.Groups["v"].Value);
                     if (string.IsNullOrWhiteSpace(name)) continue;
-                    var tier = Clean(cells[2].Groups["v"].Value);
-                    var rateText = Clean(cells[3].Groups["v"].Value);
-                    // Some sources put winrate before tier; both validated against known grade tokens.
-                    if (!ValidTier(tier)) {
-                        var alternative = Clean(cells[3].Groups["v"].Value);
-                        if (ValidTier(alternative)) {
-                            tier = alternative;
-                            rateText = Clean(cells[2].Groups["v"].Value);
-                        } else continue;
-                    }
+                    var tier = Clean(cells[1].Groups["v"].Value);
+                    if (!ValidTier(tier)) continue;
+                    var rateText = Clean(cells[2].Groups["v"].Value);
                     var rateMatch = Regex.Match(rateText, @"(?<r>\d{1,2}(?:\.\d{1,2})?)\s*%");
                     double rate;
                     if (!rateMatch.Success || !double.TryParse(rateMatch.Groups["r"].Value,
@@ -184,8 +183,9 @@ namespace FACM.Presentation.Glass
             var input = "<title>League of Legends champion tier list for ARAM mode – Patch 26.21</title>" +
                 "<h1>ARAM Patch 26.21</h1><table><thead><th>Champion</th><th>Win rate</th></thead><tbody>";
             for (int i = 1; i <= 13; i++)
-                input += "<tr><td>" + i + "</td><td>Champion" + i +
-                    "</td><td>" + (i <= 5 ? "S+" : "S") + "</td><td>52.15%</td></tr>";
+                input += "<tr><td>" + i + "</td><th scope='row'>Champion" + i +
+                    "</th><td>" + (i <= 5 ? "S+" : "S") +
+                    "</td><td>52.15%</td><td>8.12%</td><td>4500</td></tr>";
             input += "</tbody></table>";
             var result = Parse(input);
             if (!MayhemRankingSourceService.IsComplete(result) ||
