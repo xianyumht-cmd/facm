@@ -35,6 +35,7 @@ namespace FACM.Services
         public bool LeagueAutoApplyRecommended { get; set; } = false;
         public bool LeagueChampionSpellPresetsEnabled { get; set; } = false;
         public string LeagueChampionSpellPresets { get; set; } = string.Empty;
+        public string LeagueChampionRunePresets { get; set; } = string.Empty;
         public string LeagueExitGameHotkey { get; set; } = string.Empty;
         public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
         public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
@@ -149,6 +150,7 @@ namespace FACM.Services
                 "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended,
                 "LeagueChampionSpellPresetsEnabled=" + LeagueChampionSpellPresetsEnabled,
                 "LeagueChampionSpellPresets=" + Sanitize(LeagueChampionSpellPresets),
+                "LeagueChampionRunePresets=" + Sanitize(LeagueChampionRunePresets),
                 "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
                 "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
@@ -385,6 +387,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoApplyRecommended = flag;
             else if (key.Equals("LeagueChampionSpellPresetsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueChampionSpellPresetsEnabled = flag;
             else if (key.Equals("LeagueChampionSpellPresets", StringComparison.OrdinalIgnoreCase) && value.Length <= 4096) result.LeagueChampionSpellPresets = value;
+            else if (key.Equals("LeagueChampionRunePresets", StringComparison.OrdinalIgnoreCase) && value.Length <= 7500) result.LeagueChampionRunePresets = value;
             else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
             else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
             else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
@@ -421,6 +424,8 @@ namespace FACM.Services
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
             if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
                 result.LeagueChampionSpellPresets = string.Empty;
+            if ((result.LeagueChampionRunePresets ?? string.Empty).Length > 7500)
+                result.LeagueChampionRunePresets = string.Empty;
             // Both automatic writers must not race to replace the same spell slots.
             if (result.LeagueChampionSpellPresetsEnabled) result.LeagueAutoApplyRecommended = false;
             result.LeagueAutoMatchmakingMinPartySize = Math.Max(1, Math.Min(5, result.LeagueAutoMatchmakingMinPartySize));

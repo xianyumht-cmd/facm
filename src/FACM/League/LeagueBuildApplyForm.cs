@@ -257,7 +257,7 @@ namespace FACM.League
             SetButtons(false);
             try
             {
-                var current = await _applyService.CaptureCurrentSpellsAsync(_snapshot, _lifetime.Token);
+                var current = await _applyService.CaptureCurrentLoadoutAsync(_snapshot, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (current == null)
                 {
@@ -265,7 +265,9 @@ namespace FACM.League
                     return;
                 }
                 _autoController.SavePreset(_snapshot, current);
-                _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.Saved);
+                _statusValue.Text = T(current.HasSpells
+                    ? (current.HasRunes ? LeagueChampionSpellPresetUiTextKeys.Saved : LeagueChampionSpellPresetUiTextKeys.SavedSpells)
+                    : LeagueChampionSpellPresetUiTextKeys.SavedRunes);
             }
             catch (OperationCanceledException)
             {
@@ -441,7 +443,8 @@ namespace FACM.League
                 : T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = !_busy && CanApply(snapshot);
             _savePresetButton.Enabled = !_busy && CanSavePreset(snapshot);
-            _removePresetButton.Enabled = !_busy && _autoController.FindPreset(snapshot) != null;
+            _removePresetButton.Enabled = !_busy &&
+                (_autoController.FindPreset(snapshot) != null || _autoController.FindRunePreset(snapshot) != null);
         }
 
         private void ApplyResult(LeagueBuildApplyResult result)
@@ -511,7 +514,8 @@ namespace FACM.League
             _refreshButton.Enabled = !_busy;
             _applyButton.Enabled = !_busy && canApply;
             _savePresetButton.Enabled = !_busy && CanSavePreset(_snapshot);
-            _removePresetButton.Enabled = !_busy && _autoController.FindPreset(_snapshot) != null;
+            _removePresetButton.Enabled = !_busy &&
+                (_autoController.FindPreset(_snapshot) != null || _autoController.FindRunePreset(_snapshot) != null);
         }
 
         private static bool CanSavePreset(LeagueBuildAdvisorSnapshot snapshot)

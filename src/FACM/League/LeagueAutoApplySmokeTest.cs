@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -26,7 +27,8 @@ namespace FACM.League
         {
             var defaults = AppSettings.ParseLines(Array.Empty<string>());
             Require(!defaults.LeagueChampionSpellPresetsEnabled &&
-                    LeagueChampionSpellPresets.Parse(defaults.LeagueChampionSpellPresets).Count == 0,
+                    LeagueChampionSpellPresets.Parse(defaults.LeagueChampionSpellPresets).Count == 0 &&
+                    LeagueChampionRunePresets.Parse(defaults.LeagueChampionRunePresets).Count == 0,
                 "Champion spell presets must default off and empty.");
 
             var rankedTop = LeagueChampionSpellPresets.GroupFor(420, "ranked", "top");
@@ -62,35 +64,63 @@ namespace FACM.League
                     LeagueChampionSpellPresets.Parse(new string('x', 4097)).Count == 0,
                 "Invalid or oversized champion spell presets must fail closed.");
 
+            var runePreset = new LeagueChampionRunePreset
+            {
+                ChampionId = 157, Group = "ranked-default", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            };
+            var runeJson = LeagueChampionRunePresets.Serialize(new[] { runePreset });
+            Require(LeagueChampionRunePresets.Resolve(runeJson, 157, rankedTop).SelectedPerkIds.SequenceEqual(runePreset.SelectedPerkIds) &&
+                    LeagueChampionRunePresets.Resolve(runeJson, 157, "aram") == null &&
+                    LeagueChampionRunePresets.Parse(new string('x', 7501)).Count == 0 &&
+                    LeagueChampionRunePresets.Parse("[{\"ChampionId\":157,\"Group\":\"aram\",\"PrimaryStyleId\":8000,\"SecondaryStyleId\":8100,\"SelectedPerkIds\":[8005]}]").Count == 0,
+                "Champion rune preset serialization, ranked fallback or malformed inputs regressed.");
+
             var restored = AppSettings.ParseLines(new[]
             {
                 "LeagueChampionSpellPresetsEnabled=True",
                 "LeagueChampionSpellPresets=" + encoded,
+                "LeagueChampionRunePresets=" + runeJson,
                 "LeagueAutoApplyRecommended=True"
             });
             Require(restored.LeagueChampionSpellPresetsEnabled && !restored.LeagueAutoApplyRecommended &&
                     LeagueChampionSpellPresets.Parse(restored.LeagueChampionSpellPresets).Count == 2 &&
+                    LeagueChampionRunePresets.Parse(restored.LeagueChampionRunePresets).Count == 1 &&
                     restored.BuildLines().Any(line => line == "LeagueChampionSpellPresets=" + encoded),
                 "Preset settings roundtrip or OP.GG mutual exclusion failed.");
+            var cloud = CloudSettingsSnapshot.Capture(restored);
+            var fromCloud = AppSettings.ParseLines(Array.Empty<string>());
+            cloud.ApplyTo(fromCloud);
+            Require(fromCloud.LeagueChampionRunePresets == runeJson &&
+                    fromCloud.LeagueChampionSpellPresets == encoded &&
+                    fromCloud.LeagueChampionSpellPresetsEnabled && !fromCloud.LeagueAutoApplyRecommended,
+                "Cloud settings snapshot must restore both champion preset catalogs and their mutual exclusion.");
 
             var coordinator = new LeagueChampionSpellPresetCoordinator();
             var now = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc);
             var snapshot = CreateSnapshot(157, "Yasuo");
             snapshot.GameId = 100;
-            Require(!coordinator.Observe(snapshot, fallback, true, now).ShouldExecute,
+            var combined = LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset);
+            Require(combined.HasSpells && combined.HasRunes && combined.GetSelectedPerkIds().SequenceEqual(runePreset.SelectedPerkIds),
+                "Combined LCU preset lost saved rune selection or summoner spells.");
+            Require(LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasRunes &&
+                    !LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasSpells,
+                "Rune-only preset should apply without a summoner-spell preset.");
+            Require(!coordinator.Observe(snapshot, combined, true, now).ShouldExecute,
                 "Preset must wait for stable champion context.");
-            Require(coordinator.Observe(snapshot, fallback, true, now.AddSeconds(2)).ShouldExecute &&
-                    !coordinator.Observe(snapshot, fallback, true, now.AddSeconds(4)).ShouldExecute,
+            Require(coordinator.Observe(snapshot, combined, true, now.AddSeconds(2)).ShouldExecute &&
+                    !coordinator.Observe(snapshot, combined, true, now.AddSeconds(4)).ShouldExecute,
                 "Preset must apply once per stable game/champion/group.");
             snapshot.GameId = 101;
-            Require(!coordinator.Observe(snapshot, fallback, true, now.AddSeconds(5)).ShouldExecute &&
-                    coordinator.Observe(snapshot, fallback, true, now.AddSeconds(7)).ShouldExecute,
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(5)).ShouldExecute &&
+                    coordinator.Observe(snapshot, combined, true, now.AddSeconds(7)).ShouldExecute,
                 "A new game must restore a previously used champion's preset again.");
             snapshot.Activity = LeagueActivityLevel.InGame;
-            Require(!coordinator.Observe(snapshot, fallback, true, now.AddSeconds(8)).ShouldExecute,
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(8)).ShouldExecute,
                 "Presets must never apply during InProgress.");
             snapshot.Activity = LeagueActivityLevel.ChampSelect;
-            Require(!coordinator.Observe(snapshot, fallback, false, now.AddSeconds(9)).ShouldExecute,
+            Require(!coordinator.Observe(snapshot, combined, false, now.AddSeconds(9)).ShouldExecute,
                 "Disabled presets must not issue writes.");
             Require(LeagueChampionSpellPresets.Parse(
                 LeagueChampionSpellPresets.Remove(encoded, 157, rankedTop)).Count == 1,

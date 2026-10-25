@@ -377,6 +377,10 @@ The Recommendation page's scroll body and fixed footer remain owned by `LeagueRe
 
 The compact desktop launcher remains the primary floating-ball entry; a ball click intentionally **toggles** its existing panel. By contrast, the tray's **Open control center** item and tray icon double-click now call `MainForm.EnsureMenuOpenAndActive` so an already-open panel is surfaced rather than unexpectedly dismissed. The tray's existing **More** group now exposes the same on-demand `使用指南` card as the launcher Settings popup via `MainForm.OpenGettingStarted`. The old compact League button directly invokes the typed `LeagueHubUiBridge.RequestOpen(owner, string.Empty)` path. `ShellMenuGroups.FindGroup` is now a pure menu lookup; the retired League dropdown returns null without indirectly scheduling a Hub window. Both active and legacy surfaces still target the single nine-route `LeagueHubForm`, with the existing modal lifecycle and nonactivating in-game companion unchanged.
 
+## Akari 1.5.1 champion loadout parity candidate (Draft #357)
+
+`LeagueChampionSpellPresets` and `LeagueChampionRunePresets` own independent bounded, mode-keyed catalogs; each can supply a ranked-default fallback. `LeagueBuildApplyForm` captures live LCU spell slots and all nine rune perk IDs through the existing `LeagueBuildApplyService`, without writes during capture. `LeagueAutoApplyController` merges the saved halves into a single plan, one stabilized one-shot decision and one already-existing ChampSelect-only two-second observation lifecycle. This implementation does not create a new background worker, change the 56px floating orb or alter the approved compact/secondary window geometry. For runes the existing apply service creates or reuses only application-owned pages; it rejects unsafe capacity. Local recovery, portable/cloud preferences and deterministic smoke assertions cover persistence. Tencent gameplay acceptance and real CPU/RAM measurement are intentionally deferred to the owner's final consolidated test.
+
 
 ## Optional registered GGman account (Issue #313, released in 3.5.61)
 

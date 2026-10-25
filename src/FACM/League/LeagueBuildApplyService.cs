@@ -202,18 +202,7 @@ namespace FACM.League
             {
                 timeout.CancelAfter(TimeSpan.FromSeconds(4));
                 var live = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
-                var local = live == null ? null : live.Players.FirstOrDefault(row => row.IsLocalPlayer);
-                if (live == null || !live.Connected || live.Activity != LeagueActivityLevel.ChampSelect ||
-                    LeagueBuildAdvisorDataService.ResolveChampionId(live, local) != expected.ChampionId ||
-                    (expected.QueueId > 0 && live.QueueId != expected.QueueId) ||
-                    (expected.GameId > 0 && live.GameId > 0 && live.GameId != expected.GameId) ||
-                    !string.Equals(
-                        LeagueChampionSpellPresets.GroupFor(expected.QueueId, expected.Mode, expected.Position, expected.GameMode),
-                        LeagueChampionSpellPresets.GroupFor(live.QueueId,
-                            LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
-                            LeagueBuildAdvisorDataService.ResolveOpggPosition(
-                                local == null ? null : local.Position, "ranked"), live.GameMode), StringComparison.Ordinal))
-                    return null;
+                if (!MatchesPresetCaptureContext(expected, live)) return null;
 
                 var current = ParseObject(await _client.TryGetBytesAsync(MySelectionPath, timeout.Token)
                     .ConfigureAwait(false));
@@ -229,6 +218,101 @@ namespace FACM.League
                     Spell2Id = second
                 };
             }
+        }
+
+        internal async Task<LeagueBuildApplyPlan> CaptureCurrentLoadoutAsync(
+            LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
+        {
+            var spells = await CaptureCurrentSpellsAsync(expected, cancellationToken).ConfigureAwait(false);
+            var runes = await CaptureCurrentRunesAsync(expected, cancellationToken).ConfigureAwait(false);
+            if (spells == null && runes == null) return null;
+
+            // Both reads are independent. A final phase/hero recheck prevents saving a mixed
+            // loadout after the local player changes champion between the two reads.
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                var current = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
+                if (!MatchesPresetCaptureContext(expected, current)) return null;
+            }
+            if (spells == null) return runes;
+            if (runes != null)
+            {
+                spells.PrimaryStyleId = runes.PrimaryStyleId;
+                spells.SecondaryStyleId = runes.SecondaryStyleId;
+                spells.PresetPerkIds.AddRange(runes.PresetPerkIds);
+            }
+            return spells;
+        }
+
+        internal async Task<LeagueBuildApplyPlan> CaptureCurrentRunesAsync(
+            LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (expected == null || !expected.Connected || expected.Activity != LeagueActivityLevel.ChampSelect ||
+                expected.ChampionId <= 0) return null;
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                var before = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
+                if (!MatchesPresetCaptureContext(expected, before)) return null;
+
+                var currentBytes = await _client.TryGetBytesAsync(PerkCurrentPagePath, timeout.Token)
+                    .ConfigureAwait(false);
+                if (currentBytes == null || currentBytes.Length == 0) return null;
+                var currentPage = ParseObject(currentBytes);
+                if (currentPage == null || ReadInt(currentPage, "primaryStyleId") <= 0 ||
+                    ReadIntArray(ReadValue(currentPage, "selectedPerkIds")).Count != 9)
+                {
+                    var idText = Encoding.UTF8.GetString(currentBytes).Trim().Trim('"');
+                    int pageId;
+                    if (!int.TryParse(idText, NumberStyles.Integer, CultureInfo.InvariantCulture, out pageId))
+                        pageId = ReadInt(currentPage, "id");
+                    if (pageId <= 0) return null;
+                    var pagesBytes = await _client.TryGetBytesAsync(PerkPagesPath, timeout.Token)
+                        .ConfigureAwait(false);
+                    currentPage = ParseRunePages(pagesBytes).FirstOrDefault(row => ReadInt(row, "id") == pageId);
+                }
+                if (currentPage == null) return null;
+                var selected = ReadIntArray(ReadValue(currentPage, "selectedPerkIds"));
+                var primary = ReadInt(currentPage, "primaryStyleId");
+                var secondary = ReadInt(currentPage, "subStyleId");
+                if (primary <= 0 || secondary <= 0 || selected.Count != 9 ||
+                    selected.Any(id => id <= 0 || id > 100000)) return null;
+
+                var after = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
+                if (!MatchesPresetCaptureContext(expected, after)) return null;
+                var plan = new LeagueBuildApplyPlan
+                {
+                    ChampionId = expected.ChampionId,
+                    QueueId = expected.QueueId,
+                    PrimaryStyleId = primary,
+                    SecondaryStyleId = secondary
+                };
+                plan.PresetPerkIds.AddRange(selected);
+                return plan;
+            }
+        }
+
+        private static bool MatchesPresetCaptureContext(
+            LeagueBuildAdvisorSnapshot expected, LeagueLiveSnapshot live)
+        {
+            if (expected == null || live == null || !live.Connected ||
+                live.Activity != LeagueActivityLevel.ChampSelect) return false;
+            var local = live.Players.FirstOrDefault(row => row.IsLocalPlayer);
+            if (LeagueBuildAdvisorDataService.ResolveChampionId(live, local) != expected.ChampionId ||
+                (expected.QueueId > 0 && live.QueueId != expected.QueueId) ||
+                (expected.GameId > 0 && live.GameId > 0 && live.GameId != expected.GameId))
+                return false;
+            var expectedGroup = LeagueChampionSpellPresets.GroupFor(
+                expected.QueueId, expected.Mode, expected.Position, expected.GameMode);
+            var actualGroup = LeagueChampionSpellPresets.GroupFor(
+                live.QueueId, LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
+                LeagueBuildAdvisorDataService.ResolveOpggPosition(
+                    local == null ? null : local.Position, "ranked"), live.GameMode);
+            return !string.IsNullOrWhiteSpace(expectedGroup) &&
+                   string.Equals(expectedGroup, actualGroup, StringComparison.Ordinal);
         }
 
         internal LeagueBuildApplyPlan ParsePlan(byte[] bytes)

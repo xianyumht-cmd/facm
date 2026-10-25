@@ -631,3 +631,7 @@ PR #283 的 Runtime Companion 仍是 **review candidate**：没有修改 `releas
 17. Runtime Companion 必须继续复用 `LeagueHubModule` episode owner、共享 League/Build/Settings owners；位置恢复应在 PerMonitorV2 DPI 生效后 clamp，inline write 必须走现有安全 owner。真实 Tencent 客户端验收前不得把 PR #283 当作已发布行为，也不得删除旧 assistant 回退代码。
 
 后续若发现实机问题，按普通 3.5.x bugfix 处理并发布新的 patch 版本，不恢复 4.x 产品线。
+
+### Akari 1.5.1 parity work: champion loadout presets (Draft #357)
+
+The continuing experimental branch captures each selected champion's **nine exact rune perk IDs** plus primary/secondary style IDs from LCU and stores them alongside optional summoner-spell presets by existing Akari-derived game-mode/ranked-lane groups. The native build-apply form's one save action captures both available halves, the existing two-second ChampSelect owner applies either or both through `LeagueBuildApplyService`, and cloud/portable/local settings persist the separate bounded rune catalog. The `[FACM]` rune-page ownership and full-capacity safety checks remain intact. The 56px orb and approved compact/secondary windows, production release manifests, and update track remain untouched. Deterministic CI may prove compilation and mocked LCU behavior only; final Tencent match validation, feature-complete Akari mapping and measured low-end performance remain outstanding.

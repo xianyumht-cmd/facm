@@ -33,6 +33,7 @@ namespace FACM.Services
             "LeagueAutoApplyRecommended",
             "LeagueChampionSpellPresetsEnabled",
             "LeagueChampionSpellPresets",
+            "LeagueChampionRunePresets",
             "LeagueExitGameHotkey",
             "LeagueCloseLobbyHotkey",
             "LeagueAutoHonorTeammateEnabled",

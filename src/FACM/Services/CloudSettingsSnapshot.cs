@@ -17,6 +17,7 @@ namespace FACM.Services
         public bool LeagueAutoApplyRecommended { get; set; }
         public bool LeagueChampionSpellPresetsEnabled { get; set; }
         public string LeagueChampionSpellPresets { get; set; }
+        public string LeagueChampionRunePresets { get; set; }
         public string LeagueExitGameHotkey { get; set; }
         public string LeagueCloseLobbyHotkey { get; set; }
         public bool LeagueAutoHonorTeammateEnabled { get; set; }
@@ -46,6 +47,7 @@ namespace FACM.Services
                 LeagueAutoApplyRecommended = settings.LeagueAutoApplyRecommended,
                 LeagueChampionSpellPresetsEnabled = settings.LeagueChampionSpellPresetsEnabled,
                 LeagueChampionSpellPresets = settings.LeagueChampionSpellPresets ?? string.Empty,
+                LeagueChampionRunePresets = settings.LeagueChampionRunePresets ?? string.Empty,
                 LeagueExitGameHotkey = settings.LeagueExitGameHotkey ?? string.Empty,
                 LeagueCloseLobbyHotkey = settings.LeagueCloseLobbyHotkey ?? string.Empty,
                 LeagueAutoHonorTeammateEnabled = settings.LeagueAutoHonorTeammateEnabled,
@@ -76,6 +78,8 @@ namespace FACM.Services
             settings.LeagueChampionSpellPresetsEnabled = LeagueChampionSpellPresetsEnabled;
             settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets != null && LeagueChampionSpellPresets.Length <= 4096
                 ? LeagueChampionSpellPresets : string.Empty;
+            settings.LeagueChampionRunePresets = LeagueChampionRunePresets != null && LeagueChampionRunePresets.Length <= 7500
+                ? LeagueChampionRunePresets : string.Empty;
             if (settings.LeagueChampionSpellPresetsEnabled) settings.LeagueAutoApplyRecommended = false;
             settings.LeagueExitGameHotkey = LeagueExitGameHotkey ?? string.Empty;
             settings.LeagueCloseLobbyHotkey = LeagueCloseLobbyHotkey ?? string.Empty;

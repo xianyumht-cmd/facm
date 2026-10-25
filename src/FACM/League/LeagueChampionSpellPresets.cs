@@ -134,8 +134,13 @@ namespace FACM.League
         private static bool Valid(LeagueChampionSpellPreset row)
         {
             return row != null && row.ChampionId > 0 && row.ChampionId <= 10000 &&
-                   Groups.Contains(row.Group) && row.Spell1Id > 0 && row.Spell1Id <= 1000 &&
+                   ValidGroup(row.Group) && row.Spell1Id > 0 && row.Spell1Id <= 1000 &&
                    row.Spell2Id > 0 && row.Spell2Id <= 1000 && row.Spell1Id != row.Spell2Id;
+        }
+
+        internal static bool ValidGroup(string group)
+        {
+            return Groups.Contains(group);
         }
 
         private static string Key(LeagueChampionSpellPreset row)
@@ -151,10 +156,10 @@ namespace FACM.League
         private string _attempted;
 
         internal LeagueAutoApplyDecision Observe(LeagueBuildAdvisorSnapshot snapshot,
-            LeagueChampionSpellPreset preset, bool enabled, DateTime now)
+            LeagueBuildApplyPlan plan, bool enabled, DateTime now)
         {
-            if (!enabled || preset == null || snapshot == null || !snapshot.Connected ||
-                snapshot.Activity != LeagueActivityLevel.ChampSelect || snapshot.ChampionId != preset.ChampionId)
+            if (!enabled || plan == null || (!plan.HasSpells && !plan.HasRunes) || snapshot == null || !snapshot.Connected ||
+                snapshot.Activity != LeagueActivityLevel.ChampSelect || snapshot.ChampionId != plan.ChampionId)
             {
                 _pending = null;
                 _attempted = null;
@@ -162,8 +167,9 @@ namespace FACM.League
             }
 
             var fingerprint = snapshot.GameId + ":" + snapshot.QueueId + ":" +
-                              preset.ChampionId + ":" + preset.Group + ":" +
-                              preset.Spell1Id + ":" + preset.Spell2Id;
+                              plan.ChampionId + ":" + plan.Spell1Id + ":" + plan.Spell2Id + ":" +
+                              plan.PrimaryStyleId + ":" + plan.SecondaryStyleId + ":" +
+                              string.Join(",", plan.GetSelectedPerkIds());
             if (fingerprint == _attempted)
                 return new LeagueAutoApplyDecision { Reason = "already-applied", Fingerprint = fingerprint };
             if (fingerprint != _pending)

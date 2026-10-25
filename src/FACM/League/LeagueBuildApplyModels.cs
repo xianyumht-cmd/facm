@@ -9,6 +9,7 @@ namespace FACM.League
             PrimaryRuneIds = new List<int>();
             SecondaryRuneIds = new List<int>();
             StatModIds = new List<int>();
+            PresetPerkIds = new List<int>();
         }
 
         public int ChampionId { get; set; }
@@ -26,6 +27,7 @@ namespace FACM.League
         public List<int> PrimaryRuneIds { get; private set; }
         public List<int> SecondaryRuneIds { get; private set; }
         public List<int> StatModIds { get; private set; }
+        public List<int> PresetPerkIds { get; private set; }
         public string RunePreview { get; set; }
 
         public bool HasSpells
@@ -39,14 +41,14 @@ namespace FACM.League
             {
                 return PrimaryStyleId > 0 &&
                        SecondaryStyleId > 0 &&
-                       PrimaryRuneIds.Count > 0 &&
-                       SecondaryRuneIds.Count > 0 &&
-                       StatModIds.Count > 0;
+                       (PresetPerkIds.Count > 0 ||
+                        (PrimaryRuneIds.Count > 0 && SecondaryRuneIds.Count > 0 && StatModIds.Count > 0));
             }
         }
 
         public List<int> GetSelectedPerkIds()
         {
+            if (PresetPerkIds.Count > 0) return new List<int>(PresetPerkIds);
             var output = new List<int>(PrimaryRuneIds.Count + SecondaryRuneIds.Count + StatModIds.Count);
             output.AddRange(PrimaryRuneIds);
             output.AddRange(SecondaryRuneIds);

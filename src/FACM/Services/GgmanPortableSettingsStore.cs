@@ -46,6 +46,7 @@ namespace FACM.Services
             var s = value.Settings;
             if (s.LeagueExitGameHotkey == null || s.LeagueExitGameHotkey.Length > 100 ||
                 (s.LeagueChampionSpellPresets != null && s.LeagueChampionSpellPresets.Length > 4096) ||
+                (s.LeagueChampionRunePresets != null && s.LeagueChampionRunePresets.Length > 7500) ||
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
@@ -83,6 +84,7 @@ namespace FACM.Services
             settings.LeagueAutoApplyRecommended = s.LeagueAutoApplyRecommended;
             settings.LeagueChampionSpellPresetsEnabled = s.LeagueChampionSpellPresetsEnabled;
             settings.LeagueChampionSpellPresets = s.LeagueChampionSpellPresets ?? string.Empty;
+            settings.LeagueChampionRunePresets = s.LeagueChampionRunePresets ?? string.Empty;
             if (settings.LeagueChampionSpellPresetsEnabled) settings.LeagueAutoApplyRecommended = false;
             settings.LeagueExitGameHotkey = s.LeagueExitGameHotkey;
             settings.LeagueCloseLobbyHotkey = s.LeagueCloseLobbyHotkey;

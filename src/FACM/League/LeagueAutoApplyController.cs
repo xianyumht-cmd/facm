@@ -461,24 +461,58 @@ namespace FACM.League
             return LeagueChampionSpellPresets.Resolve(_settings.LeagueChampionSpellPresets, snapshot.ChampionId, group);
         }
 
+        internal LeagueChampionRunePreset FindRunePreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            return LeagueChampionRunePresets.Resolve(_settings.LeagueChampionRunePresets, snapshot.ChampionId, group);
+        }
+
+        internal static LeagueBuildApplyPlan MakePresetPlan(LeagueBuildAdvisorSnapshot snapshot,
+            LeagueChampionSpellPreset spells, LeagueChampionRunePreset runes)
+        {
+            if (snapshot == null || (spells == null && runes == null)) return null;
+            var plan = new LeagueBuildApplyPlan { ChampionId = snapshot.ChampionId, QueueId = snapshot.QueueId };
+            if (spells != null)
+            {
+                plan.Spell1Id = spells.Spell1Id;
+                plan.Spell2Id = spells.Spell2Id;
+            }
+            if (runes != null)
+            {
+                plan.PrimaryStyleId = runes.PrimaryStyleId;
+                plan.SecondaryStyleId = runes.SecondaryStyleId;
+                plan.PresetPerkIds.AddRange(runes.SelectedPerkIds);
+            }
+            return plan;
+        }
+
         internal void SavePreset(LeagueBuildAdvisorSnapshot snapshot, LeagueBuildApplyPlan current)
         {
             var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
-            if (string.IsNullOrWhiteSpace(group) || current == null || !current.HasSpells ||
+            if (string.IsNullOrWhiteSpace(group) || current == null || (!current.HasSpells && !current.HasRunes) ||
                 current.ChampionId != snapshot.ChampionId || current.QueueId != snapshot.QueueId)
-                throw new InvalidOperationException("Champion selection is not available for a spell preset.");
-            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Upsert(
-                _settings.LeagueChampionSpellPresets,
-                new LeagueChampionSpellPreset
+                throw new InvalidOperationException("Champion selection is not available for a loadout preset.");
+            var spellValue = current.HasSpells ? LeagueChampionSpellPresets.Upsert(
+                _settings.LeagueChampionSpellPresets, new LeagueChampionSpellPreset
                 {
-                    ChampionId = current.ChampionId,
-                    Group = group,
-                    Spell1Id = current.Spell1Id,
-                    Spell2Id = current.Spell2Id
-                });
+                    ChampionId = current.ChampionId, Group = group,
+                    Spell1Id = current.Spell1Id, Spell2Id = current.Spell2Id
+                }) : _settings.LeagueChampionSpellPresets;
+            var runeValue = current.HasRunes ? LeagueChampionRunePresets.Upsert(
+                _settings.LeagueChampionRunePresets, new LeagueChampionRunePreset
+                {
+                    ChampionId = current.ChampionId, Group = group,
+                    PrimaryStyleId = current.PrimaryStyleId, SecondaryStyleId = current.SecondaryStyleId,
+                    SelectedPerkIds = current.GetSelectedPerkIds()
+                }) : _settings.LeagueChampionRunePresets;
+            _settings.LeagueChampionSpellPresets = spellValue;
+            _settings.LeagueChampionRunePresets = runeValue;
             lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
             _settings.Save();
-            AppLog.Info("League spell preset saved; champion=" + current.ChampionId + "; group=" + group);
+            AppLog.Info("League loadout preset saved; champion=" + current.ChampionId + "; group=" + group +
+                        "; spells=" + current.HasSpells + "; runes=" + current.HasRunes);
         }
 
         internal void RemovePreset(LeagueBuildAdvisorSnapshot snapshot)
@@ -487,12 +521,18 @@ namespace FACM.League
             var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
             if (string.IsNullOrWhiteSpace(group)) return;
             var existing = FindPreset(snapshot);
-            if (existing == null) return;
-            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
-                _settings.LeagueChampionSpellPresets, snapshot.ChampionId, existing.Group);
+            var existingRunes = FindRunePreset(snapshot);
+            if (existing == null && existingRunes == null) return;
+            if (existing != null)
+                _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
+                    _settings.LeagueChampionSpellPresets, snapshot.ChampionId, existing.Group);
+            if (existingRunes != null)
+                _settings.LeagueChampionRunePresets = LeagueChampionRunePresets.Remove(
+                    _settings.LeagueChampionRunePresets, snapshot.ChampionId, existingRunes.Group);
             lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
             _settings.Save();
-            AppLog.Info("League spell preset removed; champion=" + snapshot.ChampionId + "; group=" + existing.Group);
+            AppLog.Info("League loadout preset removed; champion=" + snapshot.ChampionId + "; group=" + group);
         }
 
         internal void SetPresetsEnabled(bool enabled)
@@ -655,10 +695,12 @@ namespace FACM.League
             }
 
             var preset = FindPreset(snapshot);
+            var runePreset = FindRunePreset(snapshot);
+            var plan = MakePresetPlan(snapshot, preset, runePreset);
             LeagueAutoApplyDecision decision;
             lock (_sync)
-                decision = _presetCoordinator.Observe(snapshot, preset, true, utcNow);
-            if (!decision.ShouldExecute || preset == null) return;
+                decision = _presetCoordinator.Observe(snapshot, plan, true, utcNow);
+            if (!decision.ShouldExecute || plan == null) return;
 
             CancellationTokenSource active;
             lock (_sync)
@@ -671,30 +713,26 @@ namespace FACM.League
             var clock = Stopwatch.StartNew();
             try
             {
-                AppLog.Info("League spell preset apply start; trace=" + trace +
-                            "; champion=" + preset.ChampionId + "; group=" + preset.Group);
-                var result = await _presetApply.ApplyAsync(new LeagueBuildApplyPlan
-                {
-                    ChampionId = preset.ChampionId,
-                    TraceId = trace,
-                    QueueId = snapshot.QueueId,
-                    Spell1Id = preset.Spell1Id,
-                    Spell2Id = preset.Spell2Id
-                }, active.Token).ConfigureAwait(false);
-                AppLog.Info("League spell preset apply finish; trace=" + trace +
+                plan.TraceId = trace;
+                AppLog.Info("League loadout preset apply start; trace=" + trace +
+                            "; champion=" + plan.ChampionId +
+                            "; spells=" + plan.HasSpells + "; runes=" + plan.HasRunes);
+                var result = await _presetApply.ApplyAsync(plan, active.Token).ConfigureAwait(false);
+                AppLog.Info("League loadout preset apply finish; trace=" + trace +
                             "; result=" + (result == null ? "failed" : result.Status) +
                             "; spell=" + (result == null ? "unavailable" : result.SpellStatus) +
+                            "; rune=" + (result == null ? "unavailable" : result.RuneStatus) +
                             "; ms=" + clock.ElapsedMilliseconds);
             }
             catch (OperationCanceledException)
             {
-                AppLog.Info("League spell preset apply cancelled; trace=" + trace +
+                AppLog.Info("League loadout preset apply cancelled; trace=" + trace +
                             "; ms=" + clock.ElapsedMilliseconds);
                 if (cancellationToken.IsCancellationRequested) throw;
             }
             catch (Exception exception)
             {
-                AppLog.Error("League spell preset apply failed; trace=" + trace, exception);
+                AppLog.Error("League loadout preset apply failed; trace=" + trace, exception);
             }
             finally
             {
