@@ -37,6 +37,7 @@ namespace FACM.AppHost.Modules
         private LeagueMatchmakingAutomationController _matchmaking;
         private LeagueMatchmakingStopController _matchmakingStop;
         private LeagueGameflowReconnectController _reconnect;
+        private LeagueAutoPickBanController _autoSelect;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _disposed;
 
@@ -88,6 +89,8 @@ namespace FACM.AppHost.Modules
             ConfigureMatchmakingStopController();
             _reconnect = new LeagueGameflowReconnectController(_leagueClient, (ILeagueGameflowReconnectWriteApi)_leagueClient);
             _reconnect.Configure(AutoReconnectEnabled);
+            _autoSelect = new LeagueAutoPickBanController(_leagueClient, (ILeagueChampSelectActionWriteApi)_leagueClient);
+            ConfigureAutoSelect();
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -97,6 +100,7 @@ namespace FACM.AppHost.Modules
                 _matchmaking.Observe(current);
                 _matchmakingStop.Observe(current);
                 _reconnect.Observe(current);
+                _autoSelect.Observe(current);
             }
         }
 
@@ -113,6 +117,10 @@ namespace FACM.AppHost.Modules
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
         public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
+        public bool AutoPickEnabled { get { return _settingsModule.Settings.LeagueAutoPickEnabled; } }
+        public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
+        public int AutoPickChampionId { get { return _settingsModule.Settings.LeagueAutoPickChampionId; } }
+        public int AutoBanChampionId { get { return _settingsModule.Settings.LeagueAutoBanChampionId; } }
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
         public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
@@ -153,6 +161,32 @@ namespace FACM.AppHost.Modules
             if (_reconnect == null) return;
             _reconnect.Configure(enabled);
             _reconnect.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            return new LeagueProfileCustomizationService(_leagueClient, (ILeagueProfileWriteApi)_leagueClient)
+                .LoadChampionsAsync(cancellationToken);
+        }
+
+        public void UpdateAutoSelectSettings(bool autoPick, int pickId, bool autoBan, int banId)
+        {
+            ThrowIfDisposed();
+            if (autoPick && pickId <= 0 || autoBan && banId <= 0)
+                throw new ArgumentException("Enabled auto-select requires a configured champion.");
+            _settingsModule.Settings.LeagueAutoPickEnabled = autoPick;
+            _settingsModule.Settings.LeagueAutoBanEnabled = autoBan;
+            _settingsModule.Settings.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, pickId));
+            _settingsModule.Settings.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, banId));
+            _settingsModule.Settings.Save();
+            ConfigureAutoSelect();
+            _autoSelect?.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        private void ConfigureAutoSelect()
+        {
+            _autoSelect?.Configure(AutoPickEnabled, AutoPickChampionId, AutoBanEnabled, AutoBanChampionId);
         }
 
         public void UpdateMatchmakingSettings(
@@ -245,6 +279,7 @@ namespace FACM.AppHost.Modules
             if (_matchmaking != null) _matchmaking.Observe(state);
             if (_matchmakingStop != null) _matchmakingStop.Observe(state);
             if (_reconnect != null) _reconnect.Observe(state);
+            if (_autoSelect != null) _autoSelect.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -280,6 +315,11 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_autoSelect != null)
+            {
+                _autoSelect.Dispose();
+                _autoSelect = null;
+            }
             if (_reconnect != null)
             {
                 _reconnect.Dispose();

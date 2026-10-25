@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-25 — Keep Akari ChampSelect writes opt-in and isolated by phase
+
+The owner requires every user-visible League Akari v1.5.1 function to reach parity; the first automatic pick/ban slice is **not** the complete feature. Use GGman's existing native `LeagueEfficiencyModule` and shared authenticated LCU session, a single ChampSelect-scoped cancelable 2-second job (active only when enabled), a typed and allowlisted `pick`/`ban` action writer, last-moment local-turn/champion preflight and one attempt per active action. Defaults remain disabled. This minimizes accidental champion overrides and idle network cost while keeping per-role/queue candidate lists, intent/show and delayed lock, bench prioritization and exchanges as explicit required follow-up work. Do not change frozen compact panels, merge the Draft PR or publish before owner-approved Windows/Tencent tests.
+
 ## 2026-10-25 — Akari 1.5.1 functional parity is mandatory; implementation remains native
 
 The owner clarified that **every user-facing functionality in the exact Akari v1.5.1 source** belongs to GGman's target scope. A feature cannot be dropped because Electron's approach is resource-heavy, because a Tencent/SGP endpoint requires further investigation, or because that module is not yet reliable in a test environment. Stage implementation and keep individually blocked cases open with specific evidence and a viable equivalent-native mechanism. Compare feature settings, lifecycle, errors and ownership, not just names in the README. Functional parity does not require reproducing Electron's renderer, IPC mechanism or windowing framework. Do not redesign the approved compact floating UI. Each native module shares existing Gameflow/LCU owners, has bounded work and trace diagnostics, and requires Windows 10/Tencent physical acceptance before production. See `docs/LEAGUE-AKARI-V1.5.1-REFERENCE-AUDIT.md` for the mandatory parity backlog.

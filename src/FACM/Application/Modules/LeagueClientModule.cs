@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -17,6 +17,7 @@ namespace FACM.AppHost.Modules
         private LeagueClientWriteApiClient _writer;
         private LeaguePostGameWriteApiClient _postGameWriter;
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
+        private LeagueChampSelectActionWriteApiClient _champSelectActionWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
         private LeagueChampSelectQuitWriteApiClient _champSelectQuitWriter;
         private LeaguePresenceWriteApiClient _presenceWriter;
@@ -45,6 +46,7 @@ namespace FACM.AppHost.Modules
             _writer = new LeagueClientWriteApiClient(_sessions);
             _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
+            _champSelectActionWriter = new LeagueChampSelectActionWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
             _champSelectQuitWriter = new LeagueChampSelectQuitWriteApiClient(_sessions);
             _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
@@ -86,6 +88,15 @@ namespace FACM.AppHost.Modules
         {
             var writer = _matchmakingWriter;
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueChampSelectActionWriteApi.TryApplyAsync(
+            string actionType, int actionId, int championId, bool completed, CancellationToken cancellationToken)
+        {
+            var writer = _champSelectActionWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryApplyAsync(actionType, actionId, championId, completed, cancellationToken);
         }
 
         Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken cancellationToken)
@@ -176,6 +187,7 @@ namespace FACM.AppHost.Modules
             var benchSwapWriter = _benchSwapWriter;
             var champSelectQuitWriter = _champSelectQuitWriter;
             var matchmakingWriter = _matchmakingWriter;
+            var champSelectActionWriter = _champSelectActionWriter;
             var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
@@ -188,6 +200,7 @@ namespace FACM.AppHost.Modules
             _benchSwapWriter = null;
             _champSelectQuitWriter = null;
             _matchmakingWriter = null;
+            _champSelectActionWriter = null;
             _postGameWriter = null;
             _writer = null;
             _api = null;
@@ -201,6 +214,7 @@ namespace FACM.AppHost.Modules
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (champSelectQuitWriter != null) champSelectQuitWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
+            if (champSelectActionWriter != null) champSelectActionWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();
             if (writer != null) writer.Dispose();
             if (api != null) api.Dispose();

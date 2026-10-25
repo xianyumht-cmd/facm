@@ -42,6 +42,18 @@ namespace FACM.League
         public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
         public const string AutoReconnect = "LeagueEfficiencyAutoReconnect";
         public const string AutoReconnectHint = "LeagueEfficiencyAutoReconnectHint";
+        public const string AutoSelectSection = "LeagueEfficiencyAutoSelectSection";
+        public const string AutoPick = "LeagueEfficiencyAutoPick";
+        public const string AutoPickHint = "LeagueEfficiencyAutoPickHint";
+        public const string AutoPickChampion = "LeagueEfficiencyAutoPickChampion";
+        public const string AutoPickChampionHint = "LeagueEfficiencyAutoPickChampionHint";
+        public const string AutoBan = "LeagueEfficiencyAutoBan";
+        public const string AutoBanHint = "LeagueEfficiencyAutoBanHint";
+        public const string AutoBanChampion = "LeagueEfficiencyAutoBanChampion";
+        public const string AutoBanChampionHint = "LeagueEfficiencyAutoBanChampionHint";
+        public const string ChampionNotSet = "LeagueEfficiencyChampionNotSet";
+        public const string ChampionCatalogUnavailable = "LeagueEfficiencyChampionCatalogUnavailable";
+        public const string AutoSelectSaved = "LeagueEfficiencyAutoSelectSaved";
         public const string MinPartySize = "LeagueEfficiencyMinPartySize";
         public const string MinPartySizeHint = "LeagueEfficiencyMinPartySizeHint";
         public const string MatchmakingDelay = "LeagueEfficiencyMatchmakingDelay";
@@ -98,6 +110,18 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "匹配成功后自动接受一次；已经接受或你主动拒绝时不会反复操作。" },
             { LeagueEfficiencyUiTextKeys.AutoReconnect, "断线后自动重连" },
             { LeagueEfficiencyUiTextKeys.AutoReconnectHint, "游戏客户端进入重连状态后等待 10 秒，再确认状态并尝试重连一次；离开该状态或关闭开关就取消。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.AutoSelectSection, "自动选禁英雄" },
+            { LeagueEfficiencyUiTextKeys.AutoPick, "自动锁定英雄" },
+            { LeagueEfficiencyUiTextKeys.AutoPickHint, "轮到自己选人时，先确认目标英雄可选，且你没有手动选其他英雄，再尝试锁定一次。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.AutoPickChampion, "优先选择" },
+            { LeagueEfficiencyUiTextKeys.AutoPickChampionHint, "从当前客户端英雄列表选一个默认目标。后续版本继续补齐分路、多英雄优先级和亮出后锁定策略。" },
+            { LeagueEfficiencyUiTextKeys.AutoBan, "自动禁用英雄" },
+            { LeagueEfficiencyUiTextKeys.AutoBanHint, "轮到自己禁用时，确认英雄在可禁列表中，才提交一次禁用。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.AutoBanChampion, "优先禁用" },
+            { LeagueEfficiencyUiTextKeys.AutoBanChampionHint, "从当前客户端英雄列表选一个默认禁用目标；已禁、不可禁时不执行。" },
+            { LeagueEfficiencyUiTextKeys.ChampionNotSet, "未设置英雄" },
+            { LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable, "无法读取英雄列表；请先进入 LOL 大厅，再重新打开此页面。" },
+            { LeagueEfficiencyUiTextKeys.AutoSelectSaved, "自动选禁设置已保存。" },
             { LeagueEfficiencyUiTextKeys.MinPartySize, "自动排队最低人数（人）" },
             { LeagueEfficiencyUiTextKeys.MinPartySizeHint, "只有当前大厅真人数量达到这个值时才自动开始排队；1-5 人。" },
             { LeagueEfficiencyUiTextKeys.MatchmakingDelay, "排队前等待（秒）" },

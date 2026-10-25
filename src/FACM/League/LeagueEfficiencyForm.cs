@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
@@ -18,6 +21,11 @@ namespace FACM.League
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
+        private readonly CheckBox _autoPick;
+        private readonly CheckBox _autoBan;
+        private readonly ComboBox _pickChampion;
+        private readonly ComboBox _banChampion;
+        private readonly CancellationTokenSource _catalogRequest = new CancellationTokenSource();
         private readonly NumericUpDown _minPartySize;
         private readonly NumericUpDown _matchmakingDelaySeconds;
         private readonly NumericUpDown _acceptDelaySeconds;
@@ -47,7 +55,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 19,
+                RowCount = 24,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -65,6 +73,11 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
@@ -172,11 +185,28 @@ namespace FACM.League
                 T(LeagueEfficiencyUiTextKeys.AutoReconnectHint), _module.AutoReconnectEnabled);
             _autoReconnect.CheckedChanged += ReconnectSettingChanged;
 
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.AutoSelectSection)), 0, 18);
+            _autoPick = AddAutomationRow(root, 19, T(LeagueEfficiencyUiTextKeys.AutoPick),
+                T(LeagueEfficiencyUiTextKeys.AutoPickHint), _module.AutoPickEnabled);
+            _pickChampion = AddChoiceRow(root, 20, T(LeagueEfficiencyUiTextKeys.AutoPickChampion),
+                T(LeagueEfficiencyUiTextKeys.AutoPickChampionHint), null, 0);
+            _autoBan = AddAutomationRow(root, 21, T(LeagueEfficiencyUiTextKeys.AutoBan),
+                T(LeagueEfficiencyUiTextKeys.AutoBanHint), _module.AutoBanEnabled);
+            _banChampion = AddChoiceRow(root, 22, T(LeagueEfficiencyUiTextKeys.AutoBanChampion),
+                T(LeagueEfficiencyUiTextKeys.AutoBanChampionHint), null, 0);
+            SetChampionChoices(_pickChampion, _module.AutoPickChampionId, null);
+            SetChampionChoices(_banChampion, _module.AutoBanChampionId, null);
+            _autoPick.CheckedChanged += AutoSelectSettingChanged;
+            _autoBan.CheckedChanged += AutoSelectSettingChanged;
+            _pickChampion.SelectedIndexChanged += AutoSelectSettingChanged;
+            _banChampion.SelectedIndexChanged += AutoSelectSettingChanged;
+
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;
             Controls.Add(root);
             _loading = false;
             UpdateMatchmakingControlStates();
+            _ = LoadChampionCatalogAsync();
         }
 
         private Control CreatePostGameHeader()
@@ -516,6 +546,107 @@ namespace FACM.League
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
 
+        private sealed class ChampionChoice
+        {
+            public int Id;
+            public string Name;
+            public override string ToString() { return Name ?? string.Empty; }
+        }
+
+        private void SetChampionChoices(
+            ComboBox combo, int selectedId, IReadOnlyList<LeagueProfileChampionOption> champions)
+        {
+            combo.BeginUpdate();
+            try
+            {
+                combo.Items.Clear();
+                combo.Items.Add(new ChampionChoice { Id = 0, Name = T(LeagueEfficiencyUiTextKeys.ChampionNotSet) });
+                var selectedIndex = 0;
+                if (champions != null)
+                {
+                    foreach (var champion in champions)
+                    {
+                        if (champion == null || champion.Id <= 0 || string.IsNullOrWhiteSpace(champion.Name)) continue;
+                        combo.Items.Add(new ChampionChoice { Id = champion.Id, Name = champion.Name });
+                        if (champion.Id == selectedId) selectedIndex = combo.Items.Count - 1;
+                    }
+                }
+                if (selectedId > 0 && selectedIndex == 0)
+                {
+                    combo.Items.Add(new ChampionChoice { Id = selectedId, Name = "#" + selectedId });
+                    selectedIndex = combo.Items.Count - 1;
+                }
+                combo.SelectedIndex = selectedIndex;
+            }
+            finally { combo.EndUpdate(); }
+        }
+
+        private async Task LoadChampionCatalogAsync()
+        {
+            try
+            {
+                var champions = await _module.LoadChampionsAsync(_catalogRequest.Token);
+                if (_catalogRequest.IsCancellationRequested || IsDisposed || Disposing) return;
+                if (champions == null || champions.Count == 0)
+                {
+                    _help.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
+                    return;
+                }
+                _loading = true;
+                try
+                {
+                    SetChampionChoices(_pickChampion, SelectedChampionId(_pickChampion), champions);
+                    SetChampionChoices(_banChampion, SelectedChampionId(_banChampion), champions);
+                }
+                finally { _loading = false; }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                if (!IsDisposed && !Disposing)
+                {
+                    _help.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
+                    AppLog.Info("Champion catalog loading skipped: " + exception.GetType().Name);
+                }
+            }
+        }
+
+        private static int SelectedChampionId(ComboBox combo)
+        {
+            var choice = combo == null ? null : combo.SelectedItem as ChampionChoice;
+            return choice == null ? 0 : choice.Id;
+        }
+
+        private void AutoSelectSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            var pickId = SelectedChampionId(_pickChampion);
+            var banId = SelectedChampionId(_banChampion);
+            var missingChampion = _autoPick.Checked && pickId <= 0 || _autoBan.Checked && banId <= 0;
+            if (missingChampion)
+            {
+                _loading = true;
+                try
+                {
+                    if (pickId <= 0) _autoPick.Checked = false;
+                    if (banId <= 0) _autoBan.Checked = false;
+                }
+                finally { _loading = false; }
+            }
+            try
+            {
+                _module.UpdateAutoSelectSettings(_autoPick.Checked, pickId, _autoBan.Checked, banId);
+                _status.ForeColor = missingChampion ? FacmDesignSystem.Warning : FacmDesignSystem.Success;
+                _status.Text = missingChampion ? T(LeagueEfficiencyUiTextKeys.ChampionNotSet) :
+                    T(LeagueEfficiencyUiTextKeys.AutoSelectSaved);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.SaveFailed).Replace("{0}", exception.GetType().Name);
+            }
+        }
+
         private void UpdateMatchmakingControlStates()
         {
             var autoSearch = _autoSearch != null && _autoSearch.Checked;
@@ -586,6 +717,8 @@ namespace FACM.League
 
         private void HandleFormClosed(object sender, FormClosedEventArgs e)
         {
+            _catalogRequest.Cancel();
+            _catalogRequest.Dispose();
             _module.HonorStatusChanged -= HandleHonorStatusChanged;
         }
 
