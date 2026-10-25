@@ -38,7 +38,10 @@ namespace FACM.League
             var secondResult = await second.ConfigureAwait(false);
             if (firstResult.Status != "success" || secondResult.Status != "success" ||
                 api.StatusMessage != "saved" || api.Tier != "DIAMOND" || api.Writes != 2)
-                throw new InvalidOperationException("Overlapping signature and ranked writes lost one user's change.");
+                throw new InvalidOperationException("Overlapping signature and ranked writes failed: signature=" +
+                    firstResult.Status + "; rank=" + secondResult.Status + "; saved=" +
+                    (api.StatusMessage == "saved") + "; tier=" + api.Tier + "; writes=" + api.Writes +
+                    "; reads=" + api.Reads + ".");
         }
 
         private sealed class ContendedPresence : ILeagueClientApi, ILeaguePresenceWriteApi
@@ -50,6 +53,7 @@ namespace FACM.League
                 TaskCreationOptions.RunContinuationsAsynchronously);
             private string _signature = "original";
             private string _tier = "GOLD";
+            private string _division = "II";
             private int _reads;
             private int _writes;
 
@@ -78,7 +82,7 @@ namespace FACM.League
                                 { "gameStatus", "outOfGame" },
                                 { "rankedLeagueQueue", "RANKED_SOLO_5x5" },
                                 { "rankedLeagueTier", _tier },
-                                { "rankedLeagueDivision", "II" }
+                                { "rankedLeagueDivision", _division }
                             }
                         }
                     });
@@ -103,6 +107,7 @@ namespace FACM.League
                 {
                     _signature = (string)root["statusMessage"];
                     _tier = (string)lol["rankedLeagueTier"];
+                    _division = (string)lol["rankedLeagueDivision"];
                 }
                 return new LeagueClientWriteResponse { StatusCode = 204, Body = Array.Empty<byte>() };
             }
