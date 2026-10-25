@@ -337,14 +337,7 @@ namespace FACM.Mayhem
                         MayhemRankingSnapshot candidate;
                         if (ReferenceEquals(done, hexTask))
                         {
-                            var detail = new MayhemChampionResult();
-                            ApplyHexdata(ParseHexdataRows(html), "yasuo", "yasuo", detail);
-                            candidate = new MayhemRankingSnapshot
-                            {
-                                Source = "Hexdata",
-                                Patch = MayhemRankingSourceService.ReadPatch(html),
-                                TopTen = detail.TopTen
-                            };
+                            candidate = ParseHexdataFullRanking(html);
                         }
                         else if (ReferenceEquals(done, aramTask))
                             candidate = MayhemRankingSourceService.ParseAramgg(html);
@@ -388,17 +381,10 @@ namespace FACM.Mayhem
             await Task.WhenAll(hexdataTask, aramggTask, mayhemTask).ConfigureAwait(false);
 
             var hexdataHtml = await hexdataTask.ConfigureAwait(false);
-            var hexdata = new MayhemChampionResult();
-            ApplyHexdata(ParseHexdataRows(hexdataHtml), "yasuo", "yasuo", hexdata);
             var mayhemHtml = await mayhemTask.ConfigureAwait(false);
             return new[]
             {
-                new MayhemRankingSnapshot
-                {
-                    Source = "Hexdata",
-                    Patch = MayhemRankingSourceService.ReadPatch(hexdataHtml),
-                    TopTen = hexdata.TopTen
-                },
+                ParseHexdataFullRanking(hexdataHtml),
                 MayhemRankingSourceService.ParseAramgg(await aramggTask.ConfigureAwait(false)),
                 new MayhemRankingSnapshot
                 {
@@ -406,6 +392,27 @@ namespace FACM.Mayhem
                     Patch = MayhemRankingSourceService.ReadPatch(mayhemHtml),
                     TopTen = ParseTopTen(mayhemHtml)
                 }
+            };
+        }
+
+        private static MayhemRankingSnapshot ParseHexdataFullRanking(string html)
+        {
+            var rows = ParseHexdataRows(html);
+            var ranked = rows.Select(row => new MayhemTopChampion
+            {
+                Rank = row.Rank,
+                Name = row.Name,
+                Slug = row.Slug,
+                WinRate = row.WinRate,
+                // The source supplies ranks, not tier labels. Do not fabricate T0/T1.
+                Tier = null
+            }).ToList();
+            return new MayhemRankingSnapshot
+            {
+                Source = "Hexdata",
+                Patch = MayhemRankingSourceService.ReadPatch(html),
+                TopTen = ranked.Take(10).ToList(),
+                AllChampions = ranked.Count > 10 ? ranked : null
             };
         }
 

@@ -34,6 +34,7 @@ namespace FACM.Mayhem
             public string Patch { get; set; }
             public string SavedUtc { get; set; }
             public List<MayhemTopChampion> TopTen { get; set; }
+            public List<MayhemTopChampion> AllChampions { get; set; }
         }
 
         internal static string DefaultFilePath
@@ -70,9 +71,12 @@ namespace FACM.Mayhem
                 {
                     Source = record.Source,
                     Patch = record.Patch,
-                    TopTen = record.TopTen
+                    TopTen = record.TopTen,
+                    AllChampions = record.AllChampions
                 };
                 if (!MayhemRankingSourceService.IsComplete(ranking)) return null;
+                if (!MayhemRankingSourceService.IsExpandedValid(ranking))
+                    ranking.AllChampions = null;
                 return new Entry { Ranking = ranking, SavedUtc = saved, Fresh = age >= TimeSpan.Zero && age <= FreshFor };
             }
             catch (IOException) { return null; }
@@ -94,7 +98,9 @@ namespace FACM.Mayhem
                     Source = ranking.Source, Patch = ranking.Patch,
                     SavedUtc = (savedUtc ?? DateTime.UtcNow).ToUniversalTime()
                         .ToString("o", CultureInfo.InvariantCulture),
-                    TopTen = ranking.TopTen
+                    TopTen = ranking.TopTen,
+                    AllChampions = MayhemRankingSourceService.IsExpandedValid(ranking) ?
+                        ranking.AllChampions : null
                 };
                 var json = new JavaScriptSerializer().Serialize(document);
                 if (Encoding.UTF8.GetByteCount(json) > MaximumFileBytes) return false;
@@ -139,16 +145,30 @@ namespace FACM.Mayhem
                         Rank = i + 1, Name = "Champion" + i, Slug = "champion" + i,
                         Tier = "A", WinRate = 50 + i
                     });
+                source.AllChampions = new List<MayhemTopChampion>(source.TopTen);
+                for (int i = 10; i < 28; i++)
+                    source.AllChampions.Add(new MayhemTopChampion {
+                        Rank = i + 1, Name = "Champion" + i, Slug = "champion" + i,
+                        Tier = null, WinRate = 50 + i
+                    });
                 var now = new DateTime(2026, 10, 24, 12, 0, 0, DateTimeKind.Utc);
                 if (!TrySave(source, path, now)) throw new InvalidOperationException("Compact rank cache write failed.");
                 var fresh = TryLoad(path, now.AddMinutes(5));
-                if (fresh == null || !fresh.Fresh || fresh.Ranking.TopTen.Count != 10)
+                if (fresh == null || !fresh.Fresh || fresh.Ranking.TopTen.Count != 10 ||
+                    !MayhemRankingSourceService.IsExpandedValid(fresh.Ranking) ||
+                    MayhemRankingSourceService.FindRank(fresh.Ranking, "Champion19").Rank != 20)
                     throw new InvalidOperationException("Valid compact rank cache was rejected.");
                 var stale = TryLoad(path, now.AddHours(2));
                 if (stale == null || stale.Fresh)
                     throw new InvalidOperationException("Valid historical rank lost its stale label.");
                 if (TryLoad(path, now.AddHours(25)) != null)
                     throw new InvalidOperationException("Expired cache was displayed as active ranking.");
+                source.AllChampions[14] = source.AllChampions[0];
+                if (!TrySave(source, path, now)) throw new InvalidOperationException("Top ten save rejected with invalid optional full roster.");
+                var invalidExpanded = TryLoad(path, now);
+                if (invalidExpanded == null || invalidExpanded.Ranking.AllChampions != null)
+                    throw new InvalidOperationException("Invalid optional full roster was incorrectly persisted.");
+
                 var invalidSource = new MayhemRankingSnapshot
                 {
                     Source = "invalid", Patch = source.Patch, TopTen = source.TopTen

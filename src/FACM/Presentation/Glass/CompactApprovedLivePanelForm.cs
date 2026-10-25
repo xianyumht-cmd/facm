@@ -89,16 +89,11 @@ namespace FACM.Presentation.Glass
 
         private string TierFor(string championName)
         {
-            if (!_modeIsMayhem || _liveRanking == null || _liveRanking.TopTen == null) return "—";
-            string slug;
-            if (!FACM.Mayhem.ChampionAliases.TryResolve(championName, out slug))
-                slug = FACM.Mayhem.ChampionAliases.Slugify(championName);
-            foreach (var row in _liveRanking.TopTen)
-                if (row != null && (string.Equals(row.Slug, slug, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(FACM.Mayhem.ChampionAliases.Normalize(row.Name),
-                    FACM.Mayhem.ChampionAliases.Normalize(championName), StringComparison.OrdinalIgnoreCase)))
-                    return string.IsNullOrWhiteSpace(row.Tier) ? "—" : row.Tier;
-            return "—";
+            if (!_modeIsMayhem) return "—";
+            var rank = FACM.Mayhem.MayhemRankingSourceService.FindRank(_liveRanking, championName);
+            if (rank == null) return "—";
+            // Ranking position is factual; a tier badge must never be inferred from position.
+            return string.IsNullOrWhiteSpace(rank.Tier) ? "#" + rank.Rank : rank.Tier;
         }
 
         internal event EventHandler HideRequested;
@@ -331,7 +326,8 @@ namespace FACM.Presentation.Glass
                 Write(g, rowData == null ? "—" : rowData.Name,
                     new RectangleF(x + 32, y + 2, colWidth - 87, 19), 11f, _text, false);
                 Tier(g, new RectangleF(x + colWidth - 48, y + 2, 35, 19),
-                    rowData == null || string.IsNullOrWhiteSpace(rowData.Tier) ? "—" : rowData.Tier);
+                    rowData == null ? "—" : 
+                        (string.IsNullOrWhiteSpace(rowData.Tier) ? "#" + rowData.Rank : rowData.Tier));
             }
 
             Fill(g, new RectangleF(13, 320, w - 26, 111), _panel, 9f, _line);
@@ -480,14 +476,18 @@ namespace FACM.Presentation.Glass
                 if (view._quickNames[0] != "亚索" || view._quickNames[1] != "薇恩" || // ui-text-contract: allow - deterministic non-user-facing quick bench fixture
                     view._quickNames[2] != "—" || view._quickNames[3] != "—")
                     throw new InvalidOperationException("Quick bench placeholders contain fake champions.");
+                sample.AllChampions = new List<FACM.Mayhem.MayhemTopChampion>(sample.TopTen);
+                sample.AllChampions.Add(new FACM.Mayhem.MayhemTopChampion {
+                    Rank = 11, Name = "薇恩", Slug = "vayne", WinRate = 45.2, Tier = null
+                }); // ui-text-contract: allow - rank-only fixture
                 view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "not applicable");
                 if (view.TierFor("亚索") != "—") // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Mayhem tier leaked to standard ARAM.");
                 view.UpdateGameMode("海克斯大乱斗", true); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "fixture");
-                if (view.TierFor("亚索") != "T0") // ui-text-contract: allow - deterministic non-user-facing rank fixture
-                    throw new InvalidOperationException("Compatible Mayhem rank was not projected.");
+                if (view.TierFor("亚索") != "T0" || view.TierFor("薇恩") != "#11") // ui-text-contract: allow - deterministic non-user-facing rank fixture
+                    throw new InvalidOperationException("Mode-specific rank or factual rank-only badge was not projected.");
                 view.UpdateGameMode("召唤师峡谷", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 if (view.TierFor("亚索") != "—" || view._liveRanking != null) // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Rank data survived a mode switch.");
