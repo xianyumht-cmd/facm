@@ -277,12 +277,12 @@ namespace FACM.League
             var action = ParseCurrentAction(session);
             if (action == null)
             {
-                if (pick && _tradeWrite != null &&
+                if (pick && _tradeWrite != null && profiles.Any(p => p.BenchHandleTradeEnabled) &&
                     await TryTradeAsync(episode, session, profiles, pickId,
                         attempted, reported, trace).ConfigureAwait(false)) return;
                 // Bench swaps happen after the draft's pick action is over. Reuse this same
                 // already-read ChampSelect response and phase-scoped task, never another poller.
-                if (pick && _benchWrite != null)
+                if (pick && _benchWrite != null && profiles.Any(p => p.BenchAutoSwapEnabled))
                     await TryBenchSwapAsync(episode, session, profiles, pickId,
                         attempted, reported, trace, benchGuard).ConfigureAwait(false);
                 else RecordOnce(reported, trace, "turn", "not_local");

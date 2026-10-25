@@ -175,7 +175,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedBenchControls, "候选席规则" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchSwap, "自动换候选席英雄（需开启自动选人）" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
-            { LeagueEfficiencyUiTextKeys.AdvancedTrade, "根据优先级自动处理英雄交换" },
+            { LeagueEfficiencyUiTextKeys.AdvancedTrade, "按优先级自动接受或拒绝交换" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
             { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },
