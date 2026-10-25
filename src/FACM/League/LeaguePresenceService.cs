@@ -85,6 +85,16 @@ namespace FACM.League
         };
 
         private static readonly string[] AllowedRankedDivisions = { "I", "II", "III", "IV" };
+        // Every GGman presence editor and automation writes the same whole LCU document.
+        private static readonly SemaphoreSlim MutationGate = new SemaphoreSlim(1, 1);
+
+        private enum MutationOutcome { Unavailable, Changed, Failed, Submitted }
+
+        private sealed class MutationResult
+        {
+            internal MutationOutcome Outcome;
+            internal int StatusCode;
+        }
 
         private readonly ILeagueClientApi _client;
         private readonly ILeaguePresenceWriteApi _writer;
@@ -137,22 +147,17 @@ namespace FACM.League
         private async Task<LeaguePresenceApplyResult> ApplyModeCoreAsync(
             LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken)
         {
-            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
-            if (root == null)
-            {
+            var result = await TryMutatePresenceAsync(
+                root => expectedAvailability == null || string.Equals(
+                    ReadString(root, "availability"), expectedAvailability, StringComparison.OrdinalIgnoreCase),
+                root => ApplyMode(root, mode), cancellationToken).ConfigureAwait(false);
+            if (result.Outcome == MutationOutcome.Unavailable)
                 return new LeaguePresenceApplyResult { Status = "unavailable", Mode = mode };
-            }
-
-            if (expectedAvailability != null && !string.Equals(
-                ReadString(root, "availability"), expectedAvailability, StringComparison.OrdinalIgnoreCase))
+            if (result.Outcome == MutationOutcome.Changed)
                 return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
-
-            ApplyMode(root, mode);
-            var payload = _json.Serialize(root);
-            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
-            if (response == null || !response.IsSuccessStatusCode)
+            if (result.Outcome == MutationOutcome.Failed)
             {
-                AppLog.Info("League presence write rejected; mode=" + mode + "; status=" + (response == null ? 0 : response.StatusCode));
+                AppLog.Info("League presence write rejected; mode=" + mode + "; status=" + result.StatusCode);
                 return new LeaguePresenceApplyResult { Status = "write-failed", Mode = mode };
             }
 
@@ -195,8 +200,14 @@ namespace FACM.League
             string statusMessage, string expectedCurrent, bool compareCurrent, CancellationToken cancellationToken)
         {
             var normalized = NormalizeStatusMessage(statusMessage);
-            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
-            if (root == null)
+            var result = await TryMutatePresenceAsync(root =>
+            {
+                object current;
+                root.TryGetValue("statusMessage", out current);
+                return !compareCurrent || string.Equals(current as string ?? string.Empty,
+                    expectedCurrent, StringComparison.Ordinal);
+            }, root => root["statusMessage"] = normalized, cancellationToken).ConfigureAwait(false);
+            if (result.Outcome == MutationOutcome.Unavailable)
             {
                 return new LeaguePresenceStatusMessageApplyResult
                 {
@@ -204,19 +215,11 @@ namespace FACM.League
                     StatusMessage = normalized
                 };
             }
-
-            object current;
-            root.TryGetValue("statusMessage", out current);
-            if (compareCurrent && !string.Equals(current as string ?? string.Empty,
-                expectedCurrent, StringComparison.Ordinal))
+            if (result.Outcome == MutationOutcome.Changed)
                 return new LeaguePresenceStatusMessageApplyResult { Status = "overridden", StatusMessage = normalized };
-
-            root["statusMessage"] = normalized;
-            var payload = _json.Serialize(root);
-            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
-            if (response == null || !response.IsSuccessStatusCode)
+            if (result.Outcome == MutationOutcome.Failed)
             {
-                AppLog.Info("League chat signature write rejected; status=" + (response == null ? 0 : response.StatusCode));
+                AppLog.Info("League chat signature write rejected; status=" + result.StatusCode);
                 return new LeaguePresenceStatusMessageApplyResult
                 {
                     Status = "write-failed",
@@ -298,8 +301,11 @@ namespace FACM.League
                 };
             }
 
-            var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
-            if (root == null)
+            var result = await TryMutatePresenceAsync(root => expectedCurrent == null ||
+                SameRankedStatus(ToSnapshot(root), expectedCurrent),
+                root => ApplyRankedStatus(root, normalizedQueue, normalizedTier, normalizedDivision),
+                cancellationToken).ConfigureAwait(false);
+            if (result.Outcome == MutationOutcome.Unavailable)
             {
                 return new LeaguePresenceRankedApplyResult
                 {
@@ -310,23 +316,17 @@ namespace FACM.League
                 };
             }
 
-            if (expectedCurrent != null)
+            if (result.Outcome == MutationOutcome.Changed)
             {
-                var current = ToSnapshot(root);
-                if (!SameRankedStatus(current, expectedCurrent))
-                    return new LeaguePresenceRankedApplyResult
-                    {
-                        Status = "overridden", Queue = normalizedQueue,
-                        Tier = normalizedTier, Division = normalizedDivision
-                    };
+                return new LeaguePresenceRankedApplyResult
+                {
+                    Status = "overridden", Queue = normalizedQueue,
+                    Tier = normalizedTier, Division = normalizedDivision
+                };
             }
-
-            ApplyRankedStatus(root, normalizedQueue, normalizedTier, normalizedDivision);
-            var payload = _json.Serialize(root);
-            var response = await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false);
-            if (response == null || !response.IsSuccessStatusCode)
+            if (result.Outcome == MutationOutcome.Failed)
             {
-                AppLog.Info("League displayed-rank write rejected; status=" + (response == null ? 0 : response.StatusCode));
+                AppLog.Info("League displayed-rank write rejected; status=" + result.StatusCode);
                 return new LeaguePresenceRankedApplyResult
                 {
                     Status = "write-failed",
@@ -377,6 +377,31 @@ namespace FACM.League
                 Division = normalizedDivision,
                 Observed = settled
             };
+        }
+
+        private async Task<MutationResult> TryMutatePresenceAsync(
+            Func<Dictionary<string, object>, bool> guard,
+            Action<Dictionary<string, object>> mutate,
+            CancellationToken cancellationToken)
+        {
+            await MutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
+                if (root == null) return new MutationResult { Outcome = MutationOutcome.Unavailable };
+                if (guard != null && !guard(root)) return new MutationResult { Outcome = MutationOutcome.Changed };
+                cancellationToken.ThrowIfCancellationRequested();
+                mutate(root);
+                var response = await _writer.TrySetPresenceAsync(_json.Serialize(root), cancellationToken)
+                    .ConfigureAwait(false);
+                return new MutationResult
+                {
+                    Outcome = response != null && response.IsSuccessStatusCode
+                        ? MutationOutcome.Submitted : MutationOutcome.Failed,
+                    StatusCode = response == null ? 0 : response.StatusCode
+                };
+            }
+            finally { MutationGate.Release(); }
         }
 
         internal string BuildPayloadForSmokeTest(byte[] currentPresence, LeaguePresenceMode mode)

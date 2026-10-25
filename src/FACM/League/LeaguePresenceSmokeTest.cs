@@ -27,6 +27,7 @@ namespace FACM.League
             ValidateDedicatedWriterFence();
             LeagueLoginStatusRestoreSmokeTest.Validate();
             LeagueOfflineStatusLockSmokeTest.Validate();
+            LeaguePresenceMutationSmokeTest.Validate();
         }
 
         private static void ValidatePayloadPreservesUnrelatedPresenceFields()
