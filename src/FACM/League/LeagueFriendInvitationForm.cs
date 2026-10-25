@@ -86,11 +86,13 @@ namespace FACM.League
                 CheckBoxes = true,
                 HideSelection = false,
                 MultiSelect = false,
+                ShowItemToolTips = true,
                 BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text
             };
             _friends.Columns.Add(T(LeagueEfficiencyUiTextKeys.FriendInviteName), 395);
             _friends.Columns.Add(T(LeagueEfficiencyUiTextKeys.FriendInviteAvailability), 140);
+            _friends.Resize += delegate { AdjustFriendColumns(); };
             _friends.ItemCheck += HandleItemCheck;
             layout.Controls.Add(_friends, 0, 2);
 
@@ -116,6 +118,7 @@ namespace FACM.League
             footer.Controls.Add(close, 1, 0);
             layout.Controls.Add(footer, 0, 3);
             Controls.Add(layout);
+            AdjustFriendColumns();
 
             Shown += async delegate { await LoadFriendsAsync(); };
             FormClosed += delegate { _request.Cancel(); _request.Dispose(); };
@@ -163,7 +166,12 @@ namespace FACM.League
                 foreach (var friend in _catalog.Friends.Where(friend => query.Length == 0 ||
                     friend.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0))
                 {
-                    var item = new ListViewItem(friend.Name) { Tag = friend, Checked = friend.Selected };
+                    var item = new ListViewItem(friend.Name)
+                    {
+                        Tag = friend,
+                        Checked = friend.Selected,
+                        ToolTipText = friend.Name
+                    };
                     item.SubItems.Add(AvailabilityLabel(friend.Availability));
                     if (friend.Attempted) item.ForeColor = FacmDesignSystem.TextMuted;
                     _friends.Items.Add(item);
@@ -174,6 +182,15 @@ namespace FACM.League
                 _loading = oldLoading;
                 _friends.EndUpdate();
             }
+        }
+
+        private void AdjustFriendColumns()
+        {
+            if (_friends == null || _friends.Columns.Count != 2) return;
+            var width = Math.Max(260, _friends.ClientSize.Width - 28);
+            var statusWidth = Math.Max(90, Math.Min(140, width / 4));
+            _friends.Columns[0].Width = width - statusWidth;
+            _friends.Columns[1].Width = statusWidth;
         }
 
         private void HandleItemCheck(object sender, ItemCheckEventArgs e)
