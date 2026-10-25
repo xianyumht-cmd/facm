@@ -15,6 +15,8 @@ namespace FACM.Services
         public string PetStyleId { get; set; }
         public bool AnimalPetEnabled { get; set; }
         public bool LeagueAutoApplyRecommended { get; set; }
+        public bool LeagueChampionSpellPresetsEnabled { get; set; }
+        public string LeagueChampionSpellPresets { get; set; }
         public string LeagueExitGameHotkey { get; set; }
         public string LeagueCloseLobbyHotkey { get; set; }
         public bool LeagueAutoHonorTeammateEnabled { get; set; }
@@ -42,6 +44,8 @@ namespace FACM.Services
                 PetStyleId = AnimalPetCatalog.Get(settings.PetStyleId).Id,
                 AnimalPetEnabled = settings.AnimalPetEnabled,
                 LeagueAutoApplyRecommended = settings.LeagueAutoApplyRecommended,
+                LeagueChampionSpellPresetsEnabled = settings.LeagueChampionSpellPresetsEnabled,
+                LeagueChampionSpellPresets = settings.LeagueChampionSpellPresets ?? string.Empty,
                 LeagueExitGameHotkey = settings.LeagueExitGameHotkey ?? string.Empty,
                 LeagueCloseLobbyHotkey = settings.LeagueCloseLobbyHotkey ?? string.Empty,
                 LeagueAutoHonorTeammateEnabled = settings.LeagueAutoHonorTeammateEnabled,
@@ -69,6 +73,10 @@ namespace FACM.Services
             settings.PetStyleId = AnimalPetCatalog.Get(PetStyleId).Id;
             settings.AnimalPetEnabled = AnimalPetEnabled;
             settings.LeagueAutoApplyRecommended = LeagueAutoApplyRecommended;
+            settings.LeagueChampionSpellPresetsEnabled = LeagueChampionSpellPresetsEnabled;
+            settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets != null && LeagueChampionSpellPresets.Length <= 4096
+                ? LeagueChampionSpellPresets : string.Empty;
+            if (settings.LeagueChampionSpellPresetsEnabled) settings.LeagueAutoApplyRecommended = false;
             settings.LeagueExitGameHotkey = LeagueExitGameHotkey ?? string.Empty;
             settings.LeagueCloseLobbyHotkey = LeagueCloseLobbyHotkey ?? string.Empty;
             settings.LeagueAutoHonorTeammateEnabled = LeagueAutoHonorTeammateEnabled;

@@ -186,6 +186,51 @@ namespace FACM.League
             }
         }
 
+        /// <summary>
+        /// Capture the user's current LCU spell slots for one champion/group preset. This is
+        /// read-only and never fetches an external build or changes a rune page.
+        /// </summary>
+        internal async Task<LeagueBuildApplyPlan> CaptureCurrentSpellsAsync(
+            LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (expected == null || !expected.Connected || expected.ChampionId <= 0 ||
+                expected.Activity != LeagueActivityLevel.ChampSelect)
+                return null;
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                var live = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
+                var local = live == null ? null : live.Players.FirstOrDefault(row => row.IsLocalPlayer);
+                if (live == null || !live.Connected || live.Activity != LeagueActivityLevel.ChampSelect ||
+                    LeagueBuildAdvisorDataService.ResolveChampionId(live, local) != expected.ChampionId ||
+                    (expected.QueueId > 0 && live.QueueId != expected.QueueId) ||
+                    (expected.GameId > 0 && live.GameId > 0 && live.GameId != expected.GameId) ||
+                    !string.Equals(
+                        LeagueChampionSpellPresets.GroupFor(expected.QueueId, expected.Mode, expected.Position, expected.GameMode),
+                        LeagueChampionSpellPresets.GroupFor(live.QueueId,
+                            LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
+                            LeagueBuildAdvisorDataService.ResolveOpggPosition(
+                                local == null ? null : local.Position, "ranked"), live.GameMode), StringComparison.Ordinal))
+                    return null;
+
+                var current = ParseObject(await _client.TryGetBytesAsync(MySelectionPath, timeout.Token)
+                    .ConfigureAwait(false));
+                if (current == null) return null;
+                var first = ReadInt(current, "spell1Id");
+                var second = ReadInt(current, "spell2Id");
+                if (first <= 0 || second <= 0 || first == second) return null;
+                return new LeagueBuildApplyPlan
+                {
+                    ChampionId = expected.ChampionId,
+                    QueueId = live.QueueId,
+                    Spell1Id = first,
+                    Spell2Id = second
+                };
+            }
+        }
+
         internal LeagueBuildApplyPlan ParsePlan(byte[] bytes)
         {
             var root = ParseObject(bytes);
@@ -554,6 +599,7 @@ namespace FACM.League
             if (result == null) return;
             AppLog.Info(
                 "League loadout apply result; status=" + (result.Status ?? string.Empty) +
+                "; trace=" + (plan == null ? string.Empty : plan.TraceId ?? string.Empty) +
                 "; block=" + (result.BlockReason ?? string.Empty) +
                 "; rune=" + (result.RuneStatus ?? string.Empty) +
                 "; spell=" + (result.SpellStatus ?? string.Empty) +

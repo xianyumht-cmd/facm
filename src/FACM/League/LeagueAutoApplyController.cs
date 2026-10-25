@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Performance;
@@ -406,6 +407,9 @@ namespace FACM.League
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly ILeagueAutoApplyExecutor _executor;
         private readonly LeagueAutoApplyCoordinator _coordinator;
+        private readonly LeagueChampionSpellPresetCoordinator _presetCoordinator = new LeagueChampionSpellPresetCoordinator();
+        private readonly LeagueLiveDataService _presetLive;
+        private readonly LeagueBuildApplyService _presetApply;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private Task _loopTask;
         private CancellationTokenSource _activeApply;
@@ -427,13 +431,17 @@ namespace FACM.League
             PerformanceBudgetProvider budgets,
             LeagueBuildAdvisorDataService readService,
             ILeagueAutoApplyExecutor executor,
-            LeagueAutoApplyCoordinator coordinator)
+            LeagueAutoApplyCoordinator coordinator,
+            LeagueLiveDataService presetLive = null,
+            LeagueBuildApplyService presetApply = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _readService = readService ?? throw new ArgumentNullException(nameof(readService));
             _executor = executor ?? throw new ArgumentNullException(nameof(executor));
             _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+            _presetLive = presetLive;
+            _presetApply = presetApply;
             _lastStatus = settings.LeagueAutoApplyRecommended ? "waiting" : "disabled";
         }
 
@@ -442,6 +450,65 @@ namespace FACM.League
         public bool Enabled
         {
             get { return _settings.LeagueAutoApplyRecommended; }
+        }
+
+        internal bool PresetsEnabled { get { return _settings.LeagueChampionSpellPresetsEnabled; } }
+
+        internal LeagueChampionSpellPreset FindPreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            return LeagueChampionSpellPresets.Resolve(_settings.LeagueChampionSpellPresets, snapshot.ChampionId, group);
+        }
+
+        internal void SavePreset(LeagueBuildAdvisorSnapshot snapshot, LeagueBuildApplyPlan current)
+        {
+            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            if (string.IsNullOrWhiteSpace(group) || current == null || !current.HasSpells ||
+                current.ChampionId != snapshot.ChampionId || current.QueueId != snapshot.QueueId)
+                throw new InvalidOperationException("Champion selection is not available for a spell preset.");
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Upsert(
+                _settings.LeagueChampionSpellPresets,
+                new LeagueChampionSpellPreset
+                {
+                    ChampionId = current.ChampionId,
+                    Group = group,
+                    Spell1Id = current.Spell1Id,
+                    Spell2Id = current.Spell2Id
+                });
+            lock (_sync) _presetCoordinator.Cancel();
+            _settings.Save();
+            AppLog.Info("League spell preset saved; champion=" + current.ChampionId + "; group=" + group);
+        }
+
+        internal void RemovePreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            if (string.IsNullOrWhiteSpace(group)) return;
+            var existing = FindPreset(snapshot);
+            if (existing == null) return;
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
+                _settings.LeagueChampionSpellPresets, snapshot.ChampionId, existing.Group);
+            lock (_sync) _presetCoordinator.Cancel();
+            _settings.Save();
+            AppLog.Info("League spell preset removed; champion=" + snapshot.ChampionId + "; group=" + existing.Group);
+        }
+
+        internal void SetPresetsEnabled(bool enabled)
+        {
+            ThrowIfDisposed();
+            if (enabled && (_presetLive == null || _presetApply == null))
+                throw new InvalidOperationException("Champion preset LCU service is unavailable.");
+            if (_settings.LeagueChampionSpellPresetsEnabled == enabled) return;
+            _settings.LeagueChampionSpellPresetsEnabled = enabled;
+            if (enabled) _settings.LeagueAutoApplyRecommended = false;
+            _settings.Save();
+            lock (_sync) _presetCoordinator.Cancel();
+            _coordinator.CancelPending();
+            CancelActiveApply();
+            Publish(Enabled ? "waiting" : "disabled", null);
+            AppLog.Info("League spell preset automation=" + (enabled ? "enabled" : "disabled"));
         }
 
         public string LastStatus
@@ -470,6 +537,12 @@ namespace FACM.League
             }
 
             _settings.LeagueAutoApplyRecommended = enabled;
+            if (enabled)
+            {
+                _settings.LeagueChampionSpellPresetsEnabled = false;
+                lock (_sync) _presetCoordinator.Cancel();
+                CancelActiveApply();
+            }
             _settings.Save();
             if (!enabled)
             {
@@ -486,15 +559,23 @@ namespace FACM.League
         internal async Task RunOneIterationAsync(DateTime utcNow, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
-            if (!Enabled)
+            if (!Enabled && !PresetsEnabled)
             {
                 _coordinator.Observe(null, false, utcNow);
+                lock (_sync) _presetCoordinator.Cancel();
                 return;
             }
 
             if (!ShouldObserveForBudget(_budgets.Current))
             {
                 _coordinator.CancelPending();
+                lock (_sync) _presetCoordinator.Cancel();
+                return;
+            }
+
+            if (PresetsEnabled)
+            {
+                await RunPresetIterationAsync(utcNow, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -562,6 +643,69 @@ namespace FACM.League
             }
         }
 
+        private async Task RunPresetIterationAsync(DateTime utcNow, CancellationToken cancellationToken)
+        {
+            if (_presetLive == null || _presetApply == null) return;
+            var snapshot = LeagueChampionSpellPresets.FromLive(
+                await _presetLive.RefreshAsync(cancellationToken).ConfigureAwait(false));
+            if (!PresetsEnabled || !ShouldObserveForBudget(_budgets.Current))
+            {
+                lock (_sync) _presetCoordinator.Cancel();
+                return;
+            }
+
+            var preset = FindPreset(snapshot);
+            LeagueAutoApplyDecision decision;
+            lock (_sync)
+                decision = _presetCoordinator.Observe(snapshot, preset, true, utcNow);
+            if (!decision.ShouldExecute || preset == null) return;
+
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (!PresetsEnabled || !ShouldObserveForBudget(_budgets.Current)) return;
+                active = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                _activeApply = active;
+            }
+            var trace = Guid.NewGuid().ToString("N").Substring(0, 12);
+            var clock = Stopwatch.StartNew();
+            try
+            {
+                AppLog.Info("League spell preset apply start; trace=" + trace +
+                            "; champion=" + preset.ChampionId + "; group=" + preset.Group);
+                var result = await _presetApply.ApplyAsync(new LeagueBuildApplyPlan
+                {
+                    ChampionId = preset.ChampionId,
+                    TraceId = trace,
+                    QueueId = snapshot.QueueId,
+                    Spell1Id = preset.Spell1Id,
+                    Spell2Id = preset.Spell2Id
+                }, active.Token).ConfigureAwait(false);
+                AppLog.Info("League spell preset apply finish; trace=" + trace +
+                            "; result=" + (result == null ? "failed" : result.Status) +
+                            "; spell=" + (result == null ? "unavailable" : result.SpellStatus) +
+                            "; ms=" + clock.ElapsedMilliseconds);
+            }
+            catch (OperationCanceledException)
+            {
+                AppLog.Info("League spell preset apply cancelled; trace=" + trace +
+                            "; ms=" + clock.ElapsedMilliseconds);
+                if (cancellationToken.IsCancellationRequested) throw;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League spell preset apply failed; trace=" + trace, exception);
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    if (ReferenceEquals(_activeApply, active)) _activeApply = null;
+                }
+                active.Dispose();
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -589,10 +733,13 @@ namespace FACM.League
             {
                 try
                 {
-                    if (Enabled && ShouldObserveForBudget(_budgets.Current))
+                    if ((Enabled || PresetsEnabled) && ShouldObserveForBudget(_budgets.Current))
                         await RunOneIterationAsync(DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
                     else
+                    {
                         _coordinator.CancelPending();
+                        lock (_sync) _presetCoordinator.Cancel();
+                    }
                 }
                 catch (OperationCanceledException)
                 {

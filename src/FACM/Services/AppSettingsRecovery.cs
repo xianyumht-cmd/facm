@@ -31,6 +31,8 @@ namespace FACM.Services
             "PetStyleId",
             "AnimalPetEnabled",
             "LeagueAutoApplyRecommended",
+            "LeagueChampionSpellPresetsEnabled",
+            "LeagueChampionSpellPresets",
             "LeagueExitGameHotkey",
             "LeagueCloseLobbyHotkey",
             "LeagueAutoHonorTeammateEnabled",

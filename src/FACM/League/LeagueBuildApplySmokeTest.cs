@@ -15,6 +15,7 @@ namespace FACM.League
         public static void Validate()
         {
             ValidatePreparationIsReadOnly();
+            ValidateChampionSpellCaptureUsesCurrentLcuSelection();
             ValidateHappyPathAndFlashSlot();
             ValidateDelayedSpellSettlementDoesNotRetry();
             ValidateRuneCapacityFailsClosed();
@@ -22,6 +23,32 @@ namespace FACM.League
             ValidateRuneFalseSuccessIsRejected();
             ValidateSpellFalseSuccessIsRejected();
             ValidateCancellation();
+        }
+
+        private static void ValidateChampionSpellCaptureUsesCurrentLcuSelection()
+        {
+            var lcu = new FakeLeagueApi { Spell1Id = 4, Spell2Id = 14 };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                var expected = new LeagueBuildAdvisorSnapshot
+                {
+                    Connected = true,
+                    Activity = LeagueActivityLevel.ChampSelect,
+                    QueueId = 420,
+                    ChampionId = 157,
+                    Mode = "ranked",
+                    Position = "mid"
+                };
+                var saved = service.CaptureCurrentSpellsAsync(expected, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                Require(saved != null && saved.HasSpells && saved.Spell1Id == 4 && saved.Spell2Id == 14 &&
+                        lcu.Writes.Count == 0,
+                    "Capture must read the user's current LCU spell slots without sending a write or OP.GG request.");
+                expected.ChampionId = 145;
+                Require(service.CaptureCurrentSpellsAsync(expected, CancellationToken.None)
+                            .GetAwaiter().GetResult() == null && lcu.Writes.Count == 0,
+                    "Capture must reject a stale hero selection without writing.");
+            }
         }
 
         private static void ValidatePreparationIsReadOnly()

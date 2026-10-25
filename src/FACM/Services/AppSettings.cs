@@ -33,6 +33,8 @@ namespace FACM.Services
         public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
         public bool AnimalPetEnabled { get; set; } = false;
         public bool LeagueAutoApplyRecommended { get; set; } = false;
+        public bool LeagueChampionSpellPresetsEnabled { get; set; } = false;
+        public string LeagueChampionSpellPresets { get; set; } = string.Empty;
         public string LeagueExitGameHotkey { get; set; } = string.Empty;
         public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
         public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
@@ -145,6 +147,8 @@ namespace FACM.Services
                 "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
                 "AnimalPetEnabled=" + AnimalPetEnabled,
                 "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended,
+                "LeagueChampionSpellPresetsEnabled=" + LeagueChampionSpellPresetsEnabled,
+                "LeagueChampionSpellPresets=" + Sanitize(LeagueChampionSpellPresets),
                 "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
                 "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
@@ -379,6 +383,8 @@ namespace FACM.Services
             else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
             else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
             else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoApplyRecommended = flag;
+            else if (key.Equals("LeagueChampionSpellPresetsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueChampionSpellPresetsEnabled = flag;
+            else if (key.Equals("LeagueChampionSpellPresets", StringComparison.OrdinalIgnoreCase) && value.Length <= 4096) result.LeagueChampionSpellPresets = value;
             else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
             else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
             else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
@@ -413,6 +419,10 @@ namespace FACM.Services
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
+            if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
+                result.LeagueChampionSpellPresets = string.Empty;
+            // Both automatic writers must not race to replace the same spell slots.
+            if (result.LeagueChampionSpellPresetsEnabled) result.LeagueAutoApplyRecommended = false;
             result.LeagueAutoMatchmakingMinPartySize = Math.Max(1, Math.Min(5, result.LeagueAutoMatchmakingMinPartySize));
             result.LeagueAutoMatchmakingStartDelayMs = Math.Max(0, Math.Min(60000, result.LeagueAutoMatchmakingStartDelayMs));
             result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));

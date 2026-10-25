@@ -45,6 +45,7 @@ namespace FACM.Services
                 throw new InvalidDataException("云端 GGman 设置格式不受支持。");
             var s = value.Settings;
             if (s.LeagueExitGameHotkey == null || s.LeagueExitGameHotkey.Length > 100 ||
+                (s.LeagueChampionSpellPresets != null && s.LeagueChampionSpellPresets.Length > 4096) ||
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
@@ -80,6 +81,9 @@ namespace FACM.Services
             settings.PetStyleId = FACM.Pets.AnimalPetCatalog.Get(s.PetStyleId).Id;
             settings.AnimalPetEnabled = s.AnimalPetEnabled;
             settings.LeagueAutoApplyRecommended = s.LeagueAutoApplyRecommended;
+            settings.LeagueChampionSpellPresetsEnabled = s.LeagueChampionSpellPresetsEnabled;
+            settings.LeagueChampionSpellPresets = s.LeagueChampionSpellPresets ?? string.Empty;
+            if (settings.LeagueChampionSpellPresetsEnabled) settings.LeagueAutoApplyRecommended = false;
             settings.LeagueExitGameHotkey = s.LeagueExitGameHotkey;
             settings.LeagueCloseLobbyHotkey = s.LeagueCloseLobbyHotkey;
             settings.LeagueAutoHonorTeammateEnabled = s.LeagueAutoHonorTeammateEnabled;

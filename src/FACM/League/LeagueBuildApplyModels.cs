@@ -13,6 +13,7 @@ namespace FACM.League
 
         public int ChampionId { get; set; }
         public string ChampionName { get; set; }
+        public string TraceId { get; set; }
         public int QueueId { get; set; }
         public string Mode { get; set; }
         public string Position { get; set; }
