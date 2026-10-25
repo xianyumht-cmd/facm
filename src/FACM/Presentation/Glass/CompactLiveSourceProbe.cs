@@ -78,12 +78,61 @@ namespace FACM.Presentation.Glass
                     output.Append(" has_champion=").Append(body.IndexOf("Champion",
                         StringComparison.OrdinalIgnoreCase) >= 0);
                     output.AppendLine();
+                    AppendStructure(output, label, body);
                 }
             }
             catch (Exception exception)
             {
                 output.Append(label).Append(" http_error=").AppendLine(exception.GetType().Name);
             }
+        }
+
+        private static void AppendStructure(StringBuilder output, string label, string html)
+        {
+            var title = Regex.Match(html, @"<title\b[^>]*>(?<v>.*?)</title>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            output.Append(label).Append(" title=").AppendLine(CleanPublic(title.Groups["v"].Value));
+            var tables = Regex.Matches(html, @"<table\b[^>]*>(?<v>.*?)</table>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (tables.Count == 0) return;
+            var table = tables[0].Groups["v"].Value;
+            var headers = Regex.Matches(table, @"<th\b[^>]*>(?<v>.*?)</th>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            output.Append(label).Append(" headers=");
+            foreach (System.Text.RegularExpressions.Match header in headers)
+                output.Append("[").Append(CleanPublic(header.Groups["v"].Value)).Append("]");
+            output.AppendLine();
+            var rows = Regex.Matches(table, @"<tr\b[^>]*>(?<v>.*?)</tr>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            for (var i = 0; i < Math.Min(3, rows.Count); i++)
+            {
+                output.Append(label).Append(" row=").Append(i).Append(" ");
+                var cells = Regex.Matches(rows[i].Groups["v"].Value,
+                    @"<td\b[^>]*>(?<v>.*?)</td>",
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                output.Append("td=").Append(cells.Count).Append(" ");
+                for (var j = 0; j < Math.Min(9, cells.Count); j++)
+                {
+                    var inner = cells[j].Groups["v"].Value;
+                    var alt = Regex.Match(inner, "alt=[\\\"'](?<v>[^\\\"']{0,48})[\\\"']",
+                        RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    output.Append(j).Append(":")
+                        .Append(CleanPublic(inner))
+                        .Append(alt.Success ? "{alt=" + CleanPublic(alt.Groups["v"].Value) + "}" : "")
+                        .Append(" | ");
+                }
+                output.AppendLine();
+            }
+        }
+
+        private static string CleanPublic(string value)
+        {
+            var text = System.Net.WebUtility.HtmlDecode(Regex.Replace(
+                value ?? string.Empty, @"<[^>]*>", " "));
+            text = Regex.Replace(text, @"\s+", " ").Trim();
+            // The source contains public champion statistics only. Limit diagnostics
+            // to short text snippets and do not include raw HTML or URLs.
+            return text.Length <= 68 ? text : text.Substring(0, 68);
         }
 
         private static void Append(StringBuilder output, string name, MayhemRankingSnapshot snapshot)
