@@ -31,25 +31,34 @@ namespace FACM.League
     {
         internal const string FriendsPath = "/lol-chat/v1/friends";
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
+        internal const string ConversationsPath = "/lol-chat/v1/conversations";
         private static readonly long PollTicks = Math.Max(1, (long)(Stopwatch.Frequency * 3.0));
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
         private readonly ILeagueLobbyInviteWriteApi _write;
+        private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly HashSet<string> _pending = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _attempted = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _catalogPuuids = new HashSet<string>(StringComparer.Ordinal);
         private CancellationTokenSource _active;
         private string _lobbyKey;
         private string _catalogLobbyKey;
+        private string _noticeLobbyKey;
+        private bool _noticeEnabled;
         private long _lastTick;
         private bool _inLobby;
         private bool _disposed;
 
         internal LeagueFriendInvitationController(ILeagueClientApi read, ILeagueLobbyInviteWriteApi write)
+            : this(read, write, null) { }
+
+        internal LeagueFriendInvitationController(
+            ILeagueClientApi read, ILeagueLobbyInviteWriteApi write, ILeagueLobbyNoticeWriteApi notices)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
+            _notices = notices;
         }
 
         internal void Observe(LeagueDashboardPhaseState state)
@@ -92,6 +101,11 @@ namespace FACM.League
             {
                 if (_disposed || !_inLobby) return null;
                 if (_lobbyKey != null && _lobbyKey != lobby.Key) ClearLocked();
+                if (_catalogLobbyKey != lobby.Key)
+                {
+                    _noticeLobbyKey = null;
+                    _noticeEnabled = false;
+                }
                 _catalogLobbyKey = lobby.Key;
                 _catalogPuuids.Clear();
                 foreach (var friend in friends)
@@ -129,6 +143,23 @@ namespace FACM.League
         internal int PendingCount
         {
             get { lock (_sync) return _pending.Count; }
+        }
+
+        internal bool AnnounceEnabled
+        {
+            get { lock (_sync) return _noticeEnabled && _noticeLobbyKey == _catalogLobbyKey; }
+        }
+
+        internal bool SetAnnounce(string lobbyKey, bool enabled)
+        {
+            lock (_sync)
+            {
+                if (_disposed || !_inLobby || string.IsNullOrEmpty(lobbyKey) ||
+                    _catalogLobbyKey != lobbyKey || (_lobbyKey != null && _lobbyKey != lobbyKey)) return false;
+                _noticeLobbyKey = lobbyKey;
+                _noticeEnabled = enabled;
+                return true;
+            }
         }
 
         internal async Task EvaluateOnceForSmokeTestAsync(CancellationToken cancellationToken)
@@ -203,6 +234,46 @@ namespace FACM.League
             cancellationToken.ThrowIfCancellationRequested();
             AppLog.Info("League scheduled friend invitation: " +
                 (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+            if (response == null || !response.IsSuccessStatusCode || _notices == null) return;
+            lock (_sync)
+                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled || _noticeLobbyKey != key) return;
+
+            var conversationId = ParseCustomGameConversation(
+                await _read.TryGetBytesAsync(ConversationsPath, cancellationToken).ConfigureAwait(false));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (conversationId == null) return;
+            var verifiedLobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (verifiedLobby == null || verifiedLobby.Key != key) return;
+            lock (_sync)
+                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled || _noticeLobbyKey != key) return;
+            var notice = await _notices.TrySendNoticeAsync(
+                conversationId, "已邀请 " + candidate.Name + " 加入房间", cancellationToken).ConfigureAwait(false);
+            AppLog.Info("League scheduled friend room notice: " +
+                (notice != null && notice.IsSuccessStatusCode ? "submitted" : "unverified"));
+        }
+
+        private string ParseCustomGameConversation(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length > 256 * 1024) return null;
+            object parsed;
+            try { parsed = new JavaScriptSerializer { MaxJsonLength = 256 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)); }
+            catch { return null; }
+            var entries = parsed as IEnumerable;
+            if (entries == null || parsed is string) return null;
+            string id = null;
+            var count = 0;
+            foreach (var entry in entries)
+            {
+                if (++count > 100) return null;
+                var row = entry as Dictionary<string, object>;
+                if (ReadString(row, "type") != "customGame") continue;
+                var candidate = ReadString(row, "id");
+                if (!LeagueMatchmakingWriteApiClient.IsSafeConversationId(candidate) || id != null) return null;
+                id = candidate;
+            }
+            return id;
         }
 
         private LeagueFriendLobbySnapshot ParseLobby(byte[] bytes)
@@ -328,6 +399,8 @@ namespace FACM.League
             _attempted.Clear();
             _catalogPuuids.Clear();
             _catalogLobbyKey = null;
+            _noticeLobbyKey = null;
+            _noticeEnabled = false;
             _lobbyKey = null;
             _lastTick = 0;
         }

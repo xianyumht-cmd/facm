@@ -19,6 +19,7 @@ namespace FACM.League
         private readonly TextBox _search;
         private readonly ListView _friends;
         private readonly Label _status;
+        private readonly CheckBox _announce;
         private readonly FacmActionButton _refresh;
         private LeagueFriendInvitationCatalog _catalog;
         private bool _loading;
@@ -40,12 +41,13 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(18),
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 BackColor = FacmDesignSystem.Canvas
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
             layout.Controls.Add(new Label
             {
@@ -96,6 +98,27 @@ namespace FACM.League
             _friends.ItemCheck += HandleItemCheck;
             layout.Controls.Add(_friends, 0, 2);
 
+            _announce = new CheckBox
+            {
+                Dock = DockStyle.Fill,
+                Text = T(LeagueEfficiencyUiTextKeys.FriendInviteAnnounce),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = FacmDesignSystem.Canvas,
+                AutoSize = false
+            };
+            _announce.CheckedChanged += delegate
+            {
+                if (_loading || _catalog == null) return;
+                if (!_module.SetFriendInvitationAnnouncement(_catalog.LobbyKey, _announce.Checked))
+                {
+                    _loading = true;
+                    _announce.Checked = !_announce.Checked;
+                    _loading = false;
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.FriendInviteRejected);
+                }
+            };
+            layout.Controls.Add(_announce, 0, 3);
+
             var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
@@ -116,7 +139,7 @@ namespace FACM.League
             };
             close.Click += delegate { Close(); };
             footer.Controls.Add(close, 1, 0);
-            layout.Controls.Add(footer, 0, 3);
+            layout.Controls.Add(footer, 0, 4);
             Controls.Add(layout);
             AdjustFriendColumns();
 
@@ -135,6 +158,8 @@ namespace FACM.League
                 var loaded = await _module.LoadInvitationFriendsAsync(_request.Token);
                 if (_request.IsCancellationRequested || IsDisposed || Disposing) return;
                 _catalog = loaded;
+                _announce.Enabled = loaded != null;
+                _announce.Checked = loaded != null && _module.AnnounceFriendInvitations;
                 RenderFriends();
                 _status.Text = loaded == null ? T(LeagueEfficiencyUiTextKeys.FriendInviteUnavailable) :
                     string.Format(T(LeagueEfficiencyUiTextKeys.FriendInviteCount), _module.ScheduledFriendInvitationCount);

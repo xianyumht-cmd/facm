@@ -4,9 +4,11 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 
 namespace FACM.League
 {
@@ -23,13 +25,19 @@ namespace FACM.League
         Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, IDisposable
+    internal interface ILeagueLobbyNoticeWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendNoticeAsync(string conversationId, string message, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
         internal const string InvitationsPrefix = "/lol-lobby/v2/received-invitations/";
         internal const string PromotePrefix = "/lol-lobby/v2/lobby/members/";
         internal const string OutgoingInvitationsPath = "/lol-lobby/v2/lobby/invitations";
+        internal const string ConversationsPrefix = "/lol-chat/v1/conversations/";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -59,6 +67,40 @@ namespace FACM.League
                 throw new ArgumentOutOfRangeException(nameof(summonerId));
             var body = BuildOutgoingInvitationJson(summonerId);
             return SendAllowedAsync("POST", OutgoingInvitationsPath, body, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendNoticeAsync(
+            string conversationId, string message, CancellationToken cancellationToken)
+        {
+            if (!IsSafeConversationId(conversationId)) throw new ArgumentException("Invalid room conversation.", nameof(conversationId));
+            return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
+                BuildRoomNoticeJson(conversationId, message), cancellationToken);
+        }
+
+        internal static string BuildRoomNoticeJson(string conversationId, string message)
+        {
+            if (!IsSafeConversationId(conversationId)) throw new ArgumentException("Invalid room conversation.", nameof(conversationId));
+            if (string.IsNullOrWhiteSpace(message) || message.Length > 128 || message.Any(char.IsControl))
+                throw new ArgumentException("Invalid room notification.", nameof(message));
+            return new JavaScriptSerializer().Serialize(new
+            {
+                body = message,
+                fromPid = "",
+                fromSummonerId = 0,
+                id = conversationId,
+                isHistorical = false,
+                timestamp = "",
+                type = "celebration"
+            });
+        }
+
+        internal static bool IsSafeConversationId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > 180) return false;
+            foreach (var c in value)
+                if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') &&
+                    !(c >= '0' && c <= '9') && c != '-' && c != '_' && c != '.' && c != '@' && c != '~') return false;
+            return true;
         }
 
         internal static string BuildOutgoingInvitationJson(long summonerId)

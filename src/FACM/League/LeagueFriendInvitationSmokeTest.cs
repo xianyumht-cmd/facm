@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 
 namespace FACM.League
 {
@@ -20,6 +21,8 @@ namespace FACM.League
             ValidateLobbyReplacementAndExit();
             ValidateFriendRemovedAndInvalidData();
             ValidateCancelBeforeWrite();
+            ValidateOptionalCustomGameNotice();
+            ValidateNoticeGuards();
         }
 
         private static void ValidateWriteShapeAndFence()
@@ -37,6 +40,100 @@ namespace FACM.League
                 !LeagueFriendInvitationController.IsSafePuuid("../../danger") &&
                 !LeagueFriendInvitationController.IsSafePuuid("short"),
                 "Friend identifiers must be validated before temporary scheduling.");
+            Require(LeagueMatchmakingWriteApiClient.IsSafeConversationId("room-12@group") &&
+                !LeagueMatchmakingWriteApiClient.IsSafeConversationId("../room/12") &&
+                !LeagueMatchmakingWriteApiClient.IsSafeConversationId(""),
+                "Room notice path segments must be restricted to safe conversation IDs.");
+            var body = LeagueMatchmakingWriteApiClient.BuildRoomNoticeJson("room-12@group", "已邀请 Test 加入房间");
+            var notice = new JavaScriptSerializer().DeserializeObject(body) as Dictionary<string, object>;
+            Require(notice != null && Equals(notice["type"], "celebration") && Equals(notice["isHistorical"], false) &&
+                Equals(notice["body"], "已邀请 Test 加入房间"),
+                "Room notification must use the pinned Akari celebration payload.");
+            Require(!LeagueMatchmakingWriteApiClient.IsAllowedTargetForSmokeTest(
+                "POST", LeagueMatchmakingWriteApiClient.ConversationsPrefix + "room-12@group/messages"),
+                "General matchmaking writes must never gain arbitrary chat access.");
+        }
+
+        private static void ValidateOptionalCustomGameNotice()
+        {
+            var read = new Read();
+            var write = new Write();
+            read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-notice", true));
+            read.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"id\":\"room-12@group\",\"type\":\"customGame\"}]");
+            using (var controller = new LeagueFriendInvitationController(read, write, write))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                Require(!controller.AnnounceEnabled && controller.SetAnnounce(catalog.LobbyKey, true),
+                    "Chat notice must require an explicit per-lobby choice.");
+                Require(controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true),
+                    "Could not schedule friend for chat notice.");
+                Run(controller);
+                Run(controller);
+                Require(write.Calls.Count == 1 && write.Notices.Count == 1 &&
+                    write.Notices[0] == "room-12@group|已邀请 Example #CN1 加入房间",
+                    "Successful invited friend should receive exactly one optional custom-game notice.");
+                controller.Observe(Phase("ChampSelect"));
+                Require(!controller.AnnounceEnabled,
+                    "Room notice choice must reset on gameflow exit.");
+            }
+
+            var noNoticeRead = new Read();
+            var noNoticeWrite = new Write();
+            noNoticeRead.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-no-notice", true));
+            noNoticeRead.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            using (var controller = new LeagueFriendInvitationController(noNoticeRead, noNoticeWrite, noNoticeWrite))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true);
+                Run(controller);
+                Require(noNoticeWrite.Calls.Count == 1 && noNoticeWrite.Notices.Count == 0 &&
+                    noNoticeRead.GetCount(LeagueFriendInvitationController.ConversationsPath) == 0,
+                    "Default-off notice must perform no chat reads or writes.");
+            }
+        }
+
+        private static void ValidateNoticeGuards()
+        {
+            var read = new Read();
+            var write = new Write();
+            read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-stale-notice", true));
+            read.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"id\":\"room-12@group\",\"type\":\"customGame\"}]");
+            using (var controller = new LeagueFriendInvitationController(read, write, write))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                controller.SetAnnounce(catalog.LobbyKey, true);
+                controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true);
+                read.BeforeRead = (path, count) =>
+                {
+                    if (path == LeagueFriendInvitationController.ConversationsPath)
+                        read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-replaced", true));
+                };
+                Run(controller);
+                Require(write.Calls.Count == 1 && write.Notices.Count == 0,
+                    "Conversation notice must not target a room after lobby replacement.");
+            }
+
+            read = new Read();
+            write = new Write { InviteStatus = 500 };
+            read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-failed-invite", true));
+            read.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            using (var controller = new LeagueFriendInvitationController(read, write, write))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                controller.SetAnnounce(catalog.LobbyKey, true);
+                controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true);
+                Run(controller);
+                Require(write.Notices.Count == 0 && read.GetCount(LeagueFriendInvitationController.ConversationsPath) == 0,
+                    "Failed invitation must never announce success.");
+            }
         }
 
         private static void ValidateIdleAndScheduledOnlineTransition()
@@ -218,6 +315,12 @@ namespace FACM.League
 
             internal void Set(string path, string value) { _values[path] = value; }
 
+            internal int GetCount(string path)
+            {
+                int count;
+                return _counts.TryGetValue(path, out count) ? count : 0;
+            }
+
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -232,14 +335,24 @@ namespace FACM.League
             }
         }
 
-        private sealed class Write : ILeagueLobbyInviteWriteApi
+        private sealed class Write : ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi
         {
             internal readonly List<long> Calls = new List<long>();
+            internal readonly List<string> Notices = new List<string>();
+            internal int InviteStatus = 204;
             public Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(summonerId);
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = InviteStatus, Body = new byte[0] });
+            }
+
+            public Task<LeagueClientWriteResponse> TrySendNoticeAsync(
+                string conversationId, string message, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Notices.Add(conversationId + "|" + message);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 201, Body = new byte[0] });
             }
         }
     }

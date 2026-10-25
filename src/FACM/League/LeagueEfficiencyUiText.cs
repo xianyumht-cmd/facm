@@ -66,6 +66,7 @@ namespace FACM.League
         public const string FriendInviteOpen = "LeagueEfficiencyFriendInviteOpen";
         public const string FriendInviteTitle = "LeagueEfficiencyFriendInviteTitle";
         public const string FriendInviteHint = "LeagueEfficiencyFriendInviteHint";
+        public const string FriendInviteAnnounce = "LeagueEfficiencyFriendInviteAnnounce";
         public const string FriendInviteSearch = "LeagueEfficiencyFriendInviteSearch";
         public const string FriendInviteRefresh = "LeagueEfficiencyFriendInviteRefresh";
         public const string FriendInviteName = "LeagueEfficiencyFriendInviteName";
@@ -209,6 +210,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
             { LeagueEfficiencyUiTextKeys.FriendInviteTitle, "GGman · 好友邀请排队" },
             { LeagueEfficiencyUiTextKeys.FriendInviteHint, "在组队大厅勾选好友，等其状态变为在线时尝试邀请一次；离开大厅即清空。" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteAnnounce, "邀请成功后在组队聊天中提示（仅当前房间）" },
             { LeagueEfficiencyUiTextKeys.FriendInviteSearch, "搜索游戏昵称" },
             { LeagueEfficiencyUiTextKeys.FriendInviteRefresh, "刷新好友" },
             { LeagueEfficiencyUiTextKeys.FriendInviteName, "游戏好友" },

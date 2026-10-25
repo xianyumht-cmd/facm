@@ -100,7 +100,8 @@ namespace FACM.AppHost.Modules
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient, matchmakingWriter);
             ConfigureLobbyInvitations();
-            _friendInvitations = new LeagueFriendInvitationController(_leagueClient, (ILeagueLobbyInviteWriteApi)_leagueClient);
+            _friendInvitations = new LeagueFriendInvitationController(_leagueClient,
+                (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -136,6 +137,13 @@ namespace FACM.AppHost.Modules
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
         public string InvitationStrategiesJson { get { return _settingsModule.Settings.LeagueInvitationStrategies; } }
         public int ScheduledFriendInvitationCount { get { return _friendInvitations == null ? 0 : _friendInvitations.PendingCount; } }
+        public bool AnnounceFriendInvitations { get { return _friendInvitations != null && _friendInvitations.AnnounceEnabled; } }
+
+        public bool SetFriendInvitationAnnouncement(string lobbyKey, bool enabled)
+        {
+            ThrowIfDisposed();
+            return _friendInvitations != null && _friendInvitations.SetAnnounce(lobbyKey, enabled);
+        }
 
         public Task<LeagueFriendInvitationCatalog> LoadInvitationFriendsAsync(CancellationToken cancellationToken)
         {
