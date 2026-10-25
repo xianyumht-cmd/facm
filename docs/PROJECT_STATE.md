@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-25 — Akari future-pick intent candidate (Draft #357)
+
+Source-only functional adaptation of pinned Akari `auto-select/{state,computed-state,ban-pick-controller}.ts` plus the typed `ChampSelectHttpApi.intentChampion`: add an opt-in **pre-pick intent** switch and a separate opt-in ignore-teammate-intent rule for each native mode/lane priority profile. Before the local pick turn, a future local unfinished pick action can receive a validated, narrow JSON `PATCH /lol-champ-select/v1/session/actions/{id}` containing **only `championId`**, never `completed` or a premature lock. The planning/ban-pick phase, action ownership, preferred champion availability, teammate reservations and any intervening manual choice are checked; the future action and availability are re-read before one write. The new method reuses the existing action writer's authenticated client pool and the current cancellation/poll owner. No new main UI geometry, Gameflow listener or second poller is created.
+
+Offline tests cover intent target validation, the local future action, respect/ignore teammate preselection, no automatic lock, stale manual intent and cancellation before delayed write. Default behavior remains **off**; failed/unknown LCU data never becomes a synthetic action. Chinese-client endpoint acceptance and low-end performance need the final consolidated field test, not an interim user game session.
+
 ## 2026-10-25 — In-process temporary disable of Akari selection automation (Draft #357)
 
 Pinned Akari `auto-select/state.ts` exposes a `temporarilyDisabled` flag to suspend automatic pick/ban/bench/trade work without deleting chosen profiles. GGman now exposes an **in-process-only** `临时暂停自动选禁` switch in the existing scrollable native Quick Tools page. Pausing clears the current selection episode and cancels all delayed writes; resuming while still connected in ChampSelect restarts its existing phase owner once. Nothing about the pause is added to `AppSettings` or cloud sync, and no new polling task or timer is created. The smoke suite proves pause-before-phase produces no LCU requests, resumes once, and cancels its active episode again. The accepted floating compact UI dimensions and visuals do not change.

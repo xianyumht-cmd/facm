@@ -70,6 +70,9 @@ namespace FACM.League
         public const string AdvancedStrategy = "LeagueEfficiencyAdvancedStrategy";
         public const string AdvancedDelay = "LeagueEfficiencyAdvancedDelay";
         public const string AdvancedBenchControls = "LeagueEfficiencyAdvancedBenchControls";
+        public const string AdvancedIntentControls = "LeagueEfficiencyAdvancedIntentControls";
+        public const string AdvancedShowIntent = "LeagueEfficiencyAdvancedShowIntent";
+        public const string AdvancedIgnoreIntent = "LeagueEfficiencyAdvancedIgnoreIntent";
         public const string AdvancedBenchSwap = "LeagueEfficiencyAdvancedBenchSwap";
         public const string AdvancedBenchUpgrade = "LeagueEfficiencyAdvancedBenchUpgrade";
         public const string AdvancedTrade = "LeagueEfficiencyAdvancedTrade";
@@ -173,6 +176,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedStrategy, "执行策略" },
             { LeagueEfficiencyUiTextKeys.AdvancedDelay, "延迟（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchControls, "候选席规则" },
+            { LeagueEfficiencyUiTextKeys.AdvancedIntentControls, "预选规则" },
+            { LeagueEfficiencyUiTextKeys.AdvancedShowIntent, "轮到选人前自动预选" },
+            { LeagueEfficiencyUiTextKeys.AdvancedIgnoreIntent, "忽略队友的英雄预选" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchSwap, "自动换候选席英雄（需开启自动选人）" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
             { LeagueEfficiencyUiTextKeys.AdvancedTrade, "按优先级自动接受或拒绝交换" },

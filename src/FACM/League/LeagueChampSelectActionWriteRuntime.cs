@@ -12,6 +12,8 @@ namespace FACM.League
     {
         Task<LeagueClientWriteResponse> TryApplyAsync(
             string actionType, int actionId, int championId, bool completed, CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryIntentAsync(
+            int actionId, int championId, CancellationToken cancellationToken);
     }
 
     internal sealed class LeagueChampSelectActionWriteApiClient : ILeagueChampSelectActionWriteApi, IDisposable
@@ -26,12 +28,30 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TryApplyAsync(
+        public Task<LeagueClientWriteResponse> TryApplyAsync(
             string actionType, int actionId, int championId, bool completed, CancellationToken cancellationToken)
         {
             if (!IsAllowedForSmokeTest("PATCH", actionType, actionId, championId))
                 throw new ArgumentException("Champ Select action target is not allowed.", nameof(actionId));
 
+            var json = "{\"type\":\"" + actionType + "\",\"championId\":" +
+                championId.ToString(CultureInfo.InvariantCulture) +
+                ",\"completed\":" + (completed ? "true" : "false") + "}";
+            return SendActionPatchAsync(actionId, json, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryIntentAsync(
+            int actionId, int championId, CancellationToken cancellationToken)
+        {
+            if (!IsAllowedIntentForSmokeTest(actionId, championId))
+                throw new ArgumentException("Champ Select intent target is not allowed.", nameof(actionId));
+            var json = "{\"championId\":" + championId.ToString(CultureInfo.InvariantCulture) + "}";
+            return SendActionPatchAsync(actionId, json, cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> SendActionPatchAsync(
+            int actionId, string json, CancellationToken cancellationToken)
+        {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
             if (session == null) return null;
@@ -45,9 +65,6 @@ namespace FACM.League
                 try
                 {
                     var path = ActionPathPrefix + actionId.ToString(CultureInfo.InvariantCulture);
-                    var json = "{\"type\":\"" + actionType + "\",\"championId\":" +
-                        championId.ToString(CultureInfo.InvariantCulture) +
-                        ",\"completed\":" + (completed ? "true" : "false") + "}";
                     using (var request = new HttpRequestMessage(new HttpMethod("PATCH"), path))
                     {
                         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -87,6 +104,11 @@ namespace FACM.League
                    (string.Equals(actionType, "pick", StringComparison.Ordinal) ||
                     string.Equals(actionType, "ban", StringComparison.Ordinal)) &&
                    actionId >= 0 && championId > 0 && championId <= 10000;
+        }
+
+        internal static bool IsAllowedIntentForSmokeTest(int actionId, int championId)
+        {
+            return actionId >= 0 && championId > 0 && championId <= 10000;
         }
 
         public void Dispose()

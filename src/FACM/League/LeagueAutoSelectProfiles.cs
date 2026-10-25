@@ -12,6 +12,8 @@ namespace FACM.League
         public List<int> Picks { get; set; } = new List<int>();
         public List<int> Bans { get; set; } = new List<int>();
         public string PickStrategy { get; set; } = "lock-in-immediately";
+        public bool ShowPickIntent { get; set; }
+        public bool IgnoreTeammateIntent { get; set; }
         public string BanStrategy { get; set; } = "lock-in-immediately";
         public int PickDelayMs { get; set; }
         public int BanDelayMs { get; set; }

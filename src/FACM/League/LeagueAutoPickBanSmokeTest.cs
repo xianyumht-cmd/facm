@@ -34,6 +34,7 @@ namespace FACM.League
             ValidateActionParsing();
             ValidateProfiles();
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
+            ValidatePickIntentAsync().GetAwaiter().GetResult();
             ValidateAutoBenchAsync().GetAwaiter().GetResult();
             ValidateChampionTradesAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
@@ -363,6 +364,84 @@ namespace FACM.League
             }
         }
 
+        private static async Task ValidatePickIntentAsync()
+        {
+            Require(LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, 22) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(-1, 22) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(1, 0),
+                "Pick intent must use a validated action target and champion id.");
+            Require(LeagueAutoPickBanController.ParsePickIntentAction(Bytes(Planning(0, 0)))?.Id == 10 &&
+                    LeagueAutoPickBanController.ParsePickIntentAction(Bytes(Planning(0, 0)
+                        .Replace("\"PLANNING\"", "\"FINALIZATION\""))) == null &&
+                    LeagueAutoPickBanController.ParsePickIntentAction(Bytes("{}")) == null,
+                "Only an unfinished local pick action in planning/selection may receive intent.");
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    ShowPickIntent = true, PickDelayMs = 0 }
+            });
+            var reader = new FakeRead { SessionJson = Planning(0, 67), Pickable = "[22,67]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.IntentCalls.Count == 1 && writer.IntentCalls[0] == "10:22" &&
+                        writer.Calls.Count == 0 && reader.Paths.Count == 4,
+                    "Pick intent must respect teammates and issue only an intent payload, not a lock.");
+            }
+
+            var ignore = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    ShowPickIntent = true, IgnoreTeammateIntent = true }
+            });
+            var ignoredWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Planning(0, 67), Pickable = "[22,67]" },
+                ignoredWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, ignore);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(ignoredWrite.IntentCalls.Count == 1 && ignoredWrite.IntentCalls[0] == "10:67",
+                    "Explicit ignore-intent preference must allow the first available hero.");
+            }
+
+            var changed = new FakeRead { SessionJson = Planning(0, 0),
+                NextSessionJson = Planning(99, 0) };
+            var skipped = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(changed, skipped, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(skipped.IntentCalls.Count == 0,
+                    "A manual intent appearing before preflight must cancel the planned write.");
+            }
+
+            var delayed = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 22 },
+                    ShowPickIntent = true, PickDelayMs = 5000 }
+            });
+            var pendingClock = new BenchPendingClock();
+            var pendingWrite = new FakeWrite();
+            using (var lifetime = new CancellationTokenSource())
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Planning(0, 0), Pickable = "[22]" },
+                pendingWrite, pendingClock))
+            {
+                controller.Configure(true, 0, false, 0, delayed);
+                var operation = controller.RunOnceForSmokeTestAsync(lifetime.Token);
+                Require(pendingClock.Scheduled, "Intent delay must be cancellable before writing.");
+                lifetime.Cancel();
+                try { await operation.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                Require(pendingClock.Cancelled && pendingWrite.IntentCalls.Count == 0,
+                    "Cancelled intent must never PATCH the future pick action.");
+            }
+        }
+
         private static async Task ValidateFailureAndCancellationAsync()
         {
             var idleClock = new FakeClock();
@@ -487,6 +566,16 @@ namespace FACM.League
                    "\",\"championId\":0,\"isInProgress\":true,\"completed\":false}]]}";
         }
 
+        private static string Planning(int intendedId, int teammateIntent)
+        {
+            return "{\"timer\":{\"phase\":\"PLANNING\",\"adjustedTimeLeftInPhase\":20000}," +
+                "\"queueId\":420,\"gameMode\":\"CLASSIC\",\"localPlayerCellId\":0," +
+                "\"myTeam\":[{\"cellId\":0,\"assignedPosition\":\"TOP\"}," +
+                "{\"cellId\":1,\"championPickIntent\":" + teammateIntent + "}]," +
+                "\"actions\":[[{\"id\":10,\"actorCellId\":0,\"type\":\"pick\"," +
+                "\"championId\":" + intendedId + ",\"isInProgress\":false,\"completed\":false}]]}";
+        }
+
         private static string BenchSession(int held, string benchIds, int queue, bool teamBuilder)
         {
             return "{\"timer\":{\"phase\":\"FINALIZATION\",\"adjustedTimeLeftInPhase\":18000}," +
@@ -595,12 +684,21 @@ namespace FACM.League
         private sealed class FakeWrite : ILeagueChampSelectActionWriteApi
         {
             public readonly List<string> Calls = new List<string>();
+            public readonly List<string> IntentCalls = new List<string>();
 
             public Task<LeagueClientWriteResponse> TryApplyAsync(
                 string type, int id, int championId, bool completed, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(type + ":" + id + ":" + championId + ":" + completed);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+
+            public Task<LeagueClientWriteResponse> TryIntentAsync(
+                int actionId, int championId, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                IntentCalls.Add(actionId + ":" + championId);
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
             }
         }

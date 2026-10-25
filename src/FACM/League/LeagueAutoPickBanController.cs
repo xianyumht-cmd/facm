@@ -23,6 +23,7 @@ namespace FACM.League
         public string GameMode { get; set; }
         public string Role { get; set; }
         public int TimeLeftMs { get; set; }
+        public HashSet<int> TeammateIntentIds { get; set; } = new HashSet<int>();
     }
 
     internal sealed class LeagueAutoBenchEpisodeGuard
@@ -277,6 +278,9 @@ namespace FACM.League
             var action = ParseCurrentAction(session);
             if (action == null)
             {
+                if (pick && profiles.Any(p => p.ShowPickIntent) &&
+                    await TryPickIntentAsync(episode, session, profiles, pickId,
+                        attempted, trace).ConfigureAwait(false)) return;
                 if (pick && _tradeWrite != null && profiles.Any(p => p.BenchHandleTradeEnabled) &&
                     await TryTradeAsync(episode, session, profiles, pickId,
                         attempted, reported, trace).ConfigureAwait(false)) return;
@@ -362,6 +366,120 @@ namespace FACM.League
                 locked == null ? "failed_unavailable" :
                 locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,
                 watch.ElapsedMilliseconds);
+        }
+
+        private async Task<bool> TryPickIntentAsync(CancellationTokenSource episode, byte[] session,
+            IReadOnlyList<LeagueAutoSelectProfile> profiles, int pickId,
+            HashSet<string> attempted, string trace)
+        {
+            var intent = ParsePickIntentAction(session);
+            if (intent == null || intent.ChampionId > 0) return false;
+            var mode = LeagueAutoSelectProfiles.ModeFor(intent.QueueId, intent.GameMode);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, intent.Role);
+            if (!profile.ShowPickIntent) return false;
+            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, intent.Role, true, pickId);
+            if (candidates.Count == 0) return true;
+
+            var available = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return true;
+            var availableIds = ParseAvailableIds(available);
+            var desired = candidates.FirstOrDefault(id => availableIds.Contains(id) &&
+                (profile.IgnoreTeammateIntent || !intent.TeammateIntentIds.Contains(id)));
+            if (desired <= 0)
+            {
+                CompactTraceLog.Record(trace, "autoselect-intent", "eligibility", "no_available_candidate", 0);
+                return true;
+            }
+            if (!attempted.Add("intent:" + intent.Id)) return true;
+            var watch = Stopwatch.StartNew();
+            var delay = LimitDelay(profile.PickDelayMs, intent.TimeLeftMs);
+            if (delay > 0)
+            {
+                await _clock.Delay(TimeSpan.FromMilliseconds(delay), episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return true;
+            }
+            var freshBytes = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return true;
+            var fresh = ParsePickIntentAction(freshBytes);
+            if (fresh == null || fresh.Id != intent.Id || fresh.LocalCellId != intent.LocalCellId ||
+                fresh.QueueId != intent.QueueId || fresh.GameMode != intent.GameMode ||
+                fresh.Role != intent.Role || fresh.ChampionId != 0 ||
+                ParseCurrentAction(freshBytes) != null ||
+                !profile.IgnoreTeammateIntent && fresh.TeammateIntentIds.Contains(desired))
+            {
+                CompactTraceLog.Record(trace, "autoselect-intent", "preflight", "stale_or_reserved",
+                    watch.ElapsedMilliseconds);
+                return true;
+            }
+            var ready = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode) || !IsAvailable(ready, desired)) return true;
+            var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
+            CompactTraceLog.Record(trace, "autoselect-intent", "write",
+                result == null ? "failed_unavailable" :
+                result.IsSuccessStatusCode ? "submitted" : "failed_http_" + result.StatusCode,
+                watch.ElapsedMilliseconds);
+            return true;
+        }
+
+        internal static LeagueAutoSelectAction ParsePickIntentAction(byte[] session)
+        {
+            if (session == null || session.Length == 0 || session.Length > 2 * 1024 * 1024) return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(session)) as Dictionary<string, object>;
+                if (root == null || !root.ContainsKey("localPlayerCellId")) return null;
+                var timerPhase = ReadString(root, "timer.phase");
+                if (timerPhase != "PLANNING" && timerPhase != "BAN_PICK") return null;
+                var cell = ReadInt(root, "localPlayerCellId");
+                object groups;
+                if (cell < 0 || !root.TryGetValue("actions", out groups)) return null;
+                foreach (var group in groups as IEnumerable ?? Array.Empty<object>())
+                    foreach (var value in group as IEnumerable ?? Array.Empty<object>())
+                    {
+                        var action = value as Dictionary<string, object>;
+                        if (action == null || !action.ContainsKey("completed") ||
+                            !action.ContainsKey("actorCellId") || !action.ContainsKey("id") ||
+                            !action.ContainsKey("championId") ||
+                            ReadBool(action, "completed") || ReadInt(action, "actorCellId") != cell ||
+                            ReadString(action, "type") != "pick") continue;
+                        var id = ReadInt(action, "id");
+                        if (id < 0) continue;
+                        var next = new LeagueAutoSelectAction
+                        {
+                            Id = id,
+                            Type = "pick",
+                            ChampionId = ReadInt(action, "championId"),
+                            LocalCellId = cell,
+                            QueueId = ReadInt(root, "queueId"),
+                            GameMode = ReadString(root, "gameMode"),
+                            Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
+                            TimeLeftMs = ReadTimerRemaining(root)
+                        };
+                        object team;
+                        if (root.TryGetValue("myTeam", out team))
+                            foreach (var memberValue in team as IEnumerable ?? Array.Empty<object>())
+                            {
+                                var member = memberValue as Dictionary<string, object>;
+                                if (member == null || !member.ContainsKey("cellId") ||
+                                    ReadInt(member, "cellId") == cell) continue;
+                                var reservation = ReadInt(member, "championPickIntent");
+                                if (reservation > 0) next.TeammateIntentIds.Add(reservation);
+                            }
+                        return next;
+                    }
+            }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            catch (InvalidCastException) { }
+            return null;
+        }
+
+        private static int ReadTimerRemaining(Dictionary<string, object> root)
+        {
+            object value;
+            return root.TryGetValue("timer", out value) && value is Dictionary<string, object>
+                ? ReadInt((Dictionary<string, object>)value, "adjustedTimeLeftInPhase") : 0;
         }
 
         private async Task<bool> TryTradeAsync(CancellationTokenSource episode, byte[] session,
