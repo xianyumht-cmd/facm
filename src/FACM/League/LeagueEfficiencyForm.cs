@@ -677,8 +677,8 @@ namespace FACM.League
                 // actual settings object on the UI thread instead of retaining stale strategies.
                 BeginInvoke(new Action(RefreshInvitationSettingsFromModule));
             }
-            catch (InvalidOperationException) { }
             catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
 
         private void RefreshInvitationSettingsFromModule()

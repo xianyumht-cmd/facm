@@ -45,7 +45,7 @@ namespace FACM.Services
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
         public bool LeagueAutoHandleInvitationsEnabled { get; set; } = false;
-        public bool LeagueSkipInvitationsWhenAway { get; set; } = true;
+        public bool LeagueSkipInvitationsWhenAway { get; set; } = false;
         public string LeagueInvitationStrategies { get; set; } = "{}";
         public bool LeagueAutoSkipLeaderEnabled { get; set; } = false;
         public bool LeagueAutoReconnectEnabled { get; set; } = false;

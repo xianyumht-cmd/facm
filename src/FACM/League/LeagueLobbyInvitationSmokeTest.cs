@@ -27,7 +27,7 @@ namespace FACM.League
         {
             var settings = new AppSettings();
             Require(!settings.LeagueAutoHandleInvitationsEnabled && !settings.LeagueAutoSkipLeaderEnabled &&
-                settings.LeagueSkipInvitationsWhenAway, "Invitation automation must default OFF and respect away state.");
+                !settings.LeagueSkipInvitationsWhenAway, "Invitation automation and away veto defaults must match pinned v1.5.1.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoHandleInvitationsEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoSkipLeaderEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueSkipInvitationsWhenAway=False");
