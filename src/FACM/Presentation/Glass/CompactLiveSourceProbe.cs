@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Mayhem;
@@ -31,6 +33,9 @@ namespace FACM.Presentation.Glass
                     content.AppendLine("trace=" + trace);
                     Append(content, "ordinary-aram", aram);
                     Append(content, "rift-top", rift);
+                    AppendHttp(content, "ordinary-aram", "https://opgg.gg/en/champions-tier/aram");
+                    AppendHttp(content, "rift-role", "https://op.gg/lol/champions?position=top");
+                    AppendHttp(content, "rift-global", "https://opgg.gg/en/champions-tier/ranked");
                     content.AppendLine("CAVEAT: This is a CI network result, not mainland no-VPN performance.");
                     File.WriteAllText(Path.Combine(outputDirectory, "public-source-probe.txt"),
                         content.ToString(), new UTF8Encoding(false));
@@ -46,6 +51,38 @@ namespace FACM.Presentation.Glass
                 }
                 catch { }
                 return 4;
+            }
+        }
+
+        private static void AppendHttp(StringBuilder output, string label, string url)
+        {
+            try
+            {
+                using (var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                using (var response = client.GetAsync(url).GetAwaiter().GetResult())
+                {
+                    output.Append(label).Append(" http=").Append((int)response.StatusCode);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        output.AppendLine(" html_skipped=true");
+                        return;
+                    }
+                    var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    output.Append(" bytes=").Append(Encoding.UTF8.GetByteCount(body));
+                    output.Append(" tables=").Append(Regex.Matches(body,
+                        @"<table\b", RegexOptions.IgnoreCase).Count);
+                    output.Append(" rows=").Append(Regex.Matches(body,
+                        @"<tr\b", RegexOptions.IgnoreCase).Count);
+                    output.Append(" has_patch=").Append(body.IndexOf("Patch",
+                        StringComparison.OrdinalIgnoreCase) >= 0);
+                    output.Append(" has_champion=").Append(body.IndexOf("Champion",
+                        StringComparison.OrdinalIgnoreCase) >= 0);
+                    output.AppendLine();
+                }
+            }
+            catch (Exception exception)
+            {
+                output.Append(label).Append(" http_error=").AppendLine(exception.GetType().Name);
             }
         }
 
