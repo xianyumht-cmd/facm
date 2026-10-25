@@ -227,8 +227,25 @@ namespace FACM.League
 
         internal LeagueBenchQuickPickState ParseBenchState(byte[] bytes)
         {
+            var state = ParseBenchPayload(bytes);
+            if (state.SessionAvailable) RememberBenchSwapRoute(state.SwapRoute);
+            return state;
+        }
+
+        // The phase-owned automatic selector can project an already-read session without
+        // introducing a second League Live service, read loop or session owner.
+        internal static LeagueBenchQuickPickState ParseBenchPayload(byte[] bytes)
+        {
             var state = new LeagueBenchQuickPickState();
-            var data = ParseObject(bytes);
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024) return state;
+            Dictionary<string, object> data;
+            try
+            {
+                data = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+            }
+            catch (ArgumentException) { return state; }
+            catch (InvalidOperationException) { return state; }
             if (data == null) return state;
 
             state.SessionAvailable = true;
@@ -237,7 +254,6 @@ namespace FACM.League
             state.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
             state.SwapRoute = ResolveBenchSwapRoute(data);
-            RememberBenchSwapRoute(state.SwapRoute);
             AppendBenchChampionIds(state.ChampionIds, data);
 
             var timer = ReadDictionary(data, "timer");
@@ -290,7 +306,7 @@ namespace FACM.League
             AppendCurrentGameTeam(snapshot, ReadValue(gameData, "teamTwo"), "team-2");
         }
 
-        private void AppendChampSelectTeam(LeagueLiveSnapshot snapshot, object value, string side)
+        private static void AppendChampSelectTeam(LeagueLiveSnapshot snapshot, object value, string side)
         {
             foreach (var member in EnumerateDictionaries(value))
             {

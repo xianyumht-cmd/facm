@@ -15,6 +15,9 @@ namespace FACM.League
         public string BanStrategy { get; set; } = "lock-in-immediately";
         public int PickDelayMs { get; set; }
         public int BanDelayMs { get; set; }
+        public bool BenchAutoSwapEnabled { get; set; }
+        public bool BenchPreferHigherPriority { get; set; }
+        public int BenchSwapDelayMs { get; set; } = 2900;
     }
 
     internal static class LeagueAutoSelectProfiles
@@ -145,6 +148,7 @@ namespace FACM.League
                 Strategies.Contains(profile.BanStrategy, StringComparer.Ordinal) &&
                 profile.PickDelayMs >= 0 && profile.PickDelayMs <= 15000 &&
                 profile.BanDelayMs >= 0 && profile.BanDelayMs <= 15000 &&
+                profile.BenchSwapDelayMs >= 0 && profile.BenchSwapDelayMs <= 15000 &&
                 ValidIds(profile.Picks) && ValidIds(profile.Bans);
         }
 

@@ -90,7 +90,8 @@ namespace FACM.AppHost.Modules
             ConfigureMatchmakingStopController();
             _reconnect = new LeagueGameflowReconnectController(_leagueClient, (ILeagueGameflowReconnectWriteApi)_leagueClient);
             _reconnect.Configure(AutoReconnectEnabled);
-            _autoSelect = new LeagueAutoPickBanController(_leagueClient, (ILeagueChampSelectActionWriteApi)_leagueClient);
+            _autoSelect = new LeagueAutoPickBanController(_leagueClient,
+                (ILeagueChampSelectActionWriteApi)_leagueClient, (ILeagueBenchSwapWriteApi)_leagueClient);
             ConfigureAutoSelect();
 
             _dashboard.GameflowStateChanged += HandleGameflowState;

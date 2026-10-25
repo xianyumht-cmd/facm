@@ -34,6 +34,7 @@ namespace FACM.League
             ValidateActionParsing();
             ValidateProfiles();
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
+            ValidateAutoBenchAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
         }
 
@@ -96,6 +97,116 @@ namespace FACM.League
             Require(LeagueAutoSelectProfiles.ResolveStrategy(decoded, "rift", "top").PickStrategy == "just-show" &&
                     LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"unsupported\"}]").Count == 0,
                 "Profile strategy selection or malformed-input rejection failed.");
+            Require(!decoded[1].BenchAutoSwapEnabled && decoded[1].BenchSwapDelayMs == 2900,
+                "Automatic bench must stay opt-in and preserve its delay default on profile round-trip.");
+            Require(LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"aram\",\"Role\":\"default\"," +
+                "\"BenchAutoSwapEnabled\":true,\"BenchSwapDelayMs\":20000}]").Count == 0,
+                "Unbounded bench delays must be rejected before saving.");
+        }
+
+        private static async Task ValidateAutoBenchAsync()
+        {
+            Require(LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 55 }, true) == 55 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 22 }, true) == 0 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 55 }, false) == 0 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 99,
+                        new[] { 55 }, false) == 55,
+                "Automatic bench priority must protect the current ranked preference.");
+            var guard = new LeagueAutoBenchEpisodeGuard();
+            Require(guard.AcceptObservedChampion(34), "First held champion must establish an episode baseline.");
+            guard.AcceptAutomaticSwap(55);
+            Require(guard.AcceptObservedChampion(55) && !guard.AcceptObservedChampion(22) &&
+                    !guard.AcceptObservedChampion(55), "Manual swap must block all later automatic writes.");
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 0 }
+            });
+            var read = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) };
+            var benchWriter = new FakeBenchWrite { AfterWrite = id => read.SessionJson = BenchSession(id, "[34]", 450, false) };
+            using (var controller = new LeagueAutoPickBanController(
+                read, new FakeWrite(), benchWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(benchWriter.Calls == 1 && benchWriter.LastId == 55 &&
+                        benchWriter.Route == LeagueBenchSwapRoute.Legacy && read.Paths.Count == 3,
+                    "Opt-in ARAM bench swap must preflight, submit once and read back on the same task.");
+            }
+
+            var disabled = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) },
+                new FakeWrite(), disabled, new InstantClock()))
+            {
+                controller.Configure(true, 34, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(disabled.Calls == 0, "No automatic bench writes without an explicit enabled profile.");
+            }
+
+            var changed = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
+                NextSessionJson = BenchSession(99, "[55]", 450, false) };
+            var cancelledWriter = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                changed, new FakeWrite(), cancelledWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(cancelledWriter.Calls == 0,
+                    "A manual hero change between initial bench scan and POST must cancel the swap.");
+            }
+
+            var pendingProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 5000 }
+            });
+            var pendingClock = new BenchPendingClock();
+            var pendingWriter = new FakeBenchWrite();
+            using (var cancellation = new CancellationTokenSource())
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) },
+                new FakeWrite(), pendingWriter, pendingClock))
+            {
+                controller.Configure(true, 0, false, 0, pendingProfile);
+                var operation = controller.RunOnceForSmokeTestAsync(cancellation.Token);
+                Require(pendingClock.Scheduled && pendingWriter.Calls == 0,
+                    "Bench cooldown must wait before any irreversible write.");
+                cancellation.Cancel();
+                try { await operation.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                Require(pendingClock.Cancelled && pendingWriter.Calls == 0,
+                    "Canceling a queued bench swap must prevent the POST.");
+            }
+
+            var teamProfiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "mayhem", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 0 }
+            });
+            var team = new FakeRead
+            {
+                SessionJson = BenchSession(34, "[]", 3270, true),
+                TeamBuilderJson = BenchSession(34, "[55]", 0, true)
+            };
+            var teamWriter = new FakeBenchWrite { AfterWrite = id =>
+                {
+                    team.SessionJson = BenchSession(id, "[]", 3270, true);
+                    team.TeamBuilderJson = BenchSession(id, "[34]", 0, true);
+                } };
+            using (var controller = new LeagueAutoPickBanController(
+                team, new FakeWrite(), teamWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, teamProfiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(teamWriter.Calls == 1 && teamWriter.Route == LeagueBenchSwapRoute.TeamBuilder &&
+                        team.Paths.FindAll(x => x == LeagueLiveDataService.TeamBuilderChampSelectSessionPath).Count == 3,
+                    "Tencent Mayhem must recover the bench via its Team Builder read/write route.");
+            }
         }
 
         private static async Task ValidatePickAndBanAsync()
@@ -285,6 +396,15 @@ namespace FACM.League
                    "\",\"championId\":0,\"isInProgress\":true,\"completed\":false}]]}";
         }
 
+        private static string BenchSession(int held, string benchIds, int queue, bool teamBuilder)
+        {
+            return "{\"timer\":{\"phase\":\"FINALIZATION\",\"adjustedTimeLeftInPhase\":18000}," +
+                "\"queueId\":" + queue + ",\"gameMode\":\"" + (queue == 3270 ? "KIWI" : queue == 0 ? "" : "ARAM") +
+                "\",\"benchEnabled\":true,\"isLegacyChampSelect\":" + (teamBuilder ? "false" : "true") +
+                ",\"localPlayerCellId\":0,\"myTeam\":[{\"cellId\":0,\"championId\":" + held +
+                "}],\"benchChampionIds\":" + benchIds + ",\"actions\":[]} ";
+        }
+
         private static LeagueDashboardPhaseState Selecting()
         {
             return new LeagueDashboardPhaseState
@@ -305,6 +425,7 @@ namespace FACM.League
             public string SessionJson;
             public string NextSessionJson;
             public string ThirdSessionJson;
+            public string TeamBuilderJson;
             public string Pickable = "[22,67]";
             public string Bannable = "[22,67]";
             public readonly List<string> Paths = new List<string>();
@@ -323,7 +444,28 @@ namespace FACM.League
                 }
                 if (path == LeagueAutoPickBanController.PickablePath) return Task.FromResult(Bytes(Pickable));
                 if (path == LeagueAutoPickBanController.BannablePath) return Task.FromResult(Bytes(Bannable));
+                if (path == LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
+                    return Task.FromResult(Bytes(TeamBuilderJson ?? "{}"));
                 throw new InvalidOperationException("Unexpected auto-select read target.");
+            }
+        }
+
+        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi
+        {
+            public int Calls;
+            public int LastId;
+            public LeagueBenchSwapRoute Route;
+            public Action<int> AfterWrite;
+
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId,
+                LeagueBenchSwapRoute route, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Calls++;
+                LastId = championId;
+                Route = route;
+                AfterWrite?.Invoke(championId);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
             }
         }
 
@@ -365,6 +507,25 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 return Task.FromResult(0);
+            }
+        }
+
+        private sealed class BenchPendingClock : ILeagueMatchmakingClock
+        {
+            public bool Scheduled;
+            public bool Cancelled;
+
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                Require(delay == TimeSpan.FromSeconds(5), "Unexpected bench cooldown or network retry.");
+                Scheduled = true;
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                cancellationToken.Register(() =>
+                {
+                    Cancelled = true;
+                    pending.TrySetCanceled();
+                });
+                return pending.Task;
             }
         }
     }

@@ -25,6 +25,24 @@ namespace FACM.League
         public int TimeLeftMs { get; set; }
     }
 
+    internal sealed class LeagueAutoBenchEpisodeGuard
+    {
+        private int _heldChampion;
+        private bool _blocked;
+
+        internal bool AcceptObservedChampion(int id)
+        {
+            if (_blocked || id <= 0) return false;
+            if (_heldChampion == 0) _heldChampion = id;
+            if (_heldChampion == id) return true;
+            _blocked = true; // A manual swap during this episode always takes precedence.
+            return false;
+        }
+
+        internal void AcceptAutomaticSwap(int id) { _heldChampion = id; }
+        internal void BlockUncertainWrite() { _blocked = true; }
+    }
+
     internal sealed class LeagueAutoPickBanController : IDisposable
     {
         internal const string SessionPath = "/lol-champ-select/v1/session";
@@ -34,6 +52,7 @@ namespace FACM.League
 
         private readonly ILeagueClientApi _read;
         private readonly ILeagueChampSelectActionWriteApi _write;
+        private readonly ILeagueBenchSwapWriteApi _benchWrite;
         private readonly ILeagueMatchmakingClock _clock;
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
@@ -48,7 +67,13 @@ namespace FACM.League
         private bool _disposed;
 
         public LeagueAutoPickBanController(ILeagueClientApi read, ILeagueChampSelectActionWriteApi write)
-            : this(read, write, new LeagueMatchmakingSystemClock())
+            : this(read, write, null, new LeagueMatchmakingSystemClock())
+        {
+        }
+
+        public LeagueAutoPickBanController(ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write, ILeagueBenchSwapWriteApi benchWrite)
+            : this(read, write, benchWrite, new LeagueMatchmakingSystemClock())
         {
         }
 
@@ -56,9 +81,19 @@ namespace FACM.League
             ILeagueClientApi read,
             ILeagueChampSelectActionWriteApi write,
             ILeagueMatchmakingClock clock)
+            : this(read, write, null, clock)
+        {
+        }
+
+        internal LeagueAutoPickBanController(
+            ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write,
+            ILeagueBenchSwapWriteApi benchWrite,
+            ILeagueMatchmakingClock clock)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
+            _benchWrite = benchWrite;
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
@@ -130,12 +165,13 @@ namespace FACM.League
             var trace = CompactTraceLog.NewId();
             var attempted = new HashSet<string>(StringComparer.Ordinal);
             var reported = new HashSet<string>(StringComparer.Ordinal);
+            var benchGuard = new LeagueAutoBenchEpisodeGuard();
             CompactTraceLog.Record(trace, "autoselect", "phase", "armed", 0);
             try
             {
                 while (IsCurrent(episode))
                 {
-                    try { await TryStepAsync(episode, attempted, reported, trace).ConfigureAwait(false); }
+                    try { await TryStepAsync(episode, attempted, reported, trace, benchGuard).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (episode.IsCancellationRequested) { break; }
                     catch (Exception exception)
                     {
@@ -172,7 +208,7 @@ namespace FACM.League
         }
 
         private async Task TryStepAsync(CancellationTokenSource episode, HashSet<string> attempted,
-            HashSet<string> reported, string trace)
+            HashSet<string> reported, string trace, LeagueAutoBenchEpisodeGuard benchGuard)
         {
             bool pick;
             bool ban;
@@ -197,7 +233,12 @@ namespace FACM.League
             var action = ParseCurrentAction(session);
             if (action == null)
             {
-                RecordOnce(reported, trace, "turn", "not_local");
+                // Bench swaps happen after the draft's pick action is over. Reuse this same
+                // already-read ChampSelect response and phase-scoped task, never another poller.
+                if (pick && _benchWrite != null)
+                    await TryBenchSwapAsync(episode, session, profiles, pickId,
+                        attempted, reported, trace, benchGuard).ConfigureAwait(false);
+                else RecordOnce(reported, trace, "turn", "not_local");
                 return;
             }
             var isPick = string.Equals(action.Type, "pick", StringComparison.Ordinal);
@@ -276,6 +317,143 @@ namespace FACM.League
                 watch.ElapsedMilliseconds);
         }
 
+        private async Task TryBenchSwapAsync(CancellationTokenSource episode, byte[] session,
+            IReadOnlyList<LeagueAutoSelectProfile> profiles, int pickId,
+            HashSet<string> attempted, HashSet<string> reported, string trace,
+            LeagueAutoBenchEpisodeGuard guard)
+        {
+            var state = await ReadBenchAsync(session, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return;
+            if (!state.SessionAvailable || !state.BenchEnabled || state.LocalChampionId <= 0 ||
+                !LeagueQueueModePolicy.IsBaseAram(state.QueueId, state.GameMode) &&
+                !LeagueQueueModePolicy.IsAramMayhem(state.QueueId, state.GameMode) ||
+                !string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase)) return;
+
+            var mode = LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
+            if (!profile.BenchAutoSwapEnabled) return;
+            if (!guard.AcceptObservedChampion(state.LocalChampionId))
+            {
+                RecordOnce(reported, trace, "bench", "manual_choice_guard");
+                return;
+            }
+            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId);
+            var desired = SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds,
+                profile.BenchPreferHigherPriority);
+            if (desired <= 0) return;
+
+            var key = "bench:" + state.LocalChampionId + ":" + desired;
+            if (!attempted.Add(key)) return;
+            var watch = Stopwatch.StartNew();
+            var delay = LimitDelay(profile.BenchSwapDelayMs, state.TimerMillisecondsLeft);
+            if (delay > 0)
+            {
+                CompactTraceLog.Record(trace, "autoselect-bench", "delay", "scheduled", 0);
+                await _clock.Delay(TimeSpan.FromMilliseconds(delay), episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return;
+            }
+
+            // A single bounded fresh read verifies both the user's held champion and the
+            // bench listing. An intervening manual swap or phase change cancels this write.
+            var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return;
+            var fresh = await ReadBenchAsync(confirmation, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return;
+            if (!SameBenchContext(state, fresh, desired) ||
+                SelectBenchTarget(candidates, fresh.LocalChampionId, fresh.ChampionIds,
+                    profile.BenchPreferHigherPriority) != desired)
+            {
+                CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "stale", watch.ElapsedMilliseconds);
+                return;
+            }
+            CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "ok", watch.ElapsedMilliseconds);
+            var response = await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token)
+                .ConfigureAwait(false);
+            CompactTraceLog.Record(trace, "autoselect-bench", "write",
+                response == null ? "failed_unavailable" :
+                response.IsSuccessStatusCode ? "submitted" : "failed_http_" + response.StatusCode,
+                watch.ElapsedMilliseconds);
+            if (response == null || !response.IsSuccessStatusCode || !IsCurrent(episode)) return;
+
+            // Do not retry the POST when the client has acknowledged it but state has not settled.
+            // A confirmed new champion is the only permitted continuation of an automatic sequence.
+            await _clock.Delay(TimeSpan.FromMilliseconds(250), episode.Token).ConfigureAwait(false);
+            var result = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return;
+            var settled = await ReadBenchAsync(result, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return;
+            if (SameBenchIdentity(state, settled) && settled.LocalChampionId == desired)
+            {
+                guard.AcceptAutomaticSwap(desired);
+                CompactTraceLog.Record(trace, "autoselect-bench", "readback", "confirmed", watch.ElapsedMilliseconds);
+            }
+            else
+            {
+                guard.BlockUncertainWrite();
+                CompactTraceLog.Record(trace, "autoselect-bench", "readback", "unconfirmed", watch.ElapsedMilliseconds);
+            }
+        }
+
+        private async Task<LeagueBenchQuickPickState> ReadBenchAsync(byte[] session,
+            CancellationToken cancellationToken)
+        {
+            var primary = LeagueLiveDataService.ParseBenchPayload(session);
+            if (!primary.SessionAvailable || !primary.BenchEnabled ||
+                primary.SwapRoute != LeagueBenchSwapRoute.TeamBuilder || primary.ChampionIds.Count > 0)
+                return primary;
+
+            // Tencent/Team Builder can expose the bench only on the companion endpoint.
+            // Do not read it unless automatic bench handling is explicitly active.
+            var extra = await _read.TryGetBytesAsync(
+                LeagueLiveDataService.TeamBuilderChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
+            var fallback = LeagueLiveDataService.ParseBenchPayload(extra);
+            if (!fallback.SessionAvailable || !fallback.BenchEnabled || fallback.ChampionIds.Count == 0 ||
+                fallback.LocalPlayerCellId != primary.LocalPlayerCellId ||
+                fallback.LocalChampionId != primary.LocalChampionId) return primary;
+            fallback.QueueId = primary.QueueId;
+            fallback.GameMode = primary.GameMode;
+            fallback.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
+            if (string.IsNullOrWhiteSpace(fallback.TimerPhase)) fallback.TimerPhase = primary.TimerPhase;
+            if (fallback.TimerMillisecondsLeft <= 0) fallback.TimerMillisecondsLeft = primary.TimerMillisecondsLeft;
+            return fallback;
+        }
+
+        internal static int SelectBenchTarget(IReadOnlyList<int> priorities, int held,
+            IReadOnlyList<int> bench, bool upgrade)
+        {
+            if (held <= 0 || priorities == null || bench == null) return 0;
+            var currentIndex = -1;
+            for (var i = 0; i < priorities.Count; i++)
+                if (priorities[i] == held) { currentIndex = i; break; }
+            if (currentIndex == 0) return 0;
+            for (var i = 0; i < priorities.Count; i++)
+            {
+                if (!bench.Contains(priorities[i]) || priorities[i] == held) continue;
+                if (currentIndex < 0 || upgrade && i < currentIndex) return priorities[i];
+                return 0;
+            }
+            return 0;
+        }
+
+        private static bool SameBenchIdentity(LeagueBenchQuickPickState expected,
+            LeagueBenchQuickPickState fresh)
+        {
+            return expected.SessionAvailable && fresh.SessionAvailable && fresh.BenchEnabled &&
+                expected.QueueId == fresh.QueueId && expected.GameMode == fresh.GameMode &&
+                expected.LocalPlayerCellId == fresh.LocalPlayerCellId &&
+                expected.SwapRoute == fresh.SwapRoute &&
+                (string.Equals(fresh.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(fresh.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool SameBenchContext(LeagueBenchQuickPickState expected,
+            LeagueBenchQuickPickState fresh, int desired)
+        {
+            return SameBenchIdentity(expected, fresh) && fresh.LocalChampionId == expected.LocalChampionId &&
+                fresh.ChampionIds.Contains(desired);
+        }
+
         private async Task<bool> CheckPreflightAsync(
             CancellationTokenSource episode, LeagueAutoSelectAction expected, int desired)
         {
@@ -324,7 +502,8 @@ namespace FACM.League
                 try
                 {
                     await TryStepAsync(episode, new HashSet<string>(StringComparer.Ordinal),
-                        new HashSet<string>(StringComparer.Ordinal), CompactTraceLog.NewId()).ConfigureAwait(false);
+                        new HashSet<string>(StringComparer.Ordinal), CompactTraceLog.NewId(),
+                        new LeagueAutoBenchEpisodeGuard()).ConfigureAwait(false);
                 }
                 finally
                 {

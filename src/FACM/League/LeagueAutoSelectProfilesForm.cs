@@ -25,6 +25,9 @@ namespace FACM.League
         private readonly ComboBox _strategy;
         private readonly ListBox _priority;
         private readonly NumericUpDown _delay;
+        private readonly CheckBox _benchSwap;
+        private readonly CheckBox _benchUpgrade;
+        private readonly NumericUpDown _benchDelay;
         private readonly Label _status;
         private bool _binding;
 
@@ -44,11 +47,11 @@ namespace FACM.League
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(22), AutoScroll = true,
-                ColumnCount = 2, RowCount = 8, BackColor = FacmDesignSystem.Canvas
+                ColumnCount = 2, RowCount = 9, BackColor = FacmDesignSystem.Canvas
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            foreach (var height in new[] { 54, 46, 46, 46, 266, 48, 48, 55 })
+            foreach (var height in new[] { 54, 46, 46, 46, 266, 48, 48, 86, 55 })
                 root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
 
             var header = new Label
@@ -111,6 +114,24 @@ namespace FACM.League
             root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedDelay), 0, 6);
             root.Controls.Add(_delay, 1, 6);
 
+            root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedBenchControls), 0, 7);
+            var benchRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+            _benchSwap = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchSwap),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            _benchUpgrade = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            var benchDelayLabel = new Label { Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchDelay),
+                AutoSize = true, ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 8, 8, 5) };
+            _benchDelay = new NumericUpDown { Minimum = 0, Maximum = 15, DecimalPlaces = 1,
+                Increment = 0.5m, Width = 72, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 5, 6, 5) };
+            benchRow.Controls.Add(_benchSwap);
+            benchRow.Controls.Add(_benchUpgrade);
+            benchRow.Controls.Add(benchDelayLabel);
+            benchRow.Controls.Add(_benchDelay);
+            root.Controls.Add(benchRow, 1, 7);
+
             _status = new Label { Dock = DockStyle.Fill, ForeColor = FacmDesignSystem.TextMuted,
                 TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
             var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
@@ -126,7 +147,7 @@ namespace FACM.League
             footer.Controls.Add(_status, 0, 0);
             footer.Controls.Add(cancel, 1, 0);
             footer.Controls.Add(save, 2, 0);
-            root.Controls.Add(footer, 0, 7);
+            root.Controls.Add(footer, 0, 8);
             root.SetColumnSpan(footer, 2);
             Controls.Add(root);
 
@@ -135,6 +156,9 @@ namespace FACM.League
             _action.SelectedIndexChanged += ContextChanged;
             _strategy.SelectedIndexChanged += StrategyChanged;
             _delay.ValueChanged += StrategyChanged;
+            _benchSwap.CheckedChanged += BenchChanged;
+            _benchUpgrade.CheckedChanged += BenchChanged;
+            _benchDelay.ValueChanged += BenchChanged;
             _mode.SelectedIndex = 0;
             _role.SelectedIndex = 0;
             _action.SelectedIndex = 0;
@@ -215,6 +239,13 @@ namespace FACM.League
                 var strategy = _action.SelectedIndex == 1 ? profile.BanStrategy : profile.PickStrategy;
                 _strategy.SelectedIndex = Math.Max(0, Array.IndexOf(LeagueAutoSelectProfiles.Strategies, strategy));
                 _delay.Value = (_action.SelectedIndex == 1 ? profile.BanDelayMs : profile.PickDelayMs) / 1000m;
+                var benchSettingsVisible = _action.SelectedIndex == 0 && _mode.SelectedIndex != 1;
+                _benchSwap.Enabled = benchSettingsVisible;
+                _benchUpgrade.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _benchDelay.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _benchSwap.Checked = profile.BenchAutoSwapEnabled;
+                _benchUpgrade.Checked = profile.BenchPreferHigherPriority;
+                _benchDelay.Value = profile.BenchSwapDelayMs / 1000m;
             }
             finally { _binding = false; }
         }
@@ -272,6 +303,17 @@ namespace FACM.League
                 profile.PickStrategy = LeagueAutoSelectProfiles.Strategies[_strategy.SelectedIndex];
                 profile.PickDelayMs = (int)(_delay.Value * 1000);
             }
+        }
+
+        private void BenchChanged(object sender, EventArgs e)
+        {
+            if (_binding || _action.SelectedIndex != 0 || _mode.SelectedIndex == 1) return;
+            var profile = CurrentProfile(true);
+            profile.BenchAutoSwapEnabled = _benchSwap.Checked;
+            profile.BenchPreferHigherPriority = _benchUpgrade.Checked;
+            profile.BenchSwapDelayMs = (int)(_benchDelay.Value * 1000);
+            _benchUpgrade.Enabled = _benchSwap.Checked;
+            _benchDelay.Enabled = _benchSwap.Checked;
         }
 
         private async Task LoadCatalogAsync()

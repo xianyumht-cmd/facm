@@ -67,6 +67,10 @@ namespace FACM.League
         public const string AdvancedDown = "LeagueEfficiencyAdvancedDown";
         public const string AdvancedStrategy = "LeagueEfficiencyAdvancedStrategy";
         public const string AdvancedDelay = "LeagueEfficiencyAdvancedDelay";
+        public const string AdvancedBenchControls = "LeagueEfficiencyAdvancedBenchControls";
+        public const string AdvancedBenchSwap = "LeagueEfficiencyAdvancedBenchSwap";
+        public const string AdvancedBenchUpgrade = "LeagueEfficiencyAdvancedBenchUpgrade";
+        public const string AdvancedBenchDelay = "LeagueEfficiencyAdvancedBenchDelay";
         public const string AdvancedSave = "LeagueEfficiencyAdvancedSave";
         public const string AdvancedCancel = "LeagueEfficiencyAdvancedCancel";
         public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
@@ -163,6 +167,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedDown, "下移" },
             { LeagueEfficiencyUiTextKeys.AdvancedStrategy, "执行策略" },
             { LeagueEfficiencyUiTextKeys.AdvancedDelay, "延迟（秒）" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchControls, "候选席规则" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchSwap, "自动换候选席英雄（需开启自动选人）" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
             { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },
             { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
