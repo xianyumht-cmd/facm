@@ -307,6 +307,7 @@ namespace FACM.League
             RefreshInvitationAction();
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
+            AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;
             Controls.Add(root);
             _loading = false;
@@ -667,6 +668,40 @@ namespace FACM.League
             UpdateInvitationControlStates();
         }
 
+        private void HandleSettingsSaved(AppSettings settings)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            try
+            {
+                // Cloud-first restores can happen while this page is open. Rebind from the
+                // actual settings object on the UI thread instead of retaining stale strategies.
+                BeginInvoke(new Action(RefreshInvitationSettingsFromModule));
+            }
+            catch (InvalidOperationException) { }
+            catch (ObjectDisposedException) { }
+        }
+
+        private void RefreshInvitationSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            var saved = LeagueInvitationPolicies.Parse(_module.InvitationStrategiesJson);
+            if (_autoHandleInvitations.Checked == _module.AutoHandleInvitationsEnabled &&
+                _skipInvitationsWhenAway.Checked == _module.SkipInvitationsWhenAway &&
+                _autoSkipLeader.Checked == _module.AutoSkipLeaderEnabled &&
+                LeagueInvitationPolicies.Serialize(_invitationPolicies) == LeagueInvitationPolicies.Serialize(saved)) return;
+            _loading = true;
+            try
+            {
+                _invitationPolicies.Clear();
+                foreach (var item in saved) _invitationPolicies[item.Key] = item.Value;
+                _autoHandleInvitations.Checked = _module.AutoHandleInvitationsEnabled;
+                _skipInvitationsWhenAway.Checked = _module.SkipInvitationsWhenAway;
+                _autoSkipLeader.Checked = _module.AutoSkipLeaderEnabled;
+                RefreshInvitationAction();
+            }
+            finally { _loading = false; }
+        }
+
         private void UpdateInvitationControlStates()
         {
             var enabled = _autoHandleInvitations != null && _autoHandleInvitations.Checked;
@@ -883,6 +918,7 @@ namespace FACM.League
             _catalogRequest.Cancel();
             _catalogRequest.Dispose();
             _module.HonorStatusChanged -= HandleHonorStatusChanged;
+            AppSettings.Saved -= HandleSettingsSaved;
         }
 
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
