@@ -75,6 +75,10 @@ namespace FACM.League
         public const string FriendInviteCount = "LeagueEfficiencyFriendInviteCount";
         public const string FriendInviteRejected = "LeagueEfficiencyFriendInviteRejected";
         public const string FriendInviteClose = "LeagueEfficiencyFriendInviteClose";
+        public const string FriendInviteOnline = "LeagueEfficiencyFriendInviteOnline";
+        public const string FriendInviteInGame = "LeagueEfficiencyFriendInviteInGame";
+        public const string FriendInviteAway = "LeagueEfficiencyFriendInviteAway";
+        public const string FriendInviteOffline = "LeagueEfficiencyFriendInviteOffline";
         public const string AutoSelectSection = "LeagueEfficiencyAutoSelectSection";
         public const string AutoPick = "LeagueEfficiencyAutoPick";
         public const string AutoPickHint = "LeagueEfficiencyAutoPickHint";
@@ -214,6 +218,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.FriendInviteCount, "等待邀请：{0} 人（最多 5 人）" },
             { LeagueEfficiencyUiTextKeys.FriendInviteRejected, "操作未生效：大厅已变更、好友已尝试邀请或排队已满。请刷新。" },
             { LeagueEfficiencyUiTextKeys.FriendInviteClose, "关闭" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteOnline, "在线" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteInGame, "游戏中" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteAway, "离开" },
+            { LeagueEfficiencyUiTextKeys.FriendInviteOffline, "离线" },
             { LeagueEfficiencyUiTextKeys.AutoSelectSection, "自动选禁英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPick, "自动锁定英雄" },
             { LeagueEfficiencyUiTextKeys.AutoPickHint, "轮到自己选人时，先确认目标英雄可选，且你没有手动选其他英雄，再尝试锁定一次。默认关闭。" },

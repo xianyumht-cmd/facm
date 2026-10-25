@@ -193,14 +193,14 @@ namespace FACM.League
                 _module.ScheduledFriendInvitationCount);
         }
 
-        private static string AvailabilityLabel(string value)
+        private string AvailabilityLabel(string value)
         {
             switch (value)
             {
-                case "chat": return "在线";
-                case "dnd": return "游戏中";
-                case "away": return "离开";
-                default: return "离线";
+                case "chat": return T(LeagueEfficiencyUiTextKeys.FriendInviteOnline);
+                case "dnd": return T(LeagueEfficiencyUiTextKeys.FriendInviteInGame);
+                case "away": return T(LeagueEfficiencyUiTextKeys.FriendInviteAway);
+                default: return T(LeagueEfficiencyUiTextKeys.FriendInviteOffline);
             }
         }
 
