@@ -51,6 +51,8 @@ namespace FACM.Services
         public bool LeagueAutoReconnectEnabled { get; set; } = false;
         public bool LeagueAutoAramTeamSideEnabled { get; set; } = false;
         public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; } = false;
+        public bool LeagueAutoLoginStatusMessageEnabled { get; set; } = false;
+        public string LeagueAutoLoginStatusMessage { get; set; } = string.Empty;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
@@ -173,6 +175,8 @@ namespace FACM.Services
                 "LeagueAutoReconnectEnabled=" + LeagueAutoReconnectEnabled,
                 "LeagueAutoAramTeamSideEnabled=" + LeagueAutoAramTeamSideEnabled,
                 "LeagueAutoAramTeamSideVisibleToTeam=" + LeagueAutoAramTeamSideVisibleToTeam,
+                "LeagueAutoLoginStatusMessageEnabled=" + LeagueAutoLoginStatusMessageEnabled,
+                "LeagueAutoLoginStatusMessage=" + Sanitize(LeagueLoginStatusRestoreController.NormalizeSavedMessage(LeagueAutoLoginStatusMessage)),
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
@@ -417,6 +421,8 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReconnectEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReconnectEnabled = flag;
             else if (key.Equals("LeagueAutoAramTeamSideEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideEnabled = flag;
             else if (key.Equals("LeagueAutoAramTeamSideVisibleToTeam", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideVisibleToTeam = flag;
+            else if (key.Equals("LeagueAutoLoginStatusMessageEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoLoginStatusMessageEnabled = flag;
+            else if (key.Equals("LeagueAutoLoginStatusMessage", StringComparison.OrdinalIgnoreCase) && value.Length <= LeaguePresenceService.MaximumStatusMessageLength) result.LeagueAutoLoginStatusMessage = LeagueLoginStatusRestoreController.NormalizeSavedMessage(value);
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));

@@ -31,6 +31,8 @@ namespace FACM.Services
         public bool LeagueAutoSkipLeaderEnabled { get; set; }
         public bool LeagueAutoAramTeamSideEnabled { get; set; }
         public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; }
+        public bool LeagueAutoLoginStatusMessageEnabled { get; set; }
+        public string LeagueAutoLoginStatusMessage { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -68,6 +70,8 @@ namespace FACM.Services
                 LeagueAutoSkipLeaderEnabled = settings.LeagueAutoSkipLeaderEnabled,
                 LeagueAutoAramTeamSideEnabled = settings.LeagueAutoAramTeamSideEnabled,
                 LeagueAutoAramTeamSideVisibleToTeam = settings.LeagueAutoAramTeamSideVisibleToTeam,
+                LeagueAutoLoginStatusMessageEnabled = settings.LeagueAutoLoginStatusMessageEnabled,
+                LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(settings.LeagueAutoLoginStatusMessage),
                 LeagueAutoMatchmakingMinPartySize = settings.LeagueAutoMatchmakingMinPartySize,
                 LeagueAutoMatchmakingStartDelayMs = settings.LeagueAutoMatchmakingStartDelayMs,
                 LeagueAutoAcceptDelayMs = settings.LeagueAutoAcceptDelayMs,
@@ -108,6 +112,8 @@ namespace FACM.Services
             settings.LeagueAutoSkipLeaderEnabled = LeagueAutoSkipLeaderEnabled;
             settings.LeagueAutoAramTeamSideEnabled = LeagueAutoAramTeamSideEnabled;
             settings.LeagueAutoAramTeamSideVisibleToTeam = LeagueAutoAramTeamSideVisibleToTeam;
+            settings.LeagueAutoLoginStatusMessageEnabled = LeagueAutoLoginStatusMessageEnabled;
+            settings.LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(LeagueAutoLoginStatusMessage);
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = LeagueAutoAcceptDelayMs;

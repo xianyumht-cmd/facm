@@ -47,6 +47,8 @@ namespace FACM.Services
             "LeagueAutoSkipLeaderEnabled",
             "LeagueAutoAramTeamSideEnabled",
             "LeagueAutoAramTeamSideVisibleToTeam",
+            "LeagueAutoLoginStatusMessageEnabled",
+            "LeagueAutoLoginStatusMessage",
             "LeagueAutoMatchmakingMinPartySize",
             "LeagueAutoMatchmakingStartDelayMs",
             "LeagueAutoAcceptDelayMs",

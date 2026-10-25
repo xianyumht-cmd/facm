@@ -47,6 +47,9 @@ namespace FACM.Services
             if (s.LeagueExitGameHotkey == null || s.LeagueExitGameHotkey.Length > 100 ||
                 (s.LeagueChampionSpellPresets != null && s.LeagueChampionSpellPresets.Length > 4096) ||
                 (s.LeagueChampionRunePresets != null && s.LeagueChampionRunePresets.Length > 7500) ||
+                (s.LeagueAutoLoginStatusMessage != null &&
+                 (s.LeagueAutoLoginStatusMessage.Length > FACM.League.LeaguePresenceService.MaximumStatusMessageLength ||
+                  s.LeagueAutoLoginStatusMessage != FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage))) ||
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
@@ -101,6 +104,8 @@ namespace FACM.Services
             settings.LeagueAutoSkipLeaderEnabled = s.LeagueAutoSkipLeaderEnabled;
             settings.LeagueAutoAramTeamSideEnabled = s.LeagueAutoAramTeamSideEnabled;
             settings.LeagueAutoAramTeamSideVisibleToTeam = s.LeagueAutoAramTeamSideVisibleToTeam;
+            settings.LeagueAutoLoginStatusMessageEnabled = s.LeagueAutoLoginStatusMessageEnabled;
+            settings.LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage);
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = s.LeagueAutoAcceptDelayMs;

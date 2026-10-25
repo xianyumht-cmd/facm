@@ -43,6 +43,7 @@ namespace FACM.AppHost.Modules
         private LeagueLobbyInvitationController _lobbyInvitations;
         private LeagueFriendInvitationController _friendInvitations;
         private LeagueAramTeamSideController _aramSide;
+        private LeagueLoginStatusRestoreController _loginSignature;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -106,6 +107,9 @@ namespace FACM.AppHost.Modules
                 (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient);
             _aramSide = new LeagueAramTeamSideController(_leagueClient, (ILeagueChampSelectSideWriteApi)_leagueClient);
             ConfigureAramTeamSide();
+            _loginSignature = new LeagueLoginStatusRestoreController(
+                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
+            ConfigureLoginSignature();
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -120,6 +124,7 @@ namespace FACM.AppHost.Modules
                 _lobbyInvitations.Observe(current);
                 _friendInvitations.Observe(current);
                 _aramSide.Observe(current);
+                _loginSignature.Observe(current);
             }
         }
 
@@ -139,6 +144,8 @@ namespace FACM.AppHost.Modules
         public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
         public bool AutoAramTeamSideEnabled { get { return _settingsModule.Settings.LeagueAutoAramTeamSideEnabled; } }
         public bool AutoAramTeamSideVisibleToTeam { get { return _settingsModule.Settings.LeagueAutoAramTeamSideVisibleToTeam; } }
+        public bool AutoLoginStatusMessageEnabled { get { return _settingsModule.Settings.LeagueAutoLoginStatusMessageEnabled; } }
+        public string AutoLoginStatusMessage { get { return _settingsModule.Settings.LeagueAutoLoginStatusMessage ?? string.Empty; } }
         public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
@@ -229,6 +236,21 @@ namespace FACM.AppHost.Modules
             _aramSide?.Configure(AutoAramTeamSideEnabled, AutoAramTeamSideVisibleToTeam);
         }
 
+        public void UpdateLoginStatusMessage(bool enabled, string message)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoLoginStatusMessageEnabled = enabled;
+            _settingsModule.Settings.LeagueAutoLoginStatusMessage = LeagueLoginStatusRestoreController.NormalizeSavedMessage(message);
+            _settingsModule.Settings.Save();
+            ConfigureLoginSignature();
+            _loginSignature?.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        private void ConfigureLoginSignature()
+        {
+            _loginSignature?.Configure(AutoLoginStatusMessageEnabled, AutoLoginStatusMessage);
+        }
+
         public void UpdateInvitationSettings(bool handleInvitations, bool skipWhenAway, string policiesJson, bool autoSkipLeader)
         {
             ThrowIfDisposed();
@@ -259,6 +281,8 @@ namespace FACM.AppHost.Modules
             _lobbyInvitations.Observe(_dashboard.CurrentGameflowState);
             ConfigureAramTeamSide();
             _aramSide?.Observe(_dashboard.CurrentGameflowState);
+            ConfigureLoginSignature();
+            _loginSignature?.Observe(_dashboard.CurrentGameflowState);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -403,6 +427,7 @@ namespace FACM.AppHost.Modules
             if (_lobbyInvitations != null) _lobbyInvitations.Observe(state);
             if (_friendInvitations != null) _friendInvitations.Observe(state);
             if (_aramSide != null) _aramSide.Observe(state);
+            if (_loginSignature != null) _loginSignature.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -439,6 +464,11 @@ namespace FACM.AppHost.Modules
             _disposed = true;
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_loginSignature != null)
+            {
+                _loginSignature.Dispose();
+                _loginSignature = null;
+            }
             if (_aramSide != null)
             {
                 _aramSide.Dispose();

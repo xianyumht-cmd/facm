@@ -164,6 +164,18 @@ namespace FACM.League
             string statusMessage,
             CancellationToken cancellationToken)
         {
+            return await ApplyStatusMessageCoreAsync(statusMessage, null, false, cancellationToken).ConfigureAwait(false);
+        }
+
+        internal Task<LeaguePresenceStatusMessageApplyResult> ApplyStatusMessageIfUnchangedAsync(
+            string statusMessage, string expectedCurrent, CancellationToken cancellationToken)
+        {
+            return ApplyStatusMessageCoreAsync(statusMessage, expectedCurrent ?? string.Empty, true, cancellationToken);
+        }
+
+        private async Task<LeaguePresenceStatusMessageApplyResult> ApplyStatusMessageCoreAsync(
+            string statusMessage, string expectedCurrent, bool compareCurrent, CancellationToken cancellationToken)
+        {
             var normalized = NormalizeStatusMessage(statusMessage);
             var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
             if (root == null)
@@ -174,6 +186,12 @@ namespace FACM.League
                     StatusMessage = normalized
                 };
             }
+
+            object current;
+            root.TryGetValue("statusMessage", out current);
+            if (compareCurrent && !string.Equals(current as string ?? string.Empty,
+                expectedCurrent, StringComparison.Ordinal))
+                return new LeaguePresenceStatusMessageApplyResult { Status = "overridden", StatusMessage = normalized };
 
             root["statusMessage"] = normalized;
             var payload = _json.Serialize(root);

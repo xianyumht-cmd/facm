@@ -25,6 +25,8 @@ namespace FACM.League
         private readonly CheckBox _autoReconnect;
         private readonly CheckBox _autoAramTeamSide;
         private readonly CheckBox _aramTeamSideVisibleToTeam;
+        private readonly TextBox _loginSignature;
+        private readonly CheckBox _autoLoginSignature;
         private readonly CheckBox _autoHandleInvitations;
         private readonly CheckBox _skipInvitationsWhenAway;
         private readonly CheckBox _autoSkipLeader;
@@ -47,6 +49,7 @@ namespace FACM.League
         private readonly Label _honorStatus;
         private readonly Label _invitationStatus;
         private bool _loading = true;
+        private bool _loginSignatureDirty;
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
         {
@@ -99,6 +102,9 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             for (var row = 0; row < 5; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
@@ -329,6 +335,13 @@ namespace FACM.League
             _autoAramTeamSide.CheckedChanged += AramSideSettingChanged;
             _aramTeamSideVisibleToTeam.CheckedChanged += AramSideSettingChanged;
             UpdateAramTeamSideControlStates();
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.LoginSignatureSection)), 0, 35);
+            _loginSignature = AddLoginSignatureRow(root, 36);
+            _autoLoginSignature = AddAutomationRow(root, 37,
+                T(LeagueEfficiencyUiTextKeys.LoginSignatureAuto),
+                T(LeagueEfficiencyUiTextKeys.LoginSignatureAutoHint), _module.AutoLoginStatusMessageEnabled);
+            _autoLoginSignature.CheckedChanged += LoginSignatureSettingChanged;
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -692,6 +705,61 @@ namespace FACM.League
                 _aramTeamSideVisibleToTeam.Enabled = _autoAramTeamSide != null && _autoAramTeamSide.Checked;
         }
 
+        private TextBox AddLoginSignatureRow(TableLayoutPanel parent, int row)
+        {
+            var panel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0, 4, 0, 4),
+                BackColor = FacmDesignSystem.Surface,
+                Padding = new Padding(12, 7, 12, 7)
+            };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+            var title = T(LeagueEfficiencyUiTextKeys.LoginSignatureText);
+            var hint = T(LeagueEfficiencyUiTextKeys.LoginSignatureTextHint);
+            panel.Controls.Add(CreateSettingDescription(title, hint), 0, 0);
+            var input = new TextBox
+            {
+                Text = _module.AutoLoginStatusMessage,
+                MaxLength = LeaguePresenceService.MaximumStatusMessageLength,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(4, 14, 4, 4),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                AccessibleName = title
+            };
+            input.TextChanged += delegate { if (!_loading) _loginSignatureDirty = true; };
+            panel.Controls.Add(input, 1, 0);
+            var save = CreateButton(T(LeagueEfficiencyUiTextKeys.LoginSignatureSave), 104, FacmButtonTone.Secondary);
+            save.Margin = new Padding(4, 12, 0, 4);
+            save.Click += delegate { SaveLoginSignatureSetting(); };
+            panel.Controls.Add(save, 2, 0);
+            WireHelp(panel, hint);
+            WireHelp(input, hint);
+            WireHelp(save, hint);
+            parent.Controls.Add(panel, 0, row);
+            return input;
+        }
+
+        private void LoginSignatureSettingChanged(object sender, EventArgs e)
+        {
+            if (!_loading) SaveLoginSignatureSetting();
+        }
+
+        private void SaveLoginSignatureSetting()
+        {
+            if (_loading) return;
+            _module.UpdateLoginStatusMessage(_autoLoginSignature.Checked, _loginSignature.Text);
+            _loginSignatureDirty = false;
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.LoginSignatureSaved);
+        }
+
         private void RefreshInvitationAction()
         {
             var gameType = _invitationGameType == null ? null : _invitationGameType.SelectedItem as string;
@@ -718,6 +786,7 @@ namespace FACM.League
                 {
                     RefreshInvitationSettingsFromModule();
                     RefreshAramTeamSideSettingsFromModule();
+                    RefreshLoginSignatureSettingsFromModule();
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -756,6 +825,18 @@ namespace FACM.League
                 _autoAramTeamSide.Checked = _module.AutoAramTeamSideEnabled;
                 _aramTeamSideVisibleToTeam.Checked = _module.AutoAramTeamSideVisibleToTeam;
                 UpdateAramTeamSideControlStates();
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshLoginSignatureSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading || _loginSignatureDirty) return;
+            _loading = true;
+            try
+            {
+                _loginSignature.Text = _module.AutoLoginStatusMessage;
+                _autoLoginSignature.Checked = _module.AutoLoginStatusMessageEnabled;
             }
             finally { _loading = false; }
         }
