@@ -72,7 +72,7 @@ namespace FACM.League
             using (var controller = new LeagueAutoPickBanController(pickRead, pickWrite, new FakeClock()))
             {
                 controller.Configure(true, 22, false, 0);
-                await controller.RunOnceForSmokeTestAsync(CancellationToken.None);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(pickWrite.Calls.Count == 1 && pickWrite.Calls[0] == "pick:0:22:True",
                     "Pick write must only target the active local action.");
                 Require(pickRead.Paths.Count == 3 && pickRead.Paths[1] == LeagueAutoPickBanController.PickablePath,
@@ -84,7 +84,7 @@ namespace FACM.League
             using (var controller = new LeagueAutoPickBanController(banRead, banWrite, new FakeClock()))
             {
                 controller.Configure(false, 0, true, 67);
-                await controller.RunOnceForSmokeTestAsync(CancellationToken.None);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(banWrite.Calls.Count == 1 && banWrite.Calls[0] == "ban:4:67:True",
                     "Ban write must only target the active local action.");
                 Require(banRead.Paths.Count == 3 && banRead.Paths[1] == LeagueAutoPickBanController.BannablePath,
@@ -96,7 +96,7 @@ namespace FACM.League
             using (var controller = new LeagueAutoPickBanController(manualRead, manualWrite, new FakeClock()))
             {
                 controller.Configure(true, 22, false, 0);
-                await controller.RunOnceForSmokeTestAsync(CancellationToken.None);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(manualWrite.Calls.Count == 0 && manualRead.Paths.Count == 1,
                     "An existing manually selected different champion must not be overridden.");
             }
@@ -123,7 +123,7 @@ namespace FACM.League
             using (var controller = new LeagueAutoPickBanController(changed, changedWrite, new FakeClock()))
             {
                 controller.Configure(true, 22, false, 0);
-                await controller.RunOnceForSmokeTestAsync(CancellationToken.None);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(changedWrite.Calls.Count == 0, "Preflight must respect a later manual champion change.");
             }
 
@@ -132,7 +132,7 @@ namespace FACM.League
             using (var controller = new LeagueAutoPickBanController(unavailable, unavailableWrite, new FakeClock()))
             {
                 controller.Configure(true, 22, false, 0);
-                await controller.RunOnceForSmokeTestAsync(CancellationToken.None);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(unavailableWrite.Calls.Count == 0, "Unavailable champion must not be selected.");
             }
 
@@ -148,7 +148,7 @@ namespace FACM.League
                 Require(write.Calls.Count == 1 && clock.Delays == 1,
                     "Repeated Gameflow events must not duplicate the action or polling loop.");
                 controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
-                await task;
+                await task.ConfigureAwait(false);
                 Require(clock.Cancelled && write.Calls.Count == 1,
                     "Leaving ChampSelect failed to cancel the bounded polling loop.");
             }
@@ -161,7 +161,7 @@ namespace FACM.League
                 controller.Observe(Selecting());
                 var task = controller.RunningForSmokeTest;
                 controller.Configure(false, 22, false, 0);
-                await task;
+                await task.ConfigureAwait(false);
                 Require(disabledClock.Cancelled, "Disabling the setting must cancel the active task.");
             }
         }

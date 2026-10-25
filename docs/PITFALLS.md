@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Avoid capturing WinForms context in synchronously invoked async smoke suites (2026-10-25)
+
+The first native ChampSelect pick/ban candidate compiled and passed `--league-dashboard-test` alone, but the Windows performance-contract suite hung when it invoked the same validator again. Both build workflows timed out in the project's 120-second self-test `Exec` after `[performance-smoke] START league-dashboard`; no C# compiler error occurred. The new smoke validator synchronously called `GetAwaiter().GetResult()` on an async test that awaited cancellation of a fake clock task. With a WinForms synchronization context installed by the performance suite, the test continuation attempted to resume on the blocked context, causing a deadlock. Use `ConfigureAwait(false)` in all asynchronous test continuations consumed synchronously; do not mask a hang by increasing the CI timeout. Verify both Windows build and Glass candidate workflows again. This diagnosis is source/log-based until the rerun passes.
+
 ## Never reinterpret a performance constraint as permission to omit Akari features (2026-10-25)
 
 The initial v1.5.1 research matrix labeled SGP as "not practical to copy" and respawn timer as "missing / defer." The owner meant **complete Akari v1.5.1 functional parity** in GGman's lightweight native architecture, not a curated subset of features. A technical blocker must identify the exact endpoint/authentication/permission or hardware test needed and remain open until solved. Distinguish **functional requirements** (all mandatory) from **implementation mechanics** (Electron, Chromium, proprietary tokens and unrestricted polling are not mandatory and often forbidden). Every row needs evidence of its GGman owner, remaining gaps and an acceptance procedure; never label an unavailable provider as a permanent product exclusion.
