@@ -118,6 +118,22 @@ namespace FACM.League
                         new[] { 55 }, false) == 55,
                 "Automatic bench priority must protect the current ranked preference.");
             var guard = new LeagueAutoBenchEpisodeGuard();
+            var tick = System.Diagnostics.Stopwatch.Frequency;
+            guard.ObserveBench(new[] { 55, 22 }, tick);
+            Require(guard.RemainingCooldownMs(55, 2900, tick) == 2900 &&
+                    guard.RemainingCooldownMs(55, 2900, tick + tick) == 1900,
+                "Bench cooldown must count from the first observed appearance, not each poll.");
+            guard.ObserveBench(new[] { 55, 34 }, tick + tick);
+            Require(guard.RemainingCooldownMs(55, 2900, tick + tick * 2) == 900 &&
+                    guard.RemainingCooldownMs(34, 2900, tick + tick * 2) == 1900 &&
+                    guard.RemainingCooldownMs(22, 2900, tick + tick * 2) == 2900,
+                "An already-visible bench champion must retain its age; a new one starts fresh.");
+            guard.ObserveBench(new[] { 34 }, tick + tick * 2);
+            guard.ObserveBench(new[] { 55, 34 }, tick + tick * 3);
+            Require(guard.RemainingCooldownMs(55, 2900, tick + tick * 3) == 2900 &&
+                    guard.RemainingCooldownMs(34, 2900, tick + tick * 3) == 900 &&
+                    guard.RemainingCooldownMs(55, 0, tick + tick * 3) == 0,
+                "Removing and returning a champion must restart only its own cooldown.");
             Require(guard.AcceptObservedChampion(34), "First held champion must establish an episode baseline.");
             guard.AcceptAutomaticSwap(55);
             Require(guard.AcceptObservedChampion(55) && !guard.AcceptObservedChampion(22) &&

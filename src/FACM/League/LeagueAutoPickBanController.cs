@@ -30,6 +30,27 @@ namespace FACM.League
     {
         private int _heldChampion;
         private bool _blocked;
+        private readonly Dictionary<int, long> _benchFirstSeen = new Dictionary<int, long>();
+
+        internal void ObserveBench(IReadOnlyList<int> championIds, long timestamp)
+        {
+            if (championIds == null) return;
+            var visible = new HashSet<int>(championIds.Where(id => id > 0));
+            foreach (var id in _benchFirstSeen.Keys.Where(id => !visible.Contains(id)).ToArray())
+                _benchFirstSeen.Remove(id);
+            foreach (var id in visible)
+                if (!_benchFirstSeen.ContainsKey(id)) _benchFirstSeen.Add(id, timestamp);
+        }
+
+        internal int RemainingCooldownMs(int championId, int configuredMs, long timestamp)
+        {
+            if (configuredMs <= 0) return 0;
+            long firstSeen;
+            if (!_benchFirstSeen.TryGetValue(championId, out firstSeen)) return configuredMs;
+            var elapsedTicks = Math.Max(0L, timestamp - firstSeen);
+            var elapsedMs = elapsedTicks * 1000.0 / Stopwatch.Frequency;
+            return (int)Math.Max(0, Math.Ceiling(configuredMs - elapsedMs));
+        }
 
         internal bool AcceptObservedChampion(int id)
         {
@@ -274,6 +295,13 @@ namespace FACM.League
             {
                 RecordOnce(reported, trace, "session", "unavailable");
                 return;
+            }
+            if (pick && _benchWrite != null && profiles.Any(p => p.BenchAutoSwapEnabled))
+            {
+                // Observe bench arrivals even while the local pick action is still active.
+                var visibleBench = LeagueLiveDataService.ParseBenchPayload(session);
+                if (visibleBench.SessionAvailable && visibleBench.BenchEnabled)
+                    benchGuard.ObserveBench(visibleBench.ChampionIds, Stopwatch.GetTimestamp());
             }
             var action = ParseCurrentAction(session);
             if (action == null)
@@ -601,6 +629,7 @@ namespace FACM.League
             var mode = LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
             if (!profile.BenchAutoSwapEnabled) return;
+            guard.ObserveBench(state.ChampionIds, Stopwatch.GetTimestamp());
             if (!guard.AcceptObservedChampion(state.LocalChampionId))
             {
                 RecordOnce(reported, trace, "bench", "manual_choice_guard");
@@ -614,7 +643,11 @@ namespace FACM.League
             var key = "bench:" + state.LocalChampionId + ":" + desired;
             if (!attempted.Add(key)) return;
             var watch = Stopwatch.StartNew();
-            var delay = LimitDelay(profile.BenchSwapDelayMs, state.TimerMillisecondsLeft);
+            // The cooldown belongs to this bench appearance, not the current tick.
+            // A returning champion begins a fresh cooldown; an existing one does not.
+            var remainingCooldown = guard.RemainingCooldownMs(desired,
+                profile.BenchSwapDelayMs, Stopwatch.GetTimestamp());
+            var delay = LimitDelay(remainingCooldown, state.TimerMillisecondsLeft);
             if (delay > 0)
             {
                 CompactTraceLog.Record(trace, "autoselect-bench", "delay", "scheduled", 0);
