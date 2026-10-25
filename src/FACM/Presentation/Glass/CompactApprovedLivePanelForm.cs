@@ -33,6 +33,7 @@ namespace FACM.Presentation.Glass
         private string _currentModeLabel = "模式未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
         private string _selectedChampionName = "尚未识别"; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private bool _modeIsMayhem;
+        private bool _modeHasRanking;
         private FACM.Mayhem.MayhemRankingSnapshot _liveRanking;
         private FACM.Mayhem.MayhemChampionResult _liveChampion;
         private string _rankingStatus = "尚未获取"; // ui-text-contract: allow - owner-approved fixed mock UI copy
@@ -46,6 +47,7 @@ namespace FACM.Presentation.Glass
             if (IsDisposed) return;
             _currentModeLabel = string.IsNullOrWhiteSpace(modeName) ? "模式未识别" : modeName; // ui-text-contract: allow - owner-approved fixed mock UI copy
             _modeIsMayhem = isMayhem;
+            _modeHasRanking = isMayhem || string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal);
             _liveRanking = null;
             _liveChampion = null;
             _selectedChampionName = "尚未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
@@ -57,8 +59,13 @@ namespace FACM.Presentation.Glass
         internal void UpdateRanking(FACM.Mayhem.MayhemRankingSnapshot ranking, string status)
         {
             if (IsDisposed) return;
-            _liveRanking = _modeIsMayhem && FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking)
-                ? ranking : null;
+            var validMode = ranking != null &&
+                ((_modeIsMayhem && (string.IsNullOrWhiteSpace(ranking.ModeKey) ||
+                    ranking.ModeKey == "mayhem")) ||
+                 (!_modeIsMayhem && _currentModeLabel == "普通大乱斗" &&
+                    ranking.ModeKey == "aram"));
+            _liveRanking = _modeHasRanking && validMode &&
+                FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking) ? ranking : null;
             _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status; // ui-text-contract: allow - owner-approved fixed mock UI copy
             Invalidate();
         }
@@ -89,7 +96,7 @@ namespace FACM.Presentation.Glass
 
         private string TierFor(string championName)
         {
-            if (!_modeIsMayhem) return "—";
+            if (!_modeHasRanking) return "—";
             var rank = FACM.Mayhem.MayhemRankingSourceService.FindRank(_liveRanking, championName);
             if (rank == null) return "—";
             // Ranking position is factual; a tier badge must never be inferred from position.
@@ -321,7 +328,7 @@ namespace FACM.Presentation.Glass
                         g.DrawLine(pen, x, y + 23, x + colWidth - 10, y + 23);
                 Write(g, (i + 1).ToString("00"), new RectangleF(x, y + 2, 28, 18), 10.5f,
                     i < 3 ? Color.FromArgb(224, 191, 116) : _muted, true);
-                var rowData = _modeIsMayhem && _liveRanking != null && _liveRanking.TopTen != null &&
+                var rowData = _modeHasRanking && _liveRanking != null && _liveRanking.TopTen != null &&
                     _liveRanking.TopTen.Count > i ? _liveRanking.TopTen[i] : null;
                 Write(g, rowData == null ? "—" : rowData.Name,
                     new RectangleF(x + 32, y + 2, colWidth - 87, 19), 11f, _text, false);
@@ -342,7 +349,7 @@ namespace FACM.Presentation.Glass
                 Write(g, _quickNames[i], new RectangleF(x, 412, cellW, 16), 9.8f, _muted, false, StringAlignment.Center);
                 HitTest("hero:" + i, x, 350, cellW, 80);
             }
-            Write(g, _modeIsMayhem && _liveRanking != null
+            Write(g, _modeHasRanking && _liveRanking != null
                 ? "数据：" + _liveRanking.Source + " · " + (_liveRanking.Patch ?? "版本未核验") + " · 与国服最新版本尚未核对" // ui-text-contract: allow - owner-approved fixed mock UI copy
                 : "没有经过版本核验的数据不会展示为当前排行", // ui-text-contract: allow - owner-approved fixed mock UI copy
                 new RectangleF(15, h - 32, w - 30, 18), 10.2f, _muted, false, StringAlignment.Center);
@@ -488,6 +495,21 @@ namespace FACM.Presentation.Glass
                 view.UpdateRanking(sample, "fixture");
                 if (view.TierFor("亚索") != "T0" || view.TierFor("薇恩") != "#11") // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Mode-specific rank or factual rank-only badge was not projected.");
+                view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - mode-specific fixture
+                var aram = new FACM.Mayhem.MayhemRankingSnapshot {
+                    Source = "OPGG-ARAM", ModeKey = "aram", Patch = "26.21",
+                    TopTen = sample.TopTen, AllChampions = sample.AllChampions
+                };
+                view.UpdateRanking(sample, "incorrect Mayhem source");
+                if (view._liveRanking != null)
+                    throw new InvalidOperationException("Mayhem ranking leaked into standard ARAM.");
+                view.UpdateRanking(aram, "mode-matched source");
+                if (view.TierFor("亚索") != "T0")
+                    throw new InvalidOperationException("Ordinary ARAM source was not projected.");
+                view.UpdateGameMode("海克斯大乱斗", true); // ui-text-contract: allow - mode-specific fixture
+                view.UpdateRanking(aram, "incorrect standard ARAM source");
+                if (view._liveRanking != null)
+                    throw new InvalidOperationException("Standard ARAM ranking leaked into Mayhem.");
                 view.UpdateGameMode("召唤师峡谷", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 if (view.TierFor("亚索") != "—" || view._liveRanking != null) // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Rank data survived a mode switch.");

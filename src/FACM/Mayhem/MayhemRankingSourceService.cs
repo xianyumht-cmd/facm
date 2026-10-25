@@ -11,6 +11,7 @@ namespace FACM.Mayhem
     {
         internal string Source { get; set; }
         internal string Patch { get; set; }
+        internal string ModeKey { get; set; } // null means legacy Mayhem-only snapshot
         internal List<MayhemTopChampion> TopTen { get; set; }
         // Optional full ranking, never synthesized from the ten summary rows.
         internal List<MayhemTopChampion> AllChampions { get; set; }

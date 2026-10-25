@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Text;
 using System.Threading;
@@ -30,6 +31,8 @@ namespace FACM.Presentation.Glass
         private int _generation;
         private int _rankRequestGeneration = -1;
         private string _mode = "模式未识别";
+        private string _modeKey = "unknown";
+        private string _traceId = CompactTraceLog.NewId();
         private string _observedPhase;
         private DateTime _lastChampionRefreshUtc;
         private int _localChampionId;
@@ -59,6 +62,7 @@ namespace FACM.Presentation.Glass
         {
             if (_disposed) return;
             _panel.ShowHome();
+            CompactTraceLog.Record(_traceId, "shell", "show", "opened", 0);
             _panel.UpdateGameMode(_mode, _mayhem);
             _placePanel(_panel);
             if (!_panel.Visible) _panel.Show();
@@ -78,7 +82,8 @@ namespace FACM.Presentation.Glass
                 RefreshMode();
                 return;
             }
-            if (!_mayhem || state.Activity != LeagueActivityLevel.ChampSelect || _work == null)
+            if ((_modeKey != "mayhem" && _modeKey != "aram") ||
+                state.Activity != LeagueActivityLevel.ChampSelect || _work == null)
                 return;
             if (DateTime.UtcNow - _lastChampionRefreshUtc < TimeSpan.FromSeconds(2.0))
                 return;
@@ -89,6 +94,7 @@ namespace FACM.Presentation.Glass
         internal void Hide()
         {
             if (_disposed) return;
+            CompactTraceLog.Record(_traceId, "shell", "hide", "closed", 0);
             StopPending();
             _panel.Hide();
         }
@@ -118,6 +124,9 @@ namespace FACM.Presentation.Glass
             if (_disposed || !_panel.Visible) return;
             int generation;
             var token = NewRequest(out generation);
+            _traceId = CompactTraceLog.NewId();
+            CompactTraceLog.Record(_traceId, "mode", "detect", "start", 0);
+            _modeKey = "unknown";
             _localChampionId = 0;
             _manualChampionOverride = false;
             _lastBenchNamesSignature = null;
@@ -127,7 +136,9 @@ namespace FACM.Presentation.Glass
 
         private async Task RefreshModeAsync(int generation, CancellationToken token)
         {
+            var trace = _traceId;
             ModeInfo info;
+            var timer = Stopwatch.StartNew();
             try
             {
                 info = await DetectModeAsync(_league, token).ConfigureAwait(false);
@@ -135,14 +146,18 @@ namespace FACM.Presentation.Glass
             catch (OperationCanceledException) { return; }
             catch (Exception exception)
             {
-                AppLog.Info("Compact live mode lookup unavailable: " + exception.GetType().Name);
+                CompactTraceLog.Record(trace, "mode", "detect",
+                    "failed_" + exception.GetType().Name, timer.ElapsedMilliseconds);
                 info = new ModeInfo();
             }
             OnUi(delegate
             {
                 if (!IsCurrent(generation)) return;
                 _mode = info.Name;
+                _modeKey = info.ModeKey;
                 _mayhem = info.Mayhem;
+                CompactTraceLog.Record(trace, "mode", "detect",
+                    "resolved_" + info.ModeKey, timer.ElapsedMilliseconds);
                 _panel.UpdateGameMode(info.Name, info.Mayhem);
                 if (info.Mayhem)
                 {
@@ -150,6 +165,13 @@ namespace FACM.Presentation.Glass
                     // Prefetch rankings immediately after mode recognition, before a user opens the tab.
                     LoadRanking(generation, token);
                 }
+                else if (info.ModeKey == "aram")
+                {
+                    _ = FindCurrentChampionAsync(generation, token);
+                    LoadOrdinaryAramRanking(generation, token);
+                }
+                else
+                    CompactTraceLog.Record(trace, "ranking", "route", "unavailable_mode", 0);
             });
         }
 
@@ -161,12 +183,42 @@ namespace FACM.Presentation.Glass
                 // An explicit hero page request refreshes the already-known queue only when unknown.
                 if (!_mayhem && (_mode == "模式未识别" || _mode == "识别模式中"))
                     RefreshMode();
-                else if (_mayhem && _rankRequestGeneration != _generation)
+                else if ((_mayhem || _modeKey == "aram") &&
+                         _rankRequestGeneration != _generation)
                 {
                     var token = _work == null ? CancellationToken.None : _work.Token;
-                    LoadRanking(_generation, token);
+                    if (_mayhem) LoadRanking(_generation, token);
+                    else LoadOrdinaryAramRanking(_generation, token);
                 }
             }
+        }
+
+        private void LoadOrdinaryAramRanking(int generation, CancellationToken token)
+        {
+            if (_modeKey != "aram" || _rankRequestGeneration == generation) return;
+            _rankRequestGeneration = generation;
+            _panel.UpdateRanking(null, "正在读取普通大乱斗榜单");
+            _ = LoadOrdinaryAramRankingAsync(generation, token, _traceId);
+        }
+
+        private async Task LoadOrdinaryAramRankingAsync(int generation, CancellationToken token, string trace)
+        {
+            MayhemRankingSnapshot ranking = null;
+            try
+            {
+                ranking = await CompactOrdinaryAramRankingService.QueryAsync(trace, token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { return; }
+            OnUi(delegate
+            {
+                if (!IsCurrent(generation) || _modeKey != "aram") return;
+                _panel.UpdateRanking(ranking,
+                    ranking == null ? "普通大乱斗：来源暂无可验证数据" :
+                    "普通大乱斗 · " + ranking.Patch + " · 未核验");
+                CompactTraceLog.Record(trace, "ui", "aram_render",
+                    ranking == null ? "unavailable" : "rendered", 0);
+            });
         }
 
         private void LoadRanking(int generation, CancellationToken token)
@@ -175,21 +227,26 @@ namespace FACM.Presentation.Glass
             _rankRequestGeneration = generation;
             bool stale;
             var cached = OpggMayhemService.GetCachedCompactRanking(out stale);
+            CompactTraceLog.Record(_traceId, "ranking", "mayhem_cache",
+                cached == null ? "miss" : (stale ? "stale" : "hit"), 0);
             _panel.UpdateRanking(cached, cached == null ? "国内优先 · 正在获取" :
                 (stale ? "历史缓存 · 未核验" : "本地缓存 · 未核验"));
-            _ = LoadRankingAsync(generation, token, cached, stale);
+            _ = LoadRankingAsync(generation, token, cached, stale, _traceId);
         }
 
         private async Task LoadRankingAsync(int generation, CancellationToken token,
-            MayhemRankingSnapshot cached, bool wasStale)
+            MayhemRankingSnapshot cached, bool wasStale, string trace)
         {
             MayhemRankingSnapshot ranking = null;
+            var timer = Stopwatch.StartNew();
             try { ranking = await OpggMayhemService.QueryCompactRankingAsync(token).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
             catch (Exception exception)
             {
                 AppLog.Info("Compact ranking lookup unavailable: " + exception.GetType().Name);
             }
+            CompactTraceLog.Record(trace, "ranking", "mayhem_query",
+                ranking == null ? "unavailable" : "ok", timer.ElapsedMilliseconds);
             OnUi(delegate
             {
                 if (!IsCurrent(generation) || !_mayhem) return;
@@ -283,7 +340,7 @@ namespace FACM.Presentation.Glass
                     {
                         OnUi(delegate
                         {
-                            if (!IsCurrent(modeGeneration) || !_mayhem) return;
+                            if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram")) return;
                             if (_lastBenchNamesSignature != string.Empty)
                             {
                                 _lastBenchNamesSignature = string.Empty;
@@ -333,7 +390,7 @@ namespace FACM.Presentation.Glass
                     namesById.TryGetValue(selectedId, out selectedName);
                     OnUi(delegate
                     {
-                        if (!IsCurrent(modeGeneration) || !_mayhem) return;
+                        if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram")) return;
                         var signature = string.Join("|", quickNames);
                         if (!string.Equals(signature, _lastBenchNamesSignature, StringComparison.Ordinal))
                         {
@@ -464,6 +521,7 @@ namespace FACM.Presentation.Glass
         internal sealed class ModeInfo
         {
             internal string Name = "模式未识别";
+            internal string ModeKey = "unknown";
             internal bool Mayhem;
         }
 
@@ -511,11 +569,18 @@ namespace FACM.Presentation.Glass
             {
                 info.Name = "海克斯大乱斗";
                 info.Mayhem = true;
+                info.ModeKey = "mayhem";
             }
             else if (id == 450 || string.Equals(mode, "ARAM", StringComparison.OrdinalIgnoreCase))
+            {
                 info.Name = "普通大乱斗";
+                info.ModeKey = "aram";
+            }
             else if (id == 400 || id == 420 || id == 430 || id == 440)
+            {
                 info.Name = "召唤师峡谷";
+                info.ModeKey = "rift";
+            }
             return info;
         }
 
@@ -534,6 +599,8 @@ namespace FACM.Presentation.Glass
         internal static void ValidateForSmokeTest()
         {
             MayhemCompactRankingCache.ValidateForSmokeTest();
+            CompactTraceLog.ValidateForSmokeTest();
+            CompactOrdinaryAramRankingService.ValidateForSmokeTest();
             var mayhem = new Dictionary<string, object> {
                 { "gameData", new Dictionary<string, object> {
                     { "queue", new Dictionary<string, object> { { "id", 2400 } } }
@@ -548,6 +615,7 @@ namespace FACM.Presentation.Glass
             if (!ProjectMode(mayhem).Mayhem ||
                 ProjectMode(aram).Mayhem ||
                 ProjectMode(aram).Name != "普通大乱斗" ||
+                ProjectMode(aram).ModeKey != "aram" ||
                 ProjectMode(unknown).Name != "模式未识别")
                 throw new InvalidOperationException("Compact mode mapping returned incorrect game-mode rankings.");
             var self = new Dictionary<string, object> {
