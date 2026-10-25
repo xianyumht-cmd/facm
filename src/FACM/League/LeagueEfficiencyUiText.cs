@@ -54,6 +54,34 @@ namespace FACM.League
         public const string ChampionNotSet = "LeagueEfficiencyChampionNotSet";
         public const string ChampionCatalogUnavailable = "LeagueEfficiencyChampionCatalogUnavailable";
         public const string AutoSelectSaved = "LeagueEfficiencyAutoSelectSaved";
+        public const string AdvancedOpen = "LeagueEfficiencyAdvancedOpen";
+        public const string AdvancedTitle = "LeagueEfficiencyAdvancedTitle";
+        public const string AdvancedHint = "LeagueEfficiencyAdvancedHint";
+        public const string AdvancedMode = "LeagueEfficiencyAdvancedMode";
+        public const string AdvancedRole = "LeagueEfficiencyAdvancedRole";
+        public const string AdvancedAction = "LeagueEfficiencyAdvancedAction";
+        public const string AdvancedPriority = "LeagueEfficiencyAdvancedPriority";
+        public const string AdvancedAdd = "LeagueEfficiencyAdvancedAdd";
+        public const string AdvancedRemove = "LeagueEfficiencyAdvancedRemove";
+        public const string AdvancedUp = "LeagueEfficiencyAdvancedUp";
+        public const string AdvancedDown = "LeagueEfficiencyAdvancedDown";
+        public const string AdvancedStrategy = "LeagueEfficiencyAdvancedStrategy";
+        public const string AdvancedDelay = "LeagueEfficiencyAdvancedDelay";
+        public const string AdvancedSave = "LeagueEfficiencyAdvancedSave";
+        public const string AdvancedCancel = "LeagueEfficiencyAdvancedCancel";
+        public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
+        public const string ProfileModeRift = "LeagueEfficiencyProfileModeRift";
+        public const string ProfileModeAram = "LeagueEfficiencyProfileModeAram";
+        public const string ProfileModeMayhem = "LeagueEfficiencyProfileModeMayhem";
+        public const string ProfileRoleDefault = "LeagueEfficiencyProfileRoleDefault";
+        public const string ProfileRoleTop = "LeagueEfficiencyProfileRoleTop";
+        public const string ProfileRoleJungle = "LeagueEfficiencyProfileRoleJungle";
+        public const string ProfileRoleMiddle = "LeagueEfficiencyProfileRoleMiddle";
+        public const string ProfileRoleBottom = "LeagueEfficiencyProfileRoleBottom";
+        public const string ProfileRoleSupport = "LeagueEfficiencyProfileRoleSupport";
+        public const string StrategyImmediate = "LeagueEfficiencyStrategyImmediate";
+        public const string StrategyShowLock = "LeagueEfficiencyStrategyShowLock";
+        public const string StrategyShowOnly = "LeagueEfficiencyStrategyShowOnly";
         public const string MinPartySize = "LeagueEfficiencyMinPartySize";
         public const string MinPartySizeHint = "LeagueEfficiencyMinPartySizeHint";
         public const string MatchmakingDelay = "LeagueEfficiencyMatchmakingDelay";
@@ -122,6 +150,34 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.ChampionNotSet, "未设置英雄" },
             { LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable, "无法读取英雄列表；请先进入 LOL 大厅，再重新打开此页面。" },
             { LeagueEfficiencyUiTextKeys.AutoSelectSaved, "自动选禁设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.AdvancedOpen, "模式、分路与候选优先级设置…" },
+            { LeagueEfficiencyUiTextKeys.AdvancedTitle, "GGman · 自动选禁详细设置" },
+            { LeagueEfficiencyUiTextKeys.AdvancedHint, "按模式和分路保存候选顺序；轮到自己时，从前往后选择第一个可用英雄。更改在保存后生效。" },
+            { LeagueEfficiencyUiTextKeys.AdvancedMode, "游戏模式" },
+            { LeagueEfficiencyUiTextKeys.AdvancedRole, "分路" },
+            { LeagueEfficiencyUiTextKeys.AdvancedAction, "操作类型" },
+            { LeagueEfficiencyUiTextKeys.AdvancedPriority, "英雄优先级" },
+            { LeagueEfficiencyUiTextKeys.AdvancedAdd, "添加英雄" },
+            { LeagueEfficiencyUiTextKeys.AdvancedRemove, "移除" },
+            { LeagueEfficiencyUiTextKeys.AdvancedUp, "上移" },
+            { LeagueEfficiencyUiTextKeys.AdvancedDown, "下移" },
+            { LeagueEfficiencyUiTextKeys.AdvancedStrategy, "执行策略" },
+            { LeagueEfficiencyUiTextKeys.AdvancedDelay, "延迟（秒）" },
+            { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
+            { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeRift, "召唤师峡谷" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeAram, "普通大乱斗" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeMayhem, "海克斯大乱斗" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleDefault, "通用" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleTop, "上路" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleJungle, "打野" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleMiddle, "中路" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleBottom, "下路" },
+            { LeagueEfficiencyUiTextKeys.ProfileRoleSupport, "辅助" },
+            { LeagueEfficiencyUiTextKeys.StrategyImmediate, "立即锁定" },
+            { LeagueEfficiencyUiTextKeys.StrategyShowLock, "亮出后锁定" },
+            { LeagueEfficiencyUiTextKeys.StrategyShowOnly, "只亮出" },
             { LeagueEfficiencyUiTextKeys.MinPartySize, "自动排队最低人数（人）" },
             { LeagueEfficiencyUiTextKeys.MinPartySizeHint, "只有当前大厅真人数量达到这个值时才自动开始排队；1-5 人。" },
             { LeagueEfficiencyUiTextKeys.MatchmakingDelay, "排队前等待（秒）" },

@@ -32,6 +32,7 @@ namespace FACM.League
                     !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, 0),
                 "ChampSelect action writer escaped its method/type/action/champion fence.");
             ValidateActionParsing();
+            ValidateProfiles();
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
         }
@@ -63,6 +64,33 @@ namespace FACM.League
                     !LeagueAutoPickBanController.IsAvailable(Bytes("[1,67]"), 22) &&
                     !LeagueAutoPickBanController.IsAvailable(Bytes("{\"ids\":[22]}"), 22),
                 "Champion availability must use the validated LCU list.");
+        }
+
+        private static void ValidateProfiles()
+        {
+            var profiles = new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    Bans = new List<int> { 99 }, PickStrategy = "just-show", PickDelayMs = 1500 },
+                new LeagueAutoSelectProfile { Mode = "aram", Role = "default", Picks = new List<int> { 157 } }
+            };
+            var encoded = LeagueAutoSelectProfiles.Serialize(profiles);
+            var decoded = LeagueAutoSelectProfiles.Parse(encoded);
+            Require(decoded.Count == 2 && LeagueAutoSelectProfiles.Serialize(decoded) == encoded,
+                "Priority profiles must round-trip without order loss.");
+            Require(LeagueAutoSelectProfiles.ModeFor(420, "CLASSIC") == "rift" &&
+                    LeagueAutoSelectProfiles.ModeFor(450, "ARAM") == "aram" &&
+                    LeagueAutoSelectProfiles.ModeFor(3270, "ARAM") == "mayhem",
+                "Auto-select modes must use the existing ARAM/Mayhem policy.");
+            var fallback = LeagueAutoSelectProfiles.Candidates(decoded, "rift", "top", true, 2);
+            Require(fallback.Count == 3 && fallback[0] == 67 && fallback[1] == 22 && fallback[2] == 2,
+                "Lane-specific priority and basic-choice fallback are not ordered.");
+            var aram = LeagueAutoSelectProfiles.Candidates(decoded, "aram", "default", true, 2);
+            Require(aram.Count == 2 && aram[0] == 157 && aram[1] == 2,
+                "ARAM profile must not leak Rift lane preferences.");
+            Require(LeagueAutoSelectProfiles.ResolveStrategy(decoded, "rift", "top").PickStrategy == "just-show" &&
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"unsupported\"}]").Count == 0,
+                "Profile strategy selection or malformed-input rejection failed.");
         }
 
         private static async Task ValidatePickAndBanAsync()
@@ -99,6 +127,52 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(manualWrite.Calls.Count == 0 && manualRead.Paths.Count == 1,
                     "An existing manually selected different champion must not be overridden.");
+            }
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 99, 67 },
+                    PickStrategy = "just-show", PickDelayMs = 1000 }
+            });
+            var priorityRead = new FakeRead { SessionJson = SessionWithRole("pick", 5, "TOP"), Pickable = "[67,22]" };
+            var priorityWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(priorityRead, priorityWrite, new InstantClock()))
+            {
+                controller.Configure(true, 22, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(priorityWrite.Calls.Count == 1 && priorityWrite.Calls[0] == "pick:5:67:False",
+                    "Mode/role priority must pick the first available fallback and honor just-show.");
+            }
+
+            var showAndLock = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },
+                    PickStrategy = "show-and-lock-in" }
+            });
+            var stagedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("pick", 8, "TOP") }, stagedWrite, new InstantClock()))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(stagedWrite.Calls.Count == 2 && stagedWrite.Calls[0] == "pick:8:67:False" &&
+                        stagedWrite.Calls[1] == "pick:8:67:True",
+                    "Show-and-lock must validate and issue two distinct action stages.");
+            }
+
+            var manualAfterShow = new FakeRead
+            {
+                SessionJson = SessionWithRole("pick", 9, "TOP"),
+                ThirdSessionJson = SessionWithRole("pick", 9, "TOP").Replace("\"championId\":0", "\"championId\":99")
+            };
+            var manualAfterShowWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                manualAfterShow, manualAfterShowWrite, new InstantClock()))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(manualAfterShowWrite.Calls.Count == 1 && manualAfterShowWrite.Calls[0] == "pick:9:67:False",
+                    "Manual override after showing must cancel the automatic lock stage.");
             }
         }
 
@@ -164,6 +238,27 @@ namespace FACM.League
                 await task.ConfigureAwait(false);
                 Require(disabledClock.Cancelled, "Disabling the setting must cancel the active task.");
             }
+
+            var delayedProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },
+                    PickStrategy = "show-and-lock-in" }
+            });
+            var delayedClock = new FakeClock();
+            var delayedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("pick", 11, "TOP") }, delayedWrite, delayedClock))
+            {
+                controller.Configure(true, 67, false, 0, delayedProfile);
+                controller.Observe(Selecting());
+                var pending = controller.RunningForSmokeTest;
+                Require(delayedWrite.Calls.Count == 1 && delayedWrite.Calls[0] == "pick:11:67:False",
+                    "Show-and-lock should first issue an uncompleted choice.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(delayedClock.Cancelled && delayedWrite.Calls.Count == 1,
+                    "Changing phase after showing must not issue a delayed lock.");
+            }
         }
 
         private static string Session(string type, int id, int championId,
@@ -174,6 +269,15 @@ namespace FACM.League
                    "\",\"championId\":" + championId + ",\"isInProgress\":" +
                    (inProgress ? "true" : "false") + ",\"completed\":" +
                    (completed ? "true" : "false") + "}]]}";
+        }
+
+        private static string SessionWithRole(string type, int id, string role)
+        {
+            return "{\"timer\":{\"phase\":\"BAN_PICK\",\"adjustedTimeLeftInPhase\":20000}," +
+                   "\"queueId\":420,\"gameMode\":\"CLASSIC\",\"localPlayerCellId\":0," +
+                   "\"myTeam\":[{\"cellId\":0,\"assignedPosition\":\"" + role + "\"}]," +
+                   "\"actions\":[[{\"id\":" + id + ",\"actorCellId\":0,\"type\":\"" + type +
+                   "\",\"championId\":0,\"isInProgress\":true,\"completed\":false}]]}";
         }
 
         private static LeagueDashboardPhaseState Selecting()
@@ -195,6 +299,7 @@ namespace FACM.League
         {
             public string SessionJson;
             public string NextSessionJson;
+            public string ThirdSessionJson;
             public string Pickable = "[22,67]";
             public string Bannable = "[22,67]";
             public readonly List<string> Paths = new List<string>();
@@ -205,8 +310,12 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 Paths.Add(path);
                 if (path == LeagueAutoPickBanController.SessionPath)
-                    return Task.FromResult(Bytes(++_sessionCount > 1 && NextSessionJson != null
-                        ? NextSessionJson : SessionJson));
+                {
+                    _sessionCount++;
+                    var next = _sessionCount > 2 && ThirdSessionJson != null ? ThirdSessionJson :
+                        _sessionCount > 1 && NextSessionJson != null ? NextSessionJson : SessionJson;
+                    return Task.FromResult(Bytes(next));
+                }
                 if (path == LeagueAutoPickBanController.PickablePath) return Task.FromResult(Bytes(Pickable));
                 if (path == LeagueAutoPickBanController.BannablePath) return Task.FromResult(Bytes(Bannable));
                 throw new InvalidOperationException("Unexpected auto-select read target.");
@@ -242,6 +351,15 @@ namespace FACM.League
                     pending.TrySetCanceled();
                 });
                 return pending.Task;
+            }
+        }
+
+        private sealed class InstantClock : ILeagueMatchmakingClock
+        {
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(0);
             }
         }
     }

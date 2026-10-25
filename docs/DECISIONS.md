@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-25 — Store Akari auto-select profiles as bounded native preferences
+
+Keep the existing one-hero automatic pick/ban settings as compatible fallback while adding mode/role-specific ordered lists, immediate/show-only/show-then-lock strategies and bounded delays. Serialize only validated small settings arrays into the existing `AppSettings` file; editing uses an on-demand native secondary form, with no new background service, database or Electron renderer. Mode classification reuses `LeagueQueueModePolicy`, and Rift position reuse is restricted to the local player's assigned role. When settings change, cancel the previous episode and use fresh phase/action preflight. This is a partial step toward all pinned Akari v1.5.1 behavior; do not infer live Tencent correctness from test fixtures. In accordance with owner preference, continue internal feature slices and CI without requiring repeated interim gameplay acceptance.
+
 ## 2026-10-25 — Keep Akari ChampSelect writes opt-in and isolated by phase
 
 The owner requires every user-visible League Akari v1.5.1 function to reach parity; the first automatic pick/ban slice is **not** the complete feature. Use GGman's existing native `LeagueEfficiencyModule` and shared authenticated LCU session, a single ChampSelect-scoped cancelable 2-second job (active only when enabled), a typed and allowlisted `pick`/`ban` action writer, last-moment local-turn/champion preflight and one attempt per active action. Defaults remain disabled. This minimizes accidental champion overrides and idle network cost while keeping per-role/queue candidate lists, intent/show and delayed lock, bench prioritization and exchanges as explicit required follow-up work. Do not change frozen compact panels, merge the Draft PR or publish before owner-approved Windows/Tencent tests.

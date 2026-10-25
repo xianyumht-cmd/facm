@@ -44,6 +44,7 @@ namespace FACM.Services
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
         public int LeagueAutoBanChampionId { get; set; } = 0;
+        public string LeagueAutoSelectProfiles { get; set; } = string.Empty;
         public int LeagueAutoMatchmakingMinPartySize { get; set; } = 1;
         public int LeagueAutoMatchmakingStartDelayMs { get; set; } = 0;
         public int LeagueAutoAcceptDelayMs { get; set; } = 0;
@@ -155,6 +156,7 @@ namespace FACM.Services
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoBanChampionId=" + LeagueAutoBanChampionId.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoSelectProfiles=" + (LeagueAutoSelectProfiles ?? string.Empty),
                 "LeagueAutoMatchmakingMinPartySize=" + LeagueAutoMatchmakingMinPartySize.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoMatchmakingStartDelayMs=" + LeagueAutoMatchmakingStartDelayMs.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoAcceptDelayMs=" + LeagueAutoAcceptDelayMs.ToString(CultureInfo.InvariantCulture),
@@ -388,6 +390,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));
             else if (key.Equals("LeagueAutoBanChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, number));
+            else if (key.Equals("LeagueAutoSelectProfiles", StringComparison.OrdinalIgnoreCase) && value.Length <= 8192) result.LeagueAutoSelectProfiles = value;
             else if (key.Equals("LeagueAutoMatchmakingMinPartySize", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingMinPartySize = number;
             else if (key.Equals("LeagueAutoMatchmakingStartDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStartDelayMs = number;
             else if (key.Equals("LeagueAutoAcceptDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoAcceptDelayMs = number;

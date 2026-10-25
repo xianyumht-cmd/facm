@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -55,7 +56,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 24,
+                RowCount = 25,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -82,6 +83,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -200,6 +202,14 @@ namespace FACM.League
             _autoBan.CheckedChanged += AutoSelectSettingChanged;
             _pickChampion.SelectedIndexChanged += AutoSelectSettingChanged;
             _banChampion.SelectedIndexChanged += AutoSelectSettingChanged;
+
+            var advanced = CreateButton(T(LeagueEfficiencyUiTextKeys.AdvancedOpen), 240, FacmButtonTone.Secondary);
+            advanced.Margin = new Padding(0, 8, 0, 8);
+            advanced.Click += delegate
+            {
+                using (var dialog = new LeagueAutoSelectProfilesForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            root.Controls.Add(advanced, 0, 23);
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;
@@ -622,14 +632,19 @@ namespace FACM.League
             if (_loading) return;
             var pickId = SelectedChampionId(_pickChampion);
             var banId = SelectedChampionId(_banChampion);
-            var missingChampion = _autoPick.Checked && pickId <= 0 || _autoBan.Checked && banId <= 0;
+            var profiles = LeagueAutoSelectProfiles.Parse(_module.AutoSelectProfilesJson);
+            var missingPick = _autoPick.Checked && pickId <= 0 &&
+                !profiles.Any(profile => profile.Picks.Count > 0);
+            var missingBan = _autoBan.Checked && banId <= 0 &&
+                !profiles.Any(profile => profile.Bans.Count > 0);
+            var missingChampion = missingPick || missingBan;
             if (missingChampion)
             {
                 _loading = true;
                 try
                 {
-                    if (pickId <= 0) _autoPick.Checked = false;
-                    if (banId <= 0) _autoBan.Checked = false;
+                    if (missingPick) _autoPick.Checked = false;
+                    if (missingBan) _autoBan.Checked = false;
                 }
                 finally { _loading = false; }
             }

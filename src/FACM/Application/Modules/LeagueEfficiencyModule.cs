@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
@@ -121,6 +122,7 @@ namespace FACM.AppHost.Modules
         public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
         public int AutoPickChampionId { get { return _settingsModule.Settings.LeagueAutoPickChampionId; } }
         public int AutoBanChampionId { get { return _settingsModule.Settings.LeagueAutoBanChampionId; } }
+        public string AutoSelectProfilesJson { get { return _settingsModule.Settings.LeagueAutoSelectProfiles; } }
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
         public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
@@ -173,7 +175,9 @@ namespace FACM.AppHost.Modules
         public void UpdateAutoSelectSettings(bool autoPick, int pickId, bool autoBan, int banId)
         {
             ThrowIfDisposed();
-            if (autoPick && pickId <= 0 || autoBan && banId <= 0)
+            var profiles = LeagueAutoSelectProfiles.Parse(AutoSelectProfilesJson);
+            if (autoPick && pickId <= 0 && !profiles.Any(p => p.Picks.Count > 0) ||
+                autoBan && banId <= 0 && !profiles.Any(p => p.Bans.Count > 0))
                 throw new ArgumentException("Enabled auto-select requires a configured champion.");
             _settingsModule.Settings.LeagueAutoPickEnabled = autoPick;
             _settingsModule.Settings.LeagueAutoBanEnabled = autoBan;
@@ -186,7 +190,20 @@ namespace FACM.AppHost.Modules
 
         private void ConfigureAutoSelect()
         {
-            _autoSelect?.Configure(AutoPickEnabled, AutoPickChampionId, AutoBanEnabled, AutoBanChampionId);
+            _autoSelect?.Configure(AutoPickEnabled, AutoPickChampionId, AutoBanEnabled,
+                AutoBanChampionId, AutoSelectProfilesJson);
+        }
+
+        public void UpdateAutoSelectProfiles(string profiles)
+        {
+            ThrowIfDisposed();
+            var canonical = LeagueAutoSelectProfiles.Serialize(LeagueAutoSelectProfiles.Parse(profiles));
+            if (!string.Equals(canonical, profiles, StringComparison.Ordinal))
+                throw new ArgumentException("Invalid automatic-selection profile configuration.");
+            _settingsModule.Settings.LeagueAutoSelectProfiles = canonical;
+            _settingsModule.Settings.Save();
+            ConfigureAutoSelect();
+            _autoSelect?.Observe(_dashboard.CurrentGameflowState);
         }
 
         public void UpdateMatchmakingSettings(

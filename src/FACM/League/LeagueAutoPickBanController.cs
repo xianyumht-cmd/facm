@@ -3,10 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using FACM.Presentation.Glass;
 using FACM.Services;
 
 namespace FACM.League
@@ -17,6 +19,11 @@ namespace FACM.League
         public int ChampionId { get; set; }
         public string Type { get; set; }
         public bool Completed { get; set; }
+        public int QueueId { get; set; }
+        public int LocalCellId { get; set; }
+        public string GameMode { get; set; }
+        public string Role { get; set; }
+        public int TimeLeftMs { get; set; }
     }
 
     internal sealed class LeagueAutoPickBanController : IDisposable
@@ -37,6 +44,8 @@ namespace FACM.League
         private bool _autoBan;
         private int _pickId;
         private int _banId;
+        private string _profilesJson = string.Empty;
+        private IReadOnlyList<LeagueAutoSelectProfile> _profiles = Array.Empty<LeagueAutoSelectProfile>();
         private bool _disposed;
 
         public LeagueAutoPickBanController(ILeagueClientApi read, ILeagueChampSelectActionWriteApi write)
@@ -56,17 +65,26 @@ namespace FACM.League
 
         public void Configure(bool autoPick, int pickId, bool autoBan, int banId)
         {
+            Configure(autoPick, pickId, autoBan, banId, string.Empty);
+        }
+
+        public void Configure(bool autoPick, int pickId, bool autoBan, int banId, string profilesJson)
+        {
             pickId = Math.Max(0, Math.Min(10000, pickId));
             banId = Math.Max(0, Math.Min(10000, banId));
+            profilesJson = profilesJson ?? string.Empty;
+            var parsedProfiles = LeagueAutoSelectProfiles.Parse(profilesJson);
             CancellationTokenSource previous;
             lock (_sync)
             {
                 if (_disposed || (_autoPick == autoPick && _autoBan == autoBan &&
-                    _pickId == pickId && _banId == banId)) return;
+                    _pickId == pickId && _banId == banId && _profilesJson == profilesJson)) return;
                 _autoPick = autoPick;
                 _autoBan = autoBan;
                 _pickId = pickId;
                 _banId = banId;
+                _profilesJson = profilesJson;
+                _profiles = parsedProfiles;
                 previous = _episode;
                 _episode = null;
             }
@@ -99,7 +117,8 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || !_inChampSelect || _episode != null ||
-                    (!_autoPick || _pickId <= 0) && (!_autoBan || _banId <= 0)) return;
+                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0)) &&
+                    (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
                 episode = new CancellationTokenSource();
                 _episode = episode;
             }
@@ -160,12 +179,14 @@ namespace FACM.League
             bool ban;
             int pickId;
             int banId;
+            IReadOnlyList<LeagueAutoSelectProfile> profiles;
             lock (_sync)
             {
                 pick = _autoPick;
                 ban = _autoBan;
                 pickId = _pickId;
                 banId = _banId;
+                profiles = _profiles;
             }
             var session = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
@@ -180,10 +201,14 @@ namespace FACM.League
                 RecordOnce(reported, trace, "turn", "not_local");
                 return;
             }
-            var desired = string.Equals(action.Type, "pick", StringComparison.Ordinal) ? (pick ? pickId : 0) :
-                string.Equals(action.Type, "ban", StringComparison.Ordinal) && ban ? banId : 0;
-            if (desired <= 0 || action.Completed) return;
-            if (action.ChampionId > 0 && action.ChampionId != desired)
+            var isPick = string.Equals(action.Type, "pick", StringComparison.Ordinal);
+            if (action.Completed || isPick && !pick || !isPick && !ban) return;
+            var mode = LeagueAutoSelectProfiles.ModeFor(action.QueueId, action.GameMode);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, action.Role);
+            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, action.Role, isPick,
+                isPick ? pickId : banId);
+            if (candidates.Count == 0) return;
+            if (action.ChampionId > 0 && !candidates.Contains(action.ChampionId))
             {
                 RecordOnce(reported, trace, "turn", "manual_choice");
                 return;
@@ -193,33 +218,82 @@ namespace FACM.League
             if (!attempted.Add(key)) return;
 
             var watch = Stopwatch.StartNew();
-            var availabilityPath = action.Type == "pick" ? PickablePath : BannablePath;
+            var availabilityPath = isPick ? PickablePath : BannablePath;
             var available = await _read.TryGetBytesAsync(availabilityPath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
-            if (!IsAvailable(available, desired))
+            var availableIds = ParseAvailableIds(available);
+            var desired = action.ChampionId > 0 && availableIds.Contains(action.ChampionId) ? action.ChampionId :
+                candidates.FirstOrDefault(availableIds.Contains);
+            if (desired <= 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
                 return;
             }
 
+            var strategy = isPick ? profile.PickStrategy : profile.BanStrategy;
+            var delayMs = isPick ? profile.PickDelayMs : profile.BanDelayMs;
+            delayMs = LimitDelay(delayMs, action.TimeLeftMs);
+            if (delayMs > 0)
+            {
+                CompactTraceLog.Record(trace, "autoselect", "delay", "scheduled", 0);
+                await _clock.Delay(TimeSpan.FromMilliseconds(delayMs), episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return;
+                var recheckedAvailable = await _read.TryGetBytesAsync(availabilityPath, episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode) || !IsAvailable(recheckedAvailable, desired)) return;
+            }
+
             // Recheck the active local action: a manual user choice or turn transition wins.
-            var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
-            if (!IsCurrent(episode)) return;
-            var fresh = ParseCurrentAction(confirmation);
-            if (fresh == null || fresh.Id != action.Id || fresh.Type != action.Type || fresh.Completed ||
-                fresh.ChampionId > 0 && fresh.ChampionId != desired)
+            if (!await CheckPreflightAsync(episode, action, desired).ConfigureAwait(false))
             {
                 CompactTraceLog.Record(trace, "autoselect", "preflight", "phase_mismatch", watch.ElapsedMilliseconds);
                 return;
             }
 
             CompactTraceLog.Record(trace, "autoselect", "preflight", "ok", watch.ElapsedMilliseconds);
-            var result = await _write.TryApplyAsync(action.Type, action.Id, desired, true, episode.Token)
+            var lockImmediately = strategy == "lock-in-immediately";
+            var result = await _write.TryApplyAsync(action.Type, action.Id, desired, lockImmediately, episode.Token)
                 .ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect", "write",
                 result == null ? "failed_unavailable" :
-                result.IsSuccessStatusCode ? "submitted" : "failed_http_" + result.StatusCode,
+                result.IsSuccessStatusCode ? (lockImmediately ? "lock_submitted" : "show_submitted") :
+                "failed_http_" + result.StatusCode,
                 watch.ElapsedMilliseconds);
+            if (strategy != "show-and-lock-in" || result == null || !result.IsSuccessStatusCode ||
+                !IsCurrent(episode)) return;
+
+            // Show and lock are separate LCU state transitions. Allow the client to register the show.
+            await _clock.Delay(TimeSpan.FromMilliseconds(Math.Max(2000, delayMs)), episode.Token)
+                .ConfigureAwait(false);
+            if (!await CheckPreflightAsync(episode, action, desired).ConfigureAwait(false))
+            {
+                CompactTraceLog.Record(trace, "autoselect", "lock_preflight", "stale", watch.ElapsedMilliseconds);
+                return;
+            }
+            var locked = await _write.TryApplyAsync(action.Type, action.Id, desired, true, episode.Token)
+                .ConfigureAwait(false);
+            CompactTraceLog.Record(trace, "autoselect", "lock",
+                locked == null ? "failed_unavailable" :
+                locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,
+                watch.ElapsedMilliseconds);
+        }
+
+        private async Task<bool> CheckPreflightAsync(
+            CancellationTokenSource episode, LeagueAutoSelectAction expected, int desired)
+        {
+            var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return false;
+            var fresh = ParseCurrentAction(confirmation);
+            return fresh != null && fresh.Id == expected.Id && fresh.Type == expected.Type &&
+                fresh.LocalCellId == expected.LocalCellId &&
+                fresh.QueueId == expected.QueueId && fresh.Role == expected.Role &&
+                fresh.GameMode == expected.GameMode && !fresh.Completed &&
+                (fresh.ChampionId == 0 || fresh.ChampionId == desired);
+        }
+
+        private static int LimitDelay(int configuredMs, int timeLeftMs)
+        {
+            if (configuredMs <= 0) return 0;
+            return timeLeftMs > 0 ? Math.Min(configuredMs, Math.Max(0, timeLeftMs - 1000)) : configuredMs;
         }
 
         private static void RecordOnce(HashSet<string> reported, string trace, string stage, string result)
@@ -301,7 +375,13 @@ namespace FACM.League
                             Id = id,
                             Type = type,
                             ChampionId = ReadInt(action, "championId"),
-                            Completed = false
+                            Completed = false,
+                            QueueId = ReadInt(root, "queueId"),
+                            LocalCellId = myCell,
+                            GameMode = ReadString(root, "gameMode"),
+                            Role = CompactRiftRoleService.FromChampSelect(root),
+                            TimeLeftMs = ReadInt((Dictionary<string, object>)root["timer"],
+                                "adjustedTimeLeftInPhase")
                         };
                     }
                     return null; // Only the first unfinished action group can contain our current turn.
@@ -314,19 +394,28 @@ namespace FACM.League
 
         internal static bool IsAvailable(byte[] bytes, int championId)
         {
-            if (championId <= 0 || bytes == null || bytes.Length > 65536) return false;
+            return championId > 0 && ParseAvailableIds(bytes).Contains(championId);
+        }
+
+        private static HashSet<int> ParseAvailableIds(byte[] bytes)
+        {
+            var available = new HashSet<int>();
+            if (bytes == null || bytes.Length > 65536) return available;
             try
             {
                 var ids = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
-                if (ids == null) return false;
+                if (ids == null) return available;
                 foreach (var value in ids)
-                    if (Convert.ToInt32(value, CultureInfo.InvariantCulture) == championId) return true;
+                {
+                    var id = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                    if (id > 0 && id <= 10000) available.Add(id);
+                }
             }
             catch (ArgumentException) { }
             catch (FormatException) { }
             catch (InvalidCastException) { }
             catch (OverflowException) { }
-            return false;
+            return available;
         }
 
         private static int ReadInt(Dictionary<string, object> row, string key)
