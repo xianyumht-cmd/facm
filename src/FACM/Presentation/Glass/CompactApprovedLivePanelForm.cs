@@ -34,6 +34,7 @@ namespace FACM.Presentation.Glass
         private string _selectedChampionName = "尚未识别"; // ui-text-contract: allow - owner-approved fixed mock UI copy
         private bool _modeIsMayhem;
         private bool _modeHasRanking;
+        private string _expectedRankingMode;
         private FACM.Mayhem.MayhemRankingSnapshot _liveRanking;
         private FACM.Mayhem.MayhemChampionResult _liveChampion;
         private string _rankingStatus = "尚未获取"; // ui-text-contract: allow - owner-approved fixed mock UI copy
@@ -42,12 +43,16 @@ namespace FACM.Presentation.Glass
         internal event Action<string> ChampionSelected;
         internal event Action ModeRefreshRequested;
 
-        internal void UpdateGameMode(string modeName, bool isMayhem)
+        internal void UpdateGameMode(string modeName, bool isMayhem, string role = null)
         {
             if (IsDisposed) return;
             _currentModeLabel = string.IsNullOrWhiteSpace(modeName) ? "模式未识别" : modeName; // ui-text-contract: allow - owner-approved fixed mock UI copy
             _modeIsMayhem = isMayhem;
-            _modeHasRanking = isMayhem || string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal); // ui-text-contract: allow - approved mode-isolation contract fixture
+            var normalizedRole = CompactRiftRoleService.Normalize(role);
+            _expectedRankingMode = isMayhem ? "mayhem" :
+                string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal) ? "aram" :
+                normalizedRole != null ? "rift:" + normalizedRole : null; // ui-text-contract: allow - approved mode-isolation contract fixture
+            _modeHasRanking = _expectedRankingMode != null;
             _liveRanking = null;
             _liveChampion = null;
             _selectedChampionName = "尚未识别"; // ui-text-contract: allow - frozen owner-approved compact copy
@@ -60,10 +65,10 @@ namespace FACM.Presentation.Glass
         {
             if (IsDisposed) return;
             var validMode = ranking != null &&
-                ((_modeIsMayhem && (string.IsNullOrWhiteSpace(ranking.ModeKey) ||
-                    ranking.ModeKey == "mayhem")) ||
-                 (!_modeIsMayhem && _currentModeLabel == "普通大乱斗" && // ui-text-contract: allow - approved mode-isolation contract fixture
-                    ranking.ModeKey == "aram"));
+                !string.IsNullOrWhiteSpace(_expectedRankingMode) &&
+                (string.Equals(ranking.ModeKey, _expectedRankingMode, StringComparison.Ordinal) ||
+                 (_modeIsMayhem && _expectedRankingMode == "mayhem" &&
+                  string.IsNullOrWhiteSpace(ranking.ModeKey)));
             _liveRanking = _modeHasRanking && validMode &&
                 FACM.Mayhem.MayhemRankingSourceService.IsComplete(ranking) ? ranking : null;
             _rankingStatus = string.IsNullOrWhiteSpace(status) ? "暂无可信数据" : status; // ui-text-contract: allow - owner-approved fixed mock UI copy
@@ -510,7 +515,22 @@ namespace FACM.Presentation.Glass
                 view.UpdateRanking(aram, "incorrect standard ARAM source");
                 if (view._liveRanking != null)
                     throw new InvalidOperationException("Standard ARAM ranking leaked into Mayhem.");
+                var rift = new FACM.Mayhem.MayhemRankingSnapshot {
+                    Source = "OPGG-RIFT-top", ModeKey = "rift:top", Patch = "26.21",
+                    TopTen = sample.TopTen, AllChampions = sample.AllChampions
+                };
+                view.UpdateGameMode("召唤师峡谷", false, "top"); // ui-text-contract: allow - role-specific fixture
+                view.UpdateRanking(rift, "role-matched source");
+                if (view.TierFor("亚索") != "T0") // ui-text-contract: allow - role-specific fixture
+                    throw new InvalidOperationException("Rift source for the exact role was rejected.");
+                view.UpdateGameMode("召唤师峡谷", false, "middle"); // ui-text-contract: allow - role-specific fixture
+                view.UpdateRanking(rift, "wrong role");
+                if (view._liveRanking != null || view.TierFor("亚索") != "—") // ui-text-contract: allow - role-specific fixture
+                    throw new InvalidOperationException("Rift ranking leaked from another lane.");
                 view.UpdateGameMode("召唤师峡谷", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
+                view.UpdateRanking(rift, "missing role");
+                if (view._liveRanking != null)
+                    throw new InvalidOperationException("Unknown Rift role accepted a lane-specific ranking.");
                 view.UpdateRanking(aram, "reject inappropriate ARAM data");
                 if (view.TierFor("亚索") != "—" || view._liveRanking != null) // ui-text-contract: allow - deterministic non-user-facing rank fixture
                     throw new InvalidOperationException("Rank data survived a mode switch.");

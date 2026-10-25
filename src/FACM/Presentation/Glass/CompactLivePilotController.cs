@@ -32,6 +32,8 @@ namespace FACM.Presentation.Glass
         private int _rankRequestGeneration = -1;
         private string _mode = "模式未识别";
         private string _modeKey = "unknown";
+        private string _riftRole;
+        private CancellationTokenSource _riftRequest;
         private string _traceId = CompactTraceLog.NewId();
         private string _observedPhase;
         private DateTime _lastChampionRefreshUtc;
@@ -82,7 +84,7 @@ namespace FACM.Presentation.Glass
                 RefreshMode();
                 return;
             }
-            if ((_modeKey != "mayhem" && _modeKey != "aram") ||
+            if ((_modeKey != "mayhem" && _modeKey != "aram" && _modeKey != "rift") ||
                 state.Activity != LeagueActivityLevel.ChampSelect || _work == null)
                 return;
             if (DateTime.UtcNow - _lastChampionRefreshUtc < TimeSpan.FromSeconds(2.0))
@@ -114,6 +116,7 @@ namespace FACM.Presentation.Glass
             _work = null;
             ++_generation;
             CancelChampion();
+            CancelRift();
             if (previous == null) return;
             try { previous.Cancel(); }
             finally { previous.Dispose(); }
@@ -127,6 +130,7 @@ namespace FACM.Presentation.Glass
             _traceId = CompactTraceLog.NewId();
             CompactTraceLog.Record(_traceId, "mode", "detect", "start", 0);
             _modeKey = "unknown";
+            _riftRole = null;
             _localChampionId = 0;
             _manualChampionOverride = false;
             _lastBenchNamesSignature = null;
@@ -170,6 +174,11 @@ namespace FACM.Presentation.Glass
                     _ = FindCurrentChampionAsync(generation, token);
                     LoadOrdinaryAramRanking(generation, token);
                 }
+                else if (info.ModeKey == "rift")
+                {
+                    CompactTraceLog.Record(trace, "rift", "role", "awaiting_local_position", 0);
+                    _ = FindCurrentChampionAsync(generation, token);
+                }
                 else
                     CompactTraceLog.Record(trace, "ranking", "route", "unavailable_mode", 0);
             });
@@ -191,6 +200,41 @@ namespace FACM.Presentation.Glass
                     else LoadOrdinaryAramRanking(_generation, token);
                 }
             }
+        }
+
+        private void CancelRift()
+        {
+            var previous = _riftRequest;
+            _riftRequest = null;
+            if (previous == null) return;
+            try { previous.Cancel(); }
+            finally { previous.Dispose(); }
+        }
+
+        private void LoadRiftRanking(int generation, CancellationToken token, string role)
+        {
+            if (_modeKey != "rift" || _riftRole != role || role == null) return;
+            CancelRift();
+            _riftRequest = CancellationTokenSource.CreateLinkedTokenSource(token);
+            _panel.UpdateRanking(null, "按分路读取峡谷榜单"); // ui-text-contract: allow - live status on approved panel
+            _ = LoadRiftRankingAsync(generation, role, _traceId, _riftRequest.Token);
+        }
+
+        private async Task LoadRiftRankingAsync(int generation, string role, string trace, CancellationToken token)
+        {
+            MayhemRankingSnapshot ranking = null;
+            try { ranking = await CompactRiftRankingService.QueryAsync(role, trace, token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            OnUi(delegate
+            {
+                if (!IsCurrent(generation) || _modeKey != "rift" || _riftRole != role) return;
+                _panel.UpdateRanking(ranking, ranking == null ?
+                    "该分路榜单暂无可验证数据" : // ui-text-contract: allow - fail closed on unverified source
+                    "峡谷 " + CompactRiftRoleService.DisplayName(role) + " · " +
+                        ranking.Patch + " · 未核验"); // ui-text-contract: allow - source version caveat
+                CompactTraceLog.Record(trace, "ui", "rift_render",
+                    ranking == null ? "unavailable" : "rendered", 0);
+            });
         }
 
         private void LoadOrdinaryAramRanking(int generation, CancellationToken token)
@@ -336,11 +380,29 @@ namespace FACM.Presentation.Glass
                     if (root == null) return;
                     var selectedId = ResolveSelectedChampionId(root);
                     var benchIds = ResolveBenchChampionIds(root);
+                    var observedRole = _modeKey == "rift" ?
+                        CompactRiftRoleService.FromChampSelect(root) : null;
+                    if (_modeKey == "rift")
+                    {
+                        OnUi(delegate
+                        {
+                            if (!IsCurrent(modeGeneration) || _modeKey != "rift") return;
+                            if (string.Equals(_riftRole, observedRole, StringComparison.Ordinal)) return;
+                            _riftRole = observedRole;
+                            _panel.UpdateGameMode(observedRole == null ? "召唤师峡谷" :
+                                "召唤师峡谷 · " + CompactRiftRoleService.DisplayName(observedRole),
+                                false, observedRole); // ui-text-contract: allow - identified position
+                            CompactTraceLog.Record(_traceId, "rift", "role",
+                                observedRole == null ? "unknown" : observedRole, 0);
+                            if (observedRole != null) LoadRiftRanking(modeGeneration, token, observedRole);
+                            else CancelRift();
+                        });
+                    }
                     if (selectedId <= 0 && benchIds.Count == 0)
                     {
                         OnUi(delegate
                         {
-                            if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram")) return;
+                            if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram" && _modeKey != "rift")) return;
                             if (_lastBenchNamesSignature != string.Empty)
                             {
                                 _lastBenchNamesSignature = string.Empty;
@@ -390,7 +452,7 @@ namespace FACM.Presentation.Glass
                     namesById.TryGetValue(selectedId, out selectedName);
                     OnUi(delegate
                     {
-                        if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram")) return;
+                        if (!IsCurrent(modeGeneration) || (_modeKey != "mayhem" && _modeKey != "aram" && _modeKey != "rift")) return;
                         var signature = string.Join("|", quickNames);
                         if (!string.Equals(signature, _lastBenchNamesSignature, StringComparison.Ordinal))
                         {
@@ -601,6 +663,7 @@ namespace FACM.Presentation.Glass
             MayhemCompactRankingCache.ValidateForSmokeTest();
             CompactTraceLog.ValidateForSmokeTest();
             CompactOrdinaryAramRankingService.ValidateForSmokeTest();
+            CompactRiftRankingService.ValidateForSmokeTest();
             var mayhem = new Dictionary<string, object> {
                 { "gameData", new Dictionary<string, object> {
                     { "queue", new Dictionary<string, object> { { "id", 2400 } } }
@@ -627,6 +690,11 @@ namespace FACM.Presentation.Glass
             };
             if (ResolveSelectedChampionId(self) != 157)
                 throw new InvalidOperationException("Compact selected champion picked another player's slot.");
+            (self["myTeam"] as object[])[1] = new Dictionary<string, object> {
+                { "cellId", 3 }, { "championId", 157 }, { "assignedPosition", "UTILITY" }
+            };
+            if (CompactRiftRoleService.FromChampSelect(self) != "support")
+                throw new InvalidOperationException("Local player's Rift position was not resolved.");
             var bench = new Dictionary<string, object> {
                 { "benchChampions", new object[] {
                     new Dictionary<string, object> { { "championId", 157 } },
