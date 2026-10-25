@@ -1,5 +1,9 @@
 # FACM AI 协作方式
 
+## Akari 全功能迁移，不按主观喜好删减（2026-10-25）
+
+用户目标是将准确锁定的 Akari v1.5.1 **全部用户功能**在 GGman 现有 WinForms/.NET Framework 4.8 原生轻量架构内实现，不是只挑助手觉得“适合”的模块。可分阶段完成并记录真实依赖与测试门禁，但不得用“成本高、不适合、暂缓”作为删除功能的理由；不能复制 Electron 架构。每次开发优先核实既有能力，复用 Gameflow/LCU、保障取消和低资源占用。继续开发与内部自动验证，集中提交草稿 PR 和最终实机验收，不要求用户在每个小功能完成后重复安装。
+
 ## Full visual modernization workflow (2026-10-17)
 
 For GGman full-product UI updates, the owner prefers one consolidated release after all reachable app-owned interfaces have been updated, without per-page approval interruptions. Continue internal batches on existing PR #351 and run CI per batch; collect one consolidated Windows screenshot/functional/DPI acceptance package. The requested single Astra independent professional *visual* assessment comes after the release and must be correctly described as post-release audit with rollback risk. Technical implementation/handoffs in English; user-facing progress in Chinese. This does not remove any normal pre-release code, security, functional or updater safety gate.

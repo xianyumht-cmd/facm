@@ -39,6 +39,7 @@ namespace FACM.Services
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public bool LeagueAutoReconnectEnabled { get; set; } = false;
         public int LeagueAutoMatchmakingMinPartySize { get; set; } = 1;
         public int LeagueAutoMatchmakingStartDelayMs { get; set; } = 0;
         public int LeagueAutoAcceptDelayMs { get; set; } = 0;
@@ -145,6 +146,7 @@ namespace FACM.Services
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueAutoReconnectEnabled=" + LeagueAutoReconnectEnabled,
                 "LeagueAutoMatchmakingMinPartySize=" + LeagueAutoMatchmakingMinPartySize.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoMatchmakingStartDelayMs=" + LeagueAutoMatchmakingStartDelayMs.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoAcceptDelayMs=" + LeagueAutoAcceptDelayMs.ToString(CultureInfo.InvariantCulture),
@@ -373,6 +375,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueAutoReconnectEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReconnectEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingMinPartySize", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingMinPartySize = number;
             else if (key.Equals("LeagueAutoMatchmakingStartDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStartDelayMs = number;
             else if (key.Equals("LeagueAutoAcceptDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoAcceptDelayMs = number;

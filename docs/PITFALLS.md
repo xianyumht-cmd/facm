@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Never reinterpret a performance constraint as permission to omit Akari features (2026-10-25)
+
+The initial v1.5.1 research matrix labeled SGP as "not practical to copy" and respawn timer as "missing / defer." The owner meant **complete Akari v1.5.1 functional parity** in GGman's lightweight native architecture, not a curated subset of features. A technical blocker must identify the exact endpoint/authentication/permission or hardware test needed and remain open until solved. Distinguish **functional requirements** (all mandatory) from **implementation mechanics** (Electron, Chromium, proprietary tokens and unrestricted polling are not mandatory and often forbidden). Every row needs evidence of its GGman owner, remaining gaps and an acceptance procedure; never label an unavailable provider as a permanent product exclusion.
+
 ## WebView2 loader architecture must match the host process, not just exist (2026-10-21)
 
 A real Win10 19045 x64 Glass preview installation failed at `CoreWebView2Environment.CreateAsync()` with `System.BadImageFormatException`, HRESULT `0x8007000B`. The submitted sanitized diagnostics listed a 64-bit OS, existing WebView2 managed assemblies and a **155,488-byte root `WebView2Loader.dll` plus `runtimes/win-x86/native/WebView2Loader.dll`**, but no reported x64 loader. The original candidate CI incorrectly considered **any** loader file sufficient for package validation. This strongly suggests an x86 loader was packed for an AnyCPU, `Prefer32Bit=false` process running x64; the diagnostics did not independently read the PE machine type, so installation state remains a separate open question. Do **not** tell operators to reinstall Runtime or change PowerShell based on this failure.

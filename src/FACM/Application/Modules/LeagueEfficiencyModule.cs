@@ -36,6 +36,7 @@ namespace FACM.AppHost.Modules
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
         private LeagueMatchmakingStopController _matchmakingStop;
+        private LeagueGameflowReconnectController _reconnect;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _disposed;
 
@@ -85,6 +86,8 @@ namespace FACM.AppHost.Modules
             _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs);
             _matchmakingStop = new LeagueMatchmakingStopController(_leagueClient, matchmakingWriter);
             ConfigureMatchmakingStopController();
+            _reconnect = new LeagueGameflowReconnectController(_leagueClient, (ILeagueGameflowReconnectWriteApi)_leagueClient);
+            _reconnect.Configure(AutoReconnectEnabled);
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
             var current = _dashboard.CurrentGameflowState;
@@ -93,6 +96,7 @@ namespace FACM.AppHost.Modules
                 _postGame.Observe(current);
                 _matchmaking.Observe(current);
                 _matchmakingStop.Observe(current);
+                _reconnect.Observe(current);
             }
         }
 
@@ -108,6 +112,7 @@ namespace FACM.AppHost.Modules
         public bool AutoReturnLobbyEnabled { get { return _settingsModule.Settings.LeagueAutoReturnLobbyEnabled; } }
         public bool AutoMatchmakingEnabled { get { return _settingsModule.Settings.LeagueAutoMatchmakingEnabled; } }
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
+        public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
         public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
@@ -138,6 +143,16 @@ namespace FACM.AppHost.Modules
                 var current = _dashboard.CurrentGameflowState;
                 if (current != null) _postGame.Observe(current);
             }
+        }
+
+        public void UpdateReconnectSetting(bool enabled)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoReconnectEnabled = enabled;
+            _settingsModule.Settings.Save();
+            if (_reconnect == null) return;
+            _reconnect.Configure(enabled);
+            _reconnect.Observe(_dashboard.CurrentGameflowState);
         }
 
         public void UpdateMatchmakingSettings(
@@ -229,6 +244,7 @@ namespace FACM.AppHost.Modules
             if (_postGame != null) _postGame.Observe(state);
             if (_matchmaking != null) _matchmaking.Observe(state);
             if (_matchmakingStop != null) _matchmakingStop.Observe(state);
+            if (_reconnect != null) _reconnect.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -264,6 +280,11 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
+            if (_reconnect != null)
+            {
+                _reconnect.Dispose();
+                _reconnect = null;
+            }
             if (_matchmakingStop != null)
             {
                 _matchmakingStop.Dispose();

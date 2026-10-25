@@ -71,6 +71,7 @@ namespace FACM.League
                 "LeagueAutoReturnLobbyEnabled=True",
                 "LeagueAutoMatchmakingEnabled=True",
                 "LeagueAutoAcceptEnabled=True",
+                "LeagueAutoReconnectEnabled=True",
                 "LeagueAutoMatchmakingMinPartySize=3",
                 "LeagueAutoMatchmakingStartDelayMs=2000",
                 "LeagueAutoAcceptDelayMs=500"
@@ -81,11 +82,13 @@ namespace FACM.League
                 "Post-game automation settings did not parse.");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Next-game automation settings did not parse.");
+            Require(settings.LeagueAutoReconnectEnabled, "Reconnect preference did not parse.");
             Require(settings.LeagueAutoMatchmakingMinPartySize == 3 && settings.LeagueAutoMatchmakingStartDelayMs == 2000 && settings.LeagueAutoAcceptDelayMs == 500,
                 "Next-game policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLines());
             Require(serialized.Contains("LeagueExitGameHotkey=F8"), "Exit-game hotkey setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoReconnectEnabled=True"), "Reconnect setting did not serialize.");
             Require(serialized.IndexOf("Credential", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("password", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("account=", StringComparison.OrdinalIgnoreCase) < 0,

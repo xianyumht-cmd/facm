@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -66,6 +66,14 @@ namespace FACM.AppHost.Modules
         {
             var writer = _writer;
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendJsonAsync(method, path, json, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueGameflowReconnectWriteApi.TryReconnectAsync(CancellationToken cancellationToken)
+        {
+            var writer = _writer;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TrySendJsonAsync("POST", LeagueClientWriteApiClient.ReconnectPath, null, cancellationToken);
         }
 
         Task<LeagueClientWriteResponse> ILeaguePostGameWriteApi.TrySendAsync(string method, string path, string json, CancellationToken cancellationToken)

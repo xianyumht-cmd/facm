@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-25 — Owner-mandated full Akari 1.5.1 parity; automatic reconnect candidate
+
+The user clarified that **all features** of the pinned Akari v1.5.1 source commit `14557723706ccc0e0a9d62c470141d4cb7190fcd` must eventually work within GGman's current native, low-resource architecture. The previous matrix's "not practical"/"defer" categories were misread as permanent exclusions and have been replaced by a mandatory functional-parity backlog in `docs/LEAGUE-AKARI-V1.5.1-REFERENCE-AUDIT.md`. Electron-specific host mechanisms are not a GGman requirement; their user-facing outcomes are. The specified 7z artifact remains unexamined, and source inspection is not evidence of live CN operation.
+
+This draft code slice implements one previously missing v1.5.1 feature, **opt-in delayed game reconnect**, by reusing `LeagueEfficiencyModule`'s existing Gameflow observer, one authenticated LCU writer and a 10-second cancelable task. A live-phase preflight fences the exact bodyless `POST /lol-gameflow/v1/reconnect` route; no retry loop or extra background thread is introduced. The setting defaults off, is visible on the native Quick Tools page, and has deterministic offline cancellation, stale phase, method allowlist and once-per-episode smoke tests. Traces are sanitized and bounded. These are **candidate source changes**, not proof that the Tencent client accepted a real reconnection. A new signed release, main merge or updater edit remains prohibited pending explicit owner approval and live Windows 10 checks.
+
 ## 2026-10-25 — Akari v1.5.1 gap verification and compact ranking reliability (Draft stack)
 
 Work starts from Draft PR #355 head `5e5cd4a52b057cfa86d31b226e7df2e1ceae41f8`; the approved compact UI, `main`, the 3.5.78 signed release and updater manifest remain untouched. The new code branch is `feat/ggman-akari151-ranked-reliability-20261025`, intended as a reviewable Draft PR targeting #355's development branch rather than a competing standalone UI.

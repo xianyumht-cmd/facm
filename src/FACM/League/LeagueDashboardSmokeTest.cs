@@ -71,6 +71,7 @@ namespace FACM
             LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
             LeagueMatchmakingStopSmokeTest.Validate();
+            LeagueGameflowReconnectSmokeTest.Validate();
 
             var budgets = new PerformanceBudgetProvider();
             var api = new FakeLeagueClientApi();

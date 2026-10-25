@@ -1,5 +1,11 @@
 # GGman / FACM Decisions
 
+## 2026-10-25 — Akari 1.5.1 functional parity is mandatory; implementation remains native
+
+The owner clarified that **every user-facing functionality in the exact Akari v1.5.1 source** belongs to GGman's target scope. A feature cannot be dropped because Electron's approach is resource-heavy, because a Tencent/SGP endpoint requires further investigation, or because that module is not yet reliable in a test environment. Stage implementation and keep individually blocked cases open with specific evidence and a viable equivalent-native mechanism. Compare feature settings, lifecycle, errors and ownership, not just names in the README. Functional parity does not require reproducing Electron's renderer, IPC mechanism or windowing framework. Do not redesign the approved compact floating UI. Each native module shares existing Gameflow/LCU owners, has bounded work and trace diagnostics, and requires Windows 10/Tencent physical acceptance before production. See `docs/LEAGUE-AKARI-V1.5.1-REFERENCE-AUDIT.md` for the mandatory parity backlog.
+
+The first follow-up parity slice is opt-in auto reconnect: reuse `LeagueEfficiencyModule` and the shared `LeagueClientWriteApiClient`, arm one 10-second delay only in connected `Reconnect`, confirm the live phase just before POST, never automatically retry within the same reconnect phase, and cancel on phase exit, disconnect, setting disable or disposal. Keep the signed updater and main release untouched pending live acceptance.
+
 ## 2026-10-25 — Wait for pending invitations within existing auto matchmaking
 
 Adopt the pinned Akari 1.5.1 default safety principle: an optional automatically started queue should wait while outgoing Lobby invitations remain `Pending`. Implement the predicate in GGman's existing eligibility check, with no new polling and without a new preference or automatic invitation action. This prevents the leader from queueing before an invited teammate can join. If Tencent LCU omits invitations entirely, preserve existing eligibility behavior. Scope live verification to user-controlled Lobby tests before production release.

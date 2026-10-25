@@ -17,6 +17,7 @@ namespace FACM.League
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _autoAccept;
+        private readonly CheckBox _autoReconnect;
         private readonly NumericUpDown _minPartySize;
         private readonly NumericUpDown _matchmakingDelaySeconds;
         private readonly NumericUpDown _acceptDelaySeconds;
@@ -46,7 +47,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 18,
+                RowCount = 19,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -60,6 +61,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
@@ -166,6 +168,9 @@ namespace FACM.League
             _acceptDelaySeconds.ValueChanged += MatchmakingSettingChanged;
             _stopPolicy.SelectedIndexChanged += MatchmakingSettingChanged;
             _stopAfterSeconds.ValueChanged += MatchmakingSettingChanged;
+            _autoReconnect = AddAutomationRow(root, 17, T(LeagueEfficiencyUiTextKeys.AutoReconnect),
+                T(LeagueEfficiencyUiTextKeys.AutoReconnectHint), _module.AutoReconnectEnabled);
+            _autoReconnect.CheckedChanged += ReconnectSettingChanged;
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;
@@ -499,6 +504,14 @@ namespace FACM.League
                 Decimal.ToInt32(_acceptDelaySeconds.Value * 1000m),
                 SelectedStopPolicy(),
                 Decimal.ToInt32(_stopAfterSeconds.Value * 1000m));
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void ReconnectSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            _module.UpdateReconnectSetting(_autoReconnect.Checked);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }

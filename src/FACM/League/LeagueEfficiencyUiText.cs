@@ -40,6 +40,8 @@ namespace FACM.League
         public const string AutoMatchmakingHint = "LeagueEfficiencyAutoMatchmakingHint";
         public const string AutoAccept = "LeagueEfficiencyAutoAccept";
         public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
+        public const string AutoReconnect = "LeagueEfficiencyAutoReconnect";
+        public const string AutoReconnectHint = "LeagueEfficiencyAutoReconnectHint";
         public const string MinPartySize = "LeagueEfficiencyMinPartySize";
         public const string MinPartySizeHint = "LeagueEfficiencyMinPartySizeHint";
         public const string MatchmakingDelay = "LeagueEfficiencyMatchmakingDelay";
@@ -94,6 +96,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoMatchmakingHint, "你是房主且队伍满足开局条件时自动开始排队；条件不满足就不操作。" },
             { LeagueEfficiencyUiTextKeys.AutoAccept, "自动接受对局" },
             { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "匹配成功后自动接受一次；已经接受或你主动拒绝时不会反复操作。" },
+            { LeagueEfficiencyUiTextKeys.AutoReconnect, "断线后自动重连" },
+            { LeagueEfficiencyUiTextKeys.AutoReconnectHint, "游戏客户端进入重连状态后等待 10 秒，再确认状态并尝试重连一次；离开该状态或关闭开关就取消。默认关闭。" },
             { LeagueEfficiencyUiTextKeys.MinPartySize, "自动排队最低人数（人）" },
             { LeagueEfficiencyUiTextKeys.MinPartySizeHint, "只有当前大厅真人数量达到这个值时才自动开始排队；1-5 人。" },
             { LeagueEfficiencyUiTextKeys.MatchmakingDelay, "排队前等待（秒）" },
