@@ -280,7 +280,7 @@ namespace FACM.League
             {
                 if (pick && profiles.Any(p => p.ShowPickIntent) &&
                     await TryPickIntentAsync(episode, session, profiles, pickId,
-                        attempted, trace).ConfigureAwait(false)) return;
+                        attempted, reported, trace).ConfigureAwait(false)) return;
                 if (pick && _tradeWrite != null && profiles.Any(p => p.BenchHandleTradeEnabled) &&
                     await TryTradeAsync(episode, session, profiles, pickId,
                         attempted, reported, trace).ConfigureAwait(false)) return;
@@ -314,7 +314,8 @@ namespace FACM.League
             if (!IsCurrent(episode)) return;
             var availableIds = ParseAvailableIds(available);
             var desired = action.ChampionId > 0 && availableIds.Contains(action.ChampionId) ? action.ChampionId :
-                candidates.FirstOrDefault(availableIds.Contains);
+                candidates.FirstOrDefault(id => availableIds.Contains(id) &&
+                    (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
             if (desired <= 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
@@ -334,7 +335,8 @@ namespace FACM.League
             }
 
             // Recheck the active local action: a manual user choice or turn transition wins.
-            if (!await CheckPreflightAsync(episode, action, desired).ConfigureAwait(false))
+            if (!await CheckPreflightAsync(episode, action, desired,
+                    profile.IgnoreTeammateIntent).ConfigureAwait(false))
             {
                 CompactTraceLog.Record(trace, "autoselect", "preflight", "phase_mismatch", watch.ElapsedMilliseconds);
                 return;
@@ -355,7 +357,8 @@ namespace FACM.League
             // Show and lock are separate LCU state transitions. Allow the client to register the show.
             await _clock.Delay(TimeSpan.FromMilliseconds(Math.Max(2000, delayMs)), episode.Token)
                 .ConfigureAwait(false);
-            if (!await CheckPreflightAsync(episode, action, desired).ConfigureAwait(false))
+            if (!await CheckPreflightAsync(episode, action, desired,
+                    profile.IgnoreTeammateIntent).ConfigureAwait(false))
             {
                 CompactTraceLog.Record(trace, "autoselect", "lock_preflight", "stale", watch.ElapsedMilliseconds);
                 return;
@@ -370,7 +373,7 @@ namespace FACM.League
 
         private async Task<bool> TryPickIntentAsync(CancellationTokenSource episode, byte[] session,
             IReadOnlyList<LeagueAutoSelectProfile> profiles, int pickId,
-            HashSet<string> attempted, string trace)
+            HashSet<string> attempted, HashSet<string> reported, string trace)
         {
             var intent = ParsePickIntentAction(session);
             if (intent == null || intent.ChampionId > 0) return false;
@@ -387,7 +390,7 @@ namespace FACM.League
                 (profile.IgnoreTeammateIntent || !intent.TeammateIntentIds.Contains(id)));
             if (desired <= 0)
             {
-                CompactTraceLog.Record(trace, "autoselect-intent", "eligibility", "no_available_candidate", 0);
+                RecordOnce(reported, trace, "intent_eligibility", "no_available_candidate");
                 return true;
             }
             if (!attempted.Add("intent:" + intent.Id)) return true;
@@ -456,16 +459,7 @@ namespace FACM.League
                             Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadTimerRemaining(root)
                         };
-                        object team;
-                        if (root.TryGetValue("myTeam", out team))
-                            foreach (var memberValue in team as IEnumerable ?? Array.Empty<object>())
-                            {
-                                var member = memberValue as Dictionary<string, object>;
-                                if (member == null || !member.ContainsKey("cellId") ||
-                                    ReadInt(member, "cellId") == cell) continue;
-                                var reservation = ReadInt(member, "championPickIntent");
-                                if (reservation > 0) next.TeammateIntentIds.Add(reservation);
-                            }
+                        AppendTeammateIntents(root, cell, next.TeammateIntentIds);
                         return next;
                     }
             }
@@ -480,6 +474,21 @@ namespace FACM.League
             object value;
             return root.TryGetValue("timer", out value) && value is Dictionary<string, object>
                 ? ReadInt((Dictionary<string, object>)value, "adjustedTimeLeftInPhase") : 0;
+        }
+
+        private static void AppendTeammateIntents(Dictionary<string, object> root,
+            int localCellId, HashSet<int> destination)
+        {
+            object team;
+            if (root == null || destination == null || !root.TryGetValue("myTeam", out team)) return;
+            foreach (var memberValue in team as IEnumerable ?? Array.Empty<object>())
+            {
+                var member = memberValue as Dictionary<string, object>;
+                if (member == null || !member.ContainsKey("cellId") ||
+                    ReadInt(member, "cellId") == localCellId) continue;
+                var reservation = ReadInt(member, "championPickIntent");
+                if (reservation > 0) destination.Add(reservation);
+            }
         }
 
         private async Task<bool> TryTradeAsync(CancellationTokenSource episode, byte[] session,
@@ -714,7 +723,8 @@ namespace FACM.League
         }
 
         private async Task<bool> CheckPreflightAsync(
-            CancellationTokenSource episode, LeagueAutoSelectAction expected, int desired)
+            CancellationTokenSource episode, LeagueAutoSelectAction expected, int desired,
+            bool ignoreTeammateIntent)
         {
             var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return false;
@@ -723,7 +733,9 @@ namespace FACM.League
                 fresh.LocalCellId == expected.LocalCellId &&
                 fresh.QueueId == expected.QueueId && fresh.Role == expected.Role &&
                 fresh.GameMode == expected.GameMode && !fresh.Completed &&
-                (fresh.ChampionId == 0 || fresh.ChampionId == desired);
+                (fresh.ChampionId == 0 || fresh.ChampionId == desired) &&
+                (fresh.Type != "pick" || fresh.ChampionId == desired ||
+                 !fresh.TeammateIntentIds.Contains(desired) || ignoreTeammateIntent);
         }
 
         private static int LimitDelay(int configuredMs, int timeLeftMs)
@@ -807,7 +819,7 @@ namespace FACM.League
                         var type = ReadString(action, "type");
                         var id = ReadInt(action, "id");
                         if (id < 0 || !action.ContainsKey("id") || type != "pick" && type != "ban") continue;
-                        return new LeagueAutoSelectAction
+                        var localAction = new LeagueAutoSelectAction
                         {
                             Id = id,
                             Type = type,
@@ -820,6 +832,8 @@ namespace FACM.League
                             TimeLeftMs = ReadInt((Dictionary<string, object>)root["timer"],
                                 "adjustedTimeLeftInPhase")
                         };
+                        AppendTeammateIntents(root, myCell, localAction.TeammateIntentIds);
+                        return localAction;
                     }
                     return null; // Only the first unfinished action group can contain our current turn.
                 }

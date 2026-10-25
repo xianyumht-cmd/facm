@@ -332,6 +332,33 @@ namespace FACM.League
                     "Mode/role priority must pick the first available fallback and honor just-show.");
             }
 
+            var avoidIntent = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 } }
+            });
+            var reservedWriter = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithReservation("pick", 12, 67), Pickable = "[22,67]" },
+                reservedWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, avoidIntent);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(reservedWriter.Calls.Count == 1 && reservedWriter.Calls[0] == "pick:12:22:True",
+                    "Active auto-pick must avoid a teammate's reserved first-choice champion by default.");
+            }
+
+            var newReservation = new FakeRead { SessionJson = SessionWithRole("pick", 13, "TOP"),
+                NextSessionJson = SessionWithReservation("pick", 13, 67), Pickable = "[67,22]" };
+            var staleIntentWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(newReservation,
+                staleIntentWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, avoidIntent);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(staleIntentWrite.Calls.Count == 0,
+                    "New teammate intent before lock preflight must cancel the active pick write.");
+            }
+
             var showAndLock = LeagueAutoSelectProfiles.Serialize(new[]
             {
                 new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },
@@ -574,6 +601,13 @@ namespace FACM.League
                 "{\"cellId\":1,\"championPickIntent\":" + teammateIntent + "}]," +
                 "\"actions\":[[{\"id\":10,\"actorCellId\":0,\"type\":\"pick\"," +
                 "\"championId\":" + intendedId + ",\"isInProgress\":false,\"completed\":false}]]}";
+        }
+
+        private static string SessionWithReservation(string type, int id, int reservedId)
+        {
+            return SessionWithRole(type, id, "TOP").Replace(
+                "\"assignedPosition\":\"TOP\"}",
+                "\"assignedPosition\":\"TOP\"},{\"cellId\":1,\"championPickIntent\":" + reservedId + "}");
         }
 
         private static string BenchSession(int held, string benchIds, int queue, bool teamBuilder)
