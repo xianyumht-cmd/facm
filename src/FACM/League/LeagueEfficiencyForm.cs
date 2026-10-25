@@ -24,6 +24,7 @@ namespace FACM.League
         private readonly CheckBox _autoReconnect;
         private readonly CheckBox _autoPick;
         private readonly CheckBox _autoBan;
+        private readonly CheckBox _autoSelectPause;
         private readonly ComboBox _pickChampion;
         private readonly ComboBox _banChampion;
         private readonly CancellationTokenSource _catalogRequest = new CancellationTokenSource();
@@ -56,7 +57,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 25,
+                RowCount = 26,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -84,6 +85,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             root.Controls.Add(new Label
@@ -210,6 +212,12 @@ namespace FACM.League
                 using (var dialog = new LeagueAutoSelectProfilesForm(_module, _ui)) dialog.ShowDialog(this);
             };
             root.Controls.Add(advanced, 0, 23);
+            _autoSelectPause = AddAutomationRow(root, 24, T(LeagueEfficiencyUiTextKeys.AutoSelectPause),
+                T(LeagueEfficiencyUiTextKeys.AutoSelectPauseHint), _module.AutoSelectTemporarilyDisabled);
+            _autoSelectPause.CheckedChanged += delegate
+            {
+                if (!_loading) _module.UpdateAutoSelectTemporaryPause(_autoSelectPause.Checked);
+            };
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             FormClosed += HandleFormClosed;

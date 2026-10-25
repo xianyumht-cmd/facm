@@ -54,6 +54,8 @@ namespace FACM.League
         public const string ChampionNotSet = "LeagueEfficiencyChampionNotSet";
         public const string ChampionCatalogUnavailable = "LeagueEfficiencyChampionCatalogUnavailable";
         public const string AutoSelectSaved = "LeagueEfficiencyAutoSelectSaved";
+        public const string AutoSelectPause = "LeagueEfficiencyAutoSelectPause";
+        public const string AutoSelectPauseHint = "LeagueEfficiencyAutoSelectPauseHint";
         public const string AdvancedOpen = "LeagueEfficiencyAdvancedOpen";
         public const string AdvancedTitle = "LeagueEfficiencyAdvancedTitle";
         public const string AdvancedHint = "LeagueEfficiencyAdvancedHint";
@@ -155,6 +157,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.ChampionNotSet, "未设置英雄" },
             { LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable, "无法读取英雄列表；请先进入 LOL 大厅，再重新打开此页面。" },
             { LeagueEfficiencyUiTextKeys.AutoSelectSaved, "自动选禁设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.AutoSelectPause, "临时暂停自动选禁" },
+            { LeagueEfficiencyUiTextKeys.AutoSelectPauseHint, "立即取消本次运行的自动选、禁、候选席与英雄交换任务；取消勾选后恢复。不会改动已保存的设置。" },
             { LeagueEfficiencyUiTextKeys.AdvancedOpen, "模式、分路与候选优先级设置…" },
             { LeagueEfficiencyUiTextKeys.AdvancedTitle, "GGman · 自动选禁详细设置" },
             { LeagueEfficiencyUiTextKeys.AdvancedHint, "按模式和分路保存候选顺序；轮到自己时，从前往后选择第一个可用英雄。更改在保存后生效。" },

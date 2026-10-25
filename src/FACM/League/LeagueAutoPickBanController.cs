@@ -68,6 +68,7 @@ namespace FACM.League
         private bool _inChampSelect;
         private bool _autoPick;
         private bool _autoBan;
+        private bool _temporarilyDisabled;
         private int _pickId;
         private int _banId;
         private string _profilesJson = string.Empty;
@@ -171,12 +172,29 @@ namespace FACM.League
             if (active) StartIfEligible();
         }
 
+        public void SetTemporarilyDisabled(bool disabled)
+        {
+            CancellationTokenSource previous = null;
+            lock (_sync)
+            {
+                if (_disposed || _temporarilyDisabled == disabled) return;
+                _temporarilyDisabled = disabled;
+                if (disabled)
+                {
+                    previous = _episode;
+                    _episode = null;
+                }
+            }
+            Cancel(previous);
+            if (!disabled) StartIfEligible();
+        }
+
         private void StartIfEligible()
         {
             CancellationTokenSource episode;
             lock (_sync)
             {
-                if (_disposed || !_inChampSelect || _episode != null ||
+                if (_disposed || _temporarilyDisabled || !_inChampSelect || _episode != null ||
                     (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0)) &&
                     (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
                 episode = new CancellationTokenSource();

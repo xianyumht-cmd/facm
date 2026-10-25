@@ -40,6 +40,7 @@ namespace FACM.AppHost.Modules
         private LeagueGameflowReconnectController _reconnect;
         private LeagueAutoPickBanController _autoSelect;
         private LeagueHonorAttemptStatus _lastHonorStatus;
+        private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -121,6 +122,7 @@ namespace FACM.AppHost.Modules
         public bool AutoAcceptEnabled { get { return _settingsModule.Settings.LeagueAutoAcceptEnabled; } }
         public bool AutoReconnectEnabled { get { return _settingsModule.Settings.LeagueAutoReconnectEnabled; } }
         public bool AutoPickEnabled { get { return _settingsModule.Settings.LeagueAutoPickEnabled; } }
+        public bool AutoSelectTemporarilyDisabled { get { return _autoSelectTemporarilyDisabled; } }
         public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
         public int AutoPickChampionId { get { return _settingsModule.Settings.LeagueAutoPickChampionId; } }
         public int AutoBanChampionId { get { return _settingsModule.Settings.LeagueAutoBanChampionId; } }
@@ -188,6 +190,13 @@ namespace FACM.AppHost.Modules
             _settingsModule.Settings.Save();
             ConfigureAutoSelect();
             _autoSelect?.Observe(_dashboard.CurrentGameflowState);
+        }
+
+        public void UpdateAutoSelectTemporaryPause(bool paused)
+        {
+            ThrowIfDisposed();
+            _autoSelectTemporarilyDisabled = paused;
+            _autoSelect?.SetTemporarilyDisabled(paused);
         }
 
         private void ConfigureAutoSelect()

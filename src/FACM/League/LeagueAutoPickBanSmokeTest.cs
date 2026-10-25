@@ -375,6 +375,26 @@ namespace FACM.League
                     "Disabled automation must not start a network poller.");
             }
 
+            var pauseClock = new FakeClock();
+            var pauseRead = new FakeRead { SessionJson = Session("pick", 1, 0) };
+            var pauseWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(pauseRead, pauseWrite, pauseClock))
+            {
+                controller.SetTemporarilyDisabled(true);
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(pauseRead.Paths.Count == 0 && pauseWrite.Calls.Count == 0,
+                    "Temporary pause must suppress LCU work without clearing saved preferences.");
+                controller.SetTemporarilyDisabled(false);
+                var resumed = controller.RunningForSmokeTest;
+                Require(pauseWrite.Calls.Count == 1 && pauseClock.Delays == 1,
+                    "Resuming during ChampSelect must rearm the existing task once.");
+                controller.SetTemporarilyDisabled(true);
+                await resumed.ConfigureAwait(false);
+                Require(pauseClock.Cancelled && pauseWrite.Calls.Count == 1,
+                    "Pausing again must cancel further selector ticks.");
+            }
+
             var changed = new FakeRead
             {
                 SessionJson = Session("pick", 2, 0),

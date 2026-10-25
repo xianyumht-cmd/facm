@@ -12,6 +12,10 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-25 — In-process temporary disable of Akari selection automation (Draft #357)
+
+Pinned Akari `auto-select/state.ts` exposes a `temporarilyDisabled` flag to suspend automatic pick/ban/bench/trade work without deleting chosen profiles. GGman now exposes an **in-process-only** `临时暂停自动选禁` switch in the existing scrollable native Quick Tools page. Pausing clears the current selection episode and cancels all delayed writes; resuming while still connected in ChampSelect restarts its existing phase owner once. Nothing about the pause is added to `AppSettings` or cloud sync, and no new polling task or timer is created. The smoke suite proves pause-before-phase produces no LCU requests, resumes once, and cancels its active episode again. The accepted floating compact UI dimensions and visuals do not change.
+
 ## 2026-10-25 — Akari incoming champion-trade candidate (Draft #357)
 
 The next source-backed behavior from pinned Akari `auto-select/trade-controller.ts` is implemented as an **opt-in** per-ARAM/Mayhem-profile setting in the same native priority editor. When enabled with auto-pick, the phase-owned `LeagueAutoPickBanController` reads `/lol-champ-select/v1/ongoing-champion-swap` on its pre-existing 2-second cadence, considers only a valid incoming `CHAMPION` offer, then accepts a priority upgrade or declines an undesirable offer. The request ID, offered champion and unchanged local held champion/phase are rechecked immediately before one typed accept/decline POST. Trade ID de-duplication prevents repeated POSTs. The new typed trade writer reuses the existing bench writer's **same authenticated LCU session and HttpClient pool**; no independent network worker is created. This automation defaults off, and malformed/stale/unknown offers never trigger a trade write. The behavior is separate from the existing manual hero swap.
