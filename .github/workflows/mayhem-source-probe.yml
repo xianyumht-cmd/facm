@@ -14,8 +14,10 @@ on:
   pull_request:
     branches:
       - main
+      - feat/ggman-glass-webview2-pilot-20261021
     paths:
       - 'src/FACM/Mayhem/**'
+      - 'src/FACM/Presentation/Glass/**'
       - 'src/FACM/Program.cs'
       - '.github/workflows/mayhem-source-probe.yml'
 

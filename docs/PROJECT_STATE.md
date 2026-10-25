@@ -12,6 +12,16 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-25 — Akari v1.5.1 gap verification and compact ranking reliability (Draft stack)
+
+Work starts from Draft PR #355 head `5e5cd4a52b057cfa86d31b226e7df2e1ceae41f8`; the approved compact UI, `main`, the 3.5.78 signed release and updater manifest remain untouched. The new code branch is `feat/ggman-akari151-ranked-reliability-20261025`, intended as a reviewable Draft PR targeting #355's development branch rather than a competing standalone UI.
+
+Latest #355 CI runs at that head all succeeded (#40174485828 Mayhem source, #40174485814 UI text, #40174485830 Windows build, #40174485817 Glass candidate). Inspecting the Glass job's **actual public probe output**, however, revealed `ordinary-aram valid=True expanded=True patch=26.21 rows=10` but `rift-top valid=False rows=0`. Both public pages returned HTTP 200; the ranked table contained 864 rows. An independent unauthenticated ranked-page download took ~3.95 s for ~2.16 MB, above the Rift reader's 3.2-second deadline. This supports a timeout hypothesis, not a confirmed live-LCU or mainland network result.
+
+Candidate changes: bounded Rift timeout becomes 8 s (ARAM 6 s), internal transport timeouts are distinguished from user cancellation in structured trace logs, the public probe includes sanitized trace outcomes and makes incomplete modes visible as GitHub warnings, and the auto-matchmaking Lobby parser waits for pending invitations using its existing read and observer rather than queueing prematurely. The Akari study is pinned to release tag/commit `14557723706ccc0e0a9d62c470141d4cb7190fcd` and its matrix is in `docs/LEAGUE-AKARI-V1.5.1-REFERENCE-AUDIT.md`. No 7z binary analysis or Tencent real-match test is claimed.
+
+**Acceptance still pending:** new stacked PR CI, full online role-rank parse and logs, Win10 19045 current LOL account/lobby queue and role detection, unproxied CN latency and CPU/RAM measurements. The candidate must not be merged, signed, released or used to change the production updater without owner approval.
+
 ## 2026-10-24 — Native compact preview white screen and independent browser entry
 
 The user supplied an actual 380×285 white rectangle screenshot from the unsigned compact preview build on Win10. This proves the frameless host was created but **not** that HTML loaded; the white area is consistent with an unrendered WebView2 control. The subsequent user-provided `facm-20261024.log` spans 11:24:56–11:25:10 and contains `FacmHostSmokeTest`/other intentional test failures but no `Glass`/`WebView2` event and no error corresponding to the 11:40 screenshot. It is therefore not an actual runtime rendering diagnostic; the precise event-level cause is **not confirmed**. The successful Windows build, mock-resource checks and artifact packaging in run #40089720872 did not detect this runtime failure. The earlier claim that the package was ready for visual acceptance was premature.

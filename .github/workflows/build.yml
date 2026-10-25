@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/ggman-glass-webview2-pilot-20261021
   workflow_dispatch:
 
 permissions:

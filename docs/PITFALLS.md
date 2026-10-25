@@ -147,7 +147,9 @@ Improve perceived latency by reacting immediately when a phase is observed and b
 
 ## Do not turn configurable delay into an unbounded sleep
 
-Akari-style auto-match/auto-accept delays belong inside the existing phase-bounded matchmaking controller. A Lobby start delay must be cancelled as soon as Lobby ownership/settings change; an accept delay must be cancelled as soon as ReadyCheck/settings change. Never implement these options with a detached background timer or a second Gameflow observer.
+Akari-style auto-match/auto-accept delays belong inside the existing phase-bounded matchmaking controller. A Lobby start delay must be cancelled as soon as Lobby ownership/settings change; an accept delay must be cancelled as soon as ReadyCheck/settings change. Never implement these options with a detached background timer or a second Gameflow observer. When the same Lobby snapshot includes outbound invitations still in `Pending`, defer search without claiming the once-per-Lobby fingerprint; the existing bounded observer must be free to start after invitations settle.
+
+For the mixed-lane Rift tier source, successful HTTP and table-row checks are insufficient. The first real compact CI probe returned **Rift invalid** while a separate HTTP check got 864 rows; a 2.16 MB download took 3.95 s but the app deadline was 3.2 s. Budget cancellation-aware transport for the actual response size, distinguish timeout from a user-initiated cancellation, and record parsed mode-qualified results in the same CI probe. Never infer source health from a green build or an informational step alone.
 
 The default remains zero delay. User values are clamped in shared `AppSettings` (minimum party 1-5, matchmaking wait 0-60 seconds, accept wait 0-15 seconds), and changing them reuses the same episode fences so a settings toggle cannot duplicate an ambiguous write.
 

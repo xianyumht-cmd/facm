@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-25 — Wait for pending invitations within existing auto matchmaking
+
+Adopt the pinned Akari 1.5.1 default safety principle: an optional automatically started queue should wait while outgoing Lobby invitations remain `Pending`. Implement the predicate in GGman's existing eligibility check, with no new polling and without a new preference or automatic invitation action. This prevents the leader from queueing before an invited teammate can join. If Tencent LCU omits invitations entirely, preserve existing eligibility behavior. Scope live verification to user-controlled Lobby tests before production release.
+
 ## 2026-10-21 — Preserve accepted HTML while evaluating WebView2 as an opt-in renderer
 
 The owner approved the existing `GGman-Glass-Prototype.html` visual and interaction direction, not a substitute redesign. Draft PR #355 embeds that exact HTML, preserving original CSS and JS. On-demand Microsoft WebView2 is chosen **for a measured candidate**, not as an irrevocable product-wide framework decision. Keep net48 WinForms host, all League/LCU and CloudBase owners, signed update chain, original tray/floating entry and default single-EXE release untouched. Compile-time and runtime gates isolate any additional DLL footprint and browser process usage. The prototype's mock data must remain identified as a demo, with only allowlisted close/drag callbacks; actual business integration and resource acceptance follow after native visual and performance evidence. Reject broad host-object bridges and rendering changes that betray the approved reference.

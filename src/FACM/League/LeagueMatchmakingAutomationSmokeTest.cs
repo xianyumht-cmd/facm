@@ -16,6 +16,7 @@ namespace FACM.League
             ValidateTransportFence();
             ValidateImmediatePhaseReaction();
             ValidateAkariStyleAutomationPolicies();
+            ValidatePendingInvitationWait();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
@@ -156,6 +157,45 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
                 "Tencent Lobby without partyId/queueId/allowedStartActivity must still start matchmaking when canStartActivity+leader are true.");
+        }
+
+        private static void ValidatePendingInvitationWait()
+        {
+            var read = new FakeReadApi();
+            var write = new FakeWriteApi();
+            var baseline = LobbyJson(420, true, true, true,
+                new[] { "self" }, false);
+            var pending = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Pending\"}],\"restrictions\":");
+            var settled = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Accepted\"}],\"restrictions\":");
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0,
+                    "Pending lobby invitations must defer automatic matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.LobbyPath, settled);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Settled invitations must allow the existing Lobby to queue once.");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1,
+                    "Invitation settlement caused a duplicate matchmaking write.");
+            }
+
+            AssertLobbyBlocked(pending.Replace("Pending", "pEnDiNg"),
+                "Pending invitation state matching must be case-insensitive");
+            var irrelevant = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Declined\"}],\"restrictions\":");
+            var secondRead = new FakeReadApi();
+            secondRead.Set(LeagueMatchmakingAutomationController.LobbyPath, irrelevant);
+            var secondWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(secondRead, secondWrite, new FakeClock()))
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(secondWrite.Calls.Count == 1,
+                "An already declined invitation must not block automatic matchmaking.");
         }
 
         private static void ValidateEligibleLobbyExactlyOnce()

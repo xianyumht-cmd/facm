@@ -29,6 +29,7 @@ namespace FACM.League
         public bool IsLeader { get; set; }
         public int QueueId { get; set; }
         public int RealMemberCount { get; set; }
+        public bool HasPendingInvitations { get; set; }
         public List<string> MemberIds { get; private set; } = new List<string>();
 
         public string Fingerprint
@@ -59,7 +60,7 @@ namespace FACM.League
         public bool IsEligibleFor(int minimumPartySize)
         {
             var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
-            return CanStartActivity && IsLeader && RealMemberCount >= minimum;
+            return CanStartActivity && IsLeader && !HasPendingInvitations && RealMemberCount >= minimum;
         }
 
         public string BlockReasonFor(int minimumPartySize)
@@ -68,6 +69,7 @@ namespace FACM.League
             if (!CanStartActivity) return "cannot-start";
             if (!IsLeader) return "not-leader";
             if (RealMemberCount <= 0) return "no-members";
+            if (HasPendingInvitations) return "waiting-for-invitees";
             if (RealMemberCount < minimum) return "party-below-minimum-" + minimum.ToString();
             return null;
         }
@@ -471,6 +473,11 @@ namespace FACM.League
                 if (string.IsNullOrWhiteSpace(id)) id = ReadString(member, "summonerId");
                 if (!string.IsNullOrWhiteSpace(id)) output.MemberIds.Add(id.Trim());
             }
+            // Pending outgoing invitations are part of the same already-read
+            // Lobby snapshot. Do not start a queue while invited members can join.
+            output.HasPendingInvitations = EnumerateDictionaries(ReadValue(root, "invitations"))
+                .Any(invitation => string.Equals(ReadString(invitation, "state"),
+                    "Pending", StringComparison.OrdinalIgnoreCase));
             return output;
         }
 

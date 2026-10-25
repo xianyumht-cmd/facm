@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Mayhem;
+using FACM.Services;
 
 namespace FACM.Presentation.Glass
 {
@@ -33,6 +34,7 @@ namespace FACM.Presentation.Glass
                     content.AppendLine("trace=" + trace);
                     Append(content, "ordinary-aram", aram);
                     Append(content, "rift-top", rift);
+                    AppendTrace(content, trace);
                     AppendHttp(content, "ordinary-aram", "https://opgg.gg/en/champions-tier/aram");
                     AppendHttp(content, "rift-role", "https://op.gg/lol/champions?position=top");
                     AppendHttp(content, "rift-global", "https://opgg.gg/en/champions-tier/ranked");
@@ -99,8 +101,9 @@ namespace FACM.Presentation.Glass
             var headers = Regex.Matches(table, @"<th\b[^>]*>(?<v>.*?)</th>",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
             output.Append(label).Append(" headers=");
-            foreach (System.Text.RegularExpressions.Match header in headers)
-                output.Append("[").Append(CleanPublic(header.Groups["v"].Value)).Append("]");
+            output.Append(" count=").Append(headers.Count).Append(" first=");
+            for (var index = 0; index < Math.Min(headers.Count, 9); index++)
+                output.Append("[").Append(CleanPublic(headers[index].Groups["v"].Value)).Append("]");
             output.AppendLine();
             var rows = Regex.Matches(table, @"<tr\b[^>]*>(?<v>.*?)</tr>",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
@@ -135,6 +138,31 @@ namespace FACM.Presentation.Glass
             return text.Length <= 68 ? text : text.Substring(0, 68);
         }
 
+        private static void AppendTrace(StringBuilder output, string trace)
+        {
+            try
+            {
+                RuntimePaths.Initialize();
+                var path = Path.Combine(RuntimePaths.LogsDirectory,
+                    "compact-" + DateTime.Now.ToString("yyyyMMdd") + ".log");
+                if (!File.Exists(path) || new FileInfo(path).Length > 2 * 1024 * 1024) return;
+                var eventPattern = new Regex(
+                    @"component=[A-Za-z0-9_-]{1,40} step=[A-Za-z0-9_-]{1,40} outcome=[A-Za-z0-9_-]{1,40} ms=\d{1,6}");
+                var count = 0;
+                foreach (var line in File.ReadLines(path))
+                {
+                    if (count >= 12) break;
+                    if (line.IndexOf(" trace=" + trace + " ", StringComparison.Ordinal) < 0) continue;
+                    var matched = eventPattern.Match(line);
+                    if (!matched.Success) continue;
+                    output.Append("trace_event=").AppendLine(matched.Value);
+                    count++;
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
         private static void Append(StringBuilder output, string name, MayhemRankingSnapshot snapshot)
         {
             output.Append(name);
@@ -144,6 +172,8 @@ namespace FACM.Presentation.Glass
             output.Append(" patch=").Append(snapshot == null ? "none" : snapshot.Patch);
             output.Append(" rows=").Append(snapshot == null || snapshot.TopTen == null ?
                 0 : snapshot.TopTen.Count);
+            output.Append(" all_rows=").Append(snapshot == null || snapshot.AllChampions == null ?
+                0 : snapshot.AllChampions.Count);
             output.AppendLine();
         }
     }
