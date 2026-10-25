@@ -198,6 +198,27 @@ namespace FACM.Presentation.Glass
                 else
                     _panel.UpdateRanking(null, "暂无完整可验证榜单");
             });
+            if (!MayhemRankingSourceService.IsExpandedValid(ranking ?? cached) &&
+                !token.IsCancellationRequested)
+                _ = LoadFullRankingAsync(generation, token);
+        }
+
+        private async Task LoadFullRankingAsync(int generation, CancellationToken token)
+        {
+            MayhemRankingSnapshot expanded = null;
+            try { expanded = await OpggMayhemService.QueryCompactFullRosterAsync(token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            catch (Exception exception)
+            {
+                AppLog.Info("Compact full ranking unavailable: " + exception.GetType().Name);
+            }
+            if (!MayhemRankingSourceService.IsExpandedValid(expanded)) return;
+            OnUi(delegate
+            {
+                if (!IsCurrent(generation) || !_mayhem) return;
+                _panel.UpdateRanking(expanded,
+                    expanded.Source + " · " + expanded.Patch + " · 名次已补齐");
+            });
         }
 
         private void CancelChampion()
@@ -254,7 +275,24 @@ namespace FACM.Presentation.Glass
                     if (root == null) return;
                     var selectedId = ResolveSelectedChampionId(root);
                     var benchIds = ResolveBenchChampionIds(root);
-                    if (selectedId <= 0 && benchIds.Count == 0) return;
+                    if (selectedId <= 0 && benchIds.Count == 0)
+                    {
+                        OnUi(delegate
+                        {
+                            if (!IsCurrent(modeGeneration) || !_mayhem) return;
+                            if (_lastBenchNamesSignature != string.Empty)
+                            {
+                                _lastBenchNamesSignature = string.Empty;
+                                _panel.UpdateQuickChampions(null);
+                            }
+                            if (_localChampionId > 0)
+                            {
+                                _localChampionId = 0;
+                                _panel.UpdateSelectedChampionName(null);
+                            }
+                        });
+                        return;
+                    }
 
                     // One local LCU metadata read resolves all visible bench names without
                     // N overseas champion-icon or champion-name requests.

@@ -373,6 +373,47 @@ namespace FACM.Mayhem
             finally { CompactRankingGate.Release(); }
         }
 
+        // Best-effort second stage. A complete top-ten can paint immediately, then
+        // a CN full ranking may fill the other champion badges without blocking first paint.
+        internal static async Task<MayhemRankingSnapshot> QueryCompactFullRosterAsync(CancellationToken token)
+        {
+            bool stale;
+            var current = GetCachedCompactRanking(out stale);
+            if (MayhemRankingSourceService.IsExpandedValid(current)) return current;
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(2.4));
+                string html;
+                try
+                {
+                    html = await GetSafeAsync(HexdataHeroesUrl,
+                        TimeSpan.FromSeconds(2.2), timeout.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; return null; }
+                var candidate = ParseHexdataFullRanking(html);
+                if (!MayhemRankingSourceService.IsExpandedValid(candidate)) return null;
+
+                await CompactRankingGate.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    current = GetCachedCompactRanking(out stale);
+                    var winner = MayhemRankingSourceService.Select(current, candidate);
+                    if (!ReferenceEquals(winner, candidate)) return null;
+                    var now = DateTime.UtcNow;
+                    lock (Sync)
+                    {
+                        _compactRanking = winner;
+                        _compactRankingFetchedUtc = now;
+                        _compactDiskChecked = true;
+                    }
+                    MayhemCompactRankingCache.TrySave(winner, null, now);
+                    return winner;
+                }
+                finally { CompactRankingGate.Release(); }
+            }
+        }
+
         internal static async Task<IList<MayhemRankingSnapshot>> ProbeRankingSourcesAsync(CancellationToken token)
         {
             var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(3.5), token);
